@@ -4351,7 +4351,8 @@ fn integrated_refit_controls_hydrate_existing_garment_settings_before_apply() ->
                 "enabled": false,
                 "intensity_percent": 50.0,
                 "mode": "rigid",
-                "clearance_percent": 1.25
+                "clearance_percent": 1.25,
+                "tightness_percent": 63.0
             }]
         }
     });
@@ -4370,6 +4371,7 @@ fn integrated_refit_controls_hydrate_existing_garment_settings_before_apply() ->
     assert_eq!(ui.application.cdmw_refit_intensity, 50.0);
     assert_eq!(ui.application.cdmw_refit_mode, "rigid");
     assert_eq!(ui.application.cdmw_refit_clearance, 1.25);
+    assert_eq!(ui.application.cdmw_refit_tightness, 63.0);
     assert!(!ui.application.cdmw_refit_hydration_key.is_empty());
 
     ui.last_actions.clear();
@@ -4385,6 +4387,7 @@ fn integrated_refit_controls_hydrate_existing_garment_settings_before_apply() ->
             && arguments.get("intensity_percent") == Some(&json!(50.0))
             && arguments.get("mode") == Some(&json!("rigid"))
             && arguments.get("clearance_percent") == Some(&json!(1.25))
+            && arguments.get("tightness_percent") == Some(&json!(63.0))
     )));
     Ok(())
 }
@@ -4415,15 +4418,13 @@ fn integrated_refit_fit_to_body_dispatches_without_body_sliders_or_part_selectio
         let actions = ui.actions_from_click("Fit to body")?;
         assert!(actions.iter().any(|action| matches!(
             action,
-            UiAction::CdmwCommand { command: "refit_configure", arguments, .. }
-                if arguments["submesh_indices"] == json!([1, 2])
-                    && arguments["enabled"] == json!(true)
-                    && arguments["intensity_percent"] == json!(100.0)
-                    && arguments["mode"] == json!("surface")
-                    && (arguments["clearance_percent"].as_f64().unwrap_or(0.0)
-                        - f64::from(clearance.max(0.1))).abs() < 1.0e-6
+            UiAction::CdmwCommand { command: "refit_fit_to_body", arguments, .. }
+                if arguments == &json!({})
         )));
-        assert_eq!(ui.application.cdmw_refit_clearance, clearance.max(0.1));
+        assert_eq!(ui.application.cdmw_refit_clearance, clearance);
+        assert_eq!(ui.application.cdmw_refit_intensity, 0.0);
+        assert_eq!(ui.application.cdmw_refit_mode, "rigid");
+        assert!(!ui.application.cdmw_refit_enabled);
     }
     Ok(())
 }

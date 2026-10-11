@@ -774,6 +774,13 @@ class _MeshServiceSessionLayerCore(
             if session.replacement_state is not None:
                 session.output_policy = MeshOutputPolicy.REPLACEMENT_GAME_ASSET.value
         self._sessions[session_key] = session
+        if loaded_layer_project is not None and loaded_layer_project.get("morph_payload") is not None:
+            from cdmw.services.mesh_morph_draft import restore_morph_draft
+            try:
+                restore_morph_draft(self, session, loaded_layer_project["morph_payload"])
+            except Exception:
+                self.close_edit_session(session_key, force_without_saving=True)
+                raise
         return self.session_view(session_key)
 
     def geometry_layer_state(self, session_id: str) -> dict[str, object]:
@@ -1181,6 +1188,8 @@ class _MeshServiceSessionLayerCore(
             session.native_editor_session_ready = True
             session.native_editor_mesh_signature = _native_editor_mesh_storage_signature(session.working_mesh)
         layer_payload = _geometry_layer_state_payload(session)
+        from cdmw.services.mesh_morph_draft import capture_morph_draft
+        morph_payload = capture_morph_draft(self, session)
         promote = len(session.geometry_layers) > 1 or session.replacement_state is not None or session.hair_state is not None
         descriptor = save_mesh_layer_project(
             session_id=session.session_id,
@@ -1206,6 +1215,7 @@ class _MeshServiceSessionLayerCore(
             hair_state=session.hair_state,
             edit_operations=session.edit_operations,
             requires_edit_operations=session.requires_edit_operations,
+            morph_payload=morph_payload,
         )
         session.mesh_layer_loaded_generation = str(descriptor.get("current_generation") or "")
         session.mesh_layer_autosave_saved_key = (session.revision, session.geometry_layer_revision)

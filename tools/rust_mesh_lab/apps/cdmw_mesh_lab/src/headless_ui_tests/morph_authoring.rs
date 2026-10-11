@@ -41,8 +41,8 @@ pub(super) fn authoring_ui() -> Result<HeadlessUi, Box<dyn std::error::Error>> {
             "driver_submesh_indices": [0],
             "garment_submesh_indices": [1, 2],
             "garment_settings": [
-                {"submesh_index": 1, "enabled": true, "intensity_percent": 100.0, "mode": "surface", "clearance_percent": 0.0},
-                {"submesh_index": 2, "enabled": true, "intensity_percent": 100.0, "mode": "surface", "clearance_percent": 0.0}
+                {"submesh_index": 1, "enabled": true, "intensity_percent": 100.0, "mode": "surface", "clearance_percent": 0.0, "tightness_percent": 0.0},
+                {"submesh_index": 2, "enabled": true, "intensity_percent": 100.0, "mode": "surface", "clearance_percent": 0.0, "tightness_percent": 0.0}
             ]
         }
     });
@@ -232,7 +232,7 @@ fn rigid_component_combo_dispatches_mode_with_typed_intensity() -> TestResult {
     let apply = ui.actions_from_click("Apply to Selected Garments")?;
     assert_eq!(command_arguments(&apply, "refit_configure"), json!({
         "submesh_indices": [2], "enabled": true, "intensity_percent": 175.0,
-        "mode": "rigid_component", "clearance_percent": 0.0,
+        "mode": "rigid_component", "clearance_percent": 0.0, "tightness_percent": 0.0,
     }));
     Ok(())
 }

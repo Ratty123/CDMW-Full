@@ -491,9 +491,10 @@ fn runtime_route(key: &str) -> RuntimeRoute {
         "refit.mode" => (Kind::LocalState, "cdmw_refit_mode"),
         "refit.intensity" => (Kind::LocalState, "cdmw_refit_intensity"),
         "refit.clearance" => (Kind::LocalState, "cdmw_refit_clearance"),
+        "refit.tightness" => (Kind::LocalState, "cdmw_refit_tightness"),
         "refit.apply" => (Kind::ShadowCommand, "refit_configure"),
         "refit.apply_all" => (Kind::ShadowCommand, "refit_configure"),
-        "refit.fit_to_body" => (Kind::ShadowCommand, "refit_configure"),
+        "refit.fit_to_body" => (Kind::ShadowCommand, "refit_fit_to_body"),
         "morph.reset" => (Kind::ShadowCommand, "morph_reset"),
         "morph.bake" => (Kind::ShadowCommand, "morph_bake"),
         "display.mode" => (Kind::LocalState, "view_mode"),
@@ -651,6 +652,7 @@ refit.enabled|morph_refit|executable|bound_garment|false|
 refit.mode|morph_refit|executable|bound_garment|false|
 refit.intensity|morph_refit|executable|bound_garment|false|
 refit.clearance|morph_refit|executable|bound_garment|false|
+refit.tightness|morph_refit|executable|bound_garment|false|
 refit.apply|morph_refit|executable|bound_garment|false|
 refit.apply_all|morph_refit|executable|bound_garment|false|
 refit.fit_to_body|morph_refit|executable|bound_garment|false|

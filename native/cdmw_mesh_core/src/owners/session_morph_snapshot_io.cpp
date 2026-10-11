@@ -88,7 +88,7 @@ void mesh_editor_validate_morph_snapshot_document(
 ) {
     if (document.type != JsonValue::Type::Object
         || mesh_editor_snapshot_string(document, "schema") != MESH_EDITOR_MORPH_RUNTIME_SNAPSHOT_SCHEMA
-        || mesh_editor_snapshot_integer(document, "version", 1) != 1
+        || mesh_editor_snapshot_integer(document, "version", 1) > 2
         || mesh_editor_snapshot_string(document, "snapshot_id") != expected_snapshot_id
         || mesh_editor_snapshot_string(document, "source_session_id").empty()) {
         throw std::runtime_error("morph runtime snapshot identity does not match");
@@ -127,7 +127,7 @@ std::string mesh_editor_morph_snapshot_create_session_report(
     std::ostringstream document_stream;
     document_stream << "{\"schema\":";
     write_escaped(document_stream, MESH_EDITOR_MORPH_RUNTIME_SNAPSHOT_SCHEMA);
-    document_stream << ",\"version\":1,\"snapshot_id\":";
+    document_stream << ",\"version\":2,\"snapshot_id\":";
     write_escaped(document_stream, snapshot_id);
     document_stream << ",\"source_session_id\":";
     write_escaped(document_stream, session_id);
@@ -148,7 +148,7 @@ std::string mesh_editor_morph_snapshot_create_session_report(
     write_escaped(out, session_id);
     out << ",\"snapshot\":{\"schema\":";
     write_escaped(out, MESH_EDITOR_MORPH_RUNTIME_SNAPSHOT_SCHEMA);
-    out << ",\"version\":1,\"snapshot_id\":";
+    out << ",\"version\":2,\"snapshot_id\":";
     write_escaped(out, snapshot_id);
     out << ",\"source_session_id\":";
     write_escaped(out, session_id);
@@ -186,7 +186,8 @@ std::string mesh_editor_morph_snapshot_restore_session_report(
         throw std::runtime_error("morph runtime snapshot topology does not match the target session");
     }
     std::shared_ptr<MeshMorphRuntime> restored = mesh_editor_morph_runtime_from_snapshot(
-        mesh_editor_snapshot_required_member(document, "runtime", JsonValue::Type::Object), session
+        mesh_editor_snapshot_required_member(document, "runtime", JsonValue::Type::Object), session,
+        static_cast<int>(mesh_editor_snapshot_integer(document, "version", 1))
     );
     const long long snapshot_revision = mesh_editor_snapshot_integer(document, "morph_state_revision");
     session.morph_state_revision = std::max(

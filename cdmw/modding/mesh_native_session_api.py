@@ -656,7 +656,7 @@ def _validated_morph_runtime_snapshot_descriptor(
             raise ValueError("Snapshot descriptor is not an object.")
         if str(value.get("schema") or "") != _MORPH_RUNTIME_SNAPSHOT_SCHEMA:
             raise ValueError("Snapshot descriptor schema mismatch.")
-        if int(value.get("version") or 0) != 1:
+        if value.get("version") not in (1, 2):
             raise ValueError("Unsupported snapshot descriptor version.")
         snapshot_id = str(value.get("snapshot_id") or "").strip()
         source_session_id = str(value.get("source_session_id") or "").strip()
@@ -691,7 +691,7 @@ def _validated_morph_runtime_snapshot_descriptor(
         return None
     return {
         "schema": _MORPH_RUNTIME_SNAPSHOT_SCHEMA,
-        "version": 1,
+        "version": int(value["version"]),
         "snapshot_id": snapshot_id,
         "source_session_id": source_session_id,
         "path": str(path),

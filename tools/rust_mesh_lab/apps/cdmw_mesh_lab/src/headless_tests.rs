@@ -692,6 +692,37 @@ fn page_feedback_uses_the_typed_request_origin_instead_of_status_words() -> Test
 }
 
 #[test]
+fn refit_fit_result_rehydrates_settings_only_after_success() -> TestResult {
+    for ok in [false, true] {
+        let root = tempdir()?;
+        let mut application = triangle_application()?;
+        let document = application.document.clone().ok_or("document")?;
+        application.cdmw_bridge = Some(CdmwBridge::for_test(
+            root.path().to_path_buf(), "fit-result", 2, 0,
+        ));
+        application.cdmw_refit_settings_dirty = true;
+        application.cdmw_refit_hydration_key = "draft".to_owned();
+        application.cdmw_refit_tightness = 25.0;
+        application.cdmw_pending_request = Some(CdmwPendingRequest {
+            request_id: 1,
+            event: "command_result",
+            label: "Fit to body".to_owned(),
+            origin: None,
+        });
+        let state = cdmw_state_with_document(root.path(), "fit-result", 0, &document)?;
+        application.handle_cdmw_result(
+            "command_result", 1, 0, ok, json!({"state": state}),
+            if ok { "" } else { "Part 1 cannot clear the body" },
+        );
+        assert!(application.cdmw_pending_request.is_none());
+        assert_eq!(application.cdmw_refit_settings_dirty, !ok);
+        assert_eq!(application.cdmw_refit_hydration_key.is_empty(), ok);
+        assert_eq!(application.cdmw_refit_tightness, 25.0);
+    }
+    Ok(())
+}
+
+#[test]
 fn request_origin_comes_from_the_typed_tool_identifier() {
     assert_eq!(
         cdmw_request_origin(

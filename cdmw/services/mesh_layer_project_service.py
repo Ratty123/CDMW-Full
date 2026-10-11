@@ -41,6 +41,8 @@ MESH_CLOTH_PROJECT_FORMAT = "mesh_layer_project_v6"
 MESH_CLOTH_GENERATION_FORMAT = "mesh_layer_generation_v6"
 MESH_JIGGLE_PROJECT_FORMAT = "mesh_layer_project_v7"
 MESH_JIGGLE_GENERATION_FORMAT = "mesh_layer_generation_v7"
+MESH_MORPH_PROJECT_FORMAT = "mesh_layer_project_v8"
+MESH_MORPH_GENERATION_FORMAT = "mesh_layer_generation_v8"
 
 
 def draft_retains_original_channel_base(payload, original, working):
@@ -126,6 +128,7 @@ def save_mesh_layer_project(
     hair_state: object | None = None,
     edit_operations: Sequence[object] = (),
     requires_edit_operations: bool = False,
+    morph_payload: Mapping[str, object] | None = None,
 ) -> dict[str, object]:
     """Write one complete generation, then atomically point the project at it."""
 
@@ -270,6 +273,11 @@ def save_mesh_layer_project(
             generation_payload["archive_refit_material_files"] = save_archive_refit_materials(
                 persisted_snapshot, project_root, stop,
             )
+    if morph_payload is not None:
+        from cdmw.services.mesh_morph_draft import persist_morph_draft
+        generation_payload["morph"] = persist_morph_draft(morph_payload, generation_dir, project_root)
+        generation_payload["content_format"] = generation_payload["format"]
+        generation_payload["format"] = MESH_MORPH_GENERATION_FORMAT
     generation_manifest = generation_dir / "generation.json"
     atomic_write_text(generation_manifest, json.dumps(generation_payload, indent=2, sort_keys=True))
     generation_sha256 = _sha256_file(generation_manifest)
@@ -279,7 +287,7 @@ def save_mesh_layer_project(
     if target.is_file():
         try:
             previous = json.loads(target.read_text(encoding="utf-8"))
-            if isinstance(previous, Mapping) and previous.get("format") in {MESH_LAYER_PROJECT_FORMAT, MESH_REPLACEMENT_PROJECT_FORMAT, MESH_EXPERIMENTAL_REPLACEMENT_PROJECT_FORMAT, MESH_HAIR_PROJECT_FORMAT, MESH_LEGACY_HAIR_PROJECT_FORMAT, MESH_CLOTH_PROJECT_FORMAT, MESH_JIGGLE_PROJECT_FORMAT}:
+            if isinstance(previous, Mapping) and previous.get("format") in {MESH_LAYER_PROJECT_FORMAT, MESH_REPLACEMENT_PROJECT_FORMAT, MESH_EXPERIMENTAL_REPLACEMENT_PROJECT_FORMAT, MESH_HAIR_PROJECT_FORMAT, MESH_LEGACY_HAIR_PROJECT_FORMAT, MESH_CLOTH_PROJECT_FORMAT, MESH_JIGGLE_PROJECT_FORMAT, MESH_MORPH_PROJECT_FORMAT}:
                 previous_generation = str(previous.get("current_generation") or "")
                 previous_generation_manifest_sha256 = str(
                     previous.get("current_generation_manifest_sha256") or ""
@@ -300,6 +308,8 @@ def save_mesh_layer_project(
         "previous_generation_manifest_sha256": previous_generation_manifest_sha256,
         "saved_at": time.time(),
     }
+    if morph_payload is not None:
+        descriptor["format"] = MESH_MORPH_PROJECT_FORMAT
     raise_if_cancelled(stop, "Mesh layer autosave cancelled.")
     atomic_write_text(target, json.dumps(descriptor, indent=2, sort_keys=True))
     if workspace_manifest_path is not None:
@@ -326,7 +336,7 @@ def load_mesh_layer_project(
     if not target.is_file():
         return None
     descriptor = json.loads(target.read_text(encoding="utf-8"))
-    if not isinstance(descriptor, Mapping) or descriptor.get("format") not in {MESH_LAYER_PROJECT_FORMAT, MESH_REPLACEMENT_PROJECT_FORMAT, MESH_EXPERIMENTAL_REPLACEMENT_PROJECT_FORMAT, MESH_HAIR_PROJECT_FORMAT, MESH_LEGACY_HAIR_PROJECT_FORMAT, MESH_CLOTH_PROJECT_FORMAT, MESH_JIGGLE_PROJECT_FORMAT}:
+    if not isinstance(descriptor, Mapping) or descriptor.get("format") not in {MESH_LAYER_PROJECT_FORMAT, MESH_REPLACEMENT_PROJECT_FORMAT, MESH_EXPERIMENTAL_REPLACEMENT_PROJECT_FORMAT, MESH_HAIR_PROJECT_FORMAT, MESH_LEGACY_HAIR_PROJECT_FORMAT, MESH_CLOTH_PROJECT_FORMAT, MESH_JIGGLE_PROJECT_FORMAT, MESH_MORPH_PROJECT_FORMAT}:
         raise ValueError("Unsupported Mesh Editor layer project descriptor")
     expected_hash = str(expected_source_asset_sha256 or "").strip().lower()
     stored_hash = str(descriptor.get("source_asset_sha256") or "").strip().lower()
@@ -400,9 +410,13 @@ def load_mesh_layer_project(
                 if replacement.target_sha256 != stored_hash or refit_context is not None:
                     raise ValueError("Replacement draft target or workflow does not match.")
                 bound_part_indices(restore_target, replacement)
+            morph = None
+            if descriptor["format"] == MESH_MORPH_PROJECT_FORMAT:
+                from cdmw.services.mesh_morph_draft import load_morph_draft
+                morph = load_morph_draft(payload.get("morph"), target.parent)
             mesh.__dict__.update(restore_target.__dict__)
             return {**dict(payload), "loaded_generation": generation_name, "archive_refit_context": refit_context,
-                    "replacement_state": replacement, "hair_state": hair}
+                    "replacement_state": replacement, "hair_state": hair, "morph_payload": morph}
         except (OSError, RuntimeError, ValueError) as exc:
             failures.append(f"{generation_name}: {exc}")
     raise RuntimeError("No valid Mesh Editor layer-project generation: " + "; ".join(failures))
@@ -422,6 +436,10 @@ def _load_generation(
     if expected_manifest_sha256 and _sha256_file(manifest_path) != expected_manifest_sha256:
         raise ValueError("layer generation manifest checksum mismatch")
     payload = json.loads(manifest_path.read_text(encoding="utf-8"))
+    if isinstance(payload, dict) and payload.get("format") == MESH_MORPH_GENERATION_FORMAT:
+        payload = dict(payload, format=payload.get("content_format"))
+        if not isinstance(payload.get("morph"), dict):
+            raise ValueError("Morph & Refit generation omitted its runtime state")
     if not isinstance(payload, Mapping) or payload.get("format") not in {MESH_LAYER_GENERATION_FORMAT, MESH_REPLACEMENT_GENERATION_FORMAT, MESH_EXPERIMENTAL_REPLACEMENT_GENERATION_FORMAT, MESH_HAIR_GENERATION_FORMAT, MESH_LEGACY_HAIR_GENERATION_FORMAT, MESH_CLOTH_GENERATION_FORMAT, MESH_JIGGLE_GENERATION_FORMAT}:
         raise ValueError("unsupported layer generation")
     if str(payload.get("source_asset_sha256") or "").strip().lower() != source_hash:

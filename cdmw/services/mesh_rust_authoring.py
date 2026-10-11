@@ -9280,7 +9280,10 @@ class RustMeshAuthoringSession:
                 intensity_percent=args.get("intensity_percent", 100.0),
                 mode=args.get("mode", "surface"),
                 clearance_percent=args.get("clearance_percent", 0.0),
+                tightness_percent=args.get("tightness_percent"),
             )
+        if command == "refit_fit_to_body":
+            return service.fit_refit_to_body(session_id)
         if command == "refit_clear":
             return service.clear_refit(session_id)
         if command == "morph_reset":

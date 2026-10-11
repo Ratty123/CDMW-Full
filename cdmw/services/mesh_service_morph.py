@@ -76,6 +76,7 @@ from cdmw.services.mesh_service_morph_authoring import (
     _MorphCorrectionCapture,
     _profile_role_indices,
     _refit_masks_from_report,
+    _refit_settings_batch_payload,
     clone_authoring_baseline,
     clone_correction_capture,
 )
@@ -675,6 +676,7 @@ class MeshMorphServiceMixin(MeshMorphLayerMixin, MeshMorphAuthoringMixin, MeshMo
                 intensity_percent=params.get("intensity_percent", 100.0),
                 mode=params.get("mode", "surface"),
                 clearance_percent=params.get("clearance_percent", 0.0),
+                tightness_percent=params.get("tightness_percent"),
             )[0]
         if action == "morph_clear_refit":
             return self.clear_refit(session.session_id)[0]
@@ -1639,6 +1641,7 @@ class MeshMorphServiceMixin(MeshMorphLayerMixin, MeshMorphAuthoringMixin, MeshMo
         intensity_percent: object,
         mode: object,
         clearance_percent: object,
+        tightness_percent: object = None,
     ) -> tuple[MeshEditResult, MeshMorphState]:
         garment_indices = _indices(garment_submesh_indices)
         if not garment_indices:
@@ -1649,6 +1652,7 @@ class MeshMorphServiceMixin(MeshMorphLayerMixin, MeshMorphAuthoringMixin, MeshMo
             intensity_percent=float(intensity_percent),
             mode=str(mode or "surface"),
             clearance_percent=float(clearance_percent),
+            tightness_percent=0.0 if tightness_percent is None else float(tightness_percent),
         )
         session = self._session(session_id)
         with session.export_lock:
@@ -1666,9 +1670,28 @@ class MeshMorphServiceMixin(MeshMorphLayerMixin, MeshMorphAuthoringMixin, MeshMo
                     "intensity_percent": settings.intensity_percent,
                     "mode": settings.mode,
                     "clearance_percent": settings.clearance_percent,
+                    **({"tightness_percent": settings.tightness_percent} if tightness_percent is not None else {}),
                 },
                 history_label="Configure Garment Refit",
                 record_history=True,
+            )
+            return self._morph_result_and_state_locked(session, "morph_configure_refit", report)
+
+    def fit_refit_to_body(self, session_id: str) -> tuple[MeshEditResult, MeshMorphState]:
+        """Fit enabled garments in one transaction using the resident Part settings."""
+        session = self._session(session_id)
+        with session.export_lock:
+            report = self._run_morph_query_locked(session, "morph_state")
+            state = self._morph_state_from_report_locked(session, report, refresh_presets=False)
+            settings = tuple(
+                replace(item, tightness_percent=100.0, clearance_percent=max(0.1, item.clearance_percent))
+                for item in state.refit.garment_settings if item.enabled
+            )
+            if not settings:
+                raise ValueError("Enable and bind a garment before fitting it to the body.")
+            report = self._run_morph_command_locked(
+                session, "morph_configure_refit", _refit_settings_batch_payload(settings, include_masks=False),
+                history_label="Fit to body", record_history=True,
             )
             return self._morph_result_and_state_locked(session, "morph_configure_refit", report)
 
@@ -1898,7 +1921,8 @@ class MeshMorphServiceMixin(MeshMorphLayerMixin, MeshMorphAuthoringMixin, MeshMo
         # preset changes also recompose the fit, so share one bounded budget.
         report = native_mesh_editor_session_command(command, session.session_id, request, timeout_seconds=90.0)
         if not isinstance(report, Mapping) or str(report.get("status") or "").lower() != "ok":
-            raise RuntimeError(_report_error(report, f"Resident C++ {command} failed."))
+            reason = last_native_mesh_core_job_error() if report is None else ""
+            raise RuntimeError(_report_error(report, reason or f"Resident C++ {command} failed."))
         # From this point the resident runtime may already have changed. Move
         # the scalar CAS token before every fallible bookkeeping operation.
         session.morph_session_revision += 1
@@ -2010,6 +2034,9 @@ class MeshMorphServiceMixin(MeshMorphLayerMixin, MeshMorphAuthoringMixin, MeshMo
                 autosave(session)
         elif bool(report.get("history_published")):
             session.revision += 1
+            autosave = getattr(self, "_schedule_mesh_layer_autosave", None)
+            if callable(autosave):
+                autosave(session)
         metrics = _native_editor_metrics(report)
         result = self._result(
             session,
@@ -2064,7 +2091,7 @@ class MeshMorphServiceMixin(MeshMorphLayerMixin, MeshMorphAuthoringMixin, MeshMo
         data.profile = profile
         if profile is not None:
             data.known_profiles[profile.profile_id] = profile
-        if profile is not None and refresh_presets and not data.profiles_frozen:
+        if profile is not None and refresh_presets and not data.profiles_frozen and self.settings is not None:
             with mesh_morph_profile_lock(self._profile_root()):
                 presets, preset_diagnostics = list_mesh_morph_presets(
                     self._profile_root(),
@@ -2112,6 +2139,7 @@ class MeshMorphServiceMixin(MeshMorphLayerMixin, MeshMorphAuthoringMixin, MeshMo
                 intensity_percent=float(item.get("intensity_percent", 100.0)),
                 mode=str(item.get("mode") or "surface"),
                 clearance_percent=float(item.get("clearance_percent", 0.0)),
+                tightness_percent=float(item.get("tightness_percent", 0.0)),
                 vertex_mask=vertex_masks.get(int(item.get("submesh_index", -1))),
             )
             for item in tuple(refit.get("garment_settings") or ())

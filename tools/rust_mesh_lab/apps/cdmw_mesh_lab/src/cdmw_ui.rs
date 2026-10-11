@@ -3952,28 +3952,21 @@ impl LabApplication {
                         .and_then(|value| value.get("clearance_percent"))
                         .and_then(Value::as_f64)
                         .unwrap_or(0.0) as f32;
+                    self.cdmw_refit_tightness = setting
+                        .and_then(|value| value.get("tightness_percent"))
+                        .and_then(Value::as_f64)
+                        .unwrap_or(0.0) as f32;
                     self.cdmw_refit_hydration_key = hydration_key;
                 }
             }
             ui.separator();
             if ui.button(crate::localization::tr("Fit to body")).on_hover_text(
-                crate::localization::tr("Preview an outward fit for all bound garments using Surface, 100% intensity, and at least 0.1% clearance. Reset reverts it; Bake keeps it.")
+                crate::localization::tr("Tighten enabled garments around the loaded body, keeping folds, openings, masks and each Part's mode. Sets Tightness to 100% and Clearance to at least 0.1%. Reset reverts it; Bake keeps it.")
             ).clicked() {
-                self.cdmw_refit_enabled = true;
-                self.cdmw_refit_intensity = 100.0;
-                self.cdmw_refit_mode = "surface".to_owned();
-                self.cdmw_refit_clearance = self.cdmw_refit_clearance.max(0.1);
-                self.cdmw_refit_settings_dirty = true;
                 actions.push(UiAction::CdmwCommand {
-                    command: "refit_configure",
-                    arguments: json!({
-                        "submesh_indices": bound_garments,
-                        "enabled": self.cdmw_refit_enabled,
-                        "intensity_percent": self.cdmw_refit_intensity,
-                        "mode": self.cdmw_refit_mode,
-                        "clearance_percent": self.cdmw_refit_clearance
-                    }),
-                    label: "Apply garment refit settings",
+                    command: "refit_fit_to_body",
+                    arguments: json!({}),
+                    label: "Fit to body",
                 });
             }
             ui.add_enabled_ui(configurable, |ui| {
@@ -3982,6 +3975,7 @@ impl LabApplication {
                     self.cdmw_refit_intensity,
                     self.cdmw_refit_mode.clone(),
                     self.cdmw_refit_clearance,
+                    self.cdmw_refit_tightness,
                 );
                 ui.checkbox(&mut self.cdmw_refit_enabled, crate::localization::tr("Refit enabled"))
                     .on_hover_text(crate::localization::tr("Let these garments follow body Shape sliders. Apply to update the current preview."));
@@ -3998,7 +3992,7 @@ impl LabApplication {
                             crate::localization::tr("Surface"),
                         ).on_hover_text(crate::localization::tr("Follow the body surface. Suitable for cloth and flexible armor."));
                         ui.selectable_value(&mut self.cdmw_refit_mode, "rigid".to_owned(), crate::localization::tr("Rigid"))
-                            .on_hover_text(crate::localization::tr("Preserve each vertex's local offset from the body. This mode can bend a connected piece."));
+                            .on_hover_text(crate::localization::tr("Preserve each vertex's local offset from the body. This mode can bend a connected piece. Inward tightening requires Surface or Rigid component."));
                         ui.selectable_value(&mut self.cdmw_refit_mode, "rigid_component".to_owned(), crate::localization::tr("Rigid component"))
                             .on_hover_text(crate::localization::tr("Move each connected garment piece with one rotation and translation. Suitable for hard armor plates."));
                     });
@@ -4006,6 +4000,11 @@ impl LabApplication {
                     crate::cdmw_ui::numeric::slider(&mut self.cdmw_refit_intensity, 0.0..=200.0)
                         .text(crate::localization::tr("Intensity %")),
                 ).on_hover_text(crate::localization::tr("How strongly the garment follows body changes. 100% follows fully; 0% stays still."));
+                ui.add_enabled(
+                    self.cdmw_refit_mode != "rigid",
+                    crate::cdmw_ui::numeric::slider(&mut self.cdmw_refit_tightness, 0.0..=100.0)
+                        .text(crate::localization::tr("Tightness %")),
+                ).on_hover_text(crate::localization::tr("0% keeps the original fit. 100% tightens loose clothing around the body while preserving folds and openings. Rigid components move without changing size."));
                 ui.add(
                     crate::cdmw_ui::numeric::slider(&mut self.cdmw_refit_clearance, 0.0..=5.0)
                         .text(crate::localization::tr("Clearance %")),
@@ -4016,6 +4015,7 @@ impl LabApplication {
                         self.cdmw_refit_intensity,
                         self.cdmw_refit_mode.clone(),
                         self.cdmw_refit_clearance,
+                    self.cdmw_refit_tightness,
                     )
                 {
                     self.cdmw_refit_settings_dirty = true;
@@ -4038,7 +4038,8 @@ impl LabApplication {
                             "enabled": self.cdmw_refit_enabled,
                             "intensity_percent": self.cdmw_refit_intensity,
                             "mode": self.cdmw_refit_mode,
-                            "clearance_percent": self.cdmw_refit_clearance
+                            "clearance_percent": self.cdmw_refit_clearance,
+                            "tightness_percent": self.cdmw_refit_tightness
                         }),
                         label: "Apply garment refit settings",
                     });
@@ -4051,7 +4052,8 @@ impl LabApplication {
                             "enabled": self.cdmw_refit_enabled,
                             "intensity_percent": self.cdmw_refit_intensity,
                             "mode": self.cdmw_refit_mode,
-                            "clearance_percent": self.cdmw_refit_clearance
+                            "clearance_percent": self.cdmw_refit_clearance,
+                            "tightness_percent": self.cdmw_refit_tightness
                         }),
                         label: "Apply garment refit settings",
                     });

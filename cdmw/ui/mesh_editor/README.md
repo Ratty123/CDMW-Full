@@ -1597,48 +1597,53 @@ be selected with the Selection tool. The panel rejects overlapping roles and set
 changes during an unbaked preview, and shows the binding-distance warning. Binding
 replaces the garment set; select every garment that should participate.
 
-Surface, Rigid and Rigid component modes retain per-garment enable, intensity and
-clearance controls, which appear only after binding. **Changes not applied** marks
-pending settings; use **Apply to Selected Garments** or **Apply to All Bound Garments**
-to update the preview.
+Surface, Rigid and Rigid component modes retain each garment's enabled state,
+body-follow intensity, Tightness and clearance. **Changes not applied** marks pending
+settings; **Apply to Selected Garments** and **Apply to All Bound Garments** apply them.
 
-| Mode | Following behavior | Typical use |
+**Fit to body** tightens all enabled bound garments around the loaded body. It needs
+no viewport selection, body slider, original body or skeleton. It sets **Tightness %**
+to 100 and clearance to at least 0.1%, retaining each Part's mode, intensity, masks and
+allowed body region. Inputs must already share the intended alignment and pose.
+
+| Mode | Fitting behavior | Typical use |
 | --- | --- | --- |
-| Surface | Follows and deforms along the body surface. | Cloth and flexible armor. |
-| Rigid | Preserves each vertex's local offset from its body triangle; a connected piece can still bend. | Existing fits that use the original Rigid behavior. |
-| Rigid component | Uses one shared rotation and translation for each connected piece, including coincident seams. Fractional intensity interpolates that rotation. | Hard plates and other pieces that must retain their shape. |
+| Surface | Changes the broad silhouette with a smooth displacement field, retaining folds and moving openings with adjacent cloth. | Cloth and flexible armor. |
+| Rigid | Keeps the existing local-offset body following. Inward tightening requires another mode. | Compatibility with existing fits. |
+| Rigid component | Moves each connected piece with one rotation and translation, including coincident seams; dimensions stay unchanged. | Hard plates, buckles and trim. |
 
-Intensity controls following strength; clearance adds space as a percentage of body
-size. Rigid component clearance translates a whole piece together. Its influence mask
-must be uniform within each connected piece; conflicting weights are refused.
+**Intensity %** controls body-slider following. **Tightness %** independently controls
+inward fitting: 0 retains the earlier following/clearance behavior, 100 requests a
+natural snug fit, and intermediate values blend from the same neutral geometry.
+Clearance sets the gap as a percentage of body size. Parts joined into one rigid
+component require consistent intensity, Tightness, clearance and mask influence.
+Materials do not choose a mode automatically.
 
-Positive clearance pushes outward even when the garment was already inside the body when
-bound. **Fit to body** previews a fit for every bound garment using Surface, 100%
-intensity, and the current clearance (at least 0.1%). It works without creating or
-changing a body slider; Reset reverts the preview and Bake keeps it. Surface also checks
-triangle edges and interiors against the current body, keeping coincident seams joined.
-It checks body contours between those samples and resolves overlapping or tightly spaced
-body regions together, including around underarms.
+The fitter uses local body-surface correspondences and a seam-connected displacement
+solve, then checks contacts against the complete body, including when an allowed
+region limits correspondence. Nearby layers retain their separation. The collision
+stage uses the conformed silhouette for shape constraints so original garment width
+does not resist narrowing. Masks constrain movement, including coincident seams.
+Unreliable correspondence, unresolved contact or invalid geometry refuses the whole
+candidate and identifies the affected Part; the previous preview and settings remain.
+A refused fit may need a narrower allowed region, different protection or manual edits.
 
-Fitting favours the original shape in clear areas, reducing unnecessary shoulder and
-sleeve inflation. Nearby clothing layers over the same body region preserve their
-separation while allowing them to slide, including detailed linings beneath coarser
-outer shells. Clear belts and trim are not pulled toward layers that move away from
-them. The garment's original facing direction helps offset sleeves wrap around the
-correct side of an arm during the initial fitting passes.
+Repeated fitting evaluates the same neutral mesh. **Reset** restores the pre-fit
+geometry and clears active Tightness. **Bake** makes the preview the new neutral and
+clears Tightness; both actions support Undo/Redo. To undo a baked fit, undo Bake or
+reload the original. No subdivision, remeshing, UV or skin-weight changes are involved.
 
-This guidance stops as the cloth settles and is restricted near open body boundaries and
-by each piece's openings, protecting collars and keeping thin attachments from
-stretching around a limb. Local stretch and sharp new creases are reduced while folds
-and sleeve openings can bend around the body. Complex layered outfits have a bounded
-90-second command budget, including subsequent body-slider changes. Inspect folded or
-tightly fitted areas before baking; unusual outfits may still need local adjustments,
-particularly thin wrist trim and folded cuffs.
+Fitting recipes and native morph snapshots now write version 2; version 1 reads with
+Tightness disabled. Drafts with Morph & Refit state use layer-project version 8 and
+retain the neutral geometry and active settings for reopening and Reset. Older readers
+reject these new formats. Existing files are read without being rewritten.
 
-Static fit and PAC round-trip checks do not establish animation or in-game appearance.
-To redo a poor baked fit, undo the bake or reload the original meshes before fitting
-again. Shape sliders move the driver and bound garments together. Use the normal
-transform tools if the meshes need alignment.
+Complex outfits retain the existing 90-second command budget, including subsequent
+body-slider changes. Inspect the result before baking. Very loose skirts and long
+panels may need lower Tightness or protection masks to keep their intended silhouette;
+geometry alone does not identify which looseness is part of the garment's design.
+Static geometry, renderer and PAC round-trip checks do not establish animation or
+in-game appearance.
 
 #### Control what follows the body
 

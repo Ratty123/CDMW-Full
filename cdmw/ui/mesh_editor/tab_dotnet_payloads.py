@@ -262,6 +262,7 @@ class MeshEditorDotNetPayloadMixin(MeshEditorDotNetMaterialParameterMixin, MeshE
                         "intensity_percent": settings.intensity_percent,
                         "mode": settings.mode,
                         "clearance_percent": settings.clearance_percent,
+                        "tightness_percent": settings.tightness_percent,
                     }
                     for settings in state.refit.garment_settings
                 ],

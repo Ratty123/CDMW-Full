@@ -737,6 +737,7 @@ def test_refit_settings_are_per_garment_and_enabled_intensity_is_undoable() -> N
         "intensity_percent": 50,
         "mode": "surface",
         "clearance_percent": 0,
+        "tightness_percent": 0,
     }
     assert settings[3]["intensity_percent"] == 100
     assert configured["history_published"] is True
@@ -1301,6 +1302,7 @@ def test_morph_runtime_snapshot_is_file_backed_exact_and_restores_without_recomp
                 "intensity_percent": 125,
                 "mode": "rigid",
                 "clearance_percent": 1,
+                "tightness_percent": 0,
             }
         ]
 
@@ -1359,6 +1361,7 @@ def test_morph_runtime_snapshot_is_file_backed_exact_and_restores_without_recomp
                 "intensity_percent": 125,
                 "mode": "rigid",
                 "clearance_percent": 1,
+                "tightness_percent": 0,
             }
         ]
         assert mesh_native_core.undo_native_mesh_editor_session(

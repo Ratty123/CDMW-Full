@@ -2192,6 +2192,7 @@ struct LabApplication {
     cdmw_refit_intensity: f32,
     cdmw_refit_mode: String,
     cdmw_refit_clearance: f32,
+    cdmw_refit_tightness: f32,
     cdmw_refit_vertex_weight: f32,
     cdmw_refit_region_targets: Vec<u32>,
     cdmw_refit_hydration_key: String,
@@ -2367,6 +2368,7 @@ impl LabApplication {
             cdmw_refit_intensity: 100.0,
             cdmw_refit_mode: "surface".to_owned(),
             cdmw_refit_clearance: 0.0,
+            cdmw_refit_tightness: 0.0,
             cdmw_refit_vertex_weight: 100.0,
             cdmw_refit_region_targets: Vec::new(),
             cdmw_refit_hydration_key: String::new(),
@@ -2941,7 +2943,7 @@ impl LabApplication {
         if let Some(CdmwRequestOrigin::MorphValue(definition_id)) = &origin {
             self.cdmw_morph_value_drafts.remove(definition_id);
         }
-        if label == "Apply garment refit settings" {
+        if label == "Apply garment refit settings" || (label == "Fit to body" && ok) {
             self.cdmw_refit_settings_dirty = false;
             self.cdmw_refit_hydration_key.clear();
         }

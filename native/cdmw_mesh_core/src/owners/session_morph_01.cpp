@@ -320,7 +320,8 @@ void mesh_editor_refit_components(
     const std::map<int, std::vector<Vec3>>& residual,
     const std::map<int, std::vector<Vec3>>& base_layer,
     const RefitMaskWeightsNative& masks,
-    std::map<int, std::vector<Vec3>>& layer
+    std::map<int, std::vector<Vec3>>& layer,
+    bool conforming = false
 ) {
     struct Vertex { int submesh; int vertex; Vec3 original; Vec3 target; double weight; };
     std::vector<Vertex> vertices;
@@ -334,6 +335,7 @@ void mesh_editor_refit_components(
     std::map<std::tuple<long long, long long, long long>, std::vector<std::size_t>> cells;
     for (const auto& item : refit.garment_settings) {
         if (!item.second.enabled || item.second.mode != "rigid_component") continue;
+        if (conforming && item.second.tightness_percent == 0.0) continue;
         const auto& part = submeshes.at(item.first);
         const auto base = base_layer.find(item.first);
         for (std::size_t vertex = 0; vertex < part.vertices.size(); ++vertex) {
@@ -380,8 +382,10 @@ void mesh_editor_refit_components(
             const auto& current = refit.garment_settings.at(vertex.submesh);
             if (std::abs(vertex.weight - first.weight) > 1.0e-12
                 || current.intensity_percent != settings.intensity_percent
+                || current.tightness_percent != settings.tightness_percent
                 || current.clearance_percent != settings.clearance_percent) {
-                throw std::runtime_error("rigid components require uniform vertex masks, intensity and clearance");
+                throw std::runtime_error("Part " + std::to_string(first.submesh)
+                    + ": rigid components require uniform vertex masks, intensity, clearance and tightness");
             }
             original.push_back(vertex.original); target.push_back(vertex.target);
             original_center = add_vec3(original_center, vertex.original);
@@ -390,7 +394,7 @@ void mesh_editor_refit_components(
         original_center = scale_vec3(original_center, 1.0 / original.size());
         target_center = scale_vec3(target_center, 1.0 / target.size());
         auto rotation = refit_component_rotation_native(original, target, original_center, target_center);
-        const double amount = settings.intensity_percent / 100.0 * first.weight;
+        const double amount = conforming ? 1.0 : settings.intensity_percent / 100.0 * first.weight;
         const double half_angle = std::acos(std::clamp(rotation[0], -1.0, 1.0));
         if (half_angle > 1.0e-12) {
             const double scale = std::sin(half_angle * amount) / std::sin(half_angle);
@@ -401,13 +405,31 @@ void mesh_editor_refit_components(
         std::vector<Vec3> fitted;
         for (const auto& point : original) fitted.push_back(amount == 0.0 ? point :
             add_vec3(center, refit_rotate_quaternion_native(rotation, sub_vec3(point, original_center))));
+        auto samples = fitted;
+        if (conforming) {
+            std::map<std::size_t,std::size_t> local;
+            for (std::size_t i=0;i<component.second.size();++i) local[component.second[i]]=i;
+            std::set<std::pair<std::size_t,std::size_t>> sampled_edges;
+            for (const auto& item : indices) for (const auto& face : submeshes.at(item.first).faces) {
+                if (!local.count(item.second[face[0]])) continue;
+                Vec3 center{};
+                for (int c=0;c<3;++c) {
+                    const auto a=local.at(item.second[face[c]]), b=local.at(item.second[face[(c+1)%3]]);
+                    center=add_vec3(center,fitted[a]);
+                    if (sampled_edges.insert(std::minmax(a,b)).second)
+                        samples.push_back(scale_vec3(add_vec3(fitted[a],fitted[b]),0.5));
+                }
+                samples.push_back(scale_vec3(center,1.0/3.0));
+            }
+        }
         Vec3 clearance_shift{};
-        const double clearance = refit.driver_diagonal * settings.clearance_percent / 100.0 * first.weight;
+        const double clearance = refit.driver_diagonal * settings.clearance_percent / 100.0
+            * (conforming ? 1.0 : first.weight);
         // Every clearance adjustment is one shared translation, preserving the hard part.
-        if (clearance > 0.0) for (int pass = 0; pass < 32; ++pass) {
+        if (clearance > 0.0 && first.weight > 0.0) for (int pass = 0; pass < (conforming ? 128 : 32); ++pass) {
             double missing_max = tolerance;
             Vec3 correction{};
-            for (const auto& point : fitted) {
+            for (const auto& point : samples) {
                 const Vec3 predicted = add_vec3(point, clearance_shift);
                 long long candidate_tests = 0;
                 const auto binding = closest_refit_binding_native(predicted, spatial, candidate_tests);
@@ -419,6 +441,16 @@ void mesh_editor_refit_components(
             if (missing_max <= tolerance) break;
             clearance_shift = add_vec3(clearance_shift, correction);
         }
+        if (conforming) for (const auto& point : samples) {
+            const Vec3 predicted=add_vec3(point,clearance_shift);
+            long long tests=0;
+            const auto nearest=closest_refit_binding_native(predicted,spatial,tests);
+            const double height=dot_vec3(sub_vec3(predicted,mesh_editor_refit_driver_point(nearest,driver_visible)),
+                refit_binding_face_normal_native(nearest,driver_visible));
+            if (height < clearance-tolerance*4.0)
+                throw std::runtime_error("Fit to body: Part " + std::to_string(first.submesh)
+                    + " rigid component cannot clear the body while preserving its dimensions and mask");
+        }
         for (std::size_t i = 0; i < component.second.size(); ++i) {
             const auto& vertex = vertices[component.second[i]];
             layer.at(vertex.submesh)[vertex.vertex] = sub_vec3(
@@ -427,17 +459,23 @@ void mesh_editor_refit_components(
     }
 }
 
+std::vector<Vec3> mesh_editor_smooth_refit_contact(
+    const std::vector<Vec3>&, const std::vector<double>&,
+    const std::map<std::pair<std::size_t,std::size_t>,double>&, double);
+
 void mesh_editor_relieve_refit_surface(
     const MeshRefitRuntime& refit,
     const std::map<int, MeshSessionSubmesh>& submeshes,
     const std::map<int, std::vector<Vec3>>& driver_visible,
     const std::map<int, std::vector<Vec3>>& residual,
-    std::map<int, std::vector<Vec3>>& layer
+    std::map<int, std::vector<Vec3>>& layer,
+    const RefitMaskWeightsNative* fitting_masks = nullptr,
+    bool validate_only = false
 ) {
     std::map<int, double> clearances;
     for (const auto& item : refit.garment_settings) {
         if (item.second.enabled && item.second.clearance_percent > 0.0
-            && item.second.mode == "surface") {
+            && (item.second.mode == "surface" || (fitting_masks && item.second.mode == "rigid_component"))) {
             clearances[item.first] = refit.driver_diagonal * item.second.clearance_percent / 100.0;
         }
     }
@@ -461,6 +499,7 @@ void mesh_editor_relieve_refit_surface(
         double clearance = 0.0;
         std::vector<std::pair<int, std::size_t>> vertices;
         bool has_surface = false;
+        double mobility = 1.0;
     };
     std::vector<Cohort> cohorts;
     std::map<int, std::vector<std::size_t>> vertex_cohorts;
@@ -496,7 +535,24 @@ void mesh_editor_relieve_refit_surface(
             Cohort& cohort = cohorts[cohort_index];
             cohort.clearance = std::max(cohort.clearance, item.second);
             cohort.vertices.push_back({index, vertex});
+            if (fitting_masks && refit.garment_settings.at(index).mode == "rigid_component") cohort.mobility=0.0;
+            if (fitting_masks) cohort.mobility = std::min(cohort.mobility,
+                mesh_editor_refit_mask_weight(*fitting_masks, index, vertex));
             indices.push_back(cohort_index);
+        }
+    }
+    if (fitting_masks) for (const auto& item : refit.garment_settings) {
+        if (clearances.count(item.first)) continue;
+        for (std::size_t vertex=0;vertex<residual.at(item.first).size();++vertex) {
+            const auto part_layer=layer.find(item.first);
+            const Vec3 point=add_vec3(residual.at(item.first)[vertex],part_layer==layer.end()?Vec3{}:part_layer->second[vertex]);
+            const auto cell=mesh_editor_refit_cell(point,tolerance);
+            for (int x=-1;x<=1;++x) for (int y=-1;y<=1;++y) for (int z=-1;z<=1;++z) {
+                const auto found=cells.find({std::get<0>(cell)+x,std::get<1>(cell)+y,std::get<2>(cell)+z});
+                if (found==cells.end()) continue;
+                for (const auto i:found->second)
+                    if (distance_squared_vec3(point,cohorts[i].original)<=tolerance*tolerance) cohorts[i].mobility=0.0;
+            }
         }
     }
     struct SurfaceSample {
@@ -522,6 +578,8 @@ void mesh_editor_relieve_refit_surface(
     std::map<std::pair<std::size_t, std::size_t>, int> edge_faces;
     std::map<std::pair<std::size_t, std::size_t>, std::vector<std::size_t>> edge_opposites;
     std::map<int, MeshSessionSubmesh> garments;
+    std::vector<double> contact_mass(cohorts.size(), 0.0);
+    std::map<std::pair<std::size_t,std::size_t>,double> contact_weights;
     for (const auto& item : clearances) {
         auto& garment = garments[item.first];
         for (const auto index : vertex_cohorts.at(item.first)) garment.vertices.push_back(cohorts[index].original);
@@ -529,6 +587,15 @@ void mesh_editor_relieve_refit_surface(
         for (const auto& face : garment.faces) {
             const Vec3 normal = refit_face_normal_native(garment.vertices[face[0]], garment.vertices[face[1]], garment.vertices[face[2]]);
             if (dot_vec3(normal, normal) < 0.5) continue;
+            if (fitting_masks) for (int c=0;c<3;++c) {
+                const auto& map = vertex_cohorts.at(item.first);
+                const Vec3 a = sub_vec3(garment.vertices[face[(c+1)%3]],garment.vertices[face[c]]);
+                const Vec3 b = sub_vec3(garment.vertices[face[(c+2)%3]],garment.vertices[face[c]]);
+                const double area = length_vec3(Vec3{a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]});
+                contact_mass[map[face[c]]] += area/6.0;
+                if (area > 1.0e-20) contact_weights[std::minmax(map[face[(c+1)%3]],map[face[(c+2)%3]])]
+                    += std::max(0.0,dot_vec3(a,b)/area)*0.5;
+            }
             for (std::size_t corner = 0; corner < 3; ++corner) {
                 const auto first = vertex_cohorts.at(item.first)[face[corner]];
                 const auto second = vertex_cohorts.at(item.first)[face[(corner + 1) % 3]];
@@ -639,6 +706,18 @@ void mesh_editor_relieve_refit_surface(
             for (const auto& edge : sampled_edges) {
                 bind_layer({{edge.first, edge.second, edge.second}, {0.5, 0.5, 0.0}});
             }
+        }
+    }
+    if (fitting_masks) for (const auto& constraint : layer_constraints) {
+        // Contact must carry nearby shells together. Coupling their displacement
+        // fields retains the measured standoff without smoothing either surface.
+        for (int a=0;a<3;++a) for (int b=0;b<3;++b) {
+            const auto i=constraint.first.corners[a],j=constraint.second.corners[b];
+            const double influence=constraint.first.weights[a]*constraint.second.weights[b];
+            if (i==j || influence<=0.0) continue;
+            const double distance=distance_squared_vec3(cohorts[i].original,cohorts[j].original);
+            const double area=std::min(contact_mass[i],contact_mass[j]);
+            contact_weights[std::minmax(i,j)] += influence*area/std::max(area,distance);
         }
     }
     // Resolve contacts from the authored shape. Spreading an initial maximum
@@ -1011,8 +1090,10 @@ void mesh_editor_relieve_refit_surface(
     // only for sample clearance. Cohorts keep UV/material seams joined.
     constexpr int wrap_iterations = 16;
     constexpr int shape_iterations = 256;
-    constexpr int clearance_iterations = 256;
-    for (int iteration = 0; iteration < shape_iterations + clearance_iterations; ++iteration) {
+    const int clearance_iterations = fitting_masks ? 512 : 256;
+    for (int iteration = 0; !validate_only && iteration < shape_iterations + clearance_iterations; ++iteration) {
+        std::vector<Vec3> previous;
+        if (fitting_masks) for (const auto& cohort : cohorts) previous.push_back(cohort.position);
         if (iteration < shape_iterations && iteration % 64 == 0) refresh_body_anchors();
         double maximum_correction = 0.0;
         const double attraction = 0.08 * std::max(0.0, 1.0 - iteration / 128.0);
@@ -1022,7 +1103,7 @@ void mesh_editor_relieve_refit_surface(
             cohort.position = add_vec3(cohort.position, delta);
             maximum_correction = std::max(maximum_correction, length_vec3(delta));
         }
-        if (iteration < shape_iterations) for (const auto& constraint : layer_constraints) {
+        if (iteration < shape_iterations || fitting_masks) for (const auto& constraint : layer_constraints) {
             const Vec3 point = sample_point(constraint.first, false);
             const Vec3& a = cohorts[constraint.second.corners[0]].position;
             const Vec3& b = cohorts[constraint.second.corners[1]].position;
@@ -1124,6 +1205,8 @@ void mesh_editor_relieve_refit_surface(
             }
         }
         for (auto& constraint : body_constraints) {
+            const double contact_clearance = constraint.clearance
+                + (fitting_masks ? std::max(tolerance*8.0,constraint.clearance*0.1) : 0.0);
             const Vec3 point = sample_point(constraint.sample, false);
             // The nearest-surface distance bounds a collision-free ball around
             // an exterior sample. Reuse it until the sample leaves that ball;
@@ -1134,8 +1217,8 @@ void mesh_editor_relieve_refit_surface(
             Vec3 normal = body_contact_normal(nearest, point);
             const Vec3 surface = mesh_editor_refit_driver_point(nearest, driver_visible);
             const double height = dot_vec3(sub_vec3(point, surface), normal);
-            double missing = constraint.clearance - height;
-            BodyExit exit = body_exit(point, normal, constraint.clearance);
+            double missing = contact_clearance - height;
+            BodyExit exit = body_exit(point, normal, contact_clearance);
             // An internal arm/torso face is not an exit from their combined
             // volume. Search nearby directions when that face hides another
             // body surface, rather than forcing the cloth across the torso.
@@ -1144,11 +1227,11 @@ void mesh_editor_relieve_refit_surface(
                 const auto trial_nearest = closest_refit_binding_native(trial, spatial_index, candidate_tests);
                 const double trial_height = dot_vec3(sub_vec3(trial, mesh_editor_refit_driver_point(trial_nearest, driver_visible)),
                     body_contact_normal(trial_nearest, trial));
-                if (trial_height < constraint.clearance - tolerance || inside_body_volume(trial)) {
+                if (trial_height < contact_clearance - tolerance || inside_body_volume(trial)) {
                     for (int x = -1; x <= 1; ++x) for (int y = -1; y <= 1; ++y) for (int z = -1; z <= 1; ++z) {
                         if (x == 0 && y == 0 && z == 0) continue;
                         const Vec3 direction{static_cast<double>(x), static_cast<double>(y), static_cast<double>(z)};
-                        const BodyExit candidate = body_exit(point, direction, constraint.clearance);
+                        const BodyExit candidate = body_exit(point, direction, contact_clearance);
                         if (candidate.distance < exit.distance) exit = candidate;
                     }
                     normal = exit.direction;
@@ -1162,14 +1245,14 @@ void mesh_editor_relieve_refit_surface(
                 const double length = length_vec3(direction);
                 if (length > tolerance && dot_vec3(direction, normal) < length * 0.5) {
                     direction = scale_vec3(direction, 1.0 / length);
-                    const BodyExit preferred = body_exit(point, direction, constraint.clearance);
+                    const BodyExit preferred = body_exit(point, direction, contact_clearance);
                     if (std::isfinite(preferred.distance) && preferred.distance <= std::min(missing * 2.0, constraint.preferred_reach)) {
                         const double distance = preferred.distance + tolerance * 2.0;
                         const Vec3 trial = add_vec3(point, scale_vec3(preferred.direction, distance));
                         const auto trial_nearest = closest_refit_binding_native(trial, spatial_index, candidate_tests);
                         const double trial_height = dot_vec3(sub_vec3(trial, mesh_editor_refit_driver_point(trial_nearest, driver_visible)),
                             body_contact_normal(trial_nearest, trial));
-                        if (trial_height >= constraint.clearance - tolerance) {
+                        if (trial_height >= contact_clearance - tolerance) {
                             normal = preferred.direction;
                             missing = distance;
                         }
@@ -1177,7 +1260,7 @@ void mesh_editor_relieve_refit_surface(
                 }
             }
             constraint.checked_position = point;
-            constraint.free_radius = missing <= 0.0 ? std::max(0.0, nearest.distance - constraint.clearance) : 0.0;
+            constraint.free_radius = missing <= 0.0 ? std::max(0.0, nearest.distance - contact_clearance) : 0.0;
             if (missing <= 0.0) continue;
             maximum_correction = std::max(maximum_correction, missing);
             const double weight_squared = dot_vec3(constraint.sample.weights, constraint.sample.weights);
@@ -1186,11 +1269,112 @@ void mesh_editor_relieve_refit_surface(
                 cohort.position = add_vec3(cohort.position, scale_vec3(normal, missing * constraint.sample.weights[corner] / weight_squared));
             }
         }
+        if (fitting_masks) {
+            // Contact on one vertex of a small folded face must move its local
+            // cloth neighborhood too. Smooth contact displacements, then limit
+            // the step before it can turn a triangle over. Rest constraints here
+            // refer to the conformed silhouette, not the oversized garment.
+            std::vector<Vec3> correction(cohorts.size());
+            for (std::size_t i = 0; i < cohorts.size(); ++i) {
+                correction[i] = sub_vec3(cohorts[i].position, previous[i]);
+            }
+            try {
+                correction = mesh_editor_smooth_refit_contact(correction,contact_mass,contact_weights,
+                    std::pow(refit.driver_diagonal*0.012,2.0));
+            } catch (const std::runtime_error& error) {
+                std::string parts;
+                for (const auto& part:clearances) parts+=(parts.empty()?"":", ")+std::to_string(part.first);
+                throw std::runtime_error("Fit to body: Parts " + parts + ": " + error.what());
+            }
+            for (std::size_t i = 0; i < cohorts.size(); ++i)
+                cohorts[i].position = add_vec3(previous[i], scale_vec3(correction[i], cohorts[i].mobility));
+            bool guarded = false;
+            for (int guard = 0; guard < 24 && !guarded; ++guard) {
+                guarded = true;
+                for (const auto& item : clearances) {
+                const auto& map = vertex_cohorts.at(item.first);
+                for (const auto& face : submeshes.at(item.first).faces) {
+                    const std::array<std::size_t,3> v{map[face[0]],map[face[1]],map[face[2]]};
+                    const Vec3 rest_normal = refit_face_normal_native(previous[v[0]],previous[v[1]],previous[v[2]]);
+                    if (dot_vec3(rest_normal,rest_normal) < 0.5) continue;
+                    const auto safe = [&](double step) {
+                        std::array<Vec3,3> point;
+                        for (int c = 0; c < 3; ++c) point[c] = add_vec3(previous[v[c]],scale_vec3(sub_vec3(cohorts[v[c]].position,previous[v[c]]),step));
+                        const Vec3 e1 = sub_vec3(previous[v[1]],previous[v[0]]);
+                        const Vec3 e2 = sub_vec3(previous[v[2]],previous[v[0]]);
+                        const Vec3 d1 = sub_vec3(sub_vec3(point[1],point[0]),e1);
+                        const Vec3 d2 = sub_vec3(sub_vec3(point[2],point[0]),e2);
+                        const auto projected_area = [&](double t) {
+                            const Vec3 a = add_vec3(e1,scale_vec3(d1,t));
+                            const Vec3 b = add_vec3(e2,scale_vec3(d2,t));
+                            return dot_vec3(rest_normal, Vec3{a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]});
+                        };
+                        // The projected area is quadratic throughout a linear
+                        // step. Check its minimum, not just its endpoint.
+                        const double c = projected_area(0.0), end = projected_area(1.0);
+                        const double a = 2.0*(end+c-2.0*projected_area(0.5));
+                        const double b = end-c-a;
+                        const double t = a > 0.0 ? std::clamp(-b/(2.0*a),0.0,1.0) : 1.0;
+                        if (std::min(end,projected_area(t)) < c*0.05) return false;
+                        for (int c = 0; c < 3; ++c) {
+                            const double rest = distance_squared_vec3(cohorts[v[c]].original,cohorts[v[(c+1)%3]].original);
+                            const double now = distance_squared_vec3(point[c],point[(c+1)%3]);
+                            if (rest > tolerance*tolerance && (now < rest*0.04 || now > rest*4.0)) return false;
+                        }
+                        return true;
+                    };
+                    if (safe(1.0)) continue;
+                    guarded = false;
+                    double low = 0.0, high = 1.0;
+                    for (int step = 0; step < 12; ++step) {
+                        const double middle = (low+high)*0.5;
+                        if (safe(middle)) low = middle; else high = middle;
+                    }
+                    for (const auto i : v) cohorts[i].position = add_vec3(previous[i],scale_vec3(sub_vec3(cohorts[i].position,previous[i]),low*0.95));
+                }
+            }
+            }
+            if (!guarded) throw std::runtime_error("Fit to body: Part "
+                + std::to_string(clearances.begin()->first) + " cannot preserve its triangles during clearance correction");
+        }
         if (maximum_correction <= tolerance) {
             if (iteration >= shape_iterations) break;
             refresh_body_anchors();
             if (body_anchors.empty()) break;
         }
+    }
+    if (fitting_masks) for (const auto& constraint : body_constraints) {
+        const Vec3 point = sample_point(constraint.sample, false);
+        long long tests = 0;
+        const auto nearest = closest_refit_binding_native(point, spatial_index, tests);
+        const double height = dot_vec3(sub_vec3(point, mesh_editor_refit_driver_point(nearest, driver_visible)),
+            body_contact_normal(nearest, point));
+        if ((height < -tolerance * 4.0 && inside_body_volume(point))
+            || (nearest.distance < constraint.clearance - tolerance * 4.0)) {
+            const auto& vertex = cohorts[constraint.sample.corners[0]].vertices.front();
+            throw std::runtime_error("Fit to body: Part " + std::to_string(vertex.first)
+                + ", vertex " + std::to_string(vertex.second) + " cannot clear the body with its current protection mask or geometry (gap "
+                + std::to_string(height) + ", requested " + std::to_string(constraint.clearance) + ")");
+        }
+    }
+    if (fitting_masks) for (const auto& constraint : layer_constraints) {
+        const Vec3 point=sample_point(constraint.first,false);
+        const auto& a=cohorts[constraint.second.corners[0]].position;
+        const auto& b=cohorts[constraint.second.corners[1]].position;
+        const auto& c=cohorts[constraint.second.corners[2]].position;
+        const Vec3 normal=refit_face_normal_native(a,b,c);
+        const double height=dot_vec3(sub_vec3(point,a),normal);
+        auto closest=constraint.second;
+        closest.weights=closest_triangle_point_native(point,a,b,c).barycentric;
+        const Vec3 offset=sub_vec3(point,sample_point(closest,false));
+        // A point past an open triangle edge does not overlap that layer.
+        // Only its perpendicular projection onto the face can establish order.
+        if (length_vec3(sub_vec3(offset,scale_vec3(normal,height))) > tolerance*4.0) continue;
+        const double rest=dot_vec3(constraint.rest_offset,constraint.normal);
+        if ((rest > 0.0 ? height : -height) < std::min(std::abs(rest)*0.05,tolerance*4.0))
+            throw std::runtime_error("Fit to body: Part "
+                + std::to_string(cohorts[constraint.first.corners[0]].vertices.front().first)
+                + " cannot preserve its garment layer separation");
     }
     for (const Cohort& cohort : cohorts) {
         const Vec3 delta = sub_vec3(cohort.position, cohort.original);
@@ -1199,6 +1383,15 @@ void mesh_editor_relieve_refit_surface(
         }
     }
 }
+
+void mesh_editor_conform_refit(
+    const MeshRefitRuntime&, const std::map<int, MeshSessionSubmesh>&,
+    const std::map<int, std::vector<Vec3>>&, const std::map<int, std::vector<Vec3>>&,
+    const RefitMaskWeightsNative&, std::map<int, std::vector<Vec3>>&);
+void mesh_editor_validate_conformed_refit(
+    const MeshRefitRuntime&, const std::map<int, MeshSessionSubmesh>&,
+    const std::map<int, std::vector<Vec3>>&, const std::map<int, std::vector<Vec3>>&,
+    const std::map<int, std::vector<Vec3>>&, const char*);
 
 void mesh_editor_add_refit_layer(
     const MeshMorphRuntime& morph,
@@ -1270,7 +1463,9 @@ void mesh_editor_add_refit_layer(
         }
         target_layer[target_vertex_index] = add_vec3(target_layer[target_vertex_index], refit_delta);
     }
-    mesh_editor_relieve_refit_surface(*morph.refit, submeshes, driver_visible, residual, layer);
+    const bool tightening = std::any_of(morph.refit->garment_settings.begin(), morph.refit->garment_settings.end(),
+        [](const auto& item) { return item.second.enabled && item.second.mode != "rigid" && item.second.tightness_percent > 0.0; });
+    if (!tightening) mesh_editor_relieve_refit_surface(*morph.refit, submeshes, driver_visible, residual, layer);
     for (const auto& item : masks) {
         const auto settings = morph.refit->garment_settings.find(item.first);
         if (settings != morph.refit->garment_settings.end() && settings->second.mode == "rigid_component") continue;
@@ -1283,6 +1478,15 @@ void mesh_editor_add_refit_layer(
         }
     }
     mesh_editor_refit_components(*morph.refit, submeshes, driver_visible, residual, base_layer, masks, layer);
+    if (tightening) {
+        const auto followed = layer;
+        mesh_editor_conform_refit(*morph.refit, submeshes, driver_visible, residual, masks, layer);
+        mesh_editor_refit_components(*morph.refit, submeshes, driver_visible, residual, followed, masks, layer, true);
+        mesh_editor_validate_conformed_refit(*morph.refit, submeshes, residual, followed, layer, "conforming");
+        const auto conformed = layer;
+        mesh_editor_relieve_refit_surface(*morph.refit, submeshes, driver_visible, residual, layer, &masks);
+        mesh_editor_validate_conformed_refit(*morph.refit, submeshes, residual, conformed, layer, "clearance");
+    }
 }
 
 std::map<int, std::vector<Vec3>> mesh_editor_morph_residual_positions(
@@ -1398,6 +1602,13 @@ std::vector<SubmeshMeshEditResult> mesh_editor_recompose_morph(
     const std::map<int, std::vector<Vec3>> residual = mesh_editor_morph_residual_positions(*session.morph, submeshes, indices);
     mesh_editor_add_refit_layer(next, submeshes, residual, new_layer);
     const auto masks = next.refit ? mesh_editor_refit_masks(*next.refit, residual) : RefitMaskWeightsNative{};
+    const bool check_corrections = next.refit && !post_refit.empty()
+        && std::any_of(next.refit->garment_settings.begin(),next.refit->garment_settings.end(),
+            [](const auto& item) { return item.second.enabled && item.second.mode!="rigid" && item.second.tightness_percent>0.0; })
+        && std::any_of(post_refit.begin(),post_refit.end(),[](const auto& part) {
+            return std::any_of(part.second.begin(),part.second.end(),[](const Vec3& value) { return dot_vec3(value,value)>0.0; });
+        });
+    const auto fitted_layer = check_corrections ? new_layer : std::map<int,std::vector<Vec3>>{};
     for (const auto& item : post_refit) {
         // Corrections belong to an enabled garment binding. Clearing refit must
         // remove their displacement, not expose previously masked corrections.
@@ -1410,6 +1621,17 @@ std::vector<SubmeshMeshEditResult> mesh_editor_recompose_morph(
             target[vertex] = add_vec3(target[vertex], scale_vec3(item.second[vertex],
                 mesh_editor_refit_mask_weight(masks, item.first, vertex)));
         }
+    }
+    if (check_corrections) {
+        std::map<int,std::vector<Vec3>> driver_visible;
+        for (const int part:next.refit->driver_submesh_indices) {
+            const auto body_layer=new_layer.find(part);
+            for (std::size_t i=0;i<residual.at(part).size();++i)
+                driver_visible[part].push_back(add_vec3(residual.at(part)[i],
+                    body_layer==new_layer.end()?Vec3{}:body_layer->second[i]));
+        }
+        mesh_editor_validate_conformed_refit(*next.refit,submeshes,residual,fitted_layer,new_layer,"garment correction");
+        mesh_editor_relieve_refit_surface(*next.refit,submeshes,driver_visible,residual,new_layer,&masks,true);
     }
     for (const auto& item : new_layer) indices.insert(item.first);
     std::vector<SubmeshMeshEditResult> results;
@@ -1517,7 +1739,8 @@ void mesh_editor_write_refit_settings(std::ostream& out, const MeshRefitRuntime&
             << ",\"intensity_percent\":" << std::setprecision(17) << settings.intensity_percent
             << ",\"mode\":";
         write_escaped(out, settings.mode);
-        out << ",\"clearance_percent\":" << std::setprecision(17) << settings.clearance_percent << '}';
+        out << ",\"clearance_percent\":" << std::setprecision(17) << settings.clearance_percent
+            << ",\"tightness_percent\":" << settings.tightness_percent << '}';
     }
     out << ']';
 }

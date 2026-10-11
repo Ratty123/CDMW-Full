@@ -298,12 +298,14 @@ class MeshRefitGarmentSettings:
     mode: str = "surface"
     clearance_percent: float = 0.0
     vertex_mask: tuple[tuple[int, float], ...] | None = None
+    tightness_percent: float = 0.0
 
     def __post_init__(self) -> None:
         submesh_index = _strict_mesh_index(self.submesh_index, "Refit garment submesh")
         intensity = float(self.intensity_percent)
         mode = str(self.mode or "surface").strip().lower()
         clearance = float(self.clearance_percent)
+        tightness = float(self.tightness_percent)
         if submesh_index < 0:
             raise ValueError("Refit garment submesh index must be non-negative.")
         if not math.isfinite(intensity) or not 0.0 <= intensity <= 200.0:
@@ -312,11 +314,14 @@ class MeshRefitGarmentSettings:
             raise ValueError("Refit mode must be 'surface', 'rigid', or 'rigid_component'.")
         if not math.isfinite(clearance) or not 0.0 <= clearance <= 5.0:
             raise ValueError("Refit clearance must be between 0 and 5 percent of driver size.")
+        if not math.isfinite(tightness) or not 0.0 <= tightness <= 100.0:
+            raise ValueError("Refit tightness must be between 0 and 100 percent.")
         object.__setattr__(self, "submesh_index", submesh_index)
         object.__setattr__(self, "enabled", bool(self.enabled))
         object.__setattr__(self, "intensity_percent", intensity)
         object.__setattr__(self, "mode", mode)
         object.__setattr__(self, "clearance_percent", clearance)
+        object.__setattr__(self, "tightness_percent", tightness)
         if self.vertex_mask is not None:
             normalized_mask: list[tuple[int, float]] = []
             seen: set[int] = set()
@@ -372,7 +377,7 @@ class MeshMorphFittingRecipe:
     topology_fingerprint: str
     base_geometry_fingerprint: str
     garment_regions: tuple[tuple[int, tuple[MeshRefitDriverRegion, ...]], ...] = ()
-    format: str = "cdmw.mesh_refit_recipe.v1"
+    format: str = "cdmw.mesh_refit_recipe.v2"
 
     def __post_init__(self) -> None:
         recipe_id = str(self.recipe_id or "").strip()

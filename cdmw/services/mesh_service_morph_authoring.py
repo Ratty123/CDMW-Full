@@ -170,6 +170,7 @@ def _settings_payload(settings: MeshRefitGarmentSettings, *, include_mask: bool)
         "intensity_percent": settings.intensity_percent,
         "mode": settings.mode,
         "clearance_percent": settings.clearance_percent,
+        "tightness_percent": settings.tightness_percent,
     }
     if include_mask:
         payload["vertex_masks"] = [] if settings.vertex_mask is None else [{
@@ -192,6 +193,7 @@ def _refit_settings_batch_payload(
             "intensity_percent": item.intensity_percent,
             "mode": item.mode,
             "clearance_percent": item.clearance_percent,
+            "tightness_percent": item.tightness_percent,
         }
         if include_masks:
             row["vertex_mask"] = None if item.vertex_mask is None else {

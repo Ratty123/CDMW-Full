@@ -134,6 +134,8 @@ class MeshEditorDotNetNamedCommandMixin(MeshEditorDotNetLifecycleMixin):
         elif command == "morph_bind":
             params["garment_submesh_indices"] = tuple(local_selection.source_indices)
         elif command == "morph_configure_refit":
+            if "tightness_percent" in payload:
+                params["tightness_percent"] = self._standalone_native_payload_float(payload.get("tightness_percent"), 0.0)
             params.update({
                 "garment_submesh_indices": tuple(local_selection.source_indices),
                 "enabled": bool(payload.get("enabled", True)),

@@ -109,6 +109,7 @@ def test_morph_state_payload_and_ack_require_the_latest_correlated_envelope() ->
                 "intensity_percent": 80.0,
                 "mode": "rigid",
                 "clearance_percent": 0.5,
+                "tightness_percent": 0.0,
             }
         ]
 

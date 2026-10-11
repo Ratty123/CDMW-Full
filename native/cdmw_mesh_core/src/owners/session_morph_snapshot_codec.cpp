@@ -135,7 +135,8 @@ void mesh_editor_write_snapshot_refit(std::ostream& out, const MeshMorphRuntime&
             << ",\"intensity_percent\":" << std::setprecision(17) << item.second.intensity_percent
             << ",\"mode\":";
         write_escaped(out, item.second.mode);
-        out << ",\"clearance_percent\":" << item.second.clearance_percent << '}';
+        out << ",\"clearance_percent\":" << item.second.clearance_percent
+            << ",\"tightness_percent\":" << item.second.tightness_percent << '}';
     }
     out << "],\"driver_diagonal\":" << std::setprecision(17) << refit.driver_diagonal
         << ",\"maximum_distance\":" << refit.maximum_distance
@@ -327,7 +328,8 @@ static void restore_refit_driver_baselines(const JsonValue* raw_refit, const std
 std::shared_ptr<const MeshRefitRuntime> mesh_editor_refit_from_snapshot(
     const JsonValue* raw_refit,
     const std::map<int, MeshSessionSubmesh>& submeshes,
-    const std::set<int>& runtime_drivers
+    const std::set<int>& runtime_drivers,
+    int version
 ) {
     if (raw_refit == nullptr || raw_refit->type == JsonValue::Type::Null) return {};
     if (raw_refit->type != JsonValue::Type::Object) {
@@ -460,9 +462,11 @@ std::shared_ptr<const MeshRefitRuntime> mesh_editor_refit_from_snapshot(
         settings.intensity_percent = mesh_editor_snapshot_number(item, "intensity_percent");
         settings.mode = mesh_editor_snapshot_string(item, "mode");
         settings.clearance_percent = mesh_editor_snapshot_number(item, "clearance_percent");
+        settings.tightness_percent = version >= 2 ? mesh_editor_snapshot_number(item, "tightness_percent") : 0.0;
         if (settings.intensity_percent < 0.0 || settings.intensity_percent > 200.0
             || (settings.mode != "surface" && settings.mode != "rigid" && settings.mode != "rigid_component")
             || settings.clearance_percent < 0.0 || settings.clearance_percent > 5.0
+            || settings.tightness_percent < 0.0 || settings.tightness_percent > 100.0
             || !refit->garment_settings.emplace(submesh_index, std::move(settings)).second) {
             throw std::runtime_error("morph runtime snapshot has invalid garment settings");
         }
@@ -483,7 +487,8 @@ std::shared_ptr<const MeshRefitRuntime> mesh_editor_refit_from_snapshot(
 
 std::shared_ptr<MeshMorphRuntime> mesh_editor_morph_runtime_from_snapshot(
     const JsonValue& raw_runtime,
-    const MeshEditorSession& session
+    const MeshEditorSession& session,
+    int version
 ) {
     if (raw_runtime.type != JsonValue::Type::Object) {
         throw std::runtime_error("morph runtime snapshot has invalid runtime state");
@@ -583,7 +588,7 @@ std::shared_ptr<MeshMorphRuntime> mesh_editor_morph_runtime_from_snapshot(
         true
     );
     runtime->refit = mesh_editor_refit_from_snapshot(
-        raw_runtime.get("refit"), submeshes, runtime->driver_submesh_indices
+        raw_runtime.get("refit"), submeshes, runtime->driver_submesh_indices, version
     );
     runtime->unbaked = mesh_editor_snapshot_bool(raw_runtime, "unbaked");
     if (runtime->unbaked != mesh_editor_morph_layer_has_value(runtime->current_layer)) {

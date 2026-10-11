@@ -86,6 +86,7 @@ struct MeshRefitGarmentSettingsRuntime {
     double intensity_percent = 100.0;
     std::string mode = "surface";
     double clearance_percent = 0.0;
+    double tightness_percent = 0.0;
 };
 
 struct MeshRefitRuntime {

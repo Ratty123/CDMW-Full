@@ -39,7 +39,7 @@ from cdmw.services.mesh_service_history import (
 from cdmw.services.mesh_service_morph_authoring import _merge_edit_results, _refit_settings_batch_payload, _strict_indices
 
 
-_RECIPE_FORMAT = "cdmw.mesh_refit_recipe.v1"
+_RECIPE_FORMAT = "cdmw.mesh_refit_recipe.v2"
 
 
 def _objects(value: object, label: str):
@@ -65,6 +65,7 @@ def fitting_recipe_payload(recipe: MeshMorphFittingRecipe) -> dict[str, object]:
                 "intensity_percent": item.intensity_percent,
                 "mode": item.mode,
                 "clearance_percent": item.clearance_percent,
+                "tightness_percent": item.tightness_percent,
                 "vertex_mask": None if item.vertex_mask is None else [
                     {"vertex_index": index, "weight": weight} for index, weight in item.vertex_mask
                 ],
@@ -85,7 +86,7 @@ def fitting_recipe_payload(recipe: MeshMorphFittingRecipe) -> dict[str, object]:
 
 
 def fitting_recipe_from_payload(payload: Mapping[str, object]) -> MeshMorphFittingRecipe:
-    if not isinstance(payload, Mapping) or payload.get("format") != _RECIPE_FORMAT:
+    if not isinstance(payload, Mapping) or payload.get("format") not in {_RECIPE_FORMAT, "cdmw.mesh_refit_recipe.v1"}:
         raise ValueError("Unsupported fitting recipe format.")
     profile = payload.get("profile")
     preset = payload.get("preset")
@@ -99,6 +100,11 @@ def fitting_recipe_from_payload(payload: Mapping[str, object]) -> MeshMorphFitti
             for row in _objects(raw_mask, "vertex mask")
         )
         raw_enabled = item.get("enabled", True)
+        if payload["format"] == _RECIPE_FORMAT and (
+            isinstance(item.get("tightness_percent"), bool)
+            or not isinstance(item.get("tightness_percent"), (int, float))
+        ):
+            raise ValueError("Fitting recipe v2 requires numeric garment tightness.")
         if not isinstance(raw_enabled, bool):
             raise ValueError("Fitting recipe garment enabled flags must be boolean.")
         settings.append(MeshRefitGarmentSettings(
@@ -107,6 +113,7 @@ def fitting_recipe_from_payload(payload: Mapping[str, object]) -> MeshMorphFitti
             intensity_percent=float(item.get("intensity_percent", 100.0)),
             mode=str(item.get("mode") or "surface"),
             clearance_percent=float(item.get("clearance_percent", 0.0)),
+            tightness_percent=float(item["tightness_percent"]) if payload["format"] == _RECIPE_FORMAT else 0.0,
             vertex_mask=mask,
         ))
     garment_regions = tuple(

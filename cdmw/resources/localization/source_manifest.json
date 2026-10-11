@@ -2347,6 +2347,16 @@
       ]
     },
     {
+      "key": "0% keeps the original fit. 100% tightens loose clothing around the body while preserving folds and openings. Rigid components move without changing size.",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
+          "line": 3477,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
       "key": "0% protects vertices; 100% follows fully. Rigid components require one influence across each connected piece.",
       "origins": [
         {
@@ -9861,22 +9871,17 @@
       "origins": [
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
-          "line": 3976,
+          "line": 4044,
           "sink": "rust-presentation"
         },
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
-          "line": 4043,
-          "sink": "rust-presentation"
-        },
-        {
-          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
-          "line": 4056,
+          "line": 4058,
           "sink": "rust-presentation"
         },
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs",
-          "line": 2944,
+          "line": 2946,
           "sink": "rust-presentation"
         }
       ]
@@ -42932,6 +42937,16 @@
       ]
     },
     {
+      "key": "Enable and bind a garment before fitting it to the body.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_service_morph.py",
+          "line": 1608,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
       "key": "Enable incremental resume",
       "origins": [
         {
@@ -50102,6 +50117,16 @@
       ]
     },
     {
+      "key": "Finish or cancel slider capture before saving a Morph & Refit draft.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_morph_draft.py",
+          "line": 48,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
       "key": "Finish texture edits before loading an archive Refit mesh",
       "origins": [
         {
@@ -50551,7 +50576,17 @@
       "origins": [
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
-          "line": 3959,
+          "line": 3963,
+          "sink": "rust-presentation"
+        },
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
+          "line": 3969,
+          "sink": "rust-presentation"
+        },
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs",
+          "line": 2946,
           "sink": "rust-presentation"
         }
       ]
@@ -50642,6 +50677,16 @@
         {
           "path": "cdmw/services/mesh_service_morph_recipes.py",
           "line": 93,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Fitting recipe v2 requires numeric garment tightness.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_service_morph_recipes.py",
+          "line": 111,
           "sink": "ValueError"
         }
       ]
@@ -78537,6 +78582,121 @@
       ]
     },
     {
+      "key": "Morph & Refit draft checksum does not match.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_morph_draft.py",
+          "line": 86,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Morph & Refit draft has invalid control flags.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_morph_draft.py",
+          "line": 102,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Morph & Refit draft has invalid control values.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_morph_draft.py",
+          "line": 112,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Morph & Refit draft omitted its native profile.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_morph_draft.py",
+          "line": 96,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Morph & Refit draft omitted its runtime state.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_morph_draft.py",
+          "line": 75,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Morph & Refit draft omitted its snapshot or profile.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_morph_draft.py",
+          "line": 90,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Morph & Refit draft path escapes its project or is missing.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_morph_draft.py",
+          "line": 78,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Morph & Refit draft profile does not match its native state.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_morph_draft.py",
+          "line": 99,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Morph & Refit draft requires a version 2 native snapshot.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_morph_draft.py",
+          "line": 93,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Morph & Refit draft size does not match.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_morph_draft.py",
+          "line": 45,
+          "sink": "ValueError"
+        },
+        {
+          "path": "cdmw/services/mesh_morph_draft.py",
+          "line": 58,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Morph & Refit generation omitted its runtime state",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_layer_project_service.py",
+          "line": 442,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
       "key": "Morph & Refit opened",
       "origins": [
         {
@@ -100107,11 +100267,11 @@
       ]
     },
     {
-      "key": "Preserve each vertex's local offset from the body. This mode can bend a connected piece.",
+      "key": "Preserve each vertex's local offset from the body. This mode can bend a connected piece. Inward tightening requires Surface or Rigid component.",
       "origins": [
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
-          "line": 4001,
+          "line": 3465,
           "sink": "rust-presentation"
         }
       ]
@@ -101193,16 +101353,6 @@
           "path": "cdmw/ui/shell/problem_report_catalog.py",
           "line": 93,
           "sink": "python-data:REPORT_TOOLS"
-        }
-      ]
-    },
-    {
-      "key": "Preview an outward fit for all bound garments using Surface, 100% intensity, and at least 0.1% clearance. Reset reverts it; Bake keeps it.",
-      "origins": [
-        {
-          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
-          "line": 3960,
-          "sink": "rust-presentation"
         }
       ]
     },
@@ -124947,7 +125097,7 @@
       ]
     },
     {
-      "key": "Select parts and expand Glow, Translucency, or Shader experiments in Parts. Supported choices depend on the captured source shader and material dependencies. Apply stages the edit; Restore and Undo/Redo recover earlier settings. Finish, validate, then Build Mod to include the material companions.",
+      "key": "Select parts, then expand Glow, Translucency, or Shader experiments under their separate Inspector headings. Parts can remain collapsed while editing materials. Mesh islands starts collapsed inside Parts. Supported choices depend on the captured source shader and material dependencies. Apply stages the edit; Restore and Undo/Redo recover earlier settings. Finish, validate, then Build Mod to include the material companions.",
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
@@ -146002,6 +146152,26 @@
       ]
     },
     {
+      "key": "Tighten enabled garments around the loaded body, keeping folds, openings, masks and each Part's mode. Sets Tightness to 100% and Clearance to at least 0.1%. Reset reverts it; Bake keeps it.",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
+          "line": 3434,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Tightness %",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
+          "line": 3476,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
       "key": "Tile size",
       "origins": [
         {
@@ -149667,6 +149837,16 @@
         {
           "path": "cdmw/workers/mesh_rust_editor_workers.py",
           "line": 274,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Unsupported Morph & Refit draft format.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_morph_draft.py",
+          "line": 88,
           "sink": "ValueError"
         }
       ]

@@ -353,12 +353,12 @@ std::string mesh_editor_morph_change_session_report(
     next->preset_id.clear();
     next->change_id = change_id;
     ++next->active_change_update_count;
-    next->state_revision = ++session.morph_state_revision;
     MeshEditorHistoryEntry history;
     history.operation = "morph_change";
     history.morph_before = session.morph;
     std::map<int, MeshSessionSubmesh> before = mesh_editor_capture_morph_submeshes(session, *next);
     results = mesh_editor_recompose_morph(session, *next, "morph_change", delta_output_dir, session_id);
+    next->state_revision = ++session.morph_state_revision;
     if (phase == "end") {
         next->active_change_id.clear();
         next->active_definition_id.clear();
@@ -390,7 +390,6 @@ std::string mesh_editor_morph_values_session_report(
     }
     next->preset_id = string_or(root.get("preset_id"), "preset");
     next->change_id = next->preset_id;
-    next->state_revision = ++session.morph_state_revision;
     MeshEditorHistoryEntry history;
     history.operation = "morph_apply_preset";
     history.morph_before = session.morph;
@@ -399,6 +398,7 @@ std::string mesh_editor_morph_values_session_report(
     std::vector<SubmeshMeshEditResult> results = mesh_editor_recompose_morph(
         session, *next, "morph_apply_preset", delta_output_dir, session_id
     );
+    next->state_revision = ++session.morph_state_revision;
     session.morph = std::move(next);
     const bool history_published = mesh_editor_publish_morph_history(session, std::move(history), before, "", false);
     if (!results.empty()) ++session.edit_revision;
@@ -547,10 +547,10 @@ MeshRefitGarmentSettingsRuntime mesh_editor_refit_settings_from_json(
     bool strict_types
 ) {
     if (strict_types) {
-        for (const auto* key : {"intensity_percent", "clearance_percent"}) {
+        for (const auto* key : {"intensity_percent", "clearance_percent", "tightness_percent"}) {
             const auto* value = raw.get(key);
             if (value && value->type != JsonValue::Type::Number)
-                throw std::runtime_error("garment refit settings require numeric intensity and clearance");
+                throw std::runtime_error("garment refit settings require numeric intensity, clearance and tightness");
         }
         const auto* enabled = raw.get("enabled");
         const auto* mode = raw.get("mode");
@@ -562,6 +562,11 @@ MeshRefitGarmentSettingsRuntime mesh_editor_refit_settings_from_json(
     settings.intensity_percent = number_or(raw.get("intensity_percent"), settings.intensity_percent);
     settings.mode = lower_ascii(string_or(raw.get("mode"), settings.mode));
     settings.clearance_percent = number_or(raw.get("clearance_percent"), settings.clearance_percent);
+    settings.tightness_percent = number_or(raw.get("tightness_percent"), settings.tightness_percent);
+    if (!std::isfinite(settings.tightness_percent)
+        || settings.tightness_percent < 0.0 || settings.tightness_percent > 100.0) {
+        throw std::runtime_error("garment refit tightness must be between 0 and 100 percent");
+    }
     if (!std::isfinite(settings.intensity_percent)
         || settings.intensity_percent < 0.0 || settings.intensity_percent > 200.0) {
         throw std::runtime_error("garment refit intensity must be between 0 and 200 percent");
@@ -593,7 +598,7 @@ void mesh_editor_configure_refit_batch(
         if (!strict_int_or(&item, index) || !garments.count(index))
             throw std::runtime_error("garment refit batch contains an invalid garment index");
     }
-    for (const auto* key : {"enabled", "intensity_percent", "mode", "clearance_percent", "vertex_masks"}) {
+    for (const auto* key : {"enabled", "intensity_percent", "mode", "clearance_percent", "tightness_percent", "vertex_masks"}) {
         if (root.get(key)) throw std::runtime_error("garment refit batch cannot mix per-part and shared settings");
     }
     std::set<int> seen;
@@ -648,13 +653,16 @@ std::string mesh_editor_morph_configure_refit_session_report(
     if (root.get("garment_settings")) {
         mesh_editor_configure_refit_batch(root, *next_refit, submeshes, garments);
     } else {
-        const auto settings = mesh_editor_refit_settings_from_json(root, MeshRefitGarmentSettingsRuntime{}, false);
-        for (const int index : garments) next_refit->garment_settings[index] = settings;
+        for (const int index : garments) {
+            MeshRefitGarmentSettingsRuntime defaults;
+            // Older clients omit tightness. Preserve the authoritative per-Part value.
+            defaults.tightness_percent = next_refit->garment_settings[index].tightness_percent;
+            next_refit->garment_settings[index] = mesh_editor_refit_settings_from_json(root, defaults, true);
+        }
         refit_read_vertex_masks_native(*next_refit, root.get("vertex_masks"), submeshes, garments);
     }
     next->refit = std::move(next_refit);
     next->change_id = "configure-refit";
-    next->state_revision = ++session.morph_state_revision;
     MeshEditorHistoryEntry history;
     history.operation = "morph_configure_refit";
     history.morph_before = session.morph;
@@ -663,6 +671,7 @@ std::string mesh_editor_morph_configure_refit_session_report(
     std::vector<SubmeshMeshEditResult> results = mesh_editor_recompose_morph(
         session, *next, "morph_configure_refit", delta_output_dir, session_id
     );
+    next->state_revision = ++session.morph_state_revision;
     session.morph = std::move(next);
     const bool history_published = mesh_editor_publish_morph_history(session, std::move(history), before, "", false);
     if (!results.empty()) ++session.edit_revision;
@@ -678,6 +687,7 @@ std::shared_ptr<const MeshRefitRuntime> mesh_editor_rebased_refit(
 ) {
     if (!morph.refit) return {};
     auto refit = std::make_shared<MeshRefitRuntime>(*morph.refit);
+    for (auto& item : refit->garment_settings) item.second.tightness_percent = 0.0;
     for (const int driver_index : refit->driver_submesh_indices) {
         const auto found = submeshes.find(driver_index);
         if (found == submeshes.end()) throw std::runtime_error("garment refit driver topology changed");
