@@ -329,8 +329,9 @@ class ModManagementTab(QWidget):
         self._refresh_needed = True
         QTimer.singleShot(0, self, self._refresh_inventory)
         from cdmw.services.archive_overlay_install import OverlayInstallResult
-        if isinstance(result, OverlayInstallResult):
-            return  # Create New Item owns the completion of its installation.
+        from cdmw.services.independent_item_install import IdentityDeletionResult
+        if isinstance(result, (OverlayInstallResult, IdentityDeletionResult)):
+            return  # The owning page reports its completed operation.
         if hasattr(result, 'removed_overlay_id') or hasattr(result, 'retired_inventory'):
             return  # The inventory owns this result and refreshes itself.
         from cdmw.ui.new_item.panels_output import install_result_report

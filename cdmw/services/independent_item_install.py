@@ -11,7 +11,7 @@ from pathlib import Path
 import re
 
 from cdmw.core.archive_format import parse_archive_pamt
-from cdmw.core.atomic_file import atomic_binary_writer
+from cdmw.core.atomic_file import atomic_binary_writer, atomic_write_bytes
 from cdmw.core.papgt_format import parse_papgt
 from cdmw.core.stringinfo_table import stringinfo_key
 from cdmw.domain.archives.overlay_merge import _table
@@ -29,6 +29,9 @@ from cdmw.services.independent_item_package import (
 )
 from cdmw.services.new_item_planning import build_plan
 from cdmw.services.new_item_service import NewItemService
+from cdmw.services.application_shutdown_service import archive_write_scope
+from cdmw.services.installation_lane import serialized_installation
+from cdmw.services.overlay_target_recovery import OverlayTargetRecovery, payload_digest
 from cdmw.services.independent_item_compatibility import (
     external_mods, reserved_external_keys, check_package_dependencies,
 )
@@ -670,6 +673,119 @@ def export_profile(root, destination, *, stop_event=None):
         handle.write(data)
         raise_if_cancelled(stop_event)
     return destination
+
+
+@dataclass(frozen=True)
+class IdentityDeletionResult:
+    identity: str
+    title: str
+    backup_dir: Path
+
+
+@dataclass(frozen=True)
+class IdentityDeletionPreparation:
+    package_root: Path
+    identity: str
+    title: str
+    game_id: int | None
+    writes: tuple[tuple[str, bytes], ...]
+    observed_state: tuple[tuple[str, bytes | None], ...]
+
+
+def prepare_identity_deletion(identity, root, *, stop_event=None):
+    """Forget a removed reservation without changing archives or their baselines."""
+    raise_if_cancelled(stop_event)
+    root, identity = Path(root).resolve(), package_id(identity)
+    observed = overlays._observe_state(root)
+    registry = load_registry(root)
+    row = registry['items'].get(identity)
+    if row is None:
+        raise IndependentItemError('This saved identity no longer exists. Refresh the list.')
+    state = overlays._load_index(root)
+    from cdmw.services.virtual_loader_state import active_identities, load_profile
+    if identity in active_identities(root) or any(
+            layer.get('independent_identity') == identity and (layer['active'] or layer.get('disabled'))
+            for layer in (state or {}).get('layers', ())):
+        raise IndependentItemError('Remove this item from Mods and apply the changes before deleting its saved identity.')
+    del registry['items'][identity]
+    writes = {REGISTRY_PATH: canonical(_validate_registry(registry))}
+    if state is not None:
+        changed = False
+        for layer in state['layers']:
+            raise_if_cancelled(stop_event)
+            if layer.get('independent_identity') == identity:
+                # Keep the immutable payload journal and baseline/dependency history.
+                # Detach the removed package's reservation and compilation metadata.
+                for key in ('independent_identity', 'independent_digest', 'independent_bindings',
+                            'independent_compiler', 'independent_compilation',
+                            'independent_operations', 'independent_textures'):
+                    layer.pop(key, None)
+                changed = True
+            elif 'independent_compilation' in layer:
+                inputs = read_compilation(layer['independent_compilation'], state.get('compilation_contexts'))['inputs']
+                if identity in inputs.get('links', {}).get('providers', {}):
+                    if layer['active'] or layer.get('disabled'):
+                        raise IndependentItemError('Another installed item retains this identity in its compilation. Rebuild or remove that item before deleting this identity.')
+                    # Retired compilation graphs cannot retain a live binding to an
+                    # explicitly forgotten identity. Other reservations stay intact.
+                    layer.pop('independent_compilation')
+                    layer.pop('independent_compiler', None)
+                    changed = True
+        if changed:
+            writes[overlays.INDEX_PATH] = overlays._inventory_bytes(state)
+            overlays._check_inventory_capacity(writes[overlays.INDEX_PATH])
+    load_profile(root, registry=registry)
+    overlays._verify_observed_state(root, observed, 'during preparation', IndependentItemError)
+    raise_if_cancelled(stop_event)
+    return IdentityDeletionPreparation(root, identity, row['title'], row['values'].get('iteminfo', {}).get('item'),
+                                       tuple(writes.items()), observed)
+
+
+@archive_write_scope()
+@serialized_installation(lambda preparation, **_kwargs: getattr(preparation, 'package_root', None))
+def apply_identity_deletion(preparation, *, confirmed, mutations, game_running=None, stop_event=None, on_log=None):
+    """Back up and publish only the reviewed local identity/ownership ledgers."""
+    if not isinstance(preparation, IdentityDeletionPreparation):
+        raise TypeError('Identity deletion requires a prepared change.')
+    if not confirmed:
+        raise PermissionError('Identity deletion requires explicit confirmation.')
+    if game_running is None:
+        from cdmw.services.new_item_service import game_is_running
+        game_running = game_is_running
+
+    def validate():
+        raise_if_cancelled(stop_event)
+        if game_running():
+            raise RuntimeError('Close Crimson Desert before deleting saved identities.')
+        current = prepare_identity_deletion(preparation.identity, preparation.package_root, stop_event=stop_event)
+        if current != preparation:
+            raise IndependentItemError('The saved identities or installation changed. Refresh and review the deletion again.')
+
+    validate()
+    root = preparation.package_root
+    observed = dict(preparation.observed_state)
+    originals = {overlays._target(root, path): observed[path] for path, _ in preparation.writes}
+    backup_dir = Path(mutations.backup_files(tuple(originals),
+        description='Delete saved item identity: ' + preparation.title, on_log=on_log))
+    overlays._verify_backup(backup_dir, originals)
+    validate()
+    recovery = OverlayTargetRecovery(root, {path: payload_digest(data) for path, data in originals.items()},
+        backup_dir=backup_dir, restore_backup=mutations.restore_backup, stop_event=stop_event)
+    try:
+        # Once publication starts, finish both ledgers and verify them as a unit.
+        for relative, data in preparation.writes:
+            recovery.write(overlays._target(root, relative), data, atomic_write_bytes)
+        load_registry(root)
+        recovery.committed()
+    except BaseException as error:
+        try:
+            recovery.rollback()
+        except Exception as rollback_error:
+            raise RuntimeError(f'Identity deletion failed; recovery requires backup {backup_dir}: {rollback_error}') from error
+        raise
+    if on_log:
+        on_log(f'Deleted saved identity: {preparation.title}. Backup: {backup_dir}')
+    return IdentityDeletionResult(preparation.identity, preparation.title, backup_dir)
 
 
 def prepare_profile_import(source, root, *, stop_event=None, on_log=None):

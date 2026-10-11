@@ -59,9 +59,12 @@ CHECKLIST = (
 def install_result_report(result: object) -> tuple:
     """Describe overlay installation, migration and removal by their result type."""
 
+    from cdmw.services.independent_item_install import IdentityDeletionResult
     backup = getattr(result, "backup_dir", "") or ""
     directory = getattr(result, "directory", None)
     name = getattr(directory, "name", "") if directory is not None else ""
+    if isinstance(result, IdentityDeletionResult):
+        return ('Delete saved identity', f'Saved identity deleted: {result.title}.\n\nBackup: {backup}')
     if hasattr(result, "retired_inventory"):
         return (
             "Start fresh with overlays",
@@ -303,9 +306,6 @@ class OutputPanel(QGroupBox):
         self.independent_note = QLabel(self.tr("Build the plan, then write a .cditem file. Load it through Mod Management > Virtual loader or install it through Independent items."))
         self.independent_note.setWordWrap(True)
         independent_layout.addWidget(self.independent_note)
-        self.independent_validation = QLabel("Game and save compatibility is not yet verified.")
-        self.independent_validation.setWordWrap(True)
-        independent_layout.addWidget(self.independent_validation)
         self.update_package_button = QPushButton("Update an existing item package...")
         self.update_package_button.setToolTip(self.tr("Replace a selected .cditem package while keeping its identity. Writing a new package creates a separate item."))
         self.update_package_button.clicked.connect(lambda: self._write_independent(update=True))

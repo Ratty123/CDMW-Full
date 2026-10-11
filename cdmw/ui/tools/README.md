@@ -23,6 +23,12 @@ Select a CDMW install and choose **Details** to open its preview and file histor
   These operations write separate output packages; they do not apply them to the game.
 - **Item identities** inspects installed/reserved IDs. **Identity profile** opens its
   import/export tools for transferring profiles with saves.
+  Selecting a removed entry enables **Delete saved identity…**, which permanently
+  frees its reserved IDs after confirmation and a verified backup. Remove active or
+  disabled items first; remove virtual items in **Mods** and choose **Apply changes**.
+  Old saves can lose their item references or refer to a different item if a freed ID
+  is reused. The identity cleanup changes CDMW bookkeeping only, preserving archives
+  and the payload history needed by other installs.
   The explicit **Install into game archives** action retains the older physical route.
 - **Shared files** scans installed data or a mod folder, reviews conflicts, and offers
   the existing rebuild and export actions.

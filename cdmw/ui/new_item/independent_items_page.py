@@ -20,13 +20,9 @@ class IndependentItemsPage(QWidget):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(8)
-        validation = QLabel("Game and save compatibility is not yet verified.")
-        validation.setProperty('managementRole', 'notice')
-        validation.setWordWrap(True)
-        layout.addWidget(validation)
         self.setToolTip('Inspect installed item IDs or move them with your saves. Add new mods from the Mods list.')
         toolbar = QHBoxLayout()
-        toolbar.addWidget(QLabel('Installed item identities'), 1)
+        toolbar.addWidget(QLabel('Saved item identities'), 1)
         self.profile_toggle = QToolButton()
         self.profile_toggle.setObjectName('independent_profile_toggle')
         self.profile_toggle.setText('Identity profile')
@@ -145,9 +141,16 @@ class IndependentItemsPage(QWidget):
     def _buttons(self):
         ready = not (self._closed or self._working or self.controller.busy)
         selected = self.items.currentItem()
+        status = selected.data(0, Qt.ItemDataRole.UserRole + 1) if selected else None
+        removed = status == 'Removed / reserved'
         self.import_button.setEnabled(ready and self.mutations is not None)
-        self.remove_button.setEnabled(ready and self.mutations is not None and selected is not None and selected.data(0, Qt.ItemDataRole.UserRole + 1) == 'Installed')
-        self.rebuild_button.setEnabled(self.remove_button.isEnabled())
+        self.remove_button.setText(self.tr('Delete saved identity…') if removed else self.tr('Remove selected item...'))
+        self.remove_button.setToolTip(
+            self.tr('Permanently free this removed item’s reserved IDs after review and a backup. Old saves may still need them.') if removed else
+            self.tr('Remove this package from Mods, then choose Apply changes.') if status == 'Virtual profile' else
+            self.tr('Remove the installed item after review and a backup. Its IDs remain reserved until you delete the saved identity.'))
+        self.remove_button.setEnabled(ready and self.mutations is not None and status in ('Installed', 'Disabled', 'Removed / reserved'))
+        self.rebuild_button.setEnabled(ready and self.mutations is not None and status == 'Installed')
         self.refresh_button.setEnabled(ready)
         self.export_profile_button.setEnabled(ready)
         self.import_profile_button.setEnabled(ready and self.mutations is not None)
@@ -238,7 +241,8 @@ class IndependentItemsPage(QWidget):
             for column in range(self.items.columnCount()):
                 self.items.resizeColumnToContents(column)
             self._columns_sized = True
-        self._set_status(self.tr("Identity reservations remain after removal. Saves are never edited automatically."))
+        self._set_status(self.tr("Removed items keep their IDs reserved. Select one and choose Delete saved identity to permanently free its IDs."))
+        self._buttons()
 
     def _import(self):
         paths, _ = QFileDialog.getOpenFileNames(self, self.tr("Import independent items"), "", self.tr("Independent items (*.cditem)"))
@@ -310,11 +314,41 @@ class IndependentItemsPage(QWidget):
 
     def _remove(self):
         item = self.items.currentItem()
-        if item is None:
+        if item is None or not self.remove_button.isEnabled():
+            return
+        if item.data(0, Qt.ItemDataRole.UserRole + 1) == 'Removed / reserved':
+            from cdmw.services.independent_item_install import prepare_identity_deletion
+            identity, root = item.data(0, Qt.ItemDataRole.UserRole), self.package_root
+            self._run(lambda log, stop: prepare_identity_deletion(identity, root, stop_event=stop), self._review_identity_deletion)
             return
         from cdmw.services.independent_item_install import prepare_remove
         identity, root = item.data(0, Qt.ItemDataRole.UserRole), self.package_root
         self._run(lambda log, stop: prepare_remove(identity, root, stop_event=stop, on_log=log), self._review)
+
+    def _review_identity_deletion(self, prepared):
+        generation, root = self._generation, self.package_root
+        warning = self.tr('This permanently deletes the saved identity and frees its reserved IDs. Old saves may stop recognizing this item or refer to another item if an ID is reused. Reinstalling the package may assign different IDs. Saves are not edited.')
+        box = QMessageBox(QMessageBox.Icon.Warning, self.tr('Delete saved identity'),
+            prepared.title + (f' ({prepared.game_id})' if prepared.game_id is not None else '')
+            + '\n\n' + warning + '\n\n' + self.tr('A verified backup will be created first. Close the game before continuing.')
+            + '\n\n' + self.tr('Permanently delete this saved identity?'),
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No, self)
+        box.setDetailedText(self.tr('Game folder:') + ' ' + str(prepared.package_root) + '\n\n'
+            + self.tr('Files to update:') + '\n' + '\n'.join(path for path, _ in prepared.writes))
+        box.setDefaultButton(QMessageBox.StandardButton.No)
+        if (box.exec() == QMessageBox.StandardButton.Yes and not self._closed
+                and generation == self._generation and root == self.package_root):
+            self._queued = ('delete_identity', prepared)
+
+    def _delete_identity(self, prepared):
+        from cdmw.services.independent_item_install import apply_identity_deletion
+        mutations = self.mutations
+        def task(log, stop):
+            return apply_identity_deletion(prepared, confirmed=True, mutations=mutations, stop_event=stop, on_log=log)
+        def finished(result):
+            self.activity.emit(self.tr('Saved identity deleted. Backup:') + ' ' + str(result.backup_dir))
+            self._queued = ('refresh', None)
+        self._run(task, finished, applying=True)
 
     def _rebuild(self):
         item = self.items.currentItem()
@@ -384,7 +418,12 @@ class IndependentItemsPage(QWidget):
             return
         action, value = self._queued
         self._queued = None
-        self._apply(value) if action == 'apply' else self.refresh()
+        if action == 'apply':
+            self._apply(value)
+        elif action == 'delete_identity':
+            self._delete_identity(value)
+        else:
+            self.refresh()
 
     def _busy_changed(self, busy):
         if not busy:

@@ -56,13 +56,17 @@ def test_item_columns_sort_numerically_resize_and_preserve_selection_on_refresh(
         props = bridge.document.registry.current[bridge.document.registry.identify(page.items)]['props']
         assert props['sortable']
         assert all(col['resizable'] and not col['stretch'] for col in props['columns'])
+        _send(bridge, page.items, 'select', {'path': [1], 'column': 0})
+        assert page.items.currentItem().data(0, Qt.UserRole) == 'reserved'
+        assert page.remove_button.isEnabled() and not page.rebuild_button.isEnabled()
     finally:
         page.request_shutdown()
         controller.shutdown()
         page.close()
 
 
-def test_field_only_package_can_be_reviewed_rebuilt_and_removed_without_a_dummy_id(tmp_path):
+@pytest.mark.parametrize('disabled', [False, True])
+def test_field_only_package_can_be_reviewed_rebuilt_and_removed_without_a_dummy_id(tmp_path, disabled):
     from tests.test_independent_item_fields import field_package
     from cdmw.services.independent_item_install import prepare_install, load_registry
     from cdmw.services.independent_item_package import package_bytes
@@ -83,6 +87,12 @@ def test_field_only_package_can_be_reviewed_rebuilt_and_removed_without_a_dummy_
                 patch('cdmw.services.new_item_service.game_is_running', return_value=False):
             _send(bridge, page.rebuild_button, 'activate')
             assert load_registry(root)['items'][package.identity]['values'] == {}
+            if disabled:
+                from cdmw.services.archive_overlay_manager import prepare_overlay_enabled
+                layer = load_registry(root)['items'][package.identity]['layer']
+                backups.apply(prepare_overlay_enabled(root, layer, False))
+                page.refresh()
+                assert page.remove_button.isEnabled() and not page.rebuild_button.isEnabled()
             _send(bridge, page.remove_button, 'activate')
         assert inventory(root)[0][3] == 'Removed / reserved'
     finally:
@@ -117,6 +127,90 @@ def test_reviewed_import_and_removal_use_shared_transaction_via_rust(tmp_path):
         page.request_shutdown()
         controller.shutdown()
         page.close()
+
+
+@pytest.mark.parametrize('decision', ['delete', 'cancel', 'changed_root', 'close'])
+def test_removed_identity_can_be_deleted_after_review_through_rust(tmp_path, decision):
+    from cdmw.services.independent_item_install import load_registry, prepare_install, prepare_remove
+    from cdmw.services.independent_item_package import package_bytes
+    from tests.test_independent_item_regressions import files_in
+    app = QApplication.instance() or QApplication([])
+    _, package = authored(tmp_path / 'source')
+    setup_game(tmp_path / 'recipient')
+    root, backups = tmp_path / 'recipient/game', Backups(tmp_path)
+    backups.apply(prepare_install([package_bytes(package)], root).preparation)
+    backups.apply(prepare_remove(package.identity, root))
+    before = files_in(root)
+    controller = NewItemStudioController(synchronous=True)
+    page = IndependentItemsPage(controller, root, backups)
+    bridge = NewItemPresentationBridge(page)
+    page.show()
+    page.refresh()
+    def review(box):
+        assert package.title in box.text() and str(root) in box.detailedText()
+        assert box.defaultButton() == box.button(QMessageBox.StandardButton.No)
+        if decision == 'changed_root':
+            page.set_game_root(tmp_path / 'other-game')
+        elif decision == 'close':
+            page.request_shutdown()
+        return QMessageBox.StandardButton.No if decision == 'cancel' else QMessageBox.StandardButton.Yes
+    try:
+        _send(bridge, page.items, 'select', {'path': [0], 'column': 0})
+        assert page.remove_button.isEnabled() and not page.rebuild_button.isEnabled()
+        with patch.object(QMessageBox, 'exec', review), \
+                patch('cdmw.services.new_item_service.game_is_running', return_value=False):
+            _send(bridge, page.remove_button, 'activate')
+        app.processEvents()
+        if decision == 'delete':
+            assert package.identity not in load_registry(root)['items']
+            assert page.items.topLevelItemCount() == 0 and not page.remove_button.isEnabled()
+            assert backups.count == 3
+        else:
+            assert files_in(root) == before and backups.count == 2
+        assert page._queued is None
+    finally:
+        page.request_shutdown()
+        controller.shutdown()
+        page.close()
+
+
+def test_mod_management_reports_identity_deletion_without_an_installation_dialog(tmp_path):
+    from types import SimpleNamespace
+    from cdmw.services.independent_item_install import load_registry, prepare_install, prepare_remove
+    from cdmw.services.independent_item_package import package_bytes
+    from cdmw.ui.new_item.panels_output import install_result_report
+    from cdmw.ui.tools.mod_management import ModManagementTab
+    app = QApplication.instance() or QApplication([])
+    _, package = authored(tmp_path / 'source')
+    setup_game(tmp_path / 'recipient')
+    root, backups = tmp_path / 'recipient/game', Backups(tmp_path)
+    backups.apply(prepare_install([package_bytes(package)], root).preparation)
+    backups.apply(prepare_remove(package.identity, root))
+    controller = NewItemStudioController(synchronous=True)
+    window = SimpleNamespace(app_context=SimpleNamespace(services=SimpleNamespace(require_archive_mutations=lambda: backups)))
+    tab = ModManagementTab(window=window, controller=controller, get_package_root=lambda: str(root))
+    page = tab.independent_page
+    bridge = NewItemPresentationBridge(tab)
+    results = []
+    controller.install_finished.connect(results.append)
+    try:
+        tab.open_page('independent')
+        _send(bridge, page.items, 'select', {'path': [0], 'column': 0})
+        with patch.object(QMessageBox, 'exec', return_value=QMessageBox.StandardButton.Yes), \
+                patch.object(QMessageBox, 'information') as information, \
+                patch('cdmw.services.new_item_service.game_is_running', return_value=False):
+            _send(bridge, page.remove_button, 'activate')
+        information.assert_not_called()
+        assert len(results) == 1 and package.identity not in load_registry(root)['items']
+        assert str(results[0].backup_dir) in tab.log.toPlainText()
+        title, message = install_result_report(results[0])
+        assert title == 'Delete saved identity' and package.title in message
+        assert str(results[0].backup_dir) in message
+        assert page.items.topLevelItemCount() == 0
+    finally:
+        tab.request_shutdown()
+        controller.shutdown()
+        tab.close()
 
 
 @pytest.mark.parametrize('decision', ['apply', 'cancel', 'changed_root'])

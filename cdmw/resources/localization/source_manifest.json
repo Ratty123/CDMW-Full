@@ -4451,7 +4451,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/independent_items_page.py",
-          "line": 342,
+          "line": 333,
+          "sink": "tr"
+        },
+        {
+          "path": "cdmw/ui/new_item/independent_items_page.py",
+          "line": 376,
           "sink": "tr"
         }
       ]
@@ -28927,6 +28932,16 @@
       ]
     },
     {
+      "key": "Close Crimson Desert before deleting saved identities.",
+      "origins": [
+        {
+          "path": "cdmw/services/independent_item_install.py",
+          "line": 759,
+          "sink": "RuntimeError"
+        }
+      ]
+    },
+    {
       "key": "Close Crimson Desert before starting a virtual session.",
       "origins": [
         {
@@ -36992,6 +37007,31 @@
       ]
     },
     {
+      "key": "Delete saved identity",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/independent_items_page.py",
+          "line": 331,
+          "sink": "tr"
+        },
+        {
+          "path": "cdmw/ui/new_item/panels_output.py",
+          "line": 67,
+          "sink": "python-return:install_result_report"
+        }
+      ]
+    },
+    {
+      "key": "Delete saved identity…",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/independent_items_page.py",
+          "line": 147,
+          "sink": "tr"
+        }
+      ]
+    },
+    {
       "key": "Delete selected hair",
       "origins": [
         {
@@ -37098,6 +37138,16 @@
           "path": "cdmw/ui/research/notes_state.py",
           "line": 85,
           "sink": "python-return:research_note_delete_success_status_text"
+        }
+      ]
+    },
+    {
+      "key": "Deleted saved identity: {value_0}. Backup: {value_1}",
+      "origins": [
+        {
+          "path": "cdmw/services/independent_item_install.py",
+          "line": 787,
+          "sink": "on_log"
         }
       ]
     },
@@ -48898,6 +48948,11 @@
           "path": "cdmw/ui/new_item/independent_items_page.py",
           "line": 337,
           "sink": "tr"
+        },
+        {
+          "path": "cdmw/ui/new_item/independent_items_page.py",
+          "line": 371,
+          "sink": "tr"
         }
       ]
     },
@@ -53132,21 +53187,6 @@
       ]
     },
     {
-      "key": "Game and save compatibility is not yet verified.",
-      "origins": [
-        {
-          "path": "cdmw/ui/new_item/independent_items_page.py",
-          "line": 23,
-          "sink": "QLabel"
-        },
-        {
-          "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 306,
-          "sink": "QLabel"
-        }
-      ]
-    },
-    {
       "key": "Game archive file",
       "origins": [
         {
@@ -53322,6 +53362,11 @@
         {
           "path": "cdmw/ui/new_item/independent_items_page.py",
           "line": 336,
+          "sink": "tr"
+        },
+        {
+          "path": "cdmw/ui/new_item/independent_items_page.py",
+          "line": 370,
           "sink": "tr"
         },
         {
@@ -58837,6 +58882,36 @@
       ]
     },
     {
+      "key": "Identity deletion failed; recovery requires backup {value_0}: {value_1}",
+      "origins": [
+        {
+          "path": "cdmw/services/independent_item_install.py",
+          "line": 784,
+          "sink": "RuntimeError"
+        }
+      ]
+    },
+    {
+      "key": "Identity deletion requires a prepared change.",
+      "origins": [
+        {
+          "path": "cdmw/services/independent_item_install.py",
+          "line": 749,
+          "sink": "TypeError"
+        }
+      ]
+    },
+    {
+      "key": "Identity deletion requires explicit confirmation.",
+      "origins": [
+        {
+          "path": "cdmw/services/independent_item_install.py",
+          "line": 751,
+          "sink": "PermissionError"
+        }
+      ]
+    },
+    {
       "key": "Identity is ready.",
       "origins": [
         {
@@ -58882,16 +58957,6 @@
         {
           "path": "cdmw/ui/new_item/independent_items_page.py",
           "line": 372,
-          "sink": "tr"
-        }
-      ]
-    },
-    {
-      "key": "Identity reservations remain after removal. Saves are never edited automatically.",
-      "origins": [
-        {
-          "path": "cdmw/ui/new_item/independent_items_page.py",
-          "line": 241,
           "sink": "tr"
         }
       ]
@@ -62803,16 +62868,6 @@
           "path": "cdmw/ui/new_item/panels_output.py",
           "line": 128,
           "sink": "python-return:install_result_report"
-        }
-      ]
-    },
-    {
-      "key": "Installed item identities",
-      "origins": [
-        {
-          "path": "cdmw/ui/new_item/independent_items_page.py",
-          "line": 29,
-          "sink": "QLabel"
         }
       ]
     },
@@ -95962,6 +96017,26 @@
       ]
     },
     {
+      "key": "Permanently delete this saved identity?",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/independent_items_page.py",
+          "line": 334,
+          "sink": "tr"
+        }
+      ]
+    },
+    {
+      "key": "Permanently free this removed item’s reserved IDs after review and a backup. Old saves may still need them.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/independent_items_page.py",
+          "line": 149,
+          "sink": "tr"
+        }
+      ]
+    },
+    {
       "key": "Persistent edit colours",
       "origins": [
         {
@@ -110781,8 +110856,13 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/independent_items_page.py",
-          "line": 73,
+          "line": 69,
           "sink": "QPushButton"
+        },
+        {
+          "path": "cdmw/ui/new_item/independent_items_page.py",
+          "line": 147,
+          "sink": "tr"
         }
       ]
     },
@@ -110813,6 +110893,16 @@
           "path": "cdmw/ui/texture_workflow/workspace_ui.py",
           "line": 127,
           "sink": "setToolTip"
+        }
+      ]
+    },
+    {
+      "key": "Remove the installed item after review and a backup. Its IDs remain reserved until you delete the saved identity.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/independent_items_page.py",
+          "line": 151,
+          "sink": "tr"
         }
       ]
     },
@@ -110907,6 +110997,16 @@
       ]
     },
     {
+      "key": "Remove this package from Mods, then choose Apply changes.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/independent_items_page.py",
+          "line": 150,
+          "sink": "tr"
+        }
+      ]
+    },
+    {
       "key": "Remove this slider's saved correction only from the selected corrected garments. Other corrections and the body shape are retained.",
       "origins": [
         {
@@ -110953,6 +111053,16 @@
           "path": "cdmw/ui/archive_browser/mesh_patch_flow.py",
           "line": 602,
           "sink": "log"
+        }
+      ]
+    },
+    {
+      "key": "Removed items keep their IDs reserved. Select one and choose Delete saved identity to permanently free its IDs.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/independent_items_page.py",
+          "line": 244,
+          "sink": "tr"
         }
       ]
     },
@@ -119477,6 +119587,26 @@
       ]
     },
     {
+      "key": "Saved identity deleted. Backup:",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/independent_items_page.py",
+          "line": 349,
+          "sink": "tr"
+        }
+      ]
+    },
+    {
+      "key": "Saved identity deleted: {value_0}.\n\nBackup: {value_1}",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/panels_output.py",
+          "line": 67,
+          "sink": "python-return:install_result_report"
+        }
+      ]
+    },
+    {
       "key": "Saved import normals do not match the replacement geometry.",
       "origins": [
         {
@@ -119508,6 +119638,16 @@
           "path": "cdmw/ui/item_icons/workers.py",
           "line": 444,
           "sink": "_emit_status"
+        }
+      ]
+    },
+    {
+      "key": "Saved item identities",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/independent_items_page.py",
+          "line": 25,
+          "sink": "QLabel"
         }
       ]
     },
@@ -145448,6 +145588,16 @@
           "path": "cdmw/services/new_item_transparency_paint.py",
           "line": 131,
           "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "This permanently deletes the saved identity and frees its reserved IDs. Old saves may stop recognizing this item or refer to another item if an ID is reused. Reinstalling the package may assign different IDs. Saves are not edited.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/independent_items_page.py",
+          "line": 330,
+          "sink": "tr"
         }
       ]
     },

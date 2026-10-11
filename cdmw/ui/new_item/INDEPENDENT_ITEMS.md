@@ -12,6 +12,15 @@ heading; clicking again reverses the order. Game IDs sort numerically. Drag the
 column edges to change widths. Refresh preserves the sort, widths and selected
 package. The default layout keeps IDs and status readable as the pane resizes.
 
+**Removed / reserved** entries are saved ID mappings, not installed mods. Select one
+and choose **Delete saved identity…** to permanently free its IDs after review and a
+verified backup. Active or disabled items must be removed first; for virtual items,
+remove them from **Mods** and choose **Apply changes**. Old saves may no longer
+recognize a forgotten item, and another item can reuse its IDs. Reinstallation may
+allocate new IDs. Cleanup preserves game archives, saves and payload recovery history;
+restore the matching backup to recover deleted mappings. A remaining installed item
+whose compilation references the mapping must be rebuilt or removed first.
+
 CDMW composes the game's shared files during installation. Separate `.cditem`
 files are portable authoring packages, not standalone archives the game discovers.
 No manual mod merge is required for compatible packages installed through CDMW.
