@@ -1641,6 +1641,11 @@ cohort, so a protected side of a seam stays protected. Protected areas may retai
 clipping intentionally. Surface and the original Rigid mode accept mixed weights;
 Rigid component requires one weight throughout each connected piece.
 
+When a rigid piece spans several material Parts, select all of those Parts and set
+their shared influence together. Setting influence or clearing masks applies the
+whole selection as one undoable edit, preserving each Part's mode, intensity and
+clearance.
+
 **Allowed body region** keeps its garment targets separate from viewport selection:
 
 1. Check the garments that should use the constraint.
@@ -1696,8 +1701,12 @@ zero. Sculpt the selected garments, then choose **Save outfit correction**.
 The saved displacement is additional to the normal body fit and scales with that
 slider. Zero removes its correction; intermediate values apply the corresponding
 fraction. Saving keeps the selected slider at 100%. **Cancel outfit correction**
-restores the selected garments and the slider values that were active when editing
-began. Undo/Redo restores the pending correction as well as its geometry.
+restores every Part's vertex positions and the slider values that were active when
+editing began. This also discards accidental body edits and shape changes outside
+the selected garments. UV and material edits are retained. Undo/Redo restores the
+pending correction and discarded shapes. If topology or source/skin identity has
+changed, undo that incompatible edit before cancelling; Cancel does not overwrite
+changed geometry structure or source mappings.
 
 Edits to unrelated Parts, changed topology, or effectively protected vertices are
 refused when saving. Correction capture uses the fitter's actual seam-aware influence
@@ -1709,6 +1718,16 @@ Corrections retain the matching garments' topology, neutral geometry and skin/so
 identity. Bind those garments before using a profile that contains their corrections.
 Save Profile or Save Preset retains the correction with its slider; the mask and
 binding constraints belong in a fitting setup.
+
+Editing a procedural slider retains its saved corrections, including when the
+slider is renamed. Undo/Redo restores the definition and corrections together.
+Change a sculpted slider by capturing a new target instead of replacing its saved
+shape with a procedural rule.
+
+**Clear Refit** removes fitted movement and saved-correction displacement from the
+garments. Correction data stays in the profile and applies again only after those
+garments are bound and enabled. Saved influence masks remain part of exported
+fitting setups; clearing the current bindings clears their session masks.
 
 #### Geometry layers and output
 
@@ -1766,6 +1785,9 @@ coordinates and available source/skin identity must match. It recreates the save
 bindings and applies the body preset and garment settings in one undoable operation.
 Conflicting profile or preset IDs receive new identities. Failed imports restore the
 previous mesh, runtime, metadata and session library.
+All target Parts' settings and masks are applied together, so a connected rigid
+piece split across material Parts keeps a valid shared influence when its setup is
+loaded. Other Parts retain their individual mode, intensity and clearance.
 
 A setup can be reopened in a later compatible session. Load multiple outfit assets
 around the same body to apply one preset and their individual settings together;

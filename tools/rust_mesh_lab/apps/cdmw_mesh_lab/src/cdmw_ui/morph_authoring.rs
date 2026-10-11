@@ -28,7 +28,10 @@ impl LabApplication {
                         label: "Save outfit correction",
                     });
                 }
-                if ui.add_enabled(authoring, Button::new(crate::localization::tr("Cancel outfit correction"))).clicked() {
+                if ui.add_enabled(authoring, Button::new(crate::localization::tr("Cancel outfit correction")))
+                    .on_hover_text(crate::localization::tr(
+                        "Discard all shape edits made while editing this correction and restore the previous slider values.",
+                    )).clicked() {
                     actions.push(UiAction::CdmwCommand {
                         command: "morph_cancel_correction",
                         arguments: json!({}),

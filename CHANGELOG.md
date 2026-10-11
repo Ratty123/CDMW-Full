@@ -30,6 +30,8 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 ### Fixed
 
+- Morph & Refit preserves saved corrections and prior definitions when sliders are edited or undone. Cancelling a correction restores every Part's previous shape and slider values; clearing a fit removes applied corrections while retaining their saved data. Masks and fitting setups apply together across connected Parts, and compatible session replacements after Bake remain eligible for changing allowed body regions.
+
 - New-item texture registration distinguishes DX10 formats and refuses incomplete or unsupported DDS layouts before output. Mod merging also checks that each declared texture contains its complete pixel data.
 - Mod merging accepts generated-icon registries in the game's flat XML format, preserves their surrounding content and reports duplicate icon names.
 - Independent item packages keep a fixed v1 schema so authoring-model changes cannot silently alter supported package fields or enum values.

@@ -186,6 +186,9 @@ Resident sparse morph fields accept `stage: "base"` (the existing default) or
 `stage: "post_refit"`. Body targets compose before garment fitting; per-slider
 outfit corrections compose afterward and use the same slider percentage. Unknown
 stages are refused. Reset, Bake and runtime snapshots retain the stage semantics.
+Corrections are active only for enabled, bound garments. Clearing refit removes
+their current displacement while retaining the saved correction fields for a later
+bind; it cannot reveal previously masked corrections.
 
 `morph_configure_refit` accepts optional `vertex_masks` rows containing a garment
 `submesh_index`, `vertex_indices` and `weights`. A missing mask means full
@@ -194,6 +197,17 @@ the argument preserves existing masks. An empty array clears masks on the config
 garments; an empty row protects its entire garment. The least mask value in a
 coincident seam cohort governs fitting, clearance and post-refit corrections.
 
+For an atomic multi-Part update, `morph_configure_refit` also accepts
+`garment_settings` rows that exactly cover `garment_submesh_indices`. Each row has
+`submesh_index` and optional `enabled`, `intensity_percent`, `mode` and
+`clearance_percent`; omitted values preserve that Part's current settings. A row's
+optional `vertex_mask` preserves its mask when omitted, clears it when `null`, or
+replaces it with an object containing `vertex_indices` and `weights`. Batch rows
+cannot be mixed with shared top-level settings or `vertex_masks`. All rows are
+validated in a private runtime before one recomposition and history entry. This
+allows influence changes, mask clearing and fitting recipes to update a rigid
+component that spans several material Parts without an invalid intermediate mask.
+
 `morph_bind` accepts `driver_regions` rows containing a driver `submesh_index`
 and allowed `vertex_indices`. Only triangles with all three vertices allowed are
 eligible. Invalid, out-of-role or triangle-free regions fail before publication.
@@ -201,6 +215,9 @@ Omission selects the whole driver. With `preserve_existing: true`, only the name
 garments are rebound; their compatible settings and masks, and all other garments'
 bindings, remain intact. `garment_regions` in state and snapshots records the scope
 for each garment. Clearance continues to check the complete selected body.
+The unchanged-driver check accepts exact baseline coordinates or their exact
+float32 publication representation, including after Bake and runtime restoration.
+Other driver edits remain blocked before a scoped rebind.
 
 The additional `rigid_component` mode solves one rigid rotation and translation
 per connected garment piece and interpolates the rotation for intensity. Clearance

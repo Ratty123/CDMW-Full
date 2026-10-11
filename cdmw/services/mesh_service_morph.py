@@ -15,6 +15,7 @@ from cdmw.core.atomic_file import atomic_write_text
 from cdmw.domain.mesh import (
     MeshEditCommand,
     MeshEditResult,
+    MeshEditSelection,
     MeshMorphDefinition,
     MeshMorphProfile,
     MeshMorphRule,
@@ -58,6 +59,7 @@ from cdmw.services.mesh_morph_profiles import (
 )
 from cdmw.services.mesh_service_history import (
     _MESH_MORPH_PROFILE_MAX_FILE_BYTES,
+    _dispose_history_snapshot_without_state_failure,
     _validated_mesh_morph_profile_files,
 )
 from cdmw.services.mesh_service_kernel import _apply_native_editor_dirty_counts
@@ -596,14 +598,12 @@ class MeshMorphServiceMixin(MeshMorphAuthoringMixin, MeshMorphRecipeMixin):
         if action == "morph_activate":
             return self.activate_morph_profile(session.session_id, params.get("profile_id"))[0]
         if action == "morph_author_definition":
-            if command.selection is not None:
-                session.selection = command.selection
-            profile = self.create_morph_definition(
+            _profile, activation = self.author_morph_definition(
                 session.session_id,
+                selection=command.selection,
                 **{key: value for key, value in params.items() if key != "stop_event"},
             )
-            data = self._required_morph_data(session)
-            return self._activate_morph_profile_locked(session, profile, data.diagnostics)[0]
+            return activation[0]
         if action == "morph_delete_definition":
             return self.delete_morph_definition(session.session_id, params.get("definition_id"))[0]
         if action == "morph_save_profile":
@@ -860,6 +860,89 @@ class MeshMorphServiceMixin(MeshMorphAuthoringMixin, MeshMorphRecipeMixin):
             data.topology_mesh = driver_mesh
         return self._morph_result_and_state_locked(session, "morph_upload", report)
 
+    def author_morph_definition(
+        self,
+        session_id: str,
+        *,
+        selection: MeshEditSelection | None = None,
+        **definition: object,
+    ) -> tuple[MeshMorphProfile, tuple[MeshEditResult, MeshMorphState]]:
+        """Create and activate a definition with its original cache in history."""
+        session = self._session(session_id)
+        with session.export_lock, mesh_morph_profile_lock(self._profile_root()):
+            self._require_baked_morph_definition_edit(session)
+            history = self._capture_morph_profile_history_locked(
+                session, action="morph_author_definition", label="Edit slider",
+            )
+            base_revision = session.revision
+            activation_base_revision: int | None = None
+            try:
+                if selection is not None:
+                    session.selection = selection
+                profile = self.create_morph_definition(session_id, **definition)
+                data = self._required_morph_data(session)
+                activation_base_revision = int(session.morph_session_revision)
+                result, state = self._activate_morph_profile_locked(
+                    session, profile, data.diagnostics, record_history=False,
+                )
+                self._publish_morph_profile_history_locked(
+                    session, history, base_revision=base_revision,
+                )
+            except Exception as command_error:
+                failed_revision = int(session.morph_session_revision)
+                native_activation_accepted = (
+                    activation_base_revision is not None
+                    and failed_revision != activation_base_revision
+                )
+                try:
+                    if native_activation_accepted:
+                        self._rollback_unpublished_morph_profile_history_locked(session, history)
+                    else:
+                        # A rejected definition or upload preflight has not changed
+                        # the resident cursor. Restore only its Python metadata.
+                        try:
+                            if history.morph_session_state is not None:
+                                self.restore_morph_session_cache_after_rejected_edit(
+                                    session_id, history.morph_session_state,
+                                    expected_revision=int(session.morph_session_revision),
+                                )
+                            session.selection = history.selection
+                        finally:
+                            _dispose_history_snapshot_without_state_failure(history)
+                except Exception as rollback_error:
+                    raise RuntimeError(
+                        "Morph definition creation failed and its runtime rollback also failed."
+                    ) from rollback_error
+                finally:
+                    if native_activation_accepted:
+                        # The rollback snapshot must not restore a reusable CAS token.
+                        session.morph_session_revision = max(
+                            int(session.morph_session_revision), failed_revision,
+                        ) + 1
+                        # Runtime restoration clears the resident history cursor.
+                        # Retain unrelated Python snapshots, never stale markers.
+                        discarded = []
+                        for stack in (session.undo_stack, session.redo_stack):
+                            retained = []
+                            for snapshot in stack:
+                                if snapshot.native_editor_history:
+                                    discarded.append(snapshot)
+                                else:
+                                    retained.append(snapshot)
+                            stack[:] = retained
+                        session.native_history_undo_count = 0
+                        session.native_history_redo_count = 0
+                        session.native_history_retained_bytes = 0
+                        disposed: set[int] = set()
+                        for snapshot in discarded:
+                            if id(snapshot) not in disposed:
+                                disposed.add(id(snapshot))
+                                _dispose_history_snapshot_without_state_failure(snapshot)
+                raise command_error
+            state = replace(state, edit_revision=session.revision)
+            self._required_morph_data(session).state = state
+            return profile, (replace(result, revision=session.revision), state)
+
     def create_morph_definition(
         self,
         session_id: str,
@@ -906,6 +989,8 @@ class MeshMorphServiceMixin(MeshMorphAuthoringMixin, MeshMorphRecipeMixin):
                 ),
                 None,
             )
+            if existing_definition is not None and existing_definition.source_kind == "authored":
+                raise ValueError("Sculpted sliders must be changed by capturing a new target.")
             preserve_existing_selection = preserve_selection is True or str(preserve_selection).strip().lower() in {"1", "true", "yes", "on"}
             if preserve_existing_selection:
                 if existing_definition is None:
@@ -975,6 +1060,21 @@ class MeshMorphServiceMixin(MeshMorphAuthoringMixin, MeshMorphRecipeMixin):
                 max_percent=float(max_percent),
                 default_percent=float(default_percent),
             )
+            if existing_definition is not None and existing_definition.garment_corrections:
+                definition = replace(
+                    definition,
+                    garment_corrections=tuple(
+                        replace(field, definition_id=definition.definition_id)
+                        for field in existing_definition.garment_corrections
+                    ),
+                    correction_topology_fingerprint=existing_definition.correction_topology_fingerprint,
+                    correction_base_geometry_fingerprint=existing_definition.correction_base_geometry_fingerprint,
+                )
+                neutral = self._native_neutral_mesh_locked(
+                    session,
+                    tuple(field.submesh_index for field in definition.garment_corrections),
+                )
+                validate_morph_definition_geometry(neutral, definition)
             definitions = [
                 item
                 for item in (existing.definitions if existing is not None else ())

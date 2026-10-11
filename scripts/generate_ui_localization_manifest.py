@@ -1927,8 +1927,8 @@ def main() -> int:
                 origin["sink"] == "rust-presentation"
                 or origin["path"].startswith((
                     "cdmw/services/mesh_rust_", "cdmw/services/mesh_shader_controls",
-                    "cdmw/services/mesh_emission", "cdmw/services/mesh_service_morph_authoring",
-                    "cdmw/services/mesh_service_morph_recipes", "cdmw/services/mesh_morph_profiles",
+                    "cdmw/services/mesh_emission", "cdmw/services/mesh_service_morph",
+                    "cdmw/services/mesh_morph_profiles",
                 ))
                 for origin in entry["origins"]
             )

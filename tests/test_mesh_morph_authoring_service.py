@@ -12,7 +12,7 @@ from types import SimpleNamespace
 import pytest
 
 from cdmw.domain.mesh import (
-    MeshEditResult, MeshEditSelection, MeshMorphDefinition, MeshMorphFittingRecipe,
+    MeshEditCommand, MeshEditResult, MeshEditSelection, MeshMorphDefinition, MeshMorphFittingRecipe,
     MeshMorphProfile, MeshMorphRule, MeshMorphSparseField, MeshMorphState,
     MeshMorphValuePreset, MeshMorphVertexWeight, MeshRefitBindingSummary,
     MeshRefitDriverRegion, MeshRefitGarmentSettings, create_authored_morph_definition,
@@ -152,14 +152,34 @@ class Harness(MeshMorphServiceMixin):
             raise RuntimeError("injected garment failure")
         if command == "morph_configure_refit":
             settings = {item.submesh_index: item for item in self.data.state.refit.garment_settings}
-            masks = _refit_masks_from_report(payload)
-            for index in targets:
-                mask = settings[index].vertex_mask
-                if "vertex_masks" in payload:
-                    mask = masks.get(index)
-                settings[index] = MeshRefitGarmentSettings(
-                    index, payload["enabled"], payload["intensity_percent"], payload["mode"], payload["clearance_percent"], mask,
-                )
+            if "garment_settings" in payload:
+                assert not {"enabled", "intensity_percent", "mode", "clearance_percent", "vertex_masks"}.intersection(payload)
+                rows = payload["garment_settings"]
+                assert len(rows) == len(targets)
+                assert {row["submesh_index"] for row in rows} == set(targets)
+                for row in rows:
+                    index = row["submesh_index"]
+                    previous = settings[index]
+                    mask = previous.vertex_mask
+                    if "vertex_mask" in row:
+                        raw_mask = row["vertex_mask"]
+                        mask = None if raw_mask is None else _refit_masks_from_report({
+                            "vertex_masks": [{"submesh_index": index, **raw_mask}],
+                        })[index]
+                    settings[index] = MeshRefitGarmentSettings(
+                        index, row.get("enabled", previous.enabled),
+                        row.get("intensity_percent", previous.intensity_percent),
+                        row.get("mode", previous.mode), row.get("clearance_percent", previous.clearance_percent), mask,
+                    )
+            else:
+                masks = _refit_masks_from_report(payload)
+                for index in targets:
+                    mask = settings[index].vertex_mask
+                    if "vertex_masks" in payload:
+                        mask = masks.get(index)
+                    settings[index] = MeshRefitGarmentSettings(
+                        index, payload["enabled"], payload["intensity_percent"], payload["mode"], payload["clearance_percent"], mask,
+                    )
             self.data.state = replace(self.data.state, refit=replace(self.data.state.refit, garment_settings=tuple(settings.values())))
         if "values" in payload:
             self.data.state = replace(self.data.state, values=tuple(sorted(payload["values"].items())))
@@ -494,3 +514,173 @@ def test_history_identity_requests_native_proof_when_python_provenance_is_missin
     assert snapshot.submeshes[0].source_vertex_map_authority == "test"
     assert service.session.working_mesh.submeshes[0].source_vertex_map_authority == "topology"
     assert service.session.working_mesh.submeshes[0].topology_provenance is None
+
+
+@pytest.mark.parametrize("edited", [
+    {"label": "Renamed lift"},
+    {"amount": 0.5},
+    {"definition_id": "renamed-lift"},
+])
+def test_procedural_definition_edit_retains_saved_garment_corrections(tmp_path, edited):
+    from cdmw.services.mesh_morph_profiles import mesh_morph_profile_from_payload, mesh_morph_profile_payload
+    service = Harness(tmp_path)
+    original = with_morph_garment_corrections(service.data.profile.definitions[0], service.neutral, (
+        MeshMorphSparseField("lift", 2, (0,), ((0.0, 0.0, 0.2),)),
+    ))
+    service.data.profile = replace(service.data.profile, definitions=(original,))
+    params = {
+        "profile_id": "body", "profile_name": "Body", "definition_id": "lift",
+        "source_definition_id": "lift", "label": "Lift", "category": "Body",
+        "rule": "move", "axis": "z", "amount": 0.25, "feather": 0,
+        "falloff": "constant", "preserve_selection": True,
+    }
+    params.update(edited)
+    profile = service.create_morph_definition("mock", **params)
+    definition = profile.definitions[0]
+    assert definition.garment_corrections == tuple(
+        replace(field, definition_id=definition.definition_id) for field in original.garment_corrections
+    )
+    assert definition.correction_topology_fingerprint == original.correction_topology_fingerprint
+    assert definition.correction_base_geometry_fingerprint == original.correction_base_geometry_fingerprint
+    assert profile.format == "cdmw.mesh_morph_profile.v3"
+    assert mesh_morph_profile_from_payload(mesh_morph_profile_payload(profile)) == profile
+
+
+@pytest.mark.parametrize("invalid_change", ["garment_role", "garment_base"])
+def test_procedural_definition_edit_rejects_incompatible_correction_without_publication(tmp_path, invalid_change):
+    service = Harness(tmp_path)
+    original = with_morph_garment_corrections(service.data.profile.definitions[0], service.neutral, (
+        MeshMorphSparseField("lift", 2, (0,), ((0.0, 0.0, 0.2),)),
+    ))
+    service.data.profile = replace(service.data.profile, definitions=(original,))
+    before = service.data.profile
+    revision = service.session.morph_session_revision
+    if invalid_change == "garment_role":
+        service.session.selection = MeshEditSelection.from_maps(source_indices=(2,))
+        message = "driver part"
+    else:
+        service.neutral.submeshes[2].vertices[0] = (0.0, 0.0, 1.0)
+        message = "base geometry"
+    with pytest.raises(ValueError, match=message):
+        service.create_morph_definition(
+            "mock", profile_id="body", profile_name="Body", definition_id="lift",
+            source_definition_id="lift", label="Lift", rule="move", axis="z",
+            amount=0.25, feather=0, falloff="constant",
+            preserve_selection=invalid_change != "garment_role",
+        )
+    assert service.data.profile is before
+    assert service.session.morph_session_revision == revision
+    assert not service.commands and not service.session.undo_stack
+
+
+def test_procedural_definition_edit_cannot_replace_an_authored_target(tmp_path):
+    service = Harness(tmp_path)
+    target = deepcopy(service.neutral)
+    target.submeshes[0].vertices[0] = (0.0, 0.0, 0.2)
+    original = create_authored_morph_definition(
+        service.neutral, target, definition_id="lift", label="Lift", submesh_indices=(0,),
+    )
+    service.data.profile = replace(service.data.profile, definitions=(original,))
+    before = service.data.profile
+    with pytest.raises(ValueError, match="capturing a new target"):
+        service.create_morph_definition(
+            "mock", profile_id="body", profile_name="Body", definition_id="lift",
+            source_definition_id="lift", label="Lift", preserve_selection=True,
+        )
+    assert service.data.profile is before
+    assert not service.commands and not service.session.undo_stack
+
+
+@pytest.mark.parametrize("entry", ["service", "command"])
+def test_definition_authoring_snapshots_original_cache_before_one_activation(tmp_path, entry):
+    service = Harness(tmp_path)
+    original = service.data.profile
+    params = {
+        "profile_id": "body", "profile_name": "Body", "definition_id": "renamed-lift",
+        "source_definition_id": "lift", "label": "Renamed Lift", "preserve_selection": True,
+    }
+    if entry == "service":
+        profile, (result, state) = service.author_morph_definition("mock", **params)
+    else:
+        result = service._apply_morph_edit_command_locked(
+            service.session, MeshEditCommand("morph_author_definition", params=params),
+        )
+        profile, state = service.data.profile, service.data.state
+    assert result.ok and state.definitions == profile.definitions
+    assert state.edit_revision == service.session.revision
+    assert profile.definitions[0].definition_id == "renamed-lift"
+    assert len(service.session.undo_stack) == 1
+    assert service.session.undo_stack[0][0].profile == original
+    assert len(service.commands) == 1
+    assert service.commands[0][2]["record_history"] is False
+
+
+@pytest.mark.parametrize("failure_stage", ["definition", "preflight", "accepted"])
+def test_definition_authoring_failure_restores_cache_and_valid_history(tmp_path, monkeypatch, failure_stage):
+    from cdmw.services.mesh_service_state import _MeshMorphSessionState
+    service = Harness(tmp_path)
+    original_profile = service.data.profile
+    original_mesh = service.session.working_mesh
+    original_selection = service.session.selection
+    original_morph_revision = service.session.morph_session_revision
+    failed_revisions = []
+    python_history = SimpleNamespace(native_editor_history=False)
+    native_history = SimpleNamespace(native_editor_history=True)
+    redo_history = SimpleNamespace(native_editor_history=True)
+    service.session.undo_stack = [python_history, native_history]
+    service.session.redo_stack = [redo_history]
+    service.session.native_history_undo_count = 1
+    service.session.native_history_redo_count = 1
+    service.session.native_history_retained_bytes = 512
+    disposed = []
+
+    def capture(session, **kwargs):
+        before = Harness._capture_morph_profile_history_locked(service, session, **kwargs)
+        return SimpleNamespace(
+            before=before, selection=session.selection,
+            morph_session_state=_MeshMorphSessionState(present=True, cache=before[0]),
+        )
+
+    def fail_activation(*args, **kwargs):
+        if failure_stage == "accepted":
+            service.session.morph_session_revision += 1
+        failed_revisions.append(service.session.morph_session_revision)
+        raise RuntimeError("injected definition activation failure")
+
+    def rollback(session, history):
+        Harness._rollback_unpublished_morph_profile_history_locked(service, session, history.before)
+        # The production snapshot rollback restores the captured revision.
+        session.morph_session_revision = original_morph_revision
+
+    monkeypatch.setattr(service, "_capture_morph_profile_history_locked", capture)
+    monkeypatch.setattr(service, "_rollback_unpublished_morph_profile_history_locked", rollback)
+    monkeypatch.setattr(
+        "cdmw.services.mesh_service_morph._dispose_history_snapshot_without_state_failure",
+        lambda history: disposed.append(history) or True,
+    )
+    monkeypatch.setattr(service, "_activate_morph_profile_locked", fail_activation)
+    if failure_stage == "definition":
+        monkeypatch.setattr(service, "create_morph_definition", fail_activation)
+    with pytest.raises(RuntimeError, match="injected definition activation failure"):
+        service.author_morph_definition(
+            "mock", selection=MeshEditSelection.from_maps(source_indices=(0,)),
+            profile_id="body", profile_name="Body", definition_id="renamed-lift",
+            source_definition_id="lift", label="Renamed Lift", preserve_selection=True,
+        )
+    assert service.data.profile == original_profile
+    if failure_stage == "accepted":
+        assert service.rollbacks == 1
+        assert service.session.morph_session_revision > failed_revisions[-1]
+        assert service.session.undo_stack == [python_history]
+        assert service.session.redo_stack == []
+        assert native_history in disposed and redo_history in disposed
+        assert service.session.native_history_retained_bytes == 0
+    else:
+        assert service.rollbacks == 0
+        assert service.session.working_mesh is original_mesh
+        assert service.session.selection == original_selection
+        assert service.session.undo_stack == [python_history, native_history]
+        assert service.session.redo_stack == [redo_history]
+        assert service.session.native_history_undo_count == 1
+        assert service.session.native_history_redo_count == 1
+        assert service.session.native_history_retained_bytes == 512

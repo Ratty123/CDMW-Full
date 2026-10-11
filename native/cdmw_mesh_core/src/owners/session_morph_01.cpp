@@ -1399,10 +1399,11 @@ std::vector<SubmeshMeshEditResult> mesh_editor_recompose_morph(
     mesh_editor_add_refit_layer(next, submeshes, residual, new_layer);
     const auto masks = next.refit ? mesh_editor_refit_masks(*next.refit, residual) : RefitMaskWeightsNative{};
     for (const auto& item : post_refit) {
-        if (next.refit) {
-            const auto settings = next.refit->garment_settings.find(item.first);
-            if (settings != next.refit->garment_settings.end() && !settings->second.enabled) continue;
-        }
+        // Corrections belong to an enabled garment binding. Clearing refit must
+        // remove their displacement, not expose previously masked corrections.
+        if (!next.refit || !next.refit->garment_submesh_indices.count(item.first)) continue;
+        const auto settings = next.refit->garment_settings.find(item.first);
+        if (settings != next.refit->garment_settings.end() && !settings->second.enabled) continue;
         auto& target = new_layer[item.first];
         if (target.empty()) target = mesh_editor_zero_morph_layer(item.second.size());
         for (std::size_t vertex = 0; vertex < target.size(); ++vertex) {

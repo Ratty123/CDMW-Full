@@ -513,8 +513,21 @@ def test_failed_morph_create_prunes_markers_for_destroyed_native_history(
     shadow.redo_stack[:] = [redo_native]
     disposed: set[int] = set()
     real_dispose = mesh_service_module._dispose_history_snapshot
+    profile_history = mesh_service_module._snapshot(shadow, prefer_native=False)
+    profile_history.morph_session_state = _MeshMorphSessionState(present=False)
+    original_profile = service._morph_sessions[session_id].profile
 
-    def activate_then_fail(_session_id, _profile_id):
+    def create_profile(_session_id, **_definition):
+        profile = SimpleNamespace(profile_id="created-profile")
+        service._morph_sessions[session_id].profile = profile
+        shadow.morph_session_revision += 1
+        return profile
+
+    def rollback_profile(_session, history):
+        service._morph_sessions[session_id].profile = original_profile
+        record_dispose(history)
+
+    def activate_then_fail(_session, _profile, *args, **kwargs):
         shadow.morph_session_revision += 1
         shadow.undo_stack.append(new_native)
         for snapshot in tuple(shadow.redo_stack):
@@ -533,23 +546,25 @@ def test_failed_morph_create_prunes_markers_for_destroyed_native_history(
         with (
             patch.object(
                 service,
-                "capture_morph_session_state",
-                return_value=_MeshMorphSessionState(present=False),
+                "_capture_morph_profile_history_locked",
+                return_value=profile_history,
             ),
             patch.object(
                 service,
                 "create_morph_definition",
-                return_value=SimpleNamespace(profile_id="created-profile"),
+                side_effect=create_profile,
             ),
             patch.object(
                 service,
-                "activate_cached_morph_profile",
+                "_activate_morph_profile_locked",
                 side_effect=activate_then_fail,
             ),
-            patch.object(service, "install_morph_session_state", return_value=None),
-            patch.object(service, "dispose_morph_session_state", return_value=None),
             patch.object(
-                rust_authoring_module,
+                service, "_rollback_unpublished_morph_profile_history_locked",
+                side_effect=rollback_profile,
+            ) as rollback,
+            patch.object(
+                mesh_service_module,
                 "_dispose_history_snapshot",
                 side_effect=record_dispose,
             ),
@@ -560,6 +575,7 @@ def test_failed_morph_create_prunes_markers_for_destroyed_native_history(
                 {"definition": {}},
             )
 
+        rollback.assert_called_once_with(shadow, profile_history)
         assert shadow.undo_stack == [surviving]
         assert shadow.redo_stack == []
         assert shadow.native_history_undo_count == 0
@@ -588,13 +604,15 @@ def test_rejected_morph_create_before_activation_preserves_native_history(
     shadow.undo_stack[:] = [native_marker]
     shadow.native_history_undo_count = 1
     shadow.native_history_retained_bytes = 512
+    profile_history = mesh_service_module._snapshot(shadow, prefer_native=False)
+    profile_history.morph_session_state = _MeshMorphSessionState(present=False)
 
     try:
         with (
             patch.object(
                 service,
-                "capture_morph_session_state",
-                return_value=_MeshMorphSessionState(present=False),
+                "_capture_morph_profile_history_locked",
+                return_value=profile_history,
             ),
             patch.object(
                 service,
@@ -602,7 +620,6 @@ def test_rejected_morph_create_before_activation_preserves_native_history(
                 side_effect=ValueError("invalid Morph definition"),
             ),
             patch.object(service, "install_morph_session_state") as install,
-            patch.object(service, "dispose_morph_session_state", return_value=None),
             pytest.raises(ValueError, match="invalid Morph definition"),
         ):
             rust_session._run_morph_command(
@@ -650,6 +667,8 @@ def test_rejected_morph_activation_preflight_restores_only_cache_and_history(
     shadow.undo_stack[:] = [native_marker]
     shadow.native_history_undo_count = 1
     shadow.native_history_retained_bytes = 512
+    profile_history = mesh_service_module._snapshot(shadow, prefer_native=False)
+    profile_history.morph_session_state = previous_state
 
     def create_then_preflight_fail(_session_id, **_definition):
         service._morph_sessions[session_id].profile = SimpleNamespace(
@@ -662,8 +681,8 @@ def test_rejected_morph_activation_preflight_restores_only_cache_and_history(
         with (
             patch.object(
                 service,
-                "capture_morph_session_state",
-                return_value=previous_state,
+                "_capture_morph_profile_history_locked",
+                return_value=profile_history,
             ),
             patch.object(
                 service,
@@ -672,13 +691,13 @@ def test_rejected_morph_activation_preflight_restores_only_cache_and_history(
             ),
             patch.object(
                 service,
-                "activate_cached_morph_profile",
+                "_activate_morph_profile_locked",
                 side_effect=RuntimeError(
                     "Resident Morph upload exceeds its 64 MiB limit"
                 ),
             ),
             patch.object(service, "install_morph_session_state") as install,
-            patch.object(service, "dispose_morph_session_state", return_value=None),
+            patch.object(mesh_service_module, "_dispose_history_snapshot", return_value=None),
             pytest.raises(RuntimeError, match="exceeds its 64 MiB limit"),
         ):
             rust_session._run_morph_command(

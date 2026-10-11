@@ -32,7 +32,7 @@ from cdmw.services.mesh_service_history import (
     _MESH_MORPH_PROFILE_MAX_FILE_BYTES,
     _validated_mesh_morph_profile_files,
 )
-from cdmw.services.mesh_service_morph_authoring import _merge_edit_results, _settings_payload, _strict_indices
+from cdmw.services.mesh_service_morph_authoring import _merge_edit_results, _refit_settings_batch_payload, _strict_indices
 
 
 _RECIPE_FORMAT = "cdmw.mesh_refit_recipe.v1"
@@ -267,9 +267,10 @@ class MeshMorphRecipeMixin:
                             for item in regions[index]
                         ]
                     run("morph_bind", payload)
-                for item in recipe.garment_settings:
-                    if item.submesh_index in targets:
-                        run("morph_configure_refit", _settings_payload(item, include_mask=True))
+                run("morph_configure_refit", _refit_settings_batch_payload([
+                    item for item in recipe.garment_settings
+                    if item.submesh_index in targets
+                ]))
                 run("morph_apply_preset", {"preset_id": preset.preset_id, "values": dict(preset.values)})
                 save_mesh_morph_profile(self._profile_root(), profile)
                 save_mesh_morph_preset(self._profile_root(), preset)

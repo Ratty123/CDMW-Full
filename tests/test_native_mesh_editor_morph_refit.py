@@ -1906,3 +1906,277 @@ def test_morph_history_counts_shared_runtime_buffers_and_enforces_retained_memor
         assert redone["history_retained_bytes"] <= redone["history_max_bytes"]
     finally:
         mesh_native_core.close_native_mesh_editor_session(session_id)
+
+
+@pytest.mark.parametrize("influence,enabled", [(0.0, True), (0.5, True), (1.0, False)])
+def test_clear_refit_removes_masked_corrections_and_preserves_them_for_rebinding(influence, enabled) -> None:
+    mesh = _driver_garment_mesh()
+    payload = _profile_payload(mesh)
+    payload["profile"]["fields"].append({
+        "definition_id": "lift", "stage": "post_refit", "submesh_index": 2,
+        "vertex_indices": list(range(7)), "deltas": [[0.0, 0.2, 0.0]] * 7,
+    })
+    session_id = _open(mesh)
+    try:
+        _command(session_id, "morph_upload", payload)
+        _command(session_id, "morph_set_driver", {"submesh_indices": [0, 1]})
+        _command(session_id, "morph_bind", {"garment_submesh_indices": [2]})
+        _command(session_id, "morph_configure_refit", {
+            "garment_submesh_indices": [2], "enabled": enabled,
+            "vertex_masks": [{
+                "submesh_index": 2, "vertex_indices": list(range(7)), "weights": [influence] * 7,
+            }],
+        })
+        _change(session_id, 100.0, "end", "clear-masked-correction")
+        fitted = _snapshot(mesh, session_id)
+        amount = influence if enabled else 0.0
+        _assert_positions_close(fitted.submeshes[2].vertices, [
+            (x, y + 0.2 * amount, z + amount) for x, y, z in mesh.submeshes[2].vertices
+        ])
+
+        _command(session_id, "morph_clear_refit")
+        cleared = _snapshot(mesh, session_id)
+        _assert_positions_close(cleared.submeshes[2].vertices, mesh.submeshes[2].vertices)
+        _assert_positions_close(cleared.submeshes[0].vertices, fitted.submeshes[0].vertices)
+        assert _state(session_id)["values"] == {"lift": 100.0}
+        runtime = _authored_snapshot_runtime(session_id)
+        assert any(field.get("stage") == "post_refit" for field in runtime["profile"]["fields"])
+
+        assert mesh_native_core.undo_native_mesh_editor_session(session_id, timeout_seconds=15.0) is not None
+        _assert_positions_close(_snapshot(mesh, session_id).submeshes[2].vertices, fitted.submeshes[2].vertices)
+        assert mesh_native_core.redo_native_mesh_editor_session(session_id, timeout_seconds=15.0) is not None
+        _assert_positions_close(_snapshot(mesh, session_id).submeshes[2].vertices, mesh.submeshes[2].vertices)
+
+        _command(session_id, "morph_reset")
+        _command(session_id, "morph_bind", {"garment_submesh_indices": [2]})
+        _change(session_id, 50.0, "end", "rebound-correction")
+        _assert_positions_close(_snapshot(mesh, session_id).submeshes[2].vertices, [
+            (x, y + 0.1, z + 0.5) for x, y, z in mesh.submeshes[2].vertices
+        ])
+    finally:
+        mesh_native_core.close_native_mesh_editor_session(session_id)
+
+
+def _split_rigid_component_mesh() -> ParsedMesh:
+    body = _part("body", [(0., 0., 0.), (1., 0., 0.), (0., 1., 0.), (1., 1., 0.)],
+                 [(0, 1, 2), (1, 3, 2)], material="skin", texture="")
+    first = _part("metal-a", [(0., 0., .1), (1., 0., .1), (0., 1., .1)],
+                  [(0, 1, 2)], material="metal-a", texture="")
+    second = _part("metal-b", [(1., 0., .1), (1., 1., .1), (0., 1., .1)],
+                   [(0, 1, 2)], material="metal-b", texture="")
+    return ParsedMesh(path="split-rigid-panel.pac", format="pac", submeshes=[body, first, second],
+                      total_vertices=10, total_faces=4, has_bones=True, has_uvs=True)
+
+
+def test_refit_batch_changes_and_clears_joined_rigid_part_masks_in_one_history_entry() -> None:
+    mesh = _split_rigid_component_mesh()
+    payload = _profile_payload(mesh)
+    payload["profile"]["fields"] = payload["profile"]["fields"][:1]
+    session_id = _open(mesh)
+    try:
+        _command(session_id, "morph_upload", payload)
+        _command(session_id, "morph_set_driver", {"submesh_indices": [0]})
+        _command(session_id, "morph_bind", {"garment_submesh_indices": [1, 2]})
+        _command(session_id, "morph_configure_refit", {
+            "garment_submesh_indices": [1, 2], "mode": "rigid_component",
+        })
+        before = _change(session_id, 100.0, "end", "split-rigid-full")
+        masked = _command(session_id, "morph_configure_refit", {
+            "garment_submesh_indices": [1, 2],
+            "garment_settings": [{
+                "submesh_index": index,
+                "vertex_mask": {"vertex_indices": [0, 1, 2], "weights": [0.5] * 3},
+            } for index in (1, 2)],
+        })
+        assert masked["history_undo_count"] == before["history_undo_count"] + 1
+        for index in (1, 2):
+            _assert_positions_close(_snapshot(mesh, session_id).submeshes[index].vertices, [
+                (x, y, z + 0.5) for x, y, z in mesh.submeshes[index].vertices
+            ])
+        settings = _state(session_id)["refit"]["garment_settings"]
+        assert all(row["mode"] == "rigid_component" and row["intensity_percent"] == 100.0 for row in settings)
+
+        cleared = _command(session_id, "morph_configure_refit", {
+            "garment_submesh_indices": [1, 2],
+            "garment_settings": [{"submesh_index": index, "vertex_mask": None} for index in (1, 2)],
+        })
+        assert cleared["history_undo_count"] == masked["history_undo_count"] + 1
+        assert _state(session_id)["refit"]["vertex_masks"] == []
+        for index in (1, 2):
+            _assert_positions_close(_snapshot(mesh, session_id).submeshes[index].vertices, [
+                (x, y, z + 1.0) for x, y, z in mesh.submeshes[index].vertices
+            ])
+        assert mesh_native_core.undo_native_mesh_editor_session(session_id, timeout_seconds=15.0) is not None
+        for index in (1, 2):
+            _assert_positions_close(_snapshot(mesh, session_id).submeshes[index].vertices, [
+                (x, y, z + 0.5) for x, y, z in mesh.submeshes[index].vertices
+            ])
+        assert mesh_native_core.redo_native_mesh_editor_session(session_id, timeout_seconds=15.0) is not None
+        assert _state(session_id)["refit"]["vertex_masks"] == []
+    finally:
+        mesh_native_core.close_native_mesh_editor_session(session_id)
+
+
+def test_refit_batch_preserves_omitted_settings_and_mixes_cleared_and_replaced_masks() -> None:
+    mesh = _driver_garment_mesh()
+    session_id = _open(mesh)
+    try:
+        _command(session_id, "morph_upload", _profile_payload(mesh))
+        _command(session_id, "morph_set_driver", {"submesh_indices": [0, 1]})
+        _command(session_id, "morph_bind", {"garment_submesh_indices": [2, 3]})
+        _command(session_id, "morph_configure_refit", {
+            "garment_submesh_indices": [2], "enabled": False, "intensity_percent": 25.0, "mode": "rigid",
+            "vertex_masks": [{"submesh_index": 2, "vertex_indices": list(range(7)), "weights": [0.25] * 7}],
+        })
+        _command(session_id, "morph_configure_refit", {
+            "garment_submesh_indices": [2, 3],
+            "garment_settings": [
+                {"submesh_index": 2, "enabled": True, "vertex_mask": None},
+                {"submesh_index": 3, "intensity_percent": 50.0,
+                 "vertex_mask": {"vertex_indices": [0, 1, 2], "weights": [0.5] * 3}},
+            ],
+        })
+        _change(session_id, 100.0, "end", "mixed-batch")
+        fitted = _snapshot(mesh, session_id)
+        for index in (2, 3):
+            _assert_positions_close(fitted.submeshes[index].vertices, [
+                (x, y, z + 0.25) for x, y, z in mesh.submeshes[index].vertices
+            ])
+        refit = _state(session_id)["refit"]
+        settings = {row["submesh_index"]: row for row in refit["garment_settings"]}
+        assert settings[2]["mode"] == "rigid" and settings[2]["intensity_percent"] == 25.0
+        assert refit["vertex_masks"] == [{
+            "submesh_index": 3, "vertex_indices": [0, 1, 2], "weights": [0.5] * 3,
+        }]
+        _command(session_id, "morph_configure_refit", {
+            "garment_submesh_indices": [3], "garment_settings": [{"submesh_index": 3, "enabled": False}],
+        })
+        assert _state(session_id)["refit"]["vertex_masks"] == refit["vertex_masks"]
+        _assert_positions_close(_snapshot(mesh, session_id).submeshes[2].vertices, fitted.submeshes[2].vertices)
+        _assert_positions_close(_snapshot(mesh, session_id).submeshes[3].vertices, mesh.submeshes[3].vertices)
+    finally:
+        mesh_native_core.close_native_mesh_editor_session(session_id)
+
+
+@pytest.mark.parametrize("invalid", ["weight", "nonuniform", "duplicate", "missing", "mixed"])
+def test_refit_batch_rejects_invalid_rows_without_partial_configuration_or_geometry(invalid) -> None:
+    mesh = _split_rigid_component_mesh()
+    payload = _profile_payload(mesh)
+    payload["profile"]["fields"] = payload["profile"]["fields"][:1]
+    session_id = _open(mesh)
+    try:
+        _command(session_id, "morph_upload", payload)
+        _command(session_id, "morph_set_driver", {"submesh_indices": [0]})
+        _command(session_id, "morph_bind", {"garment_submesh_indices": [1, 2]})
+        _command(session_id, "morph_configure_refit", {
+            "garment_submesh_indices": [1, 2], "mode": "rigid_component",
+        })
+        _change(session_id, 100.0, "end", "batch-before-invalid")
+        before = _command(session_id, "morph_state")
+        geometry = _snapshot(mesh, session_id)
+        batch = {
+            "garment_submesh_indices": [1, 2],
+            "garment_settings": [{
+                "submesh_index": index,
+                "vertex_mask": {"vertex_indices": [0, 1, 2], "weights": [0.5] * 3},
+            } for index in (1, 2)],
+        }
+        if invalid == "weight":
+            batch["garment_settings"][1]["vertex_mask"]["weights"][2] = 1.5
+        elif invalid == "nonuniform":
+            batch["garment_settings"][1]["vertex_mask"]["weights"][1] = 0.75
+        elif invalid == "duplicate":
+            batch["garment_settings"][1]["submesh_index"] = 1
+        elif invalid == "missing":
+            batch["garment_settings"].pop()
+        else:
+            batch["enabled"] = True
+        assert mesh_native_core.native_mesh_editor_session_command(
+            "morph_configure_refit", session_id, batch, timeout_seconds=15.0,
+        ) is None
+        after = _command(session_id, "morph_state")
+        assert after["morph_state"] == before["morph_state"]
+        assert after["history_undo_count"] == before["history_undo_count"]
+        assert after["history_redo_count"] == before["history_redo_count"]
+        restored = _snapshot(mesh, session_id)
+        for index in range(len(mesh.submeshes)):
+            _assert_positions_close(restored.submeshes[index].vertices, geometry.submeshes[index].vertices)
+    finally:
+        mesh_native_core.close_native_mesh_editor_session(session_id)
+
+
+@pytest.mark.parametrize("edited_replacement", [False, True])
+def test_scoped_refit_rebind_accepts_exact_float32_publication_but_rejects_body_edits(edited_replacement) -> None:
+    mesh = _driver_garment_mesh()
+    source = _open(mesh)
+    target = None
+    snapshot = None
+    try:
+        _command(source, "morph_upload", _profile_payload(mesh))
+        _command(source, "morph_set_driver", {"submesh_indices": [0, 1]})
+        _command(source, "morph_bind", {"garment_submesh_indices": [2, 3]})
+        _command(source, "morph_configure_refit", {
+            "garment_submesh_indices": [3], "intensity_percent": 25.0,
+            "vertex_masks": [{"submesh_index": 3, "vertex_indices": [0, 1, 2], "weights": [0.5] * 3}],
+        })
+        _change(source, 33.333333333, "end", "fractional-bake-before-publication")
+        _command(source, "morph_bake")
+        snapshot = mesh_native_core.create_native_mesh_editor_morph_runtime_snapshot(source, timeout_seconds=15.0)
+        assert snapshot is not None
+        replacement = _snapshot(mesh, source)
+        for part in replacement.submeshes:
+            part.vertices = [
+                tuple(struct.unpack("<f", struct.pack("<f", value))[0] for value in point)
+                for point in part.vertices
+            ]
+        if edited_replacement:
+            positions = list(replacement.submeshes[0].vertices)
+            x, y, z = positions[0]
+            positions[0] = (x + 0.125, y, z)
+            replacement.submeshes[0].vertices = positions
+        target = _open(replacement)
+        assert mesh_native_core.restore_native_mesh_editor_morph_runtime_snapshot(
+            target, snapshot, timeout_seconds=15.0,
+        ) is not None
+        before = _command(target, "morph_state")
+        before_refit = _authored_snapshot_runtime(target)["refit"]
+        geometry = _snapshot(replacement, target)
+        payload = {
+            "garment_submesh_indices": [2], "preserve_existing": True,
+            "driver_regions": [{"submesh_index": 0, "vertex_indices": [0, 1, 2]}],
+        }
+        report = mesh_native_core.native_mesh_editor_session_command(
+            "morph_bind", target, payload, timeout_seconds=15.0,
+        )
+        after = _command(target, "morph_state")
+        if edited_replacement:
+            assert report is None
+            assert after["morph_state"] == before["morph_state"]
+            assert after["history_undo_count"] == before["history_undo_count"]
+            assert _authored_snapshot_runtime(target)["refit"] == before_refit
+        else:
+            assert report is not None
+            assert after["history_undo_count"] == before["history_undo_count"] + 1
+            rebound = _authored_snapshot_runtime(target)["refit"]
+            assert [row for row in rebound["bindings"] if row["garment_submesh_index"] == 3] == [
+                row for row in before_refit["bindings"] if row["garment_submesh_index"] == 3
+            ]
+            assert rebound["garment_settings"] == before_refit["garment_settings"]
+            assert rebound["vertex_masks"] == before_refit["vertex_masks"]
+            assert rebound["garment_regions"] == [{
+                "garment_submesh_index": 2,
+                "driver_regions": [{"submesh_index": 0, "vertex_indices": [0, 1, 2]}],
+            }]
+            assert mesh_native_core.undo_native_mesh_editor_session(target, timeout_seconds=15.0) is not None
+            assert _authored_snapshot_runtime(target)["refit"] == before_refit
+            assert mesh_native_core.redo_native_mesh_editor_session(target, timeout_seconds=15.0) is not None
+            assert _authored_snapshot_runtime(target)["refit"] == rebound
+        restored = _snapshot(replacement, target)
+        for index in range(len(mesh.submeshes)):
+            assert restored.submeshes[index].vertices == geometry.submeshes[index].vertices
+    finally:
+        if target is not None:
+            mesh_native_core.close_native_mesh_editor_session(target)
+        mesh_native_core.close_native_mesh_editor_session(source)
+        if snapshot is not None:
+            assert mesh_native_core.dispose_native_mesh_editor_morph_runtime_snapshot(snapshot, timeout_seconds=15.0)

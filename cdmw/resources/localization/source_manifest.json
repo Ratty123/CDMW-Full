@@ -37457,6 +37457,16 @@
       ]
     },
     {
+      "key": "Discard all shape edits made while editing this correction and restore the previous slider values.",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui/morph_authoring.rs",
+          "line": 33,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
       "key": "Discard captured base",
       "origins": [
         {
@@ -75265,8 +75275,8 @@
       "key": "Morph definition creation failed and its runtime rollback also failed.",
       "origins": [
         {
-          "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 9105,
+          "path": "cdmw/services/mesh_service_morph.py",
+          "line": 912,
           "sink": "RuntimeError"
         }
       ]
@@ -116643,6 +116653,16 @@
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui/morph_authoring.rs",
           "line": 40,
           "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Sculpted sliders must be changed by capturing a new target.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_service_morph.py",
+          "line": 988,
+          "sink": "ValueError"
         }
       ]
     },

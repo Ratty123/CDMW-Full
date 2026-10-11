@@ -25,6 +25,7 @@ from cdmw.domain.mesh import (
     mesh_morph_driver_topology_fingerprint,
     mesh_morph_role_topology_fingerprint,
     validate_morph_definition_geometry,
+    validate_morph_target_identity,
     with_morph_garment_corrections,
 )
 from cdmw.domain.mesh.topology import SubmeshTopologyProvenance, validate_topology_provenance
@@ -175,6 +176,31 @@ def _settings_payload(settings: MeshRefitGarmentSettings, *, include_mask: bool)
             "weights": [weight for _index, weight in settings.vertex_mask],
         }]
     return payload
+
+
+def _refit_settings_batch_payload(
+    settings: Sequence[MeshRefitGarmentSettings], *, include_masks: bool = True,
+) -> dict[str, object]:
+    """Keep each Part's settings while the resident fitter recomposes once."""
+    rows: list[dict[str, object]] = []
+    for item in settings:
+        row: dict[str, object] = {
+            "submesh_index": item.submesh_index,
+            "enabled": item.enabled,
+            "intensity_percent": item.intensity_percent,
+            "mode": item.mode,
+            "clearance_percent": item.clearance_percent,
+        }
+        if include_masks:
+            row["vertex_mask"] = None if item.vertex_mask is None else {
+                "vertex_indices": [index for index, _weight in item.vertex_mask],
+                "weights": [weight for _index, weight in item.vertex_mask],
+            }
+        rows.append(row)
+    return {
+        "garment_submesh_indices": [item.submesh_index for item in settings],
+        "garment_settings": rows,
+    }
 
 
 def _refit_masks_from_report(refit: Mapping[str, object]) -> dict[int, tuple[tuple[int, float], ...]]:
@@ -536,7 +562,11 @@ class MeshMorphAuthoringMixin:
                 raise ValueError("Choose a slider before beginning its garment correction.")
             if not definition.min_percent <= 100.0 <= definition.max_percent:
                 raise ValueError("Garment correction authoring requires a slider with a 100 percent target.")
-            neutral = self._native_neutral_mesh_locked(session, tuple(sorted(set(_profile_role_indices(data.profile)).union(targets))))
+            # Cancel restores the geometry from before correction editing, including
+            # accidental body edits and other garments driven by prior slider values.
+            # Query every Part now so none retain a fitted preview as their zero base.
+            parts = tuple(range(len(session.working_mesh.submeshes)))
+            neutral = self._native_neutral_mesh_locked(session, parts)
             for item in data.profile.definitions:
                 validate_morph_definition_geometry(neutral, item)
             return_values = tuple(data.state.values)
@@ -608,19 +638,16 @@ class MeshMorphAuthoringMixin:
             current = self._current_morph_identity_mesh_locked(session)
             # Source identity and exact faces must still match before neutral rows
             # can be restored; matching vertex counts alone are insufficient.
-            build_morph_sparse_difference(
-                capture.preview_mesh, current, definition_id=capture.definition_id,
-                submesh_indices=capture.garment_submesh_indices,
+            parts = tuple(range(len(capture.preview_mesh.submeshes)))
+            validate_morph_target_identity(
+                capture.preview_mesh, current, submesh_indices=parts,
             )
-            neutral = self._native_neutral_mesh_locked(session, _profile_role_indices(data.profile))
-            for index in capture.garment_submesh_indices:
-                neutral.submeshes[index].vertices = list(capture.neutral_mesh.submeshes[index].vertices)
 
             def cancel():
                 result, _state = self._activate_morph_profile_locked(
                     session, data.profile, record_history=False, preserve_runtime=True,
-                    neutral_positions=_neutral_rows(capture.neutral_mesh, capture.garment_submesh_indices),
-                    values=dict(capture.return_values), base_mesh=neutral,
+                    neutral_positions=_neutral_rows(capture.neutral_mesh, parts),
+                    values=dict(capture.return_values), base_mesh=capture.neutral_mesh,
                 )
                 self._authoring_data_locked(session).correction_capture = None
                 return result
@@ -660,14 +687,11 @@ class MeshMorphAuthoringMixin:
     def _configure_refit_settings_transaction_locked(self, session, settings, action, label):
         self._validate_authored_runtime_use_locked(session, "morph_configure_refit", {})
         def configure():
-            results = []
-            for item in settings:
-                report = self._run_morph_command_locked(
-                    session, "morph_configure_refit", _settings_payload(item, include_mask=True),
-                    history_label=label, record_history=False,
-                )
-                results.append(self._morph_result_and_state_locked(session, action, report)[0])
-            return _merge_edit_results(results)
+            report = self._run_morph_command_locked(
+                session, "morph_configure_refit", _refit_settings_batch_payload(settings),
+                history_label=label, record_history=False,
+            )
+            return self._morph_result_and_state_locked(session, action, report)[0]
 
         return self._morph_authoring_transaction_locked(session, action, label, configure)
 

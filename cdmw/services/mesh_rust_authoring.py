@@ -9201,82 +9201,11 @@ class RustMeshAuthoringSession:
             )
         if command == "morph_create":
             definition = args.get("definition")
-            session = service._session(session_id)
-            with session.export_lock:
-                previous_state = service.capture_morph_session_state(session_id)
-                try:
-                    profile = service.create_morph_definition(
-                        session_id,
-                        **(
-                            dict(definition)
-                            if isinstance(definition, Mapping)
-                            else {}
-                        ),
-                    )
-                    try:
-                        activation_base_revision = int(
-                            session.morph_session_revision
-                        )
-                        activation = service.activate_cached_morph_profile(
-                            session_id,
-                            profile.profile_id,
-                        )
-                    except Exception as command_error:
-                        native_activation_accepted = (
-                            int(session.morph_session_revision)
-                            != activation_base_revision
-                        )
-                        try:
-                            if native_activation_accepted:
-                                service.install_morph_session_state(
-                                    session_id,
-                                    previous_state,
-                                )
-                            else:
-                                service.restore_morph_session_cache_after_rejected_edit(
-                                    session_id,
-                                    previous_state,
-                                    expected_revision=activation_base_revision,
-                                )
-                        except Exception as rollback_error:
-                            raise RuntimeError(
-                                "Morph definition creation failed and its runtime rollback also failed."
-                            ) from rollback_error
-                        if not native_activation_accepted:
-                            raise command_error
-
-                        # Restoring a Morph runtime intentionally clears
-                        # resident history. Remove Python markers that referred
-                        # to the destroyed native cursor before surfacing the
-                        # command error.
-                        invalid_native_markers: list[object] = []
-                        for stack in (session.undo_stack, session.redo_stack):
-                            retained = []
-                            for snapshot in stack:
-                                if snapshot.native_editor_history:
-                                    invalid_native_markers.append(snapshot)
-                                else:
-                                    retained.append(snapshot)
-                            stack[:] = retained
-                        session.native_history_undo_count = 0
-                        session.native_history_redo_count = 0
-                        session.native_history_retained_bytes = 0
-                        disposed: set[int] = set()
-                        for snapshot in invalid_native_markers:
-                            if id(snapshot) in disposed:
-                                continue
-                            disposed.add(id(snapshot))
-                            try:
-                                _dispose_history_snapshot(snapshot)
-                            except Exception:
-                                pass
-                        raise command_error
-                    return {"profile": profile, "activation": activation}
-                finally:
-                    try:
-                        service.dispose_morph_session_state(previous_state)
-                    except RuntimeError:
-                        service.defer_morph_session_state_disposal(previous_state)
+            profile, activation = service.author_morph_definition(
+                session_id,
+                **(dict(definition) if isinstance(definition, Mapping) else {}),
+            )
+            return {"profile": profile, "activation": activation}
         if command == "morph_save_profile":
             return service.save_active_morph_profile(session_id)
         if command == "morph_delete_profile":

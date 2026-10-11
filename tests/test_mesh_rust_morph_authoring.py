@@ -36,6 +36,7 @@ _SELECTION_OPERATIONS = {
     "set_refit_driver_region",
 }
 _OPERATIONS = _SELECTION_OPERATIONS | {
+    "author_morph_definition",
     "cancel_morph_baseline",
     "capture_authored_morph_definition",
     "begin_morph_correction",
@@ -432,3 +433,12 @@ def test_ui_state_distinguishes_no_mask_from_protect_all(mask, expected):
     payload = bridge._json_safe(MeshRefitGarmentSettings(1, vertex_mask=mask))
     assert payload["has_vertex_mask"] is expected
     assert "vertex_mask" not in payload
+
+
+def test_procedural_definition_uses_shared_atomic_service_and_retains_response(authoring_session):
+    service = authoring_session.shadow_service
+    profile, activation = object(), object()
+    service.result = (profile, activation)
+    result = authoring_session._run_morph_command("morph_create", {"definition": _DEFINITION})
+    assert result == {"profile": profile, "activation": activation}
+    assert service.calls == [("author_morph_definition", ("shadow",), _DEFINITION)]

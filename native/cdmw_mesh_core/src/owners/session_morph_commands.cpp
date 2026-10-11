@@ -448,6 +448,23 @@ std::string mesh_editor_morph_set_driver_session_report(
     );
 }
 
+bool mesh_editor_refit_baseline_matches_publication(
+    const std::vector<Vec3>& visible,
+    const std::vector<Vec3>& baseline
+) {
+    if (visible.size() != baseline.size()) return false;
+    for (std::size_t vertex = 0; vertex < visible.size(); ++vertex) {
+        for (std::size_t axis = 0; axis < 3; ++axis) {
+            const double expected = baseline[vertex][axis];
+            const double current = visible[vertex][axis];
+            // Rust geometry publication may round coordinates to float32. Only
+            // that exact representation change is allowed beside exact identity.
+            if (current != expected && current != static_cast<double>(static_cast<float>(expected))) return false;
+        }
+    }
+    return true;
+}
+
 std::string mesh_editor_morph_bind_session_report(
     const JsonValue& root,
     const std::string& session_id,
@@ -465,7 +482,8 @@ std::string mesh_editor_morph_bind_session_report(
             throw std::runtime_error("Reset or Bake active deformation before changing a garment driver region");
         }
         for (const auto& item : next->refit->driver_baseline_positions) {
-            if (!submeshes.count(item.first) || submeshes.at(item.first).vertices != item.second) {
+            if (!submeshes.count(item.first)
+                || !mesh_editor_refit_baseline_matches_publication(submeshes.at(item.first).vertices, item.second)) {
                 throw std::runtime_error("scoped refit binding requires the unchanged driver baseline");
             }
         }
@@ -523,6 +541,89 @@ std::string mesh_editor_morph_bind_session_report(
     return mesh_editor_morph_report_json("morph_bind", session_id, session, {}, {}, history_published, "", false, started);
 }
 
+MeshRefitGarmentSettingsRuntime mesh_editor_refit_settings_from_json(
+    const JsonValue& raw,
+    MeshRefitGarmentSettingsRuntime settings,
+    bool strict_types
+) {
+    if (strict_types) {
+        for (const auto* key : {"intensity_percent", "clearance_percent"}) {
+            const auto* value = raw.get(key);
+            if (value && value->type != JsonValue::Type::Number)
+                throw std::runtime_error("garment refit settings require numeric intensity and clearance");
+        }
+        const auto* enabled = raw.get("enabled");
+        const auto* mode = raw.get("mode");
+        if ((enabled && enabled->type != JsonValue::Type::Bool)
+            || (mode && mode->type != JsonValue::Type::String))
+            throw std::runtime_error("garment refit settings require a boolean enabled value and string mode");
+    }
+    settings.enabled = bool_or(raw.get("enabled"), settings.enabled);
+    settings.intensity_percent = number_or(raw.get("intensity_percent"), settings.intensity_percent);
+    settings.mode = lower_ascii(string_or(raw.get("mode"), settings.mode));
+    settings.clearance_percent = number_or(raw.get("clearance_percent"), settings.clearance_percent);
+    if (!std::isfinite(settings.intensity_percent)
+        || settings.intensity_percent < 0.0 || settings.intensity_percent > 200.0) {
+        throw std::runtime_error("garment refit intensity must be between 0 and 200 percent");
+    }
+    if (settings.mode != "surface" && settings.mode != "rigid" && settings.mode != "rigid_component") {
+        throw std::runtime_error("garment refit mode must be surface, rigid or rigid_component");
+    }
+    if (!std::isfinite(settings.clearance_percent)
+        || settings.clearance_percent < 0.0 || settings.clearance_percent > 5.0) {
+        throw std::runtime_error("garment refit clearance must be between 0 and 5 percent of driver size");
+    }
+    return settings;
+}
+
+void mesh_editor_configure_refit_batch(
+    const JsonValue& root,
+    MeshRefitRuntime& refit,
+    const std::map<int, MeshSessionSubmesh>& submeshes,
+    const std::set<int>& garments
+) {
+    const auto* rows = root.get("garment_settings");
+    const auto* selected = root.get("garment_submesh_indices");
+    if (!rows || rows->type != JsonValue::Type::Array || rows->array_value.size() != garments.size()
+        || !selected || selected->type != JsonValue::Type::Array || selected->array_value.size() != garments.size()) {
+        throw std::runtime_error("garment refit settings rows must exactly cover the selected garments");
+    }
+    for (const auto& item : selected->array_value) {
+        int index = -1;
+        if (!strict_int_or(&item, index) || !garments.count(index))
+            throw std::runtime_error("garment refit batch contains an invalid garment index");
+    }
+    for (const auto* key : {"enabled", "intensity_percent", "mode", "clearance_percent", "vertex_masks"}) {
+        if (root.get(key)) throw std::runtime_error("garment refit batch cannot mix per-part and shared settings");
+    }
+    std::set<int> seen;
+    for (const auto& row : rows->array_value) {
+        int index = -1;
+        if (row.type != JsonValue::Type::Object || !strict_int_or(row.get("submesh_index"), index)
+            || !garments.count(index) || !seen.insert(index).second) {
+            throw std::runtime_error("garment refit settings row references an invalid or duplicate garment");
+        }
+        const auto current = refit.garment_settings.find(index);
+        const MeshRefitGarmentSettingsRuntime previous = current == refit.garment_settings.end()
+            ? MeshRefitGarmentSettingsRuntime{} : current->second;
+        refit.garment_settings[index] = mesh_editor_refit_settings_from_json(row, previous, true);
+        const auto* mask = row.get("vertex_mask");
+        if (!mask) continue;
+        if (mask->type == JsonValue::Type::Null) {
+            refit.vertex_masks.erase(index);
+        } else {
+            if (mask->type != JsonValue::Type::Object)
+                throw std::runtime_error("garment refit batch vertex mask must be an object or null");
+            JsonValue mask_row = *mask;
+            mask_row.object_value["submesh_index"] = mesh_editor_json_number(index);
+            JsonValue masks;
+            masks.type = JsonValue::Type::Array;
+            masks.array_value.push_back(std::move(mask_row));
+            refit_read_vertex_masks_native(refit, &masks, submeshes, garments);
+        }
+    }
+}
+
 std::string mesh_editor_morph_configure_refit_session_report(
     const JsonValue& root,
     const std::string& session_id,
@@ -542,26 +643,15 @@ std::string mesh_editor_morph_configure_refit_session_report(
             throw std::runtime_error("garment refit settings require a bound garment part");
         }
     }
-    MeshRefitGarmentSettingsRuntime settings;
-    settings.enabled = bool_or(root.get("enabled"), true);
-    settings.intensity_percent = number_or(root.get("intensity_percent"), 100.0);
-    settings.mode = lower_ascii(string_or(root.get("mode"), "surface"));
-    settings.clearance_percent = number_or(root.get("clearance_percent"), 0.0);
-    if (!std::isfinite(settings.intensity_percent)
-        || settings.intensity_percent < 0.0 || settings.intensity_percent > 200.0) {
-        throw std::runtime_error("garment refit intensity must be between 0 and 200 percent");
-    }
-    if (settings.mode != "surface" && settings.mode != "rigid" && settings.mode != "rigid_component") {
-        throw std::runtime_error("garment refit mode must be surface, rigid or rigid_component");
-    }
-    if (!std::isfinite(settings.clearance_percent)
-        || settings.clearance_percent < 0.0 || settings.clearance_percent > 5.0) {
-        throw std::runtime_error("garment refit clearance must be between 0 and 5 percent of driver size");
-    }
     auto next = mesh_editor_clone_morph_runtime(session);
     auto next_refit = std::make_shared<MeshRefitRuntime>(*next->refit);
-    for (const int index : garments) next_refit->garment_settings[index] = settings;
-    refit_read_vertex_masks_native(*next_refit, root.get("vertex_masks"), submeshes, garments);
+    if (root.get("garment_settings")) {
+        mesh_editor_configure_refit_batch(root, *next_refit, submeshes, garments);
+    } else {
+        const auto settings = mesh_editor_refit_settings_from_json(root, MeshRefitGarmentSettingsRuntime{}, false);
+        for (const int index : garments) next_refit->garment_settings[index] = settings;
+        refit_read_vertex_masks_native(*next_refit, root.get("vertex_masks"), submeshes, garments);
+    }
     next->refit = std::move(next_refit);
     next->change_id = "configure-refit";
     next->state_revision = ++session.morph_state_revision;
