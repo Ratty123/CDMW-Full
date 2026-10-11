@@ -12,8 +12,8 @@ from cdmw.domain.new_item.independent import IndependentItemError
 from cdmw.domain.new_item.independent_wire_v1 import V1_ENUM_VALUES, V1_RECORD_FIELDS
 
 
-COMPILER_REVISION = 6
-ADAPTER_REVISIONS = {'item-v1': 1, 'envelope-v2': 3, 'iteminfo-fields': 2, 'package-links': 1, 'dds-pathc': 2, 'flat-icon-registry': 2}
+COMPILER_REVISION = 7
+ADAPTER_REVISIONS = {'item-v1': 1, 'envelope-v2': 4, 'iteminfo-fields': 2, 'package-links': 1, 'dds-pathc': 2, 'flat-icon-registry': 2, 'texture-replace': 1}
 FORMAT = 'cdmw_item_compiler_v1'
 
 

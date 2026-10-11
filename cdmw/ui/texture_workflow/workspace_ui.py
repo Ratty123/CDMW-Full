@@ -96,6 +96,10 @@ class TextureJobUiMixin:
         self.review_export_button = QPushButton("Review && Export")
         self.review_export_button.clicked.connect(self.show_texture_review)
         toolbar.addWidget(self.review_export_button)
+        self.independent_package_button = QPushButton("Texture .cditem...")
+        self.independent_package_button.setToolTip("Create or update a portable replacement for one existing game texture.")
+        self.independent_package_button.clicked.connect(self._open_independent_texture_package)
+        toolbar.addWidget(self.independent_package_button)
         layout.addLayout(toolbar)
 
         self.job_splitter = QSplitter(Qt.Horizontal)
@@ -393,6 +397,25 @@ class TextureJobUiMixin:
             return
         self.preview_stack.setCurrentWidget(self.editor_container)
         self._with_texture_editor(lambda editor: editor.show_workspace_preview(source_image, result_image))
+
+    def _open_independent_texture_package(self) -> None:
+        dialog = getattr(self, "_texture_package_dialog", None)
+        if dialog is None or dialog._closed:
+            from cdmw.ui.texture_workflow.independent_package_dialog import IndependentTexturePackageDialog
+            dialog = IndependentTexturePackageDialog(
+                self.shell._shared_new_item_controller(),
+                self.archive.archive_package_root_edit.text(), self,
+            )
+            self._texture_package_dialog = dialog
+            asset = self.job.assets.get(self.job.active_asset_key)
+            if asset is not None:
+                if asset.source_binding.archive_relative_path:
+                    dialog.texture_filter.setText(asset.source_binding.archive_relative_path)
+                if asset.source_path is not None and Path(asset.source_path).suffix.lower() == ".dds":
+                    dialog.replacement.setText(str(asset.source_path))
+        dialog.show()
+        dialog.raise_()
+        dialog.activateWindow()
 
     def show_texture_review(self, _checked=False, *, operation: str | None = None) -> None:
         if (operation or self.job.mode) in {"replace", "replacement"}:

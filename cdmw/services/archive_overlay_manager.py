@@ -645,6 +645,8 @@ def compose_layer_payloads(layers, baseline, *, stop_event=None, on_log=None):
     """Pure composition shared by archive installation and virtual snapshots."""
     current = dict(baseline)
     from cdmw.domain.archives.iteminfo_composition import prepare_fields, finish_fields
+    from cdmw.domain.archives.texture_composition import prepare_textures, finish_textures
+    textures = prepare_textures(layers, stop_event=stop_event)
     normalized, fields = prepare_fields(layers, baseline, stop_event=stop_event)
     active = [layer for layer, _ in layers if layer['active']]
     inactive = {layer['id'] for layer, _ in layers if not layer['active']}
@@ -661,7 +663,8 @@ def compose_layer_payloads(layers, baseline, *, stop_event=None, on_log=None):
             on_log(f"Composing {layer['label']}...")
         changes = normalized.get(layer['id'], changes)
         current = merge_overlay_files({p: c['before'] for p, c in changes.items()}, {p: c['after'] for p, c in changes.items()}, current)
-    return finish_fields(current, fields, stop_event=stop_event), active
+    current = finish_fields(current, fields, stop_event=stop_event)
+    return finish_textures(current, textures, stop_event=stop_event), active
 
 
 def _compose(root, state, pending, label, removed_id, stop_event, on_log, *, decoded=None, independent_context=None):
@@ -696,7 +699,8 @@ def _compose(root, state, pending, label, removed_id, stop_event, on_log, *, dec
             stop_event=stop_event, on_log=on_log, context=independent_context)
     current, active = compose_layer_payloads(layers, baseline, stop_event=stop_event, on_log=on_log)
     from cdmw.domain.archives.iteminfo_composition import required_field_files
-    required = required_field_files(layers, current)
+    from cdmw.domain.archives.texture_composition import required_texture_files
+    required = required_field_files(layers, current) | required_texture_files(layers)
     archive_paths = []
     for path, payload in current.items():
         raise_if_cancelled(stop_event, 'Overlay archive preparation cancelled.')

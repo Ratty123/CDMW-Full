@@ -238,8 +238,8 @@ def test_cancel_after_final_destination_guard_still_preserves_previous_export(pa
 def test_cancel_during_final_validation_never_returns_a_completed_import(package, monkeypatch):
     raw = owner.package_bytes(package)
     stop, validate = threading.Event(), owner._package
-    def finish(*args):
-        result = validate(*args)
+    def finish(*args, **kwargs):
+        result = validate(*args, **kwargs)
         stop.set()
         return result
     monkeypatch.setattr(owner, '_package', finish)

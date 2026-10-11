@@ -18,11 +18,15 @@ No manual mod merge is required for compatible packages installed through CDMW.
 
 Current equipment packages can include supported template or imported models and
 their item-owned materials, textures, icons and validated accompanying resources.
-The UI writes v1; v2 admits the same legacy item plus the existing ItemInfo field
-and package-link modules described below. There is no standalone texture/material
-replacement module or general character, body, hair or outfit adapter. Armor
-items must still satisfy the equipment matrix. Admission of an ordinary mod
-folder is a separate capability and does not add a new `.cditem` module.
+The item authoring UI writes v1. V2 admits the same legacy item, existing ItemInfo
+field and package-link modules, and standalone `texture.replace@1` packages.
+Texture tools create and update packages for supported existing DDS targets without
+an equipment recipe or numeric item allocation. See
+[`INDEPENDENT_TEXTURES.md`](../../services/INDEPENDENT_TEXTURES.md) for the exact
+source, descriptor, resource and registry limits. General material replacement,
+character, body, hair and outfit adapters remain unimplemented. Armor items must
+still satisfy the equipment matrix. Ordinary mod-folder admission does not add a
+new `.cditem` module.
 
 ## Identity and ownership
 
@@ -95,7 +99,8 @@ compilation. The compiler record itself does not change the v1 package schema.
 
 ## Version 2 admission and compilation identity
 
-Readers also accept the version 2 envelope. The authoring UI still exports v1;
+Readers also accept the version 2 envelope. Item authoring still exports v1;
+Texture tools write v2 existing-texture packages. The developer helper
 `independent_mod_package.migrate_v1()` explicitly wraps a verified v1 package for
 developers testing v2. It preserves the package UUID, original canonical v1 digest
 and `item` symbol. It does not renumber existing installations. A v1-only editor
@@ -113,7 +118,10 @@ as its data. It uses the existing physical and virtual compilation paths. Exact
 game resource hashes, allocation ranges and equipment limitations still apply.
 V2 also admits **`item.fields` version 1** for the narrowly defined existing-record
 operations and **`package.links` version 1** for the installation dependency graph
-below. Existing v1 readers explicitly reject the version 2 boundary.
+below. **`texture.replace` version 1** owns existing DDS replacements without a
+legacy recipe and contributes exact final-byte requirements to both deployment
+routes and semantic export. Existing v1 readers explicitly reject the version 2
+boundary.
 
 Unknown required features, module types and versions refuse before allocation.
 Optional behavior also refuses until a supported explicit alternative exists;
@@ -388,15 +396,15 @@ manager. Changed sources require a new comparison before publication.
 
 ### Semantic export and reimport
 
-When active packages declare `item.fields` or `package.links`, **Export installed
-items…** writes `cdmw-semantic.cditem` inside the chosen folder. Add that file to
+When active packages declare `item.fields`, `texture.replace` or `package.links`,
+**Export installed items…** writes `cdmw-semantic.cditem` inside the chosen folder. Add that file to
 **Mods** or **Virtual loader**, or use the reviewed physical **Install into game
 archives** flow. **Merge mods** also combines supported semantic export folders.
 The opaque wrapper retains every original package and exact contributor binding,
-including source-equal field requirements, provider pins and exported references.
+including source-equal field and texture requirements, provider pins and exported references.
 CDMW validates the payload and source witnesses, recompiles the original recipes,
 then composes them with the other active packages. Equal requirements retain both
-owners; compatible fields in the same row combine. Contradictory requirements,
+owners; compatible fields in the same row and disjoint texture targets combine. Contradictory requirements,
 occupied or different numeric bindings, changed known game identities and changed
 archive indexes refuse. No game-reference relocation is implied.
 

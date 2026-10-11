@@ -9,15 +9,17 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 ### Added
 
-- Mesh Editor can save sculpted body shapes as sliders and save outfit corrections for individual sliders, with profile and preset reuse and Undo/Redo.
+- Mesh Editor can save sculpted body shapes as sliders and save outfit corrections for individual sliders, compare the fit with corrections hidden, and reset corrections for selected garments, with profile and preset reuse and Undo/Redo.
+- Morph & Refit can generate anatomical controls from a verified body and skeleton, combine coordinated body adjustments with retained manual values, and link or independently edit paired sides without losing their previous settings.
 - Morph & Refit adds selected-vertex influence masks, allowed body regions for chosen garments, and a Rigid component mode that preserves the shape of connected hard pieces.
-- Mesh Editor can save and load fitting setups containing a body preset, garment settings, influence masks and body regions, and apply them together to matching loaded outfits.
+- Mesh Editor can save and load fitting setups containing body-control layers, garment settings, influence masks and body regions. A reusable setup list shows verified matches for the loaded body and outfit and applies them together or to selected garment Parts.
 
 - Mod Management adds experimental virtual loading for independent item packages and supported mods. It keeps original game archives unchanged, retains item identities, verifies a save backup before each virtual launch and refuses changed or incompatible inputs. It requires the verified Windows executable and existing ASI bootstrap; item, effect and other-mod compatibility still require testing.
 - Independent items can scan mounted mods or an extracted mod folder for conflicts, preserve supported unrelated record changes, and prepare a reviewed merge or separate merged package. Required-record conflicts and unsupported inputs are reported explicitly; runtime plugins and in-game compatibility remain unverified.
 - Item identities can rebuild installed packages from their retained source without changing item IDs, using the normal review and backup flow. Virtual profiles compiled by an older or different compiler require **Apply changes** before launch.
 - Experimental `.cditem` v2 supports the existing item recipe and developer-authored edits to existing stack counts and stat values. Disjoint typed edits combine, opposing edits and changes to records required by legacy packages are refused, and removal recomposes the remaining changes. Field-only packages allocate no dummy items and use a v2 identity profile that older CDMW versions refuse. Create New Item still exports v1; game and save behavior require separate verification.
 - Experimental `.cditem` packages can declare exact dependencies and typed references to other packages' exported item identities. Missing or changed providers, dependency cycles and removal of a required provider are refused within the same installation or virtual profile. Game-reference relocation and save compatibility require further adapters and validation.
+- Texture tools can create and update standalone `.cditem` replacements for supported existing textures. Exact source and descriptor checks preserve the texture registry; compatible replacements keep separate ownership, while conflicting writes refuse. Packages use no item IDs and support physical or virtual deployment. New paths, unsupported DDS layouts and visible game behavior require further validation.
 - Save research can capture and compare copied saves with a prepared virtual profile, detecting use of the wrong restored save before or after loading, unexpected save changes, changed provider bindings and incomplete experiments. Lineage inspection identifies recorded copies while keeping unproven producer, ancestry and slot-membership claims unknown. Reports keep operator observations separate from verified file hashes and do not certify save compatibility.
 - Independent item packages can copy verified template collision physics while preserving unchanged mesh and cloth bindings, including when adding effects or emission. Unknown physics layouts and transfers to changed geometry are refused. Armor physics still needs in-game validation before community support is advertised.
 
@@ -51,7 +53,7 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 ### Docs
 
-- Mesh Editor documents sculpted sliders, per-slider corrections, selective following, rigid components and portable fitting setups, including compatibility, baking and output limits.
+- Mesh Editor documents anatomical controls, reversible linked sides, sculpted sliders, correction comparison and reset, selective following, rigid components and reusable fitting setups, including compatibility, baking and output limits.
 
 - Independent items and Virtual Loader describe current module coverage, folder coexistence, export limits and scoped recovery. They distinguish verified save backups and observed save attempts from save compatibility, and identify the missing adapters and trusted profile-origin evidence.
 

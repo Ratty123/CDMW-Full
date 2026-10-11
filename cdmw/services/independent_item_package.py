@@ -177,10 +177,10 @@ def from_plan(plan, identity, *, title=None, stop_event=None):
     return _package(metadata, blobs)
 
 
-def _package(meta, blobs):
+def _package(meta, blobs, *, stop_event=None):
     if isinstance(meta, dict) and type(meta.get('version')) is int and meta['version'] == 2:
         from cdmw.services.independent_mod_package import read_v2
-        return read_v2(meta, blobs)
+        return read_v2(meta, blobs, stop_event=stop_event)
     return _v1_package(meta, blobs)
 
 
@@ -213,7 +213,7 @@ def _package_resources(meta, blobs):
     return identity
 
 
-def unpack_recipe(package):
+def _recipe_values(package):
     from cdmw.domain.new_item.spec import NewItemSpec
     from cdmw.services.new_item_planning import ModelFiles
     value = package.recipe
@@ -254,9 +254,19 @@ def unpack_recipe(package):
             raise IndependentItemError("Duplicate prepared variant binding.")
         variants[key] = model(row["model"])
     icon = None if value["icon"] is None else blob(value["icon"])
+    return spec, primary, variants, icon, used
+
+
+def unpack_recipe(package):
+    values = _recipe_values(package)
+    used = values[-1]
+    from cdmw.domain.new_item.mod_package import IndependentModPackage
+    if isinstance(package, IndependentModPackage):
+        from cdmw.services.independent_texture_package import texture_resource_keys
+        used = used | texture_resource_keys(package)
     if used != set(package.blobs):
         raise IndependentItemError("The package contains unreferenced resources.")
-    return spec, primary, variants, icon
+    return values[:-1]
 
 
 def package_metadata(package):
@@ -392,7 +402,7 @@ def read_package(source, *, stop_event=None):
                     blobs[info.filename[7:]] = _read_member(archive, info, stop_event)
         if not immutable and _artifact_hash(source, stop_event) != artifact:
             raise IndependentItemError('The package changed while it was being read.')
-        result = replace(_package(meta, blobs), artifact_digest=artifact)
+        result = replace(_package(meta, blobs, stop_event=stop_event), artifact_digest=artifact)
         raise_if_cancelled(stop_event)
         return result
     except (zipfile.BadZipFile, KeyError, TypeError, ValueError, UnicodeError, RecursionError) as exc:
@@ -401,7 +411,7 @@ def read_package(source, *, stop_event=None):
         raise IndependentItemError(f"Invalid independent item package: {exc}") from exc
 
 
-def write_package(package, path, *, expected_digest=None, stop_event=None):
+def write_package(package, path, *, expected_digest=None, stop_event=None, validate_source=None):
     path = Path(path).resolve()
     if path.suffix.lower() != ".cditem":
         raise IndependentItemError("Independent item packages use the .cditem extension.")
@@ -424,6 +434,12 @@ def write_package(package, path, *, expected_digest=None, stop_event=None):
             handle.flush()
             os.fsync(handle.fileno())
         raise_if_cancelled(stop_event)
+        checked = read_package(Path(temporary), stop_event=stop_event)
+        if (checked.identity, checked.digest) != (package.identity, package.digest):
+            raise IndependentItemError('The staged package failed final identity and content readback.')
+        del checked
+        if validate_source is not None:
+            validate_source(stop_event)
         current = None
         if path.is_file():
             with path.open('rb') as handle:

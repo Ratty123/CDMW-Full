@@ -325,8 +325,49 @@ def _required_keys(package, snapshot, changes):
     return required
 
 
-def check_package_dependencies(package, snapshot, external, changes, *, stop_event=None):
+def _texture_dependency_requirements(package, snapshot, *, stop_event=None):
+    """Keep declared resource reads exact; scope a hybrid's adapter exception."""
+    from cdmw.services.independent_texture_package import package_texture_requirements
+    from cdmw.services.independent_mod_package import has_legacy_item
+    required = {path: checksum for path, checksum in package.dependencies.items() if path.endswith('.dds')}
+    targets = {row['path'] for row in package_texture_requirements(package)}
+    if not targets:
+        return required
+    legacy_reads = set()
+    if has_legacy_item(package):
+        # Global package dependencies include the texture module's source reads.
+        # Re-run only the retained legacy recipe with fresh payload tracking so
+        # an unrelated texture target is not mistaken for a legacy byte consumer.
+        from dataclasses import replace
+        from cdmw.services.independent_item_package import unpack_recipe
+        from cdmw.services.new_item_service import NewItemService
+        from cdmw.services.new_item_planning import build_plan, planned_icon_string
+        from cdmw.core.item_icon_addition import NewItemIcon, icon_target_path
+        from cdmw.core.stringinfo_table import stringinfo_key
+        view = snapshot.discovery_view()
+        spec, model, variants, icon_data = unpack_recipe(package)
+        allocated = NewItemService().allocate(replace(spec, internal_name='CDI_' + package.identity), view)
+        icon = None
+        if icon_data is not None:
+            name = planned_icon_string(allocated, view)
+            icon = NewItemIcon(name, stringinfo_key(name), icon_target_path(name), icon_data, None, None)
+        plan = build_plan(allocated, view, model=model, variant_models=variants, icon=icon,
+                          capture_independent=True, stop_event=stop_event)
+        plan.source_revision.validate(stop_event)
+        legacy_reads = {row.entry.path.lower() for row in plan.source_revision.payloads
+                        if row.entry.path.lower().endswith('.dds')}
+        if any(path not in package.dependencies for path in legacy_reads):
+            raise OverlayConflict(f'{package.title}: the retained legacy resource graph is incomplete.')
+    return {path: checksum for path, checksum in required.items()
+            if path not in targets or path in legacy_reads}
+
+
+def check_package_dependencies(package, snapshot, external, changes, *, stop_event=None, texture_dependencies=None):
     """Keep the package's game version contract; narrow only verified external overlaps."""
+    from cdmw.services.independent_texture_package import package_texture_requirements
+    texture_targets = {row['path']: row['sha256'] for row in package_texture_requirements(package)}
+    if texture_dependencies is None:
+        texture_dependencies = _texture_dependency_requirements(package, snapshot, stop_event=stop_event)
     for path, change in changes.items():
         paths = _group(path)
         if len(paths) != 2 or path != paths[0] or not external.paths.intersection(paths):
@@ -365,6 +406,10 @@ def check_package_dependencies(package, snapshot, external, changes, *, stop_eve
             original = {p: snapshot.payload(p) for p in paths}
             if current == original:
                 detail = 'Identical game data; no conflicting changes.'
+            elif path in texture_targets and path not in texture_dependencies:
+                if current[path] is None or digest(current[path]) != texture_targets[path]:
+                    raise OverlayConflict('The texture replacement requires different final bytes.')
+                detail = 'Identical required texture bytes; contributor ownership remains separate.'
             elif len(paths) == 2:
                 body, head = paths
                 old_table, old = _table(original[body], original[head])
@@ -440,6 +485,7 @@ def _validate_composition_packages(root, pending, layers, snapshot, external, *,
     from cdmw.services.independent_item_package import read_package
     from cdmw.domain.new_item.package_links import contract, resolve_package_contracts, check_graph_budget
     protected, operations = {}, []
+    texture_reads, texture_writes = {}, {}
     findings = []
     active_packages, link_budgets, linked_groups = {False: [], True: []}, {False: 0, True: 0}, set()
     for layer, changes in layers:
@@ -457,11 +503,19 @@ def _validate_composition_packages(root, pending, layers, snapshot, external, *,
             raise OverlayConflict('The retained independent package does not match its ownership history.')
         from cdmw.services.independent_mod_package import package_operations
         declared = package_operations(package)
+        from cdmw.services.independent_texture_package import lower_texture_operations, package_texture_requirements
+        textures = package_texture_requirements(package)
+        if layer.get('independent_textures', []) != textures:
+            raise OverlayConflict('The retained package texture requirements disagree with its ownership layer.')
+        texture_changes = lower_texture_operations(package, snapshot, {}, stop_event=stop_event)
+        if any(changes.get(path) != change for path, change in texture_changes.items()):
+            raise OverlayConflict(f'{package.title}: the texture journal differs from its witnessed original and replacement.')
+        texture_dependencies = _texture_dependency_requirements(package, snapshot, stop_event=stop_event)
         if layer.get('independent_operations', []) != declared:
             raise OverlayConflict('The retained package field operations disagree with its ownership layer.')
         if layer['active']:
             package_contract = contract(package)
-            if export_requirements is not None and (declared or package_contract['declared']):
+            if export_requirements is not None and (declared or textures or package_contract['declared']):
                 export_requirements.append(package.title)
             virtual = package.identity in virtual_identities
             active_packages[virtual].append((package.identity, package_contract))
@@ -471,13 +525,23 @@ def _validate_composition_packages(root, pending, layers, snapshot, external, *,
             if virtual in linked_groups:
                 check_graph_budget(len(active_packages[virtual]), link_budgets[virtual])
             operations.extend((row['owner'], row['operations']) for row in declared)
+            for row in textures:
+                texture_writes.setdefault(row['path'], []).append((row['sha256'], f'{package.title} ({row["owner"]})'))
+            for path, checksum in texture_dependencies.items():
+                texture_reads.setdefault(path, []).append((checksum, f'{package.title} ({package.identity})'))
             for key in _required_keys(package, snapshot, changes)['iteminfo']:
                 protected.setdefault(key, []).append(package.identity)
-        package_findings = check_package_dependencies(package, snapshot, external, changes, stop_event=stop_event)
+        package_findings = check_package_dependencies(package, snapshot, external, changes, stop_event=stop_event,
+                                                       texture_dependencies=texture_dependencies)
         findings.extend(package_findings)
         if on_log:
             for finding in package_findings:
                 on_log(f'{package.title}: {", ".join(finding.mods)}: {finding.path}: {finding.detail}')
+    for path, writes in texture_writes.items():
+        for checksum, owner in writes:
+            for required, consumer in texture_reads.get(path, ()):
+                if checksum != required:
+                    raise OverlayConflict(f'Texture conflict at {path}: {owner}; {consumer} requires the complete resource unchanged.')
     for virtual in (False, True):
         resolve_package_contracts(active_packages[virtual], stop_event=stop_event)
     if operations:
@@ -537,10 +601,12 @@ class IndependentCompatibilityReport:
 
 def _semantic_layer(package, changes, registry):
     from cdmw.services.independent_mod_package import package_operations
+    from cdmw.services.independent_texture_package import package_texture_requirements
     return ({'id': package.identity, 'label': package.title, 'active': True, 'dependencies': [],
              'item_keys': list(registry['items'][package.identity]['values'].get('iteminfo', {}).values()),
              'independent_identity': package.identity, 'independent_digest': package.digest,
-             'independent_operations': package_operations(package)}, changes)
+             'independent_operations': package_operations(package),
+             'independent_textures': package_texture_requirements(package)}, changes)
 
 
 def validate_semantic_recomposition(exports, compiled, registry, *, stop_event=None):

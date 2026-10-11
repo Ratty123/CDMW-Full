@@ -190,7 +190,7 @@ def _read_result(request, folder, output_path, stop_event, *, semantic_sources=(
                           for path in selections if path.is_dir())
     from cdmw.core.archive_scan_cache import (
         crimson_desert_executable_candidates, resolve_crimson_desert_executable)
-    artifact_paths.add((root / 'meta/0.paver').resolve())
+    artifact_paths.update((root / path).resolve() for path in ('meta/0.paver', 'meta/0.pathc'))
     executable = resolve_crimson_desert_executable(root)
     if executable is not None:
         artifact_paths.add(executable.resolve())
@@ -251,17 +251,29 @@ def _read_result(request, folder, output_path, stop_event, *, semantic_sources=(
 
 
 def _semantic_source_guards(profile, root, stop_event=None):
-    """Retain required artifact witnesses in the parent before starting its child."""
-    from cdmw.core.mod_compatibility import read_semantic_export
+    """Retain module-required source witnesses before starting the child."""
+    from cdmw.core.mod_compatibility import read_semantic_export, hash_file
+    from cdmw.services.independent_item_package import read_package
+    from cdmw.services.independent_texture_package import package_texture_requirements
     from cdmw.services.mod_merge_service import _inventory
     from cdmw.core.archive_scan_cache import (
         crimson_desert_executable_candidates, resolve_crimson_desert_executable)
     from cdmw.services.new_item_provenance import _stamp
     root = Path(root).resolve()
     result, stamps = [], {}
+    from cdmw.services.archive_overlay_manager import _load_index
+    state = _load_index(root)
+    needs_registry = any(layer.get('independent_identity') and layer.get('independent_textures')
+                         and (layer['active'] or layer.get('disabled'))
+                         for layer in (state or {}).get('layers', ()))
     for path in (*profile.packages, *profile.mods):
         raise_if_cancelled(stop_event)
         semantic = read_semantic_export(path, stop_event=stop_event)
+        sources = semantic.packages if semantic is not None else (path,) if Path(path).is_file() else ()
+        for source in sources:
+            package = read_package(source, stop_event=stop_event)
+            needs_registry = needs_registry or bool(package_texture_requirements(package))
+            del package
         if semantic is not None:
             inventory = _inventory(semantic.folder, stop_event) if semantic.folder is not None else None
             result.append((semantic.source, semantic.artifact_digest, semantic.folder, inventory))
@@ -280,6 +292,9 @@ def _semantic_source_guards(profile, root, stop_event=None):
                     if candidate.is_file():
                         raise VirtualLoaderError('The semantic export game executable selection changed.')
         del semantic
+    if needs_registry:
+        registry = root / 'meta/0.pathc'
+        result.append((registry, hash_file(registry, stop_event), None, None))
     return tuple(result), tuple(stamps.items())
 
 

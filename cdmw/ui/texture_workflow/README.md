@@ -59,6 +59,42 @@ Review & Export actions are hidden in this mode. File-only builds read the curre
 source files through the existing package builder; DDS encoding policy is unchanged.
 Edited sessions export their current flattened image.
 
+## Standalone texture .cditem packages
+
+**Authoring > Textures > Texture .cditem...** opens the package editor in every
+texture mode. Choose the game archive folder, filter and **Find existing textures**,
+then select an existing registered target. Choose a prepared replacement DDS,
+review the affected path, package UUID and source/replacement hashes, and write
+the portable `.cditem` outside the game archive folder. Search returns at most
+200 paths and reports the total so a broad filter can be refined.
+
+The `texture.replace@1` adapter accepts existing direct texture entries whose
+complete DDS descriptor and raw mip layout are supported. The replacement must
+retain all source header bytes, dimensions, format and mip layout; every mip is
+decoded during validation. This workflow creates no item IDs or texture registry
+entries. Layout changes, unregistered/new paths and unsupported DDS/storage
+layouts are refused with a reason.
+
+For an update, **Load package to update...** selects the existing artifact and
+its expected digest before review. This editor updates one texture target,
+retains that target, UUID, module ID and envelope metadata, and writes to the
+selected package path. The previous package must still validate against the
+current exact original source and texture registry. Reauthoring across changed
+game inputs requires a separate reviewed compatibility step. Combined modules,
+multiple texture targets and additional dependencies require their owning editor.
+
+Discovery, package reads, full texture validation and package writing use the
+existing shared background controller. Review pins the original source/indexes,
+registry, local replacement bytes and selected update artifact. The existing
+writer reads back its staged package and checks these inputs again before atomic
+publication. Failure or cancellation before publication preserves prior output;
+cancellation after publication reports the committed file. Closing the dialog
+requests cancellation and leaves native thread cleanup with its shared owner.
+
+Import the written package through **Mods** for the applicable install/update
+review. Authoring and owned-fixture tests establish package/compiler behavior;
+rendering, visual parity and live-game behavior require separate game evidence.
+
 ## Worker snapshots and publication
 
 Workers receive immutable snapshots. Revisions, original DDS identity, exact target

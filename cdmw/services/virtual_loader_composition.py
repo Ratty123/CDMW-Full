@@ -13,6 +13,7 @@ from cdmw.domain.virtual_loader import PreparedSnapshot, VirtualLoaderError, Vir
 from cdmw.services import archive_overlay_manager as overlays
 from cdmw.services.independent_item_install import resolve_items
 from cdmw.services.independent_mod_package import package_operations
+from cdmw.services.independent_texture_package import package_texture_requirements
 from cdmw.services.independent_item_package import canonical, digest, MAX_TOTAL
 from cdmw.services.independent_item_compatibility import compose_underlay, _external_table
 from cdmw.services.mod_merge_service import _group
@@ -70,7 +71,8 @@ def prepare_profile(profile: VirtualProfile, root, *, stop_event=None, on_log=No
     virtual_layers = [({'id': package.identity, 'label': package.title, 'active': True, 'dependencies': [],
                         'item_keys': list(resolved.registry['items'][package.identity]['values'].get('iteminfo', {}).values()),
                         'independent_identity': package.identity, 'independent_digest': package.digest,
-                        'independent_operations': package_operations(package)}, changes)
+                        'independent_operations': package_operations(package),
+                        'independent_textures': package_texture_requirements(package)}, changes)
                       for package, changes in resolved.contributions]
     baseline, flags, meta = {}, {}, set()
     for _layer, changes in (*layers, *virtual_layers):
@@ -85,7 +87,9 @@ def prepare_profile(profile: VirtualProfile, root, *, stop_event=None, on_log=No
     current, _ = overlays.compose_layer_payloads((*layers, *virtual_layers), underlay,
                                                 stop_event=stop_event, on_log=on_log)
     from cdmw.domain.archives.iteminfo_composition import required_field_files
-    required = required_field_files((*layers, *virtual_layers), current)
+    from cdmw.domain.archives.texture_composition import required_texture_files
+    texture_paths = required_texture_files((*layers, *virtual_layers))
+    required = required_field_files((*layers, *virtual_layers), current) | texture_paths
     files = {p: data for p, data in current.items() if p not in meta and data is not None and (data != underlay[p] or p in required)}
     # Selected, unmounted mod files must be present even when no item touches
     # them. Mounted foreign files remain underlay unless composition changes them.
@@ -103,7 +107,10 @@ def prepare_profile(profile: VirtualProfile, root, *, stop_event=None, on_log=No
         raise VirtualLoaderError('The composed virtual profile exceeds its supported size.')
     # Reuse the established texture registry encoder, including its collision checks.
     pathc = current.get('meta/0.pathc', read_optional(target(root, 'meta/0.pathc')))
-    textures = [p for p in selected if p.endswith('.dds')]
+    # The texture adapter already verified each existing direct registry entry and
+    # required an unchanged DDS descriptor. Equal loose contributors share that
+    # final payload; registering it again would create an unsupported registry edit.
+    textures = [p for p in selected if p.endswith('.dds') and p not in texture_paths]
     if textures:
         from cdmw.core.pathc_format import parse_pathc, register_dds, encode_pathc
         if pathc is None:

@@ -3877,6 +3877,11 @@
       ]
     },
     {
+      "key": "A duplicate or non-DDS texture target is unsupported: {value_0}.",
+      "origins": [],
+      "manual": true
+    },
+    {
       "key": "A dye mapping must use exact source and target submesh names.",
       "origins": [
         {
@@ -4187,6 +4192,11 @@
       ]
     },
     {
+      "key": "A required texture replacement resource is missing.",
+      "origins": [],
+      "manual": true
+    },
+    {
       "key": "A resolved existing target icon entry is required for custom item icons.",
       "origins": [
         {
@@ -4330,6 +4340,21 @@
           "sink": "ValueError"
         }
       ]
+    },
+    {
+      "key": "A texture replacement must be bounded DDS bytes.",
+      "origins": [],
+      "manual": true
+    },
+    {
+      "key": "A texture replacement requires its exact source dependency.",
+      "origins": [],
+      "manual": true
+    },
+    {
+      "key": "A texture resource exceeds the package size limit.",
+      "origins": [],
+      "manual": true
     },
     {
       "key": "A texture target must end in .dds.",
@@ -6093,6 +6118,16 @@
           "path": "cdmw/ui/new_item/reward_editor.py",
           "line": 35,
           "sink": "addItem"
+        }
+      ]
+    },
+    {
+      "key": "Add this .cditem from Mods. Load the written package before making another update.",
+      "origins": [
+        {
+          "path": "cdmw/ui/texture_workflow/independent_package_dialog.py",
+          "line": 284,
+          "sink": "appendPlainText"
         }
       ]
     },
@@ -8280,6 +8315,11 @@
           "sink": "OverlayConflict"
         }
       ]
+    },
+    {
+      "key": "An update must retain its existing texture target. Create a new package for another target.",
+      "origins": [],
+      "manual": true
     },
     {
       "key": "Analysis",
@@ -17480,6 +17520,11 @@
           "sink": "QPushButton"
         },
         {
+          "path": "cdmw/ui/texture_workflow/independent_package_dialog.py",
+          "line": 112,
+          "sink": "QPushButton"
+        },
+        {
           "path": "cdmw/ui/tools/mod_package_retrofit_widget.py",
           "line": 113,
           "sink": "QPushButton"
@@ -20772,6 +20817,16 @@
       ]
     },
     {
+      "key": "Cancel operation",
+      "origins": [
+        {
+          "path": "cdmw/ui/texture_workflow/independent_package_dialog.py",
+          "line": 90,
+          "sink": "QPushButton"
+        }
+      ]
+    },
+    {
       "key": "Cancel outfit correction",
       "origins": [
         {
@@ -20988,6 +21043,16 @@
           "path": "cdmw/ui/model_library/preview.py",
           "line": 229,
           "sink": "_set_inline_preview_status"
+        }
+      ]
+    },
+    {
+      "key": "Cancelling...",
+      "origins": [
+        {
+          "path": "cdmw/ui/texture_workflow/independent_package_dialog.py",
+          "line": 288,
+          "sink": "setText"
         }
       ]
     },
@@ -24287,6 +24352,16 @@
       ]
     },
     {
+      "key": "Choose a .cditem file outside the game archive folder",
+      "origins": [
+        {
+          "path": "cdmw/ui/texture_workflow/independent_package_dialog.py",
+          "line": 74,
+          "sink": "setPlaceholderText"
+        }
+      ]
+    },
+    {
       "key": "Choose a 1H/2H source weapon, then build. Default mode moves this target only; model, textures, icon, and physics stay target-owned.",
       "origins": [
         {
@@ -25965,9 +26040,24 @@
       "key": "Choose the game archive folder",
       "origins": [
         {
+          "path": "cdmw/ui/texture_workflow/independent_package_dialog.py",
+          "line": 121,
+          "sink": "getExistingDirectory"
+        },
+        {
           "path": "cdmw/ui/tools/mod_management.py",
           "line": 227,
           "sink": "getExistingDirectory"
+        }
+      ]
+    },
+    {
+      "key": "Choose the game archive folder and find an existing texture.",
+      "origins": [
+        {
+          "path": "cdmw/ui/texture_workflow/independent_package_dialog.py",
+          "line": 76,
+          "sink": "QLabel"
         }
       ]
     },
@@ -26078,6 +26168,16 @@
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs",
           "line": 5187,
           "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Choose the prepared replacement DDS",
+      "origins": [
+        {
+          "path": "cdmw/ui/texture_workflow/independent_package_dialog.py",
+          "line": 126,
+          "sink": "getOpenFileName"
         }
       ]
     },
@@ -32782,6 +32882,16 @@
       ]
     },
     {
+      "key": "Create or update a portable replacement for one existing game texture.",
+      "origins": [
+        {
+          "path": "cdmw/ui/texture_workflow/workspace_ui.py",
+          "line": 100,
+          "sink": "setToolTip"
+        }
+      ]
+    },
+    {
       "key": "Create part from selection",
       "origins": [
         {
@@ -34628,6 +34738,11 @@
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
           "line": 498,
           "sink": "getOpenFileName:filter-label"
+        },
+        {
+          "path": "cdmw/ui/texture_workflow/independent_package_dialog.py",
+          "line": 126,
+          "sink": "getOpenFileName:filter-label"
         }
       ]
     },
@@ -34637,6 +34752,11 @@
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
           "line": 498,
+          "sink": "getOpenFileName"
+        },
+        {
+          "path": "cdmw/ui/texture_workflow/independent_package_dialog.py",
+          "line": 126,
           "sink": "getOpenFileName"
         }
       ]
@@ -42357,6 +42477,11 @@
       ]
     },
     {
+      "key": "Every mip must decode; full DDS descriptors and registry mip storage remain unchanged.",
+      "origins": [],
+      "manual": true
+    },
+    {
       "key": "Every pending operation  (advanced)",
       "origins": [
         {
@@ -42942,6 +43067,11 @@
       ]
     },
     {
+      "key": "Existing directly registered raw 2D block-compressed textures with exact source and registry hashes.",
+      "origins": [],
+      "manual": true
+    },
+    {
       "key": "Existing game item",
       "origins": [
         {
@@ -43073,6 +43203,21 @@
           "path": "cdmw/ui/archive_browser/attachment_placement_diff_dialog.py",
           "line": 905,
           "sink": "QLabel"
+        }
+      ]
+    },
+    {
+      "key": "Existing texture replacement",
+      "origins": [],
+      "manual": true
+    },
+    {
+      "key": "Existing texture:",
+      "origins": [
+        {
+          "path": "cdmw/ui/texture_workflow/independent_package_dialog.py",
+          "line": 66,
+          "sink": "addRow"
         }
       ]
     },
@@ -43510,6 +43655,11 @@
           "sink": "python-return:resolve"
         }
       ]
+    },
+    {
+      "key": "Explicit final bytes, separate owners and no item allocations or registry additions.",
+      "origins": [],
+      "manual": true
     },
     {
       "key": "Explicit socket pair is incomplete",
@@ -48282,6 +48432,16 @@
       ]
     },
     {
+      "key": "Find an existing texture and choose its replacement DDS.",
+      "origins": [
+        {
+          "path": "cdmw/ui/texture_workflow/independent_package_dialog.py",
+          "line": 182,
+          "sink": "setText"
+        }
+      ]
+    },
+    {
       "key": "Find and play a clip",
       "origins": [
         {
@@ -48308,6 +48468,16 @@
           "path": "cdmw/ui/archive_browser/controls_panel.py",
           "line": 74,
           "sink": "setToolTip"
+        }
+      ]
+    },
+    {
+      "key": "Find existing textures",
+      "origins": [
+        {
+          "path": "cdmw/ui/texture_workflow/independent_package_dialog.py",
+          "line": 58,
+          "sink": "QPushButton"
         }
       ]
     },
@@ -48342,6 +48512,16 @@
       ]
     },
     {
+      "key": "Find target:",
+      "origins": [
+        {
+          "path": "cdmw/ui/texture_workflow/independent_package_dialog.py",
+          "line": 62,
+          "sink": "addRow"
+        }
+      ]
+    },
+    {
       "key": "Find textures used by a model",
       "origins": [
         {
@@ -48350,6 +48530,11 @@
           "sink": "python-return:_build_archive_mesh_sections"
         }
       ]
+    },
+    {
+      "key": "Find the existing game texture before reviewing its replacement.",
+      "origins": [],
+      "manual": true
     },
     {
       "key": "Find useful files",
@@ -48418,6 +48603,16 @@
           "path": "cdmw/ui/archive_browser/appearance_swap.py",
           "line": 105,
           "sink": "start"
+        }
+      ]
+    },
+    {
+      "key": "Finding existing game textures...",
+      "origins": [
+        {
+          "path": "cdmw/ui/texture_workflow/independent_package_dialog.py",
+          "line": 219,
+          "sink": "_run"
         }
       ]
     },
@@ -51163,6 +51358,16 @@
           "path": "cdmw/ui/shell/problem_report_catalog.py",
           "line": 107,
           "sink": "python-data:REPORT_TOOLS"
+        }
+      ]
+    },
+    {
+      "key": "Game archive folder:",
+      "origins": [
+        {
+          "path": "cdmw/ui/texture_workflow/independent_package_dialog.py",
+          "line": 54,
+          "sink": "_path_row"
         }
       ]
     },
@@ -55992,6 +56197,16 @@
       ]
     },
     {
+      "key": "Identical required texture bytes; contributor ownership remains separate.",
+      "origins": [
+        {
+          "path": "cdmw/services/independent_item_compatibility.py",
+          "line": 435,
+          "sink": "CompatibilityFinding"
+        }
+      ]
+    },
+    {
       "key": "Identity",
       "origins": [
         {
@@ -58692,6 +58907,36 @@
       ]
     },
     {
+      "key": "Independent packages",
+      "origins": [
+        {
+          "path": "cdmw/ui/texture_workflow/independent_package_dialog.py",
+          "line": 132,
+          "sink": "getSaveFileName:filter-label"
+        },
+        {
+          "path": "cdmw/ui/texture_workflow/independent_package_dialog.py",
+          "line": 238,
+          "sink": "getOpenFileName:filter-label"
+        }
+      ]
+    },
+    {
+      "key": "Independent packages (*.cditem)",
+      "origins": [
+        {
+          "path": "cdmw/ui/texture_workflow/independent_package_dialog.py",
+          "line": 132,
+          "sink": "getSaveFileName"
+        },
+        {
+          "path": "cdmw/ui/texture_workflow/independent_package_dialog.py",
+          "line": 238,
+          "sink": "getOpenFileName"
+        }
+      ]
+    },
+    {
       "key": "Independent packages can only copy unchanged template physics.",
       "origins": [],
       "manual": true
@@ -59772,6 +60017,11 @@
       ]
     },
     {
+      "key": "Install or update this package from Mods. Game appearance requires separate testing.",
+      "origins": [],
+      "manual": true
+    },
+    {
       "key": "Install the item into this game's tracked CDMW overlay.",
       "origins": [
         {
@@ -60362,6 +60612,16 @@
       ]
     },
     {
+      "key": "Invalid existing-texture replacement fields.",
+      "origins": [],
+      "manual": true
+    },
+    {
+      "key": "Invalid existing-texture replacement module.",
+      "origins": [],
+      "manual": true
+    },
+    {
       "key": "Invalid experimental replacement coordinate frame.",
       "origins": [
         {
@@ -60540,6 +60800,11 @@
           "sink": "RuntimeError"
         }
       ]
+    },
+    {
+      "key": "Invalid or duplicate texture requirement.",
+      "origins": [],
+      "manual": true
     },
     {
       "key": "Invalid or missing shared compilation context. Restore the matching overlay inventory.",
@@ -60967,6 +61232,16 @@
       ]
     },
     {
+      "key": "Invalid texture contribution inventory.",
+      "origins": [],
+      "manual": true
+    },
+    {
+      "key": "Invalid texture contribution.",
+      "origins": [],
+      "manual": true
+    },
+    {
       "key": "Invalid texture registry ownership in {value_0}.",
       "origins": [
         {
@@ -60975,6 +61250,11 @@
           "sink": "ValueError"
         }
       ]
+    },
+    {
+      "key": "Invalid texture source, descriptor or replacement digest.",
+      "origins": [],
+      "manual": true
     },
     {
       "key": "Invalid translucency reset request.",
@@ -61005,6 +61285,11 @@
           "sink": "rust-presentation"
         }
       ]
+    },
+    {
+      "key": "Invalid witnessed texture source size.",
+      "origins": [],
+      "manual": true
     },
     {
       "key": "Invalid {value_0}.",
@@ -65167,6 +65452,16 @@
       ]
     },
     {
+      "key": "Load a texture package to update",
+      "origins": [
+        {
+          "path": "cdmw/ui/texture_workflow/independent_package_dialog.py",
+          "line": 238,
+          "sink": "getOpenFileName"
+        }
+      ]
+    },
+    {
       "key": "Load a weapon reference to test collisions with this cloth.",
       "origins": [
         {
@@ -65383,6 +65678,16 @@
           "path": "cdmw/ui/research/tab_side_panel_builders.py",
           "line": 67,
           "sink": "QLabel"
+        }
+      ]
+    },
+    {
+      "key": "Load package to update...",
+      "origins": [
+        {
+          "path": "cdmw/ui/texture_workflow/independent_package_dialog.py",
+          "line": 39,
+          "sink": "QPushButton"
         }
       ]
     },
@@ -78262,6 +78567,31 @@
       ]
     },
     {
+      "key": "New standalone texture package",
+      "origins": [
+        {
+          "path": "cdmw/ui/texture_workflow/independent_package_dialog.py",
+          "line": 46,
+          "sink": "QLabel"
+        },
+        {
+          "path": "cdmw/ui/texture_workflow/independent_package_dialog.py",
+          "line": 177,
+          "sink": "setText"
+        }
+      ]
+    },
+    {
+      "key": "New texture package",
+      "origins": [
+        {
+          "path": "cdmw/ui/texture_workflow/independent_package_dialog.py",
+          "line": 38,
+          "sink": "QPushButton"
+        }
+      ]
+    },
+    {
       "key": "New value",
       "origins": [
         {
@@ -80257,6 +80587,11 @@
       ]
     },
     {
+      "key": "No item IDs or texture registry entries are created.",
+      "origins": [],
+      "manual": true
+    },
+    {
       "key": "No item packages installed.",
       "origins": [
         {
@@ -81398,6 +81733,16 @@
           "path": "cdmw/ui/archive_browser/asset_family_layout.py",
           "line": 90,
           "sink": "EmptyStateTreeWidget"
+        }
+      ]
+    },
+    {
+      "key": "No registered texture targets matched. Refine the filter or choose another game archive folder.",
+      "origins": [
+        {
+          "path": "cdmw/ui/texture_workflow/independent_package_dialog.py",
+          "line": 233,
+          "sink": "setText"
         }
       ]
     },
@@ -87013,6 +87358,11 @@
           "path": "cdmw/ui/new_item/model_import.py",
           "line": 881,
           "sink": "RunCancelled"
+        },
+        {
+          "path": "cdmw/ui/texture_workflow/independent_package_dialog.py",
+          "line": 205,
+          "sink": "setText"
         }
       ]
     },
@@ -87845,6 +88195,11 @@
           "sink": "addItem"
         }
       ]
+    },
+    {
+      "key": "Original source SHA-256: {value_0}",
+      "origins": [],
+      "manual": true
     },
     {
       "key": "Original source ZIP (OBJ/FBX/etc.)",
@@ -89802,6 +90157,11 @@
       ]
     },
     {
+      "key": "Package UUID: {value_0}",
+      "origins": [],
+      "manual": true
+    },
+    {
       "key": "Package action",
       "origins": [
         {
@@ -89867,6 +90227,16 @@
       ]
     },
     {
+      "key": "Package file:",
+      "origins": [
+        {
+          "path": "cdmw/ui/texture_workflow/independent_package_dialog.py",
+          "line": 75,
+          "sink": "_path_row"
+        }
+      ]
+    },
+    {
       "key": "Package filter, e.g. 0000/0.pamt or 0012",
       "origins": [
         {
@@ -89883,6 +90253,16 @@
           "path": "cdmw/ui/research/tab_builders.py",
           "line": 173,
           "sink": "setPlaceholderText"
+        }
+      ]
+    },
+    {
+      "key": "Package loaded. Find its existing texture in the current game archive folder before reviewing an update.",
+      "origins": [
+        {
+          "path": "cdmw/ui/texture_workflow/independent_package_dialog.py",
+          "line": 256,
+          "sink": "setText"
         }
       ]
     },
@@ -90053,6 +90433,16 @@
           "path": "cdmw/ui/archive_browser/mod_ready_export.py",
           "line": 161,
           "sink": "QLabel"
+        }
+      ]
+    },
+    {
+      "key": "Package title:",
+      "origins": [
+        {
+          "path": "cdmw/ui/texture_workflow/independent_package_dialog.py",
+          "line": 71,
+          "sink": "addRow"
         }
       ]
     },
@@ -90783,6 +91173,16 @@
           "path": "cdmw/ui/archive_browser/static_replacement_source_part_pending_state.py",
           "line": 92,
           "sink": "SourcePartsPendingPresentation"
+        }
+      ]
+    },
+    {
+      "key": "Part of the existing texture path or filename",
+      "origins": [
+        {
+          "path": "cdmw/ui/texture_workflow/independent_package_dialog.py",
+          "line": 57,
+          "sink": "setPlaceholderText"
         }
       ]
     },
@@ -102967,6 +103367,16 @@
       ]
     },
     {
+      "key": "Reading the selected texture package...",
+      "origins": [
+        {
+          "path": "cdmw/ui/texture_workflow/independent_package_dialog.py",
+          "line": 244,
+          "sink": "_run"
+        }
+      ]
+    },
+    {
       "key": "Reading the tables from {value_0} archive entries...",
       "origins": [
         {
@@ -106667,6 +107077,21 @@
       ]
     },
     {
+      "key": "Release:",
+      "origins": [
+        {
+          "path": "cdmw/ui/texture_workflow/independent_package_dialog.py",
+          "line": 72,
+          "sink": "addRow"
+        }
+      ]
+    },
+    {
+      "key": "Release: {value_0}",
+      "origins": [],
+      "manual": true
+    },
+    {
       "key": "Relevant mod names/versions and changes, or Not sure",
       "origins": [
         {
@@ -107922,6 +108347,16 @@
       ]
     },
     {
+      "key": "Replace one existing game texture with a prepared DDS that retains its complete layout. Review the target before writing a portable package.",
+      "origins": [
+        {
+          "path": "cdmw/ui/texture_workflow/independent_package_dialog.py",
+          "line": 31,
+          "sink": "QLabel"
+        }
+      ]
+    },
+    {
       "key": "Replace one shop entry with the new item",
       "origins": [
         {
@@ -108077,6 +108512,16 @@
       ]
     },
     {
+      "key": "Replacement DDS:",
+      "origins": [
+        {
+          "path": "cdmw/ui/texture_workflow/independent_package_dialog.py",
+          "line": 68,
+          "sink": "_path_row"
+        }
+      ]
+    },
+    {
       "key": "Replacement Preview is the candidate location/rotation/scale that will be written. Final loose export preview may differ if packaged material sidecar or DDS bindings resolve differently.",
       "origins": [
         {
@@ -108085,6 +108530,11 @@
           "sink": "PreviewHelpPresentation"
         }
       ]
+    },
+    {
+      "key": "Replacement SHA-256: {value_0}",
+      "origins": [],
+      "manual": true
     },
     {
       "key": "Replacement cancelled.",
@@ -108500,6 +108950,11 @@
           "sink": "ValueError"
         }
       ]
+    },
+    {
+      "key": "Replacement size: {value_0} bytes",
+      "origins": [],
+      "manual": true
     },
     {
       "key": "Replacement source",
@@ -113017,6 +113472,16 @@
       ]
     },
     {
+      "key": "Review ready. Verify the target and package identity, then write the package.",
+      "origins": [
+        {
+          "path": "cdmw/ui/texture_workflow/independent_package_dialog.py",
+          "line": 270,
+          "sink": "setText"
+        }
+      ]
+    },
+    {
       "key": "Review related files to include with the edited material sidecar.",
       "origins": [
         {
@@ -113048,6 +113513,16 @@
           "path": "cdmw/ui/tools/mod_management_list.py",
           "line": 200,
           "sink": "tr"
+        }
+      ]
+    },
+    {
+      "key": "Review replacement",
+      "origins": [
+        {
+          "path": "cdmw/ui/texture_workflow/independent_package_dialog.py",
+          "line": 88,
+          "sink": "QPushButton"
         }
       ]
     },
@@ -119142,6 +119617,11 @@
       ]
     },
     {
+      "key": "Select a prepared DDS replacement texture.",
+      "origins": [],
+      "manual": true
+    },
+    {
       "key": "Select a procedural morph profile first.",
       "origins": [
         {
@@ -120447,6 +120927,11 @@
       ]
     },
     {
+      "key": "Select between one and 128 existing texture replacements.",
+      "origins": [],
+      "manual": true
+    },
+    {
       "key": "Select body",
       "origins": [
         {
@@ -121108,6 +121593,16 @@
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
           "line": 3772,
           "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Select the existing texture and a prepared replacement DDS, then review the replacement.",
+      "origins": [
+        {
+          "path": "cdmw/ui/texture_workflow/independent_package_dialog.py",
+          "line": 235,
+          "sink": "setText"
         }
       ]
     },
@@ -125407,6 +125902,16 @@
         {
           "path": "cdmw/ui/archive_browser/hkx_editor_dialog_catalog_part_02.py",
           "line": 80,
+          "sink": "setText"
+        }
+      ]
+    },
+    {
+      "key": "Showing {value_0} of {value_1} matches. Refine the filter to find another target.",
+      "origins": [
+        {
+          "path": "cdmw/ui/texture_workflow/independent_package_dialog.py",
+          "line": 231,
           "sink": "setText"
         }
       ]
@@ -132942,6 +133447,11 @@
       ]
     },
     {
+      "key": "Target texture: {value_0}",
+      "origins": [],
+      "manual": true
+    },
+    {
       "key": "Target to change: {value_0}",
       "origins": [
         {
@@ -133742,6 +134252,26 @@
       ]
     },
     {
+      "key": "Texture .cditem package",
+      "origins": [
+        {
+          "path": "cdmw/ui/texture_workflow/independent_package_dialog.py",
+          "line": 28,
+          "sink": "setWindowTitle"
+        }
+      ]
+    },
+    {
+      "key": "Texture .cditem...",
+      "origins": [
+        {
+          "path": "cdmw/ui/texture_workflow/workspace_ui.py",
+          "line": 99,
+          "sink": "QPushButton"
+        }
+      ]
+    },
+    {
       "key": "Texture / Image",
       "origins": [
         {
@@ -134197,6 +134727,31 @@
       ]
     },
     {
+      "key": "Texture composition cancelled.",
+      "origins": [],
+      "manual": true
+    },
+    {
+      "key": "Texture conflict at {value_0}: {value_1}; the composed output differs from the required bytes.",
+      "origins": [],
+      "manual": true
+    },
+    {
+      "key": "Texture conflict at {value_0}: {value_1}; {value_2} require different final bytes.",
+      "origins": [],
+      "manual": true
+    },
+    {
+      "key": "Texture conflict at {value_0}: {value_1}; {value_2} requires the complete resource unchanged.",
+      "origins": [
+        {
+          "path": "cdmw/services/independent_item_compatibility.py",
+          "line": 544,
+          "sink": "OverlayConflict"
+        }
+      ]
+    },
+    {
       "key": "Texture editing is archived from Mesh Editor; use Texture Editor directly.",
       "origins": [
         {
@@ -134407,6 +134962,11 @@
       ]
     },
     {
+      "key": "Texture modules require contradictory registry witnesses.",
+      "origins": [],
+      "manual": true
+    },
+    {
       "key": "Texture orientation preview reset.",
       "origins": [
         {
@@ -134435,6 +134995,26 @@
           "sink": "ValueError"
         }
       ]
+    },
+    {
+      "key": "Texture package admission and lifecycle",
+      "origins": [],
+      "manual": true
+    },
+    {
+      "key": "Texture package written to {value_0}.",
+      "origins": [
+        {
+          "path": "cdmw/ui/texture_workflow/independent_package_dialog.py",
+          "line": 283,
+          "sink": "setText"
+        }
+      ]
+    },
+    {
+      "key": "Texture packages require an existing game texture registry.",
+      "origins": [],
+      "manual": true
     },
     {
       "key": "Texture path edits refresh when you click Refresh Preview.",
@@ -134498,6 +135078,31 @@
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
           "line": 2940,
           "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Texture replacement requires a verified original texture registry.",
+      "origins": [],
+      "manual": true
+    },
+    {
+      "key": "Texture replacement requires a witnessed shipped target: {value_0}.",
+      "origins": [],
+      "manual": true
+    },
+    {
+      "key": "Texture replacement targets must be existing DDS paths.",
+      "origins": [],
+      "manual": true
+    },
+    {
+      "key": "Texture replacements",
+      "origins": [
+        {
+          "path": "cdmw/ui/texture_workflow/independent_package_dialog.py",
+          "line": 178,
+          "sink": "setText"
         }
       ]
     },
@@ -135407,6 +136012,16 @@
       ]
     },
     {
+      "key": "The affected path, package identity and verified source details appear here.",
+      "origins": [
+        {
+          "path": "cdmw/ui/texture_workflow/independent_package_dialog.py",
+          "line": 85,
+          "sink": "setPlaceholderText"
+        }
+      ]
+    },
+    {
       "key": "The aim comes from this item's own child socket for that destination, so there is nothing to review.",
       "origins": [
         {
@@ -136122,6 +136737,16 @@
       ]
     },
     {
+      "key": "The complete DDS descriptor and every mip were validated.",
+      "origins": [],
+      "manual": true
+    },
+    {
+      "key": "The complete DDS texture could not be decoded: {value_0}",
+      "origins": [],
+      "manual": true
+    },
+    {
       "key": "The composed overlay history exceeds the supported size (at least {value_0} bytes; limit {value_1} bytes); this change cannot be published.",
       "origins": [
         {
@@ -136293,6 +136918,26 @@
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs",
           "line": 4045,
           "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "The decoded texture dimensions disagree with its descriptor.",
+      "origins": [
+        {
+          "path": "cdmw/services/independent_texture_package.py",
+          "line": 47,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "The decoded texture mip chain exceeds its resource limit.",
+      "origins": [
+        {
+          "path": "cdmw/services/independent_texture_package.py",
+          "line": 36,
+          "sink": "ValueError"
         }
       ]
     },
@@ -137037,6 +137682,16 @@
       ]
     },
     {
+      "key": "The logical package resource size limit is exhausted.",
+      "origins": [],
+      "manual": true
+    },
+    {
+      "key": "The logical texture replacement size limit is exhausted.",
+      "origins": [],
+      "manual": true
+    },
+    {
       "key": "The loose replacement mod was validated and published atomically.\n\n{value_0}",
       "origins": [
         {
@@ -137717,6 +138372,16 @@
       ]
     },
     {
+      "key": "The package contains contradictory writes to its texture target: {value_0}.",
+      "origins": [],
+      "manual": true
+    },
+    {
+      "key": "The package selected for update changed. Load it again before reviewing.",
+      "origins": [],
+      "manual": true
+    },
+    {
       "key": "The painted transparency mask controls this channel. Restore mask to use a uniform value.",
       "origins": [
         {
@@ -138007,6 +138672,31 @@
       ]
     },
     {
+      "key": "The replacement must retain the complete source DDS descriptor: {value_0}.",
+      "origins": [],
+      "manual": true
+    },
+    {
+      "key": "The replacement texture changed while it was being read.",
+      "origins": [],
+      "manual": true
+    },
+    {
+      "key": "The replacement texture descriptor differs from its witnessed source.",
+      "origins": [
+        {
+          "path": "cdmw/services/independent_texture_package.py",
+          "line": 29,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "The replacement texture exceeds the package size limit.",
+      "origins": [],
+      "manual": true
+    },
+    {
       "key": "The report service returned an invalid receipt.",
       "origins": [
         {
@@ -138152,6 +138842,16 @@
         {
           "path": "cdmw/services/independent_item_compatibility.py",
           "line": 415,
+          "sink": "OverlayConflict"
+        }
+      ]
+    },
+    {
+      "key": "The retained package texture requirements disagree with its ownership layer.",
+      "origins": [
+        {
+          "path": "cdmw/services/independent_item_compatibility.py",
+          "line": 509,
           "sink": "OverlayConflict"
         }
       ]
@@ -138455,6 +139155,11 @@
           "sink": "ValueError"
         }
       ]
+    },
+    {
+      "key": "The selected replacement texture changed. Review it again.",
+      "origins": [],
+      "manual": true
     },
     {
       "key": "The selected semantic exports exceed the package or comparison size limit.",
@@ -138877,6 +139582,16 @@
       ]
     },
     {
+      "key": "The source texture descriptor disagrees with its registry: {value_0}.",
+      "origins": [],
+      "manual": true
+    },
+    {
+      "key": "The staged package failed final identity and content readback.",
+      "origins": [],
+      "manual": true
+    },
+    {
       "key": "The standalone archive backend is unavailable.",
       "origins": [
         {
@@ -139097,6 +139812,21 @@
       ]
     },
     {
+      "key": "The texture codec or mip layout is unsupported.",
+      "origins": [
+        {
+          "path": "cdmw/services/independent_texture_package.py",
+          "line": 32,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "The texture package requires a different original texture registry.",
+      "origins": [],
+      "manual": true
+    },
+    {
       "key": "The texture registry did not decode; new icons will not be registered: {value_0}",
       "origins": [
         {
@@ -139115,6 +139845,36 @@
           "sink": "ValueError"
         }
       ]
+    },
+    {
+      "key": "The texture registry uses an unsupported mip storage layout: {value_0}.",
+      "origins": [],
+      "manual": true
+    },
+    {
+      "key": "The texture replacement count limit is exhausted.",
+      "origins": [],
+      "manual": true
+    },
+    {
+      "key": "The texture replacement requires different final bytes.",
+      "origins": [
+        {
+          "path": "cdmw/services/independent_item_compatibility.py",
+          "line": 411,
+          "sink": "OverlayConflict"
+        }
+      ]
+    },
+    {
+      "key": "The texture target has no supported direct registry entry: {value_0}.",
+      "origins": [],
+      "manual": true
+    },
+    {
+      "key": "The texture target is not an existing shipped resource: {value_0}.",
+      "origins": [],
+      "manual": true
     },
     {
       "key": "The thumbnail could not be saved.",
@@ -139320,6 +140080,21 @@
           "sink": "tr"
         }
       ]
+    },
+    {
+      "key": "The witnessed texture descriptor changed: {value_0}.",
+      "origins": [],
+      "manual": true
+    },
+    {
+      "key": "The witnessed texture registry is missing or linked.",
+      "origins": [],
+      "manual": true
+    },
+    {
+      "key": "The witnessed texture source changed: {value_0}.",
+      "origins": [],
+      "manual": true
     },
     {
       "key": "The {value_0} table has no localization for perk {value_1}: {value_2}",
@@ -139900,6 +140675,16 @@
           "sink": "question"
         }
       ]
+    },
+    {
+      "key": "This editor updates one texture replacement at a time. Combined packages require their owning editor.",
+      "origins": [],
+      "manual": true
+    },
+    {
+      "key": "This editor updates v2 standalone texture packages only.",
+      "origins": [],
+      "manual": true
     },
     {
       "key": "This editor uses the shared out-of-process Preview. Pick a recovered attach point, review the socket chain, optionally drag/tune offset/rotation, then build the same loose package copy plan.",
@@ -140705,6 +141490,11 @@
           "sink": "set_note"
         }
       ]
+    },
+    {
+      "key": "This texture package has additional dependencies that this editor cannot update.",
+      "origins": [],
+      "manual": true
     },
     {
       "key": "This throws away {value_0} operation(s) and {value_1} free-form edit(s). The game files are untouched either way — only this session's pending changes are lost.",
@@ -145102,6 +145892,16 @@
       ]
     },
     {
+      "key": "Updating package UUID: {value_0}",
+      "origins": [
+        {
+          "path": "cdmw/ui/texture_workflow/independent_package_dialog.py",
+          "line": 255,
+          "sink": "setText"
+        }
+      ]
+    },
+    {
       "key": "Updating parts…",
       "origins": [
         {
@@ -147047,6 +147847,16 @@
       ]
     },
     {
+      "key": "Validating the complete texture and its source...",
+      "origins": [
+        {
+          "path": "cdmw/ui/texture_workflow/independent_package_dialog.py",
+          "line": 263,
+          "sink": "_run"
+        }
+      ]
+    },
+    {
       "key": "Validating the plan archive sources...",
       "origins": [
         {
@@ -148267,6 +149077,11 @@
       ]
     },
     {
+      "key": "Visible game behavior requires separate evidence.",
+      "origins": [],
+      "manual": true
+    },
+    {
       "key": "Visible model path recovered from prefab or family evidence.",
       "origins": [
         {
@@ -148782,6 +149597,11 @@
         {
           "path": "cdmw/ui/new_item/mod_update_dialog.py",
           "line": 171,
+          "sink": "failed"
+        },
+        {
+          "path": "cdmw/ui/texture_workflow/independent_package_dialog.py",
+          "line": 210,
           "sink": "failed"
         }
       ]
@@ -151462,6 +152282,16 @@
       ]
     },
     {
+      "key": "Write .cditem",
+      "origins": [
+        {
+          "path": "cdmw/ui/texture_workflow/independent_package_dialog.py",
+          "line": 89,
+          "sink": "QPushButton"
+        }
+      ]
+    },
+    {
       "key": "Write CSV log",
       "origins": [
         {
@@ -151622,6 +152452,16 @@
       ]
     },
     {
+      "key": "Write a new texture package",
+      "origins": [
+        {
+          "path": "cdmw/ui/texture_workflow/independent_package_dialog.py",
+          "line": 132,
+          "sink": "getSaveFileName"
+        }
+      ]
+    },
+    {
       "key": "Write a portable .cditem file for installation through CDMW.",
       "origins": [
         {
@@ -151630,6 +152470,11 @@
           "sink": "tr"
         }
       ]
+    },
+    {
+      "key": "Write an update to the explicitly selected package path.",
+      "origins": [],
+      "manual": true
     },
     {
       "key": "Write behavior: edited output is written as a mod-ready loose HKX package; installed game archives are not modified.",
@@ -151770,6 +152615,11 @@
           "sink": "setToolTip"
         }
       ]
+    },
+    {
+      "key": "Write portable texture packages outside the game archive folder.",
+      "origins": [],
+      "manual": true
     },
     {
       "key": "Write rebuilt zip beside the converted folder.",
@@ -152003,6 +152853,21 @@
           "path": "cdmw/ui/new_item/panels_output.py",
           "line": 738,
           "sink": "tr"
+        }
+      ]
+    },
+    {
+      "key": "Writing the reviewed texture package...",
+      "origins": [
+        {
+          "path": "cdmw/services/independent_texture_authoring.py",
+          "line": 225,
+          "sink": "on_log"
+        },
+        {
+          "path": "cdmw/ui/texture_workflow/independent_package_dialog.py",
+          "line": 276,
+          "sink": "_run"
         }
       ]
     },
@@ -168660,6 +169525,11 @@
       "key": "replacement",
       "origins": [
         {
+          "path": "cdmw/services/independent_texture_package.py",
+          "line": 103,
+          "sink": "add"
+        },
+        {
           "path": "cdmw/ui/texture_workflow/workspace_ui.py",
           "line": 423,
           "sink": "addItem"
@@ -180827,6 +181697,11 @@
       ]
     },
     {
+      "key": "{value_0}: texture journal differs from its declared requirement: {value_1}.",
+      "origins": [],
+      "manual": true
+    },
+    {
       "key": "{value_0}: texture registry changes have no CDMW ownership information.",
       "origins": [
         {
@@ -180877,12 +181752,32 @@
       ]
     },
     {
+      "key": "{value_0}: the retained legacy resource graph is incomplete.",
+      "origins": [
+        {
+          "path": "cdmw/services/independent_item_compatibility.py",
+          "line": 360,
+          "sink": "OverlayConflict"
+        }
+      ]
+    },
+    {
       "key": "{value_0}: the shader preview texture is unavailable: {value_1}.",
       "origins": [
         {
           "path": "cdmw/services/shader_controls_preview.py",
           "line": 208,
           "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "{value_0}: the texture journal differs from its witnessed original and replacement.",
+      "origins": [
+        {
+          "path": "cdmw/services/independent_item_compatibility.py",
+          "line": 512,
+          "sink": "OverlayConflict"
         }
       ]
     },

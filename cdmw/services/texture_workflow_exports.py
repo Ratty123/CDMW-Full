@@ -109,6 +109,13 @@ _exports(
     "OBSOLETE_SETTINGS_KEY",
     "sanitized_profile_mapping",
 )
+_exports(
+    "cdmw.services.independent_texture_authoring",
+    "find_existing_texture_targets",
+    "load_texture_package_update",
+    "prepare_texture_package",
+    "write_texture_package",
+)
 
 
 __all__ = ["TEXTURE_WORKFLOW_EXPORTS"]

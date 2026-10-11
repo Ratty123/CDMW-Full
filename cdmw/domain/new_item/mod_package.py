@@ -51,6 +51,14 @@ def capability_result(name, version):
              'Game and save behavior require separate evidence.'),
             (EvidenceClaim('adapter', 'Typed existing ItemInfo fields', 'iteminfo_operations.py'),
              EvidenceClaim('synthetic', 'Field composition and both deployment routes', 'tests/test_independent_item_fields.py')))
+    if name == 'texture.replace' and type(version) is int and version == 1:
+        return CapabilityResult(name, version, True,
+            ('Existing directly registered raw 2D block-compressed textures with exact source and registry hashes.',
+             'Every mip must decode; full DDS descriptors and registry mip storage remain unchanged.',
+             'Explicit final bytes, separate owners and no item allocations or registry additions.',
+             'Visible game behavior requires separate evidence.'),
+            (EvidenceClaim('adapter', 'Existing texture replacement', 'independent_texture_package.py'),
+             EvidenceClaim('synthetic', 'Texture package admission and lifecycle', 'tests/test_independent_texture_packages.py')))
     return CapabilityResult(name, version, False, ('No registered adapter for this capability version.',))
 
 

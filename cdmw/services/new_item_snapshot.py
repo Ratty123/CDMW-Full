@@ -12,6 +12,7 @@ reader, which is also how the planner reaches the template's model files.
 
 from __future__ import annotations
 
+import hashlib
 import struct
 import threading
 from dataclasses import dataclass, field, replace
@@ -123,6 +124,8 @@ class NewItemSnapshot:
     _payloads: Dict[str, bytes] = field(default_factory=dict, repr=False)
     _index_maps: Optional[Tuple[Mapping[str, Sequence[ArchiveEntry]], Mapping[str, Sequence[ArchiveEntry]]]] = field(default=None, repr=False)
     _effect_binary_paths: Optional[Tuple[str, ...]] = field(default=None, repr=False)
+    #: Exact bytes parsed before an optional stock-baseline registry rebase.
+    pathc_source_digest: str = ''
 
     # ------------------------------------------------------------------ lookups
 
@@ -588,11 +591,14 @@ def build_snapshot(
         if path.startswith(EFFECT_DIR) and path.endswith(".pae") and "/" not in path[len(EFFECT_DIR):]
     )
     pathc: Optional[PathcTable] = None
+    pathc_source_digest = ''
     pathc_path = Path(iteminfo.payload_entry.pamt_path).parent.parent / PATHC_RELATIVE_PATH
     if pathc_path.is_file():
         _log_progress(on_log, "Reading the texture registry (meta/0.pathc)...")
         try:
-            pathc = parse_pathc(pathc_path.read_bytes())
+            pathc_bytes = pathc_path.read_bytes()
+            pathc = parse_pathc(pathc_bytes)
+            pathc_source_digest = hashlib.sha256(pathc_bytes).hexdigest()
         except PathcError as exc:
             _log_progress(on_log, f"The texture registry did not decode; new icons will not be registered: {exc}")
     snapshot = NewItemSnapshot(
@@ -619,6 +625,7 @@ def build_snapshot(
         sources=sources,
         provenance=provenance,
         pathc=pathc,
+        pathc_source_digest=pathc_source_digest,
         effect_stems=effect_stems,
         _effect_binary_paths=tuple(sorted(effect_paths)),
         _item_display_names=item_display_names,

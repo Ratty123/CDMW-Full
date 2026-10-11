@@ -24,6 +24,9 @@ including frozen v1 recipes, source-equal typed assignments, exact release/conte
 pins, exported objects and reference requirements. Existing readers validate
 these packages and the dependency graph. This contract does not infer intent from
 compiled differences.
+Supported `texture.replace@1` contributors retain their complete replacement
+resources, original source and registry witnesses, and final-byte ownership in
+the embedded packages. Recipients must support that capability before admission.
 
 Each file record has `path`, `size`, `sha256`, `flags` and `baseline`. A non-null
 baseline has exactly `size` and `sha256`; null means an originally absent file.

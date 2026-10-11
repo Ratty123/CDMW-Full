@@ -19,7 +19,8 @@ from cdmw.domain.cancellation import raise_if_cancelled
 from cdmw.domain.new_item.allocation import DEFAULT_ITEM_KEY_RANGE
 from cdmw.domain.new_item.compilation import compiler_stamp, validate_compiler_stamp
 from cdmw.domain.new_item.compilation_storage import read_compilation
-from cdmw.services.independent_mod_package import has_legacy_item, package_operations
+from cdmw.services.independent_mod_package import has_legacy_item, package_operations, package_logical_size
+from cdmw.services.independent_texture_package import lower_texture_operations, package_texture_requirements
 from cdmw.domain.new_item.independent import IdentityBindings, IndependentItemError, IndependentItemInstallPlan, package_id
 from cdmw.domain.new_item.rules import has_errors
 from cdmw.services import archive_overlay_manager as overlays
@@ -399,7 +400,7 @@ def resolve_items(sources, root, *, target='archive', folders=(), rebuild=False,
         if old and old.digest != package.digest:
             raise IndependentItemError('A batch contains two different versions of the same item. Select one version.')
         if old is None:
-            total_size += sum(len(data) for data in package.blobs.values()) + len(canonical(package_metadata(package)))
+            total_size += package_logical_size(package)
             if total_size > MAX_TOTAL:
                 raise IndependentItemError('The selected packages exceed the batch size limit. Import a smaller batch.')
         # Every package has already passed its own checksum/size validation.
@@ -547,6 +548,9 @@ def resolve_items(sources, root, *, target='archive', folders=(), rebuild=False,
             registry['format'] = MOD_PROFILE_FORMAT
         from cdmw.services.independent_item_operations import lower_field_operations
         changes = lower_field_operations(package, snapshot, changes, stop_event=stop_event)
+        changes = lower_texture_operations(package, snapshot, changes, stop_event=stop_event)
+        if package_texture_requirements(package):
+            revisions.append(snapshot.provenance.capture())
         if added_paths & (reserved_paths | external_paths):
             raise IndependentItemError('An owned asset name is already reserved by another item or mod. The package cannot be installed without changing its identity.')
         progress(30 + (70 * item_index + 45) // max(1, len(packages)), 'Checking asset identity collisions…')
@@ -592,7 +596,8 @@ def prepare_install(sources, root, *, folders=(), rebuild=False, stop_event=None
         layer = overlays._add_layer(state, pending, package.title, changes, item_keys=tuple(row['values'].get('iteminfo', {}).values()))
         layer.update(independent_identity=package.identity, independent_digest=package.digest,
                      independent_bindings=row['binding_hash'], independent_compiler=compiler_stamp(),
-                     independent_compilation=locks[package.identity], independent_operations=package_operations(package))
+                     independent_compilation=locks[package.identity], independent_operations=package_operations(package),
+                     independent_textures=package_texture_requirements(package))
         row['layer'] = layer['id']
         decoded[layer['id']] = changes
     if canonical(registry) == result.registry_before and not result.external.paths:
@@ -605,7 +610,7 @@ def prepare_install(sources, root, *, folders=(), rebuild=False, stop_event=None
     if all(dict(preparation.before).get(path) == value for path, value in preparation.writes) and not preparation.deletes:
         return IndependentItemInstallPlan(None, result.rows, ('All selected items are already installed.',))
     return IndependentItemInstallPlan(preparation, result.rows,
-        (*tuple(f'{status}: {title}' + (f' (item {key})' if key is not None else ' (existing records)') for _, title, key, status in result.rows), *result.summary))
+        (*tuple(f'{status}: {title}' + (f' (item {key})' if key is not None else ' (existing game data)') for _, title, key, status in result.rows), *result.summary))
 
 
 def prepare_rebuild(identity, root, *, stop_event=None, on_log=None):
