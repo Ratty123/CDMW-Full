@@ -177,9 +177,16 @@ int wmain(int argc, wchar_t** argv) {
         require(manifest.pid == 0 && manifest.host_pid == 0, "Session descriptor is already bound");
         require((manifest.mode == Mode::controlled_probe) == controlled, "Controlled loading requires a separately reviewed host opt-in");
         require(manifest.mode != Mode::redirect || game_redirection_approved, "Game launch blocked: startup timing, Steam handoff and save tests are not verified");
+#ifdef CDMW_VIRTUAL_TESTING
         require(manifest.mode == Mode::harness || !manifest.launcher.empty(), "The reviewed Steam client is required");
+#else
+        require(!manifest.launcher.empty(), "The reviewed Steam client is required");
+#endif
         require(hash_file(executable(manifest)) == manifest.executable, "Executable fingerprint changed");
-        if (manifest.mode != Mode::harness) require(hex(manifest.executable) == game_hash, "Unsupported executable build");
+#ifdef CDMW_VIRTUAL_TESTING
+        if (manifest.mode != Mode::harness)
+#endif
+            require(hex(manifest.executable) == game_hash, "Unsupported executable build");
         lane.value = CreateFileW(manifest.lane.c_str(), GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
         require(bool(lane), "Installation lane unavailable");
         OVERLAPPED locking{};
@@ -211,6 +218,7 @@ int wmain(int argc, wchar_t** argv) {
         STARTUPINFOW startup{}; startup.cb = sizeof startup;
         PROCESS_INFORMATION child{};
         ULONGLONG launched{};
+#ifdef CDMW_VIRTUAL_TESTING
         if (manifest.launcher.empty()) {
             std::wstring command = L"\"" + executable(manifest).wstring() + L"\"";
             require(CreateProcessW(executable(manifest).c_str(), command.data(), nullptr, nullptr, FALSE, CREATE_SUSPENDED,
@@ -221,13 +229,18 @@ int wmain(int argc, wchar_t** argv) {
             write_manifest(manifest.root / L".cdmw/virtual-loader/session.bin", manifest);
             status(manifest, "starting", 0, "Waiting for runtime readiness...", 95);
             require(ResumeThread(main_thread.value) != DWORD(-1), "Cannot resume fixture process");
-        } else {
+        } else
+#endif
+        {
             write_manifest(manifest.root / L".cdmw/virtual-loader/session.bin", manifest);
             status(manifest, "starting", 0, "Waiting for Steam to start the game...", 95);
             FILETIME now{}; GetSystemTimeAsFileTime(&now);
             launched = (ULONGLONG(now.dwHighDateTime) << 32) | now.dwLowDateTime;
-            std::wstring command = L"\"" + manifest.launcher.wstring() + L"\"" +
-                (manifest.mode == Mode::harness ? L" --steam-fixture" : L" -applaunch 3321460");
+            const wchar_t* arguments = L" -applaunch 3321460";
+#ifdef CDMW_VIRTUAL_TESTING
+            if (manifest.mode == Mode::harness) arguments = L" --steam-fixture";
+#endif
+            std::wstring command = L"\"" + manifest.launcher.wstring() + L"\"" + arguments;
             require(CreateProcessW(manifest.launcher.c_str(), command.data(), nullptr, nullptr, FALSE, CREATE_NO_WINDOW,
                                    nullptr, manifest.launcher.parent_path().c_str(), &startup, &child), "Cannot request the Steam game launch");
             Handle launcher(child.hProcess), thread(child.hThread);

@@ -251,7 +251,10 @@ void initialize() {
         require(GetNamedPipeServerProcessId(session_pipe, &server) && server == manifest.host_pid, "Wrong session host");
         require(normalize(own_executable()) == normalize(executable(manifest)), "Unexpected game process");
         require(hash_file(own_executable()) == manifest.executable, "Executable fingerprint changed");
-        if (manifest.mode != Mode::harness) require(hex(manifest.executable) == game_hash, "Unverified game build");
+#ifdef CDMW_VIRTUAL_TESTING
+        if (manifest.mode != Mode::harness)
+#endif
+            require(hex(manifest.executable) == game_hash, "Unverified game build");
         require(manifest.mode != Mode::redirect || game_redirection_approved, "Startup timing has not passed game validation");
         using LoaderCallout = BOOLEAN (NTAPI*)();
         const auto loader_callout = reinterpret_cast<LoaderCallout>(GetProcAddress(GetModuleHandleW(L"ntdll.dll"), "RtlIsThreadWithinLoaderCallout"));
@@ -275,7 +278,11 @@ void initialize() {
         // can terminate that launch instead of continuing without its profile.
         std::array<void*, 64> startup_frames{};
         const auto frame_count = CaptureStackBackTrace(0, static_cast<DWORD>(startup_frames.size()), startup_frames.data(), nullptr);
-        const bool startup_verified = manifest.mode != Mode::harness && loader_context == 0 && first_live_thread() &&
+        const bool startup_verified =
+#ifdef CDMW_VIRTUAL_TESTING
+            manifest.mode != Mode::harness &&
+#endif
+            loader_context == 0 && first_live_thread() &&
             VerifiedBootstrap(root).accepts_startup(std::span<void* const>(startup_frames.data(), frame_count), GetModuleHandleW(nullptr));
         if ((manifest.mode == Mode::redirect || manifest.mode == Mode::controlled_probe) && !startup_verified) {
             std::ostringstream detail;

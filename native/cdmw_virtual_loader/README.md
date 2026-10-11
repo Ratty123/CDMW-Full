@@ -9,7 +9,29 @@ root. It configures the x64 Release
 build, compiles with `/W4 /WX /guard:cf`, runs CTest and writes `provenance.json`
 containing source hashes, artifact hashes, repository revision and the closed
 game-redirection gate. Build output is local and ignored by Git. Release packaging
-includes the ASI, session host and provenance, not the test harness.
+includes only `Release/CDMWVirtualLoader.asi`, `Release/cdmw_virtual_session.exe`
+and their provenance. Both production binaries reject synthetic test mode before
+activation or session creation. Their Windows file properties identify CDMW,
+the component, original filename and current application version. The resource
+template, build script and shared application metadata are included in source
+provenance. These resources are identification metadata, not a digital signature
+or evidence that antivirus detection has been resolved.
+
+Synthetic tests use a separate protocol library compiled with
+`CDMW_VIRTUAL_TESTING`, `tests/Release/cdmw_virtual_session_test.exe`,
+`tests/Release/CDMWVirtualLoaderTest.asi` and the harness in that same test folder.
+The test loader is copied to the normal ASI name inside each disposable fixture.
+Suspended fixture launches and synthetic Steam arguments are compiled only into
+the test session host. Test outputs are not listed in release provenance or the
+packaging allowlist. Run the native behavior and version-resource checks with:
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest tests/test_virtual_loader_native.py -q --basetemp "$env:TEMP\cdmw-virtual-native"
+```
+
+Local Defender file scans should record the exact artifact hash and intelligence
+version. A clean scan does not establish packaged or game-launch acceptance;
+neither rebuilding nor adding metadata proves a prior detection was incorrect.
 
 The ASI exports `InitializeASI` and `CdmwVirtualState`. Its `DllMain` performs no
 file I/O, hook installation, thread creation or blocking waits. Initialization
@@ -22,7 +44,7 @@ exact mapped files, source guards and the selected Steam client path/hash. Old
 transient launch descriptors are refused; saved item/identity/profile formats
 are unchanged. Trace mode observes original files;
 production redirect mode is compiled off; harness mode requires the separate
-fixture executable. Controlled probe mode additionally requires the host's
+test host, test ASI and fixture executable. Controlled probe mode additionally requires the host's
 `--controlled-probe` opt-in and the verified early startup path. It is a reviewed
 acceptance route. CDMW's experimental page now selects it only after creating
 and verifying a save backup following the user's Launch click. The private named pipe rejects
@@ -53,7 +75,7 @@ path/hash and a live, older parent matching the selected Steam path/hash. It
 publishes the bound descriptor and acknowledges the claim before the runtime
 installs hooks and reports readiness. The short-lived Steam command process is
 not the game. Claims and readiness have bounded waits. The direct suspended-child
-path is reserved for synthetic fixtures. It holds the first lease byte;
+path exists only in the test host. The host holds the first lease byte;
 the runtime retains the second for process lifetime. Python installation actions
 lock both. The runtime pins snapshots and its module even if the host dies. The
 host does not kill a successful game on UI shutdown and cannot silently accept a

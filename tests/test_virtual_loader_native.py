@@ -14,14 +14,16 @@ from cdmw.services.virtual_loader_runtime import session_manifest
 from cdmw.services.independent_item_package import digest
 
 BUILD = Path(__file__).resolve().parents[1] / 'native/cdmw_virtual_loader/build/Release'
+TEST_BUILD = BUILD.parent / 'tests/Release'
+TEST_HOST = TEST_BUILD / 'cdmw_virtual_session_test.exe'
 pytestmark = pytest.mark.skipif(os.name != 'nt' or not (BUILD / 'CDMWVirtualLoader.asi').exists(), reason='Requires the explicitly built Windows native virtual runtime')
 
 
 def fixture(tmp_path, *, steam=False, extra_guards=()):
     root = tmp_path / 'game with spaces ü'
     (root / 'bin64').mkdir(parents=True)
-    for name in ('CDMWVirtualLoader.asi', 'cdmw_virtual_loader_harness.exe'):
-        shutil.copy2(BUILD / name, root / 'bin64' / name)
+    shutil.copy2(TEST_BUILD / 'CDMWVirtualLoaderTest.asi', root / 'bin64/CDMWVirtualLoader.asi')
+    shutil.copy2(TEST_BUILD / 'cdmw_virtual_loader_harness.exe', root / 'bin64/cdmw_virtual_loader_harness.exe')
     (root / 'meta').mkdir()
     (root / 'meta/0.papgt').write_bytes(b'original')
     generation = uuid4().hex
@@ -35,11 +37,88 @@ def fixture(tmp_path, *, steam=False, extra_guards=()):
     profile = {'generation': generation, 'files': {p: digest(b'virtual') for p in ('meta/0.papgt', '0042/0.pamt', '0042/0.paz')}}
     launcher = root / 'bin64/cdmw_virtual_steam_fixture.exe' if steam else None
     if launcher:
-        shutil.copy2(BUILD / 'cdmw_virtual_loader_harness.exe', launcher)
+        shutil.copy2(TEST_BUILD / 'cdmw_virtual_loader_harness.exe', launcher)
     token, manifest = session_manifest(root, profile, mode=2, executable_sha256=hash_file(root / 'bin64/cdmw_virtual_loader_harness.exe'), launcher=launcher, extra_guards=extra_guards)
     request = root / '.cdmw/virtual-loader/request.bin'
     request.write_bytes(manifest)
     return root, request, token
+
+
+@pytest.mark.parametrize('steam', [False, True])
+def test_production_host_rejects_test_mode_before_starting_a_session(tmp_path, steam):
+    root, request, _token = fixture(tmp_path, steam=steam)
+    result = subprocess.run([str(BUILD / 'cdmw_virtual_session.exe'), str(request)],
+                            capture_output=True, timeout=10)
+    assert result.returncode != 0 and b'Test mode is unavailable in the production runtime' in result.stderr
+    assert not (root / '.cdmw/virtual-loader/session.bin').exists()
+    assert not (root / '.cdmw/virtual-loader/harness-result.txt').exists()
+    assert not list((root / '.cdmw/virtual-loader').glob('session-*.json'))
+
+
+@pytest.mark.parametrize('test_request', [False, True])
+def test_production_asi_is_inert_normally_and_refuses_test_activation(tmp_path, test_request):
+    root, request, _token = fixture(tmp_path)
+    shutil.copy2(BUILD / 'CDMWVirtualLoader.asi', root / 'bin64/CDMWVirtualLoader.asi')
+    if test_request:
+        shutil.copy2(request, root / '.cdmw/virtual-loader/session.bin')
+    result = subprocess.run([str(root / 'bin64/cdmw_virtual_loader_harness.exe'),
+                             '--blocked' if test_request else '--inert'], capture_output=True, timeout=10)
+    assert result.returncode == 0, result.stderr.decode(errors='replace')
+    assert (root / 'meta/0.papgt').read_bytes() == b'original'
+    assert not list((root / '.cdmw/virtual-loader').glob('trace-*.bin'))
+    assert not (root / '.cdmw/virtual-loader/harness-result.txt').exists()
+
+
+@pytest.mark.parametrize(('filename', 'description', 'file_type'), [
+    ('cdmw_virtual_session.exe', 'CDMW Virtual Session', 1),
+    ('CDMWVirtualLoader.asi', 'CDMW Virtual Loader', 2),
+])
+def test_production_binaries_have_current_windows_product_metadata(filename, description, file_type):
+    import ctypes
+    from ctypes import wintypes
+    import struct
+    from cdmw.build_metadata import windows_file_version_tuple
+    from cdmw.constants import APP_ORGANIZATION, APP_REPOSITORY_URL, APP_TITLE, APP_VERSION
+
+    api = ctypes.WinDLL('version', use_last_error=True)
+    api.GetFileVersionInfoSizeW.argtypes = [wintypes.LPCWSTR, ctypes.POINTER(wintypes.DWORD)]
+    api.GetFileVersionInfoSizeW.restype = wintypes.DWORD
+    api.GetFileVersionInfoW.argtypes = [wintypes.LPCWSTR, wintypes.DWORD, wintypes.DWORD, ctypes.c_void_p]
+    api.GetFileVersionInfoW.restype = wintypes.BOOL
+    api.VerQueryValueW.argtypes = [ctypes.c_void_p, wintypes.LPCWSTR,
+                                 ctypes.POINTER(ctypes.c_void_p), ctypes.POINTER(wintypes.UINT)]
+    api.VerQueryValueW.restype = wintypes.BOOL
+    path = str(BUILD / filename)
+    size = api.GetFileVersionInfoSizeW(path, None)
+    assert size, f'Missing version resource: {filename}'
+    data = ctypes.create_string_buffer(size)
+    assert api.GetFileVersionInfoW(path, 0, size, data)
+    pointer, length = ctypes.c_void_p(), wintypes.UINT()
+    assert api.VerQueryValueW(data, '\\', ctypes.byref(pointer), ctypes.byref(length))
+    assert length.value >= 52
+    fixed = struct.unpack('<13I', ctypes.string_at(pointer.value, 52))
+    numeric = windows_file_version_tuple(APP_VERSION)
+    assert (fixed[2] >> 16, fixed[2] & 65535, fixed[3] >> 16, fixed[3] & 65535) == numeric
+    assert fixed[9] == file_type
+    assert bool(fixed[7] & 2) == ('-' in APP_VERSION)
+    for name, expected in {
+        'CompanyName': APP_ORGANIZATION, 'FileDescription': description,
+        'ProductName': APP_TITLE, 'FileVersion': APP_VERSION, 'ProductVersion': APP_VERSION,
+        'OriginalFilename': filename, 'InternalName': Path(filename).stem,
+        'Comments': 'Official repository: ' + APP_REPOSITORY_URL,
+    }.items():
+        assert api.VerQueryValueW(data, '\\StringFileInfo\\040904B0\\' + name,
+                                  ctypes.byref(pointer), ctypes.byref(length)), name
+        assert ctypes.wstring_at(pointer.value, length.value - 1) == expected, name
+
+
+def test_release_bundle_keeps_test_artifacts_out_and_tracks_metadata_inputs():
+    from cdmw.services.virtual_loader_runtime import native_bundle
+    folder, evidence = native_bundle()
+    assert folder == BUILD
+    assert set(evidence['files']) == {'CDMWVirtualLoader.asi', 'cdmw_virtual_session.exe'}
+    assert {'version.rc.in', '../../scripts/build_virtual_loader.py', '../../cdmw/constants.py',
+            '../../cdmw/build_metadata.py'} <= evidence['sources'].keys()
 
 
 @pytest.mark.parametrize('changed', [False, True])
@@ -49,7 +128,7 @@ def test_native_revalidates_external_save_guard_before_launch(tmp_path, changed)
     root, request, _token = fixture(tmp_path, extra_guards=((str(save), hash_file(save)),))
     if changed:
         save.write_bytes(b'new player progress')
-    result = subprocess.run([str(BUILD / 'cdmw_virtual_session.exe'), str(request)], capture_output=True, timeout=40)
+    result = subprocess.run([str(TEST_HOST), str(request)], capture_output=True, timeout=40)
     if changed:
         assert result.returncode != 0 and b'source changed' in result.stderr
         assert not (root / '.cdmw/virtual-loader/harness-result.txt').exists()
@@ -73,7 +152,7 @@ def test_native_baseline_guard_progress_and_pins_survive_parallel_verification(t
     wait = root / '.cdmw/virtual-loader/harness-wait.flag'
     wait.touch()
     report = root / f'.cdmw/virtual-loader/session-{token}.json'
-    host = subprocess.Popen([str(BUILD / 'cdmw_virtual_session.exe'), str(request)],
+    host = subprocess.Popen([str(TEST_HOST), str(request)],
         stdout=subprocess.PIPE, stderr=subprocess.PIPE, creationflags=subprocess.CREATE_NO_WINDOW)
     values = []
     try:
@@ -110,7 +189,7 @@ def test_native_baseline_guard_progress_and_pins_survive_parallel_verification(t
 @pytest.mark.parametrize('steam', [False, True])
 def test_native_session_redirects_real_handles_without_touching_original(tmp_path, steam):
     root, request, token = fixture(tmp_path, steam=steam)
-    result = subprocess.run([str(BUILD / 'cdmw_virtual_session.exe'), str(request)], capture_output=True, timeout=40)
+    result = subprocess.run([str(TEST_HOST), str(request)], capture_output=True, timeout=40)
     assert result.returncode == 0, result.stderr.decode(errors='replace')
     assert (root / 'meta/0.papgt').read_bytes() == b'original'
     assert (root / '.cdmw/virtual-loader/harness-result.txt').read_text() == 'native IO passed'
@@ -124,7 +203,7 @@ def test_native_changed_steam_client_is_refused_before_launch(tmp_path):
     root, request, token = fixture(tmp_path, steam=True)
     with (root / 'bin64/cdmw_virtual_steam_fixture.exe').open('ab') as handle:
         handle.write(b'changed launcher')
-    result = subprocess.run([str(BUILD / 'cdmw_virtual_session.exe'), str(request)], capture_output=True, timeout=10)
+    result = subprocess.run([str(TEST_HOST), str(request)], capture_output=True, timeout=10)
     assert result.returncode != 0 and b'Steam client changed' in result.stderr
     assert not (root / '.cdmw/virtual-loader/harness-result.txt').exists()
     assert not (root / '.cdmw/virtual-loader/session.bin').exists()
@@ -132,9 +211,9 @@ def test_native_changed_steam_client_is_refused_before_launch(tmp_path):
 
 def test_native_steam_claim_from_wrong_parent_is_refused(tmp_path):
     root, request, token = fixture(tmp_path, steam=True)
-    shutil.copy2(BUILD / 'cdmw_virtual_loader_harness.exe', root / 'bin64/cdmw_virtual_steam_bridge.exe')
+    shutil.copy2(TEST_BUILD / 'cdmw_virtual_loader_harness.exe', root / 'bin64/cdmw_virtual_steam_bridge.exe')
     (root / '.cdmw/virtual-loader/harness-wrong-parent.flag').touch()
-    result = subprocess.run([str(BUILD / 'cdmw_virtual_session.exe'), str(request)], capture_output=True, timeout=15)
+    result = subprocess.run([str(TEST_HOST), str(request)], capture_output=True, timeout=15)
     assert result.returncode != 0 and b'not started by the reviewed Steam client' in result.stderr
     assert not (root / '.cdmw/virtual-loader/harness-result.txt').exists()
     assert (root / 'meta/0.papgt').read_bytes() == b'original'
@@ -152,7 +231,7 @@ def test_native_abandoned_unbound_request_does_not_activate_ordinary_game(tmp_pa
 def test_native_corrupt_snapshot_refuses_before_start(tmp_path):
     root, request, token = fixture(tmp_path)
     next((root / '.cdmw/virtual-loader/generations').glob('*/files/meta/0.papgt')).write_bytes(b'bad')
-    result = subprocess.run([str(BUILD / 'cdmw_virtual_session.exe'), str(request)], capture_output=True, timeout=10)
+    result = subprocess.run([str(TEST_HOST), str(request)], capture_output=True, timeout=10)
     assert result.returncode != 0 and b'checksum' in result.stderr
     assert not (root / '.cdmw/virtual-loader/harness-result.txt').exists()
     assert (root / 'meta/0.papgt').read_bytes() == b'original'
@@ -164,7 +243,7 @@ def test_native_create_process_failure_cancels_pending_connection(tmp_path):
     (root / 'bin64/cdmw_virtual_loader_harness.exe').write_bytes(invalid)
     data = bytearray(request.read_bytes()); data[20:52] = bytes.fromhex(digest(invalid))
     request.write_bytes(data)
-    result = subprocess.run([str(BUILD / 'cdmw_virtual_session.exe'), str(request)], capture_output=True, timeout=10)
+    result = subprocess.run([str(TEST_HOST), str(request)], capture_output=True, timeout=10)
     assert result.returncode != 0 and b'Cannot start fixture executable' in result.stderr
     assert not (root / '.cdmw/virtual-loader/session.bin').exists()
     from cdmw.services.installation_lane import installation_lane
@@ -184,7 +263,7 @@ def test_verified_asi_bootstrap_handoff(tmp_path, changed_binary):
         with (root / 'bin64/winmm.dll').open('ab') as handle:
             handle.write(b'changed build')
     (root / '.cdmw/virtual-loader/harness-bootstrap.flag').touch()
-    result = subprocess.run([str(BUILD / 'cdmw_virtual_session.exe'), str(request)], capture_output=True, timeout=40)
+    result = subprocess.run([str(TEST_HOST), str(request)], capture_output=True, timeout=40)
     report = root / f'.cdmw/virtual-loader/session-{token}.json'
     detail = report.read_text() if report.exists() else result.stderr.decode(errors='replace')
     if changed_binary:
@@ -213,9 +292,9 @@ def test_native_production_redirect_gate_cannot_be_enabled_by_manifest(tmp_path)
 @pytest.mark.parametrize('opt_in', [False, True])
 def test_controlled_probe_requires_host_opt_in_and_exact_game(tmp_path, opt_in):
     root, request, _token = fixture(tmp_path)
-    shutil.copy2(BUILD / 'cdmw_virtual_loader_harness.exe', root / 'bin64/CrimsonDesert.exe')
+    shutil.copy2(TEST_BUILD / 'cdmw_virtual_loader_harness.exe', root / 'bin64/CrimsonDesert.exe')
     launcher = root / 'bin64/steam.exe'
-    shutil.copy2(BUILD / 'cdmw_virtual_loader_harness.exe', launcher)
+    shutil.copy2(TEST_BUILD / 'cdmw_virtual_loader_harness.exe', launcher)
     profile = {'generation': next((root / '.cdmw/virtual-loader/generations').iterdir()).name,
                'files': {p: digest(b'virtual') for p in ('meta/0.papgt', '0042/0.pamt', '0042/0.paz')}}
     # Mode 2's serializer avoids requiring game-only runtime guards in this
@@ -239,7 +318,7 @@ def test_normal_launch_is_inert_and_foreign_import_hook_is_refused(tmp_path):
     result = subprocess.run([str(child), '--inert'], capture_output=True, timeout=10)
     assert result.returncode == 0, result.stderr
     (root / '.cdmw/virtual-loader/harness-conflict.flag').touch()
-    result = subprocess.run([str(BUILD / 'cdmw_virtual_session.exe'), str(request)], capture_output=True, timeout=40)
+    result = subprocess.run([str(TEST_HOST), str(request)], capture_output=True, timeout=40)
     assert result.returncode != 0
     detail = json.loads((root / f'.cdmw/virtual-loader/session-{token}.json').read_text())['detail']
     assert 'CreateFile2 is already hooked by cdmw_virtual_loader_harness.exe' in detail
@@ -254,7 +333,7 @@ def test_runtime_retains_lease_and_files_when_session_host_dies(tmp_path, steam)
     root, request, token = fixture(tmp_path, steam=steam)
     wait = root / '.cdmw/virtual-loader/harness-wait.flag'
     wait.touch()
-    host = subprocess.Popen([str(BUILD / 'cdmw_virtual_session.exe'), str(request)], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    host = subprocess.Popen([str(TEST_HOST), str(request)], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     game = None
     kernel = ctypes.WinDLL('kernel32', use_last_error=True)
     kernel.OpenProcess.restype = ctypes.c_void_p
@@ -273,7 +352,7 @@ def test_runtime_retains_lease_and_files_when_session_host_dies(tmp_path, steam)
         # Replaying the same request cannot steal the lane or delete the live
         # descriptor, even though its token equals the already running one.
         bound = (root / '.cdmw/virtual-loader/session.bin').read_bytes()
-        duplicate = subprocess.run([str(BUILD / 'cdmw_virtual_session.exe'), str(request)], capture_output=True, timeout=10)
+        duplicate = subprocess.run([str(TEST_HOST), str(request)], capture_output=True, timeout=10)
         assert duplicate.returncode != 0 and b'already in use' in duplicate.stderr
         assert (root / '.cdmw/virtual-loader/session.bin').read_bytes() == bound
         assert json.loads((root / f'.cdmw/virtual-loader/session-{token}.json').read_text())['state'] == 'running'
@@ -311,7 +390,7 @@ host=subprocess.Popen(sys.argv[1:],creationflags=breakaway_creation_flags(),stdi
 print(host.pid,flush=True)
 os._exit(0)
 '''
-    driver = subprocess.run([sys.executable, '-c', script, str(BUILD / 'cdmw_virtual_session.exe'), str(request)],
+    driver = subprocess.run([sys.executable, '-c', script, str(TEST_HOST), str(request)],
                             capture_output=True, timeout=15)
     assert driver.returncode == 0, driver.stderr.decode(errors='replace')
     host_pid = int(driver.stdout)

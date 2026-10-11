@@ -25,7 +25,12 @@ fs::path own_executable() {
     require(n && n < buffer.size(), "Cannot identify executable");
     return fs::path(std::wstring(buffer.data(), n));
 }
-fs::path executable(const Manifest& m) { return m.root / L"bin64" / (m.mode == Mode::harness ? L"cdmw_virtual_loader_harness.exe" : L"CrimsonDesert.exe"); }
+fs::path executable(const Manifest& m) {
+#ifdef CDMW_VIRTUAL_TESTING
+    if (m.mode == Mode::harness) return m.root / L"bin64/cdmw_virtual_loader_harness.exe";
+#endif
+    return m.root / L"bin64/CrimsonDesert.exe";
+}
 std::wstring pipe_name(const Manifest& m) { return L"\\\\.\\pipe\\cdmw-virtual-" + m.token; }
 Hash hash_file(const fs::path& path, const std::function<void(uint64_t)>& on_read) {
     BCRYPT_ALG_HANDLE algorithm{};
@@ -76,6 +81,9 @@ void no_links(fs::path path) {
     }
 }
 void validate(const Manifest& m) {
+#ifndef CDMW_VIRTUAL_TESTING
+    require(m.mode != Mode::harness, "Test mode is unavailable in the production runtime");
+#endif
     require(m.mode == Mode::trace || m.mode == Mode::redirect || m.mode == Mode::harness || m.mode == Mode::controlled_probe, "Unknown mode");
     require(identity(m.token) && identity(m.generation), "Invalid session identity");
     require(m.root.is_absolute() && normalize(m.root) == normalize(m.root.lexically_normal()), "Invalid game root");
@@ -84,7 +92,11 @@ void validate(const Manifest& m) {
         require(m.launcher.is_absolute(), "Absolute launcher path required");
         no_links(m.launcher);
         const auto name = m.launcher.filename().wstring();
-        require(_wcsicmp(name.c_str(), m.mode == Mode::harness ? L"cdmw_virtual_steam_fixture.exe" : L"steam.exe") == 0, "Unsupported launcher");
+        const wchar_t* launcher = L"steam.exe";
+#ifdef CDMW_VIRTUAL_TESTING
+        if (m.mode == Mode::harness) launcher = L"cdmw_virtual_steam_fixture.exe";
+#endif
+        require(_wcsicmp(name.c_str(), launcher) == 0, "Unsupported launcher");
     }
     require(m.files.size() <= 256 && !m.files.empty(), "Invalid map size");
     std::set<std::wstring> seen;

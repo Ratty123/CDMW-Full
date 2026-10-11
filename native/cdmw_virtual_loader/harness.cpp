@@ -70,6 +70,7 @@ int wmain(int argc, wchar_t** argv) {
         }
         require(initialize && state, "Runtime exports missing"); initialize();
         if (argc == 2 && !wcscmp(argv[1], L"--inert")) { require(state() == 0, "Ordinary launch activated runtime"); return 0; }
+        if (argc == 2 && !wcscmp(argv[1], L"--blocked")) { require(state() == 2, "Test activation was not refused"); return 0; }
         require(state() == 1, "Runtime did not become ready");
         if (fs::exists(root / L".cdmw/virtual-loader/harness-bootstrap.flag")) {
             auto base = reinterpret_cast<unsigned char*>(GetModuleHandleW(L"winmm.dll"));
