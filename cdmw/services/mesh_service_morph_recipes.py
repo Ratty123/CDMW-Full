@@ -279,6 +279,7 @@ class MeshMorphRecipeMixin:
 
             return self._morph_authoring_transaction_locked(
                 session, "morph_save_refit_setup", f"Save Fitting Setup {setup_name}", save,
+                include_profile_files=True,
             )
 
     def _carry_refit_setup_cache_locked(self, session, previous_revision):
@@ -510,4 +511,6 @@ class MeshMorphRecipeMixin:
             data.refit_setup_cache = None
             return _merge_edit_results(results)
 
-        return self._morph_authoring_transaction_locked(session, action, label, apply)
+        return self._morph_authoring_transaction_locked(
+            session, action, label, apply, include_profile_files=True,
+        )

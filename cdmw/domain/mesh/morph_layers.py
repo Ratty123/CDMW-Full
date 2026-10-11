@@ -247,8 +247,13 @@ def update_mesh_morph_side_values(
     else:
         left, right = manual[pair.left_definition_id], manual[pair.right_definition_id]
         shift = value - math.fsum((left, right)) / 2.0
-        manual[pair.left_definition_id] = left + shift
-        manual[pair.right_definition_id] = right + shift
+        # The requested mean is already within the offset-preserving range.
+        # Limit arithmetic roundoff at its endpoints, where a valid side can
+        # otherwise become 100.00000000000001 (or just below -100).
+        for definition_id, retained in (
+            (pair.left_definition_id, left), (pair.right_definition_id, right),
+        ):
+            manual[definition_id] = min(pair.max_percent, max(pair.min_percent, retained + shift))
     return _validated_manual_values(profile, manual)
 
 

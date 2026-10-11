@@ -1693,8 +1693,9 @@ before changing these controls.
 
 **Side adjustments** offers **Both**, **Left** and **Right** for supported generated
 pairs. Both shifts the two manual values equally and keeps their difference.
-Its range narrows near the limits to preserve that difference. Left and Right
-change only the selected retained side value. **Link sides** evaluates each pair
+Its range narrows near the limits to preserve that difference, including fractional
+side offsets. Both displayed endpoints remain usable. Left and Right change only
+the selected retained side value. **Link sides** evaluates each pair
 at the average of its retained manual values before applying coordinated controls.
 It preserves the independent inputs, so unlinking restores them. Editing Left or
 Right while linked still updates the retained input; the linked preview continues
@@ -1833,6 +1834,11 @@ Ordinary preset files retain slider definitions and values. They do not retain
 session-specific garment bindings, masks or allowed body regions; use a fitting setup
 for that complete configuration.
 
+Body-control, correction and refit operations that do not save files keep their
+Undo/Redo independent of other sessions' saved-profile changes. Operations that
+write library files still verify the saved library before restoring it, so
+unacknowledged external changes are not overwritten.
+
 #### Reusable fitting setups and multiple outfits
 
 Name the fit in the preset-name field and choose **Save reusable fitting setup** to
@@ -1863,7 +1869,8 @@ meshes before applying it. The ordered body and garment slots, topology, neutral
 coordinates and available source/skin identity must match. It recreates the saved
 bindings and applies the body preset and garment settings in one undoable operation.
 Conflicting profile or preset IDs receive new identities. Failed imports restore the
-previous mesh, runtime, metadata and session library.
+previous mesh, runtime, metadata and session library, including failures after the
+preview and profile have changed. Retrying starts from the restored fit.
 All target Parts' settings and masks are applied together, so a connected rigid
 piece split across material Parts keeps a valid shared influence when its setup is
 loaded. Other Parts retain their individual mode, intensity and clearance.

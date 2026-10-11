@@ -435,12 +435,17 @@ class MeshMorphServiceMixin(MeshMorphLayerMixin, MeshMorphAuthoringMixin, MeshMo
         *,
         action: str,
         label: str,
+        include_profile_files: bool = True,
     ) -> _MeshHistorySnapshot:
-        root = self._profile_root()
-        existed, files, _fingerprint = _service_call(
-            "_mesh_morph_profile_directory_state",
-            root,
-        )
+        root = None
+        existed = False
+        files = ()
+        if include_profile_files:
+            root = self._profile_root()
+            existed, files, _fingerprint = _service_call(
+                "_mesh_morph_profile_directory_state",
+                root,
+            )
         if session.native_editor_mesh_dirty and not _service_call(
             "_sync_native_editor_session_to_working_mesh",
             session,
@@ -458,9 +463,10 @@ class MeshMorphServiceMixin(MeshMorphLayerMixin, MeshMorphAuthoringMixin, MeshMo
             raise
         snapshot.history_action = str(action)
         snapshot.history_label = str(label)
-        snapshot.morph_profile_root = str(root)
-        snapshot.morph_profile_root_existed = bool(existed)
-        snapshot.morph_profile_files = tuple(files)
+        if root is not None:
+            snapshot.morph_profile_root = str(root)
+            snapshot.morph_profile_root_existed = bool(existed)
+            snapshot.morph_profile_files = tuple(files)
         return snapshot
 
     def _publish_morph_profile_history_locked(
@@ -470,7 +476,7 @@ class MeshMorphServiceMixin(MeshMorphLayerMixin, MeshMorphAuthoringMixin, MeshMo
         *,
         base_revision: int,
     ) -> None:
-        if snapshot.morph_profile_root is None:
+        if snapshot.morph_profile_root is None and snapshot.morph_session_state is None:
             raise RuntimeError("Morph profile history has no settings-owned root.")
         if session.native_editor_mesh_dirty and not _service_call(
             "_sync_native_editor_session_to_working_mesh",
@@ -479,10 +485,11 @@ class MeshMorphServiceMixin(MeshMorphLayerMixin, MeshMorphAuthoringMixin, MeshMo
             raise RuntimeError(
                 "Resident C++ mesh export failed before Morph profile history publication."
             )
-        snapshot.morph_profile_expected_fingerprint = _service_call(
-            "_mesh_morph_profile_directory_state",
-            snapshot.morph_profile_root,
-        )[2]
+        if snapshot.morph_profile_root is not None:
+            snapshot.morph_profile_expected_fingerprint = _service_call(
+                "_mesh_morph_profile_directory_state",
+                snapshot.morph_profile_root,
+            )[2]
         _service_call("_capture_history_material_state", session, snapshot)
         snapshot.retained_bytes = int(
             _service_call("_history_snapshot_retained_bytes", snapshot)
@@ -537,6 +544,11 @@ class MeshMorphServiceMixin(MeshMorphLayerMixin, MeshMorphAuthoringMixin, MeshMo
 
         outcome = None
         try:
+            # Export the failed edit before restoring saved geometry. Otherwise
+            # runtime installation can copy the still-dirty resident mesh over
+            # the snapshot that rollback just restored.
+            if session.native_editor_mesh_dirty:
+                self._working_mesh_locked(session, clone=False)
             if snapshot.morph_profile_root is not None:
                 snapshot.morph_profile_expected_fingerprint = _service_call(
                     "_mesh_morph_profile_directory_state",

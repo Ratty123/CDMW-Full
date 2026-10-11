@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import replace
 import json
+import math
 
 import pytest
 
@@ -354,7 +355,11 @@ def test_controlled_profile_id_rename_preserves_layers_only_when_pair_ids_agree(
     assert dict(aligned.manual_values) == dict(preset.manual_values)
 
 
-@pytest.mark.parametrize("left,right", [(-19.3, 65.9), (0.1, 0.2), (99.9, -100.0)])
+@pytest.mark.parametrize("left,right", [
+    (-19.3, 65.9), (0.1, 0.2), (99.9, -100.0),
+    (-99.9, -99.8), (99.9, 99.8),
+    (-33.03077316999146, -30.837969276560102),
+])
 def test_displayed_both_limits_are_usable_for_fractional_side_offsets(left, right) -> None:
     profile = _profile()
     manual = _manual(profile, thigh_l_size=left, thigh_r_size=right)
@@ -364,3 +369,7 @@ def test_displayed_both_limits_are_usable_for_fractional_side_offsets(left, righ
         assert -100.0 <= edited["thigh_l_size"] <= 100.0
         assert -100.0 <= edited["thigh_r_size"] <= 100.0
         assert edited["thigh_r_size"] - edited["thigh_l_size"] == pytest.approx(right - left)
+    for value in (math.nextafter(limits[0], -math.inf), math.nextafter(limits[1], math.inf)):
+        with pytest.raises(ValueError, match="preserves its side offsets"):
+            update_mesh_morph_side_values(profile, manual, "thigh_size", value)
+    assert manual == _manual(profile, thigh_l_size=left, thigh_r_size=right)

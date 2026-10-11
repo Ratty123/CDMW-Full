@@ -406,10 +406,15 @@ class MeshMorphAuthoringMixin:
 
     def _morph_authoring_transaction_locked(
         self, session, action: str, label: str, operation: Callable[[], MeshEditResult | None],
+        *, include_profile_files: bool = False,
     ) -> tuple[MeshEditResult, MeshMorphState]:
+        """Retain geometry/runtime; file-writing operations opt into file history."""
         from cdmw.services.mesh_service_morph import mesh_morph_profile_lock
         with mesh_morph_profile_lock(self._profile_root()):
-            history = self._capture_morph_profile_history_locked(session, action=action, label=label)
+            history = self._capture_morph_profile_history_locked(
+                session, action=action, label=label,
+                include_profile_files=include_profile_files,
+            )
             base_revision = session.revision
             data = self._authoring_data_locked(session)
             data.authoring_operation = True

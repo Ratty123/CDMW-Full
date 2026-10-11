@@ -176,3 +176,24 @@ fn linking_sides_is_reversible_and_observes_authoring_gates() -> TestResult {
     assert!(ui.last_actions.is_empty());
     Ok(())
 }
+
+#[test]
+fn unchanged_body_control_focus_does_not_swallow_reset() -> TestResult {
+    let root = tempdir()?;
+    let mut ui = controls_ui()?;
+    ui.click("Body controls")?;
+    ui.application.cdmw_bridge = Some(CdmwBridge::for_test(
+        root.path().to_path_buf(), "macro-focus-reset", 1, 0,
+    ));
+    let value = ui.output.shapes.iter().find_map(|shape| match &shape.shape {
+        egui::Shape::Text(text) if text.galley.job.text.parse::<f64>() == Ok(25.0) =>
+            Some(text.visual_bounding_rect().center()),
+        _ => None,
+    }).ok_or("macro number")?;
+    ui.click_at(value);
+    assert!(ui.application.cdmw_pending_request.is_none());
+    ui.click("Reset body controls")?;
+    assert_eq!(ui.application.cdmw_pending_request.as_ref().map(|request| request.label.as_str()),
+        Some("Reset body controls"), "{:?}", ui.last_actions);
+    Ok(())
+}

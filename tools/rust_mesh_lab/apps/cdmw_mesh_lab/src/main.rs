@@ -1760,8 +1760,10 @@ fn stage_cdmw_morph_value(
     if changed {
         drafts.insert(definition_id.to_owned(), value);
     }
-    (interaction_finished || (changed && !interaction_active))
-        .then(|| drafts.get(definition_id).copied().unwrap_or(value))
+    // Unchanged focus loss must not occupy the host request slot ahead of
+    // the control the user just clicked.
+    drafts.get(definition_id).copied()
+        .filter(|_| interaction_finished || (changed && !interaction_active))
 }
 
 fn format_material_ownership(material_indices_by_lod: &[Vec<u32>]) -> String {
