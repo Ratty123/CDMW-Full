@@ -60,7 +60,11 @@ def prepare_profile(profile: VirtualProfile, root, *, stop_event=None, on_log=No
         raise VirtualLoaderError('Select at most 128 external mod folders.')
     packages = tuple(Path(path).resolve() for path in profile.packages)
     folders = tuple(Path(path).resolve() for path in profile.mods)
-    if len(set(packages)) != len(packages) or len(set(folders)) != len(folders):
+    disabled_packages = tuple(Path(path).resolve() for path in profile.disabled_packages)
+    disabled_mods = tuple(Path(path).resolve() for path in profile.disabled_mods)
+    if any(len(paths) > 128 for paths in (packages + disabled_packages, folders + disabled_mods)):
+        raise VirtualLoaderError('Select at most 128 item packages and 128 mod folders, including disabled entries.')
+    if any(len(set(paths)) != len(paths) for paths in (packages + disabled_packages, folders + disabled_mods)):
         raise VirtualLoaderError('The virtual selection contains duplicate paths.')
     original_packages = tuple((str(path), hash_file(path, stop_event)) for path in packages)
     profile_before = read_optional(target(root, PROFILE_PATH))
@@ -167,6 +171,9 @@ def prepare_profile(profile: VirtualProfile, root, *, stop_event=None, on_log=No
             'inventories': [(str(folder), inventory) for folder, inventory in resolved.external.inventories],
             'observed': [(p, digest(raw) if raw is not None else None) for p, raw in resolved.observed
                          if p not in ('.cdmw/independent-items.json', PROFILE_PATH)]}
+    if disabled_packages or disabled_mods:
+        data['disabled_packages'] = [str(path) for path in disabled_packages]
+        data['disabled_mods'] = [str(path) for path in disabled_mods]
     from cdmw.services.independent_item_compilation import package_record
     data['compilation'] = compilation_record(scope='virtual-profile',
         packages=[package_record(package, resolved.pending[f'.cdmw/independent-items/{package.identity}-{package.digest}.cditem'])

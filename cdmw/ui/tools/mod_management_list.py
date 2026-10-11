@@ -2,7 +2,7 @@
 from pathlib import Path
 
 from PySide6.QtCore import Qt, QSignalBlocker, QTimer, Signal
-from PySide6.QtWidgets import QHBoxLayout, QHeaderView, QLabel, QLineEdit, QPushButton, QTreeWidgetItem
+from PySide6.QtWidgets import QHBoxLayout, QHeaderView, QLabel, QLineEdit, QMenu, QMessageBox, QPushButton, QTreeWidgetItem
 
 from cdmw.services.active_ui_translation import translate_active_ui_text as translate
 from cdmw.ui.new_item.virtual_loader_page import VirtualLoaderPage
@@ -58,6 +58,9 @@ class ModManagementList(VirtualLoaderPage):
         for column, width in enumerate((340, 170, 180, 230)):
             self.selection.setColumnWidth(column, width)
         self.selection.setAccessibleDescription(self.tr('Add item packages or a mod folder to begin.'))
+        self.selection.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self.selection.customContextMenuRequested.connect(self._context_menu)
+        self.selection.setToolTip(self.tr('Use Ctrl or Shift to select multiple rows. Right-click for available actions.'))
         layout.addWidget(self.selection, 1)
         row = QHBoxLayout()
         row.addWidget(self.remove_selected)
@@ -199,21 +202,29 @@ class ModManagementList(VirtualLoaderPage):
         ready = not (self._closed or self._working or self.controller.busy or self._queued or self._session)
         selected = self.selection.selectedItems()
         draft = bool(selected) and all(item.data(0, Qt.UserRole)[0] in ('item', 'mod') for item in selected)
-        entry = self._selected_install()
-        mutable = bool(ready and entry and self._sources is not None and self.inventory.mutations is not None and not self.inventory._reading
-                       and entry.health in ('mounted', 'disabled') and not entry.issue)
-        self.remove_selected.setEnabled(ready and (draft or (mutable and entry.compatibility_status != 'unmounted')))
-        self.remove_selected.setToolTip(self.tr('Review removal of the selected overlay before applying it.') if entry else
+        entries = self._selected_installs()
+        mutable = bool(ready and entries and self._sources is not None and self.inventory.mutations is not None and not self.inventory._reading
+                       and all(entry.health in ('mounted', 'disabled') and not entry.issue for entry in entries))
+        self.remove_selected.setEnabled(ready and (draft or (mutable and all(entry.compatibility_status != 'unmounted' for entry in entries))))
+        self.remove_selected.setToolTip(self.tr('Review removal of the selected overlay before applying it.') if entries else
             self.tr('Remove selected entries from this draft. Files and retained item identities are kept.'))
-        self.toggle_installed.setEnabled(mutable)
-        self.details_button.setEnabled(ready and entry is not None)
-        self.toggle_installed.setText(self.tr('Enable…') if entry and not entry.enabled else self.tr('Disable…'))
+        self.toggle_installed.setEnabled(ready and (draft or mutable))
+        self.details_button.setEnabled(ready and len(selected) == 1)
+        disabled = all(item.data(0, Qt.UserRole + 2) for item in selected) if draft else bool(entries) and all(not entry.enabled for entry in entries)
+        self.toggle_installed.setText(self.tr('Enable…') if disabled else self.tr('Disable…'))
+        self.toggle_installed.setToolTip(self.tr('Keep selected mods in the list and choose Apply changes to save their enabled state.') if draft else '')
+        if selected and not draft and not entries:
+            message = self.tr('Managed outside CDMW. Use its original manager to disable or remove it.') if all(
+                item.data(0, Qt.UserRole)[0] == 'external' for item in selected) else self.tr('Select mods with the same loading method for a bulk change.')
+            self.remove_selected.setToolTip(message)
+            self.toggle_installed.setToolTip(message)
         profile = self._profile()
-        self._virtual_notice.setVisible(bool(profile.packages or profile.mods or self._saved_selection))
+        has_selection = bool(profile.packages or profile.mods or profile.disabled_packages or profile.disabled_mods)
+        self._virtual_notice.setVisible(bool(has_selection or self._saved_selection))
         dirty = self._needs_apply or profile != self._saved_selection
-        self.apply_button.setEnabled(ready and bool(self.package_root) and bool(profile.packages or profile.mods or self._saved_selection))
+        self.apply_button.setEnabled(ready and bool(self.package_root) and bool(has_selection or self._saved_selection))
         # Ordinary installed mods do not need virtual runtime setup or a profile.
-        if not profile.packages and not profile.mods and self._saved_selection is None:
+        if not has_selection and self._saved_selection is None:
             self.launch_button.setEnabled(ready and self._sources is not None and self._sources[2] and self._draft_loaded)
         elif self._needs_apply:
             self.launch_button.setEnabled(False)
@@ -223,10 +234,14 @@ class ModManagementList(VirtualLoaderPage):
             item = self.selection.topLevelItem(index)
             if item.data(0, Qt.UserRole)[0] in ('item', 'mod'):
                 item.setText(2, translate(self.tr('CDMW launch')))
-                item.setText(3, translate(self.tr('Needs review') if self._error else self.tr('Pending changes') if dirty else self.tr('Applied')))
+                state = translate(self.tr('Needs review') if self._error else self.tr('Pending changes') if dirty else self.tr('Applied'))
+                if item.data(0, Qt.UserRole + 2):
+                    state = translate(self.tr('Disabled')) + (' · ' + translate(self.tr('Pending changes')) if dirty else '')
+                item.setText(3, state)
                 item.setToolTip(3, translate(self.tr(self._error)))
                 item.setToolTip(2, self.tr('Experimental virtual loading. Launch from CDMW to use this mod.'))
-        self.count.setText(self.tr('{value_0} mods').format(value_0=self.selection.topLevelItemCount()))
+        self.count.setText(self.tr('{value_0} selected · {value_1} mods').format(value_0=len(selected), value_1=self.selection.topLevelItemCount())
+                           if selected else self.tr('{value_0} mods').format(value_0=self.selection.topLevelItemCount()))
         self._filter()
         if not self._status_current:
             # Browsing remains available after a cancelled or failed status read.
@@ -240,43 +255,94 @@ class ModManagementList(VirtualLoaderPage):
             self.cancel_button.setEnabled(ready)
 
     def _selected_install(self):
+        entries = self._selected_installs()
+        return entries[0] if len(entries) == 1 else None
+
+    def _selected_installs(self):
         selected = self.selection.selectedItems()
-        if len(selected) != 1 or selected[0].data(0, Qt.UserRole)[0] != 'installed':
-            return None
-        identity = selected[0].data(0, Qt.UserRole)[1]
-        return next((entry for entry in self.inventory._entries if entry.id == identity), None)
+        if not selected or any(item.data(0, Qt.UserRole)[0] != 'installed' for item in selected):
+            return ()
+        identities = {item.data(0, Qt.UserRole)[1] for item in selected}
+        entries = tuple(entry for entry in self.inventory._entries if entry.id in identities)
+        return entries if len(entries) == len(selected) else ()
+
+    def _context_menu(self, position):
+        item = self.selection.itemAt(position)
+        if item is None:
+            return
+        if not item.isSelected():
+            self.selection.setCurrentItem(item)
+        self._buttons()
+        menu = QMenu(self.selection)
+        for button in (self.details_button, self.toggle_installed, self.remove_selected):
+            action = menu.addAction(button.text())
+            action.setEnabled(button.isEnabled())
+            action.setToolTip(button.toolTip())
+            action.triggered.connect(button.click)
+        menu.setToolTipsVisible(True)
+        menu.aboutToHide.connect(menu.deleteLater)
+        menu.popup(self.selection.viewport().mapToGlobal(position))
 
     def _remove(self):
         if not self.remove_selected.isEnabled():
             return
-        entry = self._selected_install()
-        if entry is None:
+        entries = self._selected_installs()
+        if not entries:
             super()._remove()
             return
-        identity = self._sources[0].get(entry.id)
+        identities = tuple(self._sources[0].get(entry.id) for entry in entries)
         root = self.package_root
-        if identity:
+        if all(identities):
             from cdmw.services.independent_item_install import prepare_remove
-            self.independent._run(lambda log, stop: prepare_remove(identity[0], root, stop_event=stop, on_log=log),
+            keys = tuple(identity[0] for identity in identities)
+            self.independent._run(lambda log, stop: prepare_remove(keys, root, stop_event=stop, on_log=log),
                                   self.independent._review)
         else:
             from cdmw.services.archive_overlay_manager import prepare_overlay_removal
-            self.inventory._run(lambda log, stop: prepare_overlay_removal(root, entry.id, on_log=log, stop_event=stop),
+            keys = tuple(entry.id for entry in entries)
+            self.inventory._run(lambda log, stop: prepare_overlay_removal(root, keys, on_log=log, stop_event=stop),
                                 self.inventory._review_removal, self.tr('Preparing removal and checking the remaining overlays…'))
 
     def _toggle_installed(self):
-        entry = self._selected_install()
-        if entry is None or not self.toggle_installed.isEnabled():
+        if not self.toggle_installed.isEnabled():
+            return
+        entries = self._selected_installs()
+        if not entries:
+            selected = self.selection.selectedItems()
+            disabled = not all(item.data(0, Qt.UserRole + 2) for item in selected)
+            for item in selected:
+                item.setData(0, Qt.UserRole + 2, disabled)
+            self._changed()
             return
         from cdmw.services.archive_overlay_manager import prepare_overlay_enabled
-        root = self.package_root
-        self.inventory._run(lambda log, stop: prepare_overlay_enabled(root, entry.id, not entry.enabled, on_log=log, stop_event=stop),
+        root, keys, enabled = self.package_root, tuple(entry.id for entry in entries), all(not entry.enabled for entry in entries)
+        self.inventory._run(lambda log, stop: prepare_overlay_enabled(root, keys, enabled, on_log=log, stop_event=stop),
                             self.inventory._review_removal, self.tr('Checking dependencies and preparing the overlay change…'))
 
     def _details(self):
+        if not self.details_button.isEnabled():
+            return
         entry = self._selected_install()
         if entry:
             self.details_requested.emit(entry.id)
+            return
+        item = self.selection.selectedItems()[0]
+        kind, path = item.data(0, Qt.UserRole)
+        summary = '\n'.join((item.text(0), item.text(1), item.text(2), item.text(3), '', item.toolTip(0)))
+        def show(text):
+            box = QMessageBox(QMessageBox.Icon.Information, self.tr('Mod details'), text, QMessageBox.StandardButton.Ok, self)
+            box.setTextFormat(Qt.TextFormat.PlainText)
+            box.exec()
+        if kind == 'item':
+            from cdmw.services.mod_management_inventory import item_package_details
+            def loaded(details):
+                title, identity, version, assets, digest = details
+                show('\n'.join((title, self.tr('Package identity:') + ' ' + identity,
+                    self.tr('Format:') + f' .cditem v{version}', self.tr('Assets:') + ' ' + str(assets),
+                    self.tr('Content digest:') + ' ' + digest, '', summary)))
+            self._run(lambda log, stop: item_package_details(path, stop_event=stop), loaded)
+        else:
+            show(summary)
 
     def refresh(self):
         self._refresh_status()

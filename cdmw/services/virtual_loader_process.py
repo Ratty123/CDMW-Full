@@ -178,6 +178,7 @@ def _read_result(request, folder, output_path, stop_event, *, semantic_sources=(
     _validate_registry(decode(registry))
     profile = validate_profile(decode(profile_bytes))
     _require(profile['packages'] == request['packages'] and profile['mods'] == request['mods'])
+    _require(all(profile.get(key, []) == request.get(key, []) for key in ('disabled_packages', 'disabled_mods')))
     root = Path(request['root'])
     # Archive coordinates and inventories require a genuine selected directory.
     # Selected package and game identity files grant only exact file witnesses.
@@ -305,6 +306,9 @@ def prepare_profile_in_subprocess(profile: VirtualProfile, root, *, stop_event=N
     request = {'schema': _SCHEMA, 'nonce': uuid4().hex, 'root': str(Path(root).resolve()),
                'packages': [str(Path(p).resolve()) for p in profile.packages],
                'mods': [str(Path(p).resolve()) for p in profile.mods]}
+    if profile.disabled_packages or profile.disabled_mods:
+        request.update(disabled_packages=[str(Path(p).resolve()) for p in profile.disabled_packages],
+                       disabled_mods=[str(Path(p).resolve()) for p in profile.disabled_mods])
     with TemporaryDirectory(prefix='cdmw_virtual_prepare_') as directory:
         folder = Path(directory)
         input_path, output_path = folder / 'request.json', folder / 'result.json'
@@ -358,11 +362,14 @@ def run_virtual_profile_worker(input_path, output_path):
     """Internal helper mode: read inputs and private temp files; never publish."""
     from cdmw.services.virtual_loader_composition import prepare_profile
     request = _read_json(input_path)
-    _require(isinstance(request, dict) and set(request) == {'schema', 'nonce', 'root', 'packages', 'mods'})
+    _require(isinstance(request, dict) and set(request) - {'disabled_packages', 'disabled_mods'} == {'schema', 'nonce', 'root', 'packages', 'mods'})
     _require(request['schema'] == _SCHEMA)
     _require(all(isinstance(request[key], list) and len(request[key]) <= 128 for key in ('packages', 'mods')))
+    _require(all(isinstance(request.get(key, []), list) and len(request.get(key, [])) <= 128
+                 for key in ('disabled_packages', 'disabled_mods')))
     root = Path(request['root']).resolve()
-    profile = VirtualProfile(tuple(Path(p) for p in request['packages']), tuple(Path(p) for p in request['mods']))
+    profile = VirtualProfile(*(tuple(Path(p) for p in request.get(key, []))
+                               for key in ('packages', 'mods', 'disabled_packages', 'disabled_mods')))
     stop = threading.Event()
     handlers = {}
     for name in ('SIGINT', 'SIGTERM', 'SIGBREAK'):

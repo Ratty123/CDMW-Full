@@ -272,8 +272,10 @@ class VirtualLoaderPage(QWidget):
     def _profile(self):
         items = [self.selection.topLevelItem(i) for i in range(self.selection.topLevelItemCount())]
         # Display sorting must not change allocation order or invalidate a saved profile.
-        rows = [item.data(0, Qt.UserRole) for item in sorted(items, key=lambda item: item.data(0, Qt.UserRole + 1))]
-        return VirtualProfile(tuple(Path(path) for kind, path in rows if kind == 'item'), tuple(Path(path) for kind, path in rows if kind == 'mod'))
+        rows = [(item.data(0, Qt.UserRole), bool(item.data(0, Qt.UserRole + 2)))
+                for item in sorted(items, key=lambda item: item.data(0, Qt.UserRole + 1))]
+        return VirtualProfile(*(tuple(Path(path) for (kind, path), disabled in rows if kind == selected_kind and disabled == selected_disabled)
+                                for selected_disabled in (False, True) for selected_kind in ('item', 'mod')))
 
     def _sort_selection(self, index):
         self.selection.sortItems(1 if index == 2 else 0, Qt.DescendingOrder if index == 1 else Qt.AscendingOrder)
@@ -374,8 +376,8 @@ class VirtualLoaderPage(QWidget):
 
     def _runtime_refreshed(self, result, *, update_status=True):
         state, profile = result
-        self._saved_selection = VirtualProfile(tuple(Path(p) for p in profile['packages']),
-                                               tuple(Path(p) for p in profile['mods'])) if profile else None
+        self._saved_selection = VirtualProfile(*(tuple(Path(p) for p in profile.get(key, []))
+            for key in ('packages', 'mods', 'disabled_packages', 'disabled_mods'))) if profile else None
         self._runtime = state
         if not self._draft_loaded:
             self.selection.clear()
@@ -383,6 +385,12 @@ class VirtualLoaderPage(QWidget):
             if profile:
                 self._append_selection('item', profile['packages'])
                 self._append_selection('mod', profile['mods'])
+                self._append_selection('item', profile.get('disabled_packages', []))
+                self._append_selection('mod', profile.get('disabled_mods', []))
+                disabled = {('item', p) for p in profile.get('disabled_packages', [])} | {('mod', p) for p in profile.get('disabled_mods', [])}
+                for index in range(self.selection.topLevelItemCount()):
+                    item = self.selection.topLevelItem(index)
+                    item.setData(0, Qt.UserRole + 2, item.data(0, Qt.UserRole) in disabled)
             self._draft_loaded = True
             self._runtime = state
         if update_status:

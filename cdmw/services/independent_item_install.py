@@ -646,10 +646,11 @@ def prepare_remove(identity, root, *, stop_event=None, on_log=None):
     path = overlays._target(Path(root).resolve(), REGISTRY_PATH)
     observed = path.read_bytes()
     registry = load_registry(root)
-    row = registry['items'].get(package_id(identity))
-    if row is None or row['layer'] is None:
+    identities = (identity,) if isinstance(identity, str) else tuple(identity)
+    rows = [registry['items'].get(package_id(key)) for key in identities]
+    if not rows or any(row is None or row['layer'] is None for row in rows):
         raise IndependentItemError('This item is not installed.')
-    result = overlays.prepare_overlay_removal(root, row['layer'], stop_event=stop_event, on_log=on_log)
+    result = overlays.prepare_overlay_removal(root, tuple(row['layer'] for row in rows), stop_event=stop_event, on_log=on_log)
     # The registry is deliberately retained, including retired auxiliary keys.
     # Include it unchanged in the verified backup and stale-preparation boundary.
     data = canonical(registry)
@@ -680,6 +681,7 @@ class IdentityDeletionResult:
     identity: str
     title: str
     backup_dir: Path
+    identities: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -690,30 +692,35 @@ class IdentityDeletionPreparation:
     game_id: int | None
     writes: tuple[tuple[str, bytes], ...]
     observed_state: tuple[tuple[str, bytes | None], ...]
+    items: tuple[tuple[str, str, int | None], ...] = ()
 
 
 def prepare_identity_deletion(identity, root, *, stop_event=None):
     """Forget a removed reservation without changing archives or their baselines."""
     raise_if_cancelled(stop_event)
-    root, identity = Path(root).resolve(), package_id(identity)
+    root = Path(root).resolve()
+    identities = tuple(dict.fromkeys(package_id(key) for key in ((identity,) if isinstance(identity, str) else identity)))
+    if not identities:
+        raise IndependentItemError('Select at least one saved identity.')
     observed = overlays._observe_state(root)
     registry = load_registry(root)
-    row = registry['items'].get(identity)
-    if row is None:
+    rows = [registry['items'].get(key) for key in identities]
+    if any(row is None for row in rows):
         raise IndependentItemError('This saved identity no longer exists. Refresh the list.')
     state = overlays._load_index(root)
     from cdmw.services.virtual_loader_state import active_identities, load_profile
-    if identity in active_identities(root) or any(
-            layer.get('independent_identity') == identity and (layer['active'] or layer.get('disabled'))
+    if set(identities).intersection(active_identities(root)) or any(
+            layer.get('independent_identity') in identities and (layer['active'] or layer.get('disabled'))
             for layer in (state or {}).get('layers', ())):
         raise IndependentItemError('Remove this item from Mods and apply the changes before deleting its saved identity.')
-    del registry['items'][identity]
+    for key in identities:
+        del registry['items'][key]
     writes = {REGISTRY_PATH: canonical(_validate_registry(registry))}
     if state is not None:
         changed = False
         for layer in state['layers']:
             raise_if_cancelled(stop_event)
-            if layer.get('independent_identity') == identity:
+            if layer.get('independent_identity') in identities:
                 # Keep the immutable payload journal and baseline/dependency history.
                 # Detach the removed package's reservation and compilation metadata.
                 for key in ('independent_identity', 'independent_digest', 'independent_bindings',
@@ -723,7 +730,7 @@ def prepare_identity_deletion(identity, root, *, stop_event=None):
                 changed = True
             elif 'independent_compilation' in layer:
                 inputs = read_compilation(layer['independent_compilation'], state.get('compilation_contexts'))['inputs']
-                if identity in inputs.get('links', {}).get('providers', {}):
+                if set(identities).intersection(inputs.get('links', {}).get('providers', {})):
                     if layer['active'] or layer.get('disabled'):
                         raise IndependentItemError('Another installed item retains this identity in its compilation. Rebuild or remove that item before deleting this identity.')
                     # Retired compilation graphs cannot retain a live binding to an
@@ -737,8 +744,9 @@ def prepare_identity_deletion(identity, root, *, stop_event=None):
     load_profile(root, registry=registry)
     overlays._verify_observed_state(root, observed, 'during preparation', IndependentItemError)
     raise_if_cancelled(stop_event)
-    return IdentityDeletionPreparation(root, identity, row['title'], row['values'].get('iteminfo', {}).get('item'),
-                                       tuple(writes.items()), observed)
+    items = tuple((key, row['title'], row['values'].get('iteminfo', {}).get('item')) for key, row in zip(identities, rows))
+    return IdentityDeletionPreparation(root, identities[0], '\n'.join(row['title'] for row in rows),
+                                       items[0][2] if len(items) == 1 else None, tuple(writes.items()), observed, items)
 
 
 @archive_write_scope()
@@ -757,7 +765,8 @@ def apply_identity_deletion(preparation, *, confirmed, mutations, game_running=N
         raise_if_cancelled(stop_event)
         if game_running():
             raise RuntimeError('Close Crimson Desert before deleting saved identities.')
-        current = prepare_identity_deletion(preparation.identity, preparation.package_root, stop_event=stop_event)
+        current = prepare_identity_deletion(tuple(row[0] for row in preparation.items) or (preparation.identity,),
+                                            preparation.package_root, stop_event=stop_event)
         if current != preparation:
             raise IndependentItemError('The saved identities or installation changed. Refresh and review the deletion again.')
 
@@ -785,7 +794,8 @@ def apply_identity_deletion(preparation, *, confirmed, mutations, game_running=N
         raise
     if on_log:
         on_log(f'Deleted saved identity: {preparation.title}. Backup: {backup_dir}')
-    return IdentityDeletionResult(preparation.identity, preparation.title, backup_dir)
+    return IdentityDeletionResult(preparation.identity, preparation.title, backup_dir,
+                                  tuple(row[0] for row in preparation.items) or (preparation.identity,))
 
 
 def prepare_profile_import(source, root, *, stop_event=None, on_log=None):

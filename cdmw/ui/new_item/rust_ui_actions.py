@@ -284,7 +284,14 @@ def _view_action(view, action, value):
     elif action == "menu":
         if view.contextMenuPolicy() != Qt.CustomContextMenu:
             raise PresentationProtocolError("This table has no context menu.")
-        view.setCurrentIndex(index)
+        # A right-click on an existing selection must retain the entire batch.
+        if not view.selectionModel().isSelected(index):
+            selection = QItemSelectionModel.ClearAndSelect
+            if view.selectionBehavior() == QAbstractItemView.SelectionBehavior.SelectRows:
+                selection |= QItemSelectionModel.Rows
+            view.selectionModel().setCurrentIndex(index, selection)
+        else:
+            view.selectionModel().setCurrentIndex(index, QItemSelectionModel.NoUpdate)
         rect = view.visualRect(index)
         view.customContextMenuRequested.emit(rect.center() if rect.isValid() else QPoint(1, 1))
     else:

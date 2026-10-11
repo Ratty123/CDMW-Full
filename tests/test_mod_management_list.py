@@ -37,6 +37,118 @@ def load_installed(tab, root):
     return page
 
 
+def test_virtual_mod_context_actions_details_and_disabled_state_survive_reopen(tmp_path, monkeypatch):
+    from PySide6.QtWidgets import QMenu
+    from cdmw.services.virtual_loader_state import load_profile
+    from cdmw.services.independent_item_package import read_package
+    from cdmw.services import virtual_loader_runtime as runtime
+    from tests.test_virtual_loader_runtime import setup_fixture
+    app = QApplication.instance() or QApplication([])
+    root, files = packages(tmp_path)
+    setup_fixture(tmp_path, monkeypatch)
+    runtime.apply_runtime_setup(runtime.prepare_runtime_setup(root), confirmed=True)
+    tab = ModManagementTab(get_package_root=lambda: str(root))
+    bridge = NewItemPresentationBridge(tab, dialogs=lambda: tuple(menu for menu in tab.findChildren(QMenu) if not menu.isHidden()))
+    reviews = []
+    monkeypatch.setattr(QMessageBox, 'exec', lambda box: reviews.append(box.text()) or QMessageBox.Ok)
+    try:
+        page = load_installed(tab, root)
+        page._append_selection('item', files)
+        _send(bridge, page.selection, 'select', {'path': [0]})
+        assert page.details_button.isEnabled() and page.toggle_installed.isEnabled()
+        _send(bridge, page.details_button, 'activate')
+        pump(app, lambda: bool(reviews) and not tab.controller.busy and page._status_current)
+        package = read_package(files[0])
+        assert package.title in reviews[0] and package.identity in reviews[0] and str(files[0]) in reviews[0]
+        _send(bridge, page.selection, 'select', {'path': [1], 'mode': 'toggle'})
+        _send(bridge, page.selection, 'menu', {'path': [0]})
+        menu = next(menu for menu in tab.findChildren(QMenu) if not menu.isHidden())
+        assert len(page.selection.selectedItems()) == 2
+        assert not menu.actions()[0].isEnabled()
+        _send(bridge, menu.actions()[1], 'activate')
+        assert page._profile() == VirtualProfile((), (), files)
+        assert all('Disabled' in row.text(3) for row in rows(page).values())
+        assert page.apply_button.isEnabled() and not page.launch_button.isEnabled()
+        _send(bridge, page.apply_button, 'activate')
+        pump(app, lambda: not tab.controller.busy and not page._working and page._queued is None
+             and page._status_current and not page._status_reading)
+        saved = load_profile(root)
+        assert saved['disabled_packages'] == [str(path) for path in files]
+        page._draft_loaded = False
+        page._runtime_refreshed((page._runtime or SimpleNamespace(state='ready', detail='Ready'), saved))
+        page._buttons()
+        assert page._profile() == page._saved_selection == VirtualProfile((), (), files)
+        assert all(row.text(3) == 'Disabled' for row in rows(page).values())
+        _send(bridge, page.selection, 'select', {'path': [0]})
+        _send(bridge, page.selection, 'select', {'path': [1], 'mode': 'toggle'})
+        _send(bridge, page.toggle_installed, 'activate')
+        assert page._profile() == VirtualProfile(files)
+        # Right-clicking an unselected row targets it alone.
+        page.selection.clearSelection()
+        _send(bridge, page.selection, 'menu', {'path': [1]})
+        assert len(page.selection.selectedItems()) == 1
+        menu = next(menu for menu in tab.findChildren(QMenu) if not menu.isHidden())
+        _send(bridge, menu.actions()[2], 'activate')
+        assert page._profile() == VirtualProfile(files[:1])
+    finally:
+        tab.request_shutdown()
+        pump(app, lambda: not tab.iter_shutdown_workers())
+        bridge.close()
+        tab.deleteLater()
+        app.sendPostedEvents(None, QEvent.DeferredDelete)
+
+
+def test_installed_mods_context_menu_applies_bulk_disable_and_remove(tmp_path, monkeypatch):
+    from PySide6.QtWidgets import QMenu
+    app = QApplication.instance() or QApplication([])
+    root, files = packages(tmp_path, 3)
+    backups = Backups(tmp_path)
+    backups.apply(prepare_install(files, root).preparation)
+    registry = load_registry(root)
+    window = SimpleNamespace(app_context=SimpleNamespace(services=SimpleNamespace(require_archive_mutations=lambda: backups)))
+    tab = ModManagementTab(window=window, get_package_root=lambda: str(root))
+    bridge = NewItemPresentationBridge(tab, dialogs=lambda: tuple(menu for menu in tab.findChildren(QMenu) if not menu.isHidden()))
+    reviews = []
+    monkeypatch.setattr(QMessageBox, 'question', lambda *args: reviews.append(args[2]) or QMessageBox.Yes)
+    monkeypatch.setattr(QMessageBox, 'exec', lambda box: reviews.append(box.text()) or QMessageBox.Yes)
+    monkeypatch.setattr('cdmw.services.new_item_service.game_is_running', lambda: False)
+    try:
+        page = load_installed(tab, root)
+        for action_index in (1, 2):
+            pump(app, lambda: not tab.inventory._reading and page._status_current and not tab.controller.busy)
+            _send(bridge, page.selection, 'select', {'path': [0]})
+            _send(bridge, page.selection, 'select', {'path': [1], 'mode': 'toggle'})
+            keys = {item.data(0, Qt.UserRole)[1] for item in page.selection.selectedItems()}
+            _send(bridge, page.selection, 'menu', {'path': [0]})
+            menu = next(menu for menu in tab.findChildren(QMenu) if not menu.isHidden())
+            assert menu.actions()[action_index].isEnabled() and len(page.selection.selectedItems()) == 2
+            count = backups.count
+            _send(bridge, menu.actions()[action_index], 'activate')
+            pump(app, lambda: backups.count > count and not tab.controller.busy and not tab.inventory._reading
+                 and page._status_current and tab.independent_page._queued is None and tab.inventory._queued is None)
+            assert backups.count == count + 1
+            entries = list_installed_overlays(root)
+            if action_index == 1:
+                assert all(not row.enabled for row in entries if row.id in keys)
+                assert all(row.enabled for row in entries if row.id not in keys)
+            else:
+                assert len(entries) == 1 and not keys.intersection(row.id for row in entries)
+        assert len(reviews) == 2 and load_registry(root) == registry
+        tab.open_page('independent')
+        pump(app, lambda: not tab.controller.busy)
+        tab.independent_page._loaded([('virtual', 'Virtual item', 1, 'Virtual profile')])
+        _send(bridge, tab.independent_page.items, 'menu', {'path': [0]})
+        menu = next(menu for menu in tab.findChildren(QMenu) if not menu.isHidden())
+        _send(bridge, menu.actions()[0], 'activate')
+        assert tab._current_page() is page
+    finally:
+        tab.request_shutdown()
+        pump(app, lambda: not tab.iter_shutdown_workers())
+        bridge.close()
+        tab.deleteLater()
+        app.sendPostedEvents(None, QEvent.DeferredDelete)
+
+
 def test_one_list_labels_routes_without_duplicate_owned_archive_and_keeps_draft_order(tmp_path):
     app = QApplication.instance() or QApplication([])
     root, files = packages(tmp_path, 3)
@@ -306,13 +418,15 @@ def test_ordinary_launch_guards_do_not_start_a_process(tmp_path, monkeypatch, bl
     assert not process.called
 
 
-def test_combined_list_controls_and_rows_follow_all_builtin_languages(tmp_path):
+@pytest.mark.parametrize('disabled', [False, True])
+def test_combined_list_controls_and_rows_follow_all_builtin_languages(tmp_path, disabled):
     from cdmw.domain.localization import BUILTIN_LANGUAGE_CODES
     from cdmw.ui.localization import UiLocalizer
     app = QApplication.instance() or QApplication([])
     tab = ModManagementTab(get_package_root=lambda: str(tmp_path))
     page = tab.virtual_page
     page._append_selection('item', (tmp_path / 'Example.cditem',))
+    page.selection.topLevelItem(0).setData(0, Qt.UserRole + 2, disabled)
     localizer = UiLocalizer(language_dir=tmp_path / 'languages', language_code='en')
     localizer.activate_runtime_tracking(tab, application=app)
     def nodes(node):
@@ -331,7 +445,10 @@ def test_combined_list_controls_and_rows_follow_all_builtin_languages(tmp_path):
             projected = {node['name']: node for node in nodes(state['root'])}
             cells = projected['virtual_loader_selection']['props']['rows'][0]['cells']
             assert cells[2]['text'] == localizer.translate('CDMW launch')
-            assert cells[3]['text'] == localizer.translate('Pending changes')
+            expected = localizer.translate('Pending changes')
+            if disabled:
+                expected = localizer.translate_rendered(localizer.translate('Disabled') + ' · ' + expected)
+            assert cells[3]['text'] == expected
             assert projected['virtual_loader_notice']['props']['text'] == localizer.translate('Experimental')
             assert not state['unsupported']
     finally:

@@ -843,32 +843,37 @@ def prepare_item_overlay(plan, package_root, *, directory_name=None, stop_event=
 
 
 def prepare_overlay_removal(package_root, overlay_id, *, stop_event=None, on_log=None):
+    return _prepare_overlay_selection(package_root, overlay_id, None, stop_event=stop_event, on_log=on_log)
+
+
+def _prepare_overlay_selection(package_root, overlay_ids, enabled, *, stop_event=None, on_log=None):
     root = Path(package_root).resolve()
     observed = _observe_state(root)
     state, pending = _state_for_edit(root, None, stop_event)
-    identity = str(overlay_id)
-    selected = next((layer for layer in state['layers'] if (layer['active'] or layer.get('disabled', False)) and
-        (layer['id'] == identity or (identity == 'legacy:' + state['directory'] and layer.get('legacy')))), None)
-    if selected is None:
-        raise ValueError('The selected overlay is no longer installed. Refresh the list.')
-    selected['active'] = False
-    selected.pop('disabled', None)
-    return _pin_preparation(_compose(root, state, pending, selected['label'], selected['id'], stop_event, on_log), observed)
+    identities = tuple(dict.fromkeys((overlay_ids,) if isinstance(overlay_ids, str) else overlay_ids))
+    if not identities:
+        raise ValueError('Select at least one installed overlay.')
+    selected = []
+    for identity in identities:
+        layer = next((layer for layer in state['layers'] if (layer['active'] or layer.get('disabled', False)) and
+            (layer['id'] == identity or (identity == 'legacy:' + state['directory'] and layer.get('legacy')))), None)
+        if layer is None:
+            raise ValueError('The selected overlay is no longer installed. Refresh the list.')
+        selected.append(layer)
+    for layer in selected:
+        layer['active'] = bool(enabled)
+        if enabled is None:
+            layer.pop('disabled', None)
+        else:
+            layer['disabled'] = not enabled
+    result = _pin_preparation(_compose(root, state, pending, '\n'.join(layer['label'] for layer in selected),
+                                      selected[0]['id'], stop_event, on_log), observed)
+    return replace(result, action='remove' if enabled is None else 'enable' if enabled else 'disable')
 
 
 def prepare_overlay_enabled(package_root, overlay_id, enabled, *, stop_event=None, on_log=None):
     """Review a reversible enable/disable using the same composition and transaction as removal."""
-    root = Path(package_root).resolve()
-    observed = _observe_state(root)
-    state, pending = _state_for_edit(root, None, stop_event)
-    selected = next((layer for layer in state['layers'] if (layer['id'] == str(overlay_id)
-                     or (str(overlay_id) == 'legacy:' + state['directory'] and layer.get('legacy')))
-                     and (layer['active'] or layer.get('disabled', False))), None)
-    if selected is None:
-        raise ValueError('The selected overlay is no longer installed. Refresh the list.')
-    selected['active'], selected['disabled'] = bool(enabled), not bool(enabled)
-    return replace(_pin_preparation(_compose(root, state, pending, selected['label'], selected['id'], stop_event, on_log), observed),
-                   action='enable' if enabled else 'disable')
+    return _prepare_overlay_selection(package_root, overlay_id, bool(enabled), stop_event=stop_event, on_log=on_log)
 
 
 def _file_matches_bytes(path, expected):

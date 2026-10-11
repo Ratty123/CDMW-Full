@@ -1,6 +1,6 @@
 """Thin UI for reviewed portable-item operations on the shared worker lane."""
-from PySide6.QtCore import Qt, Signal
-from PySide6.QtWidgets import QFileDialog, QGroupBox, QHBoxLayout, QHeaderView, QInputDialog, QLabel, QMessageBox, QPlainTextEdit, QPushButton, QSplitter, QToolButton, QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget
+from PySide6.QtCore import Qt, Signal, QItemSelectionModel
+from PySide6.QtWidgets import QFileDialog, QGroupBox, QHBoxLayout, QHeaderView, QInputDialog, QLabel, QMenu, QMessageBox, QPlainTextEdit, QPushButton, QSplitter, QToolButton, QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget
 
 from cdmw.domain.new_item.independent import IndependentItemInstallPlan
 from cdmw.ui.new_item.review_model import ReviewTextWriter
@@ -8,6 +8,7 @@ from cdmw.ui.new_item.review_model import ReviewTextWriter
 
 class IndependentItemsPage(QWidget):
     activity = Signal(str)
+    mods_requested = Signal()
 
     def __init__(self, controller, root, mutations, parent=None):
         super().__init__(parent)
@@ -58,7 +59,10 @@ class IndependentItemsPage(QWidget):
         self.items.header().setStretchLastSection(False)
         self.items.setSortingEnabled(True)
         self.items.sortByColumn(0, Qt.SortOrder.AscendingOrder)
-        self.items.setSelectionMode(QTreeWidget.SelectionMode.SingleSelection)
+        self.items.setSelectionMode(QTreeWidget.SelectionMode.ExtendedSelection)
+        self.items.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self.items.customContextMenuRequested.connect(self._context_menu)
+        self.items.setToolTip(self.tr('Use Ctrl or Shift to select multiple rows. Right-click for available actions.'))
         self.items.itemSelectionChanged.connect(self._buttons)
         self.items.setAccessibleDescription('No item packages installed.')
         package_layout.addWidget(self.items, 1)
@@ -140,17 +144,22 @@ class IndependentItemsPage(QWidget):
 
     def _buttons(self):
         ready = not (self._closed or self._working or self.controller.busy)
-        selected = self.items.currentItem()
-        status = selected.data(0, Qt.ItemDataRole.UserRole + 1) if selected else None
-        removed = status == 'Removed / reserved'
+        selected = self.items.selectedItems()
+        statuses = {item.data(0, Qt.ItemDataRole.UserRole + 1) for item in selected}
+        status = next(iter(statuses)) if len(statuses) == 1 else None
+        removed = statuses == {'Removed / reserved'}
         self.import_button.setEnabled(ready and self.mutations is not None)
-        self.remove_button.setText(self.tr('Delete saved identity…') if removed else self.tr('Remove selected item...'))
+        self.remove_button.setText((self.tr('Delete saved identities…') if len(selected) > 1 else self.tr('Delete saved identity…'))
+                                  if removed else self.tr('Remove selected items…') if len(selected) > 1 else self.tr('Remove selected item...'))
         self.remove_button.setToolTip(
             self.tr('Permanently free this removed item’s reserved IDs after review and a backup. Old saves may still need them.') if removed else
             self.tr('Remove this package from Mods, then choose Apply changes.') if status == 'Virtual profile' else
             self.tr('Remove the installed item after review and a backup. Its IDs remain reserved until you delete the saved identity.'))
-        self.remove_button.setEnabled(ready and self.mutations is not None and status in ('Installed', 'Disabled', 'Removed / reserved'))
-        self.rebuild_button.setEnabled(ready and self.mutations is not None and status == 'Installed')
+        if len(statuses) > 1 and not statuses <= {'Installed', 'Disabled'}:
+            self.remove_button.setToolTip(self.tr('Select installed items to remove, or removed identities to delete.'))
+        self.remove_button.setEnabled(ready and self.mutations is not None and bool(selected)
+                                      and (removed or statuses <= {'Installed', 'Disabled'}))
+        self.rebuild_button.setEnabled(ready and self.mutations is not None and len(selected) == 1 and status == 'Installed')
         self.refresh_button.setEnabled(ready)
         self.export_profile_button.setEnabled(ready)
         self.import_profile_button.setEnabled(ready and self.mutations is not None)
@@ -225,6 +234,7 @@ class IndependentItemsPage(QWidget):
     def _loaded(self, rows):
         selected = self.items.currentItem()
         identity = selected.data(0, Qt.ItemDataRole.UserRole) if selected else None
+        identities = {item.data(0, Qt.ItemDataRole.UserRole) for item in self.items.selectedItems()}
         self.items.setSortingEnabled(False)
         self.items.clear()
         for key, title, game_id, status in rows:
@@ -236,13 +246,14 @@ class IndependentItemsPage(QWidget):
             item.setData(0, Qt.ItemDataRole.UserRole + 1, status)
             self.items.addTopLevelItem(item)
             if key == identity:
-                self.items.setCurrentItem(item)
+                self.items.setCurrentItem(item, 0, QItemSelectionModel.SelectionFlag.NoUpdate)
+            item.setSelected(key in identities)
         self.items.setSortingEnabled(True)
         if rows and not self._columns_sized:
             for column in range(self.items.columnCount()):
                 self.items.resizeColumnToContents(column)
             self._columns_sized = True
-        self._set_status(self.tr("Removed items keep their IDs reserved. Select one and choose Delete saved identity to permanently free its IDs."))
+        self._set_status(self.tr('Removed items keep their IDs reserved. Select removed items and choose Delete saved identity to permanently free their IDs.'))
         self._buttons()
 
     def _import(self):
@@ -317,28 +328,49 @@ class IndependentItemsPage(QWidget):
         self._run(task, completed, publishes_result=True)
 
     def _remove(self):
-        item = self.items.currentItem()
-        if item is None or not self.remove_button.isEnabled():
+        items = self.items.selectedItems()
+        if not items or not self.remove_button.isEnabled():
             return
-        if item.data(0, Qt.ItemDataRole.UserRole + 1) == 'Removed / reserved':
+        identities, root = tuple(item.data(0, Qt.ItemDataRole.UserRole) for item in items), self.package_root
+        if all(item.data(0, Qt.ItemDataRole.UserRole + 1) == 'Removed / reserved' for item in items):
             from cdmw.services.independent_item_install import prepare_identity_deletion
-            identity, root = item.data(0, Qt.ItemDataRole.UserRole), self.package_root
-            self._run(lambda log, stop: prepare_identity_deletion(identity, root, stop_event=stop), self._review_identity_deletion)
+            self._run(lambda log, stop: prepare_identity_deletion(identities, root, stop_event=stop), self._review_identity_deletion)
             return
         from cdmw.services.independent_item_install import prepare_remove
-        identity, root = item.data(0, Qt.ItemDataRole.UserRole), self.package_root
-        self._run(lambda log, stop: prepare_remove(identity, root, stop_event=stop, on_log=log), self._review)
+        self._run(lambda log, stop: prepare_remove(identities, root, stop_event=stop, on_log=log), self._review)
+
+    def _context_menu(self, position):
+        item = self.items.itemAt(position)
+        if item is None:
+            return
+        if not item.isSelected():
+            self.items.setCurrentItem(item)
+        self._buttons()
+        menu = QMenu(self.items)
+        if item.data(0, Qt.ItemDataRole.UserRole + 1) == 'Virtual profile':
+            menu.addAction(self.tr('Manage in Mods…')).triggered.connect(self.mods_requested.emit)
+            menu.addSeparator()
+        for button in (self.rebuild_button, self.remove_button):
+            action = menu.addAction(button.text())
+            action.setEnabled(button.isEnabled())
+            action.setToolTip(button.toolTip())
+            action.triggered.connect(button.click)
+        menu.setToolTipsVisible(True)
+        menu.aboutToHide.connect(menu.deleteLater)
+        menu.popup(self.items.viewport().mapToGlobal(position))
 
     def _review_identity_deletion(self, prepared):
         generation, root = self._generation, self.package_root
-        warning = self.tr('This permanently deletes the saved identity and frees its reserved IDs. Old saves may stop recognizing this item or refer to another item if an ID is reused. Reinstalling the package may assign different IDs. Saves are not edited.')
-        box = QMessageBox(QMessageBox.Icon.Warning, self.tr('Delete saved identity'),
-            prepared.title + (f' ({prepared.game_id})' if prepared.game_id is not None else '')
+        many = len(prepared.items) > 1
+        warning = self.tr('This permanently deletes the selected saved identities and frees their reserved IDs. Old saves may stop recognizing these items or refer to another item if an ID is reused. Reinstalling a package may assign different IDs. Saves are not edited.') if many else self.tr('This permanently deletes the saved identity and frees its reserved IDs. Old saves may stop recognizing this item or refer to another item if an ID is reused. Reinstalling the package may assign different IDs. Saves are not edited.')
+        names = '\n'.join(title + (f' ({game_id})' if game_id is not None else '') for _, title, game_id in prepared.items)
+        box = QMessageBox(QMessageBox.Icon.Warning, self.tr('Delete saved identities') if many else self.tr('Delete saved identity'),
+            names
             + '\n\n' + warning + '\n\n' + self.tr('A verified backup will be created first. Close the game before continuing.')
-            + '\n\n' + self.tr('Permanently delete this saved identity?'),
+            + '\n\n' + self.tr('Game folder:') + ' ' + str(prepared.package_root)
+            + '\n\n' + (self.tr('Permanently delete these saved identities?') if many else self.tr('Permanently delete this saved identity?')),
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No, self)
-        box.setDetailedText(self.tr('Game folder:') + ' ' + str(prepared.package_root) + '\n\n'
-            + self.tr('Files to update:') + '\n' + '\n'.join(path for path, _ in prepared.writes))
+        box.setTextFormat(Qt.TextFormat.PlainText)
         box.setDefaultButton(QMessageBox.StandardButton.No)
         if (box.exec() == QMessageBox.StandardButton.Yes and not self._closed
                 and generation == self._generation and root == self.package_root):
@@ -350,14 +382,16 @@ class IndependentItemsPage(QWidget):
         def task(log, stop):
             return apply_identity_deletion(prepared, confirmed=True, mutations=mutations, stop_event=stop, on_log=log)
         def finished(result):
-            self.activity.emit(self.tr('Saved identity deleted. Backup:') + ' ' + str(result.backup_dir))
+            self.activity.emit((self.tr('Saved identities deleted. Backup:') if len(result.identities) > 1 else
+                                self.tr('Saved identity deleted. Backup:')) + ' ' + str(result.backup_dir))
             self._queued = ('refresh', None)
         self._run(task, finished, applying=True)
 
     def _rebuild(self):
-        item = self.items.currentItem()
-        if item is None:
+        selected = self.items.selectedItems()
+        if len(selected) != 1 or not self.rebuild_button.isEnabled():
             return
+        item = selected[0]
         from cdmw.services.independent_item_install import prepare_rebuild
         identity, root = item.data(0, Qt.ItemDataRole.UserRole), self.package_root
         self._run(lambda log, stop: prepare_rebuild(identity, root, stop_event=stop, on_log=log), self._review)

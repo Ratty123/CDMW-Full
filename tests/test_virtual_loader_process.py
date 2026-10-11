@@ -19,6 +19,34 @@ def owned_temps(monkeypatch, tmp_path):
     monkeypatch.setattr(owner, 'TemporaryDirectory', lambda **kw: tempfile.TemporaryDirectory(dir=tmp_path, **kw))
 
 
+def test_disabled_mods_survive_child_publication_and_reenable_with_reserved_ids(tmp_path, monkeypatch):
+    from cdmw.services.virtual_loader_state import load_profile, validate_profile
+    from cdmw.services.independent_item_install import load_registry
+    monkeypatch.setattr('cdmw.services.new_item_service.game_is_running', lambda: False)
+    root, paths = packages(tmp_path)
+    before = game_bytes(root)
+    publish_profile(prepare_profile(VirtualProfile(paths), root))
+    registry = load_registry(root)
+    missing_folder = tmp_path / 'disabled-folder'
+    selection = VirtualProfile(paths[:1], (), paths[1:], (missing_folder,))
+    prepared = owner.prepare_profile_in_subprocess(selection, root)
+    publish_profile(prepared)
+    profile = load_profile(root)
+    assert profile['packages'] == [str(paths[0])]
+    assert profile['disabled_packages'] == [str(paths[1])]
+    assert profile['disabled_mods'] == [str(missing_folder)]
+    assert len(profile['items']) == 1 and load_registry(root) == registry
+    assert str(paths[1]) not in dict(profile['sources'])
+    for disabled in ([str(paths[0])], [str(paths[1]), str(paths[1])], ['relative.cditem'], 'invalid'):
+        with pytest.raises(ValueError, match='disabled'):
+            validate_profile(dict(profile, disabled_packages=disabled))
+    publish_profile(prepare_profile(VirtualProfile((), (), paths), root))
+    assert not load_profile(root)['items']
+    publish_profile(prepare_profile(VirtualProfile(paths), root))
+    assert load_registry(root) == registry and len(load_profile(root)['items']) == 2
+    assert game_bytes(root) == before
+
+
 @pytest.mark.parametrize('change', ['archive', 'loose', 'new_mount'])
 def test_real_child_preserves_output_and_publication_guards(tmp_path, change):
     root, files = packages(tmp_path / 'fixture')

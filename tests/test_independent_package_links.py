@@ -116,6 +116,24 @@ def test_existing_v1_provider_rebuild_disable_update_and_reinstall(tmp_path):
         assert load_registry(root)['items'][identity]['values'] == row['values']
 
 
+def test_linked_packages_can_be_disabled_enabled_and_removed_together(tmp_path):
+    provider, consumer = pair(tmp_path)
+    setup_game(tmp_path / 'recipient')
+    root, backups = tmp_path / 'recipient/game', Backups(tmp_path)
+    backups.apply(prepare_install([package_bytes(provider), package_bytes(consumer)], root).preparation)
+    registry = load_registry(root)
+    layers = tuple(row['layer'] for row in registry['items'].values())
+    for enabled in (False, True):
+        count = backups.count
+        backups.apply(overlays.prepare_overlay_enabled(root, layers, enabled))
+        assert backups.count == count + 1
+        assert all(row.enabled == enabled for row in overlays.list_installed_overlays(root))
+    count = backups.count
+    backups.apply(prepare_remove((provider.identity, consumer.identity), root))
+    assert backups.count == count + 1 and not overlays.list_installed_overlays(root)
+    assert load_registry(root) == registry
+
+
 @pytest.mark.parametrize('virtual', [False, True])
 def test_missing_provider_refuses_before_snapshot_or_allocation(tmp_path, monkeypatch, virtual):
     _, consumer = pair(tmp_path)

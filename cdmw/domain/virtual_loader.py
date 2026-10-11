@@ -11,6 +11,8 @@ class VirtualLoaderError(ValueError):
 class VirtualProfile:
     packages: tuple[Path, ...] = ()
     mods: tuple[Path, ...] = ()
+    disabled_packages: tuple[Path, ...] = ()
+    disabled_mods: tuple[Path, ...] = ()
 
 
 @dataclass(frozen=True)

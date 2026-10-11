@@ -11,6 +11,19 @@ existing reviewed backup workflow. External folders remain managed by their orig
 manager. Missing references and removed identity reservations are maintenance records,
 not active mods, and remain available in **Health and recovery** and **Item identities**.
 
+Use Ctrl/Shift to select several rows, then right-click for the available actions.
+Right-clicking a selected row keeps the whole selection. Installed mods can be removed
+or enabled/disabled together after one review and verified backup. Select entries with
+the same loading method for a bulk change. Virtual packages and folders can be disabled
+without removing them from the list; **Apply changes** saves their state for the next
+launch and reopening. Disabled packages keep their reserved IDs. **Details** also shows
+an independent package's title, identity, format and source path.
+
+In **Item identities**, select removed reservations to **Delete saved identities**
+together. The confirmation lists the selected items and game folder directly. One
+verified backup protects the complete deletion; installed items must first be removed.
+Deleting reservations can break older saves or allow IDs to be reused.
+
 Select a CDMW install and choose **Details** to open its preview and file history;
 **Back to mod list** retains the list's search and selection. One tab row opens **Mods**,
 **Prepare packages**, **Item identities**, **Shared files**, and **Health and recovery**.

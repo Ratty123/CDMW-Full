@@ -64,6 +64,8 @@ def install_result_report(result: object) -> tuple:
     directory = getattr(result, "directory", None)
     name = getattr(directory, "name", "") if directory is not None else ""
     if isinstance(result, IdentityDeletionResult):
+        if len(result.identities) > 1:
+            return ('Delete saved identities', f'Saved identities deleted: {result.title}.\n\nBackup: {backup}')
         return ('Delete saved identity', f'Saved identity deleted: {result.title}.\n\nBackup: {backup}')
     if hasattr(result, "retired_inventory"):
         return (

@@ -4,7 +4,7 @@ import threading
 from unittest.mock import patch
 
 import pytest
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, QEvent
 from PySide6.QtWidgets import QApplication, QMessageBox
 
 from cdmw.domain.new_item.independent import IndependentItemInstallPlan
@@ -17,6 +17,90 @@ from tests.test_independent_items import authored, setup_game
 from tests.test_archive_overlay_manager import Backups
 from tests.test_mod_management import pump
 from tests.test_new_item_rust_ui import _send
+
+
+@pytest.mark.parametrize('removed', [False, True])
+def test_identity_context_menu_preserves_and_applies_bulk_selection(tmp_path, monkeypatch, removed):
+    from PySide6.QtWidgets import QMenu
+    from cdmw.services.independent_item_install import load_registry, prepare_install, prepare_remove
+    from cdmw.ui.new_item.panels_output import install_result_report
+    from tests.test_virtual_loader import packages
+    app = QApplication.instance() or QApplication([])
+    root, sources = packages(tmp_path, 3)
+    backups = Backups(tmp_path)
+    backups.apply(prepare_install(sources, root).preparation)
+    identities = tuple(load_registry(root)['items'])
+    if removed:
+        backups.apply(prepare_remove(identities, root))
+    controller = NewItemStudioController(synchronous=True)
+    page = IndependentItemsPage(controller, root, backups)
+    results = []
+    controller.install_finished.connect(results.append)
+    bridge = NewItemPresentationBridge(page, dialogs=lambda: tuple(menu for menu in page.findChildren(QMenu) if not menu.isHidden()))
+    page.show()
+    reviews = []
+    def review(box):
+        reviews.append(box.text())
+        if removed:
+            assert not box.detailedText()
+            assert 'saved identities' in box.text() and str(root) in box.text()
+        return QMessageBox.Yes
+    monkeypatch.setattr(QMessageBox, 'exec', review)
+    monkeypatch.setattr('cdmw.services.new_item_service.game_is_running', lambda: False)
+    try:
+        page.refresh()
+        _send(bridge, page.items, 'select', {'path': [0]})
+        _send(bridge, page.items, 'select', {'path': [1], 'mode': 'toggle'})
+        selected = {item.data(0, Qt.UserRole) for item in page.items.selectedItems()}
+        page.refresh()
+        assert {item.data(0, Qt.UserRole) for item in page.items.selectedItems()} == selected
+        assert len(selected) == 2 and not page.rebuild_button.isEnabled()
+        _send(bridge, page.items, 'menu', {'path': [0]})
+        menu = next(menu for menu in page.findChildren(QMenu) if not menu.isHidden())
+        assert len(page.items.selectedItems()) == 2
+        assert page.items.currentItem() is page.items.topLevelItem(0)
+        count = backups.count
+        _send(bridge, menu.actions()[1], 'activate')
+        assert len(reviews) == 1 and backups.count == count + 1
+        registry = load_registry(root)['items']
+        if removed:
+            assert set(registry) == set(identities) - selected
+            assert set(results[0].identities) == selected
+            assert install_result_report(results[0])[0] == 'Delete saved identities'
+        else:
+            assert set(registry) == set(identities)
+            assert {row[0] for row in inventory(root) if row[3] == 'Removed / reserved'} == selected
+    finally:
+        page.request_shutdown()
+        controller.shutdown()
+        bridge.close()
+        page.deleteLater()
+        app.sendPostedEvents(None, QEvent.DeferredDelete)
+
+
+def test_rebuild_uses_selected_row_after_another_row_is_deselected(tmp_path, monkeypatch):
+    app = QApplication.instance() or QApplication([])
+    controller = NewItemStudioController(synchronous=True)
+    page = IndependentItemsPage(controller, tmp_path, Backups(tmp_path))
+    bridge = NewItemPresentationBridge(page)
+    page.show()
+    page._loaded([('first', 'Alpha', 1, 'Installed'), ('second', 'Beta', 2, 'Installed')])
+    requests = []
+    monkeypatch.setattr('cdmw.services.independent_item_install.prepare_rebuild',
+                        lambda identity, *args, **kwargs: requests.append(identity))
+    monkeypatch.setattr(page, '_run', lambda task, done: task(lambda message: None, threading.Event()))
+    try:
+        _send(bridge, page.items, 'select', {'path': [0]})
+        _send(bridge, page.items, 'select', {'path': [1], 'mode': 'toggle'})
+        _send(bridge, page.items, 'select', {'path': [1], 'mode': 'toggle'})
+        _send(bridge, page.rebuild_button, 'activate')
+        assert requests == ['first']
+    finally:
+        page.request_shutdown()
+        controller.shutdown()
+        bridge.close()
+        page.deleteLater()
+        app.sendPostedEvents(None, QEvent.DeferredDelete)
 
 
 def test_item_columns_sort_numerically_resize_and_preserve_selection_on_refresh(tmp_path):
@@ -147,7 +231,8 @@ def test_removed_identity_can_be_deleted_after_review_through_rust(tmp_path, dec
     page.show()
     page.refresh()
     def review(box):
-        assert package.title in box.text() and str(root) in box.detailedText()
+        assert package.title in box.text() and str(root) in box.text()
+        assert not box.detailedText()
         assert box.defaultButton() == box.button(QMessageBox.StandardButton.No)
         if decision == 'changed_root':
             page.set_game_root(tmp_path / 'other-game')

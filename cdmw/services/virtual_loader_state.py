@@ -66,7 +66,7 @@ def decode(data, *, limit=MAX_MANIFEST):
 
 def validate_profile(value):
     expected = {'format', 'generation', 'items', 'packages', 'mods', 'files', 'sources', 'inventories', 'observed'}
-    if not isinstance(value, dict) or set(value) not in (expected, expected | {'compiler'}, expected | {'compiler', 'compilation'}) or value['format'] != FORMAT:
+    if not isinstance(value, dict) or set(value) - {'disabled_packages', 'disabled_mods'} not in (expected, expected | {'compiler'}, expected | {'compiler', 'compilation'}) or value['format'] != FORMAT:
         raise VirtualLoaderError('Unsupported virtual profile.')
     if 'compiler' in value:
         try:
@@ -90,6 +90,11 @@ def validate_profile(value):
     for key in ('packages', 'mods'):
         if len(value[key]) > 128 or any(not absolute(p) for p in value[key]) or len(set(value[key])) != len(value[key]):
             raise VirtualLoaderError('Invalid virtual selection paths.')
+        disabled = value.get('disabled_' + key, [])
+        if (not isinstance(disabled, list) or len(value[key]) + len(disabled) > 128
+                or any(not absolute(p) for p in disabled)
+                or len({Path(p) for p in value[key] + disabled}) != len(value[key]) + len(disabled)):
+            raise VirtualLoaderError('Invalid disabled virtual selection paths.')
     seen = set()
     for row in value['sources']:
         if not isinstance(row, list) or len(row) != 2 or not absolute(row[0]) or not checksum(row[1]) or row[0] in seen:

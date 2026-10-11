@@ -203,3 +203,63 @@ def test_identity_deletion_requires_confirmation_and_a_verified_backup(removed_i
     with pytest.raises(ValueError, match='backup manifest'):
         delete(prepared, backups)
     assert files_in(root) == before
+
+
+@pytest.mark.parametrize('outcome', ['delete', 'rollback', 'stale', 'cancel'])
+def test_bulk_identity_deletion_is_one_recoverable_transaction(tmp_path, monkeypatch, outcome):
+    from tests.test_virtual_loader import packages
+    root, sources = packages(tmp_path, 3)
+    backups = Backups(tmp_path)
+    backups.apply(installer.prepare_install(sources, root).preparation)
+    identities = tuple(installer.load_registry(root)['items'])
+    backups.apply(installer.prepare_remove(identities[:2], root))
+    registry, before = installer.load_registry(root), files_in(root)
+    prepared = installer.prepare_identity_deletion(identities[:2], root)
+    assert tuple(row[0] for row in prepared.items) == identities[:2]
+    assert files_in(root) == before
+    count = backups.count
+    stop = threading.Event()
+    if outcome == 'rollback':
+        writer = installer.atomic_write_bytes
+        def fail(path, data):
+            writer(path, data)
+            if path == root / overlays.INDEX_PATH:
+                raise OSError('batch publication failure')
+        monkeypatch.setattr(installer, 'atomic_write_bytes', fail)
+    elif outcome in ('stale', 'cancel'):
+        backup = backups.backup_files
+        def intervene(*args, **kwargs):
+            result = backup(*args, **kwargs)
+            if outcome == 'cancel':
+                stop.set()
+            else:
+                registry['items'][identities[1]]['title'] = 'Changed after review'
+                (root / installer.REGISTRY_PATH).write_bytes(canonical(registry))
+            return result
+        monkeypatch.setattr(backups, 'backup_files', intervene)
+    if outcome == 'delete':
+        result = delete(prepared, backups)
+        assert set(installer.load_registry(root)['items']) == {identities[2]}
+        assert installer.load_registry(root)['items'][identities[2]] == registry['items'][identities[2]]
+        backups.restore_backup(result.backup_dir)
+        assert files_in(root) == before
+    else:
+        with pytest.raises({'rollback': OSError, 'stale': ValueError, 'cancel': RunCancelled}[outcome]):
+            delete(prepared, backups, stop_event=stop)
+        assert installer.load_registry(root) == registry
+        if outcome != 'stale':
+            assert files_in(root) == before
+    assert backups.count == count + 1
+
+
+def test_bulk_identity_deletion_rejects_an_installed_member_without_changes(tmp_path):
+    from tests.test_virtual_loader import packages
+    root, sources = packages(tmp_path)
+    backups = Backups(tmp_path)
+    backups.apply(installer.prepare_install(sources, root).preparation)
+    identities = tuple(installer.load_registry(root)['items'])
+    backups.apply(installer.prepare_remove(identities[0], root))
+    before = files_in(root)
+    with pytest.raises(ValueError, match='Remove this item from Mods'):
+        installer.prepare_identity_deletion(identities, root)
+    assert files_in(root) == before
