@@ -41,7 +41,7 @@ def overlay_details(package_root, overlay_id, *, stop_event=None):
     layer = next((row for row in state['layers'] if row['id'] == overlay_id), None) if state else None
     if layer is None:
         return 'This earlier overlay is managed as one bundle. Individual ownership history is unavailable.'
-    changes = _unpack_changes(root, layer, {}, stop_event)
+    changes = _unpack_changes(root, layer, {}, stop_event, metadata_only=True)
     dependencies = [row['label'] for row in state['layers'] if row['id'] in layer['dependencies']]
     lines = [layer['label'], f"Archive folder: {state['directory']}",
              'Installed: ' + datetime.fromtimestamp(layer['created_at']).strftime('%Y-%m-%d %H:%M'),

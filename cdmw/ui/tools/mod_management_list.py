@@ -17,10 +17,16 @@ class ModManagementList(VirtualLoaderPage):
         self._sources = None
         self._source_pending = False
         self._needs_apply = False
+        self._status_generation = 0
+        self._status_reading = self._status_pending = False
+        self._status_current = self._status_preserve_message = False
         super().__init__(controller, root, parent)
         self._source_lane = controller.create_lookup_lane()
         self._source_lane.completed.connect(self._sources_ready)
         self._source_lane.failed.connect(self._sources_failed)
+        self._status_lane = controller.create_lookup_lane()
+        self._status_lane.completed.connect(self._runtime_status_ready)
+        self._status_lane.failed.connect(self._runtime_status_failed)
         inventory.inventory_changed.connect(self._installed_changed)
         controller.install_finished.connect(self._installation_changed)
         self.profile_applied.connect(self._applied)
@@ -222,6 +228,16 @@ class ModManagementList(VirtualLoaderPage):
                 item.setToolTip(2, self.tr('Experimental virtual loading. Launch from CDMW to use this mod.'))
         self.count.setText(self.tr('{value_0} mods').format(value_0=self.selection.topLevelItemCount()))
         self._filter()
+        if not self._status_current:
+            # Browsing remains available after a cancelled or failed status read.
+            # State-changing actions await a complete current status result.
+            for button in (self.add_items, self.add_mod, self.apply_button, self.launch_button,
+                           self.setup_button, self.recover_button, self.trace_button,
+                           self.remove_runtime_button, self.remove_selected, self.toggle_installed):
+                button.setEnabled(False)
+        if self._status_reading:
+            self.refresh_button.setEnabled(False)
+            self.cancel_button.setEnabled(ready)
 
     def _selected_install(self):
         selected = self.selection.selectedItems()
@@ -263,8 +279,95 @@ class ModManagementList(VirtualLoaderPage):
             self.details_requested.emit(entry.id)
 
     def refresh(self):
-        super().refresh()
+        self._refresh_status()
         self.refresh_sources()
+
+    def _refresh_status(self, *, preserve_message=False):
+        if self._closed or not self.package_root:
+            return
+        self._status_pending = True
+        self._status_preserve_message = (self._status_preserve_message and preserve_message
+                                         if self._status_reading else preserve_message)
+        if self.controller.busy or self._working or self._session:
+            return
+        self._status_pending = False
+        if self._status_reading:
+            return  # Coalesce repeated requests for this unchanged game root.
+        from cdmw.services.virtual_loader_runtime import runtime_status
+        from cdmw.services.virtual_loader_state import load_profile
+        self._status_generation += 1
+        root, key = self.package_root, (self._status_generation, self.package_root)
+        self._status_reading = True
+        self._status_current = False
+        self._runtime = None
+        self._status_loading_text = self.tr('Checking virtual loader…')
+        if not self._status_preserve_message:
+            self.status.setText(self._status_loading_text)
+        self._buttons()
+
+        def read(stop):
+            state = runtime_status(root, experimental=True, stop_event=stop)
+            profile = None if 'Recover' in state.detail else load_profile(root)
+            return state, profile
+
+        self._status_lane.request(key, read)
+
+    def _resume_status(self):
+        if self._status_pending:
+            self._refresh_status(preserve_message=self._status_preserve_message)
+
+    def _runtime_status_ready(self, key, result):
+        if self._closed or key != (self._status_generation, self.package_root):
+            return
+        self._status_reading = False
+        self._status_current = True
+        update_status = not self._status_preserve_message or self.status.text() == self._status_loading_text
+        if update_status:
+            self._error = ''
+        self._runtime_refreshed(result, update_status=update_status)
+        self._buttons()
+
+    def _runtime_status_failed(self, key, message):
+        if self._closed or key != (self._status_generation, self.package_root):
+            return
+        self._status_reading = self._status_current = False
+        self._runtime = None
+        if not self._status_preserve_message or self.status.text() == self._status_loading_text:
+            self._error = str(message)
+            self.status.setText(self.tr(str(message)))
+        self.activity.emit(str(message))
+        self._buttons()
+
+    def _cancel_status(self):
+        self._status_generation += 1
+        lane = getattr(self, '_status_lane', None)
+        if lane is not None:
+            lane.cancel()
+        self._status_reading = self._status_current = False
+        self._runtime = None
+
+    def _cancel(self):
+        if self._status_reading:
+            self._status_pending = False
+            self._cancel_status()
+            self.status.setText(self.tr('Processing stopped by user.'))
+            self._buttons()
+            return
+        super()._cancel()
+
+    def _changed(self):
+        if self._status_reading:
+            self._status_pending = False
+            self._cancel_status()
+        super()._changed()
+
+    def _session_status_ready(self, key, state):
+        current = not self._closed and key == self._session
+        super()._session_status_ready(key, state)
+        if current and self._session is None and self._status_pending:
+            # Session progress and its terminal result own the visible message.
+            self._status_preserve_message = True
+            QTimer.singleShot(0, self, self._resume_status)
 
     def _launch(self):
         profile = self._profile()
@@ -287,9 +390,16 @@ class ModManagementList(VirtualLoaderPage):
             self._source_pending = True
         elif self._source_pending:
             QTimer.singleShot(0, self, self.refresh_sources)
+        if busy and self.controller._lane != 'snapshot':
+            self._cancel_status()
+            self._status_pending = self._status_preserve_message = True
+        elif not busy and self._status_pending:
+            QTimer.singleShot(0, self, self._resume_status)
 
     def set_game_root(self, root):
         if str(root) != self.package_root:
+            self._status_pending = False
+            self._cancel_status()
             self._source_generation += 1
             self._source_lane.cancel()
             self._sources = None
@@ -297,5 +407,8 @@ class ModManagementList(VirtualLoaderPage):
         super().set_game_root(root)
 
     def request_shutdown(self):
+        self._status_generation += 1
+        self._status_pending = self._status_reading = self._status_current = False
+        self._status_lane.request_shutdown()
         self._source_lane.request_shutdown()
         super().request_shutdown()

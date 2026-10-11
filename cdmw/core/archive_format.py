@@ -327,7 +327,7 @@ def try_decrypt_archive_entry_data(entry: ArchiveEntry, data: bytes) -> Tuple[by
     if entry.extension == ".paloc":
         # Keep the format decoder's reason instead of reducing a recognized but
         # unsupported container (or a damaged record) to a cipher failure.
-        from cdmw.core.paloc_format import PalocFormatError, parse_paloc
+        from cdmw.core.paloc_format import PalocFormatError, select_paloc_entries
 
         context = f"Could not validate decoded localization table {entry.path} ({entry.package_label})"
         payload = candidate
@@ -339,7 +339,8 @@ def try_decrypt_archive_entry_data(entry: ArchiveEntry, data: bytes) -> Tuple[by
             except lz4_block.LZ4BlockError as exc:
                 raise ValueError(f"{context}: archive LZ4 decompression failed: {exc}") from exc
         try:
-            parse_paloc(payload)
+            # Validation consumes the entire table; no records need to be retained.
+            select_paloc_entries(payload, ())
         except PalocFormatError as exc:
             raise ValueError(f"{context}: {exc}") from exc
         return candidate, "ChaCha20"

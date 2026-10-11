@@ -24288,6 +24288,11 @@
           "path": "cdmw/ui/new_item/virtual_loader_page.py",
           "line": 380,
           "sink": "tr"
+        },
+        {
+          "path": "cdmw/ui/tools/mod_management_list.py",
+          "line": 303,
+          "sink": "tr"
         }
       ]
     },
@@ -103692,6 +103697,11 @@
         {
           "path": "cdmw/ui/new_item/virtual_loader_page.py",
           "line": 424,
+          "sink": "tr"
+        },
+        {
+          "path": "cdmw/ui/tools/mod_management_list.py",
+          "line": 353,
           "sink": "tr"
         }
       ]

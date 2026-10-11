@@ -1837,6 +1837,12 @@ retain the parser's reason and archive source in the error message, including
 unsupported container versions, rather than collapsing every failure into a ChaCha20
 error. Unsupported data cannot produce an item plan.
 
+Preparing localized item search names validates every record in each language table
+while retaining only the referenced name entries. The complete English table remains
+available for display names and authoring. Editing another language loads its complete
+table on demand. Encrypted-table validation uses the same strict checks without retaining
+entries that the caller will discard.
+
 Initial-load and refresh failures show contextual next steps and a **Copy error report**
 button. **Details** previews the same report: error code, workbench and runtime
 versions, UTC time, exact error and the last twelve loading messages. Reports use

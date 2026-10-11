@@ -25,6 +25,8 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 ### Changed
 
+- Create New Item prepares localized item search names with less parsing work while continuing to validate complete language tables.
+- Mod Management keeps inventory browsing available during runtime status checks and opens Files and history with less temporary memory. Apply and Launch still require a current status check.
 - Compatible sculpt commits and edited mesh package imports retain Morph & Refit state. Pending sculpted sliders and outfit corrections must be saved or discarded before Finish, and changed topology or source mappings are refused.
 
 - Mod Management opens one searchable, sortable mod list showing each mod's type, loading method and status. **Apply changes** prepares and saves supported new selections, then **Launch game** starts them. Existing installs retain their loading method; externally managed mods are clearly identified. First-time virtual loader setup asks once in the same flow, with verified CDMW updates automatic afterward. Installed-only games launch without virtual setup. Previews open from the selected mod. Advanced consolidates seven tabs into Health and recovery, Prepare packages, and Item identities, with clearer task descriptions and layouts that adapt to narrow windows and larger text.

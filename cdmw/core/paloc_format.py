@@ -112,24 +112,20 @@ def _container_payload(data: bytes, where: str) -> bytes:
     return payload
 
 
-def parse_paloc(data: bytes, *, name: str = "") -> LocalizationTable:
-    """Parse a `.paloc` string table.
+def _paloc_records(
+    data: bytes,
+    where: str,
+    wanted_keys: frozenset[str] | None = None,
+) -> tuple[LocalizationEntry, ...]:
+    """Validate every record, retaining only requested entries when supplied."""
 
-    The footer count and the record walk have to agree on how many records there are,
-    and the walk has to land exactly on the footer. Either check failing means this is
-    not the format, rather than a table that happens to be short.
-    """
-
-    where = f" ({name})" if name else ""
-    container = data if data.startswith(_CONTAINER_MAGIC) else b""
-    if container:
-        data = _container_payload(container, where)
     if len(data) < _FOOTER:
         raise PalocFormatError(f"buffer is too short to hold a count{where}")
     declared = struct.unpack_from("<I", data, len(data) - _FOOTER)[0]
     limit = len(data) - _FOOTER
     entries: list[LocalizationEntry] = []
     pos = 0
+    record_count = 0
     while pos < limit:
         if pos + _RECORD_HEAD > limit:
             raise PalocFormatError(f"record header at 0x{pos:X} runs past the table{where}")
@@ -146,21 +142,63 @@ def parse_paloc(data: bytes, *, name: str = "") -> LocalizationTable:
         text = data[pos: pos + text_length]
         pos += text_length
         try:
-            entries.append(
-                LocalizationEntry(
-                    category=category,
-                    key=key.decode("utf-8"),
-                    text=text.decode("utf-8"),
-                    reserved=reserved,
+            decoded_key = key.decode("utf-8")
+            if wanted_keys is None or decoded_key in wanted_keys:
+                entries.append(
+                    LocalizationEntry(
+                        category=category,
+                        key=decoded_key,
+                        text=text.decode("utf-8"),
+                        reserved=reserved,
+                    )
                 )
-            )
+            elif not text.isascii():
+                # Skipping allocation must never skip validation. ASCII bytes
+                # are valid UTF-8; every other skipped text still decodes strictly.
+                text.decode("utf-8")
         except UnicodeDecodeError as exc:
-            raise PalocFormatError(f"record {len(entries)} is not UTF-8{where}: {exc}") from exc
-    if len(entries) != declared:
+            raise PalocFormatError(f"record {record_count} is not UTF-8{where}: {exc}") from exc
+        record_count += 1
+    if record_count != declared:
         raise PalocFormatError(
-            f"the footer counts {declared:,} records but the table walks {len(entries):,}{where}"
+            f"the footer counts {declared:,} records but the table walks {record_count:,}{where}"
         )
-    return LocalizationTable(entries=tuple(entries), source_container=container)
+    return tuple(entries)
+
+
+def parse_paloc(data: bytes, *, name: str = "") -> LocalizationTable:
+    """Parse a complete `.paloc` string table, retaining its original container.
+
+    The footer count and the record walk must agree, and the walk must land
+    exactly on the footer. Every key and text is validated as strict UTF-8.
+    """
+
+    where = f" ({name})" if name else ""
+    container = data if data.startswith(_CONTAINER_MAGIC) else b""
+    if container:
+        data = _container_payload(container, where)
+    return LocalizationTable(entries=_paloc_records(data, where), source_container=container)
+
+
+def select_paloc_entries(
+    data: bytes,
+    keys: Iterable[str],
+    *,
+    name: str = "",
+) -> tuple[LocalizationEntry, ...]:
+    """Read selected keys without retaining unrelated dialogue and UI records.
+
+    The entire container, every record boundary, all UTF-8 and the footer count
+    are still validated, even for an empty selection. Duplicate selected keys
+    and their source order are preserved exactly as in a full parse followed by
+    filtering. This returns entries for read-only lookups, not a partial editable
+    LocalizationTable that could be mistaken for the complete source.
+    """
+
+    where = f" ({name})" if name else ""
+    if data.startswith(_CONTAINER_MAGIC):
+        data = _container_payload(data, where)
+    return _paloc_records(data, where, frozenset(keys))
 
 
 def encode_paloc(table: LocalizationTable | Iterable[LocalizationEntry]) -> bytes:

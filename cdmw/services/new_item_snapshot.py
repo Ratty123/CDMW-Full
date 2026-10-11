@@ -28,7 +28,7 @@ from cdmw.core.iteminfo_row import ItemInfoRow, ItemInfoRowError, parse_iteminfo
 from cdmw.core.item_sources import ItemDataSources, active_item_source, resolve_item_data_sources
 from cdmw.core.multichangeinfo_table import MultiChangeRow, parse_multichange_table
 from cdmw.core.pathc_format import PATHC_RELATIVE_PATH, PathcError, PathcTable, parse_pathc
-from cdmw.core.paloc_format import LocalizationEntry, LocalizationTable, parse_paloc
+from cdmw.core.paloc_format import LocalizationEntry, LocalizationTable, parse_paloc, select_paloc_entries
 from cdmw.core.pappt_format import PartPrefabTable, parse_pappt
 from cdmw.core.storeinfo_table import StoreInfoError, StoreRow, parse_store_table
 from cdmw.core.stringinfo_table import parse_stringinfo, stringinfo_index
@@ -445,11 +445,14 @@ def _localized_item_names(rows, paloc_entries, english, read, stop_event):
             item_display_names[int(key)] = display_name
     del english_by_key
     names_by_key: Dict[str, List[str]] = {}
-    wanted_keys = {row.name_key for row in rows.values() if row.name_key}
+    wanted_keys = frozenset(row.name_key for row in rows.values() if row.name_key)
     for language, entry in paloc_entries.items():
         raise_if_cancelled(stop_event, "New item snapshot cancelled.")
-        table = english if language == "eng" else parse_paloc(bytes(read(entry)), name=entry.path)
-        for localized in table.entries:
+        localized_entries = (
+            english.entries if language == "eng"
+            else select_paloc_entries(bytes(read(entry)), wanted_keys, name=entry.path)
+        )
+        for localized in localized_entries:
             if localized.key in wanted_keys and localized.text.strip():
                 names = names_by_key.setdefault(localized.key, [])
                 if localized.text.strip() not in names:

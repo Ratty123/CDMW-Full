@@ -31,6 +31,8 @@ def load_installed(tab, root):
     page = tab.virtual_page
     page._source_lane.cancel()
     page._sources = mod_sources(root)
+    page.refresh()
+    pump(QApplication.instance(), lambda: page._status_current and not page._status_reading)
     page._buttons()
     return page
 
@@ -210,6 +212,7 @@ def test_installed_only_launch_skips_virtual_setup_and_checks_current_profile(tm
         page = tab.virtual_page
         page._sources = mod_sources(root)
         page._draft_loaded = True
+        page.refresh()
         page._buttons()
         assert page.launch_button.isEnabled() and not page.apply_button.isEnabled()
         monkeypatch.setattr(page, '_ensure_runtime', lambda *_: pytest.fail('Ordinary launch must not require the virtual loader'))

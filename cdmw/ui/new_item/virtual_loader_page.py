@@ -372,6 +372,24 @@ class VirtualLoaderPage(QWidget):
             self._queue(self.refresh)
         self._run(lambda log, stop: publish_profile(prepared, stop_event=stop, on_log=log), done, applying=True)
 
+    def _runtime_refreshed(self, result, *, update_status=True):
+        state, profile = result
+        self._saved_selection = VirtualProfile(tuple(Path(p) for p in profile['packages']),
+                                               tuple(Path(p) for p in profile['mods'])) if profile else None
+        self._runtime = state
+        if not self._draft_loaded:
+            self.selection.clear()
+            self._next_order = 0
+            if profile:
+                self._append_selection('item', profile['packages'])
+                self._append_selection('mod', profile['mods'])
+            self._draft_loaded = True
+            self._runtime = state
+        if update_status:
+            self.progress.hide()
+            self.status.setText(self.tr(state.detail) if self._profile() == self._saved_selection or state.state == 'blocked'
+                                else self.tr('Apply the profile to use this selection.'))
+
     def refresh(self):
         from cdmw.services.virtual_loader_runtime import runtime_status
         from cdmw.services.virtual_loader_state import load_profile
@@ -379,27 +397,11 @@ class VirtualLoaderPage(QWidget):
             self._queued = self.refresh
             return
         root = self.package_root
-        def done(result):
-            state, profile = result
-            self._saved_selection = VirtualProfile(tuple(Path(p) for p in profile['packages']),
-                                                   tuple(Path(p) for p in profile['mods'])) if profile else None
-            self._runtime = state
-            if not self._draft_loaded:
-                self.selection.clear()
-                self._next_order = 0
-                if profile:
-                    self._append_selection('item', profile['packages'])
-                    self._append_selection('mod', profile['mods'])
-                self._draft_loaded = True
-                self._runtime = state
-            self.progress.hide()
-            self.status.setText(self.tr(state.detail) if self._profile() == self._saved_selection or state.state == 'blocked'
-                                else self.tr('Apply the profile to use this selection.'))
         def task(log, stop):
             state = runtime_status(root, experimental=True, stop_event=stop)
             profile = None if 'Recover' in state.detail else load_profile(root)
             return state, profile
-        self._run(task, done)
+        self._run(task, self._runtime_refreshed)
 
     def _setup(self):
         self._ensure_runtime(self.refresh)

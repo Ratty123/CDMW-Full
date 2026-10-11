@@ -299,7 +299,8 @@ def overlay_journal_path(layer):
     return relative
 
 
-def _unpack_changes(root, layer, pending, stop_event):
+def _unpack_changes(root, layer, pending, stop_event, *, metadata_only=False):
+    """Read verified journal records, optionally retaining only payload digests."""
     raw = _read_journal(root, layer, pending)
     changes = {}
     with zipfile.ZipFile(io.BytesIO(raw)) as archive:
@@ -331,6 +332,11 @@ def _unpack_changes(root, layer, pending, stop_event):
                 total += info.file_size
                 if info.file_size > _MAX_JOURNAL_BYTES or total > 4 * _MAX_JOURNAL_BYTES:
                     raise ValueError('Overlay journal payloads exceed the supported size.')
+                if metadata_only:
+                    # The complete journal digest and metadata/member bounds still
+                    # apply. Mutation callers retain full payload verification.
+                    change[side] = checksum
+                    continue
                 value = archive.read(info)
                 if _digest(value) != checksum:
                     raise ValueError('Overlay journal payload failed its checksum.')

@@ -159,13 +159,14 @@ def test_apply_click_projects_real_controls_saves_and_enables_launch(tmp_path, m
         assert titles == ['Mods', 'Advanced']
         tab.open_page('virtual')
         page = tab.virtual_page
-        pump(app, lambda: not controller.busy and page._queued is None)
+        pump(app, lambda: not controller.busy and page._queued is None and page._status_current)
         page._append_selection('item', files)
         state = bridge.snapshot()
         assert not state['unsupported']
         with patch.object(QMessageBox, 'question', side_effect=AssertionError('Apply must not ask to save again')):
             _send(bridge, page.apply_button, 'activate')
-            pump(app, lambda: page._queued is None and not page._working and not controller.busy)
+            pump(app, lambda: page._queued is None and not page._working and not controller.busy
+                 and page._status_current and not page._status_reading)
         assert len(load_profile(root)['items']) == 1
         assert game_bytes(root) == before
         assert page._prepared is None

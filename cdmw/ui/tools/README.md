@@ -48,10 +48,19 @@ another model.
 
 The workspace shares Create New Item's controller and services without requiring a draft
 or archive snapshot. Both tools use one operation lane, preventing an install from
-overlapping removal or recovery. The inventory uses a separate cancellable read worker,
-so startup's item-table preparation does not delay browsing or selection. A shared
-operation that could change the archives cancels an in-flight inventory read and queues
-a fresh read after it finishes; stale results cannot replace the inventory.
+overlapping removal or recovery. Inventory and runtime status use separate cancellable
+read workers, so startup's item-table preparation and runtime checks do not restart or
+delay inventory browsing. Repeated status requests for the same root share the in-flight
+read. A shared operation that could change the installation cancels these reads and
+queues fresh reads after it finishes; stale results cannot replace current state.
+Cancelled or failed status reads leave browsing and Refresh available, while Apply,
+Launch and other state-changing actions await a current completed status check.
+Runtime checks wait for a live session to end. Background rechecks preserve operation
+results and session progress; Refresh can show the newly checked runtime status.
+
+The Files and history inspector verifies the complete journal digest and validates its
+metadata and member bounds without decompressing every stored payload. Composition,
+removal and recovery retain the full payload verification path.
 
 Installed previews resolve the selected item from current mounted sources, reading only
 the needed model metadata instead of rebuilding the authoring catalogue. Current
