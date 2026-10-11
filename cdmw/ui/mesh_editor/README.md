@@ -57,7 +57,7 @@ bypass authoring workers, mesh revisions and Undo/Redo. The shared
 context pane and detached editor window.
 
 [Shader experiments](SHADER_CONTROLS.md) extend
-the existing Parts workflow with captured material dependencies, Undo/Redo and
+the selected-parts workflow with captured material dependencies, Undo/Redo and
 replacement draft version 12. Static Dissolve stays object-only.
 
 ### Precise numeric controls
@@ -96,16 +96,23 @@ The current product boundary is geometry authoring: selection, topology,
 transforms, normals/tangents, rigging, Morph & Refit, UV-coordinate editing,
 history, original-vs-edited review, validation, and read-only textured display.
 Replacement imports, reversible output inclusion, experimental translucency and glow
-extend that foundation in the existing Parts panel. General material assignment, recolouring and
-in-game swaps remain separate workflows. Hair Appearance has a scoped DDS handoff.
+extend that foundation through the Inspector's Parts and material controls.
+General material assignment, recolouring and in-game swaps remain separate
+workflows. Hair Appearance has a scoped DDS handoff.
 
 ## Parts and appearance
 
+**Parts** manages selection and mesh structure. **Translucency (experimental)**,
+**Glow (experimental)** and **Shader experiments** have separate collapsible
+headings in the Inspector, below Parts. Select parts, then open the material
+control you need; it remains accessible when Parts is collapsed.
+
 ### Mesh islands
 
-Open **Parts**, select a part, and use **Mesh islands** to address disconnected
+Open **Parts**, select a part, and expand **Mesh islands** to address disconnected
 pieces inside that part. Selecting an island selects its faces for the existing
 move, rotate, scale and Free Edit tools; it does not create a new material or part.
+Mesh islands starts collapsed and opens when you click its heading.
 Coincident UV-seam vertices are grouped at 1e-5 model-unit precision without
 welding or moving the model. Existing **Linked** selection still follows vertex
 indices when that stricter connectivity is wanted.

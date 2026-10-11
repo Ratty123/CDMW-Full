@@ -79,6 +79,38 @@ fn island_ui(size: egui::Vec2) -> Result<HeadlessUi, Box<dyn std::error::Error>>
 }
 
 #[test]
+fn island_controls_start_collapsed_and_materials_stay_outside_parts() -> TestResult {
+    let mut ui = island_ui(egui::vec2(1280.0, 900.0))?;
+    for key in ["translucency", "emission", "shader_controls"] {
+        ui.application.cdmw_state[key] = json!({"available": false, "parts": []});
+    }
+    ui.settle_layout();
+    ui.reveal("Mesh islands")?;
+    assert!(ui.label_rect("Show all islands").is_none());
+    assert!(ui.label_rect("Island 1 · 1 faces").is_none());
+    ui.click("Parts")?;
+    assert!(ui.label_rect("Mesh islands").is_none());
+    for (heading, control) in [
+        ("Translucency (experimental)", "Apply translucency"),
+        ("Glow (experimental)", "Apply glow"),
+        ("Shader experiments", "Apply shader controls"),
+    ] {
+        ui.click(heading)?;
+        ui.reveal(control)?;
+        assert!(ui.label_rect("Mesh islands").is_none());
+        ui.click(heading)?;
+    }
+    ui.click("Parts")?;
+    ui.reveal("Mesh islands")?;
+    assert!(ui.label_rect("Show all islands").is_none());
+    ui.click("Mesh islands")?;
+    ui.reveal("Island 1 · 1 faces")?;
+    ui.click("Mesh islands")?;
+    assert!(ui.label_rect("Island 1 · 1 faces").is_none());
+    Ok(())
+}
+
+#[test]
 fn island_controls_select_isolate_and_restore_without_export_edits() -> TestResult {
     let mut ui = island_ui(egui::vec2(1440.0, 1080.0))?;
     let before = ui
@@ -87,6 +119,7 @@ fn island_controls_select_isolate_and_restore_without_export_edits() -> TestResu
         .as_ref()
         .ok_or("mesh")?
         .structural_fingerprint();
+    ui.click("Mesh islands")?;
     ui.click("Island 1 · 1 faces")?;
     let mesh = ui.application.mesh.as_ref().ok_or("mesh")?;
     assert!(mesh.selection.submeshes.is_empty());
@@ -138,6 +171,7 @@ fn island_controls_select_isolate_and_restore_without_export_edits() -> TestResu
 #[test]
 fn island_controls_dispatch_exact_mod_mask_and_preserve_deformation_alignment() -> TestResult {
     let mut ui = island_ui(egui::vec2(1280.0, 900.0))?;
+    ui.click("Mesh islands")?;
     let row = ui.reveal("Island 1 · 1 faces")?;
     ui.last_actions.clear();
     ui.click_where("Mod", |rect| (rect.center().y - row.center().y).abs() < 2.0)?;

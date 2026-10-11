@@ -4103,6 +4103,20 @@ impl LabApplication {
                                 self.draw_cdmw_parts(ui, actions);
                             });
                         });
+                        if ["translucency", "emission", "shader_controls"]
+                            .iter()
+                            .any(|key| self.cdmw_state.get(*key).is_some())
+                        {
+                            ui.add_space(6.0);
+                            ui.push_id("cdmw-materials", |ui| {
+                                egui::Frame::group(ui.style()).show(ui, |ui| {
+                                    ui.set_width(ui.available_width());
+                                    self.draw_cdmw_translucency(ui, actions);
+                                    self.draw_cdmw_emission(ui, actions);
+                                    self.draw_cdmw_shader_controls(ui, actions);
+                                });
+                            });
+                        }
                         ui.add_space(6.0);
                         egui::Frame::group(ui.style()).show(ui, |ui| {
                             ui.set_width(ui.available_width());
@@ -4384,9 +4398,6 @@ impl LabApplication {
             ui.small(crate::localization::tr("Keep at least one part when deleting."));
         }
         self.draw_cdmw_islands(ui, actions);
-        self.draw_cdmw_translucency(ui, actions);
-        self.draw_cdmw_emission(ui, actions);
-        self.draw_cdmw_shader_controls(ui, actions);
     }
 
     fn cdmw_part_action_reason(&self, action: &str) -> Option<&'static str> {

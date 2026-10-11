@@ -25,6 +25,7 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 ### Changed
 
+- Mesh Editor gives Translucency, Glow and Shader experiments separate Inspector headings, accessible with Parts collapsed. Mesh islands starts collapsed inside Parts.
 - Create New Item prepares localized item search names with less parsing work while continuing to validate complete language tables.
 - Mod Management keeps inventory browsing available during runtime status checks and opens Files and history with less temporary memory. Apply and Launch still require a current status check.
 - Compatible sculpt commits and edited mesh package imports retain Morph & Refit state. Pending sculpted sliders and outfit corrections must be saved or discarded before Finish, and changed topology or source mappings are refused.

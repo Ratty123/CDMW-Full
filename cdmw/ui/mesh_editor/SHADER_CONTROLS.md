@@ -1,7 +1,7 @@
 # Experimental shader controls
 
 **Create New Item → Model & Placement → Appearance → Shader experiments** and
-**Mesh Editor → Parts → Shader experiments** share the controls below. Select a
+**Mesh Editor → Inspector → Shader experiments** share the controls below. Select a
 part and experiment, then check the fields to override. Unchecked fields retain
 authored values; disabled numbers show defaults, not source readback. Restore
 removes the experiment. Mesh Editor supports Undo/Redo and replacement drafts.

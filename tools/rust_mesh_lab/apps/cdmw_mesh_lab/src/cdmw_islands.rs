@@ -152,59 +152,63 @@ impl LabApplication {
     }
 
     pub(super) fn draw_cdmw_islands(&mut self, ui: &mut egui::Ui, actions: &mut Vec<UiAction>) {
-        let parts = self.cdmw_state["mesh_islands"]["parts"]
-            .as_array()
-            .cloned()
-            .unwrap_or_default();
         ui.separator();
-        ui.strong(crate::localization::tr("Mesh islands"));
-        ui.small(crate::localization::tr("Select a part, then an island to move, scale or edit it."));
-        ui.small(crate::localization::tr("View: viewport only · Mod: include in exported PAC"));
-        let editing = self.cdmw_state["replacement"]["comparison"]
-            .as_str()
-            .is_none_or(|mode| mode == "edit");
-        ui.add_enabled_ui(!self.cdmw_busy() && editing, |ui| {
-            if ui.add_enabled(!self.cdmw_hidden_islands.is_empty(), Button::new(crate::localization::tr("Show all islands"))).clicked() {
-                actions.push(UiAction::ShowAllIslands);
-            }
-            ScrollArea::vertical().id_salt("cdmw_mesh_islands").max_height(180.0).show(ui, |ui| {
-                for row in parts {
-                    let part = row["index"].as_u64().unwrap_or_default() as u32;
-                    let selected_faces: HashSet<_> = self.mesh.as_ref().into_iter().flat_map(|mesh|
-                        mesh.selection.faces.iter().filter_map(|handle| match mesh.face(*handle)?.provenance {
-                            Provenance::Source { submesh, element } if submesh == part => Some(element),
-                            _ => None,
-                        })).collect();
-                    ui.weak(crate::localization::tr(row["name"].as_str().unwrap_or("Part")));
-                    for (index, island) in row["islands"].as_array().into_iter().flatten().enumerate() {
-                        let faces = island_faces(island);
-                        let mut shown = !self.cdmw_hidden_islands.iter().any(|hidden| hidden.part == part && hidden.faces == faces);
-                        let selected = !faces.is_empty() && faces.iter().all(|face| selected_faces.contains(face));
-                        ui.push_id((part, index), |ui| ui.horizontal(|ui| {
-                            if ui.checkbox(&mut shown, crate::localization::tr("View")).changed() {
-                                actions.push(UiAction::SetIslandVisibility { part, faces: faces.clone(), visible: shown });
-                            }
-                            let mut included = island["included"].as_bool().unwrap_or(true);
-                            if ui.add_enabled(row["available"].as_bool().unwrap_or(false), egui::Checkbox::new(&mut included, crate::localization::tr("Mod")))
-                                .on_disabled_hover_text(crate::localization::tr(row["reason"].as_str().unwrap_or_default()))
-                                .on_hover_text(crate::localization::tr("Reversible output exclusion across all LODs; keeps the part and material"))
-                                .changed() {
-                                    actions.push(UiAction::CdmwCommand { command: "replacement_islands",
-                                        arguments: json!({"part_id": row["part_id"], "faces": faces, "included": included}),
-                                        label: "Change island output inclusion" });
-                            }
-                            if ui.add_enabled(shown, Button::selectable(selected, crate::localization::tr(format!("Island {} · {} faces", index + 1, faces.len())))).clicked() {
-                                actions.push(UiAction::SelectIsland { part, faces: faces.clone() });
-                            }
-                            if ui.small_button(crate::localization::tr("Isolate")).on_hover_text(crate::localization::tr("Show only this island within its part")).clicked() {
-                                actions.push(UiAction::IsolateIsland { part, faces: faces.clone() });
-                            }
-                        }));
+        egui::CollapsingHeader::new(crate::localization::tr("Mesh islands"))
+            .id_salt("cdmw-mesh-islands")
+            .default_open(false)
+            .show(ui, |ui| {
+                let parts = self.cdmw_state["mesh_islands"]["parts"]
+                    .as_array()
+                    .cloned()
+                    .unwrap_or_default();
+                ui.small(crate::localization::tr("Select a part, then an island to move, scale or edit it."));
+                ui.small(crate::localization::tr("View: viewport only · Mod: include in exported PAC"));
+                let editing = self.cdmw_state["replacement"]["comparison"]
+                    .as_str()
+                    .is_none_or(|mode| mode == "edit");
+                ui.add_enabled_ui(!self.cdmw_busy() && editing, |ui| {
+                    if ui.add_enabled(!self.cdmw_hidden_islands.is_empty(), Button::new(crate::localization::tr("Show all islands"))).clicked() {
+                        actions.push(UiAction::ShowAllIslands);
                     }
-                }
+                    ScrollArea::vertical().id_salt("cdmw_mesh_islands").max_height(180.0).show(ui, |ui| {
+                        for row in parts {
+                            let part = row["index"].as_u64().unwrap_or_default() as u32;
+                            let selected_faces: HashSet<_> = self.mesh.as_ref().into_iter().flat_map(|mesh|
+                                mesh.selection.faces.iter().filter_map(|handle| match mesh.face(*handle)?.provenance {
+                                    Provenance::Source { submesh, element } if submesh == part => Some(element),
+                                    _ => None,
+                                })).collect();
+                            ui.weak(crate::localization::tr(row["name"].as_str().unwrap_or("Part")));
+                            for (index, island) in row["islands"].as_array().into_iter().flatten().enumerate() {
+                                let faces = island_faces(island);
+                                let mut shown = !self.cdmw_hidden_islands.iter().any(|hidden| hidden.part == part && hidden.faces == faces);
+                                let selected = !faces.is_empty() && faces.iter().all(|face| selected_faces.contains(face));
+                                ui.push_id((part, index), |ui| ui.horizontal(|ui| {
+                                    if ui.checkbox(&mut shown, crate::localization::tr("View")).changed() {
+                                        actions.push(UiAction::SetIslandVisibility { part, faces: faces.clone(), visible: shown });
+                                    }
+                                    let mut included = island["included"].as_bool().unwrap_or(true);
+                                    if ui.add_enabled(row["available"].as_bool().unwrap_or(false), egui::Checkbox::new(&mut included, crate::localization::tr("Mod")))
+                                        .on_disabled_hover_text(crate::localization::tr(row["reason"].as_str().unwrap_or_default()))
+                                        .on_hover_text(crate::localization::tr("Reversible output exclusion across all LODs; keeps the part and material"))
+                                        .changed() {
+                                            actions.push(UiAction::CdmwCommand { command: "replacement_islands",
+                                                arguments: json!({"part_id": row["part_id"], "faces": faces, "included": included}),
+                                                label: "Change island output inclusion" });
+                                    }
+                                    if ui.add_enabled(shown, Button::selectable(selected, crate::localization::tr(format!("Island {} · {} faces", index + 1, faces.len())))).clicked() {
+                                        actions.push(UiAction::SelectIsland { part, faces: faces.clone() });
+                                    }
+                                    if ui.small_button(crate::localization::tr("Isolate")).on_hover_text(crate::localization::tr("Show only this island within its part")).clicked() {
+                                        actions.push(UiAction::IsolateIsland { part, faces: faces.clone() });
+                                    }
+                                }));
+                            }
+                        }
+                    });
+                });
+                ui.small(crate::localization::tr("Coincident seam vertices are grouped without welding the model."));
             });
-        });
-        ui.small(crate::localization::tr("Coincident seam vertices are grouped without welding the model."));
     }
 }
 
