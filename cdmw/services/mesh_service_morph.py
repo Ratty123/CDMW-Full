@@ -800,6 +800,7 @@ class MeshMorphServiceMixin(MeshMorphLayerMixin, MeshMorphAuthoringMixin, MeshMo
     ) -> tuple[MeshEditResult, MeshMorphState]:
         current_data = self._morph_sessions.get(session.session_id)
         if record_history and current_data is not None and current_data.manual_values is not None:
+            self._require_no_pending_morph_authoring(session, include_baseline=True)
             return self._morph_authoring_transaction_locked(
                 session, "morph_activate", "Select Morph Profile",
                 lambda: self._activate_morph_profile_locked(
@@ -2157,7 +2158,7 @@ class MeshMorphServiceMixin(MeshMorphLayerMixin, MeshMorphAuthoringMixin, MeshMo
             correction_definition_id=(data.correction_capture.definition_id if data.correction_capture is not None else ""),
             correction_garment_submesh_indices=(data.correction_capture.garment_submesh_indices if data.correction_capture is not None else ()),
             corrections_enabled=data.corrections_enabled,
-            matching_recipes=self._matching_refit_setups_locked(session, data, raw_state),
+            **self._matching_refit_setup_state_fields_locked(session, data, raw_state),
         )
 
 

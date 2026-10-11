@@ -7,6 +7,7 @@ fn outfit_ui() -> Result<HeadlessUi, Box<dyn std::error::Error>> {
     state["corrections_enabled"] = json!(true);
     state["definitions"][0]["garment_correction_submesh_indices"] = json!([1, 2]);
     state["matching_recipes"] = json!([["setup-stable-identity", "Sleeve and plate fit"]]);
+    state["matching_recipe_garments"] = json!([["setup-stable-identity", [1, 2]]]);
     ui.application.cdmw_morph_preset_name = "Studio outfit".into();
     ui.frame(Vec::new());
     Ok(ui)
@@ -159,5 +160,47 @@ fn matching_saved_setup_applies_during_an_active_unbaked_preview() -> TestResult
     }));
     assert_eq!(ui.application.cdmw_state["morph_refit"]["values"], json!([["body-shape", 42.5]]));
     assert_eq!(ui.application.cdmw_state["morph_refit"]["unbaked"], json!(true));
+    Ok(())
+}
+
+#[test]
+fn saved_setup_keeps_selected_recipe_garments_without_current_bindings() -> TestResult {
+    for current_garments in [json!([]), json!([1])] {
+        let mut ui = outfit_ui()?;
+        let state = &mut ui.application.cdmw_state["morph_refit"];
+        state["profile_id"] = json!("");
+        state["driver_submesh_indices"] = json!([]);
+        state["refit"]["garment_submesh_indices"] = current_garments;
+        select_parts(&mut ui, &[0, 2])?;
+        ui.click("Profiles & presets")?;
+        ui.last_actions.clear();
+        ui.choose("Saved setup", "Choose matching setup", "Sleeve and plate fit")?;
+        assert_eq!(command_arguments(&ui.last_actions, "morph_apply_setup"), json!({
+            "recipe_id": "setup-stable-identity", "garment_submesh_indices": [2],
+        }));
+    }
+    Ok(())
+}
+
+#[test]
+fn saved_setup_never_widens_an_unmatched_selection_to_all_garments() -> TestResult {
+    let mut ui = outfit_ui()?;
+    select_parts(&mut ui, &[0])?;
+    ui.click("Profiles & presets")?;
+    ui.last_actions.clear();
+    ui.choose("Saved setup", "Choose matching setup", "Sleeve and plate fit")?;
+    assert!(ui.last_actions.is_empty());
+    Ok(())
+}
+
+#[test]
+fn saved_setup_requires_its_verified_garment_roles_before_application() -> TestResult {
+    let mut ui = outfit_ui()?;
+    ui.application.cdmw_state["morph_refit"]["matching_recipe_garments"] = json!([]);
+    select_parts(&mut ui, &[])?;
+    ui.click("Profiles & presets")?;
+    ui.last_actions.clear();
+    ui.choose("Saved setup", "Choose matching setup", "Sleeve and plate fit")?;
+    assert!(ui.last_actions.is_empty());
     Ok(())
 }

@@ -720,6 +720,9 @@ class MeshMorphAuthoringMixin:
             if fields == definition.garment_corrections:
                 return self._result(session, "morph_reset_correction", status="noop"), data.state
             neutral = self._native_neutral_mesh_locked(session, _profile_role_indices(data.profile))
+            if fields:
+                # Retained corrections must still belong to their recorded base.
+                validate_morph_definition_geometry(neutral, definition)
             corrected = with_morph_garment_corrections(definition, neutral, fields)
             profile = replace(data.profile, definitions=tuple(
                 corrected if item.definition_id == corrected.definition_id else item

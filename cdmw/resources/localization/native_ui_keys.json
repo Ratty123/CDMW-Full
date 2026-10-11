@@ -1937,6 +1937,7 @@
   "This saved fitting setup is no longer available.",
   "This session is read-only",
   "This session is read-only; choose an editable output route first",
+  "This setup changes body definitions used by unselected garment corrections. Include those garment Parts before applying it.",
   "This source encoding supports Disable / Restore only.",
   "This topology action requires Free Edit output",
   "This variant explicitly leaves a selected part without a profile.",

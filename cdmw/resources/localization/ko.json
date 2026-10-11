@@ -12443,6 +12443,7 @@
     "This session has no replacement output state.": "이 세션에는 교체 출력 상태가 없습니다.",
     "This session is read-only": "이 세션은 읽기 전용입니다.",
     "This session is read-only; choose an editable output route first": "이 세션은 읽기 전용입니다; 먼저 편집 가능한 출력 경로를 선택하세요.",
+    "This setup changes body definitions used by unselected garment corrections. Include those garment Parts before applying it.": "This setup changes body definitions used by unselected garment corrections. Include those garment Parts before applying it.",
     "This shape has a recovered skeleton/body placement.": "이 모양에는 복구된 골격/신체 배치가 있습니다.",
     "This shape is still drawn from recovered local/raw coordinates, so its on-screen placement may be approximate.": "이 모양은 여전히 복구된 로컬/원시 좌표에서 그려지므로 화면상 배치는 대략적일 수 있습니다.",
     "This shop line sells freely.": "이 상점 줄은 자유롭게 판매됩니다.",

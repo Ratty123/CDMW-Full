@@ -159,3 +159,31 @@ def test_rejected_comparison_upload_restores_metadata_geometry_and_history(resid
     assert service.cached_morph_state(session_id).definitions == state_before.definitions
     assert len(service._session(session_id).undo_stack) == history_before
     _same_mesh(_positions_for(service, session_id), before)
+
+
+def test_partial_correction_reset_preserves_remaining_identity_after_neutral_edit(resident):
+    service, open_session = resident
+    session_id = _corrected_outfit(service, open_session)
+    assert service.reset_morph(session_id)[0].ok
+    assert _sculpt(service, session_id, {3: (0,)}, (0.0, 0.0, 0.1)).ok
+    before = _positions_for(service, session_id)
+    state_before = service.cached_morph_state(session_id)
+    history_before = len(service._session(session_id).undo_stack)
+
+    with pytest.raises(ValueError, match="Garment correction base geometry or source/skin identity"):
+        service.reset_morph_correction(session_id, "volume", (2,))
+
+    state = service.cached_morph_state(session_id)
+    assert state.definitions == state_before.definitions
+    assert state.values == state_before.values
+    assert state.refit == state_before.refit
+    assert len(service._session(session_id).undo_stack) == history_before
+    _same_mesh(_positions_for(service, session_id), before)
+
+    # Removing every stale correction leaves no indexed deltas to reuse.
+    assert service.reset_morph_correction(session_id, "volume", (2, 3))[0].ok
+    assert service.cached_morph_state(session_id).definitions[0].garment_corrections == ()
+    _same_mesh(_positions_for(service, session_id), before)
+    assert service.undo(session_id).ok
+    assert service.cached_morph_state(session_id).definitions == state_before.definitions
+    _same_mesh(_positions_for(service, session_id), before)

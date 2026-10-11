@@ -456,6 +456,7 @@ class MeshMorphState:
     matching_recipes: tuple[tuple[str, str], ...] = ()
     body_controls_available: bool = False
     body_controls_reason: str = ""
+    matching_recipe_garments: tuple[tuple[str, tuple[int, ...]], ...] = ()
 
 
 def mesh_topology_fingerprint(mesh: object, submesh_indices: Iterable[int] | None = None) -> str:

@@ -9,7 +9,10 @@ import re
 
 import pytest
 
-from cdmw.domain.mesh import mesh_morph_driver_topology_fingerprint
+from cdmw.domain.mesh import (
+    MeshMorphSparseField, mesh_morph_driver_topology_fingerprint,
+    with_morph_garment_corrections,
+)
 from cdmw.domain.mesh.morph_layers import compose_mesh_morph_values
 from cdmw.services.mesh_service_history_files import (
     _mesh_morph_profile_directory_state,
@@ -39,10 +42,10 @@ class SetupHarness(Harness):
         fields = self._morph_layer_state_fields_locked(
             session, self.data, self.data.profile, dict(state.values),
         )
-        matching = self._matching_refit_setups_locked(
+        matching_fields = self._matching_refit_setup_state_fields_locked(
             session, self.data, {"driver_submesh_indices": state.driver_submesh_indices},
         )
-        self.data.state = replace(state, matching_recipes=matching, **fields)
+        self.data.state = replace(state, **matching_fields, **fields)
         return self.data.state
 
     def _capture_morph_profile_history_locked(self, session, **kwargs):
@@ -90,6 +93,7 @@ def test_save_setup_uses_opaque_identity_and_one_reversible_tree_transaction(tmp
     assert path.is_file()
     recipe = read_fitting_recipe(path)
     assert recipe.recipe_id == identifier and recipe.name == "Travel outfit"
+    assert state.matching_recipe_garments == ((identifier, (2, 3)),)
     assert recipe.preset.values == (("lift", 45.0),)
     assert recipe.garment_settings == state.refit.garment_settings
     assert service.session.working_mesh == original_mesh
@@ -196,9 +200,11 @@ def test_changed_setup_content_reparses_and_validates_before_updating_list(tmp_p
     path.write_text(serialized_fitting_recipe(recipe), encoding="utf-8")
     refreshed = service._refresh_cached_morph_metadata_locked(service.session)
     assert refreshed.matching_recipes == ((identifier, "Renamed externally"),)
+    assert refreshed.matching_recipe_garments == ((identifier, (2, 3)),)
     assert service.neutral_queries == queries + 1
     path.write_text("invalid JSON", encoding="utf-8")
-    assert service._refresh_cached_morph_metadata_locked(service.session).matching_recipes == ()
+    invalid = service._refresh_cached_morph_metadata_locked(service.session)
+    assert invalid.matching_recipes == () and invalid.matching_recipe_garments == ()
     with pytest.raises(ValueError):
         service.apply_refit_setup("mock", identifier)
 
@@ -292,4 +298,31 @@ def test_saved_setups_remain_discoverable_without_an_active_profile(tmp_path):
     service._morph_sessions["mock"] = _MeshMorphSessionData(state=replace(
         service.data.state, profile_id="", definitions=(), values=(), driver_submesh_indices=(),
     ))
-    assert service._refresh_cached_morph_metadata_locked(service.session).matching_recipes == expected
+    reopened = service._refresh_cached_morph_metadata_locked(service.session)
+    assert reopened.matching_recipes == expected
+    assert reopened.matching_recipe_garments == tuple((identifier, (2, 3)) for identifier, _name in expected)
+
+
+@pytest.mark.parametrize("invalid", ["body_definition", "correction_identity"])
+def test_partial_setup_refuses_incompatible_or_stale_retained_corrections_before_transaction(tmp_path, invalid):
+    service = _service(tmp_path)
+    _result, saved = service.save_refit_setup("mock", "Original fit")
+    identifier, _path = _saved_path(service, saved)
+    definition = service.data.profile.definitions[0]
+    corrected = with_morph_garment_corrections(definition, service.neutral, (
+        MeshMorphSparseField("lift", 3, (0,), ((0.0, 0.0, 0.3),)),
+    ))
+    if invalid == "body_definition":
+        corrected = replace(corrected, rule=replace(corrected.rule, amount=0.5))
+        expected = "body definitions"
+    else:
+        corrected = replace(corrected, correction_base_geometry_fingerprint="0" * 64)
+        expected = "correction base geometry"
+    service.data.profile = replace(service.data.profile, definitions=(corrected,))
+    previous_tree = _mesh_morph_profile_directory_state(service.root)
+    captures = service.captures
+    with pytest.raises(ValueError, match=expected):
+        service.apply_refit_setup("mock", identifier, (2,))
+    assert service.captures == captures and not service.commands
+    assert service.data.profile.definitions == (corrected,)
+    assert _mesh_morph_profile_directory_state(service.root) == previous_tree

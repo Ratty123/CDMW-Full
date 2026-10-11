@@ -83561,7 +83561,12 @@
       "origins": [
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui/morph_outfit_workflows.rs",
-          "line": 112,
+          "line": 120,
+          "sink": "rust-presentation"
+        },
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui/morph_outfit_workflows.rs",
+          "line": 136,
           "sink": "rust-presentation"
         }
       ]
@@ -125053,6 +125058,11 @@
           "path": "cdmw/services/mesh_service_morph_recipes.py",
           "line": 214,
           "sink": "ValueError"
+        },
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui/morph_outfit_workflows.rs",
+          "line": 122,
+          "sink": "rust-presentation"
         }
       ]
     },
@@ -144808,6 +144818,16 @@
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
           "line": 2219,
           "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "This setup changes body definitions used by unselected garment corrections. Include those garment Parts before applying it.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_service_morph_recipes.py",
+          "line": 418,
+          "sink": "ValueError"
         }
       ]
     },

@@ -12443,6 +12443,7 @@
     "This session has no replacement output state.": "This session has no replacement output state.",
     "This session is read-only": "This session is read-only",
     "This session is read-only; choose an editable output route first": "This session is read-only; choose an editable output route first",
+    "This setup changes body definitions used by unselected garment corrections. Include those garment Parts before applying it.": "This setup changes body definitions used by unselected garment corrections. Include those garment Parts before applying it.",
     "This shape has a recovered skeleton/body placement.": "This shape has a recovered skeleton/body placement.",
     "This shape is still drawn from recovered local/raw coordinates, so its on-screen placement may be approximate.": "This shape is still drawn from recovered local/raw coordinates, so its on-screen placement may be approximate.",
     "This shop line sells freely.": "This shop line sells freely.",

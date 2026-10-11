@@ -1686,6 +1686,11 @@ the combined preview reached a slider limit. Ordinary **Reset** clears the compl
 morph preview and its layers; **Bake** keeps the current geometry and clears the
 layers. All these operations support Undo/Redo.
 
+Layered changes validate saved authored targets and outfit corrections against
+their neutral geometry and source/skin identity before use. Every garment referenced
+by a correction must remain bound. Resolve pending slider or correction authoring
+before changing these controls.
+
 **Side adjustments** offers **Both**, **Left** and **Right** for supported generated
 pairs. Both shifts the two manual values equally and keeps their difference.
 Its range narrows near the limits to preserve that difference. Left and Right
@@ -1777,7 +1782,10 @@ Undo/Redo and Cancel remain available during the comparison.
 **Reset selected outfit correction**, below a Shape slider, removes that slider's
 saved correction only from the selected corrected, bound garment Parts. Other
 corrections, body-control layers, bindings and influence masks remain intact.
-Undo/Redo restores the removed correction and its geometry.
+Undo/Redo restores the removed correction and its geometry. When other corrections
+remain on that slider, Reset first verifies their original neutral geometry and
+source/skin identity. Removing every correction for the slider remains available
+if that original base has changed.
 
 #### Geometry layers and output
 
@@ -1831,7 +1839,10 @@ Name the fit in the preset-name field and choose **Save reusable fitting setup**
 retain it in the session library. **Matching fitting setups** lists saved setups whose
 body and garment Parts have the required neutral geometry, topology and source/skin
 identity. Choose a **Saved setup** to apply it to the selected matching garment Parts,
-or to all its garment Parts when none are selected. The body's preset remains shared.
+or to all its garment Parts when none are selected. Selection also works before a
+profile or garment binding has been configured. A selection containing none of that
+setup's garments disables its application; clear the selection to apply to all of
+its garment Parts. The body's preset remains shared.
 An active shape preview can stay in place during matching and application because
 compatibility is checked against its neutral base. Application checks the current
 saved file again before changing the fit.
@@ -1861,8 +1872,11 @@ A setup can be reopened in a later compatible session. Load multiple outfit asse
 around the same body to apply one preset and their individual settings together;
 Finish and Build Mod continue through the existing atomic multi-asset output.
 The saved-setup selector and service callers can target a subset of the setup's garment
-slots; other bindings
-and settings are retained, while the body preset remains shared by the session.
+slots. Unselected garments retain their current corrections, bindings and settings.
+A partial application that changes body definitions required by those corrections
+is refused; include their garment Parts or resolve those corrections first. The body
+preset remains shared, so changing it can still change the automatic fit of other
+bound garments.
 
 This workflow operates on loaded, verified meshes. It does not search arbitrary
 folders for outfits or transfer a garment's indexed mask and corrections to different

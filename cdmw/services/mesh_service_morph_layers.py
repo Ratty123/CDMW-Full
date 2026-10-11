@@ -98,9 +98,15 @@ class MeshMorphLayerMixin(MeshBodyControlsMixin):
         return dict(state.values) if data.manual_values is None else dict(data.manual_values)
 
     def _set_morph_layers_locked(self, session, manual, macros, symmetry, *, action, label):
+        self._require_no_pending_morph_authoring(session, include_baseline=True)
         data = self._required_morph_data(session)
         values = compose_mesh_morph_values(
             data.profile, manual, macros, symmetry_enabled=symmetry,
+        )
+        # This is an ordinary value edit. Validate before the transaction's
+        # internal authoring flag permits temporary capture/upload states.
+        self._validate_authored_runtime_use_locked(
+            session, "morph_apply_preset", {"preset_id": "", "values": values},
         )
         manual, macros = dict(manual), {key: value for key, value in dict(macros).items() if value != 0.0}
 
@@ -207,8 +213,13 @@ class MeshMorphLayerMixin(MeshBodyControlsMixin):
         )
 
     def _apply_layered_morph_preset_locked(self, session, preset, diagnostics=()):
+        self._require_no_pending_morph_authoring(session, include_baseline=True)
         data = self._required_morph_data(session)
         validate_mesh_morph_layers(data.profile, preset)
+        self._validate_authored_runtime_use_locked(
+            session, "morph_apply_preset",
+            {"preset_id": preset.preset_id, "values": dict(preset.values)},
+        )
 
         def apply():
             report = self._run_morph_command_locked(

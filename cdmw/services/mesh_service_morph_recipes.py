@@ -18,7 +18,10 @@ from cdmw.domain.mesh import (
     mesh_morph_base_fingerprint,
     mesh_morph_role_topology_fingerprint,
     validate_mesh_morph_fitting_recipe,
+    validate_morph_definition_geometry,
+    with_morph_garment_corrections,
 )
+from cdmw.domain.mesh.morph_layers import mesh_morph_profile_definition_fingerprint
 from cdmw.services.mesh_morph_profiles import (
     mesh_morph_preset_from_payload,
     mesh_morph_preset_payload,
@@ -285,6 +288,19 @@ class MeshMorphRecipeMixin:
         if isinstance(cache, _RefitSetupCache) and cache.revision == previous_revision:
             cache.revision = session.revision
 
+    def _matching_refit_setup_state_fields_locked(self, session, data, raw_state):
+        """Expose names and garment roles from the same verified setup snapshot."""
+        matches = self._matching_refit_setups_locked(session, data, raw_state)
+        cache = getattr(data, "refit_setup_cache", None)
+        garments = ()
+        if matches and isinstance(cache, _RefitSetupCache):
+            recipes = {recipe.recipe_id: recipe for recipe in cache.recipes}
+            garments = tuple(
+                (identifier, tuple(item.submesh_index for item in recipes[identifier].garment_settings))
+                for identifier, _name in matches
+            )
+        return {"matching_recipes": matches, "matching_recipe_garments": garments}
+
     def _matching_refit_setups_locked(self, session, data, raw_state):
         """Cache exact validation by saved content, editor revision and driver roles."""
         from cdmw.services.mesh_service_morph import _service_call, mesh_morph_profile_lock
@@ -390,19 +406,50 @@ class MeshMorphRecipeMixin:
         )
         if not set(targets).issubset(recipe_garments):
             raise ValueError("Selected garment parts are absent from this fitting recipe.")
-        roles = _recipe_roles(recipe)
+        current_profile = getattr(self._morph_sessions.get(session.session_id), "profile", None)
+        retained_definitions = tuple(
+            definition for definition in current_profile.definitions
+            if any(field.submesh_index not in targets for field in definition.garment_corrections)
+        ) if current_profile is not None else ()
+        if retained_definitions and (
+            mesh_morph_profile_definition_fingerprint(current_profile)
+            != mesh_morph_profile_definition_fingerprint(recipe.profile)
+        ):
+            raise ValueError("This setup changes body definitions used by unselected garment corrections. Include those garment Parts before applying it.")
+        roles = tuple(sorted(set(_recipe_roles(recipe)).union(
+            field.submesh_index
+            for definition in retained_definitions for field in definition.garment_corrections
+        )))
         neutral = self._native_neutral_mesh_locked(session, roles)
         validate_mesh_morph_fitting_recipe(neutral, recipe)
+        # Verify the complete original correction identity before retaining a
+        # subset and computing its new fingerprint. A stale field is not rebased.
+        for definition in retained_definitions:
+            validate_morph_definition_geometry(neutral, definition)
+        retained = {
+            definition.definition_id: tuple(
+                field for field in definition.garment_corrections if field.submesh_index not in targets
+            )
+            for definition in retained_definitions
+        }
+        scoped_profile = replace(recipe.profile, definitions=tuple(
+            with_morph_garment_corrections(
+                definition, neutral,
+                tuple(field for field in definition.garment_corrections if field.submesh_index in targets)
+                + retained.get(definition.definition_id, ()),
+            )
+            for definition in recipe.profile.definitions
+        ))
         unrelated = set(state.refit.garment_submesh_indices).difference(targets)
         if unrelated and tuple(state.driver_submesh_indices) != recipe.driver_submesh_indices:
             raise ValueError("This recipe would replace the driver of other bound garments. Use a session with matching driver roles.")
-        corrections = {field.submesh_index for definition in recipe.profile.definitions for field in definition.garment_corrections}
+        corrections = {field.submesh_index for definition in scoped_profile.definitions for field in definition.garment_corrections}
         if not corrections.issubset(set(targets).union(state.refit.garment_submesh_indices)):
             raise ValueError("Include every unbound garment referenced by the recipe's saved corrections.")
 
         def apply():
             from cdmw.services.mesh_service_morph import _service_call
-            profile, preset = recipe.profile, recipe.preset
+            profile, preset = scoped_profile, recipe.preset
             _existed, previous_files, _fingerprint = _service_call("_mesh_morph_profile_directory_state", self._profile_root())
             files = dict(previous_files)
             data = self._authoring_data_locked(session)

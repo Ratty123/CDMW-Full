@@ -12443,6 +12443,7 @@
     "This session has no replacement output state.": "このセッションには置換の出力状態がありません。",
     "This session is read-only": "このセッションは読み取り専用です",
     "This session is read-only; choose an editable output route first": "このセッションは読み取り専用です。編集可能な出力ルートを先に選択してください",
+    "This setup changes body definitions used by unselected garment corrections. Include those garment Parts before applying it.": "This setup changes body definitions used by unselected garment corrections. Include those garment Parts before applying it.",
     "This shape has a recovered skeleton/body placement.": "このシェイプには復元されたスケルトン/ボディの配置があります。",
     "This shape is still drawn from recovered local/raw coordinates, so its on-screen placement may be approximate.": "この形状はまだ回復されたローカル/生の座標から描画されているため、画面上の配置は近似している可能性があります。",
     "This shop line sells freely.": "このショップ行は自由に販売されます。",

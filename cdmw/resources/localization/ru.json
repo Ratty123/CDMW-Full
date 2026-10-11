@@ -12443,6 +12443,7 @@
     "This session has no replacement output state.": "В этом сеансе нет состояния вывода замены.",
     "This session is read-only": "Этот сеанс доступен только для чтения.",
     "This session is read-only; choose an editable output route first": "Этот сеанс доступен только для чтения; сначала выберите редактируемый выходной маршрут",
+    "This setup changes body definitions used by unselected garment corrections. Include those garment Parts before applying it.": "This setup changes body definitions used by unselected garment corrections. Include those garment Parts before applying it.",
     "This shape has a recovered skeleton/body placement.": "Эта фигура имеет восстановленное расположение скелета/тела.",
     "This shape is still drawn from recovered local/raw coordinates, so its on-screen placement may be approximate.": "Эта фигура по-прежнему рисуется на основе восстановленных локальных/необработанных координат, поэтому ее размещение на экране может быть приблизительным.",
     "This shop line sells freely.": "Эта строка магазина продаётся свободно.",
