@@ -572,6 +572,46 @@ fn physics_detection_shows_spline_evidence_without_a_preview_rig() -> TestResult
 }
 
 #[test]
+fn physics_detection_morph_refit_block_pauses_regions_and_recovers() -> TestResult {
+    let (_root, mut ui, _) = fixture()?;
+    let authored = ui.application.mesh.as_ref().unwrap().draw_snapshot();
+    ui.click_tool_button("Jiggle")?;
+    ui.click("Show jiggle regions")?;
+    let original = ui.application.cdmw_state.clone();
+    let colours = ui.application.cdmw_jiggle.region_colours.clone();
+    assert!(colours.is_some());
+
+    let reason = "Physics inspection is blocked by Morph & Refit. Existing physics data is unchanged.";
+    let mut blocked = original.clone();
+    blocked["replacement"]["blocked_by"] = json!("morph_refit");
+    blocked["jiggle"] = json!({"available": false, "blocked_by": "morph_refit",
+        "reason": reason, "parts": [], "overlay_parts": []});
+    blocked["cloth"] = json!({"available": false, "blocked_by": "morph_refit",
+        "reason": reason, "parts": []});
+    blocked["physics"] = json!({"parts": [{"index": 0, "kind": "blocked", "reason": reason}]});
+    ui.application.install_validated_cdmw_state(blocked, None)?;
+    ui.settle_layout();
+    ui.reveal(reason)?;
+    assert!(ui.label_rect("Blocked by Morph & Refit").is_some());
+    assert!(ui.label_rect("Unknown physics").is_none());
+    assert!(ui.label_rect("Show jiggle regions").is_none());
+    assert!(ui.application.cdmw_jiggle.region_colours.is_none());
+    assert!(ui.application.cdmw_jiggle.show_regions); // Keep the user's overlay preference.
+    ui.click_tool_button("Cloth")?;
+    ui.reveal(reason)?;
+
+    ui.application.install_validated_cdmw_state(original, None)?;
+    ui.click_tool_button("Jiggle")?;
+    assert!(ui.label_rect("Show jiggle regions").is_some());
+    assert!(ui.label_rect(reason).is_none());
+    assert_eq!(ui.application.cdmw_jiggle.region_colours, colours);
+    assert_eq!(ui.application.mesh.as_ref().unwrap().draw_snapshot(), authored);
+    assert!(ui.application.cdmw_pending_request.is_none());
+    assert_eq!(crate::cdmw_cloth::physics_badge(&json!({"kind": "unknown"})), "Unknown physics");
+    Ok(())
+}
+
+#[test]
 fn physics_detection_keeps_unknown_guides_distinct_from_no_bindings() -> TestResult {
     let (_root, mut ui, _) = fixture()?;
     ui.application.cdmw_state["physics"] = json!({"parts": [{

@@ -280,6 +280,12 @@ fn collision_source_choice(ui: &mut egui::Ui, available: bool, role: &'static st
 
 impl LabApplication {
     pub(super) fn draw_cdmw_jiggle_page(&mut self, ui: &mut egui::Ui, actions: &mut Vec<UiAction>) {
+        let jiggle = self.cdmw_state["jiggle"].clone();
+        if jiggle["blocked_by"] == "morph_refit" {
+            if self.cdmw_jiggle.preview.scene.is_some() || self.cdmw_jiggle.preview.pending.is_some() { self.publish_mesh_snapshot(); }
+            ui.label(crate::localization::tr(state_str(&jiggle, "reason").unwrap_or("Blocked by Morph & Refit")));
+            return;
+        }
         if ui.checkbox(&mut self.cdmw_jiggle.show_regions, "Show jiggle regions")
             .on_hover_text("Experimental jiggle for body and clothing PAC meshes. Cloth bindings are not required.")
             .on_hover_text("Current vertex contribution on visible parts. Colours do not prove live physics activation.").changed() {
@@ -307,10 +313,9 @@ impl LabApplication {
             });
         }
         ui.separator();
-        let jiggle = self.cdmw_state["jiggle"].clone();
         if !state_bool(&jiggle, "available") {
             if self.cdmw_jiggle.preview.scene.is_some() || self.cdmw_jiggle.preview.pending.is_some() { self.publish_mesh_snapshot(); }
-            ui.label(state_str(&jiggle, "reason").unwrap_or("Jiggle editing is unavailable."));
+            ui.label(crate::localization::tr(state_str(&jiggle, "reason").unwrap_or("Jiggle editing is unavailable.")));
             return;
         }
         ui.checkbox(&mut self.cdmw_jiggle.selected_only, "Selected parts");
@@ -443,7 +448,8 @@ impl LabApplication {
 
     pub(super) fn refresh_jiggle_regions(&mut self) {
         self.cdmw_jiggle.region_colours = None;
-        if !self.cdmw_jiggle.show_regions || self.hair.active() {
+        if !self.cdmw_jiggle.show_regions || self.hair.active()
+            || self.cdmw_state["jiggle"]["blocked_by"] == "morph_refit" {
             return;
         }
         let Some(mesh) = &self.mesh else { return; };

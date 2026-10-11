@@ -61,6 +61,49 @@ def set_jiggle(host, below_y=None, *, reset=False):
     })
 
 
+@pytest.mark.parametrize("blocker", ["profile", "archive_bindings"])
+def test_morph_refit_reports_blocked_physics_and_recovers(jiggle_session, monkeypatch, blocker):
+    from cdmw.services.mesh_rust_cloth import cloth_ui_state, physics_detection_ui_state
+    from cdmw.services.mesh_rust_jiggle import jiggle_ui_state
+    from cdmw.services.mesh_rust_replacement import replacement_ui_state
+
+    source, _, host = jiggle_session
+    session = host.shadow_service._session(host.shadow_session_id)
+
+    def inspect():
+        replacement = replacement_ui_state(host)
+        cloth = cloth_ui_state(host, replacement)
+        jiggle = jiggle_ui_state(host, replacement)
+        physics = physics_detection_ui_state(replacement, cloth, jiggle, {})
+        return replacement, cloth, jiggle, physics
+
+    original = inspect()
+    assert original[2]["available"] and original[2]["overlay_parts"]
+    with monkeypatch.context() as patch:
+        if blocker == "profile":
+            patch.setitem(host.shadow_service._morph_sessions, host.shadow_session_id,
+                          SimpleNamespace(profile=object()))
+        else:
+            patch.setattr(session, "archive_refit_context", object())
+        replacement, cloth, jiggle, physics = inspect()
+        assert not replacement["available"]
+        assert replacement["blocked_by"] == "morph_refit"
+        for state in (cloth, jiggle):
+            assert not state["available"]
+            assert state["blocked_by"] == "morph_refit"
+            assert state["reason"] == (
+                "Physics inspection is blocked by Morph & Refit. Existing physics data is unchanged."
+            )
+        assert jiggle["overlay_parts"] == []
+        assert physics["parts"]
+        assert all(part["kind"] == "blocked" for part in physics["parts"])
+        assert all(part["reason"] == jiggle["reason"] for part in physics["parts"])
+
+    restored = inspect()
+    assert restored == original
+    assert session.original_data == source
+
+
 @pytest.mark.parametrize("below_y", [None, .5])
 def test_selected_region_changes_only_byte_38_at_every_lod(below_y):
     source = jiggle_fixture(_distinct_lods())

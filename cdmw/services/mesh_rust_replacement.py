@@ -19,10 +19,13 @@ def replacement_ui_state(authoring):
     state = session.replacement_state
     experimental = authoring.neutral_appearance is not None or bool(state and state.neutral_appearance is not None)
     reason = ""
+    blocked_by = ""
     if session.archive_refit_context is not None:
         reason = "Undo active Morph & Refit archive bindings before replacing parts."
+        blocked_by = "morph_refit"
     elif getattr(authoring.shadow_service._morph_sessions.get(authoring.shadow_session_id), "profile", None) is not None:
         reason = "Clear the active Morph & Refit profile before replacing parts."
+        blocked_by = "morph_refit"
     elif session.mesh_format not in {"pac", "pam", "pamlod"} or not session.original_data or session.lod_index != 0:
         reason = "Replacement requires an eligible original PAC, PAM or PAMLOD at LOD0."
     elif session.output_policy not in {"exact_game_asset", "replacement_game_asset"}:
@@ -37,6 +40,7 @@ def replacement_ui_state(authoring):
                       "included": binding.included if binding else True})
     pending = authoring.pending_replacement
     payload = {"available": not reason, "reason": reason, "active": state is not None,
+               "blocked_by": blocked_by,
                "experimental": experimental,
                "comparison": authoring.replacement_comparison, "parts": parts,
                "has_import": bool(state and any(part.import_positions for part in state.parts))}

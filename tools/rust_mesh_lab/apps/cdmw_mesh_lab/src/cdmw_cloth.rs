@@ -573,6 +573,7 @@ pub(super) fn physics_badge(part: &Value) -> String {
         Some("guide") => crate::localization::tr("Guide bindings"),
         Some("jiggle") => crate::localization::tr("Jiggle contribution"),
         Some("none") => crate::localization::tr("No guide or jiggle bindings"),
+        Some("blocked") => crate::localization::tr("Blocked by Morph & Refit"),
         _ => crate::localization::tr("Unknown physics"),
     };
     if part["kind"] != "jiggle"

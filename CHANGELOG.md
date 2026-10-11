@@ -36,6 +36,7 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 ### Fixed
 
+- Mesh Editor identifies physics inspection blocked by Morph & Refit, explains that the physics data is unchanged, and pauses the jiggle overlay instead of showing unknown physics. Detection and the overlay return when the restriction clears.
 - Archive Browser defers background warmups while selecting extensions or interacting with the app, and processes bursts of archive results in smaller steps to keep input responsive.
 - Morph & Refit preserves saved corrections and prior definitions when sliders are edited or undone. Cancelling a correction restores every Part's previous shape and slider values; clearing a fit removes applied corrections while retaining their saved data. Resetting corrections verifies any retained correction data.
 - Morph & Refit can create body controls for detailed bodies, including Damiane, whose generated profiles previously exceeded the file limit because of JSON formatting. Body controls accept displayed Both limits with fractional side values, keep Undo/Redo available after unrelated preset saves, and apply Reset after leaving an unchanged number field. Layered controls block changes during unfinished slider authoring or correction comparison, and refuse saved corrections when their source geometry or bindings no longer match.

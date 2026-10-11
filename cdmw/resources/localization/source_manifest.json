@@ -16577,6 +16577,21 @@
       ]
     },
     {
+      "key": "Blocked by Morph & Refit",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_cloth.rs",
+          "line": 576,
+          "sink": "rust-presentation"
+        },
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_jiggle.rs",
+          "line": 286,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
       "key": "Blocked by policy: Havok XML import, array count edits, reference edits, string edits, and topology edits.",
       "origins": [
         {
@@ -96008,6 +96023,31 @@
           "path": "cdmw/services/mesh_physics_profiles.py",
           "line": 186,
           "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Physics inspection is blocked by Morph & Refit. Existing physics data is unchanged.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_rust_cloth.py",
+          "line": 28,
+          "sink": "python-return:cloth_ui_state"
+        },
+        {
+          "path": "cdmw/services/mesh_rust_cloth.py",
+          "line": 81,
+          "sink": "python-return:cloth_ui_state"
+        },
+        {
+          "path": "cdmw/services/mesh_rust_jiggle.py",
+          "line": 213,
+          "sink": "python-return:jiggle_ui_state"
+        },
+        {
+          "path": "cdmw/services/mesh_rust_jiggle.py",
+          "line": 304,
+          "sink": "python-return:jiggle_ui_state"
         }
       ]
     },

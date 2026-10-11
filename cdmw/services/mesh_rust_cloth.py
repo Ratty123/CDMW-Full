@@ -16,12 +16,16 @@ def cloth_ui_state(authoring, replacement):
     session = authoring.shadow_service._session(authoring.shadow_session_id)
     state = session.replacement_state
     reason = replacement["reason"]
+    blocked_by = ""
     if session.mesh_format != "pac":
         reason = "Cloth influence requires an original PAC mesh."
     elif session.hair_state is not None:
         reason = "Finish the hair workflow before editing cloth influence."
+    elif replacement.get("blocked_by") == "morph_refit":
+        blocked_by = "morph_refit"
+        reason = "Physics inspection is blocked by Morph & Refit. Existing physics data is unchanged."
     if reason:
-        return {"available": False, "reason": reason, "parts": []}
+        return {"available": False, "reason": reason, "blocked_by": blocked_by, "parts": []}
     from cdmw.services.mesh_rust_cloth_guides import authored_cloth_source
     try:
         data, _ = authored_cloth_source(authoring, session)
@@ -107,6 +111,8 @@ def physics_detection_ui_state(replacement, cloth, jiggle, profiles):
             modes = by_path.get(binding["path"].casefold(), set())
             assignments.append({**binding, "mode": next(iter(modes)) if len(modes) == 1 else ""})
         if source is None or not jiggle_counts:
+            if cloth.get("blocked_by") == "morph_refit" or jiggle.get("blocked_by") == "morph_refit":
+                kind = "blocked"
             reason = cloth.get("inspection_reason") or cloth.get("reason") or jiggle.get("reason", "")
         elif not any(guide_counts):
             kind = "jiggle" if any(jiggle_counts) else "none"

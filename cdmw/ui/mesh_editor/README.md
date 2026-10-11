@@ -707,6 +707,12 @@ identified as such, and unresolved, mixed, absent or unsupported data stays
 explicit. An empty variant assignment is retained. Detection works without a
 preview skeleton and does not change the mesh or its output.
 
+An active Morph & Refit profile or archive binding pauses physics inspection.
+Parts show **Blocked by Morph & Refit**, and Jiggle and Cloth explain that existing
+physics data is unchanged. The jiggle region overlay pauses instead of colouring
+the model as unknown. The previous overlay setting and normal detection return when the
+blocking Morph & Refit state is cleared or undone.
+
 For example, a weapon ribbon can use **Spline** physics through its retained
 guides. Supported ordered chains can play in a controlled spline preview, with
 stretch, bend and angular spring-back. This approximates game motion; it does

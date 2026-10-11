@@ -201,12 +201,17 @@ def jiggle_ui_state(authoring, replacement):
     session = authoring.shadow_service._session(authoring.shadow_session_id)
     state = session.replacement_state
     reason = replacement["reason"]
+    blocked_by = ""
     if session.mesh_format != "pac":
         reason = "Jiggle editing requires an original PAC mesh."
     elif session.hair_state is not None:
         reason = "Finish the hair workflow before editing jiggle."
+    elif replacement.get("blocked_by") == "morph_refit":
+        blocked_by = "morph_refit"
+        reason = "Physics inspection is blocked by Morph & Refit. Existing physics data is unchanged."
     if reason:
-        return {"available": False, "reason": reason, "parts": [], "overlay_parts": []}
+        return {"available": False, "reason": reason, "blocked_by": blocked_by,
+                "parts": [], "overlay_parts": []}
     data = session.original_data
     appearance = state.neutral_appearance if state and state.neutral_appearance is not None else authoring.neutral_appearance
     cached = authoring.jiggle_source_cache
