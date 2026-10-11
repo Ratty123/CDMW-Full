@@ -2153,6 +2153,11 @@ rechecks the game state, validates staged content, backs up through
 lets **Restore Last Overlay Install** restore the prior state and remove only
 paths created by that installation. Foreign groups are never adopted.
 
+The worker reports a committed install even if cancellation arrives after publication.
+An installation or recovery failure remains an error when cancellation is pending;
+failed recovery includes the backup location. Cancellation alone does not claim that
+a rollback was performed or succeeded.
+
 ### Localization and proof limits
 
 The surrounding PySide controls use the app's localization catalogs. Rust's
