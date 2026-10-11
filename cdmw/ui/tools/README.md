@@ -30,8 +30,9 @@ Select a CDMW install and choose **Details** to open its preview and file histor
   is reused. The identity cleanup changes CDMW bookkeeping only, preserving archives
   and the payload history needed by other installs.
   The explicit **Install into game archives** action retains the older physical route.
-- **Shared files** scans installed data or a mod folder, reviews conflicts, and offers
-  the existing rebuild and export actions.
+- **Shared files** scans archive-installed items, saved virtual-profile `.cditem`
+  packages and selected mod folders for conflicts. Virtual results use **Mods >
+  Apply changes**; archive-only results offer the existing rebuild and export actions.
 
 Compatibility and unsupported-input
 checks remain mandatory; the combined list does not expand format or in-game support.

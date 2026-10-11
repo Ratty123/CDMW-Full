@@ -339,6 +339,33 @@ def test_conflict_scan_and_reviewed_merge_are_accessible_through_rust_bridge(tmp
         page.close()
 
 
+def test_virtual_shared_scan_through_rust_bridge_keeps_archive_actions_disabled(tmp_path, monkeypatch):
+    from tests.test_independent_virtual_comparison import applied_virtual_items
+    root, _, _ = applied_virtual_items(tmp_path, monkeypatch)
+    app = QApplication.instance() or QApplication([])
+    controller = NewItemStudioController(synchronous=True)
+    page = IndependentItemsPage(controller, root, Backups(tmp_path))
+    bridge = NewItemPresentationBridge(page.shared_page)
+    page.shared_page.show()
+    app.processEvents()
+    try:
+        _send(bridge, page.scan_button, 'activate')
+        assert page._comparison.compatible and page._comparison.virtual_profile
+        assert 'VirtualOne' in page.comparison.toPlainText() and 'VirtualTwo' in page.comparison.toPlainText()
+        assert 'Use Apply changes in Mods' in page.comparison.toPlainText()
+        assert not page.compose_button.isEnabled() and not page.export_merge_button.isEnabled()
+        with patch('cdmw.services.archive_overlay_rebuild.prepare_overlay_rebuild') as rebuild, \
+                patch('cdmw.ui.new_item.independent_items_page.QFileDialog.getExistingDirectory') as destination:
+            page._compose_shared()
+            page._export_merge()
+        rebuild.assert_not_called()
+        destination.assert_not_called()
+    finally:
+        page.request_shutdown()
+        controller.shutdown()
+        page.close()
+
+
 def test_stale_background_comparison_cannot_enable_merge_for_new_root(tmp_path):
     from cdmw.services.independent_item_compatibility import IndependentCompatibilityReport
     app = QApplication.instance() or QApplication([])

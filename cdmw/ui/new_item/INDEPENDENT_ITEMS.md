@@ -364,8 +364,13 @@ does not import files from the recipient's computer.
 
 ## Compare and compose other mods
 
-In **Mod Management > Advanced > Item identities**, **Scan installed mods** compares the
-installed item set with all mounted external archive providers. **Scan mod
+In **Mod Management > Shared files**, **Scan installed mods** compares archive-installed
+items and the saved virtual profile with all mounted external archive providers.
+Virtual items are read from the applied generation's retained `.cditem` packages,
+using their saved identities, and include the profile's selected mod folders.
+Moving or editing the original package downloads does not change the applied
+versions scanned. Removed identity reservations are not active contributors.
+Missing or mismatched retained packages cannot produce a compatible result. **Scan mod
 folder...** additionally inspects an extracted, uninstalled mod folder, including
 loose game-relative files, `files/` layouts and PAMT/PAZ packages. Scans are read-only.
 They report compatible data, shared files that can be merged, record conflicts,
@@ -389,6 +394,11 @@ value are retained even when their output bytes equal the source; an external
 change to that required row produces a conflict. Export checks those same
 contracts before deciding whether its output can preserve them. Diagnostics may
 stop at the first active-graph conflict, so resolve it and scan again.
+
+For comparisons that include a virtual profile, update the shared files through
+**Mods > Apply changes**. The archive rebuild and export actions are unavailable
+for these results because they do not include virtual contributors. Scanning
+does not publish a profile or change game archives, saved identities or mod files.
 
 **Rebuild installed shared files…** prepares a reviewed rebuild for mounted mods. It uses
 the existing verified backup and recovery transaction, preserves independent

@@ -30482,6 +30482,16 @@
       ]
     },
     {
+      "key": "Comparison complete.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/independent_items_page.py",
+          "line": 275,
+          "sink": "tr"
+        }
+      ]
+    },
+    {
       "key": "Comparison complete. Review the results before merging.",
       "origins": [
         {
@@ -30581,7 +30591,12 @@
         },
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 801,
+          "line": 812,
+          "sink": "CompatibilityFinding"
+        },
+        {
+          "path": "cdmw/services/independent_item_compatibility.py",
+          "line": 880,
           "sink": "CompatibilityFinding"
         }
       ]
@@ -31096,17 +31111,22 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 797,
+          "line": 808,
           "sink": "CompatibilityFinding"
         },
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 835,
+          "line": 844,
           "sink": "CompatibilityFinding"
         },
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 854,
+          "line": 877,
+          "sink": "CompatibilityFinding"
+        },
+        {
+          "path": "cdmw/services/independent_item_compatibility.py",
+          "line": 900,
           "sink": "CompatibilityFinding"
         },
         {
@@ -76832,6 +76852,11 @@
         {
           "path": "cdmw/services/independent_item_compatibility.py",
           "line": 158,
+          "sink": "raise_if_cancelled"
+        },
+        {
+          "path": "cdmw/services/independent_item_compatibility.py",
+          "line": 790,
           "sink": "raise_if_cancelled"
         },
         {
@@ -143077,6 +143102,16 @@
       "manual": true
     },
     {
+      "key": "The retained virtual package does not match the saved profile and item identities.",
+      "origins": [
+        {
+          "path": "cdmw/services/independent_item_compatibility.py",
+          "line": 835,
+          "sink": "OverlayConflict"
+        }
+      ]
+    },
+    {
       "key": "The retired overlay history already exists. Refresh and prepare again.",
       "origins": [
         {
@@ -143193,6 +143228,16 @@
           "path": "cdmw/services/mod_management_inventory.py",
           "line": 32,
           "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "The saved virtual profile and installed items can share these files.",
+      "origins": [
+        {
+          "path": "cdmw/services/independent_item_compatibility.py",
+          "line": 880,
+          "sink": "CompatibilityFinding"
         }
       ]
     },
@@ -145868,6 +145913,16 @@
           "path": "cdmw/ui/archive_browser/pac_xml_editor_parameters.py",
           "line": 235,
           "sink": "setText"
+        }
+      ]
+    },
+    {
+      "key": "This scan includes the saved virtual profile. Use Apply changes in Mods to update its shared files.",
+      "origins": [
+        {
+          "path": "cdmw/services/independent_item_compatibility.py",
+          "line": 602,
+          "sink": "python-return:text"
         }
       ]
     },
@@ -149296,12 +149351,17 @@
         },
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 806,
+          "line": 844,
           "sink": "CompatibilityFinding"
         },
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 815,
+          "line": 849,
+          "sink": "CompatibilityFinding"
+        },
+        {
+          "path": "cdmw/services/independent_item_compatibility.py",
+          "line": 857,
           "sink": "CompatibilityFinding"
         },
         {
@@ -151443,6 +151503,16 @@
           "path": "cdmw/ui/archive_browser/appearance_common.py",
           "line": 108,
           "sink": "QPushButton"
+        }
+      ]
+    },
+    {
+      "key": "Use Apply changes in Mods to update the virtual profile. Archive export cannot include its shared files.",
+      "origins": [
+        {
+          "path": "cdmw/services/independent_item_compatibility.py",
+          "line": 797,
+          "sink": "OverlayConflict"
         }
       ]
     },

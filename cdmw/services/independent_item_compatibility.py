@@ -574,6 +574,7 @@ class IndependentCompatibilityReport:
     root: Path
     findings: tuple[CompatibilityFinding, ...]
     folders: tuple[Path, ...] = ()
+    virtual_profile: bool = False
 
     @property
     def compatible(self):
@@ -581,6 +582,8 @@ class IndependentCompatibilityReport:
 
     def text(self):
         lines = ['Compatible shared files can be composed.' if self.compatible else 'Review the conflicts or unsupported data before merging.']
+        if self.virtual_profile:
+            lines.extend(('', 'This scan includes the saved virtual profile. Use Apply changes in Mods to update its shared files.'))
         for row in self.findings:
             names = ', '.join(row.mods)
             lines.append('')
@@ -779,13 +782,21 @@ def prepare_semantic_mod_merge(roots, game_root, entries=None, *, read_entry=Non
 
 
 def scan_independent_conflicts(root, *, folders=(), stop_event=None, on_log=None, _export=False):
-    """Scan every mounted external provider, optionally adding an uninstalled folder."""
+    """Compare installed and saved virtual items with mounted and selected mods."""
     from cdmw.services import archive_overlay_manager as overlays
-    from cdmw.services.independent_item_install import load_registry
+    from cdmw.services.independent_item_install import load_registry, resolve_items
     from cdmw.services.independent_item_package import stock_snapshot
+    from cdmw.services.virtual_loader_state import load_profile, generation_path
+    raise_if_cancelled(stop_event, 'Mod comparison cancelled.')
     root, folders = Path(root).resolve(), tuple(Path(p).resolve() for p in folders)
+    observed = overlays._observe_state(root)
+    registry = load_registry(root)
+    profile = load_profile(root, registry=registry)
+    virtual = bool(profile and (profile['items'] or profile['mods']))
+    if virtual and _export:
+        raise OverlayConflict('Use Apply changes in Mods to update the virtual profile. Archive export cannot include its shared files.')
     from cdmw.core.mod_compatibility import semantic_export_path
-    if any(semantic_export_path(folder) is not None for folder in folders):
+    if not virtual and any(semantic_export_path(folder) is not None for folder in folders):
         try:
             plan = prepare_semantic_mod_merge(folders, root, include_installed=True,
                                              stop_event=stop_event, on_log=on_log)
@@ -800,14 +811,45 @@ def scan_independent_conflicts(root, *, folders=(), stop_event=None, on_log=None
             return plan
         return IndependentCompatibilityReport(root, (CompatibilityFinding(
             'Compatible', tuple(map(str, folders)), '', 'Retained typed requirements and package dependencies compose.'),), folders)
-    observed = overlays._observe_state(root)
-    state = overlays._load_index(root)
-    if state is None or not any(layer.get('independent_identity') and layer['active'] for layer in state['layers']):
-        return IndependentCompatibilityReport(root, (CompatibilityFinding('Unknown', (), '', 'Install an independent item before comparing other mods.'),), folders)
-    load_registry(root)  # Validate that the retained bindings still match ownership.
-    layers = [(layer, overlays._unpack_changes(root, layer, {}, stop_event)) for layer in state['layers']]
-    snapshot = stock_snapshot(root, overlay_changes=(changes for _, changes in layers), stop_event=stop_event, on_log=on_log)
-    external = external_mods(root, state, folders=folders, stop_event=stop_event, snapshot=snapshot)
+    pending, virtual_identities, revisions = {}, set(), ()
+    if virtual:
+        # Compare the applied package versions, even if the original downloads
+        # have moved or now contain an unapplied edit. Never publish a new profile.
+        directory = generation_path(root, profile['generation'])
+        retained = SourceTracker(None)
+        retained.pin_file(directory / 'profile.json')
+        sources = tuple(directory / 'packages' / f'{identity}-{binding["digest"]}.cditem'
+                        for identity, binding in profile['items'].items())
+        labels = tuple(registry['items'][identity]['title'] for identity in profile['items'])
+        selected = tuple(dict.fromkeys((*map(Path, profile['mods']), *folders)))
+        try:
+            for source in sources:
+                retained.pin_file(source)
+            resolved = resolve_items(sources, root, target='virtual', folders=selected,
+                                     stop_event=stop_event, on_log=on_log)
+            packages = {package.identity: package for package, _ in resolved.contributions}
+            for identity, binding in profile['items'].items():
+                package = packages.get(identity)
+                if (package is None or package.digest != binding['digest']
+                        or resolved.registry['items'][identity]['binding_hash'] != binding['binding_hash']):
+                    raise OverlayConflict('The retained virtual package does not match the saved profile and item identities.')
+            revisions = (retained.capture(), *resolved.revisions)
+            layers = [(layer, resolved.decoded[layer['id']]) for layer in resolved.state['layers']]
+            layers.extend(_semantic_layer(package, changes, resolved.registry) for package, changes in resolved.contributions)
+            pending, snapshot, external = resolved.pending, resolved.baseline, resolved.external
+            virtual_identities = set(packages)
+        except RunCancelled:
+            raise
+        except (OSError, ValueError, RuntimeError, KeyError, IndexError) as error:
+            return IndependentCompatibilityReport(root, (CompatibilityFinding(
+                'Unknown' if isinstance(error, OSError) else 'Conflict', labels + tuple(map(str, selected)), '', str(error)),), folders, True)
+    else:
+        state = overlays._load_index(root)
+        if state is None or not any(layer.get('independent_identity') and layer['active'] for layer in state['layers']):
+            return IndependentCompatibilityReport(root, (CompatibilityFinding('Unknown', (), '', 'Install an independent item before comparing other mods.'),), folders)
+        layers = [(layer, overlays._unpack_changes(root, layer, {}, stop_event)) for layer in state['layers']]
+        snapshot = stock_snapshot(root, overlay_changes=(changes for _, changes in layers), stop_event=stop_event, on_log=on_log)
+        external = external_mods(root, state, folders=folders, stop_event=stop_event, snapshot=snapshot)
     findings = list(external.findings)
     if 'meta/0.pathc' in external.paths:
         registry = root / 'meta/0.pathc'
@@ -823,8 +865,8 @@ def scan_independent_conflicts(root, *, folders=(), stop_event=None, on_log=None
     # cannot represent explicit source-equal assignments or disjoint row fields.
     output, export_requirements = {}, []
     try:
-        findings.extend(_validate_composition_packages(root, {}, layers, snapshot, external,
-            stop_event=stop_event, on_log=on_log,
+        findings.extend(_validate_composition_packages(root, pending, layers, snapshot, external,
+            stop_event=stop_event, on_log=on_log, virtual_identities=virtual_identities,
             export_requirements=export_requirements if _export else None))
         current = foreign_underlay(external, baseline, snapshot, stop_event=stop_event)
         output, _ = overlays.compose_layer_payloads(layers, current, stop_event=stop_event, on_log=on_log)
@@ -834,6 +876,10 @@ def scan_independent_conflicts(root, *, folders=(), stop_event=None, on_log=None
         labels = tuple(layer['label'] for layer, _ in layers if layer['active']) + external.labels(baseline)
         findings.append(CompatibilityFinding('Conflict', tuple(dict.fromkeys(labels)), '', str(error)))
     else:
+        if virtual:
+            findings.append(CompatibilityFinding('Compatible',
+                tuple(layer['label'] for layer, _ in layers if layer['active']) or tuple(map(str, selected)), '',
+                'The saved virtual profile and installed items can share these files.'))
         for paths in sorted({_group(path) for path in baseline}):
             raise_if_cancelled(stop_event)
             labels = external.labels(paths)
@@ -855,9 +901,11 @@ def scan_independent_conflicts(root, *, folders=(), stop_event=None, on_log=None
     if not findings:
         findings.append(CompatibilityFinding('No overlap', (), '', 'No external file overlaps with the installed independent items were found.'))
     snapshot.provenance.capture().validate(stop_event)
+    for revision in revisions:
+        revision.validate(stop_event)
     external.validate(stop_event)
     overlays._verify_observed_state(root, observed, 'during comparison')
-    report = IndependentCompatibilityReport(root, tuple(dict.fromkeys(findings)), folders)
+    report = IndependentCompatibilityReport(root, tuple(dict.fromkeys(findings)), folders, virtual)
     if not _export:
         return report
     if not report.compatible:

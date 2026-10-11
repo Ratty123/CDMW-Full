@@ -156,7 +156,8 @@ class IndependentItemsPage(QWidget):
         self.import_profile_button.setEnabled(ready and self.mutations is not None)
         self.scan_button.setEnabled(ready)
         self.scan_folder_button.setEnabled(ready)
-        compatible = self._comparison is not None and self._comparison.compatible
+        compatible = (self._comparison is not None and self._comparison.compatible
+                      and not self._comparison.virtual_profile)
         self.compose_button.setEnabled(ready and compatible and not self._comparison.folders and self.mutations is not None)
         self.export_merge_button.setEnabled(ready and compatible)
 
@@ -262,6 +263,7 @@ class IndependentItemsPage(QWidget):
         from cdmw.services.independent_item_compatibility import scan_independent_conflicts
         root, folders = self.package_root, tuple(folders)
         self._comparison = None
+        self._comparison_writer.set_text('')
         self._set_status(self.tr("Comparing independent items with other mods..."))
         def task(log, stop):
             report = scan_independent_conflicts(root, folders=folders, stop_event=stop, on_log=log)
@@ -270,11 +272,13 @@ class IndependentItemsPage(QWidget):
             report, text = result
             self._comparison = report
             self._comparison_writer.set_text(text)
-            self._set_status(self.tr("Comparison complete. Review the results before merging."))
+            self._set_status(self.tr("Comparison complete.") if report.virtual_profile else
+                             self.tr("Comparison complete. Review the results before merging."))
         self._run(task, completed)
 
     def _compose_shared(self):
-        if self._comparison is None or not self._comparison.compatible or self._comparison.folders:
+        if (self._comparison is None or not self._comparison.compatible
+                or self._comparison.virtual_profile or self._comparison.folders):
             return
         from cdmw.services.archive_overlay_rebuild import prepare_overlay_rebuild
         root = self.package_root
@@ -283,7 +287,7 @@ class IndependentItemsPage(QWidget):
         self._run(lambda log, stop: prepare_overlay_rebuild(root, stop_event=stop, on_log=log), self._review)
 
     def _export_merge(self):
-        if self._comparison is None or not self._comparison.compatible:
+        if self._comparison is None or not self._comparison.compatible or self._comparison.virtual_profile:
             return
         from pathlib import Path
         from cdmw.services.independent_item_compatibility import prepare_independent_mod_merge
