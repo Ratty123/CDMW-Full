@@ -1638,6 +1638,10 @@ The fitter uses local body-surface correspondences and a seam-connected displace
 solve, then checks contacts against the complete body, including when an allowed
 region limits correspondence. The body search crosses coincident material seams and
 measures distance to triangle surfaces, so coarse mesh sections do not cut it short.
+Matching panel borders also share displacement when independent mesh quantization
+leaves tiny coordinate differences. Reversed boundary edges with agreeing surface
+orientation identify those seams; nearby parallel layer rims remain separate. The
+original coordinate offsets stay intact, and protection carries across the seam.
 It follows the broad cloth direction when choosing targets; a small hem fold should
 not redirect a long panel onto nearby feet. Overlapping panels, belts and trim share
 nearby cloth movement even when their mesh densities differ. Layer order comes from the pre-fit

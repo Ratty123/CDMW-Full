@@ -74,7 +74,7 @@ std::string mesh_editor_morph_state_session_report(
         out << ']';
     }
     if (include_masks) {
-        const auto masks = mesh_editor_refit_masks(*morph.refit, positions);
+        const auto masks = mesh_editor_refit_masks(*morph.refit, submeshes, positions);
         out << ",\"effective_vertex_masks\":[";
         bool wrote = false;
         for (const int index : indices) {

@@ -190,6 +190,60 @@ def test_layers_starting_inside_a_larger_body_keep_their_spacing():
             assert math.hypot(outer[0],outer[2])-math.hypot(inner[0],inner[2]) > .005
 
 
+@pytest.mark.parametrize("constraint", ("free", "protected", "inactive"))
+def test_quantized_panel_seams_share_displacement(constraint):
+    body = _arm()
+    body.vertices = [(x * (.6 + 2*y), y, z * (.6 + 2*y)) for x, y, z in body.vertices]
+    sleeve = _sleeve(radius=.13)
+
+    def panel(name, faces, offset):
+        used = sorted({vertex for face in faces for vertex in face})
+        lookup = {vertex: i for i, vertex in enumerate(used)}
+        vertices = [(sleeve.vertices[i][0] + offset, sleeve.vertices[i][1], sleeve.vertices[i][2])
+                    for i in used]
+        return _part(name, vertices, [tuple(lookup[i] for i in face) for face in faces],
+                     material=name, texture=""), lookup
+
+    first, a = panel("lower panel", sleeve.faces[:192], 0.)
+    second, b = panel("upper panel", sleeve.faces[192:], .000006)
+    seam = sorted(a.keys() & b.keys())
+    mesh = _mesh(body, first, second)
+    settings = {}
+    if constraint == "protected":
+        settings["vertex_masks"] = [{"submesh_index": 2,
+            "vertex_indices": list(range(1, len(second.vertices))),
+            "weights": [1.] * (len(second.vertices) - 1)}]
+    with _bound(mesh) as session:
+        _fit(session, (1,) if constraint == "inactive" else (1, 2), **settings)
+        if constraint == "protected":
+            effective = _command(session, "morph_state", {
+                "include_effective_vertex_masks": True, "submesh_indices": [1, 2],
+            })["effective_vertex_masks"]
+            assert effective[0]["weights"][a[seam[0]]] == 0.
+            assert effective[1]["weights"][0] == 0.
+        fitted = _snapshot(mesh, session)
+    for original in seam:
+        delta_a = tuple(x-y for x, y in zip(fitted.submeshes[1].vertices[a[original]], first.vertices[a[original]]))
+        delta_b = tuple(x-y for x, y in zip(fitted.submeshes[2].vertices[b[original]], second.vertices[b[original]]))
+        assert delta_a == pytest.approx(delta_b, abs=4e-6)
+    if constraint == "protected":
+        assert fitted.submeshes[2].vertices[0] == second.vertices[0]
+        assert fitted.submeshes[1].vertices[a[seam[0]]] == first.vertices[a[seam[0]]]
+    if constraint == "inactive":
+        assert fitted.submeshes[2].vertices == second.vertices
+    assert min(math.hypot(x, z) for x, _, z in fitted.submeshes[1].vertices) < .1
+
+
+def test_close_parallel_opening_edges_do_not_become_a_panel_seam():
+    inner, outer = _sleeve(radius=.13), _sleeve(radius=.130006)
+    mesh = _mesh(_arm(), inner, outer)
+    with _bound(mesh) as session:
+        _fit(session)
+        fitted = _snapshot(mesh, session)
+    assert fitted.submeshes[2].vertices == outer.vertices
+    assert max(math.hypot(x, z) for x, _, z in fitted.submeshes[1].vertices) < .1
+
+
 @pytest.mark.parametrize("fold_depth", (.005, .023))
 def test_folded_hem_moves_with_the_skirt_instead_of_pinning_its_corners(fold_depth):
     body = _refit_tube_part("legs", .05, -.09, (0., .1, .2, .4, .6, 1.), 64, True)

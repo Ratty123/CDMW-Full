@@ -61,7 +61,7 @@ void mesh_editor_conform_refit(const MeshRefitRuntime &refit, const std::map<int
                                const std::map<int, std::vector<Vec3>> &residual,
                                const RefitMaskWeightsNative &masks, std::map<int, std::vector<Vec3>> &layer) {
     struct Node {
-        Vec3 point{}, normal{}, target{};
+        Vec3 point{}, normal{}, target{}, key{}, rest{};
         double area = 0.0, mobility = 1.0, tightness = 1.0;
         bool boundary = false;
         std::vector<std::pair<int, std::size_t>> vertices;
@@ -81,6 +81,7 @@ void mesh_editor_conform_refit(const MeshRefitRuntime &refit, const std::map<int
     std::map<std::tuple<long long, long long, long long>, std::vector<std::size_t>> cells;
     std::map<int, MeshSessionSubmesh> garments, drivers;
     std::set<int> garment_set;
+    const auto seam_positions = mesh_editor_refit_seam_positions(refit, submeshes, residual);
     for (const auto &item : refit.garment_settings) {
         if (!item.second.enabled || item.second.mode == "rigid" || item.second.tightness_percent <= 0.0)
             continue;
@@ -91,7 +92,8 @@ void mesh_editor_conform_refit(const MeshRefitRuntime &refit, const std::map<int
         for (std::size_t vertex = 0; vertex < residual.at(part).size(); ++vertex) {
             const Vec3 point = add_vec3(residual.at(part)[vertex], layer.at(part)[vertex]);
             garment.vertices.push_back(point);
-            const auto cell = mesh_editor_refit_cell(point, tolerance);
+            const Vec3 key = seam_positions.at(part)[vertex];
+            const auto cell = mesh_editor_refit_cell(key, tolerance);
             std::size_t selected = nodes.size();
             for (int x = -1; x <= 1 && selected == nodes.size(); ++x)
                 for (int y = -1; y <= 1 && selected == nodes.size(); ++y)
@@ -101,7 +103,7 @@ void mesh_editor_conform_refit(const MeshRefitRuntime &refit, const std::map<int
                         if (found == cells.end())
                             continue;
                         for (const auto candidate : found->second)
-                            if (distance_squared_vec3(point, nodes[candidate].point) <= tolerance * tolerance) {
+                            if (distance_squared_vec3(key, nodes[candidate].key) <= tolerance * tolerance) {
                                 selected = candidate;
                                 break;
                             }
@@ -110,6 +112,8 @@ void mesh_editor_conform_refit(const MeshRefitRuntime &refit, const std::map<int
                 cells[cell].push_back(selected);
                 nodes.push_back(Node{});
                 nodes.back().point = point;
+                nodes.back().key = key;
+                nodes.back().rest = residual.at(part)[vertex];
             }
             auto &node = nodes[selected];
             node.mobility = std::min(node.mobility, mesh_editor_refit_mask_weight(masks, part, vertex));
@@ -126,9 +130,7 @@ void mesh_editor_conform_refit(const MeshRefitRuntime &refit, const std::map<int
         if (garment_set.count(item.first))
             continue;
         for (std::size_t vertex = 0; vertex < residual.at(item.first).size(); ++vertex) {
-            const auto part_layer = layer.find(item.first);
-            const Vec3 point = add_vec3(residual.at(item.first)[vertex],
-                                        part_layer == layer.end() ? Vec3{} : part_layer->second[vertex]);
+            const Vec3 point = seam_positions.at(item.first)[vertex];
             const auto cell = mesh_editor_refit_cell(point, tolerance);
             for (int x = -1; x <= 1; ++x)
                 for (int y = -1; y <= 1; ++y)
@@ -138,7 +140,7 @@ void mesh_editor_conform_refit(const MeshRefitRuntime &refit, const std::map<int
                         if (found == cells.end())
                             continue;
                         for (const auto i : found->second)
-                            if (distance_squared_vec3(point, nodes[i].point) <= tolerance * tolerance)
+                            if (distance_squared_vec3(point, nodes[i].key) <= tolerance * tolerance)
                                 nodes[i].mobility = 0.0;
                     }
         }
@@ -611,7 +613,9 @@ void mesh_editor_conform_refit(const MeshRefitRuntime &refit, const std::map<int
     for (std::size_t i = 0; i < nodes.size(); ++i)
         for (const auto &vertex : nodes[i].vertices) {
             const Vec3 point = candidate(i, nodes[i].tightness);
-            layer.at(vertex.first)[vertex.second] = sub_vec3(point, residual.at(vertex.first)[vertex.second]);
+            // Share the displacement, retaining each Part's quantized rest
+            // position. Protected vertices must not be snapped onto a neighbor.
+            layer.at(vertex.first)[vertex.second] = sub_vec3(point, nodes[i].rest);
         }
 }
 
@@ -626,6 +630,7 @@ void mesh_editor_validate_conformed_refit(const MeshRefitRuntime &refit,
         Vec3 before, after;
     };
     std::map<std::tuple<long long, long long, long long>, std::vector<Seam>> seams;
+    const auto seam_positions = mesh_editor_refit_seam_positions(refit, submeshes, residual);
     for (const auto &item : refit.garment_settings) {
         if (!item.second.enabled || item.second.mode == "rigid" || item.second.tightness_percent <= 0.0)
             continue;
@@ -642,8 +647,8 @@ void mesh_editor_validate_conformed_refit(const MeshRefitRuntime &refit,
                 if (!std::isfinite(axis))
                     fail("nonfinite", axis);
         for (std::size_t vertex = 0; vertex < residual.at(part).size(); ++vertex) {
-            const Vec3 a = add_vec3(residual.at(part)[vertex], before.at(part)[vertex]);
-            const Vec3 b = add_vec3(residual.at(part)[vertex], after.at(part)[vertex]);
+            const Vec3 a = seam_positions.at(part)[vertex];
+            const Vec3 b = after.at(part)[vertex];
             const auto cell = mesh_editor_refit_cell(a, tolerance);
             for (int x = -1; x <= 1; ++x)
                 for (int y = -1; y <= 1; ++y)

@@ -25,7 +25,7 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 ### Changed
 
-- Morph & Refit adds Tightness to fit loose garments inward around the loaded body while respecting part modes, protection masks and openings. Fitting reduces unwanted sharp points on rounded areas while retaining folds. Layered panels and trim keep their spacing, sleeves fit larger bodies without bloating, and long-dress hems narrow without flaring or pulling toward the feet. Fit settings survive drafts and reusable setups; Reset and Bake remain undoable. New saved formats require an updated reader.
+- Morph & Refit adds Tightness to fit loose garments inward around the loaded body while respecting part modes, protection masks and openings. Fitting reduces unwanted sharp points on rounded areas while retaining folds. Layered panels and trim keep their spacing, adjoining panels stay together at their seams, sleeves fit larger bodies without bloating, and long-dress hems narrow without flaring or pulling toward the feet. Fit settings survive drafts and reusable setups; Reset and Bake remain undoable. New saved formats require an updated reader.
 - Morph & Refit groups its controls into Setup, Fit, Shape and Saved tabs, opens slider creation directly, and keeps preview and pending-edit actions visible below the scrolling controls.
 - Morph & Refit prepares added archive armor faster while preserving textures, Undo/Redo and per-file export validation.
 - Virtual Loader components now show their CDMW product and version in Windows file properties. This improves identification and does not establish antivirus acceptance.

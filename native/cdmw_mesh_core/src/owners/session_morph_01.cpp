@@ -188,8 +188,81 @@ Vec3 mesh_editor_refit_driver_point(
 
 using RefitMaskWeightsNative = std::map<int, std::vector<double>>;
 
+std::map<int, std::vector<Vec3>> mesh_editor_refit_seam_positions(
+    const MeshRefitRuntime& refit,
+    const std::map<int, MeshSessionSubmesh>& submeshes,
+    const std::map<int, std::vector<Vec3>>& residual
+) {
+    // Independently quantized material Parts can store one sewn border at
+    // slightly different positions. Recognize matching boundary EDGES, rather
+    // than welding every nearby vertex and accidentally joining thin layers.
+    // These positions are grouping keys only; retain the authored coordinates.
+    const double tolerance = std::max(1.0e-6, refit.driver_diagonal * 2.0e-5);
+    std::map<Vec3, std::size_t> lookup;
+    std::vector<Vec3> points;
+    std::map<int, std::vector<std::size_t>> indices;
+    for (const auto& item : refit.garment_settings) {
+        for (const auto& point : residual.at(item.first)) {
+            const auto entry = lookup.emplace(point, points.size());
+            if (entry.second) points.push_back(point);
+            indices[item.first].push_back(entry.first->second);
+        }
+    }
+    std::vector<std::size_t> roots(points.size());
+    std::iota(roots.begin(), roots.end(), 0);
+    const auto root_of = [&](std::size_t index) {
+        while (roots[index] != index) index = roots[index] = roots[roots[index]];
+        return index;
+    };
+    const auto join = [&](std::size_t a, std::size_t b) {
+        a = root_of(a); b = root_of(b);
+        if (distance_squared_vec3(points[a], points[b]) <= tolerance * tolerance)
+            roots[std::max(a, b)] = std::min(a, b);
+    };
+    struct Border { int part; std::size_t a, b; Vec3 normal; };
+    std::vector<Border> borders;
+    for (const auto& item : refit.garment_settings) {
+        const auto& map = indices.at(item.first);
+        std::map<std::pair<std::size_t, std::size_t>, std::vector<Border>> edges;
+        for (const auto& face : submeshes.at(item.first).faces) {
+            const Vec3 normal = refit_face_normal_native(points[map[face[0]]], points[map[face[1]]], points[map[face[2]]]);
+            for (int c = 0; c < 3; ++c) {
+                const auto a = map[face[c]], b = map[face[(c+1)%3]];
+                if (a != b) edges[std::minmax(a,b)].push_back({item.first, a, b, normal});
+            }
+        }
+        for (const auto& edge : edges) if (edge.second.size() == 1) borders.push_back(edge.second.front());
+    }
+    std::map<std::tuple<long long, long long, long long>, std::vector<std::size_t>> cells;
+    for (std::size_t i = 0; i < borders.size(); ++i) {
+        const auto& edge = borders[i];
+        if (distance_squared_vec3(points[edge.a], points[edge.b]) < tolerance*tolerance*64.0) continue;
+        const auto cell = mesh_editor_refit_cell(points[edge.a], tolerance);
+        for (int x=-1; x<=1; ++x) for (int y=-1; y<=1; ++y) for (int z=-1; z<=1; ++z) {
+            const auto found = cells.find({std::get<0>(cell)+x, std::get<1>(cell)+y, std::get<2>(cell)+z});
+            if (found == cells.end()) continue;
+            for (const auto j : found->second) {
+                const auto& other = borders[j];
+                // Adjacent faces traverse a shared edge in opposite directions.
+                // Parallel shell rims and back-to-back linings are not seams.
+                if (edge.part == other.part || dot_vec3(edge.normal, other.normal) <= 0.0) continue;
+                if (distance_squared_vec3(points[edge.a], points[other.b]) > tolerance*tolerance
+                    || distance_squared_vec3(points[edge.b], points[other.a]) > tolerance*tolerance) continue;
+                join(edge.a, other.b);
+                join(edge.b, other.a);
+            }
+        }
+        cells[mesh_editor_refit_cell(points[edge.b], tolerance)].push_back(i);
+    }
+    std::map<int, std::vector<Vec3>> result;
+    for (const auto& item : indices)
+        for (const auto index : item.second) result[item.first].push_back(points[root_of(index)]);
+    return result;
+}
+
 RefitMaskWeightsNative mesh_editor_refit_masks(
     const MeshRefitRuntime& refit,
+    const std::map<int, MeshSessionSubmesh>& submeshes,
     const std::map<int, std::vector<Vec3>>& residual
 ) {
     RefitMaskWeightsNative result;
@@ -198,6 +271,10 @@ RefitMaskWeightsNative mesh_editor_refit_masks(
     std::vector<Cohort> cohorts;
     std::map<std::tuple<long long, long long, long long>, std::vector<std::size_t>> cells;
     const double tolerance = std::max(1.0e-6, refit.driver_diagonal * 1.0e-7);
+    const bool tightening = std::any_of(refit.garment_settings.begin(), refit.garment_settings.end(),
+        [](const auto& item) { return item.second.enabled && item.second.mode != "rigid" && item.second.tightness_percent > 0.0; });
+    const auto seam_positions = tightening ? mesh_editor_refit_seam_positions(refit, submeshes, residual)
+                                          : std::map<int, std::vector<Vec3>>{};
     for (const int index : refit.garment_submesh_indices) {
         const auto positions = residual.find(index);
         if (positions == residual.end()) throw std::runtime_error("refit mask target topology changed");
@@ -211,7 +288,7 @@ RefitMaskWeightsNative mesh_editor_refit_masks(
             weights[static_cast<std::size_t>(entry.first)] = entry.second;
         }
         for (std::size_t vertex = 0; vertex < weights.size(); ++vertex) {
-            const Vec3 point = positions->second[vertex];
+            const Vec3 point = tightening ? seam_positions.at(index)[vertex] : positions->second[vertex];
             const auto cell = mesh_editor_refit_cell(point, tolerance);
             std::size_t selected = cohorts.size();
             for (long long x = -1; x <= 1 && selected == cohorts.size(); ++x)
@@ -497,6 +574,7 @@ void mesh_editor_relieve_refit_surface(
     struct Cohort {
         Vec3 original;
         Vec3 position;
+        Vec3 key;
         double clearance = 0.0;
         std::vector<std::pair<int, std::size_t>> vertices;
         bool has_surface = false;
@@ -505,13 +583,16 @@ void mesh_editor_relieve_refit_surface(
     std::vector<Cohort> cohorts;
     std::map<int, std::vector<std::size_t>> vertex_cohorts;
     std::map<std::tuple<long long, long long, long long>, std::vector<std::size_t>> cells;
+    const auto seam_positions = fitting_masks ? mesh_editor_refit_seam_positions(refit, submeshes, residual)
+                                             : std::map<int, std::vector<Vec3>>{};
     for (const auto& item : clearances) {
         const int index = item.first;
         auto& indices = vertex_cohorts[index];
         const auto& positions = residual.at(index);
         for (std::size_t vertex = 0; vertex < positions.size(); ++vertex) {
             const Vec3 point = add_vec3(positions[vertex], layer.at(index)[vertex]);
-            const auto cell = mesh_editor_refit_cell(point, tolerance);
+            const Vec3 key = fitting_masks ? seam_positions.at(index)[vertex] : point;
+            const auto cell = mesh_editor_refit_cell(key, tolerance);
             std::size_t cohort_index = cohorts.size();
             for (long long dx = -1; dx <= 1 && cohort_index == cohorts.size(); ++dx) {
                 for (long long dy = -1; dy <= 1 && cohort_index == cohorts.size(); ++dy) {
@@ -521,7 +602,7 @@ void mesh_editor_relieve_refit_surface(
                         });
                         if (found == cells.end()) continue;
                         for (const std::size_t candidate : found->second) {
-                            if (distance_squared_vec3(point, cohorts[candidate].original) <= tolerance * tolerance) {
+                            if (distance_squared_vec3(key, cohorts[candidate].key) <= tolerance * tolerance) {
                                 cohort_index = candidate;
                                 break;
                             }
@@ -531,7 +612,7 @@ void mesh_editor_relieve_refit_surface(
             }
             if (cohort_index == cohorts.size()) {
                 cells[cell].push_back(cohort_index);
-                cohorts.push_back(Cohort{point, point, item.second, {}});
+                cohorts.push_back(Cohort{point, point, key, item.second, {}});
             }
             Cohort& cohort = cohorts[cohort_index];
             cohort.clearance = std::max(cohort.clearance, item.second);
@@ -545,14 +626,13 @@ void mesh_editor_relieve_refit_surface(
     if (fitting_masks) for (const auto& item : refit.garment_settings) {
         if (clearances.count(item.first)) continue;
         for (std::size_t vertex=0;vertex<residual.at(item.first).size();++vertex) {
-            const auto part_layer=layer.find(item.first);
-            const Vec3 point=add_vec3(residual.at(item.first)[vertex],part_layer==layer.end()?Vec3{}:part_layer->second[vertex]);
+            const Vec3 point=seam_positions.at(item.first)[vertex];
             const auto cell=mesh_editor_refit_cell(point,tolerance);
             for (int x=-1;x<=1;++x) for (int y=-1;y<=1;++y) for (int z=-1;z<=1;++z) {
                 const auto found=cells.find({std::get<0>(cell)+x,std::get<1>(cell)+y,std::get<2>(cell)+z});
                 if (found==cells.end()) continue;
                 for (const auto i:found->second)
-                    if (distance_squared_vec3(point,cohorts[i].original)<=tolerance*tolerance) cohorts[i].mobility=0.0;
+                    if (distance_squared_vec3(point,cohorts[i].key)<=tolerance*tolerance) cohorts[i].mobility=0.0;
             }
         }
     }
@@ -1533,7 +1613,7 @@ void mesh_editor_add_refit_layer(
 ) {
     if (!morph.refit) return;
     const auto base_layer = layer;
-    const auto masks = mesh_editor_refit_masks(*morph.refit, residual);
+    const auto masks = mesh_editor_refit_masks(*morph.refit, submeshes, residual);
     std::map<int, std::vector<Vec3>> driver_visible;
     for (const int driver_index : morph.refit->driver_submesh_indices) {
         const auto current = submeshes.find(driver_index);
@@ -1733,7 +1813,7 @@ std::vector<SubmeshMeshEditResult> mesh_editor_recompose_morph(
     }
     const std::map<int, std::vector<Vec3>> residual = mesh_editor_morph_residual_positions(*session.morph, submeshes, indices);
     mesh_editor_add_refit_layer(next, submeshes, residual, new_layer);
-    const auto masks = next.refit ? mesh_editor_refit_masks(*next.refit, residual) : RefitMaskWeightsNative{};
+    const auto masks = next.refit ? mesh_editor_refit_masks(*next.refit, submeshes, residual) : RefitMaskWeightsNative{};
     const bool check_corrections = next.refit && !post_refit.empty()
         && std::any_of(next.refit->garment_settings.begin(),next.refit->garment_settings.end(),
             [](const auto& item) { return item.second.enabled && item.second.mode!="rigid" && item.second.tightness_percent>0.0; })
