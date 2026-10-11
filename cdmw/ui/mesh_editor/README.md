@@ -1621,14 +1621,22 @@ Materials do not choose a mode automatically.
 
 The fitter uses local body-surface correspondences and a seam-connected displacement
 solve, then checks contacts against the complete body, including when an allowed
-region limits correspondence. Overlapping panels, belts and trim share nearby cloth
-movement even when their mesh densities differ. Layer order comes from the pre-fit
+region limits correspondence. The body search crosses coincident material seams and
+measures distance to triangle surfaces, so coarse mesh sections do not cut it short.
+It follows the broad cloth direction when choosing targets; a small hem fold should
+not redirect a long panel onto nearby feet. Overlapping panels, belts and trim share
+nearby cloth movement even when their mesh densities differ. Layer order comes from the pre-fit
 garment; open edges do not push surfaces they do not cover. Already intersecting or
 nearly coincident trim follows the shared movement instead of imposing contradictory
 inside/outside constraints. The collision stage uses the conformed silhouette for
-shape constraints so original garment width does not resist narrowing. Thin folds
-are also checked against their moving neighbors. Masks constrain movement, including
-coincident seams.
+shape constraints so original garment width does not resist narrowing. Triangle
+guards limit distortion while carrying common movement, so folded hems and trim do
+not stick at their old positions. Body contacts are evaluated together: larger
+corrections move a wider patch around the limb, while small residuals settle locally.
+Layer separation is checked again after smoothing. A shortened edge may recover its
+authored length during clearance correction; that limit does not pull the garment
+back to its old width. Thin folds are checked against their moving neighbors. Masks
+constrain movement, including coincident seams.
 Unreliable correspondence, unresolved contact or invalid geometry refuses the whole
 candidate and identifies the affected Part; the previous preview and settings remain.
 A refused fit may need a narrower allowed region, different protection or manual edits.

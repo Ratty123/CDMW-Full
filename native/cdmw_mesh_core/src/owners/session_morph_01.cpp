@@ -461,7 +461,7 @@ void mesh_editor_refit_components(
 
 std::vector<Vec3> mesh_editor_smooth_refit_contact(
     const std::vector<Vec3>&, const std::vector<double>&,
-    const std::map<std::pair<std::size_t,std::size_t>,double>&, double);
+    const std::map<std::pair<std::size_t,std::size_t>,double>&, double, int = 256);
 
 void mesh_editor_relieve_refit_surface(
     const MeshRefitRuntime& refit,
@@ -1144,24 +1144,8 @@ void mesh_editor_relieve_refit_surface(
             add_body_constraint({corners, {1.0 / 3.0, 1.0 / 3.0, 1.0 / 3.0}}, item.second);
         }
     }
-    // Solve shape and contour constraints first, then use the final passes
-    // only for sample clearance. Cohorts keep UV/material seams joined.
-    constexpr int wrap_iterations = 16;
-    constexpr int shape_iterations = 256;
-    const int clearance_iterations = fitting_masks ? 512 : 256;
-    for (int iteration = 0; !validate_only && iteration < shape_iterations + clearance_iterations; ++iteration) {
-        std::vector<Vec3> previous;
-        if (fitting_masks) for (const auto& cohort : cohorts) previous.push_back(cohort.position);
-        if (iteration < shape_iterations && iteration % 64 == 0) refresh_body_anchors();
-        double maximum_correction = 0.0;
-        const double attraction = 0.08 * std::max(0.0, 1.0 - iteration / 128.0);
-        for (Cohort& cohort : cohorts) {
-            if (!cohort.has_surface) continue;
-            const Vec3 delta = scale_vec3(sub_vec3(cohort.original, cohort.position), attraction);
-            cohort.position = add_vec3(cohort.position, delta);
-            maximum_correction = std::max(maximum_correction, length_vec3(delta));
-        }
-        if (iteration < shape_iterations || fitting_masks) for (const auto& constraint : layer_constraints) {
+    const auto project_layers = [&](double& maximum_correction) {
+        for (const auto& constraint : layer_constraints) {
             const Vec3 point = sample_point(constraint.first, false);
             const Vec3& a = cohorts[constraint.second.corners[0]].position;
             const Vec3& b = cohorts[constraint.second.corners[1]].position;
@@ -1182,16 +1166,43 @@ void mesh_editor_relieve_refit_surface(
             if (length_vec3(sub_vec3(offset, scale_vec3(normal, height)))
                     > (fitting_masks ? tolerance * 4.0 : refit.driver_diagonal * 0.005)) continue;
             maximum_correction = std::max(maximum_correction, std::abs(correction));
-            const double weight_squared = dot_vec3(constraint.first.weights, constraint.first.weights)
-                + dot_vec3(other.weights, other.weights);
+            double weight_squared = 0.0;
+            for (int c = 0; c < 3; ++c) {
+                weight_squared += constraint.first.weights[c] * constraint.first.weights[c]
+                    * (fitting_masks ? cohorts[constraint.first.corners[c]].mobility : 1.0);
+                weight_squared += other.weights[c] * other.weights[c]
+                    * (fitting_masks ? cohorts[other.corners[c]].mobility : 1.0);
+            }
+            if (weight_squared <= 0.0) continue;
             const Vec3 delta = scale_vec3(normal, correction / weight_squared);
             for (std::size_t corner = 0; corner < 3; ++corner) {
                 Cohort& first = cohorts[constraint.first.corners[corner]];
                 Cohort& second = cohorts[other.corners[corner]];
-                first.position = sub_vec3(first.position, scale_vec3(delta, constraint.first.weights[corner]));
-                second.position = add_vec3(second.position, scale_vec3(delta, other.weights[corner]));
+                first.position = sub_vec3(first.position, scale_vec3(delta, constraint.first.weights[corner] * (fitting_masks ? first.mobility : 1.0)));
+                second.position = add_vec3(second.position, scale_vec3(delta, other.weights[corner] * (fitting_masks ? second.mobility : 1.0)));
             }
         }
+    };
+    // Solve shape and contour constraints first, then use the final passes
+    // only for sample clearance. Cohorts keep UV/material seams joined.
+    constexpr int wrap_iterations = 16;
+    constexpr int shape_iterations = 256;
+    const int clearance_iterations = fitting_masks ? 512 : 256;
+    for (int iteration = 0; !validate_only && iteration < shape_iterations + clearance_iterations; ++iteration) {
+        std::vector<Vec3> previous;
+        if (fitting_masks) for (const auto& cohort : cohorts) previous.push_back(cohort.position);
+        if (iteration < shape_iterations && iteration % 64 == 0) refresh_body_anchors();
+        double maximum_correction = 0.0;
+        // The conformed silhouette already supplies the shape target. Pulling
+        // contacts back into that penetrating pose fights a larger body's fit.
+        const double attraction = fitting_masks ? 0.0 : 0.08 * std::max(0.0, 1.0 - iteration / 128.0);
+        for (Cohort& cohort : cohorts) {
+            if (!cohort.has_surface) continue;
+            const Vec3 delta = scale_vec3(sub_vec3(cohort.original, cohort.position), attraction);
+            cohort.position = add_vec3(cohort.position, delta);
+            maximum_correction = std::max(maximum_correction, length_vec3(delta));
+        }
+        if (iteration < shape_iterations || fitting_masks) project_layers(maximum_correction);
         // Limit stretching and collapse while allowing edges to rotate around
         // the body. Locking displacement directions would pin a folded cuff
         // inside a hand even when it can bend clear without excessive stretch.
@@ -1263,6 +1274,10 @@ void mesh_editor_relieve_refit_surface(
                 cohort.position = add_vec3(cohort.position, scale_vec3(normal, missing * sample.weights[corner] / weight_squared));
             }
         }
+        // Evaluate body contacts at one common pose. Sequential projections
+        // otherwise choose conflicting exits around an armpit and crease cloth.
+        std::vector<Vec3> contact_delta(fitting_masks ? cohorts.size() : 0);
+        std::vector<double> contact_count(fitting_masks ? cohorts.size() : 0, 0.0);
         for (auto& constraint : body_constraints) {
             const double contact_clearance = constraint.clearance
                 + (fitting_masks ? std::max(tolerance*8.0,constraint.clearance*0.1) : 0.0);
@@ -1325,10 +1340,20 @@ void mesh_editor_relieve_refit_surface(
             const double weight_squared = dot_vec3(constraint.sample.weights, constraint.sample.weights);
             for (std::size_t corner = 0; corner < 3; ++corner) {
                 Cohort& cohort = cohorts[constraint.sample.corners[corner]];
-                cohort.position = add_vec3(cohort.position, scale_vec3(normal, missing * constraint.sample.weights[corner] / weight_squared));
+                const double weight = constraint.sample.weights[corner];
+                if (weight <= 0.0) continue;
+                const Vec3 delta = scale_vec3(normal, missing * weight / weight_squared);
+                if (fitting_masks) {
+                    const auto i = constraint.sample.corners[corner];
+                    contact_delta[i] = add_vec3(contact_delta[i], delta);
+                    contact_count[i] += 1.0;
+                } else cohort.position = add_vec3(cohort.position, delta);
             }
         }
         if (fitting_masks) {
+            for (std::size_t i = 0; i < cohorts.size(); ++i)
+                if (contact_count[i] > 0.0) cohorts[i].position = add_vec3(cohorts[i].position,
+                    scale_vec3(contact_delta[i], 1.0 / contact_count[i]));
             // Contact on one vertex of a small folded face must move its local
             // cloth neighborhood too. Smooth contact displacements, then limit
             // the step before it can turn a triangle over. Rest constraints here
@@ -1338,8 +1363,14 @@ void mesh_editor_relieve_refit_surface(
                 correction[i] = sub_vec3(cohorts[i].position, previous[i]);
             }
             try {
+                // Large corrections need a wider patch to move around a limb;
+                // small residuals need local freedom to finish contact and trim.
+                const double smoothing_length = refit.driver_diagonal * 0.012;
+                const double contact_length = std::clamp(maximum_correction * 2.0,
+                    iteration < shape_iterations ? smoothing_length : smoothing_length * 0.1,
+                    refit.driver_diagonal * 0.05);
                 correction = mesh_editor_smooth_refit_contact(correction,contact_mass,contact_weights,
-                    std::pow(refit.driver_diagonal*0.012,2.0));
+                    contact_length * contact_length);
             } catch (const std::runtime_error& error) {
                 std::string parts;
                 for (const auto& part:clearances) parts+=(parts.empty()?"":", ")+std::to_string(part.first);
@@ -1347,54 +1378,83 @@ void mesh_editor_relieve_refit_surface(
             }
             for (std::size_t i = 0; i < cohorts.size(); ++i)
                 cohorts[i].position = add_vec3(previous[i], scale_vec3(correction[i], cohorts[i].mobility));
+            // Smoothing a common body lift must not erase layer separation.
+            project_layers(maximum_correction);
             bool guarded = false;
-            for (int guard = 0; guard < 24 && !guarded; ++guard) {
-                guarded = true;
-                for (const auto& item : clearances) {
-                const auto& map = vertex_cohorts.at(item.first);
-                for (const auto& face : submeshes.at(item.first).faces) {
-                    const std::array<std::size_t,3> v{map[face[0]],map[face[1]],map[face[2]]};
-                    const Vec3 rest_normal = refit_face_normal_native(previous[v[0]],previous[v[1]],previous[v[2]]);
-                    if (dot_vec3(rest_normal,rest_normal) < 0.5) continue;
-                    const auto safe = [&](double step) {
-                        std::array<Vec3,3> point;
-                        for (int c = 0; c < 3; ++c) point[c] = add_vec3(previous[v[c]],scale_vec3(sub_vec3(cohorts[v[c]].position,previous[v[c]]),step));
-                        const Vec3 e1 = sub_vec3(previous[v[1]],previous[v[0]]);
-                        const Vec3 e2 = sub_vec3(previous[v[2]],previous[v[0]]);
-                        const Vec3 d1 = sub_vec3(sub_vec3(point[1],point[0]),e1);
-                        const Vec3 d2 = sub_vec3(sub_vec3(point[2],point[0]),e2);
-                        const auto projected_area = [&](double t) {
-                            const Vec3 a = add_vec3(e1,scale_vec3(d1,t));
-                            const Vec3 b = add_vec3(e2,scale_vec3(d2,t));
-                            return dot_vec3(rest_normal, Vec3{a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]});
-                        };
-                        // The projected area is quadratic throughout a linear
-                        // step. Check its minimum, not just its endpoint.
-                        const double c = projected_area(0.0), end = projected_area(1.0);
-                        const double a = 2.0*(end+c-2.0*projected_area(0.5));
-                        const double b = end-c-a;
-                        const double t = a > 0.0 ? std::clamp(-b/(2.0*a),0.0,1.0) : 1.0;
-                        if (std::min(end,projected_area(t)) < c*0.05) return false;
-                        for (int c = 0; c < 3; ++c) {
-                            const double rest = distance_squared_vec3(cohorts[v[c]].original,cohorts[v[(c+1)%3]].original);
-                            const double now = distance_squared_vec3(point[c],point[(c+1)%3]);
-                            if (rest > tolerance*tolerance && (now < rest*0.04 || now > rest*4.0)) return false;
+            int guarded_part = clearances.begin()->first;
+            // Neighboring strain projections can oppose one another. Reduce
+            // the common step and retry within the same bounded solve.
+            for (int backtrack = 0; backtrack < 8 && !guarded; ++backtrack) {
+                if (backtrack > 0) for (std::size_t i=0; i<cohorts.size(); ++i)
+                    cohorts[i].position = add_vec3(previous[i], scale_vec3(sub_vec3(cohorts[i].position, previous[i]), 0.5));
+                for (int guard = 0; guard < 24 && !guarded; ++guard) {
+                    guarded = true;
+                    for (const auto& item : clearances) {
+                        const auto& map = vertex_cohorts.at(item.first);
+                        for (const auto& face : submeshes.at(item.first).faces) {
+                            const std::array<std::size_t,3> v{map[face[0]],map[face[1]],map[face[2]]};
+                            const Vec3 rest_normal = refit_face_normal_native(previous[v[0]],previous[v[1]],previous[v[2]]);
+                            if (dot_vec3(rest_normal,rest_normal) < 0.5) continue;
+                            Vec3 transport{};
+                            double mobility = 1.0;
+                            for (const auto i : v) {
+                                transport = add_vec3(transport, scale_vec3(sub_vec3(cohorts[i].position, previous[i]), 1.0 / 3.0));
+                                mobility = std::min(mobility, cohorts[i].mobility);
+                            }
+                            if (mobility <= 0.0) transport = Vec3{};
+                            const auto transported = [&](std::size_t i, double step) {
+                                return add_vec3(previous[i], add_vec3(transport,
+                                    scale_vec3(sub_vec3(sub_vec3(cohorts[i].position, previous[i]), transport), step)));
+                            };
+                            const auto safe = [&](double step) {
+                                std::array<Vec3,3> point;
+                                for (int c = 0; c < 3; ++c) point[c] = transported(v[c], step);
+                                const Vec3 e1 = sub_vec3(previous[v[1]],previous[v[0]]);
+                                const Vec3 e2 = sub_vec3(previous[v[2]],previous[v[0]]);
+                                const Vec3 d1 = sub_vec3(sub_vec3(point[1],point[0]),e1);
+                                const Vec3 d2 = sub_vec3(sub_vec3(point[2],point[0]),e2);
+                                const auto projected_area = [&](double t) {
+                                    const Vec3 a = add_vec3(e1,scale_vec3(d1,t));
+                                    const Vec3 b = add_vec3(e2,scale_vec3(d2,t));
+                                    return dot_vec3(rest_normal, Vec3{a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]});
+                                };
+                                // The projected area is quadratic throughout a linear
+                                // step. Check its minimum, not just its endpoint.
+                                const double c = projected_area(0.0), end = projected_area(1.0);
+                                const double a = 2.0*(end+c-2.0*projected_area(0.5));
+                                const double b = end-c-a;
+                                const double t = a > 0.0 ? std::clamp(-b/(2.0*a),0.0,1.0) : 1.0;
+                                if (std::min(end,projected_area(t)) < c*0.05) return false;
+                                for (int c = 0; c < 3; ++c) {
+                                    const double rest = distance_squared_vec3(cohorts[v[c]].original,cohorts[v[(c+1)%3]].original);
+                                    const double now = distance_squared_vec3(point[c],point[(c+1)%3]);
+                                    const double before = distance_squared_vec3(previous[v[c]], previous[v[(c+1)%3]]);
+                                    // Recover shortened edges when clearing a larger
+                                    // body, without attracting the garment to its old size.
+                                    const double authored = distance_squared_vec3(layer_rest[v[c]], layer_rest[v[(c+1)%3]]);
+                                    // An edge already at the limit must admit a rigid
+                                    // translation despite floating-point subtraction.
+                                    const double roundoff = std::max(tolerance*tolerance, rest*1.0e-10);
+                                    if (rest > tolerance*tolerance && (now < std::min(rest*0.04, before) - roundoff
+                                        || now > std::max({rest*4.0, authored*4.0, before}) + roundoff)) return false;
+                                }
+                                return true;
+                            };
+                            if (safe(1.0)) continue;
+                            guarded_part = item.first;
+                            guarded = false;
+                            double low = 0.0, high = 1.0;
+                            for (int step = 0; step < 12; ++step) {
+                                const double middle = (low+high)*0.5;
+                                if (safe(middle)) low = middle; else high = middle;
+                            }
+                            for (const auto i : v) cohorts[i].position = transported(i, low*0.95);
                         }
-                        return true;
-                    };
-                    if (safe(1.0)) continue;
-                    guarded = false;
-                    double low = 0.0, high = 1.0;
-                    for (int step = 0; step < 12; ++step) {
-                        const double middle = (low+high)*0.5;
-                        if (safe(middle)) low = middle; else high = middle;
-                    }
-                    for (const auto i : v) cohorts[i].position = add_vec3(previous[i],scale_vec3(sub_vec3(cohorts[i].position,previous[i]),low*0.95));
+                }
                 }
             }
-            }
             if (!guarded) throw std::runtime_error("Fit to body: Part "
-                + std::to_string(clearances.begin()->first) + " cannot preserve its triangles during clearance correction");
+                + std::to_string(guarded_part) + " cannot preserve its triangles during clearance correction");
         }
         if (maximum_correction <= tolerance) {
             if (iteration >= shape_iterations) break;
@@ -1433,13 +1493,14 @@ void mesh_editor_relieve_refit_surface(
         // Apply the same contact tolerance as the body validator. Near-coincident
         // skins must not require sub-tolerance positive gaps while body contact
         // accepts that same numerical error on either side of its boundary.
-        if ((rest > 0.0 ? height : -height) < -tolerance * 4.0)
+        if ((rest > 0.0 ? height : -height) < -tolerance * 4.0) {
             throw std::runtime_error("Fit to body: Part "
                 + std::to_string(cohorts[constraint.first.corners[0]].vertices.front().first)
                 + " cannot preserve its garment layer separation from Part "
                 + std::to_string(cohorts[constraint.second.corners[0]].vertices.front().first)
                 + " (rest " + std::to_string(rest) + ", gap " + std::to_string(height)
                 + ", vertex " + std::to_string(cohorts[constraint.first.corners[0]].vertices.front().second) + ")");
+        }
     }
     for (const Cohort& cohort : cohorts) {
         const Vec3 delta = sub_vec3(cohort.position, cohort.original);
@@ -1456,7 +1517,8 @@ void mesh_editor_conform_refit(
 void mesh_editor_validate_conformed_refit(
     const MeshRefitRuntime&, const std::map<int, MeshSessionSubmesh>&,
     const std::map<int, std::vector<Vec3>>&, const std::map<int, std::vector<Vec3>>&,
-    const std::map<int, std::vector<Vec3>>&, const char*);
+    const std::map<int, std::vector<Vec3>>&, const char*,
+    const std::map<int, std::vector<Vec3>>* = nullptr);
 
 void mesh_editor_add_refit_layer(
     const MeshMorphRuntime& morph,
@@ -1550,7 +1612,7 @@ void mesh_editor_add_refit_layer(
         mesh_editor_validate_conformed_refit(*morph.refit, submeshes, residual, followed, layer, "conforming");
         const auto conformed = layer;
         mesh_editor_relieve_refit_surface(*morph.refit, submeshes, driver_visible, residual, layer, &masks, false, &followed);
-        mesh_editor_validate_conformed_refit(*morph.refit, submeshes, residual, conformed, layer, "clearance");
+        mesh_editor_validate_conformed_refit(*morph.refit, submeshes, residual, conformed, layer, "clearance", &followed);
     }
 }
 

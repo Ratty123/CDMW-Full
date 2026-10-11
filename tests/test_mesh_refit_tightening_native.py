@@ -117,6 +117,107 @@ def test_layers_starting_inside_a_larger_body_keep_their_spacing():
             assert math.hypot(outer[0],outer[2])-math.hypot(inner[0],inner[2]) > .005
 
 
+@pytest.mark.parametrize("fold_depth", (.005, .023))
+def test_folded_hem_moves_with_the_skirt_instead_of_pinning_its_corners(fold_depth):
+    body = _refit_tube_part("legs", .05, -.09, (0., .1, .2, .4, .6, 1.), 64, True)
+    other = _refit_tube_part("leg", .05, .09, (0., .1, .2, .4, .6, 1.), 64, True)
+    offset = len(body.vertices)
+    body.faces += [tuple(i + offset for i in face) for face in other.faces]
+    body.vertices += other.vertices
+    # The first three rings turn back on themselves at the open, pleated hem.
+    # Nearest points on two legs produce a varying field across that small fold.
+    heights = (.14, .12, .1, .2, .35, .55, .8)
+    skirt = _refit_tube_part("skirt", .23, 0., heights, 48)
+    skirt.vertices = []
+    for ring, (height, radius) in enumerate(zip(heights, (.23, .235, .24, .22, .20, .18, .17))):
+        for vertex in range(48):
+            angle = 2 * math.pi * vertex / 48
+            r = radius + fold_depth * math.cos(6 * angle + ring * .3)
+            skirt.vertices.append((r * math.cos(angle), height, r * math.sin(angle)))
+    mesh = _mesh(body, skirt)
+    with _bound(mesh) as session:
+        _fit(session)
+        fitted = _snapshot(mesh, session).submeshes[1]
+    # All of the folded opening travels inward; isolated pinned corners used to
+    # retain a radius above .23 while the adjacent skirt narrowed to about .14.
+    assert max(math.hypot(x, z) for x, _, z in fitted.vertices[:144]) < .17
+    for vertex in range(48):
+        opening, fold, adjacent = (fitted.vertices[ring * 48 + vertex] for ring in range(3))
+        assert opening[1] > fold[1] > adjacent[1]
+        assert math.dist(opening, adjacent) > .02
+    opening = fitted.vertices[:48]
+    winding = sum(math.atan2(a[0]*b[2]-a[2]*b[0], a[0]*b[0]+a[2]*b[2])
+                  for a, b in zip(opening, opening[1:] + opening[:1]))
+    assert winding == pytest.approx(2 * math.pi)
+    assert fitted.faces == skirt.faces
+    assert fitted.uvs == skirt.uvs
+
+
+@pytest.mark.parametrize("split_body_seams", (False, True))
+def test_hem_follows_the_leg_instead_of_dropping_onto_nearby_feet(split_body_seams):
+    silhouettes = []
+    for segments in (24, 48):
+        vertices, faces = [], []
+        for x in (-.09, .09):
+            leg = _refit_tube_part("leg", .05, x, (0., .05, .1, .15, .25, .4, 1.), segments, True)
+            # A foot extends toward the loose skirt and is closer than the calf.
+            # Coarse triangles and duplicated seam vertices must not hide the calf.
+            offset = len(vertices)
+            vertices += [(xx, y, z * (1 + 2.5 * max(0., 1 - y / .16)) + .1 * max(0., 1 - y / .16))
+                         for xx, y, z in leg.vertices]
+            faces += [tuple(i + offset for i in face) for face in leg.faces]
+        if split_body_seams:
+            vertices = [vertices[i] for face in faces for i in face]
+            faces = [(i, i + 1, i + 2) for i in range(0, len(vertices), 3)]
+        body = _part("legs", vertices, faces, material="body", texture="")
+        skirt = _refit_tube_part("skirt", .23, 0., (.17, .20, .24, .35, .55, .8), 48)
+        mesh = _mesh(body, skirt)
+        with _bound(mesh) as session:
+            _fit(session)
+            fitted = _snapshot(mesh, session)
+        hem = fitted.submeshes[1].vertices[:48]
+        assert min(y for _, y, _ in hem) > .155
+        assert max(math.hypot(x, z) for x, _, z in hem) < .15
+        assert fitted.submeshes[1].faces == skirt.faces
+        assert fitted.submeshes[0].vertices == body.vertices
+        silhouettes.append(hem)
+    for coarse, dense in zip(*silhouettes):
+        assert coarse == pytest.approx(dense, abs=.003)
+
+
+@pytest.mark.parametrize("arm_offset", (.12, .15))
+def test_layered_sleeve_clears_a_larger_arm_and_torso_without_spiking(arm_offset):
+    body = _refit_tube_part("torso", .12, 0., (.28, .35, .45, .6), 48, True)
+    arm = _refit_tube_part("arm", .075, arm_offset, (0., .1, .2, .3, .4, .5), 48, True)
+    offset = len(body.vertices)
+    body.faces += [tuple(i + offset for i in face) for face in arm.faces]
+    body.vertices += arm.vertices
+    heights = (.05, .1, .15, .2, .25, .3, .35)
+    sleeve = _refit_tube_part("sleeve", .065, arm_offset, heights, 32)
+    trim = _refit_tube_part("trim", .068, arm_offset, heights, 48)
+    mesh = _mesh(body, sleeve, trim)
+    with _bound(mesh) as session:
+        _fit(session, (1, 2))
+        fitted = _snapshot(mesh, session)
+    for before, after in zip(mesh.submeshes[1:], fitted.submeshes[1:]):
+        samples = list(after.vertices)
+        for face in after.faces:
+            triangle = [after.vertices[i] for i in face]
+            samples.append(tuple(sum(v[c] for v in triangle) / 3 for c in range(3)))
+            samples.extend(tuple((a[c] + b[c]) / 2 for c in range(3))
+                           for a, b in zip(triangle, triangle[1:] + triangle[:1]))
+        for x, y, z in samples:
+            assert not (.28 < y < .6 and math.hypot(x, z) < .12)
+            assert not (0. < y < .5 and math.hypot(x - arm_offset, z) < .075)
+        # The opening can slide around the combined volume; the lower sleeve
+        # still hugs the arm instead of inheriting a uniform maximum inflation.
+        assert max(math.hypot(x - arm_offset, z) for x, _, z in after.vertices) < .115
+        assert max(math.hypot(x - arm_offset, z) for x, _, z in after.vertices[:64]) < .085
+        assert after.faces == before.faces
+        assert after.uvs == before.uvs
+        assert after.bone_weights == before.bone_weights
+
+
 @pytest.mark.parametrize("segments", (24, 48))
 def test_overlapping_folded_layers_share_fit_without_inflating_or_spiking(segments):
     lining = _sleeve(radius=.1, segments=32)

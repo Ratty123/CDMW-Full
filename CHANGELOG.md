@@ -25,7 +25,7 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 ### Changed
 
-- Morph & Refit adds Tightness to fit loose garments inward around the loaded body while respecting part modes, protection masks and openings. Layered panels and trim now follow the surrounding cloth without inflating one another. Fit settings survive drafts and reusable setups; Reset and Bake remain undoable. New saved formats require an updated reader.
+- Morph & Refit adds Tightness to fit loose garments inward around the loaded body while respecting part modes, protection masks and openings. Layered panels and trim keep their spacing, sleeves fit larger bodies without bloating, and long-dress hems narrow without flaring or pulling toward the feet. Fit settings survive drafts and reusable setups; Reset and Bake remain undoable. New saved formats require an updated reader.
 - Virtual Loader components now show their CDMW product and version in Windows file properties. This improves identification and does not establish antivirus acceptance.
 - Mesh Editor gives Translucency, Glow and Shader experiments separate Inspector headings, accessible with Parts collapsed. Mesh islands starts collapsed inside Parts.
 - Create New Item prepares localized item search names with less parsing work while continuing to validate complete language tables.

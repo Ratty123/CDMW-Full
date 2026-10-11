@@ -3,7 +3,7 @@
 std::vector<Vec3>
 mesh_editor_smooth_refit_contact(const std::vector<Vec3> &target, const std::vector<double> &mass,
                                  const std::map<std::pair<std::size_t, std::size_t>, double> &edges,
-                                 double lambda) {
+                                 double lambda, int maximum_iterations) {
     const std::size_t count = target.size();
     std::vector<double> diagonal(count);
     std::vector<Vec3> result(count), residual(count), direction(count), z(count);
@@ -27,7 +27,7 @@ mesh_editor_smooth_refit_contact(const std::vector<Vec3> &target, const std::vec
     double rz = inner(residual, z);
     if (norm <= 1.0e-30)
         return result;
-    for (int iteration = 0; iteration < 256; ++iteration) {
+    for (int iteration = 0; iteration < maximum_iterations; ++iteration) {
         std::vector<Vec3> product(count);
         for (std::size_t i = 0; i < count; ++i)
             product[i] = scale_vec3(direction[i], diagonal[i]);
@@ -179,6 +179,26 @@ void mesh_editor_conform_refit(const MeshRefitRuntime &refit, const std::map<int
         if (incidence.at(item.first) == 1)
             nodes[item.first.first].boundary = nodes[item.first.second].boundary = true;
     }
+    // Small folds can turn a vertex normal toward the feet or along the sleeve.
+    // Estimate the broad cloth direction on the same area-weighted surface so
+    // correspondence scoring retains longitudinal position while narrowing it.
+    std::vector<Vec3> cloth_normals(nodes.size());
+    std::vector<double> cloth_areas(nodes.size());
+    for (std::size_t i = 0; i < nodes.size(); ++i) {
+        cloth_areas[i] = nodes[i].area;
+        if (nodes[i].area > tolerance * tolerance)
+            cloth_normals[i] = scale_vec3(nodes[i].normal, 1.0 / (6.0 * nodes[i].area));
+    }
+    try {
+        // This one-time, wider field needs the same bounded budget as conforming.
+        cloth_normals = mesh_editor_smooth_refit_contact(cloth_normals, cloth_areas, weights, lambda * 4.0, 512);
+    } catch (const std::runtime_error&) {
+        std::string parts;
+        for (const auto part : garment_set)
+            parts += (parts.empty() ? "" : ", ") + std::to_string(part);
+        throw std::runtime_error("Fit to body: Parts " + parts +
+                                 " surface direction solve did not converge; previous preview retained");
+    }
     for (const auto &item : driver_visible) {
         drivers[item.first].vertices = item.second;
         drivers[item.first].faces = submeshes.at(item.first).faces;
@@ -192,14 +212,18 @@ void mesh_editor_conform_refit(const MeshRefitRuntime &refit, const std::map<int
         return TriangleKey{part, vertices[0], vertices[1], vertices[2]};
     };
     std::map<TriangleKey, std::size_t> triangle_ids;
-    std::map<std::tuple<int, int, int>, std::vector<std::size_t>> body_edges;
+    // UV/material seams duplicate vertices without cutting the body surface.
+    // Only the search graph is welded; retained bindings and region IDs stay intact.
+    std::map<Vec3, std::size_t> body_welds;
+    std::map<std::pair<std::size_t, std::size_t>, std::vector<std::size_t>> body_edges;
     for (std::size_t i = 0; i < body.triangles.size(); ++i) {
         const auto &triangle = body.triangles[i];
         triangle_ids[key_for(triangle.driver_submesh_index, triangle.driver_vertices)] = i;
+        std::array<std::size_t, 3> welded{};
+        for (int corner = 0; corner < 3; ++corner)
+            welded[corner] = body_welds.emplace(triangle.corners[corner], body_welds.size()).first->second;
         for (int corner = 0; corner < 3; ++corner) {
-            const auto pair =
-                std::minmax(triangle.driver_vertices[corner], triangle.driver_vertices[(corner + 1) % 3]);
-            body_edges[{triangle.driver_submesh_index, pair.first, pair.second}].push_back(i);
+            body_edges[std::minmax(welded[corner], welded[(corner + 1) % 3])].push_back(i);
         }
     }
     std::vector<std::vector<std::size_t>> adjacent(body.triangles.size());
@@ -238,46 +262,64 @@ void mesh_editor_conform_refit(const MeshRefitRuntime &refit, const std::map<int
                    part->second.count(triangle.driver_vertices[1]) &&
                    part->second.count(triangle.driver_vertices[2]);
         };
-        const Vec3 seed_normal = refit_binding_face_normal_native(seed, driver_visible);
         const double reach =
-            std::max(refit.driver_diagonal * 0.015, std::min(refit.driver_diagonal * 0.06, seed.distance * 1.5));
-        double best = std::numeric_limits<double>::infinity();
+            std::max(refit.driver_diagonal * 0.015, std::min(refit.driver_diagonal * 0.12, seed.distance * 1.5));
+        const Vec3 seed_point = mesh_editor_refit_driver_point(seed, driver_visible);
+        double best = std::numeric_limits<double>::infinity(), best_score = best;
+        Vec3 garment_direction{};
+        const double normal_length = length_vec3(cloth_normals[i]);
+        if (normal_length > 0.15)
+            garment_direction = scale_vec3(cloth_normals[i], 1.0 / normal_length);
         Vec3 target_point{}, target_normal{};
         // Walk only edge-connected triangles from the retained bind. No global
         // reprojection can jump from an arm to the torso during the solve.
-        std::vector<std::pair<std::size_t, double>> pending{{seed_id->second, 0.0}};
+        std::vector<std::size_t> pending{seed_id->second};
         visited[seed_id->second] = i + 1;
         for (std::size_t cursor = 0; cursor < pending.size(); ++cursor) {
-            const auto id = pending[cursor].first;
+            const auto id = pending[cursor];
             const auto &triangle = body.triangles[id];
             if (!allowed(triangle))
                 continue;
             const Vec3 normal =
                 refit_face_normal_native(triangle.corners[0], triangle.corners[1], triangle.corners[2]);
-            const auto closest = closest_triangle_point_native(node.point, triangle.corners[0],
-                                                               triangle.corners[1], triangle.corners[2]);
             // Garments can contain folded backs and double-sided trim. Their
-            // face winding is not a reliable outward-body classifier. Keep the
-            // body's local orientation instead of rejecting those constructions.
-            if (dot_vec3(normal, normal) > 0.5 && dot_vec3(normal, seed_normal) > 0.15) {
-                if (closest.distance_squared < best) {
-                    best = closest.distance_squared;
-                    target_point = Vec3{};
-                    for (int corner = 0; corner < 3; ++corner)
-                        target_point = add_vec3(target_point,
-                                                scale_vec3(triangle.corners[corner], closest.barycentric[corner]));
+            // winding is not a reliable outward-body classifier. Penalize
+            // tangential travel in either normal direction instead. Find the
+            // actual closest point in that metric, independent of triangulation.
+            if (dot_vec3(normal, normal) > 0.5) {
+                const auto metric = [&](const Vec3 &corner) {
+                    const Vec3 offset = sub_vec3(corner, node.point);
+                    if (normal_length <= 0.15)
+                        return offset;
+                    return sub_vec3(scale_vec3(offset, std::sqrt(5.0)),
+                                     scale_vec3(garment_direction, (std::sqrt(5.0) - 1.0) *
+                                                                       dot_vec3(offset, garment_direction)));
+                };
+                const auto closest = closest_triangle_point_native({}, metric(triangle.corners[0]),
+                                                                    metric(triangle.corners[1]),
+                                                                    metric(triangle.corners[2]));
+                Vec3 point{};
+                for (int corner = 0; corner < 3; ++corner)
+                    point = add_vec3(point, scale_vec3(triangle.corners[corner], closest.barycentric[corner]));
+                if (closest.distance_squared < best_score - tolerance * tolerance * 0.01) {
+                    best_score = closest.distance_squared;
+                    best = distance_squared_vec3(node.point, point);
+                    target_point = point;
                     target_normal = normal;
                 }
             }
             for (const auto next : adjacent[id]) {
                 if (visited[next] == i + 1)
                     continue;
-                const double distance = pending[cursor].second +
-                                        length_vec3(sub_vec3(body.triangles[next].centroid, triangle.centroid));
-                if (distance > reach || pending.size() >= 512)
+                // Measure the patch on the surface, not by centroid hops, which
+                // prematurely stop at coarse triangles or seam tessellation.
+                const auto &candidate = body.triangles[next];
+                const auto distance = closest_triangle_point_native(seed_point, candidate.corners[0],
+                                                                     candidate.corners[1], candidate.corners[2]);
+                if (distance.distance_squared > reach * reach || pending.size() >= 2048)
                     continue;
                 visited[next] = i + 1;
-                pending.emplace_back(next, distance);
+                pending.push_back(next);
             }
         }
         if (!std::isfinite(best) || std::sqrt(best) > refit.driver_diagonal * 0.35)
@@ -482,14 +524,13 @@ void mesh_editor_conform_refit(const MeshRefitRuntime &refit, const std::map<int
     }
     if (!converged)
         fail(nodes.front().vertices.front().first, "fitting did not converge; previous preview retained");
-    // A displacement solve is linear, but triangle orientation is not. Limit
-    // locally unsafe steps, spreading the limit through adjacent cloth so tiny
-    // folded details cannot turn over or create a spike in the broad fit.
-    std::vector<double> step(nodes.size(), 1.0);
+    // Limit local strain, not the common translation. Stopping every component
+    // of an unsafe displacement pins small folds and creates flared hem corners;
+    // carrying the triangle together lets its detail follow the fitted silhouette.
     const auto candidate = [&](std::size_t i, double scale) {
         return add_vec3(nodes[i].point, scale_vec3(displacement[i], scale));
     };
-    for (int pass = 0; pass < 32; ++pass) {
+    for (int pass = 0; pass < 64; ++pass) {
         bool changed = false;
         for (const auto &item : garments) {
             const auto& map = indices.at(item.first);
@@ -502,7 +543,7 @@ void mesh_editor_conform_refit(const MeshRefitRuntime &refit, const std::map<int
                 Vec3 a{}, b{};
                 for (const auto other : local_neighbors[vertex]) {
                     source.push_back(nodes[map[other]].point);
-                    target.push_back(candidate(map[other], step[map[other]]));
+                    target.push_back(candidate(map[other], 1.0));
                     a = add_vec3(a, source.back());
                     b = add_vec3(b, target.back());
                 }
@@ -520,9 +561,19 @@ void mesh_editor_conform_refit(const MeshRefitRuntime &refit, const std::map<int
                 Vec3 expected{};
                 for (const auto vertex : face)
                     expected = add_vec3(expected, refit_rotate_quaternion_native(rotations[vertex], normal));
+                Vec3 transport{};
+                double mobility = 1.0;
+                for (const auto i : v) {
+                    transport = add_vec3(transport, scale_vec3(displacement[i], 1.0 / 3.0));
+                    mobility = std::min(mobility, nodes[i].mobility);
+                }
+                if (mobility <= 0.0) transport = Vec3{};
+                const auto transported = [&](std::size_t i, double scale) {
+                    return add_vec3(nodes[i].point, add_vec3(transport,
+                        scale_vec3(sub_vec3(displacement[i], transport), scale)));
+                };
                 const auto safe = [&](double scale) {
-                    std::array<Vec3, 3> p{candidate(v[0], step[v[0]] * scale), candidate(v[1], step[v[1]] * scale),
-                                          candidate(v[2], step[v[2]] * scale)};
+                    std::array<Vec3, 3> p{transported(v[0], scale), transported(v[1], scale), transported(v[2], scale)};
                     if (dot_vec3(normal, refit_face_normal_native(p[0], p[1], p[2])) < 0.1)
                         return false;
                     // Use the same moving neighborhood as final validation.
@@ -549,39 +600,17 @@ void mesh_editor_conform_refit(const MeshRefitRuntime &refit, const std::map<int
                         high = middle;
                 }
                 for (const auto i : v)
-                    step[i] *= low * 0.95;
+                    displacement[i] = add_vec3(transport,
+                        scale_vec3(sub_vec3(displacement[i], transport), low * 0.95));
                 changed = true;
             }
         }
         if (!changed)
             break;
-        auto limited = step;
-        for (const auto &edge : edges) {
-            // Limit changes over physical distance rather than edge count.
-            const double transition = length_vec3(sub_vec3(nodes[edge.a].point, nodes[edge.b].point)) /
-                                      std::max(smoothing_length, tolerance);
-            limited[edge.a] = std::min(limited[edge.a], step[edge.b] + transition);
-            limited[edge.b] = std::min(limited[edge.b], step[edge.a] + transition);
-        }
-        // A detail that limits the fit must also limit the cloth directly
-        // underneath it. Otherwise the independent triangle guard can undo the
-        // shared field and pull the lining through a preserved fold or buckle.
-        for (const auto& link : layer_links) {
-            Vec3 offset{};
-            double minimum = 1.0;
-            for (int c = 0; c < 4; ++c) {
-                offset = add_vec3(offset, scale_vec3(nodes[link.nodes[c]].point, link.weights[c]));
-                if (std::abs(link.weights[c]) > 1.0e-6) minimum = std::min(minimum, step[link.nodes[c]]);
-            }
-            const double transition = length_vec3(offset) / std::max(smoothing_length, tolerance);
-            for (int c = 0; c < 4; ++c) if (std::abs(link.weights[c]) > 1.0e-6)
-                limited[link.nodes[c]] = std::min(limited[link.nodes[c]], minimum + transition);
-        }
-        step = std::move(limited);
     }
     for (std::size_t i = 0; i < nodes.size(); ++i)
         for (const auto &vertex : nodes[i].vertices) {
-            const Vec3 point = candidate(i, step[i] * nodes[i].tightness);
+            const Vec3 point = candidate(i, nodes[i].tightness);
             layer.at(vertex.first)[vertex.second] = sub_vec3(point, residual.at(vertex.first)[vertex.second]);
         }
 }
@@ -590,7 +619,8 @@ void mesh_editor_validate_conformed_refit(const MeshRefitRuntime &refit,
                                           const std::map<int, MeshSessionSubmesh> &submeshes,
                                           const std::map<int, std::vector<Vec3>> &residual,
                                           const std::map<int, std::vector<Vec3>> &before,
-                                          const std::map<int, std::vector<Vec3>> &after, const char *stage) {
+                                          const std::map<int, std::vector<Vec3>> &after, const char *stage,
+                                          const std::map<int, std::vector<Vec3>> *strain_reference) {
     const double tolerance = std::max(1.0e-6, refit.driver_diagonal * 1.0e-7);
     struct Seam {
         Vec3 before, after;
@@ -703,7 +733,16 @@ void mesh_editor_validate_conformed_refit(const MeshRefitRuntime &refit,
             for (int corner = 0; corner < 3; ++corner) {
                 const double a = distance_squared_vec3(original[corner], original[(corner + 1) % 3]);
                 const double b = distance_squared_vec3(candidate[corner], candidate[(corner + 1) % 3]);
-                if (a > 1.0e-16 && (b < a * 1.0e-6 || b > a * 9.0))
+                // Clearance may recover an edge that conforming shortened.
+                // This is a strain ceiling, never a spring toward the old width.
+                double upper = a;
+                if (strain_reference) {
+                    const auto& reference = strain_reference->at(part);
+                    upper = std::max(upper, distance_squared_vec3(
+                        add_vec3(residual.at(part)[face[corner]], reference[face[corner]]),
+                        add_vec3(residual.at(part)[face[(corner + 1) % 3]], reference[face[(corner + 1) % 3]])));
+                }
+                if (a > 1.0e-16 && (b < a * 1.0e-6 || b > upper * 9.0))
                     fail("edge ratio", std::sqrt(b / a));
             }
             ++face_index;
