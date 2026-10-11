@@ -1,4 +1,5 @@
 """Verified copies of saves for experimental launches; never edits live saves."""
+from datetime import datetime, timezone
 import hashlib
 import os
 from pathlib import Path
@@ -115,7 +116,9 @@ def backup_saves(plan, *, stop_event=None):
             os.fsync(writer.fileno())
         raise_if_cancelled(stop_event)
         staged.rename(destination)
-    return VirtualSaveBackup(destination, source, digest(manifest))
+    return VirtualSaveBackup(destination, source, digest(manifest),
+        tuple((name, row['size'], row['sha256']) for name, row in sorted(records.items())),
+        datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'))
 
 
 def verify_backup(review, *, stop_event=None):

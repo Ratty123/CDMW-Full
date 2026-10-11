@@ -26,6 +26,7 @@ class VirtualLoaderPage(QWidget):
         self._next_order = 0
         self._progress_generation = None
         self._session = None
+        self._receipt_results = {}
         self._session_lookup = controller.create_lookup_lane()
         self._session_lookup.completed.connect(self._session_status_ready)
         self._session_lookup.failed.connect(self._session_status_failed)
@@ -119,6 +120,14 @@ class VirtualLoaderPage(QWidget):
         self.progress.setToolTip(self.tr('Progress follows completed stages and files. It is not an estimate of remaining time.'))
         self.progress.hide()
         right.addWidget(self.progress)
+        self.receipt_details = QPlainTextEdit()
+        self.receipt_details.setObjectName('virtual_loader_receipt_details')
+        self.receipt_details.setAccessibleName(self.tr('Verification receipt and diagnostics'))
+        self.receipt_details.setReadOnly(True)
+        self.receipt_details.setMaximumBlockCount(200)
+        self.receipt_details.setMaximumHeight(150)
+        self.receipt_details.hide()
+        right.addWidget(self.receipt_details)
         self.review = QPlainTextEdit()
         self.review.setReadOnly(True)
         self.review.setMaximumBlockCount(2000)
@@ -171,6 +180,35 @@ class VirtualLoaderPage(QWidget):
         layout.addWidget(button)
         return button
 
+    def _clear_receipt_details(self):
+        self._receipt_results.clear()
+        self.receipt_details.clear()
+        self.receipt_details.hide()
+
+    def _show_receipt_details(self, stage, result):
+        current = (str(getattr(result, 'receipt_path', '') or ''),
+                   tuple(str(message) for message in getattr(result, 'diagnostics', ()) if message))
+        if self._receipt_results.get(stage) == current:
+            return
+        self._receipt_results[stage] = current
+        lines, paths, messages = [], set(), set()
+        # Keep one result per stage. Repeated polling never appends an unbounded
+        # log, and receipt failures cannot replace the actual session status.
+        for key, template in (
+                ('preparation', self.tr('Launch preparation: {value_0}')),
+                ('launch', self.tr('Launch: {value_0}')),
+                ('session', self.tr('Session status: {value_0}'))):
+            receipt_path, diagnostics = self._receipt_results.get(key, ('', ()))
+            if receipt_path and receipt_path not in paths:
+                paths.add(receipt_path)
+                lines.append(self.tr('Verification receipt: {value_0}').format(value_0=receipt_path))
+            for message in diagnostics:
+                if message not in messages:
+                    messages.add(message)
+                    lines.append(template.format(value_0=self.tr(message)))
+        self.receipt_details.setPlainText('\n'.join(lines))
+        self.receipt_details.setVisible(bool(lines))
+
     def _buttons(self):
         ready = not (self._closed or self._working or self.controller.busy or self._queued)
         for button in (self.add_items, self.add_mod, self.apply_button, self.refresh_button, self.setup_button, self.recover_button,
@@ -193,6 +231,7 @@ class VirtualLoaderPage(QWidget):
         self._prepared = self._runtime = self._queued = None
         self._draft_loaded = True
         self.review.clear()
+        self._clear_receipt_details()
         self.progress.hide()
         profile = self._profile()
         self.count.setText(self.tr('{value_0} packages · {value_1} mod folders').format(value_0=len(profile.packages), value_1=len(profile.mods)))
@@ -302,6 +341,7 @@ class VirtualLoaderPage(QWidget):
     def _apply(self):
         self._error = ''
         self._prepared = self._runtime = None
+        self._clear_receipt_details()
         self._ensure_runtime(self._prepare)
 
     def _prepare(self):
@@ -409,8 +449,10 @@ class VirtualLoaderPage(QWidget):
         if self._profile() != self._saved_selection:
             return
         root, generation = self.package_root, self._generation
+        self._clear_receipt_details()
         self.status.setText(self.tr('Preparing launch and save backup…'))
         def done(review):
+            self._show_receipt_details('preparation', review)
             self.activity.emit(self.tr('Backup: {value_0}').format(value_0=review.backup.directory))
             def start():
                 if not self._closed and generation == self._generation and root == self.package_root:
@@ -446,6 +488,8 @@ class VirtualLoaderPage(QWidget):
     def _started(self, result):
         self._session_lookup.cancel()
         self._session = (self.package_root, result.detail, result.pid)
+        self._receipt_results.pop('session', None)
+        self._show_receipt_details('launch', result)
         self.status.setText(self.tr('Starting the virtual session…'))
         self.progress.setRange(0, 100)
         self.progress.setValue(0)
@@ -459,11 +503,12 @@ class VirtualLoaderPage(QWidget):
         from cdmw.services.virtual_loader_runtime import session_status
         root, token, host_pid = self._session
         self._session_lookup.request(self._session,
-            lambda stop: session_status(root, token, host_pid=host_pid))
+            lambda stop: session_status(root, token, host_pid=host_pid, stop_event=stop))
 
     def _session_status_ready(self, key, state):
         if self._closed or key != self._session:
             return
+        self._show_receipt_details('session', state)
         if not self._working:
             self.status.setText(self.tr(state.detail))
             if state.state == 'starting':
@@ -485,6 +530,7 @@ class VirtualLoaderPage(QWidget):
     def _trace(self):
         from cdmw.services.virtual_loader_runtime import prepare_diagnostic_trace, start_diagnostic_trace
         root = self.package_root
+        self._clear_receipt_details()
         def done(plan):
             generation = self._generation
             detail = self.tr('Start a diagnostic game session using original game files? Virtual items will not be active. Leave the game at its title screen without loading a save, then close it.')
@@ -538,6 +584,7 @@ class VirtualLoaderPage(QWidget):
         self.selection.clear()
         self._next_order = 0
         self.review.clear()
+        self._clear_receipt_details()
         self.count.clear()
         self.progress.hide()
         self._buttons()

@@ -42,12 +42,16 @@ class VirtualSaveBackup:
     directory: Path
     source: Path
     manifest_sha256: str
+    verified_files: tuple[tuple[str, int, str], ...] = ()
+    observed_utc: str = ''
 
 
 @dataclass(frozen=True)
 class ExperimentalLaunchReview:
     plan: VirtualLaunchPlan
     backup: VirtualSaveBackup
+    receipt_token: str = ''
+    diagnostics: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -57,3 +61,5 @@ class VirtualSessionStatus:
     generation: str = ''
     pid: int | None = None
     progress: int | None = None
+    receipt_path: str = ''
+    diagnostics: tuple[str, ...] = ()

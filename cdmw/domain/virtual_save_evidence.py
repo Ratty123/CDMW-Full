@@ -131,6 +131,29 @@ def decode(data):
         raise VirtualLoaderError('Invalid or changed save experiment capture.') from exc
 
 
+def describe_save_attempt(before, after, selected, outcome):
+    """Describe selected-file observations without identifying a save writer."""
+    changed = sorted(name for name in selected if name in after and before.get(name) != after[name])
+    unchanged = sorted(name for name in selected if name in after and before.get(name) == after[name])
+    missing = sorted(set(selected) - set(after))
+    if changed and (unchanged or missing):
+        effect = 'partially-changed'
+    elif missing:
+        effect = 'missing-selected-members'
+    elif changed:
+        effect = 'changed'
+    else:
+        effect = 'unchanged'
+    return {'operator_outcome': 'reported-saved' if outcome == 'saved' else outcome,
+            'file_effect': effect, 'changed_selected_files': changed,
+            'unchanged_selected_files': unchanged, 'missing_selected_files': missing,
+            'other_files_changed': {k: v for k, v in before.items() if k not in selected}
+                                   != {k: v for k, v in after.items() if k not in selected},
+            'producer': 'unknown', 'produced_context': 'unknown', 'ancestry': 'unknown',
+            'limitation': 'File effects describe the observed copies. A mixed or changed file set '
+                          'does not establish a partial or completed game save.'}
+
+
 def compare(captures):
     """Even a consistent six-step sequence remains an operator-reported candidate."""
     if not 1 <= len(captures) <= len(STAGES):
@@ -177,6 +200,7 @@ def compare(captures):
         check('absent-load-no-save', chosen(values[2]) == chosen(values[1]),
               'The selected save bytes did not change during the reported load-only case.')
     save_attempt = None
+    attempt_observation = None
     if len(values) > 3:
         outcome = values[3]['observation']['outcome']
         def other_files(value):
@@ -187,6 +211,8 @@ def compare(captures):
             'other_files_changed': other_files(values[3]) != other_files(values[2]),
             'missing_selected_files': [key for key, row in chosen(values[3]).items() if row is None],
         }
+        attempt_observation = describe_save_attempt(values[2]['files'], values[3]['files'],
+                                                    first['selected'], outcome)
         if outcome == 'saved':
             check('new-absent-save', save_attempt['selected_bytes_changed'],
                   'The reported absent-provider save has different selected bytes; this alone does not prove a game write.')
@@ -228,5 +254,6 @@ def compare(captures):
     return {'format': 'cdmw_virtual_save_comparison_v1', 'experiment': first['experiment'],
             'status': status, 'claims': dict(CLAIMS), 'checks': checks, 'outcomes': outcomes,
             'missing_stages': list(STAGES[len(values):]), 'save_attempt': save_attempt,
+            'save_attempt_observation': attempt_observation,
             'limitation': 'Hashes establish copy/context consistency, not save origin, game activation, '
                           'successful deserialization or migration safety. Operator reports are not authenticated.'}

@@ -140,7 +140,7 @@ Use separate copies for each experiment and keep the original recovery copy.
 
 ### Capture an absent-provider experiment
 
-`scripts/capture_virtual_save_evidence.py` provides a read-only research workflow
+`scripts/capture_virtual_save_evidence.py` provides a research capture workflow
 for this experiment. It reads an explicitly named **copy** of save files and the
 current prepared virtual profile. It does not launch the game, copy or restore
 live saves, edit archives, change a profile or admit a save for use. Conducting
@@ -162,7 +162,7 @@ existing reports are never overwritten.
 | `baseline` | Provider selected; original recovery save copied | `prepared` |
 | `absent_before_load` | Provider removed; original bytes copied before the load-only case | `prepared` |
 | `absent_loaded` | Same absent-provider profile; copy after the load-only case | `loaded`, `failed` or `unknown` |
-| `absent_saved` | Same absent-provider profile; copy after the save attempt | `saved`, `failed` or `unknown` |
+| `absent_saved` | Same absent-provider profile; copy after the save attempt | `reported-saved` (`saved` also accepted), `failed` or `unknown` |
 | `restored_before_load` | Original provider/profile restored; post-attempt copy retained before loading | `prepared` |
 | `restored_loaded` | Restored profile; copy after loading the same post-attempt input | `loaded`, `failed` or `unknown` |
 
@@ -210,7 +210,8 @@ produce a committed save. Otherwise consistent observations report
 `reported-failure` or `unverified-outcome`, including an incomplete sequence.
 Restoring the provider later does not promote either outcome to success.
 
-A reported `saved` outcome requires present, changed selected files, and its
+A reported `saved` outcome requires every selected member to be present and at
+least one selected member to have changed, and its
 restored-provider case must use that newly written copy rather than the original
 recovery save. Changes to unselected files, including a possible autosave, cannot
 substitute for changes to the selected slot. For a failed or unknown attempt,
@@ -237,12 +238,115 @@ certificate or permission to migrate. The launcher does not consume these report
 Capture checksums and chains detect accidental changes; they are not signatures
 or authenticated attestations of the operator's observations.
 
-Reports contain hashes and sizes, prepared output identities and retained provider
+Capture reports contain hashes and sizes, prepared output identities and retained provider
 bindings. Relative save names are hashed; absolute source paths and file contents
 are omitted. Operator notes are included verbatim and should be reviewed before
 sharing. Captures use the existing 4 GiB/4,096-file save bounds and a 4 MiB report
 bound. Atomic creation requires a filesystem that supports hard links; failure
 leaves the previous reports and input copies intact.
+
+### Prepare a protocol from selected disposable copies
+
+Use `prepare-experiment` before requesting a live trial. Its required parameters
+resolve the game root, a working copied-save directory, a separate original
+recovery directory, a new destination for the post-attempt copy, an output
+protocol path, the exact baseline provider UUID, and each selected relative
+member. These inputs are intentionally not inferred from a configured live save
+folder. Real paths, slot membership, provider identities and game observations
+remain pending until the operator selects and reviews them.
+
+```powershell
+.\.venv\Scripts\python.exe scripts/capture_virtual_save_evidence.py prepare-experiment `
+  --game-root '<reviewed game folder>' --save-copy '<working copied-save folder>' `
+  --original-copy '<separate original recovery folder>' `
+  --post-attempt-copy '<new retained-attempt folder>' `
+  --output '<existing reports folder>/experiment.json' `
+  --provider '<exact 32-character provider UUID>' `
+  --slot 'account/slot/save.save' --slot 'account/slot/save.meta'
+```
+
+The two selected member names above are examples, not a discovered game layout.
+Replace them with the reviewed selection. The game must be closed; all initial
+selected members must exist and match the separate original recovery copy.
+Preflight rejects overlapping roles, linked folders, hard-linked selected copies,
+case aliases, changed inputs and existing output paths. The protocol records the
+prepared profile/generation, provider content/bindings, compiler/runtime/build
+fingerprints, original recovery observations and six exact capture argument
+arrays with literal PowerShell rendering. It does not authorize a launch.
+
+The artifact's `commands` array contains exactly the six stages above. Each
+command includes `--protocol`, the exact copied input and output paths, and the
+expected predecessor. Review its `action`, `continuity` and `powershell` fields
+before running it. Post-action commands initially use `--outcome unknown` and
+notes that assert no game result. Replace those with the actual observation,
+including relevant objects, quantities, load failures, interruptions, possible
+autosaves, cloud replacement or second writers. A successful menu load alone
+does not show that provider-owned state survived.
+
+`capture --protocol` binds these parameters and the retained original recovery
+identity. Baseline and pre-load identity/input mismatches refuse. Captures after
+a load or save attempt retain failed, unknown, changed and missing observations
+for comparison; they do not hide adverse evidence merely because it is
+inconsistent. Existing capture JSON and its sealed `saved` outcome stay
+unchanged. The CLI maps `reported-saved` to that existing operator-report value.
+
+An optional `--backup-manifest '<retained backup>/manifest.json'` together with
+`--backup-sha256 '<exact manifest SHA-256>'` verifies the manifest, its retained
+files, selected original-copy association and baseline profile identity. This
+reads retained material only; it never follows the manifest's live `source`.
+The ordinary launch backup verifier still separately requires its live inputs
+to remain unchanged. With no manifest supplied, backup association remains
+unprovided. Slot membership/layout, save finalization, producer, produced context
+and ancestry remain explicitly unknown or unobserved in either case.
+
+After `absent_saved`, run the generated `retain_after_capture` command before
+changing the working copy:
+
+```powershell
+.\.venv\Scripts\python.exe scripts/capture_virtual_save_evidence.py retain-attempt `
+  --protocol '<reports>/experiment.json' `
+  --capture '<reports>/experiment_04_absent_saved.json'
+```
+
+This copies only the explicitly selected working **copy directory** into the new
+protocol-pinned destination. It retains all observed copied files, including
+unselected files needed to describe interference, and records missing selected
+members. It verifies the source against `absent_saved`, verifies the retained
+bytes, and publishes a complete manifest last without replacing another output.
+A final marker readback must match exactly. Unavailable or contradictory
+readback reports unverified publication and preserves linked output for inspection.
+A failed or cancelled incomplete copy cannot be admitted as completed retention;
+earlier captures and the original recovery copy remain available.
+
+The retained destination's `files/` directory is the exact post-attempt input for
+the restored-provider case. Under the separately reviewed live restoration
+procedure, use those selected members and preserve their recorded absences.
+Do not overlay missing members from an older slot or fill them from the original
+recovery copy. Restore the same provider content and bindings, capture
+`restored_before_load`, perform the authorized load-only observation, then copy
+and capture its result as `restored_loaded`. Both captures revalidate the
+retained attempt, and comparison checks the final selected bytes against the
+immediate input. No command here copies into or restores a live save folder.
+
+Keep the original recovery directory unchanged throughout. If recovery requires
+restoring it, record that as recovery and end or abandon this experiment branch.
+An original-save restoration cannot satisfy the post-attempt preservation test.
+One successful authorized trial establishes only that provider/build/selection
+observation. A production save-finalization/producer observer remains pending.
+
+Comparison now adds `save_attempt_observation` beside the unchanged four-field
+`save_attempt`. It names the operator outcome (`reported-saved`, `failed` or
+`unknown`) separately from `file_effect` (`unchanged`, `changed`,
+`partially-changed` or `missing-selected-members`) and lists changed, unchanged
+and missing selected members. A mixed file set describes observed copies; it
+does not identify a partial or completed game save. Producer, produced context
+and ancestry remain unknown, including after a reported save or clean exit.
+
+Unlike captures, protocol artifacts contain explicit absolute paths, member
+names and executable command arguments. Review them before sharing. A retained
+copy contains the actual copied save bytes and belongs with private evidence,
+outside the repository. Existing size/count limits and exclusive publication
+apply; the tool never edits a previously published protocol or retained attempt.
 
 ### Save lineage inspection and policy
 
@@ -259,6 +363,22 @@ decision. Capture metadata cannot establish complete slot membership, a slot-lay
 adapter, producing process/context, save ancestry or requirements coverage. These
 remain unknown. A capture's `parent` links reports; it is never a parent-save
 identity. The existing capture/comparison formats are unchanged.
+
+Inspect a persisted or transferred session receipt directly, without reading a
+live save folder or importing a trusted commit witness:
+
+```powershell
+.\.venv\Scripts\python.exe scripts/capture_virtual_save_evidence.py inspect-receipt `
+  '<selected local receipt.json>'
+```
+
+This bounded, data-only path decodes the versioned immutable receipt and applies
+its inspection policy. Proposed profile context, backup association, reported
+readiness/process exit and before/after file observations remain separate.
+Producer, produced context, ancestry, requirements coverage and save
+compatibility are not established by those observations. Copying a receipt to
+another location does not promote its authority. Malformed, changed, oversized
+or unknown-schema records refuse; the CLI has no witness/verifier import option.
 
 `cdmw/domain/virtual_save_lineage.py` implements a data-only policy for a future
 trusted save-commit observer. It binds a witness to the exact selected files and
@@ -291,7 +411,9 @@ and interrupted writes. Hash changes across a game session alone are insufficien
 | --- | --- | --- |
 | `.cditem` v1 or v2 `item.legacy` | Existing identity, dependency, relocation and record composition services | The [independent-item format matrix](INDEPENDENT_ITEMS.md#supported-format-matrix) applies without expansion |
 | `.cditem` v2 `item.fields` | Typed existing stack-count and stat-value assignments, composed in both deployment paths | Exact sources and recognized row layouts only; v1 requirements remain protected; gameplay/save effects are unverified |
+| `.cditem` v2 `texture.replace@1` | Existing directly registered 2D block-compressed DDS replacements, including standalone packages with no numeric item allocation; equal final bytes retain separate owners | Fully decoded supported mip layouts and exact source, descriptor and PATHC witnesses; new registry entries and arbitrary material edits remain unsupported; conflicting final-byte requirements, including protected legacy reads, refuse |
 | `.cditem` v2 `package.links` | Exact package release/content pins and typed references to exported legacy item identities | Providers must belong to the same selected virtual profile; game-reference relocation and save/runtime lifetimes remain unsupported |
+| `export.semantic@1` wrapper | Opaque `cdmw-semantic.cditem` files or their containing folders retain exact original packages and bindings; readers validate source witnesses and recompile the retained originals before composition | Required metadata, package content and recomputed output/baseline bytes must agree; unavailable intent, source/compiler drift and donor binding conflicts refuse |
 | Mounted external mods | Current archive inspection and record conflict checks | Ambiguous providers, required-record edits or unsupported formats |
 | Selected extracted mod folders and PAMT/PAZ mods | Supported loose files and known table pairs, privately composed with installed contributions; recognized loose PAPGT is consumed for discovery | Executables, runtime plugins, malformed paths, invalid mount metadata or unknown content |
 | Selected folder PATHC | A validated registry identical to the current game's registry is accepted as unchanged metadata | A changed incoming registry requires recorded texture ownership through the existing Merge workflow; unknown metadata refuses |
@@ -303,17 +425,25 @@ and interrupted writes. Hash changes across a game session alone are insufficien
 
 Virtual loading still requires shared-table composition. It does not create an
 independent game namespace or make arbitrary mods conflict-free. Selected folders
-can contain ordinary equipment, character or texture resources that pass those
-file-level checks; this does not create a standalone character/body/hair/outfit or
-texture/material `.cditem` adapter. Package content remains limited to the admitted
-legacy equipment, ItemInfo field and package-link modules.
+can contain ordinary equipment, character or texture resources that pass the
+file-level checks. Explicit package adapters cover legacy equipment, ItemInfo
+fields, package links and the supported existing-texture replacements above.
+Standalone character/body/hair/outfit and general material adapters remain
+unsupported. Texture composition and lifecycle tests establish implementation
+behavior; visible texture game evidence remains pending.
 
-The original `.cditem` files retain typed field and link requirements within the
-profile. **Export installed items…** currently refuses flattening active field or
-link semantics into an ordinary archive folder. A complete portable semantic
-schema and corresponding downstream readers remain pending; the
-[export boundary](INDEPENDENT_ITEMS.md#compare-and-compose-other-mods) applies
-even when the selected packages pass compatibility scanning.
+**Export installed items…** writes the opaque `cdmw-semantic.cditem` wrapper when
+active packages declare fields, texture replacements or package links. CDMW's
+supporting readers retain source-equal requirements, exact provider pins and
+separate contributor ownership by recompiling the original packages. **Merge
+mods** also combines supported semantic export folders. Legacy-only archive
+exports retain their existing route. Mixed foreign/untyped semantic exports and
+binding relocation remain unsupported. A virtual wrapper is one selection; use
+its retained original packages to select a subset, keeping required providers.
+Legacy byte-only managers cannot install the semantic wrapper. Manually extracted
+legacy files have only the guarantees supported by their bytes. The
+[semantic export contract](INDEPENDENT_ITEMS.md#semantic-export-and-reimport)
+defines the exact supported boundary.
 
 ## Publication and lifecycle
 

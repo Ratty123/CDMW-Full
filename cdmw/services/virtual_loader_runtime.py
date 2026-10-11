@@ -237,7 +237,46 @@ def launch(plan, *, stop_event=None):
     return _start(plan.root, profile, mode=1, stop_event=stop_event)
 
 
-def _start(root, profile, *, mode, stop_event=None, extra_guards=()):
+def _observe_receipt(action, *args, **kwargs):
+    """Bookkeeping failures never replace a truthful operation outcome."""
+    try:
+        return action(*args, **kwargs), ()
+    except Exception as exc:
+        return None, ('Session receipt could not be recorded: ' + str(exc)[:900],)
+
+
+def _start(root, profile, *, mode, stop_event=None, extra_guards=(),
+           session_token=None, receipt_diagnostics=()):
+    from cdmw.services import virtual_loader_receipts as receipts
+    token = session_token or uuid4().hex
+    diagnostics = tuple(receipt_diagnostics)
+    if session_token is not None:
+        prepared, notes = _observe_receipt(receipts.launch_attempt, root, profile, token, stop_event=stop_event)
+        diagnostics += notes
+        if prepared:
+            token, _captured = prepared
+        else:
+            # A broken receipt cannot force reuse of a prior native launch token.
+            token, session_token = uuid4().hex, None
+    if session_token is None:
+        begun, notes = _observe_receipt(receipts.begin_attempt, root, profile,
+                                       attempt=token, stop_event=stop_event)
+        diagnostics += notes
+        if begun:
+            diagnostics += tuple(begun[1].to_dict()['diagnostics'])
+    try:
+        result, launch_sha, host_sha = _start_process(root, profile, mode=mode, stop_event=stop_event,
+                                           extra_guards=extra_guards, session_token=token)
+    except Exception as exc:
+        _observe_receipt(receipts.record_failure, root, token, exc)
+        raise
+    # Popen has succeeded. No late cancellation or receipt failure can turn this
+    # into a reported cancellation or suggest that the host was rolled back.
+    captured, notes = _observe_receipt(receipts.record_launch, root, token, result.pid, launch_sha, host_sha)
+    return receipts.attach_receipt(result, captured, (*diagnostics, *notes))
+
+
+def _start_process(root, profile, *, mode, stop_event=None, extra_guards=(), session_token=None):
     from cdmw.services.new_item_service import game_is_running
     from cdmw.services.independent_item_install import load_registry
     from cdmw.services.process_job_service import breakaway_creation_flags
@@ -251,7 +290,7 @@ def _start(root, profile, *, mode, stop_event=None, extra_guards=()):
             raise VirtualLoaderError('The virtual profile changed before launch. Review it again.')
         load_profile(root, registry=load_registry(root))
         token, data = session_manifest(root, profile, mode=mode, executable_sha256=GAME_SHA256,
-                                       launcher=_steam_launcher(), extra_guards=extra_guards)
+                                       token=session_token, launcher=_steam_launcher(), extra_guards=extra_guards)
         path = target(root, '.cdmw/virtual-loader/launches/' + token + '.bin')
         atomic_write_bytes(path, data)
         # A onefile application's extraction directory disappears on exit. The
@@ -278,13 +317,14 @@ def _start(root, profile, *, mode, stop_event=None, extra_guards=()):
             process = subprocess.Popen(command, cwd=str(root),
                 creationflags=breakaway_creation_flags() | int(getattr(subprocess, 'CREATE_NO_WINDOW', 0)),
                 stdin=subprocess.DEVNULL, stdout=log, stderr=log, close_fds=True)
-    return VirtualSessionStatus('starting', token, profile['generation'], process.pid)
+    return VirtualSessionStatus('starting', token, profile['generation'], process.pid), digest(data), host_checksum
 
 
 def prepare_experimental_launch(root, *, stop_event=None, on_progress=None):
     from cdmw.services.independent_item_install import load_registry
     from cdmw.services.new_item_service import game_is_running
     from cdmw.services.virtual_loader_saves import backup_saves
+    from cdmw.services import virtual_loader_receipts as receipts
     root = Path(root).resolve()
     with installation_lane(root):
         if on_progress:
@@ -297,18 +337,45 @@ def prepare_experimental_launch(root, *, stop_event=None, on_progress=None):
             raise VirtualLoaderError('The launch plan changed. Review it again.')
         plan = VirtualLaunchPlan(root, profile['generation'], target(root, 'bin64/CrimsonDesert.exe'),
                                  GAME_SHA256, generation_path(root, profile['generation']), digest(canonical(profile)))
-        if on_progress:
-            on_progress(45, 100, 'Backing up saved games…')
-        backup = backup_saves(plan, stop_event=stop_event)
-        if game_is_running():
-            raise VirtualLoaderError('Close Crimson Desert before starting a virtual session.')
-        raise_if_cancelled(stop_event)
-        if on_progress:
-            on_progress(100, 100, 'Save backup verified. Ready for launch review.')
-        return ExperimentalLaunchReview(plan, backup)
+        token = uuid4().hex
+        begun, diagnostics = _observe_receipt(receipts.begin_attempt, root, profile,
+                                             attempt=token, stop_event=stop_event)
+        if begun:
+            diagnostics += tuple(begun[1].to_dict()['diagnostics'])
+        backup = None
+        try:
+            if on_progress:
+                on_progress(45, 100, 'Backing up saved games…')
+            backup = backup_saves(plan, stop_event=stop_event)
+            captured, notes = _observe_receipt(receipts.record_backup, root, token, plan, backup)
+            diagnostics += notes
+            if captured:
+                diagnostics += tuple(captured[1].to_dict()['diagnostics'])
+            if game_is_running():
+                raise VirtualLoaderError('Close Crimson Desert before starting a virtual session.')
+            raise_if_cancelled(stop_event)
+            if on_progress:
+                on_progress(100, 100, 'Save backup verified. Ready for launch review.')
+            return ExperimentalLaunchReview(plan, backup, token, tuple(dict.fromkeys(diagnostics)))
+        except Exception as exc:
+            _observe_receipt(receipts.record_failure, root, token, exc, backup_published=backup is not None)
+            raise
 
 
 def launch_experimental(review, *, confirmed=False, stop_event=None, on_progress=None):
+    if not confirmed:
+        raise PermissionError('Controlled virtual loading requires an explicitly reviewed launch plan and save backup.')
+    try:
+        return _launch_experimental(review, confirmed=True, stop_event=stop_event, on_progress=on_progress)
+    except Exception as exc:
+        if review.receipt_token and not target(review.plan.root,
+                '.cdmw/virtual-loader/launches/' + review.receipt_token + '.bin').exists():
+            from cdmw.services.virtual_loader_receipts import record_failure
+            _observe_receipt(record_failure, review.plan.root, review.receipt_token, exc)
+        raise
+
+
+def _launch_experimental(review, *, confirmed=False, stop_event=None, on_progress=None):
     """User-reviewed test launch with enforced save backup and native guards."""
     from cdmw.services.new_item_service import game_is_running
     from cdmw.services.virtual_loader_saves import verify_backup
@@ -340,7 +407,8 @@ def launch_experimental(review, *, confirmed=False, stop_event=None, on_progress
         if digest(canonical(profile)) != checked.manifest_sha256:
             raise VirtualLoaderError('The controlled launch plan changed. Review it again.')
     progress(95, 'Starting the session host…')
-    return _start(review.plan.root, profile, mode=3, stop_event=stop_event, extra_guards=guards)
+    return _start(review.plan.root, profile, mode=3, stop_event=stop_event, extra_guards=guards,
+                  session_token=review.receipt_token or None, receipt_diagnostics=review.diagnostics)
 
 
 def prepare_diagnostic_trace(root, *, stop_event=None):
@@ -384,16 +452,32 @@ def start_controlled_probe(root, *, confirmed=False, expected_plan=None, stop_ev
     return _start(Path(root).resolve(), profile, mode=3, stop_event=stop_event)
 
 
-def session_status(root, token, *, host_pid=None):
+def session_status(root, token, *, host_pid=None, stop_event=None):
     from cdmw.domain.new_item.independent import package_id
+    from cdmw.services import virtual_loader_receipts as receipts
     package_id(token)
+    try:
+        status, report, report_sha = _session_observation(root, token, host_pid=host_pid)
+    except Exception as exc:
+        _observe_receipt(receipts.record_status_error, root, token, exc)
+        raise
+    captured, notes = _observe_receipt(receipts.record_status, root, token, status,
+        host_pid=host_pid, report=report, report_sha256=report_sha, stop_event=stop_event)
+    return receipts.attach_receipt(status, captured, notes)
+
+
+def _session_observation(root, token, *, host_pid=None):
     path = target(root, '.cdmw/virtual-loader/session-' + token + '.json')
-    raw = read_optional(path)
-    if raw is None:
+    try:
+        with path.open('rb') as reader:
+            raw = reader.read(4097)
+    except FileNotFoundError:
         if host_pid is not None and not _process_alive(host_pid):
-            return VirtualSessionStatus('blocked', 'The session host exited before reporting readiness. Review the launch diagnostics.')
-        return VirtualSessionStatus('starting', 'Waiting for runtime readiness.')
+            return VirtualSessionStatus('blocked', 'The session host exited before reporting readiness. Review the launch diagnostics.'), None, None
+        return VirtualSessionStatus('starting', 'Waiting for runtime readiness.'), None, None
     value = decode(raw, limit=4096)
+    if not isinstance(value, dict):
+        raise VirtualLoaderError('Unsupported runtime session status.')
     state = value.get('state')
     if state not in ('starting', 'running', 'tracing', 'stopped', 'blocked'):
         raise VirtualLoaderError('Unsupported runtime session status.')
@@ -403,17 +487,19 @@ def session_status(root, token, *, host_pid=None):
     progress = value.get('progress')
     if progress is not None and (type(progress) is not int or not 0 <= progress <= 100):
         raise VirtualLoaderError('Invalid runtime session progress.')
+    def observed(status):
+        return status, value, digest(raw)
     if state == 'starting' and pid == 0:
         expected_host = value.get('host_pid', host_pid)
         if not _process_alive(expected_host):
-            return VirtualSessionStatus('blocked', 'The session host exited before reporting readiness. Review the launch diagnostics.')
-        return VirtualSessionStatus('starting', value.get('detail') or 'Waiting for runtime readiness.', progress=progress)
+            return observed(VirtualSessionStatus('blocked', 'The session host exited before reporting readiness. Review the launch diagnostics.'))
+        return observed(VirtualSessionStatus('starting', value.get('detail') or 'Waiting for runtime readiness.', progress=progress))
     if state in ('starting', 'running', 'tracing') and not _process_alive(pid):
-        return VirtualSessionStatus('stopped', 'The game session ended.', pid=pid)
+        return observed(VirtualSessionStatus('stopped', 'The game session ended.', pid=pid))
     details = {'starting': 'Waiting for runtime readiness.', 'running': 'The virtual session is running.',
                'tracing': 'Diagnostic trace running. Virtual files are not active.', 'stopped': 'The game session ended.',
                'blocked': 'The runtime refused this session. Review its diagnostics before retrying.'}
-    return VirtualSessionStatus(state, value.get('detail') or details[state], pid=pid, progress=progress)
+    return observed(VirtualSessionStatus(state, value.get('detail') or details[state], pid=pid, progress=progress))
 
 
 def _process_alive(pid):

@@ -107,12 +107,21 @@ def _publish(path, value, stop_event):
 
 
 def capture(root, save_copy, output, *, stage, outcome, notes, provider=None,
-            slots=(), previous=None, stop_event=None):
+            slots=(), previous=None, protocol=None, stop_event=None):
     """Read explicitly named input copies. Never launches, restores or edits saves."""
     from cdmw.services.new_item_service import game_is_running
     root, save_copy, output = _paths(root, save_copy, output)
     if game_is_running():
         raise VirtualLoaderError('Close the game before capturing a save experiment.')
+    bound = None
+    if protocol is not None:
+        from cdmw.services.virtual_save_experiment_protocol import capture_parameters
+        bound = capture_parameters(protocol, root, save_copy, output, stage=stage,
+            provider=provider, slots=slots, previous=previous, stop_event=stop_event)
+        if provider is None:
+            provider = bound['baseline']['provider']
+        if not slots:
+            slots = bound['members']
     parent = read_capture(previous) if previous is not None else None
     if stage not in STAGES or (parent is None and stage != 'baseline') or (parent is not None
             and (STAGES.index(parent['stage']) + 1 >= len(STAGES)
@@ -142,7 +151,8 @@ def capture(root, save_copy, output, *, stage, outcome, notes, provider=None,
         raise VirtualLoaderError('The save copy or prepared context changed during capture. Try again with stable inputs.')
     if game_is_running():
         raise VirtualLoaderError('Close the game before capturing a save experiment.')
-    value = seal({'format': FORMAT, 'experiment': parent['experiment'] if parent else uuid4().hex,
+    experiment = parent['experiment'] if parent else (bound['baseline']['experiment'] if bound else uuid4().hex)
+    value = seal({'format': FORMAT, 'experiment': experiment,
         'parent': parent['identity'] if parent else None, 'stage': stage, 'provider': provider,
         'captured_utc': datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'),
         'context': before, 'files': {checksum(name.encode()): row for name, row in files.items()},
@@ -150,5 +160,8 @@ def capture(root, save_copy, output, *, stage, outcome, notes, provider=None,
     validate(value)
     if parent is None and (provider not in before['items'] or any(key not in value['files'] for key in selected)):
         raise VirtualLoaderError('The baseline must select the virtual provider and existing save files.')
+    if bound is not None:
+        from cdmw.services.virtual_save_experiment_protocol import validate_protocol_capture
+        validate_protocol_capture(bound, value, stop_event=stop_event)
     _publish(output, value, stop_event)
     return value

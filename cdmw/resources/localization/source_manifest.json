@@ -4082,6 +4082,11 @@
       ]
     },
     {
+      "key": "A proposed session input is not a regular file.",
+      "origins": [],
+      "manual": true
+    },
+    {
       "key": "A protected garment vertex was edited. Cancel the correction or restore that vertex.",
       "origins": [
         {
@@ -4205,6 +4210,11 @@
           "sink": "ValueError"
         }
       ]
+    },
+    {
+      "key": "A retained-copy output directory changed during publication.",
+      "origins": [],
+      "manual": true
     },
     {
       "key": "A reusable character package must preserve exact virtual paths. Run the export again and choose Overwrite Existing or Clear Root.",
@@ -7017,6 +7027,11 @@
       ]
     },
     {
+      "key": "After loading that post-attempt input without saving, close the game and capture its copied result.",
+      "origins": [],
+      "manual": true
+    },
+    {
       "key": "After scanning, open",
       "origins": [
         {
@@ -7025,6 +7040,16 @@
           "sink": "python-return:_build_archive_mesh_sections"
         }
       ]
+    },
+    {
+      "key": "After the separately authorized load-only attempt, close the game and capture its copied result.",
+      "origins": [],
+      "manual": true
+    },
+    {
+      "key": "After the separately authorized save attempt, close the game, capture its copied result, then retain it.",
+      "origins": [],
+      "manual": true
     },
     {
       "key": "After unavailable",
@@ -8107,6 +8132,11 @@
       ]
     },
     {
+      "key": "Ambiguous save file spelling.",
+      "origins": [],
+      "manual": true
+    },
+    {
       "key": "Amount",
       "origins": [
         {
@@ -8263,6 +8293,11 @@
     },
     {
       "key": "An event socket frame is unavailable in this preview state",
+      "origins": [],
+      "manual": true
+    },
+    {
+      "key": "An experiment input must be a plain regular file.",
       "origins": [],
       "manual": true
     },
@@ -9065,6 +9100,11 @@
           "sink": "python-data:INSTALL_METHODS"
         }
       ]
+    },
+    {
+      "key": "Another observer is updating this session receipt. Try again.",
+      "origins": [],
+      "manual": true
     },
     {
       "key": "Another related-set lookup is already running.",
@@ -16322,6 +16362,11 @@
       ]
     },
     {
+      "key": "Bind copied inputs and pre-load identities to a prepared experiment.",
+      "origins": [],
+      "manual": true
+    },
+    {
       "key": "Bind every garment referenced by this profile's corrections before using its sliders.",
       "origins": [
         {
@@ -20087,6 +20132,11 @@
       ]
     },
     {
+      "key": "CDMW preparation or launch did not complete; no save-commit claim is made.",
+      "origins": [],
+      "manual": true
+    },
+    {
       "key": "CDMW project / editable package",
       "origins": [
         {
@@ -20145,6 +20195,11 @@
           "sink": "tr"
         }
       ]
+    },
+    {
+      "key": "CDMW started the session host; game birth, image and save producer are unverified.",
+      "origins": [],
+      "manual": true
     },
     {
       "key": "CDMW startup / main window",
@@ -21920,6 +21975,11 @@
           "sink": "QPushButton"
         }
       ]
+    },
+    {
+      "key": "Capture parameters do not match the reviewed experiment protocol.",
+      "origins": [],
+      "manual": true
     },
     {
       "key": "Capture the body base, shape the body with the editing tools, then save the result as a slider.",
@@ -25380,6 +25440,11 @@
           "sink": "ValueError"
         }
       ]
+    },
+    {
+      "key": "Choose a new experiment output; existing files and folders are never replaced.",
+      "origins": [],
+      "manual": true
     },
     {
       "key": "Choose a new or empty output folder",
@@ -28857,6 +28922,16 @@
       ]
     },
     {
+      "key": "Close the game before preparing a copied-save experiment.",
+      "origins": [],
+      "manual": true
+    },
+    {
+      "key": "Close the game before retaining a copied save attempt.",
+      "origins": [],
+      "manual": true
+    },
+    {
       "key": "Close this Mesh Editor session without saving its latest geometry and layer changes?",
       "origins": [
         {
@@ -30113,6 +30188,11 @@
     },
     {
       "key": "Compare and Review",
+      "origins": [],
+      "manual": true
+    },
+    {
+      "key": "Compare every selected member with absent_before_load; preserve autosave, failure and uncertainty.",
       "origins": [],
       "manual": true
     },
@@ -31648,6 +31728,11 @@
           "path": "cdmw/services/virtual_loader_runtime.py",
           "line": 377,
           "sink": "PermissionError"
+        },
+        {
+          "path": "cdmw/services/virtual_loader_runtime.py",
+          "line": 445,
+          "sink": "PermissionError"
         }
       ]
     },
@@ -31962,6 +32047,11 @@
       ]
     },
     {
+      "key": "Copied output is retained, but its complete manifest could not be verified. Preserve it for inspection: {value_0}",
+      "origins": [],
+      "manual": true
+    },
+    {
       "key": "Copied problem summary from {value_0}.",
       "origins": [
         {
@@ -32025,6 +32115,16 @@
           "sink": "set_status_message"
         }
       ]
+    },
+    {
+      "key": "Copied-save inputs and output parents must be existing plain directories.",
+      "origins": [],
+      "manual": true
+    },
+    {
+      "key": "Copied-save members contain case aliases.",
+      "origins": [],
+      "manual": true
     },
     {
       "key": "Copied: {value_0}",
@@ -40282,6 +40382,11 @@
       "manual": true
     },
     {
+      "key": "Duplicate session receipt key.",
+      "origins": [],
+      "manual": true
+    },
+    {
       "key": "Duplicate this object",
       "origins": [
         {
@@ -43932,6 +44037,16 @@
       ]
     },
     {
+      "key": "Exact SHA-256 of the optional backup manifest.",
+      "origins": [],
+      "manual": true
+    },
+    {
+      "key": "Exact baseline provider package UUID.",
+      "origins": [],
+      "manual": true
+    },
+    {
       "key": "Exact budget rows compare matching DDS files in Original DDS root and Output root. Class, terrain-group, and profile sections are heuristic summaries and are labeled as such.",
       "origins": [
         {
@@ -43940,6 +44055,11 @@
           "sink": "_add_titled_help_header"
         }
       ]
+    },
+    {
+      "key": "Exact copies and source files were verified by the existing backup publication.",
+      "origins": [],
+      "manual": true
     },
     {
       "key": "Exact error:",
@@ -48540,6 +48660,11 @@
           "sink": "progress"
         }
       ]
+    },
+    {
+      "key": "File effects describe the observed copies. A mixed or changed file set does not establish a partial or completed game save.",
+      "origins": [],
+      "manual": true
     },
     {
       "key": "File set",
@@ -53315,6 +53440,11 @@
           "sink": "_add_field"
         }
       ]
+    },
+    {
+      "key": "Game, working copy, original recovery and retained attempt must be separate folders.",
+      "origins": [],
+      "manual": true
     },
     {
       "key": "Game-relative folders",
@@ -62137,6 +62267,11 @@
       ]
     },
     {
+      "key": "Inspect a local session receipt without granting producer or save-admission authority.",
+      "origins": [],
+      "manual": true
+    },
+    {
       "key": "Inspect and extract DDS entries without editing them here, patch supported audio entries, and restore backups created by supported non-texture patch operations.",
       "origins": [
         {
@@ -62972,6 +63107,11 @@
       ]
     },
     {
+      "key": "Invalid copied-save member observations.",
+      "origins": [],
+      "manual": true
+    },
+    {
       "key": "Invalid cutout mip payload size.",
       "origins": [
         {
@@ -63240,6 +63380,16 @@
           "sink": "RuntimeError"
         }
       ]
+    },
+    {
+      "key": "Invalid or changed copied-save experiment protocol.",
+      "origins": [],
+      "manual": true
+    },
+    {
+      "key": "Invalid or changed session receipt.",
+      "origins": [],
+      "manual": true
     },
     {
       "key": "Invalid or duplicate texture requirement.",
@@ -65392,6 +65542,11 @@
       ]
     },
     {
+      "key": "Keep changed, unchanged and missing selected members. A reported save or changed hash does not prove a writer.",
+      "origins": [],
+      "manual": true
+    },
+    {
       "key": "Keep hair/beard",
       "origins": [
         {
@@ -66377,9 +66532,29 @@
       ]
     },
     {
+      "key": "Launch preparation: {value_0}",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/virtual_loader_page.py",
+          "line": 198,
+          "sink": "tr"
+        }
+      ]
+    },
+    {
       "key": "Launch verification stopped",
       "origins": [],
       "manual": true
+    },
+    {
+      "key": "Launch: {value_0}",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/virtual_loader_page.py",
+          "line": 199,
+          "sink": "tr"
+        }
+      ]
     },
     {
       "key": "Launching Mesh Editor...",
@@ -70762,6 +70937,11 @@
       ]
     },
     {
+      "key": "Match absent_saved exactly, including missing members. Never substitute the original recovery copy.",
+      "origins": [],
+      "manual": true
+    },
+    {
       "key": "Match an item",
       "origins": [
         {
@@ -70815,6 +70995,11 @@
           "sink": "addItem"
         }
       ]
+    },
+    {
+      "key": "Match restored_before_load exactly. Record object observations and any further file changes or load failure.",
+      "origins": [],
+      "manual": true
     },
     {
       "key": "Match {value_0} to its original DDS in Review & Export first.",
@@ -90337,6 +90522,11 @@
       ]
     },
     {
+      "key": "Optional retained CDMW backup manifest; its live source is never read.",
+      "origins": [],
+      "manual": true
+    },
+    {
       "key": "Optional shared layer",
       "origins": [
         {
@@ -98272,6 +98462,16 @@
       ]
     },
     {
+      "key": "Prepare six capture commands from explicit disposable copies; no live operations.",
+      "origins": [],
+      "manual": true
+    },
+    {
+      "key": "Prepare the provider-absent profile and the copied original input before loading.",
+      "origins": [],
+      "manual": true
+    },
+    {
       "key": "Prepare the target and replacement, compare their placement and animation, then review the exact files before export.",
       "origins": [
         {
@@ -98435,6 +98635,11 @@
           "sink": "ValueError"
         }
       ]
+    },
+    {
+      "key": "Prepared profile proposal; runtime activation and save producer are unverified.",
+      "origins": [],
+      "manual": true
     },
     {
       "key": "Prepared replacement material preview could not be compiled: {value_0}",
@@ -99770,6 +99975,11 @@
           "sink": "QTreeWidgetItem"
         }
       ]
+    },
+    {
+      "key": "Preserve the original recovery copy and record the provider-present baseline.",
+      "origins": [],
+      "manual": true
     },
     {
       "key": "Preserve-first defaults, technical texture risk, confirmations, and recoverability.",
@@ -104712,6 +104922,11 @@
       ]
     },
     {
+      "key": "Put the protocol and reports outside every game or copied-save input folder.",
+      "origins": [],
+      "manual": true
+    },
+    {
       "key": "Put this one row back, keeping your other changes.",
       "origins": [
         {
@@ -105565,6 +105780,11 @@
           "sink": "QLabel"
         }
       ]
+    },
+    {
+      "key": "Read-only terminal file observation; changed bytes do not establish a save commit.",
+      "origins": [],
+      "manual": true
     },
     {
       "key": "Read-only until an authoring output is selected",
@@ -112057,6 +112277,11 @@
       ]
     },
     {
+      "key": "Reported runtime state; PID existence and readiness do not establish process birth or save producer.",
+      "origins": [],
+      "manual": true
+    },
+    {
       "key": "Representative real HKX corpus: {value_0}",
       "origins": [
         {
@@ -115037,6 +115262,11 @@
       ]
     },
     {
+      "key": "Restore the exact provider and bindings; use the retained post-attempt selected files as input.",
+      "origins": [],
+      "manual": true
+    },
+    {
       "key": "Restore the fitted orientation, keeping the current position and scale.",
       "origins": [
         {
@@ -115330,6 +115560,11 @@
           "sink": "rust-presentation"
         }
       ]
+    },
+    {
+      "key": "Retain the exact copied absent_saved files in a new protocol-pinned folder.",
+      "origins": [],
+      "manual": true
     },
     {
       "key": "Retain this binding's template appearance.",
@@ -117933,6 +118168,11 @@
     },
     {
       "key": "Runtime action selection, conditions and inherited attachment state are not simulated",
+      "origins": [],
+      "manual": true
+    },
+    {
+      "key": "Runtime observation failed: {value_0}",
       "origins": [],
       "manual": true
     },
@@ -123867,6 +124107,16 @@
       ]
     },
     {
+      "key": "Select bounded relative save-member paths.",
+      "origins": [],
+      "manual": true
+    },
+    {
+      "key": "Select canonical relative save-member paths using forward slashes.",
+      "origins": [],
+      "manual": true
+    },
+    {
       "key": "Select chaiNNer chain",
       "origins": [
         {
@@ -124380,6 +124630,11 @@
           "sink": "warning"
         }
       ]
+    },
+    {
+      "key": "Select one to 32 copied save members.",
+      "origins": [],
+      "manual": true
     },
     {
       "key": "Select only the safe DDS texture rows resolved from the character appearance graph. Risky app, sidecar, skeleton, and physics rows remain manual.",
@@ -124992,6 +125247,11 @@
       ]
     },
     {
+      "key": "Selected disposable copies and recovery identities prepared; no game trial observed.",
+      "origins": [],
+      "manual": true
+    },
+    {
       "key": "Selected edge",
       "origins": [
         {
@@ -125342,6 +125602,16 @@
       ]
     },
     {
+      "key": "Selected relative copied-save member; repeat for each member.",
+      "origins": [],
+      "manual": true
+    },
+    {
+      "key": "Selected save-member paths contain duplicates or case aliases.",
+      "origins": [],
+      "manual": true
+    },
+    {
       "key": "Selected socket",
       "origins": [
         {
@@ -125420,6 +125690,11 @@
           "sink": "set_note"
         }
       ]
+    },
+    {
+      "key": "Selected working and original recovery members must be independent copies, without hard links.",
+      "origins": [],
+      "manual": true
     },
     {
       "key": "Selected {value_0} package(s): {value_1} ready, {value_2} without payloads.",
@@ -126193,6 +126468,26 @@
           "path": "tools/placement_studio/move_workspace.py",
           "line": 174,
           "sink": "setText"
+        }
+      ]
+    },
+    {
+      "key": "Session receipt could not be recorded: {value_0}",
+      "origins": [],
+      "manual": true
+    },
+    {
+      "key": "Session receipt exceeds its size limit or is not immutable bytes.",
+      "origins": [],
+      "manual": true
+    },
+    {
+      "key": "Session status: {value_0}",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/virtual_loader_page.py",
+          "line": 200,
+          "sink": "tr"
         }
       ]
     },
@@ -135127,6 +135422,11 @@
       ]
     },
     {
+      "key": "Supply the exact backup manifest and its SHA-256 together.",
+      "origins": [],
+      "manual": true
+    },
+    {
       "key": "Support",
       "origins": [
         {
@@ -137005,6 +137305,11 @@
           "sink": "python-data:UI_TEXT_COLOR_SCHEME_OPTIONS"
         }
       ]
+    },
+    {
+      "key": "Terminal save observation is unavailable: {value_0}",
+      "origins": [],
+      "manual": true
     },
     {
       "key": "Terrain-Like Groups",
@@ -139587,6 +139892,16 @@
       ]
     },
     {
+      "key": "The backup and proposed session context do not match.",
+      "origins": [],
+      "manual": true
+    },
+    {
+      "key": "The backup manifest does not match the reviewed baseline profile.",
+      "origins": [],
+      "manual": true
+    },
+    {
       "key": "The barber registration exceeds its supported size.",
       "origins": [
         {
@@ -139598,6 +139913,11 @@
     },
     {
       "key": "The base mod already includes the global character visibility test. Use a base without that test for an off comparison.",
+      "origins": [],
+      "manual": true
+    },
+    {
+      "key": "The baseline must select the virtual provider and matching original recovery members.",
       "origins": [],
       "manual": true
     },
@@ -139772,6 +140092,16 @@
       ]
     },
     {
+      "key": "The capture identity does not match the reviewed experiment.",
+      "origins": [],
+      "manual": true
+    },
+    {
+      "key": "The captures do not belong to the reviewed experiment protocol.",
+      "origins": [],
+      "manual": true
+    },
+    {
       "key": "The character for the placement viewport could not be read: {value_0}",
       "origins": [
         {
@@ -139925,6 +140255,21 @@
           "sink": "ValueError"
         }
       ]
+    },
+    {
+      "key": "The copied files or prepared context changed during experiment preflight.",
+      "origins": [],
+      "manual": true
+    },
+    {
+      "key": "The copied save attempt changed during retention.",
+      "origins": [],
+      "manual": true
+    },
+    {
+      "key": "The copied-save file set exceeds its supported bounds.",
+      "origins": [],
+      "manual": true
     },
     {
       "key": "The corrected slider is no longer available.",
@@ -140297,6 +140642,11 @@
       ]
     },
     {
+      "key": "The existing backup was reverified for this new reviewed launch attempt.",
+      "origins": [],
+      "manual": true
+    },
+    {
       "key": "The existing overlay differs from its mount-list checksum. Restore its backup before changing it.",
       "origins": [
         {
@@ -140305,6 +140655,11 @@
           "sink": "OverlayConflict"
         }
       ]
+    },
+    {
+      "key": "The experiment record exceeds its size limit.",
+      "origins": [],
+      "manual": true
     },
     {
       "key": "The explicit selection includes vertices or Parts outside the exact-safe skin-weight subset",
@@ -140340,6 +140695,11 @@
           "sink": "ArchiveModelTextureReference"
         }
       ]
+    },
+    {
+      "key": "The final save inventory could not be observed.",
+      "origins": [],
+      "manual": true
     },
     {
       "key": "The first archive page was stale.",
@@ -141657,6 +142017,11 @@
       ]
     },
     {
+      "key": "The pre-load files or provider context do not match the experiment protocol.",
+      "origins": [],
+      "manual": true
+    },
+    {
       "key": "The pre-restore Mesh Editor state could not be restored atomically.",
       "origins": [
         {
@@ -141675,6 +142040,11 @@
           "sink": "ArchiveWorkflowDependenciesUnavailable"
         }
       ]
+    },
+    {
+      "key": "The prepared baseline changed. Prepare a new experiment protocol.",
+      "origins": [],
+      "manual": true
     },
     {
       "key": "The prepared collision input changed; choose it from the archives again.",
@@ -141782,6 +142152,16 @@
       ]
     },
     {
+      "key": "The proposed session context could not be fully observed: {value_0}",
+      "origins": [],
+      "manual": true
+    },
+    {
+      "key": "The published session receipt failed readback.",
+      "origins": [],
+      "manual": true
+    },
+    {
       "key": "The raw sockets and clips named by the selected chart.",
       "origins": [
         {
@@ -141810,6 +142190,56 @@
           "sink": "Section"
         }
       ]
+    },
+    {
+      "key": "The receipt backup belongs to a different installation.",
+      "origins": [],
+      "manual": true
+    },
+    {
+      "key": "The receipt backup exceeds its observation size limit.",
+      "origins": [],
+      "manual": true
+    },
+    {
+      "key": "The receipt backup has ambiguous file membership.",
+      "origins": [],
+      "manual": true
+    },
+    {
+      "key": "The receipt backup has invalid file fingerprints.",
+      "origins": [],
+      "manual": true
+    },
+    {
+      "key": "The receipt backup has unsupported file membership.",
+      "origins": [],
+      "manual": true
+    },
+    {
+      "key": "The receipt backup is outside owned recovery storage.",
+      "origins": [],
+      "manual": true
+    },
+    {
+      "key": "The receipt backup manifest is not a regular file.",
+      "origins": [],
+      "manual": true
+    },
+    {
+      "key": "The receipt backup manifest is unavailable or changed.",
+      "origins": [],
+      "manual": true
+    },
+    {
+      "key": "The receipt backup manifest is unsupported.",
+      "origins": [],
+      "manual": true
+    },
+    {
+      "key": "The receipt does not have the verified backup file facts.",
+      "origins": [],
+      "manual": true
     },
     {
       "key": "The registered hairstyle needs one unambiguous mounted prefab.",
@@ -142007,6 +142437,46 @@
       ]
     },
     {
+      "key": "The retained attempt changed before publication.",
+      "origins": [],
+      "manual": true
+    },
+    {
+      "key": "The retained attempt contains unexpected or incomplete files.",
+      "origins": [],
+      "manual": true
+    },
+    {
+      "key": "The retained attempt manifest does not match absent_saved.",
+      "origins": [],
+      "manual": true
+    },
+    {
+      "key": "The retained attempt manifest exceeds its size limit.",
+      "origins": [],
+      "manual": true
+    },
+    {
+      "key": "The retained attempt was published; temporary cleanup reported: {value_0}",
+      "origins": [],
+      "manual": true
+    },
+    {
+      "key": "The retained backup association changed.",
+      "origins": [],
+      "manual": true
+    },
+    {
+      "key": "The retained backup does not match the selected original recovery files.",
+      "origins": [],
+      "manual": true
+    },
+    {
+      "key": "The retained backup manifest changed during inspection.",
+      "origins": [],
+      "manual": true
+    },
+    {
       "key": "The retained independent package does not match its ownership history.",
       "origins": [
         {
@@ -142015,6 +142485,11 @@
           "sink": "OverlayConflict"
         }
       ]
+    },
+    {
+      "key": "The retained original recovery copy changed. Preserve it before continuing.",
+      "origins": [],
+      "manual": true
     },
     {
       "key": "The retained package field operations disagree with its ownership layer.",
@@ -142035,6 +142510,11 @@
           "sink": "OverlayConflict"
         }
       ]
+    },
+    {
+      "key": "The retained post-attempt copied files changed.",
+      "origins": [],
+      "manual": true
     },
     {
       "key": "The retired overlay history already exists. Refresh and prepare again.",
@@ -142107,7 +142587,17 @@
       "manual": true
     },
     {
+      "key": "The save folder changed after the session backup.",
+      "origins": [],
+      "manual": true
+    },
+    {
       "key": "The save folder exceeds the supported backup size or file count.",
+      "origins": [],
+      "manual": true
+    },
+    {
+      "key": "The save inventory changed during observation; no atomic save set was established.",
       "origins": [],
       "manual": true
     },
@@ -142217,6 +142707,16 @@
       ]
     },
     {
+      "key": "The selected backup file identities changed.",
+      "origins": [],
+      "manual": true
+    },
+    {
+      "key": "The selected backup members changed.",
+      "origins": [],
+      "manual": true
+    },
+    {
       "key": "The selected body does not overlap the head's neck and shoulder area.",
       "origins": [
         {
@@ -142270,6 +142770,11 @@
           "sink": "ValueError"
         }
       ]
+    },
+    {
+      "key": "The selected input equals the baseline. The provider is absent and other package identities are retained.",
+      "origins": [],
+      "manual": true
     },
     {
       "key": "The selected item-producing reward consumer is unsupported or missing.",
@@ -142422,6 +142927,11 @@
       ]
     },
     {
+      "key": "The selected working files equal the separate retained original recovery files.",
+      "origins": [],
+      "manual": true
+    },
+    {
       "key": "The semantic export archive indexes differ from the witnessed game baseline.",
       "origins": [],
       "manual": true
@@ -142475,6 +142985,41 @@
           "sink": "VirtualSessionStatus"
         }
       ]
+    },
+    {
+      "key": "The session receipt belongs to another attempt.",
+      "origins": [],
+      "manual": true
+    },
+    {
+      "key": "The session receipt chain exceeds its size limit.",
+      "origins": [],
+      "manual": true
+    },
+    {
+      "key": "The session receipt chain is incomplete or changed.",
+      "origins": [],
+      "manual": true
+    },
+    {
+      "key": "The session receipt directory contains an unknown entry.",
+      "origins": [],
+      "manual": true
+    },
+    {
+      "key": "The session receipt directory exceeds its size limit.",
+      "origins": [],
+      "manual": true
+    },
+    {
+      "key": "The session receipt exceeds its size limit.",
+      "origins": [],
+      "manual": true
+    },
+    {
+      "key": "The session receipt location is not a directory.",
+      "origins": [],
+      "manual": true
     },
     {
       "key": "The setup file and its stored identity disagree.",
@@ -142917,6 +143462,11 @@
       ]
     },
     {
+      "key": "The status observation is incomplete; terminal outcome and producer remain unverified.",
+      "origins": [],
+      "manual": true
+    },
+    {
       "key": "The studio will not convert FBX until it is pointed at a Blender again.",
       "origins": [
         {
@@ -143293,6 +143843,11 @@
     },
     {
       "key": "The witnessed texture source changed: {value_0}.",
+      "origins": [],
+      "manual": true
+    },
+    {
+      "key": "The working copy changed after absent_saved. Do not substitute another save.",
       "origins": [],
       "manual": true
     },
@@ -150747,6 +151302,11 @@
       ]
     },
     {
+      "key": "Use bounded plain paths for the copied-save experiment.",
+      "origins": [],
+      "manual": true
+    },
+    {
       "key": "Use cache controls when revisiting previews is slow or disk/RAM use is too high. They do not change exported files.",
       "origins": [
         {
@@ -150775,6 +151335,11 @@
           "sink": "QCheckBox"
         }
       ]
+    },
+    {
+      "key": "Use disposable copies outside the live save folder.",
+      "origins": [],
+      "manual": true
     },
     {
       "key": "Use edited size",
@@ -150810,6 +151375,11 @@
           "sink": "_manual_check"
         }
       ]
+    },
+    {
+      "key": "Use files/ as the post-attempt input under separate live-operation review. Preserve missing members; do not fill them from the original recovery copy.",
+      "origins": [],
+      "manual": true
     },
     {
       "key": "Use filters and preview before selecting a source; the library does not silently overwrite a shipped asset.",
@@ -151175,6 +151745,21 @@
           "sink": "setToolTip"
         }
       ]
+    },
+    {
+      "key": "Use the exact previous capture named by the experiment protocol.",
+      "origins": [],
+      "manual": true
+    },
+    {
+      "key": "Use the exact protocol and absent_saved capture paths.",
+      "origins": [],
+      "manual": true
+    },
+    {
+      "key": "Use the exact reviewed protocol path.",
+      "origins": [],
+      "manual": true
     },
     {
       "key": "Use the generated manager metadata and folder report to review the result before installation.",
@@ -152425,6 +153010,26 @@
       "key": "Velocity stretch",
       "origins": [],
       "manual": true
+    },
+    {
+      "key": "Verification receipt and diagnostics",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/virtual_loader_page.py",
+          "line": 125,
+          "sink": "tr"
+        }
+      ]
+    },
+    {
+      "key": "Verification receipt: {value_0}",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/virtual_loader_page.py",
+          "line": 204,
+          "sink": "tr"
+        }
+      ]
     },
     {
       "key": "Verify Loose Mod Target",
