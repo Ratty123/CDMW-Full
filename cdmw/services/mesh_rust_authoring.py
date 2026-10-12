@@ -6001,6 +6001,9 @@ def _append_rust_material_presentation(rows, source, fallback_index, submeshes, 
     if "translucency" not in factor_parameters:
         from cdmw.domain.mesh.translucency import authored_translucency
         factor_parameters = {**factor_parameters, "translucency": authored_translucency(submeshes[material_index])}
+    if factor_parameters.get("shader_controls") is None:
+        from cdmw.services.shader_controls_preview import authored_static_glass_factors
+        factor_parameters = {**factor_parameters, "shader_controls": authored_static_glass_factors(submeshes[material_index])}
     if factor_parameters.get("emission_animation") is None:
         from cdmw.domain.mesh.emission import authored_glow_animation
         factor_parameters = {**factor_parameters, "emission_animation": authored_glow_animation(submeshes[material_index])}

@@ -16,7 +16,7 @@ impl LabApplication {
                 rows.iter().map(|row| row["shader_controls"].to_string()).collect::<Vec<_>>()));
             let is_static = state["static"].as_bool().unwrap_or(false);
             let families = state["catalogue"].as_array().into_iter().flatten()
-                .filter(|family| (family["shader"] == "Dissolve") == is_static).collect::<Vec<_>>();
+                .filter(|family| (family["shader"] == "Dissolve" || family["shader"] == "Translucent") == is_static).collect::<Vec<_>>();
             let mut value = ui.ctx().data_mut(|data| data.get_temp::<Value>(key)).unwrap_or_else(|| {
                 if saved.is_null() {
                     json!({"shader": families.first().map(|f| &f["shader"]), "values": {}})
@@ -55,7 +55,8 @@ impl LabApplication {
                         let mut enabled = !value["values"][name].is_null();
                         ui.vertical(|ui| {
                             ui.checkbox(&mut enabled, crate::localization::tr(field["label"].as_str().unwrap_or(name)))
-                                .on_hover_text(crate::localization::tr("Unchecked fields retain authored values. Compatibility is checked when applying."));
+                                .on_hover_text(crate::localization::tr(field["note"].as_str().unwrap_or(
+                                    "Unchecked fields retain authored values. Compatibility is checked when applying.")));
                             let mut numbers = if value["values"][name].is_array() { value["values"][name].clone() } else { field["default"].clone() };
                             ui.add_enabled_ui(enabled, |ui| {
                                 if let Some(values) = numbers.as_array_mut() {

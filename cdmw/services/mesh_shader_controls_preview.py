@@ -5,7 +5,7 @@ from pathlib import Path
 from cdmw.core.common import raise_if_cancelled
 from cdmw.core.material_shader_controls import control_material_sources
 from cdmw.domain.mesh.replacement import bound_part_indices
-from cdmw.domain.mesh.shader_controls import family_for, preview_factors
+from cdmw.domain.mesh.shader_controls import GLASS_FAMILIES, family_for, preview_factors
 from cdmw.services.mesh_replacement_materials import _sidecar_text, material_binding_name, material_binding_names
 from cdmw.services.shader_controls_preview import EFFECT_NORMAL_PARAMETER, publish_preview_texture, attach_source_masks, shader_control_diagnostic
 
@@ -29,7 +29,14 @@ def stage_shader_preview(authoring, mesh, state, payload, presentations, stop_ev
                 if name not in selected_names:
                     continue
                 if name in materials and materials[name] != value:
-                    raise ValueError(f"{name}: multiple source material variants need separate shader previews.")
+                    controls = selected_names[name]
+                    # Glass uses the already resolved base/normal/surface maps.
+                    # PAMI variants can differ in tint and export-only shadow
+                    # colour without changing these added absorption factors.
+                    same_glass = (family_for(controls.shader) in GLASS_FAMILIES
+                        and preview_factors(controls, materials[name][1])[4:6] == preview_factors(controls, value[1])[4:6])
+                    if not same_glass:
+                        raise ValueError(f"{name}: multiple source material variants need separate shader previews.")
                 materials[name] = value
     indices = bound_part_indices(mesh, state)
     selected = {indices[part.part_id]: part for part in state.parts if part.shader_controls is not None}

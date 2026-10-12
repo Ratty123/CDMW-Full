@@ -9,7 +9,8 @@ from types import SimpleNamespace
 from cdmw.core.temp_cache import session_generated_cache_path
 
 from cdmw.core.common import raise_if_cancelled
-from cdmw.domain.mesh.shader_controls import EYE_COVER, family_for, preview_factors, eye_cover_colour_range
+from cdmw.domain.mesh.shader_controls import (EYE_COVER, GLASS_FAMILIES, ShaderControls,
+                                             family_for, preview_factors, eye_cover_colour_range)
 
 
 EFFECT_MASK_PARAMETERS = frozenset({"_wingFlowTex1", "_tornPatternTexture", "_posterGlowNoiseTex",
@@ -32,8 +33,25 @@ def source_inputs(part):
     return values, textures
 
 
+def authored_static_glass_factors(part):
+    """Recognize the exact object shader, never a glass-like name or DDS alpha."""
+    shader = str(getattr(part, "preview_sidecar_shader_family", "") or "").casefold()
+    if not shader:
+        inputs = getattr(part, "preview_material_texture_inputs", ()) or ()
+        shaders = {str(item.get("shader_family", "") if isinstance(item, dict)
+                       else getattr(item, "shader_family", "")).casefold() for item in inputs}
+        shaders.discard("")
+        shader = next(iter(shaders)) if len(shaders) == 1 else ""
+    if shader != "translucent":
+        return None
+    values, _ = source_inputs(part)
+    return preview_factors(ShaderControls("Translucent"), values)
+
+
 def shader_control_diagnostic(part, controls, authored):
     """Read actual mask gates during worker preparation, never during UI repaint."""
+    if family_for(controls.shader) in GLASS_FAMILIES:
+        return family_for(controls.shader).note
     if controls.shader == EYE_COVER.shader:
         low, high = eye_cover_colour_range(controls, authored)
         warning = (f" Raw colour contribution can be outside 0–1 ({low:.4f} to {high:.4f}); "
@@ -72,7 +90,7 @@ def shader_preview_groups(mesh, choices, *, plain_pbr=False):
             # Plain PBR conversion starts fully revealed in the output writer.
             # Explicit control values still win in preview_factors.
             values = {"_wingFlowProgress": "2"}
-        if selected and plain_pbr and selected[0].shader == EYE_COVER.shader:
+        if selected and plain_pbr and selected[0].shader in {EYE_COVER.shader, "SkinnedMeshTranslucent"}:
             values = {}
         result.append({"source_submesh_indices": [index], "editor_role": "replacement_preview",
                        "shader_controls": list(preview_factors(selected[0], values))
@@ -152,7 +170,7 @@ def shader_preview_mesh(mesh, choices, *, snapshot=None, stop_event=None, plain_
         if plain_pbr and controls.shader == "SkinnedMeshWing":
             values = {"_wingFlowProgress": "2"}
             textures.pop("_wingFlowTex1", None)
-        if plain_pbr and controls.shader == EYE_COVER.shader:
+        if plain_pbr and controls.shader in {EYE_COVER.shader, "SkinnedMeshTranslucent"}:
             values = {}
             textures.pop("_alphaTexture", None)
         path = str(getattr(part, "preview_source_asset_path", "") or mesh.path).replace("\\", "/")

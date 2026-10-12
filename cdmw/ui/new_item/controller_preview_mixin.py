@@ -663,7 +663,8 @@ class NewItemPreviewControllerMixin:
                      for name in appearance_preview_part_names(part)}
             return {name.casefold(): (
                 "SkinnedMeshTranslucent" if name.casefold() in glass else "SkinnedMeshStandard",
-                ("SkinnedMeshEyeCover",) if name.casefold() in glass else ("SkinnedMeshWing", "SkinnedMeshEyeCover"),
+                ("SkinnedMeshTranslucent", "SkinnedMeshEyeCover") if name.casefold() in glass else
+                ("SkinnedMeshWing", "SkinnedMeshTranslucent", "SkinnedMeshEyeCover"),
             ) for name, _label in self.material_parts()}
         identity = self.current_variant_identity()
         selected = identity[1].casefold() if identity else None

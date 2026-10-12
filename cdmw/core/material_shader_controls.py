@@ -52,16 +52,19 @@ def control_material_sources(text, *, static=False):
 
 def validate_source(shader, controls, parameters, *, static=False):
     family = family_for(controls.shader)
-    if static != (controls.shader == "Dissolve"):
-        raise ValueError("Object dissolve and equipment shaders use different vertex pipelines.")
+    if static != (controls.shader in {"Dissolve", "Translucent"}):
+        raise ValueError("World-object and equipment shaders use different vertex pipelines.")
     if shader != family.shader:
-        plain_sources = {"SkinnedMeshStandard", "SkinnedMeshEmissive"}
+        plain_sources = {"Standard"} if static else {"SkinnedMeshStandard", "SkinnedMeshEmissive"}
+        unsupported = ("_wrinkle", "_overlay", "_colorblending")
+        if family.shader in {"Translucent", "SkinnedMeshTranslucent"}:
+            unsupported += ("_layer",)
         if family == EYE_COVER:
             plain_sources.add("SkinnedMeshTranslucent")
-        if (family.shader not in {"SkinnedMeshWing", EYE_COVER.shader} or shader not in plain_sources
+        if (family.shader not in {"SkinnedMeshWing", EYE_COVER.shader, "Translucent", "SkinnedMeshTranslucent"} or shader not in plain_sources
                 or "_baseColorTexture" not in parameters
-                or any(name.lower().startswith(("_wrinkle", "_overlay", "_colorblending")) for name in parameters)):
-            raise ValueError(f"{family.label} requires {family.shader} or a compatible plain equipment material with a base colour texture.")
+                or any(name.lower().startswith(unsupported) for name in parameters)):
+            raise ValueError(f"{family.label} requires {family.shader} or a compatible plain material with a base colour texture.")
     if "_hairDyeingProperty" in dict(controls.values):
         dye = parameters.get("_hairDyeingColor")
         raw = dye.get("_value", "") if dye is not None else ""
@@ -183,9 +186,10 @@ def _rewrite_block(block, shader, controls, *, static, texture_paths=None):
             raise ValueError("Painted cutouts require owned mask texture preparation.")
         block = _write_parameter(block, "_wingFlowTex1", "Texture", texture_paths["_wingFlowTex1"], "0", static=False)
     if shader != family.shader:
-        block, count = re.subn(r'\b_materialName="[^"]*"', f'_materialName="{family.shader}"', block, count=1)
+        pattern = r'(<Common\b[^>]*\bMaterialName=)"[^"]*"' if static else r'(\b_materialName=)"[^"]*"'
+        block, count = re.subn(pattern, lambda match: match[1] + f'"{family.shader}"', block, count=1)
         if count != 1:
-            raise ValueError("Cannot identify the equipment material shader.")
+            raise ValueError("Cannot identify the material shader.")
         # Explicit defaults avoid inheriting Wing's partially hidden default pose.
         if family.shader == "SkinnedMeshWing" and "_wingFlowProgress" not in controls.effective_values():
             block = _write_parameter(block, "_wingFlowProgress", "Float", "2", "0", static=False)

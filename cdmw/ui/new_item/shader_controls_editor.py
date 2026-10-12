@@ -4,7 +4,8 @@ from PySide6.QtCore import Signal
 from PySide6.QtWidgets import (QCheckBox, QComboBox, QDoubleSpinBox, QFormLayout,
                               QGroupBox, QHBoxLayout, QLabel, QPushButton, QVBoxLayout, QWidget)
 
-from cdmw.domain.mesh.shader_controls import NEW_ITEM_FAMILIES, EYE_COVER, ShaderControls, family_for, eye_cover_colour_range
+from cdmw.domain.mesh.shader_controls import (NEW_ITEM_FAMILIES, EYE_COVER, GLASS_FAMILIES, GLASS_FIELD_HELP,
+                                             ShaderControls, family_for, eye_cover_colour_range)
 from cdmw.ui.wheel_guard import enable_focused_wheel
 
 
@@ -127,6 +128,7 @@ class ShaderControlsEditor(QGroupBox):
             item.setText(family.label if available else f"{family.label} — Unavailable")
             item.setEnabled(available)
             requirement = ("Requires a Plain PBR material with a base colour texture, or an existing Wing material." if family.shader == "SkinnedMeshWing"
+                           else "Requires a plain opaque/glowing material with a base colour texture, or an existing translucent equipment material." if family.shader == "SkinnedMeshTranslucent"
                            else "Requires a plain opaque, glowing or translucent material with a base colour texture, or an existing transparent surface blending material." if family == EYE_COVER
                            else f"Requires a {family.shader} source material.")
             item.setToolTip(family.note if available else
@@ -182,6 +184,8 @@ class ShaderControlsEditor(QGroupBox):
                 enabled = QCheckBox(field.label)
                 enabled.setChecked(field.name in values)
                 enabled.setToolTip("Override this field. Uncheck to retain the authored value.")
+                if family in GLASS_FAMILIES:
+                    enabled.setToolTip(GLASS_FIELD_HELP[field.name])
                 painted = self._channel_owned(choice, field.name)
                 enabled.setEnabled(not painted)
                 if field.kind == "ExportToggle":

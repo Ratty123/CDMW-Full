@@ -2337,6 +2337,16 @@
       ]
     },
     {
+      "key": "0 gives neutral absorption in supported shadow passes; 1 uses the material colour. This does not tint the visible surface. Exported for in-game testing; the preview does not show coloured shadows.",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/shader_controls.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
       "key": "0 spawns at the origin. 5 samples a mesh surface. 6 samples a target surface inside the volume. Changing this edits the exported effect.",
       "origins": [
         {
@@ -4718,6 +4728,21 @@
           "path": "cdmw/ui/archive_browser/hkx_editor_dialog_catalog_part_02.py",
           "line": 195,
           "sink": "setToolTip"
+        }
+      ]
+    },
+    {
+      "key": "Absorption",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/shader_controls.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        },
+        {
+          "path": "cdmw/domain/mesh/shader_controls.py",
+          "line": 1,
+          "sink": "rust-presentation"
         }
       ]
     },
@@ -43727,6 +43752,16 @@
       ]
     },
     {
+      "key": "Equipment glass (experimental)",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/shader_controls.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
       "key": "Equipment placement and animation review.",
       "origins": [
         {
@@ -44512,6 +44547,16 @@
       "manual": true
     },
     {
+      "key": "Existing Translucent or plain Standard static materials. The rose window uses thickness 0.02, absorption 10 and shadow colour strength 1. Base-colour alpha does not control absorption. Preview approximates absorption; coloured shadows and refraction require in-game testing.",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/shader_controls.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
       "key": "Existing consumer:",
       "origins": [
         {
@@ -44688,6 +44733,16 @@
           "path": "cdmw/ui/texture_workflow/independent_package_dialog.py",
           "line": 66,
           "sink": "addRow"
+        }
+      ]
+    },
+    {
+      "key": "Existing translucent or plain opaque/glowing equipment materials. Thickness and absorption control how much light passes through the colour texture; base-colour alpha also affects absorption. Shadow colour strength is exported but not shown in the preview. Restore separate Glow and Translucency overrides on this part first.",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/shader_controls.py",
+          "line": 1,
+          "sink": "rust-presentation"
         }
       ]
     },
@@ -57827,6 +57882,26 @@
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
           "line": 4552,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Higher values absorb more light. Thin glass can use 0.02; the game stores thickness in 256 steps. Unchecked: retain the authored value.",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/shader_controls.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Higher values make glass less see-through. World objects support 0–10; equipment supports 0–1. This is absorption, not an opacity percentage.",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/shader_controls.py",
+          "line": 1,
           "sink": "rust-presentation"
         }
       ]
@@ -128012,6 +128087,21 @@
       ]
     },
     {
+      "key": "Shadow colour strength",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/shader_controls.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        },
+        {
+          "path": "cdmw/domain/mesh/shader_controls.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
       "key": "Shadowed",
       "origins": [
         {
@@ -131154,6 +131244,16 @@
     {
       "key": "SkinnedMeshTranslucent",
       "origins": [
+        {
+          "path": "cdmw/ui/new_item/controller_preview_mixin.py",
+          "line": 664,
+          "sink": "python-return:material_shader_options"
+        },
+        {
+          "path": "cdmw/ui/new_item/controller_preview_mixin.py",
+          "line": 664,
+          "sink": "python-return:material_shader_options"
+        },
         {
           "path": "cdmw/ui/new_item/controller_preview_mixin.py",
           "line": 664,
@@ -144830,6 +144930,16 @@
       "key": "Thickness",
       "origins": [
         {
+          "path": "cdmw/domain/mesh/shader_controls.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        },
+        {
+          "path": "cdmw/domain/mesh/shader_controls.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        },
+        {
           "path": "cdmw/ui/new_item/translucency_editor.py",
           "line": 122,
           "sink": "addRow"
@@ -147943,6 +148053,16 @@
           "path": "cdmw/services/new_item_translucency.py",
           "line": 157,
           "sink": "on_log"
+        }
+      ]
+    },
+    {
+      "key": "Translucent",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_shader_controls.rs",
+          "line": 19,
+          "sink": "rust-presentation"
         }
       ]
     },
@@ -157748,6 +157868,16 @@
     },
     {
       "key": "World centre XYZ",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/shader_controls.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "World-object glass (experimental)",
       "origins": [
         {
           "path": "cdmw/domain/mesh/shader_controls.py",

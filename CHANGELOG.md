@@ -9,6 +9,7 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 ### Added
 
+- Mesh Editor adds experimental World-object glass controls, and Mesh Editor and Create New Item add Equipment glass controls for compatible materials. Thickness, absorption and shadow colour strength retain each shader's supported ranges; preview approximates absorption, while coloured shadows and refraction require in-game testing.
 - Mesh Editor can save sculpted body shapes as sliders and save outfit corrections for individual sliders, compare the fit with corrections hidden, and reset corrections for selected garments, with profile and preset reuse and Undo/Redo.
 - Morph & Refit can generate anatomical controls from a verified body and skeleton, combine coordinated body adjustments with retained manual values, and link or independently edit paired sides without losing their previous settings.
 - Morph & Refit adds selected-vertex influence masks, allowed body regions for chosen garments, and a Rigid component mode that preserves the shape of connected hard pieces.

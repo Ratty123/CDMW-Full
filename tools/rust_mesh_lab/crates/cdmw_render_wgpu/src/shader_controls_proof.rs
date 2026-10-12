@@ -67,9 +67,23 @@ pub(super) fn verify(
     for name in ["painted surface left", "painted surface right"] {
         cases.push((name, painted_eye, [1.0; 3], 0.0));
     }
+    let mut glass = [0.0; 32]; glass[0] = 8.0; glass[4] = 0.02; glass[5] = 10.0;
+    cases.push(("glass object solid alpha", glass, [1.0; 3], 0.0));
+    cases.push(("glass object zero alpha", glass, [1.0; 3], 0.0));
+    glass[6] = 1.0;
+    cases.push(("glass object shadow tint", glass, [1.0; 3], 0.0));
+    glass[5] = 0.0;
+    cases.push(("glass object clear", glass, [1.0; 3], 0.0));
+    glass[0] = 9.0; glass[4] = 0.2; glass[5] = 1.0;
+    cases.push(("glass equipment solid alpha", glass, [1.0; 3], 0.0));
+    cases.push(("glass equipment zero alpha", glass, [1.0; 3], 0.0));
     let mut samples = BTreeMap::new();
     for (name, controls, vertex_mask, time) in cases {
         let mut active_mask = mask.clone();
+        let mut active_base = base.clone();
+        if name.ends_with("zero alpha") {
+            for pixel in active_base[148..].chunks_exact_mut(4) { pixel[3] = 0; }
+        }
         if name.starts_with("painted") {
             for (index, pixel) in active_mask[148..].chunks_exact_mut(4).enumerate() {
                 let right = index % width >= width / 2;
@@ -92,9 +106,12 @@ pub(super) fn verify(
             // Conversion from glass/cutout must still use EyeCover coverage.
             translucency: eye_cover.then_some([0.8, 0.8]), alpha_cutoff: eye_cover.then_some(0.9),
             ..Default::default() };
-        let binding = make_binding(&active_mask, &base, factors)?;
+        let binding = make_binding(&active_mask, &active_base, factors)?;
         if eye_cover && (!binding.alpha_blend || binding.translucent) {
             return Err(RenderError::Device("EyeCover did not select independent alpha blending".to_owned()));
+        }
+        if name.starts_with("glass") && (!binding.alpha_blend || !binding.translucent) {
+            return Err(RenderError::Device("Glass did not select the absorption render pass".to_owned()));
         }
         let bindings = BTreeMap::from([(0, binding)]);
         camera.material_time = time;
@@ -107,7 +124,11 @@ pub(super) fn verify(
         samples.insert(name, <[u8; 4]>::try_from(&pixels[center..center + 4]).unwrap());
     }
     let close = |a, b| samples[a].iter().zip(samples[b]).all(|(x, y)| x.abs_diff(y) <= 2);
-    if close("wing cut", "wing visible") || !close("wing inverse", "wing visible")
+    if !close("glass object solid alpha", "glass object zero alpha")
+        || !close("glass object solid alpha", "glass object shadow tint")
+        || close("glass object solid alpha", "glass object clear")
+        || close("glass equipment solid alpha", "glass equipment zero alpha")
+        || close("wing cut", "wing visible") || !close("wing inverse", "wing visible")
         || !close("wing cut", "torn length") || !close("wing cut", "torn cross")
         || !close("torn white", "torn unknown") || close("torn white", "torn length")
         || close("hair first", "hair second") || !close("hair white first", "hair white second")

@@ -8645,3 +8645,30 @@ fn shader_controls_send_selected_parts_and_restore() -> TestResult {
     assert_eq!(ui.application.mesh.as_ref().unwrap().draw_snapshot(), before);
     Ok(())
 }
+
+#[test]
+fn glass_shader_controls_offer_the_correct_pipeline_and_emit_absorption() -> TestResult {
+    for (is_static, shader, label, maximum) in [(true, "Translucent", "World-object glass", 10.0),
+        (false, "SkinnedMeshTranslucent", "Equipment glass", 1.0)] {
+        let mut ui = HeadlessUi::new_integrated_cdmw_for_controls(two_part_application()?, egui::vec2(1440.0, 1800.0));
+        let catalogue = [("Translucent", "World-object glass", 10.0), ("SkinnedMeshTranslucent", "Equipment glass", 1.0)]
+            .map(|(shader, label, maximum)| json!({"shader": shader, "label": label, "note": "Glass preview.",
+                "fields": [{"name": "_extinctionCoefficient", "label": "Absorption", "default": [0.3],
+                    "minimum": 0.0, "maximum": maximum, "integer": false}]}));
+        ui.application.cdmw_state["shader_controls"] = json!({"available": true, "static": is_static,
+            "catalogue": catalogue, "parts": [{"index": 1, "id": "b", "name": "Part B", "shader_controls": null}]});
+        ui.settle_layout();
+        ui.click("1: Part B")?;
+        ui.click("Shader experiments")?;
+        ui.settle_layout();
+        ui.reveal(label)?;
+        ui.click("Absorption")?;
+        ui.type_number_in_row("Absorption", 0.3, &maximum.to_string())?;
+        let actions = ui.actions_from_click("Apply shader controls")?;
+        assert!(actions.iter().any(|action| matches!(action,
+            UiAction::CdmwCommand { command: "replacement_shader_controls", arguments, .. }
+            if arguments == &json!({"part_ids": ["b"], "shader_controls": {
+                "shader": shader, "values": {"_extinctionCoefficient": [maximum]}}}))));
+    }
+    Ok(())
+}

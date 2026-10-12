@@ -18,6 +18,38 @@ triangles or other visual glitches in game, even within the same model. Avoid
 overlapping transparent surfaces where possible. Mesh Editor shows this warning
 beside its Translucency controls; the preview may not show the issue.
 
+## Translucent glass
+
+**World-object glass (experimental)** in Mesh Editor uses the static `Translucent`
+shader, including the rose-window material. It accepts existing Translucent materials
+or explicit conversion of a plain Standard material with a base-colour map. Layered
+materials are refused. **Equipment glass (experimental)** in either editor uses
+`SkinnedMeshTranslucent` and accepts compatible plain opaque/glowing equipment.
+Create New Item offers it under **Model & Placement → Appearance → Shader experiments**.
+Restore separate Glow and Translucency overrides on the same part before choosing it.
+
+Select a part and the matching glass experiment, then check the fields to change:
+
+| Control | World objects | Equipment |
+| --- | --- | --- |
+| Thickness | 0–1; inherited default 0.02 | 0–1; inherited default 0.02 |
+| Absorption | 0–10; inherited default 0.3 | 0–1; inherited default 0.3 |
+| Shadow colour strength | 0–1; inherited default 0 | 0–1; inherited default 0 |
+
+The intact rose window uses **0.02 thickness, 10 absorption and 1 shadow colour
+strength**. Equipment cannot use its 10 absorption value; 0.2 thickness and 1 absorption
+give a similar thickness × absorption product, with different thickness quantization
+and texture-alpha behaviour. These are starting values, not opacity percentages.
+
+Unchecked fields retain authored values and maps. Higher thickness or absorption
+generally makes glass less see-through. Static Translucent absorption ignores base-colour
+alpha; equipment absorption uses it, except that Plain PBR export makes glTF OPAQUE
+alpha solid. Shadow colour strength controls supported shadow passes, not visible-surface
+tint. It is exported but has no visible preview effect. The viewport approximates
+colour-dependent absorption; refraction, coloured shadows and in-game activation remain
+unverified. No refractive-index control is exposed because the inspected static main
+shader variants do not use it.
+
 ## Transparent surface blending
 
 Create New Item additionally offers **Transparent surface blending (experimental)**
@@ -38,6 +70,8 @@ It is not included in Mesh Editor's experiment catalogue.
 | Surface detail and roughness | `SkinnedMeshAnisotropy` | Detail-normal strength/scale and low roughness byte. The byte acts only when source hair dye alpha is nonzero. Other packed bytes and dye colour are preserved. |
 | Glowing band sweep | `SkinnedMeshPoster` | Noise, width/exponent, ratio, progress and RGB colour. Progress between 0.001 and 1 selects a sweep that ignores ratio. Progress 1 exits the sweep; it does not remove the mesh. |
 | Object dissolve | Existing `Dissolve` PAMI on a static object in Mesh Editor | Sphere ratio/radius, positive hardness, centre/position, noise scale/speed/strength, edge glow and inversion. Other flag bits are preserved. |
+| World-object glass | Static `Translucent`, or plain `Standard` with a base map | Thickness, absorption up to 10, and shadow colour strength. Uses PAMI; not available on equipment. |
+| Equipment glass | `SkinnedMeshTranslucent`, or plain `SkinnedMeshStandard` / `SkinnedMeshEmissive` with a base map | Thickness, absorption up to 1, and shadow colour strength. Uses PAC_XML. |
 
 Layered Standard, ordinary Hair, other cloth shaders and Glass cannot silently
 become the shared equipment experiments above. New Item's explicit Transparent surface blending
@@ -55,7 +89,7 @@ unsupported experiment cannot enter the draft and block later Glow or Translucen
 preview updates. This does not add TornCloth support to ordinary armour. Restore
 source shader controls to clear an incompatible choice made in an older build.
 
-External Plain PBR imports offer Patterned reveal on opaque materials. Authored glass
+External Plain PBR imports offer Patterned reveal and Equipment glass on opaque materials. Authored glass
 does not offer that conversion; both also offer New Item's Transparent surface blending.
 Builder/prebuilt imports without proven source bindings
 keep experiments disabled. Unchecking Reveal progress on a Plain PBR conversion uses
@@ -108,6 +142,8 @@ routes. Replacement draft version 12 stores controls; older versions still load.
 The two shader preview services prepare resources off the UI thread.
 
 `tests/test_new_item_transparency_paint.py` covers mask output and ownership;
+`tests/test_glass_shader_controls.py` covers glass compatibility, per-material output,
+saved drafts, Qt controls and preview handoffs;
 `tests/test_material_authority_exact_artifacts.py` covers authored artifacts.
 Rust tests cover optional
 mask transport, material ownership and headless interactions. The synthetic D3D12

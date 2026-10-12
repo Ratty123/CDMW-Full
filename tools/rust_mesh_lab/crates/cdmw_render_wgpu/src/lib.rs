@@ -4335,9 +4335,12 @@ fn validate_material_factor_ownership(
         ));
     }
     if factors.shader_controls.is_some_and(|v| v.iter().any(|n| !n.is_finite() || n.abs() > 1e6)
-        || !(0.0..=7.0).contains(&v[0]) || v[0].fract() != 0.0
+        || !(0.0..=9.0).contains(&v[0]) || v[0].fract() != 0.0
         || (v[0] == 7.0 && (!(0.0..=1.0).contains(&v[4])
-            || v[5..9].iter().any(|n| *n != -1.0 && !(0.0..=1.0).contains(n))))) {
+            || v[5..9].iter().any(|n| *n != -1.0 && !(0.0..=1.0).contains(n))))
+        || (matches!(v[0] as u32, 8 | 9) && (!(0.0..=1.0).contains(&v[4])
+            || !(0.0..=if v[0] == 8.0 { 10.0 } else { 1.0 }).contains(&v[5])
+            || !(0.0..=1.0).contains(&v[6])))) {
         return Err(RenderError::Texture("Invalid experimental shader controls".to_owned()));
     }
     if factors.emission_reveal.is_some_and(|v| {
@@ -9177,6 +9180,21 @@ fn create_default_material_textures(
     }
 }
 
+fn material_translucency_uniform(factors: MaterialPreviewFactors) -> [f32; 4] {
+    // IDs 8/9 share the absorption preview, but the object's main pass never
+    // multiplies extinction by base alpha. Shadow tint (lane 6) is export-only.
+    let glass = factors.shader_controls.filter(|v| matches!(v[0] as u32, 8 | 9));
+    let values = glass.map(|v| [v[4], v[5]]).or(factors.translucency);
+    values.map_or([0.0; 4], |values| {
+        // Plain PBR export makes glTF OPAQUE alpha solid, including opacity.
+        // BLEND/MASK and directly imported DDS retain alpha for equipment.
+        let use_alpha = !glass.is_some_and(|v| v[0] == 8.0)
+            && (factors.gltf_metallic_roughness != Some(true)
+                || factors.alpha_blend == Some(true) || factors.alpha_cutoff.is_some());
+        [values[0], values[1], 1.0, if use_alpha { 1.0 } else { 0.0 }]
+    })
+}
+
 fn material_texture_tint_uniform(factors: MaterialPreviewFactors) -> Option<[f32; 4]> {
     factors.texture_tint.map(|tint| {
         [
@@ -9226,8 +9244,10 @@ fn create_material_bind_group(
     let height_view = material_texture_view(textures, indices.height, &defaults.height);
     let flow_view = material_texture_view(textures, indices.flow, &defaults.flow);
     let layer_mask_view = material_texture_view(textures, indices.layer_mask, &defaults.layer_mask);
-    let effect = factors.shader_controls.is_some_and(|v| v[0] > 0.0);
+    let effect = factors.shader_controls.is_some_and(|v| v[0] > 0.0 && v[0] <= 7.0);
     let eye_cover = factors.shader_controls.is_some_and(|v| v[0] == 7.0);
+    let translucency = material_translucency_uniform(factors);
+    let translucent = translucency[2] > 0.5 && !eye_cover;
     let skin_detail_mask_view =
         material_texture_view(textures, if effect { indices.shader_mask } else { indices.skin_detail_mask }, &defaults.layer_mask);
     let skin_detail_normal_view =
@@ -9304,7 +9324,7 @@ fn create_material_bind_group(
     if factors.alpha_cutoff.is_some_and(|cutoff| cutoff > 0.0) {
         flags |= MATERIAL_ALPHA_CUTOUT;
     }
-    if factors.alpha_blend == Some(true) || factors.translucency.is_some() || eye_cover {
+    if factors.alpha_blend == Some(true) || translucent || eye_cover {
         flags |= MATERIAL_ALPHA_BLEND;
     }
     if factors.gltf_metallic_roughness == Some(true) {
@@ -9365,14 +9385,7 @@ fn create_material_bind_group(
             factors.category_confidence.unwrap_or(0.35),
         ],
         texture_tint_and_strength: texture_tint_and_strength.unwrap_or([1.0, 1.0, 1.0, 0.0]),
-        translucency_factors: factors.translucency.map_or([0.0; 4], |values| {
-            // Plain PBR export makes glTF OPAQUE alpha solid, including its
-            // opacity factor. BLEND/MASK and directly imported DDS retain alpha.
-            let use_alpha = factors.gltf_metallic_roughness != Some(true)
-                || factors.alpha_blend == Some(true)
-                || factors.alpha_cutoff.is_some();
-            [values[0], values[1], 1.0, if use_alpha { 1.0 } else { 0.0 }]
-        }),
+        translucency_factors: translucency,
         translucency_surface: factors.translucency_surface.map_or([0.0; 4], |values| {
             [values[0].unwrap_or(0.0), values[1].unwrap_or(0.0),
              if values[0].is_some() { 1.0 } else { 0.0 }, if values[1].is_some() { 1.0 } else { 0.0 }]
@@ -9464,8 +9477,8 @@ fn create_material_bind_group(
     GpuMaterialBinding {
         bind_group,
         _uniform_buffer: uniform_buffer,
-        alpha_blend: factors.alpha_blend == Some(true) || factors.translucency.is_some() || eye_cover,
-        translucent: factors.translucency.is_some() && !eye_cover,
+        alpha_blend: factors.alpha_blend == Some(true) || translucent || eye_cover,
+        translucent,
         emits_light: !eye_cover && (((uniform.emissive_color_and_intensity[3] > 0.0 || uniform.emission_reveal[3] > 0.0)
             && uniform.emissive_color_and_intensity[..3].iter().any(|value| *value > 0.0))
             || matches!(uniform.shader_controls[0][0] as u32, 5 | 6)),
@@ -10704,12 +10717,42 @@ mod tests {
         assert!(validate_material_factor_ownership(MaterialPreviewFactors {
             shader_controls: Some(controls), ..Default::default()
         }, &owners).is_err());
-        for invalid in [f32::NAN, f32::INFINITY, 8.0, 1.5] {
+        for invalid in [f32::NAN, f32::INFINITY, 10.0, 1.5] {
             controls[0] = invalid;
             assert!(validate_material_factor_ownership(MaterialPreviewFactors {
                 shader_controls: Some(controls), ..Default::default()
             }, &owners).is_err());
         }
+    }
+
+    #[test]
+    fn glass_shader_controls_keep_static_range_and_equipment_alpha_contracts() {
+        let mut controls = [0.0; 32];
+        controls[0] = 8.0;
+        controls[4..7].copy_from_slice(&[0.02, 10.0, 1.0]);
+        let mut factors = MaterialPreviewFactors { shader_controls: Some(controls), ..Default::default() };
+        assert!(validate_material_factor_ownership(factors, &[vec![0]]).is_ok());
+        assert_eq!(material_translucency_uniform(factors), [0.02, 10.0, 1.0, 0.0]);
+        controls[0] = 9.0;
+        factors.shader_controls = Some(controls);
+        assert!(validate_material_factor_ownership(factors, &[vec![0]]).is_err());
+        controls[5] = 1.0;
+        factors.shader_controls = Some(controls);
+        assert!(validate_material_factor_ownership(factors, &[vec![0]]).is_ok());
+        assert_eq!(material_translucency_uniform(factors), [0.02, 1.0, 1.0, 1.0]);
+        factors.gltf_metallic_roughness = Some(true);
+        assert_eq!(material_translucency_uniform(factors)[3], 0.0);
+        factors.alpha_blend = Some(true);
+        assert_eq!(material_translucency_uniform(factors)[3], 1.0);
+        for (index, value) in [(4, -0.01), (4, 1.01), (5, 1.01), (6, 1.01), (6, f32::NAN)] {
+            let mut invalid = controls;
+            invalid[index] = value;
+            factors.shader_controls = Some(invalid);
+            assert!(validate_material_factor_ownership(factors, &[vec![0]]).is_err());
+        }
+        factors = MaterialPreviewFactors { translucency: Some([0.2, 0.3]), ..Default::default() };
+        assert_eq!(material_translucency_uniform(factors), [0.2, 0.3, 1.0, 1.0]);
+        assert_eq!(material_translucency_uniform(MaterialPreviewFactors::default()), [0.0; 4]);
     }
 
     #[test]

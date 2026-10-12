@@ -859,6 +859,16 @@ exported descriptors can overwrite one another's rules.
 
 ### Translucency controls
 
+For the rose-window investigation's additional controls, use **Appearance → Shader
+experiments → Equipment glass (experimental)**. This offers **Thickness**, **Absorption**
+and **Shadow colour strength** on compatible template materials and Plain PBR imports.
+Check only fields to override; unchecked fields retain their source values. Restore
+separate Glow and Translucency overrides on that part first. Shadow colour strength is
+exported for in-game testing and is not shown in the preview. Equipment absorption is
+limited to 0–1; Mesh Editor's **World-object glass** uses the distinct static shader
+and its 0–10 range. See [glass controls](../mesh_editor/SHADER_CONTROLS.md#translucent-glass)
+for example values, compatibility and preview limits.
+
 The Appearance page offers **Translucency (experimental)** for both template and
 imported models. Enable it and tick the material parts to change, or use **Select all**
 to check every part with one preview update. **Clear selection** restores source

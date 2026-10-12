@@ -1,7 +1,7 @@
 """Experimental controls recovered from material definitions and compiled shaders.
 
 These are material-family contracts, not a list of interchangeable shader names.
-Wing and New Item's EyeCover experiment accept plain equipment.
+Wing, translucent glass and New Item's EyeCover accept compatible plain materials.
 """
 from __future__ import annotations
 
@@ -82,7 +82,7 @@ FAMILIES = (
     ), "_dissolveNoiseTex", "effect/texture/pafx_aura_noise_001a_hsu_bc7.dds"),
 )
 
-# Keep the native renderer's family IDs and Mesh Editor catalogue unchanged.
+# Keep the native renderer's existing family IDs unchanged.
 # These texture channels are authoring operations, not game scalar parameters.
 EYE_COVER_TEXTURE_FIELDS = {
     "surface_alpha": ("_alphaTexture", 0),
@@ -105,11 +105,27 @@ EYE_COVER = ShaderFamily("SkinnedMeshEyeCover", "Transparent surface blending (e
         ShaderField(EYE_COVER_OVERLAP_FIELD, "Character visibility test (global, experimental)",
                     (0.,), 0, 1, "ExportToggle"),
     ))
-NEW_ITEM_FAMILIES = tuple(family for family in FAMILIES if family.shader != "Dissolve") + (EYE_COVER,)
+GLASS_FAMILIES = tuple(ShaderFamily(shader, label, note, (
+    ShaderField("_thickness", "Thickness", (.02,), 0, 1, item_id="3214133184954366"),
+    ShaderField("_extinctionCoefficient", "Absorption", (.3,), 0, maximum, item_id="3161969463918590"),
+    ShaderField("_extinctionTint", "Shadow colour strength", (0.,), 0, 1),
+)) for shader, label, maximum, note in (
+    ("Translucent", "World-object glass (experimental)", 10,
+     "Existing Translucent or plain Standard static materials. The rose window uses thickness 0.02, absorption 10 and shadow colour strength 1. Base-colour alpha does not control absorption. Preview approximates absorption; coloured shadows and refraction require in-game testing."),
+    ("SkinnedMeshTranslucent", "Equipment glass (experimental)", 1,
+     "Existing translucent or plain opaque/glowing equipment materials. Thickness and absorption control how much light passes through the colour texture; base-colour alpha also affects absorption. Shadow colour strength is exported but not shown in the preview. Restore separate Glow and Translucency overrides on this part first."),
+))
+GLASS_FIELD_HELP = {
+    "_thickness": "Higher values absorb more light. Thin glass can use 0.02; the game stores thickness in 256 steps. Unchecked: retain the authored value.",
+    "_extinctionCoefficient": "Higher values make glass less see-through. World objects support 0–10; equipment supports 0–1. This is absorption, not an opacity percentage.",
+    "_extinctionTint": "0 gives neutral absorption in supported shadow passes; 1 uses the material colour. This does not tint the visible surface. Exported for in-game testing; the preview does not show coloured shadows.",
+}
+MESH_FAMILIES = (*FAMILIES, *GLASS_FAMILIES)
+NEW_ITEM_FAMILIES = tuple(family for family in MESH_FAMILIES if family.shader not in {"Dissolve", "Translucent"}) + (EYE_COVER,)
 
 
 def family_for(shader: str) -> ShaderFamily:
-    for family in (*FAMILIES, EYE_COVER):
+    for family in (*MESH_FAMILIES, EYE_COVER):
         if family.shader == shader:
             return family
     raise ValueError("Unsupported experimental shader family.")
@@ -221,15 +237,17 @@ def validate_choices(choices, *, glow_parts=(), translucent_parts=(), equipment=
         controls.validate()
         if name.casefold() in conflicts:
             raise ValueError(f"{name}: restore Glow and Translucency before choosing another shader experiment.")
-        if equipment and controls.shader == "Dissolve":
-            raise ValueError("Object dissolve requires a static object in Mesh Editor; it cannot be applied to New Item equipment.")
+        if equipment and controls.shader in {"Dissolve", "Translucent"}:
+            raise ValueError("World-object shaders require a static object in Mesh Editor; they cannot be applied to New Item equipment.")
 
 
 def catalogue_payload():
     return [{"shader": f.shader, "label": f.label, "note": f.note,
              "fields": [{"name": p.name, "label": p.label, "default": list(p.default),
                          "minimum": p.minimum, "maximum": p.maximum,
-                         "integer": p.integer} for p in f.fields]} for f in FAMILIES]
+                         "integer": p.integer,
+                         **({"note": GLASS_FIELD_HELP[p.name]} if f in GLASS_FAMILIES else {})}
+                        for p in f.fields]} for f in MESH_FAMILIES]
 
 
 def preview_factors(controls, authored=None):
@@ -270,7 +288,8 @@ def preview_factors(controls, authored=None):
         flags = 0
     if "_materialFlags" in values:
         flags = int(values["_materialFlags"][0])
-    result = [float(FAMILIES.index(family) + 1), float(dye_active), float(flags & 1), 0.]
+    family_id = GLASS_FAMILIES.index(family) + 8 if family in GLASS_FAMILIES else FAMILIES.index(family) + 1
+    result = [float(family_id), float(dye_active), float(flags & 1), 0.]
     for field in family.fields:
         numbers = values.get(field.name)
         if numbers is None:
@@ -288,6 +307,8 @@ def preview_factors(controls, authored=None):
                     numbers = field.default
             except (ValueError, TypeError, OverflowError):
                 numbers = field.default
+        if family in GLASS_FAMILIES and any(not field.minimum <= n <= field.maximum for n in numbers):
+            raise ValueError(f"{field.label}: authored value is outside the supported {family.shader} range.")
         result.extend(numbers)
     result.extend([0.] * (32 - len(result)))
     result[30] = float(controls.cutout_mask is not None)
