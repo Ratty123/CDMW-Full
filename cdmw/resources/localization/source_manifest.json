@@ -1051,7 +1051,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/shader_controls_editor.py",
-          "line": 117,
+          "line": 118,
           "sink": "python-return:_source_note"
         }
       ]
@@ -1061,7 +1061,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/shader_controls_editor.py",
-          "line": 284,
+          "line": 288,
           "sink": "python-return:_coverage_note"
         }
       ]
@@ -1121,7 +1121,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/shader_controls_editor.py",
-          "line": 117,
+          "line": 118,
           "sink": "python-return:_source_note"
         }
       ]
@@ -1131,7 +1131,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/shader_controls_editor.py",
-          "line": 117,
+          "line": 118,
           "sink": "python-return:_source_note"
         }
       ]
@@ -1141,7 +1141,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/shader_controls_editor.py",
-          "line": 284,
+          "line": 288,
           "sink": "python-return:_coverage_note"
         }
       ]
@@ -1161,7 +1161,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/shader_controls_editor.py",
-          "line": 284,
+          "line": 288,
           "sink": "python-return:_coverage_note"
         }
       ]
@@ -4311,7 +4311,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 623,
+          "line": 626,
           "sink": "OverlayConflict"
         }
       ]
@@ -4466,7 +4466,7 @@
         },
         {
           "path": "cdmw/ui/new_item/independent_items_page.py",
-          "line": 413,
+          "line": 414,
           "sink": "tr"
         }
       ]
@@ -6606,7 +6606,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/shader_controls_editor.py",
-          "line": 48,
+          "line": 49,
           "sink": "QCheckBox"
         }
       ]
@@ -6796,7 +6796,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/shader_controls_editor.py",
-          "line": 189,
+          "line": 193,
           "sink": "QLabel"
         }
       ]
@@ -8011,7 +8011,7 @@
       "origins": [
         {
           "path": "cdmw/app/bootstrap.py",
-          "line": 107,
+          "line": 111,
           "sink": "update_pyinstaller_boot_splash"
         }
       ]
@@ -8411,7 +8411,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 765,
+          "line": 768,
           "sink": "OverlayConflict"
         }
       ]
@@ -10056,7 +10056,7 @@
       "origins": [
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_shader_controls.rs",
-          "line": 80,
+          "line": 81,
           "sink": "rust-presentation"
         }
       ]
@@ -10161,7 +10161,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/independent_items_page.py",
-          "line": 414,
+          "line": 415,
           "sink": "tr"
         }
       ]
@@ -10431,7 +10431,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/shader_controls_editor.py",
-          "line": 284,
+          "line": 288,
           "sink": "python-return:_coverage_note"
         }
       ]
@@ -10886,7 +10886,7 @@
         },
         {
           "path": "cdmw/services/mesh_archive_refit.py",
-          "line": 135,
+          "line": 139,
           "sink": "ValueError"
         }
       ]
@@ -10896,7 +10896,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_archive_refit.py",
-          "line": 143,
+          "line": 161,
           "sink": "ValueError"
         }
       ]
@@ -10906,7 +10906,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_archive_refit.py",
-          "line": 132,
+          "line": 136,
           "sink": "ValueError"
         }
       ]
@@ -10926,7 +10926,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_archive_refit.py",
-          "line": 270,
+          "line": 288,
           "sink": "ValueError"
         }
       ]
@@ -10936,12 +10936,12 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_archive_refit.py",
-          "line": 340,
+          "line": 358,
           "sink": "ValueError"
         },
         {
           "path": "cdmw/services/mesh_archive_refit.py",
-          "line": 369,
+          "line": 387,
           "sink": "ValueError"
         }
       ]
@@ -10951,7 +10951,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_archive_refit.py",
-          "line": 322,
+          "line": 340,
           "sink": "ValueError"
         }
       ]
@@ -10961,7 +10961,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_archive_refit.py",
-          "line": 330,
+          "line": 348,
           "sink": "ValueError"
         }
       ]
@@ -10971,7 +10971,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_archive_refit.py",
-          "line": 362,
+          "line": 380,
           "sink": "ValueError"
         }
       ]
@@ -10981,12 +10981,12 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_archive_refit.py",
-          "line": 325,
+          "line": 343,
           "sink": "ValueError"
         },
         {
           "path": "cdmw/services/mesh_archive_refit.py",
-          "line": 360,
+          "line": 378,
           "sink": "ValueError"
         }
       ]
@@ -10996,12 +10996,12 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_archive_refit.py",
-          "line": 334,
+          "line": 352,
           "sink": "ValueError"
         },
         {
           "path": "cdmw/services/mesh_archive_refit.py",
-          "line": 366,
+          "line": 384,
           "sink": "ValueError"
         }
       ]
@@ -11011,7 +11011,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_archive_refit.py",
-          "line": 266,
+          "line": 284,
           "sink": "ValueError"
         }
       ]
@@ -11021,7 +11021,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_archive_refit.py",
-          "line": 374,
+          "line": 392,
           "sink": "ValueError"
         }
       ]
@@ -11031,7 +11031,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_archive_refit.py",
-          "line": 203,
+          "line": 221,
           "sink": "raise_if_cancelled"
         }
       ]
@@ -11041,12 +11041,12 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_archive_refit.py",
-          "line": 211,
+          "line": 229,
           "sink": "ValueError"
         },
         {
           "path": "cdmw/services/mesh_archive_refit.py",
-          "line": 248,
+          "line": 266,
           "sink": "ValueError"
         }
       ]
@@ -11056,7 +11056,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_archive_refit.py",
-          "line": 243,
+          "line": 261,
           "sink": "ValueError"
         }
       ]
@@ -11066,7 +11066,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_archive_refit.py",
-          "line": 245,
+          "line": 263,
           "sink": "ValueError"
         }
       ]
@@ -11111,12 +11111,12 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_archive_refit.py",
-          "line": 300,
+          "line": 318,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/mesh_archive_refit.py",
-          "line": 318,
+          "line": 336,
           "sink": "raise_if_cancelled"
         }
       ]
@@ -11176,7 +11176,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_archive_refit.py",
-          "line": 146,
+          "line": 164,
           "sink": "ValueError"
         }
       ]
@@ -13010,6 +13010,16 @@
       "key": "Archive tree",
       "origins": [],
       "manual": true
+    },
+    {
+      "key": "Archive verification produced no complete result ({value_0}).",
+      "origins": [
+        {
+          "path": "cdmw/services/archive_verification_process.py",
+          "line": 117,
+          "sink": "RuntimeError"
+        }
+      ]
     },
     {
       "key": "Archive virtual asset path. Texture references normally end in .dds.",
@@ -20016,7 +20026,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 841,
+          "line": 887,
           "sink": "CompatibilityFinding"
         }
       ]
@@ -20046,7 +20056,7 @@
       "origins": [
         {
           "path": "cdmw/app/bootstrap.py",
-          "line": 80,
+          "line": 84,
           "sink": "RuntimeError"
         }
       ]
@@ -20316,7 +20326,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/independent_items_page.py",
-          "line": 410,
+          "line": 411,
           "sink": "tr"
         }
       ]
@@ -21076,7 +21086,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/shader_controls_editor.py",
-          "line": 42,
+          "line": 43,
           "sink": "addItem"
         }
       ]
@@ -21883,6 +21893,16 @@
           "path": "cdmw/ui/archive_browser/attachment_placement_diff_dialog.py",
           "line": 1959,
           "sink": "setText"
+        }
+      ]
+    },
+    {
+      "key": "Cannot control archive verification: {value_0}",
+      "origins": [
+        {
+          "path": "cdmw/services/archive_verification_process.py",
+          "line": 110,
+          "sink": "RuntimeError"
         }
       ]
     },
@@ -24311,7 +24331,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 7440,
+          "line": 7443,
           "sink": "report"
         }
       ]
@@ -25306,7 +25326,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/shader_controls_editor.py",
-          "line": 170,
+          "line": 172,
           "sink": "setToolTip"
         }
       ]
@@ -26511,7 +26531,7 @@
       "origins": [
         {
           "path": "cdmw/app/bootstrap.py",
-          "line": 88,
+          "line": 92,
           "sink": "error"
         }
       ]
@@ -26581,7 +26601,7 @@
       "origins": [
         {
           "path": "cdmw/app/bootstrap.py",
-          "line": 86,
+          "line": 90,
           "sink": "error"
         }
       ]
@@ -29741,7 +29761,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/shader_controls_editor.py",
-          "line": 47,
+          "line": 48,
           "sink": "setToolTip"
         }
       ]
@@ -29761,7 +29781,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/shader_controls_editor.py",
-          "line": 51,
+          "line": 52,
           "sink": "addRow"
         }
       ]
@@ -29976,7 +29996,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 758,
+          "line": 761,
           "sink": "OverlayConflict"
         }
       ]
@@ -30681,7 +30701,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 599,
+          "line": 602,
           "sink": "python-return:text"
         }
       ]
@@ -30691,7 +30711,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 599,
+          "line": 602,
           "sink": "python-return:text"
         }
       ]
@@ -31206,7 +31226,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 599,
+          "line": 602,
           "sink": "python-return:text"
         }
       ]
@@ -33006,7 +33026,7 @@
       "origins": [
         {
           "path": "cdmw/app/bootstrap.py",
-          "line": 78,
+          "line": 82,
           "sink": "update_pyinstaller_boot_splash"
         }
       ]
@@ -33691,7 +33711,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/shader_controls_editor.py",
-          "line": 50,
+          "line": 51,
           "sink": "addRow"
         }
       ]
@@ -41336,7 +41356,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 9783,
+          "line": 9786,
           "sink": "RuntimeError"
         }
       ]
@@ -41426,7 +41446,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_replacement.py",
-          "line": 548,
+          "line": 551,
           "sink": "RuntimeError"
         }
       ]
@@ -41436,7 +41456,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_replacement.py",
-          "line": 682,
+          "line": 685,
           "sink": "RuntimeError"
         }
       ]
@@ -41446,7 +41466,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_replacement.py",
-          "line": 476,
+          "line": 479,
           "sink": "RuntimeError"
         }
       ]
@@ -41751,7 +41771,7 @@
       "origins": [
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_shader_controls.rs",
-          "line": 83,
+          "line": 84,
           "sink": "rust-presentation"
         }
       ]
@@ -44956,7 +44976,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/shader_controls_editor.py",
-          "line": 177,
+          "line": 179,
           "sink": "setText"
         }
       ]
@@ -46386,7 +46406,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/independent_items_page.py",
-          "line": 436,
+          "line": 437,
           "sink": "tr"
         }
       ]
@@ -49071,7 +49091,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/independent_items_page.py",
-          "line": 408,
+          "line": 409,
           "sink": "tr"
         }
       ]
@@ -53496,7 +53516,7 @@
         },
         {
           "path": "cdmw/ui/new_item/independent_items_page.py",
-          "line": 407,
+          "line": 408,
           "sink": "tr"
         },
         {
@@ -59091,12 +59111,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/independent_items_page.py",
-          "line": 436,
+          "line": 437,
           "sink": "tr"
         },
         {
           "path": "cdmw/ui/new_item/independent_items_page.py",
-          "line": 447,
+          "line": 448,
           "sink": "tr"
         }
       ]
@@ -59106,7 +59126,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/independent_items_page.py",
-          "line": 443,
+          "line": 444,
           "sink": "tr"
         }
       ]
@@ -60136,7 +60156,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/independent_items_page.py",
-          "line": 447,
+          "line": 448,
           "sink": "tr"
         }
       ]
@@ -61661,7 +61681,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/independent_items_page.py",
-          "line": 431,
+          "line": 432,
           "sink": "tr"
         }
       ]
@@ -62741,7 +62761,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 806,
+          "line": 849,
           "sink": "CompatibilityFinding"
         }
       ]
@@ -63281,7 +63301,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_archive_refit.py",
-          "line": 356,
+          "line": 374,
           "sink": "ValueError"
         }
       ]
@@ -65936,7 +65956,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/shader_controls_editor.py",
-          "line": 26,
+          "line": 27,
           "sink": "addItem"
         }
       ]
@@ -67226,7 +67246,7 @@
       "origins": [
         {
           "path": "cdmw/app/bootstrap.py",
-          "line": 90,
+          "line": 94,
           "sink": "error"
         }
       ]
@@ -69586,7 +69606,7 @@
       "origins": [
         {
           "path": "cdmw/app/bootstrap.py",
-          "line": 112,
+          "line": 116,
           "sink": "update_pyinstaller_boot_splash"
         },
         {
@@ -72586,7 +72606,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 841,
+          "line": 887,
           "sink": "CompatibilityFinding"
         }
       ]
@@ -72596,7 +72616,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 599,
+          "line": 602,
           "sink": "python-return:text"
         }
       ]
@@ -79001,7 +79021,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 9018,
+          "line": 9021,
           "sink": "RuntimeError"
         }
       ]
@@ -79011,7 +79031,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 9014,
+          "line": 9017,
           "sink": "RuntimeError"
         }
       ]
@@ -79021,7 +79041,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 8989,
+          "line": 8992,
           "sink": "RuntimeError"
         }
       ]
@@ -83371,7 +83391,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 856,
+          "line": 902,
           "sink": "CompatibilityFinding"
         }
       ]
@@ -84486,7 +84506,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 856,
+          "line": 902,
           "sink": "CompatibilityFinding"
         }
       ]
@@ -84496,7 +84516,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 599,
+          "line": 602,
           "sink": "python-return:text"
         }
       ]
@@ -91896,7 +91916,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/shader_controls_editor.py",
-          "line": 33,
+          "line": 34,
           "sink": "QLabel"
         },
         {
@@ -92851,7 +92871,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/shader_controls_editor.py",
-          "line": 184,
+          "line": 186,
           "sink": "setToolTip"
         }
       ]
@@ -93956,7 +93976,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/shader_controls_editor.py",
-          "line": 205,
+          "line": 209,
           "sink": "setToolTip"
         }
       ]
@@ -94046,7 +94066,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/shader_controls_editor.py",
-          "line": 153,
+          "line": 155,
           "sink": "setToolTip"
         }
       ]
@@ -94066,7 +94086,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/shader_controls_editor.py",
-          "line": 152,
+          "line": 154,
           "sink": "setText"
         }
       ]
@@ -94076,7 +94096,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/shader_controls_editor.py",
-          "line": 68,
+          "line": 69,
           "sink": "setToolTip"
         }
       ]
@@ -94116,12 +94136,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/shader_controls_editor.py",
-          "line": 63,
+          "line": 64,
           "sink": "QPushButton"
         },
         {
           "path": "cdmw/ui/new_item/shader_controls_editor.py",
-          "line": 152,
+          "line": 154,
           "sink": "setText"
         },
         {
@@ -94816,12 +94836,12 @@
       "origins": [
         {
           "path": "cdmw/services/shader_controls_preview.py",
-          "line": 69,
+          "line": 87,
           "sink": "ValueError"
         },
         {
           "path": "cdmw/services/shader_controls_preview.py",
-          "line": 149,
+          "line": 167,
           "sink": "ValueError"
         }
       ]
@@ -99106,7 +99126,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_replacement.py",
-          "line": 611,
+          "line": 614,
           "sink": "RuntimeError"
         }
       ]
@@ -99136,7 +99156,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_replacement.py",
-          "line": 601,
+          "line": 604,
           "sink": "RuntimeError"
         }
       ]
@@ -99146,7 +99166,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_replacement.py",
-          "line": 592,
+          "line": 595,
           "sink": "RuntimeError"
         }
       ]
@@ -99341,7 +99361,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 7438,
+          "line": 7441,
           "sink": "report"
         }
       ]
@@ -99771,7 +99791,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 7993,
+          "line": 7996,
           "sink": "progress"
         }
       ]
@@ -99781,7 +99801,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 7304,
+          "line": 7307,
           "sink": "report"
         }
       ]
@@ -99791,7 +99811,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 7328,
+          "line": 7331,
           "sink": "report"
         }
       ]
@@ -100131,7 +100151,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/tool_tabs.py",
-          "line": 664,
+          "line": 661,
           "sink": "pump_startup_splash"
         }
       ]
@@ -106021,7 +106041,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/shader_controls_editor.py",
-          "line": 41,
+          "line": 42,
           "sink": "addItem"
         }
       ]
@@ -107841,7 +107861,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 662,
+          "line": 665,
           "sink": "OverlayConflict"
         }
       ]
@@ -109381,7 +109401,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/shader_controls_editor.py",
-          "line": 205,
+          "line": 209,
           "sink": "setToolTip"
         }
       ]
@@ -110321,7 +110341,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/tool_tabs.py",
-          "line": 698,
+          "line": 695,
           "sink": "pump_startup_splash"
         }
       ]
@@ -111176,7 +111196,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/shader_controls_editor.py",
-          "line": 69,
+          "line": 70,
           "sink": "setToolTip"
         }
       ]
@@ -112811,7 +112831,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/shader_controls_editor.py",
-          "line": 205,
+          "line": 209,
           "sink": "setToolTip"
         }
       ]
@@ -112821,7 +112841,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/shader_controls_editor.py",
-          "line": 205,
+          "line": 209,
           "sink": "setToolTip"
         }
       ]
@@ -112831,7 +112851,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/shader_controls_editor.py",
-          "line": 205,
+          "line": 209,
           "sink": "setToolTip"
         }
       ]
@@ -115566,7 +115586,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/shader_controls_editor.py",
-          "line": 66,
+          "line": 67,
           "sink": "QPushButton"
         }
       ]
@@ -115576,7 +115596,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/shader_controls_editor.py",
-          "line": 155,
+          "line": 157,
           "sink": "setText"
         }
       ]
@@ -115586,7 +115606,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/shader_controls_editor.py",
-          "line": 155,
+          "line": 157,
           "sink": "setText"
         }
       ]
@@ -115676,7 +115696,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/shader_controls_editor.py",
-          "line": 64,
+          "line": 65,
           "sink": "QPushButton"
         },
         {
@@ -115796,12 +115816,12 @@
       "origins": [
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_shader_controls.rs",
-          "line": 85,
+          "line": 86,
           "sink": "rust-presentation"
         },
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_shader_controls.rs",
-          "line": 87,
+          "line": 88,
           "sink": "rust-presentation"
         }
       ]
@@ -115861,7 +115881,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/shader_controls_editor.py",
-          "line": 84,
+          "line": 85,
           "sink": "QPushButton"
         }
       ]
@@ -115881,7 +115901,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/shader_controls_editor.py",
-          "line": 67,
+          "line": 68,
           "sink": "QPushButton"
         }
       ]
@@ -115891,7 +115911,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/shader_controls_editor.py",
-          "line": 65,
+          "line": 66,
           "sink": "QPushButton"
         }
       ]
@@ -116226,7 +116246,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 675,
+          "line": 678,
           "sink": "OverlayConflict"
         }
       ]
@@ -116236,7 +116256,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 801,
+          "line": 812,
           "sink": "CompatibilityFinding"
         }
       ]
@@ -117156,7 +117176,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/independent_items_page.py",
-          "line": 411,
+          "line": 412,
           "sink": "tr"
         }
       ]
@@ -117286,7 +117306,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 599,
+          "line": 602,
           "sink": "python-return:text"
         }
       ]
@@ -126996,7 +127016,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 637,
+          "line": 640,
           "sink": "OverlayConflict"
         }
       ]
@@ -127006,7 +127026,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 691,
+          "line": 694,
           "sink": "OverlayConflict"
         }
       ]
@@ -127016,7 +127036,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 654,
+          "line": 657,
           "sink": "OverlayConflict"
         }
       ]
@@ -133131,7 +133151,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/shader_controls_editor.py",
-          "line": 109,
+          "line": 110,
           "sink": "python-return:_source_note"
         }
       ]
@@ -133251,7 +133271,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/shader_controls_editor.py",
-          "line": 166,
+          "line": 168,
           "sink": "setText"
         }
       ]
@@ -133261,7 +133281,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/shader_controls_editor.py",
-          "line": 117,
+          "line": 118,
           "sink": "python-return:_source_note"
         }
       ]
@@ -134796,7 +134816,7 @@
       "origins": [
         {
           "path": "cdmw/app/bootstrap.py",
-          "line": 104,
+          "line": 108,
           "sink": "update_pyinstaller_boot_splash"
         }
       ]
@@ -138166,7 +138186,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/shader_controls_editor.py",
-          "line": 83,
+          "line": 84,
           "sink": "setToolTip"
         }
       ]
@@ -142351,7 +142371,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_preview_mixin.py",
-          "line": 709,
+          "line": 710,
           "sink": "emit"
         }
       ]
@@ -142776,7 +142796,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/shader_controls_editor.py",
-          "line": 219,
+          "line": 223,
           "sink": "setToolTip"
         }
       ]
@@ -143931,7 +143951,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_shader_controls_preview.py",
-          "line": 65,
+          "line": 72,
           "sink": "ValueError"
         }
       ]
@@ -144831,7 +144851,7 @@
       "origins": [
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_shader_controls.rs",
-          "line": 81,
+          "line": 82,
           "sink": "rust-presentation"
         }
       ]
@@ -145441,7 +145461,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 599,
+          "line": 602,
           "sink": "python-return:text"
         }
       ]
@@ -145556,7 +145576,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 815,
+          "line": 857,
           "sink": "CompatibilityFinding"
         }
       ]
@@ -148101,7 +148121,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/shader_controls_editor.py",
-          "line": 33,
+          "line": 34,
           "sink": "QLabel"
         },
         {
@@ -149126,7 +149146,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/shader_controls_editor.py",
-          "line": 132,
+          "line": 134,
           "sink": "setToolTip"
         }
       ]
@@ -149231,7 +149251,7 @@
       "origins": [
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_shader_controls.rs",
-          "line": 58,
+          "line": 59,
           "sink": "rust-presentation"
         }
       ]
@@ -150006,7 +150026,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 599,
+          "line": 602,
           "sink": "python-return:text"
         }
       ]
@@ -150216,7 +150236,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_archive_refit.py",
-          "line": 350,
+          "line": 368,
           "sink": "ValueError"
         }
       ]
@@ -150346,7 +150366,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_archive_refit.py",
-          "line": 237,
+          "line": 255,
           "sink": "ValueError"
         }
       ]
@@ -150356,7 +150376,17 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_archive_refit.py",
-          "line": 234,
+          "line": 252,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Unsupported archive verification request.",
+      "origins": [
+        {
+          "path": "cdmw/services/archive_verification_process.py",
+          "line": 144,
           "sink": "ValueError"
         }
       ]
@@ -150526,7 +150556,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 877,
+          "line": 925,
           "sink": "OverlayConflict"
         }
       ]
@@ -157086,7 +157116,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/shader_controls_editor.py",
-          "line": 153,
+          "line": 155,
           "sink": "setToolTip"
         }
       ]
@@ -161850,6 +161880,11 @@
       "key": "cancel",
       "origins": [
         {
+          "path": "cdmw/services/archive_verification_process.py",
+          "line": 70,
+          "sink": "python-return:state"
+        },
+        {
           "path": "cdmw/workers/mesh_rust_editor_workers.py",
           "line": 287,
           "sink": "emit"
@@ -164606,7 +164641,7 @@
         },
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 7586,
+          "line": 7589,
           "sink": "open_edit_session"
         },
         {
@@ -170766,12 +170801,12 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 6897,
+          "line": 6900,
           "sink": "RuntimeError"
         },
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 6995,
+          "line": 6998,
           "sink": "RuntimeError"
         }
       ]
@@ -170791,7 +170826,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_replacement.py",
-          "line": 621,
+          "line": 624,
           "sink": "TypeError"
         }
       ]
@@ -173576,7 +173611,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_replacement.py",
-          "line": 586,
+          "line": 589,
           "sink": "TypeError"
         }
       ]
@@ -174591,7 +174626,7 @@
         },
         {
           "path": "cdmw/ui/new_item/shader_controls_editor.py",
-          "line": 41,
+          "line": 42,
           "sink": "addItem"
         }
       ]
@@ -175301,7 +175336,7 @@
         },
         {
           "path": "cdmw/ui/shell/tool_tabs.py",
-          "line": 764,
+          "line": 761,
           "sink": "_register_detachable_tool"
         }
       ]
@@ -176137,6 +176172,16 @@
       ]
     },
     {
+      "key": "run",
+      "origins": [
+        {
+          "path": "cdmw/services/archive_verification_process.py",
+          "line": 70,
+          "sink": "python-return:state"
+        }
+      ]
+    },
+    {
       "key": "running",
       "origins": [
         {
@@ -176871,7 +176916,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/tool_tabs.py",
-          "line": 770,
+          "line": 767,
           "sink": "_register_detachable_tool"
         },
         {
@@ -178761,7 +178806,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/tool_tabs.py",
-          "line": 760,
+          "line": 757,
           "sink": "_register_detachable_tool"
         }
       ]
@@ -186401,7 +186446,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/shader_controls_editor.py",
-          "line": 127,
+          "line": 128,
           "sink": "setText"
         }
       ]
@@ -187251,7 +187296,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_shader_controls_preview.py",
-          "line": 32,
+          "line": 39,
           "sink": "ValueError"
         }
       ]
@@ -187381,7 +187426,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 682,
+          "line": 685,
           "sink": "OverlayConflict"
         }
       ]
@@ -187391,7 +187436,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 699,
+          "line": 702,
           "sink": "OverlayConflict"
         }
       ]
@@ -187401,7 +187446,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 631,
+          "line": 634,
           "sink": "OverlayConflict"
         }
       ]
@@ -187411,7 +187456,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 627,
+          "line": 630,
           "sink": "OverlayConflict"
         }
       ]
@@ -187486,7 +187531,7 @@
       "origins": [
         {
           "path": "cdmw/services/shader_controls_preview.py",
-          "line": 208,
+          "line": 226,
           "sink": "ValueError"
         }
       ]
@@ -188376,7 +188421,7 @@
         },
         {
           "path": "cdmw/services/shader_controls_preview.py",
-          "line": 162,
+          "line": 180,
           "sink": "payload"
         }
       ]
