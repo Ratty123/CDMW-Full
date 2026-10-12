@@ -397,7 +397,7 @@ def _build_item_source_package(
             return build_or_lookup_rust_preview_package_with_builder(
                 cache_root=output_root,
                 archive_identity=(
-                    f"{archive_identity}:placement:{quality}:materials={bool(include_material_resources)}:"
+                    f"{archive_identity}:placement-v2:{quality}:materials={bool(include_material_resources)}:"
                     f"placement={item.placement!r}:origin={item.model_origin!r}"
                 ),
                 cache_mode=cache_mode,

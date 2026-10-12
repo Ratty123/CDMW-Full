@@ -376,6 +376,10 @@ def _scene_mesh(mesh: ParsedMesh, reference_mesh: ParsedMesh | None) -> ParsedMe
         for index, submesh in enumerate(reference.submeshes):
             submesh.name = f"original_reference_{index}_{submesh.name or 'part'}"
         scene.submeshes.extend(reference.submeshes)
+        if scene.lod_levels:
+            # The preview renders LOD0, whose cloned list is separate from
+            # submeshes. Serialize the same parts that its scene roles name.
+            scene.lod_levels[0] = scene.submeshes
     refresh_mesh_totals(scene)
     return scene
 

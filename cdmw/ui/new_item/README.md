@@ -1592,8 +1592,10 @@ Turning the character on or off rebuilds through the existing latest-wins previe
 worker, and the character can never enter the item mesh, Apply result, plan or output
 package. Character visibility is part of the composed scene's cache identity for every
 texture tier. Texture upgrades retain the selected comparison mode, and rapid on/off/on
-changes restart cancelled work while rejecting its late results. Old appearance packages
-rebuild once so cached scenes cannot restore an outdated character state.
+changes restart cancelled work while rejecting its late results. Equipment glass and
+other shader experiments retain the character and template through both texture tiers;
+only the imported model remains editable. Older composed previews rebuild once so cached
+scenes cannot restore missing references or an outdated character state.
 
 The viewport's rotation convention (the helper's yaw/pitch/roll) and the pipeline's
 x-then-y- then-z are the same matrix re-expressed, proven in

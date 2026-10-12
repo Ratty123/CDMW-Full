@@ -40,6 +40,7 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 ### Fixed
 
+- Create New Item keeps **Show the character** and the template weapon visible after Equipment glass or other shader experiments refresh the preview, preserving hand-placement comparison and editing only the imported model.
 - Mesh Editor identifies physics inspection blocked by Morph & Refit, explains that the physics data is unchanged, and pauses the jiggle overlay instead of showing unknown physics. Detection and the overlay return when the restriction clears.
 - Archive Browser pauses background Finder and New Item preloading while typing, scrolling, dragging or using embedded viewports, then resumes after a short idle period without losing progress. New Item's full archive integrity checks run separately from the interface to reduce startup stuttering; opening Mod Management keeps the unrelated preload in the background. Requested tool loads keep priority, and archive results arrive in smaller steps to keep input responsive. Archive scans exclude CDMW's saved internal generations to avoid duplicate entries and unnecessary loading.
 - Morph & Refit preserves saved corrections and prior definitions when sliders are edited or undone. Cancelling a correction restores every Part's previous shape and slider values; clearing a fit removes applied corrections while retaining their saved data. Resetting corrections verifies any retained correction data.
