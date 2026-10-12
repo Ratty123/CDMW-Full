@@ -1,7 +1,7 @@
 """Bake selected template surfaces for texture-driven glass or skin glow."""
 
 from dataclasses import fields
-from collections import OrderedDict
+from collections import Counter, OrderedDict
 from pathlib import Path, PurePosixPath
 from tempfile import TemporaryDirectory
 from types import SimpleNamespace
@@ -16,6 +16,58 @@ _BAKE_CACHE_MAX_BYTES = 64 * 1024 * 1024
 _BAKE_CACHE_MAX_ENTRIES = 16
 _BAKE_CACHE = OrderedDict()
 _BAKE_CACHE_LOCK = threading.Lock()
+
+
+def bake_equipment_glass(text, choices, model_path, read_texture, *, on_log=None, stop_event=None):
+    """Flatten supported layered equipment before the strict glass XML writer."""
+    from cdmw.core.material_shader_controls import equipment_glass_needs_bake, _parameter_rows, validate_source, material_variant_blocks
+    from cdmw.core.pac_xml_standard_material import find_material_wrappers
+    from cdmw.domain.mesh.shader_controls import preview_factors
+
+    variants = material_variant_blocks(text)
+    if variants:
+        textures = {}
+        for match in reversed(variants):
+            block = match.group()
+            start, end = block.find('>') + 1, -len('</ModelProperty>')
+            edited, baked = bake_equipment_glass(block[start:end], choices, model_path, read_texture,
+                                                on_log=on_log, stop_event=stop_event)
+            textures.update(baked)
+            text = text[:match.start()] + block[:start] + edited + block[end:] + text[match.end():]
+        return text, textures
+    settings = dict((name.casefold(), controls) for name, controls in choices)
+    selected, absorption = [], {}
+    wrappers = find_material_wrappers(text)
+    counts = Counter(row.submesh_name.casefold() for row in wrappers)
+    for row in wrappers:
+        name = row.submesh_name.casefold()
+        controls = settings.get(name)
+        if controls is None:
+            continue
+        parameters = _parameter_rows(text[row.start:row.end])
+        validate_source(row.shader, controls, parameters, allow_bake=True)
+        if controls.shader != "SkinnedMeshTranslucent" or not equipment_glass_needs_bake(row.shader, parameters):
+            continue
+        if counts[name] > 1:
+            raise ValueError(f"Ambiguous layered material binding: {row.submesh_name}")
+        selected.append(row)
+        authored = {key: element.get("_value", "") for key, element in parameters.items()}
+        absorption[name] = tuple(preview_factors(controls, authored)[4:6])
+    if not selected:
+        return text, {}
+    payloads = {}
+    def payload(path):
+        if path not in payloads:
+            raise_if_cancelled(stop_event)
+            payloads[path] = read_texture(path)
+        return payloads[path]
+    snapshot = SimpleNamespace(has_entry=lambda path: payload(path) is not None, payload=payload)
+    model_path = model_path.replace("\\", "/").replace("/modelproperty/", "/model/", 1)
+    if model_path.endswith(".pac_xml"):
+        model_path = model_path[:-4]
+    text, textures, _ = _bake_template_materials(snapshot, text, model_path, selected, absorption,
+        purpose="translucency", on_log=on_log, on_progress=None, stop_event=stop_event)
+    return text, textures
 
 
 def bake_template_translucency(snapshot, text, model_path, settings, *, on_log=None, on_progress=None, stop_event=None):
@@ -108,7 +160,7 @@ def _bake_template_materials(snapshot, text, model_path, selected, settings, *, 
             finally:
                 _BAKE_CACHE_LOCK.release()
             raise_if_cancelled(stop_event)
-            identity = hashlib.sha256(row.submesh_name.casefold().encode()).hexdigest()[:12]
+            identity = hashlib.sha256(row.submesh_name.casefold().encode() + source_hash).hexdigest()[:12]
             stem = str(PurePosixPath(model_path.replace("character/model/", "character/texture/")).with_suffix(""))
             paths = {}
             for role, data in maps.items():
@@ -174,6 +226,7 @@ def _bake_material_maps(row, bindings, payloads, model_path, output, index, repo
         texture_flip_vertical=False, alpha_mode="blend"), output, index,
         settings=MaterialPreviewCombinerSettings(support_map_max_dimension=2048,
             preserve_texture_orientation=True,
+            bake_layered_base=row.shader in {"SkinnedMeshStandard_Ver2", "SkinnedMeshEmissive_Ver2"},
             requested_output_channels=frozenset({"base", "normal", "roughness", "metalness", "legacy_material"})),
         cancelled=stop_event.is_set if stop_event is not None else None)
     if not combined.base_source:

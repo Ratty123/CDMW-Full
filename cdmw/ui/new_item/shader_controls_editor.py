@@ -128,7 +128,7 @@ class ShaderControlsEditor(QGroupBox):
             item.setText(family.label if available else f"{family.label} — Unavailable")
             item.setEnabled(available)
             requirement = ("Requires a Plain PBR material with a base colour texture, or an existing Wing material." if family.shader == "SkinnedMeshWing"
-                           else "Requires a plain opaque/glowing material with a base colour texture, or an existing translucent equipment material." if family.shader == "SkinnedMeshTranslucent"
+                           else "Requires plain or layered Standard/Emissive equipment, or an existing translucent equipment material. Layered colours and surface maps are baked." if family.shader == "SkinnedMeshTranslucent"
                            else "Requires a plain opaque, glowing or translucent material with a base colour texture, or an existing transparent surface blending material." if family == EYE_COVER
                            else f"Requires a {family.shader} source material.")
             item.setToolTip(family.note if available else

@@ -24,6 +24,8 @@ class MaterialPreviewCombinerSettings:
     preserve_texture_orientation: bool = False
     requested_output_channels: frozenset[str] | None = None
     base_output_available: bool = False
+    # Export baking must flatten layers even when an authored base map exists.
+    bake_layered_base: bool = False
 
 
 @dataclass(frozen=True, slots=True)

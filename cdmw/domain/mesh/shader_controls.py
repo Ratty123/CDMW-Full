@@ -113,7 +113,7 @@ GLASS_FAMILIES = tuple(ShaderFamily(shader, label, note, (
     ("Translucent", "World-object glass (experimental)", 10,
      "Existing Translucent or plain Standard static materials. The rose window uses thickness 0.02, absorption 10 and shadow colour strength 1. Base-colour alpha does not control absorption. Preview approximates absorption; coloured shadows and refraction require in-game testing."),
     ("SkinnedMeshTranslucent", "Equipment glass (experimental)", 1,
-     "Existing translucent or plain opaque/glowing equipment materials. Thickness and absorption control how much light passes through the colour texture; base-colour alpha also affects absorption. Shadow colour strength is exported but not shown in the preview. Restore separate Glow and Translucency overrides on this part first."),
+     "Existing translucent, plain opaque/glowing, or layered Standard/Emissive equipment materials. Layered colours and surface maps are baked up to 2048px; dye colours become fixed. Thickness and absorption control how much light passes through the colour texture; base-colour alpha also affects absorption. Shadow colour strength is exported but not shown in the preview. Restore separate Glow and Translucency overrides on this part first."),
 ))
 GLASS_FIELD_HELP = {
     "_thickness": "Higher values absorb more light. Thin glass can use 0.02; the game stores thickness in 256 steps. Unchecked: retain the authored value.",

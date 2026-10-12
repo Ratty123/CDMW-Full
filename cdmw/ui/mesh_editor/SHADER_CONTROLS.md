@@ -5,6 +5,9 @@
 part and experiment, then check the fields to override. Unchecked fields retain
 authored values; disabled numbers show defaults, not source readback. Restore
 removes the experiment. Mesh Editor supports Undo/Redo and replacement drafts.
+Unsupported experiments are disabled for the selected parts. Hover a disabled
+choice for its reason; selecting several parts requires compatibility with all of
+them. Restore remains available for an incompatible saved choice.
 Saved replacement drafts can apply and restore shader controls using their captured
 dependencies without reopening the game archive.
 Mesh Editor numbers offer sliders as well as typed values. New Item numbers accept
@@ -23,10 +26,20 @@ beside its Translucency controls; the preview may not show the issue.
 **World-object glass (experimental)** in Mesh Editor uses the static `Translucent`
 shader, including the rose-window material. It accepts existing Translucent materials
 or explicit conversion of a plain Standard material with a base-colour map. Layered
-materials are refused. **Equipment glass (experimental)** in either editor uses
-`SkinnedMeshTranslucent` and accepts compatible plain opaque/glowing equipment.
+static materials are refused. **Equipment glass (experimental)** in either editor uses
+`SkinnedMeshTranslucent` and accepts compatible plain opaque/glowing equipment,
+plus layered `SkinnedMeshStandard_Ver2` and `SkinnedMeshEmissive_Ver2` materials.
 Create New Item offers it under **Model & Placement → Appearance → Shader experiments**.
 Restore separate Glow and Translucency overrides on the same part before choosing it.
+
+Layered equipment, including `cd_phm_02_sword_0014`, is converted by baking its
+composed colours, normals and surface maps into private textures up to 2048px.
+Each material variant keeps its own appearance; glow maps, glow colours and
+untouched parts are retained. Dye colours become fixed in the baked textures.
+Missing source textures stop conversion. Mesh Editor previews the exported baked
+maps; Create New Item keeps its composed source preview while adjusting absorption.
+This preserves the decoded material appearance, not the original editable layer
+graph or a guarantee of identical lighting in game.
 
 Select a part and the matching glass experiment, then check the fields to change:
 
@@ -71,10 +84,11 @@ It is not included in Mesh Editor's experiment catalogue.
 | Glowing band sweep | `SkinnedMeshPoster` | Noise, width/exponent, ratio, progress and RGB colour. Progress between 0.001 and 1 selects a sweep that ignores ratio. Progress 1 exits the sweep; it does not remove the mesh. |
 | Object dissolve | Existing `Dissolve` PAMI on a static object in Mesh Editor | Sphere ratio/radius, positive hardness, centre/position, noise scale/speed/strength, edge glow and inversion. Other flag bits are preserved. |
 | World-object glass | Static `Translucent`, or plain `Standard` with a base map | Thickness, absorption up to 10, and shadow colour strength. Uses PAMI; not available on equipment. |
-| Equipment glass | `SkinnedMeshTranslucent`, or plain `SkinnedMeshStandard` / `SkinnedMeshEmissive` with a base map | Thickness, absorption up to 1, and shadow colour strength. Uses PAC_XML. |
+| Equipment glass | `SkinnedMeshTranslucent`, plain `SkinnedMeshStandard` / `SkinnedMeshEmissive` with a base map, or layered `SkinnedMeshStandard_Ver2` / `SkinnedMeshEmissive_Ver2` with colour inputs | Thickness, absorption up to 1, and shadow colour strength. Layered sources are baked to private maps. Uses PAC_XML. |
 
-Layered Standard, ordinary Hair, other cloth shaders and Glass cannot silently
-become the shared equipment experiments above. New Item's explicit Transparent surface blending
+Layered Standard/Emissive conversion is limited to Equipment glass. Ordinary Hair
+and other cloth shaders cannot silently become the shared equipment experiments
+above. New Item's explicit Transparent surface blending
 experiment also accepts plain Translucent sources. Object dissolve is unavailable on New Item
 equipment. Restore Glow/Translucency overrides before choosing another experiment
 on the same part. Authored glow maps and unrelated parameters remain; their game
@@ -144,6 +158,8 @@ The two shader preview services prepare resources off the UI thread.
 `tests/test_new_item_transparency_paint.py` covers mask output and ownership;
 `tests/test_glass_shader_controls.py` covers glass compatibility, per-material output,
 saved drafts, Qt controls and preview handoffs;
+`tests/test_layered_glass_controls.py` covers layered baking, independent variants,
+disabled choices and publication of the exported preview textures;
 `tests/test_material_authority_exact_artifacts.py` covers authored artifacts.
 Rust tests cover optional
 mask transport, material ownership and headless interactions. The synthetic D3D12

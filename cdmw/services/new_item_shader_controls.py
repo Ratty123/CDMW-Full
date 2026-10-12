@@ -77,13 +77,17 @@ def rewrite_new_item_shader_controls(text, choices, model_path, read_texture, *,
         raise ValueError("Shader material bindings were not found: " + ", ".join(sorted(settings.keys() - matched)))
     for wrapper in wrappers:
         validate_source(wrapper.shader, settings[wrapper.submesh_name.casefold()],
-                        _parameter_rows(text[wrapper.start:wrapper.end]))
+                        _parameter_rows(text[wrapper.start:wrapper.end]), allow_bake=True)
+    from cdmw.services.new_item_template_materials import bake_equipment_glass
+    text, baked = bake_equipment_glass(text, choices, model_path, read_texture, stop_event=stop_event, on_log=on_log)
+    wrappers = [wrapper for wrapper in find_material_wrappers(text) if wrapper.submesh_name.casefold() in settings]
     paths, textures = prepare_eye_cover_textures(text, choices, model_path, read_texture, stop_event=stop_event, on_log=on_log)
     from cdmw.services.transparency_masks import prepare_cutout_textures
     cutout_paths, cutout_textures = prepare_cutout_textures(wrappers, settings, model_path, stop_event=stop_event, on_log=on_log)
     for start, bindings in cutout_paths.items():
         paths.setdefault(start, {}).update(bindings)
     textures.update(cutout_textures)
+    textures.update(baked)
     # Repeated names share the user's controls, but each section owns its source
     # maps and parameter metadata. Offset-keyed textures cannot overwrite another
     # section's inherited roughness/metallic channels.

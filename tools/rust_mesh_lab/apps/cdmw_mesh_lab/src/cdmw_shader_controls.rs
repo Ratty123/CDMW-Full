@@ -17,9 +17,18 @@ impl LabApplication {
             let is_static = state["static"].as_bool().unwrap_or(false);
             let families = state["catalogue"].as_array().into_iter().flatten()
                 .filter(|family| (family["shader"] == "Dissolve" || family["shader"] == "Translucent") == is_static).collect::<Vec<_>>();
+            let unavailable_reason = |shader: &str| -> Option<String> {
+                rows.iter().find_map(|row| {
+                    let reason = row["shader_options"][shader].as_str()
+                        .unwrap_or("Source material information is unavailable; shader experiments are disabled.");
+                    (!reason.is_empty()).then(|| format!("{}: {reason}", row["name"].as_str().unwrap_or("Part")))
+                })
+            };
             let mut value = ui.ctx().data_mut(|data| data.get_temp::<Value>(key)).unwrap_or_else(|| {
                 if saved.is_null() {
-                    json!({"shader": families.first().map(|f| &f["shader"]), "values": {}})
+                    let family = families.iter().find(|f| unavailable_reason(f["shader"].as_str().unwrap_or("")).is_none())
+                        .or_else(|| families.first());
+                    json!({"shader": family.map(|f| &f["shader"]), "values": {}})
                 } else { saved.clone() }
             });
             let available = state["available"].as_bool().unwrap_or(false);
@@ -29,6 +38,9 @@ impl LabApplication {
                 ui.small(crate::localization::tr("Selected parts have different shader settings. Applying replaces their explicit overrides."));
             }
             for row in &rows {
+                if let Some(shader) = row["source_shader"].as_str().filter(|text| !text.is_empty()) {
+                    ui.small(crate::localization::tr(format!("Source shader: {shader}.")));
+                }
                 if let Some(note) = row["diagnostic"].as_str().filter(|text| !text.is_empty()) {
                     ui.small(crate::localization::tr(format!("{}: {note}", row["name"].as_str().unwrap_or("Part"))));
                 }
@@ -42,13 +54,20 @@ impl LabApplication {
                     .and_then(|f| f["label"].as_str()).unwrap_or("Choose experiment");
                 egui::ComboBox::from_id_salt("shader_experiment_family").selected_text(crate::localization::tr(label)).show_ui(ui, |ui| {
                     for family in &families {
-                        ui.selectable_value(&mut shader, family["shader"].as_str().unwrap_or("").to_owned(),
-                                            crate::localization::tr(family["label"].as_str().unwrap_or("")))
-                            .on_hover_text(crate::localization::tr(family["note"].as_str().unwrap_or("")));
+                        let name = family["shader"].as_str().unwrap_or("");
+                        let reason = unavailable_reason(name);
+                        let label = crate::localization::tr(family["label"].as_str().unwrap_or(""));
+                        let response = ui.add_enabled(reason.is_none(), egui::Button::selectable(shader == name, label));
+                        if response.clicked() { shader = name.to_owned(); }
+                        response.on_hover_text(crate::localization::tr(family["note"].as_str().unwrap_or("")))
+                            .on_disabled_hover_text(crate::localization::tr(reason.as_deref().unwrap_or("")));
                     }
                 }).response.on_hover_text(crate::localization::tr(families.iter().find(|f| f["shader"] == shader)
                     .and_then(|f| f["note"].as_str()).unwrap_or("")));
                 if shader != before { value = json!({"shader": shader, "values": {}}); }
+                let reason = unavailable_reason(&shader);
+                if let Some(note) = &reason { ui.small(crate::localization::tr(note)); }
+                ui.add_enabled_ui(reason.is_none(), |ui| {
                 if let Some(family) = families.iter().find(|f| f["shader"] == shader) {
                     for field in family["fields"].as_array().into_iter().flatten() {
                         let Some(name) = field["name"].as_str() else { continue; };
@@ -77,8 +96,9 @@ impl LabApplication {
                         });
                     }
                 }
+                });
                 ui.horizontal_wrapped(|ui| {
-                    if ui.button(crate::localization::tr("Apply shader controls"))
+                    if ui.add_enabled(reason.is_none(), egui::Button::new(crate::localization::tr("Apply shader controls")))
                         .on_hover_text(crate::localization::tr("These controls preserve the source maps. Game shader activation, shadows and timing still require an in-game test.")).clicked() {
                         actions.push(UiAction::CdmwCommand { command: "replacement_shader_controls",
                             arguments: json!({"part_ids": ids, "shader_controls": value}), label: "Edit shader controls" });

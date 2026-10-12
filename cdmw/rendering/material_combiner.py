@@ -597,8 +597,9 @@ def combine_preview_material(
         else ()
     )
     force_layer_synthesis = bool(
-        shader_rule == "static_multitextured"
-        and any(_visible_layer_role(item) == "layer" for item in visible_layer_inputs)
+        settings.bake_layered_base
+        or (shader_rule == "static_multitextured"
+            and any(_visible_layer_role(item) == "layer" for item in visible_layer_inputs))
     )
     should_synthesize_albedo = bool(visible_layer_inputs and (not base_source or selected_base_low_authority or force_layer_synthesis))
     if should_synthesize_albedo:

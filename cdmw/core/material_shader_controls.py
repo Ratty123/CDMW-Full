@@ -24,6 +24,16 @@ def _parameter_rows(block):
     return result
 
 
+def material_variant_blocks(text):
+    """PAC model-property variants own separate wrappers with repeating part names."""
+    return tuple(re.finditer(r'<ModelProperty\b[^>]*>.*?</ModelProperty>', text, re.S))
+
+
+def control_material_variants(text, *, static=False):
+    variants = () if static else material_variant_blocks(text)
+    return tuple(control_material_sources(block.group()) for block in variants) if variants else (control_material_sources(text, static=static),)
+
+
 def control_material_sources(text, *, static=False):
     """Read material identity and authored inputs without rewriting the document."""
     if static:
@@ -50,10 +60,20 @@ def control_material_sources(text, *, static=False):
     return result
 
 
-def validate_source(shader, controls, parameters, *, static=False):
+def equipment_glass_needs_bake(shader, parameters):
+    """Only the decoded equipment layer families can use the appearance baker."""
+    return shader in {"SkinnedMeshStandard_Ver2", "SkinnedMeshEmissive_Ver2"} and any(
+        name.startswith(("_baseColorTexture", "_overlayColorTexture", "_detailDiffuseMask",
+                         "_colorBlendingDiffuse", "_colorBlendingMaskTexture")) for name in parameters)
+
+
+def validate_source(shader, controls, parameters, *, static=False, allow_bake=False):
     family = family_for(controls.shader)
     if static != (controls.shader in {"Dissolve", "Translucent"}):
         raise ValueError("World-object and equipment shaders use different vertex pipelines.")
+    if (allow_bake and controls.shader == "SkinnedMeshTranslucent"
+            and equipment_glass_needs_bake(shader, parameters)):
+        return
     if shader != family.shader:
         plain_sources = {"Standard"} if static else {"SkinnedMeshStandard", "SkinnedMeshEmissive"}
         unsupported = ("_wrinkle", "_overlay", "_colorblending")
@@ -74,6 +94,17 @@ def validate_source(shader, controls, parameters, *, static=False):
 
 def equipment_shader_options(text):
     """Source shader and compatible experiments, using the output writer's rules."""
+    variants = material_variant_blocks(text)
+    if variants:
+        result = {}
+        for block in variants:
+            for name, (shader, supported) in equipment_shader_options(block.group()[block.group().find('>') + 1:-len('</ModelProperty>')]).items():
+                if name in result:
+                    before, allowed = result[name]
+                    shader = before if before == shader else before + ", " + shader
+                    supported = tuple(value for value in allowed if value in supported)
+                result[name] = (shader, supported)
+        return result
     result = {}
     for wrapper in find_material_wrappers(text):
         key = wrapper.submesh_name.casefold()
@@ -85,7 +116,7 @@ def equipment_shader_options(text):
         if key not in result and parameters is not None:
             for family in NEW_ITEM_FAMILIES:
                 try:
-                    validate_source(wrapper.shader, ShaderControls(family.shader), parameters)
+                    validate_source(wrapper.shader, ShaderControls(family.shader), parameters, allow_bake=True)
                 except ValueError:
                     continue
                 supported.append(family.shader)
@@ -205,6 +236,18 @@ def rewrite_shader_controls(text, choices, *, static=False, allow_missing=False,
         raise ValueError("Material sidecar exceeds the supported size limit.")
     validate_choices(choices)
     settings = {name.casefold(): controls for name, controls in choices}
+    variants = () if static else material_variant_blocks(text)
+    if variants:
+        found = set()
+        for match in reversed(variants):
+            block = match.group()
+            start, end = block.find('>') + 1, -len('</ModelProperty>')
+            edited, matched = rewrite_shader_controls(block[start:end], choices, allow_missing=True, texture_paths=texture_paths)
+            found.update(matched)
+            text = text[:match.start()] + block[:start] + edited + block[end:] + text[match.end():]
+        if not allow_missing and settings.keys() - found:
+            raise ValueError("Shader material bindings were not found: " + ", ".join(sorted(settings.keys() - found)))
+        return text, found
     blocks = []
     if static:
         for match in re.finditer(r'<Material\b[^>]*\bPrimitiveName="[^"]*"[^>]*>.*?</Material>', text, re.S):

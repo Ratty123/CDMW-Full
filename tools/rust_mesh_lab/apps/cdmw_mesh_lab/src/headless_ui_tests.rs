@@ -8609,8 +8609,9 @@ fn shader_controls_send_selected_parts_and_restore() -> TestResult {
         "catalogue": [{"shader": "SkinnedMeshWing", "label": "Patterned reveal", "note": "Binary cutout.",
             "fields": [{"name": "_wingFlowProgress", "label": "Reveal progress", "default": [-0.1],
                         "minimum": -1.0, "maximum": 2.0, "integer": false}]}],
-        "parts": [{"index": 0, "id": "a", "shader_controls": null},
+        "parts": [{"index": 0, "id": "a", "shader_controls": null, "shader_options": {"SkinnedMeshWing": ""}},
                   {"index": 1, "id": "b", "shader_controls": controls, "name": "Part B",
+                   "shader_options": {"SkinnedMeshWing": ""},
                    "diagnostic": "Known masks: 2/3; G 0.000–1.000."}]});
     ui.settle_layout();
     ui.click("1: Part B")?;
@@ -8656,7 +8657,8 @@ fn glass_shader_controls_offer_the_correct_pipeline_and_emit_absorption() -> Tes
                 "fields": [{"name": "_extinctionCoefficient", "label": "Absorption", "default": [0.3],
                     "minimum": 0.0, "maximum": maximum, "integer": false}]}));
         ui.application.cdmw_state["shader_controls"] = json!({"available": true, "static": is_static,
-            "catalogue": catalogue, "parts": [{"index": 1, "id": "b", "name": "Part B", "shader_controls": null}]});
+            "catalogue": catalogue, "parts": [{"index": 1, "id": "b", "name": "Part B", "shader_controls": null,
+                "shader_options": {"Translucent": "", "SkinnedMeshTranslucent": ""}}]});
         ui.settle_layout();
         ui.click("1: Part B")?;
         ui.click("Shader experiments")?;
@@ -8670,5 +8672,44 @@ fn glass_shader_controls_offer_the_correct_pipeline_and_emit_absorption() -> Tes
             if arguments == &json!({"part_ids": ["b"], "shader_controls": {
                 "shader": shader, "values": {"_extinctionCoefficient": [maximum]}}}))));
     }
+    Ok(())
+}
+
+#[test]
+fn shader_controls_disable_incompatible_and_unknown_selections_but_allow_restore() -> TestResult {
+    let mut ui = HeadlessUi::new_integrated_cdmw_for_controls(two_part_application()?, egui::vec2(1440.0, 1800.0));
+    let controls = json!({"shader": "SkinnedMeshTranslucent", "values": {}});
+    ui.application.cdmw_state["shader_controls"] = json!({"available": true, "static": false,
+        "catalogue": [
+            {"shader": "SkinnedMeshTranslucent", "label": "Equipment glass", "note": "Bakes layered equipment.", "fields": []},
+            {"shader": "SkinnedMeshWing", "label": "Patterned reveal", "note": "Plain equipment only.", "fields": []}],
+        "parts": [
+            {"index": 0, "id": "a", "name": "Part A", "shader_controls": controls,
+                "shader_options": {"SkinnedMeshTranslucent": "Requires another material.", "SkinnedMeshWing": "Requires another material."}},
+            {"index": 1, "id": "b", "name": "Part B", "shader_controls": null,
+                "source_shader": "SkinnedMeshEmissive_Ver2",
+                "shader_options": {"SkinnedMeshTranslucent": "", "SkinnedMeshWing": "Requires plain equipment."}}]});
+    ui.settle_layout();
+    ui.click("1: Part B")?;
+    ui.click("Shader experiments")?;
+    ui.settle_layout();
+    ui.reveal("Source shader: SkinnedMeshEmissive_Ver2.")?;
+    ui.click("Equipment glass")?;
+    ui.click("Patterned reveal")?;
+    // Close the combo. A disabled choice must leave Equipment glass selected.
+    ui.frame(vec![key_event(egui::Key::Escape, true), key_event(egui::Key::Escape, false)]);
+    let actions = ui.actions_from_click("Apply shader controls")?;
+    assert!(actions.iter().any(|action| matches!(action,
+        UiAction::CdmwCommand { command: "replacement_shader_controls", arguments, .. }
+        if arguments["shader_controls"]["shader"] == "SkinnedMeshTranslucent")));
+    ui.application.cdmw_pending_request = None;
+    ui.click("All")?;
+    assert!(!has_host_command(&ui.actions_from_click("Apply shader controls")?, "replacement_shader_controls"));
+    assert!(has_host_command(&ui.actions_from_click("Restore shader controls")?, "replacement_shader_controls"));
+    ui.application.cdmw_pending_request = None;
+    ui.click("1: Part B")?;
+    ui.application.cdmw_state["shader_controls"]["parts"][1]["shader_options"] = Value::Null;
+    ui.settle_layout();
+    assert!(!has_host_command(&ui.actions_from_click("Apply shader controls")?, "replacement_shader_controls"));
     Ok(())
 }

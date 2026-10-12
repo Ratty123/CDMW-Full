@@ -869,6 +869,12 @@ limited to 0–1; Mesh Editor's **World-object glass** uses the distinct static 
 and its 0–10 range. See [glass controls](../mesh_editor/SHADER_CONTROLS.md#translucent-glass)
 for example values, compatibility and preview limits.
 
+Equipment glass also converts layered Standard/Emissive equipment such as
+`cd_phm_02_sword_0014`. It bakes the composed colours, normals and surface maps to
+private textures up to 2048px, retaining each variant's appearance and glow inputs.
+Dye colours become fixed in those textures. Missing source maps stop conversion;
+unsupported shader families remain disabled. Game lighting may differ.
+
 The Appearance page offers **Translucency (experimental)** for both template and
 imported models. Enable it and tick the material parts to change, or use **Select all**
 to check every part with one preview update. **Clear selection** restores source

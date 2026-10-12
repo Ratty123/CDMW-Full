@@ -33,6 +33,30 @@ def source_inputs(part):
     return values, textures
 
 
+def preview_material_variant(text, part):
+    """Follow the preview's conserved PAC wrapper owner into its model variant."""
+    from cdmw.core.material_shader_controls import material_variant_blocks
+    from cdmw.core.pac_xml_standard_material import find_material_wrappers
+    variants = material_variant_blocks(text)
+    if not variants:
+        return text
+    if len(variants) == 1:
+        return variants[0].group()
+    owner = getattr(part, "preview_pac_material_owner_slot_index", -1)
+    if not isinstance(owner, int) or owner < 0:
+        inputs = getattr(part, "preview_material_texture_inputs", ()) or ()
+        owners = {item.get("owner_slot_index", -1) if isinstance(item, dict) else getattr(item, "owner_slot_index", -1) for item in inputs}
+        owners = {value for value in owners if isinstance(value, int) and value >= 0}
+        if len(owners) == 1:
+            owner = next(iter(owners))
+    wrappers = find_material_wrappers(text)
+    if isinstance(owner, int) and 0 <= owner < len(wrappers):
+        for variant in variants:
+            if variant.start() <= wrappers[owner].start < variant.end():
+                return variant.group()
+    raise ValueError(f"{part.name}: the active material variant is unavailable. Reopen the model from Browse Archives.")
+
+
 def authored_static_glass_factors(part):
     """Recognize the exact object shader, never a glass-like name or DDS alpha."""
     shader = str(getattr(part, "preview_sidecar_shader_family", "") or "").casefold()
@@ -149,7 +173,7 @@ def shader_preview_mesh(mesh, choices, *, snapshot=None, stop_event=None, plain_
     if not choices:
         return mesh
     from cdmw.services.new_item_materials import appearance_preview_part_names
-    from cdmw.core.material_shader_controls import control_material_sources, rewrite_shader_controls
+    from cdmw.core.material_shader_controls import control_material_sources, rewrite_shader_controls, equipment_glass_needs_bake
     settings = {name.casefold(): controls for name, controls in choices}
     result = copy.copy(mesh)
     result.submeshes = []
@@ -178,13 +202,17 @@ def shader_preview_mesh(mesh, choices, *, snapshot=None, stop_event=None, plain_
             if path not in decoded:
                 xml = path.replace("/model/", "/modelproperty/", 1) + "_xml"
                 text = snapshot.payload(xml).decode("utf-8-sig") if snapshot.has_entry(xml) else ""
-                decoded[path] = (text, control_material_sources(text))
-            text, sources = decoded[path]
+                decoded[path] = text
+            text = preview_material_variant(decoded[path], part)
+            sources = control_material_sources(text)
             source_name = next((name for name in names if name in sources), None)
             if source_name is not None:
                 # Use the same compatibility checks and inherited values as
                 # output, including Wing's visible starting pose on conversion.
-                if controls.shader == EYE_COVER.shader or controls.cutout_mask is not None:
+                shader, authored, source_textures = sources[source_name]
+                layered_glass = (controls.shader == "SkinnedMeshTranslucent"
+                                 and equipment_glass_needs_bake(shader, {*authored, *source_textures}))
+                if controls.shader == EYE_COVER.shader or controls.cutout_mask is not None or layered_glass:
                     # Read inherited values without generating export BC7 maps
                     # on every preview edit. The GPU applies channel overrides.
                     _, values, textures = sources[source_name]
