@@ -315,6 +315,7 @@ def apply_skeleton_variation_to_mesh(
 
         setattr(clone, "_cdmw_neutral_appearance", NeutralMeshAppearance(
             variation.path, palette, tuple(skin_matrices),
+            tuple(record.bone_index for record in variation.records if record.bone_index >= 0),
         ))
     if morph_target_set is not None:
         setattr(clone, "_cdmw_morph_target_set_source", morph_target_set.path)

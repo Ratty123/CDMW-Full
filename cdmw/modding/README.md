@@ -125,6 +125,13 @@ Older serialized Rust skeletons deserialize missing local matrices as absent,
 without substituting identity. These retained transforms enable hierarchy
 animation input; they do not establish jiggle activation or game animation timing.
 
+`NeutralMeshAppearance.authored_bone_indices` retains the resolved PABC record
+indices, including explicit bind-pose records. Hair fitting uses these to compose
+head overrides over the body's pose without resetting bones absent from the head
+PABC. Version 1 neutral-appearance metadata in interchange files and drafts preserves
+this optional field; older payloads load with an empty tuple. Coordinate reversal
+continues to use the retained skin matrices and each PAC's own palette.
+
 ## PAC vertex jiggle contribution
 
 `pac_jiggle.py` edits only byte 38's low nibble in validated 40-byte records.

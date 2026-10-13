@@ -58,6 +58,45 @@ def _scaled_reference(snapshot, appearance, scale):
     return mesh
 
 
+def _reference_with_pose(appearance, snapshot, skeleton, pose):
+    """Share bone transforms, retaining each PAC's own influence-slot palette."""
+    if pose is None:
+        return appearance
+    from cdmw.modding.mesh_parser import resolve_pac_bone_palette
+    palette = (appearance.bone_palette if appearance is not None
+               else tuple(resolve_pac_bone_palette(snapshot.original_data, skeleton)))
+    return replace(pose, bone_palette=palette)
+
+
+def _shared_reference_pose(args):
+    """A character has one pose: body globals with authored head overrides.
+
+    The face PAC and the body's skull share boundary vertices and facial bones.
+    Applying their PABCs independently opens that boundary even at equal scale.
+    Head records take precedence, including explicitly authored bind transforms;
+    bones absent from the head PABC retain the body's neck/shoulder adjustments.
+    """
+    head, body = args.get("_archive_neutral_appearance"), args.get("_body_neutral_appearance")
+    if args.get("_body_snapshot") is None or (head is None and body is None):
+        return None
+    bones = tuple(getattr(args.get("_archive_skeleton"), "bones", ()))
+    body_bones = tuple(getattr(args.get("_body_skeleton"), "bones", ()))
+    signature = lambda items: [(b.name, b.parent_index, b.bind_matrix, b.inv_bind_matrix) for b in items]
+    if not bones or signature(bones) != signature(body_bones):
+        raise ValueError("Hair fitting requires face and body references from the same skeleton.")
+    if any(len(pose.skin_matrices) != len(bones) for pose in (head, body) if pose is not None):
+        raise ValueError("Hair reference transforms do not match the character skeleton.")
+    base = body if body is not None else head
+    matrices = list(base.skin_matrices)
+    if head is not None:
+        for index in head.authored_bone_indices:
+            if not 0 <= index < len(bones):
+                raise ValueError("Hair reference contains an invalid authored bone.")
+            matrices[index] = head.skin_matrices[index]
+    return replace(base, skin_matrices=tuple(matrices), authored_bone_indices=tuple(sorted({
+        index for pose in (head, body) if pose is not None for index in pose.authored_bone_indices})))
+
+
 def _head_component_scale(mesh, scale, skeleton, appearance, source_data, *, body=False):
     """HeadScale is local to the head joint, never a translation from the feet.
 
@@ -399,7 +438,9 @@ def prepare_hair_setup(service, session_id, args, stop_event, *, neutral_appeara
     path = head.path.replace("\\", "/").casefold()
     if not profile.accepts_reference(path, "head"):
         raise ValueError("Choose a head from the selected character's mounted appearance.")
-    appearance = args.get("_archive_neutral_appearance")
+    shared_pose = _shared_reference_pose(args)
+    appearance = _reference_with_pose(args.get("_archive_neutral_appearance"), incoming,
+                                     args.get("_archive_skeleton"), shared_pose)
     head_scale = float(args.get("_head_scale", 1.0))
     reference = _head_component_scale(_scaled_reference(incoming, appearance, 1.0), head_scale,
         args.get("_archive_skeleton"), appearance, incoming.original_data)
@@ -436,7 +477,8 @@ def prepare_hair_setup(service, session_id, args, stop_event, *, neutral_appeara
         body_path = str(args["_body_archive_entry"].path).replace("\\", "/").casefold()
         if not profile.accepts_reference(body_path, "body"):
             raise ValueError("Choose the selected character's base body for the neck and shoulder reference.")
-        appearance = args.get("_body_neutral_appearance")
+        appearance = _reference_with_pose(args.get("_body_neutral_appearance"), body,
+                                         args.get("_body_skeleton"), shared_pose)
         mesh = _head_component_scale(_scaled_reference(body, appearance, 1.0), head_scale,
             args.get("_body_skeleton"), appearance, body.original_data, body=True)
         vertices, faces = [], []
@@ -498,9 +540,10 @@ def prepare_hair_setup(service, session_id, args, stop_event, *, neutral_appeara
         detail_sources.update(incoming.original_data)
     for detail in (() if detail_triangles else args.get("_prepared_head_details", ())):
         source = detail["_archive_snapshot"]
-        appearance = detail["_archive_neutral_appearance"]
+        appearance = _reference_with_pose(detail["_archive_neutral_appearance"], source,
+                                         args.get("_archive_skeleton"), shared_pose)
         mesh = _head_component_scale(_scaled_reference(source, appearance, 1.0), detail["_scale"],
-            args.get("_archive_skeleton"), args.get("_archive_neutral_appearance"), source.original_data)
+            args.get("_archive_skeleton"), appearance, source.original_data)
         detail_sources.update(source.original_data)
         for part in mesh.submeshes:
             first = len(detail_positions)

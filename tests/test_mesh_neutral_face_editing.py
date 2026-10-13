@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import copy
+from dataclasses import asdict, replace
 import hashlib
 import json
 import struct
@@ -33,6 +34,18 @@ def _appearance():
     matrices[3] = (0., 2., 0., 0., -1., 0., 0., 0., 0., 0., 1., 0., .2, .1, 0., 1.)
     matrices[7] = (1.2, 0., .6, 0., 0., 1., 0., 0., -.3, 0., .75, 0., -.1, .2, .15, 1.)
     return NeutralMeshAppearance("owned/head.pabc", tuple(range(8)), tuple(matrices))
+
+
+def test_neutral_appearance_import_preserves_optional_authored_bones_and_accepts_older_payloads():
+    from cdmw.modding.mesh_importer import _load_obj_neutral_appearance
+    appearance = replace(_appearance(), authored_bone_indices=(3, 7))
+    payload = {'version': 1, **asdict(appearance)}
+    assert _load_obj_neutral_appearance(payload) == appearance
+    del payload['authored_bone_indices']
+    assert _load_obj_neutral_appearance(payload) == _appearance()
+    payload['authored_bone_indices'] = [8]
+    with pytest.raises(ValueError, match='authored neutral appearance bone'):
+        _load_obj_neutral_appearance(payload)
 
 
 def test_neutral_transform_matches_archive_preview_and_inverts_mixed_skinning():

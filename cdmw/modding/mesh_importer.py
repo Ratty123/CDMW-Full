@@ -404,7 +404,10 @@ def _load_obj_neutral_appearance(payload: object):
             raise ValueError("invalid neutral appearance matrices")
         if any(index < 0 or index >= len(matrices) for index in palette):
             raise ValueError("invalid neutral appearance bone palette")
-        return NeutralMeshAppearance(str(payload.get("source", "")), palette, matrices)
+        authored = tuple(int(value) for value in payload.get("authored_bone_indices", ()))
+        if any(index < 0 or index >= len(matrices) for index in authored):
+            raise ValueError("invalid authored neutral appearance bone")
+        return NeutralMeshAppearance(str(payload.get("source", "")), palette, matrices, authored)
     except (KeyError, TypeError, OverflowError, ValueError) as exc:
         raise ValueError(f"OBJ neutral appearance reconstruction failed: {exc}") from exc
 

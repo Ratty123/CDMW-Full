@@ -110,6 +110,7 @@ def rebuild_mesh_import(state: MeshImportBuildState) -> None:
         context = NeutralMeshAppearance(
             str(appearance.get("source", "")), tuple(int(value) for value in appearance["bone_palette"]),
             tuple(tuple(float(value) for value in row) for row in appearance["skin_matrices"]),
+            tuple(int(value) for value in appearance.get("authored_bone_indices", ())),
         )
         preview_mesh = context.to_neutral(state.parsed_mesh)
     state.preview_model = api.parsed_mesh_to_preview_model(preview_mesh)

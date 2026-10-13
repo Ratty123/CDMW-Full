@@ -317,8 +317,12 @@ without changing their slot names or existing choices.
 ### Character references and hairstyle catalogue
 
 Mounted appearance and customization documents supply the head, facial details, scalp,
-neck and shoulders. Face and body references use the same skin-weighted head scale
-around the head joint, keeping the neck transition aligned. The complete upper body
+neck and shoulders. References share one skeleton pose: the body's authored transforms
+with the head's explicit PABC bone overrides applied to both the face and skull. Bones
+absent from the head PABC retain the body's neck and shoulder adjustments. Each PAC
+keeps its own skin palette, including separate eye references. Face and body then use
+the same skin-weighted head scale around the shared head joint. Applying the two PABCs
+independently separates their matching jaw and temple edges. The complete upper body
 surface supplies the temples and sides of the skull before the face seam is joined.
 The common character scale cancels in the donor's authoring coordinates. Oongka uses his `5_pom`
 references even though his registered hair belongs to `1_phm`. The clean, untextured

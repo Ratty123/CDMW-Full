@@ -52,6 +52,10 @@ class NeutralMeshAppearance:
     source: str
     bone_palette: tuple[int, ...]
     skin_matrices: tuple[tuple[float, ...], ...]
+    # PABC records may deliberately restore a bone to its bind pose. Retain
+    # that ownership when composing a head over a body's neutral appearance;
+    # it cannot be inferred by testing whether a skin matrix is identity.
+    authored_bone_indices: tuple[int, ...] = ()
 
     def bone_position(self, index: int, position):
         if 0 <= index < len(self.skin_matrices):

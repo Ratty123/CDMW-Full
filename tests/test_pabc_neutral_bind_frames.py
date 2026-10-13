@@ -48,6 +48,16 @@ def _fixture(bind=BIND, inverse=INVERSE_BIND):
     return skeleton, mesh
 
 
+def test_neutral_appearance_retains_explicit_bind_pose_overrides():
+    skeleton, mesh = _fixture()
+    # A record equal to bind is still an authored override; the other bone is
+    # absent from this PABC and must inherit the body's pose during assembly.
+    variation = _variation(skeleton, BIND)
+    result = apply_skeleton_variation_to_mesh(mesh, skeleton, (0, 1), variation)
+    assert result._cdmw_neutral_appearance.authored_bone_indices == (0,)
+    assert result._cdmw_neutral_appearance.skin_matrices[0] == pytest.approx(IDENTITY, abs=1e-6)
+
+
 def test_batched_neutral_deformation_matches_scalar_for_ragged_and_invalid_weights(monkeypatch):
     from cdmw.modding import mesh_parser, skeleton_variation_parser as variation
     assert mesh_parser._np_module() is not None
