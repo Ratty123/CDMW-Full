@@ -5,6 +5,8 @@ from __future__ import annotations
 import math
 import struct
 
+import numpy as np
+
 from cdmw.domain.cancellation import raise_if_cancelled
 
 
@@ -54,12 +56,71 @@ def mesh_islands(part, *, join_seams=True, stop_event=None):
     return tuple(tuple(group) for group in sorted(groups.values(), key=lambda values: values[0]))
 
 
+def _separated_island_bounds(part, hidden, *, stop_event=None):
+    """Bound simplification by both component size and clearance to its neighbours."""
+    positions = np.asarray(part.vertices, dtype=np.float64)
+    triangles = np.asarray(part.faces, dtype=np.intp)
+    bounds, included = [], []
+    for group in mesh_islands(part, stop_event=stop_event):
+        raise_if_cancelled(stop_event)
+        points = positions[triangles[list(group)].ravel()]
+        bounds.append((points.min(axis=0), points.max(axis=0)))
+        included.append(group[0] not in hidden)
+    bounds = np.asarray(bounds)
+    lower, upper = bounds[:, 0], bounds[:, 1]
+    radii = np.zeros(len(bounds))
+    for index in range(len(bounds)):
+        raise_if_cancelled(stop_event)
+        gaps = np.maximum(np.maximum(lower[index] - upper, lower - upper[index]), 0)
+        distances = np.linalg.norm(gaps, axis=1)
+        distances[index] = np.inf
+        # Euclidean clearance keeps even diagonally neighbouring envelopes apart.
+        # Overlapping/touching source bounds have zero clearance: only the exact
+        # position mapping can authorize those components. Large nearby voids
+        # cannot justify a displacement larger than 10% of the component size.
+        radii[index] = min(float(distances.min()) / 3,
+                           float(np.linalg.norm(upper[index] - lower[index])) * .1)
+    return lower, upper, radii, included
+
+
+def _simplified_island_faces(part, owners, bounds, error, *, stop_event=None):
+    """Map whole lower-LOD components, including splits and disappearing islands."""
+    lower, upper, radii, included = bounds
+    positions = np.asarray(part.vertices, dtype=np.float64)
+    triangles = np.asarray(part.faces, dtype=np.intp)
+    selected = []
+    for group in mesh_islands(part, stop_event=stop_event):
+        raise_if_cancelled(stop_event)
+        points = positions[np.unique(triangles[list(group)])]
+        labels = [owners.get(position_key(point)) for point in points]
+        known = set().union(*(label for label in labels if label is not None))
+        if len(known) > 1:
+            raise ValueError(error)
+        if len(known) == 1 and all(label is not None for label in labels):
+            keep = next(iter(known))
+        else:
+            # Every point of the component's bounding box must fit in a single
+            # separated source envelope. A centroid/nearest-vertex vote would
+            # silently accept bridges and pieces straddling two source islands.
+            excursions = np.maximum(np.maximum(lower - points.min(axis=0),
+                                                points.max(axis=0) - upper), 0)
+            candidates = np.flatnonzero((radii > 0) & (np.linalg.norm(excursions, axis=1) <= radii))
+            if len(candidates) != 1:
+                raise ValueError(error)
+            keep = included[candidates[0]]
+            if known and known != {keep}:
+                raise ValueError(error)
+        if not keep:
+            selected.extend(group)
+    return sorted(selected)
+
+
 def pac_island_face_masks(original_data, exclusions, *, stop_event=None):
     """Map retained LOD0 faces to every PAC LOD, rejecting unproven mappings.
 
-    Coarser LODs must retain identifiable source positions. Guessing nearest
-    geometry can remove an adjacent island; ambiguous or simplified positions
-    therefore fail before any output is published.
+    Prefer exact source positions. Simplified disconnected components can also
+    map within bounded, separated source envelopes; overlapping or excessive
+    simplification still fails before any output is published.
     """
     from cdmw.modding.pac_cloth import pac_cloth_lods
 
@@ -87,6 +148,7 @@ def pac_island_face_masks(original_data, exclusions, *, stop_event=None):
                 owners.setdefault(key, set()).add(included)
         if any(len(value) != 1 for value in owners.values()):
             raise ValueError("Island boundaries share source positions. Join seams before excluding this island.")
+        bounds = None
         for lod_index, lod in enumerate(lods):
             if part_index >= len(lod.submeshes):
                 raise ValueError(f"Island part mapping is missing at LOD {lod_index}.")
@@ -103,7 +165,13 @@ def pac_island_face_masks(original_data, exclusions, *, stop_event=None):
                     raise_if_cancelled(stop_event)
                 labels = [owners.get(position_key(current.vertices[vertex])) for vertex in face]
                 if any(label is None for label in labels) or len(set(tuple(label) for label in labels)) != 1:
-                    raise ValueError(f"Island mapping is ambiguous at LOD {lod_index}. Its simplified geometry cannot be excluded safely.")
+                    error = f"Island mapping is ambiguous at LOD {lod_index}. Its simplified geometry cannot be excluded safely."
+                    if lod_index == 0:
+                        raise ValueError(error)
+                    if bounds is None:
+                        bounds = _separated_island_bounds(part, hidden, stop_event=stop_event)
+                    selected = _simplified_island_faces(current, owners, bounds, error, stop_event=stop_event)
+                    break
                 if labels[0] == {False}:
                     selected.append(face_index)
             if lod_index == 0 and set(selected) != hidden:

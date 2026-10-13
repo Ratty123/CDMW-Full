@@ -123,9 +123,13 @@ indices when that stricter connectivity is wanted.
   of View. **Preview output** shows the export result. Undo/Redo and saved drafts
   retain exclusions; re-enabling an island restores its source triangles.
 
-Mod inclusion requires an original PAC at LOD0 with unchanged topology. Every
-lower LOD must map unambiguously to source positions; unsupported simplification
-is rejected before changing the session. Save and reopen an imported PAC first.
+Mod inclusion requires an original PAC at LOD0 with unchanged topology. Lower
+LODs can use exact source positions or safely separated component bounds, including
+pieces that split or disappear as detail decreases. The simplified component must
+fit wholly within one source island's bounds, expanded by at most 10% of the bounds
+diagonal and one third of the gap to its nearest neighbour. Overlapping source bounds,
+merged pieces and excessive simplification still require exact correspondence or
+are rejected before changing the session. Save and reopen an imported PAC first.
 Keep at least one island included, or use the whole part's Mod checkbox. Exclusion
 suppresses only selected triangle indices across LODs and retains vertex data,
 materials and bindings. Drafts containing these masks use replacement version 13;
