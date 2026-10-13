@@ -38,6 +38,113 @@ def test_hair_material_ignores_engine_unbound_slots_but_retains_them_in_xml():
     assert next(root.iter("Texture")).get("_path") == "texture/nonetexture0xffffffff.dds"
 
 
+def test_hair_material_slots_use_declared_roles_not_filename_suffixes():
+    from cdmw.services.mesh_rust_hair import hair_texture_slots
+    data = b'''<Material _name="Hair"><MaterialParameterTexture _name="_baseColorTexture">
+      <ResourceReferencePath_ITexture _path="texture/color_sp.dds"/></MaterialParameterTexture>
+      <MaterialParameterTexture _name="_flowTexture"><ResourceReferencePath_ITexture _path="texture/0003.dds"/></MaterialParameterTexture>
+      <MaterialParameterTexture _name="_specularTexture"><ResourceReferencePath_ITexture _path="texture/response.dds"/></MaterialParameterTexture></Material>'''
+    slots = hair_texture_slots(data, {"texture/color_sp.dds": b"dds", "texture/0003.dds": b"dds"})
+    assert [row["role"] for row in slots] == ["base_color", "flow", "specular"]
+    assert [row["available"] for row in slots] == [True, True, False]
+    assert all(row["material"] == "Hair" for row in slots)
+
+
+def test_hair_color_changes_only_declared_base_maps_and_is_undoable(editor, monkeypatch, tmp_path):
+    from cdmw.services.mesh_rust_hair import hair_color_command
+    from cdmw.services import mesh_hair_color
+    _, authoring = editor
+    service, sid = authoring.shadow_service, authoring.shadow_session_id
+    live = service._session(sid)
+    source = tmp_path / "hair.dds"
+    source.write_bytes(dds())
+    live.working_mesh.submeshes[0].texture = TEXTURE
+    live.working_mesh.submeshes[0].preview_texture_dds_path = str(source)
+    live.working_mesh.submeshes[0].preview_texture_path = str(source)
+    support = "character/texture/hair_f.dds"
+    material = (f'<Material><MaterialParameterTexture _name="_baseColorTexture"><ResourceReferencePath_ITexture _path="{TEXTURE}"/></MaterialParameterTexture>'
+                f'<MaterialParameterTexture _name="_flowTexture"><ResourceReferencePath_ITexture _path="{support}"/></MaterialParameterTexture></Material>').encode()
+    output = live.replacement_state
+    live.replacement_state = replace(output, dependencies=tuple(
+        ReplacementFile(f.path, material) if f.path == MATERIAL else f for f in output.dependencies
+    ) + (ReplacementFile(support, dds()),))
+    before = live.replacement_state
+    calls = []
+    recolored = io.BytesIO()
+    Image.new("RGBA", (4, 4), (30, 80, 150, 255)).save(recolored, format="DDS", pixel_format="DXT5")
+    # Binding, history and publication remain real; the codec has its own test.
+    monkeypatch.setattr(mesh_hair_color, "recolor_hair_dds", lambda data, color, stop: calls.append((data, color)) or recolored.getvalue())
+    result = hair_color_command(authoring, {"color": [.6, .3, .1]}, threading.Event())
+    assert result == {"textures_changed": 1} and calls == [(dds(), [.6, .3, .1])]
+    assert {f.path for f in live.replacement_state.companion_files} - {f.path for f in before.companion_files} == {TEXTURE}
+    assert next(f.data for f in live.replacement_state.dependencies if f.path == support) == dds()
+    assert next(f.data for f in live.replacement_state.dependencies if f.path == MATERIAL) == material
+    hair_color_command(authoring, {"color": [.2, .5, .8]}, threading.Event())
+    assert calls[-1] == (dds(), [.2, .5, .8]), "Color changes must not compound earlier tints"
+    service.undo(sid)
+    service.undo(sid)
+    assert live.replacement_state == before
+
+
+def test_hair_color_preserves_dds_header_authored_mips_and_bc3_alpha():
+    import struct
+    from cdmw.core.dds_native import inspect_dds_native
+    from cdmw.core.texture_native import find_directxtex_texture_binary
+    from cdmw.services.mesh_hair_color import recolor_hair_dds
+    if find_directxtex_texture_binary() is None:
+        pytest.skip("Native DirectXTex helper is not available")
+    levels = []
+    for size in (8, 4, 2, 1):
+        image = Image.new("RGBA", (size, size), (95, 40, 12, 80))
+        image.putpixel((0, 0), (130, 80, 30, 0))
+        stream = io.BytesIO()
+        image.save(stream, format="DDS", pixel_format="DXT5")
+        levels.append(stream.getvalue())
+    original = bytearray(levels[0] + b"".join(level[128:] for level in levels[1:]))
+    struct.pack_into("<I", original, 8, struct.unpack_from("<I", original, 8)[0] | 0x20000)
+    struct.pack_into("<I", original, 28, 4)
+    struct.pack_into("<I", original, 108, struct.unpack_from("<I", original, 108)[0] | 0x400008)
+    original = bytes(original)
+    changed = recolor_hair_dds(original, [.2, .5, .9], threading.Event())
+    assert changed != original and changed[:128] == original[:128] and len(changed) == len(original)
+    for mip in inspect_dds_native(original).mip_levels:
+        for offset in range(mip.offset, mip.offset + mip.byte_count, 16):
+            assert changed[offset:offset+8] == original[offset:offset+8]
+
+
+@pytest.mark.parametrize("failure", ["missing_binding", "cancelled"])
+def test_hair_color_batch_failure_keeps_all_textures_and_history(editor, monkeypatch, tmp_path, failure):
+    from cdmw.services.mesh_rust_hair import hair_color_command
+    from cdmw.services import mesh_hair_color
+    _, authoring = editor
+    service, sid = authoring.shadow_service, authoring.shadow_session_id
+    live = service._session(sid)
+    second = "character/texture/second.dds"
+    material = ("<Material>" + "".join(f'<MaterialParameterTexture _name="_baseColorTexture"><ResourceReferencePath_ITexture _path="{p}"/></MaterialParameterTexture>'
+        for p in (TEXTURE, second)) + "</Material>").encode()
+    live.replacement_state = replace(live.replacement_state, dependencies=(ReplacementFile(MATERIAL, material),
+        ReplacementFile(TEXTURE, dds()), ReplacementFile(second, dds())))
+    source = tmp_path / "hair.dds"
+    source.write_bytes(dds())
+    live.working_mesh.submeshes[0].texture = TEXTURE
+    live.working_mesh.submeshes[0].preview_texture_dds_path = str(source)
+    before = service.capture_export_snapshot(sid)
+    history = service.session_view(sid).undo_count
+    calls = []
+    def recolor(data, color, stop):
+        calls.append(color)
+        if failure == "cancelled" and len(calls) == 2:
+            stop.set()
+        return data
+    monkeypatch.setattr(mesh_hair_color, "recolor_hair_dds", recolor)
+    with pytest.raises(Exception, match="cancel|preview binding"):
+        hair_color_command(authoring, {"color": [.6, .3, .1]}, threading.Event())
+    after = service.capture_export_snapshot(sid)
+    assert after.replacement_state == before.replacement_state and after.hair_state == before.hair_state
+    assert after.mesh.submeshes[0].preview_texture_dds_path == str(source)
+    assert service.session_view(sid).undo_count == history
+
+
 def test_hair_mode_allows_mod_inclusion_without_conversion(editor):
     _, authoring = editor
     live = authoring.shadow_service._session(authoring.shadow_session_id)
@@ -231,6 +338,28 @@ def test_hair_setup_retains_full_collision_body_separately_from_cropped_bust(edi
     assert min(p[1] for p in bust["positions"]) == 1.3
     assert min(p[1] for p in collision["positions"]) == 0.
     assert len(collision["triangles"]) == 2
+
+
+def test_hair_setup_preserves_temples_between_face_and_body_crown(editor):
+    from cdmw.services.mesh_rust_hair import prepare_hair_setup
+    _, authoring = editor
+    service, sid = authoring.shadow_service, authoring.shadow_session_id
+    head = service.working_mesh(sid, clone=True)
+    head.submeshes[0].vertices = [(-.1,1.5,0.), (.1,1.5,0.), (0.,1.8,.05)]
+    head.submeshes[0].faces = [(0,1,2)]
+    body = copy.deepcopy(head)
+    temple = [(.12,1.6,0.), (.14,1.7,0.), (.16,1.6,.02)]
+    body.submeshes[0].vertices = temple + [(-.1,1.49,.1),(.1,1.49,.1),(0.,1.3,.1)]
+    body.submeshes[0].faces = [(0,1,2),(3,4,5)]
+    data = service._session(sid).original_data
+    prepare_hair_setup(service, sid, dict(character="Damiane",
+        _archive_snapshot=SimpleNamespace(mesh=head, original_data=data),
+        _archive_entry=SimpleNamespace(path="character/model/1_pc/2_phw/head/head/test.pac"),
+        _body_snapshot=SimpleNamespace(mesh=body, original_data=data),
+        _body_archive_entry=SimpleNamespace(path="character/model/1_pc/2_phw/nude/cd_phw_00_nude_test.pac")), None)
+    scalp = service._session(sid).hair_state.payload["scalp"]
+    actual = {tuple(tuple(scalp["positions"][i]) for i in face) for face in scalp["triangles"]}
+    assert tuple(temple) in actual
 
 
 def candidate(editor, *, topology=False):
@@ -1004,7 +1133,8 @@ def test_incremental_hair_vertex_patch_preserves_other_channels_and_reuses_state
 
 
 @pytest.mark.parametrize("scale", [.92, 1.02, .9])
-def test_mounted_head_scale_uses_head_joint_and_preserves_neck(scale, monkeypatch):
+@pytest.mark.parametrize("body", [False, True])
+def test_mounted_head_scale_uses_head_joint_and_preserves_neck(scale, body, monkeypatch):
     from cdmw.services.mesh_rust_hair import _head_component_scale
     from cdmw.modding import mesh_parser
     bones = [SimpleNamespace(index=i, parent_index=i-1, name=name, bind_matrix=[0.]*12+[0.,1.5,0.,1.])
@@ -1014,7 +1144,7 @@ def test_mounted_head_scale_uses_head_joint_and_preserves_neck(scale, monkeypatc
                            bone_indices=[[0], [1], [2]], bone_weights=[[1.], [1.], [1.]])
     mesh = SimpleNamespace(submeshes=[part])
     monkeypatch.setattr(mesh_parser, "resolve_pac_bone_palette", lambda *args: [0,1,2])
-    _head_component_scale(mesh, scale, skeleton, None, b"pac", body=True)
+    _head_component_scale(mesh, scale, skeleton, None, b"pac", body=body)
     assert part.vertices[:2] == [(0.,1.,0.), (0.,1.5,0.)]
     assert part.vertices[2] == (0., 1.5 + .5 * scale, 0.)
 

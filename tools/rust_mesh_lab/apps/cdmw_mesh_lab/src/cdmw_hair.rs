@@ -50,6 +50,7 @@ enum Preparation {
     Analyze,
     Deform,
     Delete(Vec<u64>),
+    Erase(Vec<u64>, ErasedHairFaces),
     Cut(Vec<(u64, u32, f32)>, bool),
     Empty,
     Draw,
@@ -60,6 +61,7 @@ enum Preparation {
     #[cfg(test)]
     Fill(u32, Preset, f32),
 }
+type ErasedHairFaces = BTreeMap<u32, BTreeSet<[u32; 3]>>;
 struct HairScene {
     rest: DrawSnapshot,
     frame: DrawSnapshot,
@@ -114,6 +116,8 @@ pub(super) struct HairEditor {
     pub pending_finish: bool,
     pending_history: VecDeque<bool>,
     cuts: BTreeMap<u64, (u32, f32)>,
+    erased_faces: ErasedHairFaces,
+    erase_whole_locks: bool,
     motion_validated_revision: Option<u64>,
     readiness_cache: Option<(u64, bool, Option<String>)>,
     generation: u64,
@@ -136,6 +140,7 @@ pub(super) struct HairEditor {
     pub atlas: [f32; 4],
     pub target_stem: String,
     pub texture_index: usize,
+    color: [u8; 3],
     pub pending_start: Option<String>,
     pub show_reference: bool,
     pub show_guides: bool,
@@ -178,6 +183,8 @@ impl Default for HairEditor {
             requested_preset: None,
             pending_finish: false,
             cuts: BTreeMap::new(),
+            erased_faces: BTreeMap::new(),
+            erase_whole_locks: false,
             motion_validated_revision: None,
             readiness_cache: None,
             pending_history: VecDeque::new(),
@@ -201,6 +208,7 @@ impl Default for HairEditor {
             atlas: [0.0, 0.0, 1.0, 1.0],
             target_stem: String::new(),
             texture_index: 0,
+            color: [89, 46, 20],
             pending_start: None,
             show_reference: true,
             show_guides: false,
@@ -322,6 +330,7 @@ impl LabApplication {
         self.hair.publications.clear();
         self.hair.drawn_previews.clear();
         self.hair.stroke = None;
+        self.hair.erased_faces.clear();
         self.hair.preview = None;
         self.hair.scene = None;
         self.hair.readiness_cache = None;
@@ -998,7 +1007,7 @@ impl LabApplication {
                         HairTool::Select => "Click visible hair. Ctrl-click adds or removes locks. Drag empty space for a marquee.",
                         HairTool::Move => "Drag the part of a lock you want to shape. Move reach controls how much nearby hair follows. The root stays attached.",
                         HairTool::Guide => "Start on the scalp, then drag to shape the lock. Escape cancels.",
-                        HairTool::Erase => "Click or brush across visible locks to remove their geometry.",
+                        HairTool::Erase => "Brush to remove only the visible area of imported hair. Drawn locks erase as a whole. Enable Whole locks to remove connected sections.",
                         HairTool::Cut => "Click or drag to cut every visible lock inside the brush. Each lock is cut nearest the brush centre. Escape cancels.",
                         HairTool::Lengthen => "Drag to extend the tips of every visible lock inside the brush. Roots stay fixed.",
                         HairTool::Physics => "Paint Static or Physical directly on visible hair. No selection is needed. Roots stay fixed.",
@@ -1010,6 +1019,10 @@ impl LabApplication {
                 }
             });
             ui.separator();
+            if self.hair.tool == Some(HairTool::Erase) {
+                ui.checkbox(&mut self.hair.erase_whole_locks, crate::localization::tr("Whole locks"))
+                    .on_hover_text(crate::localization::tr("A connected scalp section can cover most of the head. Turn off to erase only the brushed faces of imported hair."));
+            }
             if self.hair.tool == Some(HairTool::Physics) {
                 ui.horizontal_wrapped(|ui| {
                     ui.selectable_value(&mut self.hair.paint_static, true, crate::localization::tr("Static"));
@@ -1024,6 +1037,9 @@ impl LabApplication {
                 ui.colored_label(Color32::from_rgb(245, 155, 60), crate::localization::tr("Orange: physical"));
             }
             if self.hair.tool == Some(HairTool::Guide) {
+                ui.add(crate::cdmw_ui::numeric::slider(&mut self.hair.width, 0.0001..=(span*0.2).clamp(0.001,10.0)).text(crate::localization::tr("Draw width")));
+                ui.add(crate::cdmw_ui::numeric::slider(&mut self.hair.density, 1..=32).text(crate::localization::tr("Draw cards")))
+                    .on_hover_text(crate::localization::tr("Cards per new lock. Fewer cards make flatter, lighter locks; more add volume. Existing locks keep their settings."));
                 ui.horizontal_wrapped(|ui| {
                     for (shape, label) in [(DrawShape::Freehand,"Freehand"), (DrawShape::Straight,"Straight"),
                         (DrawShape::Arc,"Arc"), (DrawShape::Circle,"Circle")] {
@@ -1053,7 +1069,7 @@ impl LabApplication {
             }
             if !matches!(self.hair.tool,Some(HairTool::Select|HairTool::Move|HairTool::Guide|HairTool::Root)) {
                 ui.add(crate::cdmw_ui::numeric::slider(&mut self.hair.radius,5.0..=160.0).text(crate::localization::tr("Brush size")));
-                if !matches!(self.hair.tool, Some(HairTool::Physics | HairTool::Cut)) { ui.add(crate::cdmw_ui::numeric::slider(&mut self.hair.strength,0.01..=1.0).text(crate::localization::tr("Strength"))); }
+                if !matches!(self.hair.tool, Some(HairTool::Physics | HairTool::Cut | HairTool::Erase)) { ui.add(crate::cdmw_ui::numeric::slider(&mut self.hair.strength,0.01..=1.0).text(crate::localization::tr("Strength"))); }
             }
             ui.checkbox(&mut self.hair.symmetry,crate::localization::tr("Symmetry"));
             if self.hair.tool==Some(HairTool::Select) {ui.checkbox(&mut self.hair.select_through,crate::localization::tr("Select through"));}
@@ -1091,6 +1107,22 @@ impl LabApplication {
                 }
             });
             crate::localization::collapsing("Appearance").show(ui,|ui| {
+                ui.horizontal(|ui| {
+                    ui.label(crate::localization::tr("Background color"));
+                    ui.color_edit_button_srgba(&mut self.viewport_background_colour);
+                });
+                let color_available = self.cdmw_state["hair"]["texture_slots"].as_array().is_some_and(|slots|
+                    slots.iter().any(|slot| slot["role"] == "base_color"));
+                ui.horizontal(|ui| {
+                    ui.label(crate::localization::tr("Hair color"));
+                    ui.color_edit_button_srgb(&mut self.hair.color);
+                });
+                if ui.add_enabled(color_available && self.cdmw_state["hair"]["materials_ready"] == true,
+                    egui::Button::new(crate::localization::tr("Apply hair color")))
+                    .on_hover_text(crate::localization::tr("Uses the original base-color DDS files to retain strand shading and transparency. Replaces color-map edits; Flow and surface maps stay unchanged. Undo restores the previous textures."))
+                    .on_disabled_hover_text(crate::localization::tr("Requires declared base-color slots and all material DDS files. Unknown slots can be edited in Texture Editor.")).clicked() {
+                    actions.push(UiAction::CdmwCommand{command:"hair_color",arguments:json!({"color":self.hair.color.map(|v| v as f32 / 255.0)}),label:"Change hair color"});
+                }
                 let supported=self.hair.state.as_ref().unwrap().locks.iter().filter(|l|self.hair.selected.contains(&(l.id as usize))).all(|l|l.kind==LockKind::Generated);
                 ui.add_enabled_ui(!self.hair.selected.is_empty(),|ui| {
                     ui.add(crate::cdmw_ui::numeric::slider(&mut self.hair.width,0.0001..=(span*0.2).clamp(0.001,10.0)).text(crate::localization::tr("Lock width")));
@@ -1101,11 +1133,20 @@ impl LabApplication {
                 let textures:Vec<_>=self.cdmw_state["hair"]["textures"].as_array().into_iter().flatten().filter_map(|v|v.as_str().map(String::from)).collect();
                 if !textures.is_empty() {
                     self.hair.texture_index=self.hair.texture_index.min(textures.len()-1);
-                    let texture_label = ui.label(crate::localization::tr("Hair texture"));
+                    let texture_label = ui.label(crate::localization::tr("Texture to edit"));
+                    ui.weak(crate::localization::tr("All material DDS files are used together."))
+                        .on_hover_text(crate::localization::tr("This choice selects one file for editing. It does not disable the other textures or change the material slots used by exported hair."));
                     egui::ComboBox::from_id_salt("Hair texture").width(ui.available_width()).truncate()
                         .selected_text(textures[self.hair.texture_index].rsplit('/').next().unwrap_or("DDS")).show_ui(ui,|ui| {
                         for (i,path) in textures.iter().enumerate(){ui.selectable_value(&mut self.hair.texture_index,i,path.rsplit('/').next().unwrap_or(path));}
                     }).response.labelled_by(texture_label.id).on_hover_text(&textures[self.hair.texture_index]);
+                    if let Some(slots) = self.cdmw_state["hair"]["texture_slots"].as_array() {
+                        for slot in slots.iter().filter(|slot| slot["path"].as_str() == Some(textures[self.hair.texture_index].as_str())) {
+                            let parameter = slot["parameter"].as_str().filter(|s| !s.is_empty()).unwrap_or("Unspecified slot");
+                            ui.label(crate::localization::tr(parameter)).on_hover_text(slot["material"].as_str().unwrap_or(""));
+                            if slot["available"] != true { ui.colored_label(Color32::LIGHT_RED, crate::localization::tr("Missing DDS")); }
+                        }
+                    }
                     for (title,command) in [("Open in Texture Editor","hair_texture_export"),("Apply edited DDS…","hair_texture")] {
                         if ui.button(crate::localization::tr(title)).clicked(){actions.push(UiAction::CdmwCommand{command,arguments:json!({"texture_path":textures[self.hair.texture_index]}),label:"Hair texture"});}
                     }

@@ -194,7 +194,10 @@ impl LabApplication {
             let mut indices = vec![];
             let mut materials = vec![];
             for (i, face) in snapshot.indices.chunks_exact(3).enumerate() {
-                if !face.iter().any(|v| {
+                let erased_face = scene.parts.iter().find(|p| p.0 == snapshot.triangle_materials[i])
+                    .is_some_and(|(part, first, _, _)| self.hair.erased_faces.get(part).is_some_and(|faces|
+                        faces.contains(&[face[0] - *first as u32, face[1] - *first as u32, face[2] - *first as u32])));
+                if !erased_face && !face.iter().any(|v| {
                     scene.vertex_locks[*v as usize]
                         .is_some_and(|id| self.hair.selected.contains(&(id as usize)))
                 }) {

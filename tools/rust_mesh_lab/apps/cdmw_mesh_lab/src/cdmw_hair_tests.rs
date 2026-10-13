@@ -1099,6 +1099,97 @@ fn hair_long_draw_keeps_tip_at_pointer_and_balanced_segments() {
     assert_eq!(state.locks.len(), 1);
 }
 
+#[test]
+fn hair_draw_uses_current_width_and_cards_without_changing_existing_locks() {
+    let (mut app, rect) = ready_hair_app();
+    app.camera.set_standard_view(crate::camera::StandardView::Top);
+    app.camera.frame_positions_in_viewport(
+        app.hair.state.as_ref().unwrap().scalp.positions.iter().copied().map(Vec3::from), rect);
+    let before = app.hair.state.as_ref().unwrap().locks.clone();
+    let width = app.hair.state.as_ref().unwrap().groups[0].width;
+    app.hair.width = width * 0.4;
+    app.hair.density = 2;
+    app.hair.tool = Some(HairTool::Guide);
+    let start = app.camera.project(Vec3::new(-0.12, 0.2, -0.1), rect).unwrap().screen;
+    let end = start + Vec2::new(50.0, 20.0);
+    app.dispatch_hair_pointer(ViewportPointerEvent::PrimaryPressed(start), rect, false, false, false);
+    app.dispatch_hair_pointer(ViewportPointerEvent::PrimaryMoved(end), rect, false, false, false);
+    app.dispatch_hair_pointer(ViewportPointerEvent::PrimaryReleased(end), rect, false, false, false);
+    await_hair(&mut app);
+    let state = app.hair.state.as_ref().unwrap();
+    assert_eq!(state.locks.len(), before.len() + 1, "{}", app.hair.feedback);
+    let drawn = state.locks.last().unwrap();
+    assert_eq!(drawn.cards, 2);
+    assert!((drawn.width_scale - 0.4).abs() < 1e-6);
+    for old in before {
+        let now = state.locks.iter().find(|l| l.id == old.id).unwrap();
+        assert_eq!((now.cards, now.width_scale), (old.cards, old.width_scale));
+    }
+}
+
+#[test]
+fn hair_local_erase_retains_connected_shell_and_hidden_faces_and_can_cancel() {
+    for cancel in [false, true] {
+        let (mut state, mut document) = fixture();
+        state.groups[0].mode = GroupMode::Existing;
+        let part = &mut document.lods[0].submeshes[0];
+        part.positions.clear();
+        part.indices.clear();
+        for z in [0.1, -0.1] {
+            let first = part.positions.len() as u32;
+            for y in 0..9 { for x in 0..9 { part.positions.push([x as f32 * 0.02, y as f32 * 0.02, z]); } }
+            for y in 0..8 { for x in 0..8 {
+                let i = first + y * 9 + x;
+                part.indices.extend([i, i+1, i+9, i+1, i+10, i+9]);
+            } }
+        }
+        part.normals = vec![[0.0, 0.0, 1.0]; part.positions.len()];
+        part.uvs = vec![[0.0; 2]; part.positions.len()];
+        part.source_vertex_indices = (0..part.positions.len() as i32).collect();
+        state.locks.push(locks::HairLock { id: 1, part: 0, guide: None,
+            vertices: (0..part.positions.len() as u32).collect(), kind: LockKind::Unresolved,
+            mirrored: None, width_scale: 1.0, cards: 0 });
+        state.next_lock_id = 2;
+        state.prepared_parts = vec![0];
+        let original = part.clone();
+        let mut app = LabApplication::new(None, None);
+        app.document = Some(document.clone());
+        app.cdmw_state = json!({"hair":{"available":true,"materials_ready":true}});
+        let rect = egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(1200.0, 800.0));
+        app.viewport_rect = Some(rect);
+        app.hydrate_hair(Some(state));
+        app.hair.pending_preset = false;
+        app.hair.show_reference = false;
+        app.camera.set_standard_view(crate::camera::StandardView::Front);
+        app.camera.frame_positions_in_viewport(original.positions.iter().copied().map(Vec3::from), rect);
+        app.render_hair();
+        app.hair.tool = Some(HairTool::Erase);
+        app.hair.radius = 12.0;
+        let point = app.camera.project(Vec3::new(0.047, 0.047, 0.1), rect).unwrap().screen;
+        app.dispatch_hair_pointer(ViewportPointerEvent::PrimaryPressed(point), rect, false, false, false);
+        assert!(!app.hair.erased_faces.is_empty(), "{}", app.hair.feedback);
+        assert!(app.hair.selected.is_empty(), "A local erase must not delete the shell's lock");
+        if cancel {
+            assert!(app.cancel_hair_stroke());
+            assert!(app.hair.erased_faces.is_empty());
+            assert_eq!(app.document.as_ref().unwrap(), &document);
+        } else {
+            app.dispatch_hair_pointer(ViewportPointerEvent::PrimaryReleased(point), rect, false, false, false);
+            await_hair(&mut app);
+            let part = &app.hair.preview.as_ref().unwrap().lods[0].submeshes[0];
+            assert!(part.indices.len() < original.indices.len());
+            assert!(part.indices.len() > original.indices.len() * 9 / 10);
+            assert_eq!(part.indices.chunks_exact(3).filter(|f|
+                f.iter().all(|v| part.positions[*v as usize][2] > 0.0)).count(), 128);
+            assert_eq!(app.hair.state.as_ref().unwrap().locks.len(), 1);
+            for (i, source) in part.source_vertex_indices.iter().enumerate() {
+                assert_eq!(part.positions[i], original.positions[*source as usize]);
+                assert_eq!(part.uvs[i], original.uvs[*source as usize]);
+            }
+        }
+    }
+}
+
 fn visible_lock(app: &LabApplication, rect: egui::Rect) -> (Vec2, u64) {
     let scene = app.hair.scene.as_ref().unwrap();
     for face in scene.frame.indices.chunks_exact(3).step_by(17) {

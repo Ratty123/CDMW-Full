@@ -317,8 +317,10 @@ without changing their slot names or existing choices.
 ### Character references and hairstyle catalogue
 
 Mounted appearance and customization documents supply the head, facial details, scalp,
-neck and shoulders. Authored head scales use the head joint as their pivot; the common
-character scale cancels in the donor's authoring coordinates. Oongka uses his `5_pom`
+neck and shoulders. Face and body references use the same skin-weighted head scale
+around the head joint, keeping the neck transition aligned. The complete upper body
+surface supplies the temples and sides of the skull before the face seam is joined.
+The common character scale cancels in the donor's authoring coordinates. Oongka uses his `5_pom`
 references even though his registered hair belongs to `1_phm`. The clean, untextured
 mannequin uses the head's fitted eye-cover surfaces as smooth eyes, excluding separate
 shader-dependent iris/lens meshes, lashes and brows. Heads without fitted covers retain
@@ -368,6 +370,11 @@ smoothing** reduces freehand jitter without trailing behind the pointer. It uses
 same physical smoothing distance at different mouse sampling rates. Slow, small pointer
 movements accumulate into a continuous stroke instead of repeatedly being discarded.
 
+**Draw width** and **Draw cards** set the width and follower count before a stroke.
+They affect new locks; **Appearance > Apply to selected locks** changes existing ones.
+Narrower locks reduce both card width and follower spread. Use fewer cards for flatter
+locks and more for volume, with several smaller strokes to control the silhouette.
+
 Drawn cards follow smooth curves with up to three sections per guide segment and
 continuous shading through bends, including during grooming and motion. Extra card
 detail does not add physics points and stays within the existing vertex budget. Older
@@ -386,7 +393,11 @@ their saved shape and need redrawing.
 
 #### Erasing and cutting
 
-**Erase** removes visible locks under the brush; Delete removes selected geometry.
+**Erase** removes only brushed, visible triangles from imported hair by default, so a
+connected scalp section is not deleted from one small hit at the neck. Its boundary
+follows the source triangles. Drawn locks still erase as a whole. Enable **Whole locks**
+to remove complete connected sections; Delete removes the selected locks. Hidden faces
+stay protected, Escape cancels the stroke, and a completed erase is one Undo step.
 **Cut** trims every visible lock inside the brush at the point nearest the brush centre.
 Click for one cut or drag across several locks; the completed stroke is one Undo step.
 **Lengthen** extends the tips of every brushed lock without moving roots, spreading the
@@ -473,6 +484,22 @@ While a topology edit is finishing, another click reports that preparation is st
 running; completed edits remain ordered and bounded.
 
 ### Texture editing
+
+**Appearance > Background color** changes the viewport backdrop. **Hair color > Apply
+hair color** recolors every original base-color DDS together as one undoable edit. It
+starts from the captured originals each time, so repeated color changes retain strand
+detail and can recover from black. This replaces in-session edits to those color maps;
+Undo restores them. Recoloring retains the DDS headers, compression, dimensions and
+authored mip levels. BC2/BC3 transparency blocks stay byte-for-byte identical; other
+supported formats pass the original alpha through DDS encoding. Flow, normal and
+surface-response maps are retained.
+Unknown or conflicting color slots require explicit editing in Texture Editor.
+
+**Texture to edit** selects one DDS for editing, not the only texture used by the hair.
+All DDS files referenced by the donor material remain bound and travel with the output.
+The selected file shows its authored slot and missing-file status. Numeric names such
+as `0003`, and suffixes such as `_f` or `_sp`, do not by themselves define a material
+role; the material's parameter binding is authoritative.
 
 **Open in Texture Editor** and **Apply edited DDS** retain the template's verified
 material slots, dimensions, compression and mip counts. Edits follow the selected

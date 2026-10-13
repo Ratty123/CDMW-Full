@@ -3862,6 +3862,16 @@
       ]
     },
     {
+      "key": "A color DDS also supplies another material role; edit that texture explicitly.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_rust_hair.py",
+          "line": 364,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
       "key": "A combined mod from mounted items must be written to a new folder. Choose another mod name.",
       "origins": [
         {
@@ -3878,6 +3888,16 @@
           "path": "cdmw/ui/shell/about_documentation_en.py",
           "line": 54,
           "sink": "python-return:_build_start_sections"
+        }
+      ]
+    },
+    {
+      "key": "A connected scalp section can cover most of the head. Turn off to erase only the brushed faces of imported hair.",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_hair.rs",
+          "line": 1024,
+          "sink": "rust-presentation"
         }
       ]
     },
@@ -7687,6 +7707,16 @@
       ]
     },
     {
+      "key": "All material DDS files are used together.",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_hair.rs",
+          "line": 1137,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
       "key": "All packages",
       "origins": [
         {
@@ -9942,6 +9972,16 @@
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_emission.rs",
           "line": 80,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Apply hair color",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_hair.rs",
+          "line": 1121,
           "sink": "rust-presentation"
         }
       ]
@@ -15697,6 +15737,16 @@
       ]
     },
     {
+      "key": "Background color",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_hair.rs",
+          "line": 1111,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
       "key": "Background processing could not start.",
       "origins": [
         {
@@ -18213,6 +18263,16 @@
           "path": "cdmw/ui/texture_editor_tab.py",
           "line": 865,
           "sink": "_add_tool_setting_row"
+        }
+      ]
+    },
+    {
+      "key": "Brush to remove only the visible area of imported hair. Drawn locks erase as a whole. Enable Whole locks to remove connected sections.",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_hair.rs",
+          "line": 1010,
+          "sink": "rust-presentation"
         }
       ]
     },
@@ -22247,6 +22307,16 @@
       ]
     },
     {
+      "key": "Cards per new lock. Fewer cards make flatter, lighter locks; more add volume. Existing locks keep their settings.",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_hair.rs",
+          "line": 1042,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
       "key": "Carried on the {value_0} before, now the {value_1}.",
       "origins": [
         {
@@ -22738,6 +22808,16 @@
           "path": "cdmw/services/mesh_rust_hair.py",
           "line": 567,
           "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Change hair color",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_hair.rs",
+          "line": 1124,
+          "sink": "rust-presentation"
         }
       ]
     },
@@ -25378,6 +25458,16 @@
           "path": "cdmw/ui/new_item/dye_editor.py",
           "line": 181,
           "sink": "getOpenFileName"
+        }
+      ]
+    },
+    {
+      "key": "Choose a finite RGB hair color between 0 and 1.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_rust_hair.py",
+          "line": 354,
+          "sink": "ValueError"
         }
       ]
     },
@@ -28597,16 +28687,6 @@
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs",
           "line": 4132,
-          "sink": "rust-presentation"
-        }
-      ]
-    },
-    {
-      "key": "Click or brush across visible locks to remove their geometry.",
-      "origins": [
-        {
-          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_hair.rs",
-          "line": 1001,
           "sink": "rust-presentation"
         }
       ]
@@ -40107,6 +40187,16 @@
       ]
     },
     {
+      "key": "Draw cards",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_hair.rs",
+          "line": 1041,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
       "key": "Draw creates new cards in Create hairstyle. Existing hair preserves its original cards and UV layout.",
       "origins": [
         {
@@ -40153,6 +40243,16 @@
           "path": "tools/placement_studio/window.py",
           "line": 202,
           "sink": "setToolTip"
+        }
+      ]
+    },
+    {
+      "key": "Draw width",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_hair.rs",
+          "line": 1040,
+          "sink": "rust-presentation"
         }
       ]
     },
@@ -56002,6 +56102,16 @@
       ]
     },
     {
+      "key": "Hair DDS mip {value_0}: decoder returned {value_1}x{value_2}, expected {value_3}x{value_4}.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_hair_color.py",
+          "line": 44,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
       "key": "Hair Tools (Experimental)",
       "origins": [
         {
@@ -56078,6 +56188,16 @@
           "path": "cdmw/services/mesh_hair_output.py",
           "line": 339,
           "sink": "raise_if_cancelled"
+        }
+      ]
+    },
+    {
+      "key": "Hair color",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_hair.rs",
+          "line": 1117,
+          "sink": "rust-presentation"
         }
       ]
     },
@@ -56407,6 +56527,51 @@
       ]
     },
     {
+      "key": "Hair recoloring cancelled",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_hair_color.py",
+          "line": 37,
+          "sink": "raise_if_cancelled"
+        },
+        {
+          "path": "cdmw/services/mesh_hair_color.py",
+          "line": 69,
+          "sink": "raise_if_cancelled"
+        }
+      ]
+    },
+    {
+      "key": "Hair recoloring changed the DDS pixel layout.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_hair_color.py",
+          "line": 61,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Hair recoloring produced an incomplete mip.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_hair_color.py",
+          "line": 64,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Hair recoloring requires a single complete 2D DDS mip chain.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_hair_color.py",
+          "line": 27,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
       "key": "Hair reference loading cancelled",
       "origins": [
         {
@@ -56511,17 +56676,12 @@
       "origins": [
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_hair.rs",
-          "line": 1104,
+          "line": 1139,
           "sink": "rust-presentation"
         },
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_hair.rs",
-          "line": 1105,
-          "sink": "rust-presentation"
-        },
-        {
-          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_hair.rs",
-          "line": 1110,
+          "line": 1151,
           "sink": "rust-presentation"
         }
       ]
@@ -57278,6 +57438,16 @@
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_hair.rs",
           "line": 1142,
           "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Head fitting requires complete reference skin weights.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_rust_hair.py",
+          "line": 95,
+          "sink": "ValueError"
         }
       ]
     },
@@ -76578,6 +76748,16 @@
           "path": "cdmw/ui/archive_browser/hkx_editor_dialog_shell_part_01.py",
           "line": 672,
           "sink": "setHeaderLabels"
+        }
+      ]
+    },
+    {
+      "key": "Missing DDS",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_hair.rs",
+          "line": 1147,
+          "sink": "rust-presentation"
         }
       ]
     },
@@ -110782,6 +110962,26 @@
       ]
     },
     {
+      "key": "Reload the hairstyle to recover its original color textures.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_rust_hair.py",
+          "line": 372,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Reload the hairstyle with all its required material textures before recoloring.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_rust_hair.py",
+          "line": 366,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
       "key": "Reloading Preview to apply render settings.",
       "origins": [
         {
@@ -113250,6 +113450,16 @@
       "key": "Requires a plain opaque, glowing or translucent material with a base colour texture, or an existing transparent surface blending material.",
       "origins": [],
       "manual": true
+    },
+    {
+      "key": "Requires declared base-color slots and all material DDS files. Unknown slots can be edited in Texture Editor.",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_hair.rs",
+          "line": 1123,
+          "sink": "rust-presentation"
+        }
+      ]
     },
     {
       "key": "Requires the source glow map. RGB supplies the colours, alpha masks their intensity, and red is the reveal mask. Uses RGB strength instead of the single-colour strength above. Reveal 0 is off; 1 shows the full glow. Game brightness may differ.",
@@ -134247,6 +134457,16 @@
       ]
     },
     {
+      "key": "Start Hair authoring before changing its color.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_rust_hair.py",
+          "line": 357,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
       "key": "Start Hair authoring before editing its textures.",
       "origins": [
         {
@@ -139462,6 +139682,16 @@
       ]
     },
     {
+      "key": "Texture to edit",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_hair.rs",
+          "line": 1136,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
       "key": "Texture type: {value_0}",
       "origins": [
         {
@@ -142453,6 +142683,11 @@
           "path": "cdmw/services/mesh_rust_hair.py",
           "line": 54,
           "sink": "ValueError"
+        },
+        {
+          "path": "cdmw/services/mesh_rust_hair.py",
+          "line": 71,
+          "sink": "ValueError"
         }
       ]
     },
@@ -142498,6 +142733,26 @@
           "path": "cdmw/ui/new_item/panels_output.py",
           "line": 276,
           "sink": "setToolTip"
+        }
+      ]
+    },
+    {
+      "key": "The native DDS decoder could not read the hair color texture.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_hair_color.py",
+          "line": 40,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "The native DDS encoder could not write the hair color texture.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_hair_color.py",
+          "line": 55,
+          "sink": "ValueError"
         }
       ]
     },
@@ -145477,6 +145732,16 @@
       ]
     },
     {
+      "key": "This choice selects one file for editing. It does not disable the other textures or change the material slots used by exported hair.",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_hair.rs",
+          "line": 1138,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
       "key": "This collision row is read-only context.",
       "origins": [
         {
@@ -145652,6 +145917,16 @@
       ]
     },
     {
+      "key": "This hair color DDS cannot be recolored; use Texture Editor for its format.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_hair_color.py",
+          "line": 25,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
       "key": "This hair draft requires an updated Hair-capable Rust helper.",
       "origins": [
         {
@@ -145667,6 +145942,16 @@
         {
           "path": "cdmw/ui/mesh_editor/hair_reference_picker.py",
           "line": 326,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "This hairstyle has no declared base-color slot. Edit its DDS explicitly in Texture Editor.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_rust_hair.py",
+          "line": 362,
           "sink": "ValueError"
         }
       ]
@@ -150242,6 +150527,16 @@
       ]
     },
     {
+      "key": "Unspecified slot",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_hair.rs",
+          "line": 1145,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
       "key": "Unsupported",
       "origins": [
         {
@@ -153257,6 +153552,16 @@
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_jiggle.rs",
           "line": 745,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Uses the original base-color DDS files to retain strand shading and transparency. Replaces color-map edits; Flow and surface maps stay unchanged. Undo restores the previous textures.",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_hair.rs",
+          "line": 1122,
           "sink": "rust-presentation"
         }
       ]
@@ -157165,6 +157470,16 @@
       "key": "Whole character",
       "origins": [],
       "manual": true
+    },
+    {
+      "key": "Whole locks",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_hair.rs",
+          "line": 1023,
+          "sink": "rust-presentation"
+        }
+      ]
     },
     {
       "key": "Whole number",

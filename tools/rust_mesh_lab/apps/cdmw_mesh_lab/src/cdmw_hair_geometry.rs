@@ -157,6 +157,21 @@ pub(super) fn prepare(
     if let Preparation::Delete(ref ids) = operation {
         delete_locks(&mut state, &mut document, ids)?;
     }
+    if let Preparation::Erase(ref ids, ref faces) = operation {
+        // Local faces refer to the original stroke topology. Compact them
+        // before deleting whole locks, whose vertex maps are updated below.
+        for (&part_id, removed) in faces {
+            check()?;
+            let part = document.lods[0].submeshes.get(part_id as usize).ok_or("Missing hair material part")?;
+            let kept = part.indices.chunks_exact(3)
+                .filter(|f| !removed.contains(&[f[0], f[1], f[2]]))
+                .flatten().copied().collect();
+            compact_part_indices(&mut state, &mut document, part_id, kept);
+        }
+        let mut removed = ids.clone();
+        removed.extend(state.locks.iter().filter(|l| l.vertices.is_empty() && l.kind != LockKind::Generated).map(|l| l.id));
+        delete_locks(&mut state, &mut document, &removed)?;
+    }
     if let Preparation::Cut(ref cuts, symmetry) = operation {
         let mut targets: BTreeMap<_, _> = cuts.iter().map(|&(id, segment, t)| (id, (segment, t))).collect();
         if symmetry {
@@ -279,6 +294,11 @@ fn compact_part(
         .filter(|f| f.iter().all(|v| !removed.contains(v)))
         .flat_map(|f| f.iter().copied())
         .collect();
+    compact_part_indices(state, document, part_id, kept);
+}
+
+fn compact_part_indices(state: &mut HairState, document: &mut MeshDocument, part_id: u32, kept: Vec<u32>) {
+    let part = &mut document.lods[0].submeshes[part_id as usize];
     let used: BTreeSet<_> = kept.iter().copied().collect();
     let mut map = HashMap::new();
     for (next, old) in used.iter().enumerate() {

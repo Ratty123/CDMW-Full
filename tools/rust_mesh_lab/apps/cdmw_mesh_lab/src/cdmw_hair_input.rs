@@ -166,6 +166,11 @@ impl LabApplication {
     }
 
     fn brushed_hair_hits(&self, point: Vec2, rect: egui::Rect, all_rows: bool) -> Vec<(u64, u32, f32)> {
+        self.hair_brush_hits(point, rect, all_rows, None)
+    }
+
+    fn hair_brush_hits(&self, point: Vec2, rect: egui::Rect, all_rows: bool,
+        mut local_faces: Option<&mut Vec<(u64, u32, [u32; 3])>>) -> Vec<(u64, u32, f32)> {
         let Some(scene) = &self.hair.scene else {
             return vec![];
         };
@@ -196,7 +201,7 @@ impl LabApplication {
             let Some(id) = scene.vertex_locks[face[0] as usize] else {
                 return;
             };
-            if !nearest && !all_rows && ids.contains(&(id, 0)) { return; }
+            if local_faces.is_none() && !nearest && !all_rows && ids.contains(&(id, 0)) { return; }
             // Physics paint follows the brush unless selection masking is
             // explicitly enabled; a leftover grooming selection is not a mask.
             if all_rows && self.hair.physics_selected_only && !self.hair.selected.contains(&(id as usize)) {
@@ -240,6 +245,18 @@ impl LabApplication {
             // Nudge off shared triangle edges before the depth test. The same
             // resident scene preserves scalp occlusion and part visibility.
             let sample = closest.lerp((a + b + c) / 3.0, 0.0001);
+            if let Some(faces) = local_faces.as_mut() {
+                let Some((origin, direction, _)) = self.camera.screen_ray(sample, rect) else { return; };
+                let Some(hit) = scene.picking.hit(&scene.frame.positions, &scene.frame.indices, origin, direction) else { return; };
+                // A shared lock id is not a visibility test: the same connected
+                // scalp shell may also cover the opposite side of the head.
+                if hit.triangle != triangle { return; }
+                let part = scene.frame.triangle_materials[triangle];
+                if let Some((_, first, _, _)) = scene.parts.iter().find(|p| p.0 == part) {
+                    faces.push((id, part, [face[0] - *first as u32, face[1] - *first as u32, face[2] - *first as u32]));
+                }
+                return;
+            }
             if nearest {
                 candidates.push((closest.distance_squared(point), id, sample));
             } else if let Some(hit) = self.lock_at(sample, rect).filter(|hit| hit.0 == id) {
@@ -357,6 +374,7 @@ impl LabApplication {
                 });
                 self.hair.stroke_distances.clear();
                 self.hair.cuts.clear();
+                self.hair.erased_faces.clear();
                 self.hair.stroke_start = Some(point);
                 self.hair.last_pointer = Some(point);
                 self.hair.stroke_changed = false;
@@ -453,8 +471,9 @@ impl LabApplication {
                             let operation = match self.hair.tool {
                                 Some(HairTool::Physics) => Preparation::Metadata,
                                 Some(HairTool::Guide | HairTool::Paint) => Preparation::Draw,
-                                Some(HairTool::Erase) => Preparation::Delete(
+                                Some(HairTool::Erase) => Preparation::Erase(
                                     self.hair.selected.iter().map(|i| *i as u64).collect(),
+                                    std::mem::take(&mut self.hair.erased_faces),
                                 ),
                                 _ => Preparation::Deform,
                             };
@@ -497,6 +516,7 @@ impl LabApplication {
         self.hair.last_pointer = None;
         self.hair.move_anchor = None;
         self.hair.cuts.clear();
+        self.hair.erased_faces.clear();
         self.hair.scene = None;
         if editing { self.hair.playing = self.hair.restart_after_stroke; }
         self.hair.restart_after_stroke = false;
@@ -610,7 +630,20 @@ impl LabApplication {
                 return Ok(());
             }
             if tool == HairTool::Erase {
-                let mut ids = self.brush_locks(pointer, rect);
+                let mut ids = vec![];
+                if self.hair.erase_whole_locks {
+                    ids = self.brush_locks(pointer, rect);
+                } else {
+                    let mut faces = vec![];
+                    self.hair_brush_hits(pointer, rect, false, Some(&mut faces));
+                    for (id, part, face) in faces {
+                        if state.locks.iter().any(|l| l.id == id && l.kind == LockKind::Generated) {
+                            ids.push(id);
+                        } else {
+                            self.hair.stroke_changed |= self.hair.erased_faces.entry(part).or_default().insert(face);
+                        }
+                    }
+                }
                 if self.hair.symmetry {
                     let pairs: Vec<_> = state
                         .locks
@@ -654,12 +687,13 @@ impl LabApplication {
                             |(_, normal)| normal,
                         );
                     let group = self.hair.group;
-                    let part = state
+                    let draw_group = state
                         .groups
                         .iter()
                         .find(|g| g.id == group)
-                        .ok_or("Missing hair material")?
-                        .part;
+                        .ok_or("Missing hair material")?;
+                    let part = draw_group.part;
+                    let width_scale = (self.hair.width / draw_group.width).clamp(0.02, 20.0);
                     let guide = state.guides.len() as u32;
                     if guide as usize + if self.hair.symmetry { 2 } else { 1 } > hair::MAX_GUIDES {
                         return Err("Hair guide limit reached".into());
@@ -679,8 +713,8 @@ impl LabApplication {
                         vertices: vec![],
                         kind: LockKind::Generated,
                         mirrored: None,
-                        width_scale: 1.0,
-                        cards: 0,
+                        width_scale,
+                        cards: self.hair.density,
                     });
                     self.hair.drawing.push(id);
                     // The tiny seed keeps the in-progress state valid, but is
@@ -709,8 +743,8 @@ impl LabApplication {
                             vertices: vec![],
                             kind: LockKind::Generated,
                             mirrored: Some(id),
-                            width_scale: 1.0,
-                            cards: 0,
+                            width_scale,
+                            cards: self.hair.density,
                         });
                         self.hair.drawing.push(pair);
                     }
@@ -761,7 +795,8 @@ impl LabApplication {
                         .iter()
                         .find(|g| g.id == self.hair.group)
                         .unwrap()
-                        .width;
+                        .width * state.locks.iter().find(|l| Some(l.id) == self.hair.drawing.first().copied())
+                            .map_or(1.0, |l| l.width_scale);
                     let clearance = width * 0.55 + self.hair.motion.collision_margin;
                     let tip = if let Some(root) = surface {
                         state.scalp.point(&root).map_err(|e| e.to_string())?

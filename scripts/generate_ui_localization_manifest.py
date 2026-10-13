@@ -1887,6 +1887,7 @@ def _native_ui_keys(manifest: dict[str, object]) -> list[str]:
                 "cdmw/services/mesh_rust_", "cdmw/services/mesh_shader_controls",
                 "cdmw/services/mesh_emission", "cdmw/services/mesh_service_morph",
                 "cdmw/services/mesh_morph_profiles", "cdmw/services/mesh_service_body_controls",
+                "cdmw/services/mesh_hair_color",
             ))
             for origin in entry["origins"]
         )

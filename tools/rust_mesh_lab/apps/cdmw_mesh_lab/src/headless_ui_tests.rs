@@ -3795,6 +3795,31 @@ fn integrated_inspector_hair_physics_brush_exposes_static_and_physical_modes() -
 }
 
 #[test]
+fn integrated_inspector_hair_color_background_draw_and_erase_controls_are_wired() -> TestResult {
+    let mut ui = integrated_hair_inspector(egui::vec2(1440.0, 980.0), 11.0, "normal");
+    ui.click("Erase")?;
+    ui.click("Whole locks")?;
+    ui.click("Whole locks")?;
+    ui.click("Draw")?;
+    assert!(ui.label_rect("Draw width").is_some());
+    assert!(ui.label_rect("Draw cards").is_some());
+    ui.application.cdmw_state["hair"]["materials_ready"] = json!(true);
+    ui.application.cdmw_state["hair"]["texture_slots"] = json!([
+        {"path":"hair.dds","role":"base_color","parameter":"_baseColorTexture","available":true},
+        {"path":"hair_f.dds","role":"flow","parameter":"_flowTexture","available":true}]);
+    ui.application.cdmw_state["hair"]["textures"] = json!(["hair.dds", "hair_f.dds"]);
+    ui.click("Appearance")?;
+    ui.reveal("Background color")?;
+    ui.reveal("Hair color")?;
+    let actions = ui.actions_from_button_edge("Apply hair color", false)?;
+    assert!(actions.iter().any(|action| matches!(action, UiAction::CdmwCommand { command: "hair_color", arguments, .. }
+        if arguments["color"].as_array().is_some_and(|v| v.len() == 3 && v.iter().all(|c| c.as_f64().is_some_and(|c| (0.0..=1.0).contains(&c)))))));
+    ui.reveal("Texture to edit")?;
+    ui.reveal("All material DDS files are used together.")?;
+    Ok(())
+}
+
+#[test]
 fn persistent_editor_panels_restore_in_the_real_ui_across_display_sizes() -> TestResult {
     use egui::containers::panel::PanelState;
     for (width, height, font) in [(1920.0, 1080.0, 10.0), (2560.0, 1440.0, 12.0),

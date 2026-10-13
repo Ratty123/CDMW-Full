@@ -63,8 +63,12 @@ def _head_component_scale(mesh, scale, skeleton, appearance, source_data, *, bod
 
     CharacterScale is a common parent of head, body and hair. Authoring uses
     the donor PAC's units, so that common parent is cancelled for every part.
-    Body vertices blend the head scale by their original head-joint lineage.
+    All skinned references blend the scale by their original head-joint lineage.
+    Scaling an entire face rigidly while blending the body opens the neck seam.
     """
+    import math
+    if not math.isfinite(scale) or scale <= 0:
+        raise ValueError("The mounted reference has an invalid component scale.")
     if scale == 1.0:
         return mesh
     bones = tuple(getattr(skeleton, "bones", ()))
@@ -81,14 +85,18 @@ def _head_component_scale(mesh, scale, skeleton, appearance, source_data, *, bod
         if expanded == descendants:
             break
         descendants = expanded
-    if body:
+    skinned = body or any(part.bone_indices or part.bone_weights for part in mesh.submeshes)
+    if skinned:
         from cdmw.modding.mesh_parser import resolve_pac_bone_palette
         palette = appearance.bone_palette if appearance is not None else resolve_pac_bone_palette(source_data, skeleton)
     for part in mesh.submeshes:
+        part_skinned = body or bool(part.bone_indices or part.bone_weights)
+        if part_skinned and (len(part.bone_indices) != len(part.vertices) or len(part.bone_weights) != len(part.vertices)):
+            raise ValueError("Head fitting requires complete reference skin weights.")
         vertices = []
         for i, point in enumerate(part.vertices):
             amount = (sum(weight for slot, weight in zip(part.bone_indices[i], part.bone_weights[i])
-                          if 0 <= slot < len(palette) and palette[slot] in descendants) if body else 1.0)
+                          if 0 <= slot < len(palette) and palette[slot] in descendants) if part_skinned else 1.0)
             factor = 1.0 + (scale - 1.0) * amount
             vertices.append(tuple(pivot[axis] + (point[axis] - pivot[axis]) * factor for axis in range(3)))
         part.vertices = vertices
@@ -145,6 +153,7 @@ def hair_ui_state(authoring):
         output = session.replacement_state
         files = {f.path.casefold(): f.data for f in (*output.dependencies, *output.companion_files)} if output else {}
         result["textures"] = list(material_texture_paths(files[material_path])[1]) if material_path in files else []
+        result["texture_slots"] = hair_texture_slots(files[material_path], files) if material_path in files else []
         result["materials_ready"] = bool(result["textures"]) and all(path.casefold() in files for path in result["textures"])
         result["revision"] = state.revision
         cached = authoring.hair_file_cache
@@ -156,6 +165,30 @@ def hair_ui_state(authoring):
             authoring.hair_file_cache = (state.canonical, reference)
         result["file"] = dict(authoring.hair_file_cache[1])
     return result
+
+
+def hair_texture_slots(data, files):
+    """Describe authored material parameters, never guess a role from a DDS suffix."""
+    from types import SimpleNamespace
+    from cdmw.services.mesh_hair_output import material_texture_paths
+    from cdmw.services.mesh_rust_authoring import _material_input_texture_role
+    root, paths = material_texture_paths(data)
+    declared = {path.casefold() for path in paths}
+    rows = []
+    def visit(node, parameter="", material=""):
+        if node.tag == "MaterialParameterTexture":
+            parameter = node.get("_name", "")
+        if node.tag in {"Material", "MaterialResource"}:
+            material = node.get("_name", node.get("Name", material))
+        path = node.get("_path", "").replace("\\", "/")
+        if path.casefold() in declared:
+            role = _material_input_texture_role(SimpleNamespace(parameter_name=parameter))
+            rows.append(dict(path=path, parameter=parameter, material=material,
+                             role=role, available=path.casefold() in files))
+        for child in node:
+            visit(child, parameter, material)
+    visit(root)
+    return rows
 
 
 def _rewrite_hair_texture_bindings(mesh, logical, local, declared, files):
@@ -245,7 +278,6 @@ def hair_texture_command(authoring, args, stop_event, *, export=False):
     from cdmw.core.pathc_format import dds_shape
     from cdmw.core.temp_cache import app_temp_cache_path, app_temp_cache_build
     from cdmw.services.atomic_file_service import atomic_write_bytes
-    from cdmw.domain.mesh.replacement import ReplacementFile
 
     service, sid = authoring.shadow_service, authoring.shadow_session_id
     snapshot = service.capture_export_snapshot(sid, stop_event=stop_event)
@@ -270,30 +302,77 @@ def hair_texture_command(authoring, args, stop_event, *, export=False):
     inspect_dds_native(data)
     if dds_shape(data) != dds_shape(before.data):
         raise ValueError("Keep the template DDS dimensions, format and mip count when editing hair textures.")
-    digest = hashlib.sha256(data).hexdigest()
-    cache_key = hashlib.sha256(f"{logical}:{digest}".encode("utf-8")).hexdigest()
-    local = app_temp_cache_path("mesh_hair_textures", cache_key, PurePosixPath(logical).name)
-    with app_temp_cache_build(local):
-        local.parent.mkdir(parents=True, exist_ok=True)
-        atomic_write_bytes(local, data)
     authoring._raise_if_cancelled(stop_event)
     if export:
+        key = hashlib.sha256(logical.encode() + data).hexdigest()
+        local = app_temp_cache_path("mesh_hair_textures", key, PurePosixPath(logical).name)
+        with app_temp_cache_build(local):
+            local.parent.mkdir(parents=True, exist_ok=True)
+            atomic_write_bytes(local, data)
+        authoring._raise_if_cancelled(stop_event)
         return {"hair_texture_source": str(local), "texture_path": logical}
+    _commit_hair_textures(authoring, snapshot, {logical: data}, declared, stop_event, "Apply hair DDS")
+    return {"texture_path": logical}
+
+
+def _commit_hair_textures(authoring, snapshot, updates, declared, stop_event, label):
+    from cdmw.core.temp_cache import app_temp_cache_path, app_temp_cache_build
+    from cdmw.services.atomic_file_service import atomic_write_bytes
+    from cdmw.domain.mesh.replacement import ReplacementFile
+    service, sid = authoring.shadow_service, authoring.shadow_session_id
+    output = snapshot.replacement_state
+    files = {f.path.casefold(): f for f in (*output.dependencies, *output.companion_files)}
     candidate = mesh_with_part_ids(snapshot, output)
-    replacements = _rewrite_hair_texture_bindings(candidate, logical, local, declared, files)
-    if not replacements:
-        raise ValueError("The DDS has no resolved preview binding. Reload the hair with its complete material dependencies.")
     companions = {file.path.casefold(): file for file in output.companion_files}
-    companions[logical] = ReplacementFile(logical, data)
+    for logical, data in updates.items():
+        authoring._raise_if_cancelled(stop_event)
+        key = hashlib.sha256(logical.encode() + data).hexdigest()
+        local = app_temp_cache_path("mesh_hair_textures", key, PurePosixPath(logical).name)
+        with app_temp_cache_build(local):
+            local.parent.mkdir(parents=True, exist_ok=True)
+            atomic_write_bytes(local, data)
+        if not _rewrite_hair_texture_bindings(candidate, logical, local, declared, files):
+            raise ValueError("The DDS has no resolved preview binding. Reload the hair with its complete material dependencies.")
+        companions[logical] = ReplacementFile(logical, data)
     state = snapshot.hair_state.payload
     state["revision"] += 1
     prepared = service.prepare_working_mesh_replacement(sid, candidate,
         replacement_state=replace(output, companion_files=tuple(companions.values()), revision=output.revision + 1),
         hair_state=hair_state_from_payload(state), replace_hair_state=True, validation_output_policy=REPLACEMENT_POLICY)
     authoring._raise_if_cancelled(stop_event)
-    service.commit_prepared_working_mesh_replacement(prepared, history_action="hair_texture", history_label="Apply hair DDS",
+    service.commit_prepared_working_mesh_replacement(prepared, history_action="hair_texture", history_label=label,
         output_policy=REPLACEMENT_POLICY, require_reversible_history=True)
-    return {"texture_path": logical}
+
+
+def hair_color_command(authoring, args, stop_event):
+    """Recolour every declared base map together, retaining support maps and slots."""
+    import math
+    from cdmw.services.mesh_hair_color import recolor_hair_dds
+    rgb = args.get("color")
+    if (not isinstance(rgb, list) or len(rgb) != 3
+            or any(type(v) not in (int, float) or not math.isfinite(v) or not 0 <= v <= 1 for v in rgb)):
+        raise ValueError("Choose a finite RGB hair color between 0 and 1.")
+    snapshot = authoring.shadow_service.capture_export_snapshot(authoring.shadow_session_id, stop_event=stop_event)
+    if snapshot.hair_state is None or snapshot.replacement_state is None:
+        raise ValueError("Start Hair authoring before changing its color.")
+    state = hair_ui_state(authoring)
+    slots = state["texture_slots"]
+    paths = {row["path"].casefold() for row in slots if row["role"] == "base_color"}
+    if not paths:
+        raise ValueError("This hairstyle has no declared base-color slot. Edit its DDS explicitly in Texture Editor.")
+    if any(row["path"].casefold() in paths and row["role"] != "base_color" for row in slots):
+        raise ValueError("A color DDS also supplies another material role; edit that texture explicitly.")
+    if not state["materials_ready"]:
+        raise ValueError("Reload the hairstyle with all its required material textures before recoloring.")
+    output = snapshot.replacement_state
+    # A color picker sets a color; repeatedly applying it must not multiply the
+    # previous tint, lose strand detail, or make black impossible to recolor.
+    files = {f.path.casefold(): f for f in output.dependencies}
+    if not paths.issubset(files):
+        raise ValueError("Reload the hairstyle to recover its original color textures.")
+    updates = {path: recolor_hair_dds(files[path].data, rgb, stop_event) for path in sorted(paths)}
+    _commit_hair_textures(authoring, snapshot, updates, {p.casefold() for p in state["textures"]}, stop_event, "Change hair color")
+    return {"textures_changed": len(updates)}
 
 
 def setup_hair(authoring, args, stop_event):
@@ -364,15 +443,14 @@ def prepare_hair_setup(service, session_id, args, stop_event, *, neutral_appeara
         collision_vertices, collision_faces = [], []
         cutoff = bounds_min[1] - height * .9
         neck_top = bounds_min[1]
-        scalp_bottom = bounds_max[1] - height * .02
-        face_back = bounds_max[2] - height * .02
         for part in mesh.submeshes:
             # The separate head PAC can be only a face mask. The base body's
             # crown/back completes the scalp; keep its neck/shoulders separate.
+            # Keep the complete upper body surface. A front/back bounding-box
+            # cut drops temples and sides of the skull, leaving the seam joiner
+            # to stretch broad artificial triangles across the missing anatomy.
             scalp_faces = [face for face in part.faces
-                if sum(part.vertices[i][1] for i in face) / 3 >= neck_top
-                and (sum(part.vertices[i][1] for i in face) / 3 >= scalp_bottom
-                     or sum(part.vertices[i][2] for i in face) / 3 >= face_back)]
+                if sum(part.vertices[i][1] for i in face) / 3 >= neck_top]
             scalp_indices = sorted({i for face in scalp_faces for i in face})
             scalp_map = {index: i + len(positions) for i, index in enumerate(scalp_indices)}
             positions.extend([list(part.vertices[i]) for i in scalp_indices])

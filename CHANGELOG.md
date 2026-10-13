@@ -26,6 +26,7 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 ### Changed
 
+- Hair Tools adds background and hair color controls, identifies the material slots used by its DDS files, and applies width and follower-card settings to new strokes. Hair recoloring updates the referenced color textures together while retaining support maps and authored mip levels. Hair Tools remains experimental and unverified in game.
 - Morph & Refit adds Tightness to fit loose garments inward around the loaded body while respecting part modes, protection masks and openings. Fitting reduces unwanted sharp points on rounded areas while retaining folds. Layered panels and trim keep their spacing, adjoining panels stay together at their seams, sleeves fit larger bodies without bloating, and long-dress hems narrow without flaring or pulling toward the feet. Fit settings survive drafts and reusable setups; Reset and Bake remain undoable. New saved formats require an updated reader.
 - Morph & Refit groups its controls into Setup, Fit, Shape and Saved tabs, opens slider creation directly, and keeps preview and pending-edit actions visible below the scrolling controls.
 - Morph & Refit prepares added archive armor faster while preserving textures, Undo/Redo and per-file export validation.
@@ -40,6 +41,7 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 ### Fixed
 
+- Hair Tools erases imported hair locally by default instead of deleting an entire connected scalp section. Whole-lock deletion remains available. Head references retain the sides of the skull and use consistent scaling through the face and neck; narrowing drawn locks also narrows their follower spread.
 - Mesh Editor can exclude separate PAC mesh islands whose lower-detail geometry shifts, splits or disappears, while continuing to reject ambiguous mappings and preserve unrelated geometry.
 - Create New Item keeps **Show the character** and the template weapon visible after Equipment glass or other shader experiments refresh the preview, preserving hand-placement comparison and editing only the imported model.
 - Mesh Editor identifies physics inspection blocked by Morph & Refit, explains that the physics data is unchanged, and pauses the jiggle overlay instead of showing unknown physics. Detection and the overlay return when the restriction clears.

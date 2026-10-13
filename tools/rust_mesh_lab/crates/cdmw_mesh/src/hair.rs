@@ -884,7 +884,7 @@ pub fn generate_cached(
                 }
                 let first = mesh.positions.len() as u32;
                 let roll = card as f32 * std::f32::consts::PI / density as f32;
-                let spread = ((card as f32 + 0.5) / density as f32 - 0.5) * group.width;
+                let spread = ((card as f32 + 0.5) / density as f32 - 0.5) * group.width * width_scale;
                 for (i, &(segment, along, point, (side, up, tangent))) in rows.iter().enumerate() {
                     let blend = root_blend(lengths[i], group.width * width_scale);
                     let angle = root_roll + roll * blend;
@@ -1611,6 +1611,24 @@ mod tests {
         )
         .unwrap();
         s
+    }
+
+    #[test]
+    fn generated_hair_width_scales_follower_spread_as_well_as_card_width() {
+        let mut s = planted();
+        let root = s.scalp.point(&s.guides[0].root).unwrap();
+        s.guides[0].points = vec![root.to_array(), (root + Vec3::Y * 0.1).to_array(), (root + Vec3::Y * 0.2).to_array()];
+        s.locks.push(locks::HairLock { id: 1, part: 0, guide: Some(0), vertices: vec![],
+            kind: locks::LockKind::Generated, mirrored: None, width_scale: 1.0, cards: 6 });
+        s.next_lock_id = 2;
+        let wide = generate(&s, &AtomicBool::new(false)).unwrap();
+        s.locks[0].width_scale = 0.25;
+        let narrow = generate(&s, &AtomicBool::new(false)).unwrap();
+        let tip = Vec3::from(*s.guides[0].points.last().unwrap());
+        let extent = |mesh: &HairGeometry| mesh.bindings.iter().filter(|b| b.segment == 1 && b.t == 1.0)
+            .map(|b| Vec3::from(mesh.positions[b.vertex as usize]).distance(tip)).fold(0.0_f32, f32::max);
+        assert!(extent(&wide[0]) > 0.001);
+        assert!((extent(&narrow[0]) / extent(&wide[0]) - 0.25).abs() < 0.001);
     }
 
     #[test]
