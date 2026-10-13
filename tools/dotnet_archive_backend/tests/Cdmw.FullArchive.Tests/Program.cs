@@ -16,7 +16,8 @@ internal static class Program
                             itemCatalogueOnly: args.Length == 1 && args[0] == "--item-catalogue",
                             previewDependenciesOnly: args.Length == 1 && args[0] == "--preview-dependencies",
                             archiveDiscoveryOnly: args.Length == 1 && args[0] == "--archive-discovery",
-                            scannerRecoveryOnly: args.Length == 1 && args[0] == "--scanner-recovery");
+                            scannerRecoveryOnly: args.Length == 1 && args[0] == "--scanner-recovery",
+                            cacheMaintenanceOnly: args.Length == 1 && args[0] == "--cache-maintenance");
 
     private static async Task<int> PreparationAsync()
     {

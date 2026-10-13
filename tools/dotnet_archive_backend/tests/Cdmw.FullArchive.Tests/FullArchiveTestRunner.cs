@@ -11,13 +11,20 @@ namespace Cdmw.FullArchive.Tests;
 
 internal static class FullArchiveTestRunner
 {
-    public static async Task<int> RunAsync(bool archiveQueryOnly = false, bool itemCatalogueOnly = false, bool previewDependenciesOnly = false, bool archiveDiscoveryOnly = false, bool scannerRecoveryOnly = false)
+    public static async Task<int> RunAsync(bool archiveQueryOnly = false, bool itemCatalogueOnly = false, bool previewDependenciesOnly = false, bool archiveDiscoveryOnly = false, bool scannerRecoveryOnly = false, bool cacheMaintenanceOnly = false)
     {
         var tests = new (string Name, Func<Task> Run)[]
         {
             ("cache_layout_compatibility", CacheLayoutMigrationAsync),
             ("legacy_generation_and_prepared_cache", LegacyGenerationAndPreparedCacheAsync),
             ("native_and_generation_cache", NativeAndGenerationCacheAsync),
+            ("cache_maintenance_growth_release", CacheMaintenanceTests.GrowthAndReleaseAsync),
+            ("cache_maintenance_warm_coalescing", CacheMaintenanceTests.WarmOpenAndCoalescingAsync),
+            ("cache_maintenance_urgent_notifications", CacheMaintenanceTests.UrgentNotificationsAsync),
+            ("cache_maintenance_separate_owners", CacheMaintenanceTests.SeparateOwnersAsync),
+            ("cache_maintenance_locked_files", CacheMaintenanceTests.LockedFilesAsync),
+            ("cache_maintenance_busy_open_cancellation", CacheMaintenanceTests.BusyOpenCancellationAsync),
+            ("cache_maintenance_scope_retirement", CacheMaintenanceTests.ScopeAndInterruptedRetirementAsync),
             ("archive_discovery_excludes_backups", ArchiveDiscoveryTests.ScanAndExportAsync),
             ("existing_backup_cache_is_rebuilt", ArchiveDiscoveryTests.ExistingBackupCacheAsync),
             ("compact_dependency_index", CompactDependencyIndexAsync),
@@ -50,6 +57,11 @@ internal static class FullArchiveTestRunner
             ("stdio_worker_ping_shutdown", StdioWorkerPingShutdownAsync),
             ("scanner_error_classification", ScannerErrorClassificationAsync),
         };
+        if (cacheMaintenanceOnly)
+        {
+            tests = tests.Where(static test => test.Name.StartsWith("cache_maintenance_", StringComparison.Ordinal)
+                || test.Name is "cache_layout_compatibility" or "legacy_generation_and_prepared_cache" or "native_and_generation_cache").ToArray();
+        }
         if (scannerRecoveryOnly)
         {
             tests = tests.Where(static test => test.Name is "scanner_error_classification" or "stdio_worker_ping_shutdown").ToArray();
@@ -182,6 +194,7 @@ internal static class FullArchiveTestRunner
                 Require(Path.GetRelativePath(generationPath, prepared.PreparedPath).StartsWith("p" + Path.DirectorySeparatorChar), "prepared path is not compact");
             }
             // Recreate the old on-disk layout only after all mapped fixture sessions close.
+            await cache.WaitForMaintenanceAsync(CancellationToken.None).ConfigureAwait(false);
             Directory.Move(Path.Combine(generationPath, "p"), Path.Combine(generationPath, "prepared"));
             var family = Directory.GetParent(generationPath)!.Parent!.FullName;
             Directory.Move(Path.Combine(family, "g"), Path.Combine(family, "generations"));

@@ -335,6 +335,18 @@ internal sealed class WorkerRuntime : IAsyncDisposable
             }
         }
         _sessions.Dispose();
+        // Responses and session release remain prompt. Give the helper's own
+        // final background sweep bounded grace before its process exits.
+        // Stay inside the PySide client's existing one-second shutdown grace.
+        using var maintenanceGrace = new CancellationTokenSource(TimeSpan.FromMilliseconds(500));
+        try
+        {
+            await _cache.WaitForMaintenanceAsync(maintenanceGrace.Token).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (maintenanceGrace.IsCancellationRequested)
+        {
+            // A later launch resumes safe retirement if this process exits first.
+        }
         _backgroundCancellation.Dispose();
     }
 

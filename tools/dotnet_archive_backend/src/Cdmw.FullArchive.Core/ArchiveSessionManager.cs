@@ -72,6 +72,8 @@ public sealed class ArchiveSessionManager : IDisposable
         return true;
     }
 
+    internal void RequestCacheMaintenance() => _cache.RequestMaintenance();
+
     public void Dispose()
     {
         if (Interlocked.Exchange(ref _disposed, 1) != 0)

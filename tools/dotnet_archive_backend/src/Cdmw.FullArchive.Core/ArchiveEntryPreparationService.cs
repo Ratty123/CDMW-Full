@@ -163,6 +163,7 @@ public sealed class ArchiveEntryPreparationService(
                     decoded.Bytes,
                     cancellationToken).ConfigureAwait(false)
                 : null;
+            sessions.RequestCacheMaintenance();
             return Result(session, entry, destination, info.Length, preparedSha256, decoded.Note, analysis);
         }
         finally

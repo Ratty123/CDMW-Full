@@ -6,7 +6,7 @@ using Cdmw.FullArchive.Contracts;
 
 namespace Cdmw.FullArchive.Core;
 
-public sealed class ArchiveCacheStore
+public sealed partial class ArchiveCacheStore
 {
     public const long MaximumCacheBytes = 5L * 1024L * 1024L * 1024L;
 
@@ -15,8 +15,19 @@ public sealed class ArchiveCacheStore
     private readonly Dictionary<string, int> _activeGenerations = new(StringComparer.OrdinalIgnoreCase);
 
     public ArchiveCacheStore(string archiveCacheRoot)
+        : this(archiveCacheRoot, MaximumCacheBytes, 4L * 1024 * 1024 * 1024, TimeSpan.FromMinutes(1))
+    {
+    }
+
+    internal ArchiveCacheStore(string archiveCacheRoot, long maximumBytes, long targetBytes, TimeSpan maintenanceInterval)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(archiveCacheRoot);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maximumBytes);
+        if (targetBytes < 0 || targetBytes > maximumBytes) throw new ArgumentOutOfRangeException(nameof(targetBytes));
+        if (maintenanceInterval < TimeSpan.Zero) throw new ArgumentOutOfRangeException(nameof(maintenanceInterval));
+        _maximumBytes = maximumBytes;
+        _targetBytes = targetBytes;
+        _maintenanceInterval = maintenanceInterval;
         ArchiveCacheRoot = Path.GetFullPath(archiveCacheRoot);
         CatalogueRoot = ResolveCatalogueRoot(ArchiveCacheRoot);
         Directory.CreateDirectory(CatalogueRoot);
@@ -65,6 +76,7 @@ public sealed class ArchiveCacheStore
             NamesReady = namesReady ?? manifest.NamesReady,
         };
         await AtomicJson.WriteAsync(manifestPath, updated, cancellationToken).ConfigureAwait(false);
+        RequestMaintenance();
     }
 
     public async Task<CacheHealthResult> InspectAsync(
@@ -156,6 +168,7 @@ public sealed class ArchiveCacheStore
                     progress).ConfigureAwait(false);
                 if (cached is not null)
                 {
+                    RequestMaintenance();
                     return cached;
                 }
             }
@@ -208,10 +221,10 @@ public sealed class ArchiveCacheStore
                     manifest,
                     cacheHit: false,
                     validatedIndex: null,
+                    generationUse: null,
                     cancellationToken,
                     progress).ConfigureAwait(false);
-                PruneSupersededGenerations(rootId, generationId);
-                PruneCacheFamily();
+                RequestMaintenance();
                 return lease;
             }
             catch
@@ -243,6 +256,7 @@ public sealed class ArchiveCacheStore
         ArchiveIndex? validatedIndex = null;
         string? generationPath = null;
         ArchiveGenerationManifest? manifest = null;
+        FileStream? generationUse = null;
         try
         {
             pointer = await ReadJsonAsync<ArchiveCurrentPointer>(currentPath, cancellationToken).ConfigureAwait(false);
@@ -252,6 +266,7 @@ public sealed class ArchiveCacheStore
                 return null;
             }
             generationPath = GenerationDirectory(rootId, pointer.GenerationId);
+            generationUse = await OpenGenerationUseAsync(generationPath, cancellationToken).ConfigureAwait(false);
             validatedIndex = ValidateGeneration(
                 generationPath,
                 pointer,
@@ -263,6 +278,7 @@ public sealed class ArchiveCacheStore
         catch (Exception exception) when (exception is IOException or JsonException or InvalidDataException or UnauthorizedAccessException)
         {
             validatedIndex?.Dispose();
+            generationUse?.Dispose();
             if (pointer is not null)
             {
                 QuarantineCorruptGeneration(rootId, pointer.GenerationId, exception.Message);
@@ -272,6 +288,7 @@ public sealed class ArchiveCacheStore
         catch
         {
             validatedIndex?.Dispose();
+            generationUse?.Dispose();
             throw;
         }
 
@@ -281,6 +298,7 @@ public sealed class ArchiveCacheStore
             manifest!,
             cacheHit: true,
             validatedIndex,
+            generationUse,
             cancellationToken,
             progress).ConfigureAwait(false);
     }
@@ -291,6 +309,7 @@ public sealed class ArchiveCacheStore
         ArchiveGenerationManifest manifest,
         bool cacheHit,
         ArchiveIndex? validatedIndex,
+        FileStream? generationUse,
         CancellationToken cancellationToken,
         Func<ProgressUpdate, Task>? progress)
     {
@@ -298,6 +317,7 @@ public sealed class ArchiveCacheStore
         ArchiveDependencyIndexHandle? dependencyIndex = null;
         try
         {
+            generationUse ??= await OpenGenerationUseAsync(generationPath, cancellationToken).ConfigureAwait(false);
             index ??= ArchiveIndex.Open(Path.Combine(generationPath, "archive.ali"));
             // Opens an existing dependency index inline and builds a missing one in
             // the background. Nothing between here and the first page of results
@@ -319,7 +339,7 @@ public sealed class ArchiveCacheStore
             {
                 _activeGenerations[generationPath] = _activeGenerations.GetValueOrDefault(generationPath) + 1;
             }
-            var lease = new ArchiveGenerationLease(this, generationPath, manifest, index, dependencyIndex, cacheHit);
+            var lease = new ArchiveGenerationLease(this, generationPath, manifest, index, dependencyIndex, cacheHit, generationUse);
             if (!dependencyIndex.IsReady)
             {
                 MarkLookupsReadyWhenBuilt(dependencyIndex, rootId, generationPath);
@@ -330,6 +350,7 @@ public sealed class ArchiveCacheStore
         {
             dependencyIndex?.Dispose();
             index?.Dispose();
+            generationUse?.Dispose();
             throw;
         }
     }
@@ -388,8 +409,10 @@ public sealed class ArchiveCacheStore
             else
             {
                 _activeGenerations[generationPath] = count - 1;
+                return;
             }
         }
+        RequestMaintenance(immediate: true);
     }
 
     private ArchiveIndex ValidateGeneration(
@@ -483,56 +506,6 @@ public sealed class ArchiveCacheStore
         }
     }
 
-    private void PruneSupersededGenerations(string rootId, string currentGenerationId)
-    {
-        var roots = new[] { "g", "generations" }
-            .Select(name => new DirectoryInfo(Path.Combine(RootDirectory(rootId), name)))
-            .Where(static root => root.Exists);
-        foreach (var directory in roots.SelectMany(static root => root.EnumerateDirectories())
-                     .Where(static item => !item.Name.StartsWith(".", StringComparison.Ordinal))
-                     .OrderByDescending(static item => item.CreationTimeUtc)
-                     .Skip(2))
-        {
-            if (directory.Name.Equals(currentGenerationId, StringComparison.Ordinal) || IsActive(directory.FullName))
-            {
-                continue;
-            }
-            TryDeleteDirectory(directory.FullName);
-        }
-    }
-
-    private void PruneCacheFamily()
-    {
-        var root = new DirectoryInfo(CatalogueRoot);
-        var directories = root.EnumerateDirectories()
-            .SelectMany(static rootDirectory => new[] { "g", "generations", "quarantine" }
-                .Select(name => new DirectoryInfo(Path.Combine(rootDirectory.FullName, name)))
-                .Where(static family => family.Exists)
-                .SelectMany(static family => family.EnumerateDirectories()))
-            .Where(static item => !item.Name.StartsWith(".", StringComparison.Ordinal))
-            .Select(item => new CacheDirectory(item.FullName, DirectorySize(item.FullName), item.LastWriteTimeUtc))
-            .OrderBy(static item => item.LastWriteUtc)
-            .ToArray();
-        var total = DirectorySize(CatalogueRoot);
-        if (total <= MaximumCacheBytes)
-        {
-            return;
-        }
-        foreach (var item in directories)
-        {
-            if (IsActive(item.Path) || IsCurrentGeneration(item.Path))
-            {
-                continue;
-            }
-            TryDeleteDirectory(item.Path);
-            total -= item.Size;
-            if (total <= MaximumCacheBytes)
-            {
-                break;
-            }
-        }
-    }
-
     private bool IsCurrentGeneration(string path)
     {
         var generation = new DirectoryInfo(path);
@@ -601,7 +574,7 @@ public sealed class ArchiveCacheStore
     {
         try
         {
-            return Directory.EnumerateFiles(path, "*", SearchOption.AllDirectories)
+            return Directory.EnumerateFiles(path, "*", CacheEnumerationOptions)
                 .Sum(static file => new FileInfo(file).Length);
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
@@ -625,12 +598,12 @@ public sealed class ArchiveCacheStore
         }
     }
 
-    private sealed record CacheDirectory(string Path, long Size, DateTime LastWriteUtc);
 }
 
 public sealed class ArchiveGenerationLease : IDisposable
 {
     private readonly ArchiveCacheStore _owner;
+    private readonly FileStream _generationUse;
     private int _disposed;
 
     internal ArchiveGenerationLease(
@@ -639,9 +612,11 @@ public sealed class ArchiveGenerationLease : IDisposable
         ArchiveGenerationManifest manifest,
         ArchiveIndex index,
         ArchiveDependencyIndexHandle dependencyIndex,
-        bool cacheHit)
+        bool cacheHit,
+        FileStream generationUse)
     {
         _owner = owner;
+        _generationUse = generationUse;
         GenerationPath = generationPath;
         Manifest = manifest;
         Index = index;
@@ -678,6 +653,7 @@ public sealed class ArchiveGenerationLease : IDisposable
             }
             finally
             {
+                _generationUse.Dispose();
                 _owner.ReleaseGeneration(GenerationPath);
             }
         }

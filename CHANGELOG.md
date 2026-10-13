@@ -41,6 +41,7 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 ### Fixed
 
+- Archive Browser controls catalogue cache growth in the background, reclaims unused older generations and prepared files, and preserves active files and reusable indexes for fast reopening.
 - Hair Tools erases imported hair locally by default instead of deleting an entire connected scalp section. Whole-lock deletion remains available. Head references retain the sides of the skull and share the character's authored face and body proportions, removing the wide rim around the jaw and temples; narrowing drawn locks also narrows their follower spread.
 - Mesh Editor can exclude separate PAC mesh islands whose lower-detail geometry shifts, splits or disappears, while continuing to reject ambiguous mappings and preserve unrelated geometry.
 - Create New Item keeps **Show the character** and the template weapon visible after Equipment glass or other shader experiments refresh the preview, preserving hand-placement comparison and editing only the imported model.

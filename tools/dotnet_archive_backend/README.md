@@ -64,7 +64,7 @@ Fresh catalogue caches use `index/c2/`. Existing `index/catalogue_v2/` or top-le
 `catalogue_v2/` families remain in place so live prepared paths stay valid; an existing
 compact root takes precedence. Both `generations/` and `g/` are readable, while new
 generations use `g/`. Existing `prepared/` payloads are reused and new payloads use
-`p/`. Root IDs, generation IDs, full content hashes, checksums and leases are unchanged.
+`p/`. Root IDs, generation IDs, full content hashes and checksums are unchanged.
 Directory labels save 27 characters for fresh prepared paths; temporary publications use
 short unique sibling names.
 
@@ -76,9 +76,22 @@ cancellable and each request still checks the source hash.
 ### Generation publication
 
 The base generation is staged and validated before `current.json` is replaced. Mapped
-generations remain protected while a session owns them. Corrupt base generations are
-quarantined; corrupt secondary indexes are rebuilt. The cache family is capped at five
-GiB without pruning current or active generations. `archive.adi` is the session-owned
+generations remain protected while a session owns them, including sessions in another
+worker sharing the same cache. Corrupt base generations are quarantined; corrupt
+secondary indexes are rebuilt. Catalogue maintenance runs in one coalesced background
+lane after cold or warm opens, prepared-file publication, and final generation release.
+Normal growth checks run at most once per minute; release wakes pending maintenance
+immediately.
+It starts trimming above five GiB and aims for four GiB, retiring unused older generations
+first. If more space is needed, it removes the oldest prepared payloads and their metadata
+and analysis companions from inactive generations. Current indexes and catalogues remain
+available for fast reopening. Active generations, open files, unfinished publications,
+unknown directories and linked directories are preserved. The budget is soft while
+protected files or durable indexes require more space. Shutdown gives a final sweep half
+a second within the existing worker shutdown grace; an interrupted retirement is resumed
+on a later launch. These limits cover the catalogue family; preview caches retain their
+separate budgets.
+`archive.adi` is the session-owned
 compact dependency index: two sorted 16-byte hash/entry-id arrays provide basename and
 same-stem lookup, while a small persisted facet table serves initial Archive Browser
 filters. It is memory-mapped and collision-checked against `archive.ali`.
@@ -159,6 +172,14 @@ For focused backup-discovery, folder-extraction and existing-cache upgrade check
 cmake --build native/cdmw_full_archive_core/build --config Release --target cdmw_full_archive_core
 dotnet run --project tools/dotnet_archive_backend/tests/Cdmw.FullArchive.Tests -c Release -- --archive-discovery
 .\.venv\Scripts\python.exe -m pytest tests/test_archive_discovery.py -p no:cacheprovider --basetemp="$env:TEMP\cdmw-pytest-archive-discovery"
+```
+
+### Cache maintenance checks
+
+For focused background cache maintenance and legacy cache compatibility checks:
+
+```powershell
+dotnet run --project tools/dotnet_archive_backend/tests/Cdmw.FullArchive.Tests -c Release -- --cache-maintenance
 ```
 
 ### Query regression checks
