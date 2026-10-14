@@ -434,7 +434,9 @@ class ShellToolTabsMixin:
         tab = ItemIconLibraryTab(
             settings=self.settings,
             base_dir=self.settings_file_path.parent,
-            get_archive_entries=lambda: self.archive.archive_entries,
+            get_archive_entries=lambda: (
+                self.archive.archive_entries or self.archive._selected_archive_entries()
+            ),
             resolve_target_template_path=lambda entry: ensure_archive_preview_source(entry)[0],
             get_current_archive_path=self.archive.current_archive_path_for_research,
             item_icon_service=self.app_context.services.require_item_icons(),

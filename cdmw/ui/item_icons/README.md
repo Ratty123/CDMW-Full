@@ -17,3 +17,7 @@ copies are staged, cancellable, and atomically published without partial output.
 Leaving Item Icons pauses row insertion and queued selection previews. Returning
 resumes the retained rows and updates the latest selected icon once. Explicitly
 started scans, metadata changes and exports retain their existing worker lifecycle.
+
+With the paged archive catalogue, compatible output uses the selected archive
+icon entries. Select an icon DDS in Browse Archives, then use Refresh or Use
+Selection in Item Icons. The in-memory catalogue still supplies all loaded targets.

@@ -23,6 +23,48 @@ from cdmw.models import RunCancelled
 from cdmw.ui.item_icons_tab import ItemIconLibraryTab
 
 
+def test_shell_icon_targets_include_paged_archive_selection(tmp_path: Path) -> None:
+    from cdmw.ui.shell.tool_tabs import ShellToolTabsMixin
+
+    _app()
+    icon = SimpleNamespace(path="ui/texture/icon/itemicon_sword.dds", extension=".dds")
+    archive = SimpleNamespace(
+        archive_entries=[],
+        _selected_archive_entries=lambda: [icon],
+        current_archive_path_for_research=lambda: icon.path,
+    )
+    shell = SimpleNamespace(
+        archive=archive,
+        settings=QSettings(str(tmp_path / "settings.ini"), QSettings.Format.IniFormat),
+        settings_file_path=tmp_path / "settings.ini",
+        app_context=SimpleNamespace(services=SimpleNamespace(require_item_icons=lambda: None)),
+        set_status_message=lambda *_args, **_kwargs: None,
+        textures=SimpleNamespace(
+            _open_source_in_texture_editor=lambda *_args: None,
+            _show_archive_browser_from_texture_editor=lambda *_args: None,
+        ),
+    )
+    tab = ShellToolTabsMixin._create_item_icons_tab(shell)
+    try:
+        _wait_until(lambda: tab._index_thread is None)
+        tab.refresh_targets(force=True, update_preview=False)
+        assert tab.target_combo.currentData() is icon
+        tab.use_archive_selection_as_target()
+        assert tab.target_filter_edit.text() == icon.path
+
+        other = SimpleNamespace(path="ui/texture/icon/itemicon_other.dds", extension=".dds")
+        archive.archive_entries = [icon, other]
+        tab.refresh_targets(force=True, update_preview=False)
+        assert tab.target_combo.count() == 1  # The retained exact-path filter still applies.
+        tab.target_filter_edit.clear()
+        tab._handle_target_filter_changed()
+        assert tab.target_combo.count() == 2
+    finally:
+        _finish_tab(tab)
+        tab.deleteLater()
+        _app().processEvents()
+
+
 def _app() -> QApplication:
     return QApplication.instance() or QApplication([])
 
