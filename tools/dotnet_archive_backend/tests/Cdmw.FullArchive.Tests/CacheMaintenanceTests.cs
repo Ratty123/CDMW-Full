@@ -86,7 +86,29 @@ internal static class CacheMaintenanceTests
         var generation = sessions.GetRequired(first.SessionId).GenerationPath;
         var prepared = await AddUnitAsync(generation, 'a');
         var other = await otherSessions.OpenAsync(new(fixture.Archive.Root), CancellationToken.None);
-        await sessions.RefreshAsync(new(fixture.Archive.Root), CancellationToken.None);
+        var publicationGuardObserved = false;
+        await sessions.RefreshAsync(new(fixture.Archive.Root), CancellationToken.None, _ =>
+        {
+            var staging = Directory.EnumerateDirectories(Directory.GetParent(generation)!.FullName, ".*.staging")
+                .SingleOrDefault();
+            if (staging is null) return Task.CompletedTask;
+            var publishing = Path.Combine(Directory.GetParent(staging)!.FullName,
+                Path.GetFileName(staging)[1..^".staging".Length]);
+            try
+            {
+                // Another cache owner must not acquire its maintenance lock before
+                // the new directory becomes visible and current.json is replaced.
+                using var maintenance = new FileStream(ArchiveCacheStore.GenerationUsePath(publishing),
+                    FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.Delete);
+                throw new InvalidOperationException("a publishing generation was unprotected from another owner's maintenance");
+            }
+            catch (IOException exception) when ((exception.HResult & 0xFFFF) is 32 or 33)
+            {
+                publicationGuardObserved = true;
+            }
+            return Task.CompletedTask;
+        });
+        Require(publicationGuardObserved, "refresh never exercised cross-owner publication protection");
         sessions.Close(first.SessionId);
         await cache.WaitForMaintenanceAsync(CancellationToken.None);
         Require(Directory.Exists(generation) && prepared.All(File.Exists), "another cache owner's generation was deleted");
@@ -95,6 +117,31 @@ internal static class CacheMaintenanceTests
         await otherCache.WaitForMaintenanceAsync(CancellationToken.None);
         await cache.WaitForMaintenanceAsync(CancellationToken.None);
         Require(!Directory.Exists(generation), "an externally released old generation was not reclaimed");
+
+        string? cancelledMarker = null;
+        using var cancellation = new CancellationTokenSource();
+        try
+        {
+            await sessions.RefreshAsync(new(fixture.Archive.Root), cancellation.Token, _ =>
+            {
+                var staging = Directory.EnumerateDirectories(Directory.GetParent(generation)!.FullName, ".*.staging")
+                    .SingleOrDefault();
+                if (staging is not null)
+                {
+                    var publishing = Path.Combine(Directory.GetParent(staging)!.FullName,
+                        Path.GetFileName(staging)[1..^".staging".Length]);
+                    cancelledMarker = ArchiveCacheStore.GenerationUsePath(publishing);
+                    cancellation.Cancel();
+                }
+                return Task.CompletedTask;
+            });
+            throw new InvalidOperationException("a cancelled refresh published a generation");
+        }
+        catch (OperationCanceledException) when (cancellation.IsCancellationRequested) { }
+        Require(cancelledMarker is not null, "refresh never exercised publication cancellation");
+        using (var released = new FileStream(cancelledMarker!, FileMode.Open, FileAccess.ReadWrite, FileShare.None)) { }
+        var reopened = await sessions.OpenAsync(new(fixture.Archive.Root), CancellationToken.None);
+        Require(reopened.CacheHit, "a cancelled publication broke the previous current generation");
     }
 
     public static async Task UrgentNotificationsAsync()

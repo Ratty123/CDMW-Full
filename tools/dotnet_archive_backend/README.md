@@ -77,7 +77,9 @@ cancellable and each request still checks the source hash.
 
 The base generation is staged and validated before `current.json` is replaced. Mapped
 generations remain protected while a session owns them, including sessions in another
-worker sharing the same cache. Corrupt base generations are quarantined; corrupt
+worker sharing the same cache. A new generation holds that same cross-worker protection
+before its directory is published, through pointer replacement and session handoff;
+failed or cancelled builds release it. Corrupt base generations are quarantined; corrupt
 secondary indexes are rebuilt. Catalogue maintenance runs in one coalesced background
 lane after cold or warm opens, prepared-file publication, and final generation release.
 Normal growth checks run at most once per minute; release wakes pending maintenance

@@ -179,8 +179,13 @@ public sealed partial class ArchiveCacheStore
             var stagingPath = Path.Combine(generationsRoot, $".{generationId}.staging");
             var generationPath = Path.Combine(generationsRoot, generationId);
             Directory.CreateDirectory(stagingPath);
+            FileStream? generationUse = null;
             try
             {
+                // Other cache owners cannot see this instance's root gate. Hold
+                // the final generation's external lease before publishing its
+                // directory, through current.json replacement and session handoff.
+                generationUse = await OpenGenerationUseAsync(generationPath, cancellationToken).ConfigureAwait(false);
                 var indexPath = Path.Combine(stagingPath, "archive.ali");
                 var entryCount = await Task.Run(
                     () => native.BuildIndex(
@@ -221,9 +226,10 @@ public sealed partial class ArchiveCacheStore
                     manifest,
                     cacheHit: false,
                     validatedIndex: null,
-                    generationUse: null,
+                    generationUse,
                     cancellationToken,
                     progress).ConfigureAwait(false);
+                generationUse = null; // The returned session now owns the lease.
                 RequestMaintenance();
                 return lease;
             }
@@ -231,6 +237,10 @@ public sealed partial class ArchiveCacheStore
             {
                 TryDeleteDirectory(stagingPath);
                 throw;
+            }
+            finally
+            {
+                generationUse?.Dispose();
             }
         }
         finally
