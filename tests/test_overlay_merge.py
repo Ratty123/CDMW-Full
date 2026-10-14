@@ -80,6 +80,24 @@ def test_two_mods_claiming_the_same_icon_must_agree_on_its_bytes():
         merge_overlay_files({path: base}, {path: first}, {path: second})
 
 
+def test_icon_merge_and_removal_preserve_equivalent_repeated_base_rows():
+    from cdmw.core.item_icon_registry import parse_icon_registry
+    from tests.test_item_icon_registry import registry
+    path = 'ui/xml/texture/cd_item_icon.xml'
+    base = registry('Base', 'BASE').replace(b'Filename="UI/texture/icon/BASE.dds"',
+        b'FileName="UI/texture/icon/BASE.dds"') + b'<Future Keep="yes"/>\r\n'
+    original = parse_icon_registry(base).textures
+    alpha = add_icon_texture(base, 'Alpha', like='Base')
+    beta = add_icon_texture(base, 'Beta', like='Base')
+    merged = merge_overlay_files({path: base}, {path: alpha}, {path: beta})[path]
+    for source, kept in ((alpha, 'Beta'), (beta, 'Alpha')):
+        removed = merge_overlay_files({path: source}, {path: base}, {path: merged})[path]
+        rows = parse_icon_registry(removed).textures
+        assert rows[:2] == original
+        assert registered_icon_names(removed) == ('Base', 'BASE', kept)
+        assert b'<Future Keep="yes"/>' in removed
+
+
 def test_legacy_texture_baseline_restores_owned_rows_and_keeps_foreign_changes():
     from dataclasses import replace
     from cdmw.core.pathc_format import block_infos_for

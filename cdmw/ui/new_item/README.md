@@ -1759,6 +1759,13 @@ throughout this workflow. Duplicate item or generated recipe IDs, conflicting as
 contents, missing baseline history and unsupported shared changes block export. The
 merger does not reassign identities or rewrite their references automatically.
 
+Create New Item and mod merging keep repeated icon-registry entries when their
+definitions agree, ignoring letter case in the name and texture filename. A different
+texture path, crop rectangle or other attribute blocks the operation. New generated
+icon names must still be unique. Both `Filename` and `FileName` spellings are supported;
+if an entry uses both, they must name the same texture. Existing entries keep their
+original spelling and bytes; compatible repeats are not removed from the source registry.
+
 New Item's direct archive-install button is removed; its compatibility service entry
 point refuses every call.
 

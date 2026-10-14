@@ -2,7 +2,7 @@
 
 An ItemInfo row names its icon as `hashlittle("ItemIcon_Prefab_<Stem>", 0xC5EDE)`; the
 UI turns that string into a file through this XML, one `<Texture .../>` element per
-icon (9,580 in the shipped file, LZ4 + ChaCha20 in package 0012):
+icon (LZ4 + ChaCha20 in package 0012):
 
     <Texture Name="ItemIcon_Prefab_cd_phm_01_sword_0109"\tFilename="UI/texture/icon/ItemIcon_Prefab_cd_phm_01_sword_0109.dds" Type="Image" GetRect="0,0,256,256"/>
 
@@ -49,8 +49,11 @@ class IconRegistry:
 def parse_icon_registry(data: bytes) -> IconRegistry:
     """Validate flat UTF-8 XML, retaining exact entries and opaque surrounding data.
 
-    Names are unique ignoring case. Comments, processing instructions and unknown
-    elements remain opaque; nested or nonempty Texture elements are unsupported.
+    Filename and FileName are both supported. Repeated names retain every row when
+    all attributes agree, ignoring only Name and filename casing/spelling.
+    Conflicting definitions are refused. Comments, processing
+    instructions and unknown elements remain opaque; nested or nonempty Texture
+    elements are unsupported.
     A synthetic root is used only for parsing and is never written to the file.
     """
     raw = bytes(data)
@@ -58,19 +61,30 @@ def parse_icon_registry(data: bytes) -> IconRegistry:
     prefix = b'<CDMWIconRegistry>'
     parser = expat.ParserCreate('utf-8')
     depth, active = 0, None
-    textures, spans, names = [], [], set()
+    textures, spans, names = [], [], {}
 
     def start(tag, attributes):
         nonlocal depth, active
         if tag == 'Texture':
             if depth != 1:
                 raise IconRegistryError('nested Texture elements are unsupported')
-            name, filename = attributes.get('Name', ''), attributes.get('Filename', '')
+            name = attributes.get('Name', '')
+            filename = attributes.get('Filename', attributes.get('FileName', ''))
+            if ('Filename' in attributes and 'FileName' in attributes
+                    and attributes['Filename'].lower() != attributes['FileName'].lower()):
+                raise IconRegistryError('a Texture has conflicting filename attributes')
             if not name.strip() or not filename.strip():
                 raise IconRegistryError('each Texture needs a nonempty Name and Filename')
-            if name.lower() in names:
-                raise IconRegistryError(f'duplicate icon name {name!r} (case-insensitive)')
-            names.add(name.lower())
+            # Installed registries can repeat an identical binding, including
+            # spelling variants of case-insensitive names and archive paths.
+            # Compare every other attribute exactly; never choose a winner for
+            # a different image, crop rectangle or unrecognized setting.
+            definition = dict(attributes, Name=name.lower(), Filename=filename.lower())
+            definition.pop('FileName', None)
+            previous = names.get(name.lower())
+            if previous is not None and previous != definition:
+                raise IconRegistryError(f'duplicate icon name {name!r} has conflicting definitions (case-insensitive)')
+            names[name.lower()] = definition
             active = (parser.CurrentByteIndex - len(prefix) + bom_size, name, filename)
         depth += 1
 
@@ -138,9 +152,12 @@ def add_icon_texture(data: bytes, name: str, *, like: str, filename: str = "") -
     target = str(filename or icon_filename_for(wanted))
     if any(ch in target for ch in '"<>&'):
         raise IconRegistryError("an icon filename holds no quotes or angle brackets")
-    attributes = b''.join(match.group(0) for match in _ATTRIBUTE.finditer(template.raw)
-                          if match.group(1) not in (b'Name', b'Filename'))
-    element = b'<Texture Name="' + wanted.encode("utf-8") + b'"' + b"\t" + b'Filename="' + target.encode("utf-8") + b'"' + attributes + b"/>"
+    template_attributes = tuple(_ATTRIBUTE.finditer(template.raw))
+    filename_attribute = next(match.group(1) for match in template_attributes
+                              if match.group(1) in (b'Filename', b'FileName'))
+    attributes = b''.join(match.group(0) for match in template_attributes
+                          if match.group(1) not in (b'Name', b'Filename', b'FileName'))
+    element = b'<Texture Name="' + wanted.encode("utf-8") + b'"' + b"\t" + filename_attribute + b'="' + target.encode("utf-8") + b'"' + attributes + b"/>"
     newline = b"\r\n" if b"\r\n" in raw[:4096] else b"\n"
     body = raw.rstrip(b"\r\n")
     trailing = raw[len(body):] or newline

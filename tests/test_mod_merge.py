@@ -41,13 +41,23 @@ def make_mods(tmp_path, *, current=True, shop=False, same_key=False):
 
 
 @pytest.mark.parametrize('reverse', [False, True])
-def test_generated_icon_mods_merge_through_flat_registry_route(tmp_path, reverse):
+@pytest.mark.parametrize('repeated_base', [False, True])
+def test_generated_icon_mods_merge_through_flat_registry_route(tmp_path, reverse, repeated_base, monkeypatch):
     from cdmw.core.item_icon_addition import NewItemIcon, icon_string_for_stem, icon_target_path
-    from cdmw.core.item_icon_registry import ICON_REGISTRY_PATH, registered_icon_names
+    from cdmw.core.item_icon_registry import ICON_REGISTRY_PATH, parse_icon_registry, registered_icon_names
     from cdmw.core.stringinfo_table import stringinfo_key
     from cdmw.domain.new_item.spec import IconSource
 
+    if repeated_base:
+        import tests.test_new_item_provenance as provenance
+        fixture_files = provenance.current_files()
+        fixture_files[ICON_REGISTRY_PATH] += (
+            b'<Texture Name="ItemIcon_Prefab_CD_PHM_01_SWORD_0109" '
+            b'FileName="UI/texture/icon/ItemIcon_Prefab_CD_PHM_01_SWORD_0109.dds" '
+            b'Type="Image" GetRect="0,0,256,256"/>\r\n')
+        monkeypatch.setattr(provenance, 'current_files', lambda: dict(fixture_files))
     service, snapshot, entries = setup_game(tmp_path)
+    baseline_rows = parse_icon_registry(snapshot.payload(ICON_REGISTRY_PATH)).textures
     folders, names = [], []
     for index, manager in enumerate(('JMM', 'DMM')):
         choice = replace(spec(f'Icon{index}'), item_key=1990000 + index * 100,
@@ -66,6 +76,8 @@ def test_generated_icon_mods_merge_through_flat_registry_route(tmp_path, reverse
     data = payloads(result.package_root)
     assert set(names) <= set(registered_icon_names(data[ICON_REGISTRY_PATH]))
     assert data[ICON_REGISTRY_PATH].startswith(b'\xef\xbb\xbf')
+    inherited = [row for row in parse_icon_registry(data[ICON_REGISTRY_PATH]).textures if row.name not in names]
+    assert inherited == list(baseline_rows)
     assert all(icon_target_path(name) in data for name in names)
     assert all(fingerprint(root) == before for root, before in original.items())
 
@@ -116,13 +128,13 @@ def test_duplicate_item_identity_blocks_export_and_names_the_record(tmp_path):
     assert not (tmp_path / "blocked").exists()
 
 
-def test_duplicate_icon_names_block_generic_export(tmp_path):
+def test_conflicting_duplicate_icon_names_block_generic_export(tmp_path):
     from cdmw.core.item_icon_registry import ICON_REGISTRY_PATH
     from tests.test_item_icon_registry import registry
     _service, _snapshot, entries, _plans, folders = make_mods(tmp_path)
     path = folders[0] / ICON_REGISTRY_PATH
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_bytes(registry('Shared', 'shared'))
+    path.write_bytes(registry('Shared', 'shared').replace(b'icon/shared.dds', b'icon/different.dds'))
     original = {root: fingerprint(root) for root in [tmp_path / 'game', *folders]}
     merged = prepare_mod_merge(folders, tmp_path / 'game', entries=entries)
     assert any('duplicate icon name' in issue for issue in merged.conflicts)

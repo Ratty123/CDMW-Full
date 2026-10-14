@@ -64,8 +64,46 @@ def test_parser_preserves_opaque_content_and_ignores_commented_out_textures():
     assert b"Extra='keep > value'" in parse_icon_registry(grown).textures[-1].raw
 
 
-@pytest.mark.parametrize('extra', [LINE % (b'A', b'A'), LINE % (b'a', b'other')])
-def test_duplicate_names_refuse_even_when_identical(extra):
+@pytest.mark.parametrize('extra', [LINE % (b'A', b'A'), LINE % (b'a', b'a'),
+                                 b"<Texture GetRect='0,0,256,256' Type='Image' FileName='ui/texture/icon/A.dds' Name='a'/>"])
+def test_equivalent_duplicate_names_preserve_every_original_row(extra):
+    data = registry('A') + extra
+    parsed = parse_icon_registry(data)
+    assert [row.raw for row in parsed.textures] == [LINE % (b'A', b'A'), extra]
+    grown = add_icon_texture(data, 'New', like='a')
+    assert grown.startswith(data.rstrip(b'\r\n'))
+    assert parse_icon_registry(grown).textures[:-1] == parsed.textures
+    with pytest.raises(IconRegistryError, match='already registered'):
+        add_icon_texture(data, 'a', like='A')
+
+
+@pytest.mark.parametrize('spelling', [b'FileName', b'Filename'])
+def test_filename_spelling_is_preserved_when_cloning_a_template(spelling):
+    data = registry('Base').replace(b'Filename', spelling)
+    assert parse_icon_registry(data).textures[0].filename == 'UI/texture/icon/Base.dds'
+    grown = add_icon_texture(data, 'New', like='Base')
+    added = parse_icon_registry(grown).textures[-1]
+    assert grown.startswith(data.rstrip(b'\r\n'))
+    assert added.filename == 'UI/texture/icon/New.dds'
+    assert spelling + b'="UI/texture/icon/New.dds"' in added.raw
+    assert b'Base.dds' not in added.raw
+
+
+def test_two_filename_spellings_must_agree_and_do_not_leak_into_a_clone():
+    both = registry('Base').replace(b'Type="Image"', b'FileName="ui/texture/icon/base.dds" Type="Image"')
+    grown = add_icon_texture(both, 'New', like='Base')
+    added = parse_icon_registry(grown).textures[-1]
+    assert added.filename == 'UI/texture/icon/New.dds'
+    assert b'FileName=' not in added.raw and b'base.dds' not in added.raw
+    with pytest.raises(IconRegistryError, match='conflicting filename'):
+        parse_icon_registry(both.replace(b'icon/base.dds', b'icon/other.dds'))
+
+
+@pytest.mark.parametrize('extra', [LINE % (b'a', b'other'),
+                                 (LINE % (b'a', b'a')).replace(b'Image', b'Other'),
+                                 (LINE % (b'a', b'a')).replace(b'0,0,256,256', b'0,0,128,128'),
+                                 (LINE % (b'a', b'a')).replace(b'/>', b' Extra="unknown"/>')])
+def test_duplicate_names_with_conflicting_definitions_refuse(extra):
     with pytest.raises(IconRegistryError, match='duplicate icon name'):
         parse_icon_registry(registry('A') + extra)
 
@@ -91,9 +129,11 @@ class VanillaIconRegistryTests(unittest.TestCase):
         if not corpus.game_root().is_dir():
             self.skipTest("needs the installed game")
         data = None
+        source_entry = None
         for _package, entry in corpus._iter_archive_entries(corpus.game_root()):
             if corpus.normalize_game_path(entry.path) == "ui/xml/texture/cd_item_icon.xml":
                 data = read_archive_entry_data(entry)[0]
+                source_entry = entry
                 break
         if data is None:
             self.skipTest("registry not found")
@@ -103,8 +143,12 @@ class VanillaIconRegistryTests(unittest.TestCase):
         self.assertIn("itemicon_prefab_cd_phm_01_sword_0109", lower)
         probe = "ItemIcon_Prefab_cdmw_gate_probe"
         if probe.lower() not in lower:
+            original = parse_icon_registry(data)
             grown = add_icon_texture(data, probe, like="ItemIcon_Prefab_cd_phm_01_sword_0109")
             self.assertEqual(len(registered_icon_names(grown)), len(names) + 1)
+            self.assertTrue(grown.startswith(data.rstrip(b'\r\n')))
+            self.assertEqual(parse_icon_registry(grown).textures[:-1], original.textures)
+            self.assertEqual(read_archive_entry_data(source_entry)[0], data, "source archive was changed")
 
 
 if __name__ == "__main__":
