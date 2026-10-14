@@ -448,9 +448,13 @@ class MeshEditorRustEditorMixin(MeshEditorRustProcessMixin):
         application = QApplication.instance()
         localizer = active_ui_localizer()
         language = str(getattr(localizer, "language_code", "en"))
+        # Rust already falls back to source text. Keep every translated value
+        # while omitting identity entries from the bounded control message.
         translations = (
             localizer.translation_snapshot(
-                native_ui_source_keys(), max_bytes=DOTNET_PROTOCOL_LINE_LIMIT - 16384,
+                (key for key in native_ui_source_keys()
+                 if localizer.translations.get(key, key) != key),
+                max_bytes=DOTNET_PROTOCOL_LINE_LIMIT - 16384,
             )
             if localizer is not None else {}
         )

@@ -58,6 +58,8 @@ def main():
     rejected_inputs = []
     geometry_checks = []
     view_states = []
+    transport_events = []
+    click_targets = []
     preview_host = None
     preview_root = tempfile.TemporaryDirectory(prefix="cdmw-new-item-native-preview-") if args.preview else None
     user32 = ctypes.WinDLL("user32", use_last_error=True)
@@ -142,6 +144,14 @@ def main():
         rect = [control["rect"] for control in controls if control["id"] == identifier][index]
         x, y = round((rect[0] + min(20, rect[2]/2)) * scale), round((rect[1] + rect[3]/2) * scale)
         position = (y << 16) | x
+        user32.GetForegroundWindow.restype = wintypes.HWND
+        user32.GetAncestor.argtypes = [wintypes.HWND, ctypes.c_uint]
+        user32.GetAncestor.restype = wintypes.HWND
+        click_targets.append({"control": identifier, "rect": rect, "pixels_per_point": scale,
+            "point": [x, y], "native_visible": bool(user32.IsWindowVisible(child)),
+            "foreground": user32.GetForegroundWindow() == user32.GetAncestor(child, 2),
+            "first_frame_ready": experimental._first_frame_ready,
+            "sent": experimental._sent_generation, "received": experimental._received_generation})
         # Send only to this owned child. The renderer must acquire focus from
         # the click itself, including under a hidden parent.
         user32.PostMessageW(child, 0x0200, 0, position)
@@ -165,6 +175,8 @@ def main():
             user32.PostMessageW(child, 0x0102, ord(character), 1 | (scan << 16))
             user32.PostMessageW(child, 0x0101, key, 1 | (scan << 16) | 0xC0000000)
             pump(0.15)
+        click_targets[-1]["expected_text"] = text
+        click_targets[-1]["observed_text"] = widget.text()
         until(lambda: widget.text() == text, "native_mouse_and_keyboard_reached_" + identifier, timeout=3)
 
     def check_cursor_zoom():
@@ -236,7 +248,13 @@ def main():
             def record_input(message):
                 if message.get("type") == "input":
                     native_inputs.append(message)
-                return handle(message)
+                result = handle(message)
+                if message.get("type") in {"ready", "layout", "state_received", "failed"}:
+                    transport_events.append({"type": message.get("type"), "generation": message.get("generation"),
+                        "sent": experimental._sent_generation, "received": experimental._received_generation,
+                        "first_frame_ready": experimental._first_frame_ready, "visible": experimental.isVisible()})
+                    transport_events[:] = transport_events[-100:]
+                return result
             experimental._send = record_send
             experimental._handle_message = record_input
             experimental.status_message_requested.connect(lambda text, error: errors.append(text) if error else None)
@@ -291,6 +309,31 @@ def main():
             user32.IsWindowVisible.argtypes = [ctypes.c_void_p]
             user32.IsWindowVisible.restype = ctypes.c_int
             assert bool(user32.IsWindowVisible(experimental._host.child_hwnd)) == args.visible
+            if not args.visible:
+                # An invisible HWND cannot provide a rendered-frame or keyboard
+                # focus result. This mode covers preparation, geometry and drain.
+                checks.append("hidden_protocol_and_geometry_only")
+                return
+            shell.activateWindow()
+            shell.windowHandle().requestActivate()
+            user32.GetForegroundWindow.restype = wintypes.HWND
+            user32.SetForegroundWindow.argtypes = [wintypes.HWND]
+            user32.SetForegroundWindow.restype = wintypes.BOOL
+            user32.GetAncestor.argtypes = [wintypes.HWND, ctypes.c_uint]
+            user32.GetAncestor.restype = wintypes.HWND
+            user32.GetWindowThreadProcessId.argtypes = [wintypes.HWND, ctypes.POINTER(wintypes.DWORD)]
+            user32.GetWindowThreadProcessId.restype = wintypes.DWORD
+            native_root = user32.GetAncestor(experimental._host.child_hwnd, 2)
+            root_pid = wintypes.DWORD()
+            user32.GetWindowThreadProcessId(native_root, ctypes.byref(root_pid))
+            assert root_pid.value in {os.getpid(), experimental._process.processId()}
+            transport_events.append({"type": "focus_setup", "native_root": native_root,
+                "shell": int(shell.winId()), "foreground_before": user32.GetForegroundWindow(),
+                "root_pid": root_pid.value})
+            user32.SetForegroundWindow(native_root)
+            until(lambda: user32.GetForegroundWindow() == native_root,
+                  "owned_window_foreground_for_input", timeout=60)
+            until(lambda: experimental._first_frame_ready, "visible_native_frame_rendered")
             if args.interactive or args.material_controls:
                 workflow.template_panel.filter_edit.clear()
                 workflow.identity_panel.display_name.setText("Owned fixture")
@@ -445,6 +488,7 @@ def main():
         assert not any(root.exists() for root in launches), "Owned launch manifests were not cleaned"
         args.report.parent.mkdir(parents=True, exist_ok=True)
         args.report.write_text(json.dumps({"checks": checks, "errors": errors, "native_inputs": native_inputs,
+            "transport_events": transport_events, "click_targets": click_targets,
             "geometry": geometry_checks,
             "view_states": view_states,
             "rejected_inputs": rejected_inputs, "hidden": not args.visible,

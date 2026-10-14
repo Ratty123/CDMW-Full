@@ -16,6 +16,15 @@ from cdmw.workers.new_item_workers import model_source_cleanup_task
 from cdmw.workers.utility_workers import UtilityWorker
 
 
+_retained_cleanup_lanes: set[ModelSourceCleanupLane] = set()
+
+
+def iter_retained_cleanup_workers() -> Tuple[Tuple[str, QThread, object], ...]:
+    """Expose cleanup whose widget owner was deleted to the application close sweep."""
+    return tuple(worker for lane in tuple(_retained_cleanup_lanes)
+                 for worker in lane.iter_shutdown_workers())
+
+
 def preview_process_barrier(controller: object) -> threading.Event:
     """Capture owned processes on the GUI thread before requesting shutdown.
 
@@ -95,6 +104,15 @@ class ModelSourceCleanupLane(QObject):
         self._synchronous = bool(synchronous)
         self._jobs: list[tuple[QThread, UtilityWorker, object]] = []
         self._pending: list[object] = []
+        if parent is not None:
+            parent.destroyed.connect(self._owner_destroyed, Qt.DirectConnection)
+
+    def _owner_destroyed(self) -> None:
+        # QObject emits destroyed before deleting its children. Keep the lane
+        # and its native threads alive until every queued cleanup has drained.
+        if self._jobs or self._pending:
+            self.setParent(None)
+            _retained_cleanup_lanes.add(self)
 
     def retire(self, source: object | None) -> None:
         cleanup = getattr(source, "cleanup", None)
@@ -160,6 +178,10 @@ class ModelSourceCleanupLane(QObject):
         worker.deleteLater()
         thread.deleteLater()
         self._start_next()
+        if not self._jobs and not self._pending and self in _retained_cleanup_lanes:
+            _retained_cleanup_lanes.discard(self)
+            self.deleteLater()
 
 
-__all__ = ["EmptyOwnedTempCleanup", "ModelSourceCleanupLane", "PreviewPackageCleanup", "preview_process_barrier"]
+__all__ = ["EmptyOwnedTempCleanup", "ModelSourceCleanupLane", "PreviewPackageCleanup",
+           "iter_retained_cleanup_workers", "preview_process_barrier"]

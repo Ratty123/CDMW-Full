@@ -2755,7 +2755,7 @@ impl LabApplication {
                 crate::localization::tr("Cleanup is locked by Exact output. Choose Free Edit under Output to allow topology repair."),
             );
         }
-        ui.horizontal(|ui| {
+        ui.vertical(|ui| {
             ui.label(crate::localization::tr("Merge distance"));
             ui.add(
                 crate::cdmw_ui::numeric::value(&mut self.cdmw_cleanup_merge_distance)

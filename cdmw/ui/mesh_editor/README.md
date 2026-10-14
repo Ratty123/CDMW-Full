@@ -2258,8 +2258,9 @@ a rollback was performed or succeeded.
 
 ### Localization and proof limits
 
-The surrounding PySide controls use the app's localization catalogs. Rust's
-embedded editor controls currently remain English-only; a viewport-only
-localization acknowledgement does not translate the editor UI. See the root
+The surrounding PySide controls and Rust's embedded editor receive the app's active
+localization catalog, including custom translations. Native messages omit entries
+identical to their English source text, which the renderer already uses as a fallback;
+translated entries remain intact within the control-message limit. See the root
 [documentation and languages](../../../README.md#documentation-and-languages)
 reference for the current boundary.

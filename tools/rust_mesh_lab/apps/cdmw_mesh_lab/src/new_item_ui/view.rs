@@ -1130,7 +1130,9 @@ impl PresentationView {
         } else {
             egui::TextEdit::singleline(buffer)
         }
-        .id_salt("value")
+        // Async status rows change this field's ancestry and position. Keep
+        // focus and cursor state tied to the retained Qt control identity.
+        .id(egui::Id::new(("presentation-text", &node.id)))
         .hint_text(node.text("placeholder"))
         .desired_width(f32::INFINITY)
         .password(node.flag("password"))

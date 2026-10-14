@@ -171,6 +171,9 @@ class CloseControllerMixin:
 
         tracked.extend(iter_tab_shutdown_workers(self, on_error=_record_tab_worker_error))
         tracked.extend(iter_transient_shutdown_workers(self, on_error=_record_tab_worker_error))
+        from cdmw.workers.new_item_cleanup_worker import iter_retained_cleanup_workers
+
+        tracked.extend(iter_retained_cleanup_workers())
         return tracked
 
     def _running_worker_thread_entries(self) -> list[tuple[str, QThread]]:

@@ -41,6 +41,7 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 ### Fixed
 
+- Mesh Editor accepts Russian interface updates and keeps Cleanup settings compact at larger font sizes. Create New Item search fields retain typing focus while results update, and retired import and preview cleanup remains safe after closing its owning dialog.
 - Archive Browser controls catalogue cache growth in the background, reclaims unused older generations and prepared files, and preserves active files and reusable indexes for fast reopening.
 - Hair Tools erases imported hair locally by default instead of deleting an entire connected scalp section. Whole-lock deletion remains available. Head references retain the sides of the skull and share the character's authored face and body proportions, removing the wide rim around the jaw and temples; narrowing drawn locks also narrows their follower spread.
 - Mesh Editor can exclude separate PAC mesh islands whose lower-detail geometry shifts, splits or disappears, while continuing to reject ambiguous mappings and preserve unrelated geometry.

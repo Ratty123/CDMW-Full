@@ -979,6 +979,7 @@ fn integrated_tool_pages_keep_compact_widths_in_all_presentations() -> TestResul
                 } else {
                     0.0
                 };
+                let mut flyout_bounds = None;
                 let panel_right = if presentation == "flyout" {
                     let area = egui::AreaState::load(
                         &ui.application.egui_context,
@@ -990,13 +991,14 @@ fn integrated_tool_pages_keep_compact_widths_in_all_presentations() -> TestResul
                         viewport.expand(1.0).contains_rect(area),
                         "{label} must stay in the content area: {area:?} vs {viewport:?}"
                     );
+                    flyout_bounds = Some(area);
                     area.right()
                 } else {
                     viewport.left()
                 };
                 assert!(
                     panel_right - rail <= 340.0,
-                    "{label} expanded beyond a compact width at font {font}, presentation={presentation}: {viewport:?}"
+                    "{label} expanded beyond a compact width at font {font}, presentation={presentation}: flyout={flyout_bounds:?}, rail={rail}, viewport={viewport:?}"
                 );
                 for clipped in &ui.output.shapes {
                     if let egui::Shape::Text(text) = &clipped.shape {

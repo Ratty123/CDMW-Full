@@ -241,6 +241,33 @@ fn typing_into_a_clicked_field_survives_idle_frames_and_host_acknowledgements() 
 }
 
 #[test]
+fn typing_keeps_focus_when_async_status_changes_the_field_layout() {
+    let context = egui::Context::default();
+    let mut view = PresentationView::default();
+    let mut root = control("root", "column", "", json!({}));
+    root.children.push(control("query", "text", "Find", json!({"text":""})));
+    let mut state = state(root);
+    apply_theme(&context, &state.theme);
+    let size = egui::vec2(960.0, 720.0);
+    for _ in 0..3 {
+        frame(&context, &mut view, &state, size, vec![]);
+    }
+    let rect = view.rects.iter().find(|rect| rect.id == "query").unwrap().rect;
+    click(&context, &mut view, &state, egui::pos2(rect[0] + 20.0, rect[1] + rect[3] / 2.0));
+    frame(&context, &mut view, &state, size, vec![egui::Event::Text("b".into())]);
+    let input = view.inputs.iter().find(|input| input.action == "text").unwrap().clone();
+    view.acknowledge(&input);
+    state.root.children[0].revision += 1;
+    state.root.children[0].props["text"] = json!("b");
+    state.root.children.insert(0, control("status", "label", "Searching…", json!({})));
+    frame(&context, &mut view, &state, size, vec![]);
+    frame(&context, &mut view, &state, size, vec![egui::Event::Text("lade".into())]);
+    assert!(view.inputs.iter().any(|input| input.control == "query"
+        && input.action == "text" && input.value == json!("blade")),
+        "An asynchronous status update must not interrupt typing");
+}
+
+#[test]
 fn navigation_finishes_the_focused_field_before_hiding_its_page() {
     let context = egui::Context::default();
     let mut view = PresentationView::default();

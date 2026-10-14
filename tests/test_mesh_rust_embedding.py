@@ -152,9 +152,12 @@ def test_native_localization_payload_covers_every_language_and_live_updates(tmp_
             assert message["event"] == "theme_update"
             payload = message["payload"]
             assert payload["language"] == language.code
-            assert set(payload["translations"]) == set(native_ui_source_keys())
+            expected = localizer.translation_snapshot(native_ui_source_keys(), max_bytes=512 * 1024)
+            assert payload["translations"] == {
+                key: entry for key, entry in expected.items() if entry != key
+            }
             for key in ("Clear Selection", "Mesh Editor", "Create / update guides"):
-                assert payload["translations"][key] == localizer.translate(key)
+                assert payload["translations"].get(key, key) == localizer.translate(key)
             assert len(json.dumps(message, ensure_ascii=False).encode("utf-8")) < DOTNET_PROTOCOL_LINE_LIMIT
         # A user-provided English overlay must work in the native editor too.
         localizer.load_language("en")

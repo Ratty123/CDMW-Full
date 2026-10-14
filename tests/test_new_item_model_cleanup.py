@@ -18,6 +18,61 @@ from cdmw.ui.new_item.controller import NewItemStudioController  # noqa: E402
 from cdmw.ui.new_item.model_import import ModelImportSource  # noqa: E402
 
 
+def test_cleanup_lane_survives_owner_deletion_until_queued_jobs_finish() -> None:
+    from PySide6.QtCore import QCoreApplication, QEvent, QObject
+    from shiboken6 import isValid
+    from cdmw.workers.new_item_cleanup_worker import ModelSourceCleanupLane, _retained_cleanup_lanes
+
+    app = QApplication.instance() or QApplication([])
+    owner = QObject()
+    lane = ModelSourceCleanupLane(parent=owner)
+    started = threading.Event()
+    release = threading.Event()
+    cleaned = []
+    gui_thread = threading.get_ident()
+
+    def cleanup() -> None:
+        assert threading.get_ident() != gui_thread
+        started.set()
+        assert release.wait(3)
+        cleaned.append("first")
+
+    lane.retire(SimpleNamespace(cleanup=cleanup))
+    lane.retire(SimpleNamespace(cleanup=lambda: cleaned.append("second")))
+    try:
+        deadline = time.monotonic() + 2
+        while not started.is_set() and time.monotonic() < deadline:
+            app.processEvents()
+        assert started.is_set()
+        owner.deleteLater()
+        QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+        assert not isValid(owner)
+        assert isValid(lane) and lane.parent() is None
+        assert lane in _retained_cleanup_lanes
+        assert lane.iter_shutdown_workers()
+        from cdmw.ui.shell.close_controller import CloseControllerMixin
+
+        empty = SimpleNamespace(scan_worker=None, build_worker=None, dds_to_png_worker=None,
+            archive_sidecar_thread=None, archive_sidecar_worker=None,
+            archive_item_icon_warmup_thread=None, archive_item_icon_warmup_worker=None,
+            archive_item_icon_priority_thread=None, archive_item_icon_priority_worker=None,
+            archive_preview_thread=None, archive_preview_worker=None)
+        shell = SimpleNamespace(worker_thread=None, utility_worker=None, textures=empty, archive=empty)
+        assert lane.iter_shutdown_workers()[0] in CloseControllerMixin._tracked_worker_threads(shell)
+        release.set()
+        while lane in _retained_cleanup_lanes and time.monotonic() < deadline:
+            app.processEvents()
+        assert cleaned == ["first", "second"]
+        assert lane not in _retained_cleanup_lanes
+        QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+        assert not isValid(lane)
+    finally:
+        release.set()
+        deadline = time.monotonic() + 3
+        while lane in _retained_cleanup_lanes and time.monotonic() < deadline:
+            app.processEvents()
+
+
 def test_discard_retires_the_source_without_waiting_for_preview_users_or_cleanup(tmp_path) -> None:
     app = QApplication.instance() or QApplication([])
     controller = NewItemStudioController()

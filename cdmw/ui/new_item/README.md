@@ -399,9 +399,14 @@ sections and owned dialogs. The ignored Rust test
 `render_owned_ui_popups_and_scrolled_panels` reads captures under `CDMW_UI_AUDIT_ROOT`
 and writes popup and scroll captures for inspection.
 
-The live probe prewarms a hidden renderer, opens the tab with the same process, and
-clicks and types through Win32 into the original Name and Find fields. It also checks
-that page switches do not reject a finishing edit. Its `--preview` option loads an owned
+The live probe prewarms a hidden renderer and opens the tab with the same process.
+The default hidden mode checks protocol acknowledgements, native window geometry and
+shutdown; it does not establish rendered frames or keyboard input. Use `--visible`
+for Win32 clicks and typing into the original Name and Find fields. That mode waits for
+a rendered frame and foreground activation of the owned fixture; click the fixture if
+Windows refuses automatic activation. It also checks that page switches do not reject
+a finishing edit. Text fields retain focus when asynchronous search status changes
+their surrounding layout. Its `--preview` option loads an owned
 synthetic mesh into the pinned preview helper and checks camera captures, crop dialog
 cancellation, renderer retry and process cleanup. `--visible --interactive --preview`
 exposes the owned fixture with a second tool in its sidebar for normal Windows typing,
@@ -1833,6 +1838,8 @@ fails, or the studio closes. Model, Effects and Mesh Editor-accept workers lease
 source while they read it; recursive removal runs on a tracked cleanup worker only after
 those usages finish, so Discard cancels first and never waits on filesystem cleanup in
 the UI thread. Retired transient preview packages use the same tracked cleanup lane.
+Deleting a dialog retains its active cleanup lane until queued jobs finish. The main
+window's close sweep also tracks these retained workers.
 
 Parallel geometry/material preparation also owns its cleanup: cancellation joins the
 material thread and removes completed packages that never reached the UI. Successfully
