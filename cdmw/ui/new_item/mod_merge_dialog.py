@@ -5,7 +5,7 @@ from cdmw.domain.cancellation import raise_if_cancelled
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QDialog, QDialogButtonBox, QFileDialog, QFormLayout, QHBoxLayout, QLabel,
-    QGroupBox, QLineEdit, QListWidget, QPlainTextEdit, QProgressBar, QPushButton, QVBoxLayout,
+    QGroupBox, QLineEdit, QListWidget, QListWidgetItem, QPlainTextEdit, QProgressBar, QPushButton, QVBoxLayout,
 )
 
 from cdmw.workers.mod_merge_workers import mod_merge_export_task, mod_merge_scan_task
@@ -37,11 +37,10 @@ class ModMergeDialog(QDialog):
         setup.addWidget(output, 1)
         layout.addLayout(setup)
         self.folders = QListWidget()
-        self.folders.setMinimumHeight(90)
-        self.folders.setAccessibleDescription('Add at least two mod folders.')
-        source_layout.addWidget(self.folders)
+        self.folders.setMinimumHeight(120)
+        self.folders.setAccessibleDescription('No folders added. Add a folder to begin.')
         row = QHBoxLayout()
-        self.add_button = QPushButton("Add mod folder...")
+        self.add_button = QPushButton("Add folder...")
         self.add_button.clicked.connect(self._add)
         row.addWidget(self.add_button)
         self.remove_button = QPushButton("Remove selected")
@@ -49,6 +48,10 @@ class ModMergeDialog(QDialog):
         row.addWidget(self.remove_button)
         row.addStretch(1)
         source_layout.addLayout(row)
+        self.folder_count = QLabel("No folders added.")
+        self.folder_count.setWordWrap(True)
+        source_layout.addWidget(self.folder_count)
+        source_layout.addWidget(self.folders)
         form = QFormLayout()
         self.game_root = QLineEdit(str(game_root or ""))
         self.game_browse = QPushButton("Folder...")
@@ -120,11 +123,15 @@ class ModMergeDialog(QDialog):
     def add_folder(self, path):
         path = str(Path(path).expanduser().resolve())
         if path not in self._folder_paths():
-            self.folders.addItem(path)
+            item = QListWidgetItem(Path(path).name or path)
+            item.setData(Qt.ItemDataRole.UserRole, path)
+            item.setToolTip(path)
+            self.folders.addItem(item)
+            self.folders.setCurrentItem(item)
             self._invalidate()
 
     def _folder_paths(self):
-        return tuple(self.folders.item(i).text() for i in range(self.folders.count()))
+        return tuple(self.folders.item(i).data(Qt.ItemDataRole.UserRole) for i in range(self.folders.count()))
 
     def _remove(self):
         self.folders.takeItem(self.folders.currentRow())
@@ -141,6 +148,12 @@ class ModMergeDialog(QDialog):
     def _buttons(self, *_args):
         if self._closed:
             return
+        count = self.folders.count()
+        self.folder_count.setText(
+            "No folders added." if count == 0 else
+            "1 folder added. Add another to check compatibility." if count == 1 else
+            f"{count} folders added."
+        )
         available = not self._working and not self.controller.busy
         for widget in (self.folders, self.add_button, self.game_root, self.game_browse,
                        self.destination, self.output_browse, self.title):

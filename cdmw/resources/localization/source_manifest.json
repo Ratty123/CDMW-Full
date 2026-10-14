@@ -126,7 +126,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/mod_merge_dialog.py",
-          "line": 223,
+          "line": 235,
           "sink": "appendPlainText"
         }
       ]
@@ -136,7 +136,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/mod_merge_dialog.py",
-          "line": 221,
+          "line": 233,
           "sink": "appendPlainText"
         }
       ]
@@ -2427,6 +2427,16 @@
         {
           "path": "cdmw/ui/mesh_editor/replace_from_archive_dialog.py",
           "line": 602,
+          "sink": "setText"
+        }
+      ]
+    },
+    {
+      "key": "1 folder added. Add another to check compatibility.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/mod_merge_dialog.py",
+          "line": 151,
           "sink": "setText"
         }
       ]
@@ -5966,18 +5976,8 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/mod_merge_dialog.py",
-          "line": 74,
+          "line": 76,
           "sink": "QLabel"
-        }
-      ]
-    },
-    {
-      "key": "Add at least two mod folders.",
-      "origins": [
-        {
-          "path": "cdmw/ui/new_item/mod_merge_dialog.py",
-          "line": 41,
-          "sink": "setAccessibleDescription"
         }
       ]
     },
@@ -6042,6 +6042,16 @@
       ]
     },
     {
+      "key": "Add folder...",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/mod_merge_dialog.py",
+          "line": 43,
+          "sink": "QPushButton"
+        }
+      ]
+    },
+    {
       "key": "Add freeform notes, discoveries, unresolved questions, or file relationships here.",
       "origins": [
         {
@@ -6093,16 +6103,6 @@
           "path": "cdmw/ui/archive_browser/static_replacement_dialog_callbacks_source_part_mutation_part_02.py",
           "line": 51,
           "sink": "_push_geometry_undo_snapshot"
-        }
-      ]
-    },
-    {
-      "key": "Add mod folder...",
-      "origins": [
-        {
-          "path": "cdmw/ui/new_item/mod_merge_dialog.py",
-          "line": 44,
-          "sink": "QPushButton"
         }
       ]
     },
@@ -23866,7 +23866,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/mod_merge_dialog.py",
-          "line": 89,
+          "line": 91,
           "sink": "QPushButton"
         }
       ]
@@ -24291,7 +24291,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/mod_merge_dialog.py",
-          "line": 179,
+          "line": 191,
           "sink": "_run"
         }
       ]
@@ -25621,7 +25621,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/mod_merge_dialog.py",
-          "line": 116,
+          "line": 118,
           "sink": "getExistingDirectory"
         }
       ]
@@ -25656,7 +25656,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/mod_merge_dialog.py",
-          "line": 63,
+          "line": 65,
           "sink": "setPlaceholderText"
         },
         {
@@ -26156,7 +26156,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/mod_merge_dialog.py",
-          "line": 65,
+          "line": 67,
           "sink": "_browse"
         }
       ]
@@ -27031,7 +27031,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/mod_merge_dialog.py",
-          "line": 55,
+          "line": 57,
           "sink": "_browse"
         }
       ]
@@ -29176,7 +29176,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/close_controller.py",
-          "line": 490,
+          "line": 493,
           "sink": "set_status_message"
         }
       ]
@@ -29186,7 +29186,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/close_controller.py",
-          "line": 405,
+          "line": 408,
           "sink": "set_status_message"
         }
       ]
@@ -30676,7 +30676,7 @@
         },
         {
           "path": "cdmw/ui/new_item/mod_merge_dialog.py",
-          "line": 71,
+          "line": 73,
           "sink": "QGroupBox"
         }
       ]
@@ -41556,7 +41556,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_replacement.py",
-          "line": 551,
+          "line": 566,
           "sink": "RuntimeError"
         }
       ]
@@ -41566,7 +41566,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_replacement.py",
-          "line": 685,
+          "line": 700,
           "sink": "RuntimeError"
         }
       ]
@@ -41576,7 +41576,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_replacement.py",
-          "line": 479,
+          "line": 494,
           "sink": "RuntimeError"
         }
       ]
@@ -42466,7 +42466,7 @@
       "origins": [
         {
           "path": "cdmw/workers/new_item_cleanup_worker.py",
-          "line": 83,
+          "line": 92,
           "sink": "ValueError"
         }
       ]
@@ -50616,7 +50616,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/close_controller.py",
-          "line": 372,
+          "line": 375,
           "sink": "set_status_message"
         }
       ]
@@ -51561,12 +51561,12 @@
         },
         {
           "path": "cdmw/ui/new_item/mod_merge_dialog.py",
-          "line": 54,
+          "line": 56,
           "sink": "QPushButton"
         },
         {
           "path": "cdmw/ui/new_item/mod_merge_dialog.py",
-          "line": 64,
+          "line": 66,
           "sink": "QPushButton"
         },
         {
@@ -53536,7 +53536,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/mod_merge_dialog.py",
-          "line": 59,
+          "line": 61,
           "sink": "addRow"
         }
       ]
@@ -72906,7 +72906,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/mod_merge_dialog.py",
-          "line": 219,
+          "line": 231,
           "sink": "setText"
         }
       ]
@@ -73941,7 +73941,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_editor.py",
-          "line": 871,
+          "line": 875,
           "sink": "_set_rust_status"
         }
       ]
@@ -74001,7 +74001,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_editor.py",
-          "line": 575,
+          "line": 579,
           "sink": "_set_rust_status"
         }
       ]
@@ -74036,7 +74036,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_editor.py",
-          "line": 791,
+          "line": 795,
           "sink": "_set_rust_status"
         }
       ]
@@ -74046,7 +74046,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_editor.py",
-          "line": 592,
+          "line": 596,
           "sink": "_set_rust_status"
         }
       ]
@@ -74246,7 +74246,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_editor.py",
-          "line": 552,
+          "line": 556,
           "sink": "_set_rust_status"
         }
       ]
@@ -74466,12 +74466,12 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_editor.py",
-          "line": 655,
+          "line": 659,
           "sink": "_set_rust_status"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_editor.py",
-          "line": 804,
+          "line": 808,
           "sink": "_set_rust_status"
         }
       ]
@@ -74866,7 +74866,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_editor.py",
-          "line": 569,
+          "line": 573,
           "sink": "_set_rust_status"
         }
       ]
@@ -83652,6 +83652,31 @@
       ]
     },
     {
+      "key": "No folders added.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/mod_merge_dialog.py",
+          "line": 51,
+          "sink": "QLabel"
+        },
+        {
+          "path": "cdmw/ui/new_item/mod_merge_dialog.py",
+          "line": 151,
+          "sink": "setText"
+        }
+      ]
+    },
+    {
+      "key": "No folders added. Add a folder to begin.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/mod_merge_dialog.py",
+          "line": 41,
+          "sink": "setAccessibleDescription"
+        }
+      ]
+    },
+    {
       "key": "No folders needed to be created.",
       "origins": [
         {
@@ -91996,7 +92021,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/mod_merge_dialog.py",
-          "line": 69,
+          "line": 71,
           "sink": "addRow"
         },
         {
@@ -93911,7 +93936,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/mod_merge_dialog.py",
-          "line": 61,
+          "line": 63,
           "sink": "addRow"
         },
         {
@@ -99351,7 +99376,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_replacement.py",
-          "line": 614,
+          "line": 629,
           "sink": "RuntimeError"
         }
       ]
@@ -99381,7 +99406,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_replacement.py",
-          "line": 604,
+          "line": 619,
           "sink": "RuntimeError"
         }
       ]
@@ -99391,7 +99416,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_replacement.py",
-          "line": 595,
+          "line": 610,
           "sink": "RuntimeError"
         }
       ]
@@ -99701,7 +99726,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_editor.py",
-          "line": 640,
+          "line": 644,
           "sink": "_set_rust_status"
         }
       ]
@@ -100376,7 +100401,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/tool_tabs.py",
-          "line": 661,
+          "line": 663,
           "sink": "pump_startup_splash"
         }
       ]
@@ -100476,7 +100501,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_editor.py",
-          "line": 605,
+          "line": 609,
           "sink": "show_loading"
         },
         {
@@ -101931,7 +101956,7 @@
       "origins": [
         {
           "path": "cdmw/workers/new_item_cleanup_worker.py",
-          "line": 81,
+          "line": 90,
           "sink": "ValueError"
         }
       ]
@@ -107466,7 +107491,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/mod_merge_dialog.py",
-          "line": 188,
+          "line": 200,
           "sink": "setText"
         }
       ]
@@ -110566,7 +110591,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/tool_tabs.py",
-          "line": 695,
+          "line": 697,
           "sink": "pump_startup_splash"
         }
       ]
@@ -111231,12 +111256,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/mod_merge_dialog.py",
-          "line": 196,
+          "line": 208,
           "sink": "python-return:build"
         },
         {
           "path": "cdmw/ui/new_item/mod_merge_dialog.py",
-          "line": 201,
+          "line": 213,
           "sink": "python-return:build"
         }
       ]
@@ -111306,7 +111331,7 @@
         },
         {
           "path": "cdmw/ui/new_item/mod_merge_dialog.py",
-          "line": 47,
+          "line": 46,
           "sink": "QPushButton"
         },
         {
@@ -126916,7 +126941,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/mod_merge_dialog.py",
-          "line": 138,
+          "line": 144,
           "sink": "setText"
         },
         {
@@ -135716,7 +135741,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/close_controller.py",
-          "line": 389,
+          "line": 392,
           "sink": "set_status_message"
         }
       ]
@@ -142441,7 +142466,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/mod_merge_dialog.py",
-          "line": 86,
+          "line": 88,
           "sink": "setPlaceholderText"
         }
       ]
@@ -143741,7 +143766,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/mod_merge_dialog.py",
-          "line": 209,
+          "line": 221,
           "sink": "_review_ready"
         },
         {
@@ -155636,7 +155661,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/mod_merge_dialog.py",
-          "line": 173,
+          "line": 185,
           "sink": "failed"
         },
         {
@@ -158631,7 +158656,7 @@
         },
         {
           "path": "cdmw/ui/new_item/mod_merge_dialog.py",
-          "line": 94,
+          "line": 96,
           "sink": "QPushButton"
         }
       ]
@@ -158911,7 +158936,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/mod_merge_dialog.py",
-          "line": 214,
+          "line": 226,
           "sink": "_run"
         }
       ]
@@ -171201,7 +171226,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_replacement.py",
-          "line": 624,
+          "line": 639,
           "sink": "TypeError"
         }
       ]
@@ -173986,7 +174011,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_replacement.py",
-          "line": 589,
+          "line": 604,
           "sink": "TypeError"
         }
       ]
@@ -175711,7 +175736,7 @@
         },
         {
           "path": "cdmw/ui/shell/tool_tabs.py",
-          "line": 761,
+          "line": 763,
           "sink": "_register_detachable_tool"
         }
       ]
@@ -177291,7 +177316,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/tool_tabs.py",
-          "line": 767,
+          "line": 769,
           "sink": "_register_detachable_tool"
         },
         {
@@ -179181,7 +179206,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/tool_tabs.py",
-          "line": 757,
+          "line": 759,
           "sink": "_register_detachable_tool"
         }
       ]
@@ -184031,7 +184056,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/mod_merge_dialog.py",
-          "line": 185,
+          "line": 197,
           "sink": "setText"
         }
       ]
@@ -184316,12 +184341,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/mod_merge_dialog.py",
-          "line": 196,
+          "line": 208,
           "sink": "python-return:build"
         },
         {
           "path": "cdmw/ui/new_item/mod_merge_dialog.py",
-          "line": 201,
+          "line": 213,
           "sink": "python-return:build"
         }
       ]
@@ -184332,6 +184357,16 @@
         {
           "path": "cdmw/ui/item_icons/tab.py",
           "line": 175,
+          "sink": "setText"
+        }
+      ]
+    },
+    {
+      "key": "{value_0} folders added.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/mod_merge_dialog.py",
+          "line": 151,
           "sink": "setText"
         }
       ]

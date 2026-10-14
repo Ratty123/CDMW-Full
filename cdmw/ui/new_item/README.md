@@ -1747,6 +1747,9 @@ plan.
 Choose at least two loose or DMM mod folders, the game folder that supplied their
 baseline, a package name and a new or empty destination. **Check compatibility** reports
 conflicts and the resulting file list; **Write merged mod** produces one DMM package.
+Use **Add folder** for each source. Added folders appear as separate named rows;
+hover a row to see its full path. **Remove selected** removes only the selected
+folder from the combination.
 Enable that package in place of the selected originals. `mod_merge_workers.py` uses the
 controller's serialized `mod_merge` lane for scans and export.
 

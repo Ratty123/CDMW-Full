@@ -117,6 +117,28 @@ def archive_window(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, request):
             window.archive.archive_entries_by_normalized_path[texture_entry.path] = (texture_entry,)
             window.archive.archive_entries_by_basename[texture_entry.basename] = (texture_entry,)
             archive_paths.append(texture_paz)
+        # The paged catalogue reads the prepared dependency snapshot, not the
+        # legacy indexes populated above. Include the material witness there.
+        from cdmw.ui.archive_browser.remote_preview_dependencies import ArchivePreviewDependencySet
+
+        dependencies = (entry, *window.archive.archive_entries)
+        for candidate in dependencies[1:]:
+            prepared = tmp_path / "prepared-dependencies" / candidate.path
+            prepared.parent.mkdir(parents=True, exist_ok=True)
+            data = candidate.paz_file.read_bytes()
+            prepared.write_bytes(data)
+            candidate.prepared_path = prepared
+            candidate.prepared_sha256 = hashlib.sha256(data).hexdigest()
+            candidate.prepared_size = len(data)
+        snapshot = ArchivePreviewDependencySet(
+            "synthetic-session", 0, dependencies,
+            {candidate.path.casefold(): (candidate,) for candidate in dependencies},
+            {candidate.basename.casefold(): (candidate,) for candidate in dependencies},
+            len(dependencies), False,
+        )
+        window.archive.archive_remote_bridge.prepared_dependencies_for = (
+            lambda candidate: snapshot if candidate.identity == entry.identity else None
+        )
     monkeypatch.setattr(window.archive, "_current_archive_entry", lambda: entry)
     before = {path: hashlib.sha256(path.read_bytes()).hexdigest() for path in archive_paths}
     try:

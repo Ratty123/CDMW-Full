@@ -24,6 +24,49 @@ def fingerprint(root):
             for path in root.rglob("*") if path.is_file()}
 
 
+def test_combine_folder_picker_retains_named_rows_and_real_paths(tmp_path, monkeypatch):
+    import os
+    from types import SimpleNamespace
+    from unittest.mock import Mock
+
+    os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+    from PySide6.QtWidgets import QApplication, QFileDialog
+    from cdmw.ui.new_item.mod_merge_dialog import ModMergeDialog
+    from cdmw.ui.new_item.rust_ui_document import PresentationDocument
+
+    app = QApplication.instance() or QApplication([])
+    lookup = SimpleNamespace(completed=Mock(), failed=Mock(), cancel=Mock(), request_shutdown=Mock())
+    controller = SimpleNamespace(create_lookup_lane=lambda: lookup, busy_changed=Mock(), busy=False)
+    dialog = ModMergeDialog(controller, game_root=str(tmp_path / "game"), embedded=True)
+    first, second = tmp_path / "First mod", tmp_path / "Second mod"
+    first.mkdir()
+    second.mkdir()
+    choices = iter((str(first), str(second), str(first)))
+    monkeypatch.setattr(QFileDialog, "getExistingDirectory", lambda *_args: next(choices))
+    try:
+        dialog.add_button.click()
+        assert dialog._folder_paths() == (str(first.resolve()),)
+        assert not dialog.scan_button.isEnabled()
+        dialog.add_button.click()
+        dialog.add_button.click()  # Re-selecting the first folder does not duplicate it.
+        assert dialog._folder_paths() == (str(first.resolve()), str(second.resolve()))
+        assert dialog.scan_button.isEnabled()
+        assert dialog.folder_count.text() == "2 folders added."
+
+        node = PresentationDocument().widget(dialog.folders, force=True)
+        cells = [row["cells"][0] for row in node["props"]["rows"]]
+        assert [cell["text"] for cell in cells] == ["First mod", "Second mod"]
+        assert [cell["tooltip"] for cell in cells] == [str(first.resolve()), str(second.resolve())]
+        dialog.folders.setCurrentRow(0)
+        dialog.remove_button.click()
+        assert dialog._folder_paths() == (str(second.resolve()),)
+        assert not dialog.scan_button.isEnabled()
+    finally:
+        dialog.reject()
+        dialog.deleteLater()
+        app.processEvents()
+
+
 def make_mods(tmp_path, *, current=True, shop=False, same_key=False):
     service, snapshot, entries = setup_game(tmp_path, current=current)
     plans, folders = [], []
