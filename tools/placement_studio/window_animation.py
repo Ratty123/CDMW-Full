@@ -177,14 +177,19 @@ class AnimationTabMixin:
         index = self._animation_sets()
         clips = index.clips_for_socket(socket) if socket else []
         charts = index.charts_for_socket(socket) if socket else []
-        self._socket_clips_list.clear()
-        for clip in clips:
-            item = QListWidgetItem(trimmed(clip))
-            # The real name goes in the data, not the text: playback looks the clip up by stem,
-            # so a trimmed row would otherwise stop being playable.
-            item.setData(Qt.UserRole, clip)
-            item.setToolTip(f"{clip}\n\nDouble-click to play this clip on the rig")
-            self._socket_clips_list.addItem(item)
+        listing = self._socket_clips_list
+        model = listing.model()
+        current = [model.index(row, 0).data(Qt.UserRole) for row in range(model.rowCount())]
+        # Socket geometry and its history do not change chart associations. Keep
+        # those Qt-owned rows and the selected clip instead of destroying them
+        # on every nudge, Undo and Redo.
+        if current != clips:
+            listing.clear()
+            for clip in clips:
+                item = QListWidgetItem(trimmed(clip), listing)
+                # Playback needs the full stem, not the trimmed display text.
+                item.setData(Qt.UserRole, clip)
+                item.setToolTip(f"{clip}\n\nDouble-click to play this clip on the rig")
         self._socket_clips_label.setText(summarise(socket, clips, charts))
 
     def _play_socket_clip(self, item) -> None:

@@ -7,7 +7,7 @@ from types import SimpleNamespace
 os.environ.setdefault('QT_QPA_PLATFORM', 'offscreen')
 
 import pytest
-from PySide6.QtCore import QEventLoop, QSettings, QTimer
+from PySide6.QtCore import QEventLoop, QPersistentModelIndex, QSettings, QTimer, Qt
 from PySide6.QtWidgets import QApplication, QLineEdit
 
 from tools.placement_studio.background import _retained
@@ -222,6 +222,53 @@ def test_character_reload_replays_pending_edits_and_preserves_redo(studio, monke
     studio._rebuild_session_from_edits()
     displayed = next(item for item in studio._session.body_sockets() if item.name == socket.name)
     assert displayed.translation.x == 99.0
+
+
+def test_socket_history_preserves_selected_animation_clip(studio, monkeypatch, tmp_path):
+    from tests.test_placement_studio_operations import BODY, FILES, MODEL, _Baseline
+    from tests.test_placement_studio_phase4 import _chart
+    from tools.placement_studio.editing import EditSession
+    from tools.placement_studio.model import Vec3
+    from tools.placement_studio.session import PlacementSession
+
+    chart_path = "actionchart/bin__/upperaction/1_pc/1_phm/ride_upper.paac"
+    files = {**FILES, chart_path: _chart(
+        "Pelvis_L_Socket", "character/animation/1_pc/1_phm/clip_a.paa",
+        "character/animation/1_pc/1_phm/clip_b.paa",
+    )}
+    baseline = _Baseline(files)
+    baseline.root = tmp_path
+    studio._baseline = baseline
+    studio._background_loading = False
+    studio._edits = EditSession(files)
+    studio._session = PlacementSession.from_baseline(baseline, MODEL)
+    studio._selected_socket = "Pelvis_L_Socket"
+    # This check owns socket/history and real Qt clip rows, not mesh decoding.
+    monkeypatch.setattr(studio, "_refresh_scene", lambda: None)
+    studio._refresh_animation()
+    studio._chart_socket_box.setCurrentIndex(studio._chart_socket_box.findData("Pelvis_L_Socket"))
+    listing = studio._socket_clips_list
+    assert listing.count() == 2
+    listing.setCurrentRow(1)
+    selected = QPersistentModelIndex(listing.currentIndex())
+    original = studio._edits.socket(BODY, "Pelvis_L_Socket").translation
+    studio._edits.set_translation(BODY, "Pelvis_L_Socket", Vec3(original.x + .02, original.y, original.z))
+    for refresh in (studio._after_edit, studio._undo, studio._redo):
+        refresh()
+        assert selected.isValid()
+        assert listing.currentItem().data(Qt.UserRole) == "clip_b"
+
+    # A real chart change must still replace the displayed association.
+    studio._edits.retarget(chart_path, "Pelvis_L_Socket", "Pelvis_R_Socket")
+    studio._after_edit()
+    assert studio._chart_socket_box.currentData() == "Pelvis_R_Socket"
+    assert [listing.item(row).data(Qt.UserRole) for row in range(listing.count())] == ["clip_a", "clip_b"]
+    studio._edits = EditSession({**files, chart_path: _chart(
+        "Pelvis_R_Socket", "character/animation/1_pc/1_phm/clip_c.paa",
+    )})
+    studio._after_edit()
+    assert listing.count() == 1
+    assert listing.item(0).data(Qt.UserRole) == "clip_c"
 
 
 def test_model_load_retries_changed_history_without_publishing_stale_bindings(studio, monkeypatch, tmp_path):
