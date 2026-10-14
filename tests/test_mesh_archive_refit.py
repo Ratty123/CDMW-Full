@@ -102,7 +102,8 @@ def test_archive_refit_finish_and_build_mod_preserve_both_original_files(tmp_pat
         assert parse_pac(armor_bytes, armor.path).submeshes[-1].vertices[0][0] == pytest.approx(0.7, abs=2e-5)
         assert primary.paz_file.read_bytes() == source
         assert primary.pamt_path.read_bytes() == b"owned archive index"
-        metadata = json.loads((tmp_path / "mod/mesh-editor-session.json").read_text())
+        from cdmw.core.mod_export_history import mod_metadata_path
+        metadata = json.loads(mod_metadata_path(tmp_path / "mod", "mesh-editor-session.json").read_text())
         assert {asset["path"] for asset in metadata["assets"]} == {primary.path, armor.path}
         assert authority.undo("authoritative-rust-exact").ok
         assert authority._session("authoritative-rust-exact").archive_refit_context is None

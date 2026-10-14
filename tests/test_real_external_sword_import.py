@@ -139,10 +139,10 @@ def test_real_wolf_gravestone_import_is_grounded_and_uses_original_overlay_frame
     assert "specular" not in lambert["channels"]
     assert lambert["channel_components"] == {"roughness": "g", "metallic": "b"}
     assert lambert["normal_y_policy"] == "invert_green_for_directx"
-    assert bindings["Gem_outside"]["parameters"]["tint_color"] == [1.0, 0.0, 0.0]
+    assert bindings["Gem_outside"]["parameters"]["base_tint_color"] == [1.0, 0.0, 0.0]
     assert bindings["Gem_outside"]["parameters"]["roughness"] == 0.0
     assert bindings["Gem_outside"]["parameters"]["metalness"] == 1.0
-    assert bindings["Gem_inside"]["parameters"]["tint_color"] == pytest.approx([0.0, 1.0, 0.7911])
+    assert bindings["Gem_inside"]["parameters"]["base_tint_color"] == pytest.approx([0.0, 1.0, 0.7911])
     assert bindings["Gem_inside"]["parameters"]["emissive_intensity"] == 10.0
     assert archive_stamps_before == {
         path: (path.stat().st_size, path.stat().st_mtime_ns) for path in archive_stamps_before

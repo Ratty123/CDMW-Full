@@ -472,7 +472,22 @@ class MeshWorkingReplacementServiceMixin:
             # Morph history retains its latest edit even above the byte budget.
             # Its prospective Redo size cannot reject this commit, so do not walk
             # every vertex in that throwaway snapshot merely to discard the size.
-            morph_history = history_snapshot.morph_session_state is not None or history_snapshot.morph_profile_root is not None
+            morph_history = (
+                str(options.history_action or "").startswith(("morph_", "refit_"))
+                or history_snapshot.morph_profile_root is not None
+                # Plain edits can initialize an empty native Morph runtime. That
+                # alone must not exempt their geometry from the history budget.
+                or any(
+                    bool(getattr(state, "profile_id", ""))
+                    or bool(getattr(state, "definitions", ()))
+                    or bool(getattr(state, "driver_submesh_indices", ()))
+                    or bool(getattr(getattr(state, "refit", None), "garment_submesh_indices", ()))
+                    for state in (
+                        getattr(getattr(captured, "cache", None), "state", None)
+                        for captured in (history_snapshot.morph_session_state, options.morph_session_state)
+                    )
+                )
+            )
             if options.require_reversible_history and not morph_history:
                 history_limit = max(0, int(self.max_history_bytes or 0))
                 if history_snapshot.retained_bytes > history_limit:

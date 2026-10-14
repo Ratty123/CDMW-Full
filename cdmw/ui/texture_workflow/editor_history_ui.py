@@ -8,7 +8,10 @@ import numpy as np
 from PySide6.QtWidgets import QListWidgetItem
 
 from cdmw.models import TextureEditorDocument
-from cdmw.ui.texture_workflow.editor_action_state import texture_editor_history_action_state
+from cdmw.ui.texture_workflow.editor_action_state import (
+    texture_editor_history_action_state,
+    texture_editor_image_action_state,
+)
 from cdmw.ui.texture_workflow.editor_history_state import (
     build_texture_editor_checkpoint_record,
     build_texture_editor_delta_history_record,
@@ -189,14 +192,21 @@ class TextureEditorHistoryUiMixin:
         self._set_status(state.status_text, False)
 
     def _update_history_action_state(self) -> None:
+        busy = self._busy()
         state = texture_editor_history_action_state(
             self.document,
-            busy=self._busy(),
+            busy=busy,
             selected_row=self.history_list.currentRow(),
             history_index=self.history_index,
             history_count=len(self.history_snapshots),
         )
         self.history_restore_button.setEnabled(state.restore_enabled)
+        image_actions = texture_editor_image_action_state(
+            self.document, busy=busy, history_index=self.history_index,
+            history_count=len(self.history_snapshots),
+        )
+        self.undo_button.setEnabled(image_actions.undo_enabled)
+        self.redo_button.setEnabled(image_actions.redo_enabled)
 
     def restore_selected_history(self) -> None:
         row = self.history_list.currentRow()

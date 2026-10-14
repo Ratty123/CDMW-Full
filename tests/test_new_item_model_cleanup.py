@@ -155,6 +155,8 @@ def test_preview_retirement_and_close_keep_file_cleanup_off_the_ui_thread(tmp_pa
         set_icon_capture_mode=lambda *_: None,
     )
     frame._package_dir = roots[2]
+    frame._pending = (1, None, None)
+    frame._loaded_token = 1
     frame._loaded_stage = "materials"
     frame._retire_after_ready = roots[:2]
     ui_thread = threading.get_ident()

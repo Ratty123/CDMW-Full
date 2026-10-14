@@ -74,6 +74,32 @@ def _app() -> QApplication:
     return QApplication.instance() or QApplication([])
 
 
+def test_deferred_column_restore_is_cancelled_with_its_tree(tmp_path, monkeypatch):
+    import sys
+    import shiboken6
+    from cdmw.ui.widgets import make_tree_columns_persistent, persistent_tree_column_widths_key
+
+    app = _app()
+    settings = create_settings(settings_file_path=tmp_path / 'columns.cfg')
+    settings.setValue(persistent_tree_column_widths_key('owned'), '123,234')
+    errors = []
+    monkeypatch.setattr(sys, 'excepthook', lambda *error: errors.append(error))
+    retired = QTreeWidget()
+    retired.setColumnCount(2)
+    make_tree_columns_persistent(retired, settings, 'owned')
+    shiboken6.delete(retired)
+    app.processEvents()
+    assert not errors
+    current = QTreeWidget()
+    current.setColumnCount(2)
+    try:
+        make_tree_columns_persistent(current, settings, 'owned')
+        app.processEvents()
+        assert [current.columnWidth(index) for index in range(2)] == [123, 234]
+    finally:
+        shiboken6.delete(current)
+
+
 def _button_text_fits(button) -> bool:
     visible_text = button.text().replace("&&", "\0").replace("&", "").replace("\0", "&")
     text_width = button.fontMetrics().horizontalAdvance(visible_text)
@@ -743,12 +769,12 @@ def test_real_main_window_compact_wrapper_preserves_tool_authority(tmp_path: Pat
         window._activate_tool_key('mod_package_retrofit')
         assert window.mod_package_retrofit_tab is window.mod_management_tab
         assert 'mod_package_retrofit' not in window._tool_widgets_by_key
-        assert management.workflow.pages.currentWidget() is management.workflow.repackage_page
+        assert management.workflow.pages.current_page() is management.workflow.repackage_page
         assert management.workflow.repackage_ui is not None
         management.open_page('overview')
         window.settings.setValue('ui/active_tool_key', 'mod_package_retrofit')
         window._restore_saved_navigation()
-        assert management.workflow.pages.currentWidget() is management.workflow.repackage_page
+        assert management.workflow.pages.current_page() is management.workflow.repackage_page
 
         window._activate_tool_key("format_explorer")
         deadline = time.monotonic() + 4.0

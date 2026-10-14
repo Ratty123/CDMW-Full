@@ -319,7 +319,15 @@ def test_the_writer_lays_a_shipped_archive_out_the_way_the_game_ships_it(directo
     assert [(row[1], row[2], row[3]) for row in ours_files] == [(row[1], row[2], row[3]) for row in shipped_files], "sizes and flags"
     assert len(built.paz_bytes) % PAZ_ALIGNMENT == 0
     if directory in {"0013", "0016"}:
-        # these two carry no file names sharing a prefix, so the whole table comes back
-        # byte for byte: the same trie, the same tables, the same header checksum
-        assert built.pamt_bytes == pamt.read_bytes(), "the PAMT is the one the game shipped"
-        assert built.paz_bytes == payloads, "the PAZ is the one the game shipped"
+        # These carry no file names sharing a prefix, so the trie and entry tables
+        # come back byte for byte. Shipped PAZ padding need not be zero; rebuilding
+        # that padding changes the PAZ checksum and hence the PAMT checksum.
+        shipped = pamt.read_bytes()
+        assert built.pamt_bytes[4:16] == shipped[4:16], "archive header fields"
+        assert built.pamt_bytes[20:] == shipped[20:], "sizes, trie and entry tables"
+        assert built.pamt_checksum == calculate_pa_checksum(built.pamt_bytes[12:])
+        assert struct.unpack_from("<I", built.pamt_bytes, 16)[0] == calculate_pa_checksum(built.paz_bytes)
+        assert len(built.paz_bytes) == len(payloads), "aligned payload length"
+        for entry in parse_archive_pamt(pamt):
+            start, stop = int(entry.offset), int(entry.offset) + int(entry.comp_size)
+            assert built.paz_bytes[start:stop] == payloads[start:stop], "shipped file payload bytes"

@@ -79,6 +79,10 @@ def archive_window(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, request):
     pamt.write_bytes(b"owned synthetic archive index")
     paz.write_bytes(original)
     entry = ArchiveEntry("object/model/target.pac", pamt, paz, 0, len(original), len(original), 0, 0)
+    entry.prepared_path = tmp_path / "prepared-target.pac"
+    entry.prepared_path.write_bytes(original)
+    entry.prepared_sha256 = hashlib.sha256(original).hexdigest()
+    entry.prepared_size = len(original)
     configure_synthetic_archive_context(window, entry)
     archive_paths = [pamt, paz]
     if multipart:

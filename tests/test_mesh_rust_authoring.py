@@ -7162,10 +7162,13 @@ class RustMeshAuthoringTests(unittest.TestCase):
     def test_finish_rejects_when_reversible_history_cannot_fit(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             authoritative, session = self._create(Path(temporary) / "session")
+            request = _request(session, "transaction_request", 1)
+            request["candidate"] = _candidate_reference(session, request_id=1, first_x=0.5)
+            session.apply_candidate(request)
             authoritative.max_history_bytes = 1
 
             with self.assertRaisesRegex(RuntimeError, "reversible history snapshot"):
-                session.finish(_request(session, "finish_request", 1))
+                session.finish(_request(session, "finish_request", 2))
 
             self.assertEqual(0, authoritative.session_view("authoritative-rust-test").revision)
             self.assertFalse(session.closed)

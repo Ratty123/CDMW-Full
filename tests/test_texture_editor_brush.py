@@ -149,3 +149,40 @@ def test_editor_strokes_round_trip_through_undo_and_redo(tool: str, mask_target:
     for key in before:
         np.testing.assert_array_equal(undone.layer_pixels[key], before[key])
         np.testing.assert_array_equal(redone.layer_pixels[key], after[key])
+
+
+def test_editor_stroke_history_updates_visible_undo_redo_controls(tmp_path) -> None:
+    from PySide6.QtCore import QEvent
+    from PySide6.QtWidgets import QApplication
+    from cdmw.services.settings_service import create_settings
+    from cdmw.ui.texture_editor_tab import TextureEditorTab
+
+    app = QApplication.instance() or QApplication([])
+    editor = TextureEditorTab(
+        settings=create_settings(settings_file_path=tmp_path / "settings.cfg"),
+        base_dir=tmp_path, get_png_root=lambda: str(tmp_path),
+    )
+    try:
+        editor.document = _document()
+        editor.layer_pixels = {"paint": np.full((64, 128, 4), 90, dtype=np.uint8)}
+        editor.current_tool_settings = _settings(tool="paint")
+        editor._push_history("Open Document")
+        editor._refresh_ui()
+        before = editor.layer_pixels["paint"].copy()
+        editor._handle_canvas_stroke({"tool": "paint", "points": [(16, 32), (48, 32)]})
+        after = editor.layer_pixels["paint"].copy()
+        assert not np.array_equal(before, after)
+        assert editor.undo_button.isEnabled()
+        assert not editor.redo_button.isEnabled()
+        editor.undo_button.click()
+        np.testing.assert_array_equal(editor.layer_pixels["paint"], before)
+        assert not editor.undo_button.isEnabled()
+        assert editor.redo_button.isEnabled()
+        editor.redo_button.click()
+        np.testing.assert_array_equal(editor.layer_pixels["paint"], after)
+        assert editor.undo_button.isEnabled()
+        assert not editor.redo_button.isEnabled()
+    finally:
+        editor.request_shutdown()
+        editor.deleteLater()
+        app.sendPostedEvents(None, QEvent.Type.DeferredDelete)

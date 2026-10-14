@@ -260,11 +260,10 @@ def test_rejected_refit_materials_do_not_block_the_next_valid_import(tmp_path, f
         assert editor.archive_refit_material_references == references
         assert len(editor.state_payload(include_document=True)["archive_refit_assets"]) == 2
         incoming.mesh.submeshes[0].preview_texture_dds_path = ""
-        with patch.object(rust, "_RUST_PREVIEW_PACKAGE_MANIFEST_MAX_BYTES", limit):
-            accepted = _rig_command(editor, 21, "refit_choose_archive", {
-                "role": "armor", "_primary_entry": primary,
-                "_archive_entry": _entry(tmp_path, "valid-small.pac", source), "_archive_snapshot": incoming,
-            })
+        accepted = _rig_command(editor, 21, "refit_choose_archive", {
+            "role": "armor", "_primary_entry": primary,
+            "_archive_entry": _entry(tmp_path, "valid-small.pac", source), "_archive_snapshot": incoming,
+        })
         assert len(accepted["state"]["archive_refit_assets"]) == 3
         assert current.revision > revision
     finally:

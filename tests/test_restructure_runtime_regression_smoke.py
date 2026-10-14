@@ -188,19 +188,19 @@ class RestructureRuntimeRegressionSmokeTests(unittest.TestCase):
         self.assertNotIn("mod_package_retrofit", self.window.tab_registry.titles)
         management = self._wait_for_created_tool(self.window.mod_management_tab)
         retrofit_tool = management.workflow.repackage_page
-        self.assertIs(management.workflow.pages.currentWidget(), retrofit_tool)
+        self.assertIs(management.workflow.pages.current_page(), retrofit_tool)
         button_labels = {
             button.text()
             for button in retrofit_tool.findChildren(QPushButton)
         }
         self.assertIn("Scan", button_labels)
-        self.assertIn("Preview Package Plan", button_labels)
+        self.assertIn("Preview plan", button_labels)
         self.assertNotIn("Refresh Game Index", button_labels)
         label_text = " ".join(
             label.text()
             for label in retrofit_tool.findChildren(QLabel)
         )
-        self.assertIn("Scan loose or zipped mod packages", label_text)
+        self.assertIn("Scan loose or zipped mod packages", management.workflow.repackage_ui.scan_button.toolTip())
         self.assertNotIn("Game build", label_text)
         self.assertNotIn("current game", label_text)
         self.assertFalse(

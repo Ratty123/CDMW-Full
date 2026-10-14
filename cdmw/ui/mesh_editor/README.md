@@ -1763,6 +1763,9 @@ byte limit. Large JSON work runs incrementally on the command worker. Repeated
 weighted selections are shared, and history keeps large files in shared temporary
 disk storage. These files are released with their last history reference. Memory
 budgets can discard older history, but retain the latest Morph edit for Undo/Redo.
+Plain geometry edits retain the configured history memory limit even when their
+native session has initialized an empty Morph runtime. Finish refuses an edit
+whose Undo or Redo snapshot cannot fit.
 Topology, file ownership, checksums and atomic rollback remain validated; all
 vertex weights and definition fields are retained.
 

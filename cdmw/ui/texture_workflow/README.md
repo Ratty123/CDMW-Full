@@ -24,7 +24,8 @@ Brush stamps keep their spacing across mouse events, and brush strokes include
 the release position when it is inside the image. Flow honours values below 5%
 and retains fractional stamp strength when combined with lower opacity. The same
 spacing and flow rules apply to Quick Mask. Painting still commits one history
-step on release.
+step on release. Undo and Redo buttons update immediately after strokes and
+history navigation, including the incremental canvas refresh path.
 
 ## Editable filters and replacement inputs
 

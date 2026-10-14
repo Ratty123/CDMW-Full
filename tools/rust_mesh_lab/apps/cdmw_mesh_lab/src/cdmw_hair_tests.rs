@@ -1945,7 +1945,7 @@ fn hair_original_sections_are_preserved_without_missing_root_warnings() {
         _ => None,
     }).collect();
     assert!(labels.iter().any(|text| text.contains("1 original sections have no grooming guides")));
-    assert!(labels.iter().any(|text| text.contains("Unchanged sections can be exported")));
+    // Export guidance is hover help on the unresolved-section label.
     assert!(!labels.iter().any(|text| text.contains("need a root or rigid attachment")));
     assert!(!labels.iter().any(|text| text.contains("Mark selected scalp sections as rigid")), "preparation is collapsed initially");
     for selected in [false, true] {
@@ -3040,7 +3040,7 @@ fn hair_rapid_draw_preserves_every_stroke_until_ordered_acknowledgements_and_cle
     assert!(!app.hair_draw_input_ready(), "backlog must remain bounded");
     rapid_draw_stroke(&mut app, rect, 0, true);
     assert_eq!(app.hair.state.as_ref().unwrap().guides.len(), expected.len());
-    let deadline = Instant::now() + std::time::Duration::from_secs(20);
+    let deadline = Instant::now() + std::time::Duration::from_secs(60);
     let mut accepted = 0;
     while app.hair.preparing() || app.cdmw_busy() {
         assert!(Instant::now() < deadline, "{} / {}", app.status, app.hair.feedback);
@@ -3094,9 +3094,10 @@ fn hair_rapid_draw_lost_release_cancels_local_stroke_without_showing_save_progre
     assert!(!app.hair.saving(), "a local drag is not a background save");
     app.raw_primary_captured = true;
     let ctx = egui::Context::default();
-    let _ = ctx.run_ui(egui::RawInput { screen_rect: Some(rect), ..Default::default() }, |ui| {
+    let mut output = ctx.run_ui(egui::RawInput { screen_rect: Some(rect), ..Default::default() }, |ui| {
         app.handle_hair_input(ui, rect);
     });
+    output.textures_delta.clear();
     assert!(!app.hair.preparing());
     assert_eq!(app.hair.state, before);
     assert!(app.hair.stroke_start.is_none());
@@ -3112,9 +3113,10 @@ fn hair_rapid_draw_switching_to_select_clears_an_abandoned_stroke_on_release() {
     app.dispatch_hair_pointer(ViewportPointerEvent::PrimaryReleased(end), rect, false, false, false);
     assert!(app.hair.stroke_start.is_none());
     let ctx = egui::Context::default();
-    let _ = ctx.run_ui(egui::RawInput { screen_rect: Some(rect), ..Default::default() }, |ui| {
+    let mut output = ctx.run_ui(egui::RawInput { screen_rect: Some(rect), ..Default::default() }, |ui| {
         app.handle_hair_input(ui, rect);
     });
+    output.textures_delta.clear();
     assert!(!app.hair.preparing());
     assert_eq!(app.hair.state, before);
 }

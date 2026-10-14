@@ -220,7 +220,7 @@ def make_tree_columns_persistent(
     _pending_column_saves[tree] = (save_timer, _save)
 
     if restore_later:
-        QTimer.singleShot(0, _restore)
+        QTimer.singleShot(0, tree, _restore)
     else:
         _restore()
     header.sectionResized.connect(lambda *_args: save_timer.start())

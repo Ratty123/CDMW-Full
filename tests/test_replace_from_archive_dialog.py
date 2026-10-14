@@ -37,6 +37,7 @@ from tests.test_mesh_pac_topology_serializer import _pac_fixture
 
 
 class _Catalogue(QObject):
+    progress = Signal(str, object)
     batch_ready = Signal(str, str, object)
     result_ready = Signal(str, str, object)
     request_failed = Signal(str, object)

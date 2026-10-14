@@ -8,7 +8,8 @@ activation handling, diagnostics, and app-level dialogs.
 
 `cdmw.ui.layout_persistence` saves window/dialog geometry, splitter proportions
 and interactive column widths through the shell's existing portable `.cfg`
-settings. It covers late-created tools, detached windows, Placement & Animations,
+settings. Deferred column restoration is owned by its tree and is cancelled when
+the tree is destroyed. It covers late-created tools, detached windows, Placement & Animations,
 and New Item's offscreen Qt workflow. Existing main/detached-window and
 table-specific keys remain supported. New layouts use `ui/layout/v1`; splitter
 directions have separate saved proportions. The existing **Remember splitter

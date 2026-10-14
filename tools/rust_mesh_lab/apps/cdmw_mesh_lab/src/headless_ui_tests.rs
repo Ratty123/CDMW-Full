@@ -3043,8 +3043,8 @@ fn integrated_selection_display_camera_history_and_output_controls_change_real_s
             .iter()
             .any(|action| matches!(action, UiAction::Redo))
     );
-    assert!(ui.reveal("● Move").is_ok());
-    assert!(ui.reveal("○ Inflate").is_ok());
+    assert!(ui.reveal("Move").is_ok());
+    assert!(ui.reveal("Inflate").is_ok());
 
     ui.application.cdmw_state["output_policy"] = json!("free_edit_rebuild");
     ui.application.cdmw_state["output_destination_ready"] = json!(true);

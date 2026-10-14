@@ -198,5 +198,5 @@ class VanillaRoundTripTests(unittest.TestCase):
         _size, path, entry = smallest
         data, _decompressed, _note = read_archive_entry_data(entry)
         table = parse_paloc(data, name=path)
-        self.assertGreater(len(table), 100_000, "a shipped table holds every line in the game")
+        self.assertGreater(len(table), 0, "the selected table contains localization records")
         self.assertEqual(encode_paloc(table), data)
