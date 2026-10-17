@@ -175,6 +175,15 @@ separation, and limits local stretching and sharp new creases. Initial garment-f
 guidance helps sleeves wrap around limbs; body-boundary and garment-opening guards limit
 that guidance around open necks and thin attachments.
 
+Disconnected garment surface islands participate in layer standoff, links, clearance
+and final validation even when they share one Part. Trustworthy coincident seams keep
+continuous surfaces together. Body correspondence can cross tiny mismatches between
+adjoining Parts using conservative reciprocal boundary-edge matches; ambiguous matches
+remain disconnected. Neither change snaps source vertices or changes topology.
+`tests/test_mesh_refit_layer_boundaries_native.py` owns the same-Part/separate-Part
+parity and shifted-body-seam regressions. `tests/test_mesh_refit_tightening_native.py`
+retains fitting, masks, rigid-component, history and atomic-failure coverage.
+
 The body and source topology remain unchanged during an initial garment fit. Complex
 trim still needs inspection; static clearance is not animation or in-game proof. The
 owning focused regression file is `tests/test_native_mesh_editor_morph_refit.py` at the
@@ -199,9 +208,10 @@ coincident seam cohort governs fitting, clearance and post-refit corrections.
 
 For an atomic multi-Part update, `morph_configure_refit` also accepts
 `garment_settings` rows that exactly cover `garment_submesh_indices`. Each row has
-`submesh_index` and optional `enabled`, `intensity_percent`, `mode` and
-`clearance_percent`; omitted values preserve that Part's current settings. A row's
-optional `vertex_mask` preserves its mask when omitted, clears it when `null`, or
+`submesh_index` and optional `enabled`, `intensity_percent`, `mode`,
+`tightness_percent` and `clearance_percent`; omitted values preserve that Part's
+current settings. A row's optional `vertex_mask` preserves its mask when omitted,
+clears it when `null`, or
 replaces it with an object containing `vertex_indices` and `weights`. Batch rows
 cannot be mixed with shared top-level settings or `vertex_masks`. All rows are
 validated in a private runtime before one recomposition and history entry. This
@@ -235,6 +245,36 @@ A bounded `morph_state` query can request `include_neutral_positions: true` or
 read-only arrays stay in host/native operations and are not duplicated in the Rust
 control state. Effective masks come from the same seam-cohort computation as the
 fitter, so correction capture can normalize partial influence correctly.
+
+#### Current-fit diagnostics
+
+`morph_state` accepts `include_refit_diagnostics: true` with explicit, unique bound
+garment `submesh_indices` (1..128), `diagnostic_sample_limit` (1..4096, default 2048,
+at least one per requested Part), and `diagnostic_detail_limit` (1..64, default 24).
+The diagnostic result uses schema `cdmw.refit_diagnostics.v1` and carries `session_id`,
+native `state_revision`, `edit_revision`, normalized requested Part indices, sampling
+counts and work limits. The host adds `shadow_revision` and `host_morph_revision`
+under the session export lock so the Rust UI can reject stale results.
+
+The query inspects published current coordinates and neutral authored layer spacing.
+`body_clearance` reports unsigned distance and local nearest-face normal offset;
+normal offset is not an inside-body test. `layer_spacing` reports recognized layer
+gaps and retained authored-gap ratios. Original Part and vertex identities remain
+available in the bounded sample details. Body and layer availability are independent;
+missing/non-finite measurements are not zero. Interrupted nearest-surface searches
+are discarded instead of reporting an incomplete search as a measured clearance.
+
+Limits cover the complete bound fit: 128 Parts, 200,000 vertices, 250,000 triangles
+and 256 surfaces. Analysis also limits queries to 32,768, triangle tests to 2,000,000
+and node visits to 8,000,000, with a cooperative 2,000 ms analysis budget. Preparation
+is input-bounded and does not poll the deadline in every inner operation, so this is
+not a hard two-second wall-time guarantee. Reports distinguish partial and unavailable
+results and explicitly set `global_collision_proof: false`.
+
+This path does not recompose, publish geometry, change settings or revisions, or
+write history. Native/service checks live in `tests/test_mesh_refit_diagnostics_native.py`
+and `tests/test_mesh_refit_diagnostics_service.py`; the Rust cache, controls and
+rendering checks use `headless_ui_tests::refit_diagnostics`.
 
 Runtime snapshots retain exact neutral and composed coordinates. Restoration
 distinguishes a native float32 round trip from an actual compatible geometry edit,

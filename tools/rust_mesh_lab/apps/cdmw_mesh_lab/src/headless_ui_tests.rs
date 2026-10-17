@@ -21,6 +21,7 @@ mod morph_authoring;
 mod morph_body_controls;
 mod morph_outfit_workflows;
 mod morph_workflow;
+mod refit_diagnostics;
 mod precision_controls {
     use super::*;
     use crate::cdmw_ui::numeric;
@@ -4397,18 +4398,17 @@ fn integrated_refit_controls_hydrate_existing_garment_settings_before_apply() ->
 
     ui.last_actions.clear();
     ui.click("Apply to Selected Garments")?;
+    assert!(!has_host_command(&ui.last_actions, "refit_configure"));
+    ui.type_number_in_row("Clearance %", 1.25, "1.5")?;
+    ui.last_actions.clear();
+    ui.click("Apply to Selected Garments")?;
     assert!(ui.last_actions.iter().any(|action| matches!(
         action,
         UiAction::CdmwCommand {
             command: "refit_configure",
             arguments,
             ..
-        } if arguments.get("submesh_indices") == Some(&json!([0]))
-            && arguments.get("enabled") == Some(&json!(false))
-            && arguments.get("intensity_percent") == Some(&json!(50.0))
-            && arguments.get("mode") == Some(&json!("rigid"))
-            && arguments.get("clearance_percent") == Some(&json!(1.25))
-            && arguments.get("tightness_percent") == Some(&json!(63.0))
+        } if arguments == &json!({"submesh_indices": [0], "clearance_percent": 1.5})
     )));
     Ok(())
 }
@@ -4435,7 +4435,9 @@ fn integrated_refit_fit_to_body_dispatches_without_body_sliders_or_part_selectio
         ui.application.cdmw_refit_intensity = 0.0;
         ui.application.cdmw_refit_mode = "rigid".to_owned();
         ui.application.cdmw_refit_enabled = false;
-        ui.application.cdmw_refit_settings_dirty = true;
+        for key in ["enabled", "intensity_percent", "mode", "clearance_percent"] {
+            ui.application.cdmw_refit_settings_dirty.mark(key);
+        }
         let actions = ui.actions_from_click("Fit to body")?;
         assert!(actions.iter().any(|action| matches!(
             action,
@@ -5474,6 +5476,7 @@ fn integrated_refit_apply_never_broadens_an_empty_selection_to_all_garments() ->
     });
     ui.click("Morph & Refit")?;
     ui.click("Fit")?;
+    ui.type_number_in_row("Clearance %", 0.0, "0.5")?;
 
     ui.last_actions.clear();
     ui.click("Apply to Selected Garments")?;
@@ -5489,7 +5492,7 @@ fn integrated_refit_apply_never_broadens_an_empty_selection_to_all_garments() ->
             command: "refit_configure",
             arguments,
             ..
-        } if arguments.get("submesh_indices") == Some(&json!([0]))
+        } if arguments == &json!({"submesh_indices": [0], "clearance_percent": 0.5})
     )));
     Ok(())
 }

@@ -1596,6 +1596,9 @@ def test_generated_manifest_contains_reviewed_source_keys() -> None:
     from cdmw.domain.mesh.shader_controls import EYE_COVER
     assert {EYE_COVER.label, EYE_COVER.note, *(field.label for field in EYE_COVER.fields)} <= keys
     assert {
+        "Current fit diagnostics",
+        "Minimum body distance:",
+        "Minimum authored gap retained:",
         "Workers",
         "Preview Caches",
         "Front",

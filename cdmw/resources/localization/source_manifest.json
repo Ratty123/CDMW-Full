@@ -6307,6 +6307,16 @@
       ]
     },
     {
+      "key": "Additional sample locations omitted.",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui/refit_diagnostics.rs",
+          "line": 155,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
       "key": "Additional selected weight rows are hidden by the bounded host summary",
       "origins": [
         {
@@ -8197,6 +8207,16 @@
       ]
     },
     {
+      "key": "Ambiguous layer candidates omitted:",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui/refit_diagnostics.rs",
+          "line": 125,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
       "key": "Ambiguous layered material binding: {value_0}",
       "origins": [
         {
@@ -8407,6 +8427,16 @@
       ]
     },
     {
+      "key": "An influence mask is configured for this Part.",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui/refit_diagnostics.rs",
+          "line": 144,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
       "key": "An item carries at most {value_0} perks.",
       "origins": [
         {
@@ -8487,6 +8517,16 @@
       ]
     },
     {
+      "key": "Analysis unavailable",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui/refit_diagnostics.rs",
+          "line": 91,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
       "key": "Analyze Mod",
       "origins": [
         {
@@ -8523,6 +8563,36 @@
           "path": "cdmw/ui/recolor_variants_tab.py",
           "line": 222,
           "sink": "EmptyStatePanel"
+        }
+      ]
+    },
+    {
+      "key": "Analyze current fit",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui/refit_diagnostics.rs",
+          "line": 64,
+          "sink": "rust-presentation"
+        },
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui/refit_diagnostics.rs",
+          "line": 71,
+          "sink": "rust-presentation"
+        },
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs",
+          "line": 2946,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Analyze the current preview to measure body clearance and garment layer spacing.",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui/refit_diagnostics.rs",
+          "line": 75,
+          "sink": "rust-presentation"
         }
       ]
     },
@@ -9986,17 +10056,12 @@
       "origins": [
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
-          "line": 3514,
-          "sink": "rust-presentation"
-        },
-        {
-          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
-          "line": 3528,
+          "line": 1054,
           "sink": "rust-presentation"
         },
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs",
-          "line": 2946,
+          "line": 2936,
           "sink": "rust-presentation"
         }
       ]
@@ -10248,6 +10313,16 @@
           "path": "cdmw/ui/new_item/independent_items_page.py",
           "line": 415,
           "sink": "tr"
+        }
+      ]
+    },
+    {
+      "key": "Apply this displayed value to the chosen garments. Other fields keep their own values.",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
+          "line": 1076,
+          "sink": "rust-presentation"
         }
       ]
     },
@@ -17097,6 +17172,16 @@
       ]
     },
     {
+      "key": "Body clearance unavailable",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui/refit_diagnostics.rs",
+          "line": 106,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
       "key": "Body collisions",
       "origins": [
         {
@@ -17198,6 +17283,16 @@
           "path": "cdmw/ui/archive_browser/hkx_editor_dialog_shell_part_01.py",
           "line": 623,
           "sink": "addItem"
+        }
+      ]
+    },
+    {
+      "key": "Body samples evaluated:",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui/refit_diagnostics.rs",
+          "line": 103,
+          "sink": "rust-presentation"
         }
       ]
     },
@@ -22853,6 +22948,26 @@
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_vertex_inspector.rs",
           "line": 321,
           "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Change a setting before applying",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
+          "line": 1048,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Change at least one Refit setting before applying.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_service_morph.py",
+          "line": 1581,
+          "sink": "ValueError"
         }
       ]
     },
@@ -35248,6 +35363,16 @@
           "path": "cdmw/ui/texture_workflow/progress_panel.py",
           "line": 38,
           "sink": "QLabel"
+        }
+      ]
+    },
+    {
+      "key": "Current fit diagnostics",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui/refit_diagnostics.rs",
+          "line": 59,
+          "sink": "rust-presentation"
         }
       ]
     },
@@ -51372,6 +51497,16 @@
       "manual": true
     },
     {
+      "key": "Fit analysis is out of date for this preview or selection. Analyze again.",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui/refit_diagnostics.rs",
+          "line": 81,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
       "key": "Fit it to the item",
       "origins": [
         {
@@ -63237,6 +63372,16 @@
       ]
     },
     {
+      "key": "Initial binding: some garment vertices were far from the body. Check alignment and scale.",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
+          "line": 3486,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
       "key": "Initial value at every level:",
       "origins": [
         {
@@ -63588,6 +63733,16 @@
           "path": "cdmw/ui/archive_browser/hkx_editor_dialog_shell_part_02.py",
           "line": 103,
           "sink": "setToolTip"
+        }
+      ]
+    },
+    {
+      "key": "Inspect the selected bound garments, or all bound garments when none are selected. Uses the current preview without applying pending settings.",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui/refit_diagnostics.rs",
+          "line": 65,
+          "sink": "rust-presentation"
         }
       ]
     },
@@ -67917,6 +68072,26 @@
       ]
     },
     {
+      "key": "Layer samples evaluated:",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui/refit_diagnostics.rs",
+          "line": 118,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Layer spacing unavailable",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui/refit_diagnostics.rs",
+          "line": 121,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
       "key": "Layered editing within the shared texture job.",
       "origins": [
         {
@@ -70777,6 +70952,16 @@
       ]
     },
     {
+      "key": "Local normal offset:",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui/refit_diagnostics.rs",
+          "line": 100,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
       "key": "Local preview resolves glTF/GLB/OBJ/DAE textures into the shared Preview renderer.",
       "origins": [
         {
@@ -71583,6 +71768,16 @@
           "path": "cdmw/ui/new_item/translucency_editor.py",
           "line": 100,
           "sink": "setToolTip"
+        }
+      ]
+    },
+    {
+      "key": "Lowest sampled gaps",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui/refit_diagnostics.rs",
+          "line": 137,
+          "sink": "rust-presentation"
         }
       ]
     },
@@ -77272,6 +77467,26 @@
       ]
     },
     {
+      "key": "Minimum authored gap retained:",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui/refit_diagnostics.rs",
+          "line": 117,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Minimum body distance:",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui/refit_diagnostics.rs",
+          "line": 98,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
       "key": "Minimum brightness during a pulse, capped by each pixel's glow strength. Zero lets the pulse fade out fully.",
       "origins": [
         {
@@ -77293,6 +77508,16 @@
           "path": "cdmw/ui/new_item/glow_animation_editor.py",
           "line": 54,
           "sink": "setToolTip"
+        }
+      ]
+    },
+    {
+      "key": "Minimum layer gap:",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui/refit_diagnostics.rs",
+          "line": 112,
+          "sink": "rust-presentation"
         }
       ]
     },
@@ -77924,6 +78149,16 @@
     {
       "key": "Mixed",
       "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
+          "line": 1069,
+          "sink": "rust-presentation"
+        },
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
+          "line": 3595,
+          "sink": "rust-presentation"
+        },
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_vertex_inspector.rs",
           "line": 350,
@@ -87532,6 +87767,16 @@
       ]
     },
     {
+      "key": "Normal offset uses the nearest face orientation. It does not determine whether a point is inside the body.",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui/refit_diagnostics.rs",
+          "line": 102,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
       "key": "Normal strength",
       "origins": [
         {
@@ -89027,6 +89272,16 @@
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_jiggle.rs",
           "line": 389,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Only changed fields are applied. Mixed numeric fields initially show the first Part's value.",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
+          "line": 3578,
           "sink": "rust-presentation"
         }
       ]
@@ -95736,12 +95991,27 @@
         },
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
-          "line": 3687,
+          "line": 3825,
           "sink": "rust-presentation"
         },
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
-          "line": 3698,
+          "line": 3836,
+          "sink": "rust-presentation"
+        },
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui/refit_diagnostics.rs",
+          "line": 47,
+          "sink": "rust-presentation"
+        },
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui/refit_diagnostics.rs",
+          "line": 50,
+          "sink": "rust-presentation"
+        },
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui/refit_diagnostics.rs",
+          "line": 149,
           "sink": "rust-presentation"
         },
         {
@@ -95952,6 +96222,16 @@
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs",
           "line": 3560,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Partial analysis",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui/refit_diagnostics.rs",
+          "line": 90,
           "sink": "rust-presentation"
         }
       ]
@@ -111072,6 +111352,46 @@
       ]
     },
     {
+      "key": "Refit diagnostics require 1..128 unique garment Part indices.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_service_morph.py",
+          "line": 1638,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Refit diagnostics require 1..4096 samples and at least one per Part.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_service_morph.py",
+          "line": 1640,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Refit diagnostics require 1..64 layer details.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_service_morph.py",
+          "line": 1642,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Refit diagnostics require explicit garment Part indices.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_service_morph.py",
+          "line": 1630,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
       "key": "Refit driver parts cannot also be garment parts: {value_0}",
       "origins": [
         {
@@ -115562,6 +115882,16 @@
         {
           "path": "cdmw/services/mesh_service_morph.py",
           "line": 368,
+          "sink": "RuntimeError"
+        }
+      ]
+    },
+    {
+      "key": "Resident C++ Refit diagnostics returned an unsupported report.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_service_morph.py",
+          "line": 1664,
           "sink": "RuntimeError"
         }
       ]
@@ -120667,12 +120997,32 @@
       ]
     },
     {
+      "key": "Sampled geometry in model units. These measurements do not prove the whole mesh is collision-free.",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui/refit_diagnostics.rs",
+          "line": 85,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
       "key": "Sampler probe",
       "origins": [
         {
           "path": "cdmw/ui/model_preview_settings_dialog.py",
           "line": 500,
           "sink": "addRow"
+        }
+      ]
+    },
+    {
+      "key": "Samples:",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui/refit_diagnostics.rs",
+          "line": 86,
+          "sink": "rust-presentation"
         }
       ]
     },
@@ -133965,16 +134315,6 @@
       "key": "Some Archive Refit material files are missing ({value_0}). Reopen the source meshes to reload textures.",
       "origins": [],
       "manual": true
-    },
-    {
-      "key": "Some garment vertices are far from the body. Check alignment and scale before refitting.",
-      "origins": [
-        {
-          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
-          "line": 3368,
-          "sink": "rust-presentation"
-        }
-      ]
     },
     {
       "key": "Some items are still unresolved. Choose the original DDS for each of them before building.",
@@ -148242,6 +148582,16 @@
       ]
     },
     {
+      "key": "Tightness requires Surface or Rigid component mode on every selected garment.",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
+          "line": 3641,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
       "key": "Tile size",
       "origins": [
         {
@@ -150774,6 +151124,16 @@
     {
       "key": "Unavailable",
       "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui/refit_diagnostics.rs",
+          "line": 6,
+          "sink": "rust-presentation"
+        },
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui/refit_diagnostics.rs",
+          "line": 116,
+          "sink": "rust-presentation"
+        },
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_vertex_inspector.rs",
           "line": 620,
@@ -154033,6 +154393,36 @@
           "path": "cdmw/ui/archive_browser/attachment_placement_diff_dialog.py",
           "line": 893,
           "sink": "QCheckBox"
+        }
+      ]
+    },
+    {
+      "key": "Use displayed clearance",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
+          "line": 1073,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Use displayed intensity",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
+          "line": 1071,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Use displayed tightness",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
+          "line": 1072,
+          "sink": "rust-presentation"
         }
       ]
     },
@@ -163212,6 +163602,16 @@
       ]
     },
     {
+      "key": "body distance",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui/refit_diagnostics.rs",
+          "line": 142,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
       "key": "body label",
       "origins": [
         {
@@ -170158,6 +170558,16 @@
           "path": "cdmw/ui/preview/dotnet_session.py",
           "line": 1140,
           "sink": "_set_state"
+        }
+      ]
+    },
+    {
+      "key": "layer gap",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui/refit_diagnostics.rs",
+          "line": 150,
+          "sink": "rust-presentation"
         }
       ]
     },

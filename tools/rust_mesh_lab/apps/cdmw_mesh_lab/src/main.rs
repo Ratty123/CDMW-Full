@@ -2205,7 +2205,8 @@ struct LabApplication {
     cdmw_refit_vertex_weight: f32,
     cdmw_refit_region_targets: Vec<u32>,
     cdmw_refit_hydration_key: String,
-    cdmw_refit_settings_dirty: bool,
+    cdmw_refit_settings_dirty: cdmw_ui::RefitSettingsEdits,
+    cdmw_refit_diagnostics: Option<Value>,
     cdmw_cleanup_merge_distance: f32,
     cdmw_loop_cut_count: u32,
     cdmw_loop_cut_factor: f32,
@@ -2383,7 +2384,8 @@ impl LabApplication {
             cdmw_refit_vertex_weight: 100.0,
             cdmw_refit_region_targets: Vec::new(),
             cdmw_refit_hydration_key: String::new(),
-            cdmw_refit_settings_dirty: false,
+            cdmw_refit_settings_dirty: cdmw_ui::RefitSettingsEdits::default(),
+            cdmw_refit_diagnostics: None,
             cdmw_cleanup_merge_distance: 0.0001,
             cdmw_loop_cut_count: 1,
             cdmw_loop_cut_factor: 0.5,
@@ -2931,8 +2933,8 @@ impl LabApplication {
         if let Some(CdmwRequestOrigin::MorphValue(definition_id)) = &origin {
             self.cdmw_morph_value_drafts.remove(definition_id);
         }
-        if label == "Apply garment refit settings" || (label == "Fit to body" && ok) {
-            self.cdmw_refit_settings_dirty = false;
+        if ok && (label == "Apply garment refit settings" || label == "Fit to body") {
+            self.cdmw_refit_settings_dirty = cdmw_ui::RefitSettingsEdits::default();
             self.cdmw_refit_hydration_key.clear();
         }
         if !ok {
@@ -2940,6 +2942,12 @@ impl LabApplication {
             self.remember_cdmw_page_feedback(origin.as_ref());
             self.finish_cdmw_history_step(request_id, false);
             return;
+        }
+        if label == "Analyze current fit" {
+            self.cdmw_refit_diagnostics = payload
+                .pointer("/result/refit_diagnostics")
+                .filter(|report| report.is_object())
+                .cloned();
         }
         if matches!(
             label.as_str(),

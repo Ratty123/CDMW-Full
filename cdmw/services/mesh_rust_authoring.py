@@ -8789,9 +8789,11 @@ class RustMeshAuthoringSession:
 
 
     def _execute_shadow_command(self, command, args, stop_event, before_revision, before_signature):
-        if command.startswith(("morph_", "refit_")):
+        if command != "refit_diagnostics" and command.startswith(("morph_", "refit_")):
             self._ensure_morph_authoring_resolved(command)
-        if command == "cloth_collision_input":
+        if command == "refit_diagnostics":
+            result = self._run_morph_command(command, args)
+        elif command == "cloth_collision_input":
             from cdmw.services.mesh_rust_jiggle import set_cloth_collision_input
             result = set_cloth_collision_input(self, args, stop_event)
         elif command == "vertex_edit":
@@ -8981,6 +8983,22 @@ class RustMeshAuthoringSession:
         arguments = request.get("arguments")
         args = dict(arguments) if isinstance(arguments, Mapping) else {}
         shadow_session = self.shadow_service._session(self.shadow_session_id)
+        if command == "refit_diagnostics":
+            # Keep the common session/root/revision checks above, but do not
+            # enter mutation guards, document preflight, or revision publication.
+            # Hold the same geometry lock through the native query and host state
+            # read. The host's UI refresh watermark differs from native revision.
+            with shadow_session.export_lock:
+                result = self._run_morph_command(command, args)
+                self._raise_if_cancelled(stop_event)
+                state = self.state_payload(include_document=False)
+                diagnostics = result.get("refit_diagnostics") if isinstance(result, Mapping) else None
+                morph_state = state.get("morph_refit")
+                host_revision = morph_state.get("state_revision") if isinstance(morph_state, Mapping) else None
+                if not isinstance(diagnostics, dict) or type(host_revision) is not int:
+                    raise RustMeshProtocolError("Refit diagnostics could not identify the current Morph state.")
+                diagnostics["host_morph_revision"] = host_revision
+                return {"result": _json_safe(result), "state": state}
         if command not in {"state", "select", "undo", "redo", "morph_set_corrections_enabled"}:
             self._ensure_correction_comparison_resolved()
         if (shadow_session.hair_state is not None and not shadow_session.hair_state.payload["converted"]
@@ -9187,6 +9205,17 @@ class RustMeshAuthoringSession:
     def _run_morph_command(self, command: str, args: Mapping[str, object]) -> object:
         service = self.shadow_service
         session_id = self.shadow_session_id
+        if command == "refit_diagnostics":
+            _require_argument_keys(args, {"submesh_indices", "sample_limit", "detail_limit"}, command)
+            return {
+                "status": "ok",
+                "refit_diagnostics": service.refit_diagnostics(
+                    session_id,
+                    tuple(args.get("submesh_indices", ()) or ()),
+                    sample_limit=args.get("sample_limit", 2048),
+                    detail_limit=args.get("detail_limit", 24),
+                ),
+            }
         self._ensure_morph_authoring_resolved(command)
         if command == "morph_generate_body_controls":
             return service.generate_body_morph_controls(session_id)
@@ -9317,11 +9346,9 @@ class RustMeshAuthoringSession:
             return service.configure_refit(
                 session_id,
                 tuple(args.get("submesh_indices", ()) or ()),
-                enabled=args.get("enabled", True),
-                intensity_percent=args.get("intensity_percent", 100.0),
-                mode=args.get("mode", "surface"),
-                clearance_percent=args.get("clearance_percent", 0.0),
-                tightness_percent=args.get("tightness_percent"),
+                **{key: args[key] for key in (
+                    "enabled", "intensity_percent", "mode", "clearance_percent", "tightness_percent",
+                ) if key in args},
             )
         if command == "refit_fit_to_body":
             return service.fit_refit_to_body(session_id)

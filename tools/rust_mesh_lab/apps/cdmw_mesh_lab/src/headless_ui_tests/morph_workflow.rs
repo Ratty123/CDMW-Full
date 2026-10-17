@@ -34,6 +34,102 @@ impl HeadlessUi {
     }
 }
 
+fn mixed_refit_ui(selected: &[u32]) -> Result<HeadlessUi, Box<dyn std::error::Error>> {
+    let mut ui = super::morph_authoring::authoring_ui()?;
+    ui.application.cdmw_state["morph_refit"]["refit"]["garment_settings"] = json!([
+        {"submesh_index": 1, "enabled": true, "intensity_percent": 37.0,
+         "mode": "surface", "clearance_percent": 0.5, "tightness_percent": 25.0},
+        {"submesh_index": 2, "enabled": false, "intensity_percent": 64.0,
+         "mode": "rigid_component", "clearance_percent": 1.25, "tightness_percent": 63.0}
+    ]);
+    ui.application.mesh.as_mut().ok_or("mesh")?.set_selection(Selection {
+        submeshes: selected.iter().copied().collect(),
+        ..Selection::default()
+    })?;
+    ui.click("Fit")?;
+    Ok(ui)
+}
+
+fn refit_arguments(actions: &[UiAction]) -> Value {
+    actions.iter().find_map(|action| match action {
+        UiAction::CdmwCommand { command: "refit_configure", arguments, .. } => Some(arguments.clone()),
+        _ => None,
+    }).unwrap_or_else(|| panic!("missing refit_configure: {actions:?}"))
+}
+
+#[test]
+fn workflow_refit_mixed_clearance_dispatches_only_changed_fields_to_selected_or_all() -> TestResult {
+    for (selected, button, expected) in [
+        (vec![1, 2], "Apply to Selected Garments", vec![1, 2]),
+        (vec![1], "Apply to Selected Garments", vec![1]),
+        (vec![1], "Apply to All Bound Garments", vec![1, 2]),
+        (vec![], "Apply to All Bound Garments", vec![1, 2]),
+    ] {
+        let mut ui = mixed_refit_ui(&selected)?;
+        assert!(!has_host_command(&ui.actions_from_click(button)?, "refit_configure"));
+        if selected.len() != 1 {
+            ui.reveal("Use displayed clearance")?;
+        }
+        ui.type_number_in_row("Clearance %", 0.5, "0.75")?;
+        // A resident refresh must update untouched fields without adding them
+        // to the outgoing patch or discarding the user's clearance edit.
+        ui.application.cdmw_state["morph_refit"]["state_revision"] = json!(2);
+        ui.application.cdmw_state["morph_refit"]["refit"]["garment_settings"][0]["intensity_percent"] = json!(48.0);
+        ui.frame(Vec::new());
+        assert_eq!(ui.application.cdmw_refit_clearance, 0.75);
+        assert_eq!(ui.application.cdmw_refit_intensity, 48.0);
+        assert_eq!(refit_arguments(&ui.actions_from_click(button)?), json!({
+            "submesh_indices": expected, "clearance_percent": 0.75,
+        }));
+    }
+    Ok(())
+}
+
+#[test]
+fn workflow_refit_mixed_values_require_an_explicit_field_choice() -> TestResult {
+    for (button, field, value) in [
+        ("Use displayed intensity", "intensity_percent", json!(37.0)),
+        ("Use displayed tightness", "tightness_percent", json!(25.0)),
+        ("Use displayed clearance", "clearance_percent", json!(0.5)),
+    ] {
+        let mut ui = mixed_refit_ui(&[1, 2])?;
+        ui.click(button)?;
+        let mut expected = json!({"submesh_indices": [1, 2]});
+        expected[field] = value;
+        assert_eq!(refit_arguments(&ui.actions_from_click("Apply to Selected Garments")?), expected);
+    }
+    let mut ui = mixed_refit_ui(&[1, 2])?;
+    let mode = ui.reveal("Mode")?;
+    ui.click_where("Mixed", |rect| (rect.center().y - mode.center().y).abs() < 20.0)?;
+    // Surface is already the first Part's value. Clicking it must still
+    // explicitly resolve the mixed selection to Surface.
+    ui.click("Surface")?;
+    assert_eq!(refit_arguments(&ui.actions_from_click("Apply to Selected Garments")?),
+        json!({"submesh_indices": [1, 2], "mode": "surface"}));
+    let mut ui = mixed_refit_ui(&[1, 2])?;
+    ui.click("Refit enabled")?;
+    assert_eq!(refit_arguments(&ui.actions_from_click("Apply to Selected Garments")?),
+        json!({"submesh_indices": [1, 2], "enabled": true}));
+    Ok(())
+}
+
+#[test]
+fn workflow_refit_selection_change_discards_draft_even_when_first_part_is_unchanged() -> TestResult {
+    let mut ui = mixed_refit_ui(&[1])?;
+    ui.type_number_in_row("Clearance %", 0.5, "0.75")?;
+    assert!(ui.application.cdmw_refit_settings_dirty.is_dirty());
+    ui.application.mesh.as_mut().ok_or("mesh")?.set_selection(Selection {
+        submeshes: [1, 2].into_iter().collect(),
+        ..Selection::default()
+    })?;
+    ui.frame(Vec::new());
+    assert!(!ui.application.cdmw_refit_settings_dirty.is_dirty());
+    assert_eq!(ui.application.cdmw_refit_clearance, 0.5);
+    ui.reveal("Use displayed clearance")?;
+    assert!(!has_host_command(&ui.actions_from_click("Apply to Selected Garments")?, "refit_configure"));
+    Ok(())
+}
+
 #[test]
 fn workflow_tabs_show_only_the_selected_task_and_keep_drafts() -> TestResult {
     let mut ui = super::morph_authoring::authoring_ui()?;
@@ -51,7 +147,7 @@ fn workflow_tabs_show_only_the_selected_task_and_keep_drafts() -> TestResult {
     assert!(ui.label_rect("Load Preset...").is_none());
     ui.click("Fit")?;
     assert_eq!(ui.application.cdmw_refit_clearance, 1.375);
-    assert!(ui.application.cdmw_refit_settings_dirty);
+    assert!(ui.application.cdmw_refit_settings_dirty.is_dirty());
     ui.click("Shape")?;
     ui.reveal("Retained slider")?;
     ui.click_tool_button("Morph & Refit")?;

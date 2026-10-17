@@ -216,6 +216,7 @@ void mesh_editor_conform_refit(const MeshRefitRuntime &refit, const std::map<int
     std::map<TriangleKey, std::size_t> triangle_ids;
     // UV/material seams duplicate vertices without cutting the body surface.
     // Only the search graph is welded; retained bindings and region IDs stay intact.
+    const auto body_seam_positions = mesh_editor_refit_body_seam_positions(refit, drivers, driver_visible);
     std::map<Vec3, std::size_t> body_welds;
     std::map<std::pair<std::size_t, std::size_t>, std::vector<std::size_t>> body_edges;
     for (std::size_t i = 0; i < body.triangles.size(); ++i) {
@@ -223,7 +224,8 @@ void mesh_editor_conform_refit(const MeshRefitRuntime &refit, const std::map<int
         triangle_ids[key_for(triangle.driver_submesh_index, triangle.driver_vertices)] = i;
         std::array<std::size_t, 3> welded{};
         for (int corner = 0; corner < 3; ++corner)
-            welded[corner] = body_welds.emplace(triangle.corners[corner], body_welds.size()).first->second;
+            welded[corner] = body_welds.emplace(body_seam_positions.at(triangle.driver_submesh_index)
+                [triangle.driver_vertices[corner]], body_welds.size()).first->second;
         for (int corner = 0; corner < 3; ++corner) {
             body_edges[std::minmax(welded[corner], welded[(corner + 1) % 3])].push_back(i);
         }
@@ -239,6 +241,8 @@ void mesh_editor_conform_refit(const MeshRefitRuntime &refit, const std::map<int
         bindings[{binding.garment_submesh_index, static_cast<std::size_t>(binding.garment_vertex_index)}] =
             &binding;
     const auto garment_spatial = build_refit_spatial_index_native(garments, garment_set);
+    const auto surface_roots = mesh_editor_refit_surface_roots(garments, indices, nodes.size());
+    const auto garment_surfaces = mesh_editor_refit_surface_indices(garments, indices, surface_roots);
     std::map<int, std::vector<Vec3>> garment_positions;
     for (const auto &item : garments)
         garment_positions[item.first] = item.second.vertices;
@@ -341,7 +345,8 @@ void mesh_editor_conform_refit(const MeshRefitRuntime &refit, const std::map<int
         if (garment_spatial.root >= 0) {
             for (const auto &hit : refit_surface_line_hits_native(node.point, target_normal,
                                                                   refit.driver_diagonal * 0.06, garment_spatial)) {
-                if (hit.driver_submesh_index == vertex.first)
+                if (hit.driver_submesh_index == vertex.first
+                    && surface_roots[indices.at(hit.driver_submesh_index)[hit.driver_vertices[0]]] == surface_roots[i])
                     continue;
                 if (dot_vec3(refit_binding_face_normal_native(hit, garment_positions), target_normal) < 0.5)
                     continue;
@@ -414,8 +419,8 @@ void mesh_editor_conform_refit(const MeshRefitRuntime &refit, const std::map<int
                 screen[i] = nodes[i].area;
         }
     }
-    // Overlapping material Parts share a local displacement field. A belt or
-    // folded panel must follow the cloth underneath instead of independently
+    // Overlapping surface islands share a local displacement field, including
+    // islands stored in one Part. A belt or folded panel follows the cloth underneath instead of independently
     // seeking the skin. Barycentric links preserve details even when the two
     // surfaces have different tessellation; they do not weld their positions.
     struct LayerLink {
@@ -424,12 +429,16 @@ void mesh_editor_conform_refit(const MeshRefitRuntime &refit, const std::map<int
         double strength;
     };
     std::vector<LayerLink> layer_links;
-    for (const auto& item : garments) {
-        const auto surface = build_refit_spatial_index_native(garments, {item.first});
-        if (surface.root < 0) continue;
+    for (const auto& item : garment_surfaces) {
+        const int part = item.first.first;
+        const auto& surface = item.second;
+        const auto& bounds = surface.nodes[surface.root];
         for (std::size_t i = 0; i < nodes.size(); ++i) {
-            if (!reliable[i] || std::any_of(nodes[i].vertices.begin(), nodes[i].vertices.end(),
-                    [&](const auto& vertex) { return vertex.first == item.first; })) continue;
+            if (!reliable[i] || (surface_roots[i] == item.first.second
+                && std::any_of(nodes[i].vertices.begin(), nodes[i].vertices.end(),
+                    [&](const auto& vertex) { return vertex.first == part; }))) continue;
+            if (refit_aabb_distance_squared_native(nodes[i].point, bounds.minimum, bounds.maximum)
+                > std::pow(refit.driver_diagonal * 0.03, 2.0)) continue;
             long long tests = 0;
             const auto nearest = closest_refit_binding_native(nodes[i].point, surface, tests);
             if (nearest.distance > refit.driver_diagonal * 0.03) continue;
@@ -444,7 +453,7 @@ void mesh_editor_conform_refit(const MeshRefitRuntime &refit, const std::map<int
             LayerLink link{{i, 0, 0, 0}, {1.0, 0.0, 0.0, 0.0}, nodes[i].area * 16.0};
             bool shared = false;
             for (int c = 0; c < 3; ++c) {
-                link.nodes[c + 1] = indices.at(item.first)[nearest.driver_vertices[c]];
+                link.nodes[c + 1] = indices.at(part)[nearest.driver_vertices[c]];
                 link.weights[c + 1] = -nearest.barycentric[c];
                 shared |= link.nodes[c + 1] == i;
             }

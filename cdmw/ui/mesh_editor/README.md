@@ -1689,12 +1689,20 @@ saving and export.
 Select clothing/armor Parts and bind them. **Create body slider** selects the driver and
 opens the slider creator in view when no shape sliders exist. Custom regions can still
 be selected with the Selection tool. The panel rejects overlapping roles and setup
-changes during an unbaked preview, and shows the binding-distance warning. Binding
+changes during an unbaked preview. The initial-binding warning records distance at
+bind time; it is not a measurement of the current fit. Binding
 replaces the garment set; select every garment that should participate.
 
 Surface, Rigid and Rigid component modes retain each garment's enabled state,
 body-follow intensity, Tightness and clearance. **Changes not applied** marks pending
 settings; **Apply to Selected Garments** and **Apply to All Bound Garments** apply them.
+Only fields you change are applied. A **Mixed** marker identifies settings that differ
+across the chosen garments. Mixed numeric fields initially display the first Part's
+value; **Use displayed intensity**, **Use displayed tightness** and **Use displayed
+clearance** explicitly choose that value for the whole scope. Unchanged fields retain
+each Part's settings and masks. Apply is disabled until a field changes, and a refused
+update retains the pending edits. Tightness requires Surface or Rigid component mode
+on every chosen garment.
 
 **Fit to body** tightens all enabled bound garments around the loaded body. It needs
 no viewport selection, body slider, original body or skeleton. It sets **Tightness %**
@@ -1718,16 +1726,22 @@ The fitter uses local body-surface correspondences and a seam-connected displace
 solve, then checks contacts against the complete body, including when an allowed
 region limits correspondence. The body search crosses coincident material seams and
 measures distance to triangle surfaces, so coarse mesh sections do not cut it short.
+Adjoining body Parts can share the correspondence walk across tiny boundary-coordinate
+differences when reversed boundary edges match reciprocally with compatible face orientations.
+Ambiguous or overlapping candidates remain separate; source vertices are not snapped.
 Matching panel borders also share displacement when independent mesh quantization
 leaves tiny coordinate differences. Reversed boundary edges with agreeing surface
 orientation identify those seams; nearby parallel layer rims remain separate. The
 original coordinate offsets stay intact, and protection carries across the seam.
 It follows the broad cloth direction when choosing targets; a small hem fold should
 not redirect a long panel onto nearby feet. Overlapping panels, belts and trim share
-nearby cloth movement even when their mesh densities differ. Layer order comes from the pre-fit
-garment; open edges do not push surfaces they do not cover. Already intersecting or
-nearly coincident trim follows the shared movement instead of imposing contradictory
-inside/outside constraints. The collision stage uses the conformed silhouette for
+nearby cloth movement even when their mesh densities differ. Layer order comes from
+the pre-fit garment. Disconnected surface islands receive the same layer protection
+whether they occupy one Part or several Parts. Trustworthy coincident seams still
+form a continuous surface. Open edges do not push surfaces they do not cover.
+Already intersecting or nearly coincident trim follows the shared movement instead
+of imposing contradictory inside/outside constraints. The collision stage uses the
+conformed silhouette for
 shape constraints so original garment width does not resist narrowing. Triangle
 guards limit distortion while carrying common movement, so folded hems and trim do
 not stick at their old positions. Body contacts are evaluated together: larger
@@ -1760,6 +1774,28 @@ panels may need lower Tightness or protection masks to keep their intended silho
 geometry alone does not identify which looseness is part of the garment's design.
 Static geometry, renderer and PAC round-trip checks do not establish animation or
 in-game appearance.
+
+#### Inspect the current fit
+
+**Analyze current fit** measures selected bound garment Parts, or all bound garments
+when none are selected. It inspects the current preview without applying pending
+settings. The read-only native query runs off the UI thread and does not change
+geometry, settings, revisions or Undo/Redo history. It is disabled while another host
+request is pending.
+
+**Current fit diagnostics** separates distance to the current body from spacing between
+recognized garment layers. Body results include minimum unsigned surface distance and
+local normal offset. The normal offset uses the nearest face orientation; it does not
+determine whether a point is inside the body. Layer results compare current gaps with
+the neutral authored gaps and report the minimum retained fraction. Sample locations
+identify the original Part and vertex so you can inspect the smallest measured gaps.
+
+Measurements use model units and deterministic bounded sampling. The panel shows sample
+counts, limited location details, partial results and explicit unavailable values.
+Missing measurements are never displayed as zero. These samples do not prove that the
+whole mesh is collision-free or that the outfit looks correct. Changes to the preview,
+Morph & Refit state or selected garment scope hide stale measurements and ask you to
+analyze again. The initial-binding warning remains separate from these current results.
 
 #### Control what follows the body
 

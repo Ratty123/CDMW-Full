@@ -2,7 +2,7 @@
 
 - Plan ID: `MRF`
 - Created: 2026-10-17 (Europe/Stockholm)
-- Status: Planned. Implementation has not started.
+- Status: Required implementation completed on 2026-10-17; three conditional tasks remain deferred.
 - Project: `D:\CLAUDETEST\CDMW Full`
 - Game reference: `C:\games\Steam\steamapps\common\Crimson Desert`
 - Plan file: `beta-progress/morph-refit-improvement-plan.md`
@@ -20,15 +20,15 @@ This document prepares the work requested after the investigation. Creating or r
 
 ## Current handoff
 
-- Completed: MRF-DOC-01 only (planning).
-- Active task: None.
-- Working agent: Unassigned.
-- Claimed source files: None.
-- Next task: MRF-BASE-01.
-- Blockers: None identified for planning.
+- Completed: MRF-DOC-01, MRF-BASE-01, MRF-FIT-01, MRF-FIT-02, MRF-UI-01, MRF-DIAG-01 and MRF-DONE-01.
+- Active task: None. Required implementation and verification are complete.
+- Working agent: No continuing implementation claim. Root integrated the completion, with independent native and host/UI reviews.
+- Claimed source files: None remaining. The isolated MRF commit covers the fitting/diagnostic owners, service/worker and Rust UI integration, focused tests, localization, owning documentation and MRF tracking. Other plans retain their pending work.
+- Next task: Choose another plan, or resume a conditional MRF task only when its stated trigger is met. MRF-PERF-01 remains deferred after its measured experiment was reverted.
+- Blockers: None for the completed required scope.
 - Required tasks: MRF-BASE-01, MRF-FIT-01, MRF-FIT-02, MRF-UI-01, MRF-DIAG-01, and MRF-DONE-01.
 - Conditional tasks: MRF-PERF-01, MRF-RE-01, and MRF-VIS-01. Record any deferral and its reason here; leave an unperformed task unchecked.
-- Evidence limit: Existing results are source inspection and synthetic native execution. No fresh native build, rendered review, REA session, or in-game validation was performed during the investigation.
+- Evidence limit: Focused native/service execution, headless egui behavior, source review and build/catalog checks support this completion. No visible editor, representative real-asset, REA or in-game validation is claimed.
 
 ## Completed preparation
 
@@ -123,7 +123,7 @@ Reproduction details:
 
 ### MRF-BASE-01: Reconfirm the implementation starting point
 
-- [ ] **MRF-BASE-01 complete:** Current owners, task claims, relevant evidence, and the focused validation scope are recorded.
+- [x] **MRF-BASE-01 complete:** Current owners, task claims, relevant evidence, and the focused validation scope are recorded.
 
 Work:
 
@@ -138,11 +138,11 @@ Acceptance:
 - The chosen checks address the changed contract. No broad gate or unrelated build is added just because Mesh Editor files are involved.
 - The shared progress file exists and task ownership is clear.
 
-Completion: Pending.
+Completion: 2026-10-17. Rechecked current instructions, source owners, shared progress, and Git changes. New `tests/test_mesh_refit_layer_boundaries_native.py` reproduced three failures (two-layer and three-layer one-Part collapse, and shifted body-seam hem) with one protected-rim control passing in 1.78 s against the unchanged helper. Helper: `native/cdmw_mesh_core/build/Release/cdmw-mesh-core.exe`, SHA-256 `8a6ff5c56e5c21a93d4fe2d63505c5db0c27c18d1f71ce9bca216d2b43989b4b`, 2,245,120 bytes; checkout HEAD at measurement `d4b38e5082d4f9b4b4cce14f9ee2ecdb37994aaf`. The helper was not rebuilt for this baseline. Two-layer minimum gap: separate Parts 0.0099818335, one Part 0.0000138603; three-layer one-Part minimum gaps 0.0000138338 and 0.00000457835. Seam hem and displacement reproduced the recorded values. Tolerances were fixed before rebuilding: each interior gap >= 0.0095, packing difference <= 0.0002, hem Y > 0.155 and displacement from exact seam <= 0.001. Scope is synthetic/native and focused service/Rust behavior checks, with only the affected helper and ABI build targets. Regression, settings, and diagnostics agents own isolated files or agreed hunks; root owns both fitting owners and final integration.
 
 ### MRF-FIT-01: Preserve disconnected layers inside one Part
 
-- [ ] **MRF-FIT-01 complete:** The layer reproduction retains meaningful spacing regardless of whether its surfaces share a Part.
+- [x] **MRF-FIT-01 complete:** The layer reproduction retains meaningful spacing regardless of whether its surfaces share a Part.
 
 Depends on: MRF-BASE-01.
 
@@ -163,11 +163,11 @@ Acceptance:
 
 Boundary: Initial work covers disconnected surface islands. It does not claim general self-collision handling for connected folds.
 
-Completion: Pending.
+Completion: 2026-10-17. Added topology/seam-aware island search indexes, own-island exclusions, and same-Part layer relationships in standoff, layer links, clearance and final validation. Source Part/vertex/triangle IDs and authored coordinates are retained. Both two- and three-layer fixtures now give exactly the same measured gaps in one Part and separate Parts (maximum packing difference 0). Two-layer minimum gap is 0.009981833493446612 from 0.01 authored; three-layer minimum gaps are 0.009979657297000732 and 0.009981663512406674. The protected close-rim control checks native effective masks directly, with exact protected/body positions; it does not require a movable layer to cross its protected neighbor. All six layer/boundary cases passed. The existing `tests/test_mesh_refit_tightening_native.py` 36 cases passed after the geometry changes, covering folded/overlapping trim, seams, rigid parts, masks, repeat/reset/bake/history, body changes and atomic rejection. Evidence is synthetic native execution. Verified helper build with diagnostics included: exe SHA-256 `bbe16d3f9dfb2c07a461ac4bb2373cf2b986a3eaf9e596a12d0bdf8e55e8e410`; ABI DLL SHA-256 `3543d0379a481a22277e70fc9242d2647fbe5400fad39aa3e42a8f0f6ed92e52`. General connected-fold self-collision remains outside scope.
 
 ### MRF-FIT-02: Recognize near-matching body seams conservatively
 
-- [ ] **MRF-FIT-02 complete:** Tiny intended seam mismatches no longer produce the recorded large accepted change in the fitted hem.
+- [x] **MRF-FIT-02 complete:** Tiny intended seam mismatches no longer produce the recorded large accepted change in the fitted hem.
 
 Depends on: MRF-BASE-01. Coordinate with MRF-FIT-01 before editing the shared native owners.
 
@@ -189,11 +189,11 @@ Acceptance:
 
 Boundary: Change the fitting interpretation of a boundary, not the source mesh through global welding or vertex snapping.
 
-Completion: Pending.
+Completion: 2026-10-17. Reused conservative border-edge recognition for virtual body adjacency and boundary/pseudonormal grouping. New near matches require reciprocal unique reversed edges, compatible normals, nontrivial edge length, and the existing small scale-relative precision window (`max(1e-6, body diagonal * 2e-5)`). No source vertex is snapped. Original symmetric hem results are above 0.164706 in all three cases. A full-shape comparison originally also exposed a separate nearest-leg tie at vertices exactly on the two-leg medial plane. The regression now retains that original hem witness and rotates a second circular skirt by half a segment to isolate seam continuity; the fixed 0.001 displacement tolerance is unchanged. Rotated exact/1e-6/6e-6 hem Y values are 0.1648065149, 0.1648065473 and 0.1648067086; maximum shifted-geometry changes are 0.00000102354 and 0.00001205485. An isolated source-baseline build at `d4b38e5082d4f9b4b4cce14f9ee2ecdb37994aaf` (exe SHA-256 `feef2cd8a6d9144d94e142a4bd322a5be3a4fc9f36f538e4613b9cbce1c4d4a3`) still fails that rotated hem check at about 0.117355, so the fixture change does not hide the seam defect. Duplicate compatible body-seam candidates remain unjoined and differ from the outside-tolerance reference by only 0.000114884. Six boundary cases and the existing 36 fitting cases pass with the helper identified in MRF-FIT-01. Current matching uses a conservative scale-relative window, not per-descriptor propagated quantization metadata. Equidistant disconnected-body choices and general nearest-component stability remain outside this seam fix.
 
 ### MRF-UI-01: Preserve unchanged settings in mixed Part selections
 
-- [ ] **MRF-UI-01 complete:** Bulk edits modify only the fields the user changes while preserving each Part's other settings.
+- [x] **MRF-UI-01 complete:** Bulk edits modify only the fields the user changes while preserving each Part's other settings.
 
 Depends on: MRF-BASE-01.
 
@@ -212,11 +212,11 @@ Acceptance:
 - A batch remains atomic and produces one undoable operation. Stale UI state cannot silently replace unrelated current settings.
 - Verify actual UI-to-command behavior with the smallest relevant behavior test; source-text matching alone is insufficient.
 
-Completion: Pending.
+Completion: 2026-10-17. Mixed controls now track an explicit field set and full Part/profile scope. Both Python routes preserve omitted arguments; the service validates the active profile and merges only supplied fields against authoritative native state under the export lock before one atomic batch with masks omitted. Untouched fields refresh without replacing pending edits; scope changes discard an old draft, successful Apply/Fit clears it, and rejected requests preserve it. Six service cases passed for selected/all targets through direct service, Rust dispatch and edit-command routes with stale cached settings; failed-batch atomicity and existing authoritative Fit behavior also passed. Real egui checks passed: three `workflow_refit_` cases, seven `integrated_refit_` cases, `refit_fit_result_rehydrates_settings_only_after_success`, and `workflow_tabs_show_only_the_selected_task_and_keep_drafts`. Commands use `cargo test --manifest-path tools/rust_mesh_lab/Cargo.toml --locked -p cdmw_mesh_lab <filter> -- --nocapture`. This is service and headless UI behavior evidence, not a rendered or in-game appearance check.
 
 ### MRF-DIAG-01: Add useful final-fit diagnostics
 
-- [ ] **MRF-DIAG-01 complete:** Users can distinguish initial binding information from measurements of the current fitted geometry.
+- [x] **MRF-DIAG-01 complete:** Users can distinguish initial binding information from measurements of the current fitted geometry.
 
 Depends on: MRF-BASE-01; use the corrected layer model from MRF-FIT-01 for layer diagnostics.
 
@@ -236,7 +236,20 @@ Acceptance:
 - Work and memory are bounded; no new UI-thread stall is introduced.
 - Do not add automatic rejection thresholds without separate evidence that intentional folds and overlaps remain valid.
 
-Completion: Pending.
+Completion: 2026-10-17. Current-fit analysis reads published coordinates and neutral authored layer spacing without recomposition, publication, setting/mask changes or history writes. Native and service checks passed: 24 cases in 11.62 s. They distinguish preserved and collapsed spacing despite unchanged binding metadata, keep body distance separate from recognized layer gaps, preserve original Part/vertex identities, enforce request bounds, and cover read-only state, service locking and worker completion/failure handling. Six actual headless egui cases passed in 1.84 s for selected/all scopes, busy controls, current measurement rendering, unavailable data, successful-result caching, and stale host/mesh/selection handling. All 30 cases passed with no skips.
+
+Exact focused commands (PowerShell):
+
+```powershell
+cmake --build native/cdmw_mesh_core/build --config Release --target cdmw-mesh-core cdmw-mesh-core-abi
+$env:QT_QPA_PLATFORM="offscreen"
+.\.venv\Scripts\python.exe -m pytest tests/test_mesh_refit_diagnostics_native.py tests/test_mesh_refit_diagnostics_service.py -q -p no:cacheprovider --basetemp="$env:TEMP\cdmw-pytest-mrf-diagnostics-20261017"
+cargo test --manifest-path tools/rust_mesh_lab/Cargo.toml --locked -p cdmw_mesh_lab --bin cdmw_mesh_lab headless_ui_tests::refit_diagnostics -- --nocapture
+```
+
+Both affected CMake targets built successfully against the resumed checkout based on `f5ac6b9925681b0a9b5b6ed8ab2dcd248a3260b8` with the pending MRF changes. Verified executable: `native/cdmw_mesh_core/build/Release/cdmw-mesh-core.exe`, 2,288,128 bytes, SHA-256 `e910ba0d6a8bf11e81b0808afbb9e46e4fbe087bc5ad7dea868524701070764b`. ABI output: `native/cdmw_mesh_core/build/Release/cdmw-mesh-core.dll`, 602,624 bytes, SHA-256 `6bafb01f9c191ff785abe71af1bd6191b87a6322c0164cd637033c3ae79ed147`.
+
+Independent native and host/UI source reviews found no further defect. The body-search helper excludes invalid BVH roots; reply correlation validates the bridge session/process identity before caching; the application does not rebind that bridge in place. Reports have input/work caps and deterministic sampling. The 2,000 ms analysis budget is cooperative, with input-bounded preparation, so it is not a hard two-second wall-time guarantee. Local normal offset is not an inside-body test, and sampled gaps are not global collision or appearance proof. No visible editor, real-asset, REA or in-game validation is claimed.
 
 ## Conditional tasks
 
@@ -250,7 +263,16 @@ Work: Build the unchanged face-neighbor lists once outside the strain-limiting p
 
 Acceptance: Equivalent inputs preserve the existing numerical result and failure behavior. Record repeated before/after timing on the same representative case, including variability. Claim a speed improvement only if it is measured beyond timing noise. If the benefit is negligible, retain the existing code and record the decision as deferred here.
 
-Completion: Pending.
+Decision: Deferred on 2026-10-17; the experiment was reverted. Compact sorted neighbor lists built once per fit preserved exact vertex, normal, face, UV and skin hashes in all four cases, but did not produce a useful speed improvement. The comparison alternated before/after order in two blocks, with two warmups and four measured fits per binary per block (eight samples per binary). Reset to tightness 0 was outside each timed fit to 100. Both binaries contained the fitting fixes and diagnostics; only connectivity reuse differed.
+
+| Synthetic case | Existing median (ms) | Experiment median (ms) | Measured change |
+| --- | ---: | ---: | --- |
+| 48-segment fold, depth 0.005 | 38.91355 | 40.12935 | 3.12% slower |
+| 48-segment fold, depth 0.023 | 88.28120 | 88.84955 | 0.64% slower |
+| 192-segment fold, depth 0.023 | 949.78700 | 948.25435 | 0.16% faster, within variability |
+| Three nested sleeve Parts | 14.04485 | 15.08775 | 7.43% slower |
+
+Observed ranges in the same order were 38.458-39.742 versus 39.373-41.059 ms; 86.426-89.728 versus 87.691-92.371 ms; 928.030-961.934 versus 917.457-989.896 ms; and 13.237-14.955 versus 14.792-15.585 ms. Baseline helper SHA-256: `bbe16d3f9dfb2c07a461ac4bb2373cf2b986a3eaf9e596a12d0bdf8e55e8e410`. Experiment SHA-256: `61d2f330aff7e8890b2539be04ce570ae726ff25f2d0e66341f189e7f5ab3635`. The original connectivity construction is retained; no speed or memory improvement is claimed.
 
 ### MRF-RE-01: Use REA for a concrete remaining format or engine question
 
@@ -262,7 +284,7 @@ Work: State the question, exact game/build identity, REA connection status, and 
 
 Acceptance: Record observed facts, any inference, the resulting decision, and what remains unproven. No speculative engine workaround or broader format support is introduced from weak evidence. Follow the current session's authorization for debugger attachment, game runs, and real-data access.
 
-Completion: Pending.
+Decision: Deferred on 2026-10-17. Source inspection and controlled native checks resolved the required authoring-side questions. No concrete remaining format or engine blocker currently triggers an REA investigation; no REA work is claimed.
 
 ### MRF-VIS-01: Validate representative real assets when authorized
 
@@ -274,13 +296,13 @@ Work: Compare matched before/after poses and views on suitable layered and seam-
 
 Acceptance: Preserve source provenance and archive fingerprints, use temporary evidence, and record any visible regression or limitation. A rendered editor check proves only the rendered editor result; animation, LOD, and runtime cloth claims require their own evidence. Do not turn parser success or synthetic tests into in-game proof.
 
-Completion: Pending.
+Decision: Deferred on 2026-10-17. Representative real-asset appearance, animation and in-game validation were outside this required implementation scope. No matched real-asset review was performed and no corresponding visual or runtime claim is made. Resume with identified assets and the intended validation scope.
 
 ## Final required task
 
 ### MRF-DONE-01: Verify and close the implemented scope
 
-- [ ] **MRF-DONE-01 complete:** Required changes have focused proof, consistent tracking, and an accurate handoff.
+- [x] **MRF-DONE-01 complete:** Required changes have focused proof, consistent tracking, and an accurate handoff.
 
 Depends on: All other required tasks. Conditional tasks may remain deferred with their reasons recorded.
 
@@ -299,7 +321,18 @@ Acceptance:
 - No regression is known within the exercised scope. The handoff states whether proof is source-only, synthetic/native, rendered, real-asset, or in-game.
 - Do not claim that nonvisual checks alone prove the requested appearance on all game meshes.
 
-Completion: Pending.
+Completion: 2026-10-17. All six required implementation tasks and the preparation task are complete. Retained the recorded MRF-FIT-01, MRF-FIT-02 and MRF-UI-01 evidence because their relevant implementation was unchanged during closure. That evidence covers layer-packing parity, conservative body-seam continuity, masks, source/body/skin identity, rigid components, neutral evaluation, body following, reset/bake/history, atomic failure and preservation of omitted bulk settings. The final native and host/UI reviews found no unresolved defect. The fresh diagnostics checks add 24 native/service and six headless UI passes as recorded above.
+
+The final review found that `cdmw_ui/refit_diagnostics.rs` was missing from the Rust localization source inventory. Added that owner to the scanner and extended the existing source-key regression. The new owner contributes 23 previously missing labels; all 38 new MRF messages now have English source entries and translations in the 13 other built-in catalogs. The obsolete binding-warning key is retired, and source-identical allowances no longer list these translated MRF sentences. Three focused localization checks passed in 50.18 s:
+
+```powershell
+$env:QT_QPA_PLATFORM="offscreen"
+.\.venv\Scripts\python.exe -X utf8 -B -m pytest tests/test_localization_catalog_contracts.py::test_generated_manifest_contains_reviewed_source_keys tests/test_localization_catalog_contracts.py::test_generated_manifest_is_current tests/test_localization_catalog_contracts.py::test_generated_catalog_validation_is_current -q -p no:cacheprovider --basetemp="$env:TEMP\cdmw-pytest-mrf-localization-20261017"
+```
+
+Production manifest freshness and catalog validation also passed against the exact Git index: 1,242 source/resource blobs, 16 generated files, 14 catalogs and 16,018 source keys. The pending window/DPI key remains outside the MRF index. Updated the user guide at `cdmw/ui/mesh_editor/README.md`, native protocol guide at `native/cdmw_mesh_core/README.md`, focused routing in the existing ignored `docs/test-matrix.md`, and the three relevant Unreleased notes. Saved tracking has seven unique checked MRF task IDs with matching progress entries; the three conditional tasks remain unchecked with explicit deferrals. The local commit contains only the MRF source, tests, docs and projected shared-file deltas, preserving the other plans' work.
+
+The production Rust helper remains the one verified during MEL closure: `native/rust_mesh_editor/build/Release/cdmw_mesh_lab.exe`, 18,234,880 bytes, SHA-256 `b9772dfc50a4a4d59ef9e0bdac96bdff95e07351260ce132e81993112007db04`, Rust source fingerprint `41af008f3eaabe4e9588407f8a3ec4cfc6be7126e912f3b542dcfb0e45aac1d6`. Its relevant Rust source was unchanged during this completion, so the passed release/provenance evidence was reused. Fresh C++ executable/ABI identities are recorded under MRF-DIAG-01. No new speed improvement, whole-mesh collision guarantee, real-asset appearance, animation or in-game behavior is claimed by these nonvisual checks.
 
 ## Focused verification baseline
 

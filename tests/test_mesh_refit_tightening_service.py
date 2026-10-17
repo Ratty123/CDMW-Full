@@ -4,12 +4,95 @@ import json
 
 import pytest
 
-from cdmw.domain.mesh import MeshEditSelection
+from cdmw.domain.mesh import MeshEditCommand, MeshEditSelection
 from cdmw.domain.mesh.morph import MeshMorphProfile, mesh_morph_driver_topology_fingerprint
 from cdmw.services.mesh_service_morph_recipes import fitting_recipe_from_payload, fitting_recipe_payload
 from tests.test_mesh_morph_authoring_native import resident
 from tests.test_mesh_refit_tightening_native import _arm, _mesh, _sleeve
 from tests.test_mesh_refit_saved_setups import _service, _saved_path
+
+
+@pytest.mark.parametrize("targets", [(1,), (1, 2)])
+@pytest.mark.parametrize("route", ["service", "rust", "command"])
+def test_partial_refit_clearance_preserves_resident_part_settings_and_one_undo(resident, targets, route):
+    from cdmw.services.mesh_rust_authoring import RustMeshAuthoringSession
+
+    service, open_session = resident
+    mesh = _mesh(_arm(), _sleeve(), _sleeve(radius=.11))
+    session = open_session(mesh)
+    owner = service._session(session)
+    profile = MeshMorphProfile(profile_id="fit", name="Fit", topology_fingerprint=mesh_morph_driver_topology_fingerprint(mesh, ()))
+    service._activate_morph_profile_locked(owner, profile)
+    assert service.set_refit_driver(session, (0,))[0].ok
+    assert service.bind_refit(session, (1, 2))[0].ok
+    stale = service.cached_morph_state(session)
+    assert service.set_refit_vertex_influence(session, selection=MeshEditSelection.from_maps(
+        vertices_by_submesh={1: (0,)}), weight=0.)[0].ok
+    assert service.set_refit_driver_region(session, (1,), selection=MeshEditSelection.from_maps(
+        faces_by_submesh={0: tuple(range(len(mesh.submeshes[0].faces)))}))[0].ok
+    assert service.configure_refit(session, (1,), enabled=True, intensity_percent=37.,
+                                   mode="surface", clearance_percent=0., tightness_percent=25.)[0].ok
+    assert service.configure_refit(session, (2,), enabled=False, intensity_percent=64.,
+                                   mode="rigid_component", clearance_percent=.2, tightness_percent=63.)[0].ok
+    before = service.cached_morph_state_from_runtime(session).refit
+    vertices = [list(part.vertices) for part in service.working_mesh(session, clone=True).submeshes]
+    count = len(owner.undo_stack)
+    # An old Python/UI snapshot must never restore defaults over newer native settings.
+    service._required_morph_data(owner).state = stale
+    if route == "rust":
+        editor = object.__new__(RustMeshAuthoringSession)
+        editor.shadow_service = service
+        editor.shadow_session_id = session
+        result, state = editor._run_morph_command("refit_configure", {
+            "submesh_indices": targets, "clearance_percent": .3,
+        })
+    elif route == "command":
+        with owner.export_lock:
+            result = service._apply_morph_edit_command_locked(owner, MeshEditCommand(
+                action="morph_configure_refit",
+                params={"garment_submesh_indices": targets, "clearance_percent": .3},
+            ))
+        state = service.cached_morph_state_from_runtime(session)
+    else:
+        result, state = service.configure_refit(session, targets, clearance_percent=.3)
+    assert result.ok
+    assert state.refit.garment_settings == tuple(
+        replace(item, clearance_percent=.3) if item.submesh_index in targets else item
+        for item in before.garment_settings
+    )
+    assert state.refit.garment_regions == before.garment_regions
+    assert len(owner.undo_stack) == count + 1
+    current = service.working_mesh(session, clone=True)
+    assert current.submeshes[0].vertices == vertices[0]
+    assert current.submeshes[1].vertices[0] == vertices[1][0]
+    assert current.submeshes[2].vertices == vertices[2]
+    assert service.undo(session).ok
+    assert service.cached_morph_state_from_runtime(session).refit == before
+    for actual, expected in zip(service.working_mesh(session, clone=True).submeshes, vertices):
+        for point, old in zip(actual.vertices, expected):
+            assert point == pytest.approx(old)
+
+
+def test_partial_refit_failure_keeps_all_part_settings_geometry_and_history(resident):
+    service, open_session = resident
+    far = _sleeve()
+    far.vertices = [(x + 3., y, z) for x, y, z in far.vertices]
+    mesh = _mesh(_arm(), _sleeve(), far)
+    session = open_session(mesh)
+    owner = service._session(session)
+    profile = MeshMorphProfile(profile_id="fit", name="Fit", topology_fingerprint=mesh_morph_driver_topology_fingerprint(mesh, ()))
+    service._activate_morph_profile_locked(owner, profile)
+    assert service.set_refit_driver(session, (0,))[0].ok
+    assert service.bind_refit(session, (1, 2))[0].ok
+    before = service.cached_morph_state_from_runtime(session).refit
+    vertices = [list(part.vertices) for part in service.working_mesh(session, clone=True).submeshes]
+    revision, count = service.session_view(session).revision, len(owner.undo_stack)
+    with pytest.raises(RuntimeError, match="Part 2"):
+        service.configure_refit(session, (1, 2), tightness_percent=100., clearance_percent=.1)
+    assert service.cached_morph_state_from_runtime(session).refit == before
+    assert [part.vertices for part in service.working_mesh(session, clone=True).submeshes] == vertices
+    assert service.session_view(session).revision == revision
+    assert len(owner.undo_stack) == count
 
 
 def test_fit_reads_authoritative_part_settings_and_publishes_one_undo(resident):

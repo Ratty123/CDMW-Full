@@ -86,6 +86,9 @@ from cdmw.services.mesh_service_state import (
 )
 
 
+_REFIT_SETTING_UNSET = object()
+
+
 @dataclass(slots=True)
 class _MeshMorphSessionData:
     profile: MeshMorphProfile | None = None
@@ -644,11 +647,9 @@ class MeshMorphServiceMixin(MeshMorphLayerMixin, MeshMorphAuthoringMixin, MeshMo
             return self.configure_refit(
                 session.session_id,
                 tuple(indices or ()),  # type: ignore[arg-type]
-                enabled=params.get("enabled", True),
-                intensity_percent=params.get("intensity_percent", 100.0),
-                mode=params.get("mode", "surface"),
-                clearance_percent=params.get("clearance_percent", 0.0),
-                tightness_percent=params.get("tightness_percent"),
+                **{key: params[key] for key in (
+                    "enabled", "intensity_percent", "mode", "clearance_percent", "tightness_percent",
+                ) if key in params},
             )[0]
         if action == "morph_clear_refit":
             return self.clear_refit(session.session_id)[0]
@@ -1554,41 +1555,45 @@ class MeshMorphServiceMixin(MeshMorphLayerMixin, MeshMorphAuthoringMixin, MeshMo
         session_id: str,
         garment_submesh_indices: Sequence[object],
         *,
-        enabled: object,
-        intensity_percent: object,
-        mode: object,
-        clearance_percent: object,
+        enabled: object = _REFIT_SETTING_UNSET,
+        intensity_percent: object = _REFIT_SETTING_UNSET,
+        mode: object = _REFIT_SETTING_UNSET,
+        clearance_percent: object = _REFIT_SETTING_UNSET,
         tightness_percent: object = None,
     ) -> tuple[MeshEditResult, MeshMorphState]:
+        """Apply only supplied fields to each Part's resident settings, atomically."""
         garment_indices = _indices(garment_submesh_indices)
         if not garment_indices:
             raise ValueError("Refit settings require at least one bound garment part.")
-        settings = MeshRefitGarmentSettings(
-            submesh_index=garment_indices[0],
-            enabled=bool(enabled),
-            intensity_percent=float(intensity_percent),
-            mode=str(mode or "surface"),
-            clearance_percent=float(clearance_percent),
-            tightness_percent=0.0 if tightness_percent is None else float(tightness_percent),
-        )
+        changes = {}
+        if enabled is not _REFIT_SETTING_UNSET:
+            changes["enabled"] = bool(enabled)
+        if intensity_percent is not _REFIT_SETTING_UNSET:
+            changes["intensity_percent"] = float(intensity_percent)
+        if mode is not _REFIT_SETTING_UNSET:
+            changes["mode"] = str(mode or "surface")
+        if clearance_percent is not _REFIT_SETTING_UNSET:
+            changes["clearance_percent"] = float(clearance_percent)
+        # Older callers use None to omit tightness; keep that compatibility.
+        if tightness_percent is not None:
+            changes["tightness_percent"] = float(tightness_percent)
+        if not changes:
+            raise ValueError("Change at least one Refit setting before applying.")
         session = self._session(session_id)
         with session.export_lock:
-            data = self._required_morph_data(session)
-            bound = set(data.state.refit.garment_submesh_indices if data.state is not None else ())
+            self._required_morph_data(session)
+            report = self._run_morph_query_locked(session, "morph_state")
+            state = self._morph_state_from_report_locked(session, report, refresh_presets=False)
+            bound = set(state.refit.garment_submesh_indices)
             missing = tuple(index for index in garment_indices if index not in bound)
             if missing:
                 raise ValueError(f"Refit settings require bound garment parts: {', '.join(str(index) for index in missing)}")
+            current = {item.submesh_index: item for item in state.refit.garment_settings}
+            settings = tuple(replace(current[index], **changes) for index in garment_indices)
             report = self._run_morph_command_locked(
                 session,
                 "morph_configure_refit",
-                {
-                    "garment_submesh_indices": garment_indices,
-                    "enabled": settings.enabled,
-                    "intensity_percent": settings.intensity_percent,
-                    "mode": settings.mode,
-                    "clearance_percent": settings.clearance_percent,
-                    **({"tightness_percent": settings.tightness_percent} if tightness_percent is not None else {}),
-                },
+                _refit_settings_batch_payload(settings, include_masks=False),
                 history_label="Configure Garment Refit",
                 record_history=True,
             )
@@ -1611,6 +1616,56 @@ class MeshMorphServiceMixin(MeshMorphLayerMixin, MeshMorphAuthoringMixin, MeshMo
                 history_label="Fit to body", record_history=True,
             )
             return self._morph_result_and_state_locked(session, "morph_configure_refit", report)
+
+    def refit_diagnostics(
+        self,
+        session_id: str,
+        garment_submesh_indices: Sequence[object],
+        *,
+        sample_limit: int = 2048,
+        detail_limit: int = 24,
+    ) -> dict[str, object]:
+        """Measure the published fit without recomposing it or recording history."""
+        if isinstance(garment_submesh_indices, (str, bytes)):
+            raise ValueError("Refit diagnostics require explicit garment Part indices.")
+        indices = tuple(garment_submesh_indices)
+        if (
+            not indices
+            or len(indices) > 128
+            or any(type(index) is not int or index < 0 for index in indices)
+            or len(set(indices)) != len(indices)
+        ):
+            raise ValueError("Refit diagnostics require 1..128 unique garment Part indices.")
+        if type(sample_limit) is not int or not len(indices) <= sample_limit <= 4096:
+            raise ValueError("Refit diagnostics require 1..4096 samples and at least one per Part.")
+        if type(detail_limit) is not int or not 1 <= detail_limit <= 64:
+            raise ValueError("Refit diagnostics require 1..64 layer details.")
+        indices = tuple(sorted(indices))
+        session = self._session(session_id)
+        with session.export_lock:
+            self._ensure_native_morph_session_locked(session)
+            # This is deliberately a query. The mutation path advances the
+            # morph revision, captures undo state, and publishes geometry.
+            report = native_mesh_editor_session_command(
+                "morph_state",
+                session.session_id,
+                {
+                    "include_refit_diagnostics": True,
+                    "submesh_indices": indices,
+                    "diagnostic_sample_limit": sample_limit,
+                    "diagnostic_detail_limit": detail_limit,
+                },
+                timeout_seconds=10.0,
+            )
+            if not isinstance(report, Mapping) or str(report.get("status") or "").lower() != "ok":
+                raise RuntimeError(_report_error(report, "Resident C++ Refit diagnostics failed."))
+            raw = report.get("refit_diagnostics")
+            if not isinstance(raw, Mapping) or raw.get("schema") != "cdmw.refit_diagnostics.v1":
+                raise RuntimeError("Resident C++ Refit diagnostics returned an unsupported report.")
+            diagnostics = dict(raw)
+            diagnostics["shadow_revision"] = int(session.revision)
+            diagnostics["requested_submesh_indices"] = list(indices)
+            return diagnostics
 
     def clear_refit(self, session_id: str) -> tuple[MeshEditResult, MeshMorphState]:
         return self._simple_morph_command(session_id, "morph_clear_refit", {}, "Clear Garment Refit", True)

@@ -188,24 +188,25 @@ Vec3 mesh_editor_refit_driver_point(
 
 using RefitMaskWeightsNative = std::map<int, std::vector<double>>;
 
-std::map<int, std::vector<Vec3>> mesh_editor_refit_seam_positions(
-    const MeshRefitRuntime& refit,
+std::map<int, std::vector<Vec3>> mesh_editor_refit_seam_positions_for_parts(
+    const std::set<int>& part_indices,
     const std::map<int, MeshSessionSubmesh>& submeshes,
-    const std::map<int, std::vector<Vec3>>& residual
+    const std::map<int, std::vector<Vec3>>& residual,
+    double tolerance,
+    bool unique_matches
 ) {
     // Independently quantized material Parts can store one sewn border at
     // slightly different positions. Recognize matching boundary EDGES, rather
     // than welding every nearby vertex and accidentally joining thin layers.
     // These positions are grouping keys only; retain the authored coordinates.
-    const double tolerance = std::max(1.0e-6, refit.driver_diagonal * 2.0e-5);
     std::map<Vec3, std::size_t> lookup;
     std::vector<Vec3> points;
     std::map<int, std::vector<std::size_t>> indices;
-    for (const auto& item : refit.garment_settings) {
-        for (const auto& point : residual.at(item.first)) {
+    for (const int part : part_indices) {
+        for (const auto& point : residual.at(part)) {
             const auto entry = lookup.emplace(point, points.size());
             if (entry.second) points.push_back(point);
-            indices[item.first].push_back(entry.first->second);
+            indices[part].push_back(entry.first->second);
         }
     }
     std::vector<std::size_t> roots(points.size());
@@ -221,18 +222,27 @@ std::map<int, std::vector<Vec3>> mesh_editor_refit_seam_positions(
     };
     struct Border { int part; std::size_t a, b; Vec3 normal; };
     std::vector<Border> borders;
-    for (const auto& item : refit.garment_settings) {
-        const auto& map = indices.at(item.first);
+    for (const int part : part_indices) {
+        const auto& map = indices.at(part);
         std::map<std::pair<std::size_t, std::size_t>, std::vector<Border>> edges;
-        for (const auto& face : submeshes.at(item.first).faces) {
+        for (const auto& face : submeshes.at(part).faces) {
             const Vec3 normal = refit_face_normal_native(points[map[face[0]]], points[map[face[1]]], points[map[face[2]]]);
             for (int c = 0; c < 3; ++c) {
                 const auto a = map[face[c]], b = map[face[(c+1)%3]];
-                if (a != b) edges[std::minmax(a,b)].push_back({item.first, a, b, normal});
+                if (a != b) edges[std::minmax(a,b)].push_back({part, a, b, normal});
             }
         }
         for (const auto& edge : edges) if (edge.second.size() == 1) borders.push_back(edge.second.front());
     }
+    // Only reciprocal single matches can become seams. Retain one candidate
+    // and a saturated 0/1/many count so dense ambiguous borders use linear
+    // storage instead of retaining every candidate pair.
+    std::vector<std::size_t> match_candidates(unique_matches ? borders.size() : 0);
+    std::vector<unsigned char> match_counts(unique_matches ? borders.size() : 0, 0);
+    const auto record_match = [&](std::size_t edge, std::size_t candidate) {
+        if (match_counts[edge] == 0) match_candidates[edge] = candidate;
+        if (match_counts[edge] < 2) ++match_counts[edge];
+    };
     std::map<std::tuple<long long, long long, long long>, std::vector<std::size_t>> cells;
     for (std::size_t i = 0; i < borders.size(); ++i) {
         const auto& edge = borders[i];
@@ -245,18 +255,109 @@ std::map<int, std::vector<Vec3>> mesh_editor_refit_seam_positions(
                 const auto& other = borders[j];
                 // Adjacent faces traverse a shared edge in opposite directions.
                 // Parallel shell rims and back-to-back linings are not seams.
-                if (edge.part == other.part || dot_vec3(edge.normal, other.normal) <= 0.0) continue;
+                if (edge.part == other.part
+                    || dot_vec3(edge.normal, other.normal) <= (unique_matches ? 0.5 : 0.0)) continue;
                 if (distance_squared_vec3(points[edge.a], points[other.b]) > tolerance*tolerance
                     || distance_squared_vec3(points[edge.b], points[other.a]) > tolerance*tolerance) continue;
-                join(edge.a, other.b);
-                join(edge.b, other.a);
+                if (unique_matches) {
+                    record_match(i, j);
+                    record_match(j, i);
+                } else {
+                    join(edge.a, other.b);
+                    join(edge.b, other.a);
+                }
             }
         }
         cells[mesh_editor_refit_cell(points[edge.b], tolerance)].push_back(i);
     }
+    if (unique_matches) for (std::size_t i = 0; i < match_counts.size(); ++i) {
+        if (match_counts[i] != 1) continue;
+        const auto j = match_candidates[i];
+        if (j <= i || match_counts[j] != 1 || match_candidates[j] != i) continue;
+        join(borders[i].a, borders[j].b);
+        join(borders[i].b, borders[j].a);
+    }
     std::map<int, std::vector<Vec3>> result;
     for (const auto& item : indices)
         for (const auto index : item.second) result[item.first].push_back(points[root_of(index)]);
+    return result;
+}
+
+std::map<int, std::vector<Vec3>> mesh_editor_refit_seam_positions(
+    const MeshRefitRuntime& refit,
+    const std::map<int, MeshSessionSubmesh>& submeshes,
+    const std::map<int, std::vector<Vec3>>& residual
+) {
+    std::set<int> garments;
+    for (const auto& item : refit.garment_settings) garments.insert(item.first);
+    return mesh_editor_refit_seam_positions_for_parts(garments, submeshes, residual,
+        std::max(1.0e-6, refit.driver_diagonal * 2.0e-5), false);
+}
+
+std::map<int, std::vector<Vec3>> mesh_editor_refit_body_seam_positions(
+    const MeshRefitRuntime& refit,
+    const std::map<int, MeshSessionSubmesh>& submeshes,
+    const std::map<int, std::vector<Vec3>>& driver_visible
+) {
+    // Use the established scale-relative precision window only for uniquely
+    // paired, reversed boundary edges with compatible normals. Ambiguous nearby
+    // body surfaces remain separate. These keys never replace source positions.
+    return mesh_editor_refit_seam_positions_for_parts(refit.driver_submesh_indices,
+        submeshes, driver_visible, std::max(1.0e-6, refit.driver_diagonal * 2.0e-5), true);
+}
+
+std::vector<std::size_t> mesh_editor_refit_surface_roots(
+    const std::map<int, MeshSessionSubmesh>& garments,
+    const std::map<int, std::vector<std::size_t>>& indices,
+    std::size_t count
+) {
+    // Use the fitter's seam cohorts, not proximity between arbitrary surfaces.
+    std::vector<std::size_t> roots(count);
+    std::iota(roots.begin(), roots.end(), 0);
+    const auto root_of = [&](std::size_t i) {
+        while (roots[i] != i) i = roots[i] = roots[roots[i]];
+        return i;
+    };
+    for (const auto& item : garments) {
+        const auto& map = indices.at(item.first);
+        for (const auto& face : item.second.faces) {
+            for (int c = 1; c < 3; ++c)
+                roots[root_of(map[face[c]])] = root_of(map[face[0]]);
+        }
+    }
+    for (std::size_t i = 0; i < count; ++i) roots[i] = root_of(i);
+    return roots;
+}
+
+std::map<std::pair<int, std::size_t>, RefitSpatialIndexNative> mesh_editor_refit_surface_indices(
+    const std::map<int, MeshSessionSubmesh>& garments,
+    const std::map<int, std::vector<std::size_t>>& indices,
+    const std::vector<std::size_t>& roots
+) {
+    // Split only search indexes. Every triangle retains its source Part and
+    // vertex IDs, and the common single-island Part keeps its existing BVH.
+    std::map<std::pair<int, std::size_t>, RefitSpatialIndexNative> result;
+    for (const auto& item : garments) {
+        auto spatial = build_refit_spatial_index_native(garments, {item.first});
+        if (spatial.root < 0) continue;
+        const auto& map = indices.at(item.first);
+        const auto first_root = roots[map[spatial.triangles.front().driver_vertices[0]]];
+        const bool one_surface = std::all_of(spatial.triangles.begin(), spatial.triangles.end(),
+            [&](const auto& triangle) { return roots[map[triangle.driver_vertices[0]]] == first_root; });
+        if (one_surface) {
+            result.emplace(std::make_pair(item.first, first_root), std::move(spatial));
+            continue;
+        }
+        for (auto& triangle : spatial.triangles)
+            result[{item.first, roots[map[triangle.driver_vertices[0]]]}].triangles.push_back(std::move(triangle));
+        for (auto it = result.lower_bound({item.first, 0}); it != result.end() && it->first.first == item.first; ++it) {
+            auto& surface = it->second;
+            surface.triangle_order.resize(surface.triangles.size());
+            std::iota(surface.triangle_order.begin(), surface.triangle_order.end(), 0);
+            surface.nodes.reserve(surface.triangles.size() * 2);
+            surface.root = refit_build_spatial_node_native(surface, 0, surface.triangles.size());
+        }
+    }
     return result;
 }
 
@@ -769,28 +870,38 @@ void mesh_editor_relieve_refit_surface(
     // Infer local layer order from the authored surfaces, including samples
     // inside coarse outer-shell triangles. Material names do not establish
     // which surface is outside. Only couple nearby surfaces facing the body.
-    for (const auto& target : layer_garments) {
-        if (target.second.faces.empty()) continue;
-        const auto target_index = build_refit_spatial_index_native(layer_garments, {target.first});
+    const auto layer_roots = mesh_editor_refit_surface_roots(garments, vertex_cohorts, cohorts.size());
+    const auto layer_surfaces = mesh_editor_refit_surface_indices(layer_garments, vertex_cohorts, layer_roots);
+    for (const auto& target : layer_surfaces) {
+        const int target_part = target.first.first;
+        const auto target_root = target.first.second;
+        const auto& target_index = target.second;
+        const auto close_to_target = [&](const Vec3& point) {
+            const auto& bounds = target_index.nodes[target_index.root];
+            return refit_aabb_distance_squared_native(point, bounds.minimum, bounds.maximum)
+                <= std::pow(refit.driver_diagonal * 0.03, 2.0);
+        };
         std::vector<double> authored_side(cohorts.size(), 0.0);
         std::vector<Vec3> authored_normal(cohorts.size());
         if (fitting_masks) for (std::size_t i = 0; i < cohorts.size(); ++i) {
+            if (!close_to_target(layer_rest[i])) continue;
             long long tests = 0;
             const auto nearest = closest_refit_binding_native(layer_rest[i], target_index, tests);
             if (nearest.distance > refit.driver_diagonal * 0.03) continue;
             const auto& face = nearest.driver_vertices;
-            const auto& points = target.second.vertices;
+            const auto& points = layer_garments.at(target_part).vertices;
             authored_normal[i] = refit_face_normal_native(points[face[0]], points[face[1]], points[face[2]]);
             authored_side[i] = dot_vec3(sub_vec3(layer_rest[i], points[face[0]]), authored_normal[i]);
         }
         const auto bind_layer = [&](const SurfaceSample& sample) {
             const Vec3 point = layer_sample_point(sample);
+            if (!close_to_target(point)) return;
             long long candidate_tests = 0;
             const auto nearest = closest_refit_binding_native(point, target_index, candidate_tests);
             if (nearest.distance > refit.driver_diagonal * 0.03) return;
             SurfaceSample other{{}, nearest.barycentric};
             for (std::size_t corner = 0; corner < 3; ++corner) {
-                other.corners[corner] = vertex_cohorts.at(target.first)[nearest.driver_vertices[corner]];
+                other.corners[corner] = vertex_cohorts.at(target_part)[nearest.driver_vertices[corner]];
                 for (std::size_t source = 0; source < 3; ++source) {
                     if (sample.weights[source] > 0.0 && sample.corners[source] == other.corners[corner]) return;
                 }
@@ -828,14 +939,17 @@ void mesh_editor_relieve_refit_surface(
             layer_constraints.push_back({sample, other, sub_vec3(point, layer_sample_point(other)), normal, 0.25 * std::abs(height)});
         };
         for (const auto& source : garments) {
-            if (source.first == target.first) continue;
             const auto& indices = vertex_cohorts.at(source.first);
+            const auto same_surface = [&](std::size_t index) {
+                return source.first == target_part && layer_roots[index] == target_root;
+            };
             for (const auto index : std::set<std::size_t>(indices.begin(), indices.end())) {
-                bind_layer({{index, index, index}, {1.0, 0.0, 0.0}});
+                if (!same_surface(index)) bind_layer({{index, index, index}, {1.0, 0.0, 0.0}});
             }
             std::set<std::pair<std::size_t, std::size_t>> sampled_edges;
             for (const auto& face : source.second.faces) {
                 const std::array<std::size_t, 3> corners{indices[face[0]], indices[face[1]], indices[face[2]]};
+                if (same_surface(corners[0])) continue;
                 bind_layer({corners, {1.0 / 3.0, 1.0 / 3.0, 1.0 / 3.0}});
                 for (std::size_t corner = 0; corner < 3; ++corner) {
                     sampled_edges.insert(std::minmax(corners[corner], corners[(corner + 1) % 3]));
@@ -867,9 +981,10 @@ void mesh_editor_relieve_refit_surface(
     std::vector<Vec3> body_vertex_normals;
     std::map<std::pair<std::size_t, std::size_t>, Vec3> body_edge_normals;
     std::map<std::pair<std::size_t, std::size_t>, int> body_edge_windings;
+    const auto body_seam_positions = mesh_editor_refit_body_seam_positions(refit, drivers, driver_visible);
     for (const auto& item : driver_visible) {
         auto& vertices = body_vertices[item.first];
-        for (const auto& point : item.second) {
+        for (const auto& point : body_seam_positions.at(item.first)) {
             auto found = body_welds.emplace(point, body_welds.size());
             if (found.second) {
                 body_points.push_back(point);

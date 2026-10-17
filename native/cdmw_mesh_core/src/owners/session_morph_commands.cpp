@@ -31,6 +31,10 @@ std::string mesh_editor_morph_state_session_report(
     std::string report = mesh_editor_morph_report_json("morph_state", session_id, session, {}, {}, false, "", false, started);
     const bool include_neutral = bool_or(root.get("include_neutral_positions"), false);
     const bool include_masks = bool_or(root.get("include_effective_vertex_masks"), false);
+    if (bool_or(root.get("include_refit_diagnostics"), false)) {
+        report.pop_back();
+        report += ",\"refit_diagnostics\":" + mesh_editor_refit_diagnostics_json(root, session_id, session) + "}";
+    }
     if (!include_neutral && !include_masks) return report;
     const auto& submeshes = mesh_editor_submeshes(session);
     const auto* requested = root.get("submesh_indices");

@@ -7,6 +7,7 @@ mod morph_authoring;
 mod morph_body_controls;
 mod morph_outfit_workflows;
 mod morph_workflow;
+mod refit_diagnostics;
 
 pub(crate) mod numeric {
     //! Shared precision controls. Increments are per-widget session UI state,
@@ -963,6 +964,123 @@ fn cdmw_sidebar_button(
 const REFIT_BODY_COLOUR: Color32 = Color32::from_rgb(100, 190, 245);
 const REFIT_ARMOR_COLOUR: Color32 = Color32::from_rgb(240, 190, 95);
 const REFIT_READY_COLOUR: Color32 = Color32::from_rgb(110, 210, 160);
+
+const REFIT_SETTING_KEYS: [&str; 5] = [
+    "enabled", "mode", "intensity_percent", "tightness_percent", "clearance_percent",
+];
+
+#[derive(Default)]
+pub(super) struct RefitSettingsEdits {
+    fields: std::collections::BTreeSet<&'static str>,
+    targets: Vec<u32>,
+    profile_id: String,
+}
+
+impl RefitSettingsEdits {
+    pub(super) fn is_dirty(&self) -> bool {
+        !self.fields.is_empty()
+    }
+
+    pub(super) fn mark(&mut self, key: &'static str) {
+        debug_assert!(REFIT_SETTING_KEYS.contains(&key));
+        self.fields.insert(key);
+    }
+
+    fn retarget(&mut self, profile_id: &str, targets: &[u32]) -> bool {
+        if self.profile_id == profile_id && self.targets.as_slice() == targets {
+            return false;
+        }
+        self.fields.clear();
+        self.profile_id = profile_id.to_owned();
+        self.targets = targets.to_vec();
+        true
+    }
+
+    fn arguments(&self, targets: &[u32], values: &Value) -> Value {
+        let mut arguments = json!({"submesh_indices": targets});
+        for key in &self.fields {
+            if let Some(value) = values.get(*key) {
+                arguments[*key] = value.clone();
+            }
+        }
+        arguments
+    }
+}
+
+fn refit_setting_values(setting: Option<&Value>) -> Value {
+    json!({
+        "enabled": setting.and_then(|row| row.get("enabled")).and_then(Value::as_bool).unwrap_or(true),
+        "mode": setting.and_then(|row| row.get("mode")).and_then(Value::as_str).unwrap_or("surface"),
+        "intensity_percent": setting.and_then(|row| row.get("intensity_percent")).and_then(Value::as_f64).unwrap_or(100.0),
+        "tightness_percent": setting.and_then(|row| row.get("tightness_percent")).and_then(Value::as_f64).unwrap_or(0.0),
+        "clearance_percent": setting.and_then(|row| row.get("clearance_percent")).and_then(Value::as_f64).unwrap_or(0.0),
+    })
+}
+
+fn refit_mixed_fields(refit: &Value, targets: &[u32]) -> std::collections::BTreeSet<&'static str> {
+    let rows = refit.get("garment_settings").and_then(Value::as_array)
+        .into_iter().flatten().filter_map(|row| {
+            row.get("submesh_index").and_then(Value::as_u64).map(|index| (index, row))
+        }).collect::<std::collections::HashMap<_, _>>();
+    let values = targets.iter().map(|index| {
+        refit_setting_values(rows.get(&u64::from(*index)).copied())
+    }).collect::<Vec<_>>();
+    let Some(first) = values.first() else { return Default::default(); };
+    REFIT_SETTING_KEYS.into_iter().filter(|key| {
+        values.iter().skip(1).any(|value| value.get(*key) != first.get(*key))
+    }).collect()
+}
+
+fn refit_apply_button(
+    ui: &mut egui::Ui,
+    actions: &mut Vec<UiAction>,
+    label: &str,
+    targets: &[u32],
+    values: &Value,
+    edits: &RefitSettingsEdits,
+) -> egui::Response {
+    let response = ui.add_enabled(
+        !targets.is_empty() && edits.is_dirty(),
+        Button::new(crate::localization::tr(label)),
+    ).on_disabled_hover_text(crate::localization::tr(if targets.is_empty() {
+        "Select one or more bound garment Parts first"
+    } else {
+        "Change a setting before applying"
+    }));
+    if response.clicked() {
+        actions.push(UiAction::CdmwCommand {
+            command: "refit_configure",
+            arguments: edits.arguments(targets, values),
+            label: "Apply garment refit settings",
+        });
+    }
+    response
+}
+
+fn refit_mixed_numeric_choice(
+    ui: &mut egui::Ui,
+    key: &'static str,
+    mixed: bool,
+    enabled: bool,
+    edits: &mut RefitSettingsEdits,
+) {
+    if mixed && !edits.fields.contains(key) {
+        ui.horizontal(|ui| {
+            ui.weak(crate::localization::tr("Mixed"));
+            let label = match key {
+                "intensity_percent" => "Use displayed intensity",
+                "tightness_percent" => "Use displayed tightness",
+                _ => "Use displayed clearance",
+            };
+            if ui.add_enabled(enabled, Button::new(crate::localization::tr(label)).small())
+                .on_hover_text(crate::localization::tr("Apply this displayed value to the chosen garments. Other fields keep their own values."))
+                .clicked()
+            {
+                edits.mark(key);
+            }
+        });
+    }
+}
 
 fn cdmw_section<R>(
     ui: &mut egui::Ui,
@@ -3365,10 +3483,12 @@ impl LabApplication {
             }
             if state_bool(&refit, "distance_warning") {
                 ui.colored_label(Color32::from_rgb(245, 190, 75),
-                crate::localization::tr("Some garment vertices are far from the body. Check alignment and scale before refitting."));
+                crate::localization::tr("Initial binding: some garment vertices were far from the body. Check alignment and scale."));
             }
             let configurable = !profile_id.is_empty() && !bound_garments.is_empty();
             if !configurable {
+                self.cdmw_refit_settings_dirty = RefitSettingsEdits::default();
+                self.cdmw_refit_hydration_key.clear();
                 ui.weak(crate::localization::tr("Bind garments in Setup."));
                 return;
             }
@@ -3377,10 +3497,14 @@ impl LabApplication {
                 .copied()
                 .filter(|index| bound_garments.contains(index))
                 .collect::<Vec<_>>();
-            let hydration_target = selected_bound_garments
-                .first()
-                .copied()
-                .or_else(|| bound_garments.first().copied());
+            let edit_targets = if selected_bound_garments.is_empty() {
+                &bound_garments
+            } else {
+                &selected_bound_garments
+            };
+            let scope_changed = self.cdmw_refit_settings_dirty.retarget(profile_id, edit_targets);
+            let mixed_fields = refit_mixed_fields(&refit, edit_targets);
+            let hydration_target = edit_targets.first().copied();
             if let Some(target) = hydration_target {
                 let setting = refit
                     .get("garment_settings")
@@ -3399,33 +3523,44 @@ impl LabApplication {
                         .unwrap_or(0),
                     setting.map_or_else(|| "default".to_owned(), Value::to_string)
                 );
-                if self.cdmw_refit_hydration_target != Some(target)
-                    || (!self.cdmw_refit_settings_dirty
-                        && self.cdmw_refit_hydration_key != hydration_key)
+                if scope_changed || self.cdmw_refit_hydration_target != Some(target)
+                    || self.cdmw_refit_hydration_key != hydration_key
                 {
                     self.cdmw_refit_hydration_target = Some(target);
-                    self.cdmw_refit_settings_dirty = false;
-                    self.cdmw_refit_enabled = setting
-                        .and_then(|value| value.get("enabled"))
-                        .and_then(Value::as_bool)
-                        .unwrap_or(true);
-                    self.cdmw_refit_intensity = setting
-                        .and_then(|value| value.get("intensity_percent"))
-                        .and_then(Value::as_f64)
-                        .unwrap_or(100.0) as f32;
-                    self.cdmw_refit_mode = setting
-                        .and_then(|value| value.get("mode"))
-                        .and_then(Value::as_str)
-                        .unwrap_or("surface")
-                        .to_owned();
-                    self.cdmw_refit_clearance = setting
-                        .and_then(|value| value.get("clearance_percent"))
-                        .and_then(Value::as_f64)
-                        .unwrap_or(0.0) as f32;
-                    self.cdmw_refit_tightness = setting
-                        .and_then(|value| value.get("tightness_percent"))
-                        .and_then(Value::as_f64)
-                        .unwrap_or(0.0) as f32;
+                    // Resident updates refresh untouched fields even while another
+                    // control has an unapplied edit. Never turn that refresh into
+                    // a change to be copied across the selected Parts.
+                    if !self.cdmw_refit_settings_dirty.fields.contains("enabled") {
+                        self.cdmw_refit_enabled = setting
+                            .and_then(|value| value.get("enabled"))
+                            .and_then(Value::as_bool)
+                            .unwrap_or(true);
+                    }
+                    if !self.cdmw_refit_settings_dirty.fields.contains("intensity_percent") {
+                        self.cdmw_refit_intensity = setting
+                            .and_then(|value| value.get("intensity_percent"))
+                            .and_then(Value::as_f64)
+                            .unwrap_or(100.0) as f32;
+                    }
+                    if !self.cdmw_refit_settings_dirty.fields.contains("mode") {
+                        self.cdmw_refit_mode = setting
+                            .and_then(|value| value.get("mode"))
+                            .and_then(Value::as_str)
+                            .unwrap_or("surface")
+                            .to_owned();
+                    }
+                    if !self.cdmw_refit_settings_dirty.fields.contains("clearance_percent") {
+                        self.cdmw_refit_clearance = setting
+                            .and_then(|value| value.get("clearance_percent"))
+                            .and_then(Value::as_f64)
+                            .unwrap_or(0.0) as f32;
+                    }
+                    if !self.cdmw_refit_settings_dirty.fields.contains("tightness_percent") {
+                        self.cdmw_refit_tightness = setting
+                            .and_then(|value| value.get("tightness_percent"))
+                            .and_then(Value::as_f64)
+                            .unwrap_or(0.0) as f32;
+                    }
                     self.cdmw_refit_hydration_key = hydration_key;
                 }
             }
@@ -3440,96 +3575,99 @@ impl LabApplication {
                 });
             }
             ui.add_enabled_ui(configurable, |ui| {
-                let before = (
-                    self.cdmw_refit_enabled,
-                    self.cdmw_refit_intensity,
-                    self.cdmw_refit_mode.clone(),
-                    self.cdmw_refit_clearance,
-                    self.cdmw_refit_tightness,
-                );
-                ui.checkbox(&mut self.cdmw_refit_enabled, crate::localization::tr("Refit enabled"))
-                    .on_hover_text(crate::localization::tr("Let these garments follow body Shape sliders. Apply to update the current preview."));
+                ui.weak(crate::localization::tr("Only changed fields are applied. Mixed numeric fields initially show the first Part's value."));
+                let enabled_mixed = mixed_fields.contains("enabled")
+                    && !self.cdmw_refit_settings_dirty.fields.contains("enabled");
+                if enabled_mixed {
+                    // An indeterminate checkbox starts by enabling the group.
+                    self.cdmw_refit_enabled = false;
+                }
+                if ui.add(egui::Checkbox::new(&mut self.cdmw_refit_enabled, crate::localization::tr("Refit enabled"))
+                    .indeterminate(enabled_mixed))
+                    .on_hover_text(crate::localization::tr("Let these garments follow body Shape sliders. Apply to update the current preview."))
+                    .changed()
+                {
+                    self.cdmw_refit_settings_dirty.mark("enabled");
+                }
+                let mode_mixed = mixed_fields.contains("mode")
+                    && !self.cdmw_refit_settings_dirty.fields.contains("mode");
                 crate::localization::combo("Mode")
-                    .selected_text(crate::localization::tr(match self.cdmw_refit_mode.as_str() {
+                    .selected_text(crate::localization::tr(if mode_mixed { "Mixed" } else { match self.cdmw_refit_mode.as_str() {
                         "rigid" => "Rigid",
                         "rigid_component" => "Rigid component",
                         _ => "Surface",
-                    }))
+                    }}))
                     .show_ui(ui, |ui| {
-                        ui.selectable_value(
+                        if ui.selectable_value(
                             &mut self.cdmw_refit_mode,
                             "surface".to_owned(),
                             crate::localization::tr("Surface"),
-                        ).on_hover_text(crate::localization::tr("Follow the body surface. Suitable for cloth and flexible armor."));
-                        ui.selectable_value(&mut self.cdmw_refit_mode, "rigid".to_owned(), crate::localization::tr("Rigid"))
-                            .on_hover_text(crate::localization::tr("Preserve each vertex's local offset from the body. This mode can bend a connected piece. Inward tightening requires Surface or Rigid component."));
-                        ui.selectable_value(&mut self.cdmw_refit_mode, "rigid_component".to_owned(), crate::localization::tr("Rigid component"))
-                            .on_hover_text(crate::localization::tr("Move each connected garment piece with one rotation and translation. Suitable for hard armor plates."));
+                        ).on_hover_text(crate::localization::tr("Follow the body surface. Suitable for cloth and flexible armor.")).clicked() {
+                            self.cdmw_refit_settings_dirty.mark("mode");
+                        }
+                        if ui.selectable_value(&mut self.cdmw_refit_mode, "rigid".to_owned(), crate::localization::tr("Rigid"))
+                            .on_hover_text(crate::localization::tr("Preserve each vertex's local offset from the body. This mode can bend a connected piece. Inward tightening requires Surface or Rigid component.")).clicked() {
+                            self.cdmw_refit_settings_dirty.mark("mode");
+                        }
+                        if ui.selectable_value(&mut self.cdmw_refit_mode, "rigid_component".to_owned(), crate::localization::tr("Rigid component"))
+                            .on_hover_text(crate::localization::tr("Move each connected garment piece with one rotation and translation. Suitable for hard armor plates.")).clicked() {
+                            self.cdmw_refit_settings_dirty.mark("mode");
+                        }
                     });
-                ui.add(
-                    crate::cdmw_ui::numeric::slider(&mut self.cdmw_refit_intensity, 0.0..=200.0)
-                        .text(crate::localization::tr("Intensity %")),
-                ).on_hover_text(crate::localization::tr("How strongly the garment follows body changes. 100% follows fully; 0% stays still."));
-                ui.add_enabled(
-                    self.cdmw_refit_mode != "rigid",
-                    crate::cdmw_ui::numeric::slider(&mut self.cdmw_refit_tightness, 0.0..=100.0)
-                        .text(crate::localization::tr("Tightness %")),
-                ).on_hover_text(crate::localization::tr("0% keeps the original fit. 100% tightens loose clothing around the body while preserving folds and openings. Rigid components move without changing size."));
-                ui.add(
-                    crate::cdmw_ui::numeric::slider(&mut self.cdmw_refit_clearance, 0.0..=5.0)
-                        .text(crate::localization::tr("Clearance %")),
-                ).on_hover_text(crate::localization::tr("Minimum outward space from the body, as a percentage of body size. Positive clearance also repairs vertices already inside the body."));
-                if before
-                    != (
-                        self.cdmw_refit_enabled,
-                        self.cdmw_refit_intensity,
-                        self.cdmw_refit_mode.clone(),
-                        self.cdmw_refit_clearance,
-                    self.cdmw_refit_tightness,
-                    )
-                {
-                    self.cdmw_refit_settings_dirty = true;
-                }
-                if self.cdmw_refit_settings_dirty {
+                ui.push_id("refit-intensity", |ui| {
+                    if ui.add(
+                        crate::cdmw_ui::numeric::slider(&mut self.cdmw_refit_intensity, 0.0..=200.0)
+                            .text(crate::localization::tr("Intensity %")),
+                    ).on_hover_text(crate::localization::tr("How strongly the garment follows body changes. 100% follows fully; 0% stays still.")).changed() {
+                        self.cdmw_refit_settings_dirty.mark("intensity_percent");
+                    }
+                    refit_mixed_numeric_choice(ui, "intensity_percent", mixed_fields.contains("intensity_percent"), true, &mut self.cdmw_refit_settings_dirty);
+                });
+                let tightness_enabled = if self.cdmw_refit_settings_dirty.fields.contains("mode") {
+                    self.cdmw_refit_mode != "rigid"
+                } else {
+                    !refit.get("garment_settings").and_then(Value::as_array).into_iter().flatten().any(|row| {
+                        row.get("submesh_index").and_then(Value::as_u64).is_some_and(|index| {
+                            edit_targets.iter().any(|target| u64::from(*target) == index)
+                        }) && row.get("mode").and_then(Value::as_str) == Some("rigid")
+                    })
+                };
+                ui.push_id("refit-tightness", |ui| {
+                    if ui.add_enabled(
+                        tightness_enabled,
+                        crate::cdmw_ui::numeric::slider(&mut self.cdmw_refit_tightness, 0.0..=100.0)
+                            .text(crate::localization::tr("Tightness %")),
+                    ).on_hover_text(crate::localization::tr("0% keeps the original fit. 100% tightens loose clothing around the body while preserving folds and openings. Rigid components move without changing size."))
+                        .on_disabled_hover_text(crate::localization::tr("Tightness requires Surface or Rigid component mode on every selected garment."))
+                        .changed() {
+                        self.cdmw_refit_settings_dirty.mark("tightness_percent");
+                    }
+                    refit_mixed_numeric_choice(ui, "tightness_percent", mixed_fields.contains("tightness_percent"), tightness_enabled, &mut self.cdmw_refit_settings_dirty);
+                });
+                ui.push_id("refit-clearance", |ui| {
+                    if ui.add(
+                        crate::cdmw_ui::numeric::slider(&mut self.cdmw_refit_clearance, 0.0..=5.0)
+                            .text(crate::localization::tr("Clearance %")),
+                    ).on_hover_text(crate::localization::tr("Minimum outward space from the body, as a percentage of body size. Positive clearance also repairs vertices already inside the body.")).changed() {
+                        self.cdmw_refit_settings_dirty.mark("clearance_percent");
+                    }
+                    refit_mixed_numeric_choice(ui, "clearance_percent", mixed_fields.contains("clearance_percent"), true, &mut self.cdmw_refit_settings_dirty);
+                });
+                if self.cdmw_refit_settings_dirty.is_dirty() {
                     ui.colored_label(REFIT_ARMOR_COLOUR, crate::localization::tr("Changes not applied"));
                 }
-                if ui
-                    .add_enabled(
-                        !selected_bound_garments.is_empty(),
-                        Button::new(crate::localization::tr("Apply to Selected Garments")),
-                    )
-                    .on_disabled_hover_text(crate::localization::tr("Select one or more bound garment Parts first"))
-                    .clicked()
-                {
-                    actions.push(UiAction::CdmwCommand {
-                        command: "refit_configure",
-                        arguments: json!({
-                            "submesh_indices": selected_bound_garments,
-                            "enabled": self.cdmw_refit_enabled,
-                            "intensity_percent": self.cdmw_refit_intensity,
-                            "mode": self.cdmw_refit_mode,
-                            "clearance_percent": self.cdmw_refit_clearance,
-                            "tightness_percent": self.cdmw_refit_tightness
-                        }),
-                        label: "Apply garment refit settings",
-                    });
-                }
-                if ui.button(crate::localization::tr("Apply to All Bound Garments")).clicked() {
-                    actions.push(UiAction::CdmwCommand {
-                        command: "refit_configure",
-                        arguments: json!({
-                            "submesh_indices": bound_garments,
-                            "enabled": self.cdmw_refit_enabled,
-                            "intensity_percent": self.cdmw_refit_intensity,
-                            "mode": self.cdmw_refit_mode,
-                            "clearance_percent": self.cdmw_refit_clearance,
-                            "tightness_percent": self.cdmw_refit_tightness
-                        }),
-                        label: "Apply garment refit settings",
-                    });
-                }
+                let values = json!({
+                    "enabled": self.cdmw_refit_enabled,
+                    "intensity_percent": self.cdmw_refit_intensity,
+                    "mode": self.cdmw_refit_mode,
+                    "clearance_percent": self.cdmw_refit_clearance,
+                    "tightness_percent": self.cdmw_refit_tightness,
+                });
+                refit_apply_button(ui, actions, "Apply to Selected Garments", &selected_bound_garments, &values, &self.cdmw_refit_settings_dirty);
+                refit_apply_button(ui, actions, "Apply to All Bound Garments", &bound_garments, &values, &self.cdmw_refit_settings_dirty);
             });
             self.draw_cdmw_refit_follow_controls(ui, actions, state);
+            self.draw_cdmw_refit_diagnostics(ui, actions, state, edit_targets);
         });
         create_body_slider
     }

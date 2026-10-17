@@ -296,8 +296,13 @@ class MeshRustProtocolWorker(QObject):
                 recovery: dict[str, object] = {}
                 if not self.session.closed and event_name != "vertex_inspect":
                     try:
+                        include_document = not (
+                            event_name == "command_request"
+                            and str(self.protocol_event.get("command", "") or "").strip().lower()
+                            == "refit_diagnostics"
+                        )
                         recovery = {
-                            "state": self.session.state_payload(include_document=True)
+                            "state": self.session.state_payload(include_document=include_document)
                         }
                     except (KeyError, RuntimeError, TypeError, ValueError):
                         try:

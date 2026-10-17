@@ -20,7 +20,7 @@ RUST_UI_FILES = (
     "cdmw_shader_controls.rs", "viewport.rs", "camera.rs",
     "main.rs", "cdmw_ui/morph_authoring.rs",
     "cdmw_ui/morph_body_controls.rs", "cdmw_ui/morph_outfit_workflows.rs",
-    "cdmw_ui/morph_workflow.rs",
+    "cdmw_ui/morph_workflow.rs", "cdmw_ui/refit_diagnostics.rs",
 )
 
 
