@@ -1,8 +1,9 @@
 """Validate and report format decode progress from the capability manifest.
 
 `schemas/archive_content_capabilities.v1.json` is the single source of truth for
-what CDMW can read and write per file format. Each entry carries a `decode` and
-`write` status, where that claim is evidenced, and what is left to do.
+archive research status per file format. Each entry carries a `decode` and
+`write` status, its evidence, and remaining limits. Application import/export and
+package workflows are presented separately by Format Explorer.
 
 This tool owns two derived artefacts and nothing else:
 
@@ -17,6 +18,7 @@ from __future__ import annotations
 import argparse
 import json
 import re
+import textwrap
 from collections import Counter
 from pathlib import Path
 from typing import Iterable, Mapping, Sequence
@@ -247,10 +249,67 @@ def _bar(percent: float, width: int = 20) -> str:
     return "#" * filled + "." * (width - filled)
 
 
+def _table_cell(value: object) -> str:
+    return str(value).replace("|", r"\|").replace("\r\n", "\n").replace("\r", "\n").replace("\n", "<br>")
+
+
 def _table(rows: Sequence[Sequence[str]], header: Sequence[str]) -> str:
-    lines = ["| " + " | ".join(header) + " |", "|" + "|".join(["---"] * len(header)) + "|"]
-    lines.extend("| " + " | ".join(row) + " |" for row in rows)
+    lines = ["| " + " | ".join(_table_cell(value) for value in header) + " |",
+             "|" + "|".join(["---"] * len(header)) + "|"]
+    lines.extend("| " + " | ".join(_table_cell(value) for value in row) + " |" for row in rows)
     return "\n".join(lines)
+
+
+_INLINE_REMAINING_LIMIT = 600
+
+
+def _remaining_note(value: object) -> str:
+    return str(value or "").strip() or "No additional limits recorded here."
+
+
+def _needs_limitation_section(note: str) -> bool:
+    return len(note) > _INLINE_REMAINING_LIMIT or "\n" in note
+
+
+def _limitation_anchor(extension: str) -> str:
+    return re.sub(r"[^a-z0-9_-]", "", extension.casefold()) + "-limitations"
+
+
+def _limitation_cell(extension: str, note: str) -> str:
+    if _needs_limitation_section(note):
+        return f"[Detailed limitations](#{_limitation_anchor(extension)})"
+    return note
+
+
+def _wrap_prose(text: str) -> str:
+    return "\n\n".join(
+        textwrap.fill(paragraph, width=88, break_long_words=False, break_on_hyphens=False)
+        for paragraph in text.split("\n\n")
+    )
+
+
+def _render_format_rows(
+    entries: Sequence[Mapping[str, object]],
+) -> tuple[str, list[str]]:
+    rows = []
+    notes = []
+    for entry in entries:
+        extension = str(entry["extension"])
+        remaining = _remaining_note(entry["remaining"])
+        count = int(entry["archive_files"])
+        rows.append([
+            f"`{extension}`", f"{count:,}" if count else "0",
+            str(entry["decode"]), str(entry["write"]), str(entry["priority"]),
+            _limitation_cell(extension, remaining),
+        ])
+        if _needs_limitation_section(remaining):
+            notes.append((extension, remaining))
+    details = []
+    if notes:
+        details.extend(["## Detailed format limitations", ""])
+        for extension, remaining in notes:
+            details.extend([f"### `{extension}` limitations", "", _wrap_prose(remaining), ""])
+    return _table(rows, ["Format", "Files", "Read", "Write", "Priority", "What is left"]), details
 
 
 def render_report(manifest: Mapping[str, object]) -> str:
@@ -278,8 +337,8 @@ def render_report(manifest: Mapping[str, object]) -> str:
         f"Of {len(entries)} known file formats, {engine['extensions']} are engine formats "
         f"(Pearl Abyss or licensed middleware) that had to be reverse engineered, and "
         f"{shipped['extensions']} of those actually appear in the shipped build. That last "
-        f"number is the honest denominator: a format the game does not contain cannot be "
-        f"modded and should not count against progress."
+        f"bucket describes the stored archive corpus. Non-shipped interchange formats can "
+        f"still have useful application workflows; they are not part of that archive bucket."
     )
     out.append("")
     out.append(
@@ -350,26 +409,15 @@ def render_report(manifest: Mapping[str, object]) -> str:
     order = {"high": 0, "medium": 1, "low": 2, "none": 3}
     engine_entries = [e for e in entries if e["origin"] in {"proprietary", "third_party"}]
     engine_entries.sort(key=lambda e: (order[str(e["priority"])], str(e["extension"])))
-    rows = []
-    for entry in engine_entries:
-        remaining = str(entry["remaining"]).strip() or "Nothing outstanding."
-        count = int(entry["archive_files"])
-        rows.append(
-            [
-                f"`{entry['extension']}`",
-                f"{count:,}" if count else "—",
-                str(entry["decode"]),
-                str(entry["write"]),
-                str(entry["priority"]),
-                remaining,
-            ]
-        )
-    out.append(_table(rows, ["Format", "Files", "Read", "Write", "Priority", "What is left"]))
+    format_table, format_details = _render_format_rows(engine_entries)
+    out.append(format_table)
     out.append("")
-    out.append(
-        "A dash in Files means the shipped build contains no entry with that extension. "
-        "Those rows are carried for compatibility, not because there is work in them."
-    )
+    out.append(_wrap_prose(
+        "File counts come from the stored archive inventory, not a live installation scan. "
+        "Zero means that inventory contains no files with the extension. Application import, "
+        "export, editing and package workflows are described separately in Inspect File Formats; "
+        "they do not change these archive counts or research scores."
+    ))
     out.append("")
     out.append("### Open formats")
     out.append("")
@@ -382,22 +430,33 @@ def render_report(manifest: Mapping[str, object]) -> str:
         + "."
     )
     out.append("")
-    out.extend(_render_gaps(progress))
+    out.extend(format_details)
+    detailed_extensions = frozenset(
+        str(entry["extension"]) for entry in engine_entries
+        if _needs_limitation_section(_remaining_note(entry["remaining"]))
+    )
+    out.extend(_render_gaps(progress, detailed_extensions=detailed_extensions))
     out.extend(_render_unlisted(progress))
     out.extend(_render_rubric())
     return "\n".join(out).rstrip() + "\n"
 
 
-def _render_gaps(progress: Mapping[str, object]) -> list[str]:
+def _render_gaps(
+    progress: Mapping[str, object], *, detailed_extensions: frozenset[str] = frozenset(),
+) -> list[str]:
     out = ["## Highest-value gaps", ""]
     out.append(
         "Every format marked `high`: closing it opens a modding category that is currently at zero."
     )
     out.append("")
     for gap in progress["open_high_priority_gaps"]:  # type: ignore[index]
+        extension = str(gap["extension"])
+        remaining = _remaining_note(gap["remaining"])
+        if extension in detailed_extensions:
+            remaining = _limitation_cell(extension, remaining)
         out.append(
             f"- **`{gap['extension']}`** (read {gap['decode']}, write {gap['write']}) "
-            f"— {gap['remaining']}"
+            f": {remaining}"
         )
     out.append("")
     return out
@@ -443,7 +502,9 @@ def _render_rubric() -> list[str]:
 
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--write", action="store_true", help="regenerate the progress block and the report")
+    mode = parser.add_mutually_exclusive_group()
+    mode.add_argument("--write", action="store_true", help="regenerate the progress block and the report")
+    mode.add_argument("--check", action="store_true", help="check the progress block and report without writing (default)")
     args = parser.parse_args(argv)
 
     manifest = load_manifest()

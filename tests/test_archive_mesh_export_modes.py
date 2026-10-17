@@ -194,3 +194,36 @@ def test_obj_preview_export_fallback_preserves_loose_preview_guard(tmp_path, mon
             assert window.status_messages == [(f"Exported model preview to {target}", {})]
     finally:
         window.close()
+
+
+@pytest.mark.parametrize("extension", [".paseq", ".paseqc", ".pastage", ".pabgh"])
+def test_format_explorer_structured_route_dispatches_selected_sidecar(tmp_path, monkeypatch, extension):
+    from tools.format_explorer.catalogue import TOOLS
+
+    global _APPLICATION
+    _APPLICATION = QApplication.instance() or QApplication([])
+    entry = ArchiveEntry(
+        path="animation/sidecar" + extension,
+        pamt_path=tmp_path / "0.pamt", paz_file=tmp_path / "0.paz",
+        offset=0, comp_size=64, orig_size=64, flags=0, paz_index=0,
+    )
+    window = _ExportWindow(entry, tmp_path)
+    calls = []
+    window._edit_archive_structured_binary_sidecar = calls.append
+    location, action_label = TOOLS[extension].split(" > ")
+    assert location == "Browse Archives"
+
+    class SidecarMenu(QMenu):
+        def exec(self, _position):
+            choices = {action.text(): action for action in self.actions()}
+            action = choices[action_label]
+            assert "edited sidecar copy" in action.toolTip()
+            action.trigger()
+
+    monkeypatch.setattr(actions, "QMenu", SidecarMenu)
+    try:
+        window._show_archive_tree_context_menu(QPoint())
+        assert calls == [entry]
+    finally:
+        window.close()
+        window.deleteLater()

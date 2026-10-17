@@ -2,7 +2,7 @@
 
 - Plan ID: `FMT`
 - Created: 2026-10-17 (Europe/Stockholm)
-- Status: Planned. Implementation has not started.
+- Status: Completed on 2026-10-17.
 - Project: `D:\CLAUDETEST\CDMW Full`
 - Plan file: `beta-progress/inspect-file-formats-update-plan.md`
 - Shared completion log: [progress.md](progress.md)
@@ -15,18 +15,18 @@ Make Utilities > Inspect File Formats accurately describe the current CDMW workf
 
 Keep shipped archive inventory facts distinct from application import, export, editing, and package capabilities. A successful read or import must not imply unrestricted editing, exact game-format writing, or verified in-game support.
 
-This document prepares the work requested after the inspection. Creating or reading it does not start implementation. Begin implementation when the user asks to start, using authorization already established in that session.
+This plan was prepared before implementation. The user authorized completing it on 2026-10-17. The completed work and validation are recorded below.
 
 ## Current handoff
 
-- Completed: FMT-DOC-01 only (planning).
+- Completed: FMT-DOC-01, FMT-BASE-01, FMT-MODEL-01, FMT-DATA-01, FMT-MESH-01, FMT-ROUTE-01, FMT-APP-01, FMT-FILTER-01, FMT-DOCS-01, FMT-TEST-01, FMT-DONE-01.
 - Active task: None.
-- Working agent: Unassigned.
-- Claimed source files: None.
-- Next task: FMT-BASE-01.
-- Blockers: None identified for planning.
+- Completed by: Format Explorer implementation (root), with delegated review and translation of supplied source text.
+- Ownership: This plan releases its source-file claims. Other agents retain their own pending work. Shared generated records and completion logs are committed only for FMT-owned keys, origins and entries.
+- Next task: None for this plan. Exposing a dedicated material-sidecar editor remains a separate feature follow-up.
+- Blockers: None. Concurrent window/DPI, Mesh Editor/loader, and Morph & Refit work remains with its existing agents.
 - Required tasks: FMT-BASE-01, FMT-MODEL-01, FMT-DATA-01, FMT-MESH-01, FMT-ROUTE-01, FMT-APP-01, FMT-FILTER-01, FMT-DOCS-01, FMT-TEST-01, and FMT-DONE-01.
-- Evidence limit: The earlier inspection used source review, stored inventory, a small headless panel probe, and six synthetic test nodes. It did not validate visible appearance, scan an installed game, or prove in-game behavior.
+- Evidence limit: Implementation has 52 distinct passing focused test cases, including offscreen panel/menu behavior, package admission and runtime translation. Report and localization freshness checks pass. No visible appearance, installed-game scan or new in-game behavior is claimed.
 
 ## Completed preparation
 
@@ -85,21 +85,39 @@ These are observations from the investigation baseline. Reconfirm the relevant o
 - The default invocation of `tools/report_format_decode_progress.py` exited 1 for report text drift. Stored `progress` values matched the computed summary.
 - These results are historical evidence, not fresh validation of future changes. Reuse unchanged proof where applicable and rerun the affected checks when the contract changes.
 
+## Implementation model agreed on 2026-10-17
+
+- Keep all 141 archive rows and their runtime fields in the existing manifest. Only evidence, limitations, and justified research write-status corrections change there; app support does not change backend analyzers or archive exports.
+- `tools/format_explorer/workflows.py` owns small immutable presentation records for inspect/edit/import/export/package operations, prerequisites, and output labels. It queries the existing mesh policy for limits; it adds no writer permissions.
+- The catalogue merges these records into display rows. `.cditem` is one application row with `files=None`; an archive row with `files=0` still means known absence from stored inventory. Existing extensions are not duplicated.
+- The editing filter uses supported edit routes independently of presence. Bounded working-mesh editing qualifies with its output-folder and renderer prerequisites; import, export, or package creation alone does not. The package row therefore does not qualify for editing merely because it can be created or loaded.
+- Keep six table columns, with clearer Read / import, Edit / output, and Where to use it labels. Show operation details and prerequisites beside verified tool links.
+- Current package navigation is Mod Management > Mods; Independent items remains an advanced installation route. Exact material-editor caller searches found definitions and tests but no exposed entry, so retain external text-editor guidance and record UI exposure as a separate follow-up.
+
+| Include application/non-shipped | Only editable | Defined result |
+| --- | --- | --- |
+| Off | Off | Stored shipped archive formats (87 at this baseline). |
+| Off | On | Shipped formats with a supported bounded edit route (38 in the current projection). |
+| On | Off | Archive and application formats, including .cditem without an archive count (142). |
+| On | On | Supported editable formats regardless of archive presence; package-only support stays excluded (60). |
+
+Counts above are a source/synthetic probe result, not a live game inventory or a compatibility guarantee.
+
 ## Required tasks
 
 ### FMT-BASE-01: Refresh the starting point and coordinate ownership
 
-- [ ] **FMT-BASE-01 complete:** The current source baseline, overlapping work, task ownership, and focused checks are recorded.
+- [x] **FMT-BASE-01 complete:** The current source baseline, overlapping work, task ownership, and focused checks are recorded.
 
 Work: Read current instructions, this plan, shared progress, Git status, and the relevant owners. Compare the findings against current source and pending changes. Coordinate with agents changing Mesh Editor or `.cditem` workflows before documenting their capabilities.
 
 Acceptance: Every correction has a current source owner and evidence. Record obsolete findings instead of implementing them. Confirm the shared log exists, and claim the next task and files in Current handoff.
 
-Completion: Pending.
+Completion: 2026-10-17. Refreshed Git and applicable instructions at d4b38e5082d4f9b4b4cce14f9ee2ecdb37994aaf. Read the archive consumers, current UI actions, package producer/reader and mesh policy. Existing independent-package caching changes are owned by the loader agent; their version contract remains v1 output with supported v2 admission. No overlapping implementation files were changed by this task.
 
 ### FMT-MODEL-01: Define the catalogue's capability and presence contract
 
-- [ ] **FMT-MODEL-01 complete:** The model distinguishes inventory presence, supported operations, output limits, and application-only formats without changing unrelated archive contracts.
+- [x] **FMT-MODEL-01 complete:** The model distinguishes inventory presence, supported operations, output limits, and application-only formats without changing unrelated archive contracts.
 
 Depends on: FMT-BASE-01.
 
@@ -107,11 +125,11 @@ Work: Inspect the manifest's Python and .NET consumers and the existing domain c
 
 Acceptance: Archive counts and backend field meanings are preserved. Application-only formats have an explicit kind/origin and no invented shipped-file count. A format can be importable without being editable or exportable. The chosen design and filter truth table are recorded here before dependent edits.
 
-Completion: Pending.
+Completion: 2026-10-17. Added immutable workflow presentation metadata and optional application counts without modifying archive consumer fields. Mesh descriptions query the existing domain policy. A read-only Python probe passed syntax checks and verified 142 unique rows, 87 default archive formats, no numeric count for .cditem, package-only support excluded from editability, and inclusion of zero-count GLB when both filters are enabled. Focused regression tests remain tracked by FMT-TEST-01.
 
 ### FMT-DATA-01: Correct known format evidence and bounded editing claims
 
-- [ ] **FMT-DATA-01 complete:** PATHC, PALOC, sequence-sidecar, and PABGH descriptions match current supported operations and remaining restrictions.
+- [x] **FMT-DATA-01 complete:** PATHC, PALOC, sequence-sidecar, and PABGH descriptions match current supported operations and remaining restrictions.
 
 Depends on: FMT-MODEL-01.
 
@@ -119,11 +137,11 @@ Work: Correct the findings above using the current PATHC, PALOC, and structured-
 
 Acceptance: PATHC no longer claims every new DDS header shape is refused. PALOC describes the supported container version and preserved bytes accurately. Sidecar descriptions expose available constrained edits while retaining unavailable full authoring. Inventory and unrelated decoder/writer behavior are unchanged.
 
-Completion: Pending.
+Completion: 2026-10-17. Corrected PATHC and PALOC evidence, mesh/interchange limitations and effect-preview attribution; sequence sidecars now claim constrained string editing. A before/after comparison confirmed that all 141 archive identities, counts, runtime flags, analyzers and exports are unchanged. The focused run passed the six relevant PATHC/PALOC/sidecar nodes. Validation run: 23 passed in 1.13s using the project Python, offscreen Qt and a unique host-temp pytest directory; source baseline d4b38e5082d4f9b4b4cce14f9ee2ecdb37994aaf plus task working changes.
 
 ### FMT-MESH-01: Make mesh and interchange limits accurate
 
-- [ ] **FMT-MESH-01 complete:** Mesh and interchange rows state their supported operations, prerequisites, and output limits without overstating authoring.
+- [x] **FMT-MESH-01 complete:** Mesh and interchange rows state their supported operations, prerequisites, and output limits without overstating authoring.
 
 Depends on: FMT-MODEL-01.
 
@@ -131,11 +149,11 @@ Work: Derive descriptions from the current authoring capability rules and import
 
 Acceptance: Exact game-format edits and new working-mesh output are distinguishable. FBX import names its Blender prerequisite. DAE import does not imply DAE export. Empty remaining text cannot claim all limitations are resolved. Existing writer gates remain authoritative and unchanged.
 
-Completion: Pending.
+Completion: 2026-10-17. The panel now shows policy-derived LOD and operation restrictions, separate working-mesh output, the FBX Blender prerequisite and DAE/glTF import without a same-format export claim. Focused catalogue tests passed against the current domain policy. No mesh writer or permission gate changed. Validation run: 23 passed in 1.13s using the project Python, offscreen Qt and a unique host-temp pytest directory; source baseline d4b38e5082d4f9b4b4cce14f9ee2ecdb37994aaf plus task working changes.
 
 ### FMT-ROUTE-01: Verify and update usable workflow destinations
 
-- [ ] **FMT-ROUTE-01 complete:** Each added or changed destination corresponds to an available workflow and states any prerequisite.
+- [x] **FMT-ROUTE-01 complete:** Each added or changed destination corresponds to an available workflow and states any prerequisite.
 
 Depends on: FMT-DATA-01 and FMT-MESH-01.
 
@@ -143,11 +161,11 @@ Work: Verify the actual shell tool keys and UI entry points for structured sidec
 
 Acceptance: A link opens the correct tool, and its text explains any required archive selection, experimental mode, configured converter, or other context. A root-tab callback alone is not proof of a usable action. Workflow-managed edits are not described as unrestricted standalone editing. Record material-route evidence or its separate follow-up and accurate fallback here.
 
-Completion: Pending.
+Completion: 2026-10-17. Added verified structured-sidecar, Create New Item, effect and Mod Management routes with prerequisites. Four real headless archive-menu tests dispatched the selected sidecar entry to the action named by the catalogue. Panel table/detail link tests passed. Material-editor exposure remains a separate UI follow-up; external text editing is the available route described here. Validation run: 23 passed in 1.13s using the project Python, offscreen Qt and a unique host-temp pytest directory; source baseline d4b38e5082d4f9b4b4cce14f9ee2ecdb37994aaf plus task working changes.
 
 ### FMT-APP-01: Represent current application and package formats
 
-- [ ] **FMT-APP-01 complete:** Optional application-format coverage includes the current `.cditem` and mesh interchange workflows with accurate provenance and version limits.
+- [x] **FMT-APP-01 complete:** Optional application-format coverage includes the current `.cditem` and mesh interchange workflows with accurate provenance and version limits.
 
 Depends on: FMT-MODEL-01 and the current package/workflow baseline from FMT-BASE-01.
 
@@ -155,11 +173,11 @@ Work: Apply the chosen presentation model to app-supported formats outside the s
 
 Acceptance: `.cditem` is discoverable in the appropriate optional view, identified as an application package, and does not inflate game archive counts. Do not promise experimental v2 output where a producer still writes v1. Describe the actual supported versions and limitations without changing the package codec. Mesh interchange rows use the operations established in FMT-MESH-01.
 
-Completion: Pending.
+Completion: 2026-10-17. Added one .cditem application row with no numeric archive count and accurate v1 output / supported experimental v2 admission notes. The test confirmed package-only operations do not imply general editing, and the live package parser rejects an unknown version. Navigation follows Mod Management > Mods and the existing advanced Independent items route. Validation run: 23 passed in 1.13s using the project Python, offscreen Qt and a unique host-temp pytest directory; source baseline d4b38e5082d4f9b4b4cce14f9ee2ecdb37994aaf plus task working changes.
 
 ### FMT-FILTER-01: Implement clear visibility, search, and detail behavior
 
-- [ ] **FMT-FILTER-01 complete:** The panel follows the agreed presence/editing contract and keeps search, detail selection, and labels consistent.
+- [x] **FMT-FILTER-01 complete:** The panel follows the agreed presence/editing contract and keeps search, detail selection, and labels consistent.
 
 Depends on: FMT-MODEL-01, FMT-ROUTE-01, and FMT-APP-01.
 
@@ -167,11 +185,11 @@ Work: Preserve the default shipped-inventory view. Provide an explicit way to in
 
 Acceptance: Test every filter combination, including zero-count editable formats, import-only formats, read-only formats, and application packages. The optional view plus editable filter retains entries that actually support the defined editing operation. Unsupported operations do not qualify merely because import or export exists. Search and empty results do not leave stale details. Default inventory totals remain derived from the existing inventory.
 
-Completion: Pending.
+Completion: 2026-10-17. All four filter combinations passed (87 / 38 / 142 / 60). Headless panel checks passed for zero-count formats, .cditem N/A count, search, preserved selection, fresh details, empty results and table/detail tool links. The report remains based only on the 141 archive rows. Validation run: 23 passed in 1.13s using the project Python, offscreen Qt and a unique host-temp pytest directory; source baseline d4b38e5082d4f9b4b4cce14f9ee2ecdb37994aaf plus task working changes.
 
 ### FMT-DOCS-01: Synchronize documentation, generated reports, and labels
 
-- [ ] **FMT-DOCS-01 complete:** The feature guide, capability report, localization metadata, and user-visible change note match the implemented behavior.
+- [x] **FMT-DOCS-01 complete:** The feature guide, capability report, localization metadata, and user-visible change note match the implemented behavior.
 
 Depends on: FMT-DATA-01 through FMT-FILTER-01.
 
@@ -179,11 +197,11 @@ Work: Update `docs/features/format-explorer.md`, including accurate test referen
 
 Acceptance: The read-only format report check succeeds and preserves understandable long limitation notes. Report totals agree with the actual archive entries. Localization checks match current instructions. Test references point to real tests. Release notes describe the user outcome and keep experimental/compatibility limits; no version bump.
 
-Completion: Pending.
+Completion: 2026-10-17. Updated the local feature guide, regenerated the archive-only report and stored summary, added explicit read-only --check support and readable long-limit sections, and added the Unreleased note. The source manifest includes workflow and application text; 114 new source entries are covered in each of 13 translated catalogues. Localization freshness and validation passed for 14 languages with 15,996 keys each. The format report check passed. docs/ is intentionally Git-ignored: the guide and generated report are saved locally under the existing convention, not force-added to the commit.
 
 ### FMT-TEST-01: Add and run focused behavior coverage
 
-- [ ] **FMT-TEST-01 complete:** Targeted tests prove the changed catalogue, panel, and maintenance behavior, with evidence and limits recorded.
+- [x] **FMT-TEST-01 complete:** Targeted tests prove the changed catalogue, panel, and maintenance behavior, with evidence and limits recorded.
 
 Depends on: Implement affected checks alongside FMT-MODEL-01 through FMT-DOCS-01; complete this task after their results agree.
 
@@ -191,11 +209,11 @@ Work: Use the existing test structure where suitable; add a small dedicated cata
 
 Acceptance: The exact affected checks pass under the project virtualenv, with pytest temporary data outside the repository. Record the test command, result, and source revision. Existing focused proof is reused where unchanged; unrelated failures are isolated and do not trigger broad test runs.
 
-Completion: Pending.
+Completion: 2026-10-17. 52 distinct focused cases passed across the runs below. The final affected catalogue/localization run passed 29 cases in 1.30s. Report tests prove read-only checks and bounded regeneration; real headless menu actions and table/detail callbacks prove routing. Package migration/admission checks preserve the distinction between supported readers and game proof. Source baseline d4b38e5082d4f9b4b4cce14f9ee2ecdb37994aaf plus the task's working changes and current shared source; unaffected passing checks were reused.
 
 ### FMT-DONE-01: Finish the review and synchronize the handoff
 
-- [ ] **FMT-DONE-01 complete:** Every required task is complete, claims agree with current source, and the plan and shared log are synchronized.
+- [x] **FMT-DONE-01 complete:** Every required task is complete, claims agree with current source, and the plan and shared log are synchronized.
 
 Depends on: All preceding implementation tasks.
 
@@ -203,7 +221,7 @@ Work: Recheck capabilities that concurrent agents changed, inspect task-owned di
 
 Acceptance: No stale or unsupported claim remains among the scoped findings. No unrelated work is staged or overwritten. All required checkboxes and completion evidence are accurate, and `progress.md` remains a short shared completion list. Report any unresolved item openly instead of declaring the plan complete.
 
-Completion: Pending.
+Completion: 2026-10-17. Rechecked the current package producer/reader, Mods navigation and mesh-policy owners; confirmed the 14 intended archive-record corrections preserve runtime fields and counts. All 11 FMT checkboxes have one matching shared completion entry. The isolated local commit is named Update Inspect File Formats workflows and coverage. Its localization portion adds 114 source keys and retires 22 keys while preserving other agents' source origins and pending changes; the local docs/ files remain Git-ignored under the repository convention. No visible/game validation or publication is claimed.
 
 ## Validation
 
@@ -225,11 +243,61 @@ Additional validation is selected by the changed contract:
 - Catalogue behavior: discrete operations, display text, source kind, inventory preservation, and package version/prerequisite explanations.
 - Panel behavior: all filter combinations, search, selection refresh, empty results, and actual tool callback routing with usable action context.
 - Shared schema: the smallest existing contract checks for each consumer affected by a field or identifier change. Preserve the archive inventory; no new game scan is implied.
-- Format report: `.venv/Scripts/python.exe -B tools/report_format_decode_progress.py` is the current read-only check. At the investigation baseline this script supported `--write`, not `--check`; verify its current CLI before invoking it. Regenerate only after agreeing the intended output and reviewing the diff.
+- Format report: `.venv/Scripts/python.exe -B tools/report_format_decode_progress.py --check` and the no-argument command are now equivalent read-only checks. --write regenerates the stored summary and report. The explicit modes are mutually exclusive.
 - Localization: use the focused manifest `--check` from project instructions when applicable, and regenerate with `--write` only for meaningful key/path/sink changes.
 - Planning-only verification: confirm unique FMT checkbox IDs, only FMT-DOC-01 checked, exactly one matching planning progress entry, preservation of prior shared entries, valid local source references, and a clean task diff.
 
 These checks provide source and synthetic/headless evidence. They do not establish visible appearance or game compatibility. Record that distinction in the final implementation handoff.
+
+
+### Implementation results on 2026-10-17
+
+All Python checks used `.venv/Scripts/python.exe -B`, offscreen Qt where relevant,
+`-p no:cacheprovider` and a unique `tempfile.mkdtemp()` base directory outside
+the repository. No native build or real-game data was used.
+
+| Checkpoint | Exact focused scope | Result |
+| --- | --- | --- |
+| Initial behavior | `tests/test_format_explorer.py`; `tests/test_archive_mesh_export_modes.py::test_format_explorer_structured_route_dispatches_selected_sidecar`; the six codec/service nodes listed above | 23 passed in 1.13s |
+| Report and policy follow-up | `tests/test_format_explorer.py`; `tests/test_format_decode_progress.py` | 23 passed in 0.55s; includes nine report cases reused unchanged afterward |
+| Declared source extraction | `tests/test_localization_catalog_contracts.py::test_manifest_extracts_only_declared_registry_and_catalogue_labels` | 1 passed in 0.25s |
+| Package admission | The three `test_independent_item_v2.py` nodes below | 3 passed in 0.62s |
+| Final affected catalogue and translations | The final command below | 29 passed in 1.30s |
+| Archive report freshness | `.venv/Scripts/python.exe -B tools/report_format_decode_progress.py --check` | Current |
+| Localization freshness | `.venv/Scripts/python.exe -B scripts/generate_ui_localization_manifest.py --check` | Current, 15,996 keys |
+| Catalogue validity | `.venv/Scripts/python.exe -B scripts/validate_ui_localization_catalogs.py` | 14 built-in languages validated, 15,996 keys each |
+
+The final affected command was:
+
+```bash
+.venv/Scripts/python.exe -B - <<'PY'
+import os,tempfile,pytest
+os.environ['QT_QPA_PLATFORM']='offscreen'
+raise SystemExit(pytest.main(['-q','--tb=short','-p','no:cacheprovider',
+    '--basetemp',tempfile.mkdtemp(prefix='cdmw-fmt-final-'),
+    'tests/test_format_explorer.py',
+    'tests/test_localization_catalog_contracts.py::test_generated_manifest_covers_current_registry_and_catalogue_labels']))
+PY
+```
+
+The additional package nodes were:
+
+```text
+tests/test_independent_item_v2.py::test_v1_migration_retains_original_identity_digest_and_unknown_metadata
+tests/test_independent_item_v2.py::test_unknown_or_malformed_required_behavior_refuses_before_game_access[feature-Unsupported required capability]
+tests/test_independent_item_v2.py::test_unknown_or_malformed_required_behavior_refuses_before_game_access[module-version-Unsupported required capability]
+```
+
+The final manifest comparison against HEAD confirmed 141 archive identities and
+87 positive inventory counts unchanged. Only the 14 reviewed extension records
+changed evidence/remaining text, with the three sequence write flags corrected
+to constrained. Runtime archive fields and inventory counts are unchanged.
+The report's 77 shipped-engine formats remain a separate research scope.
+
+The policy follow-up also removes an edit operation and its label when the
+existing domain policy refuses authoring. Imported working meshes explicitly
+show **Edit after import; OBJ output**. The hypothetical destination used to
+describe this available route never creates an editor session or authorizes IO.
 
 ## Source map
 
@@ -237,7 +305,7 @@ Paths below are relative to `D:\CLAUDETEST\CDMW Full`. They identify the inspect
 
 | ID | Owning files and purpose |
 | --- | --- |
-| S1 | `tools/format_explorer/catalogue.py`: manifest loading, manual tool mapping, operation words, `moddable`, filtering, and inventory headline. |
+| S1 | `tools/format_explorer/catalogue.py` and `tools/format_explorer/workflows.py`: archive/application presentation, tool mapping, operation semantics, domain-policy limits, filtering and inventory headline. |
 | S2 | `tools/format_explorer/tab.py` and `cdmw/ui/shell/tool_tabs.py`: panel construction, filter/selection behavior, detail fallback, tool links, and shell activation. |
 | S3 | `schemas/archive_content_capabilities.v1.json` and `schemas/archive_extension_inventory.json`: archive capability facts and stored counts. |
 | S4 | `cdmw/domain/archives/content_capabilities.py` and `tools/dotnet_archive_backend/src/Cdmw.Archive.Content/ArchiveContentRegistry.cs`: archive runtime consumers to protect when metadata contracts change. |
@@ -246,9 +314,9 @@ Paths below are relative to `D:\CLAUDETEST\CDMW Full`. They identify the inspect
 | S7 | `cdmw/ui/archive_browser/actions.py`, `cdmw/ui/archive_browser/binary_sidecar_actions.py`, and `cdmw/services/structured_sidecar_edit_service.py`: visible structured-sidecar action and bounded copy writes. |
 | S8 | `cdmw/domain/mesh/authoring_capability.py`: exact authoring, LOD, operation, Free Edit, and output policy. |
 | S9 | `cdmw/services/fbx_blender_conversion.py`, `cdmw/modding/mesh_exporter.py`, `cdmw/ui/mesh_editor/replacement_flow.py`, and `cdmw/ui/archive_browser/actions.py`: current interchange import/export routes. |
-| S10 | `cdmw/services/independent_item_package.py`, `cdmw/ui/new_item/panels_output.py`, `cdmw/ui/new_item/independent_items_page.py`, and `cdmw/ui/new_item/virtual_loader_page.py`: package versions and visible create/import/load routes. |
+| S10 | `cdmw/services/independent_item_package.py`, `cdmw/services/independent_mod_package.py`, `cdmw/ui/new_item/controller_task_mixin.py`, `cdmw/ui/new_item/panels_output.py`, `cdmw/ui/new_item/independent_items_page.py`, `cdmw/ui/new_item/virtual_loader_page.py`, `cdmw/ui/tools/mod_management.py` and `cdmw/ui/tools/mod_management_list.py`: current package producers/readers and usable create/import/load routes. |
 | S11 | `cdmw/services/new_item_effect_planning.py` and `cdmw/ui/new_item/panels_perks.py`: bounded effect/emitter workflows and limitations. |
-| S12 | `cdmw/ui/archive_browser/material_sidecar_actions.py`, `cdmw/ui/archive_browser/material_sidecar_document_controller.py`, and `cdmw/ui/archive_browser/material_sidecar_editor_dialog.py`: existing material editor code; reachable navigation still needs verification. |
+| S12 | `cdmw/ui/archive_browser/material_sidecar_actions.py`, `cdmw/ui/archive_browser/material_sidecar_document_controller.py`, and `cdmw/ui/archive_browser/material_sidecar_editor_dialog.py`: existing editor code, with no reachable action established by the scoped caller review. External text editing remains the advertised route; exposing a dedicated editor is a separate UI follow-up. |
 | S13 | `tools/report_format_decode_progress.py`, `docs/features/format-decode-progress.md`, and `docs/features/format-explorer.md`: generated/report contract and feature guidance. |
 | S14 | `tests/test_compact_shell.py`, `tests/test_localization_catalog_contracts.py`, `tests/test_pathc_format.py`, `tests/test_paloc_container.py`, and `tests/test_structured_sidecar_edit_async.py`: existing relevant proof; select exact cases instead of broad suites. |
 
@@ -256,4 +324,4 @@ Paths below are relative to `D:\CLAUDETEST\CDMW Full`. They identify the inspect
 
 The feature accurately represents the current scoped archive and application workflows, gives verified destinations and honest limits, preserves inventory/backend contracts, and passes the focused checks for its changes. Every required task is checked only with evidence and a matching shared progress entry. Final reporting states any remaining limitation and the type of validation performed.
 
-Planning is complete when this document and its FMT-DOC-01 progress entry are saved and verified. Implementation remains pending until the user starts the work.
+Planning and implementation are complete. The shared log and this plan record all 11 completed FMT tasks. The scoped changes are saved in the isolated local commit; local feature/report documentation is also updated.

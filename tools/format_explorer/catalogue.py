@@ -1,12 +1,7 @@
-"""What can I actually mod, and where in this app do I do it?
+"""Archive inventory and current application workflows for Format Explorer.
 
-The capability manifest answers the first half precisely — 141 formats, each with how
-far it is read, how far it is written, and what is left. But it is a JSON file in a
-schemas directory, so the person it would help most has never seen it.
-
-This module turns it into rows a modder can act on, and adds the part the manifest does
-not carry: which tool in the app handles a format. A row that says `.paloc` is
-read/write is only useful next to "Translations".
+Archive fields retain the manifest's meaning. Application-only formats and operation
+guidance are added to immutable display rows without changing runtime archive rules.
 """
 
 from __future__ import annotations
@@ -16,6 +11,8 @@ import re
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Mapping, Optional, Sequence, Tuple
+
+from .workflows import FormatWorkflow, workflow_for
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 MANIFEST = REPO_ROOT / "schemas" / "archive_content_capabilities.v1.json"
@@ -60,11 +57,32 @@ TOOLS: Mapping[str, str] = {
     ".paac": "Placement & Animations",
     ".papr": "Placement & Animations > Driven bones",
     ".wem": "Browse Archives > Import WAV + Patch to Game...",
+    ".paseq": "Browse Archives > Edit Structured Data Safely...",
+    ".paseqc": "Browse Archives > Edit Structured Data Safely...",
+    ".pastage": "Browse Archives > Edit Structured Data Safely...",
+    ".pabgh": "Browse Archives > Edit Structured Data Safely...",
+    ".pae": "Create New Item > Effects",
+    ".paem": "Create New Item > Effects",
+    ".pappt": "Create New Item",
+    ".pathc": "Create New Item",
+    ".pabgb": "Create New Item",
+    ".fbx": "Create New Item / Mesh Editor",
+    ".glb": "Mesh Editor / Create New Item",
+    ".gltf": "Mesh Editor / Create New Item",
+    ".obj": "Mesh Editor / Create New Item",
+    ".dae": "Mesh Editor / Create New Item",
+    ".cditem": "Create New Item / Mod Management",
 }
 
 #: Formats edited as plain text through any editor, once extracted.
 _TEXT_TOOL = "Any text editor (extract, edit, repack)"
 _NO_TOOL = "No tool yet"
+NO_REMAINING_NOTE = "No additional limits recorded here."
+_HEADLINE = (
+    "Browse {count} formats from the stored archive inventory. "
+    "Include application and non-shipped formats to see other supported workflows. "
+    "Counts are not a live installation scan."
+)
 
 #: How the manifest's decode/write words read to someone who has not seen the rubric.
 READ_WORDS = {
@@ -83,7 +101,7 @@ WRITE_WORDS = {
 @dataclass(frozen=True)
 class FormatRow:
     extension: str
-    files: int
+    files: int | None
     group: str
     role: str
     decode: str
@@ -93,24 +111,27 @@ class FormatRow:
     evidence: str
     remaining: str
     tool: str
+    workflow: FormatWorkflow = FormatWorkflow()
 
     @property
     def read_label(self) -> str:
-        return READ_WORDS.get(self.decode, self.decode)
+        return self.workflow.read_label or READ_WORDS.get(self.decode, self.decode)
 
     @property
     def write_label(self) -> str:
-        return WRITE_WORDS.get(self.write, self.write)
+        return self.workflow.write_label or WRITE_WORDS.get(self.write, self.write)
 
     @property
     def moddable(self) -> bool:
-        """Something a modder can change today, in a format the game actually ships."""
+        """A supported edit route, independent of presence in the stored inventory."""
 
-        return self.files > 0 and self.write in ("full", "constrained")
+        if self.workflow.editable is not None:
+            return self.workflow.editable
+        return self.write in ("full", "constrained")
 
     @property
     def shipped(self) -> bool:
-        return self.files > 0
+        return self.files is not None and self.files > 0
 
 
 def _tool_for(entry: Mapping[str, object]) -> str:
@@ -138,20 +159,31 @@ def load_rows(manifest: Optional[Path] = None) -> Tuple[FormatRow, ...]:
             evidence=str(entry["evidence"]),
             remaining=str(entry["remaining"]),
             tool=_tool_for(entry),
+            workflow=workflow_for(str(entry["extension"])),
         ))
-    # Most files first: that is the order in which a format matters to a modder.
-    rows.sort(key=lambda row: (-row.files, row.extension))
+    # A package is not an archive entry. None means the count does not apply;
+    # zero remains the known absence of an archive extension in the inventory.
+    if not any(row.extension == ".cditem" for row in rows):
+        rows.append(FormatRow(
+            extension=".cditem", files=None, group="application_packages",
+            role="Independent item / mod package (Experimental)",
+            decode="none", write="none", priority="none", origin="application",
+            evidence=(
+                "cdmw/services/independent_item_package.py and independent_mod_package.py: "
+                "bounded v1/v2 package admission. Create New Item exports v1; "
+                "Mod Management > Mods adds packages for the current loader workflow."
+            ),
+            remaining="Package compatibility and required capabilities are checked on admission; game and save compatibility need separate validation.",
+            tool=TOOLS[".cditem"], workflow=workflow_for(".cditem"),
+        ))
+    rows.sort(key=lambda row: (-(row.files or 0), row.extension))
     return tuple(rows)
 
 
 def headline(rows: Sequence[FormatRow]) -> str:
     """Inventory size without treating format-level write flags as asset guarantees."""
 
-    shipped = [row for row in rows if row.shipped]
-    return (
-        f"Browse {len(shipped)} file formats found in the game. "
-        "Select a format for supported operations, editing limits and evidence."
-    )
+    return _HEADLINE.format(count=sum(row.shipped for row in rows))
 
 
 def filter_rows(
@@ -172,8 +204,11 @@ def filter_rows(
         if group and row.group != group:
             continue
         if wanted and wanted not in (
-            f"{row.extension} {row.group} {row.role} {row.tool} {row.evidence}".casefold()
-        ):
+            f"{row.extension} {row.group} {row.role} {row.tool} {row.evidence} "
+            f"{row.remaining} {row.workflow.prerequisites} "
+            f"{' '.join(operation.description for operation in row.workflow.operations)} "
+            f"{' '.join(row.workflow.limits)}"
+        ).casefold():
             continue
         out.append(row)
     return tuple(out)

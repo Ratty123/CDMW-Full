@@ -1,15 +1,4 @@
-"""Format Explorer: what can I mod, and where do I do it?
-
-Everything this shows already existed as data. `schemas/archive_content_capabilities.v1.json`
-records, for all 141 formats, how far each is read, how far it is written, what the claim
-rests on, and what is left. None of that was reachable from inside the app, so the
-question a new modder actually asks -- *can I change this, and with what?* -- had no
-answer short of reading a JSON file in a schemas directory.
-
-The panel defaults to what is useful rather than what is complete: formats the build
-actually ships, most files first. The entries the game does not contain are one
-checkbox away, not in the way.
-"""
+"""Browse stored archive facts alongside current CDMW application workflows."""
 
 from __future__ import annotations
 
@@ -39,7 +28,8 @@ from cdmw.services.active_ui_translation import (
     translate_active_ui_text,
 )
 
-from .catalogue import FormatRow, detail_text_segments, filter_rows, groups, headline, load_rows
+from .catalogue import NO_REMAINING_NOTE, FormatRow, detail_text_segments, filter_rows, groups, headline, load_rows
+from .workflows import OPERATION_LABELS
 
 _ALL = "All areas"
 _EDITABLE = QColor(63, 143, 69, 72)
@@ -53,6 +43,8 @@ _TOOL_KEYS = {
     "Texture Replacer": "replace_assistant",
     "Textures": "textures",
     "Edit Translations": "translation_studio",
+    "Create New Item": "new_item_studio",
+    "Mod Management": "mod_management",
 }
 
 
@@ -155,7 +147,7 @@ class FormatExplorerTab(QWidget):
         controls = QHBoxLayout()
         controls.addWidget(QLabel("Find"))
         self.search_box = QLineEdit()
-        self.search_box.setPlaceholderText("Extension, area, or tool — e.g. texture, mesh, .paa")
+        self.search_box.setPlaceholderText("Extension, area, tool or operation (e.g. texture, mesh, .paa)")
         self.search_box.setClearButtonEnabled(True)
         self.search_box.textChanged.connect(self._refresh)
         controls.addWidget(self.search_box, 2)
@@ -165,9 +157,12 @@ class FormatExplorerTab(QWidget):
         self.group_box.currentIndexChanged.connect(self._refresh)
         controls.addWidget(self.group_box, 1)
         self.editable_only = QCheckBox("Only what I can edit")
+        self.editable_only.setToolTip(
+            "Includes supported bounded edits and working-mesh edits. Import, export or package creation alone does not qualify."
+        )
         self.editable_only.toggled.connect(self._refresh)
         controls.addWidget(self.editable_only)
-        self.include_absent = QCheckBox("Include formats the game does not ship")
+        self.include_absent = QCheckBox("Include application and non-shipped formats")
         self.include_absent.toggled.connect(self._refresh)
         controls.addWidget(self.include_absent)
         controls.addStretch(1)
@@ -181,7 +176,7 @@ class FormatExplorerTab(QWidget):
 
         self.table = QTableWidget(0, 6)
         self.table.setHorizontalHeaderLabels(
-            ["Format", "Files", "What it is", "Read", "Write", "Where to edit it"]
+            ["Format", "Files", "What it is", "Read / import", "Edit / output", "Where to use it"]
         )
         self.table.verticalHeader().setVisible(False)
         self.table.setSelectionBehavior(QAbstractItemView.SelectRows)
@@ -203,6 +198,10 @@ class FormatExplorerTab(QWidget):
 
         self.detail = QTextBrowser()
         self.detail.setOpenExternalLinks(False)
+        self.detail.setOpenLinks(False)
+        self.detail.anchorClicked.connect(
+            lambda url: self._follow_tool_link(self.table.currentRow(), url.toString())
+        )
         self.detail.setMinimumWidth(300)
         self.main_splitter.addWidget(self.detail)
         self.main_splitter.setStretchFactor(0, 7)
@@ -229,6 +228,8 @@ class FormatExplorerTab(QWidget):
     def _refresh(self) -> None:
         if not self._rows:
             return
+        selected = self.selected_row()
+        selected_extension = selected.extension if selected is not None else None
         rows = filter_rows(
             self._rows,
             self.search_box.text(),
@@ -252,24 +253,32 @@ class FormatExplorerTab(QWidget):
                 elif row.shipped and row.decode != "none":
                     extension.setBackground(_READ_ONLY)
                 self.table.setItem(index, 0, extension)
-                files = QTableWidgetItem(f"{row.files:,}" if row.files else "—")
+                files = QTableWidgetItem(
+                    f"{row.files:,}" if row.files is not None else translate_active_ui_text("N/A")
+                )
+                files.setToolTip(translate_active_ui_text(
+                    "Application format; archive count does not apply."
+                    if row.files is None else "File count from the stored archive inventory."
+                ))
                 files.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
                 self.table.setItem(index, 1, files)
                 self.table.setItem(index, 2, QTableWidgetItem(
                     f"{translate_active_ui_text(row.role)} · "
                     f"{translate_active_ui_text(row.group.replace('_', ' '))}"))
-                self.table.setItem(index, 3, QTableWidgetItem(row.read_label))
-                self.table.setItem(index, 4, QTableWidgetItem(row.write_label))
+                self.table.setItem(index, 3, QTableWidgetItem(translate_active_ui_text(row.read_label)))
+                self.table.setItem(index, 4, QTableWidgetItem(translate_active_ui_text(row.write_label)))
                 location = localized_tool_location(row.tool)
+                guidance = localized_detail_text(row.workflow.prerequisites)
+                tooltip = location + ("\n\n" + guidance if guidance else "")
                 where = QTableWidgetItem("")
-                where.setToolTip(location)
+                where.setToolTip(tooltip)
                 link = QLabel(linked_tool_location(row.tool))
                 link.setObjectName("FormatExplorerToolLink")
                 link.setTextFormat(Qt.RichText)
                 link.setTextInteractionFlags(Qt.LinksAccessibleByMouse | Qt.LinksAccessibleByKeyboard)
                 link.setOpenExternalLinks(False)
                 link.setFocusPolicy(Qt.StrongFocus)
-                link.setToolTip(location)
+                link.setToolTip(tooltip)
                 link.setProperty("sourceLocation", row.tool)
                 link.linkActivated.connect(
                     lambda target, row_index=index: self._follow_tool_link(row_index, target)
@@ -278,7 +287,9 @@ class FormatExplorerTab(QWidget):
                 self.table.setItem(index, 5, where)
                 self.table.setCellWidget(index, 5, link)
             if rows:
-                self.table.selectRow(0)
+                self.table.selectRow(next(
+                    (index for index, row in enumerate(rows) if row.extension == selected_extension), 0,
+                ))
             self._measure_column_widths()
         finally:
             self.table.blockSignals(False)
@@ -358,14 +369,44 @@ class FormatExplorerTab(QWidget):
     def _on_selected(self) -> None:
         row = self.selected_row()
         if row is None:
+            self.detail.clear()
             return
         self._refresh_tool_link_colors()
-        remaining = row.remaining.strip() or "Nothing outstanding."
+        remaining = row.remaining.strip() or NO_REMAINING_NOTE
+        if row.files is None:
+            presence = translate_active_ui_text("Application format; archive count does not apply.")
+        else:
+            presence = translate_active_ui_text(
+                "{count} file(s) in the stored archive inventory."
+            ).format(count=f"{row.files:,}")
+        operations = "".join(
+            f"<li><b>{escape(translate_active_ui_text(OPERATION_LABELS[operation.kind]))}:</b> "
+            f"{escape(localized_detail_text(operation.description))}</li>"
+            for operation in row.workflow.operations
+        )
+        limits = "".join(
+            f"<li>{escape(localized_detail_text(note))}</li>"
+            for note in row.workflow.limits
+        )
+        workflow_html = (
+            f"<p><b>{translate_active_ui_text('Supported workflows')}</b></p><ul>{operations}</ul>"
+            if operations else ""
+        )
+        prerequisites_html = (
+            f"<p><b>{translate_active_ui_text('Before using this format')}</b><br>"
+            f"{escape(localized_detail_text(row.workflow.prerequisites))}</p>"
+            if row.workflow.prerequisites else ""
+        )
+        limits_html = (
+            f"<p><b>{translate_active_ui_text('Editing limits')}</b></p><ul>{limits}</ul>"
+            if limits else ""
+        )
         self.detail.setHtml(
-            f"<h3>{row.extension} &mdash; {translate_active_ui_text(row.read_label)}, "
-            f"{translate_active_ui_text(row.write_label)}</h3>"
-            f"<p><b>{row.files:,}</b> file(s) in the shipped build &middot; "
-            f"{translate_active_ui_text(row.origin.replace('_', '-').capitalize() + ' format')} &middot; edited in: <b>{localized_tool_location(row.tool)}</b></p>"
-            f"<p><b>What this rests on:</b> {escape(localized_detail_text(row.evidence))}</p>"
-            f"<p><b>What is left:</b> {escape(localized_detail_text(remaining))}</p>"
+            f"<h3>{escape(row.extension)}: {escape(translate_active_ui_text(row.read_label))}, "
+            f"{escape(translate_active_ui_text(row.write_label))}</h3>"
+            f"<p>{escape(presence)}</p>"
+            f"<p><b>{translate_active_ui_text('Where to use it')}:</b> {linked_tool_location(row.tool)}</p>"
+            f"{workflow_html}{prerequisites_html}{limits_html}"
+            f"<p><b>{translate_active_ui_text('What this rests on:')}</b> {escape(localized_detail_text(row.evidence))}</p>"
+            f"<p><b>{translate_active_ui_text('What is left:')}</b> {escape(localized_detail_text(remaining))}</p>"
         )

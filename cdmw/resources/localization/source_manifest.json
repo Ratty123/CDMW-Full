@@ -6082,6 +6082,16 @@
       ]
     },
     {
+      "key": "Add item packages through Mod Management > Mods; Independent items provides advanced managed installation.",
+      "origins": [
+        {
+          "path": "tools/format_explorer/workflows.py",
+          "line": 1,
+          "sink": "python-presentation:workflow"
+        }
+      ]
+    },
+    {
       "key": "Add item packages…",
       "origins": [
         {
@@ -9497,6 +9507,31 @@
       ]
     },
     {
+      "key": "Application format",
+      "origins": [
+        {
+          "path": "tools/format_explorer/catalogue.py",
+          "line": 1,
+          "sink": "python-presentation:application-origin"
+        }
+      ]
+    },
+    {
+      "key": "Application format; archive count does not apply.",
+      "origins": [
+        {
+          "path": "tools/format_explorer/tab.py",
+          "line": 259,
+          "sink": "translate_active_ui_text"
+        },
+        {
+          "path": "tools/format_explorer/tab.py",
+          "line": 377,
+          "sink": "translate_active_ui_text"
+        }
+      ]
+    },
+    {
       "key": "Application layout changes take effect after restarting the app.",
       "origins": [
         {
@@ -11323,6 +11358,16 @@
           "path": "cdmw/ui/archive_browser/controls_panel.py",
           "line": 163,
           "sink": "QLabel"
+        }
+      ]
+    },
+    {
+      "key": "Archive analysis remains generic/raw. Application workflows are separate: cdmw/modding/mesh_exporter.py writes binary FBX 7.4, and cdmw/services/fbx_blender_conversion.py imports FBX through an explicitly configured Blender conversion.",
+      "origins": [
+        {
+          "path": "schemas/archive_content_capabilities.v1.json",
+          "line": 1,
+          "sink": "json-presentation:evidence"
         }
       ]
     },
@@ -14732,6 +14777,16 @@
       ]
     },
     {
+      "key": "Auto UV can split vertices and has no exact writeback route",
+      "origins": [
+        {
+          "path": "tools/format_explorer/workflows.py",
+          "line": 1,
+          "sink": "python-presentation:workflow"
+        }
+      ]
+    },
+    {
       "key": "Auto Unwrap",
       "origins": [
         {
@@ -16302,6 +16357,16 @@
       ]
     },
     {
+      "key": "Before using this format",
+      "origins": [
+        {
+          "path": "tools/format_explorer/tab.py",
+          "line": 396,
+          "sink": "translate_active_ui_text"
+        }
+      ]
+    },
+    {
       "key": "Before · current session",
       "origins": [
         {
@@ -17727,6 +17792,16 @@
       ]
     },
     {
+      "key": "Bridge has no exact writeback route",
+      "origins": [
+        {
+          "path": "tools/format_explorer/workflows.py",
+          "line": 1,
+          "sink": "python-presentation:workflow"
+        }
+      ]
+    },
+    {
       "key": "Briefly name the action and what went wrong",
       "origins": [
         {
@@ -17996,7 +18071,27 @@
         },
         {
           "path": "tools/format_explorer/catalogue.py",
+          "line": 60,
+          "sink": "python-data:TOOLS"
+        },
+        {
+          "path": "tools/format_explorer/catalogue.py",
+          "line": 61,
+          "sink": "python-data:TOOLS"
+        },
+        {
+          "path": "tools/format_explorer/catalogue.py",
           "line": 62,
+          "sink": "python-data:TOOLS"
+        },
+        {
+          "path": "tools/format_explorer/catalogue.py",
+          "line": 62,
+          "sink": "python-data:TOOLS"
+        },
+        {
+          "path": "tools/format_explorer/catalogue.py",
+          "line": 63,
           "sink": "python-data:TOOLS"
         }
       ]
@@ -18092,12 +18187,12 @@
       ]
     },
     {
-      "key": "Browse {value_0} file formats found in the game. Select a format for supported operations, editing limits and evidence.",
+      "key": "Browse {count} formats from the stored archive inventory. Include application and non-shipped formats to see other supported workflows. Counts are not a live installation scan.",
       "origins": [
         {
           "path": "tools/format_explorer/catalogue.py",
-          "line": 151,
-          "sink": "python-return:headline"
+          "line": 82,
+          "sink": "python-data:_HEADLINE"
         }
       ]
     },
@@ -22932,6 +23027,16 @@
       ]
     },
     {
+      "key": "Change validated row offsets with Edit Structured Data Safely... and save an edited copy.",
+      "origins": [
+        {
+          "path": "tools/format_explorer/workflows.py",
+          "line": 1,
+          "sink": "python-presentation:workflow"
+        }
+      ]
+    },
+    {
       "key": "Changed",
       "origins": [
         {
@@ -24857,6 +24962,16 @@
       ]
     },
     {
+      "key": "Choose Independent item package (Experimental) in Create New Item, or open Mod Management and use Add item packages in Mods. Installation and launch require a configured game folder and a successful compatibility review.",
+      "origins": [
+        {
+          "path": "tools/format_explorer/workflows.py",
+          "line": 1,
+          "sink": "python-presentation:workflow"
+        }
+      ]
+    },
+    {
       "key": "Choose Item Icon Library Source",
       "origins": [
         {
@@ -25418,6 +25533,16 @@
           "path": "cdmw/ui/new_item/shader_controls_editor.py",
           "line": 172,
           "sink": "setToolTip"
+        }
+      ]
+    },
+    {
+      "key": "Choose a compatible template in Create New Item and review its output plan. These shared records are managed by the item workflow; there is no general-purpose table editor.",
+      "origins": [
+        {
+          "path": "tools/format_explorer/workflows.py",
+          "line": 1,
+          "sink": "python-presentation:workflow"
         }
       ]
     },
@@ -26262,6 +26387,16 @@
       ]
     },
     {
+      "key": "Choose an item template, then an effect in the Effect Library. Review the generated item plan before writing its output.",
+      "origins": [
+        {
+          "path": "tools/format_explorer/workflows.py",
+          "line": 1,
+          "sink": "python-presentation:workflow"
+        }
+      ]
+    },
+    {
       "key": "Choose an output folder first.",
       "origins": [
         {
@@ -26318,6 +26453,16 @@
           "path": "cdmw/ui/archive_browser/hkx_editor_dialog_placement_part_01.py",
           "line": 203,
           "sink": "setToolTip"
+        }
+      ]
+    },
+    {
+      "key": "Choose and tune a cloned effect or emitter in Create New Item's Effects workspace.",
+      "origins": [
+        {
+          "path": "tools/format_explorer/workflows.py",
+          "line": 1,
+          "sink": "python-presentation:workflow"
         }
       ]
     },
@@ -28872,6 +29017,26 @@
       ]
     },
     {
+      "key": "Clone and insert the part-prefab records required by a new item.",
+      "origins": [
+        {
+          "path": "tools/format_explorer/workflows.py",
+          "line": 1,
+          "sink": "python-presentation:workflow"
+        }
+      ]
+    },
+    {
+      "key": "Clone and update the supported item-table records required by a new item.",
+      "origins": [
+        {
+          "path": "tools/format_explorer/workflows.py",
+          "line": 1,
+          "sink": "python-presentation:workflow"
+        }
+      ]
+    },
+    {
       "key": "Clone as new item...",
       "origins": [
         {
@@ -30187,6 +30352,16 @@
       ]
     },
     {
+      "key": "Compact Orphans has no exact writeback route",
+      "origins": [
+        {
+          "path": "tools/format_explorer/workflows.py",
+          "line": 1,
+          "sink": "python-presentation:workflow"
+        }
+      ]
+    },
+    {
       "key": "Compact Workspace",
       "origins": [
         {
@@ -31168,6 +31343,16 @@
           "path": "cdmw/ui/shell/about_documentation_en.py",
           "line": 677,
           "sink": "python-return:_build_environment_sections"
+        }
+      ]
+    },
+    {
+      "key": "Configure Blender in Create New Item before importing FBX. Use the converted working mesh for editing. Load a supported working mesh in Mesh Editor and choose a Free Edit output folder. An archive replacement also requires an open target mesh. The active editor must support the chosen action.",
+      "origins": [
+        {
+          "path": "tools/format_explorer/workflows.py",
+          "line": 1,
+          "sink": "python-presentation:workflow"
         }
       ]
     },
@@ -32657,6 +32842,16 @@
       ]
     },
     {
+      "key": "Copy has no exact writeback route",
+      "origins": [
+        {
+          "path": "tools/format_explorer/workflows.py",
+          "line": 1,
+          "sink": "python-presentation:workflow"
+        }
+      ]
+    },
+    {
       "key": "Copy normals from the original/source mesh onto the current selection.",
       "origins": [
         {
@@ -33908,6 +34103,61 @@
           "path": "cdmw/ui/shell/problem_report_catalog.py",
           "line": 47,
           "sink": "python-data:REPORT_TOOLS"
+        },
+        {
+          "path": "tools/format_explorer/catalogue.py",
+          "line": 64,
+          "sink": "python-data:TOOLS"
+        },
+        {
+          "path": "tools/format_explorer/catalogue.py",
+          "line": 65,
+          "sink": "python-data:TOOLS"
+        },
+        {
+          "path": "tools/format_explorer/catalogue.py",
+          "line": 66,
+          "sink": "python-data:TOOLS"
+        },
+        {
+          "path": "tools/format_explorer/catalogue.py",
+          "line": 67,
+          "sink": "python-data:TOOLS"
+        },
+        {
+          "path": "tools/format_explorer/catalogue.py",
+          "line": 68,
+          "sink": "python-data:TOOLS"
+        },
+        {
+          "path": "tools/format_explorer/catalogue.py",
+          "line": 69,
+          "sink": "python-data:TOOLS"
+        },
+        {
+          "path": "tools/format_explorer/catalogue.py",
+          "line": 70,
+          "sink": "python-data:TOOLS"
+        },
+        {
+          "path": "tools/format_explorer/catalogue.py",
+          "line": 71,
+          "sink": "python-data:TOOLS"
+        },
+        {
+          "path": "tools/format_explorer/catalogue.py",
+          "line": 72,
+          "sink": "python-data:TOOLS"
+        },
+        {
+          "path": "tools/format_explorer/catalogue.py",
+          "line": 73,
+          "sink": "python-data:TOOLS"
+        },
+        {
+          "path": "tools/format_explorer/catalogue.py",
+          "line": 74,
+          "sink": "python-data:TOOLS"
         }
       ]
     },
@@ -33938,6 +34188,16 @@
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
           "line": 2403,
           "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Create Part has no exact writeback route",
+      "origins": [
+        {
+          "path": "tools/format_explorer/workflows.py",
+          "line": 1,
+          "sink": "python-presentation:workflow"
         }
       ]
     },
@@ -34188,6 +34448,16 @@
           "path": "cdmw/ui/texture_workflow/workspace_ui.py",
           "line": 100,
           "sink": "setToolTip"
+        }
+      ]
+    },
+    {
+      "key": "Create or update a v1 independent item package from Create New Item's Output step.",
+      "origins": [
+        {
+          "path": "tools/format_explorer/workflows.py",
+          "line": 1,
+          "sink": "python-presentation:workflow"
         }
       ]
     },
@@ -35712,6 +35982,16 @@
       ]
     },
     {
+      "key": "DAE import is available, but no same-format DAE export action is exposed. Supported working-mesh edits use an explicit output policy, including Free Edit OBJ output.",
+      "origins": [
+        {
+          "path": "schemas/archive_content_capabilities.v1.json",
+          "line": 1,
+          "sink": "json-presentation:remaining"
+        }
+      ]
+    },
+    {
       "key": "DDS",
       "origins": [
         {
@@ -36948,6 +37228,16 @@
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
           "line": 2774,
           "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Delete Loose has no exact writeback route",
+      "origins": [
+        {
+          "path": "tools/format_explorer/workflows.py",
+          "line": 1,
+          "sink": "python-presentation:workflow"
         }
       ]
     },
@@ -39182,6 +39472,16 @@
       ]
     },
     {
+      "key": "Dissolve has no exact writeback route",
+      "origins": [
+        {
+          "path": "tools/format_explorer/workflows.py",
+          "line": 1,
+          "sink": "python-presentation:workflow"
+        }
+      ]
+    },
+    {
       "key": "Dissolve ratio",
       "origins": [
         {
@@ -40617,6 +40917,16 @@
       ]
     },
     {
+      "key": "Duplicate has no exact writeback route",
+      "origins": [
+        {
+          "path": "tools/format_explorer/workflows.py",
+          "line": 1,
+          "sink": "python-presentation:workflow"
+        }
+      ]
+    },
+    {
       "key": "Duplicate jiggle part.",
       "origins": [
         {
@@ -41252,6 +41562,16 @@
       ]
     },
     {
+      "key": "Edge Split has no exact writeback route",
+      "origins": [
+        {
+          "path": "tools/format_explorer/workflows.py",
+          "line": 1,
+          "sink": "python-presentation:workflow"
+        }
+      ]
+    },
+    {
       "key": "Edge colour RGB",
       "origins": [
         {
@@ -41320,9 +41640,24 @@
           "sink": "setText"
         },
         {
+          "path": "tools/format_explorer/workflows.py",
+          "line": 16,
+          "sink": "python-data:OPERATION_LABELS"
+        },
+        {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
           "line": 3664,
           "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Edit / output",
+      "origins": [
+        {
+          "path": "tools/format_explorer/tab.py",
+          "line": 178,
+          "sink": "setHorizontalHeaderLabels"
         }
       ]
     },
@@ -41623,6 +41958,26 @@
           "path": "cdmw/ui/archive_browser/actions.py",
           "line": 499,
           "sink": "addAction"
+        },
+        {
+          "path": "tools/format_explorer/catalogue.py",
+          "line": 60,
+          "sink": "python-data:TOOLS"
+        },
+        {
+          "path": "tools/format_explorer/catalogue.py",
+          "line": 61,
+          "sink": "python-data:TOOLS"
+        },
+        {
+          "path": "tools/format_explorer/catalogue.py",
+          "line": 62,
+          "sink": "python-data:TOOLS"
+        },
+        {
+          "path": "tools/format_explorer/catalogue.py",
+          "line": 63,
+          "sink": "python-data:TOOLS"
         }
       ]
     },
@@ -41678,6 +42033,26 @@
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs",
           "line": 2933,
           "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Edit after import; OBJ output",
+      "origins": [
+        {
+          "path": "tools/format_explorer/workflows.py",
+          "line": 26,
+          "sink": "python-data:WRITE_LABELS"
+        }
+      ]
+    },
+    {
+      "key": "Edit an extracted copy with an external text editor.",
+      "origins": [
+        {
+          "path": "tools/format_explorer/workflows.py",
+          "line": 1,
+          "sink": "python-presentation:workflow"
         }
       ]
     },
@@ -41937,6 +42312,16 @@
       ]
     },
     {
+      "key": "Edit the imported working mesh using supported Free Edit operations.",
+      "origins": [
+        {
+          "path": "tools/format_explorer/workflows.py",
+          "line": 1,
+          "sink": "python-presentation:workflow"
+        }
+      ]
+    },
+    {
       "key": "Edit the related HKX/HKT directly on Placement. If the selected model has multiple HKX/HKT files, choose which one to inspect.",
       "origins": [
         {
@@ -41973,6 +42358,26 @@
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_vertex_inspector.rs",
           "line": 339,
           "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Edit translation records and write a PALOC table while preserving its supported container.",
+      "origins": [
+        {
+          "path": "tools/format_explorer/workflows.py",
+          "line": 1,
+          "sink": "python-presentation:workflow"
+        }
+      ]
+    },
+    {
+      "key": "Edit validated fixed-size strings with Edit Structured Data Safely... and save an edited copy.",
+      "origins": [
+        {
+          "path": "tools/format_explorer/workflows.py",
+          "line": 1,
+          "sink": "python-presentation:workflow"
         }
       ]
     },
@@ -42358,6 +42763,16 @@
           "path": "cdmw/ui/archive_browser/static_replacement_source_part_adjustment_state.py",
           "line": 485,
           "sink": "python-return:source_part_glow_reason_text"
+        }
+      ]
+    },
+    {
+      "key": "Editing limits",
+      "origins": [
+        {
+          "path": "tools/format_explorer/tab.py",
+          "line": 401,
+          "sink": "translate_active_ui_text"
         }
       ]
     },
@@ -42763,6 +43178,16 @@
           "path": "cdmw/ui/new_item/panels_perks.py",
           "line": 342,
           "sink": "addTab"
+        },
+        {
+          "path": "tools/format_explorer/catalogue.py",
+          "line": 64,
+          "sink": "python-data:TOOLS"
+        },
+        {
+          "path": "tools/format_explorer/catalogue.py",
+          "line": 65,
+          "sink": "python-data:TOOLS"
         }
       ]
     },
@@ -44097,6 +44522,16 @@
       "manual": true
     },
     {
+      "key": "Every output still passes the mesh writer's asset and operation checks.",
+      "origins": [
+        {
+          "path": "tools/format_explorer/workflows.py",
+          "line": 1,
+          "sink": "python-presentation:workflow"
+        }
+      ]
+    },
+    {
       "key": "Every pending operation  (advanced)",
       "origins": [
         {
@@ -44398,6 +44833,26 @@
           "path": "cdmw/ui/character_context_panel.py",
           "line": 84,
           "sink": "setToolTip"
+        }
+      ]
+    },
+    {
+      "key": "Exact geometry/topology authoring is governed by cdmw/domain/mesh/authoring_capability.py and the final writer: LOD0 only for the proven path, with operation-specific blocked and unproven cases. Free Edit publishes a new non-exact OBJ package and does not grant unrestricted PAC writeback.",
+      "origins": [
+        {
+          "path": "schemas/archive_content_capabilities.v1.json",
+          "line": 1,
+          "sink": "json-presentation:remaining"
+        }
+      ]
+    },
+    {
+      "key": "Exact geometry/topology authoring is governed by cdmw/domain/mesh/authoring_capability.py and the final writer: LOD0 only for the proven path, with operation-specific blocked and unproven cases. Free Edit publishes a new non-exact OBJ package and does not grant unrestricted PAM writeback.",
+      "origins": [
+        {
+          "path": "schemas/archive_content_capabilities.v1.json",
+          "line": 1,
+          "sink": "json-presentation:remaining"
         }
       ]
     },
@@ -45137,6 +45592,16 @@
       ]
     },
     {
+      "key": "Experimental. Create New Item writes v1 packages; the reader also admits supported v2 modules and capability versions. Unknown package versions and unsupported required capabilities are refused. A readable package is not proof that every module can be installed or that the result works in game.",
+      "origins": [
+        {
+          "path": "tools/format_explorer/workflows.py",
+          "line": 1,
+          "sink": "python-presentation:workflow"
+        }
+      ]
+    },
+    {
       "key": "Experimental: allow five to eight perks",
       "origins": [
         {
@@ -45383,6 +45848,11 @@
           "path": "cdmw/ui/text_search/tab.py",
           "line": 216,
           "sink": "QPushButton"
+        },
+        {
+          "path": "tools/format_explorer/workflows.py",
+          "line": 18,
+          "sink": "python-data:OPERATION_LABELS"
         }
       ]
     },
@@ -46043,6 +46513,16 @@
           "path": "cdmw/ui/archive_browser/actions.py",
           "line": 462,
           "sink": "addAction"
+        }
+      ]
+    },
+    {
+      "key": "Export OBJ, FBX or GLB through the available mesh export workflow.",
+      "origins": [
+        {
+          "path": "tools/format_explorer/workflows.py",
+          "line": 1,
+          "sink": "python-presentation:workflow"
         }
       ]
     },
@@ -46763,6 +47243,16 @@
           "path": "cdmw/ui/archive_browser/reference_preview.py",
           "line": 488,
           "sink": "_add_action"
+        }
+      ]
+    },
+    {
+      "key": "Export this interchange format from supported meshes; the chosen exporter applies its own limits.",
+      "origins": [
+        {
+          "path": "tools/format_explorer/workflows.py",
+          "line": 1,
+          "sink": "python-presentation:workflow"
         }
       ]
     },
@@ -47512,11 +48002,11 @@
       ]
     },
     {
-      "key": "Extension, area, or tool — e.g. texture, mesh, .paa",
+      "key": "Extension, area, tool or operation (e.g. texture, mesh, .paa)",
       "origins": [
         {
           "path": "tools/format_explorer/tab.py",
-          "line": 158,
+          "line": 150,
           "sink": "setPlaceholderText"
         }
       ]
@@ -47812,6 +48302,16 @@
       ]
     },
     {
+      "key": "Extract a copy before editing and use the normal reviewed repack workflow for installation.",
+      "origins": [
+        {
+          "path": "tools/format_explorer/workflows.py",
+          "line": 1,
+          "sink": "python-presentation:workflow"
+        }
+      ]
+    },
+    {
       "key": "Extract every file in this folder and the folders under it, keeping their structure.",
       "origins": [
         {
@@ -47863,6 +48363,16 @@
           "path": "cdmw/ui/shell/about_documentation_en.py",
           "line": 331,
           "sink": "python-return:_build_archive_mesh_sections"
+        }
+      ]
+    },
+    {
+      "key": "Extract the language table and open it in Utilities > Edit Translations.",
+      "origins": [
+        {
+          "path": "tools/format_explorer/workflows.py",
+          "line": 1,
+          "sink": "python-presentation:workflow"
         }
       ]
     },
@@ -48143,6 +48653,16 @@
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs",
           "line": 4694,
           "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Extrude has no exact writeback route",
+      "origins": [
+        {
+          "path": "tools/format_explorer/workflows.py",
+          "line": 1,
+          "sink": "python-presentation:workflow"
         }
       ]
     },
@@ -49007,6 +49527,16 @@
       ]
     },
     {
+      "key": "File count from the stored archive inventory.",
+      "origins": [
+        {
+          "path": "tools/format_explorer/tab.py",
+          "line": 259,
+          "sink": "translate_active_ui_text"
+        }
+      ]
+    },
+    {
       "key": "File effects describe the observed copies. A mixed or changed file set does not establish a partial or completed game save.",
       "origins": [],
       "manual": true
@@ -49248,6 +49778,26 @@
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
           "line": 2777,
           "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Fill Holes has no exact writeback route",
+      "origins": [
+        {
+          "path": "tools/format_explorer/workflows.py",
+          "line": 1,
+          "sink": "python-presentation:workflow"
+        }
+      ]
+    },
+    {
+      "key": "Fill has no exact writeback route",
+      "origins": [
+        {
+          "path": "tools/format_explorer/workflows.py",
+          "line": 1,
+          "sink": "python-presentation:workflow"
         }
       ]
     },
@@ -51017,6 +51567,16 @@
       ]
     },
     {
+      "key": "Fix Winding has no exact writeback route",
+      "origins": [
+        {
+          "path": "tools/format_explorer/workflows.py",
+          "line": 1,
+          "sink": "python-presentation:workflow"
+        }
+      ]
+    },
+    {
       "key": "Fix vertices above height",
       "origins": [
         {
@@ -51138,6 +51698,16 @@
           "path": "cdmw/ui/research/tab_side_panel_builders.py",
           "line": 53,
           "sink": "setToolTip"
+        }
+      ]
+    },
+    {
+      "key": "Flat tables and version-0 LZ4 containers are supported. Unknown container versions are refused.",
+      "origins": [
+        {
+          "path": "tools/format_explorer/workflows.py",
+          "line": 1,
+          "sink": "python-presentation:workflow"
         }
       ]
     },
@@ -57162,6 +57732,16 @@
       ]
     },
     {
+      "key": "Hash collisions are refused because collision-table authoring is not implemented. Adding a descriptor requires 148-byte registry headers and available header capacity. Raw DDS mip block information is derived; storage information for non-raw textures is not.",
+      "origins": [
+        {
+          "path": "schemas/archive_content_capabilities.v1.json",
+          "line": 1,
+          "sink": "json-presentation:remaining"
+        }
+      ]
+    },
+    {
       "key": "Hatch",
       "origins": [
         {
@@ -59778,6 +60358,11 @@
           "path": "cdmw/ui/recolor_variants_tab.py",
           "line": 397,
           "sink": "QPushButton"
+        },
+        {
+          "path": "tools/format_explorer/workflows.py",
+          "line": 17,
+          "sink": "python-data:OPERATION_LABELS"
         }
       ]
     },
@@ -59808,6 +60393,16 @@
           "path": "cdmw/ui/mesh_editor/tab_packages.py",
           "line": 137,
           "sink": "getExistingDirectory"
+        }
+      ]
+    },
+    {
+      "key": "Import FBX through the explicitly configured Blender conversion in Create New Item's Model step.",
+      "origins": [
+        {
+          "path": "tools/format_explorer/workflows.py",
+          "line": 1,
+          "sink": "python-presentation:workflow"
         }
       ]
     },
@@ -60412,6 +61007,16 @@
       ]
     },
     {
+      "key": "Import only",
+      "origins": [
+        {
+          "path": "tools/format_explorer/workflows.py",
+          "line": 26,
+          "sink": "python-data:WRITE_LABELS"
+        }
+      ]
+    },
+    {
       "key": "Import path: {value_0}",
       "origins": [
         {
@@ -60517,6 +61122,16 @@
       ]
     },
     {
+      "key": "Import support does not provide a same-format export route. Choose an available output format.",
+      "origins": [
+        {
+          "path": "tools/format_explorer/workflows.py",
+          "line": 1,
+          "sink": "python-presentation:workflow"
+        }
+      ]
+    },
+    {
       "key": "Import topology changed; undo topology edits before resetting placement.",
       "origins": [
         {
@@ -60533,6 +61148,16 @@
           "path": "cdmw/ui/archive_browser/mesh_direct_patch.py",
           "line": 267,
           "sink": "ArchivePreviewResult"
+        }
+      ]
+    },
+    {
+      "key": "Import with CDMW's mesh reader in Create New Item or a supported Mesh Editor workflow.",
+      "origins": [
+        {
+          "path": "tools/format_explorer/workflows.py",
+          "line": 1,
+          "sink": "python-presentation:workflow"
         }
       ]
     },
@@ -60643,6 +61268,16 @@
           "path": "cdmw/services/mesh_replacement_import.py",
           "line": 137,
           "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Imported geometry is a working mesh. Free Edit produces a new OBJ package; import does not promise a byte-preserving round trip or unrestricted game-asset replacement.",
+      "origins": [
+        {
+          "path": "tools/format_explorer/workflows.py",
+          "line": 1,
+          "sink": "python-presentation:workflow"
         }
       ]
     },
@@ -61412,6 +62047,16 @@
       ]
     },
     {
+      "key": "Include application and non-shipped formats",
+      "origins": [
+        {
+          "path": "tools/format_explorer/tab.py",
+          "line": 165,
+          "sink": "QCheckBox"
+        }
+      ]
+    },
+    {
       "key": "Include archive-list entries whose files are no longer present.",
       "origins": [
         {
@@ -61437,16 +62082,6 @@
         {
           "path": "cdmw/ui/settings_tab.py",
           "line": 926,
-          "sink": "QCheckBox"
-        }
-      ]
-    },
-    {
-      "key": "Include formats the game does not ship",
-      "origins": [
-        {
-          "path": "tools/format_explorer/tab.py",
-          "line": 170,
           "sink": "QCheckBox"
         }
       ]
@@ -61777,6 +62412,16 @@
       ]
     },
     {
+      "key": "Includes supported bounded edits and working-mesh edits. Import, export or package creation alone does not qualify.",
+      "origins": [
+        {
+          "path": "tools/format_explorer/tab.py",
+          "line": 160,
+          "sink": "setToolTip"
+        }
+      ]
+    },
+    {
       "key": "Including {value_0} supplemental donor sidecar/texture payload(s). Target app XML, prefabdata, skeleton, ragdoll, and part-hide files are unchanged.",
       "origins": [
         {
@@ -61883,6 +62528,16 @@
           "path": "cdmw/ui/new_item/panels_output.py",
           "line": 470,
           "sink": "tr"
+        }
+      ]
+    },
+    {
+      "key": "Independent item / mod package (Experimental)",
+      "origins": [
+        {
+          "path": "tools/format_explorer/catalogue.py",
+          "line": 1,
+          "sink": "python-presentation:application-role"
         }
       ]
     },
@@ -62702,6 +63357,26 @@
       ]
     },
     {
+      "key": "Inset has no exact writeback route",
+      "origins": [
+        {
+          "path": "tools/format_explorer/workflows.py",
+          "line": 1,
+          "sink": "python-presentation:workflow"
+        }
+      ]
+    },
+    {
+      "key": "Inspect",
+      "origins": [
+        {
+          "path": "tools/format_explorer/workflows.py",
+          "line": 15,
+          "sink": "python-data:OPERATION_LABELS"
+        }
+      ]
+    },
+    {
       "key": "Inspect File Formats",
       "origins": [
         {
@@ -62837,6 +63512,16 @@
       ]
     },
     {
+      "key": "Inspect recovered sequence strings and references.",
+      "origins": [
+        {
+          "path": "tools/format_explorer/workflows.py",
+          "line": 1,
+          "sink": "python-presentation:workflow"
+        }
+      ]
+    },
+    {
       "key": "Inspect referenced model textures, export supported meshes as OBJ/FBX with dependencies, or open one directly in Mesh Editor. Replacement/import-preview, swap, material editing, and texture-tool handoffs are not Archive Browser mesh actions.",
       "origins": [
         {
@@ -62873,6 +63558,16 @@
           "path": "cdmw/ui/archive_browser/action_controls.py",
           "line": 198,
           "sink": "_set_action_button_state"
+        }
+      ]
+    },
+    {
+      "key": "Inspect the extracted material text.",
+      "origins": [
+        {
+          "path": "tools/format_explorer/workflows.py",
+          "line": 1,
+          "sink": "python-presentation:workflow"
         }
       ]
     },
@@ -66637,6 +67332,16 @@
       ]
     },
     {
+      "key": "LOD1 and above are not proven for authoring The exact topology path is proven on LOD0. Lower LODs are copied through unchanged.",
+      "origins": [
+        {
+          "path": "tools/format_explorer/workflows.py",
+          "line": 1,
+          "sink": "python-presentation:workflow"
+        }
+      ]
+    },
+    {
       "key": "LODs: {value_0} editable / {value_1} declared",
       "origins": [
         {
@@ -67118,6 +67823,16 @@
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs",
           "line": 2353,
           "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Layer Delete has no exact writeback route",
+      "origins": [
+        {
+          "path": "tools/format_explorer/workflows.py",
+          "line": 1,
+          "sink": "python-presentation:workflow"
         }
       ]
     },
@@ -67928,6 +68643,11 @@
           "path": "tools/format_explorer/catalogue.py",
           "line": 78,
           "sink": "python-data:WRITE_WORDS"
+        },
+        {
+          "path": "tools/format_explorer/workflows.py",
+          "line": 25,
+          "sink": "python-data:WRITE_LABELS"
         }
       ]
     },
@@ -68663,6 +69383,16 @@
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs",
           "line": 4435,
           "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Load a supported working mesh in Mesh Editor and choose a Free Edit output folder. An archive replacement also requires an open target mesh. The active editor must support the chosen action.",
+      "origins": [
+        {
+          "path": "tools/format_explorer/workflows.py",
+          "line": 1,
+          "sink": "python-presentation:workflow"
         }
       ]
     },
@@ -70303,6 +71033,16 @@
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
           "line": 2662,
           "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Loop Cut derives vertices whose protected bytes cannot be derived",
+      "origins": [
+        {
+          "path": "tools/format_explorer/workflows.py",
+          "line": 1,
+          "sink": "python-presentation:workflow"
         }
       ]
     },
@@ -72852,6 +73592,16 @@
       ]
     },
     {
+      "key": "Merge has no exact writeback route",
+      "origins": [
+        {
+          "path": "tools/format_explorer/workflows.py",
+          "line": 1,
+          "sink": "python-presentation:workflow"
+        }
+      ]
+    },
+    {
       "key": "Merge mod folders",
       "origins": [
         {
@@ -73427,6 +74177,31 @@
         {
           "path": "tools/format_explorer/catalogue.py",
           "line": 54,
+          "sink": "python-data:TOOLS"
+        },
+        {
+          "path": "tools/format_explorer/catalogue.py",
+          "line": 69,
+          "sink": "python-data:TOOLS"
+        },
+        {
+          "path": "tools/format_explorer/catalogue.py",
+          "line": 70,
+          "sink": "python-data:TOOLS"
+        },
+        {
+          "path": "tools/format_explorer/catalogue.py",
+          "line": 71,
+          "sink": "python-data:TOOLS"
+        },
+        {
+          "path": "tools/format_explorer/catalogue.py",
+          "line": 72,
+          "sink": "python-data:TOOLS"
+        },
+        {
+          "path": "tools/format_explorer/catalogue.py",
+          "line": 73,
           "sink": "python-data:TOOLS"
         },
         {
@@ -75192,6 +75967,16 @@
       ]
     },
     {
+      "key": "Mesh import",
+      "origins": [
+        {
+          "path": "tools/format_explorer/workflows.py",
+          "line": 23,
+          "sink": "python-data:READ_LABELS"
+        }
+      ]
+    },
+    {
       "key": "Mesh import cancelled after validation review.",
       "origins": [
         {
@@ -76402,6 +77187,16 @@
       ]
     },
     {
+      "key": "Midpoint Subdivide derives vertices whose protected bytes cannot be derived",
+      "origins": [
+        {
+          "path": "tools/format_explorer/workflows.py",
+          "line": 1,
+          "sink": "python-presentation:workflow"
+        }
+      ]
+    },
+    {
       "key": "Midtones",
       "origins": [
         {
@@ -76718,6 +77513,16 @@
           "path": "cdmw/ui/model_library/commands.py",
           "line": 217,
           "sink": "_set_status"
+        }
+      ]
+    },
+    {
+      "key": "Mirror has no exact writeback route",
+      "origins": [
+        {
+          "path": "tools/format_explorer/workflows.py",
+          "line": 1,
+          "sink": "python-presentation:workflow"
         }
       ]
     },
@@ -77178,6 +77983,11 @@
           "path": "cdmw/ui/tools/mod_management.py",
           "line": 40,
           "sink": "QLabel"
+        },
+        {
+          "path": "tools/format_explorer/catalogue.py",
+          "line": 74,
+          "sink": "python-data:TOOLS"
         }
       ]
     },
@@ -82562,6 +83372,16 @@
       ]
     },
     {
+      "key": "No additional limits recorded here.",
+      "origins": [
+        {
+          "path": "tools/format_explorer/catalogue.py",
+          "line": 80,
+          "sink": "python-data:NO_REMAINING_NOTE"
+        }
+      ]
+    },
+    {
       "key": "No analysis loaded",
       "origins": [
         {
@@ -86922,6 +87742,16 @@
       ]
     },
     {
+      "key": "Not editable",
+      "origins": [
+        {
+          "path": "tools/format_explorer/workflows.py",
+          "line": 25,
+          "sink": "python-data:WRITE_LABELS"
+        }
+      ]
+    },
+    {
       "key": "Not every archive format is editable. Browsing and preview support is broader than patch support, so use the visible actions beside the preview to see what is currently available for the selected entry.",
       "origins": [
         {
@@ -88147,6 +88977,16 @@
       ]
     },
     {
+      "key": "Only decoded effect values and supported tuning controls are edited; strings and collections are not freely resized.",
+      "origins": [
+        {
+          "path": "tools/format_explorer/workflows.py",
+          "line": 1,
+          "sink": "python-presentation:workflow"
+        }
+      ]
+    },
+    {
       "key": "Only decoded equipment-used BuffInfo definitions are editable. Parameter levels are raw game levels; no percentage conversion is assumed.",
       "origins": [
         {
@@ -88233,6 +89073,26 @@
           "path": "cdmw/ui/archive_browser/prefab_inspector_dialog.py",
           "line": 376,
           "sink": "QCheckBox"
+        }
+      ]
+    },
+    {
+      "key": "Only supported 5- and 8-byte rows are rewritten; composite-key tables remain read-only.",
+      "origins": [
+        {
+          "path": "tools/format_explorer/workflows.py",
+          "line": 1,
+          "sink": "python-presentation:workflow"
+        }
+      ]
+    },
+    {
+      "key": "Only the records and layouts admitted by the owning item workflow can be changed.",
+      "origins": [
+        {
+          "path": "tools/format_explorer/workflows.py",
+          "line": 1,
+          "sink": "python-presentation:workflow"
         }
       ]
     },
@@ -88473,6 +89333,16 @@
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs",
           "line": 3840,
           "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Open Browse Archives, select a file with this extension, then use its context menu. The link opens the tool; it does not select an asset or perform an edit.",
+      "origins": [
+        {
+          "path": "tools/format_explorer/workflows.py",
+          "line": 1,
+          "sink": "python-presentation:workflow"
         }
       ]
     },
@@ -89072,6 +89942,16 @@
       ]
     },
     {
+      "key": "Open a PALOC language table in Edit Translations.",
+      "origins": [
+        {
+          "path": "tools/format_explorer/workflows.py",
+          "line": 1,
+          "sink": "python-presentation:workflow"
+        }
+      ]
+    },
+    {
       "key": "Open a PNG, DDS, or project to start editing.",
       "origins": [
         {
@@ -89253,6 +90133,16 @@
           "path": "cdmw/ui/mesh_editor/tab_actions.py",
           "line": 24,
           "sink": "emit"
+        }
+      ]
+    },
+    {
+      "key": "Open a supported archive or extracted mesh. Operation availability depends on its layout, LOD, output policy and the active editor.",
+      "origins": [
+        {
+          "path": "tools/format_explorer/workflows.py",
+          "line": 1,
+          "sink": "python-presentation:workflow"
         }
       ]
     },
@@ -92032,6 +92922,16 @@
       ]
     },
     {
+      "key": "Output is a new non-exact OBJ package, not a byte-preserving PAC/PAM/PAMLOD round trip.",
+      "origins": [
+        {
+          "path": "tools/format_explorer/workflows.py",
+          "line": 1,
+          "sink": "python-presentation:workflow"
+        }
+      ]
+    },
+    {
       "key": "Output root",
       "origins": [
         {
@@ -93733,6 +94633,11 @@
           "path": "cdmw/ui/tools/mod_package_retrofit_widget.py",
           "line": 229,
           "sink": "setHorizontalHeaderLabels"
+        },
+        {
+          "path": "tools/format_explorer/workflows.py",
+          "line": 19,
+          "sink": "python-data:OPERATION_LABELS"
         }
       ]
     },
@@ -93833,6 +94738,16 @@
           "path": "tools/placement_studio/window_editing.py",
           "line": 1278,
           "sink": "showMessage"
+        }
+      ]
+    },
+    {
+      "key": "Package compatibility and required capabilities are checked on admission; game and save compatibility need separate validation.",
+      "origins": [
+        {
+          "path": "tools/format_explorer/catalogue.py",
+          "line": 1,
+          "sink": "python-presentation:application-remaining"
         }
       ]
     },
@@ -93973,6 +94888,11 @@
           "path": "cdmw/ui/texture_workflow/upscale_backend_panel.py",
           "line": 360,
           "sink": "addRow"
+        },
+        {
+          "path": "tools/format_explorer/workflows.py",
+          "line": 27,
+          "sink": "python-data:WRITE_LABELS"
         }
       ]
     },
@@ -94003,6 +94923,16 @@
           "path": "cdmw/services/new_item_review.py",
           "line": 58,
           "sink": "python-return:plan_review_content"
+        }
+      ]
+    },
+    {
+      "key": "Package reader",
+      "origins": [
+        {
+          "path": "tools/format_explorer/workflows.py",
+          "line": 23,
+          "sink": "python-data:READ_LABELS"
         }
       ]
     },
@@ -95303,6 +96233,16 @@
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
           "line": 4126,
           "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Paste has no exact writeback route",
+      "origins": [
+        {
+          "path": "tools/format_explorer/workflows.py",
+          "line": 1,
+          "sink": "python-presentation:workflow"
         }
       ]
     },
@@ -100810,6 +101750,16 @@
       "key": "Preserve the original recovery copy and record the provider-present baseline.",
       "origins": [],
       "manual": true
+    },
+    {
+      "key": "Preserve valid material structure and references. External text editing does not validate every material value or provide an unrestricted material rebuild.",
+      "origins": [
+        {
+          "path": "tools/format_explorer/workflows.py",
+          "line": 1,
+          "sink": "python-presentation:workflow"
+        }
+      ]
     },
     {
       "key": "Preserve-first defaults, technical texture risk, confirmations, and recoverability.",
@@ -106367,11 +107317,11 @@
       ]
     },
     {
-      "key": "Read",
+      "key": "Read / import",
       "origins": [
         {
           "path": "tools/format_explorer/tab.py",
-          "line": 183,
+          "line": 178,
           "sink": "setHorizontalHeaderLabels"
         }
       ]
@@ -106403,6 +107353,26 @@
           "path": "cdmw/ui/archive_browser/pac_xml_editor_parameters.py",
           "line": 231,
           "sink": "setText"
+        }
+      ]
+    },
+    {
+      "key": "Read package identity, dependencies and supported typed modules.",
+      "origins": [
+        {
+          "path": "tools/format_explorer/workflows.py",
+          "line": 1,
+          "sink": "python-presentation:workflow"
+        }
+      ]
+    },
+    {
+      "key": "Read supported mesh layouts and inspect the model in Mesh Editor.",
+      "origins": [
+        {
+          "path": "tools/format_explorer/workflows.py",
+          "line": 1,
+          "sink": "python-presentation:workflow"
         }
       ]
     },
@@ -109947,6 +110917,16 @@
       ]
     },
     {
+      "key": "Refine Smooth has no exact writeback route",
+      "origins": [
+        {
+          "path": "tools/format_explorer/workflows.py",
+          "line": 1,
+          "sink": "python-presentation:workflow"
+        }
+      ]
+    },
+    {
       "key": "Refit driver parts cannot also be garment parts: {value_0}",
       "origins": [
         {
@@ -110587,6 +111567,16 @@
       ]
     },
     {
+      "key": "Register new item textures, reusing a compatible DDS header or adding a validated new header.",
+      "origins": [
+        {
+          "path": "tools/format_explorer/workflows.py",
+          "line": 1,
+          "sink": "python-presentation:workflow"
+        }
+      ]
+    },
+    {
       "key": "Registering optional tools...",
       "origins": [
         {
@@ -111223,6 +112213,16 @@
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
           "line": 2770,
           "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Remove Doubles has no exact writeback route",
+      "origins": [
+        {
+          "path": "tools/format_explorer/workflows.py",
+          "line": 1,
+          "sink": "python-presentation:workflow"
         }
       ]
     },
@@ -134102,6 +135102,16 @@
       ]
     },
     {
+      "key": "Split has no exact writeback route",
+      "origins": [
+        {
+          "path": "tools/format_explorer/workflows.py",
+          "line": 1,
+          "sink": "python-presentation:workflow"
+        }
+      ]
+    },
+    {
       "key": "Spring-back response",
       "origins": [
         {
@@ -136657,6 +137667,16 @@
       ]
     },
     {
+      "key": "Supported workflows",
+      "origins": [
+        {
+          "path": "tools/format_explorer/tab.py",
+          "line": 392,
+          "sink": "translate_active_ui_text"
+        }
+      ]
+    },
+    {
       "key": "Supporting evidence",
       "origins": [
         {
@@ -138613,6 +139633,16 @@
           "path": "cdmw/ui/text_search/remote_catalogue.py",
           "line": 353,
           "sink": "_handle_search_cancelled"
+        }
+      ]
+    },
+    {
+      "key": "Text-model archive analysis is readable. cdmw/services/fbx_blender_conversion.py and cdmw/ui/new_item/panels_model.py document the native DAE import route alongside OBJ, glTF and GLB.",
+      "origins": [
+        {
+          "path": "schemas/archive_content_capabilities.v1.json",
+          "line": 1,
+          "sink": "json-presentation:evidence"
         }
       ]
     },
@@ -140697,6 +141727,16 @@
       ]
     },
     {
+      "key": "The archive research flags do not describe application interchange support. FBX semantic import requires the configured Blender route; imported working geometry and FBX export each retain their own limits. No native FBX semantic decoder or unrestricted same-file editing is claimed.",
+      "origins": [
+        {
+          "path": "schemas/archive_content_capabilities.v1.json",
+          "line": 1,
+          "sink": "json-presentation:remaining"
+        }
+      ]
+    },
+    {
       "key": "The archive results are stale or belong to mixed sessions.",
       "origins": [
         {
@@ -141247,6 +142287,16 @@
       "manual": true
     },
     {
+      "key": "The category field remains an opaque id; category descriptions are inferred from key prefixes. Only the supported version-0 container is admitted; unknown versions, invalid sizes and malformed compressed payloads are refused.",
+      "origins": [
+        {
+          "path": "schemas/archive_content_capabilities.v1.json",
+          "line": 1,
+          "sink": "json-presentation:remaining"
+        }
+      ]
+    },
+    {
       "key": "The character for the placement viewport could not be read: {value_0}",
       "origins": [
         {
@@ -141502,6 +142552,16 @@
       ]
     },
     {
+      "key": "The current mesh UI does not expose a same-format glTF export action. Free Edit writes a separate non-exact OBJ package; text writability is not proof of complete glTF scene round-trip support.",
+      "origins": [
+        {
+          "path": "schemas/archive_content_capabilities.v1.json",
+          "line": 1,
+          "sink": "json-presentation:remaining"
+        }
+      ]
+    },
+    {
       "key": "The current shadow operation must finish before another gesture starts",
       "origins": [
         {
@@ -141688,6 +142748,16 @@
           "path": "cdmw/ui/new_item/effect_placement_dialog_support.py",
           "line": 59,
           "sink": "python-return:describe_effect_preview"
+        }
+      ]
+    },
+    {
+      "key": "The effect preview is approximate and does not prove the final in-game appearance.",
+      "origins": [
+        {
+          "path": "tools/format_explorer/workflows.py",
+          "line": 1,
+          "sink": "python-presentation:workflow"
         }
       ]
     },
@@ -147882,6 +148952,16 @@
       ]
     },
     {
+      "key": "Topology-changing exact rebuild is LOD0-only; LOD1+ can be read but is not proven for authoring and lower LODs are copied unchanged. Additional operation gates come from cdmw/domain/mesh/authoring_capability.py. Free Edit output is a separate non-exact OBJ package.",
+      "origins": [
+        {
+          "path": "schemas/archive_content_capabilities.v1.json",
+          "line": 1,
+          "sink": "json-presentation:remaining"
+        }
+      ]
+    },
+    {
       "key": "Torn cloth",
       "origins": [
         {
@@ -147990,6 +149070,36 @@
       "key": "Towershield",
       "origins": [],
       "manual": true
+    },
+    {
+      "key": "Track and event layout is not fully parsed, so full cutscene authoring remains unavailable. Only validated length-prefixed string fields can be replaced without changing their encoded size; arbitrary fields and variable-size edits are refused.",
+      "origins": [
+        {
+          "path": "schemas/archive_content_capabilities.v1.json",
+          "line": 1,
+          "sink": "json-presentation:remaining"
+        },
+        {
+          "path": "schemas/archive_content_capabilities.v1.json",
+          "line": 1,
+          "sink": "json-presentation:remaining"
+        },
+        {
+          "path": "schemas/archive_content_capabilities.v1.json",
+          "line": 1,
+          "sink": "json-presentation:remaining"
+        }
+      ]
+    },
+    {
+      "key": "Track/event authoring and variable-size string edits are not supported.",
+      "origins": [
+        {
+          "path": "tools/format_explorer/workflows.py",
+          "line": 1,
+          "sink": "python-presentation:workflow"
+        }
+      ]
     },
     {
       "key": "Trail",
@@ -153172,6 +154282,16 @@
       ]
     },
     {
+      "key": "Use the exact game-asset output policy for supported LOD0 edits.",
+      "origins": [
+        {
+          "path": "tools/format_explorer/workflows.py",
+          "line": 1,
+          "sink": "python-presentation:workflow"
+        }
+      ]
+    },
+    {
       "key": "Use the exact previous capture named by the experiment protocol.",
       "origins": [],
       "manual": true
@@ -154815,6 +155935,16 @@
       "key": "Verts",
       "origins": [],
       "manual": true
+    },
+    {
+      "key": "Via Blender",
+      "origins": [
+        {
+          "path": "tools/format_explorer/workflows.py",
+          "line": 23,
+          "sink": "python-data:READ_LABELS"
+        }
+      ]
     },
     {
       "key": "Vibrance",
@@ -156912,6 +158042,16 @@
       ]
     },
     {
+      "key": "Weld has no exact writeback route",
+      "origins": [
+        {
+          "path": "tools/format_explorer/workflows.py",
+          "line": 1,
+          "sink": "python-presentation:workflow"
+        }
+      ]
+    },
+    {
       "key": "What",
       "origins": [
         {
@@ -157021,8 +158161,8 @@
       "origins": [
         {
           "path": "tools/format_explorer/tab.py",
-          "line": 364,
-          "sink": "setHtml"
+          "line": 411,
+          "sink": "translate_active_ui_text"
         }
       ]
     },
@@ -157166,8 +158306,8 @@
       "origins": [
         {
           "path": "tools/format_explorer/tab.py",
-          "line": 364,
-          "sink": "setHtml"
+          "line": 410,
+          "sink": "translate_active_ui_text"
         }
       ]
     },
@@ -157442,22 +158582,27 @@
       ]
     },
     {
-      "key": "Where to edit it",
-      "origins": [
-        {
-          "path": "tools/format_explorer/tab.py",
-          "line": 183,
-          "sink": "setHorizontalHeaderLabels"
-        }
-      ]
-    },
-    {
       "key": "Where to go instead",
       "origins": [
         {
           "path": "tools/placement_studio/constraints.py",
           "line": 455,
           "sink": "Section"
+        }
+      ]
+    },
+    {
+      "key": "Where to use it",
+      "origins": [
+        {
+          "path": "tools/format_explorer/tab.py",
+          "line": 178,
+          "sink": "setHorizontalHeaderLabels"
+        },
+        {
+          "path": "tools/format_explorer/tab.py",
+          "line": 408,
+          "sink": "translate_active_ui_text"
         }
       ]
     },
@@ -158102,6 +159247,16 @@
       ]
     },
     {
+      "key": "Working-mesh edits and exported GLB retain supported layout and attribute limits. Free Edit writes a separate non-exact OBJ package; import/export does not prove byte-preserving or game-loadable replacement output.",
+      "origins": [
+        {
+          "path": "schemas/archive_content_capabilities.v1.json",
+          "line": 1,
+          "sink": "json-presentation:remaining"
+        }
+      ]
+    },
+    {
       "key": "Working...",
       "origins": [
         {
@@ -158363,16 +159518,6 @@
           "path": "cdmw/ui/settings_tab.py",
           "line": 728,
           "sink": "addRow"
-        }
-      ]
-    },
-    {
-      "key": "Write",
-      "origins": [
-        {
-          "path": "tools/format_explorer/tab.py",
-          "line": 183,
-          "sink": "setHorizontalHeaderLabels"
         }
       ]
     },
@@ -161052,6 +162197,16 @@
       ]
     },
     {
+      "key": "application packages",
+      "origins": [
+        {
+          "path": "tools/format_explorer/catalogue.py",
+          "line": 1,
+          "sink": "python-presentation:application-group"
+        }
+      ]
+    },
+    {
       "key": "applied",
       "origins": [
         {
@@ -162702,7 +163857,7 @@
       ]
     },
     {
-      "key": "cdmw/core/archive_binary_preview_paseq_0.py: sequence reference graph",
+      "key": "cdmw/core/archive_binary_preview_paseq_0.py: sequence reference graph. cdmw/ui/archive_browser/actions.py exposes Edit Structured Data Safely...; cdmw/services/structured_sidecar_edit_service.py writes validated fixed-size string replacements to an edited copy.",
       "origins": [
         {
           "path": "schemas/archive_content_capabilities.v1.json",
@@ -162742,7 +163897,7 @@
       ]
     },
     {
-      "key": "cdmw/core/effect_binary.py walks EmitterData spawn, simulation, render, material parameters and baked half-float curves to the byte on all 560 shipped emitters; inline values write back in place. cdmw/services/effect_preview_model.py and the resident .NET/Vortice host provide an explicitly approximate particle preview",
+      "key": "cdmw/core/effect_binary.py walks EmitterData spawn, simulation, render, material parameters and baked half-float curves to the byte on all 560 shipped emitters; inline values write back in place. cdmw/services/effect_preview_model.py supplies an approximate particle preview model; it does not prove engine-equivalent rendering",
       "origins": [
         {
           "path": "schemas/archive_content_capabilities.v1.json",
@@ -162752,7 +163907,7 @@
       ]
     },
     {
-      "key": "cdmw/core/effect_binary.py walks the PARC-wrapped EffectData reflection graph, embedded emitter overrides, timelines, curves and materials to the byte on all 6,855 shipped .pae/.paem; every inline value carries its offset and writes back in place. cdmw/services/effect_preview_model.py and the resident .NET/Vortice host provide an explicitly approximate particle preview",
+      "key": "cdmw/core/effect_binary.py walks the PARC-wrapped EffectData reflection graph, embedded emitter overrides, timelines, curves and materials to the byte on all 6,855 shipped .pae/.paem; every inline value carries its offset and writes back in place. cdmw/services/effect_preview_model.py supplies an approximate particle preview model; it does not prove engine-equivalent rendering",
       "origins": [
         {
           "path": "schemas/archive_content_capabilities.v1.json",
@@ -162792,7 +163947,7 @@
       ]
     },
     {
-      "key": "cdmw/core/paloc_format.py: flat records of category, key and text with the count as a u32 footer. All 14 shipped language tables, 2,625,294 records, rebuild byte for byte, and the footer count agrees with the record walk in every one",
+      "key": "cdmw/core/paloc_format.py: flat records of category, key and text with the count as a u32 footer. All 14 shipped language tables, 2,625,294 records, rebuild byte for byte, and the footer count agrees with the record walk in every one. The current parser also supports version-0 PALOC containers with a 512-byte header and LZ4 payload. Unedited containers preserve their original compressed bytes; edited records preserve the opaque header while updating payload sizes. Synthetic coverage is in tests/test_paloc_container.py.",
       "origins": [
         {
           "path": "schemas/archive_content_capabilities.v1.json",
@@ -162832,7 +163987,7 @@
       ]
     },
     {
-      "key": "cdmw/core/pathc_format.py: the whole file (head, 648 texture headers, 285,224 ascending path checksums with parallel entry rows, 12 collision rows, name blob) parses and re-encodes byte for byte on the shipped meta/0.pathc; register_texture / register_dds add a row under an existing header (real_game gate). In game 2026-08-17: a new icon DDS in the archive but not registered here draws as the placeholder bag; registered, awaiting the user's answer.",
+      "key": "cdmw/core/pathc_format.py parses and re-encodes the recorded meta/0.pathc corpus, including texture headers, checksum entries, collision rows and names. register_dds validates the complete DDS, reuses a compatible shape/tag descriptor or appends a new 148-byte header, and derives raw mip block information from the validated payload. tests/test_pathc_format.py covers new-header registration and DX10 descriptor separation. Historical observation on 2026-08-17: an unregistered icon used the placeholder bag; no new in-game result is claimed here.",
       "origins": [
         {
           "path": "schemas/archive_content_capabilities.v1.json",
@@ -162902,7 +164057,7 @@
       ]
     },
     {
-      "key": "cdmw/modding/mesh_glb_interchange.py: import path for authored meshes",
+      "key": "cdmw/modding/mesh_glb_interchange.py provides GLB mesh interchange, including export_glb; the application also imports GLB through its mesh readers.",
       "origins": [
         {
           "path": "schemas/archive_content_capabilities.v1.json",
@@ -162948,6 +164103,16 @@
           "path": "schemas/archive_content_capabilities.v1.json",
           "line": 1,
           "sink": "json-presentation:evidence"
+        }
+      ]
+    },
+    {
+      "key": "cdmw/services/independent_item_package.py and independent_mod_package.py: bounded v1/v2 package admission. Create New Item exports v1; Mod Management > Mods adds packages for the current loader workflow.",
+      "origins": [
+        {
+          "path": "tools/format_explorer/catalogue.py",
+          "line": 1,
+          "sink": "python-presentation:application-evidence"
         }
       ]
     },
@@ -166812,16 +167977,6 @@
       ]
     },
     {
-      "key": "file(s) in the shipped build · {value_4} · edited in:",
-      "origins": [
-        {
-          "path": "tools/format_explorer/tab.py",
-          "line": 364,
-          "sink": "setHtml"
-        }
-      ]
-    },
-    {
       "key": "files/ wrapper",
       "origins": [
         {
@@ -167362,7 +168517,7 @@
       ]
     },
     {
-      "key": "glTF export target",
+      "key": "glTF text is readable. CDMW's mesh import workflows read glTF; available mesh exporters include OBJ, FBX and GLB.",
       "origins": [
         {
           "path": "schemas/archive_content_capabilities.v1.json",
@@ -172549,11 +173704,6 @@
     {
       "key": "not analyzed",
       "origins": [
-        {
-          "path": "schemas/archive_content_capabilities.v1.json",
-          "line": 1,
-          "sink": "json-presentation:evidence"
-        },
         {
           "path": "schemas/archive_content_capabilities.v1.json",
           "line": 1,
@@ -179027,16 +180177,6 @@
       ]
     },
     {
-      "key": "text model, readable",
-      "origins": [
-        {
-          "path": "schemas/archive_content_capabilities.v1.json",
-          "line": 1,
-          "sink": "json-presentation:evidence"
-        }
-      ]
-    },
-    {
       "key": "text search xml json cfg lua regex export preview encrypted xml archive loose",
       "origins": [
         {
@@ -179272,26 +180412,6 @@
       ]
     },
     {
-      "key": "the category field is an opaque id; describe_categories reports the dominant key prefix per category from the data rather than the engine's own name for it",
-      "origins": [
-        {
-          "path": "schemas/archive_content_capabilities.v1.json",
-          "line": 1,
-          "sink": "json-presentation:remaining"
-        }
-      ]
-    },
-    {
-      "key": "the collision table is carried, not written (a hash collision is refused); a DDS whose header matches no shipped header is refused rather than given a new header row; the per-entry block infos of textures stored other than raw are not derived",
-      "origins": [
-        {
-          "path": "schemas/archive_content_capabilities.v1.json",
-          "line": 1,
-          "sink": "json-presentation:remaining"
-        }
-      ]
-    },
-    {
       "key": "the game's UI layer is HTML: 160 documents under ui/, editable as text today",
       "origins": [
         {
@@ -179482,16 +180602,6 @@
       ]
     },
     {
-      "key": "the shipped build contains no entry with this extension, so there is nothing here to decode; previously recorded as: no export or import route; use glTF/OBJ",
-      "origins": [
-        {
-          "path": "schemas/archive_content_capabilities.v1.json",
-          "line": 1,
-          "sink": "json-presentation:remaining"
-        }
-      ]
-    },
-    {
       "key": "the shipped build contains no entry with this extension, so there is nothing here to decode; previously recorded as: outside the structured sidecar editor, so edits are unchecked text edits",
       "origins": [
         {
@@ -179534,11 +180644,6 @@
     {
       "key": "the shipped build contains no entry with this extension, so there is nothing here to decode; previously recorded as: third-party interchange; import goes through glTF/GLB instead",
       "origins": [
-        {
-          "path": "schemas/archive_content_capabilities.v1.json",
-          "line": 1,
-          "sink": "json-presentation:remaining"
-        },
         {
           "path": "schemas/archive_content_capabilities.v1.json",
           "line": 1,
@@ -180002,42 +181107,12 @@
       ]
     },
     {
-      "key": "topology-changing rebuild is LOD0-only; LOD1+ can be read but not re-authored",
-      "origins": [
-        {
-          "path": "schemas/archive_content_capabilities.v1.json",
-          "line": 1,
-          "sink": "json-presentation:remaining"
-        }
-      ]
-    },
-    {
       "key": "touching the body, but nothing sunk in",
       "origins": [
         {
           "path": "tools/placement_studio/meshes.py",
           "line": 284,
           "sink": "python-return:summary"
-        }
-      ]
-    },
-    {
-      "key": "track and event layout not parsed - cutscene authoring is closed",
-      "origins": [
-        {
-          "path": "schemas/archive_content_capabilities.v1.json",
-          "line": 1,
-          "sink": "json-presentation:remaining"
-        },
-        {
-          "path": "schemas/archive_content_capabilities.v1.json",
-          "line": 1,
-          "sink": "json-presentation:remaining"
-        },
-        {
-          "path": "schemas/archive_content_capabilities.v1.json",
-          "line": 1,
-          "sink": "json-presentation:remaining"
         }
       ]
     },
@@ -181848,6 +182923,16 @@
           "path": "cdmw/ui/new_item/effect_workspace.py",
           "line": 510,
           "sink": "tr"
+        }
+      ]
+    },
+    {
+      "key": "{count} file(s) in the stored archive inventory.",
+      "origins": [
+        {
+          "path": "tools/format_explorer/tab.py",
+          "line": 379,
+          "sink": "translate_active_ui_text"
         }
       ]
     },
@@ -184388,16 +185473,6 @@
           "path": "cdmw/ui/archive_browser/preview_loading.py",
           "line": 212,
           "sink": "setToolTip"
-        }
-      ]
-    },
-    {
-      "key": "{value_0} format",
-      "origins": [
-        {
-          "path": "tools/format_explorer/tab.py",
-          "line": 368,
-          "sink": "translate_active_ui_text"
         }
       ]
     },
@@ -186952,16 +188027,6 @@
       ]
     },
     {
-      "key": "{value_0} — {value_1}, {value_2}",
-      "origins": [
-        {
-          "path": "tools/format_explorer/tab.py",
-          "line": 364,
-          "sink": "setHtml"
-        }
-      ]
-    },
-    {
       "key": "{value_0} ← {value_1}",
       "origins": [
         {
@@ -188532,6 +189597,16 @@
       ]
     },
     {
+      "key": "{value_0}: {value_1}, {value_2}",
+      "origins": [
+        {
+          "path": "tools/format_explorer/tab.py",
+          "line": 404,
+          "sink": "setHtml"
+        }
+      ]
+    },
+    {
       "key": "{value_0}: {value_1}, {value_2}/s, {value_3}-{value_4} s, {value_5}, {value_6}, {value_7}, {value_8}",
       "origins": [
         {
@@ -189123,6 +190198,16 @@
           "path": "tools/placement_studio/report_style.py",
           "line": 199,
           "sink": "python-return:inspector_html"
+        }
+      ]
+    },
+    {
+      "key": "{value_4}:",
+      "origins": [
+        {
+          "path": "tools/format_explorer/tab.py",
+          "line": 404,
+          "sink": "setHtml"
         }
       ]
     },

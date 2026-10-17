@@ -1490,7 +1490,9 @@ def _python_ui_catalogue_sources(
     elif relative == "cdmw/ui/shell/compact/registry.py":
         names = ("COMPACT_CATEGORY_ORDER",)
     elif relative == "tools/format_explorer/catalogue.py":
-        names = ("TOOLS", "_TEXT_TOOL", "_NO_TOOL", "READ_WORDS", "WRITE_WORDS")
+        names = ("TOOLS", "_TEXT_TOOL", "_NO_TOOL", "READ_WORDS", "WRITE_WORDS", "NO_REMAINING_NOTE", "_HEADLINE")
+    elif relative == "tools/format_explorer/workflows.py":
+        names = ("OPERATION_LABELS", "READ_LABELS", "WRITE_LABELS")
     elif relative == "cdmw/ui/new_item/effect_library_model.py":
         # Only the first cell is a user-facing category. The other cells are
         # matching tokens, not translatable labels or source identifiers.
@@ -1790,7 +1792,7 @@ def build_manifest() -> dict[str, object]:
     # and detail pane, while extension/group IDs remain machine-readable.
     capabilities = ROOT / "schemas" / "archive_content_capabilities.v1.json"
     if capabilities.is_file():
-        from tools.format_explorer.catalogue import detail_text_segments
+        from tools.format_explorer.catalogue import detail_text_segments, load_rows
 
         data = json.loads(capabilities.read_text(encoding="utf-8"))
         for row in data["extensions"]:
@@ -1804,6 +1806,35 @@ def build_manifest() -> dict[str, object]:
                     origins.setdefault(segment, []).append({
                         "path": "schemas/archive_content_capabilities.v1.json", "line": 1,
                         "sink": f"json-presentation:{field}",
+                    })
+        # App operations do not belong in archive research metadata. Collect
+        # only the finite presentation fields, including policy-derived limits.
+        workflow_sources: set[str] = set()
+        application_sources: set[tuple[str, str]] = set()
+        for row in load_rows(capabilities):
+            workflow_sources.update((
+                row.workflow.prerequisites, *row.workflow.limits,
+                *(operation.description for operation in row.workflow.operations),
+            ))
+            if row.files is None:
+                application_sources.update((
+                    ("role", row.role), ("group", row.group.replace("_", " ")),
+                    ("origin", row.origin.replace("_", "-").capitalize() + " format"),
+                    ("evidence", row.evidence), ("remaining", row.remaining),
+                ))
+        for text in sorted(workflow_sources):
+            for segment in detail_text_segments(text):
+                if segment:
+                    origins.setdefault(segment, []).append({
+                        "path": "tools/format_explorer/workflows.py", "line": 1,
+                        "sink": "python-presentation:workflow",
+                    })
+        for field, text in sorted(application_sources):
+            for segment in detail_text_segments(text):
+                if segment:
+                    origins.setdefault(segment, []).append({
+                        "path": "tools/format_explorer/catalogue.py", "line": 1,
+                        "sink": f"python-presentation:application-{field}",
                     })
     exclusions = _load_exclusions()
     for exclusion in exclusions:

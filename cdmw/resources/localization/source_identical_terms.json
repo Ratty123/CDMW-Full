@@ -1715,7 +1715,6 @@
       "effect/binary__/emitter/{value_0}.paem": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "emissive:emissive": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "exact_path": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
-      "file(s) in the shipped build · {value_4} · edited in:": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "fixupSemanticsV2": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "fmt={value_0}": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "generate-tangents-json": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
@@ -1829,7 +1828,6 @@
       "{value_0} B": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "{value_0} MiB": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "{value_0} [{value_1}]": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
-      "{value_0} format": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "{value_0} normal": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "{value_0} saved screenshot(s)": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "{value_0} screenshot(s) selected": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
@@ -1895,6 +1893,7 @@
       "{value_0}: {value_1} | {value_2}": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "{value_0}: {value_1} | {value_2}{value_3}": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "{value_0}: {value_1} — {value_2}": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
+      "{value_0}: {value_1}, {value_2}": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "{value_0}: {value_1}, {value_2}/s, {value_3}-{value_4} s, {value_5}, {value_6}, {value_7}, {value_8}": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "{value_0}: {value_1}.": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "{value_0}: {value_1}: {value_2}: {value_3}": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
@@ -1920,7 +1919,8 @@
       "{value_0}|{value_1}|{value_2}|{value_3}|{value_4}": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "{value_0}°": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "{value_0}…{value_1}": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
-      "{value_2}:": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label."
+      "{value_2}:": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
+      "{value_4}:": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label."
     },
     "es-ES": {
       "\n\nZIP: {value_0}": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
@@ -3558,7 +3558,6 @@
       "exact_path": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "experimental": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "fbx": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
-      "file(s) in the shipped build · {value_4} · edited in:": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "fixupSemanticsV2": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "fmt={value_0}": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "general": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
@@ -3676,7 +3675,6 @@
       "{value_0} B": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "{value_0} MiB": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "{value_0} [{value_1}]": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
-      "{value_0} format": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "{value_0} mods": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "{value_0} normal": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "{value_0} saved screenshot(s)": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
@@ -3700,7 +3698,6 @@
       "{value_0} × {value_1} · {value_2} · {value_3} · {value_4} mip(s)": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "{value_0} — {value_1}": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "{value_0} — {value_1} ({value_2})": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
-      "{value_0} — {value_1}, {value_2}": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "{value_0} ← {value_1}": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "{value_0} ← {value_1} · RGB {value_2}": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "{value_0} → {value_1}": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
@@ -3746,6 +3743,7 @@
       "{value_0}: {value_1} | {value_2}": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "{value_0}: {value_1} | {value_2}{value_3}": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "{value_0}: {value_1} — {value_2}": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
+      "{value_0}: {value_1}, {value_2}": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "{value_0}: {value_1}, {value_2}/s, {value_3}-{value_4} s, {value_5}, {value_6}, {value_7}, {value_8}": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "{value_0}: {value_1}.": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "{value_0}: {value_1}: {value_2}: {value_3}": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
@@ -3772,7 +3770,8 @@
       "{value_0}|{value_1}|{value_2}|{value_3}|{value_4}": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "{value_0}°": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "{value_0}…{value_1}": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
-      "{value_2}:": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label."
+      "{value_2}:": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
+      "{value_4}:": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label."
     },
     "es-419": {
       "\n\nZIP: {value_0}": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
@@ -5403,7 +5402,6 @@
       "exact_path": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "experimental": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "fbx": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
-      "file(s) in the shipped build · {value_4} · edited in:": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "fixupSemanticsV2": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "fmt={value_0}": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "general": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
@@ -5523,7 +5521,6 @@
       "{value_0} B": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "{value_0} MiB": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "{value_0} [{value_1}]": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
-      "{value_0} format": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "{value_0} mods": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "{value_0} normal": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "{value_0} saved screenshot(s)": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
@@ -5546,7 +5543,6 @@
       "{value_0} × {value_1} · {value_2} · {value_3} · {value_4} mip(s)": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "{value_0} — {value_1}": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "{value_0} — {value_1} ({value_2})": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
-      "{value_0} — {value_1}, {value_2}": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "{value_0} ← {value_1}": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "{value_0} ← {value_1} · RGB {value_2}": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "{value_0} → {value_1}": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
@@ -5592,6 +5588,7 @@
       "{value_0}: {value_1} | {value_2}": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "{value_0}: {value_1} | {value_2}{value_3}": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "{value_0}: {value_1} — {value_2}": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
+      "{value_0}: {value_1}, {value_2}": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "{value_0}: {value_1}, {value_2}/s, {value_3}-{value_4} s, {value_5}, {value_6}, {value_7}, {value_8}": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "{value_0}: {value_1}.": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "{value_0}: {value_1}: {value_2}: {value_3}": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
@@ -5618,7 +5615,8 @@
       "{value_0}|{value_1}|{value_2}|{value_3}|{value_4}": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "{value_0}°": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "{value_0}…{value_1}": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
-      "{value_2}:": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label."
+      "{value_2}:": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
+      "{value_4}:": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label."
     },
     "fr": {
       "\n\n{value_0}\nSHA-256: {value_1}": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
@@ -7281,7 +7279,6 @@
       "en": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "exact": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "exact_path": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
-      "file(s) in the shipped build · {value_4} · edited in:": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "fixupSemanticsV2": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "fmt={value_0}": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "glTF / GLB": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
@@ -7403,7 +7400,6 @@
       "{value_0} / {value_1} source vertices use guides": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "{value_0} B": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "{value_0} [{value_1}]": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
-      "{value_0} format": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "{value_0} mods": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "{value_0} normal": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "{value_0} saved screenshot(s)": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
@@ -7427,7 +7423,6 @@
       "{value_0} · {value_1}–{value_2} · +{value_3}": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "{value_0} — {value_1}": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "{value_0} — {value_1} ({value_2})": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
-      "{value_0} — {value_1}, {value_2}": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "{value_0} ← {value_1}": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "{value_0} ← {value_1} · RGB {value_2}": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "{value_0} → {value_1}": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
@@ -7460,6 +7455,7 @@
       "{value_0}: this texture registry requires recorded texture ownership. Use Merge with the original CDMW export before selecting this folder.": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "{value_0}: {value_1}\n{value_2}": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "{value_0}: {value_1} — {value_2}": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
+      "{value_0}: {value_1}, {value_2}": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "{value_0}: {value_1}: {value_2}: {value_3}": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "{value_0}::{value_1}": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "{value_0}:{value_1}": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
@@ -7481,7 +7477,8 @@
       "{value_0}|{value_1}|{value_2}|{value_3}|{value_4}": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "{value_0}°": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "{value_0}…{value_1}": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
-      "{value_2}:": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label."
+      "{value_2}:": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
+      "{value_4}:": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label."
     },
     "it": {
       "\n\nBackup: {value_0}": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
@@ -9119,7 +9116,6 @@
       "faq": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "fbx": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "file": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
-      "file(s) in the shipped build · {value_4} · edited in:": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "fixupSemanticsV2": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "fmt={value_0}": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "gemini": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
@@ -9232,7 +9228,6 @@
       "{value_0} / {value_1} source vertices use guides": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "{value_0} B": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "{value_0} [{value_1}]": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
-      "{value_0} format": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "{value_0} saved screenshot(s)": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "{value_0} screenshot(s) selected": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "{value_0} selected · {value_1} mods": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
@@ -9253,7 +9248,6 @@
       "{value_0} × {value_1} · {value_2} · {value_3} · {value_4} mip(s)": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "{value_0} — {value_1}": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "{value_0} — {value_1} ({value_2})": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
-      "{value_0} — {value_1}, {value_2}": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "{value_0} ← {value_1}": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "{value_0} ← {value_1} · RGB {value_2}": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "{value_0} → {value_1}": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
@@ -9296,6 +9290,7 @@
       "{value_0}: {value_1} | {value_2}": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "{value_0}: {value_1} | {value_2}{value_3}": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "{value_0}: {value_1} — {value_2}": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
+      "{value_0}: {value_1}, {value_2}": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "{value_0}: {value_1}, {value_2}/s, {value_3}-{value_4} s, {value_5}, {value_6}, {value_7}, {value_8}": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "{value_0}: {value_1}.": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "{value_0}: {value_1}: {value_2}: {value_3}": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
@@ -9322,7 +9317,8 @@
       "{value_0}|{value_1}|{value_2}|{value_3}|{value_4}": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "{value_0}°": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "{value_0}…{value_1}": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
-      "{value_2}:": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label."
+      "{value_2}:": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
+      "{value_4}:": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label."
     },
     "pt-BR": {
       "\n\nBackup: {value_0}": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
@@ -10962,7 +10958,6 @@
       "exact_path": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "experimental": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "fbx": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
-      "file(s) in the shipped build · {value_4} · edited in:": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "fixupSemanticsV2": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "fmt={value_0}": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "generate-tangents-json": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
@@ -11080,7 +11075,6 @@
       "{value_0} B": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "{value_0} MiB": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "{value_0} [{value_1}]": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
-      "{value_0} format": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "{value_0} mods": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "{value_0} normal": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "{value_0} saved screenshot(s)": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
@@ -11105,7 +11099,6 @@
       "{value_0} × {value_1} · {value_2} · {value_3} · {value_4} mip(s)": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "{value_0} — {value_1}": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "{value_0} — {value_1} ({value_2})": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
-      "{value_0} — {value_1}, {value_2}": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "{value_0} ← {value_1}": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "{value_0} ← {value_1} · RGB {value_2}": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "{value_0} → {value_1}": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
@@ -11149,6 +11142,7 @@
       "{value_0}: {value_1} | {value_2}": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "{value_0}: {value_1} | {value_2}{value_3}": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "{value_0}: {value_1} — {value_2}": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
+      "{value_0}: {value_1}, {value_2}": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "{value_0}: {value_1}, {value_2}/s, {value_3}-{value_4} s, {value_5}, {value_6}, {value_7}, {value_8}": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "{value_0}: {value_1}.": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "{value_0}: {value_1}: {value_2}: {value_3}": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
@@ -11175,7 +11169,8 @@
       "{value_0}|{value_1}|{value_2}|{value_3}|{value_4}": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "{value_0}°": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "{value_0}…{value_1}": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
-      "{value_2}:": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label."
+      "{value_2}:": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
+      "{value_4}:": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label."
     },
     "pl": {
       "\n\nZIP: {value_0}": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
@@ -12787,7 +12782,6 @@
       "en": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "exact_path": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "fbx": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
-      "file(s) in the shipped build · {value_4} · edited in:": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "fixupSemanticsV2": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "fmt={value_0}": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "generate-tangents-json": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
@@ -12892,7 +12886,6 @@
       "{value_0} B": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "{value_0} MiB": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "{value_0} [{value_1}]": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
-      "{value_0} format": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "{value_0} saved screenshot(s)": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "{value_0} screenshot(s) selected": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "{value_0} selected · {value_1} mods": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
@@ -12912,7 +12905,6 @@
       "{value_0} · {value_1}–{value_2} · +{value_3}": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "{value_0} — {value_1}": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "{value_0} — {value_1} ({value_2})": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
-      "{value_0} — {value_1}, {value_2}": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "{value_0} ← {value_1}": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "{value_0} ← {value_1} · RGB {value_2}": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "{value_0} → {value_1}": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
@@ -12956,6 +12948,7 @@
       "{value_0}: {value_1} | {value_2}": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "{value_0}: {value_1} | {value_2}{value_3}": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "{value_0}: {value_1} — {value_2}": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
+      "{value_0}: {value_1}, {value_2}": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "{value_0}: {value_1}, {value_2}/s, {value_3}-{value_4} s, {value_5}, {value_6}, {value_7}, {value_8}": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "{value_0}: {value_1}.": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "{value_0}: {value_1}: {value_2}: {value_3}": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
@@ -12981,7 +12974,8 @@
       "{value_0}|{value_1}|{value_2}|{value_3}|{value_4}": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "{value_0}°": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "{value_0}…{value_1}": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
-      "{value_2}:": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label."
+      "{value_2}:": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
+      "{value_4}:": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label."
     },
     "ru": {
       "\n\nZIP: {value_0}": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
@@ -14569,7 +14563,6 @@
       "en": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "exact_path": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "fbx": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
-      "file(s) in the shipped build · {value_4} · edited in:": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "fixupSemanticsV2": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "fmt={value_0}": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "generate-tangents-json": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
@@ -14673,7 +14666,6 @@
       "{value_0} / {value_1} source vertices use guides": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "{value_0} B": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "{value_0} [{value_1}]": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
-      "{value_0} format": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "{value_0} saved screenshot(s)": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "{value_0} screenshot(s) selected": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "{value_0} selected · {value_1} mods": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
@@ -14693,7 +14685,6 @@
       "{value_0} · {value_1}–{value_2} · +{value_3}": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "{value_0} — {value_1}": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "{value_0} — {value_1} ({value_2})": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
-      "{value_0} — {value_1}, {value_2}": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "{value_0} ← {value_1}": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "{value_0} ← {value_1} · RGB {value_2}": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "{value_0} → {value_1}": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
@@ -14737,6 +14728,7 @@
       "{value_0}: {value_1} | {value_2}": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "{value_0}: {value_1} | {value_2}{value_3}": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "{value_0}: {value_1} — {value_2}": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
+      "{value_0}: {value_1}, {value_2}": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "{value_0}: {value_1}, {value_2}/s, {value_3}-{value_4} s, {value_5}, {value_6}, {value_7}, {value_8}": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "{value_0}: {value_1}.": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "{value_0}: {value_1}: {value_2}: {value_3}": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
@@ -14762,7 +14754,8 @@
       "{value_0}|{value_1}|{value_2}|{value_3}|{value_4}": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "{value_0}°": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "{value_0}…{value_1}": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
-      "{value_2}:": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label."
+      "{value_2}:": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
+      "{value_4}:": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label."
     },
     "tr": {
       "\n\nZIP: {value_0}": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
@@ -16375,7 +16368,6 @@
       "effect/binary__/emitter/{value_0}.paem": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "emissive:emissive": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "exact_path": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
-      "file(s) in the shipped build · {value_4} · edited in:": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "fixupSemanticsV2": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "fmt={value_0}": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "generate-tangents-json": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
@@ -16485,7 +16477,6 @@
       "{value_0} B": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "{value_0} MiB": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "{value_0} [{value_1}]": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
-      "{value_0} format": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "{value_0} normal": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "{value_0} saved screenshot(s)": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "{value_0} screenshot(s) selected": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
@@ -16507,7 +16498,6 @@
       "{value_0} × {value_1} · {value_2} · {value_3} · {value_4} mip(s)": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "{value_0} — {value_1}": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "{value_0} — {value_1} ({value_2})": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
-      "{value_0} — {value_1}, {value_2}": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "{value_0} ← {value_1}": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "{value_0} ← {value_1} · RGB {value_2}": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "{value_0} → {value_1}": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
@@ -16550,6 +16540,7 @@
       "{value_0}: {value_1} | {value_2}": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "{value_0}: {value_1} | {value_2}{value_3}": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "{value_0}: {value_1} — {value_2}": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
+      "{value_0}: {value_1}, {value_2}": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "{value_0}: {value_1}, {value_2}/s, {value_3}-{value_4} s, {value_5}, {value_6}, {value_7}, {value_8}": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "{value_0}: {value_1}.": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "{value_0}: {value_1}: {value_2}: {value_3}": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
@@ -16575,7 +16566,8 @@
       "{value_0}|{value_1}|{value_2}|{value_3}|{value_4}": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "{value_0}°": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "{value_0}…{value_1}": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
-      "{value_2}:": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label."
+      "{value_2}:": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
+      "{value_4}:": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label."
     },
     "ja": {
       "\n\nZIP: {value_0}": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
@@ -18150,7 +18142,6 @@
       "en": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "exact_path": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "fbx": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
-      "file(s) in the shipped build · {value_4} · edited in:": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "fixupSemanticsV2": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "fmt={value_0}": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "glTF / GLB": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
@@ -18252,7 +18243,6 @@
       "{value_0} B": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "{value_0} MiB": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "{value_0} [{value_1}]": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
-      "{value_0} format": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "{value_0} saved screenshot(s)": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "{value_0} screenshot(s) selected": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "{value_0} selected · {value_1} mods": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
@@ -18311,6 +18301,7 @@
       "{value_0}: {value_1} | {value_2}": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "{value_0}: {value_1} | {value_2}{value_3}": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "{value_0}: {value_1} — {value_2}": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
+      "{value_0}: {value_1}, {value_2}": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "{value_0}: {value_1}: {value_2}: {value_3}": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "{value_0}::{value_1}": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "{value_0}:{value_1}": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
@@ -18334,7 +18325,8 @@
       "{value_0}|{value_1}|{value_2}|{value_3}|{value_4}": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "{value_0}°": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "{value_0}…{value_1}": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
-      "{value_2}:": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label."
+      "{value_2}:": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
+      "{value_4}:": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label."
     },
     "ko": {
       "\n\nZIP: {value_0}": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
@@ -19925,7 +19917,6 @@
       "en": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "exact_path": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "fbx": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
-      "file(s) in the shipped build · {value_4} · edited in:": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "fixupSemanticsV2": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "fmt={value_0}": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "glTF / GLB": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
@@ -20019,7 +20010,6 @@
       "{value_0} / {value_1} source vertices use guides": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "{value_0} B": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "{value_0} [{value_1}]": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
-      "{value_0} format": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "{value_0} saved screenshot(s)": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "{value_0} screenshot(s) selected": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "{value_0} selected · {value_1} mods": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
@@ -20038,7 +20028,6 @@
       "{value_0} · {value_1}–{value_2} · +{value_3}": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "{value_0} — {value_1}": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "{value_0} — {value_1} ({value_2})": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
-      "{value_0} — {value_1}, {value_2}": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "{value_0} ← {value_1}": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "{value_0} ← {value_1} · RGB {value_2}": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "{value_0} → {value_1}": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
@@ -20081,6 +20070,7 @@
       "{value_0}: {value_1} | {value_2}": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "{value_0}: {value_1} | {value_2}{value_3}": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "{value_0}: {value_1} — {value_2}": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
+      "{value_0}: {value_1}, {value_2}": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "{value_0}: {value_1}, {value_2}/s, {value_3}-{value_4} s, {value_5}, {value_6}, {value_7}, {value_8}": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "{value_0}: {value_1}.": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "{value_0}: {value_1}: {value_2}: {value_3}": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
@@ -20106,7 +20096,8 @@
       "{value_0}|{value_1}|{value_2}|{value_3}|{value_4}": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "{value_0}°": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "{value_0}…{value_1}": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
-      "{value_2}:": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label."
+      "{value_2}:": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
+      "{value_4}:": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label."
     },
     "zh-Hans": {
       "\n\n{value_0}\nSHA-256: {value_1}": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
@@ -21670,7 +21661,6 @@
       "emissive:emissive": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "exact_path": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "fbx": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
-      "file(s) in the shipped build · {value_4} · edited in:": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "fixupSemanticsV2": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "fmt={value_0}": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "glTF / GLB": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
@@ -21760,7 +21750,6 @@
       "{value_0} / {value_1} source vertices use guides": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "{value_0} B": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "{value_0} [{value_1}]": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
-      "{value_0} format": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "{value_0} saved screenshot(s)": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "{value_0} screenshot(s) selected": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "{value_0} selected · {value_1} mods": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
@@ -21811,6 +21800,7 @@
       "{value_0}: {value_1}\n{value_2}": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "{value_0}: {value_1} | mat {value_2} | tex {value_3}": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "{value_0}: {value_1} — {value_2}": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
+      "{value_0}: {value_1}, {value_2}": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "{value_0}: {value_1}: {value_2}: {value_3}": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "{value_0}::{value_1}": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "{value_0}:{value_1}": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
@@ -21831,7 +21821,8 @@
       "{value_0}|{value_1}|{value_2}|{value_3}|{value_4}": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "{value_0}°": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "{value_0}…{value_1}": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
-      "{value_2}:": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label."
+      "{value_2}:": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
+      "{value_4}:": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label."
     },
     "zh-Hant": {
       "\n\n{value_0}\nSHA-256: {value_1}": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
@@ -23395,7 +23386,6 @@
       "emissive:emissive": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "exact_path": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "examples:\ncharacters/*\nui/**/*.dds": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
-      "file(s) in the shipped build · {value_4} · edited in:": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "fixupSemanticsV2": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "fmt={value_0}": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "glTF / GLB": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
@@ -23488,7 +23478,6 @@
       "{value_0} B": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "{value_0} MiB": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "{value_0} [{value_1}]": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
-      "{value_0} format": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "{value_0} saved screenshot(s)": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "{value_0} screenshot(s) selected": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "{value_0} selected · {value_1} mods": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
@@ -23540,6 +23529,7 @@
       "{value_0}: this texture registry requires recorded texture ownership. Use Merge with the original CDMW export before selecting this folder.": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "{value_0}: {value_1}\n{value_2}": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "{value_0}: {value_1} — {value_2}": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
+      "{value_0}: {value_1}, {value_2}": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "{value_0}: {value_1}: {value_2}: {value_3}": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "{value_0}::{value_1}": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "{value_0}:{value_1}": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
@@ -23560,7 +23550,8 @@
       "{value_0}|{value_1}|{value_2}|{value_3}|{value_4}": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "{value_0}°": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "{value_0}…{value_1}": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
-      "{value_2}:": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label."
+      "{value_2}:": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
+      "{value_4}:": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label."
     }
   }
 }
