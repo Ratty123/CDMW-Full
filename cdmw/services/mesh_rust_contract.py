@@ -25,10 +25,12 @@ RUST_MESH_CONTROL_CONTRACT_FILE = "cdmw_mesh_lab.control-contract.json"
 RUST_MESH_CONTROL_CONTRACT_SCHEMA = "cdmw_rust_mesh_editor_control_contract_v2"
 RUST_HAIR_AUTHORING_CAPABILITY = "hair_authoring_v2"
 RUST_VERTEX_PARAMETERS_CAPABILITY = "vertex_parameters_v1"
+RUST_MESH_DOCUMENT_BINARY_CAPABILITY = "mesh_document_binary_v1"
 RUST_MESH_REQUIRED_CAPABILITIES = (
     "embedded_child_window_v1",
     "rust_preview_runtime_v1",
     RUST_HAIR_AUTHORING_CAPABILITY,
+    RUST_MESH_DOCUMENT_BINARY_CAPABILITY,
 )
 RUST_PREVIEW_REQUIRED_CAPABILITIES = (
     "preview_profile_read_only_v1",
@@ -262,7 +264,7 @@ def validate_rust_mesh_editor_package(
     if not isinstance(capabilities, list) or not set(RUST_MESH_REQUIRED_CAPABILITIES).issubset(
         {str(value or "") for value in capabilities}
     ):
-        return "helper does not support the required embedded Mesh Editor and Hair authoring capabilities"
+        return "helper does not support the required embedded Mesh Editor, Hair authoring, and binary mesh document capabilities"
     preview_capabilities = payload.get("preview_capabilities", ())
     if not isinstance(preview_capabilities, list) or not set(
         RUST_PREVIEW_REQUIRED_CAPABILITIES

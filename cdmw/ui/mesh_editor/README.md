@@ -1413,7 +1413,7 @@ directory. The preparation worker creates that isolated mesh once and the shadow
 adopts it directly; it no longer performs two additional full-mesh clones before the
 helper can start. Protected channels, Geometry Layers, object transform, output state,
 provenance, and the native Morph & Refit runtime remain isolated from the authoritative
-session. The initial channel file references geometry already stored in `document.json`
+session. The initial channel file references geometry already stored in `document.bin`
 instead of writing a second positions/normals/UV/index copy.
 
 Revisioned local gestures and typed asynchronous service commands update only that
@@ -1425,6 +1425,51 @@ stale-generation, replay, and out-of-order checks fail closed.
 Runtime snapshot restore and cleanup support Windows temporary folders redirected
 through directory junctions, including Finish Edit Mesh. Snapshot location, length,
 and checksum validation remain mandatory.
+
+### Authoring geometry transport and derived state
+
+New authoring packages publish geometry as `mesh_document_binary_v1` and require the helper capability with that name. The first document is `document.bin`; acknowledged updates use `state-<revision>-<10 lowercase hex>.bin`. The reader also accepts the existing JSON document contract. Archive Preview retains its explicit JSON/Preview Core paths. An unsupported binary version or incompatible helper is rejected before loading the document.
+
+#### Binary document version 1
+
+The 16-byte little-endian header is `<8sHHI>`: magic `CDMWMSH1`, version `1`, flags `0`, and the UTF-8 metadata length. Metadata is bounded to 16 MiB and uses schema `cdmw_mesh_document_binary_v1`. It retains format, source SHA-256, parser, LODs, part names/materials, source ranges, layouts, warnings, and reported LOD count. Each numeric channel has a descriptor containing `dtype`, `components`, `count`, `offset`, and `byte_length`.
+
+| Channel | Wire scalar | Components |
+| --- | --- | --- |
+| Positions, normals, shader masks | Little-endian float64 | 3 |
+| UV0 | Little-endian float64 | 2 |
+| Triangle indices | Little-endian uint32 | 1 |
+| Current source vertex indices | Little-endian int32 | 1 |
+
+Array order within each part is positions, normals, UV0, triangle indices, source vertex indices, and shader masks. Offsets are relative to the first byte after metadata. Spans must be contiguous and consume the file exactly; size multiplication, offsets, counts, scalar widths, and schema fields are checked before allocating decoded arrays. Existing native geometry validation remains authoritative, including finite float32 values, valid triangle indices, and shader mask bounds. Partial/empty normal and UV arrays and signed source mappings retain the existing native admission rules.
+
+Float64 transport preserves the Python values until the existing Rust float32 rendering boundary. Fractional shader masks and negative source mappings retain their values. Original-relative PAC provenance, skin weights, tangents, and UV1 continue through `channels.json`, whose geometry reference points to the matching document.
+
+The structural fingerprint is versioned with the transport. SHA-256 starts with `cdmw_mesh_document_binary_v1` plus a zero byte and the uint32 LOD count. For each LOD it includes uint32 level and part count; for each part it includes uint64 position/index counts followed by raw position and index bytes. The consumer verifies it before float32 conversion. The outer file reference independently verifies SHA-256 over the entire document, including metadata and every channel.
+
+#### Publication and caching
+
+Documents retain the owned-session path, root identity, exact byte length, SHA-256, and total submesh-count checks. The payload limit remains 512 MiB and the aggregate session limit remains 768 MiB. A complete replacement is installed atomically before obsolete state documents are pruned, preserving the last usable recovery document if preparation, capacity checks, or publication fail.
+
+Each authoring session retains one immutable prepared geometry encoding. Capacity preflight and publication reuse those exact bytes only after the same prepared mesh successfully commits against its captured revision and unchanged channel identities. Cancellation, stale revisions, malformed candidates, and failed admission discard pending bytes. State-only changes can retain the current geometry encoding; unknown service revisions invalidate conservatively. Closing the session releases its derived caches.
+
+Inspector caches track geometry and weight revisions separately. Selection, layer presentation, and active-bone changes refresh their small response fields while reusing verified static skinning summaries and bounded influence rows. Immutable original PAC row/palette checks are keyed to their source and rig identity. Weight, topology, rig, provenance, and policy changes invalidate the affected results. Island discovery also follows position changes, since coincident seam positions affect connectivity; it does not hash entire position/index arrays on every inspector update.
+
+#### Native working meshes and textures
+
+Smooth uses the working mesh's immutable, sorted vertex adjacency. Topology changes rebuild
+that graph; compatible authoritative attribute updates reuse it. The initial authoring
+load constructs the selected LOD's editing graph while retaining all authoritative LOD
+geometry. An uncached LOD is constructed on the bounded loader with shared immutable
+source data. The current scene remains usable until a result with the matching source
+and generation is accepted; cancellation and newer requests discard stale results.
+Parked LODs retain their own history, and an authoritative document replacement invalidates
+inactive graphs when required.
+
+Decoded DDS payloads have shared immutable ownership. Material mappings and role-specific
+interpretation remain separate, while remapping and document refresh avoid copying the same
+CPU texture data. Queued loaders and installed scenes retain only their own live references.
+
 
 ### Theme and input handling
 

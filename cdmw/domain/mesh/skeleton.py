@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import math
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 from .editing import MeshEditSelection
 from .skinning_part_cache import cached_part_summary, part_summary_cache_key, remember_part_summary
@@ -473,6 +473,24 @@ def summarize_mesh_skinning(
         selected_vertex_weights=_selected_vertex_weights(submeshes, selection, selected_bone_index),
         bones=bones,
         parts=parts,
+    )
+
+
+def refresh_mesh_skinning_selection(
+    summary: MeshSkeletonSummary,
+    mesh: object,
+    selection: MeshEditSelection,
+    selected_bone_index: int,
+) -> MeshSkeletonSummary:
+    """Refresh selected rows on a verified unchanged skinning summary."""
+    selected = set(selection.source_indices)
+    return replace(
+        summary,
+        parts=tuple(replace(part, selected=part.index in selected) for part in summary.parts),
+        pose=_pose_summary(summary.bones, summary.pose.enabled, selected_bone_index,
+                           dict(summary.pose.rotations)),
+        selected_vertex_weights=_selected_vertex_weights(
+            tuple(getattr(mesh, "submeshes", ()) or ()), selection, selected_bone_index),
     )
 
 
@@ -991,9 +1009,9 @@ def _selected_vertex_weights(
         if not 0 <= submesh_index < len(submeshes):
             continue
         submesh = submeshes[submesh_index]
-        bone_indices = tuple(getattr(submesh, "bone_indices", ()) or ())
-        bone_weights = tuple(getattr(submesh, "bone_weights", ()) or ())
-        vertex_count = len(tuple(getattr(submesh, "vertices", ()) or ()))
+        bone_indices = getattr(submesh, "bone_indices", ()) or ()
+        bone_weights = getattr(submesh, "bone_weights", ()) or ()
+        vertex_count = len(getattr(submesh, "vertices", ()) or ())
         for vertex_index in sorted(vertex_indices):
             if vertex_index < 0 or vertex_index >= vertex_count:
                 continue

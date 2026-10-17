@@ -21,9 +21,11 @@ from cdmw.services.mesh_rust_contract import (
     RUST_MESH_CONTROL_CONTRACT_FILE,
     RUST_MESH_CONTROL_CONTRACT_SCHEMA,
     RUST_MESH_EDIT_BACKEND,
+    RUST_MESH_DOCUMENT_BINARY_CAPABILITY,
     RUST_MESH_EDITOR_PROTOCOL,
     RUST_MESH_PROVENANCE_FILE,
     RUST_MESH_PROVENANCE_SCHEMA,
+    RUST_MESH_REQUIRED_CAPABILITIES,
     RUST_MESH_RENDERER,
     RUST_PREVIEW_BACKEND,
     RUST_PREVIEW_PACKAGE,
@@ -31,6 +33,7 @@ from cdmw.services.mesh_rust_contract import (
     RUST_PREVIEW_REQUIRED_CAPABILITIES,
     RustMeshExecutableResolution,
     rust_mesh_editor_file_signature,
+    validate_rust_mesh_editor_package,
 )
 from cdmw.ui.mesh_editor.tab import MeshEditorTab
 from cdmw.ui.mesh_editor.tab_rust_editor import (
@@ -107,11 +110,7 @@ def _provenanced_resolution(root: Path, *, payload: bytes = b"rust-helper") -> R
                 "preview_backend": RUST_PREVIEW_BACKEND,
                 "control_contract": RUST_MESH_CONTROL_CONTRACT_FILE,
                 "control_contract_schema": RUST_MESH_CONTROL_CONTRACT_SCHEMA,
-                "capabilities": [
-                    "embedded_child_window_v1",
-                    "rust_preview_runtime_v1",
-                    "hair_authoring_v2",
-                ],
+                "capabilities": list(RUST_MESH_REQUIRED_CAPABILITIES),
                 "preview_capabilities": list(RUST_PREVIEW_REQUIRED_CAPABILITIES),
                 "locked_dependencies": True,
                 "executable_sha256": hashlib.sha256(payload).hexdigest(),
@@ -197,6 +196,19 @@ def test_rust_is_the_only_backend_and_legacy_preference_is_ignored(tmp_path: Pat
     assert tab._selected_mesh_editor_backend() == MESH_EDITOR_BACKEND_RUST
     assert tab.settings.value(MESH_EDITOR_BACKEND_SETTING) == MESH_EDITOR_BACKEND_VORTICE
     _dispose(tab)
+
+
+def test_helper_missing_only_binary_document_capability_is_rejected(tmp_path: Path) -> None:
+    resolution = _provenanced_resolution(tmp_path / "helper")
+    assert validate_rust_mesh_editor_package(resolution) == ""
+    manifest_path = Path(resolution.resolved_path).with_name(RUST_MESH_PROVENANCE_FILE)
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["capabilities"].remove(RUST_MESH_DOCUMENT_BINARY_CAPABILITY)
+    assert set(RUST_MESH_REQUIRED_CAPABILITIES) - set(manifest["capabilities"]) == {
+        RUST_MESH_DOCUMENT_BINARY_CAPABILITY,
+    }
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+    assert "binary mesh document" in validate_rust_mesh_editor_package(resolution)
 
 
 def test_rust_preflight_recomputes_open_state_after_busy_or_unavailable(tmp_path: Path) -> None:

@@ -11,7 +11,7 @@ fn island_controls_survive_host_reload_and_clip_restored_selection() -> TestResu
         0,
     ));
     ui.application.set_island_visibility(0, vec![1], false);
-    let original = ui.application.document.clone().ok_or("document")?;
+    let original = ui.application.document.as_deref().cloned().ok_or("document")?;
     ui.application.cdmw_state["selection"] =
         json!({"source_indices":[], "faces_by_submesh":{"0":[0,1]}});
     ui.application.install_cdmw_document(original.clone())?;
@@ -55,7 +55,7 @@ fn island_controls_survive_host_reload_and_clip_restored_selection() -> TestResu
 
 fn island_ui(size: egui::Vec2) -> Result<HeadlessUi, Box<dyn std::error::Error>> {
     let mut application = triangle_application()?;
-    let document = application.document.as_mut().ok_or("document")?;
+    let document = Arc::make_mut(application.document.as_mut().ok_or("document")?);
     let part = &mut document.lods[0].submeshes[0];
     part.name = "Skull and horns".into();
     let positions = part
@@ -200,7 +200,7 @@ fn island_controls_dispatch_exact_mod_mask_and_preserve_deformation_alignment() 
         snapshot.positions
     );
     // Topology replacement cannot accidentally hide faces with reused ordinals.
-    ui.application.document.as_mut().ok_or("document")?.lods[0].submeshes[0]
+    Arc::make_mut(ui.application.document.as_mut().ok_or("document")?).lods[0].submeshes[0]
         .indices
         .swap(0, 1);
     ui.application.sync_island_visibility();

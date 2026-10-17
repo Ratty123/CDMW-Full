@@ -66,6 +66,7 @@ def audit_references(plan, snapshot, *, stop_event=None):
     from cdmw.services.independent_item_package import virtual_path
     outputs = {request.path.lower(): bytes(request.payload_data) for request in plan.additions}
     pending, visited = dict(outputs), set()
+    reference_closure_complete = True
 
     def require(raw):
         raise_if_cancelled(stop_event)
@@ -127,6 +128,10 @@ def audit_references(plan, snapshot, *, stop_event=None):
             if owned:
                 from cdmw.services.independent_item_physics import audit_physics_copy
                 audit_physics_copy(path, data, outputs, mesh_bindings, snapshot, require, stop_event=stop_event)
+            else:
+                # An unchanged borrowed file is a valid package dependency, but
+                # its unparsed outgoing references cannot narrow launch guards.
+                reference_closure_complete = False
             continue
         if path.endswith('.prefab'):
             from cdmw.core.prefab_binary import decode_prefab_binary
@@ -192,3 +197,10 @@ def audit_references(plan, snapshot, *, stop_event=None):
                     raise IndependentItemError(f'Invalid owned texture {path}: {exc}') from exc
         elif owned:
             raise IndependentItemError(f'Unsupported independent resource format: {path}')
+        else:
+            # Retain accepted borrowed resources without claiming their unknown
+            # formats are terminal. Only parsed closures can omit carrier hashes.
+            reference_closure_complete = False
+
+    if snapshot.provenance is not None:
+        snapshot.provenance.record_reference_closure(reference_closure_complete)

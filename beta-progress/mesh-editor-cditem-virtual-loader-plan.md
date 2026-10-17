@@ -1,14 +1,14 @@
 # Mesh Editor, Create New Item, and Virtual Loader Improvement Plan
 
 - Plan ID: MEL
-- Status: Ready to start; implementation has not started.
+- Status: Required implementation completed on 2026-10-17; conditional research remains deferred.
 - Created: 2026-10-17, Europe/Stockholm.
 - Project: D:\CLAUDETEST\CDMW Full
 - Game reference: C:\games\Steam\steamapps\common\Crimson Desert
 - Plan file: D:\CLAUDETEST\CDMW Full\beta-progress\mesh-editor-cditem-virtual-loader-plan.md
 - Completion log: [progress.md](progress.md)
 - Review baseline: branch RR/independent-item-packages, commit afa050237092d1aa38ad0642ceabdd889da907da.
-- Current scope: create this plan and its completion log. Implementation begins when the user asks to start.
+- Current scope: All 17 required tasks are complete. The five conditional research tasks remain governed by their evidence and scope requirements.
 
 ## Goal
 
@@ -40,12 +40,14 @@ A task is done when its result exists, its acceptance criteria pass, its evidenc
 
 ## Current handoff
 
-- Completed: MEL-DOC-01 only.
-- In progress: None.
-- Next task when implementation is requested: MEL-BASE-01.
-- Known blockers: None established for starting the baseline task.
-- Open decision: The final dependency set must include stock resources referenced only at runtime before any whole-file source guards are removed.
-- Tracking files to update at every implementation handoff: this plan and progress.md.
+- Completed: All 17 required tasks: MEL-DOC-01, MEL-BASE-01, MEL-ME-01 through MEL-ME-06, MEL-NI-01, MEL-PKG-01, MEL-PKG-02, and MEL-VL-01 through MEL-VL-05, plus MEL-DONE-01.
+- Active task: None. Required implementation and closure completed on 2026-10-17.
+- Ownership: MEL source claims are released. The isolated MEL change preserves the pending Morph & Refit, window/DPI and conflict-isolation work, including their shared-file hunks and progress entries.
+- Validation: Binary transport, cache authority, source guards and task-owned diffs reviewed. The required overnight helper release outputs match their source/provenance records. Resume verification passed the production helper validator, binary codec checks (10 tests and 35 subtests), and localization freshness for both the shared tree and isolated staged source.
+- Known limits: The actual four-package profile still requires 234 source files / 151,455,090,976 bytes, including all 192 PAZ carriers, because it includes nine external providers and incomplete recipe reference closures. Narrowed hashing is not enabled for that profile.
+- Conditional follow-ups: MEL-RE-01 through MEL-RE-05 remain unchecked and do not block the required scope. Range guards need complete runtime/provider closure; compression needs cold-read and whole-preparation evidence; format, EyeCover and lifecycle work need their separate evidence gates.
+- Next useful action: Choose another plan for implementation. If more loader performance work is selected, start by proving the unresolved runtime/provider closure before attempting MEL-RE-01.
+- Evidence: [Implementation results](mesh-editor-cditem-virtual-loader-results.md) records matched measurements, focused checks, recovered release hashes and remaining limits. No visible UI, full startup, actual game launch or new save compatibility is claimed.
 
 ## Scope and working rules
 
@@ -108,7 +110,7 @@ Measurement limits:
 
   Completion: 2026-10-17. Created the two tracking documents and recorded the review baseline. Documentation inspection checks the task IDs, checkbox state, relative tracker link, and matching progress entry.
 
-- [ ] **MEL-BASE-01: Reconfirm owners and record focused before measurements.**
+- [x] **MEL-BASE-01: Reconfirm owners and record focused before measurements.**
 
   Work: Check current branch, task-owned changes, owning contracts, and relevant existing tests. Select representative package, mesh, and profile inputs. Record stage durations and bytes for the work about to change, keeping cold and warm runs distinct.
 
@@ -118,11 +120,13 @@ Measurement limits:
 
   Sources: S1-S10 below, according to the task selected.
 
+  Completion: 2026-10-17. Baseline b99e5c267f74e135410b9a627df8abc9a05d920d. Existing retained package/profile identities and synthetic mesh cases remain the matched inputs recorded above. Exact Python owners passed: 116 provenance/package/virtual tests in 25.19 s; 157 authoring tests and 32 subtests in 25.09 s. The initial temporary-path setup error ran no cases and was corrected before this baseline. Rust neighbor timing uses the old edge-scan algorithm beside the new cache on the same geometry, avoiding a second unrelated archive scan.
+
 ## Phase 1: highest-value bounded changes
 
 These tasks can be separate changes. The source-verification implementation must follow its dependency-design task. The mesh and stock-cache work can proceed independently after their baseline checks.
 
-- [ ] **MEL-VL-01: Separate catalogue freshness from required content dependencies.**
+- [x] **MEL-VL-01: Separate catalogue freshness from required content dependencies.**
 
   Work: Give catalogue structure, compilation inputs, and runtime resource references explicit meanings in provenance. Trace how broad file stamps currently become persistent whole-file hashes.
 
@@ -130,7 +134,9 @@ These tasks can be separate changes. The source-verification implementation must
 
   Sources: S1, S2.
 
-- [ ] **MEL-VL-02: Build source guards from the verified required dependency set.**
+  Completion: 2026-10-17. Provenance now distinguishes catalogue-only PAZ presence from content reads and explicit pins. Per-recipe reference audits record closure only after a successful traversal; unparsed borrowed formats/HKX, v2 combinations, external providers and active mounted layers retain all carrier content checks. Parsed PAMT, mount, registry, inventory, provider order and actual/runtime-only payload witnesses remain authoritative. The owning Virtual Loader document records each role and its policy. Seven integration checks and five closure/fork checks passed, including a borrowed runtime DDS in a separate carrier, an unrelated carrier, unparsed references and competing providers. No v1-class-only exclusion remains.
+
+- [x] **MEL-VL-02: Build source guards from the verified required dependency set.**
 
   Depends on: MEL-VL-01.
 
@@ -140,7 +146,9 @@ These tasks can be separate changes. The source-verification implementation must
 
   Sources: S1, S2, S9.
 
-- [ ] **MEL-ME-01: Cache mesh adjacency for Smooth.**
+  Completion: 2026-10-17. Guard construction narrows only when every v1 recipe has a completed parsed/terminal runtime-reference traversal and there are no external providers or active mounted layers. Runtime-only DDS carriers remain content-guarded; verified-unused PAZ files retain native pinned presence/size/time checks, while indexes and metadata remain exact content witnesses. Seven source-role, five closure and nine added native catalogue cases pass, including restored-stamp required-content changes, directory junctions, absent/appeared files and session-long pinning. In a closed synthetic fixture with one 64 MiB unused carrier, content verification fell from 9 files / 67,257,532 bytes to 8 files / 148,668 bytes; five warm hash-stage trials measured 34.445 ms versus 2.461 ms. The installed saved profile has four incomplete recipe closures and nine external providers, so its 234 required files / 151,455,090,976 bytes remain fully guarded. This is not a measured game-launch improvement for that profile.
+
+- [x] **MEL-ME-01: Cache mesh adjacency for Smooth.**
 
   Work: Build stable vertex-neighbor lists when topology changes. Reuse them during brush movement instead of scanning all edges for each affected vertex. Preserve deterministic neighbor handling and scoped normal updates.
 
@@ -148,7 +156,9 @@ These tasks can be separate changes. The source-verification implementation must
 
   Source: S3.
 
-- [ ] **MEL-ME-02: Cache inspector calculations by relevant data revisions.**
+  Completion: 2026-10-17. WorkingMesh stores immutable sorted adjacency rebuilt with topology; Smooth borrows it without per-vertex edge scans, sets or sorting. Cargo filters cached_adjacency, document_refresh and cached_smooth passed five behavior checks covering isolated/disconnected geometry, boundaries, stale handles, topology changes and undo/redo. The focused release benchmark on 10,000 vertices and 29,601 edges measured 124.321 ms edge scanning versus 0.145 ms cached lookup. This is algorithm timing, not visible frame timing. Evidence: tools/rust_mesh_lab/crates/cdmw_mesh/src/lib.rs and cdmw_interaction/src/lib.rs.
+
+- [x] **MEL-ME-02: Cache inspector calculations by relevant data revisions.**
 
   Work: Cache immutable source eligibility by PAC/skeleton identity; current skin validation by weight, topology, palette, and rig state; selected-bone display by the selected bone and relevant weight state. Cache or request expensive inspector sections only when needed.
 
@@ -156,7 +166,9 @@ These tasks can be separate changes. The source-verification implementation must
 
   Source: S4.
 
-- [ ] **MEL-NI-01: Reuse the verified clean stock baseline for independent Build Plan.**
+  Completion: 2026-10-17. Immutable PAC eligibility, weight/rig summaries, selected-bone influence and position-aware islands use relevant revisions. Selection and label changes reuse eligible results; successful commits adopt only their exact prepared candidate and close clears state. Eight new performance/authority checks pass; the 157 existing authoring cases and 32 subtests passed with the first cache implementation. The matched 100,000-vertex inspector stage measured 482.9999 ms before and 3.4201 ms on verified warm reuse. Evidence: tests/test_mesh_rust_authoring_performance.py and the production-function benchmark recorded in the results document.
+
+- [x] **MEL-NI-01: Reuse the verified clean stock baseline for independent Build Plan.**
 
   Work: Reuse immutable stock catalogue and parsed lookup data on repeated independent plans. Give each plan fresh mutable caches, dependency tracking, and cancellation state. Preserve stock-baseline selection rather than reusing the mounted workspace view.
 
@@ -164,9 +176,11 @@ These tasks can be separate changes. The source-verification implementation must
 
   Source: S5.
 
+  Completion: 2026-10-17. Repeated independent planning reuses one verified clean catalogue/table generation with immutable mappings, lazy per-request entry copies and separate trackers/caches. Exact source, index, metadata and authority checks invalidate reuse; mounted pathc rebasing remains per request. Focused stock-cache cases passed, including same-stamp index changes, table changes, custom reader/service identity, cancellation/concurrency isolation and mutable mapping separation. On the installed baseline with 2,052,523 catalogue entries, 6,816 items, 436 stores and 15 languages, three warm trials measured 17,946.925 ms median for the captured original catalogue/table preparation versus 250.371 ms for verified reuse. Exact table and all 34 baseline index hashes matched. This stage excludes overlay-journal rebasing and subsequent item-specific planning; it is not an entire Build Plan or UI duration.
+
 ## Phase 2: package and mesh data reuse
 
-- [ ] **MEL-PKG-01: Remove repeated full package work across inspection and preparation.**
+- [x] **MEL-PKG-01: Remove repeated full package work across inspection and preparation.**
 
   Work: Trace ordinary-package versus semantic-export admission, parent-side texture requirement collection, child resolution, and retained-package checks. Add a bounded verified inspection result or consolidate decoding under one preparation owner.
 
@@ -174,7 +188,9 @@ These tasks can be separate changes. The source-verification implementation must
 
   Source: S6.
 
-- [ ] **MEL-PKG-02: Extend verified blob reuse before repeated decompression where valid.**
+  Completion: 2026-10-17. Ordinary semantic dispatch no longer reads/decompresses the whole artifact. One bounded preparation cache spans admission, resolution, retained-package recovery and final semantic recomposition; the parent conservatively guards the small texture registry without decoding ordinary packages. The new semantic contributor check confirms one admission rather than two, with unchanged recomposition and metadata isolation. Focused cache/stock/child tests passed, including capability and limit refusal. Inspecting the same two retained real packages twice measured 537.287 ms without shared reuse versus 295.471 ms with reuse, with decoded asset bytes reduced from 181,678,002 to 46,099,321. Warm process/filesystem measurement; no launch timing claim.
+
+- [x] **MEL-PKG-02: Extend verified blob reuse before repeated decompression where valid.**
 
   Depends on: MEL-PKG-01.
 
@@ -184,7 +200,9 @@ These tasks can be separate changes. The source-verification implementation must
 
   Source: S6.
 
-- [ ] **MEL-ME-03: Avoid duplicate mesh document construction and JSON encoding.**
+  Completion: 2026-10-17. Matching verified compressed representations now share immutable decoded assets before repeated inflation. Bounded byte/member/artifact budgets and admission-limit keys preserve local-header, CRC, length, path, capability, mutable-source and complete-package checks. The package/provenance/virtual owner run passed 148 cases; added admission-limit/authority and semantic checks also passed. The retained pair measured 272.947 ms without shared reuse versus 235.515 ms with it, decoding 90,839,001 versus 46,099,321 asset bytes and 10 versus 7 members. The avoided 44,739,680 bytes are the three shared DDS resources. Evidence: tests/test_independent_item_read_cache.py and the matched retained-package benchmark.
+
+- [x] **MEL-ME-03: Avoid duplicate mesh document construction and JSON encoding.**
 
   Work: Reuse an exact prepared encoding between capacity checking and publication where they concern the same candidate document. Use revision-aware size information where valid. Preserve existing state-only command handling.
 
@@ -192,7 +210,9 @@ These tasks can be separate changes. The source-verification implementation must
 
   Source: S7.
 
-- [ ] **MEL-ME-04: Add a versioned binary authoring transport when measurement supports it.**
+  Completion: 2026-10-17. Capacity checking and publication reuse the same exact immutable prepared JSON payload. Only a successful matching commit adopts a candidate; stale/cancelled candidates are cleared, source/session/root/revision checks and aggregate limits remain. Eight new authority/performance tests pass, including exact byte comparisons, stale candidates, oversized payloads and cancellation. Three-trial production-function medians were 354.462 to 184.897 ms at 100,000 vertices and 1,109.187 to 554.314 ms at 300,000; same-document lookup was about 0.0039 ms. At 300,000 vertices, the remaining build cost was 302.596 ms including 135.841 ms fingerprint JSON, followed by 252.558 ms final JSON encoding. Those remaining costs activate MEL-ME-04. Synthetic stages exclude disk, helper startup and rendering.
+
+- [x] **MEL-ME-04: Add a versioned binary authoring transport when measurement supports it.**
 
   Depends on: MEL-ME-03 and its remaining-cost measurement.
 
@@ -202,7 +222,9 @@ These tasks can be separate changes. The source-verification implementation must
 
   Sources: S7, S8.
 
-- [ ] **MEL-ME-05: Share immutable CPU texture bytes.**
+  Completion: 2026-10-17. Versioned float64 binary geometry preserves channel identity and source mappings until the existing native float32 boundary, with checked descriptors, structural fingerprints, owned file/hash/count bounds, capability negotiation and revision-authorized publication. The shared Python/Rust precision fixture and focused producer/consumer, legacy, stale/cancel and prepared-commit checks passed. Final review reproduced and fixed deeply nested metadata escaping the controlled document-error contract; tests/test_mesh_rust_document.py now passes 10 tests and 35 subtests. At 300,000 vertices, matched Python preparation measured 545.118 ms JSON versus 106.588 ms binary; native decode/validation measured 30.422 ms versus 6.098 ms. These are component timings, not full startup or visible UI measurements. The required helper-only release build completed overnight; current source fingerprints, artifact hashes and production binary-capability validation pass. Exact commands, hashes and measurement limits are in the results document.
+
+- [x] **MEL-ME-05: Share immutable CPU texture bytes.**
 
   Work: Separate texture ownership/material mappings from immutable DDS data so remapping and document installation do not deep-copy unchanged byte buffers.
 
@@ -210,7 +232,9 @@ These tasks can be separate changes. The source-verification implementation must
 
   Source: S8.
 
-- [ ] **MEL-ME-06: Reuse working meshes and defer inactive LOD graph construction.**
+  Completion: 2026-10-17. LoadedTexture retains immutable DDS data through shared Arc ownership while each material keeps its own mappings and interpretation. Refresh, remapping and queued documents share bytes without extending ownership past their live users. Focused headless texture/LOD/history and source-hydration checks pass. The release texture fixture used a 32 MiB payload and 20 remaps: 63.321 ms with deep copies versus 0.046 ms with shared data, with zero subsequent payload bytes copied. The measure covers CPU remapping, not GPU upload or visible frame latency.
+
+- [x] **MEL-ME-06: Reuse working meshes and defer inactive LOD graph construction.**
 
   Work: Reuse topology and resident graph data for compatible document updates. Build inactive LOD editing graphs when required while retaining complete authoritative mesh data.
 
@@ -218,9 +242,11 @@ These tasks can be separate changes. The source-verification implementation must
 
   Sources: S3, S8.
 
+  Completion: 2026-10-17. Compatible authoritative updates refresh resident attributes while retaining exact topology/provenance graphs; incompatible changes rebuild. Initial authoring builds the selected LOD graph, and uncached LODs use the existing bounded loader with shared immutable source data, generation checks and cancellation. Current geometry remains visible until a matching result is accepted; parked LOD histories remain owned and stale source results cannot install. Focused lazy-LOD, refresh, undo/redo, topology, channel, hair-hydration and immutable-queue checks pass. The final release fixture for four 99,999-vertex LODs measured 58.296 ms for all four graphs versus 13.529 ms for the selected graph, with compatible resident refresh at 0.779 ms. The first uncached LOD request took 0.012 ms; actual bounded-worker completion and headless installation took 33.615 ms with 1 ms polling. Accepted generations, parked previous history and final geometry matched. GPU upload and visible frame latency remain outside this measurement.
+
 ## Phase 3: virtual preparation and launch
 
-- [ ] **MEL-VL-03: Reuse unchanged compiled virtual outputs.**
+- [x] **MEL-VL-03: Reuse unchanged compiled virtual outputs.**
 
   Work: Define a cache lookup from verified inputs available before rebuilding output: compiler/adapter identity, package content, source witnesses, bindings, provider order, processing parameters, runtime ABI, and links. Validate cached output hashes separately.
 
@@ -228,7 +254,9 @@ These tasks can be separate changes. The source-verification implementation must
 
   Sources: S2, S10.
 
-- [ ] **MEL-VL-04: Consolidate avoidable eager snapshot hashing.**
+  Completion: 2026-10-17. The optional bounded build_cache records verified compilation inputs before processing. Whole hits capture and hash exact prior-generation outputs against the existing owned file ledger, check inventory/processed-span bindings and retain fresh source/final guards. Partial reuse requires unchanged transformed resources and skips capture dominated by plain DDS data. Preparation-local receipts reuse only digests of the exact immutable fully admitted package bytes; other data hashes normally. The final cache/receipt/reader/semantic/lifecycle run passed 72 cases, following the earlier 84-case virtual integration run. Three warm matched trials with the retained three DDS resources plus one synthetic compressed record measured unchanged processing/packing/cache verification at 99.210 ms without reuse versus 83.257 ms with it. Record changes measured 101.401 versus 100.113 ms and selection changes 98.886 versus 99.902 ms, with no prior-output capture on those misses. All output bytes matched and source packages remained unchanged. This stage excludes package admission, semantic lowering and fresh source hashing; it is not a full Apply time. Earlier raw-only partial reuse was rejected after measuring a regression.
+
+- [x] **MEL-VL-04: Consolidate avoidable eager snapshot hashing.**
 
   Work: First assess moving prepared-output content checking from Python preflight to the existing pinned native verification before Steam starts. Keep necessary manifest, selection, ownership, and inventory checks.
 
@@ -236,7 +264,9 @@ These tasks can be separate changes. The source-verification implementation must
 
   Source: S9.
 
-- [ ] **MEL-VL-05: Make progress and verification failures useful.**
+  Completion: 2026-10-17. UI preflight checks output presence and selection while deferring prepared-output hashes to the pinned native stage before Steam creation. Full standalone verification and ASI-side content checks remain. The focused preflight test proves output files are not eagerly hashed while every expected output digest remains in the session manifest; missing output still refuses early. Thirteen selected semantic/native cases passed, including corrupt output refusal before launch, required same-size/restored-time content changes, catalogue policy/pins and unknown wire versions. The saved profile has 136,194,852 output bytes whose redundant Python hashing is removed; no end-to-end launch timing is claimed.
+
+- [x] **MEL-VL-05: Make progress and verification failures useful.**
 
   Work: Report preparation stages, checked bytes, total bytes, elapsed time, and the current large file. Identify the first relevant changed source or package in verification errors, with concise recovery guidance.
 
@@ -244,15 +274,19 @@ These tasks can be separate changes. The source-verification implementation must
 
   Sources: S2, S9.
 
+  Completion: 2026-10-17. Python and native verification report checked bytes, total bytes, elapsed time and current files with bounded update frequency. Concurrent readers share cancellation/failure state; error messages name the source or snapshot and recovery action. Focused progress/cancellation checks passed, including byte-weighted totals, monotonic updates, cancellation without success, same-stamp source refusal and native readiness gating. The native test host retained source/catalogue handles throughout its isolated fixture session. Evidence: tests/test_virtual_loader_sources.py, test_virtual_loader_catalogue_native.py and the baseline_guard_progress native cases.
+
 ## Phase 4: validate the implemented work
 
-- [ ] **MEL-DONE-01: Record focused before/after results and close the implemented scope.**
+- [x] **MEL-DONE-01: Record focused before/after results and close the implemented scope.**
 
   Work: Compare equivalent inputs for the tasks implemented above. Inspect task-owned diffs and update the nearest owning documentation where behavior or contracts changed. Follow current project rules for any required changelog entry.
 
   Acceptance: Each completed task has its own proof, a checked checkbox, and a matching progress.md entry. Record remaining costs and limitations without turning synthetic or nonvisual checks into visible or in-game proof. Keep deferred tasks unchecked and list the next useful action in Current handoff. Do not widen tests merely because several source files changed.
 
   Useful user actions to measure when in the authorized scope: open a mesh, select a bone, update Smooth, build an unchanged independent plan, apply an unchanged virtual profile, and reach loader readiness.
+
+  Completion: 2026-10-17. Reviewed the task-owned source and contracts, reconciled the recovered release evidence, fixed the final binary rejection finding, and completed the matched results document, owning feature documentation and grouped Unreleased notes. All 17 required checkboxes have matching shared completion entries. The isolated MEL source and generated metadata preserve other plans' work; staged Python syntax and the production localization generator passed (15,981 staged keys, versus 15,996 in the shared working tree). Existing unchanged focused checks were reused, and the changed codec's focused checks passed. Conditional research remains unchecked with its missing evidence and next actions above. Six inherited extra EOF blank lines are the only whitespace-check findings; they do not change behavior. The local commit contains only the verified MEL scope.
 
 ## Phase 5: conditional format and reverse-engineering work
 

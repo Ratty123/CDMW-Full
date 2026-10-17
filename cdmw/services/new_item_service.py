@@ -15,6 +15,8 @@ import os
 import shutil
 import tempfile
 import threading
+from collections.abc import Mapping as ReadOnlyMapping
+from types import MappingProxyType
 from cdmw.domain.mesh.emission import GlowAnimation
 
 from dataclasses import dataclass, field, replace
@@ -76,6 +78,60 @@ def game_is_running(image_name: str = GAME_EXECUTABLE) -> bool:
     from cdmw.core.chainner import list_process_ids_by_image_name
 
     return bool(list_process_ids_by_image_name(image_name))
+
+
+class _SnapshotEntries(ReadOnlyMapping):
+    """Share a private catalogue and copy mutable entry records only on lookup."""
+
+    def __init__(self, source):
+        self._source = source._source if isinstance(source, _SnapshotEntries) else MappingProxyType(dict(source))
+        self._issued = {}
+
+    def __len__(self):
+        return len(self._source)
+
+    def __iter__(self):
+        return iter(self._source)
+
+    def __contains__(self, key):
+        return key in self._source
+
+    def __getitem__(self, key):
+        if key not in self._issued:
+            self._issued[key] = replace(self._source[key])
+        return self._issued[key]
+
+
+def _snapshot_view(snapshot, *, freeze=False):
+    """Give a request private mutable state and preserve its parsed-source proof."""
+    reader = snapshot.read_entry
+    if snapshot.provenance is not None and getattr(reader, '__self__', None) is snapshot.provenance:
+        reader = snapshot.provenance.reader
+    tracker = snapshot.provenance.fork(reader, include_reads=True) if snapshot.provenance is not None else None
+    changes = dict(read_entry=tracker.read if tracker is not None else reader, provenance=tracker,
+                   _contexts={}, _families={}, _payloads={}, _authoring_indexes={},
+                   entries=_SnapshotEntries(snapshot.entries), _index_maps=None)
+    for name in ('iteminfo', 'stringinfo', 'storeinfo', 'itemgroupinfo', 'multichange'):
+        table = getattr(snapshot, name)
+        if table is not None:
+            changes[name] = replace(table, payload_entry=replace(table.payload_entry),
+                                    header_entry=replace(table.header_entry))
+    changes['pappt_entry'] = replace(snapshot.pappt_entry)
+    changes['paloc_entries'] = MappingProxyType({key: replace(entry) for key, entry in snapshot.paloc_entries.items()})
+    if snapshot.sources is not None:
+        changes['sources'] = replace(snapshot.sources,
+            tables=MappingProxyType({key: tuple(replace(entry) for entry in pair)
+                                     for key, pair in snapshot.sources.tables.items()}),
+            localizations=MappingProxyType({key: replace(entry) for key, entry in snapshot.sources.localizations.items()}),
+            mount_priorities=MappingProxyType(dict(snapshot.sources.mount_priorities)))
+    if freeze:
+        for name in ('rows', 'keys_by_name', 'stringinfo_texts', 'status_names', 'equip_type_names',
+                     'multichange_rows', '_status_ranges', '_socket_users', '_item_names',
+                     '_item_display_names', '_item_localized_names', 'base_payloads', 'base_manifest'):
+            value = getattr(snapshot, name)
+            if value is not None:
+                changes[name] = MappingProxyType(dict(value))
+    return replace(snapshot, **changes)
 
 
 @dataclass(slots=True)
@@ -750,3 +806,4 @@ __all__ = [
     "NewItemService",
     "game_is_running",
 ]
+

@@ -11,7 +11,7 @@ fn hair_draw_shapes_render_and_drag_benchmark() {
     let document: MeshDocument = serde_json::from_value(input["document"].clone()).unwrap();
     let prepared = prepare(state, document, "Empty".into(), Preparation::Empty, &AtomicBool::new(false)).unwrap();
     let mut app = LabApplication::new(None, None);
-    app.document = Some(prepared.document);
+    app.document = Some(Arc::new(prepared.document));
     app.cdmw_state = input["host"].clone();
     app.hydrate_hair(Some(prepared.state));
     app.hair.pending_preset = false;

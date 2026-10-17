@@ -1882,7 +1882,7 @@ fn supplied_motion_packages_preserve_mesh_and_compare_decoded_playback() -> Test
         let jiggle = state["jiggle"]["available"].as_bool() == Some(true);
         let mut application = LabApplication::new(None, None);
         application.mesh = Some(WorkingMesh::from_document(package.document())?);
-        application.document = Some(package.document().clone());
+        application.document = Some(Arc::new(package.document().clone()));
         let mut ui =
             HeadlessUi::new_integrated_cdmw_for_controls(application, egui::vec2(1440.0, 1800.0));
         ui.application.cdmw_bridge = Some(CdmwBridge::for_test(

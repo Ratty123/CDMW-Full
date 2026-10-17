@@ -157,7 +157,7 @@ def package_operations(package):
             for module in package.manifest['modules'] if module['type'] == 'item.fields']
 
 
-def retained_active_packages(root, layers, pending, *, exclude=(), stop_event=None):
+def retained_active_packages(root, layers, pending, *, exclude=(), stop_event=None, package_cache=None):
     """Read exact active providers before allocating any selected package."""
     from cdmw.services.archive_overlay_manager import _target
     from cdmw.services.independent_item_package import read_package
@@ -168,7 +168,8 @@ def retained_active_packages(root, layers, pending, *, exclude=(), stop_event=No
             continue
         raise_if_cancelled(stop_event)
         relative = f'.cdmw/independent-items/{identity}-{layer["independent_digest"]}.cditem'
-        package = read_package(pending[relative] if relative in pending else _target(root, relative), stop_event=stop_event)
+        package = read_package(pending[relative] if relative in pending else _target(root, relative),
+                               stop_event=stop_event, cache=package_cache)
         if package.identity != identity or package.digest != layer['independent_digest']:
             raise IndependentItemError('A retained package provider disagrees with its ownership history.')
         yield package

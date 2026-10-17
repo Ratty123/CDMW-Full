@@ -46,7 +46,8 @@ pub struct LoadedSkeleton {
 pub struct LoadedTexture {
     pub label: String,
     pub metadata: DdsMetadata,
-    pub bytes: Vec<u8>,
+    // Immutable payload shared by the retained session and remapped ownership views.
+    pub bytes: Arc<[u8]>,
     pub role: TextureRole,
     pub requested_reference: String,
     pub parameter_name: Option<String>,
@@ -102,6 +103,11 @@ struct TextureLoadResult {
 
 #[derive(Debug)]
 pub enum LoadEvent {
+    Lod {
+        generation: u64,
+        lod_index: usize,
+        result: Box<Result<WorkingMesh, String>>,
+    },
     Jiggle {
         generation: u64,
         result: Box<Result<crate::cdmw_jiggle::native::Prepared, String>>,
@@ -138,6 +144,12 @@ pub enum LoaderError {
 }
 
 enum LoadRequest {
+    Lod {
+        generation: u64,
+        lod_index: usize,
+        document: Arc<MeshDocument>,
+        cancellation: Arc<CancellationToken>,
+    },
     Jiggle {
         generation: u64,
         request: Box<crate::cdmw_jiggle::native::Request>,
@@ -205,6 +217,17 @@ impl Loader {
             path,
             cancellation,
         })
+    }
+
+    pub fn prepare_lod(&mut self, document: Arc<MeshDocument>, lod_index: usize) -> Result<u64, String> {
+        if lod_index >= document.lods.len() {
+            return Err(format!("LOD {lod_index} is not available for editing"));
+        }
+        // Only an Arc and index cross the queue. No source arrays or graph are
+        // copied on the UI thread; this exact immutable revision stays alive.
+        self.submit(|generation, cancellation| LoadRequest::Lod {
+            generation, lod_index, document, cancellation,
+        }).map_err(|error| error.to_string())
     }
 
     pub fn open_archive(&mut self, root: PathBuf) -> Result<u64, LoaderError> {
@@ -314,6 +337,14 @@ fn worker_loop(
     while let Ok(request) = requests.recv() {
         match request {
             LoadRequest::Shutdown => break,
+            LoadRequest::Lod { generation, lod_index, document, cancellation } => {
+                let result = cancellation.check().map_err(|error| error.to_string())
+                    .and_then(|()| WorkingMesh::from_document_lod(&document, lod_index).map_err(|error| error.to_string()))
+                    .and_then(|mesh| cancellation.check().map(|()| mesh).map_err(|error| error.to_string()));
+                if current_generation.load(Ordering::Acquire) == generation {
+                    let _ = events.send(LoadEvent::Lod { generation, lod_index, result: Box::new(result) });
+                }
+            }
             LoadRequest::Jiggle { generation, request, cancellation } => {
                 let result = crate::cdmw_jiggle::native::prepare(*request, &cancellation);
                 if current_generation.load(Ordering::Acquire) == generation {
@@ -1075,7 +1106,7 @@ fn resolve_archive_texture(
         result.textures.push(LoadedTexture {
             label: target.to_owned(),
             metadata,
-            bytes: decoded.bytes,
+            bytes: decoded.bytes.into(),
             role: reference.role,
             requested_reference: reference.path.clone(),
             parameter_name: Some(reference.parameter_name.clone()),
@@ -1221,7 +1252,7 @@ fn resolve_archive_fallback(
     result.textures.push(LoadedTexture {
         label: target.to_owned(),
         metadata,
-        bytes: decoded.bytes,
+        bytes: decoded.bytes.into(),
         role: TextureRole::BaseColor,
         requested_reference: reference.clone(),
         parameter_name: None,
@@ -1271,7 +1302,7 @@ fn load_direct_dds(
     Some(LoadedTexture {
         label,
         metadata,
-        bytes,
+        bytes: bytes.into(),
         role: reference.role,
         requested_reference: reference.path.clone(),
         parameter_name: (reference.parameter_name != "(decoded mesh reference)")
@@ -2272,6 +2303,32 @@ mod tests {
     use std::sync::atomic::{AtomicU64, Ordering};
 
     static TEMP_ID: AtomicU64 = AtomicU64::new(1);
+
+    #[test]
+    fn queued_lod_shares_exact_document_and_cancels_before_construction() -> Result<(), Box<dyn std::error::Error>> {
+        let document = Arc::new(decode_mesh(&cdmw_formats::synthetic::two_lod_pac(), MeshFormat::Pac)?);
+        let (requests, receiver) = bounded(2);
+        let (_events, events) = bounded(8);
+        let mut loader = Loader {
+            requests,
+            events,
+            current_generation: Arc::new(AtomicU64::new(0)),
+            active_cancellation: None,
+        };
+        let generation = loader.prepare_lod(Arc::clone(&document), 1)?;
+        let LoadRequest::Lod { generation: queued_generation, lod_index, document: queued, cancellation } = receiver.try_recv()? else {
+            panic!("expected a LOD request");
+        };
+        assert_eq!(queued_generation, generation);
+        assert_eq!(lod_index, 1);
+        assert!(Arc::ptr_eq(&document, &queued), "queueing must not copy source arrays");
+        assert!(cancellation.check().is_ok());
+        loader.cancel_generation(generation);
+        assert!(cancellation.check().is_err());
+        assert!(loader.prepare_lod(Arc::clone(&document), 2).is_err());
+        assert!(receiver.try_recv().is_err(), "an invalid LOD must not enqueue work");
+        Ok(())
+    }
 
     struct TempTree(PathBuf);
 

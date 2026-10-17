@@ -1,5 +1,7 @@
 """Bounded .cditem export/import. Rebuild records from typed intent, never byte patches."""
-from dataclasses import replace
+from collections import OrderedDict
+from copy import deepcopy
+from dataclasses import dataclass, replace
 import hashlib
 import io
 import json
@@ -7,6 +9,8 @@ import os
 from pathlib import Path, PurePosixPath
 import re
 import tempfile
+import threading
+from types import MappingProxyType
 import zipfile
 
 from cdmw.domain.cancellation import raise_if_cancelled
@@ -21,6 +25,100 @@ MAX_TOTAL = 1024 * 1024 * 1024
 MAX_FILES = 4096
 _ZIP_CHUNK_BYTES = 1024 * 1024
 _HASH = re.compile(r"[0-9a-f]{64}\Z")
+_MAX_SHARED_COMPRESSED = 64 * 1024 * 1024
+_STOCK_CACHE_LOCK = threading.RLock()
+_stock_snapshot_cache = None
+
+
+@dataclass(frozen=True, slots=True)
+class VerifiedBlobDigests:
+    """Preparation-owned receipts for exact bytes that passed package admission."""
+    _values: object
+
+    def digest(self, raw):
+        row = self._values.get(id(raw))
+        return row[1] if type(raw) is bytes and row is not None and row[0] is raw else None
+
+
+class PackageReadCache:
+    """Bounded verified content owned by one preparation, never a path cache.
+
+    Whole-package hits require its exact artifact digest. Member hits require
+    the exact compressed bytes and decoder metadata of a member whose decoded
+    CRC, size and content digest already passed. Returned mutable metadata and
+    resource mappings belong to each caller; only immutable bytes are shared.
+    """
+
+    def __init__(self, *, max_bytes=MAX_BLOB, max_packages=128):
+        self.max_bytes = max(0, min(int(max_bytes), MAX_TOTAL))
+        self.max_packages = max(0, min(int(max_packages), 128))
+        self._packages = OrderedDict()
+        self._members = OrderedDict()
+        self._package_bytes = self._member_bytes = 0
+        self._lock = threading.RLock()
+
+    def package(self, artifact):
+        with self._lock:
+            key = (artifact, MAX_MANIFEST, MAX_BLOB, MAX_TOTAL, MAX_FILES)
+            row = self._packages.get(key)
+            if row is None:
+                return None
+            self._packages.move_to_end(key)
+            return deepcopy(row[0])
+
+    def remember_package(self, package):
+        size = len(canonical(package_metadata(package))) + sum(map(len, package.blobs.values()))
+        if size > self.max_bytes or not self.max_packages:
+            return
+        with self._lock:
+            key = (package.artifact_digest, MAX_MANIFEST, MAX_BLOB, MAX_TOTAL, MAX_FILES)
+            if key in self._packages:
+                return
+            while self._packages and (self._package_bytes + size > self.max_bytes
+                                      or len(self._packages) >= self.max_packages):
+                _key, (_package, removed) = self._packages.popitem(last=False)
+                self._package_bytes -= removed
+            self._packages[key] = (deepcopy(package), size)
+            self._package_bytes += size
+
+    def member(self, representation):
+        with self._lock:
+            value = self._members.get(representation)
+            if value is not None:
+                self._members.move_to_end(representation)
+            return value
+
+    def remember_members(self, members):
+        with self._lock:
+            for representation, value in members:
+                if len(value) > self.max_bytes or representation in self._members:
+                    continue
+                while self._members and (self._member_bytes + len(value) > self.max_bytes
+                                         or len(self._members) >= MAX_FILES):
+                    _key, removed = self._members.popitem(last=False)
+                    self._member_bytes -= len(removed)
+                self._members[representation] = value
+                self._member_bytes += len(value)
+
+    def verified_blob_digests(self, packages):
+        """Retain only current, immutable objects from fully admitted cache entries.
+
+        Package metadata supplied by a caller is not evidence. The digest comes
+        from our private entry registered after raw SHA, CRC and recipe checks.
+        Strong byte references prevent id reuse; misses still hash normally.
+        """
+        wanted = {}
+        for package in packages:
+            for raw in package.blobs.values():
+                if type(raw) is bytes and len(wanted) < MAX_FILES:
+                    wanted[id(raw)] = raw
+        values = {}
+        with self._lock:
+            for package, _size in self._packages.values():
+                for checksum, raw in package.blobs.items():
+                    if type(raw) is bytes and wanted.get(id(raw)) is raw:
+                        values[id(raw)] = (raw, checksum)
+        return VerifiedBlobDigests(MappingProxyType(values))
 
 
 def digest(data):
@@ -41,14 +139,10 @@ def virtual_path(value):
     return value
 
 
-def stock_snapshot(root, *, service=None, read_entry=None, stop_event=None, on_log=None, overlay_changes=None):
-    """Use the existing shipped-directory boundary, never a mounted custom table."""
-    from cdmw.core.archive_format import discover_pamt_files, parse_archive_pamt_bytes
-    from cdmw.services.new_item_service import NewItemService
+def _stock_paths(root, stop_event):
+    from cdmw.core.archive_format import discover_pamt_files
     from cdmw.services.archive_overlay_install import OVERLAY_DIRECTORY_FIRST
-    root = Path(root).resolve()
-    entries = []
-    indexes = []
+    paths = []
     for path in discover_pamt_files(root):
         raise_if_cancelled(stop_event)
         path = Path(path).resolve()
@@ -59,18 +153,75 @@ def stock_snapshot(root, *, service=None, read_entry=None, stop_event=None, on_l
         # shipped inputs. Only direct, four-digit game groups form the baseline.
         if (path.parent.parent == root and len(folder) == 4
                 and folder.isascii() and folder.isdigit() and int(folder) < OVERLAY_DIRECTORY_FIRST):
-            data = path.read_bytes()
-            entries.extend(parse_archive_pamt_bytes(data, path))
-            indexes.append((path, digest(data)))
-            del data
-    from cdmw.services.new_item_provenance import ArchiveCatalogue
-    catalogue = ArchiveCatalogue(tuple(entries), tuple(indexes))
-    result = (service or NewItemService()).build_snapshot(catalogue, read_entry=read_entry, stop_event=stop_event, on_log=on_log)
-    for path, checksum in indexes:
-        result.provenance.pin_index(path, checksum, stop_event)
+            paths.append(path)
+    return tuple(sorted(paths))
+
+
+def _stock_metadata(root, stop_event):
+    # Mount order selects providers and pathc is parsed beside the archives.
+    # Hash these small metadata inputs, not filesystem timestamps alone.
+    values = []
+    for relative in ('meta/0.papgt', 'meta/0.paver', 'meta/0.pathc'):
+        raise_if_cancelled(stop_event)
+        path = root / relative
+        values.append((relative, digest(path.read_bytes()) if path.is_file() else None))
+    raise_if_cancelled(stop_event)
+    return tuple(values)
+
+
+def _clean_stock_snapshot(root, service, read_entry, stop_event, on_log):
+    from cdmw.core.archive_format import parse_archive_pamt_bytes
     from cdmw.domain.new_item.allocation import DEFAULT_ITEM_KEY_RANGE
+    from cdmw.services.new_item_provenance import ArchiveCatalogue, StaleNewItemSource
+    from cdmw.services.new_item_service import NewItemService, _snapshot_view
+    global _stock_snapshot_cache
+
+    paths = _stock_paths(root, stop_event)
+    metadata = _stock_metadata(root, stop_event)
+    # Normal services parse identical clean inputs. A custom reader or service
+    # is a separate authority. Only one verified stock generation is retained.
+    authority = None if type(service) is NewItemService else service
+    key = (root, id(read_entry), paths, metadata, id(authority))
+    with _STOCK_CACHE_LOCK:
+        cached = _stock_snapshot_cache
+    if cached is not None and cached[0] == key and not cached[1].source_files_changed():
+        try:
+            cached[1].provenance.capture().validate(stop_event)
+        except StaleNewItemSource:
+            pass  # Reparse current sources; never use stale table values.
+        else:
+            if _stock_metadata(root, stop_event) != metadata or _stock_paths(root, stop_event) != paths:
+                raise StaleNewItemSource('The clean game catalogue changed during snapshot validation.')
+            raise_if_cancelled(stop_event)
+            if on_log is not None:
+                on_log('Reusing the verified clean game catalogue and parsed item tables.')
+            return _snapshot_view(cached[1])
+
+    entries, indexes = [], []
+    for path in paths:
+        raise_if_cancelled(stop_event)
+        data = path.read_bytes()
+        entries.extend(parse_archive_pamt_bytes(data, path, stop_event=stop_event))
+        indexes.append((path, digest(data)))
+    catalogue = ArchiveCatalogue(tuple(entries), tuple(indexes))
+    result = service.build_snapshot(catalogue, read_entry=read_entry, stop_event=stop_event, on_log=on_log)
     if any(key in DEFAULT_ITEM_KEY_RANGE for key in result.rows):
-        raise IndependentItemError("The shipped item tables contain custom items. Restore a clean game baseline before using independent packages.")
+        raise IndependentItemError('The shipped item tables contain custom items. Restore a clean game baseline before using independent packages.')
+    result.provenance.capture().validate(stop_event)
+    if _stock_metadata(root, stop_event) != metadata or _stock_paths(root, stop_event) != paths:
+        raise StaleNewItemSource('The clean game catalogue changed while building its snapshot.')
+    retained = _snapshot_view(result, freeze=True)
+    raise_if_cancelled(stop_event)
+    with _STOCK_CACHE_LOCK:
+        _stock_snapshot_cache = (key, retained, authority)
+    return _snapshot_view(retained)
+
+
+def stock_snapshot(root, *, service=None, read_entry=None, stop_event=None, on_log=None, overlay_changes=None):
+    """Reuse only verified clean tables; overlay baseline rebasing is per request."""
+    from cdmw.services.new_item_service import NewItemService
+    root = Path(root).resolve()
+    result = _clean_stock_snapshot(root, service or NewItemService(), read_entry, stop_event, on_log)
     # Authoring uses temporary identities, so its texture registry must have the
     # same baseline as its tables. Installed additions are resolved at install.
     if overlay_changes is None:
@@ -317,8 +468,14 @@ def package_bytes(package, *, stop_event=None):
 def _read_member(archive, member, stop_event):
     # Package members stay bounded by the validated directory above. Chunked
     # decoding adds cooperative cancellation without dropping ZIP CRC checks.
-    result = io.BytesIO()
     expected = (archive.getinfo(member) if isinstance(member, str) else member).file_size
+    raise_if_cancelled(stop_event)
+    with archive.open(member, 'r') as reader:
+        return _read_member_stream(reader, expected, stop_event)
+
+
+def _read_member_stream(reader, expected, stop_event):
+    result = io.BytesIO()
     raise_if_cancelled(stop_event)
     if expected:
         # Reserve once within the validated directory budget. Incremental growth
@@ -326,21 +483,51 @@ def _read_member(archive, member, stop_event):
         result.seek(expected - 1)
         result.write(b'\0')
         result.seek(0)
-    with archive.open(member, 'r') as reader:
-        while True:
-            raise_if_cancelled(stop_event)
-            chunk = reader.read(_ZIP_CHUNK_BYTES)
-            raise_if_cancelled(stop_event)
-            if not chunk:
-                break
-            if result.tell() + len(chunk) > expected:
-                raise IndependentItemError("Item resource failed its checksum or size check.")
-            result.write(chunk)
+    while True:
+        raise_if_cancelled(stop_event)
+        chunk = reader.read(_ZIP_CHUNK_BYTES)
+        raise_if_cancelled(stop_event)
+        if not chunk:
+            break
+        if result.tell() + len(chunk) > expected:
+            raise IndependentItemError("Item resource failed its checksum or size check.")
+        result.write(chunk)
     if result.tell() != expected:
         # A lying central-directory size must never turn unwritten allocation
         # into accepted zero padding. CRC alone need not catch a short member.
         raise IndependentItemError("Item resource failed its checksum or size check.")
     return result.getvalue()
+
+
+def _read_cached_member(archive, info, stop_event, cache, pending):
+    if (info.compress_size > _MAX_SHARED_COMPRESSED or info.file_size > cache.max_bytes
+            or cache.max_bytes == 0):
+        return _read_member(archive, info, stop_event)
+    # ZipFile owns local-header/name/overlap/method validation. Immediately after
+    # open its source is positioned at this member's compressed data. Copy one
+    # bounded representation so the bytes hashed for reuse are also the exact
+    # bytes decoded and CRC-checked, even if an external writer races the read.
+    compressed = io.BytesIO()
+    with archive.open(info, 'r'):
+        remaining = info.compress_size
+        while remaining:
+            raise_if_cancelled(stop_event)
+            chunk = archive.fp.read(min(remaining, _ZIP_CHUNK_BYTES))
+            if not chunk:
+                raise IndependentItemError('Truncated item package resource.')
+            compressed.write(chunk)
+            remaining -= len(chunk)
+    raw = compressed.getvalue()
+    raise_if_cancelled(stop_event)
+    representation = (info.filename, info.compress_type, info.flag_bits, info.compress_size,
+                      info.file_size, info.CRC, digest(raw))
+    value = cache.member(representation)
+    if value is None:
+        with zipfile.ZipExtFile(io.BytesIO(raw), 'r', info, close_fileobj=True) as reader:
+            value = _read_member_stream(reader, info.file_size, stop_event)
+        pending.append((representation, value))
+    raise_if_cancelled(stop_event)
+    return value
 
 
 def _artifact_hash(source, stop_event):
@@ -359,19 +546,27 @@ def _artifact_hash(source, stop_event):
     return fingerprint.hexdigest()
 
 
-def read_package(source, *, stop_event=None):
+def read_package(source, *, stop_event=None, cache=None):
     try:
         if isinstance(source, (str, Path)):
             if Path(source).stat().st_size > MAX_TOTAL + MAX_MANIFEST:
                 raise IndependentItemError("Item package exceeds the supported size.")
             with Path(source).open('rb') as stream:
-                return read_package(stream, stop_event=stop_event)
+                return read_package(stream, stop_event=stop_event, cache=cache)
         immutable = isinstance(source, bytes)
         if immutable:
             if len(source) > MAX_TOTAL + MAX_MANIFEST:
                 raise IndependentItemError("Item package exceeds the supported size.")
             source = io.BytesIO(source)
         artifact = _artifact_hash(source, stop_event)
+        if cache is not None:
+            cached = cache.package(artifact)
+            if cached is not None:
+                if not immutable and _artifact_hash(source, stop_event) != artifact:
+                    raise IndependentItemError('The package changed while it was being read.')
+                raise_if_cancelled(stop_event)
+                return cached
+        pending_members = []
         with zipfile.ZipFile(source) as archive:
             infos = archive.infolist()
             names = [i.filename for i in infos]
@@ -399,10 +594,15 @@ def read_package(source, *, stop_event=None):
             for info in infos:
                 raise_if_cancelled(stop_event)
                 if info.filename != "item.json":
-                    blobs[info.filename[7:]] = _read_member(archive, info, stop_event)
+                    blobs[info.filename[7:]] = (_read_member(archive, info, stop_event) if cache is None
+                        else _read_cached_member(archive, info, stop_event, cache, pending_members))
         if not immutable and _artifact_hash(source, stop_event) != artifact:
             raise IndependentItemError('The package changed while it was being read.')
         result = replace(_package(meta, blobs, stop_event=stop_event), artifact_digest=artifact)
+        raise_if_cancelled(stop_event)
+        if cache is not None:
+            cache.remember_members(pending_members)
+            cache.remember_package(result)
         raise_if_cancelled(stop_event)
         return result
     except (zipfile.BadZipFile, KeyError, TypeError, ValueError, UnicodeError, RecursionError) as exc:

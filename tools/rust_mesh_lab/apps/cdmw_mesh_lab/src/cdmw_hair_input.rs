@@ -958,7 +958,7 @@ impl LabApplication {
                     .hair
                     .preview
                     .as_ref()
-                    .or(self.document.as_ref())
+                    .or(self.document.as_deref())
                     .ok_or("Loading hair")?;
                 let part = &doc.lods[0].submeshes[lock.part as usize];
                 let tip = lock

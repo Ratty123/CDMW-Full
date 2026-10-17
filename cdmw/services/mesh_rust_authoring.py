@@ -94,6 +94,13 @@ from cdmw.services.mesh_rust_contract import (
     resolve_rust_mesh_editor,
     rust_mesh_editor_candidate_paths,
 )
+from cdmw.services.mesh_rust_state_cache import (
+    PreparedMeshDocument, RustMeshStateCache, source_skin_identity,
+)
+from cdmw.services.mesh_rust_document import (
+    BINARY_MESH_DOCUMENT_TYPE, BinaryMeshDocumentError, BinaryMeshDocumentSizeError,
+    decode_mesh_document, encode_mesh_document,
+)
 from cdmw.services.mesh_service import (
     MeshService,
     _dispose_history_snapshot,
@@ -109,7 +116,7 @@ from cdmw.services.mesh_service_morph import mesh_morph_profile_lock
 from cdmw.services.mesh_service_selection import _prune_selection_to_mesh
 
 _CANDIDATE_FILE_RE = re.compile(r"candidate-[0-9]+-[A-Za-z0-9_-]+\.json\Z")
-_STATE_FILE_RE = re.compile(r"state-[0-9]+-[0-9a-f]{10}\.json\Z")
+_STATE_FILE_RE = re.compile(r"state-[0-9]+-[0-9a-f]{10}\.(?:json|bin)\Z")
 _MATERIAL_STATE_FILE_RE = re.compile(r"material-state-(?:base|[0-9a-f]{32})\.json\Z")
 _TEXTURE_FILE_RE = re.compile(r"texture-[0-9]{4}-[0-9a-f]{12}\.dds\Z")
 _PREVIEW_GEOMETRY_FILE_RE = re.compile(
@@ -1699,7 +1706,13 @@ def _with_protocol_lock(method):
     @wraps(method)
     def wrapped(self, *args, **kwargs):
         with self._protocol_lock:
-            return method(self, *args, **kwargs)
+            try:
+                return method(self, *args, **kwargs)
+            except BaseException:
+                # An abandoned candidate must never become a later response's
+                # prepared document. Published recovery files stay untouched.
+                self.state_cache.discard_pending_document()
+                raise
 
     return wrapped
 
@@ -1740,6 +1753,7 @@ def _validate_owned_session_tree(
     allowed_files = {
         "manifest.json",
         "document.json",
+        "document.bin",
         "channels.json",
         "shadow-mesh-layers.json",
         "hair-state.json",
@@ -1878,9 +1892,13 @@ def _atomic_write_payload(
     element_count: int | None = None,
     expected_root_identity: tuple[int, int] | None = None,
 ) -> dict[str, object]:
-    if Path(name).name != name or not name.lower().endswith(".json"):
-        raise ValueError("Mesh payload names must be simple JSON filenames")
-    data = _canonical_json_bytes(payload)
+    binary = isinstance(payload, PreparedMeshDocument)
+    valid_binary_name = name == "document.bin" or (_STATE_FILE_RE.fullmatch(name) is not None and name.endswith(".bin"))
+    if Path(name).name != name or (not valid_binary_name if binary else not name.lower().endswith(".json")):
+        raise ValueError("Mesh payload name does not match its owned encoding")
+    if binary and data_type not in {"json", BINARY_MESH_DOCUMENT_TYPE}:
+        raise ValueError("Mesh binary payload type does not match its encoding")
+    data = payload.data if binary else _canonical_json_bytes(payload)
     if len(data) > RUST_MESH_MAX_PAYLOAD_BYTES:
         raise RustMeshProtocolError("Mesh payload exceeds the 512 MiB session limit")
     entry_count, total_bytes = _projected_state_payload_usage(
@@ -1903,11 +1921,11 @@ def _atomic_write_payload(
             temporary.unlink()
     return {
         "path": name,
-        "data_type": str(data_type or "json"),
+        "data_type": BINARY_MESH_DOCUMENT_TYPE if binary else str(data_type or "json"),
         "count": max(0, int(element_count if element_count is not None else 1)),
         "byte_length": len(data),
         "sha256": _sha256_bytes(data),
-        "content_type": "application/json",
+        "content_type": "application/octet-stream" if binary else "application/json",
     }
 
 
@@ -1921,7 +1939,10 @@ def _atomic_write_state_payload(
 ) -> dict[str, object]:
     if _STATE_FILE_RE.fullmatch(name) is None:
         raise ValueError("Mesh state payload name is invalid")
-    data = _canonical_json_bytes(payload)
+    binary = isinstance(payload, PreparedMeshDocument)
+    if name.endswith(".bin") != binary:
+        raise ValueError("Mesh state payload name does not match its encoding")
+    data = payload.data if binary else _canonical_json_bytes(payload)
     if len(data) > RUST_MESH_MAX_PAYLOAD_BYTES:
         raise RustMeshProtocolError("Mesh payload exceeds the 512 MiB session limit")
     entry_count, total_bytes = _projected_state_payload_usage(
@@ -1950,11 +1971,11 @@ def _atomic_write_state_payload(
     )
     return {
         "path": name,
-        "data_type": "mesh_document_json",
+        "data_type": BINARY_MESH_DOCUMENT_TYPE if binary else "mesh_document_json",
         "count": max(0, int(element_count)),
         "byte_length": len(data),
         "sha256": _sha256_bytes(data),
-        "content_type": "application/json",
+        "content_type": "application/octet-stream" if binary else "application/json",
     }
 
 
@@ -1977,14 +1998,20 @@ def read_owned_payload_reference(
         raise RustMeshProtocolError("Mesh session root changed while opening a payload")
     relative_text = str(reference.get("path", "") or "").strip()
     relative = Path(relative_text)
+    data_type = str(reference.get("data_type", "") or "").strip()
+    binary = data_type == BINARY_MESH_DOCUMENT_TYPE
+    valid_binary_name = relative_text == "document.bin" or (
+        _STATE_FILE_RE.fullmatch(relative_text) is not None and relative_text.endswith(".bin"))
     if (
         not relative_text
         or relative.is_absolute()
         or len(relative.parts) != 1
         or relative.name != relative_text
-        or relative.suffix.lower() != ".json"
+        or (not valid_binary_name if binary else relative.suffix.lower() != ".json")
     ):
-        raise RustMeshProtocolError("Mesh payload path must be one owned JSON filename")
+        raise RustMeshProtocolError(
+            "Mesh payload path must be one owned filename matching its encoding" if binary
+            else "Mesh payload path must be one owned JSON filename")
     if candidate_only and _CANDIDATE_FILE_RE.fullmatch(relative.name) is None:
         raise RustMeshProtocolError("Mesh candidate filename is not session-owned")
     candidate = (owned_root / relative).resolve(strict=True)
@@ -2000,7 +2027,6 @@ def read_owned_payload_reference(
         raise RustMeshProtocolError("Mesh payload byte length does not match")
     if candidate_stat.st_size > RUST_MESH_MAX_PAYLOAD_BYTES:
         raise RustMeshProtocolError("Mesh payload exceeds the 512 MiB session limit")
-    data_type = str(reference.get("data_type", "") or "").strip()
     content_type = str(reference.get("content_type", "") or "").strip().lower()
     try:
         declared_count = int(reference.get("count", -1))
@@ -2008,8 +2034,9 @@ def read_owned_payload_reference(
         raise RustMeshProtocolError("Mesh payload element count is invalid") from exc
     if not data_type or declared_count < 0:
         raise RustMeshProtocolError("Mesh payload type or element count is missing")
-    if content_type != "application/json":
-        raise RustMeshProtocolError("Mesh payload content type must be application/json")
+    expected_content_type = "application/octet-stream" if binary else "application/json"
+    if content_type != expected_content_type:
+        raise RustMeshProtocolError(f"Mesh payload content type must be {expected_content_type}")
     if candidate_only and data_type != "mesh_candidate_json":
         raise RustMeshProtocolError("Mesh candidate data type does not match")
     with candidate.open("rb") as stream:
@@ -2035,6 +2062,11 @@ def read_owned_payload_reference(
     declared_hash = str(reference.get("sha256", "") or "").strip().upper()
     if len(declared_hash) != 64 or declared_hash != _sha256_bytes(data):
         raise RustMeshProtocolError("Mesh payload SHA-256 does not match")
+    if binary:
+        try:
+            return decode_mesh_document(data, expected_count=declared_count, max_payload_bytes=RUST_MESH_MAX_PAYLOAD_BYTES)
+        except BinaryMeshDocumentError as exc:
+            raise RustMeshProtocolError(str(exc)) from exc
     try:
         payload = json.loads(data.decode("utf-8"))
     except (UnicodeDecodeError, ValueError) as exc:
@@ -2137,21 +2169,19 @@ def _submesh_indices(submesh: object) -> list[int]:
     return [int(index) for face in tuple(getattr(submesh, "faces", ()) or ()) for index in face]
 
 
-def _mesh_document_payload(
+def _mesh_document_arrays(
     mesh: ParsedMesh,
     *,
     allow_preview_formats: bool = False,
 ) -> dict[str, object]:
     lod_payloads: list[dict[str, object]] = []
-    fingerprint = hashlib.sha256()
     for lod_index, submeshes in enumerate(_mesh_lods(mesh)):
         encoded_submeshes: list[dict[str, object]] = []
         for submesh_index, submesh in enumerate(submeshes):
-            positions = [list(map(float, row)) for row in tuple(getattr(submesh, "vertices", ()) or ())]
-            normals = [list(map(float, row)) for row in tuple(getattr(submesh, "normals", ()) or ())]
-            uvs = [list(map(float, row)) for row in tuple(getattr(submesh, "uvs", ()) or ())]
+            positions = getattr(submesh, "vertices", ()) or ()
+            normals = getattr(submesh, "normals", ()) or ()
+            uvs = getattr(submesh, "uvs", ()) or ()
             indices = _submesh_indices(submesh)
-            fingerprint.update(_canonical_json_bytes((positions, indices)))
             encoded_submeshes.append(
                 {
                     "name": str(getattr(submesh, "name", "") or f"Part {submesh_index + 1}"),
@@ -2162,8 +2192,8 @@ def _mesh_document_payload(
                     "indices": indices,
                     # In the managed session this is the current local vertex index.
                     # Original-relative provenance remains authoritative in CDMW.
-                    "source_vertex_indices": list(range(len(positions))),
-                    "shader_masks": (list(getattr(submesh, "shader_masks", ()))
+                    "source_vertex_indices": range(len(positions)),
+                    "shader_masks": (getattr(submesh, "shader_masks", ())
                                      if len(getattr(submesh, "shader_masks", ())) == len(positions) else []),
                     "source_range": {"offset": 0, "length": 0},
                     "vertex_stride": int(getattr(submesh, "source_vertex_stride", 0) or 0),
@@ -2187,15 +2217,30 @@ def _mesh_document_payload(
         "lod_count_reported": len(lod_payloads),
         "lods": lod_payloads,
         "warnings": [],
-        "structural_fingerprint": fingerprint.hexdigest().upper(),
+        "structural_fingerprint": "",
     }
 
 
-def _mesh_channel_payload(mesh: ParsedMesh) -> dict[str, object]:
-    """Encode channels that are not already authoritative in document.json.
+def _mesh_document_payload(mesh: ParsedMesh, *, allow_preview_formats: bool = False) -> dict[str, object]:
+    """Retain the legacy JSON document contract for preview and older readers."""
+    document = _mesh_document_arrays(mesh, allow_preview_formats=allow_preview_formats)
+    fingerprint = hashlib.sha256()
+    for lod in document["lods"]:
+        for part in lod["submeshes"]:
+            for name in ("positions", "normals", "uvs"):
+                part[name] = [list(map(float, row)) for row in part[name]]
+            part["source_vertex_indices"] = list(part["source_vertex_indices"])
+            part["shader_masks"] = list(part["shader_masks"])
+            fingerprint.update(_canonical_json_bytes((part["positions"], part["indices"])))
+    document["structural_fingerprint"] = fingerprint.hexdigest().upper()
+    return document
+
+
+def _mesh_channel_payload(mesh: ParsedMesh, *, geometry_path: str = "document.json") -> dict[str, object]:
+    """Encode channels that are not already authoritative in the geometry document.
 
     Positions, normals, UV0, and triangle indices used to be emitted a second
-    time here even though the Rust renderer loads them from ``document.json``.
+    time here even though the Rust renderer loads them from the geometry document.
     Keep the PAC-only authoring/provenance channels and point explicitly at the
     matching document row instead, which materially shortens every launch.
     """
@@ -2242,7 +2287,7 @@ def _mesh_channel_payload(mesh: ParsedMesh) -> dict[str, object]:
     return {
         "schema": RUST_MESH_AUTHORING_PACKAGE,
         "geometry_source": {
-            "path": "document.json",
+            "path": geometry_path,
             "channels": ["positions", "normals", "uv0", "indices"],
         },
         "lods": lods,
@@ -6310,8 +6355,10 @@ class _RustSkinWeightCapability:
         }
 
 
-def _rust_skin_weight_capability(session: object) -> _RustSkinWeightCapability:
-    """Return the exact writer capability, derived only from immutable inputs."""
+def _rust_skin_weight_capability(
+    session: object, *, cache: RustMeshStateCache | None = None,
+) -> _RustSkinWeightCapability:
+    """Return the exact writer capability from source layout and current rows."""
 
     if str(getattr(session, "mesh_format", "") or "").strip().lower() != "pac":
         return _RustSkinWeightCapability(False, "Skin-weight editing is currently proven only for PAC LOD 0.")
@@ -6332,7 +6379,15 @@ def _rust_skin_weight_capability(session: object) -> _RustSkinWeightCapability:
             False,
             reason or "No matching PAB skeleton was attached automatically. Open this PAC from Archive Browser with its skeleton dependencies available.",
         )
-    palette = tuple(resolve_pac_bone_palette(original_data, skeleton))
+    source_key = source_skin_identity(session) if cache is not None else ()
+    cached_palette = cache.source_palette if cache is not None else None
+    if cached_palette is not None and cached_palette[0] == source_key:
+        palette = cached_palette[1]
+    else:
+        palette = tuple(resolve_pac_bone_palette(original_data, skeleton))
+        if cache is not None:
+            cache.source_palette = source_key, palette
+            cache.source_rows.clear()
     if not palette:
         return _RustSkinWeightCapability(
             False,
@@ -6374,7 +6429,11 @@ def _rust_skin_weight_capability(session: object) -> _RustSkinWeightCapability:
     eligible = tuple(
         index
         for index, (original, current) in enumerate(zip(base_submeshes, working_submeshes))
-        if _safe_pac_skin_weight_submesh(original, current, original_data, len(palette))
+        if _safe_pac_skin_weight_submesh(
+            original, current, original_data, len(palette),
+            source_rows_cache=cache.source_rows if cache is not None else None,
+            source_key=source_key,
+        )
     )
     if not eligible:
         return _RustSkinWeightCapability(
@@ -6397,6 +6456,9 @@ def _safe_pac_skin_weight_submesh(
     current: object,
     original_data: bytes,
     palette_size: int,
+    *,
+    source_rows_cache: dict[int, tuple] | None = None,
+    source_key: tuple = (),
 ) -> bool:
     original_vertices = tuple(getattr(original, "vertices", ()) or ())
     vertices = tuple(getattr(current, "vertices", ()) or ())
@@ -6430,7 +6492,15 @@ def _safe_pac_skin_weight_submesh(
             return False
     except (TypeError, ValueError, OverflowError):
         return False
-    return _safe_pac_skin_rows(original, len(vertices), palette_size, original_data) and _safe_pac_skin_rows(
+    row_key = source_key, palette_size, len(vertices)
+    cached_rows = source_rows_cache.get(id(original)) if source_rows_cache is not None else None
+    if cached_rows is not None and cached_rows[0] == row_key:
+        original_rows_safe = cached_rows[1]
+    else:
+        original_rows_safe = _safe_pac_skin_rows(original, len(vertices), palette_size, original_data)
+        if source_rows_cache is not None:
+            source_rows_cache[id(original)] = row_key, original_rows_safe
+    return original_rows_safe and _safe_pac_skin_rows(
         current,
         len(vertices),
         palette_size,
@@ -7265,6 +7335,7 @@ class RustMeshAuthoringSession:
     replacement_comparison: str = "edit"
     mesh_island_cache: dict = field(default_factory=dict, repr=False)
     mesh_island_focus: tuple[int, ...] = ()
+    state_cache: RustMeshStateCache = field(default_factory=RustMeshStateCache, repr=False)
     closed: bool = False
     _cancel_event: threading.Event = field(default_factory=threading.Event, repr=False)
     _lifecycle_lock: threading.Lock = field(default_factory=threading.Lock, repr=False)
@@ -7495,10 +7566,26 @@ class RustMeshAuthoringSession:
             reason or f"Edit Mesh cannot {operation} under the current output policy."
         )
 
+    def _prepared_mesh_document(self, mesh: ParsedMesh) -> PreparedMeshDocument:
+        session = self.shadow_service._session(self.shadow_session_id)
+        cached = self.state_cache.document_payload(session, mesh)
+        if cached is not None:
+            return cached
+        try:
+            prepared = PreparedMeshDocument(encode_mesh_document(
+                _mesh_document_arrays(mesh), max_payload_bytes=RUST_MESH_MAX_PAYLOAD_BYTES))
+        except BinaryMeshDocumentError as exc:
+            self.state_cache.discard_pending_document()
+            raise RustMeshProtocolError(str(exc)) from exc
+        if len(prepared.data) <= RUST_MESH_MAX_PAYLOAD_BYTES:
+            self.state_cache.remember_document(session, mesh, prepared)
+        return prepared
+
     @_with_pinned_session_root
     def _write_mesh_document(self, name: str) -> dict[str, object]:
         # Session preparation owns this shadow exclusively until the manifest
         # is complete, so another full geometry clone only delays first paint.
+        name = str(Path(name).with_suffix(".bin"))
         mesh = self.shadow_service.working_mesh(self.shadow_session_id, clone=False)
         if self.replacement_comparison == "output":
             snapshot = self.shadow_service.capture_export_snapshot(self.shadow_session_id)
@@ -7515,7 +7602,7 @@ class RustMeshAuthoringSession:
             reference = _atomic_write_state_payload(
                 self.root,
                 name,
-                _mesh_document_payload(mesh),
+                self._prepared_mesh_document(mesh),
                 element_count=sum(len(level) for level in _mesh_lods(mesh)),
                 expected_root_identity=self.root_identity,
             )
@@ -7527,7 +7614,9 @@ class RustMeshAuthoringSession:
         reference = _atomic_write_payload(
             self.root,
             name,
-            _mesh_document_payload(mesh),
+            self._prepared_mesh_document(mesh),
+            data_type=BINARY_MESH_DOCUMENT_TYPE,
+            element_count=sum(len(level) for level in _mesh_lods(mesh)),
             expected_root_identity=self.root_identity,
         )
         self.max_state_document_bytes = max(
@@ -7542,12 +7631,19 @@ class RustMeshAuthoringSession:
         *,
         expansion_factor: int = 1,
     ) -> int:
-        data_length = len(_canonical_json_bytes(_mesh_document_payload(mesh)))
+        try:
+            data_length = len(self._prepared_mesh_document(mesh).data)
+        except RustMeshProtocolError as exc:
+            if isinstance(exc.__cause__, BinaryMeshDocumentSizeError):
+                raise RustMeshProtocolError(
+                    "Mesh command would exceed the 512 MiB state payload limit") from exc
+            raise
         projected_length = max(
             self.max_state_document_bytes,
             data_length * max(1, int(expansion_factor)),
         )
         if projected_length > RUST_MESH_MAX_PAYLOAD_BYTES:
+            self.state_cache.discard_pending_document()
             raise RustMeshProtocolError(
                 "Mesh command would exceed the 512 MiB state payload limit"
             )
@@ -7557,8 +7653,10 @@ class RustMeshAuthoringSession:
             expected_root_identity=self.root_identity,
         )
         if entry_count > _SESSION_MAX_ENTRIES:
+            self.state_cache.discard_pending_document()
             raise RustMeshProtocolError("Mesh session contains too many owned entries")
         if total_bytes > _SESSION_MAX_TOTAL_BYTES:
+            self.state_cache.discard_pending_document()
             raise RustMeshProtocolError(
                 "Mesh command would exceed the 768 MiB aggregate limit"
             )
@@ -7788,7 +7886,7 @@ class RustMeshAuthoringSession:
         )
         session = self.shadow_service._session(self.shadow_session_id)
         with session.export_lock:
-            capability = _rust_skin_weight_capability(session)
+            capability = _rust_skin_weight_capability(session, cache=self.state_cache)
             if not capability.enabled:
                 raise RustMeshValidationError(capability.reason)
             selected_submeshes = set(selection.vertex_map()) | set(
@@ -7961,9 +8059,9 @@ class RustMeshAuthoringSession:
         mesh = self.shadow_service.working_mesh(self.shadow_session_id, clone=False)
         document = _atomic_write_payload(
             self.root,
-            "document.json",
-            _mesh_document_payload(mesh),
-            data_type="mesh_document_json",
+            "document.bin",
+            self._prepared_mesh_document(mesh),
+            data_type=BINARY_MESH_DOCUMENT_TYPE,
             element_count=sum(len(level) for level in _mesh_lods(mesh)),
             expected_root_identity=self.root_identity,
         )
@@ -7974,7 +8072,7 @@ class RustMeshAuthoringSession:
         channels = _atomic_write_payload(
             self.root,
             "channels.json",
-            _mesh_channel_payload(mesh),
+            _mesh_channel_payload(mesh, geometry_path=document["path"]),
             data_type="mesh_channels_compact_json",
             element_count=sum(
                 len(tuple(getattr(submesh, "vertices", ()) or ()))
@@ -8150,6 +8248,17 @@ class RustMeshAuthoringSession:
             "Morph profiles changed outside an acknowledged CDMW command."
         )
 
+    def _weight_edit_capability(self, session: object) -> _RustSkinWeightCapability:
+        self.state_cache.observe(session)
+        key = (self.state_cache.weight_revision, source_skin_identity(session),
+               session.output_policy, session.lod_index)
+        cached = self.state_cache.capability
+        if cached is None or cached[0] != key:
+            capability = _rust_skin_weight_capability(session, cache=self.state_cache)
+            self.state_cache.capability = key, capability
+            return capability
+        return cached[1]
+
     @_with_protocol_lock
     @_with_pinned_session_root
     def state_payload(self, *, include_document: bool = True) -> dict[str, object]:
@@ -8157,7 +8266,7 @@ class RustMeshAuthoringSession:
         view = self.shadow_service.session_view(self.shadow_session_id)
         shadow_session = self.shadow_service._session(self.shadow_session_id)
         with shadow_session.export_lock:
-            weight_edit_capability = _rust_skin_weight_capability(shadow_session)
+            weight_edit_capability = self._weight_edit_capability(shadow_session)
         try:
             morph_state: object = self.shadow_service.cached_morph_state_from_runtime(
                 self.shadow_session_id
@@ -8240,7 +8349,7 @@ class RustMeshAuthoringSession:
             state["authoring_enabled"] = False
         if include_document:
             state["document"] = self._write_mesh_document(
-                f"state-{view.revision}-{uuid4().hex[:10]}.json"
+                f"state-{view.revision}-{uuid4().hex[:10]}.bin"
             )
         material_key = getattr(shadow_session.archive_refit_context, "context_id", "base")
         if shadow_session.replacement_state is not None:
@@ -8251,9 +8360,12 @@ class RustMeshAuthoringSession:
         if material_key in self.archive_refit_material_references:
             state["archive_refit_materials"] = {"key": material_key, "file": self.archive_refit_material_references[material_key]}
         try:
-            skeleton_summary = self.shadow_service.skeleton_summary(
-                self.shadow_session_id
-            )
+            from cdmw.services.mesh_rust_rig import cached_skeleton_summary, cached_selected_bone_influence
+            with shadow_session.export_lock:
+                skeleton_summary = cached_skeleton_summary(
+                    shadow_session, self.state_cache,
+                    lambda: self.shadow_service.skeleton_summary(self.shadow_session_id),
+                )
             pose = getattr(skeleton_summary, "pose", None)
             selected_bone_index = int(
                 getattr(pose, "selected_bone_index", -1)
@@ -8279,11 +8391,9 @@ class RustMeshAuthoringSession:
                     bone["position"] = list(self.neutral_appearance.bone_position(
                         bone["index"], bone["position"],
                     ))
-            from cdmw.services.mesh_rust_rig import selected_bone_influence
-
             with shadow_session.export_lock:
-                state["rig_influence"] = selected_bone_influence(
-                    shadow_session, selected_bone_index, weight_edit_capability.palette
+                state["rig_influence"] = cached_selected_bone_influence(
+                    shadow_session, selected_bone_index, weight_edit_capability.palette, self.state_cache,
                 )
         except (KeyError, RuntimeError, TypeError, ValueError) as exc:
             state["skeleton"] = {
@@ -8333,6 +8443,7 @@ class RustMeshAuthoringSession:
         *,
         before_revision: int,
         before_signature: tuple[object, ...],
+        mesh_change: str = "all",
     ) -> int:
         session = self.shadow_service._session(self.shadow_session_id)
         with session.export_lock:
@@ -8342,6 +8453,7 @@ class RustMeshAuthoringSession:
                 and after_signature != before_signature
             ):
                 session.revision += 1
+            self.state_cache.transition(session, before_revision=before_revision, change=mesh_change)
             return int(session.revision)
 
     def _apply_candidate_geometry(self, candidate, raw_submeshes, operations, active_lod_index):
@@ -8404,6 +8516,7 @@ class RustMeshAuthoringSession:
         self._require_acknowledged_profile_tree()
         shadow_session = self.shadow_service._session(self.shadow_session_id)
         with shadow_session.export_lock:
+            self.state_cache.observe(shadow_session)
             before_revision = int(shadow_session.revision)
             before_signature = self._shadow_protocol_signature_locked(
                 shadow_session
@@ -8518,6 +8631,7 @@ class RustMeshAuthoringSession:
         self._advance_shadow_protocol_revision(
             before_revision=before_revision,
             before_signature=before_signature,
+            mesh_change="geometry" if changed else "none",
         )
         state = self.state_payload(include_document=False)
         if changed and invalidated_tangents:
@@ -8571,6 +8685,7 @@ class RustMeshAuthoringSession:
                     geometry_layers=layers, active_geometry_layer_id=layers[-1].layer_id,
                     morph_session_state=morph, require_reversible_history=True,
                 )
+                self.state_cache.adopt_prepared_document(session, prepared)
             finally:
                 try:
                     service.dispose_morph_session_state(morph)
@@ -8585,11 +8700,16 @@ class RustMeshAuthoringSession:
 
         service = self.shadow_service
         session = service._session(self.shadow_session_id)
+        def commit(**kwargs):
+            view = service.commit_prepared_working_mesh_replacement(prepared, **kwargs)
+            self.state_cache.adopt_prepared_document(session, prepared)
+            return view
+
         with session.export_lock:
             cached = service.cached_morph_state_from_runtime(self.shadow_session_id)
             pending = bool(cached.authoring_baseline_ready or cached.correction_definition_id)
             if not (cached.profile_id or pending or cached.refit.garment_submesh_indices):
-                return service.commit_prepared_working_mesh_replacement(prepared, **options)
+                return commit(**options)
             original = service.working_mesh(self.shadow_session_id, clone=False)
             try:
                 validate_morph_target_identity(
@@ -8603,12 +8723,10 @@ class RustMeshAuthoringSession:
                         "A sculpted slider or outfit correction requires unchanged topology and source mapping. "
                         "Undo the incompatible edit, or save/discard the pending work before replacing the mesh."
                     ) from exc
-                return service.commit_prepared_working_mesh_replacement(prepared, **options)
+                return commit(**options)
             captured = service.capture_morph_session_state(self.shadow_session_id)
             try:
-                return service.commit_prepared_working_mesh_replacement(
-                    prepared, morph_session_state=captured, require_reversible_history=True, **options,
-                )
+                return commit(morph_session_state=captured, require_reversible_history=True, **options)
             finally:
                 try:
                     service.dispose_morph_session_state(captured)
@@ -8742,10 +8860,15 @@ class RustMeshAuthoringSession:
                 _RUST_RIG_SELECT_BONE_ARGUMENTS,
                 command,
             )
-            result = self.shadow_service.select_bone(
+            self.shadow_service._select_bone_index(
                 self.shadow_session_id,
                 _strict_command_index(args.get("bone_index"), "bone index"),
             )
+            from cdmw.services.mesh_rust_rig import cached_skeleton_summary
+            session = self.shadow_service._session(self.shadow_session_id)
+            with session.export_lock:
+                result = cached_skeleton_summary(session, self.state_cache,
+                    lambda: self.shadow_service.skeleton_summary(self.shadow_session_id))
         elif command in {
             "rig_adjust_weight",
             "rig_normalize_weights",
@@ -8882,6 +9005,7 @@ class RustMeshAuthoringSession:
         }:
             raise RustMeshValidationError("Archive Refit preserves each source Part and topology; finish this refit before changing topology")
         with shadow_session.export_lock:
+            self.state_cache.observe(shadow_session)
             before_revision = int(shadow_session.revision)
             before_signature = self._shadow_protocol_signature_locked(
                 shadow_session
@@ -8909,10 +9033,6 @@ class RustMeshAuthoringSession:
         # the handler's final cancellation check. Do not interrupt that commit.
         if command != "cloth_collision_input":
             self._raise_if_cancelled(stop_event)
-        after_revision = self._advance_shadow_protocol_revision(
-            before_revision=before_revision,
-            before_signature=before_signature,
-        )
         # These commands change selection/presentation, not the resident mesh.
         # Protocol revisions still advance so stale requests remain rejected.
         state_only = command in {
@@ -8926,6 +9046,13 @@ class RustMeshAuthoringSession:
             "layer_move",
             "layer_copy",
         }
+        after_revision = self._advance_shadow_protocol_revision(
+            before_revision=before_revision,
+            before_signature=before_signature,
+            mesh_change=("none" if state_only or command == "state" else
+                         "weights" if command in {"rig_adjust_weight", "rig_normalize_weights", "rig_transfer_weights"}
+                         else "all"),
+        )
         state = self.state_payload(
             include_document=(
                 command in {"state", "replacement_compare"} or (after_revision != before_revision and not state_only)
@@ -9817,6 +9944,8 @@ class RustMeshAuthoringSession:
         except Exception as exc:  # semantic Finish/Cancel already owns the outcome
             warning = f"shadow-session cleanup is pending: {type(exc).__name__}: {exc}"
         finally:
+            self.state_cache.clear()
+            self.mesh_island_cache.clear()
             self.closed = True
         return warning
 

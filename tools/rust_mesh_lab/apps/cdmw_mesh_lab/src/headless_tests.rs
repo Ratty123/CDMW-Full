@@ -38,7 +38,7 @@ pub(super) fn triangle_application() -> Result<LabApplication, Box<dyn std::erro
     )?;
     let mesh = WorkingMesh::from_document(&document)?;
     let mut application = LabApplication::new(None, None);
-    application.document = Some(document);
+    application.document = Some(Arc::new(document));
     application.mesh = Some(mesh);
     application.source_label = "headless synthetic triangle".to_owned();
     application.update_viewport_rect(viewport());
@@ -84,7 +84,7 @@ pub(super) fn symmetry_application() -> Result<LabApplication, Box<dyn std::erro
     };
     let mesh = WorkingMesh::from_document(&document)?;
     let mut application = LabApplication::new(None, None);
-    application.document = Some(document);
+    application.document = Some(Arc::new(document));
     application.mesh = Some(mesh);
     application.source_label = "headless symmetric mesh".to_owned();
     application.update_viewport_rect(viewport());
@@ -337,7 +337,7 @@ fn integrated_layer_state_filters_render_snapshot_and_selection_projection() -> 
     document.lods[0].submeshes.push(hidden);
     let mesh = WorkingMesh::from_document(&document)?;
     let mut application = LabApplication::new(None, None);
-    application.document = Some(document);
+    application.document = Some(Arc::new(document));
     application.mesh = Some(mesh);
     application.cdmw_bridge = Some(CdmwBridge::for_test(
         root.path().to_path_buf(),
@@ -535,7 +535,7 @@ fn matched_rejection_restores_host_document_before_clearing_pending_request() ->
     let root = tempdir()?;
     let root_path = root.path().to_path_buf();
     let mut application = triangle_application()?;
-    let authoritative = application.document.clone().ok_or("document")?;
+    let authoritative = application.document.as_deref().cloned().ok_or("document")?;
     let mut local_edit = authoritative.clone();
     local_edit.lods[0].submeshes[0].positions[0] = [42.0, 0.0, 0.0];
     application.install_cdmw_document(local_edit)?;
@@ -598,7 +598,7 @@ fn successful_noop_result_surfaces_the_host_diagnostic_instead_of_claiming_compl
 {
     let root = tempdir()?;
     let mut application = triangle_application()?;
-    let document = application.document.clone().ok_or("document")?;
+    let document = application.document.as_deref().cloned().ok_or("document")?;
     application.cdmw_bridge = Some(CdmwBridge::for_test(
         root.path().to_path_buf(),
         "noop-session",
@@ -649,7 +649,7 @@ fn page_feedback_uses_the_typed_request_origin_instead_of_status_words() -> Test
     ] {
         let root = tempdir()?;
         let mut application = triangle_application()?;
-        let document = application.document.clone().ok_or("document")?;
+        let document = application.document.as_deref().cloned().ok_or("document")?;
         let session_id = format!("page-feedback-{index}");
         application.cdmw_bridge = Some(CdmwBridge::for_test(
             root.path().to_path_buf(),
@@ -693,20 +693,25 @@ fn page_feedback_uses_the_typed_request_origin_instead_of_status_words() -> Test
 
 #[test]
 fn refit_fit_result_rehydrates_settings_only_after_success() -> TestResult {
-    for ok in [false, true] {
+    for (label, ok) in [
+        ("Fit to body", false),
+        ("Fit to body", true),
+        ("Apply garment refit settings", false),
+        ("Apply garment refit settings", true),
+    ] {
         let root = tempdir()?;
         let mut application = triangle_application()?;
-        let document = application.document.clone().ok_or("document")?;
+        let document = application.document.as_deref().cloned().ok_or("document")?;
         application.cdmw_bridge = Some(CdmwBridge::for_test(
             root.path().to_path_buf(), "fit-result", 2, 0,
         ));
-        application.cdmw_refit_settings_dirty = true;
+        application.cdmw_refit_settings_dirty.mark("tightness_percent");
         application.cdmw_refit_hydration_key = "draft".to_owned();
         application.cdmw_refit_tightness = 25.0;
         application.cdmw_pending_request = Some(CdmwPendingRequest {
             request_id: 1,
             event: "command_result",
-            label: "Fit to body".to_owned(),
+            label: label.to_owned(),
             origin: None,
         });
         let state = cdmw_state_with_document(root.path(), "fit-result", 0, &document)?;
@@ -715,7 +720,7 @@ fn refit_fit_result_rehydrates_settings_only_after_success() -> TestResult {
             if ok { "" } else { "Part 1 cannot clear the body" },
         );
         assert!(application.cdmw_pending_request.is_none());
-        assert_eq!(application.cdmw_refit_settings_dirty, !ok);
+        assert_eq!(application.cdmw_refit_settings_dirty.is_dirty(), !ok);
         assert_eq!(application.cdmw_refit_hydration_key.is_empty(), ok);
         assert_eq!(application.cdmw_refit_tightness, 25.0);
     }
@@ -777,7 +782,7 @@ fn morph_slider_coalesces_drag_samples_and_submits_the_release_value() {
 fn successful_transaction_surfaces_post_edit_channel_guidance() -> TestResult {
     let root = tempdir()?;
     let mut application = triangle_application()?;
-    let document = application.document.clone().ok_or("document")?;
+    let document = application.document.as_deref().cloned().ok_or("document")?;
     application.cdmw_bridge = Some(CdmwBridge::for_test(
         root.path().to_path_buf(),
         "feedback-session",
@@ -818,7 +823,7 @@ fn mismatched_result_leaves_local_document_pending_and_revision_unchanged() -> T
     let root = tempdir()?;
     let root_path = root.path().to_path_buf();
     let mut application = triangle_application()?;
-    let authoritative = application.document.clone().ok_or("document")?;
+    let authoritative = application.document.as_deref().cloned().ok_or("document")?;
     let mut local_edit = authoritative.clone();
     local_edit.lods[0].submeshes[0].positions[0] = [13.0, 0.0, 0.0];
     application.install_cdmw_document(local_edit)?;
@@ -1126,6 +1131,8 @@ fn integrated_session_activates_and_preserves_the_manifest_source_lod() -> TestR
     let mut application = LabApplication::new_cdmw(bridge, document.clone(), None)?;
 
     assert_eq!(application.active_lod_index, 1);
+    assert!(application.lod_sessions.iter().all(Option::is_none));
+    let initial_identity = application.mesh.as_ref().ok_or("source LOD mesh")?.draw_snapshot().mesh_identity;
     assert_eq!(
         application
             .mesh
@@ -1142,6 +1149,8 @@ fn integrated_session_activates_and_preserves_the_manifest_source_lod() -> TestR
     application.install_cdmw_document(recovered)?;
 
     assert_eq!(application.active_lod_index, 1);
+    assert!(application.lod_sessions.iter().all(Option::is_none));
+    assert_eq!(application.mesh.as_ref().ok_or("refreshed LOD mesh")?.draw_snapshot().mesh_identity, initial_identity);
     assert!(
         application
             .mesh
@@ -1281,11 +1290,13 @@ fn integrated_session_retains_textures_when_a_shadow_revision_reloads_geometry()
 
     assert_eq!(application.cdmw_texture_resources.len(), 1);
     assert_eq!(application.texture_entries.len(), 1);
+    let retained_bytes = application.cdmw_texture_resources[0].bytes.clone();
 
     application.install_cdmw_document(document)?;
 
     assert_eq!(application.cdmw_texture_resources.len(), 1);
-    assert_eq!(application.cdmw_texture_resources[0].bytes, bytes);
+    assert_eq!(application.cdmw_texture_resources[0].bytes.as_ref(), bytes.as_slice());
+    assert!(Arc::ptr_eq(&retained_bytes, &application.cdmw_texture_resources[0].bytes));
     assert_eq!(application.texture_entries.len(), 1);
     assert_eq!(application.texture_entries[0].label, "body_base.dds");
     Ok(())
@@ -1371,6 +1382,8 @@ fn integrated_session_remaps_texture_ownership_after_part_reorder_and_invalidate
         }],
     );
     let mut application = LabApplication::new_cdmw(bridge, document.clone(), None)?;
+    let original_texture = application.cdmw_texture_resources[0].clone();
+    let payload_lifetime = Arc::downgrade(&original_texture.bytes);
 
     let mut reordered = document;
     reordered.lods[0].submeshes.swap(0, 1);
@@ -1380,6 +1393,8 @@ fn integrated_session_remaps_texture_ownership_after_part_reorder_and_invalidate
         vec![vec![1]],
         "ownership must follow Part A instead of its previous numeric slot"
     );
+    assert!(Arc::ptr_eq(&original_texture.bytes, &application.cdmw_texture_resources[0].bytes));
+    assert_eq!(original_texture.material_indices_by_lod, vec![vec![0]], "ownership views must remain independent");
 
     let duplicate = reordered.lods[0].submeshes[1].clone();
     reordered.lods[0].submeshes.push(duplicate);
@@ -1389,6 +1404,45 @@ fn integrated_session_remaps_texture_ownership_after_part_reorder_and_invalidate
         vec![Vec::<u32>::new()],
         "ambiguous source identities must invalidate ownership instead of guessing"
     );
+    assert!(Arc::ptr_eq(&original_texture.bytes, &application.cdmw_texture_resources[0].bytes));
+    drop(application);
+    assert!(payload_lifetime.upgrade().is_some(), "retained view owns the payload after the session closes");
+    drop(original_texture);
+    assert!(payload_lifetime.upgrade().is_none(), "the last owner releases the payload");
+    Ok(())
+}
+
+#[test]
+#[ignore = "reports immutable texture remapping copy and allocation savings"]
+fn shared_texture_ownership_benchmark() -> TestResult {
+    use std::hint::black_box;
+    use std::time::Instant;
+    let document = decode_mesh(&cdmw_formats::synthetic::triangle_pam("base.dds"), MeshFormat::Pam)?;
+    let dds = cdmw_texture::synthetic::rgba8_checker_dds();
+    let metadata = cdmw_texture::inspect_dds(&dds, cdmw_texture::TextureRole::BaseColor)?;
+    let bytes: Arc<[u8]> = vec![7_u8; 32 * 1024 * 1024].into();
+    let textures = vec![LoadedTexture {
+        label: "synthetic large texture payload".to_owned(), metadata, bytes,
+        role: cdmw_texture::TextureRole::BaseColor, requested_reference: "base.dds".to_owned(),
+        parameter_name: None, sidecar_label: None,
+        resolution_method: cdmw_asset_graph::ResolutionMethod::ExplicitVirtualPath,
+        archive_compression: None, material_indices_by_lod: vec![vec![0]],
+    }];
+    let iterations = 20;
+    let started = Instant::now();
+    for _ in 0..iterations {
+        black_box(textures[0].bytes.as_ref().to_vec());
+    }
+    let copied = started.elapsed();
+    let started = Instant::now();
+    for _ in 0..iterations {
+        let remapped = remap_texture_ownership(&textures, &document, &document);
+        assert!(Arc::ptr_eq(&textures[0].bytes, &remapped[0].bytes));
+        black_box(remapped);
+    }
+    let shared = started.elapsed();
+    eprintln!("texture_bytes={} iterations={} old_copy_ms={:.3} shared_remap_ms={:.3} payload_bytes_copied_after=0",
+        textures[0].bytes.len(), iterations, copied.as_secs_f64() * 1000.0, shared.as_secs_f64() * 1000.0);
     Ok(())
 }
 
@@ -1398,6 +1452,198 @@ fn lod_working_mesh_preparation_honors_cancellation() -> TestResult {
     let cancellation = cdmw_archive::CancellationToken::default();
     cancellation.cancel();
     assert!(crate::loader::build_lod_meshes(&document, &cancellation).is_err());
+    Ok(())
+}
+
+#[test]
+fn lazy_authoring_lod_prepares_on_worker_and_preserves_parked_history() -> TestResult {
+    let root = tempdir()?;
+    let document = decode_mesh(&cdmw_formats::synthetic::two_lod_pac(), MeshFormat::Pac)?;
+    let bridge = CdmwBridge::for_test(root.path().to_path_buf(), "lazy-lod", 1, 0);
+    let mut application = LabApplication::new_cdmw(bridge, document.clone(), None)?;
+    assert!(application.lod_sessions.iter().all(Option::is_none));
+    let original = application.mesh.as_ref().ok_or("initial mesh")?.draw_snapshot();
+    application.switch_lod(1);
+    assert!(application.pending_lod.is_some());
+    assert_eq!(application.active_lod_index, 0);
+    assert_eq!(application.mesh.as_ref().ok_or("preserved mesh")?.draw_snapshot(), original);
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
+    while application.pending_lod.is_some() && std::time::Instant::now() < deadline {
+        application.poll_loader();
+        std::thread::sleep(std::time::Duration::from_millis(1));
+    }
+    assert!(application.pending_lod.is_none(), "LOD worker did not complete: {}", application.status);
+    assert_eq!(application.active_lod_index, 1);
+    let expected = WorkingMesh::from_document_lod(&document, 1)?.draw_snapshot();
+    let actual = application.mesh.as_ref().ok_or("loaded LOD")?.draw_snapshot();
+    assert_eq!(actual.positions, expected.positions);
+    assert_eq!(actual.indices, expected.indices);
+    let mesh = application.mesh.as_mut().ok_or("editable LOD")?;
+    let before_edit = mesh.clone();
+    let handles = mesh.vertices().map(|(handle, _)| handle).collect();
+    mesh.translate_vertices(&handles, Vec3::Z)?;
+    application.history.commit("LOD1 translation", before_edit, mesh)?;
+    let edited = mesh.draw_snapshot();
+    application.switch_lod(0);
+    assert_eq!(application.mesh.as_ref().ok_or("parked LOD0")?.draw_snapshot(), original);
+    application.switch_lod(1);
+    assert!(application.pending_lod.is_none(), "resident LOD should not be rebuilt");
+    assert_eq!(application.mesh.as_ref().ok_or("resident LOD1")?.draw_snapshot(), edited);
+    assert_eq!(application.history.undo_len(), 1);
+    application.history.undo(application.mesh.as_mut().ok_or("undo LOD1")?)?;
+    assert_eq!(application.mesh.as_ref().ok_or("undo result")?.draw_snapshot().positions, expected.positions);
+    Ok(())
+}
+
+#[test]
+fn lazy_authoring_lod_rejects_cancelled_or_replaced_document_results() -> TestResult {
+    let root = tempdir()?;
+    let mut document = decode_mesh(&cdmw_formats::synthetic::two_lod_pac(), MeshFormat::Pac)?;
+    let bridge = CdmwBridge::for_test(root.path().to_path_buf(), "stale-lod", 1, 0);
+    let mut application = LabApplication::new_cdmw(bridge, document.clone(), None)?;
+    application.switch_lod(1);
+    let cancelled = application.pending_lod.ok_or("pending LOD")?;
+    application.switch_lod(0);
+    assert!(!application.accept_prepared_lod(cancelled.generation, 1,
+        Ok(WorkingMesh::from_document_lod(&document, 1)?)));
+    assert_eq!(application.active_lod_index, 0);
+    application.switch_lod(1);
+    let stale = application.pending_lod.ok_or("replacement pending LOD")?;
+    document.lods[0].submeshes[0].positions[0][2] += 2.0;
+    application.install_cdmw_document(document.clone())?;
+    let replacement = application.mesh.as_ref().ok_or("replacement mesh")?.draw_snapshot();
+    assert!(!application.accept_prepared_lod(stale.generation, 1,
+        Ok(WorkingMesh::from_document_lod(&document, 1)?)));
+    application.poll_loader();
+    assert_eq!(application.active_lod_index, 0);
+    assert_eq!(application.mesh.as_ref().ok_or("retained replacement")?.draw_snapshot(), replacement);
+    assert!(application.pending_lod.is_none());
+    Ok(())
+}
+
+#[test]
+fn lazy_authoring_lod_failure_retains_current_scene_and_can_retry() -> TestResult {
+    let root = tempdir()?;
+    let document = decode_mesh(&cdmw_formats::synthetic::two_lod_pac(), MeshFormat::Pac)?;
+    let bridge = CdmwBridge::for_test(root.path().to_path_buf(), "failed-lod", 1, 0);
+    let mut application = LabApplication::new_cdmw(bridge, document.clone(), None)?;
+    let before = application.mesh.as_ref().ok_or("initial mesh")?.draw_snapshot();
+    application.switch_lod(1);
+    let failed = application.pending_lod.ok_or("pending LOD")?;
+    assert!(application.accept_prepared_lod(failed.generation, 1, Err("fixture failure".to_owned())));
+    assert!(application.status.contains("fixture failure"));
+    assert_eq!(application.active_lod_index, 0);
+    assert_eq!(application.mesh.as_ref().ok_or("retained mesh")?.draw_snapshot(), before);
+    application.switch_lod(1);
+    let retry = application.pending_lod.ok_or("retry LOD")?;
+    assert_ne!(retry.generation, failed.generation);
+    assert!(application.accept_prepared_lod(retry.generation, 1,
+        Ok(WorkingMesh::from_document_lod(&document, 1)?)));
+    assert_eq!(application.active_lod_index, 1);
+    Ok(())
+}
+
+#[test]
+fn authoring_graph_refresh_reuses_attributes_and_rebuilds_changed_topology() -> TestResult {
+    let root = tempdir()?;
+    let mut document = decode_mesh(&cdmw_formats::synthetic::two_lod_pac(), MeshFormat::Pac)?;
+    let bridge = CdmwBridge::for_test(root.path().to_path_buf(), "graph-refresh", 1, 0);
+    let mut application = LabApplication::new_cdmw(bridge, document.clone(), None)?;
+    let initial = application.mesh.as_ref().ok_or("initial graph")?.draw_snapshot();
+    let part = &mut document.lods[0].submeshes[0];
+    part.positions[0] = [2.0, 3.0, 4.0];
+    part.normals[0] = [0.2, 0.3, 0.4];
+    part.uvs[0] = [0.6, 0.7];
+    part.shader_masks = vec![[0.2, 0.5, 0.8]; part.positions.len()];
+    application.install_cdmw_document(document.clone())?;
+    let refreshed = application.mesh.as_ref().ok_or("refreshed graph")?.draw_snapshot();
+    let expected = WorkingMesh::from_document(&document)?.draw_snapshot();
+    assert_eq!(refreshed.mesh_identity, initial.mesh_identity);
+    assert_eq!(refreshed.topology_generation, initial.topology_generation);
+    assert_eq!(refreshed.positions, expected.positions);
+    assert_eq!(refreshed.normals, expected.normals);
+    assert_eq!(refreshed.uvs, expected.uvs);
+    assert_eq!(refreshed.shader_masks, expected.shader_masks);
+    document.lods[0].submeshes[0].indices.swap(0, 1);
+    application.install_cdmw_document(document.clone())?;
+    let rebuilt = application.mesh.as_ref().ok_or("rebuilt graph")?.draw_snapshot();
+    assert_ne!(rebuilt.mesh_identity, refreshed.mesh_identity);
+    assert_eq!(rebuilt.indices, WorkingMesh::from_document(&document)?.draw_snapshot().indices);
+    assert!(application.lod_sessions.iter().all(Option::is_none));
+    Ok(())
+}
+
+#[test]
+#[ignore = "reports selected-LOD construction, resident refresh and first deferred-LOD completion timing"]
+fn authoring_lod_graph_reuse_benchmark() -> TestResult {
+    use std::hint::black_box;
+    use std::time::Instant;
+    let mut document = decode_mesh(&cdmw_formats::synthetic::triangle_pam("base.dds"), MeshFormat::Pam)?;
+    let vertex_count = 99_999_usize;
+    let part = &mut document.lods[0].submeshes[0];
+    part.positions = (0..vertex_count).map(|index| {
+        let base = (index / 3) as f32;
+        match index % 3 { 0 => [base, 0.0, 0.0], 1 => [base + 0.5, 0.0, 0.0], _ => [base, 0.5, 0.0] }
+    }).collect();
+    part.normals = vec![[0.0, 0.0, 1.0]; vertex_count];
+    part.uvs = vec![[0.0, 0.0]; vertex_count];
+    part.shader_masks = vec![[0.2, 0.5, 0.8]; vertex_count];
+    part.indices = (0..vertex_count as u32).collect();
+    part.source_vertex_indices = (0..vertex_count as i32).collect();
+    let lod = document.lods[0].clone();
+    document.lods = (0..4).map(|level| { let mut value = lod.clone(); value.level = level; value }).collect();
+    document.lod_count_reported = 4;
+    let cancellation = cdmw_archive::CancellationToken::default();
+    let started = Instant::now();
+    let all = crate::loader::build_lod_meshes(black_box(&document), &cancellation)?;
+    let all_time = started.elapsed();
+    let expected = all[2].draw_snapshot();
+    drop(all);
+    let started = Instant::now();
+    let mut selected = WorkingMesh::from_document_lod(black_box(&document), 2)?;
+    let selected_time = started.elapsed();
+    assert_eq!(selected.draw_snapshot().fingerprint, expected.fingerprint);
+    document.lods[2].submeshes[0].positions[0][2] += 0.25;
+    let started = Instant::now();
+    assert!(selected.refresh_from_document_lod(black_box(&document), 2)?);
+    let refresh_time = started.elapsed();
+    let fresh = WorkingMesh::from_document_lod(&document, 2)?.draw_snapshot();
+    assert_eq!(selected.draw_snapshot().fingerprint, fresh.fingerprint);
+    let expected_deferred_fingerprint = fresh.fingerprint.clone();
+    drop(fresh);
+    drop(selected);
+    drop(expected);
+    let root = tempdir()?;
+    let bridge = CdmwBridge::for_test(root.path().to_path_buf(), "deferred-lod-benchmark", 1, 0);
+    let mut application = LabApplication::new_cdmw(bridge, document, None)?;
+    assert_eq!(application.active_lod_index, 0);
+    assert!(application.lod_sessions.iter().all(Option::is_none));
+    // Include the real bounded worker, result polling and headless scene
+    // installation. This excludes startup, GPU upload and visible frame time.
+    let started = Instant::now();
+    application.switch_lod(2);
+    let request_time = started.elapsed();
+    let pending = application.pending_lod.ok_or("missing deferred LOD request")?;
+    assert_eq!(application.active_lod_index, 0);
+    let deadline = started + std::time::Duration::from_secs(10);
+    while application.pending_lod.is_some() && Instant::now() < deadline {
+        application.poll_loader();
+        if application.pending_lod.is_some() {
+            std::thread::sleep(std::time::Duration::from_millis(1));
+        }
+    }
+    let deferred_time = started.elapsed();
+    assert!(application.pending_lod.is_none(), "deferred LOD worker did not complete: {}", application.status);
+    assert_eq!(application.active_lod_index, 2, "{}", application.status);
+    assert_eq!(application.current_generation, pending.generation);
+    assert_eq!(application.lod_document_generation, pending.document_generation);
+    assert!(application.lod_sessions[0].is_some(), "the previous LOD must be parked");
+    assert_eq!(application.mesh.as_ref().ok_or("deferred LOD mesh")?.draw_snapshot().fingerprint,
+        expected_deferred_fingerprint);
+    eprintln!("lods=4 vertices_per_lod={vertex_count} eager_graphs_ms={:.3} selected_graph_ms={:.3} resident_refresh_ms={:.3} startup_graphs_before=4 startup_graphs_after=1",
+        all_time.as_secs_f64() * 1000.0, selected_time.as_secs_f64() * 1000.0, refresh_time.as_secs_f64() * 1000.0);
+    eprintln!("first_deferred_lod=2 request_ms={:.3} request_to_headless_acceptance_ms={:.3} polling_interval_ms=1 gpu_upload_included=false visible_frame_included=false",
+        request_time.as_secs_f64() * 1000.0, deferred_time.as_secs_f64() * 1000.0);
     Ok(())
 }
 
@@ -2163,7 +2409,7 @@ fn offscreen_d3d12_capture_pads_odd_rows_and_matches_alpha_cutout_owners() -> Te
 #[test]
 #[ignore = "requires a local Direct3D 12 adapter"]
 fn offscreen_d3d12_translucency_responds_to_absorption_and_texture_alpha() -> TestResult {
-    let mut document = triangle_application()?.document.clone().ok_or("missing document")?;
+    let mut document = triangle_application()?.document.as_deref().cloned().ok_or("missing document")?;
     let mut reference = document.lods[0].submeshes[0].clone();
     reference.name = "opaque reference".to_owned();
     reference.material = "reference material".to_owned();
@@ -2268,7 +2514,7 @@ fn offscreen_d3d12_opaque_surface_matches_exported_channels() -> TestResult {
 }
 
 fn surface_matches_exported_channels(translucency: Option<[f32; 2]>) -> TestResult {
-    let mut document = triangle_application()?.document.clone().ok_or("missing document")?;
+    let mut document = triangle_application()?.document.as_deref().cloned().ok_or("missing document")?;
     let mut reference = document.lods[0].submeshes[0].clone();
     reference.material = "unselected reference".to_owned();
     for position in &mut reference.positions { position[0] += 3.0; }

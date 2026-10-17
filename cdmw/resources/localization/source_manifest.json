@@ -1477,11 +1477,11 @@
       ]
     },
     {
-      "key": " · {value_0} material texture(s) uploaded for {value_1} LOD0 material range(s)",
+      "key": " · {value_0} material texture(s) uploaded for {value_1} LOD{value_2} material range(s)",
       "origins": [
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs",
-          "line": 3763,
+          "line": 3770,
           "sink": "rust-presentation"
         }
       ]
@@ -24535,6 +24535,16 @@
       "key": "Checking the prepared result…",
       "origins": [],
       "manual": true
+    },
+    {
+      "key": "Checking the previous private view…",
+      "origins": [
+        {
+          "path": "cdmw/services/virtual_loader_composition.py",
+          "line": 199,
+          "sink": "progress"
+        }
+      ]
     },
     {
       "key": "Checking the saved overlay set before starting fresh...",
@@ -67282,6 +67292,21 @@
       ]
     },
     {
+      "key": "LOD preparation failed: {value_0}",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs",
+          "line": 5049,
+          "sink": "rust-presentation"
+        },
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs",
+          "line": 5149,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
       "key": "LOD switch cancelled the active gesture",
       "origins": [
         {
@@ -75842,6 +75867,16 @@
       ]
     },
     {
+      "key": "Mesh binary payload type does not match its encoding",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_rust_authoring.py",
+          "line": 1899,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
       "key": "Mesh companion",
       "origins": [
         {
@@ -76742,11 +76777,11 @@
       ]
     },
     {
-      "key": "Mesh payload names must be simple JSON filenames",
+      "key": "Mesh payload name does not match its owned encoding",
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 1882,
+          "line": 1897,
           "sink": "ValueError"
         }
       ]
@@ -76893,6 +76928,16 @@
           "path": "cdmw/ui/archive_browser/mesh_patch_flow.py",
           "line": 96,
           "sink": "set_status_message"
+        }
+      ]
+    },
+    {
+      "key": "Mesh state payload name does not match its encoding",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_rust_authoring.py",
+          "line": 1943,
+          "sink": "ValueError"
         }
       ]
     },
@@ -86668,6 +86713,16 @@
           "path": "cdmw/ui/mesh_editor/workspace_reports.py",
           "line": 291,
           "sink": "QTreeWidgetItem"
+        }
+      ]
+    },
+    {
+      "key": "No source document is available for the LOD switch",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs",
+          "line": 5036,
+          "sink": "rust-presentation"
         }
       ]
     },
@@ -100462,6 +100517,16 @@
       ]
     },
     {
+      "key": "Prepared-output cache missed; rebuilding the private view: {value_0}",
+      "origins": [
+        {
+          "path": "cdmw/services/virtual_loader_cache.py",
+          "line": 280,
+          "sink": "on_log"
+        }
+      ]
+    },
+    {
       "key": "Preparing",
       "origins": [
         {
@@ -100533,6 +100598,16 @@
           "path": "cdmw/ui/mesh_editor/tab_output_policy.py",
           "line": 135,
           "sink": "QProgressDialog"
+        }
+      ]
+    },
+    {
+      "key": "Preparing LOD {value_0}; the current mesh remains available",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs",
+          "line": 5047,
+          "sink": "rust-presentation"
         }
       ]
     },
@@ -105423,6 +105498,76 @@
           "path": "cdmw/ui/model_preview_settings_dialog.py",
           "line": 680,
           "sink": "QCheckBox"
+        }
+      ]
+    },
+    {
+      "key": "Private archive index exceeds the reusable bounds.",
+      "origins": [
+        {
+          "path": "cdmw/services/virtual_loader_cache.py",
+          "line": 255,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Private archive index failed validation.",
+      "origins": [
+        {
+          "path": "cdmw/services/virtual_loader_cache.py",
+          "line": 259,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Private archive payload bounds failed validation.",
+      "origins": [
+        {
+          "path": "cdmw/services/virtual_loader_cache.py",
+          "line": 273,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Private output exceeds the reusable byte limit.",
+      "origins": [
+        {
+          "path": "cdmw/services/virtual_loader_cache.py",
+          "line": 138,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Private output failed its retained integrity check.",
+      "origins": [
+        {
+          "path": "cdmw/services/virtual_loader_cache.py",
+          "line": 151,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Private output grew beyond the reusable byte limit.",
+      "origins": [
+        {
+          "path": "cdmw/services/virtual_loader_cache.py",
+          "line": 146,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Private resource inventory failed validation.",
+      "origins": [
+        {
+          "path": "cdmw/services/virtual_loader_cache.py",
+          "line": 268,
+          "sink": "ValueError"
         }
       ]
     },
@@ -117957,6 +118102,16 @@
       ]
     },
     {
+      "key": "Reused the verified private view.",
+      "origins": [
+        {
+          "path": "cdmw/services/virtual_loader_composition.py",
+          "line": 206,
+          "sink": "progress"
+        }
+      ]
+    },
+    {
       "key": "Reuses existing archive indexes and Asset Family evidence; it never starts a global scan.",
       "origins": [
         {
@@ -117982,6 +118137,16 @@
         {
           "path": "cdmw/services/new_item_service.py",
           "line": 117,
+          "sink": "on_log"
+        }
+      ]
+    },
+    {
+      "key": "Reusing the verified clean game catalogue and parsed item tables.",
+      "origins": [
+        {
+          "path": "cdmw/services/independent_item_package.py",
+          "line": 166,
           "sink": "on_log"
         }
       ]
@@ -155616,12 +155781,7 @@
       "origins": [
         {
           "path": "cdmw/services/virtual_loader_composition.py",
-          "line": 156,
-          "sink": "progress"
-        },
-        {
-          "path": "cdmw/services/virtual_loader_composition.py",
-          "line": 158,
+          "line": 173,
           "sink": "progress"
         }
       ]
@@ -169097,11 +169257,11 @@
       ]
     },
     {
-      "key": "helper does not support the required embedded Mesh Editor and Hair authoring capabilities",
+      "key": "helper does not support the required embedded Mesh Editor, Hair authoring, and binary mesh document capabilities",
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_contract.py",
-          "line": 265,
+          "line": 267,
           "sink": "python-return:validate_rust_mesh_editor_package"
         }
       ]
@@ -169642,31 +169802,11 @@
       ]
     },
     {
-      "key": "invalid CDMW LOD0 state",
-      "origins": [
-        {
-          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs",
-          "line": 3196,
-          "sink": "rust-presentation"
-        }
-      ]
-    },
-    {
       "key": "invalid CDMW LOD{value_0} state",
       "origins": [
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs",
           "line": 3200,
-          "sink": "rust-presentation"
-        }
-      ]
-    },
-    {
-      "key": "invalid CDMW source LOD {value_0} state",
-      "origins": [
-        {
-          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs",
-          "line": 3243,
           "sink": "rust-presentation"
         }
       ]
@@ -176908,6 +177048,16 @@
           "path": "cdmw/ui/archive_browser/static_replacement_source_part_action_state.py",
           "line": 74,
           "sink": "SourcePartContextActionSpec"
+        }
+      ]
+    },
+    {
+      "key": "resident CDMW graph disappeared",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs",
+          "line": 3205,
+          "sink": "rust-presentation"
         }
       ]
     },

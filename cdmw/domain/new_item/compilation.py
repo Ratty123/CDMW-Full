@@ -12,7 +12,7 @@ from cdmw.domain.new_item.independent import IndependentItemError
 from cdmw.domain.new_item.independent_wire_v1 import V1_ENUM_VALUES, V1_RECORD_FIELDS
 
 
-COMPILER_REVISION = 8
+COMPILER_REVISION = 9
 ADAPTER_REVISIONS = {'item-v1': 1, 'envelope-v2': 4, 'iteminfo-fields': 2, 'package-links': 1, 'dds-pathc': 2, 'flat-icon-registry': 2, 'texture-replace': 1}
 FORMAT = 'cdmw_item_compiler_v1'
 
@@ -84,7 +84,7 @@ def validate_compilation(value):
     validate_compiler_stamp(inputs['compiler'])
     if inputs['scope'] not in ('archive-contribution', 'virtual-profile'):
         fail()
-    if inputs['runtime_abi'] is not None and inputs['runtime_abi'] != 'CDVFS2':
+    if inputs['runtime_abi'] is not None and inputs['runtime_abi'] not in ('CDVFS2', 'CDVFS3'):
         fail()
     for name in ('sources', 'allocations'):
         hashes(inputs[name])

@@ -647,7 +647,7 @@ def build_snapshot(
     root = Path(iteminfo.payload_entry.pamt_path).parent.parent
     paths.update((root / "meta" / "0.papgt", pathc_path))
     for path in paths:
-        provenance.pin_file(Path(path))
+        provenance.pin_catalogue_file(Path(path))
     if resident_catalogue is not None:
         resident_catalogue.validate_sources(stop_event)
     _log_progress(on_log, f"Snapshot ready: {len(rows):,} items, {len(stores):,} stores, {len(item_groups):,} item groups, {len(paloc_entries)} languages.")
@@ -756,3 +756,4 @@ __all__ = [
     "build_snapshot",
     "template_facts",
 ]
+

@@ -1023,15 +1023,12 @@ impl OperatorController {
                     position + (center - position) * weighted_strength.clamp(-1.0, 1.0)
                 }
                 SculptTool::Smooth => {
-                    let mut neighbors = mesh
-                        .vertex_neighbors(handle)
-                        .ok_or(MeshError::StaleHandle)?
-                        .into_iter()
-                        .collect::<Vec<_>>();
+                    let neighbors = mesh
+                        .vertex_neighbor_slice(handle)
+                        .ok_or(MeshError::StaleHandle)?;
                     if neighbors.is_empty() {
                         position
                     } else {
-                        neighbors.sort_unstable();
                         let total = neighbors.iter().try_fold(Vec3::ZERO, |sum, neighbor| {
                             mesh.vertex(*neighbor)
                                 .map(|vertex| sum + Vec3::from_array(vertex.position))
@@ -1118,6 +1115,50 @@ impl OperatorController {
 mod tests {
     use super::*;
     use cdmw_formats::{MeshDocument, MeshFormat, MeshLod, SourceRange, Submesh, decode_mesh};
+
+    #[test]
+    fn cached_smooth_matches_edge_scan_for_boundaries_islands_and_undo() -> Result<(), Box<dyn std::error::Error>> {
+        let mut document = decode_mesh(&cdmw_formats::synthetic::two_lod_pac(), MeshFormat::Pac)?;
+        let mut isolated_part = document.lods[1].submeshes[0].clone();
+        for position in &mut isolated_part.positions { position[0] += 10.0; }
+        document.lods[1].submeshes.push(isolated_part);
+        document.lods[1].submeshes[0].positions.push([90.0, 90.0, 90.0]);
+        let mut mesh = WorkingMesh::from_document_lod(&document, 1)?;
+        let before = mesh.clone();
+        let weights = mesh.vertices().enumerate()
+            .map(|(index, (handle, _))| (handle, if index % 2 == 0 { 0.25 } else { 0.75 }))
+            .collect::<HashMap<_, _>>();
+        let expected_positions = weights.iter().map(|(handle, weight)| {
+            let position = Vec3::from_array(before.vertex(*handle).unwrap().position);
+            let mut neighbors = before.edges().filter_map(|(_, edge)| {
+                if edge.vertices[0] == *handle { Some(edge.vertices[1]) }
+                else if edge.vertices[1] == *handle { Some(edge.vertices[0]) }
+                else { None }
+            }).collect::<Vec<_>>();
+            neighbors.sort_unstable();
+            let next = if neighbors.is_empty() { position } else {
+                let sum = neighbors.iter().fold(Vec3::ZERO, |total, neighbor| {
+                    total + Vec3::from_array(before.vertex(*neighbor).unwrap().position)
+                });
+                position.lerp(sum / neighbors.len() as f32, 0.5 * weight)
+            };
+            (*handle, next.to_array())
+        }).collect::<HashMap<_, _>>();
+        let mut expected = before.clone();
+        expected.apply_positions(&expected_positions)?;
+        let mut operator = OperatorController::default();
+        let gesture = operator.begin(&mesh, "smooth cached adjacency")?;
+        operator.sculpt_weighted(&mut mesh, gesture, SculptTool::Smooth, &weights,
+            Vec3::ZERO, Vec3::ZERO, 0.5)?;
+        assert_eq!(mesh.draw_snapshot(), expected.draw_snapshot());
+        let mut history = History::new(1_000_000);
+        operator.confirm(&mut mesh, &mut history, gesture)?;
+        history.undo(&mut mesh)?;
+        assert_eq!(mesh.draw_snapshot(), before.draw_snapshot());
+        history.redo(&mut mesh)?;
+        assert_eq!(mesh.draw_snapshot(), expected.draw_snapshot());
+        Ok(())
+    }
 
     #[test]
     fn reversed_lasso_winding_selects_the_same_point() -> Result<(), InteractionError> {

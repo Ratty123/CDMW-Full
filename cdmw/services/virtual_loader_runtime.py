@@ -105,15 +105,18 @@ def _verify_snapshot(root, *, stop_event, all_sources, on_progress=None):
             on_progress(current, total, 'Checking the saved virtual files…')
     progress()
     for relative, checksum in profile['files'].items():
-        if hash_file(target(directory, 'files/' + relative), stop_event) != checksum:
-            raise VirtualLoaderError('A prepared virtual file changed. Prepare the profile again.')
+        path = target(directory, 'files/' + relative)
+        if not path.is_file() or (all_sources and hash_file(path, stop_event) != checksum):
+            raise VirtualLoaderError(f'A prepared virtual file changed: {relative}. Apply changes again.')
         current += 1
         progress()
     for path, checksum in sources:
         if hash_file(Path(path), stop_event) != checksum:
-            raise VirtualLoaderError('A game or mod source changed. Prepare the profile again.')
+            raise VirtualLoaderError(f'A game or mod source changed: {path}. Apply changes again.')
         current += 1
         progress()
+    from cdmw.services.virtual_loader_sources import verify_catalogue
+    verify_catalogue(profile.get('catalogue', ()), stop_event)
     for folder, expected in profile['inventories']:
         if canonical(_inventory(Path(folder), stop_event)) != canonical(expected):
             raise VirtualLoaderError('A mounted archive or selected mod folder changed. Prepare the profile again.')
@@ -180,7 +183,7 @@ def session_manifest(root, profile, *, mode, executable_sha256, token=None, laun
     """Bounded UTF-16 wire format shared with the native session/runtime harness."""
     root = Path(root).resolve()
     token = token or uuid4().hex
-    data = bytearray(b'CDVFS2\0\0' + struct.pack('<III', mode, 0, 0) + bytes.fromhex(executable_sha256))
+    data = bytearray(b'CDVFS3\0\0' + struct.pack('<III', mode, 0, 0) + bytes.fromhex(executable_sha256))
     def string(value):
         encoded = str(value).encode('utf-16le')
         if not encoded or len(encoded) >= 65536 or '\0' in str(value):
@@ -210,6 +213,14 @@ def session_manifest(root, profile, *, mode, executable_sha256, token=None, laun
         string(path)
         data.extend(struct.pack('<I', int(checksum is not None)))
         data.extend(bytes.fromhex(checksum) if checksum else bytes(32))
+    catalogue = profile.get('catalogue', ())
+    data.extend(struct.pack('<I', len(catalogue)))
+    for path, stamp in catalogue:
+        if path in guards:
+            raise VirtualLoaderError('A catalogue witness conflicts with a required source guard.')
+        string(path)
+        size, modified = (stamp[0], stamp[1] // 100 + 116444736000000000) if stamp is not None else (0, 0)
+        data.extend(struct.pack('<IQQ', int(stamp is not None), size, modified))
     data.extend(struct.pack('<I', int(launcher is not None)))
     if launcher is not None:
         string(Path(launcher).resolve())

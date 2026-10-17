@@ -41,7 +41,7 @@ The workspace's **Advanced** tab groups archive health and recovery, separate pa
 preparation, and item identity tools.
 
 Preparation shows a percentage and the current stage. The percentage follows completed
-stages and source files, not an estimate of elapsed or remaining time. It reaches 100%
+stages and verified source bytes, not an estimate of elapsed or remaining time. It reaches 100%
 only after the parent accepts the complete worker result. Apply then saves the
 profile automatically. Saving has its own busy indicator; verified committed
 publication hides the bar and shows **Profile applied. Ready to launch.**
@@ -493,6 +493,42 @@ index is rejected even if its size and all recorded timestamps match and the PAZ
 payloads remain unchanged. Recognized folder PAPGT and unchanged PATHC metadata
 also retain digests of the exact bytes consumed during folder admission.
 
+### Source roles and reusable preparation
+
+The provenance tracker distinguishes an archive discovered in the catalogue from
+an archive whose bytes are required. An explicit pin or payload read promotes a
+catalogue witness to a content dependency. Each independent Build Plan receives
+separate mutable lookup caches and a separate tracker; verified clean stock table
+and catalogue data can be shared. Reuse rechecks exact parsed indexes, consumed
+table payloads, mount/version/texture metadata and shipped-index inventory. It does
+not substitute the mounted modded view for the clean stock baseline.
+
+| Witness | Required check |
+| --- | --- |
+| Parsed PAMT and index remapping | Hash of the exact parsed index; checked again before publication and launch. |
+| Mount order, texture registry and ownership | Exact content hashes, presence and current observed state. |
+| Selected packages and providers | Exact artifact admission, active provider order, inventories and conflicts. |
+| Compilation payloads | Decoded payload digest and the complete source-carrier hash. |
+| Runtime-only resource references | Recursive verified PAC/companion/prefab/effect traversal and terminal DDS reads; their carriers remain content dependencies. |
+| Proven unused PAZ carriers | Captured file presence/size/timestamps for preparation and publication; native presence/size/last-write checks and retained handles during the session. |
+
+A v1 package type alone is insufficient to exclude an archive hash. Each recipe
+must finish a reference audit that encountered only parsed or verified terminal
+boundaries. Borrowed HKX and other unparsed borrowed formats, v2 combinations,
+external providers and active mounted layers retain all carrier content guards.
+A same-size, same-time change to required content is still rejected by its hash.
+For a carrier proven irrelevant to the profile, an unrelated content change that
+preserves catalogue metadata is permitted. Index changes, missing/truncated files
+and changed mount/provider evidence are still rejected. No range-only PAZ guard
+is enabled by this policy.
+
+Package inspection shares a bounded cache only within the preparation that owns
+it. Exact artifact hits keep separate mutable metadata; matching compressed-member
+representations reuse immutable validated bytes. ZIP local headers, sizes, CRCs,
+capabilities and complete package admission remain enforced. An unverified blob
+name or claimed digest never permits a cache hit. Ordinary package dispatch does
+not inflate the ZIP merely to decide whether it contains a semantic export.
+
 Each new profile also records its compiler and adapter revisions and a compilation
 identity linking packages, features, allocation bindings, sources, composition
 order, runtime protocol and output hashes. A profile with
@@ -508,10 +544,11 @@ The existing controller owns progress, cancellation and stale-result rejection;
 closing the page cancels the helper without waiting on the UI thread. Its private
 temporary files are removed only after it exits. A bounded data-only result carries
 the same source, provider and ownership guards back to automatic profile publication.
-Private worker protocol 2 requires parsed-index witnesses for its archive sources
+Private worker protocol 3 requires parsed-index witnesses and explicit catalogue
+roles for its archive sources
 and checks them against the profile's recorded source hashes. Old protocol results,
 missing witnesses and contradictory digests refuse; this does not change `.cditem`
-v1 or v2 wire data. Compiler revision 6 requires older derived profiles to be
+v1 or v2 wire data. Compiler revision 9 requires older derived profiles to be
 prepared again with their existing identity bindings.
 The asset collision index is built once per preparation, only when new assets need
 it, using the existing native PA hash implementation for large path batches. An older
@@ -546,13 +583,26 @@ fallback launch is performed. Resolve the detection before restarting CDMW to
 retry. A matching build hash establishes provenance, not that an antivirus result
 is a false positive; use [Microsoft's developer submission portal](https://www.microsoft.com/en-us/wdsi/filesubmission)
 for detection review. Launch still verifies every recorded game and mod file.
-The UI worker checks the selected packages, prepared output, inventories and save
-backup. The native host performs the full source-content check once under its
-installation lease, using two bounded readers with sequential I/O and byte progress.
+The UI worker checks selected packages, prepared-output presence, inventories and
+the save backup. The native host hashes every prepared output and required content
+source under its installation lease, using two bounded readers with sequential I/O.
+Progress reports checked bytes, total bytes, elapsed time and the current files.
 It pins game inputs before hashing and keeps those handles through the session;
 Steam cannot start until all checks pass. No timestamp-only shortcut or cached
 content digest substitutes for the recorded hashes. Standalone snapshot verification
 and diagnostic entry points retain their complete checks.
+
+### Reusing a prepared private view
+
+Apply still resolves the selected packages, composes the current records and verifies required sources before looking for reusable output. The optional `build_cache` profile record binds the compiler and adapter revisions, exact package artifacts, identity bindings, selection order, providers, runtime ABI, dependency links, catalogue witnesses, inventories, processing parameters and raw resource hashes. It never replaces source verification or launch validation.
+
+When those inputs match the active retained generation, preparation can reuse its private archive and metadata bytes without compressing resources or rebuilding the archive checksum chain. It first captures the prior manifest and output files within bounded memory, verifies their hashes, checks the complete archive inventory and validates each stored resource against its current raw digest. Mount and texture-registry bytes must also match the newly required view. The existing `profile['files']` SHA ledger is prior-builder provenance, as it is during launch. Exact captured-file SHA verification preserves the prior checksum chain; preparation does not freshly recompute the PAZ checksum.
+
+A record change can reuse an unchanged compressed or encrypted resource. Plain resource flags 0 and 1 already pass the current bytes through unchanged, so they do not justify reading an earlier archive. Partial lookup stops before reading generation files unless unchanged transformed bytes are at least as large as the earlier generation's plain payload bytes. This conservative cost hint prevents a tiny record from triggering a large DDS capture. A reused span must still decode to the expected path, flags, size and raw digest.
+
+Current package resources can carry a preparation-owned digest receipt only after complete package admission. The receipt retains the exact immutable bytes and the digest verified by the reader. Copied, modified, generated or uncached bytes are hashed normally. This removes a repeated resource hash without reusing source-file hashes, output-file hashes or final source guards. The receipt stays inside preparation and is not part of the subprocess result or profile format.
+
+Reuse is limited to the active private generation, 256 MiB of captured output and 4,096 resources, with additional manifest and decoded-resource bounds. Older profiles without cache metadata, unsupported processing revisions, missing output and corrupt private output use the normal builder. Malformed ownership or cache metadata fails strict profile validation. Final source, provider and observed-state checks, cancellation, journalled publication and recovery remain in force on cache hits.
 
 ## Diagnostic setup and loading map
 
@@ -779,7 +829,8 @@ Focused commands from the project root (PowerShell):
 .\.venv\Scripts\python.exe -m pytest tests/test_virtual_loader.py tests/test_virtual_loader_runtime.py tests/test_virtual_loader_ui.py -q --basetemp "$env:TEMP\cdmw-virtual-loader"
 .\.venv\Scripts\python.exe -m pytest tests/test_virtual_publication_recovery.py tests/test_virtual_save_attempt_outcomes.py tests/test_virtual_save_lineage.py tests/test_independent_folder_metadata.py tests/test_cditem_index_consumers.py -q --basetemp "$env:TEMP\cdmw-virtual-contracts"
 .\.venv\Scripts\python.exe scripts/build_virtual_loader.py
-.\.venv\Scripts\python.exe -m pytest tests/test_virtual_loader_native.py -q --basetemp "$env:TEMP\cdmw-virtual-native"
+.\.venv\Scripts\python.exe -m pytest tests/test_virtual_loader_sources.py tests/test_virtual_loader_reference_closure.py tests/test_virtual_loader_cache.py tests/test_virtual_loader_cache_lifecycle.py tests/test_independent_item_digest_handoff.py -q --basetemp "$env:TEMP\cdmw-virtual-reuse"
+.\.venv\Scripts\python.exe -m pytest tests/test_virtual_loader_native.py tests/test_virtual_loader_catalogue_native.py -q --basetemp "$env:TEMP\cdmw-virtual-native"
 ```
 
 The native sources, build instructions and provenance contract are described in

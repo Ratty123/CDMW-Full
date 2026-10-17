@@ -1174,7 +1174,7 @@ fn measure_authoring_selection_frames_on_supplied_mesh() -> TestResult {
     let faces = mesh.faces().count();
     let vertices = mesh.vertices().count();
     let mut application = LabApplication::new(None, None);
-    application.document = Some(document);
+    application.document = Some(Arc::new(document));
     application.mesh = Some(mesh);
     let mut ui =
         HeadlessUi::new_integrated_cdmw_for_controls(application, egui::vec2(1440.0, 900.0));
@@ -1706,7 +1706,7 @@ fn lod_one_application() -> Result<LabApplication, Box<dyn std::error::Error>> {
 
 fn two_part_application() -> Result<LabApplication, Box<dyn std::error::Error>> {
     let mut application = triangle_application()?;
-    let mut document = application.document.take().ok_or("document")?;
+    let mut document = Arc::unwrap_or_clone(application.document.take().ok_or("document")?);
     let first = document
         .lods
         .first_mut()
@@ -1724,14 +1724,14 @@ fn two_part_application() -> Result<LabApplication, Box<dyn std::error::Error>> 
     let mesh = WorkingMesh::from_document(&document)?;
     application.camera.frame_all(&mesh);
     application.mesh = Some(mesh);
-    application.document = Some(document);
+    application.document = Some(Arc::new(document));
     application.projection = None;
     Ok(application)
 }
 
 fn overlapping_parts_application() -> Result<LabApplication, Box<dyn std::error::Error>> {
     let mut application = triangle_application()?;
-    let mut document = application.document.take().ok_or("document")?;
+    let mut document = Arc::unwrap_or_clone(application.document.take().ok_or("document")?);
     let first = document
         .lods
         .first_mut()
@@ -1749,7 +1749,7 @@ fn overlapping_parts_application() -> Result<LabApplication, Box<dyn std::error:
     let mesh = WorkingMesh::from_document(&document)?;
     application.camera.frame_all(&mesh);
     application.mesh = Some(mesh);
-    application.document = Some(document);
+    application.document = Some(Arc::new(document));
     application.projection = None;
     Ok(application)
 }
@@ -1963,7 +1963,7 @@ fn integrated_parts_visibility_filters_drawing_and_selection_without_changing_ge
 #[test]
 fn integrated_parts_rows_stay_compact_with_long_names_and_materials() -> TestResult {
     let mut application = overlapping_parts_application()?;
-    for (index, part) in application.document.as_mut().ok_or("document")?.lods[0]
+    for (index, part) in Arc::make_mut(application.document.as_mut().ok_or("document")?).lods[0]
         .submeshes
         .iter_mut()
         .enumerate()
@@ -2012,7 +2012,7 @@ fn integrated_parts_visibility_follows_surviving_parts_and_respects_layers() -> 
         1,
         0,
     ));
-    let original = ui.application.document.clone().ok_or("document")?;
+    let original = ui.application.document.as_deref().cloned().ok_or("document")?;
     ui.application.cdmw_state["geometry_layers"]["layers"] = json!([
         {"submesh_indices": [0], "base": true, "visible": true},
         {"submesh_indices": [1], "base": false, "visible": false},
@@ -3582,7 +3582,7 @@ fn integrated_bone_overlay_requires_complete_hierarchy_and_paints_selected_weigh
     ui.click("Bones")?;
     assert!(ui.application.show_bones);
     let state = ui.application.cdmw_state.clone();
-    let mut document = ui.application.document.clone().ok_or("document")?;
+    let mut document = ui.application.document.as_deref().cloned().ok_or("document")?;
     document.lods[0].submeshes[0].positions[0][0] += 0.2;
     ui.application
         .install_validated_cdmw_state(state, Some(document))?;
@@ -4052,7 +4052,7 @@ fn integrated_geometry_layer_controls_dispatch_and_invalid_empty_copy_or_rename_
 #[test]
 fn integrated_morph_part_picker_shows_all_rows_without_nested_scrolling() -> TestResult {
     let mut app = triangle_application()?;
-    let document = app.document.as_mut().ok_or("document")?;
+    let document = Arc::make_mut(app.document.as_mut().ok_or("document")?);
     let part = document.lods[0].submeshes[0].clone();
     document.lods[0].submeshes = (0..6)
         .map(|index| {
@@ -5273,7 +5273,7 @@ fn integrated_replacement_long_names_keep_controls_clickable() -> TestResult {
             "CD_PHW_00_Head_Youth_0010_Eyecover",
         ];
         let mut application = two_part_application()?;
-        for (part, name) in application.document.as_mut().ok_or("document")?.lods[0]
+        for (part, name) in Arc::make_mut(application.document.as_mut().ok_or("document")?).lods[0]
             .submeshes
             .iter_mut()
             .zip(names)
@@ -8306,7 +8306,7 @@ fn inspector_paints_loaded_texture_relationship_provenance() -> TestResult {
             crate::loader::LoadedTexture {
                 label: "character/texture/body.dds".to_owned(),
                 metadata: base_metadata,
-                bytes: base_bytes,
+                bytes: base_bytes.into(),
                 role: cdmw_texture::TextureRole::BaseColor,
                 requested_reference: "character/texture/body.dds".to_owned(),
                 parameter_name: Some("_baseColorTexture".to_owned()),
@@ -8318,7 +8318,7 @@ fn inspector_paints_loaded_texture_relationship_provenance() -> TestResult {
             crate::loader::LoadedTexture {
                 label: "character/texture/body_gloss.dds".to_owned(),
                 metadata: glossiness_metadata,
-                bytes: glossiness_bytes,
+                bytes: glossiness_bytes.into(),
                 role: cdmw_texture::TextureRole::Glossiness,
                 requested_reference: "character/texture/body_gloss.dds".to_owned(),
                 parameter_name: Some("_glossinessTexture".to_owned()),
@@ -8330,7 +8330,7 @@ fn inspector_paints_loaded_texture_relationship_provenance() -> TestResult {
             crate::loader::LoadedTexture {
                 label: "character/texture/body_f.dds".to_owned(),
                 metadata: flow_metadata,
-                bytes: flow_bytes,
+                bytes: flow_bytes.into(),
                 role: cdmw_texture::TextureRole::Flow,
                 requested_reference: "character/texture/body_f.dds".to_owned(),
                 parameter_name: Some("_flowTexture".to_owned()),
@@ -8342,7 +8342,7 @@ fn inspector_paints_loaded_texture_relationship_provenance() -> TestResult {
             crate::loader::LoadedTexture {
                 label: "character/texture/body_mg.dds".to_owned(),
                 metadata: layer_mask_metadata,
-                bytes: layer_mask_bytes,
+                bytes: layer_mask_bytes.into(),
                 role: cdmw_texture::TextureRole::LayerMask,
                 requested_reference: "character/texture/body_mg.dds".to_owned(),
                 parameter_name: Some("_detailMaskTexture".to_owned()),

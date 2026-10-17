@@ -66,7 +66,7 @@ def decode(data, *, limit=MAX_MANIFEST):
 
 def validate_profile(value):
     expected = {'format', 'generation', 'items', 'packages', 'mods', 'files', 'sources', 'inventories', 'observed'}
-    if not isinstance(value, dict) or set(value) - {'disabled_packages', 'disabled_mods'} not in (expected, expected | {'compiler'}, expected | {'compiler', 'compilation'}) or value['format'] != FORMAT:
+    if not isinstance(value, dict) or set(value) - {'disabled_packages', 'disabled_mods', 'catalogue', 'build_cache'} not in (expected, expected | {'compiler'}, expected | {'compiler', 'compilation'}) or value['format'] != FORMAT:
         raise VirtualLoaderError('Unsupported virtual profile.')
     if 'compiler' in value:
         try:
@@ -99,6 +99,16 @@ def validate_profile(value):
     for row in value['sources']:
         if not isinstance(row, list) or len(row) != 2 or not absolute(row[0]) or not checksum(row[1]) or row[0] in seen:
             raise VirtualLoaderError('Invalid virtual source guard.')
+        seen.add(row[0])
+    catalogue = value.get('catalogue', [])
+    if not isinstance(catalogue, list) or len(catalogue) > 65536:
+        raise VirtualLoaderError('Invalid virtual catalogue guards.')
+    for row in catalogue:
+        if (not isinstance(row, list) or len(row) != 2 or not absolute(row[0])
+                or Path(row[0]).suffix.lower() != '.paz' or row[0] in seen
+                or (row[1] is not None and (not isinstance(row[1], list) or len(row[1]) != 3
+                    or any(type(n) is not int or n < 0 or n >= 2**63 for n in row[1])))):
+            raise VirtualLoaderError('Invalid virtual catalogue guard.')
         seen.add(row[0])
     allowed_observed = {'.cdmw/overlays.json', 'meta/0.papgt', 'meta/0.pathc'}
     seen = set()
@@ -135,7 +145,7 @@ def validate_profile(value):
         try:
             inputs = validate_compilation(value['compilation'])
             locked = {package['identity']: package['content'] for package in inputs['packages']}
-            if (inputs['scope'] != 'virtual-profile' or inputs['runtime_abi'] != 'CDVFS2'
+            if (inputs['scope'] != 'virtual-profile' or inputs['runtime_abi'] not in ('CDVFS2', 'CDVFS3')
                     or inputs['compiler'] != value['compiler'] or inputs['sources'] != dict(value['sources'])
                     or inputs['outputs'] != value['files'] or inputs['providers'] != dict(value['observed'])
                     or locked != {identity: row['digest'] for identity, row in value['items'].items()}
@@ -145,6 +155,9 @@ def validate_profile(value):
                 raise ValueError('The virtual package dependency graph disagrees with the profile.')
         except ValueError as exc:
             raise VirtualLoaderError(str(exc)) from exc
+    if 'build_cache' in value:
+        from cdmw.services.virtual_loader_cache import validate_cache_record
+        validate_cache_record(value['build_cache'], value)
     if len(canonical(value)) > MAX_MANIFEST:
         raise VirtualLoaderError('Virtual profile exceeds its size limit.')
     return value
@@ -358,3 +371,4 @@ def publish_profile(prepared, *, stop_event=None, on_log=None):
                 except Exception:
                     logging.getLogger(__name__).exception('Committed profile diagnostic delivery failed.')
         return profile
+

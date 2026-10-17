@@ -25,7 +25,7 @@ from cdmw.domain.new_item.independent import IdentityBindings, IndependentItemEr
 from cdmw.domain.new_item.rules import has_errors
 from cdmw.services import archive_overlay_manager as overlays
 from cdmw.services.independent_item_package import (
-    MAX_MANIFEST, MAX_TOTAL, canonical, digest, package_bytes, package_metadata, read_package, stock_snapshot, unpack_recipe, virtual_path,
+    MAX_MANIFEST, MAX_TOTAL, PackageReadCache, canonical, digest, package_bytes, package_metadata, read_package, stock_snapshot, unpack_recipe, virtual_path,
 )
 from cdmw.services.new_item_planning import build_plan
 from cdmw.services.new_item_service import NewItemService
@@ -267,6 +267,8 @@ class ResolvedItemSet:
     revisions: tuple
     summary: tuple
     links: dict | None = None
+    # Internal to preparation; the subprocess result serializes PreparedSnapshot.
+    resource_digests: object | None = None
 
 
 class _AssetHashes:
@@ -323,7 +325,7 @@ class _AssetHashes:
         self._reserved.update(additions)
 
 
-def _semantic_inputs(sources, folders=(), *, stop_event=None):
+def _semantic_inputs(sources, folders=(), *, stop_event=None, package_cache=None):
     """Admit opaque exports before treating any selected input as game bytes."""
     from cdmw.core.mod_compatibility import read_semantic_export
     expanded, ordinary, exports = [], [], []
@@ -342,14 +344,14 @@ def _semantic_inputs(sources, folders=(), *, stop_event=None):
 
     for source in sources:
         raise_if_cancelled(stop_event)
-        semantic = read_semantic_export(source, stop_event=stop_event) if isinstance(source, (str, Path)) else None
+        semantic = read_semantic_export(source, stop_event=stop_event, package_cache=package_cache) if isinstance(source, (str, Path)) else None
         if semantic is None:
             expanded.append(source)
         else:
             add_export(semantic)
     for folder in folders:
         raise_if_cancelled(stop_event)
-        semantic = read_semantic_export(folder, stop_event=stop_event)
+        semantic = read_semantic_export(folder, stop_event=stop_event, package_cache=package_cache)
         if semantic is None:
             ordinary.append(folder)
         else:
@@ -387,7 +389,8 @@ def resolve_items(sources, root, *, target='archive', folders=(), rebuild=False,
             on_progress(value, 100, detail)
     progress(0, 'Checking item packages…')
     root = Path(root).resolve()
-    sources, folders, semantic_exports = _semantic_inputs(sources, folders, stop_event=stop_event)
+    package_cache = PackageReadCache()
+    sources, folders, semantic_exports = _semantic_inputs(sources, folders, stop_event=stop_event, package_cache=package_cache)
     observed_state = overlays._observe_state(root)
     def current_bytes(relative):
         path = overlays._target(root, relative)
@@ -398,7 +401,7 @@ def resolve_items(sources, root, *, target='archive', folders=(), rebuild=False,
     shared_blobs = {}
     total_size = 0
     for source in sources:
-        package = read_package(source, stop_event=stop_event)
+        package = read_package(source, stop_event=stop_event, cache=package_cache)
         old = packages.get(package.identity)
         if old and old.digest != package.digest:
             raise IndependentItemError('A batch contains two different versions of the same item. Select one version.')
@@ -425,7 +428,8 @@ def resolve_items(sources, root, *, target='archive', folders=(), rebuild=False,
     state, pending = overlays._state_for_edit(root, None, stop_event)
     from cdmw.domain.new_item.package_links import resolve_package_graph, bind_package_graph
     from cdmw.services.independent_mod_package import retained_active_packages
-    retained = retained_active_packages(root, state['layers'], pending, exclude=packages, stop_event=stop_event) if target == 'archive' else ()
+    retained = retained_active_packages(root, state['layers'], pending, exclude=packages, stop_event=stop_event,
+                                      package_cache=package_cache) if target == 'archive' else ()
     package_graph = resolve_package_graph(chain(packages.values(), retained), stop_event=stop_event)
     decoded = {layer['id']: overlays._unpack_changes(root, layer, pending, stop_event) for layer in state['layers']}
     service = NewItemService()
@@ -572,7 +576,7 @@ def resolve_items(sources, root, *, target='archive', folders=(), rebuild=False,
         cache_path = f'.cdmw/independent-items/{identity}-{package.digest}.cditem'
         cached = current_bytes(cache_path)
         if cached is not None:
-            existing = read_package(cached, stop_event=stop_event)
+            existing = read_package(cached, stop_event=stop_event, cache=package_cache)
             if existing.identity != identity or existing.digest != package.digest:
                 raise IndependentItemError('The retained recovery package has changed outside CDMW.')
         pending[cache_path] = cached if cached is not None else package_bytes(package, stop_event=stop_event)
@@ -583,10 +587,12 @@ def resolve_items(sources, root, *, target='archive', folders=(), rebuild=False,
     links = bind_package_graph(package_graph, registry['items'])
     if semantic_exports:
         from cdmw.services.independent_item_compatibility import validate_semantic_recomposition
-        validate_semantic_recomposition(semantic_exports, compiled, registry, stop_event=stop_event)
+        validate_semantic_recomposition(semantic_exports, compiled, registry, stop_event=stop_event,
+                                       package_cache=package_cache)
     progress(100, 'Item identities and dependencies verified.')
     return ResolvedItemSet(root, observed_state, state, pending, decoded, registry, registry_before,
-        baseline, external, tuple(rows), tuple(contributions), tuple(revisions), tuple(dict.fromkeys(compatibility)), links)
+        baseline, external, tuple(rows), tuple(contributions), tuple(revisions), tuple(dict.fromkeys(compatibility)), links,
+        package_cache.verified_blob_digests(package for package, _ in contributions))
 
 
 def prepare_install(sources, root, *, folders=(), rebuild=False, stop_event=None, on_log=None, read_entry=None):

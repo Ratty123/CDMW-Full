@@ -175,6 +175,15 @@ buffers. Each package is still validated independently and keeps its own UUID,
 resource mapping and installed paths. Logical batch limits count every package's
 resources, including shared bytes. This sharing lasts only for that preparation.
 
+A bounded preparation cache keys fully admitted packages by their exact ZIP artifact
+and current admission limits. Consumers receive independent mutable metadata while
+reusing immutable validated resources. Identical compressed members can reuse already
+decoded bytes only after their compressed representation and local ZIP metadata match;
+CRC, size, path, capability and complete-package checks remain mandatory. Semantic
+admission, resolution and retained-package recovery share that preparation owner.
+An ordinary ZIP classification checks its member directory without decoding every
+asset just to decide which reader owns the package.
+
 Physical contributions and complete virtual profiles carry a checksummed
 compilation record. It links compiler and adapter revisions, package content and
 source/retained artifact digests, negotiated features and module schemas, exact
@@ -349,6 +358,13 @@ must agree with the parsed bytes, even when a replacement preserves file size
 and all recorded timestamps. Payload checks remain in place. Other processes can
 still write between validation checkpoints; this does not establish
 cross-process snapshot isolation.
+
+Repeated independent **Build Plan** requests can reuse one immutable clean-stock
+catalogue and parsed-table generation. Reuse revalidates its root, discovery metadata,
+original index/content witnesses and reader/service authority. Each request gets
+separate dependency tracking, mutable entry views and working caches, so cancellation
+or another plan cannot populate its provenance. The cached baseline remains the
+clean-stock view; mounted texture-registry rebasing is performed for each request.
 
 Opaque dependencies on another mod are unsupported. Mounted external archive
 folders may use letters, digits, underscores and hyphens. Their actual payloads

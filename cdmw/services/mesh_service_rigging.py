@@ -13,6 +13,7 @@ from cdmw.domain.mesh import (
     summarize_mesh_skinning,
 )
 from cdmw.domain.mesh.weight_transfer import percentile_95, sample_weight_row, spatial_transfer_distance_limit
+from cdmw.domain.mesh.skeleton import summarize_skeleton_bones
 from cdmw.modding.mesh_edit_ops import refresh_mesh_totals
 from cdmw.services.mesh_service_reports import _coerce_index
 from cdmw.services.mesh_service_state import _MeshEditSession
@@ -141,11 +142,18 @@ class MeshRiggingServiceMixin:
         return self.skeleton_summary(session_id)
 
     @_with_session_export_lock
-    def select_bone(self, session_id: str, bone_index: int) -> MeshSkeletonSummary:
+    def _select_bone_index(self, session_id: str, bone_index: int) -> int:
         session = self._session(session_id)
+        if session.native_editor_mesh_dirty:
+            raise MeshPanelUnavailableError("native_skeleton_snapshot_unavailable", "native mesh editor skeleton summary unavailable; Python mesh state is stale")
         requested = _coerce_index(bone_index)
-        valid_indices = {bone.index for bone in self.skeleton_summary(session_id).bones}
+        valid_indices = {bone.index for bone in summarize_skeleton_bones(session.skeleton)}
         session.selected_bone_index = requested if requested is not None and requested in valid_indices else -1
+        return session.selected_bone_index
+
+    @_with_session_export_lock
+    def select_bone(self, session_id: str, bone_index: int) -> MeshSkeletonSummary:
+        self._select_bone_index(session_id, bone_index)
         return self.skeleton_summary(session_id)
 
     @_with_session_export_lock

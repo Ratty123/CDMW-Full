@@ -8,21 +8,50 @@
 #include <atomic>
 #include <chrono>
 #include <mutex>
+#include <sstream>
 #include <thread>
 
 using namespace cdmw::vfs;
 namespace {
+std::string path_text(const fs::path& path) {
+    const auto text = path.u8string();
+    return std::string(reinterpret_cast<const char*>(text.data()), text.size());
+}
+void require_source(bool okay, const char* reason, const fs::path& path) {
+    const auto message = std::string(reason) + ": " + path_text(path) + ". Apply changes again.";
+    require(okay, message.c_str());
+}
 void verify_contents(const Manifest& manifest, std::vector<Handle>& pins) {
     struct Input { fs::path path; Hash sha; const char* error; bool retain; };
     std::vector<Input> inputs;
     const auto root = normalize(manifest.root) + L"\\";
     for (const auto& guard : manifest.guards) {
-        if (!guard.present) { require(!fs::exists(guard.path), "An absent source appeared after review"); continue; }
+        if (!guard.present) { require_source(!fs::exists(guard.path), "An absent source appeared after review", guard.path); continue; }
         inputs.push_back({guard.path, guard.sha, "A game, package or ownership source changed after review",
                           manifest.mode != Mode::trace && normalize(guard.path).starts_with(root)});
     }
     for (const auto& file : manifest.files)
         inputs.push_back({file.path, file.sha, "Snapshot checksum mismatch", true});
+
+    // Catalogue-only carriers affect listing freshness, not the compiled bytes.
+    // Retain their real file handles too, so presence cannot change after review.
+    for (const auto& guard : manifest.catalogue) {
+        if (!guard.present) {
+            require_source(!fs::exists(guard.path), "An absent catalogue source appeared", guard.path);
+            continue;
+        }
+        Handle pin(CreateFileW(guard.path.c_str(), GENERIC_READ, FILE_SHARE_READ, nullptr,
+                               OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr));
+        require_source(bool(pin), "Cannot pin catalogue source", guard.path);
+        BY_HANDLE_FILE_INFORMATION info{};
+        require_source(GetFileInformationByHandle(pin.value, &info), "Cannot inspect catalogue source", guard.path);
+        const auto size = (uint64_t(info.nFileSizeHigh) << 32) | info.nFileSizeLow;
+        const auto modified = (uint64_t(info.ftLastWriteTime.dwHighDateTime) << 32) | info.ftLastWriteTime.dwLowDateTime;
+        require_source(!(info.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
+                       && size == guard.size && modified == guard.last_write,
+                       "Archive catalogue source changed", guard.path);
+        pins.push_back(std::move(pin));
+    }
 
     uint64_t total = 0;
     for (const auto& input : inputs) {
@@ -30,7 +59,7 @@ void verify_contents(const Manifest& manifest, std::vector<Handle>& pins) {
         // gap. Save files outside the installation are released after their read.
         if (input.retain) {
             Handle pin(CreateFileW(input.path.c_str(), GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr));
-            require(bool(pin), "Cannot pin launch input");
+            require_source(bool(pin), "Cannot pin launch input", input.path);
             pins.push_back(std::move(pin));
         }
         total += fs::file_size(input.path);
@@ -40,32 +69,44 @@ void verify_contents(const Manifest& manifest, std::vector<Handle>& pins) {
     std::atomic<int> active{2};
     std::atomic<bool> failed{false};
     std::mutex error_mutex;
+    std::mutex progress_mutex;
+    std::array<std::string, 2> current_files;
     std::exception_ptr error;
     std::vector<std::jthread> workers;
-    for (int i = 0; i < 2; ++i) workers.emplace_back([&] {
+    const auto started = std::chrono::steady_clock::now();
+    for (int i = 0; i < 2; ++i) workers.emplace_back([&, worker = i] {
         try {
             while (!failed.load()) {
                 const auto index = next.fetch_add(1);
                 if (index >= inputs.size()) break;
                 const auto& input = inputs[index];
+                { std::lock_guard lock(progress_mutex); current_files[worker] = path_text(input.path.parent_path().filename() / input.path.filename()); }
                 const auto actual = hash_file(input.path, [&](uint64_t count) {
                     require(!failed.load(), "Launch verification stopped");
                     bytes.fetch_add(count);
                 });
-                require(actual == input.sha, input.error);
+                require_source(actual == input.sha, input.error, input.path);
             }
         } catch (...) {
             std::lock_guard lock(error_mutex);
             if (!error) error = std::current_exception();
             failed.store(true);
         }
+        { std::lock_guard lock(progress_mutex); current_files[worker].clear(); }
         active.fetch_sub(1);
     });
     int previous = -1;
     while (active.load()) {
         const auto percent = static_cast<int>(90.0 * std::min(bytes.load(), total) / std::max<uint64_t>(1, total));
-        if (percent != previous) {
-            status(manifest, "starting", 0, "Verifying launch files...", percent);
+        if (percent != previous || active.load()) {
+            std::ostringstream detail;
+            const auto elapsed = std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now() - started).count();
+            detail << "Verifying launch files: " << bytes.load() / (1024 * 1024) << " / "
+                   << total / (1024 * 1024) << " MiB, " << elapsed << " s";
+            { std::lock_guard lock(progress_mutex);
+              for (const auto& file : current_files) if (!file.empty()) detail << "; " << file; }
+            const auto message = detail.str();
+            status(manifest, "starting", 0, message.c_str(), percent);
             previous = percent;
         }
         std::this_thread::sleep_for(std::chrono::milliseconds(100));
@@ -73,7 +114,9 @@ void verify_contents(const Manifest& manifest, std::vector<Handle>& pins) {
     workers.clear(); // Join before releasing handles or propagating a refusal.
     if (error) std::rethrow_exception(error);
     for (const auto& guard : manifest.guards)
-        if (!guard.present) require(!fs::exists(guard.path), "An absent source appeared after review");
+        if (!guard.present) require_source(!fs::exists(guard.path), "An absent source appeared after review", guard.path);
+    for (const auto& guard : manifest.catalogue)
+        if (!guard.present) require_source(!fs::exists(guard.path), "An absent catalogue source appeared", guard.path);
     status(manifest, "starting", 0, "Verifying launch files...", 90);
 }
 

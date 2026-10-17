@@ -71,6 +71,14 @@ class SourceRevision:
     files: tuple[tuple[Path, object], ...]
     reader: Callable[[ArchiveEntry], bytes]
     indexes: tuple[tuple[Path, str], ...] = ()
+    catalogue_files: tuple[Path, ...] = ()
+    reference_closure_complete: bool = False
+
+    @property
+    def content_files(self):
+        """Explicit inputs and read carriers, excluding listing-only witnesses."""
+        catalogue = set(self.catalogue_files)
+        return tuple((path, stamp) for path, stamp in self.files if path not in catalogue)
 
     def validate(self, stop_event=None) -> None:
         for path, stamp in self.files:
@@ -101,14 +109,32 @@ class SourceTracker:
         self._files = {}
         self._payloads = {}
         self._indexes = {}
+        self._catalogue_files = set()
+        self._reference_closure_complete = None
         self._lock = threading.RLock()
 
     def pin_file(self, path: Path):
+        path = Path(path)
         with self._lock:
             current = _stamp(path)
             prior = self._files.setdefault(path, current)
             if prior != current:
                 raise StaleNewItemSource(f"Source changed while reading: {path}.")
+            self._catalogue_files.discard(path)
+
+    def pin_catalogue_file(self, path: Path):
+        """Retain listing freshness without claiming the whole file was consumed.
+
+        An explicit pin or payload read always promotes this to a content input.
+        The final launch still checks and pins catalogue-only file metadata.
+        """
+        path = Path(path)
+        with self._lock:
+            known = path in self._files
+            catalogue_only = path in self._catalogue_files
+            self.pin_file(path)
+            if not known or catalogue_only:
+                self._catalogue_files.add(path)
 
     def pin_index(self, path: Path, checksum: str, stop_event=None):
         """Retain the digest computed from parsed bytes, never a replacement index."""
@@ -159,12 +185,24 @@ class SourceTracker:
             indexes = tuple(self._indexes.items())
         _validate_indexes(indexes, stop_event)
 
-    def fork(self, reader):
+    def record_reference_closure(self, complete: bool):
+        """Record a finished traversal; one unknown boundary keeps full guards."""
+        with self._lock:
+            self._reference_closure_complete = complete is True and self._reference_closure_complete is not False
+
+    def fork(self, reader, *, include_reads=False):
         """Give a derived snapshot independent reads with the same parsed indexes."""
         result = SourceTracker(reader)
         with self._lock:
             result._indexes = dict(self._indexes)
-            result._files = {path: self._files[path] for path in self._indexes}
+            if include_reads:
+                result._files = dict(self._files)
+                result._payloads = {key: replace(value, entry=replace(value.entry))
+                                    for key, value in self._payloads.items()}
+                result._catalogue_files = set(self._catalogue_files)
+                result._reference_closure_complete = self._reference_closure_complete
+            else:
+                result._files = {path: self._files[path] for path in self._indexes}
         return result
 
     def read(self, entry):
@@ -186,9 +224,11 @@ class SourceTracker:
     def capture(self) -> SourceRevision:
         with self._lock:
             return SourceRevision(tuple(self._payloads.values()), tuple(self._files.items()), self.reader,
-                                  tuple(self._indexes.items()))
+                                  tuple(self._indexes.items()), tuple(sorted(self._catalogue_files)),
+                                  self._reference_closure_complete is True)
 
     def files_changed(self) -> bool:
         """Cheap worker-side invalidation before any cached planning data is reused."""
         with self._lock:
             return any(_stamp(path) != stamp for path, stamp in self._files.items())
+

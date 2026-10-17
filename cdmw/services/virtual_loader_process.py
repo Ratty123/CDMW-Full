@@ -18,7 +18,7 @@ from cdmw.services.independent_item_package import MAX_MANIFEST, MAX_TOTAL, cano
 from cdmw.services.new_item_provenance import PayloadRevision, SourceRevision
 from cdmw.services.virtual_loader_state import PROFILE_PATH, REGISTRY, decode, target, validate_profile
 
-_SCHEMA = 2
+_SCHEMA = 3
 _MAX_METADATA = 8 * MAX_MANIFEST
 _ENTRY_FIELDS = ('path', 'pamt_path', 'paz_file', 'offset', 'comp_size', 'orig_size', 'flags', 'paz_index')
 
@@ -88,7 +88,8 @@ def _revision_data(revision):
         entry.update(pamt_path=str(entry['pamt_path']), paz_file=str(entry['paz_file']))
         rows.append([entry, payload.sha256])
     return {'files': [(str(path), stamp) for path, stamp in revision.files], 'payloads': rows,
-            'indexes': [(str(path), checksum) for path, checksum in revision.indexes]}
+            'indexes': [(str(path), checksum) for path, checksum in revision.indexes],
+            'catalogue': [str(path) for path in revision.catalogue_files]}
 
 
 def _source_path(value, roots, exact_files=()):
@@ -107,7 +108,7 @@ def _read_entry(entry):
 
 def _revision(value, roots, artifact_paths=(), exact_files=()):
     from cdmw.models import ArchiveEntry
-    _require(isinstance(value, dict) and set(value) == {'files', 'payloads', 'indexes'})
+    _require(isinstance(value, dict) and set(value) == {'files', 'payloads', 'indexes', 'catalogue'})
     _require(all(isinstance(value[key], list) and len(value[key]) <= 65536 for key in value))
     files, payloads = [], []
     exact_files = set(exact_files) | set(artifact_paths)
@@ -146,7 +147,12 @@ def _revision(value, roots, artifact_paths=(), exact_files=()):
         _require(entry['pamt_path'] in indexes and entry['pamt_path'].suffix.lower() == '.pamt'
                  and entry['paz_file'].suffix.lower() == '.paz')
         payloads.append(PayloadRevision(ArchiveEntry(**entry), checksum))
-    return SourceRevision(tuple(payloads), tuple(files), _read_entry, tuple(indexes.items()))
+    catalogue = tuple(_source_path(path, roots) for path in value['catalogue'])
+    required = {Path(payload.entry.paz_file) for payload in payloads}
+    _require(len(set(catalogue)) == len(catalogue)
+             and all(path in pinned_files and path.suffix.lower() == '.paz' and path not in required
+                     for path in catalogue))
+    return SourceRevision(tuple(payloads), tuple(files), _read_entry, tuple(indexes.items()), catalogue)
 
 
 def _write_result(prepared, request, folder, output_path, stop_event):
@@ -231,7 +237,11 @@ def _read_result(request, folder, output_path, stop_event, *, semantic_sources=(
     external = ExternalModRevision(root, _revision(result['external_source'], roots, artifact_paths, exact_files),
                                    tuple((p, tuple(names)) for p, names in archives), inventories)
     revision = _revision(result['source'], roots, artifact_paths, exact_files)
+    from cdmw.services.virtual_loader_sources import catalogue_records
+    _require(canonical(profile.get('catalogue', [])) == canonical(catalogue_records(revision)))
     source_hashes = dict(profile['sources'])
+    _require(all(str(path) in source_hashes for source in (revision, external.source_revision)
+                 for path, stamp in source.content_files if stamp is not None))
     _require(all(source_hashes.get(str(path)) == checksum
                  for path, checksum in (*revision.indexes, *external.source_revision.indexes)))
     parsed_hashes = dict((*revision.indexes, *external.source_revision.indexes))
@@ -242,7 +252,8 @@ def _read_result(request, folder, output_path, stop_event, *, semantic_sources=(
     for path, stamp in semantic_stamps:
         _require(path in file_stamps and file_stamps[path] == stamp)
     for path, checksum, semantic_folder, inventory in semantic_sources:
-        _require(parsed_hashes.get(path) == checksum and source_hashes.get(str(path)) == checksum)
+        _require((path == root / 'meta/0.pathc' or parsed_hashes.get(path) == checksum)
+                 and source_hashes.get(str(path)) == checksum)
         if semantic_folder is not None:
             _require(inventory_map.get(semantic_folder) == inventory)
     _require(isinstance(result['summary'], list) and len(result['summary']) <= 65536
@@ -254,8 +265,7 @@ def _read_result(request, folder, output_path, stop_event, *, semantic_sources=(
 def _semantic_source_guards(profile, root, stop_event=None):
     """Retain module-required source witnesses before starting the child."""
     from cdmw.core.mod_compatibility import read_semantic_export, hash_file
-    from cdmw.services.independent_item_package import read_package
-    from cdmw.services.independent_texture_package import package_texture_requirements
+    from cdmw.services.independent_item_package import PackageReadCache
     from cdmw.services.mod_merge_service import _inventory
     from cdmw.core.archive_scan_cache import (
         crimson_desert_executable_candidates, resolve_crimson_desert_executable)
@@ -264,17 +274,17 @@ def _semantic_source_guards(profile, root, stop_event=None):
     result, stamps = [], {}
     from cdmw.services.archive_overlay_manager import _load_index
     state = _load_index(root)
-    needs_registry = any(layer.get('independent_identity') and layer.get('independent_textures')
+    # Admission belongs to the child. Guard the small registry conservatively
+    # instead of inflating every ordinary package in this parent merely to ask
+    # whether one of its modules uses textures.
+    needs_registry = bool(profile.packages) or any(layer.get('independent_identity') and layer.get('independent_textures')
                          and (layer['active'] or layer.get('disabled'))
                          for layer in (state or {}).get('layers', ()))
+    cache = PackageReadCache()
     for path in (*profile.packages, *profile.mods):
         raise_if_cancelled(stop_event)
-        semantic = read_semantic_export(path, stop_event=stop_event)
-        sources = semantic.packages if semantic is not None else (path,) if Path(path).is_file() else ()
-        for source in sources:
-            package = read_package(source, stop_event=stop_event)
-            needs_registry = needs_registry or bool(package_texture_requirements(package))
-            del package
+        semantic = read_semantic_export(path, stop_event=stop_event, package_cache=cache)
+        needs_registry = needs_registry or semantic is not None or Path(path).is_file()
         if semantic is not None:
             inventory = _inventory(semantic.folder, stop_event) if semantic.folder is not None else None
             result.append((semantic.source, semantic.artifact_digest, semantic.folder, inventory))
@@ -295,7 +305,10 @@ def _semantic_source_guards(profile, root, stop_event=None):
         del semantic
     if needs_registry:
         registry = root / 'meta/0.pathc'
-        result.append((registry, hash_file(registry, stop_event), None, None))
+        if registry.is_file():
+            result.append((registry, hash_file(registry, stop_event), None, None))
+        else:
+            stamps[registry] = _stamp(registry)
     return tuple(result), tuple(stamps.items())
 
 

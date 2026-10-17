@@ -27,7 +27,7 @@ impl LabApplication {
         let Some(state) = self.hair.state.as_ref() else {
             return;
         };
-        let Some(document) = self.hair.preview.as_ref().or(self.document.as_ref()) else {
+        let Some(document) = self.hair.preview.as_ref().or(self.document.as_deref()) else {
             return;
         };
         if self

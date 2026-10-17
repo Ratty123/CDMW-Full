@@ -1,7 +1,7 @@
 use super::*;
 
 fn state(root: &std::path::Path, app: &LabApplication, revision: u64, cursor: usize) -> Result<Value, Box<dyn std::error::Error>> {
-    let mut document = app.document.clone().ok_or("document")?;
+    let mut document = app.document.as_deref().cloned().ok_or("document")?;
     document.lods[0].submeshes[0].positions[0][0] = cursor as f32;
     let mut value = cdmw_state_with_document(root, "history-navigation", revision, &document)?;
     value["authoring_enabled"] = json!(true);
@@ -37,12 +37,12 @@ fn action_history_traverses_only_acknowledged_steps_and_can_restore_them() -> Te
     let mut app = application(root.path())?;
     app.handle_actions(vec![UiAction::CdmwHistoryCursor { cursor: 1, revision: 0 }]);
     assert_eq!(app.cdmw_pending_request.as_ref().unwrap().label, "Undo");
-    assert_eq!(app.document.as_ref().unwrap().lods[0].submeshes[0].positions[0][0], 3.0);
+    assert_eq!(app.document.as_deref().unwrap().lods[0].submeshes[0].positions[0][0], 3.0);
     for (revision, cursor) in [(1, 2), (2, 1)] {
         let value = state(root.path(), &app, revision, cursor)?;
         reply(&mut app, value, true);
         assert!(!app.cdmw_exit_requested, "{}", app.status);
-        assert_eq!(app.document.as_ref().unwrap().lods[0].submeshes[0].positions[0][0], cursor as f32);
+        assert_eq!(app.document.as_deref().unwrap().lods[0].submeshes[0].positions[0][0], cursor as f32);
         assert_eq!(app.cdmw_pending_request.is_some(), cursor != 1);
     }
     app.handle_actions(vec![UiAction::CdmwHistoryCursor { cursor: 3, revision: 2 }]);
@@ -76,7 +76,7 @@ fn action_history_stops_at_confirmed_state_on_failure_change_noop_or_close() -> 
         reply(&mut app, value, fault != "rejection");
         assert!(app.cdmw_pending_request.is_none(), "{fault}");
         assert_eq!(app.cdmw_state["history_cursor"], expected, "{fault}");
-        assert_eq!(app.document.as_ref().unwrap().lods[0].submeshes[0].positions[0][0], expected.as_u64().unwrap() as f32);
+        assert_eq!(app.document.as_deref().unwrap().lods[0].submeshes[0].positions[0][0], expected.as_u64().unwrap() as f32);
         if fault != "close" { assert!(!app.cdmw_exit_requested, "{}", app.status); }
         if fault == "rejection" { assert!(app.status.contains("restore failed")); }
         if fault == "trim" || fault == "noop" { assert!(app.status.contains("last confirmed action")); }

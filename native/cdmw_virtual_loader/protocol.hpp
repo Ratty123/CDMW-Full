@@ -18,6 +18,7 @@ inline constexpr bool game_redirection_approved = false;
 enum class Mode : uint32_t { trace = 0, redirect = 1, harness = 2, controlled_probe = 3 };
 struct File { std::wstring logical; fs::path path; Hash sha{}; };
 struct Guard { fs::path path; uint32_t present{}; Hash sha{}; };
+struct CatalogueGuard { fs::path path; uint32_t present{}; uint64_t size{}, last_write{}; };
 struct Manifest {
     Mode mode{};
     uint32_t pid{};
@@ -30,6 +31,7 @@ struct Manifest {
     Hash launcher_sha{};
     std::vector<File> files;
     std::vector<Guard> guards;
+    std::vector<CatalogueGuard> catalogue;
 };
 struct Handle {
     HANDLE value{INVALID_HANDLE_VALUE};

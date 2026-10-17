@@ -16,6 +16,8 @@ use std::sync::Arc;
 use std::thread;
 use thiserror::Error;
 
+mod mesh_document_binary;
+
 pub const PROTOCOL: &str = "cdmw_rust_mesh_editor_protocol_v1";
 pub const PACKAGE_SCHEMA: &str = "cdmw_rust_mesh_authoring_package_v1";
 pub const PREVIEW_PROTOCOL: &str = "cdmw_rust_preview_protocol_v1";
@@ -505,13 +507,13 @@ impl LoadedCdmwSessionPackage {
             expected_backend,
         )?;
         check_preview_cancelled(cancelled)?;
-        let document_bytes = read_json_reference(&root, &manifest.document)?;
         // Channels are integrity-checked authoring provenance. The renderer
-        // consumes geometry from document.json, so validate the JSON stream
+        // consumes geometry from the document, so validate the JSON stream
         // without allocating a second full serde Value tree during startup.
         let _: IgnoredAny =
             serde_json::from_slice(&read_json_reference(&root, &manifest.channels)?)?;
         let document: MeshDocument = if expected_schema == PREVIEW_PACKAGE_SCHEMA {
+            let document_bytes = read_json_reference(&root, &manifest.document)?;
             if let Some(geometry) = &manifest.preview_core_geometry {
                 let _: IgnoredAny = serde_json::from_slice(&document_bytes)?;
                 decode_preview_core_document(&root, geometry)?
@@ -519,10 +521,12 @@ impl LoadedCdmwSessionPackage {
                 serde_json::from_slice(&document_bytes)?
             }
         } else {
-            serde_json::from_slice(&document_bytes)?
+            read_document_reference(&root, &manifest.document)?
         };
         check_preview_cancelled(cancelled)?;
-        validate_document(&document)?;
+        if expected_schema == PREVIEW_PACKAGE_SCHEMA {
+            validate_document(&document)?;
+        }
         if manifest.preview_core_geometry.is_none()
             && let Some(graph) = manifest.preview_core_material_graph.as_ref()
         {
@@ -849,6 +853,7 @@ impl CdmwBridge {
                 "host_morph_refit_v1",
                 "hair_authoring_v2",
                 "vertex_parameters_v1",
+                "mesh_document_binary_v1",
                 "control_contract_v2"
             ]
         }))?;
@@ -1142,9 +1147,7 @@ impl CdmwBridge {
             return Ok(None);
         };
         let reference: FileReference = serde_json::from_value(reference_value.clone())?;
-        let bytes = read_json_reference(&self.root, &reference)?;
-        let document: MeshDocument = serde_json::from_slice(&bytes)?;
-        validate_document(&document)?;
+        let document = read_document_reference(&self.root, &reference)?;
         Ok(Some(document))
     }
 
@@ -2349,6 +2352,67 @@ fn decode_preview_core_document(
     })
 }
 
+fn read_document_reference(root: &Path, reference: &FileReference) -> Result<MeshDocument, SessionError> {
+    if reference.data_type == mesh_document_binary::DATA_TYPE {
+        let bytes = read_mesh_document_binary_reference(root, reference)?;
+        mesh_document_binary::decode(&bytes, reference.count)
+    } else {
+        let document = serde_json::from_slice(&read_json_reference(root, reference)?)?;
+        validate_document(&document)?;
+        Ok(document)
+    }
+}
+
+fn is_owned_mesh_document_binary_filename(name: &str) -> bool {
+    if name == "document.bin" {
+        return true;
+    }
+    let Some(stem) = name.strip_suffix(".bin") else { return false; };
+    let mut parts = stem.split('-');
+    matches!(parts.next(), Some("state"))
+        && parts.next().is_some_and(|revision| !revision.is_empty()
+            && revision.bytes().all(|byte| byte.is_ascii_digit()))
+        && parts.next().is_some_and(|token| token.len() == 10
+            && token.bytes().all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte)))
+        && parts.next().is_none()
+}
+
+fn read_mesh_document_binary_reference(root: &Path, reference: &FileReference) -> Result<Vec<u8>, SessionError> {
+    use std::io::Read;
+    if reference.content_type != "application/octet-stream"
+        || reference.data_type != mesh_document_binary::DATA_TYPE || reference.count == 0
+        || reference.byte_length > MAX_PAYLOAD_BYTES || reference.byte_length < 17
+    {
+        return Err(SessionError::InvalidPayload("binary mesh reference type, count, or size is invalid".into()));
+    }
+    let relative = Path::new(&reference.path);
+    let mut components = relative.components();
+    if !matches!(components.next(), Some(Component::Normal(_))) || components.next().is_some()
+        || !is_owned_mesh_document_binary_filename(&reference.path)
+    {
+        return Err(SessionError::InvalidPayload("binary mesh path must be one owned document filename".into()));
+    }
+    let candidate = fs::canonicalize(root.join(relative))?;
+    if candidate.parent() != Some(root) || !candidate.is_file() {
+        return Err(SessionError::InvalidPayload("binary mesh path escaped the session root".into()));
+    }
+    let file = fs::File::open(&candidate)?;
+    if file.metadata()?.len() != reference.byte_length {
+        return Err(SessionError::InvalidPayload("binary mesh reference size does not match".into()));
+    }
+    // Bound the read itself as well as the pre-read metadata check.
+    let mut bytes = Vec::new();
+    bytes.try_reserve_exact(reference.byte_length as usize)
+        .map_err(|_| SessionError::InvalidPayload("binary mesh payload exceeds available memory".into()))?;
+    file.take(reference.byte_length + 1).read_to_end(&mut bytes)?;
+    if bytes.len() as u64 != reference.byte_length
+        || sha256_upper(&bytes) != reference.sha256.trim().to_ascii_uppercase()
+    {
+        return Err(SessionError::InvalidPayload("binary mesh reference size or SHA-256 does not match".into()));
+    }
+    Ok(bytes)
+}
+
 fn read_json_reference(root: &Path, reference: &FileReference) -> Result<Vec<u8>, SessionError> {
     if reference.content_type != "application/json"
         || !reference.data_type.ends_with("_json")
@@ -3282,7 +3346,7 @@ mod tests {
     use cdmw_formats::{MeshFormat, MeshLod, SourceRange, Submesh};
     use tempfile::tempdir;
 
-    fn document() -> MeshDocument {
+    pub(super) fn document() -> MeshDocument {
         MeshDocument {
             format: MeshFormat::Pac,
             source_sha256: String::new(),
@@ -3465,6 +3529,70 @@ mod tests {
         )
         .expect("manifest");
         manifest_path
+    }
+
+    fn mesh_binary_reference(name: &str, bytes: &[u8]) -> Value {
+        json!({"path": name, "data_type": mesh_document_binary::DATA_TYPE,
+            "content_type": "application/octet-stream", "count": 1,
+            "byte_length": bytes.len(), "sha256": sha256_upper(bytes)})
+    }
+
+    #[test]
+    fn binary_mesh_document_loads_initial_and_state_documents_with_legacy_fallback() {
+        let root = tempdir().unwrap();
+        let manifest_path = write_loaded_package_fixture(root.path());
+        let legacy = LoadedCdmwSessionPackage::load(&manifest_path).unwrap();
+        let bytes = mesh_document_binary::encode_test_document(legacy.document());
+        let mut manifest: Value = serde_json::from_slice(&fs::read(&manifest_path).unwrap()).unwrap();
+        manifest["document"] = mesh_binary_reference("document.bin", &bytes);
+        fs::write(root.path().join("document.bin"), &bytes).unwrap();
+        fs::remove_file(root.path().join("document.json")).unwrap();
+        fs::write(&manifest_path, serde_json::to_vec(&manifest).unwrap()).unwrap();
+        let typed = LoadedCdmwSessionPackage::load(&manifest_path).unwrap();
+        let mut expected = legacy.document().clone();
+        expected.structural_fingerprint.clone_from(&typed.document().structural_fingerprint);
+        assert_eq!(typed.document(), &expected);
+        assert_eq!(typed.source_lod_index(), legacy.source_lod_index());
+        assert_eq!(typed.textures[0].bytes, legacy.textures[0].bytes);
+
+        let bridge = CdmwBridge::for_test(root.path().to_path_buf(), "binary-session", 1, 4);
+        let state_name = "state-5-0123456789.bin";
+        fs::write(root.path().join(state_name), &bytes).unwrap();
+        let state = json!({"document": mesh_binary_reference(state_name, &bytes)});
+        assert_eq!(bridge.document_from_state(&state).unwrap(), Some(expected));
+        let legacy_bytes = serde_json::to_vec(legacy.document()).unwrap();
+        fs::write(root.path().join("state-6-abcdef1234.json"), &legacy_bytes).unwrap();
+        let state = json!({"document": {"path": "state-6-abcdef1234.json",
+            "data_type": "mesh_document_json", "content_type": "application/json",
+            "count": 1, "byte_length": legacy_bytes.len(), "sha256": sha256_upper(&legacy_bytes)}});
+        assert_eq!(bridge.document_from_state(&state).unwrap().as_ref(), Some(legacy.document()));
+    }
+
+    #[test]
+    fn binary_mesh_document_references_enforce_owned_names_hashes_sizes_and_types() {
+        let directory = tempdir().unwrap();
+        let root = fs::canonicalize(directory.path()).unwrap();
+        let bytes = mesh_document_binary::encode_test_document(&document());
+        fs::write(root.join("document.bin"), &bytes).unwrap();
+        let reference = mesh_binary_reference("document.bin", &bytes);
+        assert!(read_document_reference(&root, &serde_json::from_value(reference.clone()).unwrap()).is_ok());
+        for (field, value) in [
+            ("path", json!("../document.bin")), ("path", json!("payload.bin")),
+            ("path", json!("state-4-ABCDEF1234.bin")), ("path", json!("state-x-abcdef1234.bin")),
+            ("path", json!("nested/document.bin")), ("data_type", json!("mesh_document_binary_v2")),
+            ("content_type", json!("application/json")), ("count", json!(0)), ("count", json!(2)),
+            ("byte_length", json!(bytes.len() - 1)), ("byte_length", json!(MAX_PAYLOAD_BYTES + 1)),
+            ("sha256", json!("0".repeat(64))),
+        ] {
+            let mut changed = reference.clone();
+            changed[field] = value;
+            assert!(read_document_reference(&root, &serde_json::from_value(changed).unwrap()).is_err(), "{field}");
+        }
+        let mut changed = bytes;
+        let last = changed.len() - 1;
+        changed[last] ^= 1;
+        fs::write(root.join("document.bin"), &changed).unwrap();
+        assert!(read_document_reference(&root, &serde_json::from_value(reference).unwrap()).is_err());
     }
 
     fn write_preview_core_package_fixture(root: &Path) -> PathBuf {

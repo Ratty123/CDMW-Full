@@ -1599,6 +1599,13 @@ struct LodSession {
     history: History,
 }
 
+#[derive(Clone, Copy)]
+struct PendingLod {
+    generation: u64,
+    document_generation: u64,
+    lod_index: usize,
+}
+
 struct TextureInspectorEntry {
     label: String,
     metadata: DdsMetadata,
@@ -1984,7 +1991,7 @@ fn loaded_cdmw_texture(texture: CdmwTextureResource) -> LoadedTexture {
         requested_reference: texture.label.clone(),
         label: texture.label,
         metadata: texture.metadata,
-        bytes: texture.bytes,
+        bytes: texture.bytes.into(),
         role: texture.role,
         parameter_name: None,
         sidecar_label: Some("CDMW isolated authoring package".to_owned()),
@@ -2087,10 +2094,12 @@ struct LabApplication {
     archive_matches: Vec<usize>,
     archive_total_matches: usize,
     selected_archive_entry: Option<usize>,
-    document: Option<MeshDocument>,
+    document: Option<Arc<MeshDocument>>,
     mesh: Option<WorkingMesh>,
     active_lod_index: usize,
     lod_sessions: Vec<Option<LodSession>>,
+    lod_document_generation: u64,
+    pending_lod: Option<PendingLod>,
     texture_entries: Vec<TextureInspectorEntry>,
     material_parameter_entries: Vec<MaterialParameterInspectorEntry>,
     material_factor_entries: Vec<MaterialFactorInspectorEntry>,
@@ -2265,6 +2274,8 @@ impl LabApplication {
             mesh: None,
             active_lod_index: 0,
             lod_sessions: Vec::new(),
+            lod_document_generation: 0,
+            pending_lod: None,
             texture_entries: Vec::new(),
             material_parameter_entries: Vec::new(),
             material_factor_entries: Vec::new(),
@@ -2406,14 +2417,8 @@ impl LabApplication {
             .and_then(Value::as_str)
             .filter(|value| !value.trim().is_empty())
             .map_or_else(|| PathBuf::from("cdmw-shadow.pac"), PathBuf::from);
-        let mesh = WorkingMesh::from_document(&document)
-            .context("CDMW authoring document could not create LOD0")?;
-        let other_lod_meshes = (1..document.lods.len())
-            .map(|index| {
-                WorkingMesh::from_document_lod(&document, index)
-                    .with_context(|| format!("CDMW authoring document could not create LOD{index}"))
-            })
-            .collect::<Result<Vec<_>>>()?;
+        let mesh = WorkingMesh::from_document_lod(&document, source_lod_index)
+            .with_context(|| format!("CDMW authoring document could not create LOD{source_lod_index}"))?;
         let initial_state = bridge.manifest().state.clone();
         let authoritative_base_revision = bridge.manifest().base_revision;
         let output_policy = bridge
@@ -2435,18 +2440,7 @@ impl LabApplication {
         let cdmw_texture_resources = bridge
             .take_textures()
             .into_iter()
-            .map(|texture| LoadedTexture {
-                requested_reference: texture.label.clone(),
-                label: texture.label,
-                metadata: texture.metadata,
-                bytes: texture.bytes,
-                role: texture.role,
-                parameter_name: None,
-                sidecar_label: Some("CDMW isolated authoring package".to_owned()),
-                resolution_method: cdmw_asset_graph::ResolutionMethod::ExplicitVirtualPath,
-                archive_compression: None,
-                material_indices_by_lod: texture.material_indices_by_lod,
-            })
+            .map(loaded_cdmw_texture)
             .collect::<Vec<_>>();
         let cdmw_material_presentations = bridge.take_material_presentations();
         let cdmw_material_factors = cdmw_material_presentations
@@ -2455,22 +2449,16 @@ impl LabApplication {
             .collect::<Vec<_>>();
         let mut application = Self::new(None, None);
         application.embedded_parent_hwnd = embedded_parent_hwnd;
-        application.install_loaded_mesh(LoadedMesh {
+        application.install_loaded_mesh_with_materials(LoadedMesh {
             path: source_path,
             document,
             mesh,
-            other_lod_meshes,
+            other_lod_meshes: Vec::new(),
             textures: cdmw_texture_resources.clone(),
             material_parameters: Vec::new(),
             material_factors: cdmw_material_factors,
             skeleton: None,
-        });
-        if source_lod_index != 0 {
-            application.switch_lod(source_lod_index);
-            if application.active_lod_index != source_lod_index {
-                anyhow::bail!("CDMW source LOD {source_lod_index} could not be activated");
-            }
-        }
+        }, false, source_lod_index);
         if let Some(mesh) = &application.mesh {
             application.camera.frame_integrated_startup(mesh);
         }
@@ -3088,12 +3076,12 @@ impl LabApplication {
                     } else {
                         &self.cdmw_material_key
                     },
-                    document.as_ref().or(self.document.as_ref()),
+                    document.as_ref().or(self.document.as_deref()),
                 )
             })
             .transpose()?
             .flatten();
-        let document = document.or_else(|| materials.as_ref().and_then(|_| self.document.clone()));
+        let document = document.or_else(|| materials.as_ref().and_then(|_| self.document.as_deref().cloned()));
         let previous_visibility = self.cdmw_visible_submeshes();
         let previous_state = std::mem::replace(&mut self.cdmw_state, state);
         let result = if let Some(document) = document {
@@ -3193,13 +3181,24 @@ impl LabApplication {
                             next.material_indices_by_lod == previous.material_indices_by_lod
                         })
             });
-        let mesh = WorkingMesh::from_document(&document).context("invalid CDMW LOD0 state")?;
-        let other_lod_meshes = (1..document.lods.len())
-            .map(|index| {
-                WorkingMesh::from_document_lod(&document, index)
-                    .with_context(|| format!("invalid CDMW LOD{index} state"))
-            })
-            .collect::<Result<Vec<_>>>()?;
+        let same_parts = self.document.as_ref().and_then(|previous| {
+            previous.lods.get(active_lod_index).zip(document.lods.get(active_lod_index))
+        }).is_some_and(|(previous, next)| {
+            previous.submeshes.len() == next.submeshes.len()
+                && previous.submeshes.iter().zip(&next.submeshes)
+                    .all(|(previous, next)| same_source_part(previous, next))
+        });
+        let reused_graph = if same_parts && let Some(mesh) = &mut self.mesh {
+            mesh.refresh_from_document_lod(&document, active_lod_index)?
+        } else {
+            false
+        };
+        let mesh = if reused_graph {
+            self.mesh.take().context("resident CDMW graph disappeared")?
+        } else {
+            WorkingMesh::from_document_lod(&document, active_lod_index)
+                .with_context(|| format!("invalid CDMW LOD{active_lod_index} state"))?
+        };
         let material_factors = material_presentations
             .iter()
             .map(|presentation| loaded_cdmw_material_factor(presentation, document.lods.len()))
@@ -3209,13 +3208,14 @@ impl LabApplication {
                 path,
                 document,
                 mesh,
-                other_lod_meshes,
+                other_lod_meshes: Vec::new(),
                 textures: textures.clone(),
                 material_parameters: Vec::new(),
                 material_factors,
                 skeleton: None,
             },
             reuse_materials,
+            active_lod_index,
         );
         self.cdmw_texture_resources = textures;
         self.cdmw_material_presentations = material_presentations;
@@ -3236,12 +3236,6 @@ impl LabApplication {
             renderer
                 .set_material_lod(active_lod_index)
                 .context("CDMW material presentation LOD could not be restored")?;
-        }
-        if active_lod_index != 0 {
-            self.switch_lod(active_lod_index);
-            if self.active_lod_index != active_lod_index {
-                anyhow::bail!("invalid CDMW source LOD {active_lod_index} state");
-            }
         }
         self.camera = camera;
         self.cdmw_orbit_mode = orbit_mode;
@@ -3346,6 +3340,9 @@ impl LabApplication {
         let mut changed = false;
         for event in events {
             match event {
+                LoadEvent::Lod { generation, lod_index, result } => {
+                    changed |= self.accept_prepared_lod(generation, lod_index, *result);
+                }
                 LoadEvent::Jiggle { generation, result } => {
                     self.accept_prepared_jiggle(generation, *result);
                     changed = true;
@@ -3437,10 +3434,12 @@ impl LabApplication {
     }
 
     fn install_loaded_mesh(&mut self, loaded: LoadedMesh) {
-        self.install_loaded_mesh_with_materials(loaded, false);
+        self.install_loaded_mesh_with_materials(loaded, false, 0);
     }
 
-    fn install_loaded_mesh_with_materials(&mut self, loaded: LoadedMesh, reuse_materials: bool) {
+    fn install_loaded_mesh_with_materials(&mut self, loaded: LoadedMesh, reuse_materials: bool, initial_lod_index: usize) {
+        self.cancel_pending_lod();
+        self.lod_document_generation = self.lod_document_generation.saturating_add(1);
         let LoadedMesh {
             path,
             document,
@@ -3456,7 +3455,7 @@ impl LabApplication {
         } else {
             HashSet::new()
         };
-        let editable_lod_count = other_lod_meshes.len().saturating_add(1);
+        let editable_lod_count = document.lods.len();
         let texture_resource_count = textures.len();
         let renderer_available = self.renderer.is_some();
         let cdmw_mode = self.cdmw_mode();
@@ -3468,7 +3467,7 @@ impl LabApplication {
         if !preserve_deformation_reference {
             self.deformation_reference = Some(PersistentDeformationReference::new(mesh.clone()));
         }
-        debug_assert_eq!(editable_lod_count, document.lods.len());
+        debug_assert!(initial_lod_index < editable_lod_count);
         let per_lod_history_budget = HISTORY_BUDGET_BYTES / editable_lod_count.max(1);
 
         self.source_label = path.to_string_lossy().replace('\\', "/");
@@ -3730,7 +3729,7 @@ impl LabApplication {
                     Err(error) => gpu_errors.push(error.to_string()),
                 }
             }
-            match renderer.set_material_lod(0) {
+            match renderer.set_material_lod(initial_lod_index) {
                 Ok(count) => bound_material_count = count,
                 Err(error) => gpu_errors.push(error.to_string()),
             }
@@ -3760,7 +3759,7 @@ impl LabApplication {
         }
         if texture_upload_count > 0 {
             self.status.push_str(&format!(
-                " · {texture_upload_count} material texture(s) uploaded for {bound_material_count} LOD0 material range(s)"
+                " · {texture_upload_count} material texture(s) uploaded for {bound_material_count} LOD{initial_lod_index} material range(s)"
             ));
         }
         if material_factor_count > 0 {
@@ -3791,17 +3790,20 @@ impl LabApplication {
         self.last_selection_stats = None;
         self.selection_latency_ms.clear();
         self.edit_latency_ms.clear();
-        self.active_lod_index = 0;
-        self.lod_sessions = Vec::with_capacity(editable_lod_count);
-        self.lod_sessions.push(None);
-        self.lod_sessions
-            .extend(other_lod_meshes.into_iter().map(|mesh| {
-                Some(LodSession {
+        self.active_lod_index = initial_lod_index;
+        self.lod_sessions = (0..editable_lod_count).map(|_| None).collect();
+        // Standalone archive loads can supply prepared LOD1 onward. Authoring
+        // starts with the selected LOD and builds other graphs only on demand.
+        for (offset, mesh) in other_lod_meshes.into_iter().enumerate() {
+            let lod_index = offset + 1;
+            if lod_index != initial_lod_index && let Some(slot) = self.lod_sessions.get_mut(lod_index) {
+                *slot = Some(LodSession {
                     mesh,
                     history: History::new(per_lod_history_budget),
-                })
-            }));
-        self.document = Some(document);
+                });
+            }
+        }
+        self.document = Some(Arc::new(document));
         self.mesh = Some(mesh);
         self.texture_entries = texture_entries;
         self.material_parameter_entries = material_parameter_entries;
@@ -3926,8 +3928,14 @@ impl LabApplication {
                                         .and_then(Option::as_ref)
                                         .map(|session| &session.mesh)
                                 };
-                                let lod_vertices = lod_mesh.map_or(0, |mesh| mesh.vertices().count());
-                                let lod_faces = lod_mesh.map_or(0, |mesh| mesh.faces().count());
+                                let lod_vertices = lod_mesh.map_or_else(
+                                    || lod.submeshes.iter().map(|part| part.positions.len()).sum(),
+                                    |mesh| mesh.vertices().count(),
+                                );
+                                let lod_faces = lod_mesh.map_or_else(
+                                    || lod.submeshes.iter().map(|part| part.indices.len() / 3).sum(),
+                                    |mesh| mesh.faces().count(),
+                                );
                                 ui.selectable_value(
                                     &mut requested_lod,
                                     index,
@@ -4996,6 +5004,19 @@ impl LabApplication {
 
     fn switch_lod(&mut self, target_index: usize) {
         if target_index == self.active_lod_index {
+            self.cancel_pending_lod();
+            return;
+        }
+        if self.pending_lod.is_some_and(|pending| {
+            pending.lod_index == target_index
+                && pending.document_generation == self.lod_document_generation
+                && pending.generation == self.current_generation
+        }) {
+            return;
+        }
+        self.cancel_pending_lod();
+        if target_index >= self.lod_sessions.len() {
+            self.status = format!("LOD {target_index} is not available for editing");
             return;
         }
         let Some(target_session) = self
@@ -5003,7 +5024,22 @@ impl LabApplication {
             .get_mut(target_index)
             .and_then(Option::take)
         else {
-            self.status = format!("LOD {target_index} is not available for editing");
+            let Some(document) = &self.document else {
+                self.status = "No source document is available for the LOD switch".to_owned();
+                return;
+            };
+            match self.loader.prepare_lod(Arc::clone(document), target_index) {
+                Ok(generation) => {
+                    self.current_generation = generation;
+                    self.pending_lod = Some(PendingLod {
+                        generation,
+                        document_generation: self.lod_document_generation,
+                        lod_index: target_index,
+                    });
+                    self.status = format!("Preparing LOD {target_index}; the current mesh remains available");
+                }
+                Err(message) => self.status = format!("LOD preparation failed: {message}"),
+            }
             return;
         };
         if self.selection_gesture.is_some() || self.edit_gesture.is_some() {
@@ -5078,6 +5114,33 @@ impl LabApplication {
             );
         }
         self.publish_mesh_snapshot();
+    }
+
+    fn cancel_pending_lod(&mut self) {
+        if let Some(pending) = self.pending_lod.take() {
+            self.loader.cancel_generation(pending.generation);
+        }
+    }
+
+    fn accept_prepared_lod(&mut self, generation: u64, lod_index: usize, result: Result<WorkingMesh, String>) -> bool {
+        if !self.pending_lod.is_some_and(|pending| {
+            pending.generation == generation && generation == self.current_generation
+                && pending.document_generation == self.lod_document_generation
+                && pending.lod_index == lod_index
+        }) {
+            return false;
+        }
+        self.pending_lod = None;
+        match result {
+            Ok(mesh) => {
+                let per_lod_history_budget = HISTORY_BUDGET_BYTES / self.lod_sessions.len().max(1);
+                let Some(slot) = self.lod_sessions.get_mut(lod_index) else { return false; };
+                *slot = Some(LodSession { mesh, history: History::new(per_lod_history_budget) });
+                self.switch_lod(lod_index);
+            }
+            Err(message) => self.status = format!("LOD preparation failed: {message}"),
+        }
+        true
     }
 
     fn run_selection_command(

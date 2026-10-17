@@ -612,7 +612,7 @@ def _semantic_layer(package, changes, registry):
              'independent_textures': package_texture_requirements(package)}, changes)
 
 
-def validate_semantic_recomposition(exports, compiled, registry, *, stop_event=None):
+def validate_semantic_recomposition(exports, compiled, registry, *, stop_event=None, package_cache=None):
     """Compare the artifact with its retained recipes, including no-op intent."""
     from cdmw.services import archive_overlay_manager as overlays
     from cdmw.services.independent_item_package import read_package
@@ -620,7 +620,7 @@ def validate_semantic_recomposition(exports, compiled, registry, *, stop_event=N
         semantic.validate(stop_event)
         layers, baseline, flags = [], {}, {}
         for raw in semantic.packages:
-            package = read_package(raw, stop_event=stop_event)
+            package = read_package(raw, stop_event=stop_event, cache=package_cache)
             supplied, changes = compiled[package.identity]
             if supplied.digest != package.digest:
                 raise OverlayConflict('A semantic export contributor changed during compilation.')

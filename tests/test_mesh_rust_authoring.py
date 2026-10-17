@@ -306,7 +306,8 @@ class RustMeshAuthoringTests(unittest.TestCase):
                 self.assertEqual(RUST_MESH_EDITOR_PROTOCOL, manifest["protocol"])
                 self.assertEqual(RUST_MESH_RENDERER, manifest["renderer"])
                 self.assertEqual(RUST_MESH_EDIT_BACKEND, manifest["edit_backend"])
-                self.assertEqual("mesh_document_json", manifest["document"]["data_type"])
+                self.assertEqual("mesh_document_binary_v1", manifest["document"]["data_type"])
+                self.assertEqual("application/octet-stream", manifest["document"]["content_type"])
                 self.assertGreater(manifest["document"]["count"], 0)
                 self.assertEqual(
                     "mesh_channels_compact_json",
@@ -316,7 +317,7 @@ class RustMeshAuthoringTests(unittest.TestCase):
                 channel = channels["lods"][0]["submeshes"][0]
                 self.assertEqual(
                     {
-                        "path": "document.json",
+                        "path": "document.bin",
                         "channels": ["positions", "normals", "uv0", "indices"],
                     },
                     channels["geometry_source"],

@@ -2,6 +2,34 @@ use super::*;
 use cdmw_formats::{MeshFormat, MeshLod, SourceRange, Submesh};
 use cdmw_render_wgpu::*;
 
+#[test]
+fn hair_source_hydration_invalidates_pending_lod_and_keeps_captured_document_immutable() {
+    let (mut state, mut document) = fixture();
+    let mut other_lod = document.lods[0].clone();
+    other_lod.level = 1;
+    document.lods.push(other_lod);
+    document.lod_count_reported = 2;
+    let root = tempfile::tempdir().unwrap();
+    let bridge = CdmwBridge::for_test(root.path().to_path_buf(), "hair-lod-source", 1, 0);
+    let mut app = LabApplication::new_cdmw(bridge, document, None).unwrap();
+    let captured = app.document.as_ref().unwrap().clone();
+    let before_indices = captured.lods[0].submeshes[0].source_vertex_indices.clone();
+    let indices = vec![-1; captured.lods[0].submeshes[0].positions.len()];
+    assert_ne!(before_indices, indices);
+    state.vertex_sources.insert(0, indices.clone());
+    app.switch_lod(1);
+    let pending = app.pending_lod.unwrap();
+    app.hydrate_hair(Some(state));
+    assert!(app.pending_lod.is_none());
+    assert!(app.lod_document_generation > pending.document_generation);
+    assert_eq!(captured.lods[0].submeshes[0].source_vertex_indices, before_indices);
+    assert_eq!(app.document.as_ref().unwrap().lods[0].submeshes[0].source_vertex_indices, indices);
+    assert!(!Arc::ptr_eq(&captured, app.document.as_ref().unwrap()));
+    assert!(!app.accept_prepared_lod(pending.generation, 1,
+        Ok(WorkingMesh::from_document_lod(&captured, 1).unwrap())));
+    assert_eq!(app.active_lod_index, 0);
+}
+
 pub(crate) fn fixture() -> (HairState, MeshDocument) {
     let mut positions = vec![];
     let mut triangles = vec![];
@@ -174,7 +202,7 @@ fn hair_bust_toggle_renders_empty_and_populated_scenes() {
                 state.groups[0].mode = GroupMode::Existing;
             }
             let mut app = LabApplication::new(None, None);
-            app.document = Some(document.clone());
+            app.document = Some(Arc::new(document.clone()));
             app.cdmw_state = json!({
                 "hair": {"available": true, "materials_ready": true},
                 "replacement": {"comparison": "edit"},
@@ -209,7 +237,7 @@ fn hair_bust_toggle_renders_empty_and_populated_scenes() {
                 }
             }
             assert_eq!(app.hair.state.as_ref(), Some(&state));
-            assert_eq!(app.document.as_ref(), Some(&document));
+            assert_eq!(app.document.as_deref(), Some(&document));
             renderer = app.renderer.take().unwrap();
         }
 
@@ -389,7 +417,7 @@ fn hair_cancelled_generation_and_rebind_leave_input_unchanged() {
 fn hair_finish_waits_for_generation_and_cancel_restores_last_scene() {
     let (state, document) = fixture();
     let mut app = LabApplication::new(None, None);
-    app.document = Some(document);
+    app.document = Some(Arc::new(document));
     app.hair.state = Some(state.clone());
     app.queue_hair(
         state.clone(),
@@ -520,7 +548,7 @@ fn hair_production_render_and_benchmark() {
         )
         .unwrap();
         preparation_ms.push(started.elapsed().as_secs_f64() * 1000.0);
-        app.document = Some(prepared.document);
+        app.document = Some(Arc::new(prepared.document));
         app.hydrate_hair(Some(prepared.state));
         app.hair.pending_preset = false;
         app.render_hair();
@@ -632,7 +660,7 @@ fn hair_production_render_and_benchmark() {
             &AtomicBool::new(false),
         )
         .unwrap();
-        app.document = Some(prepared.document);
+        app.document = Some(Arc::new(prepared.document));
         app.hydrate_hair(Some(prepared.state));
         app.hair.pending_preset = false;
         app.render_hair();
@@ -715,7 +743,7 @@ fn hair_production_render_and_benchmark() {
     );
     await_hair(&mut app);
     let authored = app.hair.state.clone().unwrap();
-    let final_doc = app.hair.preview.as_ref().or(app.document.as_ref()).unwrap();
+    let final_doc = app.hair.preview.as_ref().or(app.document.as_deref()).unwrap();
     let mut candidate = json!({"hair":authored,"submeshes":final_doc.lods[0].submeshes});
     for part in candidate["submeshes"].as_array_mut().unwrap() {
         part["source_vertices"] = part["source_vertex_indices"].clone();
@@ -1023,7 +1051,7 @@ pub(crate) fn ready_hair_app() -> (LabApplication, egui::Rect) {
     )
     .unwrap();
     let mut app = LabApplication::new(None, None);
-    app.document = Some(result.document.clone());
+    app.document = Some(Arc::new(result.document.clone()));
     app.cdmw_state = json!({"hair":{"available":true,"materials_ready":true},"replacement":{"comparison":"edit"}});
     app.hydrate_hair(Some(result.state));
     app.hair.pending_preset = false;
@@ -1049,11 +1077,11 @@ fn hair_toolbar_selection_and_unchanged_host_state_preserve_generated_geometry()
             app.hair.state.as_mut().unwrap().groups[0].mode = GroupMode::Existing;
         }
         let before = app.hair.state.clone();
-        let authored = app.document.clone().unwrap();
+        let authored = app.document.as_deref().cloned().unwrap();
         app.hair.preview = Some(authored.clone());
         // The generic document is the retained template until a full host mesh
         // update arrives. Selection-only notifications do not carry that mesh.
-        app.document = Some(fixture().1);
+        app.document = Some(Arc::new(fixture().1));
         let generation = app.hair.generation;
         app.handle_actions(vec![UiAction::SelectAllVertices]);
         assert_eq!(app.hair.selected.len(), before.as_ref().unwrap().locks.len());
@@ -1153,7 +1181,7 @@ fn hair_local_erase_retains_connected_shell_and_hidden_faces_and_can_cancel() {
         state.prepared_parts = vec![0];
         let original = part.clone();
         let mut app = LabApplication::new(None, None);
-        app.document = Some(document.clone());
+        app.document = Some(Arc::new(document.clone()));
         app.cdmw_state = json!({"hair":{"available":true,"materials_ready":true}});
         let rect = egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(1200.0, 800.0));
         app.viewport_rect = Some(rect);
@@ -1172,7 +1200,7 @@ fn hair_local_erase_retains_connected_shell_and_hidden_faces_and_can_cancel() {
         if cancel {
             assert!(app.cancel_hair_stroke());
             assert!(app.hair.erased_faces.is_empty());
-            assert_eq!(app.document.as_ref().unwrap(), &document);
+            assert_eq!(app.document.as_deref().unwrap(), &document);
         } else {
             app.dispatch_hair_pointer(ViewportPointerEvent::PrimaryReleased(point), rect, false, false, false);
             await_hair(&mut app);
@@ -1746,7 +1774,7 @@ fn hair_production_dispatch_select_move_delete_and_restore() {
     let (mut app, rect) = ready_hair_app();
     let (point, id) = visible_lock(&app, rect);
     let before = app.hair.state.clone().unwrap();
-    let original = app.document.clone().unwrap();
+    let original = app.document.as_deref().cloned().unwrap();
     app.hair.tool = Some(HairTool::Select);
     app.dispatch_hair_pointer(
         ViewportPointerEvent::PrimaryPressed(point),
@@ -1840,7 +1868,7 @@ fn hair_production_dispatch_select_move_delete_and_restore() {
             .len()
             < saved_doc.lods[0].submeshes[0].positions.len()
     );
-    app.document = Some(saved_doc.clone());
+    app.document = Some(Arc::new(saved_doc.clone()));
     app.hydrate_hair(Some(saved_state.clone()));
     app.render_hair();
     assert_eq!(
@@ -1848,14 +1876,14 @@ fn hair_production_dispatch_select_move_delete_and_restore() {
         &saved_state,
         "host Undo restores all hair state"
     );
-    assert_eq!(app.document.as_ref().unwrap(), &saved_doc);
+    assert_eq!(app.document.as_deref().unwrap(), &saved_doc);
 }
 
 #[test]
 fn hair_production_motion_deforms_hair_not_only_reference_and_reset_is_neutral() {
     let (mut app, _) = ready_hair_app();
     let before = app.hair.state.clone().unwrap();
-    let original = app.document.clone().unwrap();
+    let original = app.document.as_deref().cloned().unwrap();
     let rest = app.hair.scene.as_ref().unwrap().frame.positions.clone();
     app.hair.playing = true;
     app.hair.head_test = 3;
@@ -1887,7 +1915,7 @@ fn hair_production_motion_deforms_hair_not_only_reference_and_reset_is_neutral()
         &before,
         "simulation must not change authored hair"
     );
-    assert_eq!(app.document.as_ref().unwrap(), &original);
+    assert_eq!(app.document.as_deref().unwrap(), &original);
     app.run_hair_action(HairAction::Reset);
     app.render_hair();
     assert_eq!(app.hair.scene.as_ref().unwrap().frame.positions, rest);
@@ -1916,7 +1944,7 @@ fn hair_original_sections_are_preserved_without_missing_root_warnings() {
     assert_eq!(prepared.state.locks.len(), 1);
     assert_eq!(prepared.state.locks[0].kind, LockKind::Unresolved);
     let mut app = LabApplication::new(None, None);
-    app.document = Some(document.clone());
+    app.document = Some(Arc::new(document.clone()));
     app.cdmw_state = json!({"hair":{"available":true,"materials_ready":true},"replacement":{"comparison":"edit"}});
     app.hydrate_hair(Some(prepared.state));
     app.hair.pending_preset = false;
@@ -1968,7 +1996,7 @@ fn hair_original_sections_are_preserved_without_missing_root_warnings() {
     }
     assert!(app.hair.feedback.contains("no grooming guide"), "{}", app.hair.feedback);
     assert!(!app.hair.preparing());
-    assert_eq!(app.document.as_ref().unwrap(), &document);
+    assert_eq!(app.document.as_deref().unwrap(), &document);
 }
 
 #[test]
@@ -2231,7 +2259,7 @@ fn hair_draw_follows_curved_scalp_and_ctrl_lifts_away_without_entering_it() {
         }
         state.collisions.clear();
         let mut app = LabApplication::new(None, None);
-        app.document = Some(doc);
+        app.document = Some(Arc::new(doc));
         app.cdmw_state = json!({"hair":{"available":true,"materials_ready":true},"replacement":{"comparison":"edit"}});
         app.hydrate_hair(Some(state.clone()));
         app.hair.pending_preset = false;
@@ -2548,7 +2576,7 @@ fn hair_new_styles_start_empty_and_collision_body_is_not_a_visible_reference() {
     for p in &mut body.positions { p[1] -= 10.0; }
     state.references.push(body);
     let mut app = LabApplication::new(None, None);
-    app.document = Some(document);
+    app.document = Some(Arc::new(document));
     app.cdmw_state = json!({"hair":{"available":true,"materials_ready":true}, "replacement":{"comparison":"edit"}});
     app.hydrate_hair(Some(state.clone()));
     app.poll_hair();
@@ -2567,7 +2595,7 @@ fn hair_groom_brush_reaches_drawn_locks_inside_its_radius() {
             }
             state.collisions.clear();
             let mut app = LabApplication::new(None, None);
-            app.document = Some(document);
+            app.document = Some(Arc::new(document));
             app.cdmw_state = json!({"hair":{"available":true,"materials_ready":true},
                 "replacement":{"comparison":"edit"}});
             app.hydrate_hair(Some(state));
@@ -2622,7 +2650,7 @@ fn hair_groom_brush_reaches_drawn_locks_inside_its_radius() {
             }
             covered.references.push(occluder);
             let document = app.hair.preview.clone().unwrap();
-            app.document = Some(document);
+            app.document = Some(Arc::new(document));
             app.hydrate_hair(Some(covered.clone()));
             app.hair.pending_preset = false;
             app.render_hair();
@@ -2642,7 +2670,7 @@ fn drawn_brush_app() -> (LabApplication, egui::Rect, Vec2) {
     let (mut state, document) = fixture();
     state.collisions.clear();
     let mut app = LabApplication::new(None, None);
-    app.document = Some(document);
+    app.document = Some(Arc::new(document));
     app.cdmw_state = json!({"hair":{"available":true,"materials_ready":true},
         "replacement":{"comparison":"edit"}});
     app.hydrate_hair(Some(state));
@@ -2853,7 +2881,7 @@ fn hair_area_brush_cut_and_erase_do_not_reach_through_reference() {
         cover.identity = "head:brush-occluder".into();
         for p in &mut cover.positions { p[1] += 0.05; }
         state.references.push(cover);
-        app.document = app.hair.preview.clone();
+        app.document = app.hair.preview.clone().map(Arc::new);
         app.hydrate_hair(Some(state.clone()));
         app.hair.pending_preset = false;
         app.render_hair();
@@ -2967,7 +2995,7 @@ fn hair_acknowledgement_does_not_reset_selection_camera_or_newer_edits() {
     let (mut app, rect) = ready_hair_app();
     let (point, id) = visible_lock(&app, rect);
     let before = app.hair.state.clone().unwrap();
-    let document = app.document.clone().unwrap();
+    let document = app.document.as_deref().cloned().unwrap();
     app.hair.selected.insert(id as usize);
     app.hair.inflight = Some(PreparedHair {
         state: before.clone(),
@@ -2992,7 +3020,7 @@ fn rapid_draw_app() -> (LabApplication, egui::Rect) {
     let (state, document) = fixture();
     let empty = prepare(state, document, "Empty".into(), Preparation::Empty, &AtomicBool::new(false)).unwrap();
     let mut app = LabApplication::new(None, None);
-    app.document = Some(empty.document);
+    app.document = Some(Arc::new(empty.document));
     app.cdmw_state = json!({"hair":{"available":true,"materials_ready":true},"replacement":{"comparison":"edit"}});
     app.hydrate_hair(Some(empty.state));
     app.hair.pending_preset = false;

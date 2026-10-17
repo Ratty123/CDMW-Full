@@ -19,7 +19,7 @@ TEST_HOST = TEST_BUILD / 'cdmw_virtual_session_test.exe'
 pytestmark = pytest.mark.skipif(os.name != 'nt' or not (BUILD / 'CDMWVirtualLoader.asi').exists(), reason='Requires the explicitly built Windows native virtual runtime')
 
 
-def fixture(tmp_path, *, steam=False, extra_guards=()):
+def fixture(tmp_path, *, steam=False, extra_guards=(), catalogue=()):
     root = tmp_path / 'game with spaces ü'
     (root / 'bin64').mkdir(parents=True)
     shutil.copy2(TEST_BUILD / 'CDMWVirtualLoaderTest.asi', root / 'bin64/CDMWVirtualLoader.asi')
@@ -34,7 +34,8 @@ def fixture(tmp_path, *, steam=False, extra_guards=()):
     archive.mkdir()
     for name in ('0.pamt', '0.paz'):
         (archive / name).write_bytes(b'virtual')
-    profile = {'generation': generation, 'files': {p: digest(b'virtual') for p in ('meta/0.papgt', '0042/0.pamt', '0042/0.paz')}}
+    profile = {'generation': generation, 'files': {p: digest(b'virtual') for p in ('meta/0.papgt', '0042/0.pamt', '0042/0.paz')},
+               'catalogue': catalogue}
     launcher = root / 'bin64/cdmw_virtual_steam_fixture.exe' if steam else None
     if launcher:
         shutil.copy2(TEST_BUILD / 'cdmw_virtual_loader_harness.exe', launcher)

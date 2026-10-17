@@ -38,11 +38,13 @@ file I/O, hook installation, thread creation or blocking waits. Initialization
 outside CDMW's own DllMain is necessary but does not establish freedom from a
 calling bootstrap's loader lock or readiness before game-data reads.
 
-`CDVFS2` is a bounded, data-only local protocol: mode, intended game/host PIDs,
-executable hash, canonical installation/generation/session/lease identities,
-exact mapped files, source guards and the selected Steam client path/hash. Old
-transient launch descriptors are refused; saved item/identity/profile formats
-are unchanged. Trace mode observes original files;
+`CDVFS3` is the current bounded, data-only local protocol: mode, intended game/host
+PIDs, executable hash, canonical installation/generation/session/lease identities,
+exact mapped files, required content guards, catalogue metadata guards and the
+selected Steam client path/hash. The native reader also understands `CDVFS2`
+descriptors without catalogue guards; unknown versions refuse. Current compiler
+identity requires older saved profiles to be applied again. Portable item formats
+and retained numeric identities are unchanged. Trace mode observes original files;
 production redirect mode is compiled off; harness mode requires the separate
 test host, test ASI and fixture executable. Controlled probe mode additionally requires the host's
 `--controlled-probe` opt-in and the verified early startup path. It is a reviewed
@@ -51,15 +53,30 @@ and verifying a save backup following the user's Launch click. The private named
 remote clients and validates its user, server and client. No network listener or environment-only activation
 is used. Session descriptors are not distributable mod packages.
 
-The experimental UI checks its saved output, selected packages, inventories and
-save backup before handing off. The host owns the full source-content verification
-under the installation lease; the UI does not repeat the complete archive scan.
+The experimental UI checks the saved profile, output presence, selected packages,
+inventories and save backup before handing off. The host hashes the prepared
+outputs and all required source content under the installation lease; the UI does
+not repeat those output hashes or the complete archive scan.
 Two readers hash the guarded inputs and snapshot with sequential I/O, reporting
 byte-based progress. Game inputs are pinned before hashing and retained for the
 session. A mismatch prevents process creation. No cached digest or timestamp-only
 check replaces the expected hashes. Status reports add an optional `progress`
-percentage; older reports remain readable. Verification reaches 90%, Steam handoff
+percentage, checked/total bytes, elapsed time and current filenames. Refusals
+identify the affected source or snapshot. Older reports remain readable.
+Verification reaches 90%, Steam handoff
 95%, runtime binding 98%, and acknowledged readiness 100%.
+
+Catalogue metadata guards apply only to otherwise unused PAZ carriers after every
+v1 recipe completes a verified reference traversal. Borrowed formats without a
+proven traversal, borrowed HKX, other module combinations and external or active
+mounted providers retain the full carrier content checks. Parsed PAMT hashes,
+mount and registry content, actual compilation payloads and runtime-only resource
+dependencies remain required content. Catalogue-only guards retain presence,
+size and last-write time, reject reparse paths and pin real file handles for the
+session. Unrelated byte changes with unchanged metadata are permitted by that
+policy; they are not cached content hashes. Python additionally checks its captured
+file stamps during preparation/publication and preflight. The ASI's independent
+snapshot-content checks remain in place.
 
 The UI's Apply action prepares and publishes the profile in one flow. Apply and
 Launch also handle loader setup: the first installation requires confirmation;

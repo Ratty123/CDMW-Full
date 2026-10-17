@@ -339,9 +339,14 @@ impl LabApplication {
         self.hair.last_tick = Instant::now();
         self.hair.rotation = Quat::IDENTITY;
         if let Some(hair) = &state {
+            if !hair.vertex_sources.is_empty() {
+                // A queued LOD must retain the exact source revision it captured.
+                self.cancel_pending_lod();
+                self.lod_document_generation = self.lod_document_generation.saturating_add(1);
+            }
             if let Some(doc) = &mut self.document {
                 for (part, indices) in &hair.vertex_sources {
-                    if let Some(part) = doc.lods[0].submeshes.get_mut(*part as usize) {
+                    if let Some(part) = Arc::make_mut(doc).lods[0].submeshes.get_mut(*part as usize) {
                         part.source_vertex_indices = indices.clone();
                     }
                 }
@@ -399,7 +404,7 @@ impl LabApplication {
             self.hair.playing = false;
             self.hair.tool = None;
         }
-        self.hair.acknowledged = state.clone().zip(self.document.clone());
+        self.hair.acknowledged = state.clone().zip(self.document.as_deref().cloned());
         self.hair.inflight = None;
         self.hair.topology_busy = false;
         self.hair.pending_finish = false;
@@ -407,7 +412,7 @@ impl LabApplication {
     }
 
     fn queue_hair(&mut self, state: HairState, label: &str, operation: Preparation) {
-        let Some(document) = self.hair.preview.as_ref().or(self.document.as_ref()) else {
+        let Some(document) = self.hair.preview.as_ref().or(self.document.as_deref()) else {
             return;
         };
         if !self.hair_queue_has_capacity(&state, document) {
@@ -487,7 +492,7 @@ impl LabApplication {
     }
 
     fn hair_has_edit_capacity(&self) -> bool {
-        match (&self.hair.state, self.hair.preview.as_ref().or(self.document.as_ref())) {
+        match (&self.hair.state, self.hair.preview.as_ref().or(self.document.as_deref())) {
             (Some(state), Some(document)) => self.hair_queue_has_capacity(state, document),
             _ => true,
         }
@@ -645,7 +650,7 @@ impl LabApplication {
                     .acknowledged
                     .as_ref()
                     .map(|(_, doc)| doc)
-                    .or(self.document.as_ref());
+                    .or(self.document.as_deref());
                 if let (Some(bridge), Some(before)) = (self.cdmw_bridge.as_mut(), baseline) {
                     match if prepared.state.converted {
                         bridge.submit_hair_transaction(
@@ -873,7 +878,7 @@ impl LabApplication {
             .hair
             .preview
             .as_ref()
-            .or(self.document.as_ref())
+            .or(self.document.as_deref())
             .ok_or("Loading hair")?;
         if self.hair.topology_busy {
             return Err("Preparing hair sections".into());

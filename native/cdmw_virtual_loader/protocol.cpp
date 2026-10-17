@@ -119,6 +119,16 @@ void validate(const Manifest& m) {
         require(guard.present <= 1 && guard.path.is_absolute() && guards.insert(normalize(guard.path)).second, "Invalid source guard");
         no_links(guard.path);
     }
+    require(m.catalogue.size() <= 65536, "Too many catalogue guards");
+    const auto root = normalize(m.root) + L"\\";
+    for (const auto& guard : m.catalogue) {
+        require(guard.present <= 1 && guard.path.is_absolute()
+                && normalize(guard.path).starts_with(root)
+                && _wcsicmp(guard.path.extension().c_str(), L".paz") == 0
+                && guards.insert(normalize(guard.path)).second,
+                "Invalid catalogue guard");
+        no_links(guard.path);
+    }
     std::array<wchar_t, 32768> temp{};
     require(GetTempPathW(static_cast<DWORD>(temp.size()), temp.data()), "Cannot identify lock directory");
     auto name = m.lane.filename().wstring();
@@ -128,13 +138,22 @@ void validate(const Manifest& m) {
 Manifest read_manifest(const fs::path& path) {
     require(fs::file_size(path) < 16 * 1024 * 1024, "Oversized manifest");
     std::ifstream in(path, std::ios::binary);
-    std::array<char, 8> magic{}; read(in, magic); require(std::memcmp(magic.data(), "CDVFS2\0\0", 8) == 0, "Unsupported manifest");
+    std::array<char, 8> magic{}; read(in, magic);
+    const bool version3 = std::memcmp(magic.data(), "CDVFS3\0\0", 8) == 0;
+    require(version3 || std::memcmp(magic.data(), "CDVFS2\0\0", 8) == 0, "Unsupported manifest");
     Manifest m; read(in, m.mode); read(in, m.pid); read(in, m.host_pid); read(in, m.executable);
     m.root = read_string(in); m.generation = read_string(in); m.token = read_string(in); m.lane = read_string(in);
     uint32_t count{}; read(in, count); require(count && count <= 256, "Invalid map size");
     for (uint32_t i = 0; i < count; ++i) { File file; file.logical = read_string(in); file.path = read_string(in); read(in, file.sha); m.files.push_back(std::move(file)); }
     read(in, count); require(count <= 65536, "Too many source guards");
     for (uint32_t i = 0; i < count; ++i) { Guard guard; guard.path = read_string(in); read(in, guard.present); read(in, guard.sha); m.guards.push_back(std::move(guard)); }
+    if (version3) {
+        read(in, count); require(count <= 65536, "Too many catalogue guards");
+        for (uint32_t i = 0; i < count; ++i) {
+            CatalogueGuard guard; guard.path = read_string(in); read(in, guard.present);
+            read(in, guard.size); read(in, guard.last_write); m.catalogue.push_back(std::move(guard));
+        }
+    }
     read(in, count); require(count <= 1, "Invalid launcher descriptor");
     if (count) { m.launcher = read_string(in); read(in, m.launcher_sha); }
     require(in.peek() == std::char_traits<char>::eof(), "Trailing manifest bytes"); validate(m); return m;
@@ -143,12 +162,14 @@ void write_manifest(const fs::path& path, const Manifest& m) {
     validate(m);
     auto temporary = path; temporary += L".tmp";
     { std::ofstream out(temporary, std::ios::binary | std::ios::trunc);
-      out.write("CDVFS2\0\0", 8); write(out, m.mode); write(out, m.pid); write(out, m.host_pid); write(out, m.executable);
+      out.write("CDVFS3\0\0", 8); write(out, m.mode); write(out, m.pid); write(out, m.host_pid); write(out, m.executable);
       write_string(out, m.root.wstring()); write_string(out, m.generation); write_string(out, m.token); write_string(out, m.lane.wstring());
       write(out, static_cast<uint32_t>(m.files.size()));
       for (const auto& file : m.files) { write_string(out, file.logical); write_string(out, file.path.wstring()); write(out, file.sha); }
       write(out, static_cast<uint32_t>(m.guards.size()));
       for (const auto& guard : m.guards) { write_string(out, guard.path.wstring()); write(out, guard.present); write(out, guard.sha); }
+      write(out, static_cast<uint32_t>(m.catalogue.size()));
+      for (const auto& guard : m.catalogue) { write_string(out, guard.path.wstring()); write(out, guard.present); write(out, guard.size); write(out, guard.last_write); }
       write(out, uint32_t(!m.launcher.empty()));
       if (!m.launcher.empty()) { write_string(out, m.launcher.wstring()); write(out, m.launcher_sha); }
       out.flush(); require(bool(out), "Cannot write session manifest"); }

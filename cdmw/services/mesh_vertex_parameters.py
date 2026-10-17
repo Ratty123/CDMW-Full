@@ -362,5 +362,6 @@ def edit_vertices(authoring, args, check):
         replace(prepared, selection=session.selection), history_action="rust_transaction",
         history_label=f"Vertex Parameters ({sum(map(len, scope.values()))} vertices)",
         object_transform=copy.deepcopy(session.object_transform), require_reversible_history=True)
+    authoring.state_cache.adopt_prepared_document(session, prepared)
     authoring.max_state_document_bytes = max(authoring.max_state_document_bytes, size)
     return {"changed": True, "count": sum(map(len, scope.values()))}

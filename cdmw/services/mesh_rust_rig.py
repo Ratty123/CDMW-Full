@@ -3,8 +3,59 @@
 from __future__ import annotations
 
 import math
+import json
+
+from cdmw.domain.mesh.skeleton import refresh_mesh_skinning_selection
+from cdmw.services.mesh_rust_state_cache import skeleton_identity
 
 MAX_INFLUENCE_VERTICES = 131_072
+
+
+def cached_skeleton_summary(session, cache, build_summary):
+    """Keep full weight aggregates while selection/active-bone fields change."""
+    cache.observe(session)
+    key = (
+        cache.weight_revision, skeleton_identity(session),
+        *(str(getattr(session, name, "")) for name in (
+            "skeleton_source", "skeleton_descriptor_source", "skeleton_variation_source",
+            "animation_constraint_source", "socket_source",
+        )),
+        json.dumps(getattr(session, "animation_constraint_evidence", {}), sort_keys=True, default=repr),
+        bool(getattr(session, "pose_preview_enabled", False)),
+        tuple(sorted(getattr(session, "bone_pose_rotations", {}).items())),
+        getattr(session, "animation_clip", None),
+        bool(getattr(session, "animation_playback_enabled", False)),
+        getattr(session, "animation_time_seconds", 0.0),
+        bool(getattr(session, "animation_loop", True)), getattr(session, "animation_speed", 1.0),
+    )
+    cached = cache.skeleton_summary
+    if cached is None or cached[0] != key:
+        summary = build_summary()
+        cache.skeleton_summary = key, summary
+        return summary
+    return refresh_mesh_skinning_selection(
+        cached[1], session.working_mesh, session.selection, int(session.selected_bone_index),
+    )
+
+
+def cached_selected_bone_influence(session, bone_index, palette, cache):
+    cache.observe(session)
+    key = cache.weight_revision, skeleton_identity(session), bone_index, palette
+    cached = cache.bone_influence
+    if cached is None or cached[0] != key:
+        value = selected_bone_influence(session, bone_index, palette)
+        rows = tuple((part["submesh_index"], tuple(tuple(row) for row in part["weights"]))
+                     for part in value["parts"])
+        cache.bone_influence = key, {name: item for name, item in value.items() if name != "parts"}, rows
+    else:
+        value = cached[1]
+    # Cached rows are immutable. A caller can change its response without
+    # changing the next response, and no old active-bone documents accumulate.
+    cached = cache.bone_influence
+    return {**cached[1], "parts": [
+        {"submesh_index": index, "weights": [list(row) for row in rows]}
+        for index, rows in cached[2]
+    ]}
 
 
 def selected_bone_influence(session: object, bone_index: int, palette: tuple[int, ...]) -> dict[str, object]:

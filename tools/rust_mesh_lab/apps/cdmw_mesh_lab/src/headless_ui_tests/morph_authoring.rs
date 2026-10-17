@@ -4,7 +4,7 @@ use super::*;
 
 pub(super) fn authoring_ui() -> Result<HeadlessUi, Box<dyn std::error::Error>> {
     let mut application = two_part_application()?;
-    let document = application.document.as_mut().ok_or("document")?;
+    let document = Arc::make_mut(application.document.as_mut().ok_or("document")?);
     document.lods[0].submeshes[0].name = "Body".into();
     document.lods[0].submeshes[1].name = "Sleeve".into();
     let mut plate = document.lods[0].submeshes[1].clone();

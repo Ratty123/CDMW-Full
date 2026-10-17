@@ -3,8 +3,6 @@
 from __future__ import annotations
 
 from dataclasses import replace
-import hashlib
-import numpy as np
 
 from cdmw.domain.mesh.replacement import bound_part_indices
 from cdmw.modding.mesh_islands import mesh_islands
@@ -27,6 +25,7 @@ def island_ui_state(authoring, replacement):
         selected = [index for index in authoring.mesh_island_focus if index < len(mesh.submeshes)]
     bindings = {part.target_index: part for part in session.replacement_state.parts} if session.replacement_state else {}
     cache = authoring.mesh_island_cache
+    authoring.state_cache.observe(session)
     rows = []
     reason = replacement['reason']
     if session.mesh_format != 'pac':
@@ -35,8 +34,10 @@ def island_ui_state(authoring, replacement):
         reason = 'Finish the hair workflow before changing island output.'
     for index in selected:
         part = mesh.submeshes[index]
-        signature = hashlib.sha256(np.asarray(part.vertices, dtype='<f8').tobytes()
-                                   + np.asarray(part.faces, dtype='<i8').tobytes()).digest()
+        # Islands join coincident positions as well as indexed edges. A geometry
+        # revision therefore invalidates seam connectivity even without topology
+        # changes; selection and output inclusion keep the discovered groups.
+        signature = authoring.state_cache.geometry_revision, id(part), len(part.vertices), len(part.faces)
         cached = cache.get(index)
         if cached is None or cached[0] != signature:
             groups = mesh_islands(part, stop_event=authoring._cancel_event)

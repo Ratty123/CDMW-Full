@@ -441,7 +441,7 @@ class SemanticExport:
         return self
 
 
-def _read_semantic_bytes(raw, *, required=False, stop_event=None):
+def _read_semantic_bytes(raw, *, required=False, stop_event=None, package_cache=None):
     from cdmw.services.independent_item_package import (
         MAX_TOTAL, MAX_FILES, canonical, read_package, package_metadata, _read_member,
     )
@@ -502,7 +502,7 @@ def _read_semantic_bytes(raw, *, required=False, stop_event=None):
                 data = _read_member(archive, name, stop_event)
                 if len(data) != row["size"] or digest(data) != row["artifact"]:
                     raise ValueError("Semantic export contributor checksum or size mismatch.")
-                package = read_package(data, stop_event=stop_event)
+                package = read_package(data, stop_event=stop_event, cache=package_cache)
                 if (package.identity != row["identity"] or package.digest != row["content"]
                         or package.identity in identities):
                     raise ValueError("Contradictory or duplicate semantic export contributor identity.")
@@ -584,11 +584,11 @@ def _read_semantic_bytes(raw, *, required=False, stop_event=None):
         raise ValueError(f"Invalid semantic export: {error}") from error
 
 
-def read_semantic_export(source, *, stop_event=None) -> SemanticExport | None:
+def read_semantic_export(source, *, stop_event=None, package_cache=None) -> SemanticExport | None:
     from dataclasses import replace
     from cdmw.services.independent_item_package import MAX_TOTAL
     if isinstance(source, bytes):
-        return _read_semantic_bytes(source, stop_event=stop_event)
+        return _read_semantic_bytes(source, stop_event=stop_event, package_cache=package_cache)
     path = semantic_export_path(source)
     if path is None:
         return None
@@ -596,11 +596,24 @@ def read_semantic_export(source, *, stop_event=None) -> SemanticExport | None:
         raise ValueError("Linked semantic export files are unsupported.")
     if path.stat().st_size > MAX_TOTAL + MAX_METADATA_BYTES:
         raise ValueError("The semantic export exceeds the supported size.")
+    if path.name.casefold() != SEMANTIC_EXPORT_FILE:
+        # This is only dispatch, not admission. Ordinary packages are fully
+        # verified by their owner. Avoid reading their complete artifact merely
+        # to discover that their central directory has no semantic envelope.
+        raise_if_cancelled(stop_event)
+        try:
+            with zipfile.ZipFile(path) as archive:
+                names = archive.namelist()
+                if 'semantic.json' not in names and 'item.json' in names:
+                    return None
+        except zipfile.BadZipFile as error:
+            raise ValueError(f'Invalid semantic export: {error}') from error
     before = hash_file(path, stop_event)
     raw = path.read_bytes()
     if digest(raw) != before:
         raise ValueError("The semantic export changed while reading.")
-    value = _read_semantic_bytes(raw, required=path.name.casefold() == SEMANTIC_EXPORT_FILE, stop_event=stop_event)
+    value = _read_semantic_bytes(raw, required=path.name.casefold() == SEMANTIC_EXPORT_FILE,
+                               stop_event=stop_event, package_cache=package_cache)
     if value is None:
         return None
     folder = Path(source) if Path(source).is_dir() else None
