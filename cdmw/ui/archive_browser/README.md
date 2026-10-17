@@ -79,6 +79,21 @@ enter the live catalogue or its fingerprint; existing catalogues containing them
 rebuild automatically. Explicitly opening a backup `.pamt` remains available for
 inspection.
 
+**Settings > Paths > Ignored folders** lists these built-in exclusions and saved
+custom folder paths. **Add folder...** selects a folder inside the current game
+directory; **Add path...** also accepts a relative path that does not exist yet.
+Nested paths such as `extras/old` exclude that subtree, without excluding other
+folders named `old`. Matching ignores letter case. Select multiple custom rows
+to remove them with **Remove selected** or the context menu. Built-in exclusions
+remain in place.
+
+Changes apply on the next archive load or refresh. The filtered source list owns
+both the catalogue fingerprint and native indexing, so cached results update when
+an exclusion adds or removes archive sources. Ignored files are unavailable to
+tools using that catalogue. Worker retries retain the exclusions captured when
+the session opened. The setting is saved as `archive/ignored_folders`; no game
+files are changed.
+
 The standalone resident catalogue is the only listing authority. Its status messages reach the
 owning shell through the archive workspace's `shell` reference. Preview requests are
 request-correlated and latest-wins: a stale selection may be superseded but may

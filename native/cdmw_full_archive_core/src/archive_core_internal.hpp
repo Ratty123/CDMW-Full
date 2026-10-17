@@ -68,6 +68,7 @@ using ProgressSink = std::function<void(
     const std::string&)>;
 
 std::vector<Entry> scan_package_root(const fs::path& package_root, const ProgressSink& progress = {});
+std::vector<Entry> scan_pamt_files(std::vector<fs::path> pamt_files, const ProgressSink& progress = {});
 void write_index_atomic(
     const fs::path& index_path,
     const std::vector<Entry>& entries,

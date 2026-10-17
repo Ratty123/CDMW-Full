@@ -507,6 +507,16 @@ class ArchiveBackendClient(QObject):
                     ArchiveBackendError("stale_generation", "Archive backend request was superseded before dispatch."),
                 )
                 continue
+            if (pending.envelope.operation in {
+                    ArchiveBackendOperation.OPEN_ARCHIVE, ArchiveBackendOperation.REFRESH_ARCHIVE,
+                    ArchiveBackendOperation.CACHE_HEALTH,
+                } and (pending.envelope.payload or {}).get("ignored_folders")
+                    and "archive_ignored_folders_v1" not in self._capabilities):
+                self._fail_request(request_id, ArchiveBackendError(
+                    "unsupported_ignored_folders",
+                    "The archive backend does not support custom ignored folders. Update or rebuild CDMW before scanning with these exclusions.",
+                ))
+                continue
             if not self._write_envelope(pending.envelope):
                 self._fail_request(
                     request_id,

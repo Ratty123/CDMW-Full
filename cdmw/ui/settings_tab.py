@@ -71,6 +71,7 @@ from cdmw.models import (
     clamp_model_preview_render_settings,
 )
 from cdmw.ui.archive_performance_settings_io import read_archive_performance_settings
+from cdmw.ui.archive_ignored_folders import ArchiveIgnoredFoldersGroup
 from cdmw.ui.wrapping_layout import WrappingLayout
 from cdmw.domain.camera_bindings import (
     normalize_camera_drag,
@@ -141,6 +142,8 @@ class SettingsTab(CompactWorkspaceSettingsMixin, SettingsHelperDiscoveryMixin, Q
         root_layout.setSpacing(0)
 
         self._build_settings_navigation(root_layout)
+        self.archive_ignored_folders_group = ArchiveIgnoredFoldersGroup(settings, self)
+        self.paths_page_layout.addWidget(self.archive_ignored_folders_group)
 
         self.appearance_group = QGroupBox("Appearance")
         appearance_layout = QFormLayout(self.appearance_group)
@@ -1334,6 +1337,7 @@ class SettingsTab(CompactWorkspaceSettingsMixin, SettingsHelperDiscoveryMixin, Q
         except (TypeError, ValueError):
             return float(default)
     def _load_settings(self, theme_key: str) -> None:
+        self.archive_ignored_folders_group.reload()
         self.sync_appearance_controls(theme_key)
         self._load_compact_workspace_settings()
         self.set_language_selection(str(self.settings.value("appearance/language", "en") or "en"))

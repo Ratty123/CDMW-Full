@@ -1,6 +1,6 @@
 namespace Cdmw.FullArchive.Contracts;
 
-public sealed record CacheHealthRequest(string PackageRoot);
+public sealed record CacheHealthRequest(string PackageRoot, IReadOnlyList<string>? IgnoredFolders = null);
 
 public sealed record CacheHealthResult(
     string PackageRoot,
@@ -14,7 +14,8 @@ public sealed record CacheHealthResult(
 public sealed record OpenArchiveRequest(
     string PackageRoot,
     bool ForceRefresh = false,
-    string? SupersedesSessionId = null);
+    string? SupersedesSessionId = null,
+    IReadOnlyList<string>? IgnoredFolders = null);
 
 public sealed record CloseArchiveRequest(string SessionId);
 

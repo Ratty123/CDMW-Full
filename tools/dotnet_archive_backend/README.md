@@ -16,7 +16,7 @@ reference Archive Lite projects, assemblies, settings, processes, or caches.
 
 ## Archive discovery exclusions
 
-Directory scans skip the archive root's `backups/`, `Cdmods/`, and `.cdmw/` directories,
+Directory scans skip the archive root's `backups/`, `Cdmods/`, `.cdmw/`, and `crimsonforge_backups/` directories,
 case-insensitively, before descending into them. Saved virtual-loader generations
 and other internal copies never enter the live catalogue. Native discovery, source
 fingerprints and shared archive readers use the same exclusions. Live
@@ -24,6 +24,17 @@ archive groups and overlays remain discoverable, including groups under
 `game_files/`. A cached catalogue fingerprinted with ignored internal sources becomes stale
 and rebuilds automatically on the next archive open. An explicitly selected
 `.pamt` file can still be inspected even when it is inside a backup directory.
+
+`open_archive`, `refresh_archive` and `cache_health` accept an optional
+`ignored_folders` list of relative directory paths. Matching is case-insensitive,
+supports nested paths and prunes the entire matching subtree. Absolute paths,
+parent traversal and wildcard patterns are rejected. Omission preserves the
+built-in policy. User exclusions are applied before fingerprinting; indexing
+uses that exact filtered PAMT list through the native source-list entry point.
+Changing included sources invalidates an old catalogue, while edits inside an
+ignored subtree do not. Python session recovery retains the captured list.
+The worker advertises `archive_ignored_folders_v1`; the client refuses a custom
+exclusion request when an older worker does not advertise support.
 
 ## Worker protocol
 

@@ -7,11 +7,21 @@ import sys
 from typing import Any
 
 from cdmw.constants import APP_NAME, LEGACY_APP_NAMES
+from cdmw.domain.archives.discovery import ARCHIVE_IGNORED_FOLDERS_SETTING
 from cdmw.core.classification_registry import configure_texture_classification_registry
 from cdmw.services.workspace_layout import WORKSPACE_MIGRATION_SETTINGS_KEY, migrate_legacy_workspace_layout
 
 
 MODEL_TEXTURE_ON_DEMAND_MIGRATION_SETTINGS_KEY = "archive/model_texture_on_demand_migration_v2"
+
+
+def read_ignored_archive_folders(settings: object | None) -> tuple[str, ...]:
+    if settings is None:
+        return ()
+    value = settings.value(ARCHIVE_IGNORED_FOLDERS_SETTING, [])
+    if isinstance(value, str):
+        return (value,) if value else ()
+    return tuple(str(item) for item in (value or ()))
 
 
 def migrate_model_texture_setting_to_on_demand(settings: object) -> bool:

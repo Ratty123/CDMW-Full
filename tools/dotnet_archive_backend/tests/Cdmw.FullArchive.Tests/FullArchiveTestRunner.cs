@@ -27,6 +27,7 @@ internal static class FullArchiveTestRunner
             ("cache_maintenance_scope_retirement", CacheMaintenanceTests.ScopeAndInterruptedRetirementAsync),
             ("archive_discovery_excludes_backups", ArchiveDiscoveryTests.ScanAndExportAsync),
             ("existing_backup_cache_is_rebuilt", ArchiveDiscoveryTests.ExistingBackupCacheAsync),
+            ("custom_ignored_folders", ArchiveDiscoveryTests.CustomFoldersAsync),
             ("compact_dependency_index", CompactDependencyIndexAsync),
             ("query_lookup_search_prepare_export", QueryLookupSearchPrepareExportAsync),
             ("preview_association_and_prepare_batch", PreviewAssociationAndPrepareBatchAsync),
@@ -69,7 +70,7 @@ internal static class FullArchiveTestRunner
         if (archiveDiscoveryOnly)
         {
             tests = tests.Where(static test => test.Name is "native_and_generation_cache"
-                or "archive_discovery_excludes_backups" or "existing_backup_cache_is_rebuilt").ToArray();
+                or "archive_discovery_excludes_backups" or "existing_backup_cache_is_rebuilt" or "custom_ignored_folders").ToArray();
         }
         if (archiveQueryOnly)
         {
@@ -1799,13 +1800,19 @@ internal static class FullArchiveTestRunner
                 Require(result.Status == WorkerMessageStatus.Result, "worker ping did not complete");
                 var pingResult = WorkerProtocol.ReadPayload<PingResult>(result);
                 Require(pingResult is { ProtocolVersion: 3, NativeAbiVersion: 1, IndexVersion: 3 }, "worker ping compatibility data changed");
+                Require(pingResult?.Capabilities?.Contains("archive_ignored_folders_v1") == true,
+                    "worker did not advertise custom folder exclusions");
+
+                var ignoredFolder = Path.Combine(fixture.Root, "My backups");
+                Directory.CreateDirectory(ignoredFolder);
+                await File.WriteAllTextAsync(Path.Combine(ignoredFolder, "0.pamt"), "unreadable backup archive").ConfigureAwait(false);
 
                 var openId = Guid.NewGuid();
                 await SendAsync(process, WorkerProtocol.Request(
                     openId,
                     20,
                     WorkerProtocol.OpenArchive,
-                    new OpenArchiveRequest(fixture.Root))).ConfigureAwait(false);
+                    new OpenArchiveRequest(fixture.Root, IgnoredFolders: ["my BACKUPS"]))).ConfigureAwait(false);
                 var openResult = await ReadTerminalAsync(process, openId).ConfigureAwait(false);
                 Require(openResult.Status == WorkerMessageStatus.Result, "worker archive open failed");
                 var session = WorkerProtocol.ReadPayload<ArchiveSessionHandle>(openResult)
@@ -1879,7 +1886,7 @@ internal static class FullArchiveTestRunner
                     refreshId,
                     40,
                     WorkerProtocol.RefreshArchive,
-                    new OpenArchiveRequest(fixture.Root, ForceRefresh: true))).ConfigureAwait(false);
+                    new OpenArchiveRequest(fixture.Root, ForceRefresh: true, IgnoredFolders: ["my BACKUPS"]))).ConfigureAwait(false);
                 await SendAsync(process, WorkerProtocol.Request(
                     cancelId,
                     41,

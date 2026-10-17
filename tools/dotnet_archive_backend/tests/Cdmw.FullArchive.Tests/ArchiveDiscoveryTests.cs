@@ -9,6 +9,70 @@ namespace Cdmw.FullArchive.Tests;
 
 internal static class ArchiveDiscoveryTests
 {
+    public static async Task CustomFoldersAsync()
+    {
+        await using var fixture = await SyntheticArchiveFixture.CreateAsync().ConfigureAwait(false);
+        var cacheRoot = Path.Combine(Path.GetTempPath(), $"cdmw-custom-discovery-{Guid.NewGuid():N}");
+        var cache = new ArchiveCacheStore(cacheRoot);
+        try
+        {
+            var ignoredDirectory = Path.Combine(fixture.Root, "Extras", "Äldre");
+            var siblingDirectory = ignoredDirectory + "2";
+            foreach (var directory in new[] { ignoredDirectory, siblingDirectory })
+            {
+                Directory.CreateDirectory(directory);
+                File.Copy(fixture.Pamt, Path.Combine(directory, "0.pamt"));
+                File.Copy(fixture.Paz, Path.Combine(directory, "0.paz"));
+            }
+            var native = new NativeArchiveCore();
+            using var sessions = new ArchiveSessionManager(native, cache);
+            var original = await sessions.OpenAsync(new OpenArchiveRequest(fixture.Root), CancellationToken.None).ConfigureAwait(false);
+            Require(original.EntryCount == 12, "fixture must initially include all three sources");
+            string[] ignored = ["extras\\äLDRE"];
+            var request = JsonSerializer.Deserialize<OpenArchiveRequest>(
+                JsonSerializer.Serialize(new OpenArchiveRequest(fixture.Root, IgnoredFolders: ignored), WorkerProtocol.JsonOptions), WorkerProtocol.JsonOptions)!;
+            await File.WriteAllBytesAsync(Path.Combine(ignoredDirectory, "0.pamt"), [0]).ConfigureAwait(false);
+            var filtered = await sessions.OpenAsync(request, CancellationToken.None).ConfigureAwait(false);
+            Require(!filtered.CacheHit && filtered.EntryCount == 8, "custom folder change reused an unfiltered catalogue or hid a similar sibling");
+            var sources = ArchiveFingerprint.DiscoverSourceFiles(fixture.Root, ignored);
+            Require(!sources.Any(path => Path.GetDirectoryName(path) == ignoredDirectory), "ignored subtree entered fingerprint sources");
+            Require(sources.Contains(Path.Combine(siblingDirectory, "0.pamt")), "similar sibling was incorrectly excluded");
+            var session = sessions.GetRequired(filtered.SessionId);
+            for (long id = 0; id < filtered.EntryCount; id++)
+                Require(Path.GetDirectoryName(session.ReadEntry(id).SourcePamt) != ignoredDirectory, "native scan included a custom ignored source");
+            await File.WriteAllBytesAsync(Path.Combine(ignoredDirectory, "0.pamt"), [1, 2]).ConfigureAwait(false);
+            var warm = await sessions.OpenAsync(request, CancellationToken.None).ConfigureAwait(false);
+            Require(warm.CacheHit, "changes inside an ignored subtree invalidated the catalogue");
+            var health = await cache.InspectAsync(fixture.Root, CancellationToken.None, ignoredFolders: ignored).ConfigureAwait(false);
+            Require(health.State == "current", "cache health did not honor custom exclusions");
+            File.Copy(fixture.Pamt, Path.Combine(ignoredDirectory, "0.pamt"), overwrite: true);
+            var restored = await sessions.OpenAsync(new OpenArchiveRequest(fixture.Root), CancellationToken.None).ConfigureAwait(false);
+            Require(!restored.CacheHit && restored.EntryCount == 12, "removing an exclusion did not restore its archives");
+            foreach (var invalid in new[] { ".", "../outside", "/outside", "C:/outside", "Extras/*", "Extras/../0009" })
+            {
+                var rejected = false;
+                try { ArchiveFingerprint.DiscoverSourceFiles(fixture.Root, [invalid]); }
+                catch (ArgumentException) { rejected = true; }
+                Require(rejected, "invalid custom folder path was accepted");
+            }
+            using var cancellation = new CancellationTokenSource();
+            var cancelled = false;
+            var cancelledIndex = Path.Combine(cacheRoot, "cancelled.ali");
+            try
+            {
+                native.BuildIndex(fixture.Root, cancelledIndex, _ => cancellation.Cancel(), cancellation.Token,
+                    [fixture.Pamt]);
+            }
+            catch (OperationCanceledException) { cancelled = true; }
+            Require(cancelled && !File.Exists(cancelledIndex), "filtered native build ignored cancellation or published a partial index");
+        }
+        finally
+        {
+            await cache.WaitForMaintenanceAsync(CancellationToken.None).ConfigureAwait(false);
+            if (Directory.Exists(cacheRoot)) Directory.Delete(cacheRoot, recursive: true);
+        }
+    }
+
     public static async Task ScanAndExportAsync()
     {
         await using var fixture = await SyntheticArchiveFixture.CreateAsync().ConfigureAwait(false);

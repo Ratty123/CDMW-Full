@@ -459,6 +459,10 @@ std::vector<Entry> scan_package_root(const fs::path& package_root, const Progres
             }
         }
     }
+    return scan_pamt_files(std::move(pamt_files), progress);
+}
+
+std::vector<Entry> scan_pamt_files(std::vector<fs::path> pamt_files, const ProgressSink& progress) {
     if (pamt_files.empty()) throw std::runtime_error("no PAMT files were found under the archive root");
     std::sort(pamt_files.begin(), pamt_files.end());
     auto parsed = parse_pamt_files(pamt_files, progress);

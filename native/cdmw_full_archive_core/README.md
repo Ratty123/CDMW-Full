@@ -22,6 +22,13 @@ cooperative cancellation and prevents publication of an incomplete index. The
 non-progress `cdmw_full_archive_build_index_utf8` entry point remains available
 for simple callers.
 
+`cdmw_full_archive_build_index_from_sources_utf8` accepts a non-empty array of
+UTF-8 PAMT paths selected by the caller. It builds from that list without walking
+the archive root again, preserving the same progress, cancellation and atomic
+publication behavior. The standalone worker uses it for custom folder exclusions
+so its fingerprint and index cover the same sources. The existing ABI 1 entry
+points remain available and retain their original signatures.
+
 Build and test:
 
 ```powershell

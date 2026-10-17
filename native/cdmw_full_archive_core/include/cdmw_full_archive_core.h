@@ -65,6 +65,21 @@ CDMW_FULL_ARCHIVE_API int cdmw_full_archive_build_index_with_progress_utf8(
     size_t error_message_capacity);
 
 /*
+ * Builds from the caller's already-filtered PAMT source list. Paths are UTF-8;
+ * directory discovery is not repeated. Existing build entry points are unchanged.
+ */
+CDMW_FULL_ARCHIVE_API int cdmw_full_archive_build_index_from_sources_utf8(
+    const char* package_root,
+    const char* index_path,
+    const char* const* pamt_paths,
+    size_t pamt_count,
+    uint64_t* entry_count,
+    cdmw_full_archive_progress_callback progress_callback,
+    void* progress_user_data,
+    char* error_message,
+    size_t error_message_capacity);
+
+/*
  * Decodes one archive entry into a caller-owned buffer. Call first with a null
  * output buffer to obtain required_size. The PAZ and virtual paths are UTF-8.
  */

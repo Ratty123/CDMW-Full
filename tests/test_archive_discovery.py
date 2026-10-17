@@ -8,6 +8,35 @@ import pytest
 from cdmw.core import archive_scan_cache
 from cdmw.core.archive_scan_cache import discover_pamt_files
 from cdmw.models import ArchiveEntry
+from cdmw.domain.archives.discovery import normalize_ignored_archive_folders
+
+
+def test_custom_nested_folders_are_pruned_without_hiding_similar_names(tmp_path, monkeypatch):
+    ignored = tmp_path / "Extras" / "Old"
+    live = [tmp_path / "0009" / "0.pamt", tmp_path / "Extras" / "Old2" / "0.pamt",
+            tmp_path / "Old" / "0.pamt"]
+    for path in [*live, ignored / "nested" / "0.pamt"]:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(b"index")
+    real_scandir = os.scandir
+
+    def checked_scandir(path):
+        assert not Path(path).is_relative_to(ignored)
+        return real_scandir(path)
+
+    monkeypatch.setattr(os, "scandir", checked_scandir)
+    assert set(discover_pamt_files(tmp_path, ignored_folders=["extras\\OLD"])) == set(live)
+    assert discover_pamt_files(ignored / "nested" / "0.pamt", ignored_folders=["extras/old"]) == [ignored / "nested" / "0.pamt"]
+
+
+@pytest.mark.parametrize("path", ["", ".", "..", "../old", "/old", "C:/old", "old/../live", "old/*", "old//nested"])
+def test_ignored_folders_reject_ambiguous_or_outside_paths(path):
+    with pytest.raises(ValueError):
+        normalize_ignored_archive_folders([path])
+
+
+def test_ignored_folders_normalize_separators_and_duplicate_case():
+    assert normalize_ignored_archive_folders([" Extras\\Old/ ", "extras/old"]) == ("Extras/Old",)
 
 
 @pytest.mark.parametrize("live_parent", ["", "game_files"])

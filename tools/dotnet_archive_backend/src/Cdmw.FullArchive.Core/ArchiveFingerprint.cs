@@ -10,7 +10,8 @@ public static class ArchiveFingerprint
     public static async Task<ArchiveFingerprintResult> ComputeAsync(
         string packageRoot,
         CancellationToken cancellationToken,
-        Func<ProgressUpdate, Task>? progress = null)
+        Func<ProgressUpdate, Task>? progress = null,
+        IReadOnlyList<string>? ignoredFolders = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(packageRoot);
         var root = Path.GetFullPath(packageRoot);
@@ -19,7 +20,7 @@ public static class ArchiveFingerprint
             throw new DirectoryNotFoundException($"Archive root does not exist: {root}");
         }
 
-        var files = DiscoverSourceFiles(root);
+        var files = DiscoverSourceFiles(root, ignoredFolders);
         if (!files.Any(static path => path.EndsWith(".pamt", StringComparison.OrdinalIgnoreCase)))
         {
             throw new InvalidDataException("No PAMT files were found under the selected archive root.");
@@ -87,7 +88,7 @@ public static class ArchiveFingerprint
         Func<ProgressUpdate, Task>? progress,
         ProgressUpdate update) => progress is null ? Task.CompletedTask : progress(update);
 
-    public static IReadOnlyList<string> DiscoverSourceFiles(string root)
+    public static IReadOnlyList<string> DiscoverSourceFiles(string root, IReadOnlyList<string>? ignoredFolders = null)
     {
         if (File.Exists(root))
         {
@@ -116,23 +117,32 @@ public static class ArchiveFingerprint
             AttributesToSkip = FileAttributes.ReparsePoint,
             MatchCasing = MatchCasing.CaseInsensitive,
         };
-        var recursiveOptions = new EnumerationOptions
+        var ignored = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var value in ignoredFolders ?? [])
         {
-            RecurseSubdirectories = true,
-            IgnoreInaccessible = true,
-            AttributesToSkip = FileAttributes.ReparsePoint,
-            MatchCasing = MatchCasing.CaseInsensitive,
-        };
-        var rootFiles = Directory.EnumerateFiles(root, "*", topLevelOptions);
-        var directories = Directory.EnumerateDirectories(root, "*", topLevelOptions)
-            .Where(static path => !IsIgnoredArchiveDirectory(path));
-        return rootFiles.Concat(directories.SelectMany(path => Directory.EnumerateFiles(path, "*", recursiveOptions)))
-            .Where(static path =>
-                path.EndsWith(".pamt", StringComparison.OrdinalIgnoreCase) ||
-                path.EndsWith(".paz", StringComparison.OrdinalIgnoreCase) ||
-                path.EndsWith(".pathc", StringComparison.OrdinalIgnoreCase))
-            .Order(StringComparer.OrdinalIgnoreCase)
-            .ToArray();
+            var path = (value ?? "").Trim().Replace('\\', '/').TrimEnd('/');
+            if (path.Length == 0 || path.Split('/').Any(static part => part is "" or "." or "..")
+                || path.Any(static character => character < 32 || "<>:\"|?*".Contains(character)))
+                throw new ArgumentException("Ignored folders must be relative folder paths without wildcards or '..'.");
+            ignored.Add(path);
+        }
+        var files = new List<string>();
+        var pending = new Stack<string>();
+        pending.Push(root);
+        while (pending.TryPop(out var directory))
+        {
+            files.AddRange(Directory.EnumerateFiles(directory, "*", topLevelOptions).Where(static path =>
+                path.EndsWith(".pamt", StringComparison.OrdinalIgnoreCase)
+                || path.EndsWith(".paz", StringComparison.OrdinalIgnoreCase)
+                || path.EndsWith(".pathc", StringComparison.OrdinalIgnoreCase)));
+            foreach (var child in Directory.EnumerateDirectories(directory, "*", topLevelOptions))
+            {
+                if (directory == root && IsIgnoredArchiveDirectory(child)) continue;
+                if (ignored.Contains(Path.GetRelativePath(root, child).Replace('\\', '/'))) continue;
+                pending.Push(child);
+            }
+        }
+        return files.Order(StringComparer.OrdinalIgnoreCase).ToArray();
     }
 
     private static bool IsIgnoredArchiveDirectory(string path)

@@ -187,6 +187,7 @@ class PingResult:
 @dataclass(frozen=True, slots=True)
 class CacheHealthRequest:
     package_root: str
+    ignored_folders: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -218,6 +219,7 @@ class OpenArchiveRequest:
     package_root: str
     force_refresh: bool = False
     supersedes_session_id: str | None = None
+    ignored_folders: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)

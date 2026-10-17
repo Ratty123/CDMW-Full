@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 import tempfile
 import unittest
+from unittest.mock import patch
 from pathlib import Path
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
@@ -38,6 +39,37 @@ class SettingsTabFlushPersistenceTests(unittest.TestCase):
         if isinstance(value, bool):
             return value
         return str(value).strip().lower() in {"1", "true", "yes", "on"}
+
+    def test_ignored_folders_are_editable_persistent_and_builtins_stay_visible(self):
+        group = self.tab.archive_ignored_folders_group
+        self.assertTrue(self.tab._settings_section_layouts["paths"].parentWidget().isAncestorOf(group))
+        self.assertIn("crimsonforge_backups", group.builtin_folders_label.text())
+        with patch("cdmw.ui.archive_ignored_folders.QInputDialog.getText", return_value=("Extras\\Old", True)):
+            group.add_path_button.click()
+        self.assertTrue(group.add_path("extras/old"))
+        self.assertTrue(group.add_path("Other"))
+        self.assertFalse(group.add_path("../Outside"))
+        self.assertTrue(group.add_path("backups/nested"))
+        self.assertEqual(group.folder_list.count(), 2)
+        reopened = create_settings(settings_file_path=Path(self._temp_dir.name) / "cdmw-test.cfg")
+        self.assertEqual(reopened.value("archive/ignored_folders"), ["Extras/Old", "Other"])
+        group.reload()
+        group.folder_list.selectAll()
+        group.remove_button.click()
+        self.assertEqual(self.settings.value("archive/ignored_folders"), [])
+        self.assertIn("crimsonforge_backups", group.builtin_folders_label.text())
+
+    def test_ignore_folder_picker_requires_a_descendant_of_the_current_game_folder(self):
+        group = self.tab.archive_ignored_folders_group
+        root = Path(self._temp_dir.name) / "game"
+        group.get_package_root = lambda: str(root)
+        with patch("cdmw.ui.archive_ignored_folders.QFileDialog.getExistingDirectory", return_value=str(root / "Extras")):
+            group.add_folder_button.click()
+        self.assertEqual(self.settings.value("archive/ignored_folders"), ["Extras"])
+        for rejected in (root, root.parent / "elsewhere"):
+            with patch("cdmw.ui.archive_ignored_folders.QFileDialog.getExistingDirectory", return_value=str(rejected)):
+                group.add_folder_button.click()
+        self.assertEqual(self.settings.value("archive/ignored_folders"), ["Extras"])
 
     def test_flush_persists_preference_change_without_pending_appearance(self) -> None:
         self.tab.auto_load_archive_checkbox.setChecked(True)

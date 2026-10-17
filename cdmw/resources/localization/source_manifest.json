@@ -6045,6 +6045,11 @@
       "key": "Add folder...",
       "origins": [
         {
+          "path": "cdmw/ui/archive_ignored_folders.py",
+          "line": 44,
+          "sink": "QPushButton"
+        },
+        {
           "path": "cdmw/ui/new_item/mod_merge_dialog.py",
           "line": 43,
           "sink": "QPushButton"
@@ -6158,6 +6163,16 @@
           "path": "cdmw/ui/new_item/virtual_loader_page.py",
           "line": 37,
           "sink": "tr"
+        }
+      ]
+    },
+    {
+      "key": "Add path...",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_ignored_folders.py",
+          "line": 45,
+          "sink": "QPushButton"
         }
       ]
     },
@@ -8163,6 +8178,16 @@
           "path": "cdmw/ui/character_context_panel.py",
           "line": 339,
           "sink": "QTreeWidgetItem"
+        }
+      ]
+    },
+    {
+      "key": "Always ignored at the game-folder root:",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_ignored_folders.py",
+          "line": 27,
+          "sink": "QLabel"
         }
       ]
     },
@@ -23262,6 +23287,21 @@
       ]
     },
     {
+      "key": "Changes apply the next time archives are loaded or refreshed.",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_ignored_folders.py",
+          "line": 51,
+          "sink": "QLabel"
+        },
+        {
+          "path": "cdmw/ui/archive_ignored_folders.py",
+          "line": 92,
+          "sink": "setText"
+        }
+      ]
+    },
+    {
       "key": "Changes apply to 3D archive previews. The ranges are intentionally capped to keep the preview usable and avoid values that are likely to look broken or exceed practical GPU limits.",
       "origins": [
         {
@@ -25787,6 +25827,16 @@
         {
           "path": "cdmw/ui/replace_assistant/queue.py",
           "line": 525,
+          "sink": "setText"
+        }
+      ]
+    },
+    {
+      "key": "Choose a folder inside the selected game folder.",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_ignored_folders.py",
+          "line": 110,
           "sink": "setText"
         }
       ]
@@ -44317,6 +44367,16 @@
       ]
     },
     {
+      "key": "Enter a folder path relative to the game folder, without wildcards or '..'.",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_ignored_folders.py",
+          "line": 74,
+          "sink": "setText"
+        }
+      ]
+    },
+    {
       "key": "Enter a non-empty name for the active non-base layer",
       "origins": [
         {
@@ -52302,6 +52362,16 @@
       ]
     },
     {
+      "key": "Folder path relative to the game folder:",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_ignored_folders.py",
+          "line": 95,
+          "sink": "getText"
+        }
+      ]
+    },
+    {
       "key": "Folder scan reached its 10,000-file safety limit; narrow the selected folder.",
       "origins": [
         {
@@ -60257,6 +60327,16 @@
       "manual": true
     },
     {
+      "key": "Ignore folder",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_ignored_folders.py",
+          "line": 95,
+          "sink": "getText"
+        }
+      ]
+    },
+    {
       "key": "Ignore height map",
       "origins": [
         {
@@ -60358,6 +60438,26 @@
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
           "line": 546,
           "sink": "setToolTip"
+        }
+      ]
+    },
+    {
+      "key": "Ignored files are unavailable to Archive Browser and tools using its catalogue. No files are deleted.",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_ignored_folders.py",
+          "line": 53,
+          "sink": "setToolTip"
+        }
+      ]
+    },
+    {
+      "key": "Ignored folders",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_ignored_folders.py",
+          "line": 23,
+          "sink": "setTitle"
         }
       ]
     },
@@ -97512,6 +97612,16 @@
       ]
     },
     {
+      "key": "Paths are relative to the selected game folder. A path such as extras/old excludes that folder and everything inside it.",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_ignored_folders.py",
+          "line": 39,
+          "sink": "setToolTip"
+        }
+      ]
+    },
+    {
       "key": "Pattern",
       "origins": [
         {
@@ -112965,6 +113075,16 @@
       "key": "Remove selected",
       "origins": [
         {
+          "path": "cdmw/ui/archive_ignored_folders.py",
+          "line": 46,
+          "sink": "QPushButton"
+        },
+        {
+          "path": "cdmw/ui/archive_ignored_folders.py",
+          "line": 122,
+          "sink": "addAction"
+        },
+        {
           "path": "cdmw/ui/new_item/bonus_editor.py",
           "line": 60,
           "sink": "QPushButton"
@@ -126942,6 +127062,16 @@
       ]
     },
     {
+      "key": "Select folder to ignore",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_ignored_folders.py",
+          "line": 104,
+          "sink": "getExistingDirectory"
+        }
+      ]
+    },
+    {
       "key": "Select garment vertices, faces or a whole Part to control how strongly they follow the body.",
       "origins": [
         {
@@ -129573,6 +129703,16 @@
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
           "line": 3306,
           "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Set the game folder in Archive Locations first.",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_ignored_folders.py",
+          "line": 102,
+          "sink": "setText"
         }
       ]
     },
@@ -142248,6 +142388,16 @@
           "path": "cdmw/ui/shell/about_documentation_en.py",
           "line": 192,
           "sink": "python-return:_build_workflow_planning_sections"
+        }
+      ]
+    },
+    {
+      "key": "The archive backend does not support custom ignored folders. Update or rebuild CDMW before scanning with these exclusions.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/archive_backend_client.py",
+          "line": 515,
+          "sink": "ArchiveBackendError"
         }
       ]
     },
@@ -161648,6 +161798,16 @@
           "path": "cdmw/ui/research/classification_review_state.py",
           "line": 245,
           "sink": "python-return:unknown_member_local_text"
+        }
+      ]
+    },
+    {
+      "key": "Your ignored folders:",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_ignored_folders.py",
+          "line": 32,
+          "sink": "QLabel"
         }
       ]
     },

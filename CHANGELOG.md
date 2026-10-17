@@ -9,6 +9,8 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 ### Added
 
+- Settings > Paths shows the folders ignored during archive scans and lets users add or remove custom exclusions, including nested folders. Changes apply on the next archive load or refresh.
+
 - Developer inspection explains `.cditem` identities, owned resources, stock edits and remaining dependencies through current validation. It reports the current shared-file composition limit and can refuse an unsupported isolation claim before publication.
 
 - Mesh Editor adds experimental World-object glass controls, and Mesh Editor and Create New Item add Equipment glass controls for compatible materials. Layered Standard/Emissive equipment converts to private textures with its composed colours and surface maps; dye colours become fixed. Mesh Editor disables unsupported shader choices. Thickness, absorption and shadow colour strength retain each shader's supported ranges; preview approximates absorption, while coloured shadows and refraction require in-game testing.

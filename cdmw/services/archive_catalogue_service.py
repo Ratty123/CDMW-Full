@@ -123,6 +123,7 @@ class ArchiveCatalogueService(QObject):
         self._client = client
         self._requests: dict[str, _CatalogueRequest] = {}
         self._sessions: dict[str, ArchiveSessionHandle] = {}
+        self._session_ignored_folders: dict[str, tuple[str, ...]] = {}
         self._queries: dict[str, tuple[ArchiveQuery, ArchiveQueryHandle, str]] = {}
         self._current_session_id: str | None = None
         self._minimum_ui_generation = 0
@@ -297,6 +298,7 @@ class ArchiveCatalogueService(QObject):
                 str(Path(package_root)),
                 force_refresh=True,
                 supersedes_session_id=current.session_id if current is not None else None,
+                ignored_folders=self._session_ignored_folders.get(current.session_id, ()) if current is not None else (),
             ),
             ui_generation=ui_generation,
         )
@@ -734,6 +736,7 @@ class ArchiveCatalogueService(QObject):
                 return
             if isinstance(result, ArchiveSessionHandle):
                 self._sessions[result.session_id] = result
+                self._session_ignored_folders[result.session_id] = tuple(request.payload.ignored_folders)
                 self._current_session_id = result.session_id
             elif isinstance(result, ArchiveQueryHandle) and request.query is not None:
                 session = self._require_session(result.session_id)
@@ -754,6 +757,7 @@ class ArchiveCatalogueService(QObject):
                 return
             elif isinstance(result, CloseArchiveResult) and result.closed:
                 self._sessions.pop(result.session_id, None)
+                self._session_ignored_folders.pop(result.session_id, None)
                 self._invalid_sessions.discard(result.session_id)
                 for alias, destination in tuple(self._session_aliases.items()):
                     if destination == result.session_id:
@@ -859,7 +863,7 @@ class ArchiveCatalogueService(QObject):
             request_id = str(uuid4())
             request = _CatalogueRequest(
                 operation=ArchiveBackendOperation.OPEN_ARCHIVE,
-                payload=OpenArchiveRequest(old_session.package_root),
+                payload=OpenArchiveRequest(old_session.package_root, ignored_folders=self._session_ignored_folders.get(old_session_id, ())),
                 ui_generation=max(
                     (
                         self._requests[target].ui_generation
@@ -907,12 +911,14 @@ class ArchiveCatalogueService(QObject):
             )
             return
         self._sessions[session.session_id] = session
+        self._session_ignored_folders[session.session_id] = self._session_ignored_folders.get(old_session_id, ())
         for alias, destination in tuple(self._session_aliases.items()):
             if destination == old_session_id:
                 self._session_aliases[alias] = session.session_id
         if old_session_id != session.session_id:
             self._session_aliases[old_session_id] = session.session_id
             self._sessions.pop(old_session_id, None)
+            self._session_ignored_folders.pop(old_session_id, None)
         else:
             self._session_aliases.pop(old_session_id, None)
         for query_id, (query, _handle, _fingerprint) in tuple(self._queries.items()):

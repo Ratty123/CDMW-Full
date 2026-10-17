@@ -21,6 +21,7 @@ from cdmw.domain.archives.catalogue import (
 )
 from cdmw.domain.archives.catalogue_operations import ArchiveExportSelectionKind
 from cdmw.domain.archives.constants import ARCHIVE_MESH_EXTENSIONS
+from cdmw.services.settings_service import read_ignored_archive_folders
 from cdmw.domain.archives.filters import archive_browser_sort_is_active
 from cdmw.models import ArchiveEntry
 from cdmw.ui.archive_browser.remote_controller import ArchiveRemoteCatalogueController
@@ -204,6 +205,7 @@ class ArchiveRemoteWindowBridge(QObject):
             package_root,
             query=query,
             force_refresh=force_refresh,
+            ignored_folders=read_ignored_archive_folders(getattr(self._window.shell, "settings", None)),
             selection_identity=self.current_selection_identity(),
         )
 

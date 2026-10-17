@@ -30,7 +30,9 @@ int build_index(
     cdmw_full_archive_progress_callback progress_callback,
     void* progress_user_data,
     char* error_message,
-    size_t error_message_capacity) {
+    size_t error_message_capacity,
+    const char* const* pamt_paths = nullptr,
+    size_t pamt_count = 0) {
     clear_text(error_message, error_message_capacity);
     if (package_root == nullptr || *package_root == '\0' || index_path == nullptr || *index_path == '\0') {
         copy_text("package_root and index_path must not be empty", error_message, error_message_capacity);
@@ -59,8 +61,20 @@ int build_index(
                 }
             };
         }
-        const auto entries = cdmw::full_archive::scan_package_root(
-            cdmw::full_archive::utf8_path(package_root), progress);
+        std::vector<cdmw::full_archive::Entry> entries;
+        if (pamt_paths != nullptr) {
+            std::vector<std::filesystem::path> sources;
+            sources.reserve(pamt_count);
+            for (size_t index = 0; index < pamt_count; ++index) {
+                if (pamt_paths[index] == nullptr || *pamt_paths[index] == '\0')
+                    throw std::invalid_argument("PAMT source paths must not be empty");
+                sources.push_back(cdmw::full_archive::utf8_path(pamt_paths[index]));
+                if (progress) progress(index + 1, pamt_count, "discover", sources.back().filename().u8string());
+            }
+            entries = cdmw::full_archive::scan_pamt_files(std::move(sources), progress);
+        } else {
+            entries = cdmw::full_archive::scan_package_root(cdmw::full_archive::utf8_path(package_root), progress);
+        }
         cdmw::full_archive::write_index_atomic(
             cdmw::full_archive::utf8_path(index_path), entries, progress);
         *entry_count = entries.size();
@@ -113,6 +127,25 @@ int cdmw_full_archive_build_index_with_progress_utf8(
         progress_user_data,
         error_message,
         error_message_capacity);
+}
+
+int cdmw_full_archive_build_index_from_sources_utf8(
+    const char* package_root,
+    const char* index_path,
+    const char* const* pamt_paths,
+    size_t pamt_count,
+    std::uint64_t* entry_count,
+    cdmw_full_archive_progress_callback progress_callback,
+    void* progress_user_data,
+    char* error_message,
+    size_t error_message_capacity) {
+    if (pamt_paths == nullptr || pamt_count == 0) {
+        if (entry_count != nullptr) *entry_count = 0;
+        copy_text("PAMT source list must not be empty", error_message, error_message_capacity);
+        return CDMW_FULL_ARCHIVE_INVALID_ARGUMENT;
+    }
+    return build_index(package_root, index_path, entry_count, progress_callback, progress_user_data,
+        error_message, error_message_capacity, pamt_paths, pamt_count);
 }
 
 int cdmw_full_archive_decode_entry_utf8(

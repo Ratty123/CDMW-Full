@@ -11,7 +11,7 @@ import time
 from collections import OrderedDict, defaultdict
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Mapping, Optional, Sequence, Tuple
+from typing import Any, Callable, Dict, Iterable, List, Mapping, Optional, Sequence, Tuple
 
 try:
     import lz4.block as lz4_block
@@ -20,6 +20,7 @@ except ImportError:
 
 from cdmw.core.atomic_file import atomic_binary_writer, atomic_copy_file, atomic_write_bytes, atomic_write_text
 from cdmw.core.common import raise_if_cancelled
+from cdmw.domain.archives.discovery import BUILTIN_IGNORED_ARCHIVE_FOLDERS, normalize_ignored_archive_folders
 from cdmw.models import ArchiveEntry, RunCancelled
 
 
@@ -79,23 +80,24 @@ _ARCHIVE_CACHE_ROOT_PREFIXES: Tuple[str, ...] = (
 _ARCHIVE_ITEM_ICON_THUMBNAIL_CACHE_LOCK = threading.Lock()
 _ARCHIVE_ITEM_ICON_THUMBNAIL_MANIFEST_CACHE: Dict[str, Tuple[Tuple[int, int], Dict[str, object]]] = {}
 _ARCHIVE_SCAN_CACHE_SUPPORTED_VERSIONS = {3}
-_ARCHIVE_SCAN_IGNORED_TOP_LEVEL_DIRS: frozenset[str] = frozenset(
-    {"cdmods", "backups", ".cdmw", "crimsonforge_backups"}
-)
+_ARCHIVE_SCAN_IGNORED_TOP_LEVEL_DIRS: frozenset[str] = frozenset(BUILTIN_IGNORED_ARCHIVE_FOLDERS)
 
 
-def discover_pamt_files(package_root: Path) -> List[Path]:
+def discover_pamt_files(package_root: Path, *, ignored_folders: Iterable[str] = ()) -> List[Path]:
     root = package_root.expanduser().resolve()
     if root.is_file() and root.suffix.lower() == ".pamt":
         return [root]
     if not root.exists() or not root.is_dir():
         raise ValueError(f"Archive package root does not exist or is not a folder: {root}")
     files: List[Path] = []
+    ignored = _ARCHIVE_SCAN_IGNORED_TOP_LEVEL_DIRS | {
+        path.casefold() for path in normalize_ignored_archive_folders(ignored_folders)
+    }
     for directory, subdirectories, filenames in os.walk(root):
-        if Path(directory) == root:
-            subdirectories[:] = [
-                name for name in subdirectories if name.lower() not in _ARCHIVE_SCAN_IGNORED_TOP_LEVEL_DIRS
-            ]
+        subdirectories[:] = [
+            name for name in subdirectories
+            if (Path(directory) / name).relative_to(root).as_posix().casefold() not in ignored
+        ]
         for name in filenames:
             if not name.lower().endswith(".pamt"):
                 continue

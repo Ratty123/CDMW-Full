@@ -195,6 +195,27 @@ def test_page_recovery_preserves_query_and_rejects_changed_source_before_publica
     assert [call[0] for call in client.calls] == ["open_archive", "create_query", "fetch_page", "open_archive"]
 
 
+def test_worker_recovery_and_refresh_keep_the_session_folder_exclusions(operation):
+    _, client, service, failures, _ = operation
+    ignored = ("Extras/Old", "Backup copies")
+    service.open_archive(OpenArchiveRequest("C:/game", ignored_folders=ignored), ui_generation=1)
+    session = ArchiveSessionHandle("session", "C:/game", "fp", 4, 3, False)
+    client.result(session)
+    service.create_query(ArchiveQuery(session.session_id), ui_generation=1)
+    client.result(ArchiveQueryHandle(session.session_id, "query", 1, 4))
+    service.fetch_page(FetchPageRequest("query", 0, 2), ui_generation=1)
+    client.is_ready = False
+    client.worker_crashed.emit("exit")
+    client.error(ArchiveBackendError("worker_crashed", "Exited"))
+    advance(operation, 1)
+    assert client.calls[-1][0] == "open_archive"
+    assert to_wire(client.calls[-1][1])["ignored_folders"] == list(ignored)
+    client.result(replace(session, session_id="recovered"))
+    assert not failures
+    service.refresh_archive("C:/game", ui_generation=2)
+    assert client.calls[-1][1].ignored_folders == ignored
+
+
 def test_progressing_work_can_run_long_and_duplicate_progress_does_not_reset_idle_time(operation):
     _, client, service, failures, _ = operation
     request_id = service.open_archive(OpenArchiveRequest("C:/game"), ui_generation=1)

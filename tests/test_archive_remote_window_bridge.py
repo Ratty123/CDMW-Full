@@ -602,7 +602,11 @@ def test_a_plain_rescan_records_the_previous_session_for_closure() -> None:
     window._capture_archive_filter_state = lambda: {}
     window._set_archive_load_progress = lambda *_args, **_kwargs: None
     bridge = ArchiveRemoteWindowBridge(window)
-    bridge._controller.open_archive = lambda *_args, **_kwargs: None
+    from types import SimpleNamespace
+    configured_folders = ["Extras/Old", "My backups"]
+    window.settings = SimpleNamespace(value=lambda key, default: configured_folders if key == "archive/ignored_folders" else default)
+    open_calls = []
+    bridge._controller.open_archive = lambda *args, **kwargs: open_calls.append((args, kwargs))
 
     handle = ArchiveSessionHandle("session-old", "C:/Game", "fingerprint", 3, 2, True)
     bridge._controller._current_session = handle
@@ -611,3 +615,6 @@ def test_a_plain_rescan_records_the_previous_session_for_closure() -> None:
     bridge.open_archive(Path("C:/games/Crimson Desert"), force_refresh=False, activate_tab=False)
 
     assert bridge._superseded_session_id == "session-old"
+    assert open_calls[-1][1]["ignored_folders"] == ("Extras/Old", "My backups")
+    configured_folders.append("Added later")
+    assert open_calls[-1][1]["ignored_folders"] == ("Extras/Old", "My backups")

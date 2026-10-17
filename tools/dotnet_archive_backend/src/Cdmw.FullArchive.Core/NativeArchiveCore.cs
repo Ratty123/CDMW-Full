@@ -18,7 +18,8 @@ public sealed class NativeArchiveCore
         string packageRoot,
         string indexPath,
         Action<ProgressUpdate>? progress = null,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        string[]? sourcePamtPaths = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(packageRoot);
         ArgumentException.ThrowIfNullOrWhiteSpace(indexPath);
@@ -46,14 +47,28 @@ public sealed class NativeArchiveCore
                 return 1;
             }
         };
-        var status = NativeMethods.BuildIndexWithProgress(
-            packageRoot,
-            indexPath,
-            out var entryCount,
-            callback,
-            IntPtr.Zero,
-            error,
-            error.Capacity);
+        ulong entryCount;
+        NativeStatus status;
+        if (sourcePamtPaths is null)
+        {
+            status = NativeMethods.BuildIndexWithProgress(packageRoot, indexPath, out entryCount,
+                callback, IntPtr.Zero, error, error.Capacity);
+        }
+        else
+        {
+            var pointers = new IntPtr[sourcePamtPaths.Length];
+            try
+            {
+                for (var index = 0; index < sourcePamtPaths.Length; index++)
+                    pointers[index] = Marshal.StringToCoTaskMemUTF8(sourcePamtPaths[index]);
+                status = NativeMethods.BuildIndexFromSources(packageRoot, indexPath, pointers,
+                    checked((nuint)pointers.Length), out entryCount, callback, IntPtr.Zero, error, error.Capacity);
+            }
+            finally
+            {
+                foreach (var pointer in pointers) Marshal.FreeCoTaskMem(pointer);
+            }
+        }
         GC.KeepAlive(callback);
         if (callbackException is not null)
         {
@@ -172,6 +187,18 @@ public sealed class NativeArchiveCore
         internal static extern NativeStatus BuildIndexWithProgress(
             [MarshalAs(UnmanagedType.LPUTF8Str)] string packageRoot,
             [MarshalAs(UnmanagedType.LPUTF8Str)] string indexPath,
+            out ulong entryCount,
+            BuildIndexProgressCallback progressCallback,
+            IntPtr progressUserData,
+            StringBuilder errorMessage,
+            int errorMessageCapacity);
+
+        [DllImport(LibraryName, EntryPoint = "cdmw_full_archive_build_index_from_sources_utf8", CallingConvention = CallingConvention.Cdecl)]
+        internal static extern NativeStatus BuildIndexFromSources(
+            [MarshalAs(UnmanagedType.LPUTF8Str)] string packageRoot,
+            [MarshalAs(UnmanagedType.LPUTF8Str)] string indexPath,
+            [In, MarshalAs(UnmanagedType.LPArray, SizeParamIndex = 3)] IntPtr[] pamtPaths,
+            nuint pamtCount,
             out ulong entryCount,
             BuildIndexProgressCallback progressCallback,
             IntPtr progressUserData,

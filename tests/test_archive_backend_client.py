@@ -119,6 +119,21 @@ def test_cache_root_preserves_an_absolute_junction_alias(tmp_path: Path, monkeyp
     assert client._cache_root == expected
 
 
+def test_custom_exclusions_are_refused_by_an_older_worker(tmp_path: Path) -> None:
+    client = _client(tmp_path)
+    failures = []
+    client.request_failed.connect(lambda request_id, error: failures.append((request_id, error)))
+    request = client.submit(
+        ArchiveBackendOperation.CACHE_HEALTH,
+        CacheHealthRequest("synthetic-root", ignored_folders=("Extras/Old",)),
+        ui_generation=1,
+    )
+    assert _wait_until(lambda: bool(failures))
+    assert failures[0][0] == request
+    assert failures[0][1].code == "unsupported_ignored_folders"
+    _shutdown(client)
+
+
 def test_qprocess_client_handshakes_streams_and_bounds_diagnostics(tmp_path: Path) -> None:
     client = _client(tmp_path)
     ready: list[bool] = []

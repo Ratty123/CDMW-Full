@@ -672,6 +672,7 @@ class ShellToolTabsMixin:
         )
         self.settings_tab.add_setup_paths_sections(self.textures.setup_section, self.textures.paths_section)
         self.settings_tab.add_archive_locations_section(self.archive.archive_locations_section)
+        self.settings_tab.archive_ignored_folders_group.get_package_root = self.archive.archive_package_root_edit.text
         self.settings_tab.appearance_change_started.connect(self._handle_appearance_change_started)
         self.settings_tab.appearance_changed.connect(self._handle_appearance_changed)
         self.settings_tab.language_changed.connect(self._handle_language_changed)

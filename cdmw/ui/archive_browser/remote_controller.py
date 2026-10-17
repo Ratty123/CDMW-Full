@@ -128,11 +128,12 @@ class ArchiveRemoteCatalogueController(QObject):
         *,
         query: ArchiveQuery | None = None,
         force_refresh: bool = False,
+        ignored_folders: tuple[str, ...] = (),
         selection_identity: ArchiveDurableIdentity | None = None,
     ) -> int:
         generation = self._begin_generation(selection_identity)
         template = query or ArchiveQuery(session_id="")
-        request = OpenArchiveRequest(str(Path(package_root)), force_refresh=force_refresh)
+        request = OpenArchiveRequest(str(Path(package_root)), force_refresh=force_refresh, ignored_folders=tuple(ignored_folders))
         try:
             request_id = self._service.open_archive(request, ui_generation=generation)
         except Exception as exc:
