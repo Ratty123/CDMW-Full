@@ -43,6 +43,14 @@ The .cditem container also supports intentional edits to existing content, such 
 
 Likewise, a package cannot control arbitrary native code, a foreign loader that replaces its hooks, or another tool that deliberately claims the same game identity. The enforceable boundary is explicit ownership and refusal of incompatible inputs within the supported loading route. Never silently renumber saved identities, select an arbitrary winning provider, or hide a missing feature to make a conflict disappear.
 
+## Execution companion, 2026-10-18
+
+For the user-requested coding, reverse engineering and unattended device-test workflow, start with [cditem-execution-goal.md](cditem-execution-goal.md). It adds process ownership, mouse/E menu automation, disposable-save testing, evidence, review and final-build delivery around the existing CDISO tasks.
+
+[cditem-astra-pro-handoff.md](cditem-astra-pro-handoff.md) retains the open native questions and the required later-review format. Its initial entries are inherited research, not exhausted Sol attempts.
+
+This feature plan remains authoritative for feature acceptance and completion. The R3 release section below remains a historical ownership record; refresh current ownership before resuming. Creating the execution documents adds no new implementation or game-test proof.
+
 ## Required progress tracking
 
 These rules apply to every agent working from this plan.
