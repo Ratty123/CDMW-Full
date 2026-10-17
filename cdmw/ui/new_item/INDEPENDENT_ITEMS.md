@@ -83,6 +83,46 @@ Saves can still reference removed items. CDMW does not edit saves. Export an
 before the packages on the destination, then install the original packages.
 Conflicting profiles are refused instead of renumbering saved identities.
 
+## Inspecting ownership and isolation
+
+The developer command `scripts/inspect_cditem_isolation.py` recompiles selected
+packages through current package admission, source verification, identity allocation
+and per-package dependency checks. Run it from the repository with the project
+virtual environment, choosing the packages' current deployment route:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\inspect_cditem_isolation.py --game-root "C:\path\to\Crimson Desert" --target virtual A.cditem B.cditem
+```
+
+The JSON report identifies package UUIDs and content hashes, proposed bindings
+and paths, actual record additions, shared-file outputs, shop/group additions,
+source dependencies, decoded resource references and remaining ownership limits.
+Proposed bindings include retained and retired reservations; they are not all
+records emitted by this compilation. Generated strings, localisation keys, prefab
+bindings, icons and texture registrations are included. V2 `item.fields` and
+`texture.replace` operations remain explicit stock edits; `package.links` retains
+its exact provider pins. Package metadata cannot supply ownership evidence or
+enable a loading route.
+
+The resource graph separates contribution paths from authoring-validation roots
+and records supported implicit material sidecars. Borrowed and unclassified
+resources remain explicit. Its 16,384-edge diagnostic cap bounds report storage;
+`graph_complete` describes that inventory only. Truncation or an unknown layout
+prevents a closure claim. This graph does not establish native lookup or lifetime,
+and existing donor-record, texture and unchanged-physics protections still apply.
+
+Inspection publishes no package, identity reservation or game output. Existing
+reservations constrain the preview; new allocations are not committed. The report
+covers validated per-package outputs and does not establish aggregate installation,
+native lookup, rendering or save compatibility. Both current backends still compose
+shared game files, so `isolated_new_item_admitted` is false.
+
+Use `--folder` for each additional ordinary mod folder included in dependency
+checks. Exit status 0 means inspection produced a report; invalid or incompatible
+inputs return 2. Adding `--require-isolated` returns 3 when the stronger isolation
+claim is refused. This check currently refuses every package and cannot be used
+as a substitute for the native definition and resource-discovery proof.
+
 ## Package and installation contracts
 
 Version 1 uses ZIP with `item.json` and SHA-256-addressed `assets/` entries.

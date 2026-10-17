@@ -276,7 +276,7 @@ def audit_plan(plan, snapshot, *, stop_event=None):
     if any(write.path != "meta/0.pathc" for write in plan.meta_files):
         raise IndependentItemError("Unsupported shared metadata change.")
     from cdmw.services.independent_item_references import audit_references
-    audit_references(plan, snapshot, stop_event=stop_event)
+    return audit_references(plan, snapshot, stop_event=stop_event)
 
 
 def _prepared_spec(spec):

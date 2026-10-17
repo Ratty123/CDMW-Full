@@ -104,6 +104,8 @@ class NewItemPlan:
     export_compatibility: object = field(default=None, repr=False, compare=False)
     # Prepared portable inputs, captured only for the opt-in package workflow.
     independent_inputs: object = field(default=None, repr=False, compare=False)
+    # Derived from validated output adapters, never trusted package metadata.
+    reference_assessment: object = field(default=None, repr=False, compare=False)
 
     @property
     def touched_paths(self) -> Tuple[str, ...]:
@@ -901,8 +903,9 @@ def build_plan(
     )
     if capture_independent:
         from cdmw.services.independent_item_package import audit_plan
-        audit_plan(result, snapshot, stop_event=stop_event)
-        result = replace(result, source_revision=snapshot.provenance.capture() if snapshot.provenance else None)
+        assessment = audit_plan(result, snapshot, stop_event=stop_event)
+        result = replace(result, source_revision=snapshot.provenance.capture() if snapshot.provenance else None,
+                         reference_assessment=assessment)
     return result
 
 

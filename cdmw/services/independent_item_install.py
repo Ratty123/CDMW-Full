@@ -269,6 +269,8 @@ class ResolvedItemSet:
     links: dict | None = None
     # Internal to preparation; the subprocess result serializes PreparedSnapshot.
     resource_digests: object | None = None
+    # Diagnostic preparation output; never persisted in package or registry schemas.
+    isolation_assessments: tuple = ()
 
 
 class _AssetHashes:
@@ -279,20 +281,26 @@ class _AssetHashes:
         self._hashes = {}
         self._reserved = set()
 
-    def check(self, additions, reservations, stop_event=None):
+    def check(self, additions, reservations, stop_event=None, *, owner=None, describe_owner=None):
         if not additions:
             return
         from cdmw.core.pathc_format import pathc_checksum
+
+        def remember(checksum, path):
+            previous = self._hashes.setdefault(checksum, path)
+            if previous != path:
+                # Keep every conflicting path so refusal can identify its owners.
+                if isinstance(previous, str):
+                    self._hashes[checksum] = {previous, path}
+                else:
+                    previous.add(path)
 
         def reserve(paths):
             for index, path in enumerate(paths):
                 if index % 256 == 0:
                     raise_if_cancelled(stop_event, 'Independent item preparation cancelled.')
                 checksum = pathc_checksum(path)
-                previous = self._hashes.setdefault(checksum, path)
-                if previous != path:
-                    # Retain ambiguity instead of choosing whichever path was last.
-                    self._hashes[checksum] = None
+                remember(checksum, path)
 
         if self._initial is not None:
             paths = []
@@ -310,9 +318,7 @@ class _AssetHashes:
                 for index, (path, checksum) in enumerate(zip(paths, hashes)):
                     if index % 256 == 0:
                         raise_if_cancelled(stop_event, 'Independent item preparation cancelled.')
-                    previous = self._hashes.setdefault(checksum, path)
-                    if previous != path:
-                        self._hashes[checksum] = None
+                    remember(checksum, path)
             self._initial = None
         reserve(reservations - self._reserved)
         self._reserved.update(reservations)
@@ -320,7 +326,14 @@ class _AssetHashes:
             raise_if_cancelled(stop_event, 'Independent item preparation cancelled.')
             checksum = pathc_checksum(path)
             if checksum in self._hashes and self._hashes[checksum] != path:
-                raise IndependentItemError(f'An asset hash collides with another resource: {path}.')
+                held = self._hashes[checksum]
+                conflicts = (held,) if isinstance(held, str) else held
+                details = '; '.join(
+                    f'{previous} ({describe_owner(previous)})' if describe_owner else previous
+                    for previous in sorted(conflicts))
+                prefix = f'{owner}: ' if owner else ''
+                raise IndependentItemError(
+                    f'{prefix}An asset hash collides with another resource: {path}; already reserved by {details}.')
             self._hashes[checksum] = path
         self._reserved.update(additions)
 
@@ -375,7 +388,7 @@ def _semantic_bindings(registry, exports):
     _validate_registry(registry)
 
 
-def resolve_items(sources, root, *, target='archive', folders=(), rebuild=False, stop_event=None, on_log=None, read_entry=None, on_progress=None):
+def resolve_items(sources, root, *, target='archive', folders=(), rebuild=False, stop_event=None, on_log=None, read_entry=None, on_progress=None, capture_isolation=False):
     """Resolve recipes without publishing archives, identities, or ownership.
 
     Contributions have no overlay IDs. The selected deployment backend owns
@@ -464,9 +477,28 @@ def resolve_items(sources, root, *, target='archive', folders=(), rebuild=False,
     external_paths = external.paths
     asset_hashes = _AssetHashes(chain(baseline.entries, external_paths))
     external_keys = reserved_external_keys(external, snapshot, stop_event=stop_event)
+
+    def asset_owner(path):
+        # Resolve labels only on refusal, without another per-resource index.
+        owners = list(external.labels((path,)))
+        for held_id, held in registry['items'].items():
+            if path in held['paths']:
+                owners.append(f'{held["title"]} ({held_id})')
+        for layer in state['layers']:
+            if (not (layer['active'] or layer.get('disabled'))
+                    or layer.get('independent_identity') in registry['items']):
+                continue
+            change = decoded[layer['id']].get(path)
+            if change is not None and change['before'] is None:
+                owners.append(f'overlay {layer["id"]}')
+        if path in baseline.entries:
+            owners.append('stock game data')
+        return ', '.join(dict.fromkeys(owners)) or 'another reserved resource'
+
     compatibility = []
     rows = []
     contributions = []
+    isolation_assessments = []
     compiled = {}
     revisions = []
     for item_index, (identity, package) in enumerate(packages.items()):
@@ -521,6 +553,7 @@ def resolve_items(sources, root, *, target='archive', folders=(), rebuild=False,
         bindings = IdentityBindings(identity, deepcopy(prior['values']) if prior else {}, reserved,
                                     prior['stem'] if prior else '', tuple(prior['paths']) if prior else ())
         key, changes, added_paths = None, {}, set()
+        plan = None
         if has_legacy_item(package):
             spec, model, variants, icon_data = unpack_recipe(package)
             key = bindings.allocate('iteminfo', 'item', snapshot.rows)
@@ -558,10 +591,15 @@ def resolve_items(sources, root, *, target='archive', folders=(), rebuild=False,
         changes = lower_texture_operations(package, snapshot, changes, stop_event=stop_event)
         if package_texture_requirements(package):
             revisions.append(snapshot.provenance.capture())
-        if added_paths & (reserved_paths | external_paths):
-            raise IndependentItemError('An owned asset name is already reserved by another item or mod. The package cannot be installed without changing its identity.')
+        conflicting_paths = added_paths & (reserved_paths | external_paths)
+        if conflicting_paths:
+            path = min(conflicting_paths)
+            raise IndependentItemError(
+                f'{package.title} ({identity}): an owned asset name is already reserved by {asset_owner(path)}: {path}. '
+                'The package cannot be installed without changing its identity.')
         progress(30 + (70 * item_index + 45) // max(1, len(packages)), 'Checking asset identity collisions…')
-        asset_hashes.check(added_paths, reserved_paths, stop_event)
+        asset_hashes.check(added_paths, reserved_paths, stop_event,
+                           owner=f'{package.title} ({identity})', describe_owner=asset_owner)
         if any(path.endswith('.dds') for path in added_paths) and snapshot.pathc is None:
             raise IndependentItemError('This game has no verified texture registry for the new icon or textures.')
         findings = check_package_dependencies(package, snapshot, external, changes, stop_event=stop_event)
@@ -573,6 +611,10 @@ def resolve_items(sources, root, *, target='archive', folders=(), rebuild=False,
                                       'stem': bindings.stem, 'paths': list(bindings.paths), 'layer': None}
         row = registry['items'][identity]
         row['binding_hash'] = _binding_hash(identity, row)
+        if capture_isolation:
+            from cdmw.services.independent_item_isolation import assess_contribution
+            isolation_assessments.append(assess_contribution(package, plan, snapshot, changes, bindings,
+                target=target, stop_event=stop_event))
         cache_path = f'.cdmw/independent-items/{identity}-{package.digest}.cditem'
         cached = current_bytes(cache_path)
         if cached is not None:
@@ -592,7 +634,7 @@ def resolve_items(sources, root, *, target='archive', folders=(), rebuild=False,
     progress(100, 'Item identities and dependencies verified.')
     return ResolvedItemSet(root, observed_state, state, pending, decoded, registry, registry_before,
         baseline, external, tuple(rows), tuple(contributions), tuple(revisions), tuple(dict.fromkeys(compatibility)), links,
-        package_cache.verified_blob_digests(package for package, _ in contributions))
+        package_cache.verified_blob_digests(package for package, _ in contributions), tuple(isolation_assessments))
 
 
 def prepare_install(sources, root, *, folders=(), rebuild=False, stop_event=None, on_log=None, read_entry=None):

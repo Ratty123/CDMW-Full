@@ -127,6 +127,12 @@ def test_inline_emitter_labels_allow_independent_authoring_and_import(tmp_path, 
     assert not any(label in path for path in package.dependencies
                    for label in ('par_vec_blue', 'particle_vector'))
     assert prepare_install([package_bytes(package)], root).preparation is not None
+    if edited:
+        import json
+        from cdmw.services.independent_item_isolation import inspect_isolation
+        row, = json.loads(json.dumps(inspect_isolation([package_bytes(package)], root,
+            target="archive"), allow_nan=False))["packages"]
+        assert row["compiled_identifiers"]["effects"][0]["look"]["files"]
     assert files_in(root) == before
     # Catalogue metadata uses the same dependency conversion, while retaining
     # inline labels for discovery and the emitter inspector.
@@ -247,7 +253,8 @@ def test_named_manager_archives_survive_independent_item_lifecycle(tmp_path, pre
 
 
 @pytest.mark.parametrize('name', ['dmmgen', 'dmmsa'])
-def test_named_external_archive_cannot_claim_an_owned_asset(tmp_path, name):
+@pytest.mark.parametrize('uppercase_path', [False, True])
+def test_named_external_archive_cannot_claim_an_owned_asset(tmp_path, name, uppercase_path):
     from cdmw.core.item_icon_addition import NewItemIcon, icon_string_for_stem, icon_target_path
     from cdmw.core.stringinfo_table import stringinfo_key
     from cdmw.domain.new_item.spec import IconSource
@@ -258,10 +265,15 @@ def test_named_external_archive_cannot_claim_an_owned_asset(tmp_path, name):
     stem = icon_string_for_stem(service.allocate(choice, snapshot).stem)
     icon = NewItemIcon(stem, stringinfo_key(stem), icon_target_path(stem), _fake_dds(), None, None)
     package = from_plan(service.plan(choice, snapshot, icon=icon, capture_independent=True), uuid4().hex)
-    add_external_group(tmp_path, root, name, {icon_target_path(stem): _fake_dds()})
+    resource_path = icon_target_path(stem)
+    external_path = resource_path.upper() if uppercase_path else resource_path
+    add_external_group(tmp_path, root, name, {external_path: _fake_dds()})
     before = files_in(root)
-    with pytest.raises(IndependentItemError, match='owned asset name is already reserved'):
+    with pytest.raises(IndependentItemError, match='owned asset name is already reserved') as error:
         prepare_install([package_bytes(package)], root)
+    detail = str(error.value)
+    assert f'{package.title} ({package.identity})' in detail
+    assert name in detail and resource_path in detail
     assert files_in(root) == before
 
 

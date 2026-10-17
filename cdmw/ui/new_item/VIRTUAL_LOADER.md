@@ -668,26 +668,81 @@ named families and optional qualifiers; it does not prove an enumeration-based
 extension point. Raw string/reference matches are leads requiring caller and
 instruction-boundary verification, not function signatures.
 
-A candidate near `0x25bc118` references `iteminfo` after a call to `0x2412520`.
-Neither that call nor the surrounding catalogue path establishes a safe item
-insertion API. Calling convention, allocators, ownership, startup phase, threads,
-auxiliary registries, finalization and save lookup remain unverified. No candidate
-function is invoked and no raw registry writes are implemented.
+Read-only follow-up on 2026-10-17 identifies the earlier allocation candidate
+at `0x142412520`, which jumps to `0x14f4c09f0`, as the ItemInfo invalid/default
+singleton initializer. The actual ItemInfo owner is global `0x146d69aa8`;
+RTTI identifies `pa::ItemInfoManager`. Its normal startup dispatcher visits 149
+fixed family owners, calling the header and eager body phases with zero
+qualifier. The nearby provider enumeration concerns
+`*.OverridedLevelListBinary`, not additional ItemInfo sources.
+
+The selected ordinary/qualified static-info route is rejected as an unchanged
+additive loader. A second header with a nonzero record count replaces the owner's
+count and primary pointer/expiry arrays while appending metadata pairs without a
+shown reset of their prior count. Normal numeric lookup still reaches one owner's ordinal
+array. Lazy record loading uses its single unqualified body cache, and maintenance
+can evict populated records and require rematerialization. Separate record
+construction therefore also needs a complete backing-source and lifetime
+contract.
+
+The actual materializer assumes an existing ordinal slot; it does not grow the
+count or register the numeric header key. Its caller-visible success status does
+not establish complete field parsing, and catalogue finalization rebuilds
+derived indexes through the global owner. Allocators, callback scheduling and
+thread, complete auxiliary linking, failure cleanup and persistence remain open
+requirements for a typed registration route. No new native invocation, registry
+write or runtime capability is enabled by this research.
 
 Reference projects: [Crimson Desert VFS](https://github.com/liuhVIP/CD_Mods_Loader_VFS)
 and [Ultimate ASI Loader](https://github.com/ThirteenAG/Ultimate-ASI-Loader).
 The latter's source exposes deferred startup through imported APIs and its
 `InitializeASI` callback. Its documented behavior is not evidence of CDMW's
-timing. Crimson Loadouts' resource-loading and CreateFile2 observer are read-only
-research references; mesh/texture resource access does not establish item
-registration or save identity.
+timing.
 
-The next isolated discovery experiment must expose two uniquely named definition
-pairs without changing the original item tables and inspect both actual registries
-and auxiliary references. A file-open trace alone is insufficient. If an extra
-shared manifest is needed, that remains a composition requirement. This probe is
-not yet enabled; controlled item and save acceptance takes priority over this
-separate discovery experiment.
+### Native resource admission research (2026-10-17)
+
+Read-only investigation identified an existing Crimson Loadouts native resource
+route. The current installed and analysis executable copies match the pinned
+identity recorded in the conflict-isolation plan. The decoded asynchronous
+manager requires a rooted resource name, checks its cache using a hash plus
+string equality, selects a registered factory, and creates and schedules a
+resource on a cache miss. Nonempty cache names compare byte for byte; the reviewed
+hash and equality functions perform no character folding or slash rewriting.
+Normalization by earlier callers remains a separate question.
+
+The existing Loadouts adapter registers immutable private PAC, DDS, material and
+prefab inputs and delivers bytes into native caller-owned buffers through a
+verified file provider. Native decoding remains active. The adapter checks
+selected receiver, instruction and ownership witnesses and requires observed
+state 5 for prefab readiness. These source findings identify a concrete research
+route, but do not implement independent item registration in CDMW.
+
+Retained session 08DB receipts, labeled `runtime-editor-2976-v7.185`, report a
+matching native mesh parser observation, loaded private material and prefab
+resources, and successful native DDS header, parameter, creation and payload
+stages. The matched DDS body contains 5,592,432 bytes after its 148-byte header,
+with 2048 x 2048 dimensions and twelve mips. Separate scene events record private
+mesh assignment, matching returned native completion, and a valid subsequent
+component-to-mesh link. These historical receipts do not bind their reporting
+label to a reporting binary hash, source commit or historical host hash. The
+current executable source pins are separate evidence.
+
+The same receipts report `texture_bound_to_mesh=false` and `scene_applied=false`;
+visual success and GPU retirement remain unverified. Cache replacement, failure
+recovery, startup and independent package lifecycle also remain open. The actual
+consumer of `PAPPT.sockets_path` is untraced. The selected descriptor name would
+produce `sockets.xml` through the decoded factory selector, but that does not
+establish that the socket consumer uses this manager or accepts a new name. No
+private socket copy or donor-guard exception is enabled from generic prefab
+evidence.
+
+See the [conflict-isolation plan](../../../beta-progress/cditem-conflict-isolation-plan.md)
+for executable identities, native boundaries, retained receipts and acceptance
+conditions. Any future positive definition route must expose two separate
+definition sets without changing original shared tables and inspect actual
+lookup and every required auxiliary registry. File access or parser status alone
+does not satisfy that gate. The controlled item and save requirements remain
+separate and open.
 
 ## Evidence gates and validation
 

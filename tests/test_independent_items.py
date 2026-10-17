@@ -430,7 +430,9 @@ def test_batch_version_conflict_and_corrupted_owned_blob_are_refused(tmp_path):
     assert not (root / REGISTRY_PATH).exists()
 
 
-def test_equal_shape_texture_hash_collision_between_packages_is_refused(tmp_path, monkeypatch):
+@pytest.mark.parametrize('order', [(0, 1), (1, 0)])
+@pytest.mark.parametrize('reservation_state', ['batch', 'active', 'disabled', 'removed'])
+def test_equal_shape_texture_hash_collision_between_packages_is_refused(tmp_path, monkeypatch, order, reservation_state):
     from cdmw.core import pathc_format
     from cdmw.core.item_icon_addition import NewItemIcon, icon_string_for_stem, icon_target_path
     from cdmw.core.stringinfo_table import stringinfo_key
@@ -447,7 +449,20 @@ def test_equal_shape_texture_hash_collision_between_packages_is_refused(tmp_path
         packages.append(from_plan(service.plan(choice, snapshot, icon=icon, capture_independent=True), uuid4().hex))
     setup_game(tmp_path / 'recipient')
     root = tmp_path / 'recipient/game'
+    ordered = [packages[index] for index in order]
     owned = set()
+    if reservation_state != 'batch':
+        from cdmw.services import archive_overlay_manager as overlays
+        backups = Backups(tmp_path)
+        backups.apply(prepare_install([package_bytes(ordered[0])], root).preparation)
+        row = load_registry(root)['items'][ordered[0].identity]
+        owned.update(path for path in row['paths'] if path.endswith('.dds'))
+        if reservation_state == 'disabled':
+            backups.apply(overlays.prepare_overlay_enabled(root, row['layer'], False))
+        elif reservation_state == 'removed':
+            backups.apply(prepare_remove(ordered[0].identity, root))
+        ordered = ordered[1:]
+    before = {path.relative_to(root): path.read_bytes() for path in root.rglob('*') if path.is_file()}
     checksum, build = pathc_format.pathc_checksum, install.build_plan
     def capture(*args, **kwargs):
         result = build(*args, **kwargs)
@@ -455,9 +470,24 @@ def test_equal_shape_texture_hash_collision_between_packages_is_refused(tmp_path
         return result
     monkeypatch.setattr(install, 'build_plan', capture)
     monkeypatch.setattr(pathc_format, 'pathc_checksum', lambda path: 0x12345678 if path in owned else checksum(path))
-    with pytest.raises(IndependentItemError, match='asset hash collides'):
-        prepare_install([package_bytes(package) for package in packages], root)
-    assert len(owned) == 2 and not (root / REGISTRY_PATH).exists()
+    with pytest.raises(IndependentItemError, match='asset hash collides') as error:
+        prepare_install([package_bytes(package) for package in ordered], root)
+    detail = str(error.value)
+    assert all(f'{package.title} ({package.identity})' in detail for package in packages)
+    assert len(owned) == 2 and all(path in detail for path in owned)
+    assert {path.relative_to(root): path.read_bytes() for path in root.rglob('*') if path.is_file()} == before
+
+
+@pytest.mark.parametrize('order', [(0, 1), (1, 0)])
+def test_asset_hash_refusal_identifies_all_ambiguous_resources(monkeypatch, order):
+    from cdmw.core import pathc_format
+    from cdmw.services.independent_item_install import _AssetHashes
+    held = ('character/texture/first.dds', 'character/texture/second.dds')
+    addition = 'character/texture/new.dds'
+    monkeypatch.setattr(pathc_format, 'pathc_checksum', lambda path: 0x12345678)
+    with pytest.raises(IndependentItemError, match='asset hash collides') as error:
+        _AssetHashes(held[index] for index in order).check({addition}, set())
+    assert all(path in str(error.value) for path in (*held, addition))
 
 
 def test_generic_recovery_preserves_package_ownership_and_checks_dependencies(tmp_path):

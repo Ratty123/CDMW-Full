@@ -5,8 +5,54 @@ verified template binding; partially decoded reflection objects remain unsupport
 """
 import xml.etree.ElementTree as ET
 import struct
+from dataclasses import dataclass
+from hashlib import sha256
 
 from cdmw.domain.new_item.independent import IndependentItemError
+
+
+# Diagnostics must not turn a bounded source walk into an unbounded edge graph.
+# Overflow makes the report partial while the original audit continues in full.
+MAX_ASSESSMENT_EDGES = 16384
+
+
+@dataclass(frozen=True, slots=True)
+class ReferenceEdge:
+    source: str
+    target: str
+    role: str
+    evidence: str
+
+
+@dataclass(frozen=True, slots=True)
+class ResourceOwnership:
+    symbol: str
+    path: str
+    ownership: str
+    reachability: tuple[str, ...]
+    source_paths: tuple[str, ...]
+    source_evidence: tuple[str, ...]
+    layout: str
+    byte_size: int
+    sha256: str
+    outgoing_references: tuple[str, ...]
+    lifetime: str
+
+
+@dataclass(frozen=True, slots=True)
+class ReferenceAssessment:
+    """A compiler resource graph, never proof of native lookup or detachment.
+
+    Contribution reachability starts at compiled additions and decoded added
+    PAPPT records. Authoring reachability starts at the retained template and
+    physics-validation inputs. These roles do not relax source requirements.
+    """
+
+    resources: tuple[ResourceOwnership, ...]
+    edges: tuple[ReferenceEdge, ...]
+    unresolved: tuple[str, ...]
+    reference_closure_complete: bool
+    graph_complete: bool
 
 
 def rename_effect_references(data, renames):
@@ -67,8 +113,30 @@ def audit_references(plan, snapshot, *, stop_event=None):
     outputs = {request.path.lower(): bytes(request.payload_data) for request in plan.additions}
     pending, visited = dict(outputs), set()
     reference_closure_complete = True
+    edges, metadata, source_paths = set(), {}, {}
+    graph_complete = True
+    unresolved = {
+        'Engine lookup aliases, caches, and resource lifetimes are not proven by compiler reference traversal.',
+        'Final ItemInfo-to-resource reachability is not decoded here; template roots are not proven authoring-only.',
+        'ItemInfo and auxiliary registry references remain covered by their existing source guards.',
+    }
 
-    def require(raw):
+    def record_edge(edge):
+        nonlocal graph_complete
+        if edge in edges:
+            return
+        if len(edges) >= MAX_ASSESSMENT_EDGES:
+            graph_complete = False
+            unresolved.add('The resource edge inventory limit was reached; reachability is partial and cannot establish isolation.')
+            return
+        edges.add(edge)
+
+    source = f'template:{plan.spec.template_key}'
+    for path in outputs:
+        raise_if_cancelled(stop_event)
+        record_edge(ReferenceEdge('compiled-additions', path, 'contribution-root', 'Compiled owned resource output'))
+
+    def require(raw, *, role='resource-reference', evidence='Decoded resource reference'):
         raise_if_cancelled(stop_event)
         path = str(raw).replace('\\', '/').lower()
         if not path:
@@ -76,6 +144,9 @@ def audit_references(plan, snapshot, *, stop_event=None):
         if path.endswith('.effect') and '/' not in path:
             path = 'effect/binary__/releasebin/' + path.split('.')[0] + '.pae'
         path = virtual_path(path)
+        # Record even an already visited edge. A shared dependency may be both
+        # an authoring input and reachable from the compiled contribution.
+        record_edge(ReferenceEdge(source, path, role, evidence))
         if path in outputs or path in visited or path in pending:
             return
         if not snapshot.has_entry(path):
@@ -96,18 +167,20 @@ def audit_references(plan, snapshot, *, stop_event=None):
                         (variant['model_path'].lower(), variant['prefab_path'].lower()))
         else:
             for role, original, target in family.renamed(plan.spec.stem):
+                if target in outputs:
+                    source_paths.setdefault(target, set()).add(original)
                 if role == 'pac':
                     mesh_bindings[target] = [(original, part.prefab_path) for part in family.parts
                                              if original in part.pac_paths]
     for resource in family.files:
         if resource.exists:
-            require(resource.path)
+            require(resource.path, role='authoring-root', evidence='Retained template-family validation input')
     for part in family.parts:
         if part.record is None:
             raise IndependentItemError(f'The template has an unresolved part binding: {part.stem}')
-        require(part.prefab_path)
+        require(part.prefab_path, role='authoring-root', evidence='Retained template part binding')
         if part.record.sockets_path:
-            require(part.record.sockets_path)
+            require(part.record.sockets_path, role='authoring-root', evidence='Retained template socket binding')
 
     from cdmw.core.pappt_format import parse_pappt
     pappt_path = snapshot.pappt_entry.path.lower()
@@ -115,31 +188,49 @@ def audit_references(plan, snapshot, *, stop_event=None):
         original = snapshot.pappt.index()
         for record in parse_pappt(plan.loose_files[pappt_path]).records:
             if record.stem not in original:
-                require(record.prefab_path)
+                source = f'partprefab:{record.stem}'
+                require(record.prefab_path, role='contribution-root', evidence='Decoded added PAPPT prefab binding')
                 if record.sockets_path:
-                    require(record.sockets_path)
+                    require(record.sockets_path, role='contribution-root', evidence='Decoded added PAPPT socket binding')
+
+    if not outputs and pappt_path not in plan.loose_files:
+        unresolved.add('This contribution retains template resource bindings; final ItemInfo resource roots are not independently decoded here.')
 
     while pending:
         raise_if_cancelled(stop_event)
         path, data = pending.popitem()
+        source = path
         visited.add(path)
         owned = path in outputs
+        metadata[path] = [len(data), '', 'unverified-borrowed-layout']
+        # Sources with provenance already have an exact-byte digest. Reuse it
+        # below instead of hashing large borrowed textures a second time.
+        if owned or snapshot.provenance is None:
+            metadata[path][1] = sha256(data).hexdigest()
         if path.endswith('.hkx'):
             if owned:
                 from cdmw.services.independent_item_physics import audit_physics_copy
-                audit_physics_copy(path, data, outputs, mesh_bindings, snapshot, require, stop_event=stop_event)
+                audit_physics_copy(path, data, outputs, mesh_bindings, snapshot,
+                    lambda raw: require(raw, role='authoring-validation',
+                                        evidence='Unchanged template physics and mesh binding validation'),
+                    stop_event=stop_event)
+                metadata[path][2] = 'unchanged-template-physics-copy'
+                unresolved.add(f'Private physics outgoing runtime references and lifetime remain unverified: {path}')
             else:
                 # An unchanged borrowed file is a valid package dependency, but
                 # its unparsed outgoing references cannot narrow launch guards.
                 reference_closure_complete = False
+                metadata[path][2] = 'unverified-borrowed-physics'
+                unresolved.add(f'Borrowed physics outgoing references remain unverified: {path}')
             continue
         if path.endswith('.prefab'):
             from cdmw.core.prefab_binary import decode_prefab_binary
             document = decode_prefab_binary(data)
             if not document.walk_complete or document.inferred_objects or document.blob_offset + document.blob_length != len(data):
                 raise IndependentItemError(f'The complete prefab reference layout is unverified: {path}')
+            metadata[path][2] = 'complete-prefab-reference-layout'
             for resource in document.resource_strings():
-                require(resource.text)
+                require(resource.text, evidence='Decoded prefab resource string')
         elif path.endswith('.pac_xml'):
             try:
                 text = data.decode('utf-8-sig')
@@ -150,17 +241,19 @@ def audit_references(plan, snapshot, *, stop_event=None):
                     raise ValueError('Unknown model property root')
             except (UnicodeError, ET.ParseError, ValueError) as exc:
                 raise IndependentItemError(f'Unverified model property layout: {path}') from exc
+            metadata[path][2] = 'model-property-resource-fields'
             for node in tree.iter():
                 if node.tag.startswith('ResourceReferencePath'):
                     if set(node.attrib) - {'Name', '_path'}:
                         raise IndependentItemError(f'Unknown model resource boundary: {path}')
-                    require(node.attrib.get('_path', ''))
+                    require(node.attrib.get('_path', ''), evidence=f'Model property {node.tag}._path')
         elif path.endswith(('.pae', '.paem', '.parg', '.pasg')):
             from cdmw.core.effect_binary import decode_effect_binary
             from cdmw.core.effect_edit import emitter_paths_of, preset_names_of, preset_path
             document = decode_effect_binary(data)
             if not document.walk_complete or document.blob_offset + document.blob_length != len(data):
                 raise IndependentItemError(f'The complete effect reference layout is unverified: {path}')
+            metadata[path][2] = 'complete-effect-reference-layout'
             # An embedded emitter override inherits the file named by its type,
             # independently of the ordinary _emitterDataName string. Walk used
             # nodes only: removed emitter slots may leave unused declarations.
@@ -168,7 +261,7 @@ def audit_references(plan, snapshot, *, stop_event=None):
                                       if node.type_name.lower().endswith('.paem'))
             for resource in (*document.resources(), *emitter_paths_of(document), *embedded_emitters,
                              *(preset_path(kind, name) for kind, name in preset_names_of(document))):
-                require(resource)
+                require(resource, evidence='Decoded effect resource, emitter type, or preset reference')
         elif path.endswith('.pac'):
             if owned:
                 from cdmw.services.new_item_variants import validate_variant_rig
@@ -178,29 +271,91 @@ def audit_references(plan, snapshot, *, stop_event=None):
                 # Validate the actual output, including prepared imports and
                 # companion meshes, without baking authoring settings again.
                 for target, prefab in bindings:
+                    source_paths.setdefault(path, set()).add(target)
                     try:
                         validate_variant_rig(snapshot, target, data, prefab_path=prefab)
                     except ValueError as exc:
                         raise IndependentItemError(f'Incompatible owned mesh {path}: {exc}') from exc
+            metadata[path][2] = 'verified-owned-mesh-rig' if owned else 'borrowed-mesh-with-sidecar'
+            unresolved.add(f'Mesh skeleton, animation, and implicit physics runtime lookup remain unverified: {path}')
             from cdmw.services.new_item_variants import xml_path
             sidecar = xml_path(path)
             if sidecar in outputs or snapshot.has_entry(sidecar):
-                require(sidecar)
+                if owned and sidecar in outputs:
+                    for target, _prefab in bindings:
+                        original_sidecar = xml_path(target)
+                        if snapshot.has_entry(original_sidecar):
+                            source_paths.setdefault(sidecar, set()).add(original_sidecar)
+                require(sidecar, role='implicit-sidecar', evidence='PAC basename resolves its model-property sidecar')
         elif path.endswith('.dds'):
             if not data.startswith(b'DDS ') or len(data) < 128:
                 raise IndependentItemError(f'The owned texture format is unverified: {path}')
+            metadata[path][2] = 'dds-header'
             if owned:
                 from cdmw.core.pathc_format import PathcError, validate_dds_payload
                 try:
                     validate_dds_payload(data)
                 except PathcError as exc:
                     raise IndependentItemError(f'Invalid owned texture {path}: {exc}') from exc
+                metadata[path][2] = 'validated-owned-dds-layout'
         elif owned:
             raise IndependentItemError(f'Unsupported independent resource format: {path}')
         else:
             # Retain accepted borrowed resources without claiming their unknown
             # formats are terminal. Only parsed closures can omit carrier hashes.
             reference_closure_complete = False
+            unresolved.add(f'Borrowed resource outgoing references have no supported decoder: {path}')
 
     if snapshot.provenance is not None:
         snapshot.provenance.record_reference_closure(reference_closure_complete)
+        digests = {row.entry.path.lower(): row.sha256 for row in snapshot.provenance.capture().payloads}
+        for path, value in metadata.items():
+            raise_if_cancelled(stop_event)
+            if not value[1]:
+                value[1] = digests.get(path, '')
+                if not value[1]:
+                    unresolved.add(f'No retained source digest was available for the traversed resource: {path}')
+
+    outgoing = {}
+    for edge in edges:
+        raise_if_cancelled(stop_event)
+        outgoing.setdefault(edge.source, []).append(edge)
+    reachability = {path: set() for path in visited}
+    for kind, roles in (
+        ('contribution', {'contribution-root'}),
+        ('authoring', {'authoring-root', 'authoring-validation'}),
+    ):
+        todo = [edge.target for edge in edges if edge.role in roles]
+        while todo:
+            raise_if_cancelled(stop_event)
+            path = todo.pop()
+            if path not in reachability or kind in reachability[path]:
+                continue
+            reachability[path].add(kind)
+            todo.extend(edge.target for edge in outgoing.get(path, ())
+                        if edge.role in {'resource-reference', 'implicit-sidecar'})
+
+    resources = []
+    for path in sorted(visited):
+        raise_if_cancelled(stop_event)
+        owned = path in outputs
+        size, checksum, layout = metadata[path]
+        originals = tuple(sorted(source_paths.get(path, ())))
+        evidence = ('Compiled owned output bytes',) if owned else ('Retained exact-source dependency bytes',)
+        if originals:
+            evidence += ('Source paths identify template or target bindings; imported output bytes can differ.',)
+        roles = tuple(sorted(reachability[path])) or ('unclassified',)
+        if not graph_complete:
+            roles += ('partial',)
+        resources.append(ResourceOwnership(
+            symbol='resource:' + path, path=path, ownership='owned' if owned else 'borrowed',
+            reachability=roles,
+            source_paths=originals or (() if owned else (path,)), source_evidence=evidence,
+            layout=layout, byte_size=size, sha256=checksum,
+            outgoing_references=tuple(sorted({edge.target for edge in outgoing.get(path, ())})),
+            lifetime='Compiled package output; native lifetime unverified' if owned else
+                     'Retained source dependency; native lifetime unverified',
+        ))
+    return ReferenceAssessment(tuple(resources), tuple(sorted(edges,
+        key=lambda edge: (edge.source, edge.target, edge.role, edge.evidence))),
+        tuple(sorted(unresolved)), reference_closure_complete, graph_complete)

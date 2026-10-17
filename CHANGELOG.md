@@ -9,6 +9,8 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 ### Added
 
+- Developer inspection explains `.cditem` identities, owned resources, stock edits and remaining dependencies through current validation. It reports the current shared-file composition limit and can refuse an unsupported isolation claim before publication.
+
 - Mesh Editor adds experimental World-object glass controls, and Mesh Editor and Create New Item add Equipment glass controls for compatible materials. Layered Standard/Emissive equipment converts to private textures with its composed colours and surface maps; dye colours become fixed. Mesh Editor disables unsupported shader choices. Thickness, absorption and shadow colour strength retain each shader's supported ranges; preview approximates absorption, while coloured shadows and refraction require in-game testing.
 - Mesh Editor can save sculpted body shapes as sliders and save outfit corrections for individual sliders, compare the fit with corrections hidden, and reset corrections for selected garments, with profile and preset reuse and Undo/Redo.
 - Morph & Refit can generate anatomical controls from a verified body and skeleton, combine coordinated body adjustments with retained manual values, and link or independently edit paired sides without losing their previous settings.
@@ -43,6 +45,7 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 ### Fixed
 
+- Independent item collision errors identify the incoming package, conflicting resource paths and existing owners, including external mods and retained identities.
 - Moving and resizing CDMW windows across monitors avoids interruptions from layout corrections, repeated geometry saves and redundant DPI updates. Embedded previews stay clipped to their scrolling panes, and usable window positions between screens are preserved.
 - Placement & Animations preserves the selected animation clip during socket edits and Undo/Redo, avoiding unnecessary destruction of the clip list during history navigation.
 - Mesh Editor accepts Russian interface updates, keeps Cleanup settings compact at larger font sizes, and refuses finishing plain geometry edits when their Undo/Redo snapshots exceed the history memory limit. Create New Item search fields retain typing focus while results update, and retired import and preview cleanup remains safe after closing its owning dialog. Closing tools cancels pending column-layout restoration to avoid errors from deleted controls.
