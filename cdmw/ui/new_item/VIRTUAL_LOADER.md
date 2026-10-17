@@ -890,3 +890,23 @@ Focused commands from the project root (PowerShell):
 
 The native sources, build instructions and provenance contract are described in
 [`native/cdmw_virtual_loader/README.md`](../../../native/cdmw_virtual_loader/README.md).
+
+## Device-test development
+
+`scripts/run_cditem_device_tests.py --game-root "<game-root>"` reads current device
+readiness. Its default inspection sends no input, starts no game, and does not
+prepare or install a profile. `replay <input.json>` runs explicitly synthetic
+menu-policy observations; `report <directory> --run-id <id>` reads an existing
+action journal. These commands do not certify game capture, input or gameplay.
+
+Process/window-bound capture/input primitives and a journaled copied-fixture save
+rehearsal live in `cdmw/services/cditem_device_*.py`. The save rehearsal rejects
+live save trees and Windows path aliases. It retains separate original, input
+and output files and recovers only exact known states. It cannot certify Steam
+Cloud containment, startup writers, save origin or native item compatibility.
+
+Live execute/resume and gameplay scenarios remain gated by the execution plan's
+verified save/Cloud and native contracts. No CLI switch enables the closed native
+redirect gate or substitutes the composed backend for native independent items.
+The current evidence and remaining work are tracked in
+[`beta-progress/cditem-execution-goal.md`](../../../beta-progress/cditem-execution-goal.md).

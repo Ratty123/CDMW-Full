@@ -74,6 +74,17 @@ That line is a format example, not a completed task.
 
 ## Current handoff
 
+### CDRUN execution checkpoint, 2026-10-18
+
+Execution continues from source `d4988932d2fe68cabc12dedc29f66a0f35fdd88a` with its 17 pre-existing modified files and empty index preserved. [The execution goal](cditem-execution-goal.md) now records a recoverable device baseline, completed offline runner/save substeps and the owned research session. No original CDISO feature checkbox is newly complete.
+
+The installed/analysis game pins still match. All 234 retained profile source guards (151,455,090,976 bytes) and four prepared-generation files match; all 26 live save members were copied independently and verified. Five bin64 settings files, existing bookkeeping, runtime identities and the prior portable executable are retained under `workspace/reports/cditem-execution/20261017T231206Z/`. Cloud/startup-write containment and save origin remain unknown; the existing composed profile also requires the current compiler. No game was launched or archive/profile/save changed.
+
+The new development CLI defaults to read-only inspection; synthetic policy replay, process/window-bound Windows primitives and journaled offline save rehearsal are implemented. Execute/resume, live save containment, two unattended cycles, native item scenarios and final delivered-byte game proof remain open. Independent review found seven concrete safety/evidence gaps; the source fixes and regression evidence are retained. Final selected readiness passed 104 cases with two optional-bootstrap skips; the exact verified bootstrap subsequently passed both omitted fixture cases. This is 106 distinct passing nonvisual cases, not game acceptance.
+
+Fresh native work established a graceful owned session and a complete 1,248-record/92-revision ledger, recovering 30 missing R2 records. The serialized ItemInfo count is WORD while the known owner `+8` count store is DWORD; ordinals and the invalid sentinel still constrain admission. Metadata growth, destructive expiry replacement, name release on eviction and concrete socket-manager construction/source ownership are narrowed. Coherent primary publication, decoder-success validation, auxiliary/thread/failure contracts and package-owned rematerialization remain unproved. A second bounded owned research batch is continuing from the full export. See [the reasoning handoff](cditem-astra-pro-handoff.md) for exact attempts, receipts and current ownership; independent admission stays false.
+
+
 - Continuation status (2026-10-17): Completed the scoped CDISO-RES-01A, CDISO-DEP-01A and CDISO-ID-01A compiler/validation work without requiring user testing. Compiler revision is now 10; portable v1/v2 schemas, UUIDs and numeric ranges are unchanged. These improvements use the existing composed backend. No new native capability is admitted. Continuation source baseline is e0224bb63c290f950c42b56d9a5639c5a69969e0.
 
 - Completed: CDISO-DOC-01, CDISO-BASE-01, CDISO-OWN-01, CDISO-ID-01, CDISO-RE-01 and the three continuation subtasks CDISO-RES-01A, CDISO-DEP-01A and CDISO-ID-01A. Ten original tasks remain open. RE-01 closes the selected discovery route with a scoped negative result; completing the three narrower source subtasks does not close their full resource/dependency parents.

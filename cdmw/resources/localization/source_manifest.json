@@ -191264,6 +191264,24 @@
   ],
   "exclusions": [
     {
+      "path": "cdmw/services/cditem_device_runner.py",
+      "symbol": "*",
+      "source": "*",
+      "reason": "Development-only CDITEM inspection and synthetic policy diagnostics; no application UI consumer."
+    },
+    {
+      "path": "cdmw/services/cditem_device_windows.py",
+      "symbol": "*",
+      "source": "*",
+      "reason": "Development-only process-bound capture/input diagnostics; no application UI consumer."
+    },
+    {
+      "path": "cdmw/services/cditem_device_saves.py",
+      "symbol": "*",
+      "source": "*",
+      "reason": "Development-only copied-fixture save rehearsal diagnostics; no application UI consumer."
+    },
+    {
       "path": "cdmw/services/mesh_physics_profiles.py",
       "symbol": "load_document",
       "source": "{value_0}pbdconfig.xml",

@@ -1,11 +1,11 @@
 # CDMW .cditem Astra / Pro reasoning handoff
 
 - Created: 2026-10-18, Europe/Stockholm.
-- Status: Seeded from retained open research. No new Sol execution attempts, native calls, or game tests were performed while creating this document.
+- Status: Execution evidence recorded below. Offline runner/save implementation is verified; two native contracts remain under bounded source investigation. No game test or new native item admission has been performed.
 - Execution entry point: [cditem-execution-goal.md](cditem-execution-goal.md).
 - Feature authority and completion state: [cditem-conflict-isolation-plan.md](cditem-conflict-isolation-plan.md).
 - Shared completed work: [progress.md](progress.md).
-- Current escalation count: zero. The questions below are inherited work for the execution session, not a claim that Sol has tried and failed to solve them.
+- Current reasoning review candidates: RH-01 coordinated publication and RH-02 durable package backing/name lifetime. Actual attempts are now retained below; a second bounded source batch continues the concrete next discriminants. Operational save/Cloud constraints are separate.
 
 ## Purpose and use
 
@@ -197,3 +197,41 @@ A solved question is retained with its resolution and evidence. Update the featu
 8. Save the resolution, update the owning tasks only when proved, export/release owned research correctly, and return exact artifacts and remaining state.
 
 Do not enable independent admission merely because the reviewer has a higher reasoning setting. The native contracts and acceptance evidence determine the result.
+
+## Execution evidence and restart checkpoint, 2026-10-18
+
+### Source, exact inputs and preparation
+
+Execution baseline is commit `d4988932d2fe68cabc12dedc29f66a0f35fdd88a` with an empty index and 17 pre-existing modified files. Their SHA-256 values and original shared-document patch are retained under `workspace/reports/cditem-execution/20261017T231206Z/`. All installed native/Steam/bootstrap/Loadouts/game/analysis hashes, current profile/generation/packages/bindings/bookkeeping and independent recovery copies are in `baseline.json` and `baseline-context.json`. The game and analysis hash remains `57da440d72f4db974f25fef047cf84c4dadd999a88cb2a3c5af4c9bd67fde1e7`, 384,521,624 bytes. All 234 retained source guards and four prepared files match. No game/archive/profile/save mutation was performed.
+
+The previous portable executable still matches 177,944,219 bytes / SHA-256 `58bf4848ffebea365a8a6e0b916cffdd0903fd6b3e4269a0a813f667f774a861`; the independently verified recovery copy is `workspace/reports/cditem-execution/20261017T231206Z/rollback/CrimsonDesertModWorkbench-0.11.0-alpha.23-windows-portable.exe`. Final new build identity will be recorded after packaging, not inferred from this source checkpoint.
+
+### Actual native attempts, RH-01 / RH-02 / RH-03
+
+Read `workspace/reports/cditem-execution/20261018-native-review/native-obligations-and-findings.md` for the full obligation table and bounded query inventory. The first fresh owned provider verified both executable pins, imported all R3 history and recovered 30 previously missing R2 evidence rows through a canonical supplemental import. Selected array initializer/destructor callbacks, ItemInfo destructor, header/metadata allocator, expiry transfer and diagnostic inner operations were queried at observed addresses. These establish normal initialization/destruction direction, TLS-selected reserve/allocation ownership and a diagnostic normal-return path; they do not provide a coherent primary append/publication contract or decoder-success signal. Serialized count is WORD; the observed owner `+8` store at `0x14241b9c2` is DWORD. This corrects field-width shorthand without relaxing ordinal/sentinel limits.
+
+For RH-02, expiry can release the record's retained name handle, while the reverse callback returns an unretained pointer. Lazy materialization still uses the unqualified body cache and metadata cursor. Permanent pinning, a second header, derived-vector reserve or a raw count/slot write cannot satisfy eviction/rematerialization. The exact package-owned reader/name-lifetime boundary remains the decisive question.
+
+For RH-03, the deferred 3,335-byte vptr result was verified and semantically followed. Manager table `0x145b3f658` is joined to concrete construction, container `+0x40060` and source-service `+0x40018` / manager `+8`; inner insertion's duplicate/full-name selection and persistent resource reference are narrowed. Mesh `+0x68` writer, concrete provider discovery/order and full cache/mapping retirement remain open. These are new source findings, not live dispatch or resource-use acceptance.
+
+First full export: `workspace/reports/cditem-execution/20261018-native-review/rea-complete-final-ledger.json`, 96,401,207 bytes, SHA-256 `c909d2b49bfe6c55c574825da351559d961b95c889eb08446f13711f74b6173c`; 1,248 evidence records, 92 unknown revisions across 15 IDs. All imported R1/R3 rows, all retained R2 records and owned query receipts are preserved. Owned target close, `binary_session open:false`, runner shutdown and absent process/lock checks passed by 23:27:39 UTC. No graceful-close claim is borrowed from the historical timeout.
+
+A second fresh owned batch is now investigating the remaining allocator/release pairs, actual startup thread/serialization and lazy-reader boundary from that complete export. Its new queue/PIDs/receipts are under the same evidence root and must be inspected before any restart. Do not submit to the closed first queue or assume that this written checkpoint releases the currently active second session. Source/ASIs/archives/saves are not mutated by either provider.
+
+### Actual save/Cloud attempts and operational blocker, RH-04
+
+The read-only whole-root inventory found 26 files / 11,554,781 bytes: eleven multi-file slot directories, an account marker and three shared root members. Independent recovery copies match; their bytes do not certify producing profile or origin. Installed appinfo UFS specifies WinAppDataLocal account saves, recursive `*.save` and suspended synchronization; the last recorded launch/exit synchronized Cloud data. No demonstrated Windows root override or save-directory switch was found in the scoped executable-string/config scan. Trace the known path-builder/SHGetFolderPathA caller before proposing environment-variable redirection.
+
+See `workspace/reports/cditem-execution/20261018-save-review/save-review.md` and its redacted JSON for exact files, offsets, effective historical flags and retained official reference. Existing services back up/observe but do not redirect live saves. The new copied-fixture service refuses actual live roots, aliases, links and ambiguous concurrent states. Its journaled whole-tree exchange, complete owner publication, output retention and exact recovery pass fixture checks. These observations do not authorize a live exchange.
+
+Root attempted read-only Steam UI inspection through the supported Windows helper. Initial launch-app inspection exposed no targetable window; a refresh found Steam's helper window minimized. An activation request reported intervening user input, and a fresh observation still reported minimized. Root stopped further Steam actions. The Steam client existed before this execution; no game was started, no Cloud toggle changed, and no foreign process was closed. Current per-game Cloud state, settled writers and preservation of startup/shared state remain operationally unverified. Resume only with an observed per-game containment route and an explicit exact save/run manifest; keep account-wide settings intact.
+
+### Partial runner implementation, checks and cleanup
+
+The CLI `scripts/run_cditem_device_tests.py` offers inspect, synthetic replay and journal report only. Default inspect cannot prepare/install/start or inject input. Process/window identity, creation FILETIME, executable hash/session, screenshot/run receipts, client/DPI/foreground checks, correctly sized x64 input, event-count verification and an independent input-release guardian are implemented as bounded primitives. A capture worker timeout terminates only its owned noninput child. Image inspection and gameplay classification remain required and unproved on the game. Execute/resume and actual acquisition/equip/cache/persistence drivers are not silently substituted with mocks.
+
+Independent review `workspace/reports/cditem-execution/20261018-runner-review/review.md` retained seven actual pre-fix reproductions, their source corrections and regression tests. Final selected readiness passed 104 cases with two optional-bootstrap skips; both omitted bootstrap fixture cases then passed against the exact pinned installed bootstrap. All 67 new runner/save cases are included. No full suite or game test was run. Native/source/synthetic evidence does not close any live T01-T20 row.
+
+Automatic approval review rejected cleanup of `C:/Users/Ratrider/AppData/Local/Temp/cditem-runner-review-alias-5uei1loj`, stating only `blocked by policy`; it remains and no alternative deletion was attempted. Ordinary TEMP pytest fixtures and retained local evidence/recovery copies remain intentionally. Root owns no game/input/capture process. Current REA ownership is the second native batch above; final closure must replace this checkpoint with its actual export and release receipt.
+
+Next independent work is the requested ordinary release build and exact packaged checks, with preserved rollback. No version bump, tag, signing, install, push or publication is authorized by this delivery. Full native registration/resource/save support and WMDPI equal-scaling proof remain separate open requirements.

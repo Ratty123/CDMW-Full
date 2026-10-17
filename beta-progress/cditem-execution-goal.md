@@ -2,7 +2,7 @@
 
 - Plan ID: `CDRUN`
 - Created: 2026-10-18, Europe/Stockholm.
-- Status: Documentation complete and ready for execution. Implementation and device tests in this execution plan have not started.
+- Status: Execution underway. Recoverable baseline, research continuity and offline runner/save substeps are verified; native registration and live device/delivered-byte gates remain open.
 - Primary execution model: the user's selected GPT-6.1 Sol with Max reasoning.
 - Later reasoning review: the user's selected Astra or Pro session, using [the reasoning handoff](cditem-astra-pro-handoff.md).
 - Project: `D:\CLAUDETEST\CDMW Full`.
@@ -70,16 +70,19 @@ Do not restart a completed investigation merely because the conversation changed
 
 ## 4. Required execution tasks
 
-Only the documentation item can be completed by this planning turn.
+The documentation item was completed by planning. Execution completion below follows actual evidence; scoped offline substeps do not close their live/native parents.
 
 - [x] **CDRUN-DOC-01:** Create and verify this execution plan, the populated reasoning handoff, the feature-plan cross-reference, and the matching shared progress entry.
-- [ ] **CDRUN-BASE-01:** Establish current source, process, installation, profile, save, and artifact ownership with a recoverable baseline.
-- [ ] **CDRUN-REA-01:** Establish safe research ownership and a resumable, complete evidence/unknown ledger.
+- [x] **CDRUN-BASE-01:** Establish current source, process, installation, profile, save, and artifact ownership with a recoverable baseline.
+- [x] **CDRUN-REA-01:** Establish safe research ownership and a resumable, complete evidence/unknown ledger.
 - [ ] **CDRUN-AUTO-01:** Implement and test the process-bound capture, input, menu, loading, timeout, and recovery runner.
+- [x] **CDRUN-AUTO-01A:** Verify the read-only inspection/synthetic policy and bounded Windows capture/input primitives; live execute/resume and acceptance are not included.
 - [ ] **CDRUN-SAVE-01:** Establish and verify the disposable test-save route, autosave/shared-metadata coverage, cloud behavior, and restoration contract.
+- [x] **CDRUN-SAVE-01A:** Verify whole-tree exchange/restoration and interruption recovery on independently copied offline fixtures; live roots remain refused.
 - [ ] **CDRUN-LAUNCH-01:** Complete two consecutive fresh game-launch/load/cleanup cycles without user input, including the gamepad-prompt activation case.
 - [ ] **CDRUN-SCENARIO-01:** Implement automated acquisition, equip/unequip, resource-use, cache, and persistence scenarios with measurable results.
 - [ ] **CDRUN-REVIEW-01:** Independently review native contracts, changed code, evidence, failures, and the actual supported scope.
+- [x] **CDRUN-REVIEW-01A:** Independently review and correct the available partial runner/save implementation and its source/evidence limits.
 - [ ] **CDRUN-DELIVERY-01:** Build and verify the final portable executable and native artifacts, and repeat essential device checks using those exact delivered bytes.
 - [ ] **CDRUN-HANDOFF-01:** Reconcile every unresolved item into a reasoning or operational handoff, with retained evidence and a concrete restart step.
 - [ ] **CDRUN-CLOSE-01:** Reconcile all feature and execution outcomes, verify cleanup, and report the final artifact and remaining limits accurately.
@@ -430,3 +433,16 @@ Execute this plan from the current filesystem state. Start with CDRUN-BASE-01 an
 ### Planning verification
 
 To complete CDRUN-DOC-01, verify task IDs, links/source paths, the unchanged ten open feature tasks, an honest initial handoff, safe startup/save handling, the paired progress entry, and a task-scoped diff. No game launch, application suite, native build, or packaging is required to verify these documentation changes.
+
+## Execution checkpoint, 2026-10-18
+
+The paired CDRUN entries in [progress.md](progress.md) record completed baseline/research continuity and scoped offline substeps. The native feature tasks stay in their original CDISO owner. Detailed attempts and current blockers are in [the handoff](cditem-astra-pro-handoff.md).
+
+- Baseline and recovery: `workspace/reports/cditem-execution/20261017T231206Z/baseline.json`, `baseline-context.json`, `source-guard-refresh.json`, `original-saves/`, `original-bookkeeping/`, `original-bin64-settings/` and `rollback/`. Source guard refresh passed all 234 files / 151,455,090,976 bytes; all four prepared files match. Existing save/profile/installed-loader bytes are preserved.
+- Available development entry point: `scripts/run_cditem_device_tests.py`; inspection sends no input or launch, and replay is explicitly synthetic. No live execute/resume entry point is exposed while save containment is unverified. The process-bound primitives are source-tested; actual game pixels/input remain unverified.
+- Selected readiness: 104 passed / 2 optional-bootstrap skips, followed by both exact verified-bootstrap fixture cases passing. The resulting 106 distinct nonvisual cases include all 67 new runner/save tests. No full suite, game launch, save production or native independent item call is claimed.
+- Save evidence: `workspace/reports/cditem-execution/20261018-save-review/save-review.md`. Installed AutoCloud covers the account save subtree, with suspended synchronization configured. Current per-game toggle and all startup writers are not certified. Read-only Steam UI attempts reached a minimized window and detected intervening input; no toggle or game action was sent.
+- Independent source review: `workspace/reports/cditem-execution/20261018-runner-review/review.md`. Seven findings were corrected. Approval review rejected deletion of the owned TEMP alias fixture, stating only `blocked by policy`; the exact retained path is in that report, with no workaround attempted.
+- First owned native batch: `workspace/reports/cditem-execution/20261018-native-review/native-obligations-and-findings.md`; full export 96,401,207 bytes / SHA-256 `c909d2b49bfe6c55c574825da351559d961b95c889eb08446f13711f74b6173c`, 1,248 evidence records and 92 unknown revisions. Every imported R1/R3 row and all retained R2 records are preserved. Target close, closed-session receipt and process/lock cleanup passed. A separate second owned queue continues concrete remaining queries; refresh the handoff before any new provider action.
+
+All T01-T20 live/native outcome rows remain blocked or not run, with reasons owned by their actual gates. The ordinary release build and packaged checks are the next independent delivery work. They will not close T20 game acceptance. The separate WMDPI equal-scaling hardware gap remains.
