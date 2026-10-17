@@ -54,15 +54,12 @@ def test_graph_separates_compiled_resource_edges_from_retained_authoring_inputs(
 
     texture_targets = {edge.target for edge in graph.edges
                        if edge.source == owned_xml and edge.target.endswith('.dds')}
-    if private_texture:
-        assert TEXTURE not in texture_targets
-        assert texture_targets and texture_targets <= outputs.keys()
-        assert rows[TEXTURE].reachability == ('authoring',)
-        assert all(rows[path].ownership == 'owned' for path in texture_targets)
-    else:
-        assert TEXTURE in texture_targets
-        assert rows[TEXTURE].ownership == 'borrowed'
-        assert rows[TEXTURE].reachability == ('authoring', 'contribution')
+    assert TEXTURE not in texture_targets
+    assert texture_targets and texture_targets <= outputs.keys()
+    assert rows[TEXTURE].reachability == ('authoring',)
+    assert all(rows[path].ownership == 'owned' for path in texture_targets)
+    if not private_texture:
+        assert all(rows[path].source_paths == (TEXTURE,) for path in texture_targets)
 
     for path, data in outputs.items():
         assert rows[path].sha256 == digest(data)
@@ -102,7 +99,9 @@ def test_graph_uses_actual_output_references_and_refuses_missing_nested_resource
     plan, snapshot = imported_plan(tmp_path)
     request = next(row for row in plan.additions if row.path.endswith('.pac_xml'))
     missing = 'character/texture/cdmw_missing_nested_dependency.dds'
-    data = bytes(request.payload_data).replace(TEXTURE.encode(), missing.encode())
+    original = next(edge.target for edge in plan.reference_assessment.edges
+                    if edge.source == request.path and edge.target.endswith('.dds'))
+    data = bytes(request.payload_data).replace(original.encode(), missing.encode())
     assert data != bytes(request.payload_data)
     changed = replace(plan, additions=tuple(replace(row, payload_data=data) if row is request else row
                                              for row in plan.additions))
@@ -124,7 +123,9 @@ def test_diagnostic_edge_limit_marks_partial_without_skipping_dependency_validat
 
     request = next(row for row in plan.additions if row.path.endswith('.pac_xml'))
     missing = 'character/texture/cdmw_missing_after_edge_limit.dds'
-    data = bytes(request.payload_data).replace(TEXTURE.encode(), missing.encode())
+    original = next(edge.target for edge in plan.reference_assessment.edges
+                    if edge.source == request.path and edge.target.endswith('.dds'))
+    data = bytes(request.payload_data).replace(original.encode(), missing.encode())
     changed = replace(plan, additions=tuple(replace(row, payload_data=data) if row is request else row
                                              for row in plan.additions))
     with pytest.raises(IndependentItemError, match='Unresolved item dependency: ' + missing):

@@ -243,10 +243,16 @@ def audit_references(plan, snapshot, *, stop_event=None):
                 raise IndependentItemError(f'Unverified model property layout: {path}') from exc
             metadata[path][2] = 'model-property-resource-fields'
             for node in tree.iter():
+                if owned and '}' in node.tag and node.tag.rsplit('}', 1)[-1].startswith('ResourceReferencePath'):
+                    reference_closure_complete = False
+                    unresolved.add(f'Namespace-qualified material resource lookup remains unverified: {path} {node.tag}')
                 if node.tag.startswith('ResourceReferencePath'):
                     if set(node.attrib) - {'Name', '_path'}:
                         raise IndependentItemError(f'Unknown model resource boundary: {path}')
-                    require(node.attrib.get('_path', ''), evidence=f'Model property {node.tag}._path')
+                    resource = node.attrib.get('_path', '')
+                    require(resource, evidence=f'Model property {node.tag}._path')
+                    if owned and resource and (node.tag != 'ResourceReferencePath_ITexture' or not resource.lower().endswith('.dds')):
+                        unresolved.add(f'Owned material resource remains outside the private DDS lookup scope: {path} {node.tag} {resource}')
         elif path.endswith(('.pae', '.paem', '.parg', '.pasg')):
             from cdmw.core.effect_binary import decode_effect_binary
             from cdmw.core.effect_edit import emitter_paths_of, preset_names_of, preset_path
@@ -306,15 +312,32 @@ def audit_references(plan, snapshot, *, stop_event=None):
             reference_closure_complete = False
             unresolved.add(f'Borrowed resource outgoing references have no supported decoder: {path}')
 
+    source_digests = {path: value[1] for path, value in metadata.items() if path not in outputs}
     if snapshot.provenance is not None:
         snapshot.provenance.record_reference_closure(reference_closure_complete)
         digests = {row.entry.path.lower(): row.sha256 for row in snapshot.provenance.capture().payloads}
+        source_digests = digests
         for path, value in metadata.items():
             raise_if_cancelled(stop_event)
             if not value[1]:
                 value[1] = digests.get(path, '')
                 if not value[1]:
                     unresolved.add(f'No retained source digest was available for the traversed resource: {path}')
+
+    # Automatic copies have a stable source-to-destination adapter. Derive this
+    # evidence from actual owned bytes and retained source digests, not metadata
+    # supplied by a package. Imported replacements can intentionally differ.
+    exact_texture_copies = set()
+    if plan.spec.stem:
+        from cdmw.services.new_item_resource_copies import private_texture_path
+        for original, checksum in source_digests.items():
+            raise_if_cancelled(stop_event)
+            if not original.endswith('.dds') or not checksum:
+                continue
+            target = private_texture_path(plan.spec.stem, original)
+            if target in outputs and metadata[target][1] == checksum:
+                source_paths.setdefault(target, set()).add(original)
+                exact_texture_copies.add(target)
 
     outgoing = {}
     for edge in edges:
@@ -344,6 +367,8 @@ def audit_references(plan, snapshot, *, stop_event=None):
         evidence = ('Compiled owned output bytes',) if owned else ('Retained exact-source dependency bytes',)
         if originals:
             evidence += ('Source paths identify template or target bindings; imported output bytes can differ.',)
+        if path in exact_texture_copies:
+            evidence += ('Stable private texture binding and owned payload digest match the retained DDS source.',)
         roles = tuple(sorted(reachability[path])) or ('unclassified',)
         if not graph_complete:
             roles += ('partial',)

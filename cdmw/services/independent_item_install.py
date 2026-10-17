@@ -10,7 +10,7 @@ import json
 from pathlib import Path
 import re
 
-from cdmw.core.archive_format import parse_archive_pamt
+from cdmw.core.archive_format import calculate_pa_checksum, parse_archive_pamt
 from cdmw.core.atomic_file import atomic_binary_writer, atomic_write_bytes
 from cdmw.core.papgt_format import parse_papgt
 from cdmw.core.stringinfo_table import stringinfo_key
@@ -338,6 +338,72 @@ class _AssetHashes:
         self._reserved.update(additions)
 
 
+def _ascii_item_name_hash(name):
+    """Conservative ASCII model of the observed lowercased ItemInfo name hash.
+
+    The native callsite hashes a C string. Its CRT locale and non-ASCII
+    conversion are not established by this preflight.
+    """
+    if not name.isascii():
+        return None
+    return calculate_pa_checksum(name.split('\0', 1)[0].encode('ascii').lower())
+
+
+def _check_managed_item_names(packages, registry, snapshot, external, *, stop_event=None):
+    """Refuse known ASCII hash aliases for selected primary CDI_UUID names.
+
+    Reservations remain derived from existing package identities. This does
+    not change the profile schema or validate every engine name namespace.
+    """
+    from cdmw.core.iteminfo_row import parse_iteminfo_row
+    from cdmw.services.independent_item_compatibility import _external_table
+    from cdmw.services.mod_merge_service import _group
+
+    selected = {}
+
+    def check(name, owner, identity=None):
+        checksum = _ascii_item_name_hash(name)
+        package = selected.get(checksum)
+        if package is not None and package.identity != identity:
+            raise IndependentItemError(
+                f'{package.title} ({package.identity}): ItemInfo name hash collides '
+                f'under ASCII lowercasing (0x{checksum:08x}): CDI_{package.identity}; '
+                f'already reserved by {owner}: {name}. '
+                'Resolve the conflicting item names before installing.')
+
+    for identity in sorted(packages):
+        raise_if_cancelled(stop_event, 'Independent item preparation cancelled.')
+        package = packages[identity]
+        if not has_legacy_item(package):
+            continue
+        name = 'CDI_' + identity
+        check(name, f'{package.title} ({identity})', identity)
+        selected[_ascii_item_name_hash(name)] = package
+    if not selected:
+        return
+    # Active, disabled and removed/reserved identities have the same name.
+    # Record-edit-only packages have no primary ItemInfo name reservation.
+    for identity, held in registry['items'].items():
+        raise_if_cancelled(stop_event, 'Independent item preparation cancelled.')
+        if 'item' in held['values'].get('iteminfo', {}):
+            check('CDI_' + identity, f'{held["title"]} ({identity})', identity)
+    for key, row in snapshot.rows.items():
+        raise_if_cancelled(stop_event, 'Independent item preparation cancelled.')
+        check(row.string_key, f'stock game ItemInfo record {key}')
+    pairs = set()
+    for path in external.paths:
+        paths = _group(path)
+        if len(paths) == 2 and paths[0].rsplit('/', 1)[-1].split('.')[0] == 'iteminfo':
+            pairs.add(paths)
+    for paths in sorted(pairs):
+        data = _external_table(external, paths, snapshot, stop_event)
+        owner = ', '.join(external.labels(paths))
+        for key, raw in _table(data[paths[0]], data[paths[1]])[1]:
+            raise_if_cancelled(stop_event, 'Independent item preparation cancelled.')
+            check(parse_iteminfo_row(raw).string_key,
+                  f'{owner}; {paths[0]}; record {int.from_bytes(key, "little")}')
+
+
 def _semantic_inputs(sources, folders=(), *, stop_event=None, package_cache=None):
     """Admit opaque exports before treating any selected input as game bytes."""
     from cdmw.core.mod_compatibility import read_semantic_export
@@ -477,6 +543,7 @@ def resolve_items(sources, root, *, target='archive', folders=(), rebuild=False,
     external_paths = external.paths
     asset_hashes = _AssetHashes(chain(baseline.entries, external_paths))
     external_keys = reserved_external_keys(external, snapshot, stop_event=stop_event)
+    _check_managed_item_names(packages, registry, baseline, external, stop_event=stop_event)
 
     def asset_owner(path):
         # Resolve labels only on refusal, without another per-resource index.

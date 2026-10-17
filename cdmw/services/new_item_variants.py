@@ -309,6 +309,8 @@ def plan_variant_files(planner):
                 if not path.lower().endswith(".dds"):
                     continue
                 target = str(PurePosixPath(path).with_name(f"{stem}_t{index}.dds"))
+                if planner.independent:
+                    target = str(PurePosixPath(path.replace("\\", "/").lower()).with_name(f"{stem}_t{index}.dds"))
                 planner.add(snapshot.entry(path) if snapshot.has_entry(path) else snapshot.entry(old),target,data,f"Variant texture: {target}")
                 texture_map[path] = target
                 written.append(target)
@@ -316,9 +318,17 @@ def plan_variant_files(planner):
                 if imported and not choice.keep_template_physics:
                     from cdmw.services.new_item_skinning import strip_template_material_physics
                     material = strip_template_material_physics(material)
-                for old_path,new_path in texture_map.items():
-                    material = material.replace(old_path.encode(),new_path.encode())
+                if planner.independent:
+                    from cdmw.core.pac_xml_references import parse_pac_xml_references
+                    material = parse_pac_xml_references(material, check=planner.check).rewrite_textures(texture_map, check=planner.check)
+                else:
+                    for old_path,new_path in texture_map.items():
+                        material = material.replace(old_path.encode(),new_path.encode())
                 material = plan_variant_dye(planner,old,new,material,choice,imported)
+                if planner.independent:
+                    from cdmw.services.new_item_resource_copies import copy_material_textures
+                    material, copied = copy_material_textures(planner, material, {})
+                    written.extend(copied)
                 planner.add(snapshot.entry(source_xml) if snapshot.has_entry(source_xml) else snapshot.entry(old),new_xml,material,f"Variant material: {new_xml}")
                 written.append(new_xml)
             elif choice is not None and choice.dyes:

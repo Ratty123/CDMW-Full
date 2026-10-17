@@ -9,7 +9,7 @@
 - Completion log: [progress.md](progress.md)
 - Reviewed branch: RR/independent-item-packages
 - Reviewed HEAD: d4b38e5082d4f9b4b4cce14f9ee2ecdb37994aaf, with concurrent uncommitted work.
-- Current authorization: The user's 2026-10-17 continuation authorizes implementing this plan and focused verification, with synchronized completion tracking. The original investigation-only restriction is superseded. Existing project rules still govern real archive changes and controlled game/save experiments; prepare the exact supported target and disposable selection before crossing those boundaries.
+- Current authorization: The user's 2026-10-17 continuation authorizes implementing this plan and focused verification, with synchronized completion tracking. The latest request is to solve all feasible work without requiring the user to test anything. The original investigation-only restriction is superseded. This continuation uses source, owned-fixture, and read-only native evidence; existing project rules still govern real archive changes and controlled game/save experiments.
 
 ## Goal
 
@@ -66,13 +66,46 @@ That line is a format example, not a completed task.
 
 ## Current handoff
 
-- Completed: CDISO-DOC-01, CDISO-BASE-01, CDISO-OWN-01, CDISO-ID-01 and CDISO-RE-01. Four of the fourteen tasks outstanding at the user's implementation request are complete; ten remain open. RE-01 closes the selected discovery route with a scoped negative result, not a native-loading capability.
-- Implementation: A read-only inspection command and bounded resource ownership assessment are implemented. Collision refusals now identify both package owners and resource paths. The final selected regression set passed 47 cases, plus two owned-physics callback cases, on 2026-10-17.
-- Next task: CDISO-RE-02 must establish a typed operation that adds capacity and registers independent ItemInfo and required auxiliary entries, including finalization and rematerialization. CDISO-RE-03 must connect resource loading to that definition route and close its selected resource-use and lifetime obligations. CDISO-RES-01 and CDISO-DEP-01 remain open: the PAPPT socket consumer is untraced, no new copy family was admitted and donor guards remain intact.
+- Continuation status (2026-10-17): Completed the scoped CDISO-RES-01A, CDISO-DEP-01A and CDISO-ID-01A compiler/validation work without requiring user testing. Compiler revision is now 10; portable v1/v2 schemas, UUIDs and numeric ranges are unchanged. These improvements use the existing composed backend. No new native capability is admitted. Continuation source baseline is e0224bb63c290f950c42b56d9a5639c5a69969e0.
+
+- Completed: CDISO-DOC-01, CDISO-BASE-01, CDISO-OWN-01, CDISO-ID-01, CDISO-RE-01 and the three continuation subtasks CDISO-RES-01A, CDISO-DEP-01A and CDISO-ID-01A. Ten original tasks remain open. RE-01 closes the selected discovery route with a scoped negative result; completing the three narrower source subtasks does not close their full resource/dependency parents.
+- Implementation: The existing read-only inspection and ownership assessment now include supported private material DDS copies, conservative donor ItemInfo record separation and primary ASCII name-hash refusal. External ItemInfo directory/body key mismatches also refuse. The continuation verified 110 distinct focused cases, including 62 new cases, across the recorded runs. No full suite, native build, game launch or save operation was used.
+- Next task: CDISO-RE-02 must establish a typed operation that adds capacity and registers independent ItemInfo and required auxiliary entries, including finalization and rematerialization. CDISO-RE-03 must connect resource loading to that definition route and close its resource-use and lifetime obligations. CDISO-RES-01 and CDISO-DEP-01 remain open: supported material DDS fields now have private copies, but the PAPPT socket consumer, residual item/resource dependencies and implicit native identities remain unproved. All donor DDS guards remain intact.
 - Ownership and session state: Root integrated the independently reviewed resource and identity changes and owns the synchronized documentation. The separate CDISO research queue ended at its configured one-hour transport timeout; all completed results and a final inventory are retained. No matching owned analysis processes remained at the final check. Never submit through another investigation's queue or alter its launcher guards.
 - Main unresolved condition: Prove a complete supported registration/discovery route for separate item definitions and resources without shared replacement files.
-- Shared work: Implementation baseline HEAD is 622758398594b90484f0abce2126dccb9b2f8fb0. Completed Mesh/loader performance work is preserved. Existing Window/DPI, localization, CHANGELOG and shared progress changes belong to other work and must not be absorbed into this task.
+- Shared work: Original implementation baseline was 622758398594b90484f0abce2126dccb9b2f8fb0; this continuation starts at e0224bb63c290f950c42b56d9a5639c5a69969e0. Prior Window/DPI and Mesh/loader work is preserved. Pre-existing localization changes and the unrelated progress-log edit remain outside this task's commit. Native bytes, generated archives and private research receipts remain uncommitted.
 - Completion of the full goal: Pending. Do not close CDISO-DONE-01 using source inspection, conflict refusals, or ordinary composed-VFS output as substitutes for the required game behavior.
+
+### Automatically verified continuation, 2026-10-17
+
+The user authorized all feasible work that can be completed without user testing. The three scoped subtasks below are complete; the original native and full-isolation tasks remain open.
+
+| Completed subtask | Result | Retained boundary |
+| --- | --- | --- |
+| CDISO-RES-01A | Exact unqualified ITexture path fields in owned template/imported/variant/companion materials now use validated, stable private DDS copies. One source copy is reused within each item; unrelated material bytes and explicit imported destinations are preserved. | Unsupported DDS layouts keep an explicit borrowed binding. Other resource types, socket descriptors, physics/rig/animation and native discovery/lifetime are not admitted. Donor DDS conflict guards remain mandatory. |
+| CDISO-DEP-01A | The donor's own ItemInfo row can coexist with external or typed field edits after a distinct compiled key/name/hash and absence of retained donor identities are established. The clone's bytes and bindings survive both orders, updates and removal. | Exact author-source hashes and index witnesses stay mandatory. Direct/transitive borrowed records, opaque donor tokens, non-ASCII/NUL names and incomplete table cases keep the guard. External directory/body key disagreement refuses before composition. |
+| CDISO-ID-01A | Primary CDI_UUID names are checked for known 32-bit aliases under an explicit ASCII lowercase model against selected packages, stock/external rows and active/disabled/removed reservations. | No Unicode/CRT locale, auxiliary-name, native lookup or persistence guarantee is inferred. Same-owner update/reinstall keeps the identity. |
+
+The private DDS copier uses the existing registration and collision owners. Its new logical accounting applies to independent additions through _Planner.add and to automatic extraction before reading the source payload; it does not claim to redesign every repository output path. Namespace-qualified material references remain unwalked and explicitly clear source-reference closure, preserving source-carrier verification.
+
+The donor exception is deliberately narrow. A valid external ItemInfo body whose three repeated key DWORDs disagreed with the directory was accepted by both resolvers before the new consistency check. Both corrected reproductions then passed with attributed refusal and unchanged fixture files. A first malformed fixture was already rejected by the existing local-string decoder and is not counted as evidence of the gap.
+
+Validation covers 110 distinct selected cases, including 62 new cases: 17 donor/identity-consistency cases, 17 primary-name cases, 16 private-DDS cases, ten exact-field parser cases and two namespace-closure cases. The final identity/dependency run passed all 52 selected cases in 17.19 seconds. Resource/graph/variant/imported-profile checks passed; the one stock-collision fixture failure in that earlier 35-case run was corrected and passed in the final identity run. Existing source/index guards, compiler-rebuild requirements, report admission and archive/virtual lifecycle checks passed. The test changes replace old unconditional-donor expectations with explicit borrowed-record cases, isolate temporary virtual profiles from host process state, and update stale compiler-cache/hash-callback fixtures. The production game-running guard is unchanged.
+
+Before implementation, two material-copy cases failed while ordinary authoring passed; two detached-donor cases failed while explicit-donor-reference controls passed; and all four managed UUID hash-alias cases failed to refuse. A known pair of distinct UUID4 names hashes to 0xab4bfdfe under ASCII lowercasing: CDI_3940d897d80049ccbbd9cf59d9cce27b and CDI_71e0100e5b4c4c88a891843a775a115e. A separate stock-safe witness pairs CDI_e2e5d4ea3ad14dbab0c523e9f2c9189e with StockAlias_101450 at 0x50034b30. These are source-derived mathematical collisions and automated preflight checks, not observed game failures.
+
+| Synthetic one-texture copy cost | Delta |
+| --- | ---: |
+| Owned DDS outputs / DDS bytes | +1 / +144 bytes |
+| Material bytes / logical owned resource bytes | +16 / +160 bytes |
+| PATHC bytes | +24 bytes |
+| Portable input blobs, package ZIP size and exact source pins | Unchanged |
+
+The single control/private compiler observations were 0.034293/0.013235 seconds; their order/cache bias does not support a speedup claim. On the Windows project environment, the donor guard's three-sample medians were 0.75 ms for a 64 KiB owned DDS, 13.10 ms for 4 MiB and 52.34 ms for 16 MiB. These fixtures publish nothing to the actual game. Native CPU/GPU cost, actual game storage and appearance remain unmeasured. The compact receipt is .work/tasks/2026-10-17-cditem-conflict-isolation/continuation/verification.json.
+
+Offline native work repinned both selected executables to SHA-256 57da440d72f4db974f25fef047cf84c4dadd999a88cb2a3c5af4c9bd67fde1e7, 384,521,624 bytes. Selected direct callers still lead to the known materializer, lazy/eager paths and invalid sentinel; the generic insertion scan is truncated and proves no absence of other APIs. The observed helper 0x14038ac90 jumps to 0x1488046b0..0x14880475c and maps an external DWORD key to a WORD ordinal or 0xffff through owner 0x146d69a70. The decoder stores the result at +0x40 without checking its return flag. This resolves one auxiliary dependency edge, not an append operation. The second observed owner and a store-shaped lead still lack an established registration contract.
+
+The retained native name-hash arithmetic matches calculate_pa_checksum/hashlittle with seed 0xC5EDE across 201 independently transcribed Python cases. The observed materializer normalizes a C string before hashing and inserts the name hash separately from the directory's numeric lookup, motivating both new identity guards. No native function was invoked. Typed capacity growth, all auxiliary owners/fixups, atomic publication/failure cleanup, valid phase/thread/allocator use, finalization, rematerialization and persistence remain open. No new REA session was started. Source notes and exact receipts are retained under .work/tasks/2026-10-17-cditem-conflict-isolation/continuation/native; the earlier RE-01 rejection and R2 timeout record remain unchanged.
 
 ### Implemented ownership boundary
 
@@ -82,7 +115,7 @@ Resource nodes distinguish owned output bytes from borrowed source bytes and rec
 
 Validation: 20 new inspection/reference cases cover same-name private outputs in both package orders and both current backends, v2 stock edits, hybrid packages, exact provider links, forged metadata, strict read-only refusal, nested resources, source-role distinctions and diagnostic overflow. Fourteen collision cases cover both orders and batch/active/disabled/removed owners, ambiguous hash paths and case-normalized external paths. Eleven pre-existing coexistence/lifecycle cases and two effect cases complete the 47-case selected run (18.32 seconds); two unchanged-physics roundtrip/resolution cases additionally passed (1.17 seconds). The corrected sidecar source mapping uses the existing basename adapter and only records an original sidecar when it exists.
 
-### Retained two-package inspection
+### Retained two-package inspection before compiler revision 10
 
 A single read-only inspection of retained `test1.cditem` and `test2.cditem` against the existing virtual route succeeded on 2026-10-17. Their exact ZIP hashes match the baseline. Each contribution has six private outputs, 124 borrowed resources in the audit, 31 shared-file outputs and ten unresolved graph boundaries. Only one borrowed path is reached from the decoded contribution: `character/descriptors/socketbonedata/1_pc/1_phm/weapon/2_twohandweapon/cd_phm_02_sword_0001.sockets.xml`. The other borrowed audit nodes include authoring-validation inputs; their count is not a count of proven runtime dependencies. Both graphs fit within the edge inventory limit, while reference closure and isolated-new-item admission remain false.
 
@@ -92,7 +125,7 @@ The inspection proposed distinct retained bindings and private paths, returned `
 
 A single additional source read validated the contribution-reachable socket descriptor against both retained package reports and the current archive witnesses. The descriptor is 912 bytes, SHA-256 `8e522988f191bdd4faa2447761ef3602520bb06720b95eecb20903ff61af88a0`, at offset 44,768,768 in `0009/0.paz`; its index SHA-256 is `c561ae348ba6dea65b0460686dec089b65291bbbeec439643d42bc5f4ead05b9`. It contains five flat `Socket` rows with name, parent, rotation and translation fields. `StackEquipInfo` and `VertexSocketList` are empty. Four sockets bind `B_Weapon_0001`; `Store_Pivot_Socket` has an empty parent. These exact bytes contain no file paths or descriptor self-name.
 
-The supported PAPPT parser exposes an explicit `sockets_path`, and the current clone preserves it: the donor mesh stem `0036` and both compiled stems still point to descriptor `0001`. A future narrow copy candidate can preserve these descriptor bytes and all attachment names while rebinding only added PAPPT records. The existing XML patcher, historical v43 note and source tests do not prove native admission of a new descriptor path. No copy adapter or donor-guard exception was enabled. ItemInfo donor references, borrowed HKX and implicit rig/animation/physics dependencies remain separate unresolved boundaries.
+The supported PAPPT parser exposes an explicit `sockets_path`, and the current clone preserves it: the donor mesh stem `0036` and both compiled stems still point to descriptor `0001`. A future narrow copy candidate can preserve these descriptor bytes and all attachment names while rebinding only added PAPPT records. The existing XML patcher, historical v43 note and source tests do not prove native admission of a new descriptor path. No socket-descriptor copy adapter or socket donor-guard exception was enabled. Residual ItemInfo donor references, borrowed HKX and implicit rig/animation/physics dependencies remain separate unresolved boundaries.
 
 The read completed in 15.684 seconds with source revision validation, without package recompilation or publication. Private report: `.work/tasks/2026-10-17-cditem-conflict-isolation/inspection/socket-boundary-20261017T131817Z-a4ee39e2.json`, 9,147 bytes, SHA-256 `089b238120b48b1d8582d018fb5ba91480e879466cad3f36e8065dbdf3750f1f`. This records the selected source layout and existing bindings; it is not game, cache or private-path discovery proof.
 
@@ -153,7 +186,7 @@ R2 successfully decompiled the source-proven jump target: evidence `ev_b1a52a3e8
 
 ### Implementation baseline and expected cases, recorded before source edits
 
-Current compiler revision is 9; frozen v1 schema digest is fc8a618214bba0ebdbe4187f39dffc5f206ae71e31158f0cf06ad273cbcf1d1c. Adapters are item-v1 1, envelope-v2 4, iteminfo-fields 2, package-links 1, dds-pathc 2, flat-icon-registry 2 and texture-replace 1.
+The recorded implementation baseline used compiler revision 9; frozen v1 schema digest is fc8a618214bba0ebdbe4187f39dffc5f206ae71e31158f0cf06ad273cbcf1d1c. Adapters are item-v1 1, envelope-v2 4, iteminfo-fields 2, package-links 1, dds-pathc 2, flat-icon-registry 2 and texture-replace 1.
 
 | Case | Expected baseline result | Maintained owner |
 | --- | --- | --- |
@@ -185,7 +218,7 @@ The native loader redirects exact normalized paths to prepared snapshot files an
 
 ### The strongest near-term opportunity is separating donor provenance from actual use
 
-The current audit starts from owned additions but also explicitly visits every existing template-family file and each template part's prefab/socket path. The compatibility code starts its required ItemInfo set with spec.template_key, then protects transitive item, equipment-type, and status dependencies. Consequently, an external edit to the donor can still be refused even when an output has its own item key. This is a verified safety contract today, not permission to remove the checks. [S3, S4]
+The current audit starts from owned additions but also explicitly visits every existing template-family file and each template part's prefab/socket path. At the recorded baseline, compatibility unconditionally started its required ItemInfo set with spec.template_key, then protected transitive item, equipment-type, and status dependencies. CDISO-DEP-01A now removes only a proved detached donor row from that set. Actual borrowed references, source evidence and unknown boundaries retain their checks. [S3, S4]
 
 The retained test1.cditem through test4.cditem packages all have different identities and use template key 1000080. Each manifest declares 165 source dependencies, including 114 DDS entries and two HKX entries, despite using imported models. These counts describe declared dependencies, not proof that the final item consumes every listed file at runtime. They give a concrete baseline for separating compile-time provenance, validation inputs, genuinely borrowed resources, and fully detached resources. [G2]
 
@@ -292,6 +325,14 @@ Phase headings group work; they do not require broad resource cloning before eng
 
   Preserve existing byte-validation, size/cancellation limits, and validated immutable sharing. Measure additional package size and runtime/storage cost for the actual resource families changed.
 
+- [x] **CDISO-RES-01A: Isolate supported material DDS references in copied item meshes.**
+
+  Subtask of: CDISO-RES-01. Scope is independent-package compilation of copied template, imported and selected-variant/companion model materials through existing texture registration. Ordinary loose authoring behavior stays within its current contract.
+
+  Acceptance: Parse and rewrite only complete admitted model-property ResourceReferencePath texture attributes. Copy validated DDS bytes to stable private destinations, preserve all unrelated material bytes and exact author-source witnesses, and reject ambiguous paths and resource-limit violations. Unsupported layouts refuse private-copy admission and retain an explicit borrowed binding. Both package orders, independent update/removal, reference binding and incremental package/storage cost are checked automatically. Socket descriptors, non-DDS edges, native discovery and game appearance remain separate proof.
+
+  Completion (2026-10-17): Implemented and verified exact typed-field private DDS copying, stable source-derived paths, preserved imported destinations, source-digest evidence and bounded independent additions. All 16 new private-texture cases, ten parser cases and two namespace-closure cases pass, along with existing graph/variant/imported-profile checks. A v1/v2 pair passes both orders and archive/virtual update/removal with actual final material-to-DDS byte assertions. Portable inputs/source pins are unchanged and the measured logical copy cost is recorded above. This closes the supported copying subset only; CDISO-RES-01 and donor DDS/native gates remain open.
+
 - [ ] **CDISO-DEP-01: Retain donor provenance without unnecessary runtime dependency protection.**
 
   Depends on: CDISO-OWN-01 and the relevant CDISO-RES-01 proof.
@@ -299,6 +340,14 @@ Phase headings group work; they do not require broad resource cloning before eng
   Work: Review the unconditional donor-family and template-record roots in the current audits. Separate inputs needed to compile/validate a package from resources and records its final output actually references. Narrow external-mod conflict requirements only when the final graph and supported runtime behavior prove the donor is no longer required.
 
   Acceptance: A proven detached item can coexist with an external edit to its donor without inheriting that edit or changing the donor. A genuinely borrowed item, equipment type, status, crafting ingredient, socket/perk, physics resource, or other dependency remains protected according to its contract. Exact author-source compatibility, index witnesses, changed-during-read checks, and the native dependency guards are preserved. This task is not blanket permission to relax package hashes or to certify a new game build.
+
+- [x] **CDISO-DEP-01A: Distinguish a detached donor ItemInfo row from final borrowed records.**
+
+  Subtask of: CDISO-DEP-01. Scope is the unconditional donor ItemInfo root, not donor resource detachment or native independence.
+
+  Acceptance: A validated separately keyed/named compiled record with no residual template-key reference can preserve an external donor-only record edit while keeping its own final bytes. Final direct/transitive item, equipment and status references remain protected. Exact author-source hashes, index witnesses and changed-during-read checks remain enforced in current install/profile/rebuild/composition routes. Ambiguous or incomplete final records retain the conservative donor root.
+
+  Completion (2026-10-17): Implemented a conservative final-record donor exception while retaining exact source hashes, source/index guards and all borrowed/transitive obligations. All 17 new donor/identity-consistency cases pass, including external and typed edits in both orders, retained compilation, removal, explicit/opaque donor references, non-ASCII/NUL names and attributed external directory/body-key mismatch refusal. The final 52-case identity/dependency run also passes existing compatibility and mixed-field protections. CDISO-DEP-01 remains open for the full resource/native dependency closure.
 
 - [x] **CDISO-ID-01: Verify complete identity isolation and preserve stable bindings.**
 
@@ -309,6 +358,14 @@ Phase headings group work; they do not require broad resource cloning before eng
   Acceptance: New packages cannot take existing stock, external, active, disabled, or retired owned identities. Same-package update keeps bindings; duplication receives its own bindings. Artificial path/hash/name collisions refuse before publication and identify the owners. Installation order does not change already issued bindings. Separate installations retain the existing .cdprofile transfer requirement. Do not widen numeric ranges or fixed-width names without independent engine and save evidence.
 
   Completion (2026-10-17): Audited the existing admitted identity families and retained lifecycle reservations. Improved collision attribution to include package title/UUID, conflicting resource paths, and external or retired owners. Ambiguous hash refusals retain all known conflicting paths. Fourteen collision cases and the baseline two-order lifecycle/profile-transfer checks pass within the 47-case selected run. Numeric pools, fixed-width names, schemas and compilation stamps remain unchanged; any future native identity family still requires its own admission proof.
+
+- [x] **CDISO-ID-01A: Refuse proven ASCII aliases of managed primary ItemInfo names.**
+
+  Subtask of: CDISO-ID-01. Scope is the existing generated CDI_UUID primary name under the observed 32-bit hash and an explicit ASCII lowercase model. Auxiliary names, Unicode/CRT locale behavior and native lookup/lifetime remain separate proof.
+
+  Acceptance: A real pair of distinct valid UUID4 package names with the same ASCII-lowercase hash is refused before publication in both package orders and both preparation targets. Stock and external ItemInfo names, active/disabled/removed reservations and same-owner update/reinstall are covered. Diagnostics identify names and owners. Derive reservations from the existing UUID ledger without a new schema, numeric range, package rewrite or positive native capability claim.
+
+  Completion (2026-10-17): Implemented the primary-name preflight before allocation/reuse through the existing UUID ledger. All 17 cases pass, including the real UUID pair, a separate stock-safe cross-corpus witness, both orders/targets, external priority, active/disabled/removed reservations and same-owner update/reinstall. No hash was mocked to create the decisive collisions. The existing clean-stock validator and clone invariants remain intact. Arbitrary Unicode, other native aliases and positive runtime capability remain unproved.
 
 ## Phase 2: establish a route without shared replacement files
 
@@ -488,4 +545,4 @@ The session was accessed through its existing command queue with new, uniquely n
 
 Further improvement is justified. The current package/identity system provides a strong base, while borrowed resources and shared-table loading remain separate limits.
 
-Ownership assessment and retained identity diagnostics are implemented and verified. The selected ordinary/qualified static-info route has a scoped negative conclusion, so it must not be reused unchanged as an additive registration API. The next definition question is a typed operation that expands the normal owner's capacity and registers per-package records with complete auxiliary linking, failure handling and rematerialization. The next socket question is the actual PAPPT consumer's accepted private-name and lifetime contract. Existing resource loading and mesh attachment evidence narrows the remaining resource gate but does not close complete texture use or lifecycle. No backend is selected while those contracts remain open. Ten original tasks remain pending, including the final requirement to load separate owned contributions without replacing shared game files.
+Ownership assessment, retained identity diagnostics and the three bounded compiler/validation subtasks are implemented and verified. Private DDS copying and donor-record separation improve the current composed route; they do not complete resource or native isolation. The selected ordinary/qualified static-info route has a scoped negative conclusion, so it must not be reused unchanged as an additive registration API. The next definition question is a typed operation that expands the normal owner's capacity and registers per-package records with complete auxiliary linking, failure handling and rematerialization. The next socket question is the actual PAPPT consumer's accepted private-name and lifetime contract. Existing resource loading and mesh attachment evidence narrows the remaining resource gate but does not close complete texture use or lifecycle. No backend is selected while those contracts remain open. Ten original tasks remain pending, including the final requirement to load separate owned contributions without replacing shared game files.

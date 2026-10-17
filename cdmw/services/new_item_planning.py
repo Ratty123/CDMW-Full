@@ -154,6 +154,8 @@ class _Planner(EffectPlanningMixin):
     reserved_item_keys: tuple = ()
     identity_bindings: object = None
     independent: bool = False
+    owned_resource_bytes: int = 0
+    private_texture_copies: Dict[str, str] = field(default_factory=dict)
 
     def allocate_owned_keys(self, namespace, symbols, used):
         if self.identity_bindings is None:
@@ -210,7 +212,12 @@ class _Planner(EffectPlanningMixin):
             raise NewItemPlanError(f"{path} already exists in the archives; a new item must not overwrite it")
         if any(request.path.lower() == path.lower() for request in self.additions):
             raise NewItemPlanError(f"{path} is added twice")
+        if self.independent:
+            from cdmw.services.new_item_resource_copies import check_owned_resource_budget
+            check_owned_resource_budget(self, len(payload))
         self.additions.append(ArchiveAddRequest.from_template(template_entry, path, payload))
+        if self.independent:
+            self.owned_resource_bytes += len(payload)
         self.summary.append(what)
 
     def owned_stem_map(self) -> Mapping[str, str]:
@@ -608,6 +615,12 @@ class _Planner(EffectPlanningMixin):
         pac_map = {item.path: renamed[item.path][1] for item in pac_files}
         old_pac = primary.path
         texture_map = self._texture_renames()
+        texture_paths = {}
+        for path in self.model.side_files:
+            if path.lower().endswith(".dds"):
+                folder, _, name = path.replace("\\", "/").rpartition("/")
+                target = f"{folder}/{texture_map[name]}" if folder else texture_map[name]
+                texture_paths[path] = target.lower() if self.independent else target
         donor = self._effect_donor()
         written: List[str] = []
         skipped_physics = ""
@@ -645,8 +658,13 @@ class _Planner(EffectPlanningMixin):
                 if strip_physics:
                     from cdmw.services.new_item_skinning import strip_template_material_physics
                     payload = strip_template_material_physics(payload)
-                for old_name, new_name in texture_map.items():
-                    payload = payload.replace(old_name.encode("utf-8"), new_name.encode("utf-8"))
+                if self.independent:
+                    from cdmw.services.new_item_resource_copies import copy_material_textures
+                    payload, copied = copy_material_textures(self, payload, texture_paths)
+                    written.extend(copied)
+                else:
+                    for old_name, new_name in texture_map.items():
+                        payload = payload.replace(old_name.encode("utf-8"), new_name.encode("utf-8"))
             else:
                 payload = self.snapshot.payload(item.path)
             self.add(self.snapshot.entry(item.path), new_path, payload, f"{role}: {new_path}")
@@ -658,9 +676,7 @@ class _Planner(EffectPlanningMixin):
         for old_path, data in self.model.side_files.items():
             if not old_path.lower().endswith(".dds"):
                 continue
-            folder, _, name = old_path.replace("\\", "/").rpartition("/")
-            new_name = texture_map[name]
-            new_path = f"{folder}/{new_name}" if folder else new_name
+            new_path = texture_paths[old_path]
             template_entry = self.snapshot.entry(old_path) if self.snapshot.has_entry(old_path) else self.snapshot.entry(old_pac)
             self.add(template_entry, new_path, data, f"texture: {new_path}")
             written.append(new_path)

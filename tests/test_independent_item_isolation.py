@@ -39,7 +39,10 @@ def test_same_name_items_have_separate_ownership_without_a_native_claim(tmp_path
     for row in (one, two):
         assert row["contribution_class"] == "new-item"
         assert row["resource_graph"] is not None
-        assert row["authoring_template"] in row["protected_game_records"]["iteminfo"]
+        assert row["authoring_template"] not in row["protected_game_records"]["iteminfo"]
+        assert row["protected_game_records"]["equiptypeinfo"]
+        assert row["protected_game_records"]["statusinfo"]
+        assert any(source["path"].endswith("/iteminfo.staticinfobody") for source in row["source_dependencies"])
         assert any(output["path"].endswith(".staticinfobody") for output in row["shared_outputs"])
         assert not row["isolated_new_item"]["admitted"]
         assert "shared-file-composition" in {reason["code"] for reason in row["isolated_new_item"]["reasons"]}

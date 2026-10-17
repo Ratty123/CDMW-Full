@@ -45,6 +45,10 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 ### Fixed
 
+- Independent item packages privately copy supported DDS references in their owned mesh materials, including selected variants and companion meshes. Exact material fields, source checks and separate update/removal ownership are preserved; existing installations use the normal rebuild flow.
+- Independent item composition allows external or typed edits to a donor ItemInfo row after validating a distinct cloned record with no retained donor identity. Borrowed item and resource dependencies stay protected.
+- Independent item imports refuse ASCII ItemInfo name-hash collisions against selected packages, stock/external names and retained reservations. External rows with mismatched directory and body IDs are rejected before composition.
+
 - Independent item collision errors identify the incoming package, conflicting resource paths and existing owners, including external mods and retained identities.
 - Moving and resizing CDMW windows across monitors avoids interruptions from layout corrections, repeated geometry saves and redundant DPI updates. Embedded previews stay clipped to their scrolling panes, and usable window positions between screens are preserved.
 - Placement & Animations preserves the selected animation clip during socket edits and Undo/Redo, avoiding unnecessary destruction of the clip list during history navigation.

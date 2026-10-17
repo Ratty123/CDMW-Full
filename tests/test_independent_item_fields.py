@@ -129,9 +129,12 @@ def test_rebuild_installed_overlays_preserves_disjoint_field_intent(tmp_path, re
 @pytest.mark.parametrize('reverse', [False, True])
 @pytest.mark.parametrize('route', ['batch', 'later', 'virtual'])
 def test_legacy_required_records_are_protected_independently_of_compile_order(tmp_path, reverse, route):
+    from dataclasses import replace
+
     service, snapshot, _ = setup_game(tmp_path)
     root = tmp_path / 'game'
-    legacy = from_plan(service.plan(shop_spec('LegacyItem'), snapshot, capture_independent=True), uuid4().hex)
+    choice = replace(shop_spec('LegacyItem'), socket_items=(1001295,))
+    legacy = from_plan(service.plan(choice, snapshot, capture_independent=True), uuid4().hex)
     edited = field_package(snapshot)
     packages = [legacy, edited][::-1] if reverse else [legacy, edited]
     if route == 'later':

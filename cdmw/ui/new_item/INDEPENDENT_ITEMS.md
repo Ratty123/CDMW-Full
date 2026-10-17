@@ -44,6 +44,13 @@ including when duplicating the current draft. **Update an existing item package*
 explicitly selects the UUID to preserve, even when names or appearance change.
 Technical game identities are managed; player-facing names remain editable.
 
+Primary `CDI_<UUID>` ItemInfo names also receive a conservative 32-bit hash
+collision check under ASCII lowercasing. Selected packages are compared with one
+another, stock and external ItemInfo names, and active, disabled and removed
+identity reservations. Refusals identify both names and their owners. Reinstalling
+or updating the same owner keeps its identity. This check does not certify
+arbitrary Unicode/CRT locale behavior, auxiliary name families or native lookup.
+
 Successfully installed independent packages have distinct identities and cannot
 silently overwrite each other's owned records or assets. CDMW refuses ambiguous
 overlap, unknown owned reference layouts, incompatible dependencies, hash/name
@@ -109,7 +116,9 @@ and records supported implicit material sidecars. Borrowed and unclassified
 resources remain explicit. Its 16,384-edge diagnostic cap bounds report storage;
 `graph_complete` describes that inventory only. Truncation or an unknown layout
 prevents a closure claim. This graph does not establish native lookup or lifetime,
-and existing donor-record, texture and unchanged-physics protections still apply.
+and remaining donor-record, texture and unchanged-physics protections still apply.
+An unwalked namespace-qualified material resource also keeps source closure false,
+so source-carrier verification remains required.
 
 Inspection publishes no package, identity reservation or game output. Existing
 reservations constrain the preview; new allocations are not committed. The report
@@ -147,6 +156,10 @@ Planner semantic changes require a compiler revision change; output or admission
 changes in a named adapter require its revision change. Existing layers without
 this record remain readable for recovery and removal, but cannot claim current
 compilation. The compiler record itself does not change the v1 package schema.
+Compiler revision 10 includes private material DDS copies and the narrower donor
+record rule below. Previously compiled installations use the existing explicit
+rebuild flow; virtual profiles require **Apply changes**. IDs and the portable
+v1/v2 package schemas remain unchanged.
 
 ## Version 2 admission and compilation identity
 
@@ -370,6 +383,27 @@ the payload layout. Arrays, cubes, volumes, unknown codecs and unexplained trail
 bytes are refused. This validation also applies when the source has no texture
 registry; it does not establish in-game support for every accepted DDS codec.
 
+Independent compilation privately copies supported stock DDS files referenced
+by already-owned model materials, including selected variants and their decoded
+prefab companions. Only complete, unqualified `ResourceReferencePath_ITexture`
+`_path` attributes are rebound. Matching uses the full normalized source path;
+comments, labels, unrelated attributes and other material bytes are preserved.
+Each item reuses one unchanged private copy per source path. Explicit imported
+texture outputs keep their existing destination rules.
+
+Automatic copies use the item's allocated stem plus a stable source-path digest,
+and pass through the existing DDS/PATHC registration and collision checks.
+Their original source hashes stay in the package dependency contract. These
+copies add compiled output bytes without adding new portable input blobs.
+Automatic extraction checks the source size first; independent additions through
+`_Planner.add` count their logical bytes and paths even when memory is shared.
+
+An unsupported source DDS retains its original borrowed binding with a warning.
+Malformed reference XML, missing source witnesses and resource-limit violations
+refuse preparation. Other resource types, namespaces, socket descriptors and
+unknown physics remain explicit limitations. Donor DDS replacement guards still
+apply, and current output still uses shared-file composition.
+
 The icon registry is flat UTF-8 XML with multiple self-closing `Texture` elements.
 Its writer and merge validator share the same grammar. The BOM, comments and
 unknown surrounding content are retained; conflicting edits to that content
@@ -499,8 +533,13 @@ checksums do not prevent stripping or authenticate the author. The exact negotia
 
 The first supported record boundaries are:
 
-- ItemInfo: the template and transitive referenced item/perk/material/price rows
-  stay unchanged; unrelated records and external added IDs can coexist.
+- ItemInfo: referenced item/perk/material/price rows stay unchanged. The donor's
+  own row may coexist with an external or typed field edit only after the compiled
+  primary row has a distinct key, `CDI_<UUID>` name and ASCII name hash, and no
+  retained donor identity is found in emitted records/resources or transitive
+  borrowed rows. Explicit donor references, ambiguous names and incomplete table
+  changes keep the original protection. Unrelated records and external added IDs
+  can coexist.
 - EquipTypeInfo and StatusInfo: complete referenced equipment and stat records
   stay unchanged; unrelated records can coexist.
 - StoreInfo and ItemGroupInfo: the existing structured stock/member merger
@@ -509,7 +548,14 @@ The first supported record boundaries are:
   stay protected; supported appended records can coexist. Unverified resource
   changes still refuse rather than assuming they are unrelated.
 
-Both halves of a changed table are required. Multiple external tables can be
+The donor exception changes only its required ItemInfo record. Exact author-source
+hashes and index witnesses remain mandatory, and equipment, status, perk, price
+and resource dependencies retain their guards. It is a compiled-record result;
+it does not establish closed resource ownership or native lifetime.
+
+Both halves of a changed table are required. An external ItemInfo row's serialized
+key must equal its table-directory key; a mismatched identity is refused before
+composition. Multiple external tables can be
 combined automatically when every shipped row remains byte-identical and all
 changes are verified additions. Other different external replacements of
 the same file remain ambiguous without their original baselines; the report points

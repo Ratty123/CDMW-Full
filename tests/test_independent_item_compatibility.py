@@ -77,7 +77,7 @@ def test_required_record_conflict_identifies_mod_file_and_record(tmp_path, name)
     _, package = authored(tmp_path / 'author')
     _, stock, _ = setup_game(tmp_path / 'recipient')
     root = tmp_path / 'recipient/game'
-    key = TEMPLATE if name == 'iteminfo' else stock.rows[TEMPLATE].equip_type_key
+    key = stock.rows[TEMPLATE].socket_items[0] if name == 'iteminfo' else stock.rows[TEMPLATE].equip_type_key
     mount_mod(root, tmp_path / 'foreign', table_change(stock, name, key))
     before = (root / 'meta/0.papgt').read_bytes()
     with pytest.raises(OverlayConflict, match=rf'foreign.*{name}.*record {key}'):

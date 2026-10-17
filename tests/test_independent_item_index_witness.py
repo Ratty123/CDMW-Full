@@ -133,10 +133,10 @@ def test_final_fingerprinting_cannot_adopt_a_replacement_index(tmp_path, monkeyp
     owner, name = (composition, 'hash_file') if virtual else (overlays, '_read_source_checksum')
     checksum = getattr(owner, name)
 
-    def replace_before_hash(path, stop_event=None):
+    def replace_before_hash(path, stop_event=None, **kwargs):
         if path == pamt:
             replace_index(pamt, changed, True)
-        return checksum(path, stop_event)
+        return checksum(path, stop_event, **kwargs)
 
     monkeypatch.setattr(owner, name, replace_before_hash)
     with pytest.raises(ValueError, match='index changed since parsing'):

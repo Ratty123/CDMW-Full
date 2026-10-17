@@ -158,7 +158,8 @@ def test_virtual_update_and_identity_transfer_reuse_bindings(tmp_path):
 
 
 @pytest.mark.parametrize('archive_mod', [False, True])
-def test_virtual_update_partial_removal_and_reverse_reinstall_preserve_external_edit(tmp_path, archive_mod):
+def test_virtual_update_partial_removal_and_reverse_reinstall_preserve_external_edit(tmp_path, archive_mod, monkeypatch):
+    monkeypatch.setattr('cdmw.services.new_item_service.game_is_running', lambda: False)
     import copy
     import shutil
     from cdmw.services.independent_item_package import read_package
@@ -225,9 +226,9 @@ def test_virtual_update_partial_removal_and_reverse_reinstall_preserve_external_
         assert game_bytes(first_generation / 'files') == first_files
 
     assert load_registry(root) == reservations
-    # An edit to a required template must refuse without replacing the usable profile.
+    # An edit to a borrowed perk must refuse without replacing the usable profile.
     conflicting = tmp_path / 'conflicting'
-    for path, data in table_change(stock, key=TEMPLATE).items():
+    for path, data in table_change(stock, key=stock.rows[TEMPLATE].socket_items[0]).items():
         target = conflicting / 'files' / path
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_bytes(data)

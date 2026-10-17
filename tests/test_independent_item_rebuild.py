@@ -140,19 +140,22 @@ def test_failed_rebuild_restores_previous_artifacts_compiler_and_identity(tmp_pa
 
 
 @pytest.mark.parametrize('record', ['missing', 'different'])
-def test_virtual_profile_with_unknown_compiler_requires_reapply_without_renumbering(tmp_path, record):
+def test_virtual_profile_with_unknown_compiler_requires_reapply_without_renumbering(tmp_path, monkeypatch, record):
     from cdmw.domain.virtual_loader import VirtualProfile
     from cdmw.services.virtual_loader_composition import prepare_profile
     from cdmw.services.virtual_loader_state import PROFILE_PATH, generation_path, load_profile, publish_profile
     from cdmw.services.virtual_loader_runtime import _snapshot_preflight, runtime_status
     from tests.test_virtual_loader import packages, game_bytes
 
+    # This profile belongs to the temporary fixture, independently of host processes.
+    monkeypatch.setattr('cdmw.services.new_item_service.game_is_running', lambda: False)
     root, selected = packages(tmp_path)
     before_game = game_bytes(root)
     publish_profile(prepare_profile(VirtualProfile(selected), root))
     before_registry = installer.load_registry(root)
     profile = load_profile(root)
     profile.pop('compilation', None)
+    profile.pop('build_cache', None)
     if record == 'missing':
         del profile['compiler']
     else:

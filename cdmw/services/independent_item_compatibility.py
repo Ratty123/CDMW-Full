@@ -284,26 +284,67 @@ def _external_table(external, paths, snapshot, stop_event):
             if not snapshot.has_entry(path):
                 raise OverlayConflict(f'{paths[0]}: incomplete external table.')
             data[path] = snapshot.payload(path)
+    if paths[0].rsplit('/', 1)[-1] in ('iteminfo.staticinfobody', 'iteminfo.pabgb'):
+        labels = ', '.join(external.labels(paths))
+        for directory_key, raw in _table(data[paths[0]], data[paths[1]])[1]:
+            raise_if_cancelled(stop_event, 'Mod comparison cancelled.')
+            number = int.from_bytes(directory_key, 'little')
+            if len(raw) < 4:
+                raise OverlayConflict(f'{labels}: {paths[0]}: record {number} has no complete ItemInfo key.')
+            record_key = int.from_bytes(raw[:4], 'little')
+            if record_key != number:
+                raise OverlayConflict(f'{labels}: {paths[0]}: ItemInfo directory key {number} '
+                    f'differs from record key {record_key}.')
     return data
 
 
 def _required_keys(package, snapshot, changes):
-    """Protect complete referenced item/equipment/stat records, including transitive perks."""
+    """Protect referenced records while retaining the donor's source contract."""
     from cdmw.core.iteminfo_row import parse_iteminfo_row
+    from cdmw.core.stringinfo_table import stringinfo_key
     from cdmw.services.independent_mod_package import has_legacy_item
     if not has_legacy_item(package):
         return {'iteminfo': set(), 'equiptypeinfo': set(), 'statusinfo': set()}
     spec, *_ = unpack_recipe(package)
     required = {'iteminfo': set(), 'equiptypeinfo': set(), 'statusinfo': set()}
-    pending = {int(spec.template_key)} | owned_item_references(changes)
+    template_key = int(spec.template_key)
+    references = owned_item_references(changes)
+    pending = {template_key} | references
+    template = snapshot.rows.get(template_key)
+    # The native name map lowercases before hashing. Its ASCII spellings are
+    # supported here; an unknown name encoding keeps the original protection.
+    source_name = template.string_key if template is not None else ''
+    ascii_name = bool(source_name) and source_name.isascii() and '\0' not in source_name
+    source_name_hash = stringinfo_key(source_name.lower()) if ascii_name else None
+    source_tokens = (template_key.to_bytes(4, 'little'),
+                     source_name_hash.to_bytes(4, 'little')) if ascii_name else ()
+    source_pattern = re.compile(re.escape(source_name.encode('ascii')), re.IGNORECASE) if ascii_name else None
+
+    def retains_source_identity(raw):
+        return not ascii_name or any(token in raw for token in source_tokens) or source_pattern.search(raw) is not None
+
     added_rows = []
+    retained_identity = not ascii_name
     for path, change in changes.items():
-        if path.rsplit('/', 1)[-1] not in ('iteminfo.staticinfobody', 'iteminfo.pabgb'):
+        paths = _group(path)
+        if len(paths) != 2:
+            if change['before'] is None and change['after'] is not None:
+                retained_identity |= retains_source_identity(change['after'])
             continue
-        head = _group(path)[1]
+        if path != paths[0]:
+            continue
+        head = paths[1]
+        if (head not in changes or change['before'] is None or change['after'] is None
+                or changes[head]['before'] is None or changes[head]['after'] is None):
+            # An absent or removed table is outside this record-copy proof.
+            # Its normal owner still decides whether the change is supported.
+            retained_identity = True
+            continue
         old = dict(_table(change['before'], changes[head]['before'])[1])
-        added_rows.extend(parse_iteminfo_row(raw) for key, raw in _table(change['after'], changes[head]['after'])[1]
-                          if key not in old)
+        added = [raw for key, raw in _table(change['after'], changes[head]['after'])[1] if key not in old]
+        retained_identity |= any(retains_source_identity(raw) for raw in added)
+        if path.rsplit('/', 1)[-1] in ('iteminfo.staticinfobody', 'iteminfo.pabgb'):
+            added_rows.extend(parse_iteminfo_row(raw) for raw in added)
     rows = list(added_rows)
     while pending:
         key = pending.pop()
@@ -312,16 +353,29 @@ def _required_keys(package, snapshot, changes):
         required['iteminfo'].add(key)
         row = snapshot.rows[key]
         rows.append(row)
-        pending.update(row.socket_items)
-        pending.update(key for key, _count, _extra in row.add_socket_materials)
-        pending.update(price.item_key for price in row.price_list)
-        pending.update(price.item_key for level in row.enchant_levels for price in level.buy_prices)
+        outgoing = set(row.socket_items)
+        outgoing.update(key for key, _count, _extra in row.add_socket_materials)
+        outgoing.update(price.item_key for price in row.price_list)
+        outgoing.update(price.item_key for level in row.enchant_levels for price in level.buy_prices)
+        references.update(outgoing)
+        pending.update(outgoing)
+        if key != template_key:
+            retained_identity |= retains_source_identity(row.raw)
     for row in rows:
         if row.equip_type_key:
             required['equiptypeinfo'].add(row.equip_type_key)
         for level in row.enchant_levels:
             required['statusinfo'].update(stat.status_key for stat in level.stats)
             required['statusinfo'].update(level.level_stat_keys)
+    private_name = 'CDI_' + package.identity
+    private_rows = [row for row in added_rows if row.string_key == private_name
+                    and row.key not in snapshot.rows]
+    if (len(private_rows) == 1 and not retained_identity and template_key not in references
+            and stringinfo_key(private_name.lower()) != source_name_hash):
+        # This proves only the clone's distinct record identity. Keep the donor's
+        # transitive equipment, stat, perk and resource guards. Exact author-source
+        # hashes are still checked by check_package_dependencies.
+        required['iteminfo'].discard(template_key)
     return required
 
 
