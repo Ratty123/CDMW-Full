@@ -15,6 +15,9 @@ class ThemeChangeBusyOverlay(QFrame):
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.setObjectName("ThemeChangeBusyOverlay")
+        # Keep the busy overlay above embedded native renderers.
+        self.setAttribute(Qt.WA_DontCreateNativeAncestors, True)
+        self.setAttribute(Qt.WA_NativeWindow, True)
         self.setAttribute(Qt.WA_StyledBackground, False)
         self.setAutoFillBackground(False)
         self.hide()

@@ -43,6 +43,7 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 ### Fixed
 
+- Moving and resizing CDMW windows across monitors avoids interruptions from layout corrections, repeated geometry saves and redundant DPI updates. Embedded previews stay clipped to their scrolling panes, and usable window positions between screens are preserved.
 - Placement & Animations preserves the selected animation clip during socket edits and Undo/Redo, avoiding unnecessary destruction of the clip list during history navigation.
 - Mesh Editor accepts Russian interface updates, keeps Cleanup settings compact at larger font sizes, and refuses finishing plain geometry edits when their Undo/Redo snapshots exceed the history memory limit. Create New Item search fields retain typing focus while results update, and retired import and preview cleanup remains safe after closing its owning dialog. Closing tools cancels pending column-layout restoration to avoid errors from deleted controls.
 - Archive Browser controls catalogue cache growth in the background, reclaims unused older generations and prepared files, and preserves active files and reusable indexes for fast reopening. Overlapping workers protect new catalogue generations during refresh so cleanup cannot remove an index being opened.

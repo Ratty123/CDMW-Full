@@ -5,12 +5,17 @@ Shared completion log for plans in this folder. Keep each entry as a short dated
 - 2026-10-17 | MEL-DOC-01 | Created the improvement plan and this completion log, with matching task IDs and completion rules. Implementation has not started.
 - 2026-10-17 | WMDPI-DOC-01 | Created the [window movement and DPI smoothness plan](window-move-dpi-smoothness-plan.md), with baseline evidence, acceptance checks, and shared progress rules. Implementation has not started.
 - 2026-10-17 | MRF-DOC-01 | Created the [Morph & Refit improvement plan](morph-refit-improvement-plan.md), with reproduced fitting cases, acceptance checks, and shared progress rules; saved-document checks passed. Implementation has not started.
+- 2026-10-17 | WMDPI-01 | Confirmed the clean source baseline, current geometry findings, task ownership, and focused validation scope; preserved shared planning entries.
 - 2026-10-17 | FMT-DOC-01 | Created the [Inspect File Formats update plan](inspect-file-formats-update-plan.md), with current-state findings, acceptance checks, and shared completion rules. Implementation has not started.
+- 2026-10-17 | WMDPI-02 | Deferred actual geometry settings updates until each window settles, with final-state flushes; 13 persistence cases passed and 29 passed with the native tracker tests.
 - 2026-10-17 | MEL-BASE-01 | Reconfirmed current owners and baseline; 116 package/provenance/virtual checks and 157 authoring checks plus 32 subtests passed.
 - 2026-10-17 | MEL-ME-01 | Cached sorted topology neighbors for Smooth; parity, topology, stale-handle and undo checks passed. Neighbor lookup measured 124.321 ms before and 0.145 ms after on 10,000 vertices.
 - 2026-10-17 | MRF-BASE-01 | Reconfirmed source owners and baseline; two nested-layer cases and shifted body seams reproduced 3 failures, with the protected-rim control passing against the unchanged helper.
 - 2026-10-17 | FMT-BASE-01 | Refreshed the Format Explorer source baseline, verified current workflow owners and package versions, and recorded ownership alongside other agents' work.
 - 2026-10-17 | FMT-MODEL-01 | Added separate application workflow metadata and optional archive counts; syntax and model probes passed for 87 shipped / 142 total formats and independent editing filters.
+- 2026-10-17 | WMDPI-03 | Added per-window native move/resize holds with safe queued completion and cleanup; 16 tracker cases pass and native DPI messages remain unconsumed.
+- 2026-10-17 | WMDPI-04 | Coordinated fitting through one scheduler and preserved reachable monitor spans; active-drag, overflow, recovery, and shell-owner checks pass (30 display cases).
+- 2026-10-17 | WMDPI-05 | Completed focused behavioral regression coverage; 59 tests pass in 3.65 seconds with isolated offscreen Qt settings and caches.
 - 2026-10-17 | FMT-DATA-01 | Corrected format evidence and constrained sidecar editing; archive counts/runtime fields preserved and six focused codec/sidecar checks passed.
 - 2026-10-17 | FMT-MESH-01 | Added current mesh-policy limits and accurate interchange operations/output prerequisites; focused catalogue checks passed.
 - 2026-10-17 | FMT-ROUTE-01 | Added verified workflow destinations and guidance; four real headless sidecar-menu dispatch cases and panel links passed.
@@ -38,3 +43,5 @@ Shared completion log for plans in this folder. Keep each entry as a short dated
 - 2026-10-17 | MEL-DONE-01 | Closed all 17 required tasks with synchronized results, owning docs, localization and an isolated local MEL commit; five conditional research tasks remain deferred and other plans' work is preserved.
 - 2026-10-17 | MRF-DIAG-01 | Verified read-only current-fit body/layer measurements, bounded sampling and stale-result handling against the intended native build; 24 native/service and 6 headless UI cases passed with no skips.
 - 2026-10-17 | MRF-DONE-01 | Closed all required Morph & Refit work with final source review, owning docs, translated diagnostics and isolated local commit; 3 localization checks plus staged-source/catalog validation passed, and 3 conditional tasks remain deferred.
+- 2026-10-17 | WMDPI-08 | Isolated native hosts with ancestor clipping and stable ownership; 45 distinct isolation/embedding lifecycle cases and final 100%/150% native layers passed, with physical heartbeat maxima of 80.926 ms closed and 123.987 ms open.
+- 2026-10-17 | WMDPI-07 | Completed source/evidence review and scoped documentation/commit closure; 105 distinct focused cases passed, completed tasks match this log, and the required equal-scaling hardware gap remains explicit in the plan.

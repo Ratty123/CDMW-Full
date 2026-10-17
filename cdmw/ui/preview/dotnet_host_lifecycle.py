@@ -7,6 +7,8 @@ from pathlib import Path
 from PySide6.QtCore import QEvent, QObject
 from PySide6.QtGui import QResizeEvent
 
+from cdmw.ui.native_window_clipping import ensure_native_host_clipping
+
 
 class DotNetPreviewHostLifecycleMixin:
     def hold_package_lease(self, package_dir: Path) -> bool:
@@ -35,6 +37,7 @@ class DotNetPreviewHostLifecycleMixin:
         }
 
     def showEvent(self, event: object) -> None:  # type: ignore[override]
+        ensure_native_host_clipping(self)
         super().showEvent(event)  # type: ignore[arg-type]
         self.controller.set_visible(True)
         self._request_child_geometry_sync(force_frame_refresh=True)

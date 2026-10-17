@@ -6,9 +6,13 @@ use layout hints for content; scroll only when a workspace cannot shrink further
 
 from __future__ import annotations
 
+import math
+import sys
 import weakref
+from time import monotonic
 
 from PySide6.QtCore import QEvent, QObject, QRect, QSize, Qt, QTimer
+from PySide6.QtGui import QRegion
 from PySide6.QtWidgets import (
     QAbstractButton, QAbstractSpinBox, QApplication, QComboBox, QFrame,
     QLabel, QLayout, QLineEdit, QMainWindow, QPushButton, QScrollArea, QSizePolicy,
@@ -16,6 +20,8 @@ from PySide6.QtWidgets import (
     QToolButton, QVBoxLayout, QWidget,
 )
 from shiboken6 import isValid
+
+from cdmw.ui.window_interaction import ensure_window_interaction_tracker
 
 
 def protect_control_text(widget: QWidget) -> None:
@@ -90,17 +96,63 @@ def _normal_window(widget: QWidget) -> bool:
             and not widget.testAttribute(Qt.WA_DontShowOnScreen))
 
 
+def _available_screen_rects() -> tuple[QRect, ...]:
+    return tuple(screen.availableGeometry() for screen in QApplication.screens())
+
+
+def _window_is_reachable(window: QWidget, work_areas: tuple[QRect, ...]) -> bool:
+    """Allow useful partial visibility and windows spanning actual work areas.
+
+    An ordinary-size window only needs a draggable caption and usable content
+    to stay where the user put it. A window larger than any individual screen
+    must also have its content covered by the desktop, with a small allowance
+    for outer clipping. A gap between monitors is never treated as a screen.
+    """
+    frame = window.frameGeometry()
+    client = window.geometry()
+    caption_height = max(24, client.top() - frame.top())
+    caption = QRect(frame.left(), frame.top(), frame.width(), min(frame.height(), caption_height))
+    caption_reachable = any(
+        (visible := caption.intersected(area)).width() >= min(160, caption.width())
+        and visible.height() >= min(20, caption.height())
+        for area in work_areas
+    )
+    content_reachable = any(
+        (visible := client.intersected(area)).width() >= min(160, client.width())
+        and visible.height() >= min(96, client.height())
+        for area in work_areas
+    )
+    if not caption_reachable or not content_reachable:
+        return False
+    if any(frame.width() <= area.width() and frame.height() <= area.height() for area in work_areas):
+        return True
+    desktop = QRegion()
+    for area in work_areas:
+        desktop |= QRegion(area)
+    # Keep a large, useful spanning window even when its outer edge is slightly
+    # clipped. Subtraction tests full coverage; QRegion.contains(QRect) only
+    # tests overlap and a bounding rectangle would incorrectly fill screen gaps.
+    inset_x, inset_y = min(48, client.width() // 4), min(48, client.height() // 4)
+    content = client.adjusted(inset_x, inset_y, -inset_x, -inset_y)
+    return QRegion(content).subtracted(desktop).isEmpty()
+
+
 def fit_window_to_screen(window: QWidget, available: QRect | None = None) -> None:
-    """Keep the full frame on screen without discarding oversized dialog content.
+    """Recover inaccessible windows without disturbing useful manual placement.
 
     Overflow wrapping is permanent once needed. The central widget, layout, and
     nested preview parents retain their identities across subsequent resizes.
+    An explicit work area requests the existing bounded single-screen fit.
     """
-    if not _normal_window(window) or window.isMinimized():
+    if (not isValid(window) or not _normal_window(window) or window.isMinimized()
+            or ensure_window_interaction_tracker().is_active(window)):
         return
     screen = window.screen() or QApplication.primaryScreen()
     if available is None:
         if screen is None:
+            return
+        if (not window.isMaximized() and not window.isFullScreen()
+                and _window_is_reachable(window, _available_screen_rects())):
             return
         available = screen.availableGeometry()
     bounds = available.adjusted(8, 8, -8, -8)
@@ -129,20 +181,26 @@ def fit_window_to_screen(window: QWidget, available: QRect | None = None) -> Non
             window.setMinimumSize(0, 0)
             root.layout().activate()
     if not window.isMaximized() and not window.isFullScreen():
-        window.resize(window.size().boundedTo(limit))
+        desired_size = window.size().boundedTo(limit)
+        if window.size() != desired_size:
+            window.resize(desired_size)
         frame = window.frameGeometry()
         x = min(max(frame.x(), bounds.left()), max(bounds.left(), bounds.right() - frame.width() + 1))
         y = min(max(frame.y(), bounds.top()), max(bounds.top(), bounds.bottom() - frame.height() + 1))
-        window.move(x, y)
+        if frame.x() != x or frame.y() != y:
+            window.move(x, y)
 
 
 class DisplayScalingPolicy(QObject):
     """One application filter also covers late-created tools and owned dialogs."""
 
+    _FIT_DELAY_MS = 120
+
     def __init__(self, app: QApplication) -> None:
         super().__init__(app)
         self._controls: weakref.WeakSet[QWidget] = weakref.WeakSet()
-        self._windows: weakref.WeakSet[QWidget] = weakref.WeakSet()
+        self._windows: weakref.WeakKeyDictionary[QWidget, float | None] = weakref.WeakKeyDictionary()
+        self._last_fit: weakref.WeakKeyDictionary[QWidget, tuple] = weakref.WeakKeyDictionary()
         self._connected: weakref.WeakSet[QWidget] = weakref.WeakSet()
         self._busy = False
         self._timer = QTimer(self)
@@ -150,11 +208,15 @@ class DisplayScalingPolicy(QObject):
         self._timer.timeout.connect(self._apply_pending)
         self._window_timer = QTimer(self)
         self._window_timer.setSingleShot(True)
-        self._window_timer.setInterval(120)
+        self._window_timer.setInterval(self._FIT_DELAY_MS)
         self._window_timer.timeout.connect(self._fit_pending_windows)
+        self._interaction = ensure_window_interaction_tracker(app)
+        self._interaction.started.connect(self._window_interaction_started)
+        self._interaction.finished.connect(self._window_interaction_finished)
         for screen in app.screens():
             self._connect_screen(screen)
         app.screenAdded.connect(self._connect_screen)
+        app.screenRemoved.connect(self._refresh_windows)
 
     def _connect_screen(self, screen: object) -> None:
         screen.availableGeometryChanged.connect(self._refresh_windows)
@@ -164,8 +226,62 @@ class DisplayScalingPolicy(QObject):
     def _refresh_windows(self, *_args: object) -> None:
         for window in QApplication.topLevelWidgets():
             if _normal_window(window) and window.isVisible():
-                self._windows.add(window)
-        self._window_timer.start()
+                self.schedule_window_fit(window)
+
+    def schedule_window_fit(self, window: QWidget) -> None:
+        """Coalesce fitting per window, including requests from shell callers."""
+        if not isValid(window) or not _normal_window(window):
+            return
+        handle = window.windowHandle()
+        if handle is not None and window not in self._connected:
+            handle.screenChanged.connect(self._window_screen_changed)
+            self._connected.add(window)
+        self._windows[window] = (
+            None if self._interaction.is_active(window)
+            else monotonic() + self._FIT_DELAY_MS / 1000.0
+        )
+        self._arm_window_timer()
+
+    def _window_screen_changed(self, *_args: object) -> None:
+        handle = self.sender()
+        for window in tuple(self._connected):
+            if isValid(window) and window.windowHandle() is handle:
+                self.schedule_window_fit(window)
+                break
+
+    def _window_interaction_started(self, window: QWidget) -> None:
+        if isValid(window) and _normal_window(window):
+            self._windows[window] = None
+            self._arm_window_timer()
+
+    def _window_interaction_finished(self, window: QWidget) -> None:
+        if isValid(window) and window.isVisible():
+            self.schedule_window_fit(window)
+
+    def _arm_window_timer(self) -> None:
+        deadlines = []
+        for window, deadline in tuple(self._windows.items()):
+            if not isValid(window) or not window.isVisible() or not _normal_window(window):
+                self._windows.pop(window, None)
+            elif self._interaction.is_active(window):
+                self._windows[window] = None
+            elif deadline is not None:
+                deadlines.append(deadline)
+        if deadlines:
+            delay_ms = max(1, math.ceil((min(deadlines) - monotonic()) * 1000))
+            self._window_timer.start(delay_ms)
+        else:
+            # Native holds have no timeout. Pausing with the mouse held must not
+            # run fitting, and a held window must not starve another window.
+            self._window_timer.stop()
+
+    @staticmethod
+    def _fit_signature(window: QWidget) -> tuple:
+        return (
+            window.frameGeometry().getRect(), window.minimumSize(), window.minimumSizeHint(),
+            window.windowState(), window.devicePixelRatioF(),
+            tuple(area.getRect() for area in _available_screen_rects()),
+        )
 
     def _schedule(self) -> None:
         # Restarting a zero timer for every layout/paint can starve it during
@@ -189,13 +305,14 @@ class DisplayScalingPolicy(QObject):
                     self._controls.add(child)
             self._schedule()
         if kind in (
-            QEvent.Show, QEvent.Resize, QEvent.LayoutRequest, QEvent.WindowStateChange,
+            QEvent.Show, QEvent.Move, QEvent.Resize, QEvent.LayoutRequest, QEvent.WindowStateChange,
             QEvent.ScreenChangeInternal, QEvent.DevicePixelRatioChange,
         ) and _normal_window(watched):
-            self._windows.add(watched)
-            # A DPI transition can emit many resize/layout events while the
-            # user drags. Do not keep moving/resizing the window in response.
-            self._window_timer.start()
+            self.schedule_window_fit(watched)
+        elif kind == QEvent.Hide and _normal_window(watched):
+            self._windows.pop(watched, None)
+            self._last_fit.pop(watched, None)
+            self._arm_window_timer()
         return False
 
     def _apply_pending(self) -> None:
@@ -210,26 +327,36 @@ class DisplayScalingPolicy(QObject):
             self._busy = False
 
     def _fit_pending_windows(self) -> None:
-        windows = tuple(self._windows)
-        self._windows.clear()
+        now = monotonic()
         self._busy = True
         try:
-            for window in windows:
+            for window, deadline in tuple(self._windows.items()):
                 if not isValid(window) or not window.isVisible() or not _normal_window(window):
+                    self._windows.pop(window, None)
                     continue
-                handle = window.windowHandle()
-                if handle is not None and window not in self._connected:
-                    handle.screenChanged.connect(self._refresh_windows)
-                    self._connected.add(window)
+                if self._interaction.is_active(window):
+                    self._windows[window] = None
+                    continue
+                if deadline is None or deadline > now:
+                    continue
+                self._windows.pop(window, None)
+                if self._last_fit.get(window) == self._fit_signature(window):
+                    continue
                 fit_window_to_screen(window)
+                self._last_fit[window] = self._fit_signature(window)
         finally:
             self._busy = False
+            self._arm_window_timer()
 
 
 def ensure_app_display_scaling(app: QApplication | None = None) -> DisplayScalingPolicy | None:
     app = app or QApplication.instance()
     if app is None:
         return None
+    if sys.platform == "win32":
+        # Embedded native hosts must not promote ordinary sibling widgets to
+        # HWNDs, which repeat Qt screen/DPR propagation during monitor moves.
+        app.setAttribute(Qt.AA_DontCreateNativeWidgetSiblings, True)
     policy = getattr(app, "_cdmw_display_scaling", None)
     if policy is None:
         policy = DisplayScalingPolicy(app)

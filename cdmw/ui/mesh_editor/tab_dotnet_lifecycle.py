@@ -11,6 +11,7 @@ from PySide6.QtWidgets import QWidget
 from cdmw.services.mesh_edit_session_state import MeshEditSessionState
 from cdmw.services.mesh_editor_error_codes import MeshEditorErrorCode, error_payload
 from cdmw.ui.shell.settings_bridge import read_bool_setting
+from cdmw.ui.native_window_clipping import ensure_native_host_clipping
 from cdmw.ui.mesh_editor.tab_compat import facade_globals as _tab
 from cdmw.ui.mesh_editor.tab_dotnet_session_events import (
     MeshEditorDotNetSessionEventMixin,
@@ -26,6 +27,9 @@ def _host_widget_hwnd(host_widget: object | None) -> int:
     except AttributeError:
         return 0
     try:
+        if isinstance(host_widget, QWidget):
+            ensure_native_host_clipping(host_widget)
+        set_attribute(Qt.WidgetAttribute.WA_DontCreateNativeAncestors, True)
         set_attribute(Qt.WidgetAttribute.WA_NativeWindow, True)
         return int(win_id())
     except (RuntimeError, TypeError, ValueError):

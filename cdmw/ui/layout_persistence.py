@@ -8,6 +8,8 @@ temporarily hidden preview panes cannot replace a user's chosen proportions.
 from __future__ import annotations
 
 import json
+import math
+import time
 import weakref
 
 from PySide6.QtCore import QEvent, QObject, QTimer, Qt
@@ -15,8 +17,10 @@ from PySide6.QtWidgets import QApplication, QDialog, QHeaderView, QSplitter, QWi
 from shiboken6 import isValid
 
 from cdmw.ui.widgets import request_settings_sync
+from cdmw.ui.window_interaction import ensure_window_interaction_tracker
 
 PREFIX = "ui/layout/v1"
+_WINDOW_GEOMETRY_SAVE_DELAY_MS = 650
 
 
 def _identity(widget: QWidget) -> str:
@@ -127,6 +131,16 @@ class UiLayoutPersistence(QObject):
         self._timer = QTimer(self)
         self._timer.setSingleShot(True)
         self._timer.timeout.connect(self._restore_pending)
+        self._geometry_pending = weakref.WeakKeyDictionary()
+        self._geometry_timer = QTimer(self)
+        self._geometry_timer.setSingleShot(True)
+        self._geometry_timer.timeout.connect(self._save_settled_geometry)
+        self._interaction = ensure_window_interaction_tracker()
+        self._interaction.started.connect(self._interaction_started)
+        self._interaction.finished.connect(self._interaction_finished)
+        app = QApplication.instance()
+        if app is not None:
+            app.aboutToQuit.connect(self.flush)
 
     def splitters_enabled(self) -> bool:
         value = self.settings.value("preferences/remember_splitter_sizes", True)
@@ -255,6 +269,17 @@ class UiLayoutPersistence(QObject):
         if window in self._windows:
             return
         self._windows[window] = (key, not restore)
+        reference = weakref.ref(window)
+
+        def destroyed(*_args):
+            current = reference()
+            if current is not None and isValid(self):
+                # The QWidget's native state may already be gone. The last
+                # valid in-memory snapshot is still safe to persist.
+                self._save_window_geometry(current, capture_current=False)
+                self._schedule_geometry_timer()
+
+        window.destroyed.connect(destroyed)
         if restore:
             self._schedule(window)
 
@@ -302,6 +327,62 @@ class UiLayoutPersistence(QObject):
             elif isValid(widget) and isinstance(widget, QHeaderView):
                 self.watch_header(widget)
 
+    def _queue_window_geometry(self, window: QWidget) -> None:
+        entry = self._windows.get(window)
+        if entry is None or not entry[1] or window.isMinimized():
+            return
+        # QSettings can sync itself from the event loop as soon as setValue()
+        # runs. Keep the actual mutation out of Move/Resize, not just sync().
+        # A snapshot also preserves the final normal position if the next
+        # event minimizes or destroys the window before this timer expires.
+        deadline = time.monotonic() + _WINDOW_GEOMETRY_SAVE_DELAY_MS / 1000
+        self._geometry_pending[window] = (deadline, window.saveGeometry())
+        self._schedule_geometry_timer()
+
+    def _schedule_geometry_timer(self) -> None:
+        self._geometry_timer.stop()
+        deadlines = [
+            deadline for window, (deadline, _geometry) in self._geometry_pending.items()
+            if not self._interaction.is_active(window)
+        ]
+        if deadlines:
+            remaining = math.ceil((min(deadlines) - time.monotonic()) * 1000)
+            self._geometry_timer.start(max(1, remaining))
+
+    def _interaction_started(self, window: QWidget) -> None:
+        if window in self._geometry_pending:
+            self._schedule_geometry_timer()
+
+    def _interaction_finished(self, window: QWidget) -> None:
+        if window not in self._geometry_pending or not isValid(window):
+            return
+        _deadline, geometry = self._geometry_pending[window]
+        if not window.isMinimized():
+            geometry = window.saveGeometry()
+        self._geometry_pending[window] = (
+            time.monotonic() + _WINDOW_GEOMETRY_SAVE_DELAY_MS / 1000, geometry,
+        )
+        self._schedule_geometry_timer()
+
+    def _save_window_geometry(self, window: QWidget, *, capture_current: bool = True) -> None:
+        pending = self._geometry_pending.pop(window, None)
+        entry = self._windows.get(window)
+        if pending is None or entry is None or not entry[1]:
+            return
+        geometry = pending[1]
+        if capture_current and isValid(window) and not window.isMinimized():
+            geometry = window.saveGeometry()
+        if geometry != self.settings.value(entry[0]):
+            self.settings.setValue(entry[0], geometry)
+            request_settings_sync(self.settings)
+
+    def _save_settled_geometry(self) -> None:
+        now = time.monotonic()
+        for window, (deadline, _geometry) in tuple(self._geometry_pending.items()):
+            if deadline <= now and not self._interaction.is_active(window):
+                self._save_window_geometry(window)
+        self._schedule_geometry_timer()
+
     def eventFilter(self, watched: QObject, event: QEvent) -> bool:  # noqa: N802
         if self._restoring or not isinstance(watched, QWidget) or not isValid(watched):
             return False
@@ -320,14 +401,21 @@ class UiLayoutPersistence(QObject):
             splitter = watched if watched in self._splitters else watched.parentWidget()
             if splitter in self._splitters and self._splitters[splitter][1] != splitter.orientation():
                 self._schedule(splitter)
-        if kind in (QEvent.Resize, QEvent.Move, QEvent.WindowStateChange, QEvent.Hide, QEvent.Close):
-            entry = self._windows.get(watched)
-            if entry is not None and entry[1] and not watched.isMinimized():
-                self.settings.setValue(entry[0], watched.saveGeometry())
-                request_settings_sync(self.settings)
+        if kind in (QEvent.Resize, QEvent.Move, QEvent.WindowStateChange):
+            self._queue_window_geometry(watched)
+        elif kind in (
+            QEvent.Hide, QEvent.Close, QEvent.DeferredDelete,
+        ) and watched in self._windows:
+            self._queue_window_geometry(watched)
+            self._save_window_geometry(watched)
+            self._schedule_geometry_timer()
         return False
 
     def flush(self) -> None:
+        """Persist pending geometry before orderly shutdown destroys windows."""
+        self._geometry_timer.stop()
+        for window in tuple(self._geometry_pending):
+            self._save_window_geometry(window)
         self.settings.sync()
 
 
@@ -335,7 +423,9 @@ def install_layout_persistence(window, settings) -> UiLayoutPersistence:
     app = QApplication.instance()
     previous = layout_policy()
     if previous is not None:
+        previous.flush()
         app.removeEventFilter(previous)
+        previous.deleteLater()
     policy = UiLayoutPersistence(settings, window)
     app._cdmw_layout_persistence = policy
     app.installEventFilter(policy)

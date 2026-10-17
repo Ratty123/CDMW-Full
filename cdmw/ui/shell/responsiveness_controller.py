@@ -21,7 +21,7 @@ from PySide6.QtWidgets import (
 )
 
 from cdmw.ui.shell.diagnostics_controller import qt_wrapper_is_valid
-from cdmw.ui.display_scaling import fit_window_to_screen, protect_control_text
+from cdmw.ui.display_scaling import ensure_app_display_scaling, protect_control_text
 from cdmw.ui.shell.lazy_tool_tab import created_tool_widget
 from cdmw.ui.layout_utils import (
     available_layout_size_for,
@@ -431,9 +431,10 @@ class ResponsivenessControllerMixin:
                 self._apply_responsive_theme_metrics()
                 self._apply_responsive_control_minimums()
                 self._responsive_metrics_dirty = False
-            available = screen.availableGeometry()
             if adjust_window_geometry:
-                fit_window_to_screen(self, available)
+                policy = ensure_app_display_scaling()
+                if policy is not None:
+                    policy.schedule_window_fit(self)
             if restore_saved_splitters:
                 total_width = max(1, self.width() - 64)
                 self._apply_saved_splitter_sizes_if_enabled(total_width)
@@ -462,17 +463,17 @@ class ResponsivenessControllerMixin:
         self._apply_responsive_window_defaults(apply_expensive_metrics=False)
 
     def _apply_responsive_resize_adjustments(self) -> None:
-        metrics_dirty = bool(getattr(self, "_responsive_metrics_dirty", False))
         self._responsive_metrics_dirty = False
         # Qt handles the monitor's DPI. Reapplying the application-wide theme
         # here repolishes every tool (including hidden ones) during a drag.
         # Keep appearance changes on their explicit Settings path; the display
-        # policy protects text and fits content to the new logical work area.
+        # policy protects text and owns the one settled fit. Screen-change
+        # handlers already queued that fit; this later timer must not repeat it.
         self._apply_responsive_window_defaults(
             restore_saved_splitters=False,
             schedule_column_autofit=False,
             apply_expensive_metrics=False,
-            adjust_window_geometry=metrics_dirty,
+            adjust_window_geometry=False,
         )
 
     def _screen_signature_for_responsive_layout(self) -> Tuple[int, int, float, float]:
@@ -496,6 +497,9 @@ class ResponsivenessControllerMixin:
             return
         self._responsive_last_screen_signature = signature
         self._responsive_metrics_dirty = True
+        policy = ensure_app_display_scaling()
+        if policy is not None:
+            policy.schedule_window_fit(self)
         self._responsive_resize_timer.start(260)
 
     def _watch_responsive_screen_metrics(self) -> None:

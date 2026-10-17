@@ -20,6 +20,8 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from cdmw.ui.native_window_clipping import ensure_native_host_clipping
+
 
 _GWL_STYLE = -16
 _WS_CHILD = 0x40000000
@@ -88,12 +90,13 @@ class RustMeshEditorHostFrame(QFrame):
         theme_key: str = "graphite",
     ) -> None:
         super().__init__(parent)
+        ensure_native_host_clipping(self)
         self.setObjectName("MeshEditorEmbeddedRustHost")
         self.setFrameShape(QFrame.Shape.NoFrame)
         self.setMinimumSize(320, 240)
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
-        self.setAttribute(Qt.WidgetAttribute.WA_NativeWindow, True)
         self.setAttribute(Qt.WidgetAttribute.WA_DontCreateNativeAncestors, True)
+        self.setAttribute(Qt.WidgetAttribute.WA_NativeWindow, True)
         self.controller = None  # Explicitly not a Vortice preview controller.
         self._theme_key = str(theme_key or "graphite")
         self.setProperty("cdmwThemeKey", self._theme_key)
@@ -116,10 +119,12 @@ class RustMeshEditorHostFrame(QFrame):
         # renderer in its own surface so the loading page also covers the window
         # it creates before reporting ready (while its GPU is initializing).
         self._surface = QFrame(self)
+        self._surface.setAttribute(Qt.WidgetAttribute.WA_DontCreateNativeAncestors, True)
         self._surface.setAttribute(Qt.WidgetAttribute.WA_NativeWindow, True)
         self._surface.installEventFilter(self)
         root.addWidget(self._surface)
         self._pages = QStackedWidget(self)
+        self._pages.setAttribute(Qt.WidgetAttribute.WA_DontCreateNativeAncestors, True)
         self._pages.setAttribute(Qt.WidgetAttribute.WA_NativeWindow, True)
         self._pages.setObjectName("MeshEditorRustHostPages")
         root.addWidget(self._pages)
@@ -195,6 +200,7 @@ class RustMeshEditorHostFrame(QFrame):
 
     def host_hwnd(self) -> int:
         try:
+            ensure_native_host_clipping(self)
             return max(0, int(self._surface.winId()))
         except (RuntimeError, TypeError, ValueError):
             return 0
@@ -372,6 +378,8 @@ class RustMeshEditorHostFrame(QFrame):
 
     def event(self, event: QEvent) -> bool:
         event_type = event.type()
+        if event_type == QEvent.Type.Show:
+            ensure_native_host_clipping(self)
         device_pixel_ratio_change = getattr(
             QEvent.Type,
             "DevicePixelRatioChange",

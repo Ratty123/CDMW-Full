@@ -17,14 +17,23 @@ sizes** preference applies to Qt panes and Rust Mesh Editor panel widths.
 
 Splitter gestures and Rust resize actions save the chosen sizes; responsive
 defaults and hiding a comparison pane do not replace them. Writes use the shared
-settings debounce and flush at shutdown. Window geometry is constrained to the
-current monitor's available area. Generic Qt dialogs need a stable `objectName`;
+settings debounce and flush at shutdown. Window geometry has its own per-window
+650 ms settle delay before calling `QSettings.setValue()`: delaying only
+`sync()` would still allow Qt's event loop to rewrite the file during movement.
+Native Windows move/resize operations suspend geometry saving even while the
+user pauses with the title bar held. Each pending window keeps its latest valid
+geometry in memory; another active window does not delay its save. Close, hide,
+destruction, policy replacement, and orderly shutdown preserve pending geometry.
+Minimizing retains the latest normal or maximized snapshot.
+
+Generic Qt dialogs need a stable `objectName`;
 widget class/attribute names provide stable pane identities without translated
 labels or runtime control IDs. Native New Item dialogs store logical client
 coordinates, while its columns and splitters share the Qt workflow's settings.
 Saved-data coverage includes `test_settings_tab_flush_persistence.py` and
-`test_profile_controller.py` under `tests/`; detailed layout behavior is checked
-when changing the affected surface.
+`test_profile_controller.py` under `tests/`. `test_layout_persistence.py`
+exercises the actual Qt event loop and temporary INI file, including an active
+drag, independent windows, final flushes, minimize/restore, and existing keys.
 
 ## Compact Workspace and navigation
 
@@ -138,11 +147,40 @@ full-window height.
 `cdmw/ui/display_scaling.py` installs one application display policy for the shell,
 late-created tools, and Qt dialogs. Text controls follow their font and translated
 label metrics. The current tool has an overflow scroll area; inactive tools do
-not impose their minimum size on it. Oversized separate windows fit the current
-screen's available work area and retain reachable content in a scroll area.
-Overflow wrapping happens once, preserving the central widget and nested preview
-parents on subsequent resizes. Screen, work-area, and DPI changes refresh the
-shell metrics once; ordinary resizing keeps the inexpensive path.
+not impose their minimum size on it. Overflow wrapping happens once, preserving
+the central widget and nested preview parents on subsequent resizes.
+
+`cdmw/ui/window_interaction.py` tracks native Windows move/resize operations per
+top-level window without consuming their messages or replacing Qt's DPI handling.
+Custom fitting and geometry persistence stay deferred through pauses with the
+mouse held. Queued completion handles cancellation and window/handle teardown
+without letting an older callback release a newer interaction.
+
+Shell and display events share one fitting scheduler with a 120 ms quiet interval
+per window. Usable partial placements and spans over actual monitor work areas
+remain where the user placed them. Missing captions, unusable positions, and
+disconnected-screen geometry still recover to a reachable screen with scrolling
+when needed. Monitor gaps are not counted as available screen space. Unchanged
+geometry, constraints, window state, DPI, and work areas do not repeat a fit.
+Screen and DPI notifications request this shared policy; ordinary shell resizing
+keeps the inexpensive path without restoring splitters or reapplying the theme.
+
+On Windows, the display policy enables `AA_DontCreateNativeWidgetSiblings` before
+the shell constructs native hosts. Renderer hosts, their status/result surfaces,
+and the theme overlay explicitly request native windows after disabling native
+ancestor promotion. Ordinary controls and layout parents remain non-native.
+
+`cdmw/ui/native_window_clipping.py` clips each native host to its ordinary and
+scrolling ancestors with a host mask. A host-owned observer follows later layout,
+scrolling, reparenting, handle and DPI changes; native-handle requests refresh
+synchronously before embedding. Existing masks return when clipping is no longer
+needed, and fully scrolled-out hosts retain their handles and visibility state.
+The observer also corrects a stale Qt host position after an alien ancestor
+moves, using the existing native parent's logical coordinates while preserving
+QWidget geometry and ownership. Qt handles pixel conversion. Native layout
+ancestors are unnecessary even after the root pane has overflowed, avoiding
+repeated screen/DPR traversal through the tool stack. The renderer's existing
+asynchronous child sizing and visibility paths remain with their owners.
 
 ### Responsive feature layouts
 

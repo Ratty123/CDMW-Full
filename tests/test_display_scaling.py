@@ -1,12 +1,13 @@
 from __future__ import annotations
 
 import os
+from types import SimpleNamespace
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 import pytest
 from PySide6.QtCore import QCoreApplication, QEvent, QRect, QSize, Qt
 from PySide6.QtGui import QFont
-from PySide6.QtWidgets import QApplication, QDialog, QLabel, QMenu, QPushButton, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QApplication, QDialog, QLabel, QMainWindow, QMenu, QPushButton, QVBoxLayout, QWidget
 
 from cdmw.ui.display_scaling import (
     CurrentToolStack, ensure_app_display_scaling, fit_window_to_screen,
@@ -35,6 +36,42 @@ def app():
 def _settle(app):
     for _ in range(8):
         app.processEvents()
+
+
+@pytest.mark.skipif(os.name != "nt", reason="Windows native host isolation policy")
+def test_native_host_keeps_ordinary_siblings_and_ancestors_non_native(app):
+    attribute = Qt.AA_DontCreateNativeWidgetSiblings
+    previous = app.testAttribute(attribute)
+    window = None
+    try:
+        app.setAttribute(attribute, False)
+        ensure_app_display_scaling(app)
+        window = QWidget()
+        ancestor = QWidget(window)
+        container = QWidget(ancestor)
+        sibling = QWidget(container)
+        host = QWidget(container)
+        host.setAttribute(Qt.WA_DontCreateNativeAncestors, True)
+        host.setAttribute(Qt.WA_NativeWindow, True)
+        window.show()
+        _settle(app)
+
+        assert host.testAttribute(Qt.WA_NativeWindow)
+        assert host.windowHandle() is not None
+        assert host.winId() != 0
+        assert host.parentWidget() is container
+        assert sibling.parentWidget() is container
+        assert container.parentWidget() is ancestor
+        assert ancestor.parentWidget() is window
+        for ordinary_widget in (ancestor, container, sibling):
+            assert not ordinary_widget.testAttribute(Qt.WA_NativeWindow)
+            assert ordinary_widget.windowHandle() is None
+    finally:
+        if window is not None:
+            window.close()
+            window.deleteLater()
+            QCoreApplication.sendPostedEvents(None, QEvent.DeferredDelete)
+        app.setAttribute(attribute, previous)
 
 
 def test_late_controls_and_font_changes_keep_full_text(app):
@@ -250,3 +287,229 @@ def test_settings_performance_cards_use_one_column_when_narrow(app, tmp_path):
     tab.request_shutdown()
     tab.close()
     tab.deleteLater()
+
+
+def _fake_work_areas(monkeypatch, window, areas):
+    import cdmw.ui.display_scaling as scaling
+
+    monkeypatch.setattr(scaling, "_available_screen_rects", lambda: tuple(areas))
+    monkeypatch.setattr(window, "screen", lambda: SimpleNamespace(availableGeometry=lambda: areas[0]))
+
+
+@pytest.mark.parametrize("geometry", [
+    QRect(700, 100, 600, 350),  # A normal window straddles the screen boundary.
+    QRect(-250, 100, 600, 350),  # Partial visibility still leaves usable content.
+    QRect(350, 100, 1300, 450),  # Content spans screens and exceeds either one's width.
+    QRect(350, 300, 1300, 450),  # A small clipped outer edge must not collapse that span.
+])
+def test_usable_manual_window_placement_is_preserved(app, monkeypatch, geometry):
+    window = QWidget()
+    _fake_work_areas(monkeypatch, window, [QRect(0, 0, 960, 720), QRect(960, 0, 960, 720)])
+    try:
+        window.show()
+        window.setGeometry(geometry)
+        _settle(app)
+        before = window.frameGeometry()
+        fit_window_to_screen(window)
+        assert window.frameGeometry() == before
+    finally:
+        window.close()
+        window.deleteLater()
+
+
+@pytest.mark.parametrize("geometry, areas", [
+    (QRect(100, -80, 600, 350), [QRect(0, 0, 960, 720)]),  # Lost caption.
+    (QRect(1080, 100, 100, 300), [QRect(0, 0, 960, 720), QRect(1280, 0, 960, 720)]),
+    (QRect(350, 100, 1300, 450), [QRect(0, 0, 960, 720), QRect(1280, 0, 960, 720)]),
+    (QRect(1500, 100, 600, 350), [QRect(0, 0, 960, 720)]),  # Removed screen.
+])
+def test_unreachable_windows_and_missing_spanning_content_are_recovered(app, monkeypatch, geometry, areas):
+    window = QWidget()
+    _fake_work_areas(monkeypatch, window, areas)
+    try:
+        window.show()
+        window.setGeometry(geometry)
+        _settle(app)
+        fit_window_to_screen(window)
+        assert areas[0].contains(window.frameGeometry())
+    finally:
+        window.close()
+        window.deleteLater()
+
+
+def test_direct_fit_cannot_modify_geometry_or_wrap_content_during_native_drag(app):
+    from cdmw.ui.window_interaction import ensure_window_interaction_tracker
+
+    window = QDialog()
+    window.setMinimumSize(1180, 780)
+    layout = QVBoxLayout(window)
+    layout.addWidget(QPushButton("Apply"))
+    tracker = ensure_window_interaction_tracker(app)
+    try:
+        window.show()
+        _settle(app)
+        tracker.begin(window)
+        before = window.frameGeometry()
+        fit_window_to_screen(window, QRect(0, 0, 960, 500))
+        assert window.frameGeometry() == before
+        assert "_display_overflow_scroll" not in window.__dict__
+        tracker.end(window)
+        assert tracker.is_active(window)
+        fit_window_to_screen(window, QRect(0, 0, 960, 500))
+        assert window.frameGeometry() == before
+        _settle(app)
+        fit_window_to_screen(window, QRect(0, 0, 960, 500))
+        assert QRect(0, 0, 960, 500).contains(window.frameGeometry())
+        assert window._display_overflow_scroll.widget().layout() is layout
+    finally:
+        window.close()
+        window.deleteLater()
+
+
+@pytest.mark.parametrize("show_method", ["showMaximized", "showFullScreen"])
+def test_fit_preserves_maximized_and_fullscreen_geometry(app, show_method):
+    window = QWidget()
+    try:
+        getattr(window, show_method)()
+        _settle(app)
+        before = window.geometry()
+        state = window.windowState()
+        fit_window_to_screen(window, QRect(0, 0, 300, 200))
+        assert window.geometry() == before
+        assert window.windowState() == state
+    finally:
+        window.close()
+        window.deleteLater()
+
+
+@pytest.fixture
+def fit_policy(app, monkeypatch):
+    import cdmw.ui.display_scaling as scaling
+    from cdmw.ui.window_interaction import ensure_window_interaction_tracker
+
+    state = SimpleNamespace(now=100.0, fits=[])
+    monkeypatch.setattr(scaling, "monotonic", lambda: state.now)
+    monkeypatch.setattr(scaling, "fit_window_to_screen", lambda window: state.fits.append(window))
+    state.policy = ensure_app_display_scaling(app)
+    state.tracker = ensure_window_interaction_tracker(app)
+    windows = []
+
+    def make_window(factory=QWidget):
+        window = factory()
+        window.setGeometry(100, 100, 450, 300)
+        window.show()
+        windows.append(window)
+        _settle(app)
+        return window
+
+    state.make_window = make_window
+    yield state
+    for window in windows:
+        window.close()
+        window.deleteLater()
+    _settle(app)
+
+
+def test_move_only_continuation_postpones_an_existing_fit_beyond_120ms(app, fit_policy):
+    state = fit_policy
+    window = state.make_window()
+    for offset in range(1, 8):
+        state.now += 0.05
+        window.move(100 + 10 * offset, 100)
+        _settle(app)
+        state.policy._fit_pending_windows()
+        assert window not in state.fits
+    state.now += 0.13
+    state.policy._fit_pending_windows()
+    assert state.fits == [window]
+
+
+def test_native_hold_survives_pause_then_fits_once_after_queued_finish(app, fit_policy):
+    state = fit_policy
+    window = state.make_window()
+    state.tracker.begin(window)
+    for _ in range(3):
+        state.now += 10.0
+        state.policy.eventFilter(window, QEvent(QEvent.LayoutRequest))
+        state.policy._fit_pending_windows()
+        assert state.fits == []
+        assert not state.policy._window_timer.isActive()
+    state.tracker.end(window)
+    state.policy._fit_pending_windows()
+    assert state.fits == []
+    _settle(app)
+    state.now += 0.13
+    state.policy._fit_pending_windows()
+    assert state.fits == [window]
+    # Late layout/monitor callbacks describing the same state need no second fit.
+    for kind in (QEvent.LayoutRequest, QEvent.ScreenChangeInternal, QEvent.DevicePixelRatioChange):
+        state.policy.eventFilter(window, QEvent(kind))
+    state.now += 0.13
+    state.policy._fit_pending_windows()
+    assert state.fits == [window]
+
+
+@pytest.mark.parametrize("native_hold", [False, True])
+def test_moving_one_window_does_not_starve_another_window_fit(app, fit_policy, native_hold):
+    state = fit_policy
+    moving = state.make_window()
+    settled = state.make_window()
+    if native_hold:
+        state.tracker.begin(moving)
+    state.now += 0.10
+    moving.move(180, 100)
+    _settle(app)
+    state.now += 0.03
+    state.policy._fit_pending_windows()
+    assert state.fits == [settled]
+    if native_hold:
+        state.tracker.end(moving)
+        _settle(app)
+    state.now += 0.13
+    state.policy._fit_pending_windows()
+    assert state.fits == [settled, moving]
+
+
+def test_restarted_native_drag_and_hidden_window_do_not_run_stale_fits(app, fit_policy):
+    state = fit_policy
+    window = state.make_window()
+    state.tracker.begin(window)
+    state.tracker.end(window)
+    state.tracker.begin(window)
+    _settle(app)
+    state.now += 1.0
+    state.policy._fit_pending_windows()
+    assert state.tracker.is_active(window)
+    assert state.fits == []
+    window.hide()
+    _settle(app)
+    state.now += 1.0
+    state.policy._fit_pending_windows()
+    assert state.fits == []
+    assert not state.policy._window_timer.isActive()
+
+
+def test_shell_and_display_requests_have_one_fit_owner(app, fit_policy):
+    from cdmw.ui.shell.responsiveness_controller import ResponsivenessControllerMixin
+
+    class Shell(ResponsivenessControllerMixin, QMainWindow):
+        pass
+
+    state = fit_policy
+    window = state.make_window(Shell)
+    window._apply_responsive_window_defaults(
+        restore_saved_splitters=False,
+        schedule_column_autofit=False,
+        apply_expensive_metrics=False,
+    )
+    state.policy.eventFilter(window, QEvent(QEvent.DevicePixelRatioChange))
+    state.now += 0.13
+    state.policy._fit_pending_windows()
+    assert state.fits == [window]
+    # The shell's later metrics timer used to invoke an independent geometry fit.
+    state.now += 0.26
+    window._responsive_metrics_dirty = True
+    window._apply_responsive_resize_adjustments()
+    state.policy._fit_pending_windows()
+    assert state.fits == [window]
+    assert not state.policy._window_timer.isActive()

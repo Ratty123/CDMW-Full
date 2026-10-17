@@ -31,6 +31,7 @@ from cdmw.domain.camera_bindings import (
 )
 from cdmw.services.mesh_rust_contract import resolve_rust_mesh_editor
 from cdmw.services.mesh_rust_preview_package import RustPreviewPackage
+from cdmw.ui.native_window_clipping import ensure_native_host_clipping
 from cdmw.ui.preview.dotnet_session import RustPreviewSessionController
 from cdmw.ui.preview.dotnet_host_prewarm import DotNetPreviewPrewarmTask as _DotNetPreviewPrewarmTask
 from cdmw.ui.preview.dotnet_host_lifecycle import DotNetPreviewHostLifecycleMixin
@@ -84,8 +85,9 @@ class RustPreviewHostFrame(DotNetPreviewHostLifecycleMixin, DotNetPreviewHostPro
         theme_key: str = "",
     ) -> None:
         super().__init__(parent)
-        self.setAttribute(Qt.WidgetAttribute.WA_NativeWindow, True)
+        ensure_native_host_clipping(self)
         self.setAttribute(Qt.WidgetAttribute.WA_DontCreateNativeAncestors, True)
+        self.setAttribute(Qt.WidgetAttribute.WA_NativeWindow, True)
         self.setFrameShape(QFrame.Shape.NoFrame)
         self.setMinimumSize(160, 120)
         self._profile = DotNetPreviewProfile.normalize(profile)
@@ -150,6 +152,7 @@ class RustPreviewHostFrame(DotNetPreviewHostLifecycleMixin, DotNetPreviewHostPro
         layout.setSpacing(0)
         self._viewport = QFrame(self)
         self._viewport.setObjectName("RustPreviewViewport")
+        self._viewport.setAttribute(Qt.WidgetAttribute.WA_DontCreateNativeAncestors, True)
         self._viewport.setAttribute(Qt.WidgetAttribute.WA_NativeWindow, True)
         self._viewport.setFrameShape(QFrame.Shape.NoFrame)
         layout.addWidget(self._viewport, 1)
@@ -161,6 +164,9 @@ class RustPreviewHostFrame(DotNetPreviewHostLifecycleMixin, DotNetPreviewHostPro
         self._update_camera_hint({})
         self._status_panel = QFrame(self)
         self._status_panel.setObjectName("DotNetPreviewStatusPanel")
+        # These overlays must cover the renderer without native sibling promotion.
+        self._status_panel.setAttribute(Qt.WidgetAttribute.WA_DontCreateNativeAncestors, True)
+        self._status_panel.setAttribute(Qt.WidgetAttribute.WA_NativeWindow, True)
         status_layout = QVBoxLayout(self._status_panel)
         status_layout.setContentsMargins(18, 18, 18, 18)
         status_layout.addStretch(1)
@@ -179,6 +185,8 @@ class RustPreviewHostFrame(DotNetPreviewHostLifecycleMixin, DotNetPreviewHostPro
 
         self._resident_banner = QFrame(self)
         self._resident_banner.setObjectName("DotNetPreviewResidentBanner")
+        self._resident_banner.setAttribute(Qt.WidgetAttribute.WA_DontCreateNativeAncestors, True)
+        self._resident_banner.setAttribute(Qt.WidgetAttribute.WA_NativeWindow, True)
         banner_layout = QHBoxLayout(self._resident_banner)
         banner_layout.setContentsMargins(10, 6, 8, 6)
         self._resident_banner_label = QLabel("", self._resident_banner)
@@ -239,6 +247,7 @@ class RustPreviewHostFrame(DotNetPreviewHostLifecycleMixin, DotNetPreviewHostPro
 
     def _host_hwnd(self) -> int:
         try:
+            ensure_native_host_clipping(self)
             viewport = getattr(self, "_viewport", None)
             return max(0, int(viewport.winId())) if viewport is not None else 0
         except (RuntimeError, TypeError, ValueError):
