@@ -8247,6 +8247,16 @@
       ]
     },
     {
+      "key": "Ambiguous private texture source binding.",
+      "origins": [
+        {
+          "path": "cdmw/services/new_item_resource_copies.py",
+          "line": 46,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
       "key": "Ambiguous save file spelling.",
       "origins": [],
       "manual": true
@@ -17513,6 +17523,26 @@
           "path": "cdmw/services/new_item_equipment_bonuses.py",
           "line": 34,
           "sink": "raise_if_cancelled"
+        }
+      ]
+    },
+    {
+      "key": "Borrowed physics outgoing references remain unverified: {value_0}",
+      "origins": [
+        {
+          "path": "cdmw/services/independent_item_references.py",
+          "line": 224,
+          "sink": "add"
+        }
+      ]
+    },
+    {
+      "key": "Borrowed resource outgoing references have no supported decoder: {value_0}",
+      "origins": [
+        {
+          "path": "cdmw/services/independent_item_references.py",
+          "line": 313,
+          "sink": "add"
         }
       ]
     },
@@ -36792,6 +36822,26 @@
       ]
     },
     {
+      "key": "Decoded added PAPPT prefab binding",
+      "origins": [
+        {
+          "path": "cdmw/services/independent_item_references.py",
+          "line": 192,
+          "sink": "require"
+        }
+      ]
+    },
+    {
+      "key": "Decoded added PAPPT socket binding",
+      "origins": [
+        {
+          "path": "cdmw/services/independent_item_references.py",
+          "line": 194,
+          "sink": "require"
+        }
+      ]
+    },
+    {
       "key": "Decoded bone motion needs a matching fixed-layout PAB skeleton.",
       "origins": [
         {
@@ -36823,6 +36873,16 @@
           "path": "cdmw/ui/archive_browser/hkx_editor_dialog_collision_part_01.py",
           "line": 43,
           "sink": "_add_collision_read_only_item"
+        }
+      ]
+    },
+    {
+      "key": "Decoded effect resource, emitter type, or preset reference",
+      "origins": [
+        {
+          "path": "cdmw/services/independent_item_references.py",
+          "line": 270,
+          "sink": "require"
         }
       ]
     },
@@ -36973,6 +37033,16 @@
           "path": "cdmw/services/mesh_physics_profiles.py",
           "line": 75,
           "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Decoded prefab resource string",
+      "origins": [
+        {
+          "path": "cdmw/services/independent_item_references.py",
+          "line": 233,
+          "sink": "require"
         }
       ]
     },
@@ -62738,6 +62808,26 @@
           "path": "cdmw/services/independent_item_install.py",
           "line": 471,
           "sink": "raise_if_cancelled"
+        },
+        {
+          "path": "cdmw/services/independent_item_install.py",
+          "line": 301,
+          "sink": "raise_if_cancelled"
+        },
+        {
+          "path": "cdmw/services/independent_item_install.py",
+          "line": 309,
+          "sink": "raise_if_cancelled"
+        },
+        {
+          "path": "cdmw/services/independent_item_install.py",
+          "line": 320,
+          "sink": "raise_if_cancelled"
+        },
+        {
+          "path": "cdmw/services/independent_item_install.py",
+          "line": 326,
+          "sink": "raise_if_cancelled"
         }
       ]
     },
@@ -77127,6 +77217,16 @@
       ]
     },
     {
+      "key": "Mesh skeleton, animation, and implicit physics runtime lookup remain unverified: {value_0}",
+      "origins": [
+        {
+          "path": "cdmw/services/independent_item_references.py",
+          "line": 286,
+          "sink": "add"
+        }
+      ]
+    },
+    {
       "key": "Mesh state payload name does not match its encoding",
       "origins": [
         {
@@ -78373,6 +78473,11 @@
           "path": "cdmw/services/mod_update_service.py",
           "line": 147,
           "sink": "raise_if_cancelled"
+        },
+        {
+          "path": "cdmw/services/independent_item_compatibility.py",
+          "line": 70,
+          "sink": "raise_if_cancelled"
         }
       ]
     },
@@ -79453,6 +79558,16 @@
           "path": "cdmw/services/model_library_preview.py",
           "line": 697,
           "sink": "RuntimeError"
+        }
+      ]
+    },
+    {
+      "key": "Model property {value_0}._path",
+      "origins": [
+        {
+          "path": "cdmw/services/independent_item_references.py",
+          "line": 253,
+          "sink": "require"
         }
       ]
     },
@@ -81983,6 +82098,16 @@
           "path": "cdmw/ui/archive_browser/asset_catalog_dialog.py",
           "line": 661,
           "sink": "setText"
+        }
+      ]
+    },
+    {
+      "key": "Namespace-qualified material resource lookup remains unverified: {value_0} {value_1}",
+      "origins": [
+        {
+          "path": "cdmw/services/independent_item_references.py",
+          "line": 248,
+          "sink": "add"
         }
       ]
     },
@@ -86573,6 +86698,16 @@
           "path": "cdmw/ui/mesh_editor/tab_textured_view.py",
           "line": 237,
           "sink": "emit"
+        }
+      ]
+    },
+    {
+      "key": "No retained source digest was available for the traversed resource: {value_0}",
+      "origins": [
+        {
+          "path": "cdmw/services/independent_item_references.py",
+          "line": 325,
+          "sink": "add"
         }
       ]
     },
@@ -94462,6 +94597,16 @@
       ]
     },
     {
+      "key": "Owned material resource remains outside the private DDS lookup scope: {value_0} {value_1} {value_2}",
+      "origins": [
+        {
+          "path": "cdmw/services/independent_item_references.py",
+          "line": 255,
+          "sink": "add"
+        }
+      ]
+    },
+    {
       "key": "Owned physics has no unambiguous template mesh binding.",
       "origins": [],
       "manual": true
@@ -94568,6 +94713,16 @@
           "path": "cdmw/ui/archive_browser/pac_xml_editor_composition.py",
           "line": 219,
           "sink": "question"
+        }
+      ]
+    },
+    {
+      "key": "PAC basename resolves its model-property sidecar",
+      "origins": [
+        {
+          "path": "cdmw/services/independent_item_references.py",
+          "line": 295,
+          "sink": "require"
         }
       ]
     },
@@ -105842,12 +105997,32 @@
       ]
     },
     {
+      "key": "Private physics outgoing runtime references and lifetime remain unverified: {value_0}",
+      "origins": [
+        {
+          "path": "cdmw/services/independent_item_references.py",
+          "line": 218,
+          "sink": "add"
+        }
+      ]
+    },
+    {
       "key": "Private resource inventory failed validation.",
       "origins": [
         {
           "path": "cdmw/services/virtual_loader_cache.py",
           "line": 268,
           "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Private template texture: {value_0}",
+      "origins": [
+        {
+          "path": "cdmw/services/new_item_resource_copies.py",
+          "line": 73,
+          "sink": "add"
         }
       ]
     },
@@ -118003,6 +118178,36 @@
           "path": "cdmw/services/independent_item_compatibility.py",
           "line": 678,
           "sink": "OverlayConflict"
+        }
+      ]
+    },
+    {
+      "key": "Retained template part binding",
+      "origins": [
+        {
+          "path": "cdmw/services/independent_item_references.py",
+          "line": 181,
+          "sink": "require"
+        }
+      ]
+    },
+    {
+      "key": "Retained template socket binding",
+      "origins": [
+        {
+          "path": "cdmw/services/independent_item_references.py",
+          "line": 183,
+          "sink": "require"
+        }
+      ]
+    },
+    {
+      "key": "Retained template-family validation input",
+      "origins": [
+        {
+          "path": "cdmw/services/independent_item_references.py",
+          "line": 177,
+          "sink": "require"
         }
       ]
     },
@@ -145232,6 +145437,16 @@
       ]
     },
     {
+      "key": "The resource edge inventory limit was reached; reachability is partial and cannot establish isolation.",
+      "origins": [
+        {
+          "path": "cdmw/services/independent_item_references.py",
+          "line": 130,
+          "sink": "add"
+        }
+      ]
+    },
+    {
       "key": "The retained attempt changed before publication.",
       "origins": [],
       "manual": true
@@ -147398,6 +147613,16 @@
           "path": "cdmw/ui/archive_browser/hkx_editor_dialog_physics_part_01.py",
           "line": 715,
           "sink": "setText"
+        }
+      ]
+    },
+    {
+      "key": "This contribution retains template resource bindings; final ItemInfo resource roots are not independently decoded here.",
+      "origins": [
+        {
+          "path": "cdmw/services/independent_item_references.py",
+          "line": 197,
+          "sink": "add"
         }
       ]
     },
@@ -151228,6 +151453,16 @@
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_hair.rs",
           "line": 1079,
           "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Unchanged template physics and mesh binding validation",
+      "origins": [
+        {
+          "path": "cdmw/services/independent_item_references.py",
+          "line": 214,
+          "sink": "require"
         }
       ]
     },
@@ -163142,6 +163377,16 @@
       ]
     },
     {
+      "key": "authoring",
+      "origins": [
+        {
+          "path": "cdmw/services/independent_item_references.py",
+          "line": 357,
+          "sink": "add"
+        }
+      ]
+    },
+    {
       "key": "authoring package belongs to a different active edit session. Close the current editor before opening another mesh.",
       "origins": [
         {
@@ -163173,6 +163418,36 @@
           "path": "cdmw/ui/new_item/controller_task_mixin.py",
           "line": 70,
           "sink": "_run"
+        }
+      ]
+    },
+    {
+      "key": "authoring-root",
+      "origins": [
+        {
+          "path": "cdmw/services/independent_item_references.py",
+          "line": 177,
+          "sink": "require"
+        },
+        {
+          "path": "cdmw/services/independent_item_references.py",
+          "line": 181,
+          "sink": "require"
+        },
+        {
+          "path": "cdmw/services/independent_item_references.py",
+          "line": 183,
+          "sink": "require"
+        }
+      ]
+    },
+    {
+      "key": "authoring-validation",
+      "origins": [
+        {
+          "path": "cdmw/services/independent_item_references.py",
+          "line": 214,
+          "sink": "require"
         }
       ]
     },
@@ -165793,6 +166068,31 @@
           "path": "cdmw/ui/shell/path_controller.py",
           "line": 170,
           "sink": "_run_when_background_idle"
+        }
+      ]
+    },
+    {
+      "key": "contribution",
+      "origins": [
+        {
+          "path": "cdmw/services/independent_item_references.py",
+          "line": 357,
+          "sink": "add"
+        }
+      ]
+    },
+    {
+      "key": "contribution-root",
+      "origins": [
+        {
+          "path": "cdmw/services/independent_item_references.py",
+          "line": 192,
+          "sink": "require"
+        },
+        {
+          "path": "cdmw/services/independent_item_references.py",
+          "line": 194,
+          "sink": "require"
         }
       ]
     },
@@ -169918,6 +170218,16 @@
           "path": "schemas/archive_content_capabilities.v1.json",
           "line": 1,
           "sink": "json-presentation:role"
+        }
+      ]
+    },
+    {
+      "key": "implicit-sidecar",
+      "origins": [
+        {
+          "path": "cdmw/services/independent_item_references.py",
+          "line": 295,
+          "sink": "require"
         }
       ]
     },
@@ -188910,16 +189220,6 @@
       "key": "{value_0}/{value_1}",
       "origins": [
         {
-          "path": "cdmw/services/new_item_planning.py",
-          "line": 650,
-          "sink": "add"
-        },
-        {
-          "path": "cdmw/services/new_item_planning.py",
-          "line": 663,
-          "sink": "add"
-        },
-        {
           "path": "cdmw/ui/archive_browser/hkx_editor_dialog_helpers.py",
           "line": 625,
           "sink": "add"
@@ -190183,6 +190483,26 @@
           "path": "cdmw/ui/archive_browser/mesh_swap_scope_dialog.py",
           "line": 321,
           "sink": "python-return:_behavior_text"
+        }
+      ]
+    },
+    {
+      "key": "{value_0}: {value_1}: ItemInfo directory key {value_2} differs from record key {value_3}.",
+      "origins": [
+        {
+          "path": "cdmw/services/independent_item_compatibility.py",
+          "line": 296,
+          "sink": "OverlayConflict"
+        }
+      ]
+    },
+    {
+      "key": "{value_0}: {value_1}: record {value_2} has no complete ItemInfo key.",
+      "origins": [
+        {
+          "path": "cdmw/services/independent_item_compatibility.py",
+          "line": 293,
+          "sink": "OverlayConflict"
         }
       ]
     },

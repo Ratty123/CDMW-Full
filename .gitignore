@@ -33,6 +33,10 @@ item_icon_library/
 app_restore_points/
 workspace/
 
+# Retained local CDISO research, including its evidence and restart records.
+# This dated investigation is not an application or packaging input.
+/.work/tasks/2026-10-17-cditem-conflict-isolation/
+
 .tmp_*/
 tmp_*/
 
