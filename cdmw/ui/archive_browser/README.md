@@ -73,6 +73,12 @@ use the same rule.
 
 ## Catalogue and Item Finder
 
+Game-folder scans skip the top-level `cdmods`, `backups`, `.cdmw` and
+`crimsonforge_backups` folders, regardless of letter case. Backup indexes do not
+enter the live catalogue or its fingerprint; existing catalogues containing them
+rebuild automatically. Explicitly opening a backup `.pamt` remains available for
+inspection.
+
 The standalone resident catalogue is the only listing authority. Its status messages reach the
 owning shell through the archive workspace's `shell` reference. Preview requests are
 request-correlated and latest-wins: a stale selection may be superseded but may

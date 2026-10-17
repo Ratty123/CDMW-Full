@@ -140,6 +140,7 @@ public static class ArchiveFingerprint
         var name = Path.GetFileName(path);
         return name.Equals("cdmods", StringComparison.OrdinalIgnoreCase)
             || name.Equals("backups", StringComparison.OrdinalIgnoreCase)
+            || name.Equals("crimsonforge_backups", StringComparison.OrdinalIgnoreCase)
             || name.Equals(".cdmw", StringComparison.OrdinalIgnoreCase);
     }
 

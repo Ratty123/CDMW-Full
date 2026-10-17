@@ -79,7 +79,9 @@ _ARCHIVE_CACHE_ROOT_PREFIXES: Tuple[str, ...] = (
 _ARCHIVE_ITEM_ICON_THUMBNAIL_CACHE_LOCK = threading.Lock()
 _ARCHIVE_ITEM_ICON_THUMBNAIL_MANIFEST_CACHE: Dict[str, Tuple[Tuple[int, int], Dict[str, object]]] = {}
 _ARCHIVE_SCAN_CACHE_SUPPORTED_VERSIONS = {3}
-_ARCHIVE_SCAN_IGNORED_TOP_LEVEL_DIRS: frozenset[str] = frozenset({"cdmods", "backups", ".cdmw"})
+_ARCHIVE_SCAN_IGNORED_TOP_LEVEL_DIRS: frozenset[str] = frozenset(
+    {"cdmods", "backups", ".cdmw", "crimsonforge_backups"}
+)
 
 
 def discover_pamt_files(package_root: Path) -> List[Path]:

@@ -22,6 +22,12 @@ internal static class ArchiveDiscoveryTests
             var liveFingerprint = await ArchiveFingerprint.ComputeAsync(fixture.Root, CancellationToken.None).ConfigureAwait(false);
 
             var backupPamt = CopyBackupIndex(fixture, "BaCkUpS");
+            var crimsonForgePamt = Path.Combine(fixture.Root, "CrImSoNfOrGe_BaCkUpS", "20261002_173535", "0.pamt");
+            Directory.CreateDirectory(Path.GetDirectoryName(crimsonForgePamt)!);
+            File.Copy(fixture.Pamt, crimsonForgePamt);
+            Require(!File.Exists(Path.ChangeExtension(crimsonForgePamt, ".paz")), "CrimsonForge backup fixture must have no PAZ payload");
+            Require(ArchiveFingerprint.DiscoverSourceFiles(crimsonForgePamt).Contains(crimsonForgePamt),
+                "an explicitly selected CrimsonForge backup index cannot be inspected");
             var modPamt = Path.Combine(fixture.Root, "Cdmods", "some_mod", "0009", "0.pamt");
             Directory.CreateDirectory(Path.GetDirectoryName(modPamt)!);
             File.Copy(fixture.Pamt, modPamt);
@@ -57,6 +63,7 @@ internal static class ArchiveDiscoveryTests
                 var relativeSource = Path.GetRelativePath(fixture.Root, session.ReadEntry(id).SourcePamt);
                 Require(!relativeSource.StartsWith("backups" + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase)
                     && !relativeSource.StartsWith("cdmods" + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase)
+                    && !relativeSource.StartsWith("crimsonforge_backups" + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase)
                     && !relativeSource.StartsWith(".cdmw" + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase),
                     "native scan retained an ignored archive source");
             }
@@ -65,6 +72,7 @@ internal static class ArchiveDiscoveryTests
             Require(current.Value == liveFingerprint.Value && current.SourceFiles.SequenceEqual(liveFingerprint.SourceFiles),
                 "backup sources changed the live archive fingerprint");
             await File.AppendAllTextAsync(backupPamt, "changed backup").ConfigureAwait(false);
+            await File.AppendAllTextAsync(crimsonForgePamt, "changed CrimsonForge backup").ConfigureAwait(false);
             await File.AppendAllTextAsync(generationPamt, "changed saved generation").ConfigureAwait(false);
             var changedBackup = await ArchiveFingerprint.ComputeAsync(fixture.Root, CancellationToken.None).ConfigureAwait(false);
             Require(changedBackup.Value == liveFingerprint.Value, "changing a backup invalidated the live archive cache");
@@ -77,7 +85,7 @@ internal static class ArchiveDiscoveryTests
 
     public static async Task ExistingBackupCacheAsync()
     {
-        foreach (var directoryName in new[] { "backups", ".cdmw" })
+        foreach (var directoryName in new[] { "backups", ".cdmw", "crimsonforge_backups" })
         {
             await ExistingIgnoredCacheAsync(directoryName).ConfigureAwait(false);
         }
