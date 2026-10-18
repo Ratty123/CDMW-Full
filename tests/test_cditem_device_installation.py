@@ -1,5 +1,6 @@
 """Exact, bounded rollback for supported CDMW test setup on owned fixtures."""
 import os
+import time
 
 import pytest
 
@@ -73,6 +74,102 @@ def test_restore_interruption_recovers_known_partial_state(recovery, monkeypatch
         device.restore_installation_recovery(context)
     assert device.verify_installation_recovery(context)['phase'] == 'restoring'
     assert device.restore_installation_recovery(context)['phase'] == 'restored'
+
+
+@pytest.mark.parametrize('winerror', [5, 32, 33])
+def test_restore_retries_a_short_windows_file_lock(recovery, monkeypatch, winerror):
+    root, context, proposed = recovery
+    apply(root, proposed)
+    original = device.atomic_write_bytes
+    attempts = []
+    sleeps = []
+
+    def replace(path, raw):
+        if path == root / 'bin64/CDMWVirtualLoader.asi':
+            attempts.append(path)
+            if len(attempts) == 1:
+                error = PermissionError('temporary runtime image lock')
+                error.winerror = winerror
+                raise error
+        return original(path, raw)
+
+    monkeypatch.setattr(device, 'atomic_write_bytes', replace)
+    monkeypatch.setattr(time, 'sleep', sleeps.append)
+    assert device.restore_installation_recovery(context)['phase'] == 'restored'
+    assert len(attempts) == 2 and sleeps == [0.2]
+    assert all((root / name).read_bytes() == b'original-' + bytes([index])
+               for index, name in enumerate(device.FILES))
+
+
+def test_persistent_windows_lock_retains_recoverable_state_after_bounded_retries(recovery, monkeypatch):
+    root, context, proposed = recovery
+    apply(root, proposed)
+    original = device.atomic_write_bytes
+    attempts = []
+    sleeps = []
+
+    def replace(path, raw):
+        if path == root / 'bin64/CDMWVirtualLoader.asi':
+            attempts.append(path)
+            error = PermissionError('persistent runtime image lock')
+            error.winerror = 5
+            raise error
+        return original(path, raw)
+
+    monkeypatch.setattr(device, 'atomic_write_bytes', replace)
+    monkeypatch.setattr(time, 'sleep', sleeps.append)
+    with pytest.raises(PermissionError, match='persistent'):
+        device.restore_installation_recovery(context)
+    assert len(attempts) == 10 and sleeps == [0.2] * 9
+    assert device.verify_installation_recovery(context)['phase'] == 'restoring'
+    assert (root / 'bin64/CDMWVirtualLoader.asi').read_bytes() == proposed['bin64/CDMWVirtualLoader.asi']
+
+
+def test_lock_retry_refuses_a_foreign_change_to_any_target(recovery, monkeypatch):
+    root, context, proposed = recovery
+    apply(root, proposed)
+    original = device.atomic_write_bytes
+    attempts = []
+
+    def replace(path, raw):
+        if path == root / 'bin64/CDMWVirtualLoader.asi':
+            attempts.append(path)
+            error = PermissionError('temporary runtime image lock')
+            error.winerror = 5
+            raise error
+        return original(path, raw)
+
+    foreign = root / device.FILES[-1]
+    monkeypatch.setattr(device, 'atomic_write_bytes', replace)
+    monkeypatch.setattr(time, 'sleep', lambda _: foreign.write_bytes(b'foreign update'))
+    with pytest.raises(VirtualLoaderError, match='outside this run'):
+        device.restore_installation_recovery(context)
+    assert len(attempts) == 1
+    assert foreign.read_bytes() == b'foreign update'
+    assert (root / 'bin64/CDMWVirtualLoader.asi').read_bytes() == proposed['bin64/CDMWVirtualLoader.asi']
+
+
+def test_lock_retry_refuses_a_game_that_started_during_the_wait(recovery, monkeypatch):
+    root, context, proposed = recovery
+    apply(root, proposed)
+    original = device.atomic_write_bytes
+    attempts = []
+
+    def replace(path, raw):
+        if path == root / 'bin64/CDMWVirtualLoader.asi':
+            attempts.append(path)
+            error = PermissionError('temporary runtime image lock')
+            error.winerror = 5
+            raise error
+        return original(path, raw)
+
+    monkeypatch.setattr(device, 'atomic_write_bytes', replace)
+    monkeypatch.setattr(time, 'sleep', lambda _: monkeypatch.setattr(
+        device, '_native_processes', lambda: [(1234, 0, 'CrimsonDesert.exe')]))
+    with pytest.raises(VirtualLoaderError, match='Settle the game'):
+        device.restore_installation_recovery(context)
+    assert len(attempts) == 1
+    assert (root / 'bin64/CDMWVirtualLoader.asi').read_bytes() == proposed['bin64/CDMWVirtualLoader.asi']
 
 
 @pytest.mark.parametrize('relative', ['manifest.json', 'before/0', 'after/0', 'journal.json'])

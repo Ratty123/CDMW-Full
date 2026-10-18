@@ -51,6 +51,7 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 - Settings > Paths uses the selected language for Archive Locations controls and folder-exclusion guidance.
 - Archive validation rejects mount lists with inconsistent directory counts before installing an overlay.
+- Developer game tests retry brief Windows file locks when restoring the original runtime files.
 
 - Independent item packages privately copy supported DDS references in their owned mesh materials, including selected variants and companion meshes. Exact material fields, source checks and separate update/removal ownership are preserved; existing installations use the normal rebuild flow.
 - Independent item composition allows external or typed edits to a donor ItemInfo row after validating a distinct cloned record with no retained donor identity. Borrowed item and resource dependencies stay protected.

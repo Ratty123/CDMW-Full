@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from pathlib import Path
 import os
 import re
+import time
 
 from cdmw.core.atomic_file import atomic_write_bytes
 from cdmw.domain.virtual_loader import VirtualLoaderError
@@ -147,7 +148,7 @@ def seal_installation_recovery(context):
 
 
 def restore_installation_recovery(context):
-    """Restore only known before/after bytes; retry recognized partial restores."""
+    """Restore known bytes, rechecking ownership after brief Windows file locks."""
     root, _, _, _ = _load(context)
     with installation_lane(root), installation_lane(context.directory):
         _quiet(root)
@@ -163,7 +164,18 @@ def restore_installation_recovery(context):
             if _raw(path) not in sides.values():
                 raise VirtualLoaderError('An installation recovery target changed; preserve remaining files.')
             if _raw(path) != sides['before']:
-                atomic_write_bytes(path, sides['before'])
+                for attempt in range(10):
+                    try:
+                        atomic_write_bytes(path, sides['before'])
+                        break
+                    except OSError as error:
+                        if getattr(error, 'winerror', None) not in {5, 32, 33} or attempt == 9:
+                            raise
+                        time.sleep(0.2)
+                        _quiet(root)
+                        verify_installation_recovery(context)
+                        if _raw(path) == sides['before']:
+                            break
             stamp = manifest['files'][name]['mtime_ns']
             os.utime(path, ns=(stamp, stamp))
         if any(_raw(target(root, name)) != sides['before'] for name, sides in values.items()):
