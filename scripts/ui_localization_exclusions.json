@@ -1,5 +1,23 @@
 [
   {
+    "path": "cdmw/services/cditem_device_cli.py",
+    "symbol": "*",
+    "source": "*",
+    "reason": "Development-only portable device command and JSON evidence diagnostics; no application UI consumer."
+  },
+  {
+    "path": "cdmw/services/cditem_device_review.py",
+    "symbol": "*",
+    "source": "*",
+    "reason": "Development-only inspected-frame matching diagnostics; no application UI consumer."
+  },
+  {
+    "path": "cdmw/app/bootstrap.py",
+    "symbol": "main",
+    "source": "Use --cditem-device-tests without other application modes or options.",
+    "reason": "Argument rejection for the hidden development device command, before normal application startup."
+  },
+  {
     "path": "cdmw/services/cditem_device_live_saves.py",
     "symbol": "*",
     "source": "*",
