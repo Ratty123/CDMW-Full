@@ -1,7 +1,7 @@
 # CDMW .cditem Astra / Pro reasoning handoff
 
 - Created: 2026-10-18, Europe/Stockholm.
-- Status: Verified partial portable stock delivery and original save/setup/Cloud restoration independently pass. Native reasoning questions/full T20 remain open. A new foreign owner blocked further shared-project queries; Root closed its idle SDK before target open. The complete canonical ledger remains unchanged and passive24 counterevidence is frozen.
+- Status: Verified partial portable stock delivery and save/setup/Cloud restoration pass. Passive25–29 resolve the concrete callback dispatcher and critical-section bracket; index lifetime, readiness/publication and full native T20 remain open. A fresh foreign provider owns the shared project. The full canonical ledger and delivered bytes remain unchanged.
 - Execution entry point: [cditem-execution-goal.md](cditem-execution-goal.md).
 - Feature authority and completion state: [cditem-conflict-isolation-plan.md](cditem-conflict-isolation-plan.md).
 - Shared completed work: [progress.md](progress.md).
@@ -71,6 +71,28 @@ This is an operational blocker, separate from the RH reasoning questions. Resume
 Unchanged protected inputs permitted one final passive question without a provider: default S table14570b0e8+0x10 points to1412b4410. `batch24-default-context-slotten/default-slotten-findings.md`,7,066 bytes,SHA `889ab1fa233602ce6129525bbda57acb6ead48e13746bc30adebd3ad70f17a37`, qualifies all406 bytes across three chained ranges/103 normal-CFG instructions. It is a QueryPerformanceCounter/time-gated child refresh through actual S virtual+0x48 at1412b4528. It forces AL1 even on the fast gate, null child, revision mismatch and virtual-false exits. No direct S+138 callback invocation, wait/drain or completion-field write is established; opaque virtual+0x48 is not expanded. Thus this true return cannot witness startup completion. The runtime frequency divisor has no physical PE bytes and was not guessed. Inventory21/21 files passes. Next pointer-only discriminator is default table+0x48 at14570b130; actual startup invocation remains unjoined. Do not turn this refresh method, preparation's constant true or the provider→factory loop into completion/failure-stop authority.
 
 All game contexts remain restored; the tested portable remains the ce0ab5f5 artifact above. The full goal, ten feature parents and three native execution parents remain open. Native publication/readers/explicit decoder success/failure-stop, durable backing/rematerialization/borrowed names, private resource completion/retirement and first saved ownership still require justified contracts. The saved packet is ready for the user's selected Astra/Pro review without silently invoking another model. No new production/native code, extra game launch, broad suite, rebuild or publication occurred for these passive/ownership checks.
+
+## Concrete callback and lock continuation, 2026-10-18
+
+Passive native batches 25–29 resolve both constructed context+0x48 slots to the same constant-true leaf, qualify the complete PA named-pipe update and its actual S+0x138 callback dispatcher, and join S+0x1f0 to Enter/LeaveCriticalSection plus deleting cleanup. The registered zero-tag raw-I callback selects a direct call; no index lifetime lease or retirement participation in that critical section is established. The next questions are the concrete I+8 association and actual reader/retirement joins, not another decode of the solved virtual slots or141371a40 local drain. The literal-encoding helper failure and read-only lookup errors are retained. A fresh native census finds a different foreign provider lineage still owning the project; no new Root SDK or native query was started. All171 packaged source pins, the delivered ce0ab5f5 portable and the complete canonical ledger remain exact. RH-01/RH-02/RH-03/RH-05 and all original open feature/native parents remain open. Reports and the concrete restart packet are retained under `workspace/reports/cditem-execution/20261018-native-review/batch25-default-context-slot48/` through `batch29-pa-lock-operations/`.
+
+The actual new dispatcher joins PA update1412b5f87→1412b6070 to the S+0x138/count+0x140 record traversal. Index registration141373dee sets BYTE+0x18=0; the registrar copies it and leaves ownership flag+0x19=0. If unchanged, direct sites1412b6152/1412b61c5 pass raw I as RCX and bypass the separate global/TLS trampoline. The retained full callback reaches the already qualified group-load slot, without an inline I+0x90 entry lease. Outer lifetime/phase protection remains possible and unproved; this is not a demonstrated stock race.
+
+PA constructor1412b5810 creates the S+0x1f0 object with table14557c120. Slots+8/+10 are7-byte virtual-forwarding leaves; table+0x18/+0x20 resolve to11-byte paths reaching EnterCriticalSection/LeaveCriticalSection(object+8). Table+0 is the complete130-byte deleting body calling DeleteCriticalSection and conditional allocator release. Only the used entry-to-tail prefixes are claimed from the32-byte leaf windows. The actual index/S retirement join and exceptional PA-update release remain unproved. The local141371a40 drain body is already known; member/reader participation is the next question.
+
+One helper incorrectly assumed the opaque diagnostic literal was ASCII and failed on byte0xec at offset15. Its original source/error are retained; v2 changes only the representation to raw bytes with encoding unasserted and passes the unchanged native/import/return checks. Separate read-only guessed-path/glob lookup errors are also retained. No native call, process-memory read, game/UI action, build or broad test gate occurred.
+
+The first continuation census found only old foreign SDK17632 and no project locks. The later authoritative census at `2026-10-18T07:56:01.3007891Z` finds new foreign node3100→cmd16484→PowerShell23324→cmd37052→Java24536 and both project locks present. Neither foreign lineage was adopted, queried or stopped. Root started no provider this continuation. Resume supported queries only after fresh legitimate availability; use a new owned caller and preserve/import/check all seven canonical collections.
+
+Frozen report SHA-256 values:
+
+- `batch25-default-context-slot48/context-slot48-findings.md` — `b5355d748e567d38dc5b85739a334e2c070dcbac3b0785c83aceee235cae1c47`.
+- `batch26-pa-context-update/pa-update-findings.md` — `821a01184606ddd05ffd32d83e52bc033c25ba89c5d18a58515c78383686c89e`.
+- `batch27-pa-message-dispatch/callback-dispatch-findings.md` — `7750b4d8c2f4cff13dda2a754f0c0aeb9045c71f8d2787b8d89308f0d34889d2`.
+- `batch28-pa-dispatch-lock/dispatch-lock-findings.md` — `9f066409e0c97bcc5aecd42d88c8f91265a84fd768b603bcd69563ef6d782954`.
+- `batch29-pa-lock-operations/critical-section-findings.md` — `08c6ed6c029431b30d9c80226bb71919f606ecc70c9fe67331ec58b5b3969f25`.
+
+The existing delivered EXE remains175,520,265 bytes/SHA-256 `5f3483b898de1a9edd0cae38590fac9139c92270768ba84a7757545e20c9148b`, embedded ce0ab5f5. All171 pinned production/build/native inputs and the96,795,800-byte canonical ledger/SHA `1f9817603690170007cd5fbe690836d0d4ecef371f8826d27b18d93d43e3a3ad` recheck exactly. Previous game/save/setup/Cloud cleanup receipts remain the actual delivery evidence; no additional stock or native-item cycle is claimed. Ten original feature parents and the three full native execution parents remain open.
 
 ## Purpose and use
 
@@ -164,7 +186,7 @@ Use RH-01's registration sources and the current native runtime owner:
 
 ### RH-03: Additive private resources and actual use
 
-- Status: `reasoning_review_needed`; the fourth batch proves the actual startup writer, concrete provider and indexed enumeration/fetch. Private namespace admission, coherent publication/failure and complete retirement remain open.
+- Status: `reasoning_review_needed`; actual provider/index paths, constructed context virtuals, PA raw-index callback dispatch and its critical-section bracket are qualified. Private namespace admission, coherent publication/failure, backing lifetime and reader-safe retirement remain open.
 - Linked tasks: `CDISO-RE-03`, `CDISO-RES-01`, `CDISO-DEP-01`.
 - Question: Which supported native discovery/provider routes admit each required new resource identity and keep its parsed/rendered state valid for the item's lifetime?
 - Blocking effect: private filenames can exist without being discovered or used; affects T03-T07/T10/T12/T18.
@@ -179,7 +201,11 @@ Use RH-01's registration sources and the current native runtime owner:
 
 **Next useful work**
 
-The actual startup writer is solved: `0x140ad1a30` copies outer+0x10 to+0x190; engine+0x38 supplies concrete provider vptr `0x14571be40`, fetch+0x40 and enumerate+0x50. Follow the proved index/configuration generation into private-name ingestion and same-provider fetch, rather than guessing another provider. Enumeration dedup uses swap-with-last; first nonnull fetch selection does not fall through after read failure; selected *.pappt enumeration requires populated indexed directories. Mode1 concretely ingests `root/meta/0.papgt` and group PAMTs; mode2 ingests ResourceMap configuration, and both enumerate/fetch through the populated index. The current Python PAPGT reader accepts copied fixtures whose header group-count byte disagrees with the 35 parsed entries; its checksum acceptance is therefore not native-layout admission. The candidate remains one private backend/root/index per package, without combined shared metadata. The completed exact menu/world RPM witness selects mode1/branch0 at the installed root, with provider count=capacity1. Selected preparation exposes context+0x10/raw-index callback references before append. Destruction has a local drain, but external callback participation and the concrete index+8 child remain unknown. Resolve initializer context virtual+0x28 at `0x1412b47a3` and the index+8 deleting call at `0x1412cf8f7`, including detach/drain and failure compensation; do not repeat mode/root observation or assume off-list construction withholds every reference. Prove supported reader exclusion, count bounds, path/case/prefix and priority rules, parse failure/rollback, then complete provider/socket-cache/derived-map retirement. Research addresses and operating-system open interception are not native admission.
+The actual startup writer is solved: `0x140ad1a30` copies outer+0x10 to+0x190; engine+0x38 supplies provider vptr `0x14571be40`, fetch+0x40 and enumerate+0x50. Follow its proved per-root PAPGT/group-PAMT ingestion and same-provider fetch. Enumeration dedup uses swap-with-last; first nonnull fetch does not fall through after read failure. The copied PAPGT header-count counterexample remains a native-layout admission limit. The candidate remains one private backend/root/index per package, without combined shared metadata; the exact stock mode1/branch0 world witness still has provider count=capacity1. Preparation exposes S+0x10 and raw-I callback records before append, so off-list construction alone does not withhold references.
+
+The old S+0x28 target question is solved for both constructed tables: it and both +0x48 slots reach the same `0x1403600c0` constant-true leaf. Default update `0x1412b4410` and PA update `0x1412b5b40` have skip/timer paths, not completion booleans. PA message handler `0x1412b6070` traverses S+0x138 and directly invokes the unchanged zero-tag raw-I record; S+0x1f0 brackets normal processing through the concrete Enter/LeaveCriticalSection operations, with DeleteCriticalSection cleanup. No actual live S selection, invocation phase or index-retirement participation in that critical section is proved.
+
+Prioritize the concrete I+8 writer/type and a demonstrated callback/reader lifetime owner or retirement join. Reuse the already qualified `0x141371a40` local-drain body for S+0x188/+0x1b8 and I+0x90; establish actual reader participation rather than repeating that decode. Preserve exceptional-release, failed-preparation compensation, all-reader publication, path/case/prefix/priority, bounds and provider/socket-cache/derived-map retirement requirements. Research addresses, ordinary callback serialization and OS-open interception are not native admission.
 
 **Primary sources**
 
@@ -191,7 +217,7 @@ Read the later consumer evidence before treating earlier sidecar assumptions as 
 
 ### RH-04: Disposable save routing, writer evidence, and missing-provider behavior
 
-- Status: `resolved` for the observed stock containment workflow; native missing-provider load/save/restoration behavior remains pending at RH-01 through RH-03. Independent source review, five actual whole-root restorations and the earlier two clean game cycles passed. The latest resource-only cycle preserves all26 original payloads after Cloud synchronization with seven recorded file timestamp deltas; the earlier cycle's eleven deltas remain historical evidence.
+- Status: `resolved` for the observed stock containment workflow; native missing-provider load/save behavior remains pending at RH-01 through RH-03. Guarded whole-root restoration and the earlier two clean source-runner cycles pass. The latest exact-portable baseline independently verifies all26 original payloads after Cloud synchronization with eight normal file timestamp deltas; earlier seven/eleven-delta observations remain historical evidence.
 - Linked tasks: `CDRUN-SAVE-01`, `CDISO-LIFE-01`.
 - Question: What verified test context lets the game read/write disposable saves, and what actually happens when a provider is absent during load, save, and later restoration?
 - Blocking effect: automated persistence tests cannot be justified from a backup alone; affects T11-T17/T20.
