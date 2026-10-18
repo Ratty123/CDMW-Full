@@ -899,6 +899,21 @@ prepare or install a profile. `replay <input.json>` runs explicitly synthetic
 menu-policy observations; `report <directory> --run-id <id>` reads an existing
 action journal. These commands do not certify game capture, input or gameplay.
 
+The portable executable exposes the same development commands after
+`--cditem-device-tests`. Put device options after that switch and before the
+command; do not combine it with GUI or other application modes. For example:
+
+```powershell
+.\CrimsonDesertModWorkbench-0.11.0-alpha.23-windows-portable.exe --cditem-device-tests --output "D:\evidence\readiness.json" --game-root "C:\games\Steam\steamapps\common\Crimson Desert" inspect
+```
+
+The windowed executable requires a new absolute `--output` JSON path in an
+existing folder. It verifies output availability before execution and never
+replaces an existing result. A later publication failure does not undo an
+action: retain the durable device journal and reconcile it instead of replaying
+input to recreate a report. Capture and input-guardian children dispatch before
+normal app startup; the guardian retains its independent release lifecycle.
+
 Process/window-bound capture/input primitives and a journaled copied-fixture save
 rehearsal live in `cdmw/services/cditem_device_*.py`. The save rehearsal rejects
 live save trees and Windows path aliases. It retains separate original, input
@@ -908,12 +923,30 @@ Cloud containment, startup writers, save origin or native item compatibility.
 `preflight`, `execute`, `resume` and `cancel` require an absolute execution-manifest
 path and its exact `--manifest-sha256`. They accept only an already supported-launched
 game bound to an explicit live save context by its native readiness receipt and
-process birth. CLI execution captures and pauses; the service's observer callback
-must classify each fresh game frame before an allowed action. Cancellation records
+process birth. CLI execution captures and pauses by default. `execute` or `resume`
+can additionally take `--review "<absolute-review.json>" --review-sha256 "<sha256>"`.
+That data-only review must identify this exact execution and next capture sequence,
+an inspected PNG template, stable pixel regions, and one bounded classification.
+It permits at most one existing policy action, then another capture and pause.
+Changed pixels or dimensions produce no classification; foreground is measured
+again rather than read from the review. Recognition remains the review author's
+evidence responsibility. Cancellation records
 a terminal run without input, closing the game or claiming scenario completion.
 Unknown actions or unfinished input cleanup refuse resume and cancellation.
 An exact refused focus request can be cancelled after its released input scope
 is reconciled; execution and resume still refuse that failed journal.
+
+Frame reviews use `cdmw_cditem_frame_review_v1` and exactly these fields:
+`format`, `execution` and `template` (absolute `path` plus lowercase `sha256`),
+`sequence` (the next capture number), `regions` (one to eight `[left, top, right,
+bottom]` rectangles within the template), `max_mean_error` (0 to 8), `light_text`
+(boolean), `inspection` (the actual visual review), and `classification`.
+Classification contains `screen`, `control`, `point`, `save_id`,
+`gameplay_witness`, `scenario`, and `assertion`; it has no foreground or key field.
+Regions total at most 1,048,576 pixels. Text matching requires at least 32 light
+pixels in every region. The result retains measured differences and the review
+hash, including when later execution fails. This adapter does not recognize a
+new screen, authorize arbitrary input, or enable native-item scenarios.
 
 The baseline policy supports observed F Load and exact-save SPACE selection.
 A recognized load confirmation can use one fixed 1.25-second SPACE hold; the

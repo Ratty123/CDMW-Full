@@ -9,6 +9,8 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 ### Added
 
+- Developer device tests can run through the portable executable, retain JSON results and match one inspected frame before a guarded baseline action. Native-item scenarios remain unavailable until their separate game contracts are verified.
+
 - Settings > Paths shows the folders ignored during archive scans and lets users add or remove custom exclusions, including nested folders. Changes apply on the next archive load or refresh.
 
 - Developer inspection explains `.cditem` identities, owned resources, stock edits and remaining dependencies through current validation. It reports the current shared-file composition limit and can refuse an unsupported isolation claim before publication.

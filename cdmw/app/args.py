@@ -8,6 +8,7 @@ def build_argument_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Crimson Desert Mod Workbench")
     parser.add_argument("--cli", action="store_true", help="Run the command-line workflow using the top-level defaults.")
     parser.add_argument("--gui", action="store_true", help="Force the GUI workflow.")
+    parser.add_argument("--cditem-device-tests", nargs=argparse.REMAINDER, default=None, help=argparse.SUPPRESS)
     parser.add_argument("--isolated-renderer-host", action="store_true", help=argparse.SUPPRESS)
     parser.add_argument("--backend", default="d3d11", choices=("d3d11", "vulkan"), help=argparse.SUPPRESS)
     parser.add_argument("--preview-package", default="", help=argparse.SUPPRESS)

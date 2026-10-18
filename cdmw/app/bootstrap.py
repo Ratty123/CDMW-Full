@@ -45,6 +45,16 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     parser = build_argument_parser()
     args = parser.parse_args(argv)
 
+    if args.cditem_device_tests is not None:
+        if any(value != parser.get_default(name) for name, value in vars(args).items()
+               if name != 'cditem_device_tests'):
+            parser.error('Use --cditem-device-tests without other application modes or options.')
+        from cdmw.services.cditem_device_cli import main as run_device_tests
+
+        # A kill-on-close app job could kill the separate input guardian before
+        # it releases input. This standalone owner uses its guarded lifecycle.
+        return run_device_tests(args.cditem_device_tests)
+
     if args.startup_splash_host:
         from cdmw.ui.startup_splash_host import run_startup_splash_host
 
