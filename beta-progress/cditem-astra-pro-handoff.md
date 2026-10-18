@@ -5,7 +5,9 @@
 - Execution entry point: [cditem-execution-goal.md](cditem-execution-goal.md).
 - Feature authority and completion state: [cditem-conflict-isolation-plan.md](cditem-conflict-isolation-plan.md).
 - Shared completed work: [progress.md](progress.md).
-- Current reasoning review items: RH-01 coordinated publication, RH-02 durable package backing/name lifetime, and RH-03 concrete resource-provider/retirement. Actual attempts, rejected routes and next discriminating probes are retained below. RH-04 stock save containment and source-runner acceptance passed; native absent-provider identity behavior still depends on RH-01 through RH-03.
+- Current reasoning review items: RH-01 coherent publication/failure, RH-02 durable backing and borrowed-name lifetime, RH-03 indexed private-resource publication/retirement, and RH-05 first-instance acquisition. The fourth batch proves the concrete provider writer; repeated writer guessing is superseded. RH-04 stock containment remains resolved; native persistence still depends on the open native/scenario contracts.
+
+- Completed native continuation: the fourth owned provider imported all 1,278 prior evidence records/95 unknown revisions and retained every canonical row in `workspace/reports/cditem-execution/20261018-native-review/batch4-registration-boundary/provider/rea-complete-final-ledger.json` (96,795,800 bytes; SHA-256 `1f9817603690170007cd5fbe690836d0d4ecef371f8826d27b18d93d43e3a3ad`; 1,289 records/97 revisions across 16 IDs). Supported target/session close and graceful shutdown passed at 03:32:32.075 UTC; 03:33:57.1009448 UTC verification found no owned processes/project locks, session open:false and unchanged project metadata. New source proves the ignored normal decoder failure, object-only unwind cleanup, copied/borrowed reverse-name consumers and concrete indexed resource provider. First-instance acquisition is separately unresolved at RH-05. No production source, delivered executable, game, installation, archive or save was changed by this continuation.
 
 ## Purpose and use
 
@@ -39,15 +41,15 @@ Start with a small item family and startup-only activation, then expand. Startup
 
 The R3 handoff recorded a runner timeout, not a graceful close. Its named PIDs were absent at that historical check. Lock files were retained. These facts do not authorize taking over a current provider, deleting locks, or assuming the shared database is available. Retain any newer owner ledger and preserve all imported records.
 
-Calibration games 28344/21936 and clean games 9120/23136, with hosts 24296/15888/20652/21992, have exited. All four disposable contexts are restored. The exact four-file CDMW setup recovery completed before Cloud was re-enabled. Steam is back at its original minimized Crimson Desert library view with Cloud ON and Up to date. Final post-Cloud verification confirms the original 26-file inventory/bytes, installed bookkeeping/runtime/settings, preserved foreign Loadouts v7.192 and all 234 archive guards. No game or native launch host remains active. All three owned REA providers are exported and gracefully closed. Retain recovery/output evidence; refresh ownership before any later game or analysis session.
+Calibration games 28344/21936 and clean games 9120/23136, with hosts 24296/15888/20652/21992, have exited. All four disposable contexts are restored. The exact four-file CDMW setup recovery completed before Cloud was re-enabled. Steam is back at its original minimized Crimson Desert library view with Cloud ON and Up to date. Final post-Cloud verification confirms the original 26-file inventory/bytes, installed bookkeeping/runtime/settings, preserved foreign Loadouts v7.192 and all 234 archive guards. No game or native launch host remains active. All four owned REA providers are exported and gracefully closed. Retain recovery/output evidence; refresh ownership before any later game or analysis session.
 
 ## Inherited research queue
 
-RH-01, RH-02 and RH-03 remain `reasoning_review_needed` after three bounded native batches. RH-04 stock containment is resolved: four guarded whole-root exchanges/restorations, real world loading, one automatically produced slot1 pair, and two consecutive clean acceptance cycles are retained. Original setup and Cloud state are restored. Native absent-provider identity preservation remains blocked by the separate native contracts.
+RH-01, RH-02 and RH-03 remain `reasoning_review_needed` after four bounded native batches; RH-05 now records the separately inspected first-instance acquisition boundary. RH-04 stock containment is resolved: four guarded whole-root exchanges/restorations, real world loading, one automatically produced slot1 pair, and two consecutive clean acceptance cycles are retained. Original setup and Cloud state are restored. Native absent-provider identity preservation remains blocked by the separate native contracts.
 
 ### RH-01: Coherent additive ItemInfo registration
 
-- Status: `reasoning_review_needed`; highest priority; two distinct owned native batches completed.
+- Status: `reasoning_review_needed`; highest priority; four distinct owned native batches completed.
 - Linked task: `CDISO-RE-02`.
 - Priority: first native definition gate.
 - Question: What verified operation can extend and publish an independent ItemInfo contribution while preserving the existing owner's storage, maps, metadata, auxiliary links, and failure invariants?
@@ -70,7 +72,7 @@ The bounded R3 header/materializer, auxiliary identity/header, whole-owner final
 
 **Next useful work**
 
-Start from the existing obligation table and materializer UNWIND_INFO `0x1460af8d4`, following only source-joined cleanup funclets. Inspect the after-headers/before-eager-bodies boundary in dispatcher `0x14fa45a60` for real reader exclusion and demonstrated failure-stop/rollback. Allocator/TLS/loading-thread order is narrowed; serial dispatch and a normally returning diagnostic are insufficient. Do not repeat replacement-header, metadata-reserve, count-write or ordinary-error-return proposals. State storage/map/auxiliary/finalization/failure preconditions before any native mutation.
+The source-joined FH4 cleanup and normal false-return path are now traced. Decoder `0x14150ecb0` can return AL=false normally; materializer call `0x14038af45` ignores it before owner count, name-map, primary-slot, expiry and status-zero publication. Its pending-record/name unwind actions do not demonstrate coordinated map/count rollback. Continue at the after-headers/before-eager-bodies boundary in dispatcher `0x14fa45a60`, proving all-reader exclusion, explicit complete-parse validation and recoverable publication of storage/maps/auxiliaries/finalization. Serial task order, object cleanup, ordinary return, a second header or raw field writes are insufficient. The fourth-batch report retains exact state transitions, source extents and rejected alternatives.
 
 **Primary sources**
 
@@ -91,7 +93,7 @@ Ordinary item materialization uses unqualified shared ItemInfo backing. Maintena
 
 **Next useful work**
 
-The 32-byte reader, DWORD length/cursor and copied-name decoder are traced. Qualify per-ordinal reader substitution at `0x14038ae70` against eager cursor use in `0x14f4fc1e0` and cold lazy getter `0x14038ab60` stock-fetch failure. Prove every required field-buffer lifetime and reverse-name consumer retention through `0x14241bcc0` eviction / `0x142412b40` destruction. Initial construction and actual eviction/rematerialization are distinct gates; restart-only and permanent pinning do not satisfy this contract.
+Qualify per-ordinal reader substitution against eager cursor advancement and cold lazy stock-fetch failure. Actual reverse-name consumers now distinguish a copied handle (`0x142157d10`) from raw-pointer context+0x808 stores (`0x142199250`), including a shared-global fallback. Selected ItemInfo wrappers call the formatter before caller context cleanup. Formatter/callback escape remains unknown; this cleanup is not an upper name-lifetime bound. Prove required field-buffer ownership, resident-row protection and name lifetime across all actual uses, eviction and destruction, or a source-justified owned-ID route independent of record residency. Initial construction, restart-only retention and permanent row pinning do not prove ordinary rematerialization.
 
 Use RH-01's registration sources and the current native runtime owner:
 
@@ -99,7 +101,7 @@ Use RH-01's registration sources and the current native runtime owner:
 
 ### RH-03: Additive private resources and actual use
 
-- Status: `reasoning_review_needed`; three provider-construction hypotheses are ruled out by the retained third batch. The local name-writer and destructive map-reset boundaries are now proved.
+- Status: `reasoning_review_needed`; the fourth batch proves the actual startup writer, concrete provider and indexed enumeration/fetch. Private namespace admission, coherent publication/failure and complete retirement remain open.
 - Linked tasks: `CDISO-RE-03`, `CDISO-RES-01`, `CDISO-DEP-01`.
 - Question: Which supported native discovery/provider routes admit each required new resource identity and keep its parsed/rendered state valid for the item's lifetime?
 - Blocking effect: private filenames can exist without being discovered or used; affects T03-T07/T10/T12/T18.
@@ -114,7 +116,7 @@ Use RH-01's registration sources and the current native runtime owner:
 
 **Next useful work**
 
-The retained 3,335-byte vptr result was hash-verified and followed. Concrete manager construction/source ownership, the mesh `+0x68` writer and case-sensitive PAPPT full-name duplicate behavior are solved locally. Continue at the actual startup configuration service writer (outer `+0x190`, embedded `+0x138`) feeding `0x140acd9e0` / container `+0x40018`; identify its concrete vptr enumerate `+0x50` and fetch `+0x40`, then provider ordering/failure at `0x142cd9510`, qualified private prefixes and complete socket-cache/derived-map retirement. Preserve destructive-clear counterevidence. Research addresses are not admitted callable APIs.
+The actual startup writer is solved: `0x140ad1a30` copies outer+0x10 to+0x190; engine+0x38 supplies concrete provider vptr `0x14571be40`, fetch+0x40 and enumerate+0x50. Follow the proved index/configuration generation into private-name ingestion and same-provider fetch, rather than guessing another provider. Enumeration dedup uses swap-with-last; first nonnull fetch selection does not fall through after read failure; selected *.pappt enumeration requires populated indexed directories. Prove supported publication/reader exclusion, count bounds, path/case/prefix and priority rules, parse failure/rollback, then complete provider/socket-cache/derived-map retirement. Research addresses and operating-system open interception are not native admission.
 
 **Primary sources**
 
@@ -148,13 +150,30 @@ Use the retained whole-root inventories, account/client-service probes, independ
 - `D:\CLAUDETEST\CDMW Full\cdmw\services\virtual_save_experiment_protocol.py`
 - `D:\CLAUDETEST\CDMW Full\scripts\capture_virtual_save_evidence.py`
 
+### RH-05: Acquisition of the first independently registered item
+
+- Status: `reasoning_review_needed`; separate scenario prerequisite discovered by read-only source inspection.
+- Linked tasks: `CDRUN-SCENARIO-01`, `CDISO-RUN-01`, `CDISO-VERIFY-01`.
+- Question: Which normal verified operation creates the first owned instance of a new DWORD/WORD without requiring an existing exemplar of that same identity?
+- Blocking effect: an admitted definition alone does not supply acquisition/equip/persistence scenario inputs; affects T02-T07/T10-T17/T20.
+
+**Actual attempt and retained facts**
+
+Read the current Loadouts Add owner, facade and concrete backend. `unique_word` resolves a full DWORD to exactly one loaded current directory ordinal; native Prepare then requires `owned_exemplar` of that exact WORD in carried bank 1 before construction on both sides. Current Kliff, quantity 1, exact native phases, matching constructed Properties, an existing vacant destination, paired protected UID/type/value receipts and temporary retirement remain required. Thus this stock route does not establish first-instance acquisition. No Add, hook, native call, game operation or reference-project edit was performed. The examined owner checks nonzero catalogue publication and fresh context/request; this selected check is not current catalogue-publication equality. Native function declarations are not a newly admitted CDMW ABI.
+
+**Next useful work and primary sources**
+
+Start from retained ordinary acquisition callers and establish what the same-type exemplar witnesses, then prove an alternative first-instance authority, defaults, phase/thread, UID ownership, protected result and retirement. An additive shop/group/world route must identify its shared-state rules explicitly. Removing the exemplar guard, raw inventory writes, donor duplication or transmog do not answer this question. Preserve current callback availability/expiry uncertainty; stock Add gameplay acceptance is itself pending in the reference project.
+
+`workspace/reports/cditem-execution/20261018-native-review/batch4-acquisition-boundary/first-instance-acquisition-findings.md` (SHA-256 `f68eb478ece659828f641c990f5dacbd609552701e811a1b7ef24595d1fa3a18`) and `source-contract-receipt.json` (`c6da7dade82bd20e8c002d4e0e3b4e014d78f57fd4c6e50160d86db0098a7042`) retain eight immutable snapshots/89,513 bytes, direct callers, source ranges and exact attempts. This handoff item is separate from the sixteen native-provider unknown IDs; no canonical native history was rewritten for this source-only inspection.
+
 ## Operational and validation dependencies
 
 These are preparation requirements, not current claims that the machine is blocked.
 
 | Item | Current knowledge | Resume condition |
 | --- | --- | --- |
-| Shared REA/Ghidra ownership | Third fresh owned resource batch exported 1,278/95 and closed gracefully; at 00:24:19.465 UTC its PIDs 15300/39416/21540 and project locks were absent, session open=false. | Refresh ownership before a later provider; restart from the third complete export and preserve all earlier history. |
+| Shared REA/Ghidra ownership | All four owned providers exported and closed; fourth final ledger 1,289/97 and 03:33:57.1009448 UTC process/session/project-lock verification pass. No provider is retained active. | Refresh shared ownership and exact target/ledger pins before another provider action. Do not adopt another chat's queue or project session. |
 | Game and loader ownership | All four owned games and hosts exited; contexts restored. Exact four-file setup recovery passed. Foreign Loadouts v7.192 is preserved. | Refresh process/runtime/profile ownership before a new run; never reuse historical action readiness. |
 | Game capture and menu input | Two consecutive fresh stock-baseline cycles passed mouse activation from gamepad prompts, F Load, exact Auto Save/SPACE hold, changing world/HUD observation and explicit confirmed exit without user input. Independent retained-evidence reviews accepted both. | Native-item scenarios and exact delivered-byte device checks remain separate. |
 | Save/cloud containment | Four exact pre-Cloud whole-root restorations passed. Final 26-file inventory/bytes match; Cloud ON/Up to date and minimized library restored. Cloud normalized eleven file timestamps; full before/after evidence is retained. | Use the guarded route afresh; preserve unknown changes and never repair timestamps while Cloud is active merely to match a report. |
@@ -348,4 +367,14 @@ The inactive stock generation `C:/games/Steam/steamapps/common/Crimson Desert/.c
 
 Independent `final-native-claim-audit.md` (9,227 bytes; SHA-256 `f3bb2460149a5e712860ad7e7a0ed732abcde3db021b5b97a4d76c11967f824b`) reconciles all T01–T20 boundaries and exact RH restart probes. T01/T19 have stock workflow proof; T08/T09 retain scoped refusal/recovery evidence; native T02–T18 and full T20 remain unfulfilled at RH-01/RH-02/RH-03. All ten original CDISO parent tasks stay open. Scenario completion and full native/delivered-game review stay open. The separate WMDPI equal-scaling hardware check remains open.
 
-Restart from the third complete ledger and its ownership receipts, refreshing ownership before any provider action. Prioritize RH-01's source-joined unwind/initialization boundary, RH-02's eager/lazy per-ordinal backing/lifetime boundary, and RH-03's actual startup configuration provider writer. The retained reports identify actual attempts and rejected hypotheses; no new native adapter is justified yet. All unaffected source, baseline device, build and cleanup work is retained. Do not repeat successful unchanged gates or count partial evidence as the complete goal.
+### Fourth native batch and independent clarification, 2026-10-18
+
+Completed source report: `workspace/reports/cditem-execution/20261018-native-review/batch4-registration-boundary/registration-boundary-findings.md`, SHA-256 `b4edbe3ea9fffdbec55cc5476f8cf6a72f1dba8a289d34f383efb44261a2a1df`. The installed/analysis target remains 384,521,624 bytes / SHA-256 `57da440d72f4db974f25fef047cf84c4dadd999a88cb2a3c5af4c9bd67fde1e7`. The fourth complete ledger (96,795,800 bytes; 1,289 evidence/97 unknown revisions across 16 IDs; SHA-256 `1f9817603690170007cd5fbe690836d0d4ecef371f8826d27b18d93d43e3a3ad`) preserves all 1,278/95 imported canonical rows. RH-01 revision 4 and RH-02 revision 3 remain investigating. Six selected disassembly intervals/2,463 source bytes and four provider raw reads match the pinned PE. FH4 actions release the constructor allocation, pending record and retained name; exact IP states show map/count/slot publication while object guards remain active, without coordinated rollback. Decoder reader/name failure can return false normally before those writes; no malformed runtime test was performed.
+
+RH-02 reviewed report: `workspace/reports/cditem-execution/20261018-native-review/batch4-backing-lifetime/reverse-name-consumer-lifetime-findings-reviewed.md`, 7,146 bytes / SHA-256 `83d8091c31c5ea31e007a5750d938ab100503c56f67dba561e646186a0f4b39c`. Seven selected intervals/1,952 source bytes bind actual copy/borrow/context and ItemInfo formatting callers. The original 6,466-byte/SHA-256 `5d54e094908b5ba647f639fa0dbcd696667069dec2e818e6d50293a33490e503` report remains untouched for canonical history. Independent review corrected its proposed upper borrow bound: formatter/callback escape was not analyzed, so caller context cleanup is not proof of end-of-lifetime.
+
+RH-03 report: `workspace/reports/cditem-execution/20261018-native-review/batch4-resource-provider-passive/findings.md`, 13,425 bytes / SHA-256 `3717211d4335b0a2366199ae3cdf32ce093daac91ddde134d9fec82bd87c0bcf`; inventory SHA-256 `f88077783fb20ce36c3e46ca3359bb82b21451b4bdb8ce8c1133a8b0e70dd717`. Thirty-four physical outputs, four reused intervals and six tables cover 49,283 decoded bytes summed with overlap; all match the pinned PE. Actual provider construction/configuration, swap-erase ordering, first-match read failure, indexed *.pappt visibility and prerequisite failure before PAPPT loading are proved statically. They do not establish private ingestion, runtime count/mode, reader exclusion or rollback/retirement. The optional three-function native crosscheck is retained under evidence `ev_1bd780abcad3201c3116573a9da9c8527d5069fe4f62ec96341db2a51f7083ee`.
+
+Independent review: `workspace/reports/cditem-execution/20261018-native-review/batch4-independent-review/verdict.md`, SHA-256 `519dc63f32fbb89e91db43c81291b987d736037e8a1ff46e6c8aae90123e51cc`. The root acquisition packet and RH-05 preserve the newly identified first-instance prerequisite. Supported close/session-open:false/shutdown passed 03:32:32.075 UTC; final verification 03:33:57.1009448 UTC finds no owned/related provider PIDs or project locks and exact unchanged project metadata. A first cleanup checker lost fractional DateTime precision; its failure is preserved, and corrected direct ticks match the original exactly. No force termination or lock removal occurred. Production source/native files and the delivered portable remain unchanged; unchanged broad tests, build and stock game cycles were not repeated.
+
+Restart from the fourth complete ledger and ownership receipts. Prioritize coherent all-reader publication/explicit parse success, package-owned rematerialization plus actual borrowed-name lifetime, proved provider/index private ingestion and retirement, and first-instance acquisition at RH-05. The previous provider writer, unwind actions and immediate-copy assumption have concrete results now; do not repeat solved or rejected routes. No native adapter is admitted yet. All unaffected source, baseline device, build and cleanup evidence is retained; the full goal remains incomplete.
