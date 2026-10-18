@@ -47,6 +47,8 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 ### Fixed
 
+- Settings > Paths uses the selected language for Archive Locations controls and folder-exclusion guidance.
+
 - Independent item packages privately copy supported DDS references in their owned mesh materials, including selected variants and companion meshes. Exact material fields, source checks and separate update/removal ownership are preserved; existing installations use the normal rebuild flow.
 - Independent item composition allows external or typed edits to a donor ItemInfo row after validating a distinct cloned record with no retained donor identity. Borrowed item and resource dependencies stay protected.
 - Independent item imports refuse ASCII ItemInfo name-hash collisions against selected packages, stock/external names and retained reservations. External rows with mismatched directory and body IDs are rejected before composition.
