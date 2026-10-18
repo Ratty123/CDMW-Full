@@ -69,7 +69,7 @@ class Action:
     key: str = ''
 
 
-SCREENS = frozenset(('title_gamepad', 'title_keyboard', 'main_menu', 'load_menu',
+SCREENS = frozenset(('title_gamepad', 'title_keyboard', 'main_menu', 'load_menu', 'load_confirmation', 'exit_confirmation',
                      'loading', 'gameplay', 'scenario_result', 'unknown', 'modal'))
 DEFAULT_TIMEOUTS = {'title': 180.0, 'menu': 60.0, 'loading': 240.0, 'scenario': 60.0}
 
@@ -115,6 +115,8 @@ class DeviceRun:
         self.entered = clock()
         self.mouse_activated = self.e_pressed = False
         self.opened_load = self.selected_save = False
+        self.save_confirmed = self.save_hold_confirmed = False
+        self.exit_requested = False
         self.pending: Action | None = None
         self.failure = ''
         self.events = []
@@ -150,7 +152,11 @@ class DeviceRun:
             raise DeviceRunError('The owned game window was unexpectedly replaced.')
         if observation.screen not in SCREENS or observation.screen in ('unknown', 'modal'):
             raise DeviceRunError('The game screen is unrecognized or blocked by a dialog.')
-        if self.clock() - self.entered > self.timeouts[self.state]:
+        if (self.state == 'closing' or observation.screen == 'exit_confirmation') and (
+                self.state != 'closing' or not self.exit_requested or observation.screen != 'exit_confirmation'
+                or observation.save_id != self.save_id or observation.control != 'confirm_exit_hold'):
+            raise DeviceRunError('A fresh exit confirmation must identify the owned disposable save.')
+        if self.clock() - self.entered > self.timeouts['loading' if self.state == 'closing' else self.state]:
             raise DeviceRunError(f'The {self.state} state exceeded its deadline.')
         self.sequence, self.window = observation.sequence, window.hwnd
 
@@ -203,6 +209,8 @@ class DeviceRun:
             if self.opened_load:
                 return Action('wait', observation.sequence)
             self.opened_load = True
+            if observation.control == 'open_load_key':
+                return Action('key', observation.sequence, key='F')
             return self._click(observation, 'open_load')
         if screen == 'load_menu':
             if self.state not in ('title', 'menu') or observation.save_id != self.save_id:
@@ -211,7 +219,24 @@ class DeviceRun:
             if self.selected_save:
                 return Action('wait', observation.sequence)
             self.selected_save = True
+            if observation.control == 'select_save_key':
+                return Action('key', observation.sequence, key='RETURN')
+            if observation.control == 'select_save_space':
+                return Action('key', observation.sequence, key='SPACE')
             return self._click(observation, 'select_save')
+        if screen == 'load_confirmation':
+            if (self.state != 'menu' or not self.selected_save or observation.save_id != self.save_id
+                    or observation.control not in ('confirm_load_space', 'confirm_load_hold')):
+                raise DeviceRunError('The observed confirmation must identify the selected disposable save.')
+            if observation.control == 'confirm_load_hold':
+                if self.save_hold_confirmed:
+                    return Action('wait', observation.sequence)
+                self.save_hold_confirmed = self.save_confirmed = True
+                return Action('key', observation.sequence, key='SPACE_CONFIRM')
+            if self.save_confirmed:
+                return Action('wait', observation.sequence)
+            self.save_confirmed = True
+            return Action('key', observation.sequence, key='SPACE')
         if screen == 'loading':
             if not self.selected_save or self.state not in ('menu', 'loading'):
                 raise DeviceRunError('Loading did not follow the owned save selection.')
@@ -228,7 +253,18 @@ class DeviceRun:
             if (self.state != 'scenario' or observation.scenario != self.scenario
                     or observation.save_id != self.save_id or not observation.assertion):
                 raise DeviceRunError('The baseline scenario result is incomplete or unrelated.')
+            if observation.control == 'request_exit':
+                self._state('closing')
+                self.exit_requested = True
+                return Action('key', observation.sequence, key='REQUEST_CLOSE')
+            if observation.control:
+                raise DeviceRunError('The baseline exit control is unrecognized.')
             return Action('close', observation.sequence)
+        if screen == 'exit_confirmation':
+            if (self.state != 'closing' or not self.exit_requested
+                    or observation.save_id != self.save_id or observation.control != 'confirm_exit_hold'):
+                raise DeviceRunError('The owned game exit confirmation has not been established.')
+            return Action('close', observation.sequence, key='SPACE_CONFIRM')
         raise DeviceRunError('No verified action exists for this screen.')
 
     def complete_action(self, action, *, success, detail=''):

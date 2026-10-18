@@ -5,11 +5,12 @@ import ctypes as C
 from contextlib import contextmanager
 from dataclasses import asdict
 import multiprocessing
+import math
 import os
 from pathlib import Path
 import time
 
-from cdmw.services.cditem_device_runner import DeviceRunError, ProcessIdentity, WindowIdentity
+from cdmw.services.cditem_device_runner import Action, DeviceRunError, ProcessIdentity, WindowIdentity
 from cdmw.services.virtual_loader_composition import hash_file
 
 
@@ -82,6 +83,7 @@ def _api():
         (user, 'SetForegroundWindow', [C.c_void_p], C.c_int),
         (user, 'SendInput', [U32, C.POINTER(Input), C.c_int], U32),
         (user, 'GetAsyncKeyState', [C.c_int], C.c_int16),
+        (user, 'MapVirtualKeyW', [U32, U32], U32),
         (user, 'GetSystemMetrics', [C.c_int], C.c_int),
         (user, 'PostMessageW', [C.c_void_p, U32, C.c_size_t, C.c_ssize_t], C.c_int),
     ]
@@ -263,12 +265,20 @@ def _send(user, events):
         raise DeviceRunError('Windows did not accept every injected input event.')
 
 
+_MENU_SCANS = {'E': 0x12, 'F': 0x21, 'RETURN': 0x1C, 'SPACE': 0x39}
+
+
+def _key_event(key, *, up=False):
+    return Input(type=1, keyboard=KeyboardInput(wScan=_MENU_SCANS[key], dwFlags=0x0008 | (0x0002 if up else 0)))
+
+
 def _release(user, held):
     events = []
     if 'left' in held:
         events.append(Input(type=0, mouse=MouseInput(dwFlags=0x0004)))
-    if 'E' in held:
-        events.append(Input(type=1, keyboard=KeyboardInput(wVk=0x45, dwFlags=0x0002)))
+    for key in ('E', 'F', 'RETURN', 'SPACE'):
+        if key in held:
+            events.append(_key_event(key, up=True))
     if events:
         _send(user, events)
 
@@ -283,14 +293,15 @@ def _input_guardian(connection):
             if not connection.poll(2.0):
                 if held:
                     _release(user, held)
-                    held = ()
+                    # Retain ownership until explicit clear/EOF. A stalled
+                    # parent may send DOWN after this first timeout release.
                 continue
             message = connection.recv()
             if message == 'stop':
                 return
             if message == 'clear':
                 held = ()
-            elif message in ('left', 'E'):
+            elif message in ('left', 'E', 'F', 'RETURN', 'SPACE'):
                 held = (message,)
             else:
                 raise DeviceRunError('Invalid input guardian request.')
@@ -399,6 +410,42 @@ class WindowsGameDriver:
             raise DeviceRunError('The owned game is no longer in the foreground.')
         _fresh(observation)
 
+    def _arm_for_input(self, key, observation):
+        # Full process/file/window/desktop and target checks finish before this
+        # point. Reserve the guardian's two-second lease for the actual hold.
+        started = time.monotonic()
+        try:
+            self.guardian.request(key)
+            _fresh(observation)
+            if self.user.GetForegroundWindow() != observation.window.hwnd:
+                raise DeviceRunError('The owned game lost foreground while arming input.')
+            if observation.input_tick is None or _input_tick(self.user) != observation.input_tick:
+                raise DeviceRunError('Desktop input changed while arming; observe again.')
+            _fresh(observation)
+            elapsed = time.monotonic() - started
+            if not math.isfinite(elapsed) or not 0 <= elapsed <= 0.25:
+                raise DeviceRunError('Input arming exceeded its bounded pre-dispatch interval.')
+        except BaseException as exc:
+            try:
+                self.guardian.request('clear')
+            except BaseException as cleanup_error:
+                exc.add_note('Could not disarm the unpressed input: ' + str(cleanup_error))
+            raise
+
+    @contextmanager
+    def _exit_handle(self):
+        handle = self.kernel.OpenProcess(0x100000 | 0x1000, False, self.process.pid)
+        if not handle:
+            raise DeviceRunError('Cannot verify the owned game exit.')
+        try:
+            created, ended, cpu_kernel, cpu_user = U64(), U64(), U64(), U64()
+            if (not self.kernel.GetProcessTimes(handle, C.byref(created), C.byref(ended), C.byref(cpu_kernel), C.byref(cpu_user))
+                    or created.value != self.process.created):
+                raise DeviceRunError('The game PID was reused before its close request.')
+            yield handle
+        finally:
+            self.kernel.CloseHandle(handle)
+
     def perform(self, action, observation):
         if action.kind in ('wait', 'observe_baseline'):
             return
@@ -408,36 +455,39 @@ class WindowsGameDriver:
                 raise DeviceRunError('Windows refused the game focus request.')
             return
         self._foreground(observation)
-        if action.kind == 'close':
-            handle = self.kernel.OpenProcess(0x100000 | 0x1000, False, self.process.pid)
-            if not handle:
-                # An inaccessible PID is not proof of process exit.
-                raise DeviceRunError('Cannot verify the owned game exit.')
-            try:
-                created, ended, cpu_kernel, cpu_user = U64(), U64(), U64(), U64()
-                if (not self.kernel.GetProcessTimes(handle, C.byref(created), C.byref(ended), C.byref(cpu_kernel), C.byref(cpu_user))
-                        or created.value != self.process.created):
-                    raise DeviceRunError('The game PID was reused before its close request.')
-                self._foreground(observation)
-                if not self.user.PostMessageW(observation.window.hwnd, 0x0010, 0, 0):
-                    raise DeviceRunError('The owned game refused an ordinary close request.')
+        if action.kind == 'close' or (action.kind == 'key' and action.key == 'REQUEST_CLOSE'):
+            if action.kind == 'close' and action.key not in ('', 'SPACE_CONFIRM'):
+                raise DeviceRunError('Unsupported owned game close confirmation.')
+            with self._exit_handle() as handle:
+                if action.kind == 'key' or not action.key:
+                    self._foreground(observation)
+                    if not self.user.PostMessageW(observation.window.hwnd, 0x0010, 0, 0):
+                        raise DeviceRunError('The owned game refused an ordinary close request.')
+                    if action.kind == 'key':
+                        return
+                else:
+                    self.perform(Action('key', action.sequence, key='SPACE_CONFIRM'), observation)
+                    # The tap has released/disarmed its input. Its own SPACE
+                    # changes the input tick; do not reuse the old receipt now.
                 if self.kernel.WaitForSingleObject(handle, 15000) != 0:
                     raise DeviceRunError('The owned game has not exited; preserve evidence before recovery.')
-            finally:
-                self.kernel.CloseHandle(handle)
             return
-        if action.kind == 'key' and action.key == 'E':
-            if self.user.GetAsyncKeyState(0x45) & 0x8000:
-                raise DeviceRunError('The E key is already held; input ownership is unknown.')
-            self.guardian.request('E')
-            try:
-                self._foreground(observation)
-            except BaseException:
-                self.guardian.request('clear')
-                raise
-            self.held.add('E')
-            _send(self.user, [Input(type=1, keyboard=KeyboardInput(wVk=0x45)),
-                              Input(type=1, keyboard=KeyboardInput(wVk=0x45, dwFlags=0x0002))])
+        if action.kind == 'key' and action.key in ('E', 'F', 'RETURN', 'SPACE', 'SPACE_CONFIRM'):
+            physical_key = 'SPACE' if action.key == 'SPACE_CONFIRM' else action.key
+            virtual_key = {'E': 0x45, 'F': 0x46, 'RETURN': 0x0D, 'SPACE': 0x20}[physical_key]
+            if self.user.GetAsyncKeyState(virtual_key) & 0x8000:
+                raise DeviceRunError('The observed menu key is already held; input ownership is unknown.')
+            self._foreground(observation)
+            if self.user.MapVirtualKeyW(virtual_key, 0) != _MENU_SCANS[physical_key]:
+                raise DeviceRunError('This menu keyboard mapping has not been calibrated; observe it before input.')
+            down = _key_event(physical_key)
+            self._arm_for_input(physical_key, observation)
+            self.held.add(physical_key)
+            _send(self.user, [down])
+            # A game polling once per frame can miss down/up in one batch.
+            # The armed guardian also releases this bounded hold on interruption.
+            time.sleep(1.25 if action.key == 'SPACE_CONFIRM' else 0.08)
+            _send(self.user, [_key_event(physical_key, up=True)])
         elif action.kind == 'click':
             if self.user.GetAsyncKeyState(1) & 0x8000:
                 raise DeviceRunError('The mouse button is already held; input ownership is unknown.')
@@ -452,21 +502,19 @@ class WindowsGameDriver:
                 raise DeviceRunError('The desktop geometry is unavailable.')
             absolute = (round((left + x - vx) * 65535 / (vw - 1)),
                         round((top + y - vy) * 65535 / (vh - 1)))
-            self.guardian.request('left')
-            try:
-                self._foreground(observation)
-                with _physical_coordinates(self.user):
-                    hit = self.user.WindowFromPoint(Point(left + x, top + y))
-                if not hit or self.user.GetAncestor(hit, 2) != observation.window.hwnd:
-                    raise DeviceRunError('The observed click point is covered by another window.')
-                _fresh(observation)
-            except BaseException:
-                self.guardian.request('clear')
-                raise
+            self._foreground(observation)
+            with _physical_coordinates(self.user):
+                hit = self.user.WindowFromPoint(Point(left + x, top + y))
+            if not hit or self.user.GetAncestor(hit, 2) != observation.window.hwnd:
+                raise DeviceRunError('The observed click point is covered by another window.')
+            _fresh(observation)
+            down = [Input(type=0, mouse=MouseInput(dx=absolute[0], dy=absolute[1], dwFlags=0xC001)),
+                    Input(type=0, mouse=MouseInput(dwFlags=0x0002))]
+            self._arm_for_input('left', observation)
             self.held.add('left')
-            _send(self.user, [Input(type=0, mouse=MouseInput(dx=absolute[0], dy=absolute[1], dwFlags=0xC001)),
-                              Input(type=0, mouse=MouseInput(dwFlags=0x0002)),
-                              Input(type=0, mouse=MouseInput(dwFlags=0x0004))])
+            _send(self.user, down)
+            time.sleep(0.08)
+            _send(self.user, [Input(type=0, mouse=MouseInput(dwFlags=0x0004))])
         else:
             raise DeviceRunError('Unsupported device action.')
         self.held.clear()

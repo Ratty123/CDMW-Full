@@ -51,6 +51,457 @@ def test_gamepad_activation_then_observed_e_once(setup):
     assert step(run, observe(4, 'title_gamepad')).kind == 'wait'
 
 
+def test_observed_explicit_load_shortcut_skips_default_play_and_is_sent_once(setup):
+    run, observe, _ = setup
+    action = step(run, observe(1, 'main_menu', control='open_load_key'))
+    assert action.kind == 'key' and action.key == 'F' and not run.e_pressed
+    assert step(run, observe(2, 'main_menu', control='open_load_key')).kind == 'wait'
+    assert step(run, observe(3, 'load_menu', control='select_save', point=(50, 50), save_id=run.save_id)).kind == 'click'
+
+
+def test_observed_return_selects_exact_disposable_save_only_once(setup):
+    run, observe, _ = setup
+    assert step(run, observe(1, 'main_menu', control='open_load_key')).key == 'F'
+    action = step(run, observe(2, 'load_menu', control='select_save_key', save_id=run.save_id))
+    assert action.kind == 'key' and action.key == 'RETURN' and action.point is None
+    assert step(run, observe(3, 'load_menu', control='select_save_key', save_id=run.save_id)).kind == 'wait'
+    assert step(run, observe(4, 'loading')).kind == 'wait'
+
+
+def test_observed_space_selects_exact_disposable_save_once_without_reinterpreting_return(setup):
+    run, observe, _ = setup
+    action = step(run, observe(1, 'load_menu', control='select_save_space', save_id=run.save_id))
+    assert action.kind == 'key' and action.key == 'SPACE' and action.point is None
+    assert step(run, observe(2, 'load_menu', control='select_save_space', save_id=run.save_id)).kind == 'wait'
+    assert step(run, observe(3, 'loading')).kind == 'wait'
+    # The separately named historical Return route retains its recorded key.
+    old = DeviceRun(run.run_id, run.process, save_id=run.save_id, clock=run.clock)
+    assert step(old, observe(1, 'load_menu', control='select_save_key', save_id=run.save_id)).key == 'RETURN'
+
+
+def test_observed_save_confirmation_requires_selection_and_confirms_space_once(setup):
+    run, observe, _ = setup
+    step(run, observe(1, 'load_menu', control='select_save_space', save_id=run.save_id))
+    action = step(run, observe(2, 'load_confirmation', control='confirm_load_space', save_id=run.save_id))
+    assert action.kind == 'key' and action.key == 'SPACE' and run.save_confirmed
+    assert step(run, observe(3, 'load_confirmation', control='confirm_load_space', save_id=run.save_id)).kind == 'wait'
+    assert step(run, observe(4, 'loading')).kind == 'wait'
+
+
+@pytest.mark.parametrize('selected,save_id,control', [
+    (False, 'disposable-7', 'confirm_load_space'),
+    (True, 'other-save', 'confirm_load_space'),
+    (True, '', 'confirm_load_space'),
+    (True, 'disposable-7', ''),
+    (True, 'disposable-7', 'select_save_space'),
+])
+def test_unidentified_or_unselected_confirmation_pauses_without_input(setup, selected, save_id, control):
+    run, observe, _ = setup
+    if selected:
+        step(run, observe(1, 'load_menu', control='select_save_space', save_id=run.save_id))
+    with pytest.raises(DeviceRunError, match='confirmation'):
+        run.next_action(observe(2, 'load_confirmation', control=control, save_id=save_id))
+    assert run.state == 'paused' and not run.save_confirmed and run.pending is None
+
+
+@pytest.mark.parametrize('short_first', [False, True])
+def test_observed_confirmation_hold_once_after_optional_historical_short_attempt(setup, short_first):
+    run, observe, _ = setup
+    sequence = 1
+    step(run, observe(sequence, 'load_menu', control='select_save_space', save_id=run.save_id))
+    if short_first:
+        sequence += 1
+        assert step(run, observe(sequence, 'load_confirmation', control='confirm_load_space', save_id=run.save_id)).key == 'SPACE'
+        assert run.save_confirmed and not run.save_hold_confirmed
+    sequence += 1
+    action = step(run, observe(sequence, 'load_confirmation', control='confirm_load_hold', save_id=run.save_id))
+    assert action.kind == 'key' and action.key == 'SPACE_CONFIRM'
+    assert run.save_confirmed and run.save_hold_confirmed
+    assert step(run, observe(sequence + 1, 'load_confirmation', control='confirm_load_hold', save_id=run.save_id)).kind == 'wait'
+    assert step(run, observe(sequence + 2, 'load_confirmation', control='confirm_load_space', save_id=run.save_id)).kind == 'wait'
+
+
+@pytest.mark.parametrize('selected,state,save_id', [
+    (False, 'menu', 'disposable-7'), (True, 'title', 'disposable-7'),
+    (True, 'menu', 'other-save'), (True, 'menu', ''),
+])
+def test_confirmation_hold_requires_menu_selected_save_and_exact_identity(setup, selected, state, save_id):
+    run, observe, _ = setup
+    run.selected_save, run.state = selected, state
+    with pytest.raises(DeviceRunError, match='confirmation'):
+        run.next_action(observe(1, 'load_confirmation', control='confirm_load_hold', save_id=save_id))
+    assert not run.save_hold_confirmed and not run.save_confirmed and run.pending is None
+
+
+@pytest.mark.parametrize('key', ['E', 'F', 'RETURN', 'SPACE', 'SPACE_CONFIRM'])
+def test_owned_key_tap_spans_frames_and_releases_the_exact_armed_key(setup, monkeypatch, key):
+    from types import SimpleNamespace
+    from cdmw.services import cditem_device_windows as windows
+    from cdmw.services.cditem_device_runner import Action
+    run, observe, now = setup
+    monkeypatch.setattr(windows.time, 'monotonic', lambda: now[0])
+    monkeypatch.setattr(windows, '_input_tick', lambda user: 123)
+    events, guardian, virtual_keys, mappings = [], [], [], []
+    monkeypatch.setattr(windows.time, 'sleep', lambda duration: events.append(('hold', duration)))
+    class User:
+        GetForegroundWindow = staticmethod(lambda: 77)
+        GetAsyncKeyState = staticmethod(lambda vk: virtual_keys.append(vk) or 0)
+        MapVirtualKeyW = staticmethod(lambda vk, mode: mappings.append((vk, mode)) or {ord('E'): 0x12, ord('F'): 0x21, 0x0D: 0x1C, 0x20: 0x39}[vk])
+        @staticmethod
+        def SendInput(count, values, size):
+            events.append(('input', [(values[i].keyboard.wVk, values[i].keyboard.wScan, values[i].keyboard.dwFlags) for i in range(count)]))
+            return count
+    driver = object.__new__(windows.WindowsGameDriver)
+    driver.verify_observation = lambda observation: None
+    driver.process, driver.held, driver.user = run.process, set(), User()
+    driver.guardian = SimpleNamespace(request=guardian.append)
+    driver.perform(Action('key', 1, key=key), replace(observe(1, 'main_menu', control='open_load_key'), input_tick=123))
+    physical_key = 'SPACE' if key == 'SPACE_CONFIRM' else key
+    scan = {'E': 0x12, 'F': 0x21, 'RETURN': 0x1C, 'SPACE': 0x39}[physical_key]
+    virtual_key = {'E': 0x45, 'F': 0x46, 'RETURN': 0x0D, 'SPACE': 0x20}[physical_key]
+    duration = 1.25 if key == 'SPACE_CONFIRM' else 0.08
+    assert events == [('input', [(0, scan, 8)]), ('hold', duration), ('input', [(0, scan, 10)])]
+    assert virtual_keys == [virtual_key] and mappings == [(virtual_key, 0)]
+    assert guardian == [physical_key, 'clear'] and not driver.held
+
+
+@pytest.mark.parametrize('key,scan', [('F', 0x21), ('RETURN', 0x1C), ('SPACE', 0x39), ('SPACE_CONFIRM', 0x39)])
+def test_interrupted_menu_hold_remains_armed_until_unconditional_input_release(setup, monkeypatch, key, scan):
+    from types import SimpleNamespace
+    from cdmw.services import cditem_device_windows as windows
+    from cdmw.services.cditem_device_runner import Action
+    run, observe, now = setup
+    monkeypatch.setattr(windows.time, 'monotonic', lambda: now[0])
+    monkeypatch.setattr(windows, '_input_tick', lambda user: 123)
+    events, guardian = [], []
+    def interrupt(duration):
+        raise KeyboardInterrupt('during held input')
+    monkeypatch.setattr(windows.time, 'sleep', interrupt)
+    class User:
+        GetForegroundWindow = staticmethod(lambda: 77)
+        GetAsyncKeyState = staticmethod(lambda vk: 0)
+        MapVirtualKeyW = staticmethod(lambda vk, mode: scan)
+        @staticmethod
+        def SendInput(count, values, size):
+            events.extend((values[i].keyboard.wScan, values[i].keyboard.dwFlags) for i in range(count))
+            return count
+    driver = object.__new__(windows.WindowsGameDriver)
+    driver.verify_observation = lambda observation: None
+    driver.process, driver.held, driver.user = run.process, set(), User()
+    driver.guardian = SimpleNamespace(request=guardian.append)
+    with pytest.raises(KeyboardInterrupt):
+        driver.perform(Action('key', 1, key=key), replace(observe(1, 'main_menu', control='open_load_key'), input_tick=123))
+    physical_key = 'SPACE' if key == 'SPACE_CONFIRM' else key
+    assert driver.held == {physical_key} and guardian == [physical_key]
+    # Release the physical key that was armed even if the layout later changes.
+    driver.user.MapVirtualKeyW = lambda *args: pytest.fail('Unconditional release must not remap the held physical key')
+    driver.release_inputs()
+    assert events == [(scan, 8), (scan, 10)] and not driver.held
+    assert guardian == [physical_key, 'clear']
+
+
+@pytest.mark.parametrize('key,mapping', [('F', 0), ('F', 0x12), ('RETURN', 0), ('RETURN', 0x21), ('SPACE', 0), ('SPACE', 0x1C), ('SPACE_CONFIRM', 0), ('SPACE_CONFIRM', 0x1C)])
+def test_uncalibrated_menu_physical_mapping_disarms_without_input(setup, monkeypatch, key, mapping):
+    from types import SimpleNamespace
+    from cdmw.services import cditem_device_windows as windows
+    from cdmw.services.cditem_device_runner import Action
+    run, observe, now = setup
+    monkeypatch.setattr(windows.time, 'monotonic', lambda: now[0])
+    guardian=[]
+    class User:
+        GetForegroundWindow=staticmethod(lambda:77)
+        GetAsyncKeyState=staticmethod(lambda vk:0)
+        MapVirtualKeyW=staticmethod(lambda vk,mode:mapping)
+        SendInput=staticmethod(lambda *args:pytest.fail('Uncalibrated mapping must send no input'))
+    driver=object.__new__(windows.WindowsGameDriver)
+    driver.verify_observation=lambda observation:None
+    driver.process,driver.held,driver.user=run.process,set(),User()
+    driver.guardian=SimpleNamespace(request=guardian.append)
+    with pytest.raises(DeviceRunError,match='keyboard mapping'):
+        driver.perform(Action('key',1,key=key),observe(1,'main_menu',control='open_load_key'))
+    assert guardian == [] and not driver.held
+
+
+@pytest.mark.parametrize('key,virtual_key', [('RETURN', 0x0D), ('SPACE', 0x20), ('SPACE_CONFIRM', 0x20)])
+def test_already_held_menu_key_refuses_before_arming_or_input(setup, monkeypatch, key, virtual_key):
+    from types import SimpleNamespace
+    from cdmw.services import cditem_device_windows as windows
+    from cdmw.services.cditem_device_runner import Action
+    run, observe, now = setup
+    monkeypatch.setattr(windows.time, 'monotonic', lambda: now[0])
+    calls = []
+    class User:
+        GetForegroundWindow = staticmethod(lambda: 77)
+        GetAsyncKeyState = staticmethod(lambda vk: calls.append(vk) or 0x8000)
+        SendInput = staticmethod(lambda *args: pytest.fail('Held menu key must send no input'))
+    driver = object.__new__(windows.WindowsGameDriver)
+    driver.verify_observation = lambda observation: None
+    driver.process, driver.held, driver.user = run.process, set(), User()
+    driver.guardian = SimpleNamespace(request=lambda message: pytest.fail('Held menu key must not arm the guardian'))
+    with pytest.raises(DeviceRunError, match='already held'):
+        driver.perform(Action('key', 1, key=key), observe(1, 'load_menu', control='select_save_key', save_id=run.save_id))
+    assert calls == [virtual_key] and not driver.held
+
+
+@pytest.mark.parametrize('interrupt', [False, True])
+def test_owned_mouse_tap_spans_frames_and_interrupted_hold_releases(setup, monkeypatch, interrupt):
+    from contextlib import nullcontext
+    from types import SimpleNamespace
+    from cdmw.services import cditem_device_windows as windows
+    from cdmw.services.cditem_device_runner import Action
+    run, observe, now = setup
+    monkeypatch.setattr(windows.time, 'monotonic', lambda: now[0])
+    monkeypatch.setattr(windows, '_input_tick', lambda user: 123)
+    monkeypatch.setattr(windows, '_physical_coordinates', lambda user: nullcontext())
+    events, guardian = [], []
+    def hold(duration):
+        events.append(('hold', duration))
+        if interrupt:
+            raise KeyboardInterrupt('during mouse hold')
+    monkeypatch.setattr(windows.time, 'sleep', hold)
+    class User:
+        GetForegroundWindow = staticmethod(lambda: 77)
+        GetAsyncKeyState = staticmethod(lambda vk: 0)
+        GetSystemMetrics = staticmethod(lambda code: {76: 0, 77: 0, 78: 1920, 79: 1080}[code])
+        WindowFromPoint = staticmethod(lambda point: 77)
+        GetAncestor = staticmethod(lambda hwnd, mode: 77)
+        @staticmethod
+        def SendInput(count, values, size):
+            events.append(('input', [values[i].mouse.dwFlags for i in range(count)]))
+            return count
+    driver = object.__new__(windows.WindowsGameDriver)
+    driver.verify_observation = lambda observation: None
+    driver.process, driver.held, driver.user = run.process, set(), User()
+    driver.guardian = SimpleNamespace(request=guardian.append)
+    action = Action('click', 1, point=(50, 50))
+    frame = replace(observe(1, 'main_menu', control='open_load', point=(50, 50)), input_tick=123)
+    if interrupt:
+        with pytest.raises(KeyboardInterrupt):
+            driver.perform(action, frame)
+        assert driver.held == {'left'} and guardian == ['left']
+        driver.release_inputs()
+    else:
+        driver.perform(action, frame)
+    assert events == [('input', [0xC001, 2]), ('hold', 0.08), ('input', [4])]
+    assert guardian == ['left', 'clear'] and not driver.held
+
+
+@pytest.fixture
+def armed_input(setup, monkeypatch):
+    """Fake only the desktop APIs; retain the real driver dispatch ordering."""
+    from contextlib import nullcontext
+    from types import SimpleNamespace
+    from cdmw.services import cditem_device_windows as windows
+    from cdmw.services.cditem_device_runner import Action
+    run, observe, now = setup
+    controls = {'verification_delay': 0.0, 'ack_delay': 0.0, 'foreground_delay': 0.0,
+                'tick_delay': 0.0, 'tick': 123, 'foreground': 77, 'occluded': False}
+    trace, messages, inputs, arms = [], [], [], []
+    driver = object.__new__(windows.WindowsGameDriver)
+    driver.process, driver.held = run.process, set()
+    checks = [0]
+    def verify(observation):
+        checks[0] += 1
+        trace.append(('verify', now[0]))
+        if checks[0] == 2:
+            assert not arms, 'Slow full verification must finish before arming.'
+            now[0] += controls['verification_delay']
+    driver.verify_observation = verify
+    def request(message):
+        messages.append(message)
+        trace.append(('guardian', message, now[0]))
+        if message != 'clear':
+            arms.append(now[0])
+            now[0] += controls['ack_delay']
+    driver.guardian = SimpleNamespace(request=request)
+    def foreground():
+        if arms:
+            now[0] += controls['foreground_delay']
+            return controls['foreground']
+        return 77
+    def tick(user):
+        now[0] += controls['tick_delay']
+        return controls['tick']
+    class User:
+        GetForegroundWindow = staticmethod(foreground)
+        GetAsyncKeyState = staticmethod(lambda vk: 0)
+        MapVirtualKeyW = staticmethod(lambda vk, mode: 0x39)
+        GetSystemMetrics = staticmethod(lambda code: {76: 0, 77: 0, 78: 1920, 79: 1080}[code])
+        GetAncestor = staticmethod(lambda hwnd, mode: hwnd)
+        @staticmethod
+        def WindowFromPoint(point):
+            assert not arms, 'Mouse occlusion must be verified before arming.'
+            return 999 if controls['occluded'] else 77
+        @staticmethod
+        def SendInput(count, values, size):
+            for index in range(count):
+                value = values[index]
+                up = bool(value.keyboard.dwFlags & 2) if value.type == 1 else bool(value.mouse.dwFlags & 4)
+                inputs.append(('up' if up else 'down', now[0]))
+            return count
+    driver.user = User()
+    monkeypatch.setattr(windows.time, 'monotonic', lambda: now[0])
+    monkeypatch.setattr(windows, '_input_tick', tick)
+    monkeypatch.setattr(windows, '_physical_coordinates', lambda user: nullcontext())
+    def hold(duration):
+        trace.append(('hold', duration, now[0]))
+        now[0] += duration
+    monkeypatch.setattr(windows.time, 'sleep', hold)
+    def perform(kind):
+        frame = replace(observe(1, 'load_confirmation', control='confirm_load_hold',
+                                save_id=run.save_id, point=(50, 50)),
+                        captured_at=9.0, input_tick=123)
+        action = Action('key', 1, key='SPACE_CONFIRM') if kind == 'key' else Action('click', 1, point=(50, 50))
+        driver.perform(action, frame)
+    return locals()
+
+
+@pytest.mark.parametrize('kind', ['key', 'mouse'])
+def test_slow_full_validation_finishes_before_arm_and_leaves_hold_covered(armed_input, kind):
+    s = armed_input
+    s['controls'].update(verification_delay=2.1, ack_delay=0.24)
+    s['perform'](kind)
+    assert s['checks'][0] == 2 and s['arms'][0] == pytest.approx(12.1)
+    first_arm = next(index for index, value in enumerate(s['trace']) if value[0] == 'guardian')
+    assert not any(value[0] == 'verify' for value in s['trace'][first_arm:])
+    down = next(at for kind, at in s['inputs'] if kind == 'down')
+    up = s['inputs'][-1][1]
+    assert down - s['arms'][0] == pytest.approx(0.24)
+    assert up - s['arms'][0] == pytest.approx(1.49 if kind == 'key' else 0.32)
+    assert up - s['arms'][0] < 2.0 and not s['driver'].held
+
+
+@pytest.mark.parametrize('kind', ['key', 'mouse'])
+def test_slow_guardian_ack_refuses_before_down_and_clears_unpressed_arm(armed_input, kind):
+    s = armed_input
+    s['controls']['ack_delay'] = 0.26
+    with pytest.raises(DeviceRunError, match='arming exceeded'):
+        s['perform'](kind)
+    assert s['messages'] == ['SPACE' if kind == 'key' else 'left', 'clear']
+    assert not s['inputs'] and not s['driver'].held
+
+
+@pytest.mark.parametrize('change,value', [
+    ('foreground', 999), ('tick', 124), ('tick_delay', 0.26),
+    ('foreground_delay', 0.3), ('ack_delay', -0.01), ('ack_delay', float('nan')),
+])
+def test_post_ack_checks_and_final_finite_clock_bound_refuse_without_down(armed_input, change, value):
+    s = armed_input
+    s['controls'][change] = value
+    with pytest.raises(DeviceRunError):
+        s['perform']('key')
+    assert s['messages'] == ['SPACE', 'clear']
+    assert not s['inputs'] and not s['driver'].held
+
+
+def test_mouse_occlusion_refuses_before_guardian_arm(armed_input):
+    s = armed_input
+    s['controls']['occluded'] = True
+    with pytest.raises(DeviceRunError, match='covered by another window'):
+        s['perform']('mouse')
+    assert s['messages'] == s['inputs'] == [] and not s['driver'].held
+
+
+def test_observed_exit_request_then_exact_confirmation_preserves_legacy_close(setup):
+    run, observe, _ = setup
+    run.state, run.selected_save = 'scenario', True
+    result = dict(save_id=run.save_id, scenario=run.scenario, assertion='baseline retained')
+    legacy = DeviceRun(run.run_id, run.process, save_id=run.save_id, clock=run.clock)
+    legacy.state, legacy.selected_save = 'scenario', True
+    assert step(legacy, observe(1, 'scenario_result', **result)).kind == 'close'
+    assert not legacy.exit_requested
+    request = step(run, observe(1, 'scenario_result', control='request_exit', **result))
+    assert request.kind == 'key' and request.key == 'REQUEST_CLOSE'
+    assert run.state == 'closing' and run.exit_requested
+    close = step(run, observe(2, 'exit_confirmation', control='confirm_exit_hold', save_id=run.save_id))
+    assert close.kind == 'close' and close.key == 'SPACE_CONFIRM' and run.state == 'finished'
+
+
+@pytest.mark.parametrize('state,requested,save_id,control', [
+    ('scenario', False, 'disposable-7', 'confirm_exit_hold'),
+    ('closing', False, 'disposable-7', 'confirm_exit_hold'),
+    ('closing', True, 'other-save', 'confirm_exit_hold'),
+    ('closing', True, 'disposable-7', 'unknown'),
+])
+@pytest.mark.parametrize('foreground', [False, True])
+def test_exit_confirmation_requires_owned_closing_state_and_exact_save(setup, state, requested, save_id, control, foreground):
+    run, observe, _ = setup
+    run.state, run.exit_requested = state, requested
+    with pytest.raises(DeviceRunError, match='exit confirmation'):
+        run.next_action(replace(observe(1, 'exit_confirmation', control=control, save_id=save_id), foreground=foreground))
+
+
+def test_closing_uses_existing_loading_deadline_without_reset(setup):
+    run, observe, now = setup
+    run.state, run.selected_save = 'scenario', True
+    step(run, observe(1, 'scenario_result', control='request_exit', save_id=run.save_id,
+                      scenario=run.scenario, assertion='retained'))
+    now[0] += run.timeouts['loading'] + 1
+    with pytest.raises(DeviceRunError, match='closing.*deadline'):
+        run.next_action(observe(2, 'exit_confirmation', control='confirm_exit_hold', save_id=run.save_id))
+
+
+def _exit_kernel(s, *, reused=False, wait=None):
+    from types import SimpleNamespace
+    calls = []
+    def times(handle, created, *args):
+        created._obj.value = s['run'].process.created + int(reused)
+        return 1
+    kernel = SimpleNamespace(OpenProcess=lambda *args: calls.append('open') or 88,
+                             GetProcessTimes=times, CloseHandle=lambda handle: calls.append('closed'),
+                             WaitForSingleObject=wait or (lambda *args: pytest.fail('Request-only close must not wait')))
+    s['driver'].kernel = kernel
+    return calls
+
+
+@pytest.mark.parametrize('reused', [False, True])
+def test_request_close_posts_only_owned_wm_close_without_waiting(armed_input, reused):
+    from cdmw.services.cditem_device_runner import Action
+    s = armed_input
+    handles, posted = _exit_kernel(s, reused=reused), []
+    s['driver'].user.PostMessageW = lambda hwnd, message, w, l: posted.append((hwnd, message)) or 1
+    frame = replace(s['observe'](1, 'scenario_result'), input_tick=123)
+    if reused:
+        with pytest.raises(DeviceRunError, match='PID was reused'):
+            s['driver'].perform(Action('key', 1, key='REQUEST_CLOSE'), frame)
+    else:
+        s['driver'].perform(Action('key', 1, key='REQUEST_CLOSE'), frame)
+    assert handles == ['open', 'closed']
+    assert posted == ([] if reused else [(77, 0x0010)])
+    assert s['messages'] == s['inputs'] == []
+
+
+def test_confirmed_close_releases_fixed_hold_before_wait_without_reusing_old_tick(armed_input):
+    from cdmw.services.cditem_device_runner import Action
+    s = armed_input
+    send = s['driver'].user.SendInput
+    def changed_tick(count, values, size):
+        result = send(count, values, size)
+        if s['inputs'][-1][0] == 'up':
+            s['controls']['tick'] = 124
+        return result
+    s['driver'].user.SendInput = changed_tick
+    def wait(handle, timeout):
+        assert handle == 88 and timeout == 15000
+        assert s['messages'] == ['SPACE', 'clear'] and not s['driver'].held
+        assert s['controls']['tick'] == 124
+        assert s['inputs'][-1][1] - s['inputs'][0][1] == pytest.approx(1.25)
+        return 0
+    handles = _exit_kernel(s, wait=wait)
+    s['driver'].user.PostMessageW = lambda *args: pytest.fail('Confirmation must not repost WM_CLOSE')
+    s['driver'].perform(Action('close', 1, key='SPACE_CONFIRM'), replace(
+        s['observe'](1, 'exit_confirmation', control='confirm_exit_hold', save_id=s['run'].save_id), input_tick=123))
+    assert handles == ['open', 'closed'] and s['inputs'][-1][0] == 'up'
+
+
+def test_unknown_close_key_refuses_without_opening_process_or_input(armed_input):
+    from cdmw.services.cditem_device_runner import Action
+    s = armed_input
+    with pytest.raises(DeviceRunError, match='Unsupported owned game close'):
+        s['driver'].perform(Action('close', 1, key='F'), s['observe'](1, 'exit_confirmation'))
+    assert s['inputs'] == s['messages'] == []
+
+
 def test_focus_request_is_followed_by_observation_not_input(setup):
     run, observe, _ = setup
     title = replace(observe(1, 'title_keyboard', control='press_e'), foreground=False)
@@ -99,10 +550,11 @@ def test_click_requires_observed_current_client_point(setup, point):
         run.next_action(observe(1, 'title_gamepad', control='activate_keyboard', point=point))
 
 
-def test_exact_save_required_and_continue_is_not_guessed(setup):
+@pytest.mark.parametrize('control', ['select_save', 'select_save_key', 'select_save_space'])
+def test_exact_save_required_and_continue_is_not_guessed(setup, control):
     run, observe, _ = setup
     with pytest.raises(DeviceRunError, match='disposable save'):
-        run.next_action(observe(1, 'load_menu', control='select_save', point=(10, 10), save_id='last-used'))
+        run.next_action(observe(1, 'load_menu', control=control, point=(10, 10), save_id='last-used'))
 
 
 def test_variable_loading_time_uses_loading_deadline(setup):
@@ -230,12 +682,13 @@ def test_default_cli_inspection_has_no_launch_or_input(tmp_path, monkeypatch, ca
     assert value['live_save_ready'] is False and value['blockers']
 
 
-def test_guardian_releases_on_parent_disconnect_and_stall(monkeypatch):
+@pytest.mark.parametrize('key', ['E', 'RETURN', 'SPACE'])
+def test_guardian_releases_on_parent_disconnect_and_stall(monkeypatch, key):
     from cdmw.services import cditem_device_windows as windows
     class Connection:
         def __init__(self):
             self.polls = iter((True, False, True))
-            self.receives = iter(('E',))
+            self.receives = iter((key,))
             self.sent = []
             self.closed = False
         def send(self, message):
@@ -253,8 +706,49 @@ def test_guardian_releases_on_parent_disconnect_and_stall(monkeypatch):
     monkeypatch.setattr(windows, '_api', lambda: (None, 'fake-user'))
     monkeypatch.setattr(windows, '_release', lambda user, held: releases.append(tuple(held)))
     windows._input_guardian(connection)
-    assert releases == [('E',), ()] and connection.closed
+    assert releases == [(key,), (key,)] and connection.closed
     assert connection.sent == ['ready', 'ready']
+
+
+@pytest.mark.parametrize('clear_after_timeout', [False, True])
+def test_guardian_retains_timeout_ownership_for_late_down_until_clear_or_eof(monkeypatch, clear_after_timeout):
+    from cdmw.services import cditem_device_windows as windows
+    events = []
+    class User:
+        @staticmethod
+        def SendInput(count, values, size):
+            for index in range(count):
+                assert values[index].keyboard.wScan == 0x39
+                assert values[index].keyboard.dwFlags == 10
+                events.append('UP')
+            return count
+    class Connection:
+        def __init__(self):
+            self.polls = iter((True, False, True, False, True) if clear_after_timeout else (True, False, True))
+            self.receives = iter(('SPACE', 'clear') if clear_after_timeout else ('SPACE',))
+            self.sent, self.closed = [], False
+        def send(self, value):
+            self.sent.append(value)
+        def poll(self, timeout):
+            assert timeout == 2.0
+            return next(self.polls)
+        def recv(self):
+            try:
+                return next(self.receives)
+            except StopIteration:
+                if not clear_after_timeout:
+                    # The parent's DOWN arrived after the watchdog's first UP.
+                    events.append('DOWN')
+                raise EOFError
+        def close(self):
+            self.closed = True
+    connection = Connection()
+    monkeypatch.setattr(windows, '_api', lambda: (None, User()))
+    # Run the actual guardian state machine and physical release helper against
+    # fake SendInput; no real process, keyboard, or desktop API is used.
+    windows._input_guardian(connection)
+    assert events == (['UP'] if clear_after_timeout else ['UP', 'DOWN', 'UP'])
+    assert connection.closed
 
 
 def test_windows_driver_rechecks_foreground_before_key(setup, monkeypatch):
@@ -303,7 +797,7 @@ def test_late_foreground_failure_does_not_release_a_key_never_pressed(setup, mon
         driver.perform(Action('key', 1, key='E'), observe(1, 'title_keyboard', control='press_e'))
     driver.release_inputs()
     assert events == [] and driver.held == set()
-    assert guardian == ['E', 'clear', 'clear']
+    assert guardian == ['clear']
 
 
 def test_failed_supervisor_start_terminates_only_unarmed_owned_child(monkeypatch):

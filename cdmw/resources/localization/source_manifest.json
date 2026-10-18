@@ -191264,6 +191264,24 @@
   ],
   "exclusions": [
     {
+      "path": "cdmw/services/cditem_device_live_saves.py",
+      "symbol": "*",
+      "source": "*",
+      "reason": "Development-only evidence-bound live save testing diagnostics; no application UI consumer."
+    },
+    {
+      "path": "cdmw/services/cditem_device_installation.py",
+      "symbol": "*",
+      "source": "*",
+      "reason": "Development-only exact CDMW test setup rollback diagnostics; no application UI consumer."
+    },
+    {
+      "path": "cdmw/services/cditem_device_execution.py",
+      "symbol": "*",
+      "source": "*",
+      "reason": "Development-only current-capture runner execution diagnostics; no application UI consumer."
+    },
+    {
       "path": "cdmw/services/cditem_device_runner.py",
       "symbol": "*",
       "source": "*",

@@ -905,8 +905,41 @@ live save trees and Windows path aliases. It retains separate original, input
 and output files and recovers only exact known states. It cannot certify Steam
 Cloud containment, startup writers, save origin or native item compatibility.
 
-Live execute/resume and gameplay scenarios remain gated by the execution plan's
-verified save/Cloud and native contracts. No CLI switch enables the closed native
-redirect gate or substitutes the composed backend for native independent items.
+`preflight`, `execute`, `resume` and `cancel` require an absolute execution-manifest
+path and its exact `--manifest-sha256`. They accept only an already supported-launched
+game bound to an explicit live save context by its native readiness receipt and
+process birth. CLI execution captures and pauses; the service's observer callback
+must classify each fresh game frame before an allowed action. Cancellation records
+a terminal run without input, closing the game or claiming scenario completion.
+Unknown actions or unfinished input cleanup refuse resume and cancellation.
+An exact refused focus request can be cancelled after its released input scope
+is reconciled; execution and resume still refuse that failed journal.
+
+The baseline policy supports observed F Load and exact-save SPACE selection.
+A recognized load confirmation can use one fixed 1.25-second SPACE hold; the
+historical short-key routes remain replayable. An unknown dialog still pauses.
+An explicit completed-baseline exit request posts a close request to the owned
+game. A fresh exact exit confirmation then permits one fixed SPACE hold before
+waiting for that same process to exit. Closing keeps its original bounded
+deadline; a stalled close does not authorize repeated requests or another key.
+The service's exit-only recovery requires a separate immutable request lasting
+at most five minutes and the exact cancelled legacy close journal. It captures
+and pauses before one fresh confirmation. An unused recovery can be cancelled
+without input; a completed or cancelled recovery can reconcile its exact owner
+record after expiry or process exit. Ambiguous input histories still refuse.
+The separate input guardian remains armed through a stalled or disconnected
+parent until the owned input is explicitly released. Full checks precede arming,
+and a delayed acknowledgment refuses input before any key or button goes down.
+
+The separate live save API requires account-bound per-game Cloud OFF evidence,
+fresh ordinary writer shutdown and exact whole-root recovery. Its journal supports
+bounded evidence renewal and preserves unknown states. The installation recovery
+helper retains and restores only the exact four existing CDMW profile/registry/
+runtime/owner files; supported services still perform setup. Neither helper
+establishes gameplay or native item compatibility from copied fixtures.
+
+Gameplay scenarios remain gated by the execution plan's verified live contracts.
+No CLI switch enables the closed native redirect gate or substitutes the composed
+backend for native independent items.
 The current evidence and remaining work are tracked in
 [`beta-progress/cditem-execution-goal.md`](../../../beta-progress/cditem-execution-goal.md).
