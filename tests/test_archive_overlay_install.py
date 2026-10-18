@@ -78,6 +78,33 @@ class OverlayInstallTests(unittest.TestCase):
         )
         return snapshots
 
+    def test_invalid_mount_count_refuses_before_backup_or_archive_writes(self) -> None:
+        mount = self.root / "meta" / "0.papgt"
+        data = bytearray(mount.read_bytes())
+        data[8] = 255
+        mount.write_bytes(data)
+
+        def snapshot():
+            return {
+                path.relative_to(self.root).as_posix(): path.read_bytes() if path.is_file() else None
+                for path in self.root.rglob("*")
+            }
+
+        before = snapshot()
+
+        def backup(paths, description):
+            self.fail("an invalid mount count must be refused before creating a backup")
+
+        target = self.entries[f"{BIN}/iteminfo.pabgb"]
+        with self.assertRaisesRegex(ValueError, "count|string table"):
+            install_overlay(
+                [ArchivePatchRequest(target, b"replacement")],
+                package_root=self.root,
+                backup=backup,
+            )
+
+        self.assertEqual(snapshot(), before, "refusal must preserve all fixture files and directories")
+
     def test_the_overlay_wins_where_the_game_reads_and_the_archives_are_untouched(self) -> None:
         target = self.entries[f"{BIN}/iteminfo.pabgb"]
         replacement = b"the patched item table" * 8

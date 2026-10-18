@@ -300,6 +300,7 @@ def build_package(root: Path, files: dict[str, bytes]) -> Path:
     # the size of the string table, and the names the records point into
     table = b"0009" + bytes(1)
     papgt = bytearray(12)
+    papgt[8] = 1
     papgt += struct.pack("<III", 0x007FFF00, 0, pamt_crc)
     papgt += struct.pack("<I", len(table)) + table
     struct.pack_into("<I", papgt, 4, calculate_pa_checksum(bytes(papgt[12:])))

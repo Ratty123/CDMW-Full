@@ -238,6 +238,41 @@ class PapgtTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "checksum"):
             parse_papgt(bytes(data))
 
+    def test_declared_count_drives_the_record_and_string_table_boundaries(self) -> None:
+        original = self._papgt()
+        stored = struct.unpack_from("<I", original, 4)[0]
+        for count in (0, 1, 2, 4, 255):
+            with self.subTest(count=count):
+                changed = bytearray(original)
+                changed[8] = count
+                self.assertEqual(changed[12:], original[12:])
+                self.assertEqual(calculate_pa_checksum(changed[12:]), stored)
+                with self.assertRaisesRegex(ValueError, "count|string table"):
+                    parse_papgt(bytes(changed))
+
+    def test_zero_and_maximum_counts_preserve_other_header_metadata(self) -> None:
+        header = b"\x01\x02\x03\x04" + b"\x00" * 4 + b"\x00\xA5\x5A\x02"
+        for count in (0, 255):
+            with self.subTest(count=count):
+                entries = tuple(PapgtDirectory(f"{index:04}", PAPGT_DEFAULT_FLAGS, index) for index in range(count))
+                data = serialize_papgt(entries, header=header)
+                self.assertEqual(data[8], count)
+                self.assertEqual(data[:4], header[:4])
+                self.assertEqual(data[9:12], header[9:12])
+                self.assertEqual(parse_papgt(data), entries)
+
+    def test_declared_names_still_require_valid_offsets_and_terminators(self) -> None:
+        for malformed in ("offset", "terminator"):
+            with self.subTest(malformed=malformed):
+                data = bytearray(self._papgt())
+                if malformed == "offset":
+                    struct.pack_into("<I", data, 16, 0xFFFFFFFF)
+                else:
+                    data[-1] = ord("x")
+                struct.pack_into("<I", data, 4, calculate_pa_checksum(data[12:]))
+                with self.assertRaisesRegex(ValueError, "offset|terminated"):
+                    parse_papgt(bytes(data))
+
 
 if __name__ == "__main__":
     unittest.main()

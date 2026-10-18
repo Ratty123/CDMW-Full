@@ -1,11 +1,11 @@
 """`meta/0.papgt`: the list of archive directories the game mounts, in the order it reads
 them.
 
-The file is small and its shape is fixed: a 12-byte header, one 12-byte record per
-directory, the size of the string table, and the table itself. Each record carries the
-directory's flags, the offset of its name in the table, and the checksum of that
-directory's `0.pamt`, which is what makes the file the head of the checksum chain the
-patcher maintains.
+The file is small and its shape is fixed: a 12-byte header with the directory count in
+byte 8, one 12-byte record per directory, the size of the string table, and the table
+itself. Each record carries the directory's flags, the offset of its name in the table,
+and the checksum of that directory's `0.pamt`. That checksum makes the file the head of
+the checksum chain the patcher maintains.
 
 The order matters. The game walks the list and takes the first directory that holds a
 path, so a directory listed before the shipped ones overrides them, which is how a mod
@@ -69,30 +69,27 @@ def parse_papgt(data: bytes) -> Tuple[PapgtDirectory, ...]:
     computed = calculate_pa_checksum(data[_HEADER_BYTES:])
     if stored != computed:
         raise ValueError(f"PAPGT checksum does not match its body: stored=0x{stored:08X} computed=0x{computed:08X}")
-    # The record count is not written down: the table size follows the records, so the
-    # count is the one that makes the file end exactly where the string table ends.
-    for count in range(0, (len(data) - _HEADER_BYTES) // _RECORD_BYTES + 1):
-        size_at = _HEADER_BYTES + count * _RECORD_BYTES
-        if size_at + 4 > len(data):
-            break
-        table_size = struct.unpack_from("<I", data, size_at)[0]
-        if size_at + 4 + table_size != len(data):
-            continue
-        table = data[size_at + 4 : size_at + 4 + table_size]
-        out: List[PapgtDirectory] = []
-        for index in range(count):
-            flags, name_offset, checksum = struct.unpack_from("<III", data, _HEADER_BYTES + index * _RECORD_BYTES)
-            out.append(PapgtDirectory(name=_read_name(table, name_offset), flags=flags, pamt_checksum=checksum))
-        return tuple(out)
-    raise ValueError("PAPGT does not end where its string table says it should")
+    count = data[8]
+    size_at = _HEADER_BYTES + count * _RECORD_BYTES
+    if size_at + 4 > len(data):
+        raise ValueError(f"PAPGT directory count {count} leaves no string table size")
+    table_size = struct.unpack_from("<I", data, size_at)[0]
+    if size_at + 4 + table_size != len(data):
+        raise ValueError(f"PAPGT does not end where the string table for {count} directories says it should")
+    table = data[size_at + 4 :]
+    out: List[PapgtDirectory] = []
+    for index in range(count):
+        flags, name_offset, checksum = struct.unpack_from("<III", data, _HEADER_BYTES + index * _RECORD_BYTES)
+        out.append(PapgtDirectory(name=_read_name(table, name_offset), flags=flags, pamt_checksum=checksum))
+    return tuple(out)
 
 
 def serialize_papgt(directories: Sequence[PapgtDirectory], *, header: bytes = b"") -> bytes:
     """`directories` back into bytes, in the order given, with the header checksum set.
 
-    `header` carries the first twelve bytes of the file the entries came from; the first
-    four and the last four are metadata this module does not interpret, so they are kept
-    rather than invented.
+    `header` carries the first twelve bytes of the file the entries came from. The
+    checksum and directory-count byte are updated; the first four bytes and bytes 9-11
+    are metadata this module keeps rather than invents.
     """
 
     prefix = bytearray(header[:_HEADER_BYTES]) if header else bytearray(_HEADER_BYTES)
