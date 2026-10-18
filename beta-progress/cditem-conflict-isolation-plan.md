@@ -9,7 +9,7 @@
 - Completion log: [progress.md](progress.md)
 - Reviewed branch: RR/independent-item-packages
 - Reviewed HEAD: d4b38e5082d4f9b4b4cce14f9ee2ecdb37994aaf, with concurrent uncommitted work.
-- Current authorization: The user authorizes completing this plan, implementation, focused verification and controlled game tests without routine permission questions. The user now operates menus/gameplay and explicitly authorizes this chat to close or force-close Crimson Desert after coordinating any active measurement with its owning chat. Accepted save/game-data/reinstall risk remains in force; archives are not required by the independent route. Keep feature/progress and Astra/Pro evidence synchronized.
+- Current authorization: The user releases the gaming hold while going to sleep and grants full unattended game start, normal/force close and cross-chat coordination authority, with no questions requiring user input. Continue all authorized coding, reverse engineering, tests and delivery automatically. Accepted save/game-data/reinstall risk remains in force; archives are not required by the independent route. Keep feature/progress and Astra/Pro evidence synchronized.
 
 ## Goal
 
@@ -73,6 +73,8 @@ Completion-entry format:
 That line is a format example, not a completed task.
 
 ## Current handoff
+
+B77 actual unattended stock observation completed after the human directly released the gaming hold while going to sleep and authorized automatic start/normal close/force-close without blocking questions. Startup explicitly released its lane; Main approved a journaled temporary FastStart=0. A separately reviewed/re-frozen caller passes47 focused tests and515 input pins. Actual run `cdrun-native-20261018T222331Z-2a59e4a5`, PID34156, captures both complete692,224-byte stock snapshots (1,384,544-byte packet): count/cookie/metadata/numeric/name entries6816, numeric buckets307/name373, capacity8088. Complete stock payload digests match before finalization and after the original later callback. All149 families join, ItemInfo index6; phase thread14748 differs from verified startup/later callback thread25296. This establishes the actual phase witness and forbids assuming those threads are identical; it does not supply a reader lease or prove absence of intermediate/concurrent reads. No save load/menu input/registry insertion occurred; native admission=false. Normal WM_CLOSE was followed by owned force-close after3s grace. Four CDMW files and exact startup.ini FastStart=1 restored; fresh census closed, all88 selected installed/settings/profile files unchanged with zero additions. Lane explicitly returned to Main/Startup for214. Actual preflight failures, oversized preservation attempt, unexecuted identity-checked stop and exclusive-file refusal retained honestly. No provider query or public rebuild. Receipt `20261019-stock-witness-unattended/GAME_LANE_RETURN.json`,31,555 bytes/SHA `0761ea91d2875add5abe49d59603e498ce4bfc42e08ce2af5c4ce2a8992b2889`; candidate SHA `e811d89e68e0cd18d59c5aa31bf35e8775f03149f0ef68b5696edb6ce805ab08`. Central coherent admission/all-reader and borrowed-pointer lifetime, genuine early heap/backing, independent resources, first ownership and full scenarios/review/T20 remain open. Next connect the retained checked cache to prepared primary/expiry storage and route private materializer ordinals without consuming the stock Reader. See `workspace/reports/cditem-execution/20261019-stock-witness-unattended/findings.md`.
 
 ### CDRUN execution checkpoint, 2026-10-18
 
