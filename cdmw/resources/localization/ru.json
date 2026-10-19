@@ -317,6 +317,7 @@
     "A": "A",
     "A 1.75 m character reference, so the effect's size reads against something known.": "Персонаж-ориентир ростом 1,75 м позволяет оценить размер эффекта по знакомому масштабу.",
     "A Full archive session must be ready before opening a Finder.": "Перед открытием Finder должен быть готов сеанс полного архива.",
+    "A QApplication is required for window interaction tracking": "Для отслеживания взаимодействия с окнами требуется QApplication",
     "A backup needs at least one file.": "Для резервной копии нужен хотя бы один файл.",
     "A bone moved by another bone rather than by an animation clip. On a player rig that is mostly corrective deformation — how a muscle bulges and a knee creases — not hair: across the twenty shipped rigs 259 chains are deformation and only 5 are jiggle.": "Кость перемещается другой костью, а не анимационным клипом. На игровой установке, которая в основном представляет собой корректирующую деформацию — то, как выпирает мышца и сгибается колено, — а не волосы: в двадцати поставленных установках 259 цепей являются деформацией и только 5 покачиваются.",
     "A bonus may occur only once per enhancement level.": "Бонус может быть получен только один раз за уровень улучшения.",

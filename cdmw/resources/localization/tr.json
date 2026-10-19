@@ -317,6 +317,7 @@
     "A": "A",
     "A 1.75 m character reference, so the effect's size reads against something known.": "1,75 m boyunda bir karakter referansı, efektin boyutunu bilinen bir ölçekle karşılaştırmanızı sağlar.",
     "A Full archive session must be ready before opening a Finder.": "Finder'ı açmadan önce Tam arşiv oturumunun hazır olması gerekir.",
+    "A QApplication is required for window interaction tracking": "Pencere etkileşimlerini izlemek için bir QApplication gereklidir",
     "A backup needs at least one file.": "Bir yedek için en az bir dosya gerekir.",
     "A bone moved by another bone rather than by an animation clip. On a player rig that is mostly corrective deformation — how a muscle bulges and a knee creases — not hair: across the twenty shipped rigs 259 chains are deformation and only 5 are jiggle.": "Animasyon klibi yerine başka bir kemik tarafından hareket ettirilen bir kemik. Çoğunlukla düzeltici deformasyon olan bir oyuncu teçhizatında (bir kasın şişmesi ve diz kıvrımı) saç değil: Gönderilen yirmi teçhizatın tamamında 259 zincir deformasyondur ve yalnızca 5'i sallanır.",
     "A bonus may occur only once per enhancement level.": "Bir bonus, yükseltme düzeyi başına yalnızca bir kez gerçekleşebilir.",

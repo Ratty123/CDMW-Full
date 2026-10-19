@@ -317,6 +317,7 @@
     "A": "A",
     "A 1.75 m character reference, so the effect's size reads against something known.": "身長1.75 mのキャラクターを基準に、エフェクトの大きさを比較できます。",
     "A Full archive session must be ready before opening a Finder.": "Finder を開く前に、完全なアーカイブ セッションの準備ができている必要があります。",
+    "A QApplication is required for window interaction tracking": "ウィンドウ操作を追跡するには QApplication が必要です",
     "A backup needs at least one file.": "バックアップには少なくとも 1 つのファイルが必要です。",
     "A bone moved by another bone rather than by an animation clip. On a player rig that is mostly corrective deformation — how a muscle bulges and a knee creases — not hair: across the twenty shipped rigs 259 chains are deformation and only 5 are jiggle.": "ボーンは、アニメーション クリップではなく別のボーンによって移動されます。プレイヤー リグでは、主に修正変形 (筋肉の膨らみや膝のしわ) が髪ではありません。出荷された 20 個のリグ全体で 259 個のチェーンが変形し、わずか 5 個のチェーンが揺れています。",
     "A bonus may occur only once per enhancement level.": "ボーナスは強化レベルごとに 1 回だけ発生します。",

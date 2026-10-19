@@ -317,6 +317,7 @@
     "A": "A",
     "A 1.75 m character reference, so the effect's size reads against something known.": "Postać referencyjna o wzroście 1,75 m pozwala porównać rozmiar efektu ze znaną skalą.",
     "A Full archive session must be ready before opening a Finder.": "Przed otwarciem Findera musi być gotowa sesja pełnego archiwum.",
+    "A QApplication is required for window interaction tracking": "Do śledzenia interakcji z oknami wymagana jest QApplication",
     "A backup needs at least one file.": "Kopia zapasowa potrzebuje co najmniej jednego pliku.",
     "A bone moved by another bone rather than by an animation clip. On a player rig that is mostly corrective deformation — how a muscle bulges and a knee creases — not hair: across the twenty shipped rigs 259 chains are deformation and only 5 are jiggle.": "Kość przeniesiona przez inną kość, a nie przez klip animacyjny. W zestawie gracza chodzi głównie o korektę deformacji — wybrzuszania się mięśni i zginania kolan — a nie włosów: w dwudziestu dostarczonych zestawach 259 łańcuchów ulega deformacji, a tylko 5 drga.",
     "A bonus may occur only once per enhancement level.": "Premia może wystąpić tylko raz na poziom ulepszenia.",

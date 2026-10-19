@@ -317,6 +317,7 @@
     "A": "A",
     "A 1.75 m character reference, so the effect's size reads against something known.": "一個 1.75 公尺高的角色參照，用於根據已知尺度判斷效果大小。",
     "A Full archive session must be ready before opening a Finder.": "在開啟 Finder 之前，必須準備好完整存檔會話。",
+    "A QApplication is required for window interaction tracking": "追蹤視窗互動需要 QApplication",
     "A backup needs at least one file.": "備份至少需要一個檔案。",
     "A bone moved by another bone rather than by an animation clip. On a player rig that is mostly corrective deformation — how a muscle bulges and a knee creases — not hair: across the twenty shipped rigs 259 chains are deformation and only 5 are jiggle.": "一根骨頭被另一根骨頭而不是動畫剪輯移動。在玩家裝備上，主要是矯正變形（肌肉凸出和膝蓋如何摺痕），而不是頭髮：在 20 個發貨的裝備中，259 條鍊是變形的，只有 5 條是抖動的。",
     "A bonus may occur only once per enhancement level.": "每個增強等級只能獲得一次獎勵。",
