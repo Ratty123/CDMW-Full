@@ -142,11 +142,12 @@ def _submesh_snapshot_metadata(submesh: object) -> dict[str, object]:
             continue
         if hasattr(submesh, attr_name):
             extra_attrs[attr_name] = _snapshot_metadata_value(getattr(submesh, attr_name))
-    if extra_attrs:
-        metadata["extra_attrs"] = extra_attrs
     masks = shader_masks_by_source_offset(submesh)
     if masks:
         metadata["shader_masks_by_source_offset"] = {str(offset): value for offset, value in masks.items()}
+        extra_attrs["shader_masks_by_source_offset"] = metadata["shader_masks_by_source_offset"]
+    if extra_attrs:
+        metadata["extra_attrs"] = extra_attrs
     return metadata
 
 def _snapshot_metadata_value(value: object) -> object:
@@ -400,7 +401,11 @@ def _submesh_from_native_snapshot_item(item: Mapping[str, object]) -> SubMesh | 
     )
     if tangent_signs:
         setattr(submesh, "tangent_signs", list(tangent_signs))
-    masks = metadata.get("shader_masks_by_source_offset")
+    extra_attrs = metadata.get("extra_attrs")
+    masks = (
+        extra_attrs.get("shader_masks_by_source_offset", metadata.get("shader_masks_by_source_offset"))
+        if isinstance(extra_attrs, Mapping) else metadata.get("shader_masks_by_source_offset")
+    )
     if isinstance(masks, Mapping) and len(source_vertex_offsets) == vertex_count:
         restored = [masks.get(str(offset), (1., 1., 0.)) if offset >= 0 else (1., 1., 0.)
                     for offset in source_vertex_offsets]
@@ -409,11 +414,10 @@ def _submesh_from_native_snapshot_item(item: Mapping[str, object]) -> SubMesh | 
                for value in restored):
             return None
         submesh.shader_masks = [tuple(value) for value in restored]
-    extra_attrs = metadata.get("extra_attrs")
     if isinstance(extra_attrs, Mapping):
         for raw_name, value in extra_attrs.items():
             attr_name = str(raw_name or "").strip()
-            if attr_name and attr_name not in _TRANSIENT_NATIVE_SUBMESH_ATTRS:
+            if attr_name and attr_name != "shader_masks_by_source_offset" and attr_name not in _TRANSIENT_NATIVE_SUBMESH_ATTRS:
                 setattr(submesh, attr_name, _restored_snapshot_metadata_value(attr_name, value))
     provenance = _topology_provenance_from_native_snapshot_item(
         item, vertex_count=vertex_count, face_count=face_count

@@ -55,6 +55,28 @@ def _repack(header, metadata, raw):
 
 
 class BinaryMeshDocumentTests(unittest.TestCase):
+    def test_empty_authoring_parts_keep_slots_and_reject_residual_channels(self):
+        document = _fixture_document()
+        original = copy.deepcopy(document["lods"][0]["submeshes"][0])
+        for part_index in (0, 1):
+            with self.subTest(part_index=part_index):
+                document["lods"][0]["submeshes"] = [copy.deepcopy(original), copy.deepcopy(original)]
+                empty = document["lods"][0]["submeshes"][part_index]
+                for name, *_ in codec._CHANNELS:
+                    empty[name] = []
+                decoded = codec.decode_mesh_document(codec.encode_mesh_document(document), expected_count=3)
+                self.assertEqual(empty, decoded["lods"][0]["submeshes"][part_index])
+                self.assertEqual(original["name"], decoded["lods"][0]["submeshes"][1 - part_index]["name"])
+                for name, *_ in codec._CHANNELS:
+                    empty[name] = original[name]
+                    with self.subTest(residual_channel=name), self.assertRaises(codec.BinaryMeshDocumentError):
+                        codec.encode_mesh_document(document)
+                    empty[name] = []
+                document["parser"] = "game_parser"
+                with self.assertRaises(codec.BinaryMeshDocumentError):
+                    codec.encode_mesh_document(document)
+                document["parser"] = "cdmw_rust_mesh_authoring_package_v1"
+
     def test_round_trip_preserves_float64_channels_and_native_optional_lengths(self):
         document = _fixture_document()
         encoded = codec.encode_mesh_document(document)

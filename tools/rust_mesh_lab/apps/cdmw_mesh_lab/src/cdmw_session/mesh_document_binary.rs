@@ -154,13 +154,16 @@ fn validate_layout(metadata: &Metadata, payload: &[u8], expected_count: u64) -> 
         total_parts = total_parts.checked_add(lod.submeshes.len() as u64)
             .ok_or_else(|| invalid("submesh count overflows"))?;
         for part in &lod.submeshes {
-            // Preserve MeshDocument's admission rules, including partial normal,
-            // UV and source-map arrays. Raw-byte bounds cover every channel.
-            if !(1..=MAX_VERTICES).contains(&part.positions.count)
+            // Fully deleted authoring slots retain source/material indices for
+            // history. Residual channels and ordinary asset empties stay invalid.
+            let empty_authoring_part = metadata.parser == super::PACKAGE_SCHEMA
+                && [&part.positions, &part.normals, &part.uvs, &part.indices,
+                    &part.source_vertex_indices, &part.shader_masks]
+                    .iter().all(|array| array.count == 0);
+            if !empty_authoring_part && (!(1..=MAX_VERTICES).contains(&part.positions.count)
                 || !(3..=MAX_INDICES).contains(&part.indices.count)
                 || !part.indices.count.is_multiple_of(3)
-                || (part.shader_masks.count != 0 && part.shader_masks.count != part.positions.count)
-            {
+                || (part.shader_masks.count != 0 && part.shader_masks.count != part.positions.count)) {
                 return Err(invalid("geometry counts exceed the supported bounds"));
             }
             for (array, dtype, components, width) in [
@@ -322,6 +325,34 @@ mod tests {
     fn split(bytes: &[u8]) -> (Value, &[u8]) {
         let length = u32::from_le_bytes(bytes[12..16].try_into().unwrap()) as usize;
         (serde_json::from_slice(&bytes[16..16 + length]).unwrap(), &bytes[16 + length..])
+    }
+
+    #[test]
+    fn binary_mesh_document_preserves_empty_authoring_part_slots() {
+        let original = serde_json::to_value(document()).unwrap();
+        let channels = ["positions", "normals", "uvs", "indices", "source_vertex_indices", "shader_masks"];
+        for part_index in 0..2 {
+            let mut value = original.clone();
+            let part = value["lods"][0]["submeshes"][0].clone();
+            value["lods"][0]["submeshes"] = json!([part.clone(), part.clone()]);
+            for channel in channels {
+                value["lods"][0]["submeshes"][part_index][channel] = json!([]);
+            }
+            let expected: MeshDocument = serde_json::from_value(value.clone()).unwrap();
+            let actual = decode(&encode_test_document(&expected), 2).unwrap();
+            assert_eq!(actual.lods, expected.lods);
+            // Generic asset validation still refuses these non-renderable slots.
+            assert!(actual.lods[0].submeshes[part_index].validate().is_err());
+            for channel in channels {
+                let mut invalid = value.clone();
+                invalid["lods"][0]["submeshes"][part_index][channel] = part[channel].clone();
+                let document: MeshDocument = serde_json::from_value(invalid).unwrap();
+                assert!(decode(&encode_test_document(&document), 2).is_err(), "{channel}");
+            }
+            value["parser"] = json!("game_parser");
+            let document: MeshDocument = serde_json::from_value(value).unwrap();
+            assert!(decode(&encode_test_document(&document), 2).is_err());
+        }
     }
 
     #[test]

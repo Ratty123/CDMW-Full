@@ -15,7 +15,10 @@ from collections.abc import Mapping
 
 import numpy as np
 
-from cdmw.services.mesh_rust_contract import RUST_MESH_DOCUMENT_BINARY_CAPABILITY
+from cdmw.services.mesh_rust_contract import (
+    RUST_MESH_AUTHORING_PACKAGE,
+    RUST_MESH_DOCUMENT_BINARY_CAPABILITY,
+)
 
 BINARY_MESH_DOCUMENT_TYPE = RUST_MESH_DOCUMENT_BINARY_CAPABILITY
 BINARY_MESH_DOCUMENT_SCHEMA = "cdmw_mesh_document_binary_v1"
@@ -122,9 +125,14 @@ def _validate_metadata(metadata: object, data_length: int, expected_count: int |
                 cursor += length
             positions = part["positions"]["count"]
             indices = part["indices"]["count"]
-            if not 1 <= positions <= _MAX_VERTICES:
+            # Keep a fully deleted Part's slot for source/material identity and
+            # Undo/Redo. This is authoring state, not export admission.
+            empty_authoring_part = document["parser"] == RUST_MESH_AUTHORING_PACKAGE and all(
+                part[name]["count"] == 0 for name, *_ in _CHANNELS
+            )
+            if not empty_authoring_part and not 1 <= positions <= _MAX_VERTICES:
                 raise BinaryMeshDocumentError("Binary mesh vertex count is outside the native limit")
-            if not 3 <= indices <= _MAX_INDICES or indices % 3:
+            if not empty_authoring_part and (not 3 <= indices <= _MAX_INDICES or indices % 3):
                 raise BinaryMeshDocumentError("Binary mesh triangle count is outside the native limit")
             if part["shader_masks"]["count"] not in (0, positions):
                 raise BinaryMeshDocumentError("Binary mesh shader mask count does not match vertices")

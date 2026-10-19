@@ -1522,6 +1522,12 @@ Transfer from Original may restore the immutable source skin channels into an un
 working mesh from selected vertices or Parts. Loop Cut count/factor, Refine Smooth
 strength/passes, and Weld distance are carried with typed topology commands. Successful
 no-op results and host diagnostics are shown instead of claiming that an edit completed.
+
+Deleting the last vertices in a Part retains its empty slot in the editing session.
+Other Parts keep their source and material identities, and Undo/Redo restores the
+deleted geometry. Empty slots do not bypass export validation: Exact PAC output
+still refuses unsupported empty Parts without closing the session or discarding edits.
+
 Morph & Refit hydrates the selected bound garment's saved
 enabled/mode/intensity/clearance values before applying a change; profile creation
 exposes its rule, axis, amount, feather, falloff, and mirror inputs instead of creating

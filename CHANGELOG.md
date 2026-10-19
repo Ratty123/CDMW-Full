@@ -49,6 +49,8 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 ### Fixed
 
+- Mesh Editor keeps the session and previous edits when deleting the last vertices in a part, including through Undo/Redo. Unsupported empty-part exports remain safely blocked.
+
 - Settings > Paths uses the selected language for Archive Locations controls and folder-exclusion guidance.
 - Archive validation rejects mount lists with inconsistent directory counts before installing an overlay.
 - Developer game tests retry brief Windows file locks when restoring the original runtime files.

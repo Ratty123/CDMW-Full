@@ -1544,6 +1544,93 @@ fn lazy_authoring_lod_failure_retains_current_scene_and_can_retry() -> TestResul
 }
 
 #[test]
+#[ignore = "requires an explicitly authorized read-only PAC corpus manifest"]
+fn authoring_empty_parts_real_pac_corpus() -> TestResult {
+    let path = std::env::var_os("CDMW_EMPTY_PARTS_CORPUS").ok_or("set CDMW_EMPTY_PARTS_CORPUS to the verified corpus manifest")?;
+    let corpus: Value = serde_json::from_slice(&fs::read(path)?)?;
+    let cases = corpus["cases"].as_array().ok_or("missing corpus cases")?;
+    assert!(corpus["source_archives_unchanged"].as_bool() == Some(true));
+    assert!(corpus["file_count"].as_u64().unwrap_or(0) >= 3);
+    for case in cases {
+        let original: MeshDocument = serde_json::from_slice(&fs::read(case["original"].as_str().ok_or("original document")?)?)?;
+        let root = tempdir()?;
+        let bridge = CdmwBridge::for_test(root.path().to_path_buf(), "real-empty-parts", 1, 0);
+        let mut application = LabApplication::new_cdmw(bridge, original, None)?;
+        for (index, path) in case["states"].as_array().ok_or("case states")?.iter().enumerate() {
+            let revision = index as u64 + 1;
+            let document: MeshDocument = serde_json::from_slice(&fs::read(path.as_str().ok_or("state document")?)?)?;
+            let state = cdmw_state_with_document(root.path(), "real-empty-parts", revision, &document)?;
+            application.cdmw_pending_request = Some(CdmwPendingRequest {
+                request_id: revision, event: "command_result", label: "PAC deletion/history".to_owned(), origin: None,
+            });
+            application.handle_cdmw_result("command_result", revision, revision, true, json!({"state":state}), "");
+            assert!(!application.cdmw_exit_requested, "{} Part {}: {}", case["source_path"], case["part_index"], application.status);
+            assert!(application.cdmw_pending_request.is_none());
+            assert_eq!(application.document.as_deref().ok_or("resident document")?.lods, document.lods);
+            let actual = application.mesh.as_ref().ok_or("resident graph")?.draw_snapshot();
+            let expected = WorkingMesh::from_document(&document)?.draw_snapshot();
+            assert_eq!(actual.positions, expected.positions);
+            assert_eq!(actual.triangle_materials, expected.triangle_materials);
+        }
+        println!("PASS {} Part {}", case["source_path"], case["part_index"]);
+    }
+    println!("Verified {} PAC files and {} Part histories through the Rust result/refresh path", corpus["file_count"], cases.len());
+    Ok(())
+}
+
+#[test]
+fn authoring_empty_parts_keep_session_and_source_slots_through_history() -> TestResult {
+    let root = tempdir()?;
+    let mut original = decode_mesh(&cdmw_formats::synthetic::two_lod_pac(), MeshFormat::Pac)?;
+    original.parser = cdmw_session::PACKAGE_SCHEMA.to_owned();
+    let part = original.lods[0].submeshes[0].clone();
+    original.lods[0].submeshes = (0..3).map(|index| {
+        let mut part = part.clone();
+        part.name = format!("Part {index}");
+        part.material = format!("Material {index}");
+        part
+    }).collect();
+    let bridge = CdmwBridge::for_test(root.path().to_path_buf(), "empty-parts", 1, 0);
+    let mut application = LabApplication::new_cdmw(bridge, original.clone(), None)?;
+    let mut revision = 0;
+    // Delete/Undo/Redo each of the first, middle and final slots, then delete
+    // all geometry. Even an empty viewport must retain the editor and history.
+    for removed in [vec![0], vec![1], vec![2], vec![0, 1, 2]] {
+        for deleting in [true, false, true, false] {
+            revision += 1;
+            let mut document = original.clone();
+            if deleting {
+                for &index in &removed {
+                    let part = &mut document.lods[0].submeshes[index];
+                    part.positions.clear();
+                    part.indices.clear();
+                    part.normals.clear();
+                    part.uvs.clear();
+                    part.source_vertex_indices.clear();
+                    part.shader_masks.clear();
+                }
+            }
+            let state = cdmw_state_with_document(root.path(), "empty-parts", revision, &document)?;
+            application.cdmw_pending_request = Some(CdmwPendingRequest {
+                request_id: revision, event: "command_result",
+                label: if deleting {"Delete Selection"} else {"Undo"}.to_owned(), origin: None,
+            });
+            application.handle_cdmw_result("command_result", revision, revision, true,
+                json!({"state": state}), "");
+            assert!(!application.cdmw_exit_requested, "{}", application.status);
+            assert!(application.cdmw_pending_request.is_none());
+            assert_eq!(application.cdmw_bridge.as_ref().unwrap().shadow_revision(), revision);
+            assert_eq!(application.document.as_deref().unwrap().lods, document.lods);
+            let snapshot = application.mesh.as_ref().ok_or("resident graph")?.draw_snapshot();
+            let expected = WorkingMesh::from_document(&document)?.draw_snapshot();
+            assert_eq!(snapshot.positions, expected.positions);
+            assert_eq!(snapshot.triangle_materials, expected.triangle_materials);
+        }
+    }
+    Ok(())
+}
+
+#[test]
 fn authoring_graph_refresh_reuses_attributes_and_rebuilds_changed_topology() -> TestResult {
     let root = tempdir()?;
     let mut document = decode_mesh(&cdmw_formats::synthetic::two_lod_pac(), MeshFormat::Pac)?;

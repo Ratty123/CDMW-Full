@@ -9,6 +9,8 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
+import pytest
+
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from PySide6.QtCore import QProcess, QSettings, QThread
@@ -17,6 +19,7 @@ from PySide6.QtWidgets import QApplication
 from cdmw.models import ArchiveEntry
 from cdmw.services.mesh_rust_authoring import RustMeshCancellationError
 from cdmw.services.mesh_rust_contract import (
+    RUST_EMPTY_AUTHORING_PARTS_CAPABILITY,
     RUST_MESH_AUTHORING_PACKAGE,
     RUST_MESH_CONTROL_CONTRACT_FILE,
     RUST_MESH_CONTROL_CONTRACT_SCHEMA,
@@ -198,14 +201,15 @@ def test_rust_is_the_only_backend_and_legacy_preference_is_ignored(tmp_path: Pat
     _dispose(tab)
 
 
-def test_helper_missing_only_binary_document_capability_is_rejected(tmp_path: Path) -> None:
+@pytest.mark.parametrize("capability", [RUST_MESH_DOCUMENT_BINARY_CAPABILITY, RUST_EMPTY_AUTHORING_PARTS_CAPABILITY])
+def test_helper_missing_a_document_capability_is_rejected(tmp_path: Path, capability: str) -> None:
     resolution = _provenanced_resolution(tmp_path / "helper")
     assert validate_rust_mesh_editor_package(resolution) == ""
     manifest_path = Path(resolution.resolved_path).with_name(RUST_MESH_PROVENANCE_FILE)
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-    manifest["capabilities"].remove(RUST_MESH_DOCUMENT_BINARY_CAPABILITY)
+    manifest["capabilities"].remove(capability)
     assert set(RUST_MESH_REQUIRED_CAPABILITIES) - set(manifest["capabilities"]) == {
-        RUST_MESH_DOCUMENT_BINARY_CAPABILITY,
+        capability,
     }
     manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
     assert "binary mesh document" in validate_rust_mesh_editor_package(resolution)

@@ -19,7 +19,7 @@ from pathlib import Path
 from typing import Any, Iterable, Mapping, Optional, Sequence
 from uuid import uuid4
 
-from cdmw.modding.mesh_deformer import MeshFaceDeleteResult, MeshPartSplitResult, _EXTRA_SUBMESH_ATTRS
+from cdmw.modding.mesh_deformer import MeshFaceDeleteResult, MeshPartSplitResult, _EXTRA_SUBMESH_ATTRS, shader_masks_by_source_offset
 from cdmw.modding.mesh_native_core_constants import (
     Face,
     NATIVE_MESH_CORE_BACKEND_ID,
@@ -178,6 +178,13 @@ def _native_mesh_session_store_item(submesh: SubMesh, submesh_index: int, prefix
         for attr_name in _EXTRA_SUBMESH_ATTRS
         if hasattr(submesh, attr_name)
     }
+    # Native history must retain the source-addressed masks even when the
+    # current Python Part has no vertices from which to recover them.
+    masks = shader_masks_by_source_offset(submesh)
+    if masks:
+        extra_attrs["shader_masks_by_source_offset"] = {
+            str(offset): value for offset, value in masks.items()
+        }
     if extra_attrs:
         item["extra_attrs"] = extra_attrs
     _put_i32_range_or_binary_payload(

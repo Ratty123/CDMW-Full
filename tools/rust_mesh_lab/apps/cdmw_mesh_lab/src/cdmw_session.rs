@@ -854,6 +854,7 @@ impl CdmwBridge {
                 "hair_authoring_v2",
                 "vertex_parameters_v1",
                 "mesh_document_binary_v1",
+                "empty_authoring_parts_v1",
                 "control_contract_v2"
             ]
         }))?;
@@ -1803,6 +1804,15 @@ fn validate_document(document: &MeshDocument) -> Result<(), SessionError> {
         ));
     }
     for submesh in document.lods.iter().flat_map(|lod| &lod.submeshes) {
+        // A deleted authoring Part remains a slot so Undo/Redo, materials and
+        // source mappings do not shift. Asset parsing/export keep their guards.
+        if document.parser == PACKAGE_SCHEMA
+            && submesh.positions.is_empty() && submesh.indices.is_empty()
+            && submesh.normals.is_empty() && submesh.uvs.is_empty()
+            && submesh.source_vertex_indices.is_empty() && submesh.shader_masks.is_empty()
+        {
+            continue;
+        }
         submesh
             .validate()
             .map_err(|error| SessionError::InvalidPayload(error.to_string()))?;
