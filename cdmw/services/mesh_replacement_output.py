@@ -151,6 +151,18 @@ def prepare_replacement_output(snapshot) -> MeshReplacementOutput:
     indices = bound_part_indices(snapshot.mesh, state)
     if {part.target_index for part in state.parts} != set(range(len(original.submeshes))):
         raise ValueError("Replacement mappings do not cover the original target sections.")
+    if original.format.lower() == "pac":
+        fully_excluded = {part.part_id for part in state.parts
+                          if part.included and part.excluded_island_faces
+                          and len(part.excluded_island_faces) == len(original.submeshes[part.target_index].faces)
+                          and set(part.excluded_island_faces) == set(range(len(original.submeshes[part.target_index].faces)))}
+        if fully_excluded:
+            # An all-degenerate section is omitted by the PAC reader. Use the
+            # established whole-part placeholder across LODs, keeping the live
+            # island masks and part inclusion untouched for restoration/Undo.
+            state = replace(state, parts=tuple(
+                replace(part, included=False) if part.part_id in fully_excluded else part
+                for part in state.parts))
     snapshot = replace(snapshot, mesh=replacement_source_mesh(snapshot.mesh, state, original))
     mappings = [StaticSubmeshMapping(
         part.target_index, original.submeshes[part.target_index].name,

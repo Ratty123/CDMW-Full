@@ -130,7 +130,9 @@ fit wholly within one source island's bounds, expanded by at most 10% of the bou
 diagonal and one third of the gap to its nearest neighbour. Overlapping source bounds,
 merged pieces and excessive simplification still require exact correspondence or
 are rejected before changing the session. Save and reopen an imported PAC first.
-Keep at least one island included, or use the whole part's Mod checkbox. Exclusion
+Excluding the last island automatically uses the same hidden-part output as the
+whole part's **Mod** checkbox across stored LODs. The island controls stay available
+to restore individual islands, and Undo/Redo retains the choices. Partial exclusion
 suppresses only selected triangle indices across LODs and retains vertex data,
 materials and bindings. Drafts containing these masks use replacement version 13;
 older drafts remain readable. View masks are temporary presentation state.

@@ -2,6 +2,7 @@
 
 import struct
 import json
+from dataclasses import replace
 from types import SimpleNamespace
 
 import pytest
@@ -211,12 +212,12 @@ def test_island_host_command_restores_output_with_history_and_finish(tmp_path, m
 
 
 @pytest.fixture
-def island_host(tmp_path, monkeypatch):
+def island_host(tmp_path, monkeypatch, request):
     from cdmw.models import ArchiveEntry
     from tests.test_mesh_rust_authoring_exact_output import _open_exact_session
     from tests.test_mesh_rust_replacement import command
 
-    source, owners = _island_pac(_island_lods())
+    source, owners = _island_pac(_island_lods(count=getattr(request, 'param', 6)))
     monkeypatch.setattr('tests.test_mesh_rust_authoring_exact_output._pac_fixture', lambda **kw: source)
     _, service, host = _open_exact_session(tmp_path / 'session')
     snapshot = service.capture_export_snapshot(host.authoritative_session_id)
@@ -235,10 +236,90 @@ def island_host(tmp_path, monkeypatch):
     service.close_edit_session(host.authoritative_session_id, force_without_saving=True)
 
 
+@pytest.mark.parametrize('island_host', [1, 6], indirect=True, ids=['single-island', 'last-island'])
+def test_last_island_uses_whole_part_output_and_can_be_restored(island_host):
+    from cdmw.services.mesh_replacement_import import initial_replacement_state, mesh_with_part_ids
+    from cdmw.services.mesh_replacement_output import prepare_replacement_output
+    from tests.test_mesh_rust_authoring_exact_output import _request
+    from tests.test_mesh_rust_replacement import command
+
+    _, _, service, host, target, arguments = island_host
+    shadow = host.shadow_service
+    original = shadow.capture_export_snapshot(host.shadow_session_id)
+    replacement = initial_replacement_state(original, target)
+    removed = replace(replacement, parts=tuple(replace(part, included=False) for part in replacement.parts))
+    expected = prepare_replacement_output(replace(original, mesh=mesh_with_part_ids(original, replacement),
+                                                replacement_state=removed)).data
+    groups = host.state_payload()['mesh_islands']['parts'][0]['islands']
+    for group in groups[:-1]:
+        command(host, 'replacement_islands', {**arguments, 'faces': group['faces']})
+    before = shadow.capture_export_snapshot(host.shadow_session_id)
+    before_data = shadow.rebuild_result_from_snapshot(before)[0].data
+    last = {**arguments, 'faces': groups[-1]['faces']}
+    state = command(host, 'replacement_islands', last)['state']
+    assert state['replacement']['parts'][0]['included']
+    assert state['mesh_islands']['parts'][0]['available']
+    assert all(not island['included'] for island in state['mesh_islands']['parts'][0]['islands'])
+    snapshot = shadow.capture_export_snapshot(host.shadow_session_id)
+    assert snapshot.mesh.submeshes[0].faces == original.mesh.submeshes[0].faces
+    assert list(snapshot.mesh.submeshes[0].vertices) == list(original.mesh.submeshes[0].vertices)
+    assert prepare_replacement_output(snapshot).data == expected
+    command(host, 'undo')
+    assert shadow.rebuild_result_from_snapshot(shadow.capture_export_snapshot(host.shadow_session_id))[0].data == before_data
+    command(host, 'redo')
+    assert prepare_replacement_output(shadow.capture_export_snapshot(host.shadow_session_id)).data == expected
+    command(host, 'replacement_islands', {**last, 'included': True})
+    assert shadow.rebuild_result_from_snapshot(shadow.capture_export_snapshot(host.shadow_session_id))[0].data == before_data
+    command(host, 'replacement_islands', last)
+    for included in (False, True):
+        command(host, 'replacement_include', {'part_ids': [arguments['part_id']], 'included': included})
+        assert prepare_replacement_output(shadow.capture_export_snapshot(host.shadow_session_id)).data == expected
+    host.finish(_request(host, 'finish_request', 22))
+    assert service.rebuild_result_from_snapshot(service.capture_export_snapshot(host.authoritative_session_id))[0].data == expected
+
+
+@pytest.mark.parametrize('part_index', [0, 1])
+def test_last_island_preserves_other_part_records_at_every_lod(tmp_path, monkeypatch, part_index):
+    from cdmw.models import ArchiveEntry
+    from cdmw.services.mesh_replacement_output import prepare_replacement_output
+    from tests.test_mesh_editor_replacement_regressions import _distinct_lods, _lod_part_records
+    from tests.test_mesh_rust_authoring_exact_output import _open_exact_session
+    from tests.test_mesh_rust_replacement import command
+
+    source = _distinct_lods()
+    monkeypatch.setattr('tests.test_mesh_rust_authoring_exact_output._pac_fixture', lambda **kw: source)
+    _, service, host = _open_exact_session(tmp_path / 'session')
+    try:
+        command(host, 'select', {'selection': {'source_indices': [part_index]}, 'operation': 'replace'})
+        part = host.state_payload()['replacement']['parts'][part_index]
+        before = host.shadow_service.capture_export_snapshot(host.shadow_session_id)
+        command(host, 'replacement_islands', {
+            'part_id': part['id'], 'faces': list(range(len(before.mesh.submeshes[part_index].faces))),
+            'included': False,
+            '_archive_entry': ArchiveEntry(before.mesh.path, tmp_path / '0009/0.pamt',
+                                          tmp_path / '0009/0.paz', 0, 0, 0, 0, 0),
+            '_archive_dependencies': SimpleNamespace(entries_by_basename={}, entries_by_normalized_path={})})
+        snapshot = host.shadow_service.capture_export_snapshot(host.shadow_session_id)
+        output = prepare_replacement_output(snapshot).data
+        for lod_index, lod in enumerate(pac_cloth_lods(output)):
+            assert len(lod.submeshes) == 2
+            assert _lod_part_records(output, lod_index, 1 - part_index) == _lod_part_records(source, lod_index, 1 - part_index)
+            hidden = lod.submeshes[part_index]
+            assert len(hidden.faces) == 1
+            assert max(max(v[axis] for v in hidden.vertices) - min(v[axis] for v in hidden.vertices)
+                       for axis in range(3)) < .002
+        assert snapshot.original_data == source
+    finally:
+        host.cancel()
+        service.close_edit_session(host.authoritative_session_id, force_without_saving=True)
+
+
+@pytest.mark.parametrize('excluded', [(0, 2), tuple(range(6))], ids=['some-islands', 'all-islands'])
 @pytest.mark.parametrize('manager,folder', [('dmm', ''), ('jmm', ''),
                                            ('cdumm', 'files'), ('crimson_sharp', 'files')])
-def test_island_mod_preview_draft_and_manager_exports(island_host, tmp_path, manager, folder):
+def test_island_mod_preview_draft_and_manager_exports(island_host, tmp_path, manager, folder, excluded):
     from cdmw.modding.mesh_parser import parse_mesh
+    from cdmw.services.mesh_replacement_output import prepare_replacement_output
     from cdmw.services.mesh_rust_authoring import read_owned_payload_reference
     from cdmw.services.mesh_service import MeshService
     from cdmw.workers.mesh_editor_workers import MeshDirectOutputWorker
@@ -246,26 +327,32 @@ def test_island_mod_preview_draft_and_manager_exports(island_host, tmp_path, man
     from tests.test_mesh_rust_replacement import command
 
     source, owners, service, host, target, arguments = island_host
-    excluded = {0, 2}
+    excluded = set(excluded)
     for island in sorted(excluded):
         faces = [i for i, owner in enumerate(owners[0]) if owner == island]
         state = command(host, 'replacement_islands', {**arguments, 'faces': faces})['state']
         assert not state['mesh_islands']['parts'][0]['islands'][island]['included']
         assert state['replacement']['parts'][0]['included']
+    snapshot = host.shadow_service.capture_export_snapshot(host.shadow_session_id)
+    if excluded == set(owners[0]):
+        removed = replace(snapshot.replacement_state, parts=tuple(
+            replace(part, included=False) for part in snapshot.replacement_state.parts))
+        expected = prepare_replacement_output(replace(snapshot, replacement_state=removed)).data
+    else:
+        expected = _expected_output(source, owners, excluded)[0]
     source_faces = pac_cloth_lods(source)[0].submeshes[0].faces
+    output_faces = parse_mesh(expected, snapshot.mesh.path).submeshes[0].faces
     for mode in ('output', 'original', 'edit'):
         state = command(host, 'replacement_compare', {'mode': mode})['state']
         document = read_owned_payload_reference(host.root, state['document'])
         indices = document['lods'][0]['submeshes'][0]['indices']
         drawn = [tuple(indices[i:i + 3]) for i in range(0, len(indices), 3)
                  if len(set(indices[i:i + 3])) == 3]
-        wanted = [face for i, face in enumerate(source_faces)
-                  if mode != 'output' or owners[0][i] not in excluded]
+        wanted = output_faces if mode == 'output' else source_faces
         assert drawn == wanted
     host.finish(_request(host, 'finish_request', 22))
     sid = host.authoritative_session_id
     snapshot = service.capture_export_snapshot(sid)
-    expected = _expected_output(source, owners, excluded)[0]
     draft = tmp_path / 'draft/mesh_layers.json'
     service._session(sid).mesh_layer_project_path = draft
     service.retry_mesh_layer_autosave(sid)
