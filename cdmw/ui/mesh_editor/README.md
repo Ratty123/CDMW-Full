@@ -128,14 +128,25 @@ LODs can use exact source positions or safely separated component bounds, includ
 pieces that split or disappear as detail decreases. The simplified component must
 fit wholly within one source island's bounds, expanded by at most 10% of the bounds
 diagonal and one third of the gap to its nearest neighbour. Overlapping source bounds,
-merged pieces and excessive simplification still require exact correspondence or
-are rejected before changing the session. Save and reopen an imported PAC first.
+including interlocking accessories, can also use exactly retained UV and skin
+records, including palette-resolved bones and weights when guide/mask data varies
+between LODs. Every vertex in a lower-LOD component must have an unambiguous source
+inclusion and remain within an incident edge of its matching record in the preceding
+LOD. Changed normals do not invalidate those retained records. Reused records spanning
+included and excluded islands, conflicting positions, components crossing inclusion
+boundaries and unproven movement remain rejected before changing the session. Save
+and reopen an imported PAC first.
 Excluding the last island automatically uses the same hidden-part output as the
 whole part's **Mod** checkbox across stored LODs. The island controls stay available
 to restore individual islands, and Undo/Redo retains the choices. Partial exclusion
 suppresses only selected triangle indices across LODs and retains vertex data,
-materials and bindings. Drafts containing these masks use replacement version 13;
-older drafts remain readable. View masks are temporary presentation state.
+materials and bindings. If every surviving island at one lower LOD is excluded,
+that LOD retains a tiny valid triangle with identical donor skin/guide records at
+its corners, preserving the part slot without stretching under animation. Output is
+rejected if the stored position precision cannot represent an invisible triangle.
+Other parts and retained vertices remain unchanged. Drafts containing these masks
+use replacement version 13; older drafts remain readable. View masks are temporary
+presentation state.
 
 Overlapping translucent islands can still expose shader limits. See the
 [EyeCover overlap investigation](EYECOVER_OVERLAP.md).

@@ -1,4 +1,4 @@
-"""Disconnected geometry and exact PAC island exclusion without vertex edits."""
+"""Disconnected geometry and exact PAC island exclusion preserving part slots."""
 
 from __future__ import annotations
 
@@ -75,8 +75,8 @@ def _separated_island_bounds(part, hidden, *, stop_event=None):
         distances = np.linalg.norm(gaps, axis=1)
         distances[index] = np.inf
         # Euclidean clearance keeps even diagonally neighbouring envelopes apart.
-        # Overlapping/touching source bounds have zero clearance: only the exact
-        # position mapping can authorize those components. Large nearby voids
+        # Overlapping/touching source bounds have zero clearance and cannot use
+        # this envelope mapping. Large nearby voids
         # cannot justify a displacement larger than 10% of the component size.
         radii[index] = min(float(distances.min()) / 3,
                            float(np.linalg.norm(upper[index] - lower[index])) * .1)
@@ -115,12 +115,115 @@ def _simplified_island_faces(part, owners, bounds, error, *, stop_event=None):
     return sorted(selected)
 
 
+def _island_record_key(data, part, vertex, *, decoded_skin=False):
+    # PAC's UV0 and skin/guide/mask lanes can survive simplification exactly,
+    # unlike positions and packed normals. Never infer lineage from UVs alone.
+    offset = part.source_vertex_offsets[vertex]
+    uv = data[offset + 8:offset + 12]
+    if decoded_skin:
+        if (len(part.bone_indices) != len(part.vertices) or len(part.bone_weights) != len(part.vertices)
+                or not part.bone_indices[vertex] or not any(part.bone_weights[vertex])):
+            return None
+        # Guide references and masks can change per LOD while resolved skeletal
+        # bones and weights remain exact. Source ownership must still be unique.
+        return uv, tuple(part.bone_indices[vertex]), tuple(part.bone_weights[vertex])
+    return uv + data[offset + 20:offset + 40]
+
+
+def _island_record_owners(data, part, hidden, *, decoded_skin=False, stop_event=None):
+    owners = {}
+    for face_index, face in enumerate(part.faces):
+        if face_index % 4096 == 0:
+            raise_if_cancelled(stop_event)
+        for vertex in face:
+            key = _island_record_key(data, part, vertex, decoded_skin=decoded_skin)
+            if key is not None:
+                owners.setdefault(key, set()).add(face_index not in hidden)
+    return owners
+
+
+def _retained_island_faces(data, previous, current, record_owners, position_owners, *, decoded_skin=False, stop_event=None):
+    """Require exact retained records and bounded motion at every component vertex.
+
+    A match spanning included and excluded source geometry is never authority.
+    Movement must fit an incident edge of the matching preceding-LOD record;
+    this follows progressive simplification without increasing spatial bounds.
+    Return None when this independent correspondence cannot prove the output.
+    """
+    if not previous.vertices or not previous.faces:
+        return None
+    positions = np.asarray(previous.vertices, dtype=np.float64)
+    triangles = np.asarray(previous.faces, dtype=np.intp)
+    radius_squared = np.zeros(len(positions))
+    for left, right in ((0, 1), (1, 2), (2, 0)):
+        raise_if_cancelled(stop_event)
+        delta = positions[triangles[:, left]] - positions[triangles[:, right]]
+        length_squared = np.sum(delta * delta, axis=1)
+        np.maximum.at(radius_squared, triangles[:, left], length_squared)
+        np.maximum.at(radius_squared, triangles[:, right], length_squared)
+    references = {}
+    # A mixed or incomplete preceding component must not become a stepping stone
+    # that launders an ambiguous merge into a later, apparently unique match.
+    for group in mesh_islands(previous, stop_event=stop_event):
+        raise_if_cancelled(stop_event)
+        vertices = {v for f in group for v in previous.faces[f]}
+        flags, keys = set(), {}
+        for vertex in vertices:
+            if vertex % 4096 == 0:
+                raise_if_cancelled(stop_event)
+            key = _island_record_key(data, previous, vertex, decoded_skin=decoded_skin)
+            labels = record_owners.get(key)
+            if labels is None or len(labels) != 1:
+                break
+            included = next(iter(labels))
+            exact = position_owners.get(position_key(previous.vertices[vertex]))
+            if exact is not None and exact != {included}:
+                break
+            flags.add(included)
+            keys[vertex] = key
+        else:
+            if len(flags) == 1:
+                for vertex, key in keys.items():
+                    references.setdefault(key, []).append(vertex)
+    selected, comparisons = [], 0
+    for group in mesh_islands(current, stop_event=stop_event):
+        raise_if_cancelled(stop_event)
+        flags = set()
+        for vertex in {v for f in group for v in current.faces[f]}:
+            if vertex % 4096 == 0:
+                raise_if_cancelled(stop_event)
+            key = _island_record_key(data, current, vertex, decoded_skin=decoded_skin)
+            labels = record_owners.get(key)
+            if labels is None or len(labels) != 1:
+                return None
+            included = next(iter(labels))
+            exact = position_owners.get(position_key(current.vertices[vertex]))
+            if exact is not None and exact != {included}:
+                return None
+            matches = references.get(key, ())
+            comparisons += len(matches)
+            # Repeated uniform records must not turn this bounded fallback into
+            # a quadratic search over a large untextured mesh.
+            if not matches or comparisons > 2_000_000:
+                return None
+            delta = positions[matches] - current.vertices[vertex]
+            if not np.any(np.sum(delta * delta, axis=1) <= radius_squared[matches]):
+                return None
+            flags.add(included)
+        if len(flags) != 1:
+            return None
+        if flags == {False}:
+            selected.extend(group)
+    return sorted(selected)
+
+
 def pac_island_face_masks(original_data, exclusions, *, stop_event=None):
     """Map retained LOD0 faces to every PAC LOD, rejecting unproven mappings.
 
     Prefer exact source positions. Simplified disconnected components can also
     map within bounded, separated source envelopes; overlapping or excessive
-    simplification still fails before any output is published.
+    simplification can also use exact retained UV/skin records with bounded
+    preceding-LOD motion. Unproven mappings fail before output is published.
     """
     from cdmw.modding.pac_cloth import pac_cloth_lods
 
@@ -148,7 +251,7 @@ def pac_island_face_masks(original_data, exclusions, *, stop_event=None):
                 owners.setdefault(key, set()).add(included)
         if any(len(value) != 1 for value in owners.values()):
             raise ValueError("Island boundaries share source positions. Join seams before excluding this island.")
-        bounds = None
+        bounds, record_owners = None, {}
         for lod_index, lod in enumerate(lods):
             if part_index >= len(lod.submeshes):
                 raise ValueError(f"Island part mapping is missing at LOD {lod_index}.")
@@ -170,7 +273,21 @@ def pac_island_face_masks(original_data, exclusions, *, stop_event=None):
                         raise ValueError(error)
                     if bounds is None:
                         bounds = _separated_island_bounds(part, hidden, stop_event=stop_event)
-                    selected = _simplified_island_faces(current, owners, bounds, error, stop_event=stop_event)
+                    try:
+                        selected = _simplified_island_faces(current, owners, bounds, error, stop_event=stop_event)
+                    except ValueError as exc:
+                        if str(exc) != error:
+                            raise
+                        for decoded_skin in (False, True):
+                            if decoded_skin not in record_owners:
+                                record_owners[decoded_skin] = _island_record_owners(original_data, part, hidden,
+                                    decoded_skin=decoded_skin, stop_event=stop_event)
+                            selected = _retained_island_faces(original_data, lods[lod_index - 1].submeshes[part_index],
+                                current, record_owners[decoded_skin], owners, decoded_skin=decoded_skin, stop_event=stop_event)
+                            if selected is not None:
+                                break
+                        if selected is None:
+                            raise
                     break
                 if labels[0] == {False}:
                     selected.append(face_index)
@@ -180,8 +297,32 @@ def pac_island_face_masks(original_data, exclusions, *, stop_event=None):
     return lods, masks
 
 
+def _preserve_empty_island_part(result, part, lod_index):
+    """Keep a valid tiny draw when all remaining islands disappear at this LOD."""
+    axes = sorted((axis for axis in range(3) if math.isfinite(part.source_bbox_extent[axis])
+                   and 0 < part.source_bbox_extent[axis] / 32767 < .002),
+                  key=lambda axis: part.source_bbox_extent[axis])[:2]
+    if len(axes) != 2:
+        raise ValueError(f"Island exclusion cannot preserve an invisible part at LOD {lod_index}.")
+    face = part.faces[0]
+    offset = part.source_vertex_offsets[face[0]]
+    donor = bytes(result[offset:offset + 40])
+    origin = struct.unpack_from('<3H', donor)
+    for index, vertex in enumerate(face):
+        offset = part.source_vertex_offsets[vertex]
+        # Matching skin/guide data prevents animation from stretching the tiny
+        # triangle back out. Other unused source records remain byte-identical.
+        result[offset:offset + 40] = donor
+        position = list(origin)
+        if index:
+            axis = axes[index - 1]
+            position[axis] += 1 if origin[axis] < 32767 else -1
+        struct.pack_into('<3H', result, offset, *position)
+    struct.pack_into('<3H', result, part.source_index_offset, *face)
+
+
 def apply_pac_island_exclusions(data, original_data, exclusions, *, stop_event=None):
-    """Suppress mapped triangles; preserve every vertex and other index byte."""
+    """Suppress mapped triangles, retaining a tiny valid draw for an emptied LOD."""
     from cdmw.modding.pac_cloth import pac_cloth_lods
 
     reference, masks = pac_island_face_masks(original_data, exclusions, stop_event=stop_event)
@@ -201,4 +342,6 @@ def apply_pac_island_exclusions(data, original_data, exclusions, *, stop_event=N
             vertex = part.faces[face_index][0]
             struct.pack_into('<3H', result, part.source_index_offset + face_index * 6,
                              vertex, vertex, vertex)
+        if hidden and len(hidden) == len(part.faces):
+            _preserve_empty_island_part(result, part, lod_index)
     return bytes(result)

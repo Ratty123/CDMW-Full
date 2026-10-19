@@ -89,6 +89,144 @@ def _expected_output(source, owners, excluded):
     return bytes(expected), masks
 
 
+def _record_island_pac(*, count=6, axes=(0, 1, 2), scale=1, mirror=False, disappear=False, vary_masks=False):
+    """Intersecting component bounds, retained UV/skin, and changing normals."""
+    square = [(10000, 10000, 20000), (30000, 10000, 20000),
+              (10000, 30000, 20000), (30000, 10000, 20000),
+              (30000, 30000, 20000), (10000, 30000, 20000)]
+    uvs = [(0, 0), (1, 0), (0, 1), (1, 0), (1, 1), (0, 1)]
+    lods = []
+    for lod in range(4):
+        components = []
+        for owner in range(count):
+            points = [tuple(round(((65535 - p[a] if mirror else p[a]) + owner // 2 * 2000
+                                   + lod * (300, -200, 100)[a]) * scale) for a in axes)
+                      for p in (square if owner % 2 == 0 else [tuple(p[a] for a in (2, 0, 1)) for p in square])]
+            components.append((owner, points, [(0, 1, 2), (3, 4, 5)]))
+        if disappear and lod == 3:
+            components = components[:1]
+        lods.append(components if lod % 2 == 0 else list(reversed(components)))
+    source, owners = _island_pac(lods)
+    raw = bytearray(source)
+    for lod_index, lod in enumerate(pac_cloth_lods(source)):
+        part = lod.submeshes[0]
+        for component, (owner, _, _) in enumerate(lods[lod_index]):
+            for vertex, uv in enumerate(uvs):
+                offset = part.source_vertex_offsets[component * 6 + vertex]
+                record = bytearray(raw[offset:offset + 40])
+                struct.pack_into('<2e', record, 8, *uv)
+                struct.pack_into('<I', record, 16, 0x40000000 + lod_index)
+                _skin(record, (3, 4), (255 - owner * 20, owner * 20))
+                if vary_masks:
+                    record[36] = 40 + lod_index
+                raw[offset:offset + 40] = record
+    return bytes(raw), owners
+
+
+@pytest.mark.parametrize('excluded', [(0,), (1,), (0, 2, 5)])
+@pytest.mark.parametrize('vary_masks', [False, True], ids=['raw-records', 'resolved-skin'])
+@pytest.mark.parametrize('axes,scale,mirror', [((0, 1, 2), 1, False),
+                                             ((2, 0, 1), .125, False),
+                                             ((1, 2, 0), .5, True)])
+def test_retained_records_map_intersecting_bounds_without_touching_other_bytes(excluded, axes, scale, mirror, vary_masks):
+    source, owners = _record_island_pac(axes=axes, scale=scale, mirror=mirror, vary_masks=vary_masks)
+    expected, masks = _expected_output(source, owners, set(excluded))
+    assert pac_island_face_masks(source, {0: masks[0, 0]})[1] == masks
+    assert apply_pac_island_exclusions(source, source, {0: masks[0, 0]}) == expected
+
+
+@pytest.mark.parametrize('fault', ['uv', 'nan_uv', 'skin', 'collision', 'merged', 'remote', 'position_conflict'])
+@pytest.mark.parametrize('vary_masks', [False, True], ids=['raw-records', 'resolved-skin'])
+def test_unproven_retained_records_remain_rejected(fault, vary_masks):
+    source, _ = _record_island_pac(count=2, vary_masks=vary_masks)
+    raw = bytearray(source)
+    lods = pac_cloth_lods(source)
+    # LOD1 is reversed; these are its first component's vertex records.
+    part = lods[1].submeshes[0]
+    offset = part.source_vertex_offsets[0]
+    if fault == 'uv':
+        struct.pack_into('<e', raw, offset + 8, .125)
+    elif fault == 'nan_uv':
+        # The general parser displays invalid UVs as zero; that is not lineage.
+        struct.pack_into('<H', raw, offset + 8, 0x7e00)
+    elif fault == 'skin':
+        raw[offset + 28] -= 1
+    elif fault == 'collision':
+        for lod in lods:
+            for offset in lod.submeshes[0].source_vertex_offsets:
+                record = bytearray(raw[offset:offset + 40])
+                _skin(record, (3, 4), (255, 0))
+                raw[offset:offset + 40] = record
+    elif fault == 'merged':
+        struct.pack_into('<3H', raw, part.source_index_offset, 0, 1, 6)
+    elif fault == 'remote':
+        for offset in part.source_vertex_offsets[:6]:
+            struct.pack_into('<H', raw, offset + 2, 65000)
+    else:
+        # Its attributes say retained, but its exact source position is excluded.
+        source_offset = lods[0].submeshes[0].source_vertex_offsets[0]
+        raw[offset:offset + 6] = raw[source_offset:source_offset + 6]
+    with pytest.raises(ValueError, match='ambiguous at LOD 1'):
+        apply_pac_island_exclusions(bytes(raw), bytes(raw), {0: (0, 1)})
+
+
+def test_excluding_last_surviving_lower_lod_island_keeps_a_valid_invisible_slot():
+    source, owners = _record_island_pac(count=2, disappear=True)
+    original = pac_cloth_lods(source)
+    exclusions = {0: tuple(i for i, owner in enumerate(owners[0]) if owner == 0)}
+    result = apply_pac_island_exclusions(source, source, exclusions)
+    decoded = pac_cloth_lods(result)
+    assert len(decoded) == 4
+    assert all(len(lod.submeshes) == 1 for lod in decoded)
+    hidden = decoded[3].submeshes[0]
+    assert len(hidden.vertices) == len(original[3].submeshes[0].vertices)
+    assert len(hidden.faces) == 1
+    vertices = hidden.faces[0]
+    assert len(set(vertices)) == 3
+    for field in ('bone_indices', 'bone_weights', 'uvs', 'normals'):
+        values = getattr(hidden, field)
+        assert values[vertices[0]] == values[vertices[1]] == values[vertices[2]]
+    assert max(max(hidden.vertices[v][a] for v in vertices) - min(hidden.vertices[v][a] for v in vertices)
+               for a in range(3)) < .002
+    donor = original[3].submeshes[0].source_vertex_offsets[vertices[0]]
+    for vertex in vertices:
+        offset = hidden.source_vertex_offsets[vertex]
+        assert result[offset + 6:offset + 40] == source[donor + 6:donor + 40]
+    for lod, before in zip(decoded[:3], original[:3]):
+        part = lod.submeshes[0]
+        for a, b in zip(part.source_vertex_offsets, before.submeshes[0].source_vertex_offsets):
+            assert result[a:a + 40] == source[b:b + 40]
+
+
+@pytest.mark.parametrize('extent', [(100, 100, 100), (0, 0, 1)])
+def test_empty_lod_refuses_an_unrepresentable_invisible_placeholder(extent):
+    from cdmw.modding.mesh_islands import _preserve_empty_island_part
+
+    source, _ = _record_island_pac(count=2, disappear=True)
+    part = replace(pac_cloth_lods(source)[3].submeshes[0], source_bbox_extent=extent)
+    with pytest.raises(ValueError, match='cannot preserve an invisible part at LOD 3'):
+        _preserve_empty_island_part(bytearray(source), part, 3)
+
+
+def test_retained_record_mapping_cancellation_is_not_an_ambiguous_result():
+    from cdmw.domain.cancellation import RunCancelled
+    from cdmw.modding.mesh_islands import _island_record_owners, _retained_island_faces
+
+    class StopAfterSixChecks:
+        calls = 0
+
+        def is_set(self):
+            self.calls += 1
+            return self.calls >= 6
+
+    source, _ = _record_island_pac(count=2)
+    lods = pac_cloth_lods(source)
+    before, current = lods[0].submeshes[0], lods[1].submeshes[0]
+    records = _island_record_owners(source, before, {0, 1})
+    with pytest.raises(RunCancelled):
+        _retained_island_faces(source, before, current, records, {}, stop_event=StopAfterSixChecks())
+
+
 @pytest.mark.parametrize('excluded', [(i,) for i in range(6)] + [(0, 2, 5), tuple(range(5))])
 @pytest.mark.parametrize('simplified', [False, True])
 def test_island_exclusion_preserves_every_other_byte_across_lods(excluded, simplified):
@@ -217,7 +355,9 @@ def island_host(tmp_path, monkeypatch, request):
     from tests.test_mesh_rust_authoring_exact_output import _open_exact_session
     from tests.test_mesh_rust_replacement import command
 
-    source, owners = _island_pac(_island_lods(count=getattr(request, 'param', 6)))
+    scenario = getattr(request, 'param', 6)
+    source, owners = (_record_island_pac(vary_masks=scenario == 'decoded-records') if scenario in {'retained-records', 'decoded-records'}
+                      else _island_pac(_island_lods(count=scenario)))
     monkeypatch.setattr('tests.test_mesh_rust_authoring_exact_output._pac_fixture', lambda **kw: source)
     _, service, host = _open_exact_session(tmp_path / 'session')
     snapshot = service.capture_export_snapshot(host.authoritative_session_id)
@@ -314,6 +454,7 @@ def test_last_island_preserves_other_part_records_at_every_lod(tmp_path, monkeyp
         service.close_edit_session(host.authoritative_session_id, force_without_saving=True)
 
 
+@pytest.mark.parametrize('island_host', [6, 'retained-records', 'decoded-records'], indirect=True, ids=['bounds', 'raw-records', 'resolved-skin'])
 @pytest.mark.parametrize('excluded', [(0, 2), tuple(range(6))], ids=['some-islands', 'all-islands'])
 @pytest.mark.parametrize('manager,folder', [('dmm', ''), ('jmm', ''),
                                            ('cdumm', 'files'), ('crimson_sharp', 'files')])
