@@ -664,6 +664,13 @@ def _validated_morph_runtime_snapshot_descriptor(
         topology_digest = str(value.get("topology_digest") or "").strip().lower()
         byte_length = int(value.get("byte_length") or 0)
         retained_bytes = int(value.get("retained_bytes") or 0)
+        history_bytes = int(value.get("history_retained_bytes") or 0)
+        if (
+            history_bytes < 0
+            or (history_bytes and value.get("history_captured") is not True)
+            or (value.get("history_captured") is True and history_bytes == 0)
+        ):
+            raise ValueError("Snapshot history accounting is invalid.")
         if not snapshot_id or len(snapshot_id) > 128 or not source_session_id:
             raise ValueError("Snapshot identity or source session is missing or invalid.")
         if len(sha256) != 64 or any(ch not in "0123456789abcdef" for ch in sha256):
@@ -698,12 +705,15 @@ def _validated_morph_runtime_snapshot_descriptor(
         "sha256": sha256,
         "topology_digest": topology_digest,
         "retained_bytes": retained_bytes,
+        "history_captured": value.get("history_captured") is True,
+        "history_retained_bytes": history_bytes,
     }
 
 
 def create_native_mesh_editor_morph_runtime_snapshot(
     session_id: str,
     *,
+    history_counts: tuple[int, int] | None = None,
     stop_event: threading.Event | None = None,
     timeout_seconds: float = 10.0,
 ) -> dict[str, object] | None:
@@ -716,19 +726,31 @@ def create_native_mesh_editor_morph_runtime_snapshot(
     retained = False
     try:
         path.unlink(missing_ok=True)
+        payload: dict[str, object] = {
+            "snapshot_id": uuid4().hex,
+            "snapshot_output_path": str(path),
+        }
+        if history_counts is not None:
+            payload.update(
+                history_undo_count=history_counts[0],
+                history_redo_count=history_counts[1],
+            )
         report = native_mesh_editor_session_command(
             "morph_snapshot_create",
             session_text,
-            {
-                "snapshot_id": uuid4().hex,
-                "snapshot_output_path": str(path),
-            },
+            payload,
             stop_event=stop_event,
             timeout_seconds=timeout_seconds,
         )
         descriptor = _validated_morph_runtime_snapshot_descriptor(
             report.get("snapshot") if isinstance(report, Mapping) else None
         )
+        if descriptor is not None and history_counts is not None and not descriptor["history_captured"]:
+            _note_native_job_failure(
+                "mesh-editor-session-json", "Native helper does not support reversible Morph history snapshots."
+            )
+            dispose_native_mesh_editor_morph_runtime_snapshot(descriptor)
+            return None
         if descriptor is None or Path(str(descriptor["path"])) != path.resolve():
             return None
         retained = True

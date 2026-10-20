@@ -1510,6 +1510,10 @@ history entry stops at the last confirmed state. These controls use the current
 editing session's retained history; they do not replay or remove isolated edits
 out of order. `cdmw_history.rs` owns the list and traversal; the existing host
 history still restores geometry, selection, profiles and other editor state.
+Morph & Refit snapshots retain the earlier native actions needed to cross between
+body controls, fitting and ordinary mesh edits in both directions. Their retained
+native data counts toward the existing history memory budget; a new edit after
+Undo still discards the previous Redo branch.
 
 Select, Move, Rotate, Scale, Grab, Smooth, Inflate, and Pinch execute locally in Rust.
 Selection is acknowledged with a selection-only command; it never sends geometry

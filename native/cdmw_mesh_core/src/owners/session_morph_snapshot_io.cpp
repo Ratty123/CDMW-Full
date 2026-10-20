@@ -1,3 +1,13 @@
+struct MeshMorphHistorySnapshot {
+    std::string source_session_id;
+    std::string sha256;
+    std::vector<MeshEditorHistoryEntry> undo;
+    std::vector<MeshEditorHistoryEntry> redo;
+    MeshEditorSelection selection;
+};
+
+std::map<std::string, MeshMorphHistorySnapshot> g_mesh_morph_history_snapshots;
+
 std::string mesh_editor_snapshot_normalized_path(std::string path) {
     for (char& ch : path) {
         if (ch == '\\') ch = '/';
@@ -116,7 +126,8 @@ std::string mesh_editor_morph_snapshot_create_session_report(
         throw std::runtime_error("finish or cancel the active mesh gesture before capturing Morph & Refit state");
     }
     const std::string snapshot_id = mesh_editor_snapshot_string(root, "snapshot_id");
-    if (snapshot_id.empty() || snapshot_id.size() > 128) {
+    if (snapshot_id.empty() || snapshot_id.size() > 128
+        || g_mesh_morph_history_snapshots.count(snapshot_id) != 0) {
         throw std::runtime_error("morph runtime snapshot requires a bounded snapshot_id");
     }
     const std::string output_path = mesh_editor_validate_morph_snapshot_path(
@@ -124,6 +135,30 @@ std::string mesh_editor_morph_snapshot_create_session_report(
     );
     const std::string runtime_payload = mesh_editor_morph_runtime_snapshot_payload(session);
     const std::string topology_digest = mesh_editor_morph_topology_digest(session);
+    const bool capture_history = root.get("history_undo_count") != nullptr;
+    MeshMorphHistorySnapshot history;
+    std::size_t history_bytes = 0;
+    if (capture_history) {
+        const auto undo_count = mesh_editor_snapshot_integer(root, "history_undo_count");
+        const auto redo_count = mesh_editor_snapshot_integer(root, "history_redo_count");
+        if (undo_count > static_cast<long long>(session.undo_stack.size())
+            || redo_count > static_cast<long long>(session.redo_stack.size())) {
+            throw std::runtime_error("morph snapshot history does not match the retained editor history");
+        }
+        history.source_session_id = session_id;
+        history.undo.assign(session.undo_stack.end() - undo_count, session.undo_stack.end());
+        history.redo.assign(session.redo_stack.end() - redo_count, session.redo_stack.end());
+        history.selection = session.selection;
+        MeshEditorMorphMemoryAccounting accounting;
+        history_bytes = sizeof(MeshMorphHistorySnapshot)
+            + mesh_editor_history_stack_retained_bytes_with_morph(history.undo, accounting)
+            + mesh_editor_history_stack_retained_bytes_with_morph(history.redo, accounting);
+        MeshEditorHistoryEntry selection_accounting;
+        selection_accounting.selection_snapshot = true;
+        selection_accounting.selection_before = std::move(history.selection);
+        history_bytes += mesh_editor_history_entry_retained_bytes(selection_accounting);
+        history.selection = std::move(selection_accounting.selection_before);
+    }
     std::ostringstream document_stream;
     document_stream << "{\"schema\":";
     write_escaped(document_stream, MESH_EDITOR_MORPH_RUNTIME_SNAPSHOT_SCHEMA);
@@ -135,10 +170,15 @@ std::string mesh_editor_morph_snapshot_create_session_report(
     write_escaped(document_stream, topology_digest);
     document_stream << ",\"retained_bytes\":" << runtime_payload.size()
         << ",\"morph_state_revision\":" << session.morph_state_revision
+        << ",\"history_captured\":" << (capture_history ? "true" : "false")
         << ",\"runtime\":" << runtime_payload << '}';
     const std::string document = document_stream.str();
     mesh_editor_write_morph_snapshot_file(output_path, document);
     const std::string sha256 = mesh_editor_snapshot_sha256(document);
+    if (capture_history) {
+        history.sha256 = sha256;
+        g_mesh_morph_history_snapshots.emplace(snapshot_id, std::move(history));
+    }
     const auto finished = std::chrono::steady_clock::now();
     const double cpp_ms = std::chrono::duration<double, std::milli>(finished - started).count();
     std::ostringstream out;
@@ -159,6 +199,8 @@ std::string mesh_editor_morph_snapshot_create_session_report(
     out << ",\"topology_digest\":";
     write_escaped(out, topology_digest);
     out << ",\"retained_bytes\":" << runtime_payload.size()
+        << ",\"history_captured\":" << (capture_history ? "true" : "false")
+        << ",\"history_retained_bytes\":" << history_bytes
         << "},\"metrics\":{\"cpp_ms\":" << std::setprecision(17) << cpp_ms
         << ",\"io_serialization_ms\":0}}";
     return out.str();
@@ -189,6 +231,21 @@ std::string mesh_editor_morph_snapshot_restore_session_report(
         mesh_editor_snapshot_required_member(document, "runtime", JsonValue::Type::Object), session,
         static_cast<int>(mesh_editor_snapshot_integer(document, "version", 1))
     );
+    // Runtime transfers still start with empty history. Same-session Undo/Redo
+    // snapshots retain only the live native segment on either side of the cursor;
+    // older segments belong to their own service snapshots.
+    const bool restore_history = bool_or(document.get("history_captured"), false);
+    MeshMorphHistorySnapshot history;
+    if (restore_history) {
+        const auto found = g_mesh_morph_history_snapshots.find(snapshot_id);
+        if (found == g_mesh_morph_history_snapshots.end()
+            || found->second.source_session_id != session_id
+            || found->second.sha256 != lower_ascii(mesh_editor_snapshot_string(root, "snapshot_sha256"))) {
+            throw std::runtime_error("morph snapshot history is unavailable or belongs to another session");
+        }
+        // Allocate the reciprocal stack copies before touching the resident state.
+        history = found->second;
+    }
     const long long snapshot_revision = mesh_editor_snapshot_integer(document, "morph_state_revision");
     session.morph_state_revision = std::max(
         session.morph_state_revision,
@@ -200,8 +257,12 @@ std::string mesh_editor_morph_snapshot_restore_session_report(
     restored->active_change_update_count = 0;
     session.morph = std::move(restored);
     session.active_stroke = MeshEditorStroke{};
-    session.undo_stack.clear();
-    session.redo_stack.clear();
+    session.undo_stack = std::move(history.undo);
+    session.redo_stack = std::move(history.redo);
+    if (restore_history) {
+        session.selection = std::move(history.selection);
+        ++session.selection_revision;
+    }
     ++session.stroke_revision;
     const auto finished = std::chrono::steady_clock::now();
     const double cpp_ms = std::chrono::duration<double, std::milli>(finished - started).count();
@@ -215,7 +276,8 @@ std::string mesh_editor_morph_snapshot_restore_session_report(
     out << ",\"topology_digest\":";
     write_escaped(out, actual_topology);
     out << ",\"retained_bytes\":" << mesh_editor_snapshot_integer(document, "retained_bytes", 1)
-        << ",\"geometry_recomposed\":false,\"history_cleared\":true,\"gesture_cleared\":true,";
+        << ",\"geometry_recomposed\":false,\"history_cleared\":" << (restore_history ? "false" : "true")
+        << ",\"gesture_cleared\":true,";
     mesh_editor_write_session_counts(out, session);
     out << ",\"morph_state\":";
     mesh_editor_write_morph_state(out, session);
@@ -240,9 +302,16 @@ std::string mesh_editor_morph_snapshot_dispose_report(
     if (mesh_editor_snapshot_string(document, "source_session_id") != session_id) {
         throw std::runtime_error("morph runtime snapshot dispose session does not match its owner");
     }
+    const auto history = g_mesh_morph_history_snapshots.find(snapshot_id);
+    if (history != g_mesh_morph_history_snapshots.end()
+        && (history->second.source_session_id != session_id
+            || history->second.sha256 != lower_ascii(mesh_editor_snapshot_string(root, "snapshot_sha256")))) {
+        throw std::runtime_error("morph runtime snapshot dispose does not match its resident history");
+    }
     if (std::remove(path.c_str()) != 0) {
         throw std::runtime_error("cannot dispose morph runtime snapshot");
     }
+    g_mesh_morph_history_snapshots.erase(snapshot_id);
     const auto finished = std::chrono::steady_clock::now();
     const double cpp_ms = std::chrono::duration<double, std::milli>(finished - started).count();
     std::ostringstream out;

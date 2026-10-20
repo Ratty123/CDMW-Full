@@ -166,6 +166,17 @@ data so exported vertex-aligned tangents do not average across seams.
 
 ### Morph blending and garment fitting
 
+`morph_snapshot_create` optionally accepts `history_undo_count` and
+`history_redo_count` to retain the corresponding suffixes of the native history
+stacks alongside its owned runtime file. The descriptor reports
+`history_captured` and `history_retained_bytes`; the service charges the latter
+against its history budget. These snapshots restore only into their source
+session, validate the runtime file and resident ownership before mutation, and
+release their native history on disposal. Ordinary runtime transfers and drafts
+omit the counts and continue to restore with empty native history. Service
+history markers behind another full snapshot belong to that snapshot's retained
+segment, so trimming the live native stack must not discard them.
+
 `morph-apply-json` blends morph slider delta sidecars and post-edit deltas in C++,
 recomputes smooth normals, and writes morphed vertices/normals as binary sidecars so
 Python remains a snapshot/fallback bridge instead of the blend loop. Resident Morph &

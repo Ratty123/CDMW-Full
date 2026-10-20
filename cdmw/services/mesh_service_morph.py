@@ -56,6 +56,7 @@ from cdmw.services.mesh_morph_profiles import (
     save_mesh_morph_bundle,
 )
 from cdmw.services.mesh_service_history import (
+    _active_native_history_indices,
     _dispose_history_snapshot_without_state_failure,
     _validated_mesh_morph_profile_files,
 )
@@ -203,9 +204,16 @@ class MeshMorphServiceMixin(MeshMorphLayerMixin, MeshMorphAuthoringMixin, MeshMo
     def _capture_morph_session_state_locked(
         self,
         session: _MeshEditSession,
+        *,
+        preserve_history: bool = False,
     ) -> _MeshMorphSessionState:
         data = self._morph_sessions.get(session.session_id)
-        if not isinstance(data, _MeshMorphSessionData):
+        present = isinstance(data, _MeshMorphSessionData)
+        history_counts = (
+            len(_active_native_history_indices(session.undo_stack)),
+            len(_active_native_history_indices(session.redo_stack)),
+        ) if preserve_history else None
+        if not present and not (history_counts and any(history_counts)):
             return _MeshMorphSessionState(
                 present=False,
                 session_revision=max(0, int(session.morph_session_revision)),
@@ -214,6 +222,7 @@ class MeshMorphServiceMixin(MeshMorphLayerMixin, MeshMorphAuthoringMixin, MeshMo
         self._ensure_native_morph_session_locked(session)
         native_snapshot = create_native_mesh_editor_morph_runtime_snapshot(
             session.session_id,
+            **({"history_counts": history_counts} if history_counts is not None else {}),
             timeout_seconds=15.0,
         )
         if native_snapshot is None:
@@ -222,12 +231,12 @@ class MeshMorphServiceMixin(MeshMorphLayerMixin, MeshMorphAuthoringMixin, MeshMo
             cache = self._clone_morph_session_data(
                 data,
                 operation="morph.runtime_state_capture",
-            )
+            ) if present else None
             retained_bytes = int(native_snapshot.get("retained_bytes") or 0)
             if retained_bytes <= 0:
                 raise RuntimeError("Resident C++ Morph & Refit runtime snapshot omitted retained bytes.")
             return _MeshMorphSessionState(
-                present=True,
+                present=present,
                 native_snapshot=native_snapshot,
                 cache=cache,
                 retained_bytes=retained_bytes,
@@ -299,7 +308,11 @@ class MeshMorphServiceMixin(MeshMorphLayerMixin, MeshMorphAuthoringMixin, MeshMo
         if not isinstance(state, _MeshMorphSessionState):
             raise TypeError("state must be a captured Mesh Morph session state")
 
-        if not state.present:
+        history_only = (
+            not state.present and isinstance(state.native_snapshot, Mapping)
+            and state.native_snapshot.get("history_captured") is True
+        )
+        if not state.present and not history_only:
             if state.native_snapshot is not None or state.cache is not None or state.retained_bytes != 0:
                 raise ValueError("An absent Morph & Refit state cannot contain runtime data.")
             if session.native_editor_mesh_dirty and not _service_call(
@@ -316,7 +329,9 @@ class MeshMorphServiceMixin(MeshMorphLayerMixin, MeshMorphAuthoringMixin, MeshMo
 
         if not isinstance(state.native_snapshot, Mapping):
             raise ValueError("Captured Morph & Refit state has no native runtime snapshot.")
-        if not isinstance(state.cache, _MeshMorphSessionData):
+        if (state.present and not isinstance(state.cache, _MeshMorphSessionData)) or (
+            history_only and state.cache is not None
+        ):
             raise ValueError("Captured Morph & Refit state has no Python session metadata.")
         try:
             snapshot_retained_bytes = int(state.native_snapshot.get("retained_bytes") or 0)
@@ -336,20 +351,22 @@ class MeshMorphServiceMixin(MeshMorphLayerMixin, MeshMorphAuthoringMixin, MeshMo
         cache = self._clone_morph_session_data(
             state.cache,
             operation="morph.runtime_state_install",
-        )
-        cache.profiles_loaded = self.settings is None or not reconcile_profiles
-        cache.available_profile_ids = (
-            tuple(sorted(cache.known_profiles))
-            if self.settings is None or not reconcile_profiles
-            else ()
-        )
+        ) if state.present else None
+        if cache is not None:
+            cache.profiles_loaded = self.settings is None or not reconcile_profiles
+            cache.available_profile_ids = (
+                tuple(sorted(cache.known_profiles))
+                if self.settings is None or not reconcile_profiles
+                else ()
+            )
         previous_cache = self._morph_sessions.get(session.session_id)
         native_ready_before = session.native_editor_session_ready
-        self._morph_sessions[session.session_id] = cache
+        if cache is not None:
+            self._morph_sessions[session.session_id] = cache
         try:
             # Reconcile persisted profiles before resident runtime changes, but
             # keep the captured unsaved profile in the merged cache.
-            if self.settings is not None and reconcile_profiles:
+            if cache is not None and self.settings is not None and reconcile_profiles:
                 self._profiles_locked(session, refresh_topology=False)
             self._ensure_native_morph_session_locked(session)
             report = restore_native_mesh_editor_morph_runtime_snapshot(
@@ -381,9 +398,10 @@ class MeshMorphServiceMixin(MeshMorphLayerMixin, MeshMorphAuthoringMixin, MeshMo
         accepted_revision = int(session.morph_session_revision)
         if advance_revision:
             session.morph_session_revision += 1
-        session.native_history_undo_count = 0
-        session.native_history_redo_count = 0
-        session.native_history_retained_bytes = 0
+        _service_call("_update_native_history_usage", session, _native_editor_metrics(report))
+        if history_only:
+            self._morph_sessions.pop(session.session_id, None)
+            return None
         try:
             return self._remember_morph_state(
                 session,
@@ -445,7 +463,7 @@ class MeshMorphServiceMixin(MeshMorphLayerMixin, MeshMorphAuthoringMixin, MeshMo
         snapshot = _service_call("_snapshot", session, prefer_native=True)
         try:
             snapshot.morph_session_state = self._capture_morph_session_state_locked(
-                session
+                session, preserve_history=True,
             )
         except Exception:
             _service_call("_dispose_history_snapshot", snapshot)
@@ -1944,8 +1962,9 @@ class MeshMorphServiceMixin(MeshMorphLayerMixin, MeshMorphAuthoringMixin, MeshMo
             removed.extend(next_redo)
             next_redo = []
             next_undo.append(marker)
+        history_counts = (False, False)
         try:
-            _service_call("_update_native_history_usage", session, metrics)
+            history_counts = _service_call("_update_native_history_usage", session, metrics)
         except Exception:
             bookkeeping_deferred = True
         try:
@@ -1968,6 +1987,10 @@ class MeshMorphServiceMixin(MeshMorphLayerMixin, MeshMorphAuthoringMixin, MeshMo
             bookkeeping_deferred = True
         session.undo_stack[:] = next_undo
         session.redo_stack[:] = next_redo
+        try:
+            _service_call("_trim_native_history_markers", session, *history_counts)
+        except Exception:
+            bookkeeping_deferred = True
         for discarded in removed:
             try:
                 _service_call("_dispose_history_snapshot", discarded)

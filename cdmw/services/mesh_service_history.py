@@ -61,6 +61,20 @@ def _history_stack_retained_bytes(stack: Sequence[_MeshHistorySnapshot]) -> int:
     return sum(max(0, int(snapshot.retained_bytes or _history_snapshot_retained_bytes(snapshot))) for snapshot in stack)
 
 
+def _active_native_history_indices(stack: Sequence[_MeshHistorySnapshot]) -> list[int]:
+    """Native markers beyond a full snapshot belong to that saved history segment."""
+    indices = []
+    for index in range(len(stack) - 1, -1, -1):
+        snapshot = stack[index]
+        if snapshot.native_editor_history:
+            indices.append(index)
+        elif snapshot.morph_session_state is not None:
+            native = snapshot.morph_session_state.native_snapshot
+            if native is not None and native.get("history_captured") is True:
+                break
+    return list(reversed(indices))
+
+
 def _retain_last_morph_history(stack: Sequence[_MeshHistorySnapshot]) -> bool:
     # A memory budget may evict older edits, but must not make the most recent
     # large profile edit irreversible. Its file/runtime data already lives on disk.
@@ -111,6 +125,10 @@ def _history_snapshot_retained_bytes(snapshot: _MeshHistorySnapshot) -> int:
             retained += len(delta.vertex_indices) * 3 * 8
     # Morph runtime snapshots are already owned files. Their serialized length
     # is integrity evidence, not Python or resident history memory.
+    if snapshot.morph_session_state is not None:
+        native = snapshot.morph_session_state.native_snapshot
+        if native is not None:
+            retained += max(0, int(native.get("history_retained_bytes") or 0))
     return max(1, retained)
 
 
@@ -318,19 +336,19 @@ class MeshHistoryServiceMixin:
             session.native_editor_mesh_dirty
             and not session.undo_stack[-1].native_editor_history
             and not session.undo_stack[-1].selection_only
+            and session.undo_stack[-1].morph_session_state is None
         ):
             raise RuntimeError("native mesh editor undo requires native history; Python mesh state is stale")
         _service_call("_validate_mesh_morph_profile_history_state", session.undo_stack[-1])
-        snapshot = session.undo_stack.pop()
+        # Keep the snapshot boundary visible while capturing the reciprocal.
+        # Native markers behind it belong to its saved runtime, not the current one.
+        snapshot = session.undo_stack[-1]
         native_editor_history = snapshot.native_editor_history
-        try:
-            if native_editor_history:
-                outcome = _service_call("_restore_native_editor_history", session, snapshot, "undo")
-            else:
-                outcome = self._restore_snapshot_with_morph_locked(session, snapshot)
-        except Exception:
-            session.undo_stack.append(snapshot)
-            raise
+        if native_editor_history:
+            outcome = _service_call("_restore_native_editor_history", session, snapshot, "undo")
+        else:
+            outcome = self._restore_snapshot_with_morph_locked(session, snapshot)
+        session.undo_stack.pop()
         if snapshot.morph_profile_root is not None and snapshot.morph_session_state is None:
             self._morph_sessions.pop(session.session_id, None)
         history_publication_cleanup_ok = self._publish_history_reciprocal_locked(
@@ -422,19 +440,17 @@ class MeshHistoryServiceMixin:
             session.native_editor_mesh_dirty
             and not session.redo_stack[-1].native_editor_history
             and not session.redo_stack[-1].selection_only
+            and session.redo_stack[-1].morph_session_state is None
         ):
             raise RuntimeError("native mesh editor redo requires native history; Python mesh state is stale")
         _service_call("_validate_mesh_morph_profile_history_state", session.redo_stack[-1])
-        snapshot = session.redo_stack.pop()
+        snapshot = session.redo_stack[-1]
         native_editor_history = snapshot.native_editor_history
-        try:
-            if native_editor_history:
-                outcome = _service_call("_restore_native_editor_history", session, snapshot, "redo")
-            else:
-                outcome = self._restore_snapshot_with_morph_locked(session, snapshot)
-        except Exception:
-            session.redo_stack.append(snapshot)
-            raise
+        if native_editor_history:
+            outcome = _service_call("_restore_native_editor_history", session, snapshot, "redo")
+        else:
+            outcome = self._restore_snapshot_with_morph_locked(session, snapshot)
+        session.redo_stack.pop()
         if snapshot.morph_profile_root is not None and snapshot.morph_session_state is None:
             self._morph_sessions.pop(session.session_id, None)
         history_publication_cleanup_ok = self._publish_history_reciprocal_locked(
@@ -509,6 +525,10 @@ class MeshHistoryServiceMixin:
         if target_morph is None and snapshot.morph_profile_root is None:
             return _service_call("_restore_snapshot", session, snapshot)
 
+        # A preceding native Undo/Redo can leave Python geometry deferred. Export
+        # it before capturing the reciprocal or installing the target geometry.
+        if session.native_editor_mesh_dirty:
+            self._working_mesh_locked(session, clone=False)
         checkpoint = self._capture_transactional_restore_checkpoint_locked(
             session,
             snapshot,
@@ -556,7 +576,7 @@ class MeshHistoryServiceMixin:
             )
             if template.morph_session_state is not None:
                 checkpoint.morph_session_state = (
-                    self._capture_morph_session_state_locked(session)
+                    self._capture_morph_session_state_locked(session, preserve_history=True)
                 )
             checkpoint.retained_bytes = _history_snapshot_retained_bytes(checkpoint)
             return _MeshTransactionalRestoreCheckpoint(
@@ -679,11 +699,14 @@ class MeshHistoryServiceMixin:
                 session.native_editor_selection_signature = (
                     checkpoint.native_editor_selection_signature
                 )
-                session.native_history_undo_count = checkpoint.native_history_undo_count
-                session.native_history_redo_count = checkpoint.native_history_redo_count
-                session.native_history_retained_bytes = (
-                    checkpoint.native_history_retained_bytes
-                )
+                morph = checkpoint.snapshot.morph_session_state
+                native = morph.native_snapshot if morph is not None else None
+                if native is None or not native.get("history_captured"):
+                    session.native_history_undo_count = checkpoint.native_history_undo_count
+                    session.native_history_redo_count = checkpoint.native_history_redo_count
+                    session.native_history_retained_bytes = (
+                        checkpoint.native_history_retained_bytes
+                    )
             if rollback_outcome is not None:
                 _dispose_history_snapshot_without_state_failure(
                     rollback_outcome.snapshot

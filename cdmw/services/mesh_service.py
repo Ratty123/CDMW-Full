@@ -2310,15 +2310,17 @@ def _trim_native_history_markers(
     undo_count_known: bool,
     redo_count_known: bool,
 ) -> None:
+    from cdmw.services.mesh_service_history import _active_native_history_indices
+
     for stack, retained_count, count_known in (
         (session.undo_stack, session.native_history_undo_count, undo_count_known),
         (session.redo_stack, session.native_history_redo_count, redo_count_known),
     ):
         if not count_known:
             continue
-        while sum(1 for snapshot in stack if snapshot.native_editor_history) > retained_count:
-            oldest = next(index for index, snapshot in enumerate(stack) if snapshot.native_editor_history)
-            _discard_history_snapshot(stack, oldest)
+        indices = _active_native_history_indices(stack)
+        for index in reversed(indices[:max(0, len(indices) - retained_count)]):
+            _discard_history_snapshot(stack, index)
 
 
 
