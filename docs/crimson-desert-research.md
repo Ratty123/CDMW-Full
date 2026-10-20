@@ -107,18 +107,22 @@ catalogue row for an embedded `.pamt` can say undecoded while the archive
 browser successfully reads the installation's indexes.
 
 ```mermaid
+---
+config:
+  htmlLabels: false
+---
 flowchart TD
-    A["Mounted archive groups and PAMT indexes"] --> B["Resolve exact virtual path and source"]
-    B --> C["Decode stored payload"]
-    C --> D["Appearance and prefab references"]
-    D --> E["Mesh and skeleton"]
+    A["Mounted archive groups<br/>and PAMT indexes"] --> B["Resolve exact virtual path<br/>and source"]
+    B --> C["Decode stored<br/>payload"]
+    C --> D["Appearance and<br/>prefab references"]
+    D --> E["Mesh and<br/>skeleton"]
     D --> F["Material sidecar"]
-    F --> G["DDS textures and PATHC records"]
-    D --> H["Effects and accompanying resources"]
-    E --> I["Validated authoring plan"]
+    F --> G["DDS textures and<br/>PATHC records"]
+    D --> H["Effects and<br/>accompanying resources"]
+    E --> I["Validated<br/>authoring plan"]
     G --> I
     H --> I
-    I --> J["Loose export, managed overlay or experimental package"]
+    I --> J["Loose export, managed overlay<br/>or experimental package"]
 ```
 
 ### 3.2 Compression and encryption
