@@ -14517,7 +14517,7 @@
     "held attach": "adjuntar mantenido",
     "held x{value_0}": "retenido x{value_0}",
     "helper does not support the complete Archive Preview contract": "el asistente no admite el contrato completo de vista previa de archivo",
-    "helper does not support the required embedded Mesh Editor, Hair authoring, and binary mesh document capabilities": "helper does not support the required embedded Mesh Editor, Hair authoring, and binary mesh document capabilities",
+    "helper does not support the required embedded Mesh Editor, Hair authoring, binary mesh document, and empty authoring part capabilities": "El proceso auxiliar no admite las funciones necesarias del editor de mallas integrado, la edición de cabello, los documentos de malla binarios y las partes vacías editables.",
     "helper started with the wrong runtime profile.": "el proceso auxiliar se inició con un perfil de ejecución incorrecto.",
     "helper was not built with locked dependencies": "el asistente no se creó con dependencias bloqueadas",
     "hint {value_0}": "pista {value_0}",

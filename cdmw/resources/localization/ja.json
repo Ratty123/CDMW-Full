@@ -14517,7 +14517,7 @@
     "held attach": "保持されたアタッチ",
     "held x{value_0}": "保留された x{value_0}",
     "helper does not support the complete Archive Preview contract": "ヘルパーは完全なアーカイブ プレビュー コントラクトをサポートしていません",
-    "helper does not support the required embedded Mesh Editor, Hair authoring, and binary mesh document capabilities": "helper does not support the required embedded Mesh Editor, Hair authoring, and binary mesh document capabilities",
+    "helper does not support the required embedded Mesh Editor, Hair authoring, binary mesh document, and empty authoring part capabilities": "ヘルパーは、組み込みメッシュエディター、ヘア編集、バイナリメッシュドキュメント、および空の編集用パーツに必要な機能をサポートしていません。",
     "helper started with the wrong runtime profile.": "ヘルパーが誤った実行プロファイルで起動しました。",
     "helper was not built with locked dependencies": "ヘルパーはロックされた依存関係を使用してビルドされていませんでした",
     "hint {value_0}": "ヒント {value_0}",

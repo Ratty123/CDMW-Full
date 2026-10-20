@@ -14517,7 +14517,7 @@
     "held attach": "保留附加",
     "held x{value_0}": "持有 x{value_0}",
     "helper does not support the complete Archive Preview contract": "助理不支援完整的存檔預覽合約",
-    "helper does not support the required embedded Mesh Editor, Hair authoring, and binary mesh document capabilities": "helper does not support the required embedded Mesh Editor, Hair authoring, and binary mesh document capabilities",
+    "helper does not support the required embedded Mesh Editor, Hair authoring, binary mesh document, and empty authoring part capabilities": "輔助程式不支援內嵌網格編輯器、毛髮創作、二進位網格文件及空白可編輯部件所需的功能。",
     "helper started with the wrong runtime profile.": "輔助程式使用錯誤的執行階段設定檔啟動。",
     "helper was not built with locked dependencies": "幫助程式不是使用鎖定的依賴項建構的",
     "hint {value_0}": "提示{value_0}",

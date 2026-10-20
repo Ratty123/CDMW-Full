@@ -14517,7 +14517,7 @@
     "held attach": "ek tutuldu",
     "held x{value_0}": "x{value_0} tutuldu",
     "helper does not support the complete Archive Preview contract": "yardımcı Arşiv Önizleme sözleşmesinin tamamını desteklemiyor",
-    "helper does not support the required embedded Mesh Editor, Hair authoring, and binary mesh document capabilities": "helper does not support the required embedded Mesh Editor, Hair authoring, and binary mesh document capabilities",
+    "helper does not support the required embedded Mesh Editor, Hair authoring, binary mesh document, and empty authoring part capabilities": "Yardımcı süreç, gömülü ağ düzenleyicisi, saç oluşturma, ikili ağ belgeleri ve boş düzenlenebilir parçalar için gerekli özellikleri desteklemiyor.",
     "helper started with the wrong runtime profile.": "yardımcı süreç yanlış çalışma profiliyle başlatıldı.",
     "helper was not built with locked dependencies": "yardımcı kilitli bağımlılıklarla oluşturulmadı",
     "hint {value_0}": "ipucu {value_0}",

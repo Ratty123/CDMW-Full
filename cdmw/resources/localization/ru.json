@@ -14517,7 +14517,7 @@
     "held attach": "удержанное подключение",
     "held x{value_0}": "хранится x{value_0}",
     "helper does not support the complete Archive Preview contract": "помощник не поддерживает полный контракт предварительного просмотра архива.",
-    "helper does not support the required embedded Mesh Editor, Hair authoring, and binary mesh document capabilities": "helper does not support the required embedded Mesh Editor, Hair authoring, and binary mesh document capabilities",
+    "helper does not support the required embedded Mesh Editor, Hair authoring, binary mesh document, and empty authoring part capabilities": "Вспомогательный процесс не поддерживает необходимые функции встроенного редактора сетки, создания волос, двоичных документов сетки и пустых редактируемых частей.",
     "helper started with the wrong runtime profile.": "вспомогательный процесс запущен с неверным профилем выполнения.",
     "helper was not built with locked dependencies": "помощник не был создан с заблокированными зависимостями.",
     "hint {value_0}": "подсказка {value_0}",

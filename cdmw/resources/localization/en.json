@@ -14517,7 +14517,7 @@
     "held attach": "held attach",
     "held x{value_0}": "held x{value_0}",
     "helper does not support the complete Archive Preview contract": "helper does not support the complete Archive Preview contract",
-    "helper does not support the required embedded Mesh Editor, Hair authoring, and binary mesh document capabilities": "helper does not support the required embedded Mesh Editor, Hair authoring, and binary mesh document capabilities",
+    "helper does not support the required embedded Mesh Editor, Hair authoring, binary mesh document, and empty authoring part capabilities": "helper does not support the required embedded Mesh Editor, Hair authoring, binary mesh document, and empty authoring part capabilities",
     "helper started with the wrong runtime profile.": "helper started with the wrong runtime profile.",
     "helper was not built with locked dependencies": "helper was not built with locked dependencies",
     "hint {value_0}": "hint {value_0}",

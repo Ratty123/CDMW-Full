@@ -14517,7 +14517,7 @@
     "held attach": "보류 연결",
     "held x{value_0}": "보류 x{value_0}",
     "helper does not support the complete Archive Preview contract": "도우미는 전체 아카이브 미리 보기 계약을 지원하지 않습니다.",
-    "helper does not support the required embedded Mesh Editor, Hair authoring, and binary mesh document capabilities": "helper does not support the required embedded Mesh Editor, Hair authoring, and binary mesh document capabilities",
+    "helper does not support the required embedded Mesh Editor, Hair authoring, binary mesh document, and empty authoring part capabilities": "도우미가 내장 메시 편집기, 헤어 제작, 바이너리 메시 문서 및 빈 편집용 파트에 필요한 기능을 지원하지 않습니다.",
     "helper started with the wrong runtime profile.": "도우미가 잘못된 런타임 프로필로 시작되었습니다.",
     "helper was not built with locked dependencies": "도우미가 잠긴 종속성으로 빌드되지 않았습니다.",
     "hint {value_0}": "힌트 {value_0}",

@@ -2320,7 +2320,7 @@
   "height",
   "height scale {value_0}",
   "helper does not support the complete Archive Preview contract",
-  "helper does not support the required embedded Mesh Editor, Hair authoring, and binary mesh document capabilities",
+  "helper does not support the required embedded Mesh Editor, Hair authoring, binary mesh document, and empty authoring part capabilities",
   "helper was not built with locked dependencies",
   "host result arrived without an active CDMW bridge",
   "host state arrived without an active CDMW bridge",

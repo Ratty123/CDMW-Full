@@ -14517,7 +14517,7 @@
     "held attach": "przytrzymanie połączenia",
     "held x{value_0}": "wstrzymany x{value_0}",
     "helper does not support the complete Archive Preview contract": "pomocnik nie obsługuje pełnej umowy Archive Preview",
-    "helper does not support the required embedded Mesh Editor, Hair authoring, and binary mesh document capabilities": "helper does not support the required embedded Mesh Editor, Hair authoring, and binary mesh document capabilities",
+    "helper does not support the required embedded Mesh Editor, Hair authoring, binary mesh document, and empty authoring part capabilities": "Proces pomocniczy nie obsługuje wymaganych funkcji wbudowanego edytora siatki, tworzenia włosów, binarnych dokumentów siatki i pustych części do edycji.",
     "helper started with the wrong runtime profile.": "proces pomocniczy uruchomiono z nieprawidłowym profilem wykonawczym.",
     "helper was not built with locked dependencies": "pomocnik nie został zbudowany z zablokowanymi zależnościami",
     "hint {value_0}": "wskazówka {value_0}",

@@ -170292,11 +170292,11 @@
       ]
     },
     {
-      "key": "helper does not support the required embedded Mesh Editor, Hair authoring, and binary mesh document capabilities",
+      "key": "helper does not support the required embedded Mesh Editor, Hair authoring, binary mesh document, and empty authoring part capabilities",
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_contract.py",
-          "line": 267,
+          "line": 269,
           "sink": "python-return:validate_rust_mesh_editor_package"
         }
       ]

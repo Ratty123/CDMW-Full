@@ -14517,7 +14517,7 @@
     "held attach": "Anhängen gehalten",
     "held x{value_0}": "gehalten x{value_0}",
     "helper does not support the complete Archive Preview contract": "Helper unterstützt nicht den vollständigen Archive Preview-Vertrag",
-    "helper does not support the required embedded Mesh Editor, Hair authoring, and binary mesh document capabilities": "helper does not support the required embedded Mesh Editor, Hair authoring, and binary mesh document capabilities",
+    "helper does not support the required embedded Mesh Editor, Hair authoring, binary mesh document, and empty authoring part capabilities": "Der Hilfsprozess unterstützt die erforderlichen Funktionen für den eingebetteten Mesh-Editor, die Haarbearbeitung, binäre Mesh-Dokumente und leere bearbeitbare Teile nicht.",
     "helper started with the wrong runtime profile.": "Hilfsprozess mit dem falschen Laufzeitprofil gestartet.",
     "helper was not built with locked dependencies": "Helfer wurde nicht mit gesperrten Abhängigkeiten erstellt",
     "hint {value_0}": "Hinweis {value_0}",
