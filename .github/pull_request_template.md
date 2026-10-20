@@ -32,6 +32,8 @@ What problem does this solve, or what workflow does it improve?
 - verification:
   - [ ] I tested the changed workflow locally
   - [ ] I updated docs/help text if user-facing behavior changed
+  - [ ] I reviewed research impact and updated confirmed findings, evidence, limits and open questions in the public research reference where affected
+  - [ ] I archived superseded documentation where needed and repaired current navigation without publishing local notes
   - [ ] I updated the changelog if this should be called out in release notes
 
 ## Notes

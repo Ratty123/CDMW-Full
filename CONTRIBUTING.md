@@ -60,6 +60,86 @@ Please try to:
   and focused contracts by default, with full nonvisual QA available through
   the manual `exhaustive_tests` option
 
+## Research and documentation maintenance
+
+The [Crimson Desert research reference](docs/crimson-desert-research.md) is the
+single current public research overview. Source code, schemas and the nearest
+feature README own exact implementation contracts. Update those owners and the
+affected research sections together when the supported behaviour or evidence
+changes; do not create a competing overview.
+
+### Confirmed progress
+
+Before handing off a research or implementation task, review whether it changes
+a finding, supported operation, refusal boundary, evidence level or open question.
+Update the affected reference sections when it does. A rejected hypothesis,
+regression or newly identified limitation is also a finding. Routine passing
+checks and unrelated presentation changes do not require research edits.
+
+For a changed conclusion, identify:
+
+- **Finding and status:** what is established, implemented, experimental,
+  superseded or still unresolved.
+- **Evidence:** the actual source/consumer and relevant test, observation or
+  inspected input. Identify the confirming source revision and game/build when
+  applicable; preserve the scope of historical measurements.
+- **Limits:** what the evidence does not establish, failures or blockers, and
+  the remaining check needed to strengthen the claim.
+- **Review scope:** the material reviewed and its date. Do not imply that
+  unrelated sections or old experiments were revalidated.
+
+Keep source, fixture, asset, executable/shader, renderer, packaged, visible-UI
+and game evidence separate, using the reference's evidence definitions.
+External reports remain attributed reports until independently reproduced.
+A plan, assistant summary, remembered result or catalogue label is not a new
+verification result.
+
+Correct the current conclusion and its open-question entry rather than appending
+a contradictory success paragraph. Retain useful failed approaches as bounded
+historical findings. Pin new evidence to the revision that contains it once
+available; do not advance every source link or the document-wide baseline merely
+because one area changed. A date change alone is not a review.
+
+When format support changes, reconcile the capability manifest, its owning
+reader/writer and the reference inventory. Use the existing
+[format reporting tool](tools/report_format_decode_progress.py) for its derived
+local report. Its catalogue checks do not verify the narrative or game behaviour.
+
+### Archiving superseded material
+
+Age alone does not make a document obsolete. Establish that its implementation
+was retired, its plan completed or its current contract replaced. Keep active
+plans and unresolved research in their current owners. Preserve any durable
+finding or outstanding proof requirement before retiring the old record.
+
+Move historical documents to the local path
+`docs/archive/YYYY-MM-DD/<original path relative to docs/>`. Maintain one archive
+index at `docs/archive/README.md`, recording the original path, archive date,
+reason, current successor and original content hash. Mark each archived document
+as historical at the top, retain its original evidence and limitations, rebase
+relative links, and repair incoming navigation and real path consumers.
+
+Archived readiness verdicts, measurements and pending checks describe their
+original revision. They are not current implementation instructions or proof
+that a successor passed those checks. Do not silently mark unresolved work done
+when moving a file.
+
+Keep the current `docs/` publication allowlist. Archives, plans, working notes
+and machine-local evidence remain ignored; existing tracked documents retain
+their status. Never force-add local material or widen publication scope as part
+of cleanup. Do not delete useful records merely to reduce clutter.
+
+### Before handoff
+
+- Check changed conclusions, source links, contents anchors and inventory rows
+  against the evidence actually reviewed.
+- Check archive destinations, incoming links and the current documentation index;
+  current navigation must not present an archived record as authoritative.
+- Confirm ignore rules and the staged diff expose only intended public files.
+  Report which research sections changed, or that the task had no research impact.
+- For documentation-only changes, use focused document checks. Do not run
+  application suites, native builds or packaging solely to validate prose.
+
 ## Project Scope
 
 Crimson Desert Mod Workbench is intentionally centered on:

@@ -9,7 +9,7 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 ### Docs
 
-- Add a public Crimson Desert research reference covering file formats, findings, evidence levels and open questions.
+- Add a public Crimson Desert research reference covering file formats, findings, evidence levels and open questions, with ongoing maintenance and archival guidelines.
 
 ## [0.11.0-alpha.24] - 2026-10-20
 

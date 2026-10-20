@@ -55,6 +55,7 @@ A convincing screenshot can still conceal an incorrect dependency or export.
 | Experimental | A workflow is available with material compatibility or game-validation questions still open. |
 | Research only | A layout, consumer or possible route has been investigated without establishing an end-to-end supported workflow. |
 | Unresolved | The required semantics, implementation or evidence is missing. |
+| Superseded | A dated finding or plan has an identified replacement. Retained as history, with the current conclusion or owner identified. |
 
 | Evidence | What it establishes | What it leaves open |
 | --- | --- | --- |
@@ -1184,15 +1185,54 @@ quietly become CDMW validation results.
 
 This file is the public research overview. Owning code, schemas and focused
 module documentation remain authoritative for exact operational contracts.
-The format inventory below is a dated catalogue snapshot; refresh it from the
-capability manifest when the research baseline changes, then review its labels
-against the affected owners. Catalogue counts and heuristic percentages must
-not be promoted into percentages of supported gameplay.
+The [contribution policy](../CONTRIBUTING.md#research-and-documentation-maintenance)
+owns the maintenance and archival workflow for every CDMW task.
 
-Only this new file is explicitly admitted through the local `docs/` ignore rule.
-Existing tracked documents retain their status. Local plans, raw evidence,
-working notes and other ignored documents are not part of this publication.
-Public links must lead to tracked sources, not to those local documents.
+Before handing off confirmed progress, update the affected finding, implementation
+status, support/refusal boundary, evidence and open-question entry. Record a
+corrected assumption, regression or unsuccessful route as such; progress does
+not require a positive result. A proposed feature or repeated passing check is
+not a newly confirmed capability.
+
+Each changed conclusion needs an identifiable source or consumer, the relevant
+check or observation, its confirming revision/build where applicable, and the
+remaining limitation. Use the evidence levels in
+[Section 1](#1-reading-the-status-and-evidence). A source test cannot close a
+game-validation gap, and an external report cannot become a local observation
+without reproduction.
+
+Update the review date and evidence pins only for the material actually reviewed.
+New findings may have a later confirming revision than the original baseline;
+identify that revision with the finding rather than blindly repinning unrelated
+sources. Preserve the original scope and date of older measurements. A formatting
+or policy edit does not revalidate the research.
+
+Replace superseded current conclusions instead of appending competing versions.
+Keep useful failed approaches concise and dated. The format inventory below is
+a catalogue snapshot: when support changes, reconcile the actual reader/writer,
+capability manifest and affected inventory rows. Catalogue counts and heuristic
+percentages must not become percentages of supported gameplay.
+
+### 16.4 Keeping current knowledge separate from history
+
+Current navigation points to the operational owner and this reference. A retired
+implementation audit or completed plan belongs in the ignored local archive,
+with its original scope, limitations and pending checks preserved. Archive only
+after identifying a successor or confirmed completion/supersession; an old date
+alone is insufficient. Do not mark open research done to make a folder look tidy.
+
+The local archive uses `docs/archive/YYYY-MM-DD/` and one index recording original
+paths, reasons, successors and content hashes. Archive banners distinguish old
+readiness verdicts from current proof. Relative links and incoming navigation
+must be repaired when a record moves; archived files are historical evidence,
+not another active source of truth.
+
+This research reference is explicitly admitted through the `docs/` ignore rule.
+Existing tracked documents retain their status. Archives, plans, raw evidence
+and working notes remain local. Public links must lead to tracked sources,
+and maintenance must not widen the publication allowlist or force-add local
+material. Before handoff, check changed claims, navigation, source/inventory
+agreement and the staged publication scope.
 
 ## 17. Format inventory
 
