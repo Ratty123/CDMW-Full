@@ -1612,8 +1612,9 @@ standard selection controls for picking a region and preserves the current selec
 New sliders capture that selection; existing sliders and presets use their saved regions
 without requiring another selection.
 
-**Fit** contains Fit to body, garment settings, explicit selected/all apply actions,
-and collapsed follow controls for influence masks and allowed body regions.
+**Fit** contains Fit to body, a visible garment list, garment settings and explicit
+selected/all apply actions. Follow controls and Allowed body region are exposed
+directly, without nested expanders.
 **Shape** offers **Body**, **Sides** and **Sliders** pages for coordinated controls,
 paired adjustments and manual values. **+ Create** opens **Procedural** or **Sculpted**
 creation; **Edit slider** opens its procedural fields directly. Sculpted creation
@@ -1833,7 +1834,13 @@ analyze again. The initial-binding warning remains separate from these current r
 
 #### Control what follows the body
 
-**Follow controls** uses the ordinary vertex, edge, face or whole-Part selection.
+In **Fit**, click a name in **Garment parts** to highlight that piece in the viewport
+and load its fitting settings. Ctrl-click names to add or remove Parts from the
+selection. Use **Intensity %** for body-shape following and **Tightness %** for inward
+fitting, then **Apply to Selected Garments**. Names stay on one line; hover to read
+the full name. Hidden Parts must be shown before selecting them.
+
+**Follow controls** is directly visible and uses the ordinary vertex, edge, face or whole-Part selection.
 Set **Selected influence** and choose **Set selected influence** to assign that weight
 to the selected garment vertices. **Protect selection** assigns zero; **Restore
 selected influence** assigns full influence. **Clear masks on selected garments**
@@ -1851,11 +1858,16 @@ their shared influence together. Setting influence or clearing masks applies the
 whole selection as one undoable edit, preserving each Part's mode, intensity and
 clearance.
 
-**Allowed body region** keeps its garment targets separate from viewport selection:
+**Allowed body region** is directly visible below the garment list. Its **Region**
+checkboxes keep binding targets separate from viewport selection:
 
-1. Check the garments that should use the constraint.
+1. Check **Region** beside the garments that should use the constraint.
 2. Select the body faces or vertices they may follow.
 3. Choose **Use selected body region**.
+
+Checking **Region** preserves selected body faces or vertices. Clicking a garment
+name instead selects that garment for editing and replaces the body selection.
+Region checkboxes choose where a garment may follow; they do not change strength.
 
 Only complete triangles inside the selected body vertices are eligible for binding.
 A region with no usable triangle is refused. **Use whole body** removes the constraint

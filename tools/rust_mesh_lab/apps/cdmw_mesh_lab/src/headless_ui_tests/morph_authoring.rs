@@ -169,7 +169,6 @@ fn correction_start_save_and_cancel_use_explicit_selected_garments() -> TestResu
 fn garment_influence_controls_keep_vertex_scope_and_type_fractional_weights() -> TestResult {
     let mut ui = authoring_ui()?;
     ui.click("Fit")?;
-    ui.click("Follow controls")?;
     assert!(ui.actions_from_click("Set selected influence")?.is_empty());
     select_authoring_element(&mut ui, 1, SelectionDomain::Vertex)?;
     ui.type_number_in_row("Selected influence", 100.0, "37.5")?;
@@ -190,17 +189,63 @@ fn garment_influence_controls_keep_vertex_scope_and_type_fractional_weights() ->
     Ok(())
 }
 
+fn toggle_region_target(ui: &mut HeadlessUi, garment: &str) -> TestResult {
+    let row = ui.reveal(garment)?;
+    ui.click_where("Region", |rect| (rect.center().y - row.center().y).abs() < 8.0)
+}
+
+#[test]
+fn fit_garment_names_highlight_parts_and_scope_strength_without_expanding_sections() -> TestResult {
+    let mut ui = authoring_ui()?;
+    ui.application.cdmw_state["morph_refit"]["refit"]["garment_settings"][0]["intensity_percent"] = json!(37.5);
+    ui.application.cdmw_state["morph_refit"]["refit"]["garment_settings"][1]["intensity_percent"] = json!(125.0);
+    ui.click("Fit")?;
+    assert!(ui.label_rect("Allowed body region").is_some());
+    ui.click("2 · Sleeve")?;
+    assert_eq!(ui.application.selected_part_indices(), vec![1]);
+    assert_eq!(ui.application.cdmw_refit_intensity, 37.5);
+    assert!(ui.application.cdmw_refit_region_targets.is_empty());
+
+    let mesh = ui.application.mesh.as_ref().ok_or("mesh")?;
+    let expected = mesh.faces()
+        .filter(|(_, face)| face.submesh == 1)
+        .flat_map(|(_, face)| face.vertices.iter())
+        .map(|handle| mesh.vertex(*handle).expect("face vertex").position)
+        .collect::<Vec<_>>();
+    assert!(!expected.is_empty());
+    assert_eq!(ui.application.face_selection_overlay.as_ref().ok_or("garment highlight")?.positions, expected);
+    ui.type_number_in_row("Intensity %", 37.5, "42.5")?;
+    assert_eq!(command_arguments(&ui.actions_from_click("Apply to Selected Garments")?, "refit_configure"),
+        json!({"submesh_indices": [1], "intensity_percent": 42.5}));
+
+    ui.click("3 · Plate")?;
+    assert_eq!(ui.application.selected_part_indices(), vec![2]);
+    assert_eq!(ui.application.cdmw_refit_intensity, 125.0);
+    let position = ui.reveal("2 · Sleeve")?.center();
+    let modifiers = egui::Modifiers { ctrl: true, command: true, ..egui::Modifiers::NONE };
+    ui.frame(vec![Event::PointerMoved(position), Event::ModifiersChanged(modifiers)]);
+    for pressed in [true, false] {
+        ui.frame(vec![Event::PointerButton { pos: position, button: PointerButton::Primary, pressed, modifiers }]);
+    }
+    ui.frame(vec![Event::ModifiersChanged(egui::Modifiers::NONE)]);
+    assert_eq!(ui.application.selected_part_indices(), vec![1, 2]);
+    ui.type_number_in_row("Selected influence", 100.0, "50")?;
+    assert_eq!(command_arguments(&ui.actions_from_click("Set selected influence")?, "morph_set_influence"),
+        json!({"garment_submesh_indices": [1, 2], "weight": 0.5}));
+    Ok(())
+}
+
 #[test]
 fn body_region_targets_remain_explicit_when_viewport_selection_changes() -> TestResult {
     let mut ui = authoring_ui()?;
     ui.click("Fit")?;
-    ui.click("Follow controls")?;
-    ui.click("Allowed body region")?;
     select_authoring_element(&mut ui, 0, SelectionDomain::Face)?;
+    let body_faces = ui.application.mesh.as_ref().ok_or("mesh")?.selection.faces.clone();
     assert!(ui.actions_from_click("Use selected body region")?.is_empty());
-    ui.click("2 · Sleeve")?;
+    toggle_region_target(&mut ui, "2 · Sleeve")?;
     assert_eq!(ui.application.cdmw_refit_region_targets, vec![1]);
     assert!(ui.application.selected_part_indices().is_empty());
+    assert_eq!(ui.application.mesh.as_ref().ok_or("mesh")?.selection.faces, body_faces);
     let scoped = ui.actions_from_click("Use selected body region")?;
     assert_eq!(command_arguments(&scoped, "morph_set_driver_region"), json!({"garment_submesh_indices": [1]}));
 
@@ -210,8 +255,8 @@ fn body_region_targets_remain_explicit_when_viewport_selection_changes() -> Test
     let clear = ui.actions_from_click("Use whole body")?;
     assert_eq!(command_arguments(&clear, "morph_clear_driver_region"), json!({"garment_submesh_indices": [1]}));
     select_authoring_element(&mut ui, 0, SelectionDomain::Face)?;
-    ui.click("3 · Plate")?;
-    ui.click("2 · Sleeve")?;
+    toggle_region_target(&mut ui, "3 · Plate")?;
+    toggle_region_target(&mut ui, "2 · Sleeve")?;
     let plate = ui.actions_from_click("Use selected body region")?;
     assert_eq!(command_arguments(&plate, "morph_set_driver_region"), json!({"garment_submesh_indices": [2]}));
     ui.application.cdmw_state["morph_refit"]["unbaked"] = json!(true);
@@ -231,8 +276,7 @@ fn rigid_component_combo_dispatches_mode_with_typed_intensity() -> TestResult {
     assert_eq!(ui.application.cdmw_refit_mode, "rigid_component");
     let apply = ui.actions_from_click("Apply to Selected Garments")?;
     assert_eq!(command_arguments(&apply, "refit_configure"), json!({
-        "submesh_indices": [2], "enabled": true, "intensity_percent": 175.0,
-        "mode": "rigid_component", "clearance_percent": 0.0, "tightness_percent": 0.0,
+        "submesh_indices": [2], "intensity_percent": 175.0, "mode": "rigid_component",
     }));
     Ok(())
 }

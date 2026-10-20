@@ -24212,6 +24212,21 @@
       ]
     },
     {
+      "key": "Check garments, select the body faces they may follow, then apply the region.",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui/morph_authoring.rs",
+          "line": 204,
+          "sink": "rust-presentation"
+        },
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui/morph_authoring.rs",
+          "line": 213,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
       "key": "Check mods for game updates",
       "origins": [
         {
@@ -26902,6 +26917,16 @@
       ]
     },
     {
+      "key": "Choose garments for the body-region buttons below. Your body selection is kept.",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui/morph_authoring.rs",
+          "line": 166,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
       "key": "Choose glowing parts, colour, strength and animation. Source glow maps are retained; parts without a glow map use a solid map. Off restores the source emission.",
       "origins": [
         {
@@ -27393,16 +27418,6 @@
           "path": "cdmw/ui/new_item/mod_merge_dialog.py",
           "line": 58,
           "sink": "_browse"
-        }
-      ]
-    },
-    {
-      "key": "Choose the garments below, select the body faces they may follow, then apply the region.",
-      "origins": [
-        {
-          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui/morph_authoring.rs",
-          "line": 146,
-          "sink": "rust-presentation"
         }
       ]
     },
@@ -29022,6 +29037,16 @@
       ]
     },
     {
+      "key": "Click a name to edit strength; check Region to limit where it follows.",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui/morph_authoring.rs",
+          "line": 159,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
       "key": "Click a socket in the viewport to hang the selected item there.",
       "origins": [
         {
@@ -29098,6 +29123,16 @@
           "path": "cdmw/ui/archive_browser/static_replacement_part_items.py",
           "line": 211,
           "sink": "setToolTip"
+        }
+      ]
+    },
+    {
+      "key": "Click to highlight this garment and edit its strength. Ctrl-click to select several.",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui/morph_authoring.rs",
+          "line": 183,
+          "sink": "rust-presentation"
         }
       ]
     },
@@ -54748,6 +54783,16 @@
           "path": "cdmw/services/mesh_service_morph_authoring.py",
           "line": 622,
           "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Garment parts",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui/morph_authoring.rs",
+          "line": 158,
+          "sink": "rust-presentation"
         }
       ]
     },
@@ -112253,6 +112298,11 @@
           "path": "cdmw/ui/mesh_editor/body_region_atlas_panel.py",
           "line": 69,
           "sink": "setHeaderLabels"
+        },
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui/morph_authoring.rs",
+          "line": 165,
+          "sink": "rust-presentation"
         }
       ]
     },
@@ -131922,6 +131972,11 @@
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
           "line": 3286,
+          "sink": "rust-presentation"
+        },
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui/morph_authoring.rs",
+          "line": 184,
           "sink": "rust-presentation"
         }
       ]

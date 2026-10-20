@@ -3574,6 +3574,8 @@ impl LabApplication {
                     label: "Fit to body",
                 });
             }
+            self.draw_cdmw_refit_garment_parts(ui, actions, state);
+            ui.separator();
             ui.add_enabled_ui(configurable, |ui| {
                 ui.weak(crate::localization::tr("Only changed fields are applied. Mixed numeric fields initially show the first Part's value."));
                 let enabled_mixed = mixed_fields.contains("enabled")

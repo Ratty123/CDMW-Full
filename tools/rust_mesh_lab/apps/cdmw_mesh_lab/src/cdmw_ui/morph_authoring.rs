@@ -97,11 +97,16 @@ impl LabApplication {
         let selected = self.selected_part_indices();
         let selected_garments: Vec<u32> = selected.into_iter().filter(|part| garments.contains(part)).collect();
         let has_selection = self.selected_counts().total() > 0 || !selected_garments.is_empty();
-        cdmw_section(ui, "refit-follow-controls", "Follow controls", None, |ui| {
-            ui.small(crate::localization::tr(
+        ui.separator();
+        ui.strong(crate::localization::tr("Follow controls"))
+            .on_hover_text(crate::localization::tr(
                 "Select garment vertices, faces or a whole Part to control how strongly they follow the body.",
             ));
-            ui.add(numeric::slider(&mut self.cdmw_refit_vertex_weight, 0.0..=100.0).text(crate::localization::tr("Selected influence")));
+        ui.push_id("refit-follow-controls", |ui| {
+            ui.add(numeric::slider(&mut self.cdmw_refit_vertex_weight, 0.0..=100.0).text(crate::localization::tr("Selected influence")))
+                .on_hover_text(crate::localization::tr(
+                    "0% protects vertices; 100% follows fully. Rigid components require one influence across each connected piece.",
+                ));
             ui.add_enabled_ui(authoring && !editing_correction && has_selection, |ui| {
                 ui.horizontal_wrapped(|ui| {
                     if ui.button(crate::localization::tr("Set selected influence")).clicked() {
@@ -137,49 +142,99 @@ impl LabApplication {
                     label: "Clear garment influence masks",
                 });
             }
-            ui.small(crate::localization::tr(
-                "0% protects vertices; 100% follows fully. Rigid components require one influence across each connected piece.",
-            ));
-            cdmw_section(ui, "refit-driver-region", "Allowed body region", None, |ui| {
-                self.cdmw_refit_region_targets.retain(|part| garments.contains(part));
-                ui.small(crate::localization::tr(
-                    "Choose the garments below, select the body faces they may follow, then apply the region.",
-                ));
-                for part in &garments {
-                    let mut checked = self.cdmw_refit_region_targets.contains(part);
-                    if ui.checkbox(&mut checked, self.cdmw_morph_part_names(&[*part])).changed() {
-                        if checked {
-                            self.cdmw_refit_region_targets.push(*part);
-                            self.cdmw_refit_region_targets.sort_unstable();
-                        } else {
-                            self.cdmw_refit_region_targets.retain(|candidate| candidate != part);
+        });
+    }
+
+    pub(super) fn draw_cdmw_refit_garment_parts(
+        &mut self,
+        ui: &mut egui::Ui,
+        actions: &mut Vec<UiAction>,
+        state: &Value,
+    ) {
+        let garments = value_u32_list(state.get("refit").unwrap_or(&Value::Null), "garment_submesh_indices");
+        let selected = self.selected_part_indices();
+        let visible = self.cdmw_visible_submeshes();
+        self.cdmw_refit_region_targets.retain(|part| garments.contains(part));
+        ui.strong(crate::localization::tr("Garment parts"));
+        ui.small(crate::localization::tr("Click a name to edit strength; check Region to limit where it follows."));
+        ui.push_id("refit-garment-parts", |ui| {
+            for part in &garments {
+                ui.push_id(part, |ui| {
+                    ui.horizontal(|ui| {
+                        let mut checked = self.cdmw_refit_region_targets.contains(part);
+                        if ui.checkbox(&mut checked, crate::localization::tr("Region"))
+                            .on_hover_text(crate::localization::tr("Choose garments for the body-region buttons below. Your body selection is kept."))
+                            .changed()
+                        {
+                            if checked {
+                                self.cdmw_refit_region_targets.push(*part);
+                                self.cdmw_refit_region_targets.sort_unstable();
+                            } else {
+                                self.cdmw_refit_region_targets.retain(|candidate| candidate != part);
+                            }
                         }
-                    }
-                }
-                let targets = self.cdmw_refit_region_targets.clone();
-                let ready = authoring && !editing_correction && !state_bool(state, "unbaked") && !targets.is_empty();
-                ui.horizontal_wrapped(|ui| {
-                    if ui.add_enabled(
-                        ready && self.selected_counts().total() > 0,
-                        Button::new(crate::localization::tr("Use selected body region")),
-                    ).clicked() {
-                        actions.push(UiAction::CdmwCommand {
-                            command: "morph_set_driver_region",
-                            arguments: json!({"garment_submesh_indices": targets}),
-                            label: "Constrain garment binding to body region",
-                        });
-                    }
-                    if ui.add_enabled(ready, Button::new(crate::localization::tr("Use whole body"))).clicked() {
-                        actions.push(UiAction::CdmwCommand {
-                            command: "morph_clear_driver_region",
-                            arguments: json!({"garment_submesh_indices": targets}),
-                            label: "Clear selected garment body regions",
-                        });
-                    }
+                        let name = self.cdmw_morph_part_names(&[*part]);
+                        let active = selected.contains(part);
+                        if ui.add_enabled(
+                            visible.as_ref().is_none_or(|visible| visible.contains(part)),
+                            Button::selectable(active, &name).truncate(),
+                        )
+                            .on_hover_text(&name)
+                            .on_hover_text(crate::localization::tr("Click to highlight this garment and edit its strength. Ctrl-click to select several."))
+                            .on_disabled_hover_text(crate::localization::tr("Show this Part in the Parts inspector before selecting it"))
+                            .clicked()
+                        {
+                            let mut next = if ui.input(|input| input.modifiers.command || input.modifiers.ctrl) {
+                                selected.clone()
+                            } else {
+                                Vec::new()
+                            };
+                            if next.contains(part) {
+                                next.retain(|candidate| candidate != part);
+                            } else {
+                                next.push(*part);
+                            }
+                            next.sort_unstable();
+                            actions.push(UiAction::SetPartSelection(next));
+                        }
+                    });
                 });
-                ui.small(crate::localization::tr(
-                    "Region changes require a neutral fit. Other garments keep their bindings.",
-                ));
+            }
+            ui.strong(crate::localization::tr("Allowed body region"))
+                .on_hover_text(crate::localization::tr("Check garments, select the body faces they may follow, then apply the region."));
+            let targets = self.cdmw_refit_region_targets.clone();
+            let ready = state_bool(&self.cdmw_state, "authoring_enabled")
+                && !state_str(state, "correction_definition_id").is_some_and(|id| !id.is_empty())
+                && !state_bool(state, "unbaked") && !targets.is_empty();
+            ui.horizontal_wrapped(|ui| {
+                let help = if state_bool(state, "unbaked") {
+                    "Region changes require a neutral fit. Other garments keep their bindings."
+                } else {
+                    "Check garments, select the body faces they may follow, then apply the region."
+                };
+                if ui.add_enabled(
+                    ready && self.selected_counts().total() > 0,
+                    Button::new(crate::localization::tr("Use selected body region")),
+                )
+                    .on_disabled_hover_text(crate::localization::tr(help))
+                    .clicked()
+                {
+                    actions.push(UiAction::CdmwCommand {
+                        command: "morph_set_driver_region",
+                        arguments: json!({"garment_submesh_indices": targets}),
+                        label: "Constrain garment binding to body region",
+                    });
+                }
+                if ui.add_enabled(ready, Button::new(crate::localization::tr("Use whole body")))
+                    .on_disabled_hover_text(crate::localization::tr(help))
+                    .clicked()
+                {
+                    actions.push(UiAction::CdmwCommand {
+                        command: "morph_clear_driver_region",
+                        arguments: json!({"garment_submesh_indices": targets}),
+                        label: "Clear selected garment body regions",
+                    });
+                }
             });
         });
     }
