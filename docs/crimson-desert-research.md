@@ -1157,10 +1157,21 @@ The examples below identify small existing entry points. They are not a claim
 that these tests were rerun while writing this document:
 
 ```powershell
-.\.venv\Scripts\python.exe -m pytest tests/test_paloc_format.py --basetemp "$env:TEMP\cdmw-research-paloc"
-.\.venv\Scripts\python.exe -m pytest tests/test_paa_motion_encode.py --basetemp "$env:TEMP\cdmw-research-paa"
-.\.venv\Scripts\python.exe -m pytest tests/test_prefab_binary.py --basetemp "$env:TEMP\cdmw-research-prefab"
-.\.venv\Scripts\python.exe -m pytest tests/test_effect_binary.py --basetemp "$env:TEMP\cdmw-research-effects"
+.\.venv\Scripts\python.exe -m pytest `
+    tests/test_paloc_format.py `
+    --basetemp "$env:TEMP\cdmw-research-paloc"
+
+.\.venv\Scripts\python.exe -m pytest `
+    tests/test_paa_motion_encode.py `
+    --basetemp "$env:TEMP\cdmw-research-paa"
+
+.\.venv\Scripts\python.exe -m pytest `
+    tests/test_prefab_binary.py `
+    --basetemp "$env:TEMP\cdmw-research-prefab"
+
+.\.venv\Scripts\python.exe -m pytest `
+    tests/test_effect_binary.py `
+    --basetemp "$env:TEMP\cdmw-research-effects"
 ```
 
 Use the source revision being investigated and the affected owner's actual
