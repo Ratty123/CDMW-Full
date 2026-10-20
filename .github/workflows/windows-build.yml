@@ -4,8 +4,6 @@ on:
   push:
     branches:
       - main
-    tags:
-      - "v*"
     paths-ignore:
       - "**/*.md"
       - "**/*.rst"
@@ -45,10 +43,8 @@ permissions:
   contents: read
   actions: read
 
-# Pushing a run of commits used to start a full pipeline per commit and finish
-# every one of them. Only the newest is worth the runner. A tag is exempt
-# because its pipeline produces the release artifact, and nothing should cancel
-# that halfway.
+# Prefer the newest source checks. Explicit builds dispatched against a tag
+# remain exempt so another run cannot cancel their release artifact halfway.
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/') }}
@@ -226,11 +222,9 @@ jobs:
   package:
     name: Package after QA
     needs: qa
-    # Building both PyInstaller modes is release work, not per-commit work, and
-    # it was the longest job in the pipeline while running on every push and
-    # every pull request. Tags and manual dispatch are when a package is
-    # actually wanted.
-    if: ${{ !cancelled() && needs.qa.result == 'success' && (github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/')) }}
+    # A release tag reuses its verified artifact. Rebuild packages in CI only
+    # when explicitly requested, after the selected QA checks pass.
+    if: ${{ !cancelled() && needs.qa.result == 'success' && github.event_name == 'workflow_dispatch' }}
     runs-on: windows-latest
     timeout-minutes: 180
     env:

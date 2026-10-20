@@ -348,7 +348,7 @@ def test_windows_workflow_gates_packaging_on_selected_qa() -> None:
     assert "fromJSON('[\"3.11\", \"3.14\"]')" in source
     assert (
         "if: ${{ !cancelled() && needs.qa.result == 'success' && "
-        "(github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/')) }}"
+        "github.event_name == 'workflow_dispatch' }}"
     ) in source
     assert "(github.event_name == 'workflow_dispatch' && inputs.exhaustive_tests)" in source
     assert "|| fromJSON('[\"3.14\"]')" in source
@@ -376,7 +376,7 @@ def test_windows_workflow_runs_only_for_code_events_or_manual_dispatch() -> None
         "push", "pull_request", "workflow_dispatch",
     }
     assert "    branches:\n      - main" in triggers
-    assert '    tags:\n      - "v*"' in triggers
+    assert "    tags:" not in triggers
 
 
 def test_ci_path_filters_skip_docs_and_templates_but_keep_code() -> None:

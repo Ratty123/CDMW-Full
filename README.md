@@ -240,6 +240,17 @@ Run `build.bat help` for other build modes. Follow the [test guide](tests/README
 for focused validation; source tests and packaging checks are separate from
 visible UI and in-game testing.
 
+CI runs focused startup and safety checks on code changes to `main` and pull
+requests. Packaging and the full Python compatibility matrix are manual options;
+release tags do not start another package build. CodeQL runs weekly or on request.
+
+Before publishing, run the focused tests for the changed behavior and verify the
+requested release build, including its bundled helpers and startup checks. A
+verified local artifact does not need a duplicate CI build or a fresh CodeQL run
+for every release. Publish it with its matching source revision and checksum.
+Investigate relevant failing checks; add broader validation when the changed
+behavior requires it.
+
 </details>
 
 ## License
