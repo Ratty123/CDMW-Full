@@ -94,10 +94,9 @@ Thumbs.db
 tools/dotnet_mesh_editor_experiment/bin/
 tools/dotnet_mesh_editor_experiment/obj/
 
-# Working notes kept on the developer's machine rather than in the repository.
-# docs/plans was already local; the rest of docs/ and the agent instructions
-# follow the same rule. Guards that read documentation ask git which files
-# are tracked rather than reading the directory, so they assert on what the
-# repository actually ships.
+# Working notes and agent instructions stay local. Only the public research
+# reference below is admitted as a new file under docs/. Existing tracked
+# documents remain tracked. Documentation guards inspect Git's tracked files.
 /AGENTS.md
-/docs/
+/docs/*
+!/docs/crimson-desert-research.md

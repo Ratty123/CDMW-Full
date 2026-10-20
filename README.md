@@ -75,6 +75,9 @@ Compact is the default layout. Classic is available in
 
 ## Documentation and languages
 
+Read the [Crimson Desert research reference](docs/crimson-desert-research.md) for
+file formats, research findings, evidence levels and remaining questions.
+
 Open **Help > Documentation** for searchable workflow guides. Change the interface
 language in **Settings > Appearance**, using a built-in language or a custom pack.
 Mesh Editor follows the selected interface language. The **Translations** tool
