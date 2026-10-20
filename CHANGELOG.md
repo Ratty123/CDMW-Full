@@ -7,6 +7,8 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 ## [Unreleased]
 
+## [0.11.0-alpha.24] - 2026-10-20
+
 ### Added
 
 - Developer device tests can run through the portable executable, retain JSON results and match one inspected frame before a guarded baseline action. Native-item scenarios remain unavailable until their separate game contracts are verified.
