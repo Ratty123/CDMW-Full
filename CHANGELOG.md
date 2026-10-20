@@ -49,7 +49,7 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 ### Fixed
 
-- Mesh Editor keeps the session and previous edits when deleting the last vertices in a part, including through Undo/Redo. Unsupported empty-part exports remain safely blocked.
+- Mesh Editor keeps the session, previous edits and Undo/Redo when deleting the last vertices in a part. Exact PAC export now supports fully deleted parts across all stored LODs while preserving the other parts; unsupported layouts remain blocked.
 
 - Settings > Paths uses the selected language for Archive Locations controls and folder-exclusion guidance.
 - Archive validation rejects mount lists with inconsistent directory counts before installing an overlay.

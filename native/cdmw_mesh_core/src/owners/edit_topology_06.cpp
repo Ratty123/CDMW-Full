@@ -435,7 +435,7 @@ void mesh_edit_compose_result_topology_provenance(
 ) {
     for (std::size_t position = 0; position < results.size() && position < result_items.size(); ++position) {
         SubmeshMeshEditResult& result = results[position];
-        if (!result.topology_changed || result.append_submesh || result.vertices.empty()) {
+        if (!result.topology_changed || result.append_submesh) {
             continue;
         }
         const MeshSessionSubmesh* session = mesh_session_submesh_for_item(*result_items[position]);

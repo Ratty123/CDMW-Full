@@ -34,6 +34,8 @@ from cdmw.modding.mesh_native_core_constants import (
     _TRANSIENT_NATIVE_SUBMESH_ATTRS,
 )
 from cdmw.modding.mesh_parser import ParsedMesh, SubMesh
+from cdmw.domain.mesh.topology import SubmeshTopologyProvenance, validate_topology_provenance
+from cdmw.modding.mesh_native_binary_io import _write_int_binary_payload, _write_f64_binary_payload
 from cdmw.models import RunCancelled
 
 
@@ -215,6 +217,25 @@ def snapshot_native_mesh_submeshes(
                     "vertex_count": 0,
                     "face_count": 0,
                 }
+                provenance = getattr(submesh, "topology_provenance", None)
+                if isinstance(provenance, SubmeshTopologyProvenance) and not validate_topology_provenance(
+                    provenance, output_vertex_count=0, output_face_count=face_count,
+                ):
+                    # Empty slots have no native snapshot handle. Keep their
+                    # zero-parent CSR payload alongside the Python history slot
+                    # so an authoritative Redo can reopen it without losing its
+                    # original-relative deletion anchor.
+                    snapshot_items[submesh_index].update(
+                        topology_contract=provenance.version, topology_rebuild_valid=True,
+                        topology_original_vertex_count=provenance.original_vertex_count,
+                        topology_original_face_count=provenance.original_face_count,
+                        vertex_origin_offsets_binary=_write_int_binary_payload(
+                            Path(_native_preview_delta_output_path("_empty_origin_offsets.bin")), (0,)),
+                        vertex_origin_parents_binary=_write_int_binary_payload(
+                            Path(_native_preview_delta_output_path("_empty_origin_parents.bin")), ()),
+                        vertex_origin_weights_binary=_write_f64_binary_payload(
+                            Path(_native_preview_delta_output_path("_empty_origin_weights.bin")), ()),
+                    )
                 continue
             session_id = _ensure_native_mesh_session_submesh(
                 binary,

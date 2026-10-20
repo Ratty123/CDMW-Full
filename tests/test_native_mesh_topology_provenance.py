@@ -10,7 +10,9 @@ from __future__ import annotations
 import unittest
 
 from cdmw.domain.mesh import MeshEditCommand, MeshEditSelection
-from cdmw.domain.mesh.topology import TOPOLOGY_PROVENANCE_CAPABILITY, TOPOLOGY_PROVENANCE_VERSION
+from cdmw.domain.mesh.topology import (
+    TOPOLOGY_PROVENANCE_CAPABILITY, TOPOLOGY_PROVENANCE_VERSION, validate_topology_provenance,
+)
 from cdmw.modding import mesh_native_session_api as native_api
 from cdmw.modding.mesh_native_core import native_mesh_core_available
 from cdmw.modding.mesh_parser import ParsedMesh, SubMesh
@@ -116,6 +118,33 @@ class NativeTopologyProvenanceTests(unittest.TestCase):
         self.assertEqual(0, summary["topology_derived_vertex_count"])
         self.assertEqual(summary["vertex_count"], summary["topology_direct_vertex_count"])
         self.assertEqual(summary["vertex_count"], summary["topology_provenance_parent_entries"])
+
+    def test_complete_deletion_exports_empty_csr_and_restores_it_through_history(self) -> None:
+        original = self.service.working_mesh(self.session_id, clone=True)
+        deleted = self.service.apply_command(
+            self.session_id,
+            MeshEditCommand("delete", selection=MeshEditSelection.from_maps(
+                vertices_by_submesh={0: tuple(range(25))}), mode="edit"),
+        )
+        self.assertTrue(deleted.ok)
+        summary = _summary(self.session_id)
+        self.assertTrue(summary["topology_rebuild_valid"])
+        self.assertEqual(25, summary["topology_original_vertex_count"])
+        self.assertEqual(32, summary["topology_original_face_count"])
+        empty = self.service.working_mesh(self.session_id, clone=True).submeshes[0]
+        self.assertEqual([], empty.vertices)
+        self.assertEqual([], empty.faces)
+        self.assertEqual((), validate_topology_provenance(
+            empty.topology_provenance, output_vertex_count=0, output_face_count=0))
+        snapshot = self.service.capture_export_snapshot(self.session_id)
+        self.assertTrue(snapshot.edit_operations)
+        self.assertEqual(0, snapshot.edit_operations[-1]["vertex_count"])
+        self.assertTrue(self.service.undo(self.session_id).ok)
+        self.assertEqual(original.submeshes[0].vertices,
+                         self.service.working_mesh(self.session_id).submeshes[0].vertices)
+        self.assertTrue(self.service.redo(self.session_id).ok)
+        restored = self.service.working_mesh(self.session_id).submeshes[0]
+        self.assertEqual(empty.topology_provenance, restored.topology_provenance)
 
     def test_midpoint_subdivide_derives_two_parent_origins(self) -> None:
         result = self.service.apply_command(

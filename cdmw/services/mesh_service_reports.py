@@ -284,7 +284,9 @@ def _native_editor_topology_summaries(report: Mapping[str, object]) -> tuple[dic
         face_count = _coerce_index(raw_item.get("face_count"))
         if index is None or index < 0:
             continue
-        if not original_vertex_count or not original_face_count or not vertex_count or not face_count:
+        if (not original_vertex_count or not original_face_count
+                or vertex_count is None or face_count is None
+                or vertex_count < 0 or face_count < 0 or bool(vertex_count) != bool(face_count)):
             continue
         summaries.append(
             {

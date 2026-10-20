@@ -264,7 +264,7 @@ def _copy_snapshot_topology_provenance(
     )
     raw_parents = source.get("vertex_origin_parents_binary")
     parent_count = _index(raw_parents.get("count")) if isinstance(raw_parents, Mapping) else None
-    if offsets is None or parent_count is None or parent_count <= 0:
+    if offsets is None or parent_count is None or parent_count < 0:
         return
     parents = _native_binary_descriptor(raw_parents, expected_count=parent_count, components=1, kind="i32")
     weights = _native_binary_descriptor(
@@ -276,7 +276,9 @@ def _copy_snapshot_topology_provenance(
     original_face_count = _index(source.get("topology_original_face_count"))
     if original_vertex_count is None or original_face_count is None:
         return
-    if original_vertex_count <= 0 or original_face_count <= 0 or expected_faces <= 0:
+    if (original_vertex_count <= 0 or original_face_count <= 0
+            or bool(expected_vertices) != bool(expected_faces)
+            or (expected_vertices > 0 and parent_count == 0)):
         return
     target["vertex_origin_offsets_binary"] = offsets
     target["vertex_origin_parents_binary"] = parents
@@ -455,7 +457,7 @@ def _topology_provenance_from_native_snapshot_item(
     a short, stale, or mismatched payload produces no contract, and the ordinary
     same-count blockers then apply.
     """
-    if not bool(item.get("topology_rebuild_valid")) or vertex_count <= 0 or face_count <= 0:
+    if not bool(item.get("topology_rebuild_valid")) or bool(vertex_count) != bool(face_count):
         return None
     if str(item.get("topology_contract") or "") != TOPOLOGY_PROVENANCE_VERSION:
         return None
@@ -469,11 +471,11 @@ def _topology_provenance_from_native_snapshot_item(
     if not offsets or len(offsets) != vertex_count + 1:
         return None
     parent_total = int(offsets[-1])
-    if offsets[0] != 0 or parent_total <= 0:
+    if offsets[0] != 0 or parent_total < 0:
         return None
     parents = _read_i32_binary_report_payload(item.get("vertex_origin_parents_binary"), expected_count=parent_total)
     weights = _read_f64_binary_report_payload(item.get("vertex_origin_weights_binary"), expected_count=parent_total)
-    if not parents or not weights or len(parents) != parent_total or len(weights) != parent_total:
+    if parents is None or weights is None or len(parents) != parent_total or len(weights) != parent_total:
         return None
     origins: list[VertexOrigin] = []
     for index in range(vertex_count):

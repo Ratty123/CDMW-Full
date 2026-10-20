@@ -34,6 +34,8 @@ from cdmw.modding.mesh_native_core_constants import (
     _TRANSIENT_NATIVE_SUBMESH_ATTRS,
 )
 from cdmw.modding.mesh_parser import ParsedMesh, SubMesh
+from cdmw.domain.mesh.topology import SubmeshTopologyProvenance, validate_topology_provenance
+from cdmw.modding.mesh_native_binary_io import _write_int_binary_payload
 from cdmw.models import RunCancelled
 
 
@@ -157,7 +159,11 @@ def invalidate_native_mesh_session_submeshes(mesh: ParsedMesh, submesh_indices: 
     _invalidate_native_mesh_session_submeshes(mesh, submesh_indices)
 
 def _native_mesh_session_store_item(submesh: SubMesh, submesh_index: int, prefix: Path) -> dict[str, object] | None:
-    if not submesh.vertices:
+    provenance = getattr(submesh, "topology_provenance", None)
+    valid_provenance = isinstance(provenance, SubmeshTopologyProvenance) and not validate_topology_provenance(
+        provenance, output_vertex_count=len(submesh.vertices), output_face_count=len(submesh.faces),
+    )
+    if not submesh.vertices and not valid_provenance:
         return None
     vertex_count = len(submesh.vertices)
     faces_binary, source_face_indices = _write_face_binary_payload_with_source_indices(
@@ -173,6 +179,22 @@ def _native_mesh_session_store_item(submesh: SubMesh, submesh_index: int, prefix
         "vertices_binary": _write_vec3_binary_payload(prefix.with_name(prefix.name + "_vertices.bin"), submesh.vertices),
         "faces_binary": faces_binary,
     }
+    if valid_provenance:
+        offsets = [0]
+        parents, weights = [], []
+        for origin in provenance.vertex_origins:
+            parents.extend(origin.parents)
+            weights.extend(origin.weights)
+            offsets.append(len(parents))
+        item.update(
+            topology_contract=provenance.version,
+            topology_original_vertex_count=provenance.original_vertex_count,
+            topology_original_face_count=provenance.original_face_count,
+            vertex_origin_offsets_binary=_write_int_binary_payload(prefix.with_name(prefix.name + "_origin_offsets.bin"), offsets),
+            vertex_origin_parents_binary=_write_int_binary_payload(prefix.with_name(prefix.name + "_origin_parents.bin"), parents),
+            vertex_origin_weights_binary=_write_f64_binary_payload(prefix.with_name(prefix.name + "_origin_weights.bin"), weights),
+        )
+        source_face_indices = provenance.face_origins
     extra_attrs = {
         attr_name: _snapshot_metadata_value(getattr(submesh, attr_name))
         for attr_name in _EXTRA_SUBMESH_ATTRS
@@ -194,7 +216,7 @@ def _native_mesh_session_store_item(submesh: SubMesh, submesh_index: int, prefix
         count_key="source_face_count",
         binary_key="source_face_indices_binary",
         binary_path=prefix.with_name(prefix.name + "_source_faces.bin"),
-        max_count=len(submesh.faces),
+        max_count=provenance.original_face_count if valid_provenance else len(submesh.faces),
     )
     if len(submesh.normals) == len(submesh.vertices):
         item["normals_binary"] = _write_vec3_binary_payload(

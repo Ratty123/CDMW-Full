@@ -9,8 +9,8 @@ original record or is derived from named original parents.
 
 What this writer will not do, ever: choose a nearest donor, transfer skin weights
 by proximity, drop a bone influence to fit six slots, guess a byte it has not
-proven, move the descriptor bounds, or touch a lower LOD. Any of those would make
-the output plausible rather than exact, so each one is a blocker instead.
+proven, or move the descriptor bounds. Lower LODs stay byte-identical except
+for an explicitly deleted whole part, suppressed in its own slot at every LOD.
 """
 
 from __future__ import annotations
@@ -237,9 +237,14 @@ def topology_rebuild_blockers(
                 blockers.append(TOPOLOGY_PROVENANCE_REQUIRED)
             continue
         changed += 1
-        if not vertices or not faces:
+        if bool(vertices) != bool(faces):
             blockers.append(TOPOLOGY_EMPTY_SUBMESH_UNSUPPORTED)
             continue
+        if not vertices and any(getattr(edited, attr, ()) for attr in (
+            "uvs", "normals", "tangents", "shader_masks", "bone_indices", "bone_weights",
+            "source_vertex_map", "source_vertex_offsets",
+        )):
+            blockers.append(TOPOLOGY_CONTRACT_UNSUPPORTED)
         if len(vertices) > TOPOLOGY_MAX_PAC_VERTEX_COUNT:
             blockers.append(TOPOLOGY_PAC_INDEX_LIMIT_EXCEEDED)
         blockers.extend(
@@ -266,7 +271,59 @@ def topology_rebuild_blockers(
 
     if changed <= 0:
         blockers.append(TOPOLOGY_PROVENANCE_REQUIRED)
+    deleted = _deleted_part_indices(edited_mesh)
+    if deleted and not blockers:
+        try:
+            # Prove every stored LOD and the hidden draw before rebuilding.
+            # Shared records, ambiguous slots and unrepresentable bounds refuse
+            # the entire export; none may enter the generic donor rebuild.
+            _hide_deleted_pac_parts(original_data, deleted)
+        except ValueError:
+            blockers.append(TOPOLOGY_CONTRACT_UNSUPPORTED)
     return tuple(dict.fromkeys(blockers))
+
+
+def _deleted_part_indices(mesh: ParsedMesh) -> tuple[int, ...]:
+    return tuple(index for index, part in enumerate(mesh.submeshes)
+                 if part.topology_provenance is not None and not part.vertices and not part.faces)
+
+
+def _hide_deleted_pac_parts(data: bytes, deleted: Sequence[int]) -> bytes:
+    """Suppress only named descriptor slots, without remapping lower-LOD faces.
+
+    Zero-count draws are unsafe for PAC consumers. Retain each slot's original
+    records and counts, collapse its indices, and clone one exact source corner
+    into a quantization-sized triangle. Identical skin/guide data keeps that
+    triangle tiny during animation too. This is an output projection only.
+    """
+    from .mesh_islands import _preserve_empty_island_part
+    from .pac_cloth import pac_cloth_lods
+
+    levels = pac_cloth_lods(data)
+    result = bytearray(data)
+    for lod_index, level in enumerate(levels):
+        for index in deleted:
+            part = level.submeshes[index]
+            if not part.vertices and not part.faces:
+                continue  # The source already omits this slot at this LOD.
+            if not part.faces or part.source_index_count % 3:
+                raise ValueError("Deleted PAC part has no proven triangle layout.")
+            corner = part.faces[0][0]
+            for face_index in range(part.source_index_count // 3):
+                struct.pack_into("<3H", result, part.source_index_offset + face_index * 6,
+                                 corner, corner, corner)
+            _preserve_empty_island_part(result, part, lod_index)
+    rebuilt = bytes(result)
+    # The parser must still recover every descriptor slot, including lower-LOD
+    # slots that were already absent. It must never fall back to another part.
+    for before, after in zip(levels, pac_cloth_lods(rebuilt), strict=True):
+        for index, (old, new) in enumerate(zip(before.submeshes, after.submeshes, strict=True)):
+            if old.source_vertex_offsets != new.source_vertex_offsets:
+                raise ValueError("Deleted PAC part changed its source record ownership.")
+            expected = old.faces[:1] if index in deleted else old.faces
+            if new.faces != expected:
+                raise ValueError("Deleted PAC part changed another part's connectivity.")
+    return rebuilt
 
 
 def _layout_blockers(
@@ -302,6 +359,7 @@ def _layout_blockers(
 
     original_submeshes = tuple(getattr(original_mesh, "submeshes", ()) or ())
     edited_submeshes = tuple(getattr(edited_mesh, "submeshes", ()) or ())
+    deleted_indices = frozenset(_deleted_part_indices(edited_mesh))
     if len(descriptors) < len(original_submeshes):
         return (TOPOLOGY_CONTRACT_UNSUPPORTED,)
 
@@ -331,8 +389,9 @@ def _layout_blockers(
         seen_offsets.update(offsets)
         edited = edited_submeshes[submesh_index] if submesh_index < len(edited_submeshes) else None
         rebuilt = edited if edited is not None and getattr(edited, "topology_provenance", None) is not None else original
-        rebuilt_faces = len(tuple(getattr(rebuilt, "faces", ()) or ()))
-        rebuilt_vertices = len(tuple(getattr(rebuilt, "vertices", ()) or ()))
+        deleted = not rebuilt.vertices and not rebuilt.faces
+        rebuilt_faces = 1 if deleted else len(rebuilt.faces)
+        rebuilt_vertices = len(original.vertices) if deleted else len(rebuilt.vertices)
         output_face_total += rebuilt_faces
         output_vertex_total += rebuilt_vertices
         if rebuilt_faces and rebuilt_vertices:
@@ -343,13 +402,15 @@ def _layout_blockers(
         lower_faces = 0
         lower_vertices = 0
         lower_non_empty = 0
-        for descriptor in descriptors[: len(original_submeshes)]:
+        for submesh_index, descriptor in enumerate(descriptors[: len(original_submeshes)]):
             faces_at_lod = (
                 int(descriptor.index_counts[lod_index]) // 3 if lod_index < len(descriptor.index_counts) else 0
             )
             vertices_at_lod = (
                 int(descriptor.vertex_counts[lod_index]) if lod_index < len(descriptor.vertex_counts) else 0
             )
+            if faces_at_lod and submesh_index in deleted_indices:
+                faces_at_lod = 1
             lower_faces += faces_at_lod
             lower_vertices += vertices_at_lod
             if faces_at_lod and vertices_at_lod:
@@ -545,7 +606,7 @@ def build_pac_topology_rebuild(
     *,
     report: dict[str, object] | None = None,
 ) -> bytes:
-    """Rebuild the LOD0 geometry section exactly, leaving everything else alone.
+    """Rebuild LOD0 exactly; suppress fully deleted slots at every stored LOD.
 
     Raises :class:`PacTopologyRebuildBlocked` with stable blocker codes rather
     than producing an approximate result.
@@ -563,6 +624,7 @@ def build_pac_topology_rebuild(
     )
     original_submeshes = tuple(original_mesh.submeshes)
     edited_submeshes = tuple(edited_mesh.submeshes)
+    deleted_submeshes = _deleted_part_indices(edited_mesh)
     if len(descriptors) < len(original_submeshes):
         raise PacTopologyRebuildBlocked(
             (TOPOLOGY_CONTRACT_UNSUPPORTED,), "PAC descriptor count does not match the parsed original submeshes."
@@ -585,8 +647,11 @@ def build_pac_topology_rebuild(
     ):
         provenance = getattr(edited, "topology_provenance", None)
         submesh_metrics: dict[str, object] = {}
-        records = _lod0_records_for_submesh(original, edited, original_data, provenance, submesh_metrics)
-        faces = tuple(getattr(edited, "faces", ()) or ()) if provenance is not None else tuple(
+        # Keep deleted slots' source storage until the all-LOD suppression below.
+        # The working mesh and its provenance remain truly empty for Undo/Redo.
+        output_provenance = None if submesh_index in deleted_submeshes else provenance
+        records = _lod0_records_for_submesh(original, edited, original_data, output_provenance, submesh_metrics)
+        faces = tuple(getattr(edited, "faces", ()) or ()) if output_provenance is not None else tuple(
             getattr(original, "faces", ()) or ()
         )
         for record in records:
@@ -678,6 +743,18 @@ def build_pac_topology_rebuild(
         lod0_section_index=lod0_section_index,
         payloads=payloads,
     )
+    if deleted_submeshes:
+        try:
+            rebuilt = _hide_deleted_pac_parts(rebuilt, deleted_submeshes)
+        except ValueError as exc:
+            raise PacTopologyRebuildBlocked((TOPOLOGY_CONTRACT_UNSUPPORTED,), str(exc)) from exc
+        reparsed = parse_pac(rebuilt, str(edited_mesh.path))
+        expected_counts = [(len(original.vertices), 1) if index in deleted_submeshes else
+                           (len(edited.vertices), len(edited.faces))
+                           for index, (original, edited) in enumerate(zip(original_submeshes, edited_submeshes))]
+        if [(len(part.vertices), len(part.faces)) for part in reparsed.submeshes] != expected_counts:
+            raise PacTopologyRebuildBlocked((TOPOLOGY_CONTRACT_UNSUPPORTED,),
+                                            "Deleted PAC parts changed the recovered LOD0 layout.")
 
     if report is not None:
         report.update(
@@ -697,10 +774,13 @@ def build_pac_topology_rebuild(
                     metrics.get("max_absolute_quantization_error", 0.0) or 0.0
                 ),
                 "l1_quantization_error": float(metrics.get("l1_quantization_error", 0.0) or 0.0),
-                "protected_bytes_preserved": True,
+                "protected_bytes_preserved": not bool(deleted_submeshes),
                 "original_bounds_preserved": True,
-                "lower_lods_preserved": True,
+                "lower_lods_preserved": not bool(deleted_submeshes) or lod_count == 1,
                 "unknown_sections_preserved": True,
+                "deleted_submesh_indices": deleted_submeshes,
+                "deleted_part_encoding": "source_record_tiny_draw" if deleted_submeshes else "",
+                "unmodified_parts_preserved": True,
             }
         )
 
@@ -744,7 +824,7 @@ def _verify_rebuilt_pac(
             f"Rebuilt PAC reparsed into {len(reparsed.submeshes)} submesh(es), expected {len(edited_submeshes)}.",
         )
     for index, (parsed, edited, original) in enumerate(zip(reparsed.submeshes, edited_submeshes, original_submeshes)):
-        expected = edited if getattr(edited, "topology_provenance", None) is not None else original
+        expected = edited if getattr(edited, "topology_provenance", None) is not None and edited.vertices else original
         if len(parsed.vertices) != len(expected.vertices) or len(parsed.faces) != len(expected.faces):
             raise PacTopologyRebuildBlocked(
                 (TOPOLOGY_CONTRACT_UNSUPPORTED,),

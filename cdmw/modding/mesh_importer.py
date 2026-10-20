@@ -860,6 +860,11 @@ def _apply_operation_channels_to_original(
     *,
     active_lod_index: int | None = None,
 ) -> ParsedMesh:
+    if _has_topology_contract(edited_mesh):
+        # Finish also calls this helper directly. Reapplying same-count
+        # channels to the source would resurrect a deleted part and discard
+        # the authored topology before replacement validation can see it.
+        return copy.deepcopy(edited_mesh)
     operations = mesh_edit_operations_from_dicts(getattr(edited_mesh, "_cdmw_edit_operations", ()) or ())
     if not operations:
         return edited_mesh

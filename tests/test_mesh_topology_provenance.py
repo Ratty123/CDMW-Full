@@ -234,10 +234,21 @@ def test_composition_rejects_incomplete_and_out_of_range_face_origins() -> None:
     assert stale.value.code == TOPOLOGY_FACE_ORIGIN_INVALID
 
 
-def test_composition_rejects_an_empty_output_submesh() -> None:
+def test_composition_rejects_an_empty_output_that_retains_faces() -> None:
     with pytest.raises(TopologyProvenanceError) as empty:
         compose_topology_provenance(_quad(), copy_vertex_indices=(), face_origins=(0,))
     assert empty.value.code == TOPOLOGY_EMPTY_SUBMESH_UNSUPPORTED
+
+
+def test_complete_deletion_keeps_the_original_relative_anchor() -> None:
+    partial = compose_topology_provenance(_quad(), copy_vertex_indices=(0, 1, 2), face_origins=(0,))
+    deleted = compose_topology_provenance(partial, copy_vertex_indices=(), face_origins=())
+    assert deleted.original_vertex_count == 4
+    assert deleted.original_face_count == 2
+    assert deleted.vertex_origins == deleted.face_origins == ()
+    assert validate_topology_provenance(deleted, output_vertex_count=0, output_face_count=0) == ()
+    assert validate_topology_provenance(identity_topology_provenance(0, 0),
+                                        output_vertex_count=0, output_face_count=0) == (TOPOLOGY_CONTRACT_UNSUPPORTED,)
 
 
 def test_validation_rejects_non_canonical_and_mismatched_contracts() -> None:
@@ -361,6 +372,23 @@ def test_topology_operation_validation_accepts_the_derived_sentinel() -> None:
 
     assert issues == ()
     assert mesh.submeshes[0].source_vertex_map[2] == TOPOLOGY_DERIVED_SOURCE_SENTINEL
+
+
+def test_only_the_last_topology_operation_describes_current_counts() -> None:
+    empty = SubMesh(topology_provenance=compose_topology_provenance(
+        _quad(), copy_vertex_indices=(), face_origins=()), source_vertex_map_authority="topology")
+    mesh = ParsedMesh(format="pac", submeshes=[empty])
+    partial = _topology_operation(0, 1, vertices=3)
+    final = _topology_operation(1, 2, vertices=0)
+    final = replace(final, metadata={**final.metadata, "output_face_count": 0})
+    assert validate_mesh_edit_operations((partial, final), mesh=mesh) == ()
+    # Superseding an operation does not excuse metadata that disagrees with
+    # that operation's own output, or a final count that disagrees with geometry.
+    bad = replace(partial, vertex_count=4)
+    assert "operation_vertex_count_mismatch" in {
+        issue.code for issue in validate_mesh_edit_operations((bad, final), mesh=mesh)}
+    assert "operation_vertex_count_mismatch" in {
+        issue.code for issue in validate_mesh_edit_operations((final, partial), mesh=mesh)}
 
 
 def test_a_topology_operation_without_a_contract_on_its_submesh_is_blocked() -> None:

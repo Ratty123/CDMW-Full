@@ -164,6 +164,11 @@ def validate_mesh_edit_operations(
     allowed = _operation_set(allowed_operations) if allowed_operations is not None else None
     allowed_lods = _lod_index_set(allowed_lod_indices)
     issues: list[MeshEditOperationIssue] = []
+    latest_topology = {
+        (operation.lod_index, operation.submesh_index): index
+        for index, operation in enumerate(normalized)
+        if _operation_name(operation.operation) in TOPOLOGY_MESH_EDIT_OPERATIONS
+    }
     for operation_index, operation in enumerate(normalized):
         name = _operation_name(operation.operation)
         if not name:
@@ -205,6 +210,8 @@ def validate_mesh_edit_operations(
                 _submeshes_for_lod(mesh, operation.lod_index),
                 allowed_lods=allowed_lods,
                 require_source_mapping=require_source_mapping,
+                current_topology_output=(latest_topology.get(
+                    (operation.lod_index, operation.submesh_index), operation_index) == operation_index),
             )
     return tuple(issues)
 
@@ -280,6 +287,7 @@ def _validate_operation_target(
     *,
     allowed_lods: frozenset[int],
     require_source_mapping: bool,
+    current_topology_output: bool,
 ) -> None:
     if operation.lod_index not in allowed_lods:
         _add(
@@ -307,6 +315,7 @@ def _validate_operation_target(
             operation_index,
             submeshes,
             require_source_mapping=require_source_mapping,
+            current_topology_output=current_topology_output,
         )
         return
     if name in _SOURCE_MAPPED_OPERATIONS:
@@ -351,6 +360,7 @@ def _validate_topology_operation_target(
     submeshes: Sequence[object],
     *,
     require_source_mapping: bool,
+    current_topology_output: bool,
 ) -> None:
     """A topology operation states the output it produced, not a same-count map."""
     submesh = submeshes[operation.submesh_index]
@@ -378,7 +388,10 @@ def _validate_topology_operation_target(
         )
         return
     output_vertex_count = _coerce_index(metadata.get(TOPOLOGY_METADATA_OUTPUT_VERTEX_COUNT), default=-1)
-    if operation.vertex_count != actual or output_vertex_count != actual:
+    # Earlier operations describe intermediate geometry. Only the final
+    # topology operation for this target describes the current vertex count.
+    # Each earlier operation must still agree with its own recorded output.
+    if operation.vertex_count != output_vertex_count or (current_topology_output and output_vertex_count != actual):
         _add(
             issues,
             "blocker",

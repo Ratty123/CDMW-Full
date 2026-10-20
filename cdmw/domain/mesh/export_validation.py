@@ -212,7 +212,10 @@ def validate_mesh_export(
         face_total += len(faces)
         geometry_points.extend(_finite_points(vertices))
 
-        if not vertices:
+        original_submesh = original_submeshes[submesh_index] if submesh_index < len(original_submeshes) else None
+        deleted_pac_part = (mesh_format == "pac" and not vertices and not faces
+                            and _export_topology_contract(submesh, original_submesh) is not None)
+        if not vertices and not deleted_pac_part:
             _add(
                 issues,
                 "blocker",
@@ -226,7 +229,7 @@ def validate_mesh_export(
         for vertex_index, vertex in enumerate(vertices):
             if _vec3(vertex) is None:
                 _add(issues, "blocker", "invalid_vertex_position", "Vertex position is missing or non-finite.", "topology", submesh_index=submesh_index, vertex_index=vertex_index)
-        if not faces:
+        if not faces and not deleted_pac_part:
             _add(
                 issues,
                 "warning",
@@ -240,7 +243,6 @@ def validate_mesh_export(
         _validate_faces(issues, faces, len(vertices), submesh_index)
         _validate_vertex_channels(issues, len(vertices), uvs, normals, tangents, submesh_index)
         _validate_material(issues, submesh, submesh_index, texture_keys=texture_keys, texture_exists=texture_exists)
-        original_submesh = original_submeshes[submesh_index] if submesh_index < len(original_submeshes) else None
         skinned = _validate_skinning(
             issues,
             submesh,
@@ -1741,12 +1743,13 @@ def _validate_edit_operations(
     # start demanding operations for every unrelated channel a session had
     # already changed, which is a behaviour change for workflows that previously
     # carried no operations at all.
-    coverage_operations = tuple(
-        operation
-        for operation in operation_tuple
-        if str(getattr(operation, "source", "") or (operation.get("source", "") if isinstance(operation, Mapping) else ""))
-        != _RESIDENT_OPERATION_SOURCE
-    )
+    # When a candidate/sidecar supplied an exhaustive operation list, native
+    # topology edits appended afterward own their channels too. Dropping those
+    # rows would reject a valid earlier edit in another part at Finish.
+    coverage_operations = operation_tuple if any(
+        str(getattr(operation, "source", "") or (operation.get("source", "") if isinstance(operation, Mapping) else ""))
+        != _RESIDENT_OPERATION_SOURCE for operation in operation_tuple
+    ) else ()
     for issue in validate_mesh_edit_operation_coverage(coverage_operations, mesh=mesh, original_mesh=original_mesh):
         if issue.severity != "blocker":
             continue

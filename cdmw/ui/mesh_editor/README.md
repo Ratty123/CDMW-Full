@@ -1536,8 +1536,13 @@ no-op results and host diagnostics are shown instead of claiming that an edit co
 
 Deleting the last vertices in a Part retains its empty slot in the editing session.
 Other Parts keep their source and material identities, and Undo/Redo restores the
-deleted geometry. Empty slots do not bypass export validation: Exact PAC output
-still refuses unsupported empty Parts without closing the session or discarding edits.
+deleted geometry, including after Finish. Exact PAC output suppresses a fully deleted
+source Part at every stored LOD, retaining its descriptor and material slot as a tiny
+valid draw with matching source skin/cloth bindings. Other Parts' LOD records remain
+unchanged unless explicitly edited. This output representation never populates the
+empty editor slot. Missing deletion provenance, unsupported layouts and bounds that
+cannot represent the tiny draw still block export without closing the session or
+discarding edits.
 
 Morph & Refit hydrates the selected bound garment's saved
 enabled/mode/intensity/clearance values before applying a change; profile creation

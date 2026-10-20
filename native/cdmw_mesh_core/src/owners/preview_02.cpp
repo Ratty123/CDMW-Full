@@ -300,6 +300,7 @@ MeshSessionSubmesh mesh_session_submesh_from_item(const JsonValue& item) {
     }
     stored_submesh.vertices = vertices_from_binary_or_json(item, "vertices_binary", "vertices");
     if (stored_submesh.vertices.empty()) {
+        mesh_editor_ingest_topology_provenance(stored_submesh, item);
         return stored_submesh;
     }
     stored_submesh.faces = faces_from_binary_or_json(item, stored_submesh.vertices.size());
@@ -416,7 +417,7 @@ std::string run_mesh_session(const JsonValue& root) {
             continue;
         }
         MeshSessionSubmesh stored_submesh = mesh_session_submesh_from_item(item);
-        if (stored_submesh.vertices.empty()) {
+        if (stored_submesh.vertices.empty() && !mesh_editor_topology_provenance_shape_valid(stored_submesh)) {
             continue;
         }
         vertex_count += static_cast<int>(stored_submesh.vertices.size());

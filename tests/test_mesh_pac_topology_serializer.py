@@ -10,7 +10,6 @@ import pytest
 from cdmw.domain.mesh.topology import (
     TOPOLOGY_BOUNDS_EXCEED_SOURCE,
     TOPOLOGY_CONTRACT_UNSUPPORTED,
-    TOPOLOGY_EMPTY_SUBMESH_UNSUPPORTED,
     TOPOLOGY_PROTECTED_BYTES_DIVERGE,
     TOPOLOGY_PROVENANCE_REQUIRED,
     TOPOLOGY_SKIN_INFLUENCE_CAPACITY_EXCEEDED,
@@ -236,14 +235,14 @@ def test_a_mesh_without_any_contract_is_not_admitted() -> None:
     assert topology_rebuild_blockers(original, original, data) == (TOPOLOGY_PROVENANCE_REQUIRED,)
 
 
-def test_an_empty_output_submesh_is_blocked() -> None:
+def test_an_empty_output_with_stale_provenance_is_blocked() -> None:
     data = _pac_fixture()
     original = parse_pac(data, "target.pac")
     edited = _deleted_quad(original)
     edited.submeshes[0].vertices = []
     edited.submeshes[0].faces = []
 
-    assert TOPOLOGY_EMPTY_SUBMESH_UNSUPPORTED in topology_rebuild_blockers(original, edited, data)
+    assert TOPOLOGY_CONTRACT_UNSUPPORTED in topology_rebuild_blockers(original, edited, data)
 
 
 def test_a_position_outside_the_original_bounds_is_blocked() -> None:

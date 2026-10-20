@@ -96,7 +96,9 @@ bool mesh_editor_topology_provenance_shape_valid(const MeshSessionSubmesh& subme
         return false;
     }
     const std::size_t vertex_count = submesh.vertices.size();
-    if (vertex_count == 0 || submesh.faces.empty()) {
+    if ((vertex_count == 0) != submesh.faces.empty()
+        || submesh.topology_original_vertex_count <= 0
+        || submesh.topology_original_face_count <= 0) {
         return false;
     }
     if (submesh.vertex_origin_offsets.size() != vertex_count + 1) {
@@ -234,7 +236,7 @@ bool mesh_editor_compose_topology_provenance(
         return false;
     }
     const std::size_t output_vertex_count = result.vertices.size();
-    if (output_vertex_count == 0 || result.faces.empty()) {
+    if ((output_vertex_count == 0) != result.faces.empty()) {
         out_blocker = MESH_TOPOLOGY_BLOCKER_EMPTY_SUBMESH;
         return false;
     }
@@ -375,7 +377,7 @@ void mesh_editor_prepare_topology_provenance(
     out_parent_entries = 0;
     double prepared_ms = 0.0;
     for (SubmeshMeshEditResult& result : results) {
-        if (!result.topology_changed || result.index < 0 || result.vertices.empty()) {
+        if (!result.topology_changed || result.index < 0) {
             continue;
         }
         if (result.topology_provenance_prepared) {

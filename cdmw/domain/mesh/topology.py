@@ -252,9 +252,9 @@ def compose_topology_provenance(
     """
     copies = tuple(copy_vertex_indices or ())
     output_vertex_count = len(copies)
-    if output_vertex_count <= 0:
+    if output_vertex_count == 0 and face_origins:
         raise TopologyProvenanceError(
-            TOPOLOGY_EMPTY_SUBMESH_UNSUPPORTED, "A topology result must keep at least one vertex."
+            TOPOLOGY_EMPTY_SUBMESH_UNSUPPORTED, "An empty topology result cannot retain triangles."
         )
     previous_count = previous.output_vertex_count
 
@@ -335,7 +335,7 @@ def compose_topology_provenance(
                 f"[0, {previous.output_face_count}).",
             )
         composed_faces.append(previous.face_origins[face_index])
-    if not composed_faces:
+    if not composed_faces and output_vertex_count:
         raise TopologyProvenanceError(
             TOPOLOGY_EMPTY_SUBMESH_UNSUPPORTED, "A topology result must keep at least one triangle."
         )
@@ -368,7 +368,9 @@ def validate_topology_provenance(
         blockers.append(TOPOLOGY_CONTRACT_UNSUPPORTED)
     if provenance.original_vertex_count <= 0 or provenance.original_face_count <= 0:
         blockers.append(TOPOLOGY_CONTRACT_UNSUPPORTED)
-    if output_vertex_count <= 0 or output_face_count <= 0:
+    # A fully deleted source part retains its original-relative anchor with no
+    # output origins. Half-empty geometry is still not a rebuildable result.
+    if output_vertex_count < 0 or output_face_count < 0 or bool(output_vertex_count) != bool(output_face_count):
         blockers.append(TOPOLOGY_EMPTY_SUBMESH_UNSUPPORTED)
     if enforce_pac_index_limit and output_vertex_count > TOPOLOGY_MAX_PAC_VERTEX_COUNT:
         blockers.append(TOPOLOGY_PAC_INDEX_LIMIT_EXCEEDED)

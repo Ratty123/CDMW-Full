@@ -22,7 +22,7 @@ std::string mesh_editor_open_session_report(
             continue;
         }
         MeshSessionSubmesh submesh = mesh_session_submesh_from_item(item);
-        if (submesh.vertices.empty()) {
+        if (submesh.vertices.empty() && !mesh_editor_topology_provenance_shape_valid(submesh)) {
             continue;
         }
         // Every editable original submesh starts as its own provenance: each
