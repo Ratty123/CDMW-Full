@@ -420,6 +420,61 @@ def test_rigid_components_tighten_independently_of_follow_intensity():
                 assert math.dist(fitted[a], fitted[b]) == pytest.approx(math.dist(plate.vertices[a], plate.vertices[b]), abs=1e-7)
 
 
+@pytest.mark.parametrize("body_radius", (.06, .14))
+@pytest.mark.parametrize("split_material", (False, True))
+def test_rigid_accessory_moves_with_fitted_cloth_and_keeps_its_shape(body_radius, split_material):
+    bounds = ((-.012, 0.), (.000006, .012006)) if split_material else ((-.012, .012),)
+    plates = [_part("buckle", [(left, .2, .11), (right, .2, .11),
+                               (right, .3, .11), (left, .3, .11)],
+                    [(0, 1, 2), (0, 2, 3)], material=str(i), texture="")
+              for i, (left, right) in enumerate(bounds)]
+    mesh = _mesh(_arm(body_radius), _sleeve(), *plates)
+    request = {"garment_submesh_indices": list(range(1, len(mesh.submeshes))), "garment_settings": [
+        {"submesh_index": i, "mode": "surface" if i == 1 else "rigid_component",
+         "tightness_percent": 100., "clearance_percent": .1}
+        for i in range(1, len(mesh.submeshes))
+    ]}
+    with _bound(mesh) as session:
+        _command(session, "morph_configure_refit", request)
+        fitted = _snapshot(mesh, session)
+        original = [point for part in plates for point in part.vertices]
+        actual = [point for part in fitted.submeshes[2:] for point in part.vertices]
+        cloth_front = max(z for x, y, z in fitted.submeshes[1].vertices if .19 < y < .31)
+        assert min(z for x, y, z in actual) > cloth_front + .006
+        assert min(z for x, y, z in actual) > body_radius
+        for a in range(len(actual)):
+            for b in range(len(actual)):
+                assert math.dist(actual[a], actual[b]) == pytest.approx(
+                    math.dist(original[a], original[b]), abs=1e-7)
+        assert fitted.submeshes[0].vertices == mesh.submeshes[0].vertices
+        assert mesh_native_core.undo_native_mesh_editor_session(session)
+        undone = _snapshot(mesh, session)
+        assert [p.vertices for p in undone.submeshes] == [p.vertices for p in mesh.submeshes]
+        assert mesh_native_core.redo_native_mesh_editor_session(session)
+        _command(session, "morph_configure_refit", request)
+        repeated = _snapshot(mesh, session)
+        assert [p.vertices for p in repeated.submeshes] == [p.vertices for p in fitted.submeshes]
+
+
+@pytest.mark.parametrize("protected", (False, True), ids=("skipped", "zero-influence"))
+def test_rigid_accessory_clearance_retains_skip_and_protection(protected):
+    plate = _part("buckle", [(-.012, .2, .11), (.012, .2, .11),
+                             (.012, .3, .11), (-.012, .3, .11)],
+                  [(0, 1, 2), (0, 2, 3)], material="metal", texture="")
+    mesh = _mesh(_arm(), _sleeve(), plate)
+    with _bound(mesh) as session:
+        _command(session, "morph_configure_refit", {
+            "garment_submesh_indices": [1, 2], "garment_settings": [
+                {"submesh_index": 1, "mode": "surface", "tightness_percent": 100., "clearance_percent": .1},
+                {"submesh_index": 2, "mode": "rigid_component", "tightness_percent": 100.,
+                 "clearance_percent": .1, "enabled": protected,
+                 "vertex_mask": {"vertex_indices": [], "weights": []} if protected else None},
+            ]})
+        fitted = _snapshot(mesh, session)
+        assert fitted.submeshes[2].vertices == plate.vertices
+        assert fitted.submeshes[1].vertices != mesh.submeshes[1].vertices
+
+
 def test_rigid_material_parts_with_quantized_seams_move_as_one_piece():
     parts = []
     for name, left, right in (("left", -.02, 0.), ("right", .000006, .020006)):

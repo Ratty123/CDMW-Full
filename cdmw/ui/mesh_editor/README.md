@@ -1746,7 +1746,7 @@ allowed body region. Inputs must already share the intended alignment and pose.
 | --- | --- | --- |
 | Flexible / Surface | Changes the broad silhouette with a smooth displacement field, retaining folds and moving openings with adjacent cloth. | Cloth and flexible armor. |
 | Offset follow | Keeps the existing local-offset body following. It can bend a piece; inward tightening requires another mode. Stored as the legacy `rigid` mode. | Compatibility with existing fits. |
-| Rigid component | Moves each connected piece with one rotation and translation, including matching material seams; dimensions stay unchanged. | Daggers, hard plates, pendants, buckles and trim. |
+| Rigid component | Moves each connected piece with one rotation and translation, including matching material seams; follows the fitted cloth and moves clear of the body without changing dimensions. | Daggers, hard plates, pendants, buckles and trim. |
 | Skip | Disables body following and fitting for this Part, retaining its stored settings. | Accessories to leave unchanged and position manually. |
 
 **Intensity %** controls body-slider following. **Tightness %** independently controls
@@ -1759,6 +1759,11 @@ Parts: highlight each, then choose **Rigid component** for all of them. Ctrl-sel
 and **Apply to Selected Garments** can set their mode together. Matching material
 borders with tiny coordinate differences also move as one piece, without snapping
 the authored vertices.
+Rigid means shape-preserving, not fixed in place. Fitting retains the authored
+spacing between nearby cloth and hard pieces before resolving body contact.
+Clearance then moves each connected hard piece as a whole, so cloth fitting to a
+larger body can carry a buckle or dagger outward without stretching it. Skip and
+zero influence still prevent this movement.
 **Surface** can reshape hard ornaments around the body. **Rigid component** preserves
 their dimensions, but may refuse a fit that cannot satisfy body or layer spacing.
 Use **Skip** for accessories that should stay unchanged while the cloth fits, then

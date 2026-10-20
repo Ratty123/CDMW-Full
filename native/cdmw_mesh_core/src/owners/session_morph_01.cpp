@@ -610,7 +610,11 @@ void mesh_editor_refit_components(
         const double clearance = refit.driver_diagonal * settings.clearance_percent / 100.0
             * (conforming ? 1.0 : first.weight);
         // Every clearance adjustment is one shared translation, preserving the hard part.
-        if (clearance > 0.0 && first.weight > 0.0) for (int pass = 0; pass < (conforming ? 128 : 32); ++pass) {
+        // Keep the authored cloth-to-accessory spacing until the joint fit has
+        // captured it. Clearing only the hard piece first can move it beyond
+        // its cloth support before the cloth catches up on a larger body.
+        const bool resolve_clearance = conforming || settings.tightness_percent <= 0.0;
+        if (resolve_clearance && clearance > 0.0 && first.weight > 0.0) for (int pass = 0; pass < (conforming ? 128 : 32); ++pass) {
             double missing_max = tolerance;
             Vec3 correction{};
             for (const auto& point : samples) {
@@ -724,7 +728,6 @@ void mesh_editor_relieve_refit_surface(
             Cohort& cohort = cohorts[cohort_index];
             cohort.clearance = std::max(cohort.clearance, item.second);
             cohort.vertices.push_back({index, vertex});
-            if (fitting_masks && refit.garment_settings.at(index).mode == "rigid_component") cohort.mobility=0.0;
             if (fitting_masks) cohort.mobility = std::min(cohort.mobility,
                 mesh_editor_refit_mask_weight(*fitting_masks, index, vertex));
             indices.push_back(cohort_index);
@@ -845,6 +848,36 @@ void mesh_editor_relieve_refit_surface(
             opening_roots[root_of(opening_roots, edge.first)] = root_of(opening_roots, edge.second);
         }
     }
+    // A hard attachment has one translation during clearance, rather than
+    // immovable vertices or independent per-vertex corrections. Canonical
+    // cohorts carry that translation across quantized material seams too.
+    std::vector<std::size_t> rigid_roots;
+    std::vector<bool> rigid_vertex(cohorts.size(), false);
+    for (std::size_t i = 0; i < cohorts.size(); ++i) rigid_roots.push_back(i);
+    if (fitting_masks) for (const auto& item : clearances) {
+        if (refit.garment_settings.at(item.first).mode != "rigid_component") continue;
+        const auto& map = vertex_cohorts.at(item.first);
+        for (const auto i : map) rigid_vertex[i] = true;
+        for (const auto& face : submeshes.at(item.first).faces)
+            for (int c = 1; c < 3; ++c)
+                rigid_roots[root_of(rigid_roots, map[face[c]])] = root_of(rigid_roots, map[face[0]]);
+    }
+    std::map<std::size_t, std::vector<std::size_t>> rigid_groups;
+    for (std::size_t i = 0; i < cohorts.size(); ++i) {
+        rigid_roots[i] = root_of(rigid_roots, i);
+        if (rigid_vertex[i]) rigid_groups[rigid_roots[i]].push_back(i);
+    }
+    for (const auto& group : rigid_groups) {
+        double mobility = 1.0;
+        for (const auto i : group.second) mobility = std::min(mobility, cohorts[i].mobility);
+        for (const auto i : group.second) cohorts[i].mobility = mobility;
+    }
+    const auto move_contact = [&](std::size_t i, const Vec3& delta) {
+        if (rigid_vertex[i]) {
+            for (const auto j : rigid_groups.at(rigid_roots[i]))
+                cohorts[j].position = add_vec3(cohorts[j].position, delta);
+        } else cohorts[i].position = add_vec3(cohorts[i].position, delta);
+    };
     std::map<std::size_t, std::pair<Vec3, Vec3>> opening_bounds;
     for (const auto& edge : edges) {
         if (edge_faces.at(edge) != 1) continue;
@@ -912,6 +945,8 @@ void mesh_editor_relieve_refit_surface(
                     if (sample.weights[source] > 0.0 && sample.corners[source] == other.corners[corner]) return;
                 }
             }
+            if (rigid_vertex[sample.corners[0]] && rigid_vertex[other.corners[0]]
+                && rigid_roots[sample.corners[0]] == rigid_roots[other.corners[0]]) return;
             const Vec3 normal = refit_face_normal_native(
                 layer_rest[other.corners[0]], layer_rest[other.corners[1]], layer_rest[other.corners[2]]
             );
@@ -1381,21 +1416,23 @@ void mesh_editor_relieve_refit_surface(
             if (length_vec3(sub_vec3(offset, scale_vec3(normal, height)))
                     > (fitting_masks ? tolerance * 4.0 : refit.driver_diagonal * 0.005)) continue;
             maximum_correction = std::max(maximum_correction, std::abs(correction));
-            double weight_squared = 0.0;
+            // Sum each rigid piece's Jacobian before projecting: barycentric
+            // corners on the same piece are one movable object.
+            std::map<std::size_t, double> weights;
             for (int c = 0; c < 3; ++c) {
-                weight_squared += constraint.first.weights[c] * constraint.first.weights[c]
-                    * (fitting_masks ? cohorts[constraint.first.corners[c]].mobility : 1.0);
-                weight_squared += other.weights[c] * other.weights[c]
-                    * (fitting_masks ? cohorts[other.corners[c]].mobility : 1.0);
+                const auto a = constraint.first.corners[c], b = other.corners[c];
+                weights[rigid_vertex[a] ? rigid_roots[a] : a] += constraint.first.weights[c];
+                weights[rigid_vertex[b] ? rigid_roots[b] : b] -= other.weights[c];
             }
+            double weight_squared = 0.0;
+            for (const auto& weight : weights)
+                weight_squared += weight.second * weight.second
+                    * (fitting_masks ? cohorts[weight.first].mobility : 1.0);
             if (weight_squared <= 0.0) continue;
             const Vec3 delta = scale_vec3(normal, correction / weight_squared);
-            for (std::size_t corner = 0; corner < 3; ++corner) {
-                Cohort& first = cohorts[constraint.first.corners[corner]];
-                Cohort& second = cohorts[other.corners[corner]];
-                first.position = sub_vec3(first.position, scale_vec3(delta, constraint.first.weights[corner] * (fitting_masks ? first.mobility : 1.0)));
-                second.position = add_vec3(second.position, scale_vec3(delta, other.weights[corner] * (fitting_masks ? second.mobility : 1.0)));
-            }
+            for (const auto& weight : weights)
+                move_contact(weight.first, scale_vec3(delta, -weight.second
+                    * (fitting_masks ? cohorts[weight.first].mobility : 1.0)));
         }
     };
     // Solve shape and contour constraints first, then use the final passes
@@ -1485,8 +1522,9 @@ void mesh_editor_relieve_refit_surface(
             maximum_correction = std::max(maximum_correction, missing);
             const double weight_squared = dot_vec3(sample.weights, sample.weights);
             for (std::size_t corner = 0; corner < 3; ++corner) {
-                auto& cohort = cohorts[sample.corners[corner]];
-                cohort.position = add_vec3(cohort.position, scale_vec3(normal, missing * sample.weights[corner] / weight_squared));
+                const auto i = sample.corners[corner];
+                move_contact(i, scale_vec3(normal, missing * sample.weights[corner]
+                    / (rigid_vertex[i] ? 1.0 : weight_squared)));
             }
         }
         // Evaluate body contacts at one common pose. Sequential projections
@@ -1566,6 +1604,17 @@ void mesh_editor_relieve_refit_surface(
             }
         }
         if (fitting_masks) {
+            for (const auto& group : rigid_groups) {
+                Vec3 correction{};
+                for (const auto i : group.second) if (contact_count[i] > 0.0) {
+                    const Vec3 candidate = scale_vec3(contact_delta[i], 1.0 / contact_count[i]);
+                    if (dot_vec3(candidate, candidate) > dot_vec3(correction, correction)) correction = candidate;
+                }
+                for (const auto i : group.second) {
+                    contact_delta[i] = correction;
+                    contact_count[i] = 1.0;
+                }
+            }
             for (std::size_t i = 0; i < cohorts.size(); ++i)
                 if (contact_count[i] > 0.0) cohorts[i].position = add_vec3(cohorts[i].position,
                     scale_vec3(contact_delta[i], 1.0 / contact_count[i]));
@@ -1596,6 +1645,12 @@ void mesh_editor_relieve_refit_surface(
                 for (const auto& part:clearances) parts+=(parts.empty()?"":", ")+std::to_string(part.first);
                 throw std::runtime_error("Fit to body: Parts " + parts + ": " + error.what());
             }
+            for (const auto& group : rigid_groups) {
+                Vec3 translation{};
+                for (const auto i : group.second) translation = add_vec3(translation, correction[i]);
+                translation = scale_vec3(translation, 1.0 / group.second.size());
+                for (const auto i : group.second) correction[i] = translation;
+            }
             for (std::size_t i = 0; i < cohorts.size(); ++i)
                 cohorts[i].position = add_vec3(previous[i], scale_vec3(correction[i], cohorts[i].mobility));
             // Smoothing a common body lift must not erase layer separation.
@@ -1610,6 +1665,7 @@ void mesh_editor_relieve_refit_surface(
                 for (int guard = 0; guard < 24 && !guarded; ++guard) {
                     guarded = true;
                     for (const auto& item : clearances) {
+                        if (refit.garment_settings.at(item.first).mode == "rigid_component") continue;
                         const auto& map = vertex_cohorts.at(item.first);
                         for (const auto& face : submeshes.at(item.first).faces) {
                             const std::array<std::size_t,3> v{map[face[0]],map[face[1]],map[face[2]]};
