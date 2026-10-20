@@ -361,6 +361,46 @@ std::map<std::pair<int, std::size_t>, RefitSpatialIndexNative> mesh_editor_refit
     return result;
 }
 
+std::set<std::pair<std::size_t, std::size_t>> mesh_editor_refit_rigid_joins(
+    const std::map<int, MeshSessionSubmesh>& garments,
+    const std::map<int, std::vector<std::size_t>>& indices,
+    const std::vector<std::size_t>& roots, double tolerance
+) {
+    // Exported ornaments often overlap at their joins without shared vertices.
+    // Keep that construction, including tiny authored gaps, as one hard object.
+    const auto surfaces = mesh_editor_refit_surface_indices(garments, indices, roots);
+    std::set<std::pair<std::size_t, std::size_t>> joins;
+    const auto touches = [&](const RefitSpatialIndexNative& source, const RefitSpatialIndexNative& target) {
+        std::set<std::pair<int, int>> edges;
+        for (const auto& triangle : source.triangles) for (int c = 0; c < 3; ++c) {
+            long long tests = 0;
+            if (closest_refit_binding_native(triangle.corners[c], target, tests).distance <= tolerance) return true;
+            if (!edges.insert(std::minmax(triangle.driver_vertices[c], triangle.driver_vertices[(c + 1) % 3])).second) continue;
+            const Vec3 edge = sub_vec3(triangle.corners[(c + 1) % 3], triangle.corners[c]);
+            const double length = length_vec3(edge);
+            if (length <= tolerance) continue;
+            const Vec3 middle = scale_vec3(add_vec3(triangle.corners[c], triangle.corners[(c + 1) % 3]), 0.5);
+            if (!refit_surface_line_hits_native(middle, scale_vec3(edge, 1.0 / length), length * 0.5, target).empty()) return true;
+        }
+        return false;
+    };
+    for (auto first = surfaces.begin(); first != surfaces.end(); ++first) {
+        for (auto second = std::next(first); second != surfaces.end(); ++second) {
+            const auto pair = std::minmax(first->first.second, second->first.second);
+            if (pair.first == pair.second || joins.count(pair)) continue;
+            const auto& a = first->second.nodes[first->second.root];
+            const auto& b = second->second.nodes[second->second.root];
+            bool separated = false;
+            for (int axis = 0; axis < 3; ++axis)
+                separated |= a.minimum[axis] > b.maximum[axis] + tolerance
+                    || b.minimum[axis] > a.maximum[axis] + tolerance;
+            if (!separated && (touches(first->second, second->second) || touches(second->second, first->second)))
+                joins.insert(pair);
+        }
+    }
+    return joins;
+}
+
 RefitMaskWeightsNative mesh_editor_refit_masks(
     const MeshRefitRuntime& refit,
     const std::map<int, MeshSessionSubmesh>& submeshes,
@@ -551,6 +591,16 @@ void mesh_editor_refit_components(
         }
     }
     if (vertices.empty()) return;
+    for (std::size_t i = 0; i < roots.size(); ++i) roots[i] = root_of(i);
+    const auto topology_roots = roots;
+    std::map<int, MeshSessionSubmesh> authored;
+    for (const auto& part : indices) {
+        authored[part.first].vertices = residual.at(part.first);
+        authored[part.first].faces = submeshes.at(part.first).faces;
+    }
+    for (const auto& join : mesh_editor_refit_rigid_joins(authored, indices, roots,
+             std::max(tolerance, refit.driver_diagonal * 0.0005)))
+        roots[root_of(join.second)] = root_of(join.first);
     std::map<std::size_t, std::vector<std::size_t>> components;
     for (std::size_t i = 0; i < vertices.size(); ++i) components[root_of(i)].push_back(i);
     std::map<int, MeshSessionSubmesh> drivers;
@@ -577,7 +627,14 @@ void mesh_editor_refit_components(
         }
         original_center = scale_vec3(original_center, 1.0 / original.size());
         target_center = scale_vec3(target_center, 1.0 / target.size());
-        auto rotation = refit_component_rotation_native(original, target, original_center, target_center);
+        const bool assembled = std::any_of(component.second.begin(), component.second.end(), [&](const auto i) {
+            return topology_roots[i] != topology_roots[component.second.front()];
+        });
+        // A necklace's authored joins establish one assembled ornament. Follow
+        // may rotate that assembly with the body; tightening translates it to
+        // the fitted surface without tipping its chain and pendants onto the neck.
+        auto rotation = conforming && assembled ? std::array<double, 4>{1.0, 0.0, 0.0, 0.0}
+            : refit_component_rotation_native(original, target, original_center, target_center);
         const double amount = conforming ? 1.0 : settings.intensity_percent / 100.0 * first.weight;
         const double half_angle = std::acos(std::clamp(rotation[0], -1.0, 1.0));
         if (half_angle > 1.0e-12) {
@@ -862,6 +919,16 @@ void mesh_editor_relieve_refit_surface(
             for (int c = 1; c < 3; ++c)
                 rigid_roots[root_of(rigid_roots, map[face[c]])] = root_of(rigid_roots, map[face[0]]);
     }
+    for (std::size_t i = 0; i < rigid_roots.size(); ++i) rigid_roots[i] = root_of(rigid_roots, i);
+    std::map<int, MeshSessionSubmesh> authored_rigid;
+    if (fitting_masks) for (const auto& item : clearances) {
+        if (refit.garment_settings.at(item.first).mode != "rigid_component") continue;
+        authored_rigid[item.first].vertices = residual.at(item.first);
+        authored_rigid[item.first].faces = submeshes.at(item.first).faces;
+    }
+    for (const auto& join : mesh_editor_refit_rigid_joins(authored_rigid, vertex_cohorts, rigid_roots,
+             std::max(tolerance, refit.driver_diagonal * 0.0005)))
+        rigid_roots[root_of(rigid_roots, join.second)] = root_of(rigid_roots, join.first);
     std::map<std::size_t, std::vector<std::size_t>> rigid_groups;
     for (std::size_t i = 0; i < cohorts.size(); ++i) {
         rigid_roots[i] = root_of(rigid_roots, i);
@@ -1012,6 +1079,15 @@ void mesh_editor_relieve_refit_surface(
             const double area=std::min(contact_mass[i],contact_mass[j]);
             contact_weights[std::minmax(i,j)] += influence*area/std::max(area,distance);
         }
+    }
+    // Hard assemblies are moved directly by their shared contacts. Exclude
+    // them from cloth diffusion and its residual norm so small cloth corrections
+    // still converge when a much larger hard ornament moves at the same time.
+    for (std::size_t i = 0; i < cohorts.size(); ++i)
+        if (rigid_vertex[i]) contact_mass[i] = 1.0;
+    for (auto it = contact_weights.begin(); it != contact_weights.end();) {
+        if (rigid_vertex[it->first.first] || rigid_vertex[it->first.second]) it = contact_weights.erase(it);
+        else ++it;
     }
     // Resolve contacts from the authored shape. Spreading an initial maximum
     // lift over the body also inflated clear shoulders and loose sleeve folds.
@@ -1626,6 +1702,9 @@ void mesh_editor_relieve_refit_surface(
             for (std::size_t i = 0; i < cohorts.size(); ++i) {
                 correction[i] = sub_vec3(cohorts[i].position, previous[i]);
             }
+            const auto rigid_correction = correction;
+            for (std::size_t i = 0; i < cohorts.size(); ++i)
+                if (rigid_vertex[i]) correction[i] = {};
             try {
                 // Large corrections need a wider patch to move around a limb;
                 // small residuals need local freedom to finish contact and trim.
@@ -1647,7 +1726,7 @@ void mesh_editor_relieve_refit_surface(
             }
             for (const auto& group : rigid_groups) {
                 Vec3 translation{};
-                for (const auto i : group.second) translation = add_vec3(translation, correction[i]);
+                for (const auto i : group.second) translation = add_vec3(translation, rigid_correction[i]);
                 translation = scale_vec3(translation, 1.0 / group.second.size());
                 for (const auto i : group.second) correction[i] = translation;
             }
@@ -1737,6 +1816,26 @@ void mesh_editor_relieve_refit_surface(
             refresh_body_anchors();
             if (body_anchors.empty()) break;
         }
+    }
+    if (fitting_masks) for (const auto& group : rigid_groups) {
+        std::vector<Vec3> source, target;
+        Vec3 a{}, b{};
+        for (const auto i : group.second) {
+            source.push_back(layer_rest[i]);
+            target.push_back(cohorts[i].position);
+            a = add_vec3(a, source.back());
+            b = add_vec3(b, target.back());
+        }
+        a = scale_vec3(a, 1.0 / source.size());
+        b = scale_vec3(b, 1.0 / target.size());
+        const auto rotation = refit_component_rotation_native(source, target, a, b);
+        for (std::size_t i = 0; i < source.size(); ++i)
+            if (distance_squared_vec3(target[i],
+                    add_vec3(b, refit_rotate_quaternion_native(rotation, sub_vec3(source[i], a))))
+                    > tolerance * tolerance * 16.0)
+                throw std::runtime_error("Fit to body: Part "
+                    + std::to_string(cohorts[group.first].vertices.front().first)
+                    + " would separate or deform a rigid assembly; previous preview retained");
     }
     if (fitting_masks) for (const auto& constraint : body_constraints) {
         const Vec3 point = sample_point(constraint.sample, false);
