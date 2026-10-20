@@ -1013,7 +1013,12 @@ void mesh_editor_relieve_refit_surface(
         for (const auto vertex : item.second) normals[item.first].push_back(body_vertex_normals[vertex]);
     }
     std::vector<std::pair<std::pair<std::size_t, std::size_t>, int>> body_boundary;
-    for (const auto& edge : body_edge_windings) if (edge.second != 0) body_boundary.push_back(edge);
+    std::set<std::size_t> body_boundary_vertices;
+    for (const auto& edge : body_edge_windings) if (edge.second != 0) {
+        body_boundary.push_back(edge);
+        body_boundary_vertices.insert(edge.first.first);
+        body_boundary_vertices.insert(edge.first.second);
+    }
     const Vec3 boundary_center = scale_vec3(add_vec3(spatial_index.nodes[spatial_index.root].minimum,
         spatial_index.nodes[spatial_index.root].maximum), 0.5);
     const auto enclosed_body_region = [&](const Vec3& point) {
@@ -1035,23 +1040,6 @@ void mesh_editor_relieve_refit_surface(
         }
         const double full_angle = 4.0 * std::acos(-1.0);
         return std::abs(angle - full_angle * std::round(angle / full_angle)) <= full_angle * 0.02;
-    };
-    const auto body_contact_normal = [&](const MeshRefitVertexBindingRuntime& nearest, const Vec3& point) {
-        Vec3 normal = refit_binding_face_normal_native(nearest, driver_visible);
-        const auto& vertices = body_vertices.at(nearest.driver_submesh_index);
-        std::vector<std::size_t> support;
-        for (std::size_t corner = 0; corner < 3; ++corner) {
-            if (nearest.barycentric[corner] > 1.0e-7) support.push_back(vertices[nearest.driver_vertices[corner]]);
-        }
-        if (support.size() == 1) normal = body_vertex_normals[support[0]];
-        else if (support.size() == 2) normal = body_edge_normals.at(std::minmax(support[0], support[1]));
-        const Vec3 offset = sub_vec3(point, mesh_editor_refit_driver_point(nearest, driver_visible));
-        const double distance = length_vec3(offset);
-        // The pseudonormal establishes inside/outside at a shared edge. The
-        // shortest surface direction then clears it without sliding sideways.
-        if (distance > tolerance) return scale_vec3(offset, (dot_vec3(offset, normal) < 0.0 ? -1.0 : 1.0) / distance);
-        const double length = length_vec3(normal);
-        return length > 0.0 ? scale_vec3(normal, 1.0 / length) : refit_binding_face_normal_native(nearest, driver_visible);
     };
     struct BodyExit {
         Vec3 direction{0.0, 0.0, 0.0};
@@ -1144,6 +1132,32 @@ void mesh_editor_relieve_refit_surface(
             }
         }
         return angle > threshold;
+    };
+    const auto body_contact_normal = [&](const MeshRefitVertexBindingRuntime& nearest, const Vec3& point) {
+        Vec3 normal = refit_binding_face_normal_native(nearest, driver_visible);
+        const auto& vertices = body_vertices.at(nearest.driver_submesh_index);
+        std::vector<std::size_t> support;
+        for (std::size_t corner = 0; corner < 3; ++corner) {
+            if (nearest.barycentric[corner] > 1.0e-7) support.push_back(vertices[nearest.driver_vertices[corner]]);
+        }
+        if (support.size() == 1) normal = body_vertex_normals[support[0]];
+        else if (support.size() == 2) normal = body_edge_normals.at(std::minmax(support[0], support[1]));
+        const Vec3 offset = sub_vec3(point, mesh_editor_refit_driver_point(nearest, driver_visible));
+        const double distance = length_vec3(offset);
+        // During tightening an open body's rim can face away from cloth spanning
+        // the missing surface. Confirm that ambiguous sign before pushing a mask
+        // all the way to the face-hole border. Actual near-surface clearance
+        // and occupied body volume remain constraints.
+        bool inside = dot_vec3(offset, normal) < 0.0;
+        const auto support_edge = support.size() == 2
+            ? body_edge_windings.find(std::minmax(support[0], support[1])) : body_edge_windings.end();
+        const bool on_open_rim = (support.size() == 1 && body_boundary_vertices.count(support[0]))
+            || (support_edge != body_edge_windings.end() && support_edge->second != 0);
+        if (fitting_masks && inside && on_open_rim && !enclosed_body_region(point))
+            inside = inside_body_volume(point);
+        if (distance > tolerance) return scale_vec3(offset, (inside ? -1.0 : 1.0) / distance);
+        const double length = length_vec3(normal);
+        return length > 0.0 ? scale_vec3(normal, 1.0 / length) : refit_binding_face_normal_native(nearest, driver_visible);
     };
     // Point-only garments have no surface on which to infer layer links. Keep
     // their existing shared lift on each driver face, preserving point offsets.

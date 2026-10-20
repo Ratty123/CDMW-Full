@@ -1757,6 +1757,12 @@ Matching panel borders also share displacement when independent mesh quantizatio
 leaves tiny coordinate differences. Reversed boundary edges with agreeing surface
 orientation identify those seams; nearby parallel layer rims remain separate. The
 original coordinate offsets stay intact, and protection carries across the seam.
+Missing body surfaces, such as a face supplied by a separate mesh, do not pull
+covering cloth onto the hole's rim. Clearance checks distinguish that open space
+from occupied body volume. Waist and cuff rims follow the nearby fit along a
+tapering body while retaining authored flare; narrow bands can tighten even when
+their mesh has no interior vertex row. Smoothing follows the width of each connected
+piece so loading a full body does not make small arm bands resist tightening.
 It follows the broad cloth direction when choosing targets; a small hem fold should
 not redirect a long panel onto nearby feet. Overlapping panels, belts and trim share
 nearby cloth movement even when their mesh densities differ. Layer order comes from

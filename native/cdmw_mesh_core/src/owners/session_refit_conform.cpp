@@ -63,7 +63,7 @@ void mesh_editor_conform_refit(const MeshRefitRuntime &refit, const std::map<int
     struct Node {
         Vec3 point{}, normal{}, target{}, key{}, rest{};
         double area = 0.0, mobility = 1.0, tightness = 1.0;
-        bool boundary = false;
+        bool boundary = false, unsupported = false;
         std::vector<std::pair<int, std::size_t>> vertices;
     };
     struct Edge {
@@ -172,6 +172,25 @@ void mesh_editor_conform_refit(const MeshRefitRuntime &refit, const std::map<int
                 ++incidence[edge];
             }
         }
+    // A whole-body length scale can make a narrow cuff resist contraction like
+    // a rigid ring. Bound smoothing by each connected surface's physical width;
+    // area/perimeter is independent of tessellation and material seam splits.
+    const auto surface_roots = mesh_editor_refit_surface_roots(garments, indices, nodes.size());
+    std::vector<double> surface_area(nodes.size()), surface_perimeter(nodes.size());
+    for (std::size_t i = 0; i < nodes.size(); ++i)
+        surface_area[surface_roots[i]] += nodes[i].area;
+    for (const auto& edge : incidence)
+        if (edge.second == 1)
+            surface_perimeter[surface_roots[edge.first.first]] +=
+                length_vec3(sub_vec3(nodes[edge.first.first].point, nodes[edge.first.second].point));
+    for (auto& edge : weights) {
+        const auto root = surface_roots[edge.first.first];
+        if (surface_perimeter[root] <= tolerance)
+            continue;
+        const double local_length = std::min(smoothing_length,
+            std::max(tolerance * 8.0, 0.2 * surface_area[root] / surface_perimeter[root]));
+        edge.second *= local_length * local_length / lambda;
+    }
     std::vector<Edge> edges;
     std::vector<std::vector<std::size_t>> neighbors(nodes.size());
     for (const auto &item : weights) {
@@ -219,6 +238,7 @@ void mesh_editor_conform_refit(const MeshRefitRuntime &refit, const std::map<int
     const auto body_seam_positions = mesh_editor_refit_body_seam_positions(refit, drivers, driver_visible);
     std::map<Vec3, std::size_t> body_welds;
     std::map<std::pair<std::size_t, std::size_t>, std::vector<std::size_t>> body_edges;
+    std::vector<std::array<std::size_t, 3>> body_corners;
     for (std::size_t i = 0; i < body.triangles.size(); ++i) {
         const auto &triangle = body.triangles[i];
         triangle_ids[key_for(triangle.driver_submesh_index, triangle.driver_vertices)] = i;
@@ -229,6 +249,7 @@ void mesh_editor_conform_refit(const MeshRefitRuntime &refit, const std::map<int
         for (int corner = 0; corner < 3; ++corner) {
             body_edges[std::minmax(welded[corner], welded[(corner + 1) % 3])].push_back(i);
         }
+        body_corners.push_back(welded);
     }
     std::vector<std::vector<std::size_t>> adjacent(body.triangles.size());
     for (const auto &edge : body_edges)
@@ -241,7 +262,6 @@ void mesh_editor_conform_refit(const MeshRefitRuntime &refit, const std::map<int
         bindings[{binding.garment_submesh_index, static_cast<std::size_t>(binding.garment_vertex_index)}] =
             &binding;
     const auto garment_spatial = build_refit_spatial_index_native(garments, garment_set);
-    const auto surface_roots = mesh_editor_refit_surface_roots(garments, indices, nodes.size());
     const auto garment_surfaces = mesh_editor_refit_surface_indices(garments, indices, surface_roots);
     std::map<int, std::vector<Vec3>> garment_positions;
     for (const auto &item : garments)
@@ -312,6 +332,12 @@ void mesh_editor_conform_refit(const MeshRefitRuntime &refit, const std::map<int
                     best = distance_squared_vec3(node.point, point);
                     target_point = point;
                     target_normal = normal;
+                    node.unsupported = false;
+                    for (int corner = 0; corner < 3; ++corner)
+                        if (closest.barycentric[corner] <= 1.0e-7
+                            && body_edges.at(std::minmax(body_corners[id][(corner + 1) % 3],
+                                                        body_corners[id][(corner + 2) % 3])).size() == 1)
+                            node.unsupported = true;
                 }
             }
             for (const auto next : adjacent[id]) {
@@ -333,6 +359,11 @@ void mesh_editor_conform_refit(const MeshRefitRuntime &refit, const std::map<int
         reliable[i] = true;
         body_points[i] = target_point;
         body_normals[i] = target_normal;
+        // A body may omit the face underneath a mask. Its exposed rim is not
+        // a surface for the covering to shrink onto: retain the followed cloth
+        // there while the supported neighborhood fits. Do not invent a body cap.
+        if (node.unsupported)
+            continue;
         double clearance = 0.0;
         for (const auto &source : node.vertices)
             clearance = std::max(clearance, refit.garment_settings.at(source.first).clearance_percent *
@@ -372,9 +403,24 @@ void mesh_editor_conform_refit(const MeshRefitRuntime &refit, const std::map<int
         node.target =
             sub_vec3(add_vec3(target_point, scale_vec3(target_normal, clearance * 2.0 + standoff)), node.point);
     }
-    // Open boundaries have no skin attraction. The adjacent cloth supplies their
-    // displacement, retaining cuff flare and avoiding independent finger binds.
-    // A ribbon with no interior samples receives one translation, not a collapse.
+    // Continue the interior fit gradient to an open rim. A zero-gradient rim
+    // leaves the waist/cuff at the width of the row behind it on a tapering body.
+    // Extrapolate displacement, not positions, so authored cuff flare survives.
+    std::vector<int> depth(nodes.size(), -1);
+    std::vector<std::size_t> frontier;
+    for (std::size_t i = 0; i < nodes.size(); ++i)
+        if (nodes[i].boundary) {
+            depth[i] = 0;
+            frontier.push_back(i);
+        }
+    for (std::size_t cursor = 0; cursor < frontier.size(); ++cursor)
+        for (const auto other : neighbors[frontier[cursor]])
+            if (depth[other] < 0) {
+                depth[other] = depth[frontier[cursor]] + 1;
+                frontier.push_back(other);
+            }
+    // Thin ribbons can have no interior row. Fit their broad normal direction
+    // while retaining a shared tangential translation and tiny folded details.
     std::vector<bool> seen(nodes.size(), false);
     std::vector<double> screen(nodes.size(), 0.0);
     for (std::size_t start = 0; start < nodes.size(); ++start) {
@@ -383,11 +429,13 @@ void mesh_editor_conform_refit(const MeshRefitRuntime &refit, const std::map<int
         std::vector<std::size_t> component{start};
         seen[start] = true;
         std::size_t interior = 0, good = 0, moving = 0;
+        int maximum_depth = 0;
         Vec3 average{};
         double total = 0.0;
         for (std::size_t cursor = 0; cursor < component.size(); ++cursor) {
             const auto i = component[cursor];
             const auto &node = nodes[i];
+            maximum_depth = std::max(maximum_depth, depth[i]);
             if (node.mobility > 0.0)
                 ++moving;
             if (!node.boundary) {
@@ -412,9 +460,53 @@ void mesh_editor_conform_refit(const MeshRefitRuntime &refit, const std::map<int
                  "has unreliable body correspondences; adjust its allowed body region");
         average = scale_vec3(average, 1.0 / total);
         for (const auto i : component) {
-            if (interior == 0) {
-                nodes[i].target = average;
+            if (nodes[i].unsupported) {
                 screen[i] = nodes[i].area;
+            } else if (nodes[i].boundary && reliable[i]) {
+                Vec3 extended{}, rim_detail{};
+                double weight_sum = 0.0;
+                for (const auto j : neighbors[i]) {
+                    if (depth[j] != 1 || !reliable[j] || nodes[j].unsupported)
+                        continue;
+                    const Vec3 outward = sub_vec3(nodes[i].point, nodes[j].point);
+                    const double outward_squared = dot_vec3(outward, outward);
+                    for (const auto k : neighbors[j]) {
+                        if (depth[k] != 2 || !reliable[k] || nodes[k].unsupported)
+                            continue;
+                        const Vec3 step = sub_vec3(nodes[j].point, nodes[k].point);
+                        const double step_squared = dot_vec3(step, step);
+                        const double projection = dot_vec3(outward, step);
+                        if (projection <= 0.0 || step_squared <= tolerance * tolerance
+                            || outward_squared <= tolerance * tolerance)
+                            continue;
+                        const double weight = projection * projection / (step_squared * outward_squared);
+                        const double continuation = std::min(2.0, projection / step_squared);
+                        const Vec3 target = add_vec3(nodes[j].target,
+                            scale_vec3(sub_vec3(nodes[j].target, nodes[k].target),
+                                       continuation));
+                        extended = add_vec3(extended, scale_vec3(target, weight));
+                        rim_detail = add_vec3(rim_detail,
+                            scale_vec3(sub_vec3(outward, scale_vec3(step, continuation)), weight));
+                        weight_sum += weight;
+                    }
+                }
+                const double length = length_vec3(cloth_normals[i]);
+                Vec3 normal = length > 0.15 ? scale_vec3(cloth_normals[i], 1.0 / length) : Vec3{};
+                if (dot_vec3(normal, body_normals[i]) < 0.0)
+                    normal = scale_vec3(normal, -1.0);
+                if (weight_sum > 0.0) {
+                    extended = scale_vec3(extended, 1.0 / weight_sum);
+                    const double flare = std::max(0.0, dot_vec3(rim_detail, normal) / weight_sum);
+                    nodes[i].target = add_vec3(extended, scale_vec3(normal,
+                        dot_vec3(sub_vec3(nodes[i].target, extended), normal) + flare));
+                    // An extrapolated target is less certain than skin contact.
+                    // Keep the surrounding cloth dominant across folded layers.
+                    screen[i] = nodes[i].area * 0.25;
+                } else if (maximum_depth <= 1 && (interior == 0 || length > 0.15)) {
+                    nodes[i].target = add_vec3(average, scale_vec3(normal,
+                        dot_vec3(sub_vec3(nodes[i].target, average), normal)));
+                    screen[i] = nodes[i].area;
+                }
             } else if (!nodes[i].boundary && reliable[i])
                 screen[i] = nodes[i].area;
         }
