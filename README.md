@@ -10,7 +10,8 @@ new equipment, edit meshes and textures, adjust equipment placement, and build
 mod packages.
 
 **[Download the Windows portable app](https://github.com/Ratty123/CDMW-Full/releases/latest)**
-· [Release history](CHANGELOG.md) · [Report a problem](https://github.com/Ratty123/CDMW-Full/issues)
+· [Release history](CHANGELOG.md) · [Research reference](docs/crimson-desert-research.md)
+· [Report a problem](https://github.com/Ratty123/CDMW-Full/issues)
 
 `0.11.0-alpha.24` is the current source version. For browsing and extraction only,
 see the smaller, read-only [CDMW Lite](https://github.com/Ratty123/CDMW-Lite).
