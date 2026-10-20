@@ -2,6 +2,45 @@
 
 Shared completion log for plans in this folder. Keep each entry as a short dated item with its namespaced task ID, and mark the matching checkbox in its plan. Preserve other agents' entries.
 
+## .cditem current progress
+
+**Goal: truly independent content with stable identity.**
+[Canonical goal and acceptance criteria](cditem-conflict-isolation-plan.md) |
+[Execution](cditem-execution-goal.md) |
+[Research handoff](cditem-astra-pro-handoff.md) |
+[Technical architecture](../cdmw/ui/new_item/INDEPENDENT_ITEMS.md#runtime-registration-research)
+
+Updated 2026-10-21. This is an evidence snapshot. Completion remains owned by the
+original `CDISO-*` criteria, with narrowly scoped subtask results recorded below.
+
+| Outcome | Status | Evidence and remaining work |
+| --- | --- | --- |
+| Package identity and retained bindings | Existing implementation | UUIDs, digest checks, symbol bindings and reservations are established; preserve them when the native backend consumes contributions |
+| Native definition registration | Partial research evidence | B84 actual game rows; B106 typed backing; B111 selected-reader interleavings. Coherent readiness, routing and all affected consumers remain open |
+| Exact private archive expectation | Completed bounded increment | `CDISO-RE-03A`: maintained offline reviewer, 52 focused tests and retained B93/B98 preparation check |
+| Native resource open/read/use | Open | B99 metadata lookup and B109 wrapper source are established. Concrete virtual methods, actual payload reads, use and lifetime remain unproved |
+| Fully independent native items | Open | Production `native_admission=false`; no combined-file-free native lifecycle acceptance |
+| Native persistence and missing-provider saves | Open | Native two-item lifecycle, supported update/removal, and separately written absent-provider save/reinstall evidence are still required |
+
+### Next engineering steps
+
+1. Qualify B110's concrete open/read/size/completion and holder-lifetime contracts.
+   Carry the exact prepared archive/payload identity into a separately versioned
+   native candidate, then observe the actual private bytes.
+2. Join B106 backing, private metadata and decoder routing with B111 map
+   publication before the first visible entry. Establish the consumer readiness
+   and failure/lifetime boundary.
+3. Integrate the native definition and resource routes, prove first acquisition,
+   then exercise two same-donor packages through equip/restart/update/removal/save.
+
+Live game, provider and compiler ownership must be refreshed before that work
+uses an occupied lane. Source review, this implementation and its offline checks
+did not take over those processes.
+
+## Completed work
+
+
+
 - 2026-10-17 | MEL-DOC-01 | Created the improvement plan and this completion log, with matching task IDs and completion rules. Implementation has not started.
 - 2026-10-17 | WMDPI-DOC-01 | Created the [window movement and DPI smoothness plan](window-move-dpi-smoothness-plan.md), with baseline evidence, acceptance checks, and shared progress rules. Implementation has not started.
 - 2026-10-17 | MRF-DOC-01 | Created the [Morph & Refit improvement plan](morph-refit-improvement-plan.md), with reproduced fitting cases, acceptance checks, and shared progress rules; saved-document checks passed. Implementation has not started.
@@ -217,3 +256,7 @@ Shared completion log for plans in this folder. Keep each entry as a short dated
 - 2026-10-19 | CDItem native file-manager ABI | B109 qualifies five complete roots/1050B/276 instructions after four retained one-byte REA receipts and an explicit source-only grant. Raw C-string open/fresh holder output and conditional close/TLS-family release now source-established; concrete virtual open/read/size, completion and payload use remain open. B108202B exact; no game/provider/build/install invocation. Restart resumed with peer holding all lanes; no new lane inferred. All original feature/scenario/review/T20/final delivery acceptance remains open, native_admission=false.
 
 - 2026-10-19 | CDItem actual typed reservation | B106 first build/run passes 16 native header cases/1,458 checks, 12 actual retained array-constructor calls and stable original primary/expiry/metadata backing through native cleanup; all 31 source pins exact. Build 3.112s/run 0.0103s, slot returned. Heap/TLS/file/Reader/dispatch remain substituted; no engine/game/unwind/publication admission. B111 seven-file fixed-backing reader-interleaving experiment prepared only, no build/run; count-last does not gate new native lookups. Full feature/scenarios/review/T20/final portable remain open, native_admission=false.
+
+- 2026-10-21 | CDISO-RE-03A | Implemented exact private-archive path evidence review. All 52 focused tests pass, including real CLI use and refusal of sibling archives, changed pins/payloads, invalid packet joins and inactive/duplicate native declarations. The retained B93/B98 preparation passes a new read-only check. No actual B112 path call, native payload use or admission is claimed. [Technical contract](../cdmw/ui/new_item/INDEPENDENT_ITEMS.md#private-archive-path-evidence-review); local evidence: `workspace/reports/cditem-execution/20261021-independent-content-start/`.
+
+- 2026-10-21 | CDISO-DOC-02 | Maintained the canonical independent-content goal, current progress view, execution/research handoff, technical contract and two Mermaid diagrams. Documentation checks pass: 28 new or moved local links, all 18 original CDISO checkbox states and all 142 historical dated progress entries preserved. Verified all 12 retained B111 receipt pins and corrected its current status to executed; no native rerun or new native admission. The next engineering work and evidence limits are explicit.

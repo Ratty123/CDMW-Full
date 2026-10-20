@@ -830,16 +830,189 @@ source, package and game evidence separate.
 
 ## Runtime registration research
 
-The current authoring and overlay code resolves known shared table paths and
-rebuilds those tables. Source inspection of the separate runtime Workshop route
-likewise finds export, not a verified API for registering new inventory item
-definitions. Its inventory type identifiers must not be equated with these table
-keys. These observations do not prove that an engine-level registration route is
-impossible.
+### Objective and current boundary
 
-Physical independent item installation does not enable a native loader or modify
-the executable. [Virtual loading](VIRTUAL_LOADER.md) reuses
-these packages and identity reservations for private profile preparation and
-reviewed experimental launches with verified save backups. Exact executable,
-bootstrap and startup guards remain mandatory. Separate definition-file discovery and native registration
-are research tracks, outside the existing installation path.
+The native-content objective is independently owned definitions and resources
+with stable logical identity and retained engine bindings, loaded without combined
+replacement game tables, indexes or archive carriers. A central runtime registry
+can contain entries owned by different packages. It must preserve that ownership
+and the relevant lifetime rules.
+
+The current authoring and overlay code still rebuilds shared table paths.
+Physical installation does not enable a native loader or modify the executable.
+[Virtual loading](VIRTUAL_LOADER.md) uses the same package identity reservations
+for a private composed profile and reviewed experimental launches. Both current
+backends therefore keep `isolated_new_item_admitted=false`.
+
+The separate runtime Workshop route exposes export; its inventory type
+identifiers are not established substitutes for ItemInfo table keys. An engine
+function address or successful metadata lookup does not enable a new package
+capability.
+
+### Identity and backend architecture
+
+| Identity layer | Existing contract | Native continuation requirement |
+| --- | --- | --- |
+| Package | Stable UUID, separate canonical content and exact archive digests | Preserve UUID across supported revisions |
+| Object | Namespace and stable local symbol resolve through retained bindings | Use the same mapping for each admitted native object |
+| Engine | Destination-specific numeric keys, names and resource identities | Refuse collisions; do not renumber an established object |
+| Resource | Owned paths and decoded dependency assessment | Prove actual lookup, payload use and lifetime for the supported graph |
+| Profile | Retained current and retired reservations | Preserve mappings on supported transfer; do not infer save migration |
+
+The following diagram shows the current deployment branch and the proposed
+native branch. The proposed branch is not a production loading route.
+
+```mermaid
+flowchart TD
+    A["Package A"] --> V["Validate identities and references"]
+    B["Package B"] --> V
+    P["Retained identity profile"] --> V
+    V --> C["Validated contributions"]
+    C --> F["Current composed backend"]
+    C --> N["Proposed native backend"]
+    F --> T["Combined game files"]
+    N --> D["Owned native definitions"]
+    N --> R["Owned native resources"]
+    D --> G["Engine consumers"]
+    R --> G
+    T --> G
+```
+
+Two clean profiles can assign different numeric bindings to the same package
+UUID. The existing `.cdprofile` transfer contract preserves the mapping needed
+by its packages; arbitrary saved-reference relocation remains unimplemented.
+Intentional `item.fields` and `texture.replace` stock edits retain their current
+classification rather than acquiring an independent-new-item claim.
+
+### Retained evidence and unresolved contracts
+
+Review scope: 2026-10-21 source/documentation reconciliation against source
+`905c0ca7b55763f554968031628138d49af4d8b6` and the retained B111 receipt.
+Historical native and game experiments below were not rerun for this update.
+
+| Evidence | Established for that scope | Not established |
+| --- | --- | --- |
+| Controlled composed-profile observations | Two saved swords, name-only updates, one-package removal and reversed reinstallation under retained bindings | Native no-composition behavior or saving while a provider is absent |
+| B84 recorded game experiment | Four additional ItemInfo rows with numeric/name/getter joins | Full inventory acquisition, all consumers or ordinary cache lifetime |
+| B106 native isolated experiment | Original typed array backing and retained cleanup under explicit helper substitutions | Live allocator/unwind admission or coherent publication |
+| B111 native isolated experiment | Stable selected map backing and initialized results during deterministic write-step observations | Full native name callback, concurrent readers/writers, coherent ItemInfo owner or game admission |
+| B99 recorded game experiment | Private metadata parsing and lookup of the expected entry | Native payload read/use, shared visibility, retirement or saved ownership |
+| B109 source qualification | File-manager wrapper, raw path/holder ABI and conditional close/release | Concrete virtual open/read/size/completion or payload use |
+
+The retained B111 result is built and executed, correcting an earlier
+prepared-only handoff. Its qualified receipt has SHA-256
+`98ecd954cfe82c35847ca0c19b4be66957bec9a05bcb1ed0881c5e8b5230552f`.
+A read-only integrity review matched all twelve referenced artifacts, including
+the seven prepared source files and exact fixture binary. The result remains
+owned-memory evidence with heap/TLS substitutes and an explicit DWORD model.
+
+**Publication constraint:** the selected native numeric lookup can return a new
+ordinal when a bucket pair becomes visible, before the final map header count
+changes and before a diagnostic owner count includes that ordinal. Count-last
+is not a readiness barrier. Actual primary/expiry/metadata storage and private
+decoder routing must be ready before the first visible entry in either map.
+Other readers, iterators, writers and borrowed-pointer lifetimes still require
+their own qualification.
+
+### Proposed startup admission lifecycle
+
+This is a target contract, not an implemented native state machine. Startup-only
+activation bounds the first milestone; arbitrary live unloading is separate.
+
+```mermaid
+stateDiagram-v2
+    [*] --> Validating
+    Validating --> Refused: Unsupported or conflicting contribution
+    Validating --> Preparing: Identity and reference checks pass
+    Preparing --> Refused: Preparation fails before publication
+    Preparing --> Ready: Backing and routing are complete
+    Ready --> Published: Verified consumer readiness boundary
+    Published --> Running: Native resources and definitions are usable
+    Published --> StartupAborted: Demonstrated failure path
+    Running --> SessionEnded: Supported session cleanup
+    Refused --> [*]
+    StartupAborted --> [*]
+    SessionEnded --> [*]
+```
+
+Publication requires a demonstrated consumer/readiness boundary. A Boolean
+readiness assertion, final count store or successful isolated fixture cannot
+supply that evidence. Partial publication must use a qualified cleanup or startup
+abort path; it must not continue as a successfully loaded package.
+
+### Private archive path evidence review
+
+The maintained research command
+[review_cditem_native_path.py](../../../scripts/review_cditem_native_path.py)
+closes a specific gap in the prepared B112 decoder: membership beneath a private
+root did not identify the exact archive. It leaves the sealed B112 producer and
+decoder unchanged. It is an offline research tool, not a runtime backend or an
+application admission API.
+
+The expected archive comes from independently pinned preparation inputs, never
+from the observed path. The current supported fixture has one group, one PAZ and
+one nonempty, uncompressed resource. Other representations refuse review.
+
+| Input or relationship | Required check |
+| --- | --- |
+| Preparation manifest | Independent SHA-256; bounded JSON; exact three private file references |
+| Native candidate input | Independent SHA-256; exact supported root and resource declarations match preparation |
+| Private PAPGT and PAMT | File pins; parsed group; checksum chain; one selected resource and PAZ ordinal |
+| Private PAZ and resource | Exact declared archive path and digest; parsed offset and stored size; bounded uncompressed slice; expected payload digest |
+| Path packet and metadata receipt | Independent input pins; existing callback/object/time joins; exact process ID and complete before/after wire |
+| Observed archive path | Exact expected identity, allowing only slash/backslash equivalence; different archives, drives, case, relative components and stream suffixes refuse |
+
+The observed path is comparison data. The tool reads only files selected from
+the pinned preparation and explicit input arguments. A successful review does
+not authenticate the capture, prove that the native candidate used every
+initializer byte, or demonstrate native open/read/use. The existing execution
+manifest and separately reviewed parent result still own those bindings.
+Every output keeps `native_execution_verified`, `native_payload_read_verified`,
+`resource_use_verified` and `native_admission` false.
+
+From the repository root, first inspect the prepared inputs:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\review_cditem_native_path.py prepare `
+  --prepared "<absolute-prepared-inputs.json>" --prepared-sha256 "<independent-pin>" `
+  --native-input "<absolute-resource_input.hpp>" --native-input-sha256 "<candidate-input-pin>"
+```
+
+The `review` operation uses the same preparation arguments and additionally
+requires `--metadata`, `--metadata-sha256`, `--wire`, `--wire-sha256` and `--pid`.
+It prints JSON to standard output. Exit 0 means the selected offline checks
+passed; exit 2 means invalid or inconsistent inputs; exit 3 preserves an
+explicit native refusal in a structurally valid packet. None grants a native
+operation or certifies game behavior.
+
+On 2026-10-21, the focused tests and read-only `prepare` operation verified the
+retained B93 manifest, B98 native input, 112-byte private PAZ and its 102-byte
+payload. This was a new offline check of retained files. No actual B112 path
+call or native payload read was run. Evidence is retained locally in
+`workspace/reports/cditem-execution/20261021-independent-content-start/`.
+The [regressions](../../../tests/test_cditem_native_path_review.py) own this
+checker's focused verification. Run them from the repository root:
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest tests/test_cditem_native_path_review.py -q --basetemp "$env:TEMP\cdmw-cditem-native-path-<run-id>"
+```
+
+The local test matrix carries the same focused scope. The source-input reader
+accepts the supported generated header form and pinned wide file-path literals.
+It refuses comments, conditional preprocessing, line splicing and additional
+root/resource declarations. It does not parse arbitrary C++ or attest compiled
+initializer behavior.
+
+### Next decisive proof
+
+Join the retained original backing, private metadata and decoder routing with
+both lookup maps. In parallel, qualify the concrete native private resource
+open/read/use path. Then exercise two separately authored same-donor packages
+with distinct private assets through acquisition, equip, restart, supported
+updates/removal and save reload without combined replacement game files.
+
+Keep load-with-provider-absent separate from save-with-provider-absent. After
+restoring a provider, inspect the newly written absent-provider save as well as
+the original saved copy. [Save-lineage and receipt limits](VIRTUAL_LOADER.md)
+remain unchanged. Native independence and general persistence admission stay
+open until the relevant observations exist.

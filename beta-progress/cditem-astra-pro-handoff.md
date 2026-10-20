@@ -1,16 +1,85 @@
 # CDMW .cditem Astra / Pro reasoning handoff
 
 - Created: 2026-10-18, Europe/Stockholm.
-- Status: Active resumed finishing chat01a1533b-5e44-7063-b3db-d5b4f98e6fa9. Read B106 actual, B109 and B99 checkpoints first. Typed reservation and actual private metadata lookup pass; full native feature and final delivery remain incomplete, native_admission=false.
+- Status: Active implementation, reviewed 2026-10-21. Read the current restart checkpoint below first. B111 retained execution is verified, exact private-archive evidence review is implemented, and the full native feature remains incomplete; `native_admission=false`.
 - Execution entry point: [cditem-execution-goal.md](cditem-execution-goal.md).
 - Feature authority and completion state: [cditem-conflict-isolation-plan.md](cditem-conflict-isolation-plan.md).
 - Shared completed work: [progress.md](progress.md).
+
+
+## Current restart checkpoint, 2026-10-21
+
+The current goal is **truly independent content with stable identity**. Continue
+the existing [CDISO goal](cditem-conflict-isolation-plan.md) and
+[CDRUN execution companion](cditem-execution-goal.md). The readable
+[progress snapshot](progress.md#cditem-current-progress) summarizes evidence and
+next steps; it does not create a second acceptance checklist. Current source
+review began on `main` at `905c0ca7b55763f554968031628138d49af4d8b6`.
+
+| Evidence or work | Current status | Meaning for the next step |
+| --- | --- | --- |
+| B106 typed original backing | Retained isolated-native result, 16 cases and 1,458 checks | Join actual prepared primary/expiry/metadata and decoder routing to the lookup maps |
+| B111 fixed-backing append | Retained executed result; all 12 referenced pins verified this iteration | New entries can become visible before diagnostic owner count; count-last is not a readiness boundary |
+| B99 metadata lookup | Retained actual-game result with independently verified restoration | Private metadata lookup is settled; native byte delivery and resource use remain open |
+| B109 / B110 resource calls | B109 wrapper source qualified; B110 concrete virtual targets pending | Qualify open/read/size/completion and handle lifetime under current source ownership |
+| B112 path candidate | Retained preparation, no actual path call verified | Use a separately versioned candidate and bind the result to the exact prepared archive |
+| New path evidence review | Maintained offline tool; 52 focused tests and retained B93/B98 preparation check pass | Exact archive and payload expectation are available for the next path/open/read experiment |
+
+B111's existing receipt is
+`workspace/reports/cditem-execution/20261018-native-review/batch111-fixed-backing-append/qualified-result.json`,
+SHA-256 `98ecd954cfe82c35847ca0c19b4be66957bec9a05bcb1ed0881c5e8b5230552f`.
+It records 24 positive cases, 42 refusals, 5,371 checks, 336 write-step
+observations and 2,408 retained native numeric calls. In 168 observations,
+the new ordinal was visible before the diagnostic owner count. This iteration
+verified retained evidence; it did not rebuild or rerun B111. The name lookup
+remains a model, heap/TLS are substituted, and all-reader/engine readiness is
+unproved.
+
+The new [private archive review contract](../cdmw/ui/new_item/INDEPENDENT_ITEMS.md#private-archive-path-evidence-review)
+checks the independently pinned preparation, supported native header constants,
+PAPGT/PAMT/PAZ relationship and expected payload. It also reviews a separately
+pinned B112 packet against that exact archive. A passing report keeps native
+execution, payload read, resource use and admission false. Existing sealed
+B93/B98/B112 sources and evidence are unchanged.
+
+Current evidence is retained in
+`workspace/reports/cditem-execution/20261021-independent-content-start/`.
+The previous ThinkForge goal snapshot is preserved there; the active durable
+goal is `goal_d5b01b2303ab9a85`. Keep that goal and the Markdown snapshot aligned.
+
+### Immediate engineering sequence
+
+1. Qualify B110's concrete manager virtual methods, then prepare a new bounded
+   native path/open/read candidate using the exact archive and payload expectation.
+   Verify actual returned bytes before attempting higher-level resource use.
+2. Join B106 backing and B111 map publication to actual metadata and decoder
+   routing. Observe newly visible ordinals through that prepared state, then
+   qualify the required consumer readiness and failure/lifetime boundaries.
+3. Join definitions and resources, establish first-instance acquisition, and run
+   two same-donor packages through the native lifecycle and save scenarios.
+
+The read-only census found an active game, Java and compiler processes whose
+ownership is not established for this iteration. No game, provider, install,
+save or compiler lane was taken over. Historical grants, process IDs and release
+notes below do not establish current ownership.
+
+### Historical checkpoint boundary
+
+The following entries preserve what was known at their recorded time. Earlier
+statements that B111 was prepared-only, or that B99 had not run, are superseded by
+the current snapshot above. Preserve their failed approaches and receipt links.
+
+<details>
+<summary>Retained provider, ledger and passive-witness context</summary>
+
 - Current reasoning review items: RH-01 coherent publication/failure, RH-02 durable backing and borrowed-name lifetime, RH-03 indexed private-resource publication/retirement, and RH-05 first-instance acquisition. The fourth batch proves the concrete provider writer; repeated writer guessing is superseded. RH-04 stock containment remains resolved; native persistence still depends on the open native/scenario contracts.
 - CURRENT complete restart ledger: `D:\CLAUDETEST\CDMW Full\workspace\reports\cditem-execution\20261018-native-review\batch32-native-lifetime-initialization\provider\rea-complete-final-ledger.json`,96,845,868 bytes/SHA `5dd3ff2566281ddaaaeb7d8b76b6dc6c2ca910c1ebca4b2bbc6b8cee047637b1`;1,292 records,97 unknown revision rows/16 identities. Use this full file for the next fresh owned import. The explicit-baseline checker must use this path/size/hash together; B31 and B4 remain history.
 
 - Completed native continuation: the fourth owned provider imported all 1,278 prior evidence records/95 unknown revisions and retained every canonical row in `workspace/reports/cditem-execution/20261018-native-review/batch4-registration-boundary/provider/rea-complete-final-ledger.json` (96,795,800 bytes; SHA-256 `1f9817603690170007cd5fbe690836d0d4ecef371f8826d27b18d93d43e3a3ad`; 1,289 records/97 revisions across 16 IDs). Supported target/session close and graceful shutdown passed at 03:32:32.075 UTC; 03:33:57.1009448 UTC verification found no owned processes/project locks, session open:false and unchanged project metadata. New source proves the ignored normal decoder failure, object-only unwind cleanup, copied/borrowed reverse-name consumers and concrete indexed resource provider. First-instance acquisition is separately unresolved at RH-05. No production source, delivered executable, game, installation, archive or save was changed by this continuation.
 
 - Passive native batches 5–9 remain outside the unchanged canonical ledger. The after-all-successful-+0x60 point at `0x14fa45af1` remains conditional; actual completion callbacks, whole-startup failure/readiness and native admission remain open. The resource-only witness completed in the copied stock world: exact read-only menu/world replays confirm one mode 1 backend, with world count=capacity=1 and no observed spare slot. Branch 0 preparation exposes context/index/callback references before provider insertion, so off-list construction alone does not withhold publication. Deleting-destructor/lazy-group-load qualification now proves a local drain, while external callback participation and the index+8 concrete child remain unresolved. The observer invoked no engine function and wrote no game memory. The fifth disposable cycle ended normally; all 26 originals and metadata were restored before Cloud ON, all 4 setup files and foreign runtime/bootstrap remain original, and the game/session host are gone. Cloud is persisted ON/Up-to-date and Steam returned to minimized library; original payloads/inventory still match after 7 recorded normal timestamp changes. The cancelled focus refusal and 2 no-input exit-image pauses are retained; this witness does not replace the prior 2 clean acceptance cycles. Production source/native payload/delivered executable are unchanged. All 234 retained source fingerprints/151,455,090,976 bytes match after a fresh full rehash. The 05:18 UTC audit finds a newer foreign owner in the same REA project; no new provider was started or adopted. Evidence: `workspace/reports/cditem-execution/20261018-native-live-witness/` and `20261018-native-review/batch7-live-mode1-review/`. Full native feature/T20 remain open.
+
+</details>
 
 ## B106 actual typed reservation and B111 preparation, 2026-10-19
 

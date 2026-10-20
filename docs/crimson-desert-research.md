@@ -983,7 +983,30 @@ auxiliary linking, scheduling/thread requirements, failure cleanup, rematerializ
 and persistence. No registry call is enabled merely by locating a plausible
 function or string.
 
-Source: [native registration investigation][virtual-loader].
+#### Later bounded registration evidence
+
+Targeted review, 2026-10-21: the retained `.cditem` work goes beyond the rejected
+static-loader shortcut. A recorded game experiment added four ItemInfo rows with
+numeric/name/getter joins. Separate native isolated experiments established
+original typed backing and selected map-reader behavior under explicit helper
+substitutions. These experiments do not establish a complete native package route.
+
+The fixed-backing result also rejects count-last as a readiness barrier: the
+selected native numeric lookup can expose a new ordinal when its bucket pair
+becomes visible, before a final map count or diagnostic owner count changes.
+Backing, metadata and private decoder routing must be ready before that exposure.
+The full native name callback, affected concurrent readers/writers, ordinary
+maintenance and a coherent full owner remain open.
+
+The retained fixed-backing fixture was already built and run on 2026-10-19.
+The 2026-10-21 review matched its twelve referenced source/result/binary pins;
+it did not rerun the experiment or promote it to game evidence. Native
+independence remains unadmitted. The source basis reviewed for this update is
+`905c0ca7b55763f554968031628138d49af4d8b6`; other reference sections retain
+their existing review scope.
+
+Sources: [native registration investigation][virtual-loader] and the
+[current identity/native architecture contract](../cdmw/ui/new_item/INDEPENDENT_ITEMS.md#runtime-registration-research).
 
 ### 13.3 Native resource loading: separate from item registration
 
@@ -1003,7 +1026,25 @@ Generic prefab resource loading does not establish the consumer of
 or safe replacement/retirement of cached resources. Those contracts need their
 own receiver, lifecycle and actual-consumer evidence.
 
-Source: [resource-admission research and recorded receipt limits][virtual-loader].
+Separate `.cditem` experiments recorded private native metadata parsing and
+lookup of the expected private entry. Source qualification established the
+file-manager wrapper and conditional holder close/release. These findings do
+not establish the concrete virtual open/read/size/completion path, actual
+payload consumption, visible item use or native resource retirement.
+
+The new offline [private archive path reviewer](../cdmw/ui/new_item/INDEPENDENT_ITEMS.md#private-archive-path-evidence-review)
+binds independently pinned preparation, the selected private archive and its
+expected payload. It refuses a different archive beneath the same root. Focused
+fixtures and a retained-input check passed on 2026-10-21; native capture
+provenance, byte delivery and resource use remain unverified.
+
+The next resource proof must reach the intended bytes and their actual engine
+consumer. It must then join the independently owned item definitions in one
+supported lifecycle. Metadata success and related Loadouts observations remain
+separate evidence.
+
+Sources: [resource-admission research and recorded receipt limits][virtual-loader]
+and the [independent-content evidence boundary](../cdmw/ui/new_item/INDEPENDENT_ITEMS.md#retained-evidence-and-unresolved-contracts).
 
 ### 13.4 Save lineage and migration
 

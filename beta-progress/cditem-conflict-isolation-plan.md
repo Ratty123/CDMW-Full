@@ -1,15 +1,16 @@
-# .cditem Conflict Isolation and Independent Loading Plan
+# Independent .cditem Content with Stable Identity
 
 - Plan ID: CDISO
-- Status: In progress. Implementation authorized on 2026-10-17; native feasibility gates remain open.
+- Status: Active implementation. Existing identity work is retained; full native loading and persistence acceptance remain open.
 - Created: 2026-10-17, Europe/Stockholm.
 - Project: D:\CLAUDETEST\CDMW Full
 - Game reference: C:\games\Steam\steamapps\common\Crimson Desert
 - Plan file: D:\CLAUDETEST\CDMW Full\beta-progress\cditem-conflict-isolation-plan.md
 - Completion log: [progress.md](progress.md)
-- Reviewed branch: RR/independent-item-packages
-- Reviewed HEAD: d4b38e5082d4f9b4b4cce14f9ee2ecdb37994aaf, with concurrent uncommitted work.
-- Current authorization: The user releases the gaming hold while going to sleep and grants full unattended game start, normal/force close and cross-chat coordination authority, with no questions requiring user input. Continue all authorized coding, reverse engineering, tests and delivery automatically. Accepted save/game-data/reinstall risk remains in force; archives are not required by the independent route. Keep feature/progress and Astra/Pro evidence synchronized.
+- Initial reviewed branch: RR/independent-item-packages.
+- Initial reviewed HEAD: d4b38e5082d4f9b4b4cce14f9ee2ecdb37994aaf, with concurrent uncommitted work.
+- Current source review: 2026-10-21, main at 905c0ca7b55763f554968031628138d49af4d8b6.
+- Current authorization: The user has instructed implementation with a maintained goal, real progress, professional research/technical documentation and diagrams. Continue the existing goal and preserve its acceptance conditions. Earlier execution permissions remain recorded in the execution companion; refresh actual process and shared-lane ownership before using them.
 
 ## Goal
 
@@ -22,6 +23,49 @@ This plan preserves the full goal. Better conflict detection and automatic share
 A loader-owned profile or manifest is permitted. The no-merge condition covers shared game data files, shared archive replacements, and generated compatibility patches.
 
 The game can still have central in-memory registries. Unique, independently owned entries in those registries are compatible with this goal. Replacing one shared on-disk or virtual table with a combined table is a different mechanism and does not meet the final acceptance condition.
+
+## Current status and next steps
+
+Reviewed on **2026-10-21** against `main@905c0ca7b55763f554968031628138d49af4d8b6` and the retained evidence identified below. This review does not rerun historical game experiments.
+
+**Overall status: implementation in progress; native independence is not admitted.** Existing UUID/binding work remains completed. Native definitions, private payload use and the native save lifecycle still need their own proof.
+
+| Outcome | Current evidence | Remaining acceptance | Task owner |
+| --- | --- | --- | --- |
+| Stable logical identity and retained bindings | Implemented UUID, per-symbol reservations, collision refusal and profile transfer; bounded composed-route lifecycle observations | Carry the same bindings through the admitted native lifecycle; profile transfer is not automatic save migration | `CDISO-ID-01`, `CDISO-ID-01A`, `CDISO-LIFE-01` |
+| Resource ownership and donor independence | Supported private material/DDS references and proven donor-row detachment | Close every required explicit/implicit reference for the selected family and prove native consumption | `CDISO-RES-01`, `CDISO-DEP-01` |
+| Native definition registration | Recorded B84 extra-row game experiment; B106 typed backing and B111 selected-reader experiments | Join backing, metadata, decoder routing and both maps before visibility; qualify all affected consumers and lifetime | `CDISO-RE-02` |
+| Native private resources | Recorded B99 metadata lookup; B109 source-qualified file-manager wrapper | Qualify the concrete native open/read/size/completion route and demonstrate actual payload use and retirement | `CDISO-RE-03` |
+| Exact private archive expectation | New offline checker; 52 focused tests and retained B93/B98 preparation check pass | Carry the exact archive/payload identity into a separately versioned native candidate; actual path/read/use remain open | `CDISO-RE-03A` |
+| Per-package native backend | Design and isolated research; current shipped package routes still compose | Admit complete owned contributions without combined game tables, indexes or archive carriers | `CDISO-DECIDE-01`, `CDISO-RUN-01` |
+| Coexistence and persistence | Existing ownership refusal rules and bounded composed-route save observations | Native two-item acquisition/equip/reload/update/removal, compatible external mods and separately evidenced missing-provider behavior | `CDISO-COEX-01`, `CDISO-LIFE-01`, `CDISO-VERIFY-01` |
+| Final supported scope | Not complete | Review the actual supported scope and exact delivery evidence without weakening the goal | `CDISO-DONE-01` |
+
+### Immediate engineering sequence
+
+1. Continue from B99/B109 and B110/B112 preparation: qualify concrete open/read/size/completion and holder lifetime, then carry the exact archive/payload expectation into a separately versioned native candidate. Refresh actual shared-lane ownership first.
+2. Preserve and reuse B106/B111. Join actual private primary/expiry/metadata storage and decoder routing before either map exposes a new entry. Qualify consumer readiness and failure/lifetime behavior; a final count write is not a readiness barrier.
+3. Join definitions and resources in one startup-scoped native contribution, then exercise two independently authored same-donor packages with distinct private assets through acquisition, equip, restart and save reload.
+4. Extend only from that demonstrated scope. Keep native missing-provider save behavior, ordinary maintenance and any unresolved resource family explicitly open.
+
+### Document map
+
+| Read this | Purpose |
+| --- | --- |
+| This goal | Feature objective, acceptance conditions and the single authoritative `CDISO-*` checklist |
+| [Execution companion](cditem-execution-goal.md) | Run preparation, process ownership, device tests, recovery and delivery |
+| [Current progress](progress.md#cditem-current-progress) | Short capability snapshot, current action and chronological completed work |
+| [Technical contract and diagrams](../cdmw/ui/new_item/INDEPENDENT_ITEMS.md#runtime-registration-research) | Existing identity/compiler contracts, proposed native architecture and evidence boundaries |
+| [Research handoff](cditem-astra-pro-handoff.md) | Native questions, retained results and exact next discriminating experiments |
+| [Public research reference](../docs/crimson-desert-research.md#13-virtual-loading-native-resources-and-saves) | Current public conclusions; source-adjacent documents retain exact operational contracts |
+
+### How progress is reported
+
+Use **not started**, **in progress**, **blocked**, **verified for stated scope** or **reopened**. Each result identifies its evidence type: source inspection, synthetic test, native isolated experiment, real-game observation or persistence observation. These types do not promote one another automatically.
+
+Report new implementation, new verification, corrected research and documentation separately. Documentation completion does not increment the number of verified native capabilities. Do not estimate overall completion from checkbox counts.
+
+An independent first item family and startup-only activation are bounded milestones. They do not close unresolved parts of the full goal. Intentional stock-edit modules retain their existing classification.
 
 ## What independence means
 
@@ -59,8 +103,8 @@ These rules apply to every agent working from this plan.
 2. Preserve the existing shared log and every other plan's entries. Never recreate or replace the log to start this work.
 3. Use the stable CDISO task IDs below in both files. Each task has one authoritative checkbox here.
 4. Mark a task [x] only after its acceptance conditions and relevant focused checks pass. Add a Completion note under that task with date, result, and evidence.
-5. Append a short dated completion entry to progress.md in the same work session. Keep the log a simple chronological list of completed work.
-6. Keep partial work, ownership claims, blockers, research limits, and next actions in Current handoff. Do not record unfinished implementation as completed.
+5. Append a short dated completion entry to progress.md in the same work session. Preserve its chronological completed-work list and refresh the compact current-progress snapshot above that list.
+6. Keep partial work, ownership claims, blockers, research limits, and next actions in Current handoff and the progress snapshot. Do not place unfinished implementation in the completed-work list.
 7. Re-read the shared log immediately before changing it. Use a fresh content digest and a narrow append. If another agent has changed the file, read the new content and retry without discarding their work.
 8. Split a task into stable subtasks before reporting a partial result as complete. A completed research task does not imply the corresponding implementation or game proof is complete.
 9. If later evidence invalidates a completion, reopen its checkbox, correct its own completion entry, and explain the reason in Current handoff.
@@ -73,6 +117,24 @@ Completion-entry format:
 That line is a format example, not a completed task.
 
 ## Current handoff
+
+### 2026-10-21: active independent-content implementation
+
+The user has authorized implementation and asks for a maintained high-level goal, readable real progress, technical documentation and diagrams. This document remains the feature authority; the execution companion remains the operational authority. ThinkForge goal `goal_d5b01b2303ab9a85` follows this work.
+
+**Corrected retained result:** B111 was built and executed on 2026-10-19. Its qualified receipt records 24 positive cases, 42 refusals, 5,371 checks, 336 write-step observations and 2,408 retained native numeric lookups. The 2026-10-21 integrity check matched all 12 receipt references, including the seven prepared source files and exact binary. This is review of retained evidence, not a new native run.
+
+The result includes 168 observations of new ordinals before the diagnostic owner count includes them. It proves the selected owned-memory map behavior and rejects count-last as a publication barrier. It does not prove a coherent full ItemInfo owner, actual native name callback, concurrent readers/writers, live heap/TLS, payload use or game admission. `native_admission=false` remains unchanged.
+
+Evidence: [B111 findings](../workspace/reports/cditem-execution/20261018-native-review/batch111-fixed-backing-append/findings.md) and [qualified result](../workspace/reports/cditem-execution/20261018-native-review/batch111-fixed-backing-append/qualified-result.json), SHA-256 `98ecd954cfe82c35847ca0c19b4be66957bec9a05bcb1ed0881c5e8b5230552f`.
+
+The earlier ThinkForge milestone goal is retained, with its historical commit-ownership failure unchanged, in [the previous goal snapshot](../workspace/reports/cditem-execution/20261021-independent-content-start/previous-thinkforge-goal.json). No old acceptance failure was waived or shared history rewritten.
+
+<details>
+<summary>Retained earlier research checkpoints and ownership history</summary>
+
+These dated entries retain their original evidence and limits. Their old next actions and ownership grants are historical; use the current status above and refresh ownership before execution.
+
 
 B106 actual typed original-allocation fixture passes its first build and run: 16 header cases, 1,458 checks, 12 retained native array-constructor calls, and 12 cases preserving original primary/expiry/metadata addresses through retained native cleanup. All 31 prepared source files remain exact. The 306,688-byte binary has SHA f7f6ee4fb7c3014f0ddd289c34901686c28a98512cd99718046aaf133c881d55; build 3.112s/two workers and owned execution 0.0103s, then the exclusive slot returned. Heap/TLS/file/Reader/CFG-dispatch remain explicit substitutes; no game/unwind/allocator admission or private map/count publication. B111 fixed-backing append/interleaving source is prepared only, unbuilt and unrun; source-vptr/virtual open/read/size work remains separately queued with the peer. All original feature/scenario/review/T20/final portable acceptance stays open, native_admission=false.
 
@@ -313,6 +375,8 @@ Task-owned probes and raw evidence are under `.work/tasks/2026-10-17-cditem-conf
 
 R2 successfully decompiled the source-proven jump target: evidence `ev_b1a52a3e839c73f10f1754d080ba14bc2dab2fd00d584e44ff59f69468ba92d2`. Queries at the unregistered stub returned `invalid_request`. The warm index's empty `iteminfo` xrefs result (`ev_9710b0f497c4632239bfc3bb534c97b7a90704c513dbbe721b7c53de9a8118f8`) is demonstrably incomplete because pinned source instructions include the diagnostic LEA. An empty index result is not evidence of absent native references. A bounded source-byte scan found nine ItemInfo-name candidates; the direct body/header call lists were truncated at 128 retained hits each and remain candidate observations until decoded. The selected source-wrapper/parser intervals are now pinned for actual caller analysis. R2 reached ThinkForge's original 3,600,000 ms process timeout before the final two queries and planned export/close commands. The transport receipt reports terminated, running false and exit code 1; a subsequent check found no matching owned node, Java or command-shell processes. This was not a graceful provider close, and no post-query provider export or open:false acknowledgement is claimed. All 39 completed result files, including three errors and 31 returned evidence records, remain intact. The two unprocessed commands are identified in `.work/tasks/2026-10-17-cditem-conflict-isolation/native/r2-retained-query-inventory.json`, 14,572 bytes, SHA-256 `8d84d14f93d76a926b302460fe9be81cfd04f26474c28bc400be37da0634e611`. The inventory pins each completed result and preserves the original restore-bundle identity; it is not a substitute export. Future native work must use a fresh owned session and preserve these retained records.
 
+</details>
+
 ## Investigation findings
 
 ### Implementation baseline and expected cases, recorded before source edits
@@ -422,6 +486,12 @@ Phase headings group work; they do not require broad resource cloning before eng
 
 ## Phase 0: preserve the baseline and define the contract
 
+- [x] **CDISO-DOC-02: Maintain the independent-content goal and evidence-based progress view.**
+
+  Acceptance: Preserve this feature checklist and completed work; reconcile current source/results, document the identity/native-loading design with diagrams, expose next actions in progress.md, update the execution/research owners and verify changed links and evidence claims. Documentation work does not close a native feature gate.
+
+  Completion: 2026-10-21. Maintained the existing goal, execution companion, research handoff, progress snapshot/log and technical/public research owners. Added two Mermaid diagrams and the private archive review contract. Checked 28 new or moved local links, preserved all 18 existing CDISO checkbox states and 142 historical dated progress entries, and reviewed the changed documentation. Corrected B111 to retained executed evidence after matching 12 pins, without a rerun. Native feature acceptance remains open. Local verification and source-review receipts are retained under `workspace/reports/cditem-execution/20261021-independent-content-start/`.
+
 - [x] **CDISO-DOC-01: Complete the read-only investigation and create this plan.**
 
   Acceptance: Record current source findings, the actual REA result and its limits, implementation gates, and shared progress rules. Save the plan in beta-progress and append the matching documentation completion entry without changing source or game files.
@@ -519,6 +589,12 @@ Phase headings group work; they do not require broad resource cloning before eng
   Work: Trace path normalization, name/hash formation, catalogue and resource-manager lookup, archive/offset resolution, texture/material registration, file access, and caches for the selected mesh/prefab/texture scope. Determine where an unknown resource is rejected before a file-open hook can help.
 
   Acceptance: A supported route makes new owned identities discoverable without composing shared PATHC/PAPGT/PAMT or another shared game index. Evidence distinguishes resource admission, byte delivery, and successful use. Record implicit naming rules, aliases, duplicate handling, negative lookup caching, startup timing, and lifetime. Unknown skeleton/physics or other resource families remain outside the stronger claim until proven.
+
+- [x] **CDISO-RE-03A: Bind native path evidence to the exact prepared private archive.**
+
+  Scope: An offline research prerequisite under CDISO-RE-03. Preserve the sealed B112 experiment. The maintained reviewer must require independently pinned preparation and native input, validate the private mount/index/archive and payload relationship, and reject a different archive beneath the same root. It must preserve the metadata/packet joins and keep native execution, byte delivery, resource use and admission unverified.
+
+  Completion: 2026-10-21. `scripts/review_cditem_native_path.py` provides read-only `prepare` and `review` operations. Fifty-two focused tests pass, including the real CLI and commented/inactive/duplicate native declaration regressions found during code review. The retained B93 preparation and B98 input pass a new offline check of the 112-byte PAZ and 102-byte payload. These are new checker results, not an actual B112 path call or native resource read. Evidence is in `workspace/reports/cditem-execution/20261021-independent-content-start/`. CDISO-RE-03 remains open.
 
 - [ ] **CDISO-DECIDE-01: Select the proven backend and define its exact supported scope.**
 

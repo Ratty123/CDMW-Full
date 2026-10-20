@@ -2,13 +2,45 @@
 
 - Plan ID: `CDRUN`
 - Created: 2026-10-18, Europe/Stockholm.
-- Status: Active in resumed finishing chat01a1533b-5e44-7063-b3db-d5b4f98e6fa9. B99 private native metadata lookup and independently verified closed restoration pass; the full original native feature, scenarios, review, T20 and final portable remain incomplete. native_admission=false.
-- Primary execution model: the user's selected GPT-6.1 Sol with Max reasoning.
-- Later reasoning review: the user's selected Astra or Pro session, using [the reasoning handoff](cditem-astra-pro-handoff.md).
+- Status: Active implementation, reviewed 2026-10-21. Exact private-archive evidence review is implemented and focused checks pass. Native registration/resource use, full scenarios and delivery remain incomplete; `native_admission=false`.
+- Original execution model: the user's selected GPT-6.1 Sol with Max reasoning, retained as historical context.
+- Current reasoning and research entry point: [the maintained handoff](cditem-astra-pro-handoff.md).
 - Project: `D:\CLAUDETEST\CDMW Full`.
 - Game: `C:\games\Steam\steamapps\common\Crimson Desert`.
 - Feature authority: [cditem-conflict-isolation-plan.md](cditem-conflict-isolation-plan.md).
 - Shared completion log: [progress.md](progress.md).
+
+## Current execution checkpoint
+
+Reviewed on 2026-10-21 from `main` at
+`905c0ca7b55763f554968031628138d49af4d8b6`. The user's current instruction
+authorizes implementation with a maintained goal, progress log, research,
+technical documentation and diagrams. The authoritative goal remains
+[CDISO](cditem-conflict-isolation-plan.md); this companion owns execution.
+
+| Workstream | Current evidence | Next action |
+| --- | --- | --- |
+| Stable identity | Existing package identity, retained bindings and reservations remain implemented | Preserve these contracts when native registration consumes contributions |
+| Definition publication | B106 typed backing and retained executed B111 fixed-backing fixture | Join actual record/metadata/decoder readiness to both maps before visibility; qualify affected consumers |
+| Private resource identity | New offline archive-path review; focused checks and retained B93/B98 preparation check pass | Use exact prepared archive identity in the next separately versioned native path/open/read candidate |
+| Native resource use | B99 game metadata lookup; B109 source-qualified wrapper; B110 virtual roots and B112 actual path call still pending | Qualify concrete open/read/size/completion and holder lifetime, then observe exact private bytes |
+| End-to-end independence | No production native admission | Prove two same-donor packages through native acquisition/equip/restart/update/removal/save and the separate absent-provider save case |
+
+B111 was executed on 2026-10-19. This iteration verified all 12 references in
+its retained result, without rerunning it. Its selected numeric reader exposed
+new ordinals before the diagnostic owner count in 168 observations. Count-last
+does not supply the required consumer readiness boundary.
+
+The new checker verifies input and packet consistency only. It does not prove
+capture provenance or native payload read/use. See the
+[technical contract](../cdmw/ui/new_item/INDEPENDENT_ITEMS.md#private-archive-path-evidence-review)
+and [current progress](progress.md#cditem-current-progress).
+
+The current process census found an active game, Java and compiler processes
+without ownership established for this iteration. No live process, provider,
+build lane, installation or save was taken over. Before native execution,
+refresh ownership and bind the supported caller to the exact candidate and
+available lane. Historical grants below remain dated evidence.
 
 ## 1. Goal and relationship to the existing plan
 
@@ -26,7 +58,7 @@ One independently backed item is admitted through a verified native operation, r
 
 ### Current request and execution scope
 
-The user's 2026-10-18 request is to create a complete plan covering coding, reverse engineering, testing on this device including starting Crimson Desert, and a saved handoff for higher-reasoning review. This planning checkpoint writes documentation only.
+The user's original 2026-10-18 request established this execution plan. The current 2026-10-21 instruction starts implementation and requires a professionally maintained goal, real progress, research, technical documentation and diagrams. The earlier documentation-only checkpoint is historical; continue authorized work under the existing feature and execution contracts.
 
 When instructed to execute or continue this plan, perform the requested local implementation, relevant builds, controlled game launches, window input, capture, and tests as one workflow. Reuse that scope for routine subsequent runs instead of repeatedly asking the user to launch the game or press E. An old investigation-only or session-release note describes its earlier operation; it is not a new prohibition on an execution the user has requested.
 
