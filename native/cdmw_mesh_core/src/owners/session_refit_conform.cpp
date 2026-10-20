@@ -403,6 +403,32 @@ void mesh_editor_conform_refit(const MeshRefitRuntime &refit, const std::map<int
         node.target =
             sub_vec3(add_vec3(target_point, scale_vec3(target_normal, clearance * 2.0 + standoff)), node.point);
     }
+    // A protruding waist vertex can initially bind to a nearby arm. Reject an
+    // isolated target only when it both jumps far beyond its cloth neighborhood
+    // on the body and pulls against that neighborhood. The connected cloth solve
+    // carries that vertex; retained bindings/allowed regions stay unchanged and
+    // the final clearance pass still checks the complete body.
+    auto coherent = reliable;
+    for (std::size_t i = 0; i < nodes.size(); ++i) {
+        if (!reliable[i] || nodes[i].unsupported) continue;
+        Vec3 target{}, body_center{};
+        double reach = 0.0;
+        std::size_t count = 0;
+        for (const auto j : neighbors[i]) {
+            if (!reliable[j] || nodes[j].unsupported) continue;
+            target = add_vec3(target, nodes[j].target);
+            body_center = add_vec3(body_center, body_points[j]);
+            reach += length_vec3(sub_vec3(nodes[j].point, nodes[i].point));
+            ++count;
+        }
+        if (count < 3) continue;
+        body_center = scale_vec3(body_center, 1.0 / static_cast<double>(count));
+        reach /= static_cast<double>(count);
+        if (dot_vec3(nodes[i].target, target) < -0.5 * length_vec3(nodes[i].target) * length_vec3(target)
+            && distance_squared_vec3(body_points[i], body_center) > 4.0 * reach * reach)
+            coherent[i] = false;
+    }
+    reliable.swap(coherent);
     // Continue the interior fit gradient to an open rim. A zero-gradient rim
     // leaves the waist/cuff at the width of the row behind it on a tapering body.
     // Extrapolate displacement, not positions, so authored cuff flare survives.
@@ -538,18 +564,26 @@ void mesh_editor_conform_refit(const MeshRefitRuntime &refit, const std::map<int
             const Vec3 normal = refit_binding_face_normal_native(nearest, garment_positions);
             const double height = dot_vec3(sub_vec3(nodes[i].point, point), normal);
             if (std::abs(height) < nearest.distance * 0.15) continue;
+            // Nearby edges of sloping cloth need not overlap. A connection that
+            // runs mostly along the body tethers a waist opening to a different
+            // height on the taper. Measure against the body, not the fold normal.
+            const double body_height = dot_vec3(sub_vec3(nodes[i].point, point), body_normals[i]);
+            if (body_height * body_height < nearest.distance * nearest.distance * 0.5) continue;
             const auto anchor = closest_refit_binding_native(point, body, tests);
             if (dot_vec3(refit_binding_face_normal_native(anchor, driver_visible), body_normals[i]) < 0.5
                 || distance_squared_vec3(mesh_editor_refit_driver_point(anchor, driver_visible), body_points[i])
                     > std::pow(refit.driver_diagonal * 0.05, 2.0)) continue;
             LayerLink link{{i, 0, 0, 0}, {1.0, 0.0, 0.0, 0.0}, nodes[i].area * 16.0};
-            bool shared = false;
+            bool invalid = false;
             for (int c = 0; c < 3; ++c) {
                 link.nodes[c + 1] = indices.at(part)[nearest.driver_vertices[c]];
                 link.weights[c + 1] = -nearest.barycentric[c];
-                shared |= link.nodes[c + 1] == i;
+                // A discarded body target cannot support another layer either;
+                // otherwise a sleeve can pull that waist vertex back to the arm.
+                invalid |= link.nodes[c + 1] == i
+                    || (nearest.barycentric[c] > 1.0e-7 && !reliable[link.nodes[c + 1]]);
             }
-            if (!shared) layer_links.push_back(link);
+            if (!invalid) layer_links.push_back(link);
         }
     }
     std::vector<double> diagonal(nodes.size());

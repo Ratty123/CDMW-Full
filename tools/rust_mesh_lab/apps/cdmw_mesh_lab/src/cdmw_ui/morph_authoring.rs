@@ -157,6 +157,11 @@ impl LabApplication {
         self.cdmw_refit_region_targets.retain(|part| garments.contains(part));
         ui.strong(crate::localization::tr("Garment parts"));
         ui.small(crate::localization::tr("Click a name to edit strength; check Region to limit where it follows."));
+        let settings = state.get("refit").and_then(|refit| refit.get("garment_settings"))
+            .and_then(Value::as_array);
+        let can_configure = state_bool(&self.cdmw_state, "authoring_enabled")
+            && !state_str(state, "correction_definition_id").is_some_and(|id| !id.is_empty())
+            && !self.cdmw_refit_settings_dirty.is_dirty();
         ui.push_id("refit-garment-parts", |ui| {
             for part in &garments {
                 ui.push_id(part, |ui| {
@@ -198,6 +203,45 @@ impl LabApplication {
                             actions.push(UiAction::SetPartSelection(next));
                         }
                     });
+                    let setting = settings.and_then(|rows| rows.iter().find(|row| {
+                        row.get("submesh_index").and_then(Value::as_u64) == Some(u64::from(*part))
+                    }));
+                    let mode = setting.and_then(|row| state_str(row, "mode")).unwrap_or("surface");
+                    let enabled = setting.and_then(|row| row.get("enabled")).and_then(Value::as_bool).unwrap_or(true);
+                    let current = if enabled { mode } else { "skip" };
+                    let mut choice = current;
+                    ui.add_enabled_ui(can_configure, |ui| {
+                        crate::localization::combo("Fit as")
+                            .selected_text(crate::localization::tr(match current {
+                                "rigid_component" => "Rigid component",
+                                "rigid" => "Offset follow",
+                                "skip" => "Skip",
+                                _ => "Flexible",
+                            }))
+                            .show_ui(ui, |ui| {
+                                ui.selectable_value(&mut choice, "surface", crate::localization::tr("Flexible"))
+                                    .on_hover_text(crate::localization::tr("Follow the body surface. Suitable for cloth and flexible armor."));
+                                ui.selectable_value(&mut choice, "rigid_component", crate::localization::tr("Rigid component"))
+                                    .on_hover_text(crate::localization::tr("Keep daggers, pendants and armor plates in shape. Move each connected piece without bending or stretching it."));
+                                ui.selectable_value(&mut choice, "skip", crate::localization::tr("Skip"))
+                                    .on_hover_text(crate::localization::tr("Leave this Part out of body following and Fit to body."));
+                                if mode == "rigid" {
+                                    ui.selectable_value(&mut choice, "rigid", crate::localization::tr("Offset follow"))
+                                        .on_hover_text(crate::localization::tr("Preserve each vertex's local offset from the body. This mode can bend a connected piece. Inward tightening requires Surface or Rigid component."));
+                                }
+                            });
+                    }).response.on_disabled_hover_text(crate::localization::tr("Apply pending settings before fitting."));
+                    if choice != current {
+                        let mut arguments = json!({"submesh_indices": [part], "enabled": choice != "skip"});
+                        if choice != "skip" {
+                            arguments["mode"] = json!(choice);
+                        }
+                        actions.push(UiAction::CdmwCommand {
+                            command: "refit_configure",
+                            arguments,
+                            label: "Set garment fitting mode",
+                        });
+                    }
                 });
             }
             ui.strong(crate::localization::tr("Allowed body region"))

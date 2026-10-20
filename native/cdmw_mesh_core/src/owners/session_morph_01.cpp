@@ -501,7 +501,9 @@ void mesh_editor_refit_components(
     std::map<int, std::vector<Vec3>>& layer,
     bool conforming = false
 ) {
-    struct Vertex { int submesh; int vertex; Vec3 original; Vec3 target; double weight; };
+    if (std::none_of(refit.garment_settings.begin(), refit.garment_settings.end(),
+        [](const auto& item) { return item.second.enabled && item.second.mode == "rigid_component"; })) return;
+    struct Vertex { int submesh; int vertex; Vec3 original; Vec3 target; Vec3 key; double weight; };
     std::vector<Vertex> vertices;
     std::vector<std::size_t> roots;
     std::map<int, std::vector<std::size_t>> indices;
@@ -511,6 +513,9 @@ void mesh_editor_refit_components(
     };
     const double tolerance = std::max(1.0e-6, refit.driver_diagonal * 1.0e-7);
     std::map<std::tuple<long long, long long, long long>, std::vector<std::size_t>> cells;
+    // Use the same authored seam groups as conforming. Independently quantized
+    // material borders still belong to one hard piece; keep their real positions.
+    const auto seam_positions = mesh_editor_refit_seam_positions(refit, submeshes, residual);
     for (const auto& item : refit.garment_settings) {
         if (!item.second.enabled || item.second.mode != "rigid_component") continue;
         if (conforming && item.second.tightness_percent == 0.0) continue;
@@ -520,17 +525,18 @@ void mesh_editor_refit_components(
             const auto index = vertices.size();
             const Vec3 p = add_vec3(residual.at(item.first)[vertex],
                 base == base_layer.end() ? Vec3{} : base->second[vertex]);
+            const Vec3 key = seam_positions.at(item.first)[vertex];
             roots.push_back(index);
             vertices.push_back({item.first, static_cast<int>(vertex), p,
                 add_vec3(residual.at(item.first)[vertex], layer.at(item.first)[vertex]),
-                mesh_editor_refit_mask_weight(masks, item.first, vertex)});
+                key, mesh_editor_refit_mask_weight(masks, item.first, vertex)});
             indices[item.first].push_back(index);
-            const auto cell = mesh_editor_refit_cell(p, tolerance);
+            const auto cell = mesh_editor_refit_cell(key, tolerance);
             for (long long x = -1; x <= 1; ++x) for (long long y = -1; y <= 1; ++y) for (long long z = -1; z <= 1; ++z) {
                 const auto found = cells.find({std::get<0>(cell) + x, std::get<1>(cell) + y, std::get<2>(cell) + z});
                 if (found == cells.end()) continue;
                 for (const auto other : found->second)
-                    if (distance_squared_vec3(p, vertices[other].original) <= tolerance * tolerance)
+                    if (distance_squared_vec3(key, vertices[other].key) <= tolerance * tolerance)
                         roots[root_of(index)] = root_of(other);
             }
             cells[cell].push_back(index);

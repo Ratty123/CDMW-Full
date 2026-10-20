@@ -420,6 +420,27 @@ def test_rigid_components_tighten_independently_of_follow_intensity():
                 assert math.dist(fitted[a], fitted[b]) == pytest.approx(math.dist(plate.vertices[a], plate.vertices[b]), abs=1e-7)
 
 
+def test_rigid_material_parts_with_quantized_seams_move_as_one_piece():
+    parts = []
+    for name, left, right in (("left", -.02, 0.), ("right", .000006, .020006)):
+        parts.append(_part(name, [(left, .2, .13), (right, .2, .13),
+                                  (right, .3, .13), (left, .3, .13)],
+                           [(0, 1, 2), (0, 2, 3)], material=name, texture=""))
+    mesh = _mesh(_arm(), *parts)
+    with _bound(mesh) as session:
+        _fit(session, (1, 2), mode="rigid_component")
+        fitted = _snapshot(mesh, session)
+    original = [point for part in parts for point in part.vertices]
+    actual = [point for part in fitted.submeshes[1:] for point in part.vertices]
+    assert max(point[2] for point in actual) < .075
+    # Preserve the whole accessory, including dimensions across its material seam.
+    for a in range(len(original)):
+        for b in range(len(original)):
+            assert math.dist(actual[a], actual[b]) == pytest.approx(
+                math.dist(original[a], original[b]), abs=1e-7)
+    assert fitted.submeshes[0].vertices == mesh.submeshes[0].vertices
+
+
 def test_selected_fit_keeps_the_seam_with_an_inactive_material_part():
     sleeve = _sleeve()
     parts = []

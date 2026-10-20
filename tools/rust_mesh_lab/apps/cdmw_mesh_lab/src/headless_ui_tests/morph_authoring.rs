@@ -194,6 +194,67 @@ fn toggle_region_target(ui: &mut HeadlessUi, garment: &str) -> TestResult {
     ui.click_where("Region", |rect| (rect.center().y - row.center().y).abs() < 8.0)
 }
 
+fn choose_part_fit(
+    ui: &mut HeadlessUi, garment: &str, current: &str, next: &str,
+) -> Result<Vec<UiAction>, Box<dyn std::error::Error>> {
+    let row = ui.reveal(garment)?;
+    ui.click_where(current, |rect| {
+        rect.top() >= row.bottom() && rect.top() - row.bottom() < 32.0
+    })?;
+    ui.actions_from_click(next)
+}
+
+#[test]
+fn garment_fit_choices_set_only_that_parts_mode_and_enablement_before_fit() -> TestResult {
+    let mut ui = authoring_ui()?;
+    ui.click("Fit")?;
+    let sleeve = ui.reveal("2 · Sleeve")?;
+    let plate = ui.reveal("3 · Plate")?;
+    let fit = ui.reveal("Fit to body")?;
+    assert!(sleeve.bottom() < plate.top() && plate.bottom() < fit.top());
+
+    // Picking another row's mode must not depend on the current mesh selection.
+    ui.click("2 · Sleeve")?;
+    let rigid = choose_part_fit(&mut ui, "3 · Plate", "Flexible", "Rigid component")?;
+    assert_eq!(command_arguments(&rigid, "refit_configure"),
+        json!({"submesh_indices": [2], "enabled": true, "mode": "rigid_component"}));
+    assert_eq!(ui.application.selected_part_indices(), vec![1]);
+    // The host's authoritative response supplies the committed row value.
+    ui.application.cdmw_state["morph_refit"]["refit"]["garment_settings"][1]["mode"] = json!("rigid_component");
+    ui.frame(Vec::new());
+    let skip = choose_part_fit(&mut ui, "3 · Plate", "Rigid component", "Skip")?;
+    assert_eq!(command_arguments(&skip, "refit_configure"),
+        json!({"submesh_indices": [2], "enabled": false}));
+    ui.application.cdmw_state["morph_refit"]["refit"]["garment_settings"][1]["enabled"] = json!(false);
+    ui.frame(Vec::new());
+    let flexible = choose_part_fit(&mut ui, "3 · Plate", "Skip", "Flexible")?;
+    assert_eq!(command_arguments(&flexible, "refit_configure"),
+        json!({"submesh_indices": [2], "enabled": true, "mode": "surface"}));
+    assert_eq!(command_arguments(&ui.actions_from_click("Fit to body")?, "refit_fit_to_body"), json!({}));
+    Ok(())
+}
+
+#[test]
+fn fit_waits_for_pending_settings_and_legacy_offset_mode_is_not_labelled_rigid() -> TestResult {
+    let mut ui = authoring_ui()?;
+    ui.application.cdmw_state["morph_refit"]["refit"]["garment_settings"][1]["mode"] = json!("rigid");
+    select_authoring_parts(&mut ui, &[2])?;
+    ui.click("Fit")?;
+    let rigid = choose_part_fit(&mut ui, "3 · Plate", "Offset follow", "Rigid component")?;
+    assert_eq!(command_arguments(&rigid, "refit_configure"),
+        json!({"submesh_indices": [2], "enabled": true, "mode": "rigid_component"}));
+    ui.choose("Mode", "Offset follow", "Rigid component")?;
+    assert!(ui.actions_from_click("Fit to body")?.is_empty());
+    let row = ui.reveal("2 · Sleeve")?;
+    ui.click_where("Flexible", |rect| {
+        rect.top() >= row.bottom() && rect.top() - row.bottom() < 32.0
+    })?;
+    assert!(ui.label_rect("Skip").is_none(), "part mode menu opened over unapplied edits");
+    assert_eq!(command_arguments(&ui.actions_from_click("Apply to Selected Garments")?, "refit_configure"),
+        json!({"submesh_indices": [2], "mode": "rigid_component"}));
+    Ok(())
+}
+
 #[test]
 fn fit_garment_names_highlight_parts_and_scope_strength_without_expanding_sections() -> TestResult {
     let mut ui = authoring_ui()?;

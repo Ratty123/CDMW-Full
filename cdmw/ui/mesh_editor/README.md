@@ -1612,9 +1612,12 @@ standard selection controls for picking a region and preserves the current selec
 New sliders capture that selection; existing sliders and presets use their saved regions
 without requiring another selection.
 
-**Fit** contains Fit to body, a visible garment list, garment settings and explicit
-selected/all apply actions. Follow controls and Allowed body region are exposed
-directly, without nested expanders.
+**Fit** shows the garment list before **Fit to body**. Each Part has a **Fit as**
+selector: **Flexible**, **Rigid component** or **Skip**. Choices apply directly to
+that Part, leaving other settings unchanged. Click its name to highlight it in the
+viewport and load its strength settings; Ctrl-click selects several Parts.
+Garment settings, selected/all apply actions, Follow controls and Allowed body
+region are exposed directly, without nested expanders.
 **Shape** offers **Body**, **Sides** and **Sliders** pages for coordinated controls,
 paired adjustments and manual values. **+ Create** opens **Procedural** or **Sculpted**
 creation; **Edit slider** opens its procedural fields directly. Sculpted creation
@@ -1722,7 +1725,7 @@ changes during an unbaked preview. The initial-binding warning records distance 
 bind time; it is not a measurement of the current fit. Binding
 replaces the garment set; select every garment that should participate.
 
-Surface, Rigid and Rigid component modes retain each garment's enabled state,
+Surface, Offset follow and Rigid component modes retain each garment's enabled state,
 body-follow intensity, Tightness and clearance. **Changes not applied** marks pending
 settings; **Apply to Selected Garments** and **Apply to All Bound Garments** apply them.
 Only fields you change are applied. A **Mixed** marker identifies settings that differ
@@ -1730,8 +1733,9 @@ across the chosen garments. Mixed numeric fields initially display the first Par
 value; **Use displayed intensity**, **Use displayed tightness** and **Use displayed
 clearance** explicitly choose that value for the whole scope. Unchanged fields retain
 each Part's settings and masks. Apply is disabled until a field changes, and a refused
-update retains the pending edits. Tightness requires Surface or Rigid component mode
-on every chosen garment.
+update retains the pending edits. Apply pending settings before using the per-Part
+mode selectors or **Fit to body**; those actions stay disabled while edits are pending.
+Tightness requires Surface or Rigid component mode on every chosen garment.
 
 **Fit to body** tightens all enabled bound garments around the loaded body. It needs
 no viewport selection, body slider, original body or skeleton. It sets **Tightness %**
@@ -1740,16 +1744,26 @@ allowed body region. Inputs must already share the intended alignment and pose.
 
 | Mode | Fitting behavior | Typical use |
 | --- | --- | --- |
-| Surface | Changes the broad silhouette with a smooth displacement field, retaining folds and moving openings with adjacent cloth. | Cloth and flexible armor. |
-| Rigid | Keeps the existing local-offset body following. Inward tightening requires another mode. | Compatibility with existing fits. |
-| Rigid component | Moves each connected piece with one rotation and translation, including coincident seams; dimensions stay unchanged. | Hard plates, buckles and trim. |
+| Flexible / Surface | Changes the broad silhouette with a smooth displacement field, retaining folds and moving openings with adjacent cloth. | Cloth and flexible armor. |
+| Offset follow | Keeps the existing local-offset body following. It can bend a piece; inward tightening requires another mode. Stored as the legacy `rigid` mode. | Compatibility with existing fits. |
+| Rigid component | Moves each connected piece with one rotation and translation, including matching material seams; dimensions stay unchanged. | Daggers, hard plates, pendants, buckles and trim. |
+| Skip | Disables body following and fitting for this Part, retaining its stored settings. | Accessories to leave unchanged and position manually. |
 
 **Intensity %** controls body-slider following. **Tightness %** independently controls
 inward fitting: 0 retains the earlier following/clearance behavior, 100 requests a
 natural snug fit, and intermediate values blend from the same neutral geometry.
 Clearance sets the gap as a percentage of body size. Parts joined into one rigid
 component require consistent intensity, Tightness, clearance and mask influence.
-Materials do not choose a mode automatically.
+Materials do not choose a mode automatically. A hard piece can span several material
+Parts: highlight each, then choose **Rigid component** for all of them. Ctrl-select
+and **Apply to Selected Garments** can set their mode together. Matching material
+borders with tiny coordinate differences also move as one piece, without snapping
+the authored vertices.
+**Surface** can reshape hard ornaments around the body. **Rigid component** preserves
+their dimensions, but may refuse a fit that cannot satisfy body or layer spacing.
+Use **Skip** for accessories that should stay unchanged while the cloth fits, then
+position them manually. One Part can contain both flexible and hard geometry; its
+mode applies to the whole Part.
 
 The fitter uses local body-surface correspondences and a seam-connected displacement
 solve, then checks contacts against the complete body, including when an allowed
@@ -1768,10 +1782,16 @@ from occupied body volume. Waist and cuff rims follow the nearby fit along a
 tapering body while retaining authored flare; narrow bands can tighten even when
 their mesh has no interior vertex row. Smoothing follows the width of each connected
 piece so loading a full body does not make small arm bands resist tightening.
+An isolated target on a different nearby body surface, such as a waist vertex
+binding to an arm, is excluded when it jumps far beyond its cloth neighborhood
+and pulls against that neighborhood. Surrounding cloth carries the vertex instead;
+allowed regions and retained bindings remain unchanged, and body clearance still applies.
 It follows the broad cloth direction when choosing targets; a small hem fold should
 not redirect a long panel onto nearby feet. Overlapping panels, belts and trim share
-nearby cloth movement even when their mesh densities differ. Layer order comes from
-the pre-fit garment. Disconnected surface islands receive the same layer protection
+nearby cloth movement even when their mesh densities differ. Layer links must run
+primarily across the body surface rather than along it, so a nearby sloping cloth
+edge does not hold a waist opening at the width of a lower body section. Layer order
+comes from the pre-fit garment. Disconnected surface islands receive the same layer protection
 whether they occupy one Part or several Parts. Trustworthy coincident seams still
 form a continuous surface. Open edges do not push surfaces they do not cover.
 Already intersecting or nearly coincident trim follows the shared movement instead

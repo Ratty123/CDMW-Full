@@ -10182,6 +10182,21 @@
       ]
     },
     {
+      "key": "Apply pending settings before fitting.",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
+          "line": 3572,
+          "sink": "rust-presentation"
+        },
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui/morph_authoring.rs",
+          "line": 233,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
       "key": "Apply placement",
       "origins": [
         {
@@ -51682,6 +51697,16 @@
       ]
     },
     {
+      "key": "Fit as",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui/morph_authoring.rs",
+          "line": 214,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
       "key": "Fit it to the item",
       "origins": [
         {
@@ -52047,6 +52072,21 @@
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui/morph_workflow.rs",
           "line": 657,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Flexible",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui/morph_authoring.rs",
+          "line": 219,
+          "sink": "rust-presentation"
+        },
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui/morph_authoring.rs",
+          "line": 222,
           "sink": "rust-presentation"
         }
       ]
@@ -52641,7 +52681,12 @@
       "origins": [
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
-          "line": 3605,
+          "line": 3608,
+          "sink": "rust-presentation"
+        },
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui/morph_authoring.rs",
+          "line": 223,
           "sink": "rust-presentation"
         }
       ]
@@ -67142,6 +67187,16 @@
       "manual": true
     },
     {
+      "key": "Keep daggers, pendants and armor plates in shape. Move each connected piece without bending or stretching it.",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui/morph_authoring.rs",
+          "line": 225,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
       "key": "Keep hair/beard",
       "origins": [
         {
@@ -68488,6 +68543,16 @@
           "path": "cdmw/ui/new_item/panels_output.py",
           "line": 354,
           "sink": "setToolTip"
+        }
+      ]
+    },
+    {
+      "key": "Leave this Part out of body following and Fit to body.",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui/morph_authoring.rs",
+          "line": 227,
+          "sink": "rust-presentation"
         }
       ]
     },
@@ -89382,6 +89447,31 @@
       ]
     },
     {
+      "key": "Offset follow",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
+          "line": 3599,
+          "sink": "rust-presentation"
+        },
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
+          "line": 3611,
+          "sink": "rust-presentation"
+        },
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui/morph_authoring.rs",
+          "line": 217,
+          "sink": "rust-presentation"
+        },
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui/morph_authoring.rs",
+          "line": 229,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
       "key": "Offset {value_0} (m):",
       "origins": [
         {
@@ -102326,7 +102416,12 @@
       "origins": [
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
-          "line": 3609,
+          "line": 3612,
+          "sink": "rust-presentation"
+        },
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui/morph_authoring.rs",
+          "line": 230,
           "sink": "rust-presentation"
         }
       ]
@@ -119837,31 +119932,26 @@
       ]
     },
     {
-      "key": "Rigid",
-      "origins": [
-        {
-          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
-          "line": 3596,
-          "sink": "rust-presentation"
-        },
-        {
-          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
-          "line": 3608,
-          "sink": "rust-presentation"
-        }
-      ]
-    },
-    {
       "key": "Rigid component",
       "origins": [
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
-          "line": 3597,
+          "line": 3600,
           "sink": "rust-presentation"
         },
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
-          "line": 3612,
+          "line": 3615,
+          "sink": "rust-presentation"
+        },
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui/morph_authoring.rs",
+          "line": 216,
+          "sink": "rust-presentation"
+        },
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui/morph_authoring.rs",
+          "line": 224,
           "sink": "rust-presentation"
         }
       ]
@@ -129602,6 +129692,16 @@
       ]
     },
     {
+      "key": "Set garment fitting mode",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui/morph_authoring.rs",
+          "line": 242,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
       "key": "Set garment vertex influence",
       "origins": [
         {
@@ -133523,6 +133623,16 @@
           "path": "cdmw/ui/texture_workflow/workflow_profiles_ui.py",
           "line": 167,
           "sink": "_add_combo_choice"
+        },
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui/morph_authoring.rs",
+          "line": 218,
+          "sink": "rust-presentation"
+        },
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui/morph_authoring.rs",
+          "line": 226,
+          "sink": "rust-presentation"
         }
       ]
     },

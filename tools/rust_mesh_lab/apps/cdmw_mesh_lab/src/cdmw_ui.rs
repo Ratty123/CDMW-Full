@@ -3565,16 +3565,17 @@ impl LabApplication {
                 }
             }
             ui.separator();
-            if ui.button(crate::localization::tr("Fit to body")).on_hover_text(
+            self.draw_cdmw_refit_garment_parts(ui, actions, state);
+            if ui.add_enabled(!self.cdmw_refit_settings_dirty.is_dirty(),
+                Button::new(crate::localization::tr("Fit to body"))).on_hover_text(
                 crate::localization::tr("Tighten enabled garments around the loaded body, keeping folds, openings, masks and each Part's mode. Sets Tightness to 100% and Clearance to at least 0.1%. Reset reverts it; Bake keeps it.")
-            ).clicked() {
+            ).on_disabled_hover_text(crate::localization::tr("Apply pending settings before fitting.")).clicked() {
                 actions.push(UiAction::CdmwCommand {
                     command: "refit_fit_to_body",
                     arguments: json!({}),
                     label: "Fit to body",
                 });
             }
-            self.draw_cdmw_refit_garment_parts(ui, actions, state);
             ui.separator();
             ui.add_enabled_ui(configurable, |ui| {
                 ui.weak(crate::localization::tr("Only changed fields are applied. Mixed numeric fields initially show the first Part's value."));
@@ -3595,7 +3596,7 @@ impl LabApplication {
                     && !self.cdmw_refit_settings_dirty.fields.contains("mode");
                 crate::localization::combo("Mode")
                     .selected_text(crate::localization::tr(if mode_mixed { "Mixed" } else { match self.cdmw_refit_mode.as_str() {
-                        "rigid" => "Rigid",
+                        "rigid" => "Offset follow",
                         "rigid_component" => "Rigid component",
                         _ => "Surface",
                     }}))
@@ -3607,7 +3608,7 @@ impl LabApplication {
                         ).on_hover_text(crate::localization::tr("Follow the body surface. Suitable for cloth and flexible armor.")).clicked() {
                             self.cdmw_refit_settings_dirty.mark("mode");
                         }
-                        if ui.selectable_value(&mut self.cdmw_refit_mode, "rigid".to_owned(), crate::localization::tr("Rigid"))
+                        if ui.selectable_value(&mut self.cdmw_refit_mode, "rigid".to_owned(), crate::localization::tr("Offset follow"))
                             .on_hover_text(crate::localization::tr("Preserve each vertex's local offset from the body. This mode can bend a connected piece. Inward tightening requires Surface or Rigid component.")).clicked() {
                             self.cdmw_refit_settings_dirty.mark("mode");
                         }
