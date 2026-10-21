@@ -6,12 +6,13 @@ Shared completion log for plans in this folder. Keep each entry as a short dated
 
 **Goal: truly independent content with stable identity.**
 
-**Execution resumed 2026-10-22; active goal state verified.** Pre-pause
-resource grants remain withdrawn. Nine retained pins and 100 frozen source pins
-match; no new native execution has occurred. The installation changed, so the
-next game caller needs fresh owner-declared startup facts and current
-composition proof. See the
-[resume checkpoint](cditem-execution-goal.md#resumed-2026-10-22).
+**Paused at user request, 2026-10-22.** Resource requests are withdrawn and no
+CDItem operation is scheduled. Work and acceptance states are preserved. Caller
+v2 has 41 passing owned-temp/mock checks; actual native qualification and the
+102-byte game read remain unperformed. A source join now separates private-cache
+decoding from unproved central definition routing. The approved exact helper
+cleanup refused on a concurrent build census and stopped no process. See the
+[pause checkpoint](cditem-execution-goal.md#paused-at-user-request-2026-10-22).
 
 [Canonical goal and acceptance criteria](cditem-conflict-isolation-plan.md) |
 [Execution](cditem-execution-goal.md) |

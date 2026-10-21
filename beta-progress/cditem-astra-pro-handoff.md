@@ -1,21 +1,32 @@
 # CDMW .cditem Astra / Pro reasoning handoff
 
 - Created: 2026-10-18, Europe/Stockholm.
-- Status: Active execution resumed 2026-10-22. Separate package resource images are now verified for their preparation scope; retained archive/publication results remain valid. Read the current checkpoint first. Actual native integration remains incomplete, `native_admission=false`.
+- Status: Paused at user request, 2026-10-22. Separate package resource images are verified for their preparation scope; retained archive/publication results remain valid. Read the current checkpoint first. Actual native integration remains incomplete, `native_admission=false`.
 - Execution entry point: [cditem-execution-goal.md](cditem-execution-goal.md).
 - Feature authority and completion state: [cditem-conflict-isolation-plan.md](cditem-conflict-isolation-plan.md).
 - Shared completed work: [progress.md](progress.md).
 
 
-## Current restart checkpoint, 2026-10-21
+## Current restart checkpoint, 2026-10-22
 
-Execution resumed on 2026-10-22 with active goal state confirmed. The original
-[pause checkpoint](cditem-execution-goal.md#paused-at-user-request-2026-10-21)
-remains historical. All nine retained pins and 100 frozen source pins match.
-The [current resume checkpoint](cditem-execution-goal.md#resumed-2026-10-22)
-records changed physical installation facts, pending compiler ownership and
-the required versioned startup-scope/caller successor. No new native
-qualification, game payload result or admission has been established.
+Execution is paused at the user's request. The
+[current pause checkpoint](cditem-execution-goal.md#paused-at-user-request-2026-10-22)
+preserves the completed source workers, caller-v2 checks and safe refusal of
+the approved exact-helper cleanup during another build. No native qualification,
+game payload result or admission has been established. The historical resume
+verified nine retained pins and 100 frozen source pins; changed installation
+facts still require a current owner declaration and composition proof.
+
+Retained local source-only results under the native-path continuation:
+`run/b115-current-owner-v2/source-check-receipt.json` (41 focused checks;
+SHA-256 `7ea832863efff4c2b451a545b0f35c3defac7822fe6c07be71430ef34082dd1f`)
+and `api-source-review/b106-definition-byte-owner-source-join.json`
+(SHA-256 `1490b4bf0543434f6db3d998ea1a18ee2e1af5083848faa3ee5e082a9e3504e2`).
+The latter joins retained B81 real private-cache decoding to complete getter,
+materializer and bulk source captures. It does not show the central getter
+routing new ordinals to private bytes. A materializer route can select them
+once reached, but must qualify the earlier cold stock-fetch dependency and
+the distinct bulk consumer. No new failing game observation is claimed.
 
 The current goal is **truly independent content with stable identity**. Continue
 the existing [CDISO goal](cditem-conflict-isolation-plan.md) and

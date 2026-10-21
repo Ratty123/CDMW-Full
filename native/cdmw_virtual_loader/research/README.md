@@ -168,6 +168,14 @@ Windows fixture. This portable experiment does not repeat that execution or
 treat null pointer cells as complete ItemInfo rows. Its stock primary cells
 remain null; stock checks cover map state and keys, while new rows are modeled.
 
+The 2026-10-22 retained-source join against build `1.0.0.2976` confirms that
+B106 does not route appended rows to private definition bytes. B81 separately
+exercised real decoding through explicit private-cache calls. The central
+getter's cold branch first obtains the stock body Reader, and bulk has a
+distinct materializer call. Selecting private bytes at materialization leaves
+that earlier dependency to qualify; actual central routing remains unproved.
+This source conclusion does not record a new game failure or native admission.
+
 The next integration must join actual constructed backing, native metadata and
 decoder routing to the same publication discipline. The current
 [concrete I/O source contract](../../../cdmw/ui/new_item/INDEPENDENT_ITEMS.md#native-io-continuation-after-image-preparation)

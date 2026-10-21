@@ -1360,6 +1360,14 @@ fixture. A separate fixture-only correction must pass compiled validation
 before a game payload run.
 Production admission remains unchanged.
 
+Definition-consumer source review against build `1.0.0.2976` also distinguishes
+typed backing from private-byte routing. The ordinary getter's cold branch
+first obtains the stock body Reader; bulk has a distinct direct materializer
+call. Retained real private-cache decoding proves explicit helper calls, while
+central routing of newly owned ordinals remains unproved. The earlier stock
+fetch dependency must also be qualified. This is source evidence, not a new
+game failure or independent-item admission.
+
 The next resource proof must reach the intended bytes and their actual engine
 consumer. The source-qualified small-read diagnostic must now demonstrate the
 exact retained bytes after normal return, with a fresh complemented buffer and

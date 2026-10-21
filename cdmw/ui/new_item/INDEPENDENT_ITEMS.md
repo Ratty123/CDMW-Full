@@ -947,6 +947,16 @@ does not establish construction of full decoded ItemInfo rows. Fixture teardown
 is single-threaded and proves no native retirement with outstanding readers.
 The new sources remain outside production CMake targets and release provenance.
 
+The 2026-10-22 source join against build `1.0.0.2976` further separates B106's
+typed backing from definition-byte delivery. The ordinary getter returns
+resident primary cells directly; its cold branch obtains the stock body Reader
+before calling the materializer. Bulk materialization has a separate direct
+call. B81's retained real-constructor/decoder result used explicit private-cache
+calls and proves no central-getter routing. A private materializer can select
+retained row bytes once reached, but the earlier stock-fetch dependency and
+both actual consumer routes still need qualification. No new game failure or
+publication safety is established by this source join.
+
 ### Per-package resource image preparation
 
 The research service [independent_item_native_resources.py](../../services/independent_item_native_resources.py)

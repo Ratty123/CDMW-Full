@@ -2,7 +2,7 @@
 
 - Plan ID: `CDRUN`
 - Created: 2026-10-18, Europe/Stockholm.
-- Status: Active execution resumed 2026-10-22. Separate package resource-image preparation now passes its focused scope; exact archive review and paired-publication evidence are retained. Actual native registration/resource use, full scenarios and delivery remain incomplete; `native_admission=false`.
+- Status: Paused at user request, 2026-10-22. Separate package resource-image preparation passes its focused scope; exact archive review and paired-publication evidence are retained. Actual native registration/resource use, full scenarios and delivery remain incomplete; `native_admission=false`.
 - Original execution model: the user's selected GPT-6.1 Sol with Max reasoning, retained as historical context.
 - Current reasoning and research entry point: [the maintained handoff](cditem-astra-pro-handoff.md).
 - Project: `D:\CLAUDETEST\CDMW Full`.
@@ -12,9 +12,39 @@
 
 ## Current execution checkpoint
 
+### Paused at user request, 2026-10-22
+
+Execution is paused; the full objective and acceptance states are preserved.
+Both bounded source workers have finished. No CDItem compiler, native test,
+provider, game, installation operation or monitor remains running or queued.
+The unused compiler window was returned to Live Edit. The human-approved stop
+of exact idle MSBuild 58688 refused before any stop because a fresh census
+found another active build. That helper and all foreign processes were left
+untouched; its approval remains conditional on the exact identity and idle state.
+
+Caller v2 and its inherited startup-scope helper are retained with 41 passing
+owned-temp/mock checks and parser checks. Final owner facts, inherited scope,
+source packet and seal remain uncreated. Independent review and actual native
+qualification remain pending. The unchanged fixture-v2 qualifier has not run;
+there is no new compiled, inert or 102-byte game-read result.
+
+The definition-consumer source join distinguishes B106's capacity/null-cell
+construction from B81's explicit private-cache decoding. The central getter's
+cold branch still obtains the stock Reader before materialization; the bulk
+consumer has its own direct call. Actual central ordinal-to-private-byte routing
+and that earlier dependency remain unproved. This is source evidence against
+the retained executable, not a newly observed game failure.
+
+Restart details and exact retained pins are in the ignored continuation's
+`PAUSED_CHECKPOINT_20261022.json`. Resume only on explicit human instruction,
+refresh resource ownership and the actual installation, then review caller v2
+and complete the frozen native qualification before any controlled game read.
+A different `winmm.dll` hash/version alone is not incompatibility; Live Edit's
+repair and Create Item chats received that correction.
+
 ### Resumed, 2026-10-22
 
-The thread goal is active again. The previous turn saved a verified pause
+This historical resumption was superseded by the pause above. The previous turn saved a verified pause
 checkpoint; the original objective and all acceptance states remain intact.
 Current checkout inspection found a clean `main@1cd77ee900d5`. All nine retained
 pause pins and 100 frozen source pins still match. No new native operation has
