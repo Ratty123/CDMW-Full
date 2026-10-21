@@ -1,7 +1,7 @@
 # Independent .cditem Content with Stable Identity
 
 - Plan ID: CDISO
-- Status: Active implementation. Existing identity work is retained; full native loading and persistence acceptance remain open.
+- Status: Paused at the user's explicit request, 2026-10-21. Implementation remains incomplete. Existing identity work is retained; full native loading and persistence acceptance remain open.
 - Created: 2026-10-17, Europe/Stockholm.
 - Project: D:\CLAUDETEST\CDMW Full
 - Game reference: C:\games\Steam\steamapps\common\Crimson Desert
@@ -10,7 +10,7 @@
 - Initial reviewed branch: RR/independent-item-packages.
 - Initial reviewed HEAD: d4b38e5082d4f9b4b4cce14f9ee2ecdb37994aaf, with concurrent uncommitted work.
 - Current source review: 2026-10-21, main at 099e9f7e7a5555f07246ab475b399c15215e419c.
-- Current authorization: The user has instructed implementation with a maintained goal, real progress, professional research/technical documentation and diagrams. Continue the existing goal and preserve its acceptance conditions. Earlier execution permissions remain recorded in the execution companion; refresh actual process and shared-lane ownership before using them.
+- Current authorization: The user explicitly paused this goal on 2026-10-21. Preserve all acceptance conditions and wait for an explicit human resume. All pending resource requests are withdrawn; old grants must not be replayed. See the [pause checkpoint](cditem-execution-goal.md#paused-at-user-request-2026-10-21).
 
 ## Goal
 

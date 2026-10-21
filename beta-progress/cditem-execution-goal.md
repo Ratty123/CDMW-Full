@@ -2,7 +2,7 @@
 
 - Plan ID: `CDRUN`
 - Created: 2026-10-18, Europe/Stockholm.
-- Status: Active implementation, reviewed 2026-10-21. Separate package resource-image preparation now passes its focused scope; exact archive review and paired-publication evidence are retained. Actual native registration/resource use, full scenarios and delivery remain incomplete; `native_admission=false`.
+- Status: Paused at the user's explicit request, 2026-10-21. Separate package resource-image preparation now passes its focused scope; exact archive review and paired-publication evidence are retained. Actual native registration/resource use, full scenarios and delivery remain incomplete; `native_admission=false`.
 - Original execution model: the user's selected GPT-6.1 Sol with Max reasoning, retained as historical context.
 - Current reasoning and research entry point: [the maintained handoff](cditem-astra-pro-handoff.md).
 - Project: `D:\CLAUDETEST\CDMW Full`.
@@ -11,6 +11,24 @@
 - Shared completion log: [progress.md](progress.md).
 
 ## Current execution checkpoint
+
+### Paused at user request, 2026-10-21
+
+The user requested a graceful pause. All pending compiler, inert, provider,
+game and installation requests are withdrawn. No CDItem operation may restart
+until an explicit human resume and fresh resource ownership are established.
+The latest fixture-v2 preflight stopped before any compiler/native launch
+because an unrelated game was running; that game was left untouched. No new
+fixture build, inert result, game attempt, handoff or seal was created.
+
+The fixture-only correction and final qualifier have independent source review;
+seven mocked process-cleanup checks pass. Actual fixture-v2/own-process/inert
+qualification and the exact 102-byte game read remain pending. The complete
+REA successor and normal closure are verified. Exact pins and restart steps
+are retained in the ignored continuation directory
+`workspace/reports/cditem-execution/20261021-native-path-continuation/PAUSED_CHECKPOINT.json`.
+Existing feature criteria and `native_admission=false` are unchanged. The
+engineering sequence below is deferred while paused.
 
 Reviewed on 2026-10-21 from `main` at
 `099e9f7e7a5555f07246ab475b399c15215e419c`. The user's instruction authorizes

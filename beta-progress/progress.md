@@ -5,6 +5,12 @@ Shared completion log for plans in this folder. Keep each entry as a short dated
 ## .cditem current progress
 
 **Goal: truly independent content with stable identity.**
+
+**Execution paused at the user's explicit request, 2026-10-21.** Pending shared
+resource requests are withdrawn; no CDItem process was launched in the last
+preflight. The unrelated running game was left untouched. Resume only after
+an explicit human instruction and fresh ownership; see the
+[pause checkpoint](cditem-execution-goal.md#paused-at-user-request-2026-10-21).
 [Canonical goal and acceptance criteria](cditem-conflict-isolation-plan.md) |
 [Execution](cditem-execution-goal.md) |
 [Research handoff](cditem-astra-pro-handoff.md) |
