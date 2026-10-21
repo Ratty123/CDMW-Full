@@ -2,7 +2,7 @@
 
 - Plan ID: `CDRUN`
 - Created: 2026-10-18, Europe/Stockholm.
-- Status: Paused at the user's explicit request, 2026-10-21. Separate package resource-image preparation now passes its focused scope; exact archive review and paired-publication evidence are retained. Actual native registration/resource use, full scenarios and delivery remain incomplete; `native_admission=false`.
+- Status: Active execution resumed 2026-10-22. Separate package resource-image preparation now passes its focused scope; exact archive review and paired-publication evidence are retained. Actual native registration/resource use, full scenarios and delivery remain incomplete; `native_admission=false`.
 - Original execution model: the user's selected GPT-6.1 Sol with Max reasoning, retained as historical context.
 - Current reasoning and research entry point: [the maintained handoff](cditem-astra-pro-handoff.md).
 - Project: `D:\CLAUDETEST\CDMW Full`.
@@ -12,11 +12,37 @@
 
 ## Current execution checkpoint
 
+### Resumed, 2026-10-22
+
+The thread goal is active again. The previous turn saved a verified pause
+checkpoint; the original objective and all acceptance states remain intact.
+Current checkout inspection found a clean `main@1cd77ee900d5`. All nine retained
+pause pins and 100 frozen source pins still match. No new native operation has
+run. Compiler ownership/cleanup remains pending; old grants are not reused.
+
+A new named-path installation audit finds the same UAL identity, changed
+FastLoad binary/startup bytes, and absent root Live Edit/Loadouts files. These
+are physical-path observations, not proof of DMM activation or runtime startup.
+The old B115 v1 startup authority cannot describe that setup truthfully. A
+separate caller/startup-scope successor is being prepared, inheriting the exact
+original human scope while retaining the native candidate, protocol, deadlines
+and cleanup. Final owner-declared installation facts and current composition
+proof must follow the Live Edit owner's pending verified delivery/install.
+
+The fixture-only runtime-address correction remains source-reviewed but
+uncompiled. Its 18 actual-header cases, own-process API guard and inert check
+still precede the exact 102-byte game read. The full 2209-record REA successor
+remains the latest reported source handoff; no provider session is open here.
+Machine-local audit: `api-source-review/20261022-named-bin-startup-policy-audit.json`,
+SHA-256 `0d3c924bc1a56aa776afe2b44c025e81199ccd8762ef04554a2f219c4215841b`,
+under the existing ignored native-path continuation. No acceptance or native
+admission follows from this environment refresh.
+
 ### Paused at user request, 2026-10-21
 
-The user requested a graceful pause. All pending compiler, inert, provider,
-game and installation requests are withdrawn. No CDItem operation may restart
-until an explicit human resume and fresh resource ownership are established.
+This historical pause was superseded by the resume above. At pause, all pending compiler, inert, provider,
+game and installation requests were withdrawn. Explicit human resumption and
+fresh resource ownership were required before restarting any CDItem operation.
 The latest fixture-v2 preflight stopped before any compiler/native launch
 because an unrelated game was running; that game was left untouched. No new
 fixture build, inert result, game attempt, handoff or seal was created.
@@ -28,7 +54,7 @@ REA successor and normal closure are verified. Exact pins and restart steps
 are retained in the ignored continuation directory
 `workspace/reports/cditem-execution/20261021-native-path-continuation/PAUSED_CHECKPOINT.json`.
 Existing feature criteria and `native_admission=false` are unchanged. The
-engineering sequence below is deferred while paused.
+engineering sequence below remained deferred until resumption.
 
 Reviewed on 2026-10-21 from `main` at
 `099e9f7e7a5555f07246ab475b399c15215e419c`. The user's instruction authorizes

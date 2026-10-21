@@ -1,7 +1,7 @@
 # CDMW .cditem Astra / Pro reasoning handoff
 
 - Created: 2026-10-18, Europe/Stockholm.
-- Status: Paused at the user's explicit request, 2026-10-21. Separate package resource images are now verified for their preparation scope; retained archive/publication results remain valid. Read the current checkpoint first. Actual native integration remains incomplete, `native_admission=false`.
+- Status: Active execution resumed 2026-10-22. Separate package resource images are now verified for their preparation scope; retained archive/publication results remain valid. Read the current checkpoint first. Actual native integration remains incomplete, `native_admission=false`.
 - Execution entry point: [cditem-execution-goal.md](cditem-execution-goal.md).
 - Feature authority and completion state: [cditem-conflict-isolation-plan.md](cditem-conflict-isolation-plan.md).
 - Shared completed work: [progress.md](progress.md).
@@ -9,11 +9,13 @@
 
 ## Current restart checkpoint, 2026-10-21
 
-Execution is paused by direct human instruction. All pending shared-resource
-requests are withdrawn. Do not run the steps below until explicit human
-resumption and fresh ownership; the
+Execution resumed on 2026-10-22 with active goal state confirmed. The original
 [pause checkpoint](cditem-execution-goal.md#paused-at-user-request-2026-10-21)
-records the retained source review, unexecuted qualification and exact pins.
+remains historical. All nine retained pins and 100 frozen source pins match.
+The [current resume checkpoint](cditem-execution-goal.md#resumed-2026-10-22)
+records changed physical installation facts, pending compiler ownership and
+the required versioned startup-scope/caller successor. No new native
+qualification, game payload result or admission has been established.
 
 The current goal is **truly independent content with stable identity**. Continue
 the existing [CDISO goal](cditem-conflict-isolation-plan.md) and

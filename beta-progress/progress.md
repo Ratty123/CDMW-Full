@@ -6,17 +6,19 @@ Shared completion log for plans in this folder. Keep each entry as a short dated
 
 **Goal: truly independent content with stable identity.**
 
-**Execution paused at the user's explicit request, 2026-10-21.** Pending shared
-resource requests are withdrawn; no CDItem process was launched in the last
-preflight. The unrelated running game was left untouched. Resume only after
-an explicit human instruction and fresh ownership; see the
-[pause checkpoint](cditem-execution-goal.md#paused-at-user-request-2026-10-21).
+**Execution resumed 2026-10-22; active goal state verified.** Pre-pause
+resource grants remain withdrawn. Nine retained pins and 100 frozen source pins
+match; no new native execution has occurred. The installation changed, so the
+next game caller needs fresh owner-declared startup facts and current
+composition proof. See the
+[resume checkpoint](cditem-execution-goal.md#resumed-2026-10-22).
+
 [Canonical goal and acceptance criteria](cditem-conflict-isolation-plan.md) |
 [Execution](cditem-execution-goal.md) |
 [Research handoff](cditem-astra-pro-handoff.md) |
 [Technical architecture](../cdmw/ui/new_item/INDEPENDENT_ITEMS.md#runtime-registration-research)
 
-Updated 2026-10-21. This is an evidence snapshot. Completion remains owned by the
+Execution status updated 2026-10-22; retained research below keeps its original evidence scope. This is an evidence snapshot. Completion remains owned by the
 original `CDISO-*` criteria, with narrowly scoped subtask results recorded below.
 
 | Outcome | Status | Evidence and remaining work |
