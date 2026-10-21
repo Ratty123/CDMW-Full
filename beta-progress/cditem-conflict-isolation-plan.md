@@ -45,7 +45,7 @@ Reviewed on **2026-10-21** against `main@099e9f7e7a5555f07246ab475b399c15215e419
 
 ### Immediate engineering sequence
 
-1. Prepare the existing B112 private-path candidate for a supported current build and execution lane, using the exact small B93 archive expectation. Separately, with current source/provider ownership, qualify B110's concrete open/read/size/completion and holder lifetime. Prove the small payload read before extending to the new per-package resource images without merging carriers.
+1. Execute the separately frozen B113 current-loader path candidate after its current-owner caller and game/install handoff pass. The strict build, callback race controls, startup-frame checks and inert check now pass; exact archive-path execution remains unproved. Separately, with current source/provider ownership, qualify B110's concrete open/read/size/completion and holder lifetime. Prove the small B93 payload read before extending to separate package resource images without merging carriers.
 2. Use the new paired-publication experiment as the ordering/lifetime baseline. Join actual B106 primary-cell backing, private metadata and decoder routing before either native map exposes a new entry. Qualify the game reader boundary and failure/lifetime behavior; the portable model does not establish those contracts.
 3. Join definitions and resources in one startup-scoped native contribution, then exercise two independently authored same-donor packages with distinct private assets through acquisition, equip, restart and save reload.
 4. Extend only from that demonstrated scope. Keep native missing-provider save behavior, ordinary maintenance and any unresolved resource family explicitly open.
@@ -55,6 +55,17 @@ owns readiness and user notification. B112 path construction can be tested
 without guessing the unresolved read ABI, once its own run requirements pass.
 Its retained receipt records source preparation only. No new native capability
 or acceptance criterion is closed by this readiness review.
+
+The local Codex continuation at `main@a7ca7e498ab4ea2e57f942cc1c31733e316bed6d`
+prepared and built a separately pinned B113 successor. It fixes an overlapping
+callback race by claiming the metadata/path chain once. Six owned native cases
+include two original-header race controls; twelve actual startup-frame checks
+and the no-session `0 -> 0` check pass. The installed game matches retained
+build `1.0.0.2976`. UAL 9.7.4 preserves the inspected forwarding/startup shapes
+at changed offsets; whole-file difference alone is not incompatibility.
+Current live flags, IAT destinations, callback frames and exact archive path
+still require the controlled run. B112 and production guards remain unchanged.
+Evidence: `workspace/reports/cditem-execution/20261021-native-path-continuation/`.
 
 ### Document map
 

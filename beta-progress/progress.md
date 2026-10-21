@@ -20,7 +20,7 @@ original `CDISO-*` criteria, with narrowly scoped subtask results recorded below
 | Paired publication and lifetime | Verified owned-memory increment | `CDISO-RE-02A`: retained C++ result, 41 cases/963 checks. Both lookup paths and resource completion are modeled |
 | Exact private archive expectation | Completed bounded increment | `CDISO-RE-03A`: retained 52-test and B93/B98 preparation results |
 | Separate package resource images | Newly verified preparation increment | `CDISO-RE-03B`: actual compiler output, one immutable image per UUID, 24 focused cases verified; native discovery/use remains open |
-| Native resource open/read/use | Open, source step blocked in this session | B99 metadata and B109 wrapper source are established. Concrete virtual methods, completed reads, use and lifetime remain unproved |
+| Native resource open/read/use | Open, current source-owner handoff pending | B99 metadata and B109 wrapper source are established. Concrete virtual methods, completed reads, use and lifetime remain unproved |
 | Fully independent native items | Open | Production `native_admission=false`; no combined-file-free native lifecycle acceptance |
 | Native persistence and missing-provider saves | Open | Two-item native lifecycle and separately written absent-provider save/reinstall evidence remain required |
 
@@ -34,9 +34,12 @@ checks were not rerun.
 
 ### In-game testing readiness
 
-**No game launch is needed yet.** The retained B112 candidate prepares a native
-archive-path probe, but its receipt explicitly records no C++ build or native
-execution. The first controlled run will check the exact private archive path.
+**No manual game launch is needed.** Retained B112 remains source-only; the
+separately frozen B113 current-loader variant is now built and offline-verified.
+Six callback cases reproduce the old race and verify the single-claim fix;
+twelve startup-frame checks and the inert `0 -> 0` check pass. The first
+controlled run will check the exact private archive path after the current-owner
+caller and game/install handoff are ready.
 Payload reads need separate I/O qualification; equip and save scenarios follow
 native definition/resource integration. The
 [execution checkpoint](cditem-execution-goal.md#first-in-game-test-and-notification)
@@ -45,7 +48,7 @@ existing controlled-game authorization.
 
 ### Next engineering steps
 
-1. Prepare B112's path probe for the supported current build and execution lane.
+1. Complete the current-owner caller and game/install handoff for built B113.
    Separately, obtain current source/provider access and qualify B110's concrete
    open/read/size, completion and holder lifetime. Use the small exact B93
    archive/payload before extending the native route to the new package images.
@@ -55,17 +58,22 @@ existing controlled-game authorization.
 3. Integrate native definitions and resources, prove first acquisition, then run
    two same-donor packages through equip/restart/update/removal/save.
 
-The 2026-10-21 readiness review found no current source/provider handoff or
-callable REA/Ghidra connection. A read-only census found no Java, game or compiler
-process, with two Codex owners unidentified. The operational update and source
-pin review add no native execution result and close no acceptance checkbox.
-Readiness evidence is in
+The later local Codex review on `main@a7ca7e49` identified the actual Live Edit
+game/install and REA owners, verified the exact installed 2976 executable, and
+used/returned a compiler-only grant. Current UAL 9.7.4 retains the inspected
+startup/forwarding shapes at changed offsets; differing file identity alone is
+not incompatibility. The clarification was sent to all three active Live Edit
+chats. Live startup/path evidence and concrete I/O remain open. No CDItem game
+run, installation write or provider query has occurred. New source/build/owned-native receipts:
+`workspace/reports/cditem-execution/20261021-native-path-continuation/`.
+Earlier readiness evidence is in
 `workspace/reports/cditem-execution/20261021-native-test-readiness/`;
 the preceding 24-case preparation evidence remains in
 `workspace/reports/cditem-execution/20261021-package-resource-images/`.
 
 ## Completed work
 
+- 2026-10-21 | CDISO-RE-03 continuation | Built the separately frozen B113 current-loader path probe from `main@a7ca7e49`. Six owned native callback cases include two deterministic original race controls; the fixed chain, twelve actual startup-frame checks, inert `0 -> 0` child and 21 decoder cases pass. Static UAL 9.7.4 forwarding/phase/return witnesses are captured; loader hash difference alone is not incompatibility. Compiler-only grant returned. Actual exact path, native I/O, item/resource publication and persistence remain open; no acceptance checkbox closed. Evidence: `workspace/reports/cditem-execution/20261021-native-path-continuation/`.
 
 
 - 2026-10-17 | MEL-DOC-01 | Created the improvement plan and this completion log, with matching task IDs and completion rules. Implementation has not started.

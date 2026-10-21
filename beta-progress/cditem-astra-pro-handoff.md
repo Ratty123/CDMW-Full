@@ -23,7 +23,7 @@ review continued on `main` at `099e9f7e7a5555f07246ab475b399c15215e419c`.
 | Maintained paired-publication experiment | Retained portable C++ run: 41 cases/963 checks; independent source review passes | Common preflight and retained backing are established on owned memory; actual native joins and reader synchronization remain open |
 | B99 metadata lookup | Retained actual-game result with independently verified restoration | Private metadata lookup is settled; native byte delivery and resource use remain open |
 | B109 / B110 resource calls | B109 wrapper source qualified; B110 concrete virtual targets pending | Qualify open/read/size/completion and handle lifetime under current source ownership |
-| B112 path candidate | Retained preparation, no actual path call verified | Use a separately versioned candidate and bind the result to the exact prepared archive |
+| B112 / B113 path candidate | B112 retained source-only; B113 current-loader variant built and offline-verified | Finish the current-owner caller/lane handoff, then bind the actual path result to the exact prepared archive |
 | Exact path evidence review | Maintained offline tool; retained 52-test and B93/B98 preparation results | Exact small archive and payload expectation are available for the next path/open/read experiment |
 | Per-package resource images | New service and diagnostic CLI; 24 focused cases verified with actual compiler fixtures | Separate immutable image bytes and reservation provenance are ready as research inputs; native consumption remains open |
 
@@ -88,8 +88,8 @@ reviewed source pins are retained in the new session baseline.
 
 ### Immediate engineering sequence
 
-1. Prepare the retained B112 path candidate for a supported current build and
-   execution lane. Its live private-index path call can precede concrete I/O
+1. Use the separately frozen, compiled B113 current-loader path candidate after
+   its reviewed current-owner caller and game/install handoff. Its live private-index path call can precede concrete I/O
    qualification; the captured path still needs the exact-archive review.
    Separately, with current source/provider ownership, qualify B110's concrete
    open/read/size, completion and holder-lifetime contracts. Use the small B93
@@ -125,16 +125,44 @@ prepared/additional input manifests still match that receipt. This does not
 supply a compiled candidate, current execution ownership or a completed path
 call. The exact-archive reviewer must also accept the captured path.
 
-The read-only process census found no Java, game or compiler process; two Codex
-processes remained unidentified. This session exposes no callable REA/Ghidra
-connection, and plugin lookup found no matching Ghidra connection. No current
-source/provider handoff was established. These are current preparation blockers,
-not a request for the user to start gameplay testing. Historical grants and
-process absence do not establish ownership.
+The local Codex continuation on `main@a7ca7e49` identified the active Live Edit
+repair game/install owner and Dye REA owner. A current compiler-only grant was
+used and returned. The installed game matches the retained exact 2976 source.
+The REA client/toolchain route is available locally; a successor client is
+prepared and awaits Dye's current export/normal-close release before activation.
+Historical peer IDs in B110 remain unchanged and confer no new access.
 
-The preceding Python verification used owned temporary fixtures. This
-readiness review ran no application test, native build, source-PE access,
-provider operation or game. Evidence and retained source pins are in
+B112 source review found a concrete callback race: a losing metadata callback
+could independently win the path one-shot and read the producer's unfinished
+result. B113 claims the entire metadata/path chain once. Six owned native cases
+include deterministic original concurrent/reentrant race controls and successful
+successor concurrent/repeated/reentrant cases; synchronized fixture dependencies
+avoid introducing undefined behavior in the control. Twenty-one decoder cases
+also pass. The actual path function is not called by those checks.
+
+Current UAL 9.7.4 retains all eight named forwarding wrapper shapes, with moved
+IAT/phase/callback offsets. All eleven old executable neighborhoods differ at
+their old RVAs. This qualifies a separately pinned candidate's witnesses, not a
+general incompatibility diagnosis from a file hash. The human's clarification
+was sent to all three active Live Edit chats. Live IAT destinations, phase flags,
+startup frames and timing still need observation.
+
+The current-loader variant compiles with `/W4 /WX /guard:cf`; twelve actual
+startup-frame checks and the inert `0 -> 0` child pass. Its ASI is 467,456 bytes,
+SHA-256 `b653093237e1f6b2b21702d9ff3cd9970fcd78da606c6b0d43fddbf68073312e`.
+The initial inert checker refused an out-of-tree variant before native loading;
+the unchanged checker then passed inside that variant. Production source,
+B112 and the first frozen B113 snapshot remain unchanged. The current session
+host was copied only after all twelve build-provenance source pins passed.
+The old FastStart path and four-file CDMW recovery baseline are absent; adapt
+the bounded caller to exact temporary-ASI recovery, then obtain a current game
+handoff. No CDItem game run, installation write or provider query has occurred.
+Receipts, source pins and compiler release are in
+`workspace/reports/cditem-execution/20261021-native-path-continuation/`.
+
+The earlier `277b82cc` readiness review and its preceding Python verification
+used owned temporary fixtures and ran no application test, native build,
+source-PE access, provider operation or game. That earlier evidence and source pins are in
 `workspace/reports/cditem-execution/20261021-native-test-readiness/`.
 All native acceptance conditions remain open.
 

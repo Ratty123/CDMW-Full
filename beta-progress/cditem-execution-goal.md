@@ -49,12 +49,14 @@ existing archive reviewer checks exact preparation and packet consistency.
 Neither result supplies native completed-read, resource-use or reader-lifetime
 evidence. Their unchanged 41-case and 52-case checks were not rerun.
 
-The fresh read-only census found no Java, game or compiler process. Two Codex
-processes remained unidentified, and this session has no callable REA provider
-or current source/provider handoff. No shared native compiler/provider, actual
-game installation or save was used. Python tests used owned temporary fixtures.
-Before native work, refresh ownership and bind the supported caller to the
-exact candidate and available lane. Historical grants below are dated evidence.
+The local Codex continuation at `main@a7ca7e49` reconciled the current owners.
+The installed game is the retained `1.0.0.2976` executable with the same SHA-256.
+Live Edit repair owns the game/install lane; Dye owns the read-only REA session
+and has offered a separate export/closure handoff. A fresh compiler-only grant
+was used and returned after the strict B113 current-loader build and owned
+checks. No game run, installation write or provider query was performed by CDItem.
+Refresh ownership before using the remaining lanes; historical grants below
+remain dated evidence.
 
 ## First in-game test and notification
 
@@ -63,14 +65,29 @@ Readiness reviewed on 2026-10-21 at
 B110 source-access script, B112 path candidate and preparation receipt. It does
 not redate the earlier tests or game observations.
 
-**Current decision: finish preparation outside the game. The user does not need
-to launch it yet.** B112's retained `source-syntax-result.json` records
-`CXX_built=false`, `behavior_tests_executed=false` and
-`native_source_PE_provider_game_or_native_execution=false`. No current compiled
-candidate or execution handoff was established in this review. No callable
-REA/Ghidra connection is exposed in this session, and the plugin lookup found
-no matching Ghidra connection. Concrete I/O qualification remains blocked on a
-supported current source handoff or connection.
+**Current decision: finish the current-owner caller and lane handoff outside
+the game. The user does not need to launch it.** Retained B112 remains
+source-only. Its separately frozen B113 current-loader variant is now built:
+467,456 bytes, SHA-256
+`b653093237e1f6b2b21702d9ff3cd9970fcd78da606c6b0d43fddbf68073312e`.
+The `/W4 /WX /guard:cf` build passed in 14.43 seconds. Six owned callback cases
+reproduce the original concurrent/reentrant race and verify the single-claim
+successor. Twelve actual startup-frame checks and the inert `0 -> 0` check
+pass. The first inert invocation correctly refused an out-of-tree checker
+placement before loading; placing the unchanged checker in its owned variant
+passed without changing a guard or binary. Unchanged passing cases were not
+rerun.
+
+The human clarified that differing `winmm.dll` bytes do not establish
+incompatibility, and all three active Live Edit chats were notified. Static
+inspection of current UAL 9.7.4 finds the required forwarding/startup shapes at
+new offsets; the separately pinned variant uses those witnesses. Actual IAT
+destinations, phase flags, observed startup frames and timing remain live checks.
+No loader was replaced. The old FastStart setting and four CDMW recovery targets
+are absent, so their historical caller cannot be reused unchanged. A narrowly
+scoped temporary-ASI recovery/caller must preserve original absence as well as
+existing bytes. Concrete I/O qualification awaits the current REA owner's
+export/normal-close release; a local successor client is prepared but unstarted.
 
 | Stage | Live game in the current route | Required observation |
 | --- | --- | --- |
@@ -126,7 +143,11 @@ manual-launch or repeated-approval requirement.
 
 Readiness evidence is retained in
 `workspace/reports/cditem-execution/20261021-native-test-readiness/`.
-This is an operational review, with no native execution or admission.
+The later source/build/native-fixture evidence and compiler release are in
+`workspace/reports/cditem-execution/20261021-native-path-continuation/`.
+The earlier `277b82cc` readiness review performed no native execution. The later
+B113 checks execute owned fixtures and the inert probe; no engine/game execution
+or native admission is established.
 
 ## 1. Goal and relationship to the existing plan
 

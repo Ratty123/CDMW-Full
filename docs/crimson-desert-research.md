@@ -1055,6 +1055,15 @@ mod, animation, effect or save-compatibility claim.
 
 Source: [virtual-loader contract and evidence][virtual-loader].
 
+Targeted continuation, 2026-10-21: a different ASI-loader file identity does not
+by itself demonstrate incompatibility. Inspection of UAL 9.7.4 preserves the
+required forwarding/startup instruction shapes at changed code, import and
+phase offsets. A separately pinned private probe variant uses those witnesses;
+the strict build, actual frame-matcher fixture and no-session inert check pass.
+Actual system-function destinations, phase flags, observed startup frames and
+timing before archive reads remain controlled-game checks. Production loader
+admission is unchanged; this is static and isolated-native evidence.
+
 ### 13.2 Native item registration: a rejected shortcut
 
 Read-only analysis identified the ItemInfo owner and startup loading path.
@@ -1158,6 +1167,14 @@ digests. It also distinguishes current resources from retained retired paths.
 The image-local group and archive ordinal do not establish native discovery.
 Small fixture verification does not qualify the large-payload helper path,
 native decoding, resource retirement or save behavior.
+
+A later path-probe review found an overlapping-callback race between metadata
+production and the independent path one-shot. The separately frozen successor
+claims that complete chain once. Deterministic owned native controls reproduce
+the old concurrent/reentrant behavior and verify the fix with synchronized
+fixture dependencies. No engine metadata/path function or private payload is
+executed by those controls. The compiled probe still requires its actual exact
+archive-path run, independently of concrete file-I/O qualification.
 
 The next resource proof must reach the intended bytes and their actual engine
 consumer. First qualify the concrete file-manager methods and completed-read/

@@ -1090,6 +1090,34 @@ or safe-retirement contract. A future producer must consume the exact prepared
 image bytes after source-qualified open/read/completion and lifetime joins;
 preparing these images does not close those gates.
 
+### Bounded private-path probe continuation
+
+The separately versioned B113 current-loader experiment continues B112's
+path-only scope. One atomic claim covers both metadata production and the
+following path call. A concurrent or reentrant callback must not independently
+win the path one-shot while another callback writes the metadata result.
+Deterministic native controls reproduce that old interleaving; the successor
+passes with explicit synchronized fixture dependencies. These checks execute
+the actual callback headers, not the engine metadata/path functions.
+
+```mermaid
+flowchart LR
+    C["Original callback and phase observation"] --> O{"Claim metadata/path chain once"}
+    O -->|"Already claimed"| R["Return with original LastError"]
+    O -->|"Claimed"| M["Guarded metadata query"]
+    M --> P["One path attempt; retain holder until exit"]
+    P --> R
+```
+
+The current game matches retained build `1.0.0.2976`. Static UAL 9.7.4 inspection
+preserves the required forwarding/startup instruction shapes at moved offsets.
+A differing whole-file hash alone does not establish incompatibility. The
+experiment uses separately qualified witnesses and retains actual IAT, phase,
+first-thread, outside-loader and observed-frame guards. Its strict build,
+startup-frame fixture and no-session inert check pass. Live startup timing,
+the exact prepared archive path and all native I/O remain unproved. Production
+bootstrap/admission gates and sealed B112 sources are unchanged.
+
 
 ### Proposed startup admission lifecycle
 
