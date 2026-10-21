@@ -56,6 +56,78 @@ game installation or save was used. Python tests used owned temporary fixtures.
 Before native work, refresh ownership and bind the supported caller to the
 exact candidate and available lane. Historical grants below are dated evidence.
 
+## First in-game test and notification
+
+Readiness reviewed on 2026-10-21 at
+`main@277b82ccc786a0055f827dfa9aa1576e322e5d56`. This review covers the retained
+B110 source-access script, B112 path candidate and preparation receipt. It does
+not redate the earlier tests or game observations.
+
+**Current decision: finish preparation outside the game. The user does not need
+to launch it yet.** B112's retained `source-syntax-result.json` records
+`CXX_built=false`, `behavior_tests_executed=false` and
+`native_source_PE_provider_game_or_native_execution=false`. No current compiled
+candidate or execution handoff was established in this review. No callable
+REA/Ghidra connection is exposed in this session, and the plugin lookup found
+no matching Ghidra connection. Concrete I/O qualification remains blocked on a
+supported current source handoff or connection.
+
+| Stage | Live game in the current route | Required observation |
+| --- | --- | --- |
+| Concrete I/O source qualification | No | Identify the manager's actual open/read/size methods and their completion, failure and holder-lifetime contracts |
+| B112 private archive path | Yes, once its own run is ready | The actual private index produces the exact prepared archive path; retain the output holder and verify the expected provider/ItemInfo checks |
+| Exact small payload read | Yes, after path and I/O qualification | Read the expected bytes from the owned archive under the qualified completion/lifetime contract |
+| Independent item lifecycle | Later | Two same-donor packages use their own native definitions/resources through acquisition, equip, restart, update, removal and save reload |
+
+The first existing source-qualified live step is B112's path-helper call at
+module offset `0x1376bf0` using the real private index from the supported callback.
+It opens no file, reads no payload and publishes no item. The maintained
+[exact archive reviewer](../cdmw/ui/new_item/INDEPENDENT_ITEMS.md#private-archive-path-evidence-review)
+must join the captured packet to the independently prepared archive. A path
+within the expected root alone does not pass that check.
+
+A path-only run does not depend on inventing the unresolved manager read ABI.
+Before adding I/O, qualify the concrete methods selected by B110's manager
+vptr and virtual offsets `+8`, `+0x10` and `+0x20`. B49's equal counts and
+unchecked return, and B109's release helper, do not prove completed reads or
+safe retirement. Preserve sealed B110 guards; historical peer identities and
+a quiet process census are not a current ownership handoff.
+
+### Readiness and notification trigger
+
+Notify the user immediately before the first controlled game run when these
+requirements have concrete evidence:
+
+1. A separately versioned probe is built and pinned to the supported game build.
+   Its source, binary and preparation inputs are retained.
+2. The exact archive, expected path and payload identity are pinned. The decoder
+   and exact-archive review command are ready to evaluate the resulting receipt.
+3. The supported callback, source-byte guards and one-attempt behavior are
+   identified. The selected probe contains only qualified native calls.
+4. Current execution ownership, bounded deployment/recovery and output-holder
+   lifetime are established for this candidate. Refresh actual process state
+   before use.
+5. Success and refusal receipts are defined. A path result must preserve the
+   probe's provider/ItemInfo checks; a refusal must remain a refusal.
+6. If I/O is included, its ABI, completion, failure and holder/buffer lifetimes
+   are qualified. The first discriminator remains the small B93 fixture:
+   a 112-byte PAZ with a 102-byte payload at offset zero, payload SHA-256
+   `9f15808d20095f7c248b1cf63cc694641d53ddb7113538dda96913508704ce4e`.
+
+The notification should state the actual scope, for example: "The path probe
+is ready for a controlled game run. This run checks whether the native private
+index produces the exact expected archive path. Payload use, item equip and
+save tests are later stages."
+
+The user's request to be told when in-game testing starts preserves the
+existing controlled-game authorization recorded below. Give that notice and
+continue the authorized run once it is ready; do not introduce a routine
+manual-launch or repeated-approval requirement.
+
+Readiness evidence is retained in
+`workspace/reports/cditem-execution/20261021-native-test-readiness/`.
+This is an operational review, with no native execution or admission.
+
 ## 1. Goal and relationship to the existing plan
 
 Finish the remaining .cditem coding, reverse engineering, integration, and meaningful testing. Build the missing automation so the execution agent can start Crimson Desert on this device, activate mouse/keyboard input at its menu, load the intended test save, exercise the supported item scenarios, retain evidence, and clean up without the user operating the menu for each run. Deliver a freshly verified portable executable containing the completed changes.

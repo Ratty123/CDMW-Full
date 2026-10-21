@@ -45,10 +45,16 @@ Reviewed on **2026-10-21** against `main@099e9f7e7a5555f07246ab475b399c15215e419
 
 ### Immediate engineering sequence
 
-1. Continue from B99/B109 and B110/B112 preparation: qualify concrete open/read/size/completion and holder lifetime, then use the exact small B93 archive/payload expectation in a separately versioned native candidate. Refresh source/provider ownership first. After that discriminator passes, extend the producer to the new per-package resource images without merging carriers.
+1. Prepare the existing B112 private-path candidate for a supported current build and execution lane, using the exact small B93 archive expectation. Separately, with current source/provider ownership, qualify B110's concrete open/read/size/completion and holder lifetime. Prove the small payload read before extending to the new per-package resource images without merging carriers.
 2. Use the new paired-publication experiment as the ordering/lifetime baseline. Join actual B106 primary-cell backing, private metadata and decoder routing before either native map exposes a new entry. Qualify the game reader boundary and failure/lifetime behavior; the portable model does not establish those contracts.
 3. Join definitions and resources in one startup-scoped native contribution, then exercise two independently authored same-donor packages with distinct private assets through acquisition, equip, restart and save reload.
 4. Extend only from that demonstrated scope. Keep native missing-provider save behavior, ordinary maintenance and any unresolved resource family explicitly open.
+
+The [first in-game test checkpoint](cditem-execution-goal.md#first-in-game-test-and-notification)
+owns readiness and user notification. B112 path construction can be tested
+without guessing the unresolved read ABI, once its own run requirements pass.
+Its retained receipt records source preparation only. No new native capability
+or acceptance criterion is closed by this readiness review.
 
 ### Document map
 

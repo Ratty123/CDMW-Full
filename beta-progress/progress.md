@@ -32,22 +32,36 @@ cancellation assertion was corrected and its targeted rerun passed. The service
 and command needed no correction. The existing 41-case C++ and 52-case offline
 checks were not rerun.
 
+### In-game testing readiness
+
+**No game launch is needed yet.** The retained B112 candidate prepares a native
+archive-path probe, but its receipt explicitly records no C++ build or native
+execution. The first controlled run will check the exact private archive path.
+Payload reads need separate I/O qualification; equip and save scenarios follow
+native definition/resource integration. The
+[execution checkpoint](cditem-execution-goal.md#first-in-game-test-and-notification)
+defines the readiness evidence and notice before that first run, preserving the
+existing controlled-game authorization.
+
 ### Next engineering steps
 
-1. Refresh source/provider ownership, then qualify B110's concrete open/read/size,
-   completion and holder-lifetime contracts. Use the small exact B93 archive in
-   the next versioned candidate before extending to the new package images.
+1. Prepare B112's path probe for the supported current build and execution lane.
+   Separately, obtain current source/provider access and qualify B110's concrete
+   open/read/size, completion and holder lifetime. Use the small exact B93
+   archive/payload before extending the native route to the new package images.
 2. Carry common preflight and retained ownership into actual B106 backing,
    private metadata and decoder routing. Qualify the real reader boundary before
    either native map exposes an entry.
 3. Integrate native definitions and resources, prove first acquisition, then run
    two same-donor packages through equip/restart/update/removal/save.
 
-The fresh read-only census found no Java, game or compiler process, but two
-Codex processes remained unidentified. No callable REA provider or current
-source/provider handoff is available to this session. Python verification used
-owned temporary fixtures; no shared native compiler/provider, actual game
-installation or save was used. The new evidence is retained in
+The 2026-10-21 readiness review found no current source/provider handoff or
+callable REA/Ghidra connection. A read-only census found no Java, game or compiler
+process, with two Codex owners unidentified. The operational update and source
+pin review add no native execution result and close no acceptance checkbox.
+Readiness evidence is in
+`workspace/reports/cditem-execution/20261021-native-test-readiness/`;
+the preceding 24-case preparation evidence remains in
 `workspace/reports/cditem-execution/20261021-package-resource-images/`.
 
 ## Completed work

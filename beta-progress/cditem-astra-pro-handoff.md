@@ -88,24 +88,55 @@ reviewed source pins are retained in the new session baseline.
 
 ### Immediate engineering sequence
 
-1. With current source/provider ownership, qualify B110's manager vptr and concrete
-   +8 open, +0x10 read and +0x20 size methods. Prepare a new bounded candidate
-   against the exact small B93 archive/payload expectation. Verify completion,
-   returned bytes and holder lifetime before extending to the new multi-resource
-   package images or attempting higher-level resource use.
+1. Prepare the retained B112 path candidate for a supported current build and
+   execution lane. Its live private-index path call can precede concrete I/O
+   qualification; the captured path still needs the exact-archive review.
+   Separately, with current source/provider ownership, qualify B110's concrete
+   open/read/size, completion and holder-lifetime contracts. Use the small B93
+   archive/payload before extending to the new package images.
 2. Use the maintained paired-publication experiment as the ordering/lifetime
    baseline. Join actual B106 backing, metadata and decoder routing to both
    native maps, then qualify the real consumer boundary and failure/lifetime.
 3. Join definitions and resources, establish first-instance acquisition, and run
    two same-donor packages through the native lifecycle and save scenarios.
 
-The fresh read-only census found no Java, game or compiler process; two Codex
-processes remained unidentified. This session has no callable REA provider or
-current source/provider handoff. That blocks the concrete native source step.
-The new Python verification used owned temporary fixtures; no shared native
-compiler/provider, actual game installation or save was used. Historical grants
-and process absence do not establish current ownership. Preserve sealed B110
-and obtain a supported current source handoff before resuming that work.
+### Native source and first-run handoff
+
+Readiness was reviewed on 2026-10-21 at
+`main@277b82ccc786a0055f827dfa9aa1576e322e5d56`. The
+[execution checkpoint](cditem-execution-goal.md#first-in-game-test-and-notification)
+owns the first-run requirements and user notification. The user does not need
+to launch the game while the candidate is still being prepared.
+
+B110's `capture_vptr.py` is inert without its required current scope material.
+It contains historical peer identities and requires separately pinned
+`original_grant` and `rea_first` evidence. Preserve those guards. The narrow
+source handoff must identify the manager at `0x146a85460`, its vptr and first
+five slots, then qualify the concrete `+8` open, `+0x10` read and `+0x20` size
+bodies and their necessary helpers. The retained executable source is build
+`1.0.0.2976`; compatibility with a current game installation remains a separate
+run requirement.
+
+B112's `path_probe.hpp` already describes the qualified path call, fresh null
+output holder, one-attempt callback join and process-lifetime retention. Its
+2026-10-19 `source-syntax-result.json` explicitly records `CXX_built=false` and
+no behavior tests or native execution. Fresh pin review confirms that its
+prepared/additional input manifests still match that receipt. This does not
+supply a compiled candidate, current execution ownership or a completed path
+call. The exact-archive reviewer must also accept the captured path.
+
+The read-only process census found no Java, game or compiler process; two Codex
+processes remained unidentified. This session exposes no callable REA/Ghidra
+connection, and plugin lookup found no matching Ghidra connection. No current
+source/provider handoff was established. These are current preparation blockers,
+not a request for the user to start gameplay testing. Historical grants and
+process absence do not establish ownership.
+
+The preceding Python verification used owned temporary fixtures. This
+readiness review ran no application test, native build, source-PE access,
+provider operation or game. Evidence and retained source pins are in
+`workspace/reports/cditem-execution/20261021-native-test-readiness/`.
+All native acceptance conditions remain open.
 
 ### Historical checkpoint boundary
 
