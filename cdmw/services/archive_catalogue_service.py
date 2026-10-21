@@ -270,6 +270,11 @@ class ArchiveCatalogueService(QObject):
     def session(self, session_id: str) -> ArchiveSessionHandle | None:
         return self._sessions.get(self._session_aliases.get(str(session_id), str(session_id)))
 
+    def session_folder_exclusions(self, session_id: str) -> tuple[tuple[str, ...], bool]:
+        """Capture the discovery policy that produced a session, including recovered ones."""
+        session = self.session(session_id)
+        return self._session_ignored_folders.get(session.session_id if session is not None else str(session_id), ((), True))
+
     def cache_health(self, request: CacheHealthRequest, *, ui_generation: int) -> str:
         return self._submit(
             ArchiveBackendOperation.CACHE_HEALTH,

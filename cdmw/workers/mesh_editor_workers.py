@@ -715,6 +715,7 @@ class MeshDirectOutputResult:
     overlay_preparation: OverlayInstallPreparation | None = None
     install_result: object | None = None
     zip_path: Path | None = None
+    archive_result: object | None = None
 
 
 class MeshDirectOutputWorker(QObject):
@@ -740,6 +741,9 @@ class MeshDirectOutputWorker(QObject):
         create_zip: bool = False,
         expected_mesh_revision: int | None = None,
         texture_updates_waiter: Callable[[float], bool] | None = None,
+        archive_dependency_sources: tuple = (),
+        archive_material_sources: tuple = (),
+        inherited_archive_outputs: tuple = (),
     ) -> None:
         super().__init__()
         self.request_id = int(request_id)
@@ -759,6 +763,9 @@ class MeshDirectOutputWorker(QObject):
         self.create_zip = bool(create_zip)
         self.expected_mesh_revision = expected_mesh_revision
         self.texture_updates_waiter = texture_updates_waiter
+        self.archive_dependency_sources = archive_dependency_sources
+        self.archive_material_sources = archive_material_sources
+        self.inherited_archive_outputs = inherited_archive_outputs
         self.stop_event = threading.Event()
 
     def stop(self) -> None:
@@ -777,6 +784,16 @@ class MeshDirectOutputWorker(QObject):
                 stop_event=self.stop_event,
                 expected_mesh_revision=self.expected_mesh_revision,
             )
+            if self.kind == "archive_result":
+                from cdmw.services.mesh_archive_results import prepare_mesh_archive_result
+                if self.output_path is None:
+                    raise ValueError("An archive result needs a workspace output folder.")
+                prepared = prepare_mesh_archive_result(self.service, snapshot, self.entry,
+                    self.archive_dependency_sources, self.output_path, stop_event=self.stop_event,
+                    material_contexts=self.archive_material_sources)
+                self.completed.emit(self.request_id, MeshDirectOutputResult(
+                    kind=self.kind, output_path=prepared.root, archive_result=prepared))
+                return
             if snapshot.hair_state is not None:
                 if self.kind != "overlay_package" or self.manager_profile != "dmm" or self.output_path is None:
                     raise ValueError("Hairstyles require Build Mod → DMM Archive Group to add the complete barber choice.")
@@ -834,6 +851,30 @@ class MeshDirectOutputWorker(QObject):
                             additions.append(ArchiveAddRequest(Path(entry.pamt_path), file.path, file.data))
                 requests.append(ArchivePatchRequest(entry, rebuilt.data))
                 reports.append(component_report)
+            if self.inherited_archive_outputs:
+                from cdmw.services.mesh_archive_results import ADDED_RESULT_NOTE
+                from cdmw.services.archive_read_service import read_archive_entry_data
+                normalize = lambda path: str(path).replace("\\", "/").casefold()
+                added_paths = {normalize(item.path) for item in self.inherited_archive_outputs
+                               if item.prepared_note == ADDED_RESULT_NOTE}
+                # A generated companion may already have become a prepared source
+                # in the next pass. It still needs an addition in the final mod.
+                for request in tuple(requests):
+                    if normalize(request.entry.path) in added_paths:
+                        requests.remove(request)
+                        additions.append(ArchiveAddRequest.from_template(request.entry, request.entry.path, request.payload_data))
+                included = {normalize(request.entry.path) for request in requests}
+                included.update(normalize(request.path) for request in additions)
+                for inherited in self.inherited_archive_outputs:
+                    if normalize(inherited.path) in included:
+                        continue
+                    _raise_export_cancelled(self.stop_event)
+                    data = read_archive_entry_data(inherited, stop_event=self.stop_event)[0]
+                    if inherited.prepared_note == ADDED_RESULT_NOTE:
+                        additions.append(ArchiveAddRequest.from_template(inherited, inherited.path, data))
+                    else:
+                        requests.append(ArchivePatchRequest(inherited, data))
+                    included.add(normalize(inherited.path))
             report = reports[0]
             if self.stop_event.is_set():
                 raise RunCancelled("Mesh output cancelled")
@@ -878,6 +919,7 @@ class MeshDirectOutputWorker(QObject):
         finally:
             if replacement_baselines is not None:
                 replacement_baselines.cleanup()
+            self.archive_material_sources = ()
             self.finished.emit()
 
     def _metadata(self, snapshot: MeshExportSnapshot, report: object) -> bytes:

@@ -197,10 +197,15 @@ def test_page_recovery_preserves_query_and_rejects_changed_source_before_publica
 
 @pytest.mark.parametrize("ignored,use_defaults", [(("Extras/Old", "Backup copies"), True), (("dmmsa",), False), ((), False)])
 def test_worker_recovery_and_refresh_keep_the_session_folder_exclusions(operation, ignored, use_defaults):
+    from cdmw.core.archive_resident_index import ResidentArchiveSource
+
     _, client, service, failures, _ = operation
     service.open_archive(OpenArchiveRequest("C:/game", ignored_folders=ignored, use_default_ignored_folders=use_defaults), ui_generation=1)
-    session = ArchiveSessionHandle("session", "C:/game", "fp", 4, 3, False)
+    session = ArchiveSessionHandle("session", "C:/game", "fp", 4, 3, False, index_path="C:/cache/archive.ali")
     client.result(session)
+    captured = ResidentArchiveSource.capture(service, Path(session.package_root))
+    assert captured.ignored_folders == ignored
+    assert captured.use_default_ignored_folders is use_defaults
     service.create_query(ArchiveQuery(session.session_id), ui_generation=1)
     client.result(ArchiveQueryHandle(session.session_id, "query", 1, 4))
     service.fetch_page(FetchPageRequest("query", 0, 2), ui_generation=1)
@@ -213,6 +218,8 @@ def test_worker_recovery_and_refresh_keep_the_session_folder_exclusions(operatio
     assert to_wire(client.calls[-1][1])["use_default_ignored_folders"] is use_defaults
     client.result(replace(session, session_id="recovered"))
     assert not failures
+    assert service.session_folder_exclusions(session.session_id) == (ignored, use_defaults)
+    assert ResidentArchiveSource.capture(service, Path(session.package_root)) == captured
     service.refresh_archive("C:/game", ui_generation=2)
     assert client.calls[-1][1].ignored_folders == ignored
     assert client.calls[-1][1].use_default_ignored_folders is use_defaults

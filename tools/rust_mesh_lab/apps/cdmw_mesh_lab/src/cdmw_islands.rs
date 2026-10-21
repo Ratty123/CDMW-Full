@@ -162,7 +162,7 @@ impl LabApplication {
                     .cloned()
                     .unwrap_or_default();
                 ui.small(crate::localization::tr("Select a part, then an island to move, scale or edit it."));
-                ui.small(crate::localization::tr("View: viewport only · Mod: include in exported PAC"));
+                ui.small(crate::localization::tr("View: viewport only · Include: exported mesh"));
                 let editing = self.cdmw_state["replacement"]["comparison"]
                     .as_str()
                     .is_none_or(|mode| mode == "edit");
@@ -179,6 +179,10 @@ impl LabApplication {
                                     _ => None,
                                 })).collect();
                             ui.weak(crate::localization::tr(row["name"].as_str().unwrap_or("Part")));
+                            if !row["available"].as_bool().unwrap_or(false)
+                                && let Some(reason) = row["reason"].as_str().filter(|reason| !reason.is_empty()) {
+                                ui.add(egui::Label::new(crate::localization::tr(reason)).wrap());
+                            }
                             for (index, island) in row["islands"].as_array().into_iter().flatten().enumerate() {
                                 let faces = island_faces(island);
                                 let mut shown = !self.cdmw_hidden_islands.iter().any(|hidden| hidden.part == part && hidden.faces == faces);
@@ -188,7 +192,7 @@ impl LabApplication {
                                         actions.push(UiAction::SetIslandVisibility { part, faces: faces.clone(), visible: shown });
                                     }
                                     let mut included = island["included"].as_bool().unwrap_or(true);
-                                    if ui.add_enabled(row["available"].as_bool().unwrap_or(false), egui::Checkbox::new(&mut included, crate::localization::tr("Mod")))
+                                    if ui.add_enabled(row["available"].as_bool().unwrap_or(false), egui::Checkbox::new(&mut included, crate::localization::tr("Include")))
                                         .on_disabled_hover_text(crate::localization::tr(row["reason"].as_str().unwrap_or_default()))
                                         .on_hover_text(crate::localization::tr("Reversible output exclusion across all LODs; keeps the part and material"))
                                         .changed() {

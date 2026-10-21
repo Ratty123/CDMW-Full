@@ -7,13 +7,24 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 ## [Unreleased]
 
+### Added
+
+- Mesh Editor can continue directly from a finished game-format mesh or add it to Archive Browser for another editing pass, retaining source materials, textures, rig and physics dependencies without changing the game archive path.
+
 ### Changed
 
+- Mesh Editor groups its Finish actions, distinguishes Resume current edit from Start next edit pass, and adds clickable help. Overlay restoration is removed from this page.
+- Create New Item re-enables DMM export for testing with updated DMM versions. In-game item and texture compatibility remains unverified.
 - Settings lists all ignored folders together and lets you remove any default. Archive scans also ignore `dmmsa`, `dmmgen` and `CrimsonFastLoad.backup` by default, while preserving saved custom exclusions.
 
 ### Fixed
 
-- Mesh Editor Remove Duplicates supports skinned meshes in Free Edit and Exact PAC LOD0 output, preserving source weights and safely updating identical stored LODs. Other Exact cleanup actions remain restricted.
+- Create New Item respects ignored archive folders, so excluded `dmmsa`, `dmmgen` and custom mod folders no longer block loading as missing archives.
+- Mesh Editor fixes false topology errors when finishing reopened geometry edits. Parts and mesh islands use Include for output exclusion, explain restrictions and blocked Delete actions, and offer Free Edit where supported. Completed fitting, imports and geometry edits can continue from the finished mesh.
+- Mesh Editor preserves colours and texture layers when starting another edit pass or reopening an edited Archive Browser result, including after the original editing session closes.
+- Mesh Editor replacement imports clarify scope, part mappings and Free Edit restrictions. Compatible GLB/glTF skins retain authored weights on PAC targets, and imported materials resolve differing equipment labels while preserving untouched parts and variants. Rig retargeting remains unavailable, and game animation is unverified.
+- Mesh Editor keeps larger or offset replacement meshes visible while orbiting the camera, without resetting the current view.
+- Mesh Editor Free Edit lets imported meshes choose or change their output folder and avoids clone-related whole-Part deletion failures while retaining Undo/Redo. Remove Duplicates supports skinned meshes in Free Edit and Exact PAC LOD0 output, preserving source weights and safely updating identical stored LODs. Other Exact cleanup actions remain restricted. Physics labels identify retained source data and explain that OBJ output does not preserve game physics.
 - Mesh Editor opens successive PAC files from either Archive Browser action without getting stuck waiting for a previous mesh's textures.
 - Switching away from Create New Item while its interface starts no longer causes a false timeout. Returning continues the same workspace.
 

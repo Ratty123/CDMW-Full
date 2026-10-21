@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, replace
+import copy
 import hashlib
 from pathlib import Path
 from uuid import uuid4
@@ -38,7 +39,7 @@ def archive_entry(file: ReplacementFile):
 
 def initial_replacement_state(snapshot, entry=None, dependencies=()):
     if snapshot.archive_refit_context is not None:
-        raise ValueError("Undo the active Morph & Refit archive bindings before using replacement.")
+        raise ValueError("Finish Morph & Refit, then choose Start next edit pass before changing part inclusion or importing replacements.")
     if not snapshot.original_data or snapshot.mesh.format.lower() not in {"pac", "pam", "pamlod"}:
         raise ValueError("Replacement requires an eligible original PAC, PAM or PAMLOD archive mesh.")
     original = parse_mesh(snapshot.original_data, snapshot.mesh.path)
@@ -55,6 +56,11 @@ def initial_replacement_state(snapshot, entry=None, dependencies=()):
 
 def mesh_with_part_ids(snapshot, state):
     mesh = _clone_mesh_for_service_native_snapshot(snapshot.mesh, "replacement.compose", "Replacement snapshot failed")
+    # These resolved rig inputs are attached during export capture, outside
+    # the native geometry payload. Keep them through the neutral-mode setup.
+    for name in ("interchange_skeleton", "interchange_bone_palette"):
+        if hasattr(snapshot.mesh, name):
+            setattr(mesh, name, copy.deepcopy(getattr(snapshot.mesh, name)))
     if snapshot.replacement_state is None:
         for part, binding in zip(mesh.submeshes, state.parts):
             setattr(part, PART_ID_ATTRIBUTE, binding.part_id)
@@ -159,11 +165,12 @@ def prepare_import(snapshot, path, *, target_part_ids=(), entry=None, dependenci
         # The material choice follows geometry preparation. Retain its failure
         # for imported-material mode without blocking Keep Original Materials.
         material_error = str(exc)
-    source = import_scene_mesh_with_report(source_path, tolerate_missing_texture_files=True, stop_event=stop_event)
+    source = import_scene_mesh_with_report(source_path, tolerate_missing_texture_files=True,
+                                           preserve_skinning=True, stop_event=stop_event)
     if not source.mesh.submeshes or not source.mesh.total_faces:
         raise ValueError("The imported model has no editable triangle geometry.")
-    if source.mesh.has_bones or any(part.bone_weights for part in source.mesh.submeshes):
-        raise ValueError("Imported skinning is not supported by this replacement workflow. Import an unskinned model.")
+    from cdmw.services.mesh_replacement_skinning import retain_imported_skinning
+    source.mesh = retain_imported_skinning(source.mesh, snapshot, state)
     if not material_error:
         try:
             for binding in source.material_bindings:
@@ -207,6 +214,16 @@ def compose_import(pending, source_targets, *, material_choice="original", compa
         indices[key], candidate.submeshes[indices[key]].name,
         [index for index, target in enumerate(targets) if target == key], indices[key],
     ) for key in pending.target_part_ids]
+    # Mixing an authored skin with an unweighted source would make the generic
+    # merge drop its rows and transfer donor weights for the whole target.
+    for mapping in mappings:
+        sources = [pending.source.mesh.submeshes[i] for i in mapping.source_submesh_indices]
+        if any(part.bone_weights for part in sources):
+            from cdmw.modding.mesh_parser import PAC_SKIN_WEIGHT_LAYOUT
+            if candidate.submeshes[mapping.target_submesh_index].source_skin_weight_layout != PAC_SKIN_WEIGHT_LAYOUT:
+                raise ValueError("The selected target cannot encode imported skin weights in a proven PAC layout.")
+            if any(not part.bone_weights for part in sources):
+                raise ValueError("Map skinned and unskinned imported parts to separate game parts to preserve authored skin weights.")
     preview = build_static_replacement_preview_mesh(candidate, pending.source.mesh, manual_replacement_options(mappings))
     skin_reference = None
     if pending.state.neutral_appearance is not None:

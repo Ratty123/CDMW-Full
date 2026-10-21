@@ -612,6 +612,40 @@ fn physics_detection_morph_refit_block_pauses_regions_and_recovers() -> TestResu
 }
 
 #[test]
+fn physics_detection_free_edit_distinguishes_source_geometry_and_output() -> TestResult {
+    let (_root, mut ui, _) = fixture()?;
+    let authored = ui.application.mesh.as_ref().unwrap().draw_snapshot();
+    let output_reason = "Free Edit exports OBJ; game rig, cloth, jiggle and physics profiles are not preserved.";
+    ui.application.cdmw_state["physics"] = json!({"parts": [{
+        "index": 0, "name": "Source cloth", "kind": "cloth", "mode_source": "profile",
+        "source_only": true, "geometry_eligible": true, "output_supported": false,
+        "output_reason": output_reason, "guide_counts": [3], "vertex_counts": [3],
+        "jiggle_counts": [1], "profiles": [{"variant": "0", "profile": "Lower Fabric", "mode": "cloth"}]
+    }]});
+    ui.application.cdmw_state["cloth"] = json!({"available": false, "reason": output_reason, "parts": []});
+    ui.application.cdmw_state["jiggle"] = json!({"available": false, "reason": output_reason,
+        "parts": [], "overlay_parts": []});
+    ui.application.handle_actions(vec![UiAction::SetPartSelection(vec![0])]);
+    ui.application.cdmw_pending_request = None;
+    ui.settle_layout();
+    ui.reveal("Physics: Cloth + jiggle (source)")?;
+    ui.reveal("Current geometry retains the source binding layout; edited physics is unverified.")?;
+    ui.reveal("Variant 0: Lower Fabric (cloth)")?;
+    ui.reveal(output_reason)?;
+    assert!(ui.label_rect("Cloth + jiggle (source)").is_some());
+    assert!(ui.label_rect("Unknown physics").is_none());
+    ui.application.cdmw_state["physics"]["parts"][0]["geometry_eligible"] = json!(false);
+    ui.settle_layout();
+    ui.reveal("Current geometry no longer has the source binding layout; these are source facts only.")?;
+    ui.click_tool_button("Cloth")?;
+    ui.reveal(output_reason)?;
+    assert!(ui.label_rect("Apply cloth settings").is_none());
+    assert_eq!(ui.application.mesh.as_ref().unwrap().draw_snapshot(), authored);
+    assert!(ui.application.cdmw_pending_request.is_none());
+    Ok(())
+}
+
+#[test]
 fn physics_detection_keeps_unknown_guides_distinct_from_no_bindings() -> TestResult {
     let (_root, mut ui, _) = fixture()?;
     ui.application.cdmw_state["physics"] = json!({"parts": [{

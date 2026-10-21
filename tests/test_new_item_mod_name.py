@@ -9,7 +9,6 @@ import pytest
 
 from tests.test_new_item_rust_ui import _send, studio
 from cdmw.domain.packages.layout import sanitize_mod_package_folder_name
-from cdmw.services.new_item_rust_protocol import PresentationProtocolError
 
 
 @pytest.mark.parametrize(
@@ -74,7 +73,7 @@ def test_rust_mod_name_reaches_export_metadata_without_replanning(studio, entere
         fixture.opened_folders.assert_not_called()
 
 
-@pytest.mark.parametrize("manager", ["DMM", "Unknown", ""])
+@pytest.mark.parametrize("manager", ["Unknown", ""])
 def test_new_item_refuses_unavailable_managers_before_starting_export(studio, manager):
     fixture, tab, _bridge = studio
     tab.show_step(1)
@@ -91,11 +90,10 @@ def test_new_item_refuses_unavailable_managers_before_starting_export(studio, ma
         run.assert_not_called()
     assert not folder.exists()
     assert messages[-1][1]
-    expected = "DMM is temporarily disabled" if manager == "DMM" else "Choose CDUMM or JMM"
-    assert expected in messages[-1][0]
+    assert "Choose CDUMM, JMM or DMM" in messages[-1][0]
 
 
-@pytest.mark.parametrize("manager", ["CDUMM", "JMM"])
+@pytest.mark.parametrize("manager", ["CDUMM", "JMM", "DMM"])
 def test_rust_manager_selection_exports_the_complete_package(studio, manager):
     from cdmw.services.new_item_mod_base import mod_folder_payloads
 
@@ -107,7 +105,6 @@ def test_rust_manager_selection_exports_the_complete_package(studio, manager):
     panel = tab.output_panel
     assert _send(bridge, panel.manager, "choose", panel.manager.findText(manager))["type"] == "ack"
     assert tab.controller.draft.manager == manager
-    assert panel.dmm_warning.isVisibleTo(tab)
     _send(bridge, panel.export_root, "text", str(fixture.root / "mods"))
     _send(bridge, panel.mod_name, "text", "Manager test")
     _send(bridge, panel.open_folder_after_creation, "toggle", False)
@@ -123,36 +120,36 @@ def test_rust_manager_selection_exports_the_complete_package(studio, manager):
         manifest = json.loads((folder / "manifest.json").read_text(encoding="utf-8"))
         assert manifest["manager_targets"] == ["cdumm"]
         assert (folder / "files").is_dir()
+    elif manager == "DMM":
+        manifest = json.loads((folder / "manifest.json").read_text(encoding="utf-8"))
+        assert manifest["manager_targets"] == ["dmm"]
+        assert manifest["structure"] == "archive_group"
+        assert manifest["archive_group"] == "0036"
+        assert (folder / "0036/0.pamt").is_file()
+        assert (folder / "0036/0.paz").is_file()
+        assert not (folder / "meta/0.papgt").exists()
     else:
         assert (folder / "gamedata").is_dir()
         assert not (folder / "files").exists()
 
 
-def test_dmm_is_disabled_in_rust_with_a_readable_reason_in_mod_folder_mode(studio):
+def test_dmm_is_selectable_in_rust_and_retained_across_output_modes(studio):
     _, tab, bridge = studio
     tab.show_step(6)
     panel = tab.output_panel
     choice = bridge.document.widget(panel.manager, force=True)
     dmm = next(option for option in choice["props"]["options"] if option["text"] == "DMM")
-    assert not dmm["enabled"]
-    assert all(option["enabled"] for option in choice["props"]["options"] if option["text"] != "DMM")
-    with pytest.raises(PresentationProtocolError, match="This choice is unavailable"):
-        _send(bridge, panel.manager, "choose", dmm["index"])
-    assert panel.manager.currentText() == tab.controller.draft.manager == "CDUMM"
-    warning = bridge.document.widget(panel.dmm_warning, force=True)
-    assert panel.dmm_warning.isVisibleTo(tab)
-    assert warning["props"]["text"] == dmm["tooltip"] == (
-        "DMM is temporarily disabled. DMM 3.5.0 can lose new items and skip their textures. Use JMM or CDUMM.")
-    assert warning["props"]["wrap"]
+    assert all(option["enabled"] for option in choice["props"]["options"])
+    assert _send(bridge, panel.manager, "choose", dmm["index"])["type"] == "ack"
+    assert panel.manager.currentText() == tab.controller.draft.manager == "DMM"
     _send(bridge, panel.overlay_mode_button, "activate")
-    assert not panel.dmm_warning.isVisibleTo(tab)
+    assert not panel.folder_controls.isVisibleTo(tab)
     _send(bridge, panel.folder_mode_button, "activate")
-    assert panel.dmm_warning.isVisibleTo(tab)
-    _send(bridge, panel.manager, "choose", panel.manager.findText("JMM"))
-    assert panel.dmm_warning.isVisibleTo(tab)
+    assert panel.folder_controls.isVisibleTo(tab)
+    assert panel.manager.currentText() == tab.controller.draft.manager == "DMM"
 
 
-@pytest.mark.parametrize(("saved_manager", "expected_manager"), [("DMM", "CDUMM"), ("JMM", "JMM"), ("Unknown", "CDUMM")])
+@pytest.mark.parametrize(("saved_manager", "expected_manager"), [("DMM", "DMM"), ("JMM", "JMM"), ("Unknown", "CDUMM")])
 def test_output_reconciles_saved_manager_with_available_exports(studio, saved_manager, expected_manager):
     from cdmw.ui.new_item.panels_output import OutputPanel
 
@@ -162,8 +159,7 @@ def test_output_reconciles_saved_manager_with_available_exports(studio, saved_ma
     try:
         assert panel.manager.currentText() == tab.controller.draft.manager == expected_manager
         assert panel.manager.findText("DMM") >= 0
-        assert not panel.manager.model().item(panel.manager.findText("DMM")).isEnabled()
-        assert not panel.dmm_warning.isHidden()
+        assert panel.manager.model().item(panel.manager.findText("DMM")).isEnabled()
     finally:
         panel.deleteLater()
 

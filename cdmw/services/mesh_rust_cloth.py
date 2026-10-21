@@ -7,9 +7,19 @@ from dataclasses import replace
 from cdmw.domain.mesh.cloth import PacClothRule
 from cdmw.modding.pac_cloth import pac_cloth_binding, pac_cloth_lods
 from cdmw.modding.pac_cloth_guides import decode_pac_cloth_guides, inspect_guide_profile_admission
+from cdmw.modding.pac_jiggle import PAC_JIGGLE_MASK, PAC_JIGGLE_OFFSET
 from cdmw.services.mesh_replacement_import import (
     commit_replacement, initial_replacement_state, mesh_with_part_ids,
 )
+
+
+def source_part_index(current, source_descriptors):
+    """Match source ownership after structural edits without guessing by row/name."""
+    descriptor = current.source_descriptor_offset
+    if descriptor is None or descriptor < 0:
+        return -1
+    matches = [index for index, value in enumerate(source_descriptors) if value == descriptor]
+    return matches[0] if len(matches) == 1 else -1
 
 
 def cloth_ui_state(authoring, replacement):
@@ -24,11 +34,14 @@ def cloth_ui_state(authoring, replacement):
     elif replacement.get("blocked_by") == "morph_refit":
         blocked_by = "morph_refit"
         reason = "Physics inspection is blocked by Morph & Refit. Existing physics data is unchanged."
-    if reason:
+    source_only = (session.output_policy == "free_edit_rebuild" and session.mesh_format == "pac"
+                   and bool(session.original_data) and session.lod_index == 0
+                   and session.hair_state is None and not blocked_by)
+    if reason and not source_only:
         return {"available": False, "reason": reason, "blocked_by": blocked_by, "parts": []}
     from cdmw.services.mesh_rust_cloth_guides import authored_cloth_source
     try:
-        data, _ = authored_cloth_source(authoring, session)
+        data, _ = (session.original_data, None) if source_only else authored_cloth_source(authoring, session)
     except ValueError as exc:
         return {"available": False, "reason": str(exc), "parts": []}
     appearance = state.neutral_appearance if state and state.neutral_appearance is not None else authoring.neutral_appearance
@@ -54,10 +67,14 @@ def cloth_ui_state(authoring, replacement):
                 counts = [sum(binding is not None for binding in level) for level in bindings]
                 rows.append({"source_count": len(heights), "lod_counts": counts,
                              "lod_vertices": [len(level.submeshes[index].vertices) for level in levels],
+                             "source_jiggle_counts": [sum(data[offset + PAC_JIGGLE_OFFSET] & PAC_JIGGLE_MASK != PAC_JIGGLE_MASK
+                                                         for offset in level.submeshes[index].source_vertex_offsets)
+                                                      for level in levels],
                              "max_guide_index": max((slot for level in bindings for binding in level
                                                      if binding is not None for slot in binding[1]), default=-1),
                              "min_y": min(heights, default=0.0), "max_y": max(heights, default=0.0)})
-            metadata = {"parts": rows, "lod_count": len(levels), "reason": "", "guides": guide_state}
+            metadata = {"parts": rows, "source_parts": levels[0].submeshes,
+                        "lod_count": len(levels), "reason": "", "guides": guide_state}
         except ValueError as exc:
             metadata = {"parts": [], "lod_count": 0, "reason": str(exc), "guides": guide_state}
         authoring.cloth_source_cache = (data, appearance, metadata)
@@ -68,17 +85,30 @@ def cloth_ui_state(authoring, replacement):
     inspected = []
     for part in replacement["parts"]:
         binding = bindings.get(part["id"])
-        index = binding.target_index if binding else part["index"]
+        current = session.working_mesh.submeshes[part["index"]]
+        index = (source_part_index(current, [row.source_descriptor_offset for row in metadata.get("source_parts", ())])
+                 if source_only else binding.target_index if binding else part["index"])
         if not 0 <= index < len(metadata["parts"]):
             continue
         source = metadata["parts"][index]
         row = {**part, **source, "rule": binding.cloth.to_dict() if binding and binding.cloth else None}
+        if source_only:
+            original = metadata["source_parts"][index]
+            row["geometry_eligible"] = (
+                current.topology_provenance is None
+                and len(current.vertices) == len(original.vertices)
+                and current.source_vertex_map == original.source_vertex_map
+                and current.source_vertex_offsets == original.source_vertex_offsets
+                and current.faces == original.faces
+            )
         inspected.append(row)
         if not any(source["lod_counts"]):
             continue
         parts.append(row)
-    reason = metadata["reason"] or ("This PAC has no existing cloth bindings." if not parts else "")
-    return {"available": not reason, "reason": reason, "parts": parts, "lod_count": metadata["lod_count"],
+    reason = ("Free Edit exports OBJ; game rig, cloth, jiggle and physics profiles are not preserved."
+              if source_only else metadata["reason"] or ("This PAC has no existing cloth bindings." if not parts else ""))
+    return {"available": not reason, "reason": reason, "parts": [] if source_only else parts,
+            "source_only": bool(source_only), "lod_count": metadata["lod_count"],
             "inspected_parts": inspected, "inspection_reason": metadata["reason"], "guides": metadata["guides"]}
 
 
@@ -105,6 +135,9 @@ def physics_detection_ui_state(replacement, cloth, jiggle, profiles):
         jiggle_source = jiggle_parts.get(part["id"])
         jiggle_counts = (jiggle_source["lod_counts"] if jiggle_source else
                          [0] * len(guide_counts) if jiggle.get("lod_count") == len(guide_counts) else [])
+        source_only = cloth.get("source_only", False)
+        if source_only and source:
+            jiggle_counts = source["source_jiggle_counts"]
         kind, mode_source, reason = "unknown", "", ""
         assignments = []
         for binding in profile_parts.get(part["id"], {}).get("bindings", ()):
@@ -114,6 +147,8 @@ def physics_detection_ui_state(replacement, cloth, jiggle, profiles):
             if cloth.get("blocked_by") == "morph_refit" or jiggle.get("blocked_by") == "morph_refit":
                 kind = "blocked"
             reason = cloth.get("inspection_reason") or cloth.get("reason") or jiggle.get("reason", "")
+            if source_only and source is None and not cloth.get("inspection_reason"):
+                reason = "This part cannot be matched to an original PAC source part."
         elif not any(guide_counts):
             kind = "jiggle" if any(jiggle_counts) else "none"
         else:
@@ -150,7 +185,7 @@ def physics_detection_ui_state(replacement, cloth, jiggle, profiles):
         current_jiggle = overlay.get("current_bytes") if overlay.get("available") else None
         decoded = jiggle.get("decoded", {})
         preview_reason = ""
-        if any(guide_counts):
+        if any(guide_counts) and not source_only:
             preview_reason = ("spline_preview_approximate" if kind == "spline" else
                               decoded.get("reason") if not decoded.get("available") else
                               decoded.get("cloth", {}).get("reason", ""))
@@ -161,6 +196,10 @@ def physics_detection_ui_state(replacement, cloth, jiggle, profiles):
                      "current_guide_count": sum(value < 63 for value in current_guides) if current_guides is not None else None,
                      "current_jiggle_count": sum(value & 15 != 15 for value in current_jiggle) if current_jiggle is not None else None,
                      "preview_reason": preview_reason or ""})
+        if source_only:
+            rows[-1].update(source_only=True, output_supported=False, output_reason=cloth["reason"],
+                            geometry_eligible=bool(source and source["geometry_eligible"]),
+                            current_guide_count=None, current_jiggle_count=None)
     return {"parts": rows}
 
 

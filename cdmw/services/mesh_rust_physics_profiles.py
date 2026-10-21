@@ -129,10 +129,11 @@ def physics_profiles_ui_state(authoring, replacement):
         try:
             source = parse_pac(data, context.source_identity.normalized_path)
             names = tuple(part.name for part in source.submeshes)
+            descriptors = tuple(part.source_descriptor_offset for part in source.submeshes)
             problem = ""
             groups = _assignment_groups(context, names)
         except (ValueError, OSError) as exc:
-            names, groups, problem = (), [], str(exc)
+            names, descriptors, groups, problem = (), (), [], str(exc)
         sources = []
         for document in context.profiles:
             symbols = dict.fromkeys(binding.profile_name for binding in context.bindings if binding.profile_path == document.path)
@@ -168,15 +169,18 @@ def physics_profiles_ui_state(authoring, replacement):
                         metadata["profiles"].append({**_profile_preview(document), "edited": True})
             except (ValueError, KeyError, AttributeError) as exc:
                 metadata["reason"] = str(exc)
-        cached = (data, incoming, state, metadata, names, context, bindings)
+        cached = (data, incoming, state, metadata, names, context, bindings, descriptors)
         authoring.physics_profile_cache = cached
-    _, _, _, metadata, names, context, source_bindings = cached
+    _, _, _, metadata, names, context, source_bindings, descriptors = cached
     targets = {part.part_id: part.target_index for part in state.parts} if state else {}
     parts = []
     for part in replacement["parts"]:
         # A renamed/replaced part retains its original target. Unmapped parts
         # never acquire an assignment by matching their current display name.
         index = targets.get(part["id"], -1) if state else part["index"]
+        if session.output_policy == "free_edit_rebuild":
+            from cdmw.services.mesh_rust_cloth import source_part_index
+            index = source_part_index(session.working_mesh.submeshes[part["index"]], descriptors)
         name = names[index] if 0 <= index < len(names) else ""
         bindings = [{"variant": binding.variant_index, "profile": binding.profile_name,
                      "path": binding.profile_path, "material": binding.material_name,

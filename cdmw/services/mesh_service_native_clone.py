@@ -29,6 +29,13 @@ _SHARED_IMMUTABLE_VALIDATION_METADATA = frozenset(
 )
 
 
+def _native_clone_failure_detail(mesh: ParsedMesh, stage: str) -> str:
+    if getattr(mesh, "lod_levels", None):
+        return f"{stage}: native submesh snapshots do not support LOD collections"
+    detail = str(_service_call("last_native_mesh_core_job_error") or "").strip()
+    return f"{stage}: {detail or 'native snapshot payload was unavailable or invalid'}"
+
+
 def _copy_mesh_validation_metadata(source: ParsedMesh, target: ParsedMesh) -> None:
     for name in (
         "_cdmw_original_data",
@@ -66,9 +73,13 @@ def _clone_mesh_pair_for_session_open(mesh: ParsedMesh) -> tuple[ParsedMesh, Par
             guard_native_supported=False,
         )
     native_snapshot: Mapping[str, object] | None = None
+    stage = "snapshot creation"
+    failure = ""
     try:
         native_snapshot = _service_call("snapshot_native_mesh_submeshes", mesh)  # type: ignore[assignment]
+        failure = _native_clone_failure_detail(mesh, stage) if native_snapshot is None else ""
         if native_snapshot is not None:
+            stage = "snapshot restoration"
             working_mesh = ParsedMesh()
             base_mesh = ParsedMesh()
             if (
@@ -78,16 +89,20 @@ def _clone_mesh_pair_for_session_open(mesh: ParsedMesh) -> tuple[ParsedMesh, Par
                 refresh_mesh_totals(working_mesh)
                 refresh_mesh_totals(base_mesh)
                 return working_mesh, base_mesh
-    except Exception:
-        pass
+            failure = _native_clone_failure_detail(mesh, stage)
+    except Exception as exc:
+        failure = f"{stage}: {type(exc).__name__}: {exc}"
     finally:
         if native_snapshot is not None:
             _service_call("dispose_native_mesh_submesh_snapshot", native_snapshot)
-    return _clone_mesh_pair_for_service_python_fallback(
-        mesh,
-        "session.open_clone",
-        "Python edit-session open clone fallback blocked while native mesh core is available",
-    )
+    try:
+        return _clone_mesh_pair_for_service_python_fallback(
+            mesh,
+            "session.open_clone",
+            "Python edit-session open clone fallback blocked while native mesh core is available",
+        )
+    except RuntimeError as exc:
+        raise RuntimeError(f"{exc} [{failure}]") from exc
 
 
 def _clone_mesh_for_service_native_snapshot(mesh: ParsedMesh, operation: str, reason: str) -> ParsedMesh:
@@ -99,20 +114,29 @@ def _clone_mesh_for_service_native_snapshot(mesh: ParsedMesh, operation: str, re
             guard_native_supported=False,
         )
     native_snapshot: Mapping[str, object] | None = None
+    stage = "snapshot creation"
+    failure = ""
     try:
         native_snapshot = _service_call("snapshot_native_mesh_submeshes", mesh)  # type: ignore[assignment]
+        failure = _native_clone_failure_detail(mesh, stage) if native_snapshot is None else ""
         if native_snapshot is not None:
+            stage = "snapshot restoration"
             restored_mesh = ParsedMesh()
             if _service_call("restore_native_mesh_submesh_snapshot", restored_mesh, native_snapshot):
                 refresh_mesh_totals(restored_mesh)
+                stage = "snapshot metadata copy"
                 _copy_mesh_validation_metadata(mesh, restored_mesh)
                 return restored_mesh
-    except Exception:
-        pass
+            failure = _native_clone_failure_detail(mesh, stage)
+    except Exception as exc:
+        failure = f"{stage}: {type(exc).__name__}: {exc}"
     finally:
         if native_snapshot is not None:
             _service_call("dispose_native_mesh_submesh_snapshot", native_snapshot)
-    return _clone_mesh_for_service_python_fallback(mesh, operation, reason)
+    try:
+        return _clone_mesh_for_service_python_fallback(mesh, operation, reason)
+    except RuntimeError as exc:
+        raise RuntimeError(f"{exc} [{failure}]") from exc
 
 
 def _clone_history_snapshot_for_python_fallback(session: _MeshEditSession) -> _MeshHistorySnapshot:

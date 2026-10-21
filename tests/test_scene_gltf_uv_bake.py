@@ -74,17 +74,19 @@ def _write_general_gltf(
     multi_uv: bool,
     include_tangent: bool = True,
     shared_transform: bool = False,
+    skinned: bool = False,
+    duplicate_face: bool = False,
 ) -> Path:
     chunks: list[bytes] = []
     views: list[dict[str, int]] = []
     accessors: list[dict[str, int | str]] = []
 
-    def add(rows: list[tuple[float, ...]], kind: str) -> int:
-        raw = struct.pack(f"<{sum(len(row) for row in rows)}f", *(value for row in rows for value in row))
+    def add(rows: list[tuple[float, ...]], kind: str, code="f", component_type=5126) -> int:
+        raw = struct.pack(f"<{sum(len(row) for row in rows)}{code}", *(value for row in rows for value in row))
         offset = sum(len(chunk) for chunk in chunks)
         chunks.append(raw + b"\0" * ((-len(raw)) % 4))
         views.append({"buffer": 0, "byteOffset": offset, "byteLength": len(raw)})
-        accessors.append({"bufferView": len(views) - 1, "componentType": 5126, "count": len(rows), "type": kind})
+        accessors.append({"bufferView": len(views) - 1, "componentType": component_type, "count": len(rows), "type": kind})
         return len(accessors) - 1
 
     attributes = {
@@ -95,11 +97,15 @@ def _write_general_gltf(
     }
     if include_tangent:
         attributes["TANGENT"] = add([(1.0, 0.0, 0.0, -1.0)] * 3, "VEC4")
-    index_raw = struct.pack("<3H", 0, 1, 2)
+    if skinned:
+        attributes["JOINTS_0"] = add([(0, 1, 0, 0)] * 3, "VEC4", "H", 5123)
+        attributes["WEIGHTS_0"] = add([(.25, .75, 0, 0), (1, 0, 0, 0), (.6, .4, 0, 0)], "VEC4")
+    indices = (0, 1, 2) * (2 if duplicate_face else 1)
+    index_raw = struct.pack(f"<{len(indices)}H", *indices)
     index_offset = sum(len(chunk) for chunk in chunks)
     chunks.append(index_raw + b"\0" * ((-len(index_raw)) % 4))
     views.append({"buffer": 0, "byteOffset": index_offset, "byteLength": len(index_raw)})
-    accessors.append({"bufferView": len(views) - 1, "componentType": 5123, "count": 3, "type": "SCALAR"})
+    accessors.append({"bufferView": len(views) - 1, "componentType": 5123, "count": len(indices), "type": "SCALAR"})
     texture_transform = {"rotation": math.pi / 2.0}
     if shared_transform:
         texture_transform["scale"] = [0.5, 1.5]
@@ -131,6 +137,11 @@ def _write_general_gltf(
         "scenes": [{"nodes": [0]}],
         "scene": 0,
     }
+    if skinned:
+        document["nodes"][0]["skin"] = 0
+        document["nodes"].extend([{"name": "first"}, {"name": "second"}])
+        document["skins"] = [{"joints": [1, 2]}]
+        document["scenes"][0]["nodes"].extend([1, 2])
     (root / "mesh.bin").write_bytes(b"".join(chunks))
     Image.new("RGBA", (16, 16), (180, 90, 30, 255)).save(root / "base.png")
     source_normal = (0.6, 0.3, math.sqrt(1.0 - 0.6**2 - 0.3**2))
@@ -194,6 +205,45 @@ def test_general_gltf_import_bakes_different_slots_to_runtime_texcoord0(
     assert math.degrees(math.acos(float(np.clip(np.dot(decoded, expected), -1.0, 1.0)))) <= 1.0
     assert submesh.preview_normal_texture_strength == pytest.approx(1.0)
     assert len(tangent_uv_calls) == 1
+
+
+@pytest.mark.parametrize("duplicate_face", [False, True])
+def test_skinned_multi_uv_import_preserves_weights_through_reordering_and_seams(tmp_path, duplicate_face):
+    path = _write_general_gltf(tmp_path, multi_uv=True, skinned=True, duplicate_face=duplicate_face)
+    remap = [2, 0, 1] * (2 if duplicate_face else 1)
+
+    def fake_xatlas(temporary_mesh, _indices, **_kwargs):
+        part = temporary_mesh.submeshes[0]
+        part.vertices = [part.vertices[index] for index in remap]
+        part.normals = [part.normals[index] for index in remap]
+        part.uvs = [(0., 1.), (1., 1.), (0., 0.)] * (2 if duplicate_face else 1)
+        part.source_vertex_map = remap
+        part.faces = [(i, i + 1, i + 2) for i in range(0, len(remap), 3)]
+        part.auto_uv_report = {"unwrap_backend": "xatlas", "chart_count": 2 if duplicate_face else 1,
+                              "topology_changed": duplicate_face}
+        return {0: range(len(remap))}
+
+    def fake_tangents(temporary_mesh, _indices, **_kwargs):
+        part = temporary_mesh.submeshes[0]
+        part.tangents = [(1., 0., 0.)] * len(part.vertices)
+        part.tangent_signs = [-1.] * len(part.vertices)
+        return {0}
+
+    with (
+        patch("cdmw.modding.scene_gltf_uv_bake.apply_native_mesh_auto_uv", side_effect=fake_xatlas),
+        patch("cdmw.modding.scene_gltf_uv_bake.apply_native_mesh_generate_tangents", side_effect=fake_tangents),
+    ):
+        result = import_scene_mesh_with_report(path, include_external_audit=False, preserve_skinning=True)
+    part = result.mesh.submeshes[0]
+    source_positions = [(0., 0., 0.), (1., 0., 0.), (0., 1., 0.)]
+    source_indices = [(0, 1), (0,), (0, 1)]
+    source_weights = [(.25, .75), (1.,), (.6, .4)]
+    assert part.vertices == [source_positions[index] for index in remap]
+    assert part.bone_indices == [source_indices[index] for index in remap]
+    for weights, source in zip(part.bone_weights, remap):
+        assert weights == pytest.approx(source_weights[source])
+    assert [part.interchange_skin["nodes"][joint]["name"] for joint in part.interchange_skin["joints"]] == ["first", "second"]
+    assert result.uv_bake_report["materials"][0]["mode"] == "xatlas_raster_bake"
 
 
 def test_shared_transform_without_authored_tangents_keeps_raw_source_mikk_frame(
@@ -496,6 +546,9 @@ def test_xatlas_seam_remap_and_duplicate_face_accounting_are_exact() -> None:
         faces=[(0, 1, 2), (0, 2, 3)],
         vertex_count=4,
         face_count=2,
+        bone_indices=[(0,), (1,), (2,), (3,)],
+        bone_weights=[(1.0,)] * 4,
+        interchange_skin={"name": "owned rig"},
     )
     mesh = ParsedMesh(submeshes=[quad], total_vertices=4, total_faces=2, has_uvs=True)
     plan = GltfMaterialUvPlan(
@@ -531,6 +584,9 @@ def test_xatlas_seam_remap_and_duplicate_face_accounting_are_exact() -> None:
     assert mesh.submeshes[0].source_vertex_map == remap
     assert mesh.submeshes[0].source_vertex_map_authority == "topology"
     assert len(mesh.submeshes[0].vertices) == 6
+    assert mesh.submeshes[0].bone_indices == [(index,) for index in remap]
+    assert mesh.submeshes[0].bone_weights == [(1.0,)] * 6
+    assert mesh.submeshes[0].interchange_skin == quad.interchange_skin
 
     invalid = _build_combined_material(ParsedMesh(submeshes=[quad]), plan, [record])
     invalid_output = invalid.mesh.submeshes[0]

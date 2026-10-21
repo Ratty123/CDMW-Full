@@ -174,7 +174,7 @@ fn island_controls_dispatch_exact_mod_mask_and_preserve_deformation_alignment() 
     ui.click("Mesh islands")?;
     let row = ui.reveal("Island 1 · 1 faces")?;
     ui.last_actions.clear();
-    ui.click_where("Mod", |rect| (rect.center().y - row.center().y).abs() < 2.0)?;
+    ui.click_where("Include", |rect| (rect.center().y - row.center().y).abs() < 2.0)?;
     let actions = std::mem::take(&mut ui.last_actions);
     assert!(actions.iter().any(|action| matches!(action,
         UiAction::CdmwCommand { command:"replacement_islands", arguments, .. }
@@ -205,5 +205,48 @@ fn island_controls_dispatch_exact_mod_mask_and_preserve_deformation_alignment() 
         .swap(0, 1);
     ui.application.sync_island_visibility();
     assert!(ui.application.cdmw_hidden_islands.is_empty());
+    Ok(())
+}
+
+#[test]
+fn island_controls_explain_disabled_mod_and_reenable_after_host_update() -> TestResult {
+    let mut ui = island_ui(egui::vec2(1440.0, 1080.0))?;
+    let reason = "Finish Morph & Refit, then choose Continue editing modified mesh to change island inclusion.";
+    ui.application.cdmw_state["mesh_islands"]["parts"][0]["available"] = json!(false);
+    ui.application.cdmw_state["mesh_islands"]["parts"][0]["reason"] = json!(reason);
+    ui.click("Mesh islands")?;
+    ui.reveal(reason)?;
+    let row = ui.reveal("Island 1 · 1 faces")?;
+    ui.last_actions.clear();
+    ui.click_where("Include", |rect| (rect.center().y - row.center().y).abs() < 2.0)?;
+    assert!(!ui.last_actions.iter().any(|action| matches!(
+        action,
+        UiAction::CdmwCommand {
+            command: "replacement_islands",
+            ..
+        }
+    )));
+    ui.click_where("View", |rect| (rect.center().y - row.center().y).abs() < 2.0)?;
+    assert_eq!(
+        ui.application
+            .mesh
+            .as_ref()
+            .ok_or("mesh")?
+            .viewport_hidden_faces()
+            .len(),
+        1,
+        "the Mod restriction disabled independent viewport controls"
+    );
+
+    ui.application.cdmw_state["mesh_islands"]["parts"][0]["available"] = json!(true);
+    ui.application.cdmw_state["mesh_islands"]["parts"][0]["reason"] = json!("");
+    ui.settle_layout();
+    assert!(ui.label_rect(reason).is_none());
+    let row = ui.reveal("Island 1 · 1 faces")?;
+    ui.last_actions.clear();
+    ui.click_where("Include", |rect| (rect.center().y - row.center().y).abs() < 2.0)?;
+    assert!(ui.last_actions.iter().any(|action| matches!(action,
+        UiAction::CdmwCommand { command:"replacement_islands", arguments, .. }
+        if arguments == &json!({"part_id":"owned:0","faces":[0],"included":false}))));
     Ok(())
 }

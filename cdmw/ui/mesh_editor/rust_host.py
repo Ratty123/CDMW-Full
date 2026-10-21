@@ -10,17 +10,20 @@ from PySide6.QtCore import QEvent, QTimer, Qt, Signal
 from PySide6.QtGui import QFont
 from PySide6.QtWidgets import (
     QFrame,
-    QGridLayout,
+    QGroupBox,
     QHBoxLayout,
     QLabel,
     QPushButton,
+    QScrollArea,
     QStackedLayout,
     QStackedWidget,
     QVBoxLayout,
+    QWhatsThis,
     QWidget,
 )
 
 from cdmw.ui.native_window_clipping import ensure_native_host_clipping
+from cdmw.ui.shell.help_widgets import make_help_button
 
 
 _GWL_STYLE = -16
@@ -78,6 +81,8 @@ class RustMeshEditorHostFrame(QFrame):
     focus_requested = Signal()
     run_validation_requested = Signal()
     build_mod_requested = Signal()
+    add_to_archive_browser_requested = Signal()
+    continue_modified_mesh_requested = Signal()
     install_overlay_requested = Signal()
     restore_overlay_requested = Signal()
     reopen_edit_requested = Signal()
@@ -150,35 +155,78 @@ class RustMeshEditorHostFrame(QFrame):
         self._pages.addWidget(self._status_page)
 
         self._result_page = QFrame(self._pages)
-        result_layout = QVBoxLayout(self._result_page)
-        result_layout.setContentsMargins(28, 28, 28, 28)
+        result_outer = QVBoxLayout(self._result_page)
+        result_outer.setContentsMargins(0, 0, 0, 0)
+        scroll = QScrollArea(self._result_page)
+        scroll.setObjectName("MeshEditorRustResultScroll")
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.Shape.NoFrame)
+        content = QWidget(scroll)
+        result_layout = QVBoxLayout(content)
+        result_layout.setContentsMargins(8, 20, 8, 20)
         result_layout.addStretch(1)
-        title = QLabel("Mesh edit accepted", self._result_page)
+        title = QLabel("Mesh edits accepted", content)
         title.setObjectName("MeshEditorRustResultTitle")
         title.setAlignment(Qt.AlignmentFlag.AlignCenter)
         result_layout.addWidget(title)
-        self._result_label = QLabel("", self._result_page)
+        self._result_label = QLabel("", content)
         self._result_label.setObjectName("MeshEditorRustResultSummary")
         self._result_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self._result_label.setWordWrap(True)
         result_layout.addWidget(self._result_label)
-        actions = QGridLayout()
         action_specs = (
-            ("Run Validation", self.run_validation_requested),
-            ("Build Mod", self.build_mod_requested),
-            ("Install as Overlay", self.install_overlay_requested),
-            ("Restore Last Overlay Install", self.restore_overlay_requested),
-            ("Reopen Edit", self.reopen_edit_requested),
-            ("Close Session", self.close_session_requested),
+                ("Keep editing", "ReopenEdit", "Resume current edit", self.reopen_edit_requested,
+                 "Reopen the accepted mesh in the current session, keeping its fitting setup, parts and output choices. The original source stays the reference. Undo/Redo starts again when the editor reopens."),
+                ("Keep editing", "Continueeditingmodifiedmesh", "Start next edit pass", self.continue_modified_mesh_requested,
+                 "Rebuild the finished mesh and start a fresh editing pass from it. Your geometry changes, colours and textures carry over. Undo/Redo history and fitting setup start fresh. This is useful after baking a fit, before removing parts or mesh islands."),
+                ("Save and reuse", "BuildMod", "Build Mod...", self.build_mod_requested,
+                 "Create a mod package for your chosen mod manager. Choose the mod name, output folder and package format in the next window."),
+                ("Save and reuse", "AddtoArchiveBrowser", "Add to Archive Browser", self.add_to_archive_browser_requested,
+                 "Add the finished mesh to Archive Browser > Controls > Edited results. Open it there for a fresh editing pass, or choose another mesh from a combined Refit result. Results stay available until you close CDMW. This does not install a mod or change your game archives."),
+                ("Check or install", "RunValidation", "Check mesh", self.run_validation_requested,
+                 "Check whether this mesh can be rebuilt in its output format. Finish Edit Mesh already checks the accepted edit; use this to run that check again. A passed check does not verify appearance in the game."),
+                ("Check or install", "InstallasOverlay", "Install to game...", self.install_overlay_requested,
+                 "Install this mesh directly through CDMW's overlay workflow. Close Crimson Desert first. The next step shows what will change and asks for confirmation before installation. Use Build Mod if you want a package for a mod manager."),
+                ("", "CloseSession", "Close this mesh", self.close_session_requested,
+                 "Close the current mesh editing session. Build a mod or add the finished mesh to Archive Browser first if you want to keep using the result."),
         )
-        for index, (text, signal) in enumerate(action_specs):
-            button = QPushButton(text, self._result_page)
-            button.setObjectName("MeshEditorRustResult" + "".join(text.split()))
+        current_heading = None
+        for heading, action_id, text, signal, description in action_specs:
+            if heading != current_heading:
+                current_heading = heading
+                group = QGroupBox(heading, content) if heading else QWidget(content)
+                if heading:
+                    group.setObjectName("MeshEditorRustResultGroup" + "".join(heading.split()))
+                layout = QVBoxLayout(group)
+                layout.setContentsMargins(6, 6, 6, 6)
+                if heading == "Keep editing":
+                    hint = QLabel("Resume keeps your fitting setup. A new pass starts from the finished mesh.", group)
+                    hint.setWordWrap(True)
+                    layout.addWidget(hint)
+                result_layout.addWidget(group)
+            row = QHBoxLayout()
+            button = QPushButton(text, group)
+            # Keep existing lookup keys independent of the clearer labels.
+            button.setObjectName("MeshEditorRustResult" + action_id)
             button.setMinimumHeight(34)
+            button.setToolTip(description)
+            button.setWhatsThis(description)
             button.clicked.connect(signal.emit)
-            actions.addWidget(button, index // 2, index % 2)
-        result_layout.addLayout(actions)
+            row.addWidget(button, 1)
+            help_button = make_help_button(description)
+            help_button.setObjectName(button.objectName() + "Help")
+            help_button.setAccessibleName("Help: " + text)
+            help_button.setWhatsThis(description)
+            help_button.clicked.connect(
+                lambda _checked=False, target=help_button: QWhatsThis.showText(
+                    target.mapToGlobal(target.rect().bottomRight()), target.whatsThis(), target,
+                )
+            )
+            row.addWidget(help_button)
+            layout.addLayout(row)
         result_layout.addStretch(1)
+        scroll.setWidget(content)
+        result_outer.addWidget(scroll)
         self._pages.addWidget(self._result_page)
         self.show_loading("Preparing the embedded Mesh Editor...")
 

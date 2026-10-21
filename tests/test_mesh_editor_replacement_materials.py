@@ -12,6 +12,17 @@ from cdmw.services.mesh_replacement_materials import capture_replacement_depende
 from tests.test_mesh_editor_replacement import editor
 
 
+@pytest.fixture(scope="module", autouse=True)
+def _qt_application():
+    # Material preparation can initialize Qt image resources before the final
+    # widget test. Keep one application alive for both paths from the start.
+    import os
+    os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+    from PySide6.QtWidgets import QApplication
+    application = QApplication.instance() or QApplication([])
+    yield application
+
+
 def entry(root, path, data):
     source = root / Path(path).name
     source.write_bytes(data)
@@ -54,6 +65,124 @@ def test_imported_materials_use_retained_converter_and_preserve_unselected_bindi
     mesh, state = compose_import(pending, (key,), material_choice="imported", companion_files=files)
     assert mesh.submeshes[1].material == snapshot.mesh.submeshes[1].material
     assert state.parts[0].material_choice == "imported"
+
+
+def _snapshot_with_material_labels(snapshot, labels):
+    from cdmw.modding.mesh_parser import parse_mesh
+
+    raw = bytearray(snapshot.original_data)
+    for index, label in enumerate(labels):
+        name = f"target{index}".encode("ascii")
+        assert len(label) == len(name)
+        name_offset = raw.index(name)
+        material_offset = raw.index(name, name_offset + len(name))
+        raw[material_offset:material_offset + len(name)] = label.encode("ascii")
+    data = bytes(raw)
+    return replace(snapshot, original_data=data, mesh=parse_mesh(data, snapshot.mesh.path))
+
+
+@pytest.mark.parametrize("labels", [("diffuse", "cloth__"), ("shared_", "shared_"), ("TARGET0", "TARGET1")])
+def test_imported_materials_bind_part_wrappers_instead_of_embedded_labels(editor, tmp_path, labels):
+    service, session_id = editor
+    snapshot = _snapshot_with_material_labels(service.capture_export_snapshot(session_id), labels)
+    target, context, model = material_fixture(tmp_path, snapshot)
+    dependencies = capture_replacement_dependencies(target, context)
+    key = initial_replacement_state(snapshot).parts[0].part_id
+    pending = prepare_import(snapshot, model, target_part_ids=(key,), entry=target, dependencies=dependencies)
+
+    files = prepare_imported_materials(pending, (key,), tmp_path)
+
+    sidecar = next(file for file in files if file.path.endswith(".pac_xml"))
+    text = sidecar.data.decode()
+    assert "original0.dds" not in text
+    assert "original1.dds" in text
+    assert any(file.path.endswith(".dds") for file in files)
+
+
+def test_imported_materials_still_reject_a_genuinely_shared_wrapper(editor, tmp_path):
+    import re
+
+    service, session_id = editor
+    snapshot = _snapshot_with_material_labels(service.capture_export_snapshot(session_id), ("target0", "target0"))
+    target, context, model = material_fixture(tmp_path, snapshot)
+    dependencies = capture_replacement_dependencies(target, context)
+    dependencies = tuple(replace(file, path=target.path.replace("/model/", "/modelproperty/") + "_xml", data=re.sub(
+        r'<SkinnedMeshMaterialWrapper _subMeshName="target1">.*?</SkinnedMeshMaterialWrapper>', "",
+        file.data.decode(), flags=re.S,
+    ).replace("<Material>", '<Material Name="_resourceMaterial" _materialName="SkinnedMeshStandard">').encode())
+        if file.path.endswith(".pac_xml") else file for file in dependencies)
+    key = initial_replacement_state(snapshot).parts[0].part_id
+    pending = prepare_import(snapshot, model, target_part_ids=(key,), entry=target, dependencies=dependencies)
+
+    with pytest.raises(ValueError, match="share a material with an untouched part"):
+        prepare_imported_materials(pending, (key,), tmp_path)
+
+
+def test_replacement_material_merge_matches_each_model_property_index():
+    from cdmw.services.mesh_replacement_materials import _merge_material_rows
+
+    def property_block(index, value, untouched):
+        return (f'<ModelProperty Index="{index}"><SkinnedMeshProperty><Vector Name="_subMeshResources">'
+                f'<SkinnedMeshMaterialWrapper _subMeshName="target0"><Material value="{value}"/></SkinnedMeshMaterialWrapper>'
+                f'<SkinnedMeshMaterialWrapper _subMeshName="target1"><Material value="{untouched}"/></SkinnedMeshMaterialWrapper>'
+                '</Vector></SkinnedMeshProperty></ModelProperty>')
+
+    current = '<ModelPropertyList>' + property_block(0, "old0", "keep0") + property_block(3, "old3", "keep3") + '</ModelPropertyList>'
+    donor = '<ModelPropertyList>' + property_block(3, "new3", "wrong3") + property_block(0, "new0", "wrong0") + '</ModelPropertyList>'
+    expected = '<ModelPropertyList>' + property_block(0, "new0", "keep0") + property_block(3, "new3", "keep3") + '</ModelPropertyList>'
+
+    merged, changed = _merge_material_rows(current, donor, {"target0"})
+
+    assert changed
+    assert merged == expected
+
+
+@pytest.mark.parametrize("fault", ["duplicate-index", "missing-index", "missing-index-attribute", "duplicate-wrapper"])
+def test_replacement_material_merge_refuses_ambiguous_property_variants(fault):
+    from cdmw.services.mesh_replacement_materials import _merge_material_rows
+
+    wrapper = '<SkinnedMeshMaterialWrapper _subMeshName="target0"><Material/></SkinnedMeshMaterialWrapper>'
+    block = f'<ModelProperty Index="0">{wrapper}</ModelProperty>'
+    current = f'<ModelPropertyList>{block}</ModelPropertyList>'
+    if fault == "duplicate-index":
+        donor = f'<ModelPropertyList>{block}{block}</ModelPropertyList>'
+    elif fault == "missing-index":
+        donor = current.replace('Index="0"', 'Index="1"')
+    elif fault == "missing-index-attribute":
+        donor = current.replace(' Index="0"', '')
+    else:
+        donor = current.replace(wrapper, wrapper + wrapper)
+
+    with pytest.raises(ValueError, match="ambiguous|variants|unambiguous"):
+        _merge_material_rows(current, donor, {"target0"})
+
+
+def test_imported_materials_update_each_property_variant_and_preserve_untouched_wrappers(editor, tmp_path):
+    from cdmw.core.material_shader_controls import material_variant_blocks
+
+    service, session_id = editor
+    snapshot = _snapshot_with_material_labels(service.capture_export_snapshot(session_id), ("diffuse", "cloth__"))
+    target, context, model = material_fixture(tmp_path, snapshot)
+    dependencies = capture_replacement_dependencies(target, context)
+    variants = {}
+    for file in dependencies:
+        if file.path.endswith(".pac_xml"):
+            body = file.data.decode().removeprefix("<Root>").removesuffix("</Root>")
+            variants[file.path] = ('<ModelPropertyList>' + ''.join(
+                f'<ModelProperty Index="{index}">{body}</ModelProperty>' for index in (0, 3)
+            ) + '</ModelPropertyList>').encode()
+    dependencies = tuple(replace(file, data=variants.get(file.path, file.data)) for file in dependencies)
+    key = initial_replacement_state(snapshot).parts[0].part_id
+    pending = prepare_import(snapshot, model, target_part_ids=(key,), entry=target, dependencies=dependencies)
+
+    files = prepare_imported_materials(pending, (key,), tmp_path)
+
+    text = next(file.data.decode() for file in files if file.path.endswith(".pac_xml"))
+    blocks = material_variant_blocks(text)
+    assert len(blocks) == 2
+    for block in blocks:
+        assert "original0.dds" not in block.group()
+        assert "original1.dds" in block.group()
 
 
 @pytest.mark.parametrize("layout", ["space-name", "quoted-name", "nested", "nested-parent-reference",

@@ -181,6 +181,36 @@ def _apply_position_edit(session: RustMeshAuthoringSession) -> float:
     return edited_x
 
 
+@pytest.mark.parametrize("selection_channel", ["vertices", "faces"])
+def test_reopened_deleted_geometry_can_finish_without_losing_original_topology_base(tmp_path, selection_channel):
+    from cdmw.domain.mesh import MeshEditCommand, MeshEditSelection
+
+    source, service, first = _open_exact_session(tmp_path / "first")
+    reopened = None
+    try:
+        selection = MeshEditSelection.from_maps(**{f"{selection_channel}_by_submesh": {0: (0,)}})
+        deleted = first.shadow_service.apply_command(first.shadow_session_id, MeshEditCommand(
+            "delete", selection=selection, params={"_include_preview_deltas": False}, mode="edit"))
+        assert deleted.ok
+        first.finish(_request(first, "finish_request", 1))
+        expected, _report = service.rebuild_result_from_snapshot(service.capture_export_snapshot(first.authoritative_session_id))
+        reopened = RustMeshAuthoringSession.create(SimpleNamespace(
+            mesh_service=service, active_session_id=first.authoritative_session_id), tmp_path / "reopened", process_generation=12)
+        assert not reopened.shadow_service.undo(reopened.shadow_session_id).ok
+        second = reopened.finish(_request(reopened, "finish_request", 2))
+        assert second["exact_output_validation"]["status"] == "passed"
+        actual, report = service.rebuild_result_from_snapshot(service.capture_export_snapshot(first.authoritative_session_id))
+        assert report.validation_status == "passed"
+        assert actual.data == expected.data
+        assert service._session(first.authoritative_session_id).original_data == source
+    finally:
+        if not first.closed:
+            first.cancel()
+        if reopened is not None and not reopened.closed:
+            reopened.cancel()
+        service.close_edit_session(first.authoritative_session_id, force_without_saving=True)
+
+
 def test_exact_finish_runs_existing_snapshot_writer_before_atomic_commit(
     tmp_path: Path,
 ) -> None:

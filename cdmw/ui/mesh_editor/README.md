@@ -119,11 +119,17 @@ indices when that stricter connectivity is wanted.
 
 - **View** hides only that island in the viewport and picking. **Isolate** shows
   only that island within its part; **Show all islands** restores viewport masks.
-- **Mod** includes or excludes the island from the exported PAC, independently
+- **Include** includes or excludes the island from the exported PAC, independently
   of View. **Preview output** shows the export result. Undo/Redo and saved drafts
   retain exclusions; re-enabling an island restores its source triangles.
 
-Mod inclusion requires an original PAC at LOD0 with unchanged topology. Lower
+Island inclusion requires an original PAC at LOD0 with unchanged topology. Disabled
+controls show the reason beside the island list. After Morph & Refit, replacement
+import or supported topology edits, use **Finish Mesh > Continue editing modified
+mesh** to start from the rebuilt PAC before changing island inclusion. **Reopen
+Edit** resumes the existing editing state and does not establish that new source.
+Free Edit publishes OBJ; its island selection, View and Delete controls remain
+available, while game-format inclusion is unavailable. Lower
 LODs can use exact source positions or safely separated component bounds, including
 pieces that split or disappear as detail decreases. The simplified component must
 fit wholly within one source island's bounds, expanded by at most 10% of the bounds
@@ -139,9 +145,9 @@ neighbour's longer edges. Every vertex of the preceding component must also have
 consistent, proven inclusion. Changed normals do not invalidate retained records.
 Reused records spanning included and excluded islands, conflicting positions,
 components crossing inclusion boundaries and unproven movement remain rejected
-before changing the session. Save and reopen an imported PAC first.
+before changing the session.
 Excluding the last island automatically uses the same hidden-part output as the
-whole part's **Mod** checkbox across stored LODs. The island controls stay available
+whole part's **Include** checkbox across stored LODs. The island controls stay available
 to restore individual islands, and Undo/Redo retains the choices. Partial exclusion
 suppresses only selected triangle indices across LODs and retains vertex data,
 materials and bindings. If every surviving island at one lower LOD is excluded,
@@ -585,6 +591,19 @@ the original PAC vertex and index records at every LOD. Multiple
 source parts can map to a target with original materials; imported-material mode
 requires one source material part per target.
 
+The import panel names the replacement scope and labels each mapping as **Imported
+part** and **Replaces game part**. Entire Mesh includes all original parts; originals
+without a mapped import are excluded from output. Selected Parts keeps originals
+outside that scope unchanged and excludes unmapped parts within it. The mapping
+dropdowns choose destinations for imported geometry.
+
+**Import Replacement** requires an original game PAC, PAM or PAMLOD target at LOD0.
+**Free Edit** creates a new OBJ package for geometry editing; OBJ does not retain a
+rig or skin weights. An eligible original mesh can return to **Exact** under
+**Output**. For an external import, open its game target from Archive Browser in
+Mesh Editor first. The disabled replacement control shows this guidance directly.
+Switching output workflows is explicit and does not apply a replacement by itself.
+
 Mapping rows stay within the Inspector width; hover a shortened source or target
 name to read it in full. Apply and Cancel wrap when the panel is narrow.
 
@@ -594,7 +613,7 @@ object/group boundaries until the file specifies another material.
 
 ### Coordinates and source validation
 
-New imports preserve decoded coordinates: no automatic scaling, alignment or
+Unskinned imports preserve decoded coordinates: no automatic scaling, alignment or
 centering. Scale starts at 1, rotation and translation at 0. Use the existing
 transform tools for placement. **Fit to Original** explicitly fits the imported
 parts; **Reset Placement** restores their imported positions and normals. Both
@@ -602,11 +621,39 @@ restore the imported normal orientation and invalidate outdated tangents, and
 both are undoable.
 New Item fitting defaults are unchanged.
 
+Replacement and geometry updates refresh the camera clipping range without moving
+the camera, so larger or offset imports are not sliced by the original asset's far plane.
+
 Source positions, UVs, normals and tangents must contain finite values within
 the supported float range. Invalid values stop import before automatic UV
 generation or preview conversion, preserving the current edit for a valid retry.
 OBJ faces must also reference existing vertices, UVs and normals. Invalid indices
 stop import instead of substituting geometry or regenerating authored channels.
+
+### Imported GLB skin weights
+
+Skinned GLB/glTF replacements retain their authored influences when the original
+PAC target has a resolved matching skeleton and bone palette. Used joint names
+must each match one target palette entry, and their inverse bind matrices must
+prove a common conversion into the target's bind space. Import uses bind geometry
+rather than baking the current pose. Unused joints from the exported armature do
+not need to exist in the equipment palette.
+
+Authored weights survive replacement, texture UV seam splits and vertex reordering,
+Undo/Redo and PAC output. PAC stores byte weights, so export includes its normal
+quantization. More than six influences per
+vertex, incompatible bind frames, unknown used bones, unresolved target rigs and
+unsupported layouts are refused with an explanation. Cloth records retain their
+existing four-influence limit. This does not retarget a foreign rig or add bones
+to a game palette. Skinned and unskinned source parts must map to separate game
+parts so that merging cannot discard authored weights.
+
+Unskinned replacements retain the existing transfer from original game geometry.
+This authored-weight path belongs to **Import Replacement** on PAC targets;
+Create New Item's model import still uses its existing static conversion, and
+Free Edit's OBJ output does not retain a rig. Owned GLB/glTF and PAC fixtures
+verify the replacement writer; the reporter's armour and game animation remain
+unverified.
 
 ### Materials and diagnostics
 
@@ -616,9 +663,16 @@ external geometry buffers in both glTF and GLB must still exist and remain
 unchanged while reviewing the mapping. **Imported Materials & Textures**
 prepares the required DDS and material sidecars before publishing the import.
 Missing textures, ambiguous material wrappers, shared selected/untouched material
-ownership, unsupported skinning, or invalid coordinate/layout conversion block
-Apply with a specific reason. This mode also rejects material dependencies that
-changed after import preparation and never silently uses original materials.
+ownership, incompatible skinning, or invalid coordinate/layout conversion block
+preparation or Apply with a specific reason. This mode also rejects material
+dependencies that changed after import preparation and never silently uses original
+materials.
+
+Imported materials follow the selected part's exact sidecar binding, even when its
+embedded material label differs from the part name or uses different letter case.
+Separate bindings can retain the same embedded label. Repeating part bindings in
+different model-property variants are matched by their property index; each variant
+keeps the untouched parts. Truly shared bindings and ambiguous variants remain blocked.
 
 Hover over the bottom status message to read the full text, or choose **Details**
 for a scrollable, selectable view. **Copy** copies the complete message, including
@@ -626,11 +680,13 @@ any part that does not fit in the status bar.
 
 ### Mod inclusion and preview modes
 
-The **Mod** checkbox means **Include in mod** and is independent of viewport
+The **Include** checkbox controls exported output and is independent of viewport
 visibility. Excluding a part retains all its editable geometry; re-enabling is
 lossless, and every part may be excluded. Only export creates the existing tiny
 triangle placeholders, retaining required target sections and their existing
 index convention. Output Preview ignores temporary viewport/layer hiding.
+Use **Output Preview** to see excluded parts or islands removed; **Edit** keeps
+their geometry available for restoration. The Parts list states this distinction.
 Inclusion-only changes retain the original PAC skin records, including seventh
 and eighth influences. Re-enabling every unchanged part restores the original
 mesh bytes. The textured editor retains the exact native-selected hair base DDS
@@ -645,24 +701,35 @@ preparation or package creation.
 
 ### Eligibility and limitations
 
-This workflow handles one eligible PAC/PAM/PAMLOD at LOD0. Active Morph & Refit
-profiles/bindings must be cleared before replacement.
+This workflow handles one eligible PAC/PAM/PAMLOD at LOD0. Finish active Morph &
+Refit work and choose **Start next edit pass** to change inclusion on
+the rebuilt source. Direct replacement remains unavailable while its profile or
+archive bindings are active.
 Unsupported target layouts remain blocked. Existing sessions without replacement
 state retain Exact Game Asset/Free Edit behavior. Replacement uses its own
 `replacement_game_asset` policy, not weakened Exact validation.
 
 Neutral-appearance meshes show an **Experimental** warning above the import controls.
-Imports and **Mod** inclusion are available immediately for eligible meshes, with no
+Imports and **Include** are available immediately for eligible meshes, with no
 extra enable button. Positioning, scale or animation may be wrong in game. Imports still
-preserve their decoded placement. Skin weights transfer from the displayed original
-part; export uses those weights to invert the neutral display transform. Output Preview
+preserve their bind-space placement. Unskinned imports transfer weights from the
+displayed original part; compatible skinned imports retain their mapped weights.
+Export uses the final weights to invert the neutral display transform. Output Preview
 reparses the actual written mesh and displays it in the same neutral frame. Singular
 transforms, unsupported skin layouts, invalid geometry and missing dependencies still
 block the operation.
 
-The left part checkbox controls viewport visibility; the right **Mod** checkbox controls
+The left part checkbox controls viewport visibility; the right **Include** checkbox controls
 output inclusion. Opening the editor alone does not change geometry or output;
 cancelling the editor discards its edits.
+
+Clicking **Delete** for selected whole Parts in Exact output opens guidance:
+untick **Include** to exclude them from game output, or choose **Free Edit** for
+structural editing to OBJ. Supported vertex/face deletion stays available in
+Exact output. The Delete key follows the same selection rules, leaves text
+editing and hair controls in charge of their own input, and does not delete
+through a modal or comparison view. Rejected Delete commands show their actual
+error in a popup without changing the retained mesh or selection.
 
 ### History and drafts
 
@@ -689,9 +756,10 @@ performed. Experimental replacement drafts use project and payload version 3, re
 the exact neutral transform and coordinate frame. Older apps reject this format before
 attempting generation recovery. Ordinary replacement drafts remain v2.
 
-Repeated imports transfer skin weights from the retained original target in the active
-coordinate frame, so earlier imports do not become skin donors. Draft restoration is
-staged for every format; a rejected generation leaves the loaded geometry unchanged
+Repeated unskinned imports transfer weights from the retained original target in the
+active coordinate frame, so earlier imports do not become skin donors. Skinned imports
+use their own authored influences. Draft restoration is staged for every format;
+a rejected generation leaves the loaded geometry unchanged
 before recovery tries a previous generation. Malformed replacement fields, duplicate
 part identities and invalid target mappings reject the generation and allow recovery of
 the previous valid save. PAC replacement also rejects non-finite UVs or values that
@@ -702,8 +770,9 @@ UV coordinates remain supported.
 
 ### Implementation and checks
 
-`mesh_replacement_import.py`, `mesh_replacement_materials.py`, and
-`mesh_replacement_output.py` own detached preparation and complete output.
+`mesh_replacement_import.py`, `mesh_replacement_skinning.py`,
+`mesh_replacement_materials.py`, and `mesh_replacement_output.py` own detached
+preparation and complete output.
 `mesh_rust_replacement.py` and `mesh_rust_replacement_materials.py` publish through
 the existing shadow-session/control/material contracts. Task cancellation,
 revision checks and import tokens prevent stale candidates from taking over.
@@ -762,6 +831,15 @@ cloth. Exact profile modes take precedence over the PAC default; a default is
 identified as such, and unresolved, mixed, absent or unsupported data stays
 explicit. An empty variant assignment is retained. Detection works without a
 preview skeleton and does not change the mesh or its output.
+
+Free Edit still inspects an eligible original PAC's LOD0 bindings and exact source
+profile assignments. Badges mark these as **source** data, separately report
+whether current geometry retains the source binding layout, and explain that
+edited physics remains unverified. Surviving parts are matched by their original
+descriptor ownership after whole-Part deletion; current row numbers and display
+names are not source identity. Unmatched parts stay unknown. Cloth/Jiggle
+authoring and physics output remain unavailable: Free Edit publishes OBJ, which
+does not retain the game rig, cloth, jiggle or physics profiles.
 
 An active Morph & Refit profile or archive binding pauses physics inspection.
 Parts show **Blocked by Morph & Refit**, and Jiggle and Cloth explain that existing
@@ -1315,6 +1393,11 @@ Duplicate and Delete target only the explicitly selected whole parts. They wait 
 pending selection updates and require Free Edit; **Enable part edits…** opens the output
 controls directly. Delete keeps at least one part, and successful structural edits
 refresh the list through the same shadow history used by Undo/Redo.
+Whole-Part Delete uses the current document size as a conservative capacity
+bound, avoiding a disposable clone before the native transaction. Capacity
+refusal leaves the current mesh and history intact. Other operations that need
+a native clone retain the failing snapshot stage and native error when refused;
+Python fallback stays blocked while the native core is available.
 
 ### Shell and workspace owners
 
@@ -1428,6 +1511,13 @@ Imported OBJ/FBX/DAE/glTF sessions likewise require the user to choose a new out
 folder before proven non-exact topology tools appear. MeshInfo and unknown formats
 remain read-only for selection, inspection, comparison, and safe export. The Python host
 and resident forms reject the same unavailable command before mutation.
+
+In **Viewport > Output**, active Free Edit sessions show **Choose output folder...**
+until a destination is configured, then **Change output folder...** with the chosen
+path. This also works for imported meshes opened from Create New Item, which already
+start in Free Edit. The picker chooses the parent of a new package folder; existing
+destination validation still applies. Cancelling the picker keeps the current
+destination. Selecting a folder does not export the mesh.
 
 Integrated Rust authoring owns a disposable shadow `MeshService` under a single session
 directory. The preparation worker creates that isolated mesh once and the shadow service
@@ -2237,9 +2327,9 @@ Session`;
 
 Undo and Redo restore that full state. Any rejection keeps Rust open and leaves
 authority unchanged. Cancel, close, crash, protocol failure, or forced termination
-discards the shadow and only its owned files. An accepted Finish is only the handoff
-into CDMW: the user must run validation for that exact revision before **Install as
-Overlay** or **Build Mod** can publish it. Build Mod supports DMM/JMM/CDUMM/Crimson
+discards the shadow and only its owned files. An accepted Finish retains validation
+for that exact revision; subsequent edits require validation again before **Install
+as Overlay**, **Build Mod** or **Add to Archive Browser** can publish it. Build Mod supports DMM/JMM/CDUMM/Crimson
 Sharp loose packages and a DMM archive group through owned sibling staging; overlay
 installation keeps the existing confirmation, backup, rollback, receipt, and restore
 lifecycle.
@@ -2271,9 +2361,13 @@ renderer teardown path. The Rust host remains visible before a session and after
 as a loading, availability, or result page. Opening an archive or file session replaces
 that page with the process-owned child.
 
-An accepted Finish disposes the shadow and shows Run Validation, Build Mod, Install as
-Overlay, Restore Last Overlay Install, Reopen Edit, and Close Session against the
-accepted authoritative revision. `native_preview_payloads.py` and the old helper-status
+An accepted Finish disposes the shadow and groups the next steps into **Keep
+editing**, **Save and reuse**, and **Check or install**. Each action has a clickable
+**?** explaining its result. **Resume current edit** retains the current setup;
+**Start next edit pass** uses rebuilt game-format bytes as a new baseline.
+**Build Mod...**, **Add to Archive Browser**, **Check mesh**, **Install to game...**
+and **Close this mesh** act on the accepted revision. Overlay restoration is not
+shown on this page. `native_preview_payloads.py` and the old helper-status
 path remain compatibility code for retained preview consumers; the direct editor does
 not invoke them.
 
@@ -2394,6 +2488,64 @@ stay with the model while geometry and UVs change.
 
 ### Validation and export
 
+For an existing item, use **Modify Original**. When fitting and removing Parts,
+complete **Morph & Refit** first, inspect and **Bake** the fit, then **Finish Edit
+Mesh > Start next edit pass**. In the next pass, exclude unwanted Parts
+with the **Include** controls, then finish and **Build Mod**. **Add to Archive Browser**
+offers the same handoff through **Archive Browser > Controls > Edited results**,
+where another source asset can be selected. Combined archive Refit retains
+each source asset separately; the handoff carries their edited output and captured
+dependencies through later passes. A new independent item is not required for an
+existing-path replacement. Removing geometry first can also start a later fitting
+pass when that edited asset passes the game-format writer. Unsupported topology
+cannot be made compatible merely by finishing or reopening it.
+
+**Start next edit pass** rebuilds the accepted changes with the same
+validated game-format handoff, then directly opens the current source asset as a
+fresh editing session. Materials, textures, rig and captured physics dependencies
+remain available; other edited Refit assets and generated companions travel into
+later outputs. For the same source identity, continuation carries the verified
+material model and its texture-package lease through session teardown, preserving
+resolved texture layers, owner slots and colour parameters after geometry removal.
+The new baseline still comes from the rebuilt mesh, without copying preview geometry.
+It waits for the output worker to retire and drops a queued
+continuation if the session closes or changes. Failed preparation leaves the
+accepted working session available. It does not switch to Archive Browser.
+
+**Resume current edit** reopens the accepted mesh in the existing working session,
+keeping its output policy, Parts and fitting state. The original source remains
+the reference; per-action Undo/Redo starts again in the reopened editor.
+Starting the next edit pass from the rebuilt mesh starts with the
+modified bytes as its new baseline and clears the previous pass's editing state.
+Reopened exact sessions validate retained topology against the original source
+mesh, rather than treating the edited shadow's opening geometry as the original.
+This prevents a false `TOPOLOGY_CONTRACT_UNSUPPORTED` after supported deletion;
+the source skin, topology and writer admission checks still apply.
+
+The Refit archive picker excludes the current target from its source search.
+That mesh is already loaded; **Load Armor** adds a different mesh. If the current
+mesh is the armor, load or assign its body driver, then select the existing armor
+Parts and bind them. A disabled Load Armor button without a different prepared
+selection does not mean that modified PACs are categorically unsupported.
+
+**Add to Archive Browser** prepares game-format output off the UI thread and
+publishes complete results for the current app session without a folder picker,
+rescan or change to the archive root. It preserves source identity, prepared
+materials, textures, rig and physics resources, and starts the next pass from the
+rebuilt bytes with clean editing state. It does not repair physics affected by
+geometry changes. Missing source contexts or unsupported game-format rebuilding
+remain blocked. See [Archive Browser's edited-result contract](../archive_browser/README.md#edited-mesh-editor-results).
+
+Both result routes retain bounded, geometry-free material metadata for each
+source asset. Saved results own independent texture-package and image-cache
+leases, so closing the original editor or a reopened pass cannot remove their
+resolved layers or colour parameters. Each reopened editor acquires its own
+package lease; other fitted assets retain their own material owners. Results
+remain session-local and do not survive restarting CDMW.
+When rebuilding changes a PAC XML or PAMI material sidecar, the next pass resolves
+the rebuilt companions instead of reusing the earlier material snapshot. This
+prevents retained source bindings from hiding authored material changes.
+
 **Finish Edit Mesh** retains its successful validation for the accepted revision, so
 **Build Mod** opens immediately without requiring a second validation. Any later edit
 invalidates that report; **Run validation** checks the new revision. **Export Mesh
@@ -2430,12 +2582,13 @@ revisions, cancellation, and failure cannot leave a partial final folder or ZIP.
 
 ### Overlay installation
 
-**Install as Overlay** prepares the exact mount change, carry-forward files,
+**Install to game...** uses the overlay workflow to prepare the exact mount change, carry-forward files,
 ownership, and recovery targets for review before confirmation. The service
 rechecks the game state, validates staged content, backs up through
 `ArchiveMutationService`, and publishes the mount list last. The saved receipt
-lets **Restore Last Overlay Install** restore the prior state and remove only
-paths created by that installation. Foreign groups are never adopted.
+supports restoring the prior state and removing only paths created by that
+installation through the overlay recovery service. Restoration is not offered
+on the Finish page. Foreign groups are never adopted.
 
 The worker reports a committed install even if cancellation arrives after publication.
 An installation or recovery failure remains an error when cancellation is pending;

@@ -15,8 +15,11 @@ use tempfile::tempdir;
 use winit::event::DeviceId;
 
 mod cloth_preview_tests;
+mod free_edit_destination;
 mod island_controls_tests;
+mod parts_output_tests;
 mod history_controls_tests;
+mod free_edit_replacement_tests;
 mod morph_authoring;
 mod morph_body_controls;
 mod morph_outfit_workflows;
@@ -1828,6 +1831,9 @@ fn integrated_parts_selection_and_actions_use_the_painted_controls() -> TestResu
         &parts_actions_from_click(&mut ui, "Delete")?,
         "topology"
     ));
+    ui.settle_layout();
+    ui.reveal("Delete unavailable")?;
+    ui.click("Close")?;
     ui.click("Enable part edits…")?;
     assert!(ui.label_rect("Output").is_some());
     ui.frame(vec![Event::Key {
@@ -1874,6 +1880,7 @@ fn integrated_parts_selection_and_actions_use_the_painted_controls() -> TestResu
         ui.label_rect("Keep at least one part when deleting.")
             .is_some()
     );
+    ui.click("Close")?;
     ui.click("None")?;
     for label in ["Delete", "Duplicate"] {
         assert!(!has_host_command(
@@ -5147,7 +5154,7 @@ fn integrated_replacement_experimental_notice_keeps_import_and_inclusion_availab
     });
     ui.settle_layout();
     assert!(ui.label_rect("Try Experimental Replacement").is_none());
-    let notice = "Experimental: positioning, scale or animation may be wrong in game. Skin weights are transferred from the original part; export reverses its neutral display transform.";
+    let notice = "Experimental: positioning, scale or animation may be wrong in game. Compatible glTF/GLB weights are retained on the matching game rig; unskinned imports use weights from the original part. Export reverses the original part's neutral display transform.";
     assert!(ui.label_rect(notice).is_none());
     ui.application.egui_context.style_mut_of(ui.application.egui_context.theme(),
         |style| style.interaction.tooltip_delay = 0.0);
@@ -5156,7 +5163,7 @@ fn integrated_replacement_experimental_notice_keeps_import_and_inclusion_availab
     ui.frame(vec![Event::PointerMoved(badge.center())]);
     for _ in 0..3 { ui.frame(Vec::new()); }
     assert!(ui.label_rect(notice).is_some(), "the compact badge retains the full warning on hover");
-    let actions = ui.actions_from_click("Mod")?;
+    let actions = ui.actions_from_click("Include")?;
     assert!(actions.iter().any(|action| matches!(action,
         UiAction::CdmwCommand { command: "replacement_include", arguments, .. }
             if arguments["included"] == false && arguments["part_ids"] == json!(["stable:0"])
@@ -5202,7 +5209,7 @@ fn integrated_replacement_view_checkbox_toggles_from_its_painted_square() -> Tes
             "parts": [{"index": 0, "id": "stable:0", "name": "Triangle", "included": true}]
         });
         ui.settle_layout();
-        let label = ui.reveal("Mod")?;
+        let label = ui.reveal("Include")?;
         let checkbox = ui
             .output
             .shapes
@@ -5233,7 +5240,7 @@ fn integrated_replacement_view_checkbox_toggles_from_its_painted_square() -> Tes
         ui.click_at(checkbox.center());
         assert!(ui.application.cdmw_hidden_parts.is_empty());
         if !available {
-            assert!(ui.actions_from_click("Mod")?.is_empty());
+            assert!(ui.actions_from_click("Include")?.is_empty());
             assert!(ui.actions_from_click("Import Replacement…")?.is_empty());
             assert!(ui.label_rect("Entire Mesh").is_none());
         }
@@ -5252,7 +5259,7 @@ fn integrated_replacement_controls_keep_visibility_independent() -> TestResult {
         "parts": [{"index": 0, "id": "stable:0", "name": "Triangle", "included": true}]
     });
     assert!(
-        ui.actions_from_click("Mod")?
+        ui.actions_from_click("Include")?
             .iter()
             .any(|action| matches!(action,
                 UiAction::CdmwCommand { command: "replacement_include", arguments, .. }
@@ -5272,7 +5279,7 @@ fn integrated_replacement_controls_keep_visibility_independent() -> TestResult {
     ui.application.cdmw_state["replacement"]["comparison"] = json!("output");
     ui.frame(Vec::new());
     assert!(ui.application.cdmw_visible_submeshes().is_none());
-    assert!(ui.actions_from_click("Mod")?.is_empty());
+    assert!(ui.actions_from_click("Include")?.is_empty());
     assert!(ui.application.cdmw_hidden_parts.contains(&0));
     Ok(())
 }
@@ -5305,6 +5312,42 @@ fn integrated_replacement_mapping_defaults_to_original_materials() -> TestResult
                 }
             ))
     );
+    Ok(())
+}
+
+#[test]
+fn integrated_replacement_mapping_explains_scope_and_part_destinations() -> TestResult {
+    for entire_mesh in [true, false] {
+        let mut ui = HeadlessUi::new_integrated_cdmw_for_controls(
+            two_part_application()?,
+            egui::vec2(1440.0, 980.0),
+        );
+        let parts = json!([
+            {"index": 0, "id": "stable:0", "name": "Outer helmet", "included": true},
+            {"index": 1, "id": "stable:1", "name": "Inner helmet", "included": true}
+        ]);
+        let targets = if entire_mesh { parts.clone() } else { json!([parts[0].clone()]) };
+        ui.application.cdmw_state["replacement"] = json!({
+            "available": true, "active": false, "comparison": "edit", "parts": parts,
+            "pending": {"token": "scope", "source": "helmet.glb", "targets": targets,
+                "sources": [{"name": "Imported helmet", "target": "stable:0"}]}
+        });
+        let (title, explanation) = if entire_mesh {
+            ("Replacing entire mesh", "Map each imported part below. Original parts without a replacement will be excluded.")
+        } else {
+            ("Replacing selected parts", "Map each imported part below. Unmapped selected parts are excluded; other original parts stay unchanged.")
+        };
+        ui.reveal(title)?;
+        ui.reveal(explanation)?;
+        ui.reveal("Imported part")?;
+        ui.reveal("Replaces game part")?;
+        let actions = ui.actions_from_click("Apply Replacement")?;
+        assert!(actions.iter().any(|action| matches!(action,
+            UiAction::CdmwCommand { command: "replacement_apply", arguments, .. }
+                if arguments["targets"] == json!(["stable:0"])
+                    && arguments["materials"] == "original"
+        )));
+    }
     Ok(())
 }
 

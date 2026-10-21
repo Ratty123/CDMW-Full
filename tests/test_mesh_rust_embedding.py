@@ -10,7 +10,7 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from PySide6.QtCore import QEvent, QSettings
 from PySide6.QtGui import QFont
-from PySide6.QtWidgets import QApplication, QPushButton
+from PySide6.QtWidgets import QApplication, QGroupBox, QPushButton, QScrollArea, QToolButton
 
 from cdmw.services.mesh_rust_contract import RUST_MESH_EDIT_BACKEND, RUST_MESH_RENDERER
 from cdmw.ui.mesh_editor.rust_host import RustMeshEditorHostFrame
@@ -333,6 +333,8 @@ def test_result_page_actions_and_retry_are_explicit_signals() -> None:
     host.retry_requested.connect(lambda: emitted.append("retry"))
     host.run_validation_requested.connect(lambda: emitted.append("validate"))
     host.build_mod_requested.connect(lambda: emitted.append("build"))
+    host.add_to_archive_browser_requested.connect(lambda: emitted.append("browser"))
+    host.continue_modified_mesh_requested.connect(lambda: emitted.append("next_pass"))
     host.install_overlay_requested.connect(lambda: emitted.append("install"))
     host.restore_overlay_requested.connect(lambda: emitted.append("restore"))
     host.reopen_edit_requested.connect(lambda: emitted.append("reopen"))
@@ -344,16 +346,56 @@ def test_result_page_actions_and_retry_are_explicit_signals() -> None:
     for object_name in (
         "MeshEditorRustResultRunValidation",
         "MeshEditorRustResultBuildMod",
+        "MeshEditorRustResultAddtoArchiveBrowser",
+        "MeshEditorRustResultContinueeditingmodifiedmesh",
         "MeshEditorRustResultInstallasOverlay",
-        "MeshEditorRustResultRestoreLastOverlayInstall",
         "MeshEditorRustResultReopenEdit",
         "MeshEditorRustResultCloseSession",
     ):
         host.findChild(QPushButton, object_name).click()
 
-    assert emitted == ["retry", "validate", "build", "install", "restore", "reopen", "close"]
+    assert emitted == ["retry", "validate", "build", "browser", "next_pass", "install", "reopen", "close"]
+    assert host.findChild(QPushButton, "MeshEditorRustResultRestoreLastOverlayInstall") is None
     host.deleteLater()
     application.processEvents()
+
+
+def test_result_page_groups_and_clickable_help_distinguish_editing_choices() -> None:
+    app = QApplication.instance() or QApplication([])
+    host = RustMeshEditorHostFrame()
+    host.show_result("Accepted")
+    host.resize(360, 300)
+    host.show()
+    app.processEvents()
+    try:
+        assert [group.title() for group in host.findChildren(QGroupBox)] == [
+            "Keep editing", "Save and reuse", "Check or install",
+        ]
+        resume = host.findChild(QPushButton, "MeshEditorRustResultReopenEdit")
+        next_pass = host.findChild(QPushButton, "MeshEditorRustResultContinueeditingmodifiedmesh")
+        assert resume.text() == "Resume current edit"
+        assert next_pass.text() == "Start next edit pass"
+        assert "keeping its fitting setup" in resume.whatsThis()
+        assert "Undo/Redo starts again" in resume.whatsThis()
+        assert "fitting setup start fresh" in next_pass.whatsThis()
+        scroll = host.findChild(QScrollArea, "MeshEditorRustResultScroll")
+        assert scroll.widgetResizable()
+        assert scroll.horizontalScrollBar().maximum() == 0
+        assert scroll.verticalScrollBar().maximum() > 0
+        actions = [button for button in host.findChildren(QPushButton)
+                   if button.objectName().startswith("MeshEditorRustResult")]
+        assert len(actions) == 7
+        with patch("cdmw.ui.mesh_editor.rust_host.QWhatsThis.showText") as explain:
+            for button in actions:
+                help_button = host.findChild(QToolButton, button.objectName() + "Help")
+                assert help_button is not None and help_button.text() == "?"
+                assert help_button.whatsThis() == button.toolTip()
+                help_button.click()
+                assert explain.call_args.args[1] == button.whatsThis()
+        assert explain.call_count == 7
+    finally:
+        host.deleteLater()
+        app.processEvents()
 
 
 def test_hello_requires_embedded_capability_and_passes_pid_to_host(tmp_path: Path) -> None:

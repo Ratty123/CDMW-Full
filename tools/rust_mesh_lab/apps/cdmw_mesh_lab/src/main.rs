@@ -2939,6 +2939,9 @@ impl LabApplication {
         }
         if !ok {
             self.status = format!("{label} rejected: {}", error.trim());
+            if matches!(label.as_str(), "Delete part" | "Delete selection" | "Delete Selection") {
+                self.show_cdmw_delete_guidance(&self.status.clone());
+            }
             self.remember_cdmw_page_feedback(origin.as_ref());
             self.finish_cdmw_history_step(request_id, false);
             return;
@@ -3246,6 +3249,11 @@ impl LabApplication {
                 .context("CDMW material presentation LOD could not be restored")?;
         }
         self.camera = camera;
+        if let Some(mesh) = &self.mesh {
+            // Keep navigation, but the replacement can be much larger or farther
+            // from the retained target than the original game asset.
+            self.camera.retain_full_mesh_clip_extent(mesh);
+        }
         self.cdmw_orbit_mode = orbit_mode;
         self.cdmw_rail_page = rail_page;
         self.viewport_tool = viewport_tool;
@@ -5404,6 +5412,9 @@ impl LabApplication {
     }
 
     fn publish_mesh_snapshot(&mut self) {
+        if let Some(mesh) = &self.mesh {
+            self.camera.retain_full_mesh_clip_extent(mesh);
+        }
         self.reset_weapon_placement_request();
         self.cancel_pending_jiggle();
         self.cdmw_jiggle.preview.invalidate();

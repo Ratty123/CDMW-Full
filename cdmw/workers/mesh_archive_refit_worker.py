@@ -215,7 +215,7 @@ def prepare_archive_refit_source(args, stop_event):
             entries_by_basename=dependencies.entries_by_basename,
         )
         context = _run(materials, materials.context_resolved, stop_event)
-        lease = ArchiveRefitPreviewLease(context)
+        lease = ArchiveRefitPreviewLease(context, dependencies)
         controller = SimpleNamespace(mesh_service=loaded.service, active_session_id=loaded.view.session_id)
         prime_rust_mesh_preview_context(
             controller, context.preview_model, material_package_path=context.material_package_path,

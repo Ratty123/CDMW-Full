@@ -308,8 +308,7 @@ class NewItemTaskControllerMixin:
                      replace_existing: bool = True) -> bool:
         if manager not in MANAGERS:
             self.status_message.emit(
-                "DMM is temporarily disabled. DMM 3.5.0 can lose new items and skip their textures. Use JMM or CDUMM."
-                if manager == "DMM" else "Choose CDUMM or JMM for new item exports.", True)
+                "Choose CDUMM, JMM or DMM for new item exports.", True)
             return False
         if not self.has_current_plan:
             self.status_message.emit("Build the plan first.", True)

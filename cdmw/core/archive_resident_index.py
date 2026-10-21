@@ -21,6 +21,7 @@ import threading
 import time
 from types import SimpleNamespace
 
+from cdmw.domain.archives.discovery import BUILTIN_IGNORED_ARCHIVE_FOLDERS, normalize_ignored_archive_folders
 from cdmw.domain.cancellation import raise_if_cancelled
 from cdmw.models import ArchiveEntry
 
@@ -36,7 +37,7 @@ _EXTENSION_CACHE_SIZE = 128
 _CACHED_EXTENSION_ROWS = 65536
 _EXTENSION_ROW_BUDGET = 131072
 _DOTNET_EPOCH_TICKS = 621355968000000000
-_CACHE: OrderedDict[tuple[str, str], ResidentArchiveIndex] = OrderedDict()
+_CACHE: OrderedDict[tuple[str, str, tuple[str, ...], bool], ResidentArchiveIndex] = OrderedDict()
 _CACHE_LOCK = threading.Lock()
 
 
@@ -46,6 +47,12 @@ class ResidentArchiveSource:
     fingerprint: str
     index_path: str
     entry_count: int
+    ignored_folders: tuple[str, ...] = ()
+    use_default_ignored_folders: bool = True
+
+    def __post_init__(self):
+        # JSON worker requests carry lists; retain an immutable capture in both processes.
+        object.__setattr__(self, "ignored_folders", normalize_ignored_archive_folders(self.ignored_folders))
 
     @classmethod
     def capture(cls, service, package_root) -> ResidentArchiveSource | None:
@@ -55,14 +62,17 @@ class ResidentArchiveSource:
             return None
         if Path(session.package_root) != Path(package_root):
             return None
-        return cls(session.package_root, session.fingerprint, session.index_path, session.entry_count)
+        exclusions = getattr(service, "session_folder_exclusions", None)
+        ignored, use_defaults = exclusions(session.session_id) if callable(exclusions) else ((), True)
+        return cls(session.package_root, session.fingerprint, session.index_path, session.entry_count,
+                   ignored, use_defaults)
 
     def open(self, stop_event=None, *, package_root=None) -> ResidentArchiveIndex:
         if package_root is not None and Path(package_root) != Path(self.package_root):
             raise ValueError("Archive root changed; reopen the workspace with the current catalogue.")
         if callable(stop_event):
             stop_event = SimpleNamespace(is_set=stop_event)
-        key = (self.index_path, self.fingerprint)
+        key = (self.index_path, self.fingerprint, self.ignored_folders, self.use_default_ignored_folders)
         while not _CACHE_LOCK.acquire(timeout=.05):
             raise_if_cancelled(stop_event, "Archive catalogue loading cancelled.")
         try:
@@ -155,12 +165,19 @@ class ResidentArchiveIndex(Sequence[ArchiveEntry]):
                     raise ValueError("Archive mount table is unexpectedly large.")
                 mount_rows = parse_papgt(mount_path.read_bytes())
                 packages = {file.parent.name.casefold() for file, *_ in self.source_files if file.suffix.lower() == ".pamt"}
+                ignored = {name.casefold() for name in source.ignored_folders}
+                if source.use_default_ignored_folders:
+                    ignored.update(name.casefold() for name in BUILTIN_IGNORED_ARCHIVE_FOLDERS)
                 self._mounts = {}
                 for rank, mount in enumerate(mount_rows):
                     directory = (root / mount.name).resolve()
                     if directory.parent != root:
                         raise ValueError(f"Mounted archive is outside the game folder: {mount.name}")
                     if mount.name.casefold() not in packages:
+                        if mount.name.casefold() in ignored:
+                            # Deliberately excluded folders are not missing inputs,
+                            # even while another manager still mounts them in PAPGT.
+                            continue
                         if mount.flags & 0xff:
                             continue
                         shipped = (len(mount.name) == 4 and mount.name.isascii()

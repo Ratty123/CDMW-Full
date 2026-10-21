@@ -161,6 +161,9 @@ class MeshEditorShellBridgeMixin:
                 supplemental.append(str(path or "").replace("\\", "/").strip().lower())
         parts = {
             "target": archive_entry_identity_key(target_entry) if isinstance(target_entry, ArchiveEntry) else self._mesh_editor_entry_key(target_entry),
+            "target_prepared_sha256": str(getattr(target_entry, "prepared_sha256", "") or ""),
+            "target_edited_result": (str(target_entry.prepared_path)
+                if isinstance(target_entry, ArchiveEntry) and target_entry.prepared_note == "Mesh Editor edited result" else ""),
             "mode": str(getattr(request, "mode", "") or "").strip().lower(),
             "source_entry": archive_entry_identity_key(source_entry) if isinstance(source_entry, ArchiveEntry) else self._mesh_editor_entry_key(source_entry),
             "source_path": source_path_key,
@@ -578,7 +581,11 @@ class MeshEditorShellBridgeMixin:
             return True
         if has_standalone:
             current_target = self.mesh_editor_tab._current_target_entry()
-            if not replace_same and self._mesh_editor_entry_key(current_target) == self._mesh_editor_entry_key(entry):
+            same_source = (isinstance(current_target, ArchiveEntry) and current_target.identity == entry.identity
+                           and current_target.prepared_sha256 == entry.prepared_sha256)
+            if same_source and "Mesh Editor edited result" in (current_target.prepared_note, entry.prepared_note):
+                same_source = current_target.prepared_path == entry.prepared_path
+            if not replace_same and same_source:
                 self._activate_tool_widget(self.mesh_editor_tab)
                 if self._relaunch_idle_rust_editor_for_active_session(entry):
                     return False
@@ -654,6 +661,24 @@ class MeshEditorShellBridgeMixin:
                     error=True,
                 )
                 return
+        edited_resolver = getattr(self.archive, "edited_result_context", None)
+        edited_context = edited_resolver(entry) if callable(edited_resolver) else None
+        if edited_context is not None:
+            materials = edited_context.material_context_for(entry)
+            try:
+                material_arguments = materials.open_arguments() if materials is not None else {}
+            except (OSError, RuntimeError, ValueError) as exc:
+                self.set_status_message(str(exc), error=True)
+                return
+            if not self._prepare_mesh_editor_archive_launch(entry):
+                lease = material_arguments.get("material_package_lease")
+                if lease is not None:
+                    lease.release()
+                return
+            self.mesh_editor_tab.open_archive_session(entry, archive_dependencies=edited_context, **material_arguments)
+            self._activate_tool_widget(self.mesh_editor_tab)
+            self.set_status_message(f"Opening edited {entry.basename} with its source dependencies.")
+            return
         if self._defer_rust_mesh_editor_for_archive_textures(entry):
             return
         archive_dependencies = None

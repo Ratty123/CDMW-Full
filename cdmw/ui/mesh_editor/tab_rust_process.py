@@ -816,7 +816,7 @@ class MeshEditorRustProcessMixin:
         show_result = getattr(host, "show_result", None)
         if callable(show_result):
             show_result(
-                "CDMW accepted the validated mesh revision. Choose an output action, reopen editing, or close the session."
+                "Your mesh changes passed validation. Choose how to keep editing, save the result or install it."
             )
         self._publish_rust_protocol_status("Mesh Editor finished and CDMW accepted the validated geometry.")
 
@@ -878,7 +878,7 @@ class MeshEditorRustProcessMixin:
             show_result = getattr(host, "show_result", None)
             if callable(show_result):
                 show_result(
-                    "CDMW accepted the validated mesh revision. Choose an output action, reopen editing, or close the session."
+                    "Your mesh changes passed validation. Choose how to keep editing, save the result or install it."
                 )
             self._publish_rust_protocol_status("Mesh Editor finished and CDMW accepted the validated geometry.")
         elif self._rust_finish_protocol_active():

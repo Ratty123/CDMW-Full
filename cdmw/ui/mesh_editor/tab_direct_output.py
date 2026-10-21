@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from dataclasses import replace
 from pathlib import Path
 
 from PySide6.QtCore import QThread, QTimer, Qt
@@ -10,12 +11,71 @@ from PySide6.QtWidgets import QProgressDialog
 
 from cdmw.services.archive_extraction_service import find_available_output_path
 from cdmw.services.new_item_service import game_is_running
+from cdmw.services.workspace_layout import workspace_paths
 from cdmw.models import ModPackageInfo
 from cdmw.ui.mesh_editor.mod_export_dialog import MeshModExportDialog
 from cdmw.ui.mesh_editor.tab_compat import facade_globals as _tab
 
 
 class MeshEditorDirectOutputMixin:
+    def _continue_editing_modified_mesh_requested(self) -> None:
+        self._start_archive_browser_result_requested(continue_editing=True)
+
+    def _start_archive_browser_result_requested(self, *, continue_editing: bool = False) -> None:
+        entry = self._mesh_output_target()
+        if entry is None:
+            return
+        if not self._standalone_export_validation_ok():
+            self.status_message_requested.emit("Run validation successfully before adding an edited archive result.", True)
+            return
+        if self._mesh_direct_output_busy() or self._standalone_action_worker_active():
+            self.status_message_requested.emit("Wait for the current Mesh Editor task to finish.", True)
+            return
+        dependencies = self.archive_session_dependencies
+        if dependencies is None:
+            self.status_message_requested.emit("Reopen this mesh from Archive Browser to retain its source dependencies.", True)
+            return
+        controller = self.standalone_controller
+        sources = {entry.identity: dependencies}
+        session = controller.mesh_service._session(controller.active_session_id)
+        with session.export_lock:
+            context = session.archive_refit_context
+        for asset in getattr(context, "assets", ()):
+            if asset.entry.identity == entry.identity:
+                continue
+            source = getattr(asset.preview_lease, "archive_dependencies", None)
+            if source is None:
+                self.status_message_requested.emit("Reopen every Refit source from Archive Browser to retain its dependencies.", True)
+                return
+            sources[asset.entry.identity] = source
+        captured = tuple((identity, tuple(replace(candidate) for candidate in source.entries))
+                         for identity, source in sources.items())
+        from cdmw.services.mesh_archive_results import capture_mesh_archive_material_context
+        materials = {material.source_identity: material
+                     for source in sources.values() for material in source.material_contexts}
+        try:
+            if (self.archive_material_context_verified_for_rust
+                    and self.archive_material_context_source_identity == entry.identity):
+                material = capture_mesh_archive_material_context(entry,
+                    self.standalone_archive_material_preview_model, self.archive_material_context_package_path)
+                if material is not None:
+                    materials[entry.identity] = material
+            for asset in getattr(context, "assets", ()):
+                if asset.entry.identity == entry.identity:
+                    continue
+                lease = getattr(asset.preview_lease, "lease", None)
+                material = capture_mesh_archive_material_context(asset.entry, asset.source.mesh,
+                    getattr(lease, "package_dir", ""))
+                if material is not None:
+                    materials[asset.entry.identity] = material
+        except (OSError, RuntimeError, ValueError) as exc:
+            self.status_message_requested.emit(str(exc), True)
+            return
+        root = workspace_paths(Path(self.settings.fileName()).parent)["archive_cache_root"] / "mesh_editor_results"
+        self._start_mesh_direct_output_worker("archive_result", entry, output_path=root,
+            archive_dependency_sources=captured, archive_material_sources=tuple(materials.values()),
+            continue_editing=continue_editing)
+
     def _mesh_output_target(self) -> _tab.ArchiveEntry | None:
         entry = self._current_target_entry()
         if not isinstance(entry, _tab.ArchiveEntry):
@@ -147,6 +207,9 @@ class MeshEditorDirectOutputMixin:
         package_info: ModPackageInfo | None = None,
         create_zip: bool = False,
         open_folder: bool = False,
+        archive_dependency_sources: tuple = (),
+        archive_material_sources: tuple = (),
+        continue_editing: bool = False,
     ) -> bool:
         controller = self.standalone_controller
         if controller is None or not controller.active_session_id:
@@ -156,11 +219,20 @@ class MeshEditorDirectOutputMixin:
             return False
         self.standalone_output_request_id += 1
         request_id = self.standalone_output_request_id
+        extra = {"archive_dependency_sources": archive_dependency_sources,
+                 "archive_material_sources": archive_material_sources} if kind == "archive_result" else {}
+        if kind != "archive_result":
+            from cdmw.services.mesh_archive_results import ADDED_RESULT_NOTE, EDITED_RESULT_NOTE
+            dependencies = getattr(self, "archive_session_dependencies", None)
+            inherited = tuple(replace(candidate) for candidate in getattr(dependencies, "entries", ())
+                              if candidate.prepared_note in (EDITED_RESULT_NOTE, ADDED_RESULT_NOTE))
+            if inherited:
+                extra["inherited_archive_outputs"] = inherited
         worker = _tab.MeshDirectOutputWorker(
             request_id,
             controller.mesh_service,
             controller.active_session_id,
-            entry,
+            replace(entry) if kind == "archive_result" else entry,
             kind=kind,
             output_path=output_path,
             manager_profile=manager_profile,
@@ -168,6 +240,7 @@ class MeshEditorDirectOutputMixin:
             create_zip=create_zip,
             expected_mesh_revision=self.standalone_export_validation_revision,
             texture_updates_waiter=self._wait_for_dotnet_export_updates,
+            **extra,
         )
         thread = QThread(self)
         progress = QProgressDialog("Preparing mesh-only output...", "Cancel", 0, 100, self)
@@ -181,11 +254,11 @@ class MeshEditorDirectOutputMixin:
         thread.started.connect(worker.run)
         worker.progress_changed.connect(self._handle_mesh_direct_output_progress)
         worker.completed.connect(
-            lambda target_id, result, service=mutation_service, reveal=open_folder: QTimer.singleShot(
+            lambda target_id, result, service=mutation_service, reveal=open_folder, resume=continue_editing: QTimer.singleShot(
                 0,
                 self,
                 lambda: self._handle_mesh_direct_output_completed(
-                    target_id, result, mutation_service=service, open_folder=reveal,
+                    target_id, result, mutation_service=service, open_folder=reveal, continue_editing=resume,
                 ),
             )
         )
@@ -223,11 +296,32 @@ class MeshEditorDirectOutputMixin:
         *,
         mutation_service: object | None = None,
         open_folder: bool = False,
+        continue_editing: bool = False,
     ) -> None:
         if int(request_id) != int(self.standalone_output_request_id):
             return
         if not isinstance(result, _tab.MeshDirectOutputResult):
             self._handle_mesh_direct_output_error(request_id, "Mesh output returned an invalid result.")
+            return
+        if result.kind == "archive_result":
+            from cdmw.services.mesh_archive_results import MeshArchiveResult
+            prepared = result.archive_result
+            controller = self.standalone_controller
+            if not isinstance(prepared, MeshArchiveResult) or controller is None:
+                return
+            try:
+                session = controller.mesh_service._session(controller.active_session_id)
+                current = (session.session_id, session.revision, session.material_generation)
+            except (KeyError, RuntimeError):
+                return
+            if current != (prepared.session_id, prepared.mesh_revision, prepared.material_generation):
+                self.status_message_requested.emit("Edited archive result ignored because the mesh changed; validate it again.", True)
+                return
+            if continue_editing:
+                self._continue_from_prepared_archive_result(request_id, prepared)
+                return
+            self.archive_result_ready.emit(prepared)
+            self.status_message_requested.emit("Edited meshes added to Archive Browser with their source dependencies.", False)
             return
         if result.kind == "overlay_prepare" and result.overlay_preparation is not None:
             preparation = result.overlay_preparation
@@ -266,6 +360,37 @@ class MeshEditorDirectOutputMixin:
             self.status_message_requested.emit(f"ZIP written to {result.zip_path}", False)
         if open_folder and result.output_path is not None:
             _tab.QDesktopServices.openUrl(_tab.QUrl.fromLocalFile(str(result.output_path)))
+
+    def _continue_from_prepared_archive_result(self, request_id: int, prepared: object) -> None:
+        if int(request_id) != int(self.standalone_output_request_id):
+            return
+        controller = self.standalone_controller
+        if controller is None:
+            return
+        try:
+            session = controller.mesh_service._session(controller.active_session_id)
+        except (KeyError, RuntimeError):
+            return
+        if (session.session_id, session.revision, session.material_generation) != (
+                prepared.session_id, prepared.mesh_revision, prepared.material_generation):
+            self.status_message_requested.emit("The mesh changed before continuing; validate it again.", True)
+            return
+        if self._mesh_direct_output_busy():
+            QTimer.singleShot(10, self, lambda: self._continue_from_prepared_archive_result(request_id, prepared))
+            return
+        from cdmw.ui.archive_browser.workflow_dependencies import archive_result_dependency_context
+        dependencies = archive_result_dependency_context(prepared)
+        material_context = {}
+        saved_materials = dependencies.material_context_for(dependencies.selected_entry)
+        if saved_materials is not None:
+            try:
+                material_context = saved_materials.open_arguments()
+            except (OSError, RuntimeError, ValueError) as exc:
+                self.status_message_requested.emit(str(exc), True)
+                return
+        self.open_archive_session(
+            dependencies.selected_entry, archive_dependencies=dependencies, **material_context,
+        )
 
     def _start_mesh_overlay_apply(self, preparation: object, mutation_service: object) -> None:
         if self._mesh_direct_output_busy():

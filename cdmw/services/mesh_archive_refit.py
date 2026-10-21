@@ -27,8 +27,9 @@ class ArchiveRefitAsset:
 class ArchiveRefitPreviewLease:
     """Share one cache lease across shadow, authoritative and history snapshots."""
 
-    def __init__(self, context):
+    def __init__(self, context, archive_dependencies=None):
         self.lease = context.material_package_lease
+        self.archive_dependencies = archive_dependencies
 
     def __deepcopy__(self, _memo):
         return self

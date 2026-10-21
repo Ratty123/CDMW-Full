@@ -312,7 +312,9 @@ def test_new_item_snapshot_skips_deleted_mod_mounts(catalogue, tmp_path, name):
     root, entries, _ = catalogue
     mount = root / 'meta/0.papgt'
     mount.write_bytes(papgt_with_directory(mount.read_bytes(), name, 123))
-    source = write_resident_index(root, entries, tmp_path / 'missing-mod')
+    # Exercise missing mounts that were not deliberately excluded by discovery.
+    source = replace(write_resident_index(root, entries, tmp_path / 'missing-mod'),
+                     use_default_ignored_folders=False)
     before = mount.read_bytes()
     messages = []
     snapshot = snapshot_task((), service=NewItemService(), read_entry=_read,
@@ -338,6 +340,66 @@ def test_missing_game_archive_or_incomplete_mod_catalogue_is_still_refused(catal
     source = write_resident_index(root, entries, tmp_path / 'incomplete')
     with pytest.raises(ValueError, match='Mounted archive is missing'):
         source.open()
+
+
+@pytest.mark.parametrize('name', ['dmmsa', 'DmMsA', 'dmmgen'])
+def test_new_item_snapshot_keeps_existing_ignored_mod_mounts_out_of_its_sources(catalogue, tmp_path, name):
+    from cdmw.core.papgt_format import papgt_with_directory
+
+    root, entries, _ = catalogue
+    directory = root / name
+    directory.mkdir()
+    ignored_index = directory / '0.pamt'
+    ignored_index.write_bytes(b'intentionally excluded, not a readable archive')
+    mount = root / 'meta/0.papgt'
+    mount.write_bytes(papgt_with_directory(mount.read_bytes(), name, 123))
+    source = write_resident_index(root, entries, tmp_path / 'ignored-mod')
+    before = mount.read_bytes(), ignored_index.read_bytes()
+
+    snapshot = snapshot_task((), service=NewItemService(), read_entry=_read,
+                             package_root=root, resident_source=source)(lambda _: None, threading.Event())
+
+    assert TEMPLATE in snapshot.rows
+    assert source.open().missing_mod_mounts == []
+    assert all(path.parent != directory for path, _ in snapshot.provenance.capture().indexes)
+    assert (mount.read_bytes(), ignored_index.read_bytes()) == before
+    ignored_index.write_bytes(b'ignored changes do not invalidate the catalogue')
+    assert source.open()
+
+
+def test_new_item_snapshot_passes_custom_exclusions_to_the_verifier(catalogue, tmp_path):
+    from cdmw.core.papgt_format import papgt_with_directory
+
+    root, entries, _ = catalogue
+    directory = root / 'ExtraMods'
+    directory.mkdir()
+    (directory / '0.pamt').write_bytes(b'custom folder intentionally excluded')
+    mount = root / 'meta/0.papgt'
+    mount.write_bytes(papgt_with_directory(mount.read_bytes(), directory.name, 123))
+    source = replace(write_resident_index(root, entries, tmp_path / 'custom-exclusions'),
+                     ignored_folders=('extramods',), use_default_ignored_folders=False)
+    snapshot = snapshot_task((), service=NewItemService(), read_entry=_read,
+                             package_root=root, resident_source=source)(lambda _: None, threading.Event())
+    assert TEMPLATE in snapshot.rows
+    assert all(path.parent != directory for path, _ in snapshot.provenance.capture().indexes)
+
+
+@pytest.mark.parametrize('name,ignored,use_defaults', [
+    ('dmmsa', (), True), ('ExtraMods', ('extramods',), False),
+])
+def test_cleared_exclusions_cannot_reuse_a_filtered_catalogue(catalogue, tmp_path, name, ignored, use_defaults):
+    from cdmw.core.papgt_format import papgt_with_directory
+
+    root, entries, _ = catalogue
+    (root / name).mkdir()
+    (root / name / '0.pamt').write_bytes(b'archive omitted from the catalogue')
+    mount = root / 'meta/0.papgt'
+    mount.write_bytes(papgt_with_directory(mount.read_bytes(), name, 123))
+    source = replace(write_resident_index(root, entries, tmp_path / 'filtered-cache'),
+                     ignored_folders=ignored, use_default_ignored_folders=use_defaults)
+    source.open()
+    with pytest.raises(ValueError, match='Mounted archive is missing'):
+        replace(source, ignored_folders=(), use_default_ignored_folders=False).open()
 
 
 def test_resident_index_rejects_source_changes_before_reuse(catalogue):

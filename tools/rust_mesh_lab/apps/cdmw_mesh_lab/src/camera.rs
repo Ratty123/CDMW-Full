@@ -245,7 +245,8 @@ impl OrbitCamera {
         self.retain_full_mesh_clip_extent(mesh);
     }
 
-    fn retain_full_mesh_clip_extent(&mut self, mesh: &WorkingMesh) {
+    /// Refresh scene depth without changing the current framing or navigation.
+    pub fn retain_full_mesh_clip_extent(&mut self, mesh: &WorkingMesh) {
         if let Some((minimum, maximum)) = finite_bounds(
             mesh.vertices()
                 .map(|(_, vertex)| Vec3::from_array(vertex.position)),
@@ -253,8 +254,12 @@ impl OrbitCamera {
             // Selection changes the framing target, not the extent of the visible scene.
             // A point-sized selection must not collapse the far plane or zoom range.
             let center = (minimum + maximum) * 0.5;
-            self.scene_radius = ((maximum - minimum) * 0.5).length() + center.distance(self.target);
-            self.scene_radius = self.scene_radius.max(MIN_DISTANCE);
+            let radius =
+                (((maximum - minimum) * 0.5).length() + center.distance(self.target)).max(MIN_DISTANCE);
+            if self.scene_radius != radius {
+                self.scene_radius = radius;
+                self.bump_revision();
+            }
         }
     }
 

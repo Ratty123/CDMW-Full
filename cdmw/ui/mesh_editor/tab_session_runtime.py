@@ -220,7 +220,7 @@ class MeshEditorSessionMixin(MeshEditorArchiveMaterialContextMixin):
             if material_preview_model is not None
             else (
                 self.get_archive_material_preview_model()
-                if callable(self.get_archive_material_preview_model)
+                if archive_dependencies is None and callable(self.get_archive_material_preview_model)
                 else None
             )
         )

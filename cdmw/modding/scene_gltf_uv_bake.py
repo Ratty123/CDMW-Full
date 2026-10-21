@@ -604,6 +604,11 @@ def _split_material_mesh(
         replacement.source_vertex_map = [
             combined.source_owners[source_map[index]][1] for index in ordered_vertices
         ]
+        if old.bone_indices or old.bone_weights:
+            if len(old.bone_indices) != len(old.vertices) or len(old.bone_weights) != len(old.vertices):
+                raise ValueError(f"glTF UV bake primitive {record.primitive_label} has incomplete skin weights.")
+            replacement.bone_indices = [old.bone_indices[index] for index in replacement.source_vertex_map]
+            replacement.bone_weights = [old.bone_weights[index] for index in replacement.source_vertex_map]
         replacement.source_vertex_map_authority = "topology"
         replacement.source_vertex_offsets = []
         replacement.vertex_count = len(replacement.vertices)

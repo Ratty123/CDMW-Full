@@ -59,7 +59,9 @@ def verify_resident_catalogue(catalogue, provenance: SourceTracker, *, stop_even
     """
     raise_if_cancelled(stop_event)
     catalogue.validate_sources(stop_event)
-    request = {"schema": 1, "source": asdict(catalogue.source),
+    source = asdict(catalogue.source)
+    source["ignored_folders"] = list(catalogue.source.ignored_folders)
+    request = {"schema": 1, "source": source,
                "catalogue_digest": catalogue.verification_digest(stop_event)}
     expected_paths = {path for path in catalogue.source_paths if path.suffix.lower() == ".pamt"}
     state_reader = getattr(stop_event, "process_state", None)

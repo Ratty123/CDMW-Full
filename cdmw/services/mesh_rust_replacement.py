@@ -21,11 +21,16 @@ def replacement_ui_state(authoring):
     reason = ""
     blocked_by = ""
     if session.archive_refit_context is not None:
-        reason = "Undo active Morph & Refit archive bindings before replacing parts."
+        reason = "Finish Morph & Refit, then choose Start next edit pass before changing part inclusion or importing replacements."
         blocked_by = "morph_refit"
     elif getattr(authoring.shadow_service._morph_sessions.get(authoring.shadow_session_id), "profile", None) is not None:
-        reason = "Clear the active Morph & Refit profile before replacing parts."
+        reason = "Finish Morph & Refit, then choose Start next edit pass before changing part inclusion or importing replacements."
         blocked_by = "morph_refit"
+    elif session.output_policy == "free_edit_rebuild":
+        reason = (
+            "Free Edit exports OBJ geometry without rig weights. "
+            "Import Replacement requires an original game mesh with Exact output."
+        )
     elif session.mesh_format not in {"pac", "pam", "pamlod"} or not session.original_data or session.lod_index != 0:
         reason = "Replacement requires an eligible original PAC, PAM or PAMLOD at LOD0."
     elif session.output_policy not in {"exact_game_asset", "replacement_game_asset"}:

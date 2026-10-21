@@ -1633,29 +1633,42 @@ accepted revision in the controller's worker, rebuilds
 the source's textured preview, and invalidates any placement build made from the
 previous geometry.
 
+Imported OBJ/GLB sources can open before an output folder has been selected. In
+**Viewport > Output**, choose **Choose output folder...** before editing or finishing;
+**Change output folder...** remains available afterward. The destination is validated
+without creating output. **Finish** returns the accepted geometry to New Item;
+**Export Free Edit Package** separately writes an OBJ package.
+
+This handoff edits the imported geometry. New Item's model import still converts
+external skinning to static geometry. To preserve compatible GLB/glTF authored weights
+for an existing PAC item, open that item's matching game mesh and skeleton in Mesh
+Editor and use [Import Replacement](../mesh_editor/README.md#imported-glb-skin-weights).
+
 The Mesh Editor session remains open; reopen editing and finish again to accept another
 revision without losing its history. New Item exposes the generated submesh name beside
 the source materials for per-part Glow. This is face separation, not a knife/cap tool.
 
 ## Mod manager exports
 
-**Create New Item → Output → Mod folder** offers **CDUMM** and **JMM**.
+**Create New Item → Output → Mod folder** offers **CDUMM**, **JMM** and **DMM**.
 CDUMM writes a `files/` package with manager metadata; JMM writes game-relative
-files with its `mod.json` replacement map. **DMM** remains visible but greyed out,
-with its reason shown below the selector and in hover help. New drafts default to
-CDUMM; saved DMM selections switch to CDUMM. DMM and unknown manager choices are
-refused before export.
+files with its `mod.json` replacement map. DMM writes a standalone `0036/` archive
+group with manager metadata. New drafts default to CDUMM; saved DMM selections
+remain selected. Unknown manager choices are refused before export.
 CDMW's **Game overlay** option remains available.
 
 ### DMM archive compatibility
 
-DMM export is temporarily disabled after a DMM 3.5.0 mount generated a vanilla-only
-ItemInfo table ahead of the mod's complete table, hiding its added item record. The
-shop still referenced that item, producing an empty, unbuyable entry. The mount also
+DMM export was re-enabled on 2026-10-21 for user testing after the DMM developer
+reported a fix. That report has not yet been verified in game with CDMW output.
+
+The earlier DMM 3.5.0 mount generated a vanilla-only ItemInfo table ahead of the
+mod's complete table, hiding its added item record. The shop still referenced that
+item, producing an empty, unbuyable entry. The mount also
 omitted the package's new PATHC texture registrations. The same mod was reported
-working in game with JMM. Use **JMM** or **CDUMM** for new-item packages while these
-DMM issues remain unresolved; a successful mount message does not establish that
-the new items and textures were preserved.
+working in game with JMM. Test with the updated DMM release and check the item,
+shop entry and textures in game; a successful mount message does not establish
+that the new items and textures were preserved.
 
 ### Mounted source data
 
@@ -1684,7 +1697,7 @@ existing behavior. This check does not certify arbitrary third-party edits as va
 2. Create the new item normally. In **Output → Mod folder**, select
    **Include mounted items in a new mod**. This and **Add to existing mod** are
    alternative sources; choosing one clears the other.
-3. Choose CDUMM or JMM, a new mod name, and an output folder
+3. Choose CDUMM, JMM or DMM, a new mod name, and an output folder
    outside the game installation. **Rebuild plan** reads the installed content in
    the background. Cancelling preserves the draft and source files.
 4. Review **Included mounted items** and **Archive folders** at the top of Destination,
@@ -1878,10 +1891,19 @@ part of an ordinary automated check.
 The seven workflow steps support the current `binarystaticinfo__/bin` tables as
 well as legacy `binary__/client/bin` tables. Current complete table pairs take
 precedence as a generation; missing halves and parse errors cannot fall through
-to an old mod. An unreadable archive index stops authoring rather than exposing
+to an old mod. An unreadable included archive index stops authoring rather than exposing
 an incomplete catalogue. ItemInfo preserves its actual `0x11` or `0x12` stat marker.
 Current StoreInfo retains the additional stock condition bytes and all opaque
 fields. Every writable shape must round-trip without changes first.
+
+New Item honors the folder exclusions captured when the archive catalogue opened,
+including in its separate verification process. Mounted `dmmsa` and `dmmgen`
+folders excluded by discovery do not block loading and do not supply baseline
+tables or assets. Custom exclusions follow the same rule. Removing an exclusion
+and refreshing makes that folder eligible again; missing non-excluded game
+archives and incomplete catalogues still stop loading. Excluded folder contents
+are outside this authoring view, so successful loading does not establish
+compatibility with their installed mods.
 
 ### Item text and languages
 

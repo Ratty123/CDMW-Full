@@ -345,6 +345,18 @@ does not confer unrestricted PAC/PAM/PAMLOD writeback. Importing geometry from
 OBJ, glTF/GLB, DAE or the configured Blender FBX route also does not establish
 retention of every game-specific vertex or physics field.
 
+Mesh Editor replacement materials use the exact PAC sidecar part binding rather
+than the binary material label. Repeating bindings in distinct `ModelProperty`
+indices are separate variants; selected changes preserve each variant's unrelated
+parts. True shared owners, duplicate bindings within a variant and ambiguous
+property indices remain refused. Reviewed on 2026-10-21 against `fc18bc78cc14`
+plus the scoped replacement-material correction. Owned fixtures cover label/case
+differences, shared-owner refusal, variant matching and restoration. Bounded
+read-only preparation with `cd_phm_00_hel_0010.pac` and the supplied textured helmet
+GLB generated DDS and a sidecar retaining all five property variants. This is
+source, fixture and asset-preparation evidence; packaged, visible-UI and in-game
+material appearance remain unverified.
+
 Sources: [mesh parser][mesh-parser], [exact capability rules][authoring-capability],
 [PAC builders][pac-builder], [topology builder][pac-topology],
 [PAT reader][pat], [Mesh Editor output notes][mesh-editor].
@@ -372,6 +384,26 @@ must be demonstrated by the palette.
 **Conclusion:** The reader and writer must use the same proven layout, preserve
 protected lanes, and reject unresolved or excessive influences. Agreement
 between two implementations is not useful if both use the same wrong offsets.
+
+Mesh Editor **Import Replacement** now retains authored GLB/glTF influences for
+compatible PAC targets. Used joint names must resolve uniquely into the captured
+target palette, and inverse bind matrices must agree on one conversion into the
+game rig's bind space. Unused armature joints do not require palette entries.
+Unknown used bones, incompatible frames, unsupported layouts and excessive
+influences are refused; no foreign-rig retargeting or palette extension is claimed.
+PAC output quantizes weights to its byte representation. Unskinned replacements
+retain donor-weight transfer. New Item's separate model import still uses static
+conversion, and Free Edit's OBJ output does not retain a rig.
+
+Reviewed on 2026-10-21 against `277b82ccc786` plus the scoped authored-weight patch.
+The [mapping service](../cdmw/services/mesh_replacement_skinning.py) and
+[owned regression fixtures](../tests/test_mesh_replacement_imported_skinning.py)
+verify joint-to-palette mapping, bind-space conversion, serialization and reparse,
+history, repeated imports, and the actual neutral Rust-host import/Finish handoff.
+The [material UV checks](../tests/test_scene_gltf_uv_bake.py) cover weight retention
+through texture-driven vertex reordering and seam splits.
+This is source and executable fixture evidence. The reporter's armour, packaged
+appearance and in-game animation remain unverified.
 
 Sources: [skinning research][modding-notes], [weight writer][mesh-skinning],
 [real-layout regression entry point][skin-tests].
@@ -456,6 +488,17 @@ The proven PAC layout separates skeletal and cloth-guide weights. Inspection
 can retain zero-weight records; editing requires a valid supported binding.
 Existing cloth influence reduction, profile overrides and constrained guide
 generation have explicit source-layout and all-LOD checks.
+
+Free Edit source inspection is independent of its output policy. Retained PAC
+bindings and exact variant assignments describe the source; current geometry's
+binding-layout eligibility is reported separately and does not validate edited
+physics. Free Edit's OBJ output retains no game rig, cloth, jiggle or physics
+profiles. Source descriptor ownership, rather than current part ordering, keeps
+inspection attached to surviving parts after deletion. Owned-fixture and
+headless-control checks reviewed on 2026-10-21 against `fc18bc78` plus this scoped
+fix confirm that separation and native Delete/Undo/Redo without a preliminary
+clone. They do not reproduce the reported armour PAC's underlying clone failure
+or establish packaged, visible-UI or in-game behaviour.
 
 PBD configuration/profile XML, PAC guide data, skeleton references and runtime
 shader records form a dependency chain. A generic `.pbd` binary listed as
@@ -969,9 +1012,16 @@ Extracting raw output files deliberately loses those semantic guarantees.
 External managers have different package layouts and merge/texture-registration
 behaviour. A successful import or mount message is not proof that added item
 records and textures reached the final game view. The recorded DMM 3.5.0
-new-item path could lose additions or omit texture registration; New Item
-therefore retains its documented availability limits. This is a specific
-workflow/version finding, not a claim that every DMM file replacement fails.
+new-item path could lose additions or omit texture registration. On 2026-10-21,
+New Item's DMM export was re-enabled for user testing after a developer-reported
+fix. Preservation of item records and textures with the updated DMM remains an
+open in-game check. The earlier failure remains a workflow/version finding, not
+a claim that every DMM file replacement fails.
+
+Reviewed on 2026-10-21 against `b0c6ad68248b` plus the scoped DMM export patch.
+[Owned-fixture interface checks](../tests/test_new_item_mod_name.py) confirm DMM
+selection, retained saved choices and complete archive-package export through the
+Rust presentation bridge. These headless checks do not run DMM or the game.
 
 Sources: [independent items and composition][independent-items],
 [existing texture modules][independent-textures], [semantic export format][semantic-export],
@@ -1230,6 +1280,7 @@ This is a research register, not a promised delivery schedule.
 | Can every relevant prefab be structurally edited? | Header/type grammar and constrained heap/relocation rules | Resolve ambiguous groups/lengths without permissive fallback; independent edited-asset game checks |
 | Can PCG/PARG/PASG bodies be fully decoded? | Shared reflection metadata and a distinct pointee-tail lead | A complete grammar checked against independent counts/boundaries and representative assets |
 | Can exact mesh authoring be broadened? | Operation/LOD-specific writer gates | Source-preserving layouts, lower-LOD correspondence and physics/skin retention for each new operation |
+| Do imported authored-weight garments animate correctly in game? | Compatible GLB/glTF-to-PAC mapping and written-weight fixture checks | Matching target rig, the reporter's armour, and controlled packaged/game animation comparisons |
 | Can skeletons be restructured? | Proven fixed-layout hierarchy and bind transforms | A semantic writer, all dependent bindings and game acceptance |
 | Do generated hair and new cloth/collider profiles behave correctly in game? | Experimental authoring and bounded preview | Exact exported equipment, activation, movement/collision and reload comparisons |
 | What is the remaining EyeCover overlap mechanism? | Inspected scene-buffer composition and overlap-related user observation | Active-frame resource/permutation capture and a verified fix or bounded workaround |

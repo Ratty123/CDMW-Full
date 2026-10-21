@@ -113,6 +113,7 @@ class _GltfPayload:
     material_uv_plans: dict[int, GltfMaterialUvPlan]
     tolerate_missing_texture_files: bool = False
     preserve_authoring: bool = False
+    preserve_skinning: bool = False
 
 
 @dataclass(slots=True, frozen=True)
@@ -200,7 +201,7 @@ def _collect_gltf_geometry(
                 ),
             )
             skin_matrices: tuple[tuple[float, ...], ...] = ()
-            if instance.skin_index >= 0 and instance.node_index >= 0:
+            if not (payload.preserve_authoring or payload.preserve_skinning) and instance.skin_index >= 0 and instance.node_index >= 0:
                 cache_key = (instance.node_index, instance.skin_index)
                 if cache_key not in skin_matrix_cache:
                     skin_matrix_cache[cache_key] = _gltf_skin_joint_matrices(
@@ -214,6 +215,15 @@ def _collect_gltf_geometry(
                 continue
             from .scene_gltf_authoring import authored_material, authored_skin
             submesh.interchange_material = authored_material(payload, material_index)
+            if payload.preserve_skinning and not payload.preserve_authoring:
+                if instance.skin_index >= 0:
+                    submesh.interchange_skin = authored_skin(payload, instance.skin_index)
+                    if len(submesh.bone_indices) != len(submesh.vertices) or any(not row for row in submesh.bone_weights):
+                        raise ValueError(f"glTF skinned mesh requires complete non-zero joint weights in {submesh.name}.")
+                    if any(j >= len(submesh.interchange_skin["joints"]) for row in submesh.bone_indices for j in row):
+                        raise ValueError(f"glTF joint index exceeds the skin in {submesh.name}.")
+                elif submesh.bone_indices or submesh.bone_weights:
+                    raise ValueError(f"glTF joint weights have no skin binding in {submesh.name}.")
             if payload.preserve_authoring:
                 if instance.skin_index >= 0:
                     submesh.interchange_skin = authored_skin(payload, instance.skin_index)
@@ -227,8 +237,12 @@ def _collect_gltf_geometry(
                 weights = payload.document.get("nodes", [])[instance.node_index].get("weights", mesh_entry.get("weights", ())) if instance.node_index >= 0 else mesh_entry.get("weights", ())
                 copied.morph_weights = {name: float(weights[i]) if i < len(weights) else 0.0 for i, name in enumerate(copied.morph_targets)}
             else:
-                copied = _copy_submesh_with_transform(submesh, instance.transform)
-                copied.bone_indices, copied.bone_weights = [], []
+                # Authored skin positions are in bind space. The mesh node
+                # cancels in glTF skinning; the replacement service resolves
+                # the bind frame against the actual game skeleton.
+                copied = _copy_submesh_with_transform(submesh, _identity_matrix() if submesh.interchange_skin else instance.transform)
+                if not payload.preserve_skinning:
+                    copied.bone_indices, copied.bone_weights = [], []
                 copied.morph_targets, copied.morph_normals, copied.morph_tangents = {}, {}, {}
             if not payload.preserve_authoring and uv_plan is not None and uv_inputs is not None and not uv_plan.requires_raster_bake and any(
                 "normal" in slot.slot_kind.lower() for slot in uv_plan.slots
@@ -326,6 +340,7 @@ def import_gltf(
     tolerate_missing_texture_files: bool = False,
     stop_event: threading.Event | None = None,
     preserve_authoring: bool = False,
+    preserve_skinning: bool = False,
 ) -> SceneImportResult:
     from .scene_importer import SceneImportResult
 
@@ -336,6 +351,7 @@ def import_gltf(
         tolerate_missing_texture_files=tolerate_missing_texture_files,
     )
     payload.preserve_authoring = bool(preserve_authoring)
+    payload.preserve_skinning = bool(preserve_skinning)
     _validate_gltf_static_payload(payload)
     (
         material_names,
@@ -508,16 +524,22 @@ def _validate_gltf_static_payload(payload: _GltfPayload) -> None:
             payload.diagnostics.append("Existing glTF animation clips are retained for export; animation editing is unavailable.")
         return
     if doc.get("skins"):
-        payload.diagnostics.append("glTF skins/bones are baked into static geometry when possible; Mesh Replacement remains static.")
+        payload.diagnostics.append(
+            "glTF skin weights and inverse bind matrices retained for target-rig mapping."
+            if payload.preserve_skinning else
+            "This model import bakes glTF skinning into static geometry. To retain compatible authored weights, use Mesh Editor Import Replacement on a matching PAC with its resolved game skeleton.")
     if doc.get("animations"):
-        payload.diagnostics.append("glTF animations are ignored; import will use static Mesh Replacement only.")
+        payload.diagnostics.append(
+            "glTF animation clips are ignored; replacement uses the target game's animations."
+            if payload.preserve_skinning else
+            "glTF animation clips are ignored by this model import.")
     warned_morphs = False
     for mesh in doc.get("meshes", []) or []:
         if not isinstance(mesh, dict):
             continue
         for primitive in mesh.get("primitives", []) or []:
             if isinstance(primitive, dict) and primitive.get("targets") and not warned_morphs:
-                payload.diagnostics.append("glTF morph targets are ignored for static Mesh Replacement.")
+                payload.diagnostics.append("glTF morph targets are ignored by this model import.")
                 warned_morphs = True
 
 

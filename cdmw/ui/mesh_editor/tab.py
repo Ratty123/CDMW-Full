@@ -180,6 +180,7 @@ class MeshEditorTab(MeshEditorCharacterContextMixin, MeshEditorTabShellMixin, Me
     runtime_event_requested = Signal(str, dict)
     open_archive_session_requested = Signal(object)
     open_archive_target_requested = Signal(object)
+    archive_result_ready = Signal(object)
     replace_from_archive_requested = Signal(object)
     mesh_action_requested = Signal(object)
 

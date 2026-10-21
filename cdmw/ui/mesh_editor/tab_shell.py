@@ -184,6 +184,8 @@ class MeshEditorTabShellMixin(
         page.replace_from_archive_requested.connect(self._emit_replace_from_archive_requested)
         page.export_mesh_file_requested.connect(self._start_standalone_rebuild_asset_requested)
         page.build_mod_requested.connect(self._start_mesh_mod_build_requested)
+        page.add_to_archive_browser_requested.connect(self._start_archive_browser_result_requested)
+        page.continue_modified_mesh_requested.connect(self._continue_editing_modified_mesh_requested)
         page.install_overlay_requested.connect(self._start_mesh_overlay_prepare_requested)
         page.restore_overlay_requested.connect(self._restore_last_mesh_overlay_requested)
         page.reopen_edit_requested.connect(self._reopen_rust_editor_requested)

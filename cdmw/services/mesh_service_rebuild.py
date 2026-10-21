@@ -540,6 +540,7 @@ class MeshRebuildServiceMixin:
         *,
         available_textures: Iterable[str] | None = None,
         skeleton_bone_count: int | None = None,
+        original_mesh: object | None = None,
     ) -> MeshExportValidationReport:
         session = self._session(session_id)
         with session.export_lock:
@@ -547,6 +548,7 @@ class MeshRebuildServiceMixin:
                 session,
                 available_textures=available_textures,
                 skeleton_bone_count=skeleton_bone_count,
+                original_mesh=original_mesh,
             )
 
     def _validate_export_locked(
@@ -555,6 +557,7 @@ class MeshRebuildServiceMixin:
         *,
         available_textures: Iterable[str] | None,
         skeleton_bone_count: int | None,
+        original_mesh: object | None = None,
     ) -> MeshExportValidationReport:
         if session.archive_refit_context is not None or session.replacement_state is not None:
             return self.validate_export_snapshot(self.capture_export_snapshot(session.session_id))
@@ -564,7 +567,7 @@ class MeshRebuildServiceMixin:
             skeleton_bone_count = _service_call("_session_validation_skeleton_bone_count", session)
         return _service_call("validate_mesh_export",
             session.working_mesh,
-            original_mesh=session.base_mesh,
+            original_mesh=original_mesh if original_mesh is not None else session.base_mesh,
             available_textures=available_textures,
             skeleton_bone_count=skeleton_bone_count,
             parse_confidence=session.mesh_asset_parse_confidence,

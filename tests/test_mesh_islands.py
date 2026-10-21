@@ -574,3 +574,76 @@ def test_island_and_whole_part_mod_controls_keep_separate_state(island_host):
     assert [row['included'] for row in islands['islands']] == [False, True, True, True, True, True]
     snapshot = host.shadow_service.capture_export_snapshot(host.shadow_session_id)
     assert prepare_replacement_output(snapshot).data == _expected_output(source, owners, {0})[0]
+
+
+def test_island_mod_topology_restriction_tracks_delete_and_undo(island_host):
+    from cdmw.domain.mesh import MeshEditCommand, MeshEditSelection
+    from tests.test_mesh_rust_replacement import command
+
+    _, _, _, host, _, arguments = island_host
+    assert host.state_payload()['mesh_islands']['parts'][0]['available']
+    deleted = host.shadow_service.apply_command(host.shadow_session_id, MeshEditCommand(
+        'delete', selection=MeshEditSelection.from_maps(faces_by_submesh={0: (0,)}),
+        params={'_include_preview_deltas': False}, mode='edit'))
+    assert deleted.ok
+    row = host.state_payload()['mesh_islands']['parts'][0]
+    assert not row['available']
+    assert 'Start next edit pass' in row['reason']
+    with pytest.raises(ValueError, match='Start next edit pass'):
+        command(host, 'replacement_islands', {**arguments, 'faces': row['islands'][0]['faces']})
+    restored = command(host, 'undo')['state']['mesh_islands']['parts'][0]
+    assert restored['available']
+    assert not restored['reason']
+    changed = command(host, 'replacement_islands', {**arguments, 'faces': [0, 1]})['state']
+    assert not changed['mesh_islands']['parts'][0]['islands'][0]['included']
+
+
+def test_island_mod_free_edit_reason_explains_obj_output(island_host, tmp_path):
+    from tests.test_mesh_rust_replacement import command
+
+    _, _, _, host, _, _ = island_host
+    state = command(host, 'configure_output_policy', {
+        'policy': 'free_edit_rebuild', 'destination': str(tmp_path / 'output')})['state']
+    row = state['mesh_islands']['parts'][0]
+    assert not row['available']
+    assert 'Free Edit' in row['reason'] and 'OBJ' in row['reason']
+    assert row['islands']
+
+
+@pytest.mark.parametrize('refit_kind', ['archive', 'profile'])
+def test_island_mod_refit_reason_preserves_fit_and_advises_continuation(island_host, monkeypatch, refit_kind):
+    from cdmw.services.mesh_island_authoring import island_ui_state
+    from cdmw.services.mesh_rust_replacement import replacement_ui_state, run_replacement_command
+
+    _, _, _, host, _, _ = island_host
+    shadow = host.shadow_service._session(host.shadow_session_id)
+    with monkeypatch.context() as scoped:
+        if refit_kind == 'archive':
+            scoped.setattr(shadow, 'archive_refit_context', object())
+        else:
+            scoped.setitem(host.shadow_service._morph_sessions, host.shadow_session_id,
+                           SimpleNamespace(profile=object()))
+        replacement = replacement_ui_state(host)
+        assert not replacement['available']
+        assert 'Start next edit pass' in replacement['reason']
+        with pytest.raises(ValueError, match='Start next edit pass'):
+            run_replacement_command(host, 'replacement_include', {}, None)
+        row = island_ui_state(host, replacement)['parts'][0]
+        assert not row['available']
+        assert 'Finish Morph & Refit' in row['reason']
+        assert 'Start next edit pass' in row['reason']
+        assert 'Undo' not in row['reason']
+
+
+def test_island_mod_import_reason_uses_new_finished_mesh(island_host, tmp_path):
+    from tests.test_mesh_rust_replacement import command, prepare_source
+
+    _, _, _, host, _, arguments = island_host
+    prepared = prepare_source(host, tmp_path)
+    target_id = prepared['state']['replacement']['pending']['targets'][0]['id']
+    state = command(host, 'replacement_apply', {'targets': [target_id]})['state']
+    row = state['mesh_islands']['parts'][0]
+    assert not row['available']
+    assert 'Start next edit pass' in row['reason']
+    with pytest.raises(ValueError, match='Start next edit pass'):
+        command(host, 'replacement_islands', {**arguments, 'faces': row['islands'][0]['faces']})

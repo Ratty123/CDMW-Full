@@ -153,6 +153,10 @@ def _parse_gltf_primitive(
                 for u, v in rows
             ]
     joint_sets = sorted(int(key.split("_")[-1]) for key in attributes if key.startswith("JOINTS_"))
+    if getattr(payload, "preserve_skinning", False):
+        weight_sets = sorted(int(key.split("_")[-1]) for key in attributes if key.startswith("WEIGHTS_"))
+        if joint_sets != weight_sets:
+            raise ValueError(f"glTF skin needs matching JOINTS/WEIGHTS attributes in {name}.")
     if joint_sets:
         indices = [[] for _ in positions]
         weights = [[] for _ in positions]

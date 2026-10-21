@@ -401,6 +401,8 @@ class WorkspaceShellBuilderMixin:
             self.validation_report_requested.emit
         )
         self.native_host_frame.build_mod_requested.connect(self.build_mod_requested.emit)
+        self.native_host_frame.add_to_archive_browser_requested.connect(self.add_to_archive_browser_requested.emit)
+        self.native_host_frame.continue_modified_mesh_requested.connect(self.continue_modified_mesh_requested.emit)
         self.native_host_frame.install_overlay_requested.connect(
             self.install_overlay_requested.emit
         )

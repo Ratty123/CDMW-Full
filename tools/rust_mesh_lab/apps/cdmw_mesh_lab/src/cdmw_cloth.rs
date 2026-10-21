@@ -576,7 +576,7 @@ pub(super) fn physics_badge(part: &Value) -> String {
         Some("blocked") => crate::localization::tr("Blocked by Morph & Refit"),
         _ => crate::localization::tr("Unknown physics"),
     };
-    if part["kind"] != "jiggle"
+    let label = if part["kind"] != "jiggle"
         && part["jiggle_counts"].as_array().is_some_and(|counts| {
             counts.iter().any(|count| count.as_u64().is_some_and(|value| value > 0))
         })
@@ -584,11 +584,23 @@ pub(super) fn physics_badge(part: &Value) -> String {
         crate::localization::tr(format!("{} + jiggle", label))
     } else {
         label
+    };
+    if state_bool(part, "source_only") {
+        crate::localization::tr(format!("{} (source)", label))
+    } else {
+        label
     }
 }
 
 pub(super) fn physics_lines(part: &Value) -> Vec<String> {
     let mut lines = vec![crate::localization::tr(format!("Physics: {}", physics_badge(part)))];
+    if state_bool(part, "source_only") {
+        lines.push(crate::localization::tr(if state_bool(part, "geometry_eligible") {
+            "Current geometry retains the source binding layout; edited physics is unverified."
+        } else {
+            "Current geometry no longer has the source binding layout; these are source facts only."
+        }));
+    }
     let guides = part["guide_counts"].as_array();
     let vertices = part["vertex_counts"][0].as_u64().unwrap_or(0);
     let source_guides = part["guide_counts"][0].as_u64().unwrap_or(0);
@@ -633,7 +645,7 @@ pub(super) fn physics_lines(part: &Value) -> Vec<String> {
             });
         }
     }
-    for key in ["reason", "preview_reason"] {
+    for key in ["reason", "preview_reason", "output_reason"] {
         if let Some(reason) = state_str(part, key).filter(|reason| !reason.is_empty()) {
             lines.push(match reason {
                 "guide_mesh_missing" => crate::localization::tr("Render guide bindings exist, but their guide mesh is missing."),

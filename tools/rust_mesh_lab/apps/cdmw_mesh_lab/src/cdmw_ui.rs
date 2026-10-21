@@ -8,6 +8,7 @@ mod morph_body_controls;
 mod morph_outfit_workflows;
 mod morph_workflow;
 mod refit_diagnostics;
+mod delete_guidance;
 
 pub(crate) mod numeric {
     //! Shared precision controls. Increments are per-widget session UI state,
@@ -1328,6 +1329,7 @@ impl LabApplication {
     pub(super) fn draw_cdmw_ui(&mut self, root_ui: &mut egui::Ui) -> Vec<UiAction> {
         let _language = crate::localization::enter(&self.egui_context);
         let mut actions = Vec::new();
+        self.draw_cdmw_delete_guidance(root_ui.ctx(), &mut actions);
         self.draw_cdmw_session_bar(root_ui, &mut actions);
         self.draw_cdmw_correction_comparison_banner(root_ui, &mut actions);
         self.draw_cdmw_bottom_bar(root_ui, &mut actions);
@@ -1367,6 +1369,7 @@ impl LabApplication {
             self.draw_cdmw_compact_settings(root_ui, &mut actions);
         }
         self.draw_cdmw_viewport(root_ui);
+        self.cdmw_delete_shortcut(&mut actions);
         let vertex_parameters_visible = !self.hair.active()
             && if tools_expanded {
                 self.cdmw_rail_page == Some(CdmwRailPage::VertexParameters)
@@ -2425,6 +2428,24 @@ impl LabApplication {
         }));
         if !reason.is_empty() {
             ui.small(crate::localization::tr(reason));
+        }
+        if free_edit {
+            let destination = state_str(&self.cdmw_state, "output_destination").unwrap_or("");
+            let folder_label = if destination.is_empty() {
+                "Choose output folder..."
+            } else {
+                "Change output folder..."
+            };
+            if ui
+                .add_enabled(!archive_refit, Button::new(crate::localization::tr(folder_label)))
+                .on_hover_text(crate::localization::tr("Choose the parent folder for a new OBJ package."))
+                .clicked()
+            {
+                actions.push(UiAction::ChooseCdmwFreeEdit);
+            }
+            if !destination.is_empty() {
+                ui.small(destination);
+            }
         }
         if ui
             .add_enabled(free_edit && ready, Button::new(crate::localization::tr("Export Free Edit Package")))
@@ -3785,7 +3806,7 @@ impl LabApplication {
         ui.add_enabled_ui(!busy, |ui| {
             if replacement["experimental"].as_bool().unwrap_or(false) {
                 ui.colored_label(ui.visuals().warn_fg_color, crate::localization::tr("Experimental"))
-                    .on_hover_text(crate::localization::tr("Experimental: positioning, scale or animation may be wrong in game. Skin weights are transferred from the original part; export reverses its neutral display transform."));
+                    .on_hover_text(crate::localization::tr("Experimental: positioning, scale or animation may be wrong in game. Compatible glTF/GLB weights are retained on the matching game rig; unskinned imports use weights from the original part. Export reverses the original part's neutral display transform."));
             }
             ui.horizontal_wrapped(|ui| {
                 ui.add_enabled_ui(available && comparison == "edit", |ui| {
@@ -3812,6 +3833,11 @@ impl LabApplication {
             });
             if !available {
                 ui.small(crate::localization::tr(replacement["reason"].as_str().unwrap_or("Replacement is unavailable")));
+                if state_str(&self.cdmw_state, "output_policy") == Some("free_edit_rebuild")
+                    && replacement["blocked_by"].as_str() != Some("morph_refit")
+                {
+                    ui.small(crate::localization::tr("For an original PAC, PAM or PAMLOD, choose Exact under Output. For an imported model, open its game target from Archive Browser in Mesh Editor, then import the replacement."));
+                }
             }
             if replacement["active"].as_bool().unwrap_or(false) {
                 ui.horizontal_wrapped(|ui| {
@@ -3831,6 +3857,27 @@ impl LabApplication {
                     let token = pending["token"].as_str().unwrap_or("");
                     let targets = pending["targets"].as_array().cloned().unwrap_or_default();
                     let sources = pending["sources"].as_array().cloned().unwrap_or_default();
+                    let replaces_entire_mesh = !rows.is_empty()
+                        && targets.len() == rows.len()
+                        && targets.iter().all(|target| rows.iter().any(|row| row["id"] == target["id"]));
+                    ui.strong(crate::localization::tr(if replaces_entire_mesh {
+                        "Replacing entire mesh"
+                    } else {
+                        "Replacing selected parts"
+                    }));
+                    ui.small(crate::localization::tr(if replaces_entire_mesh {
+                        "Map each imported part below. Original parts without a replacement will be excluded."
+                    } else {
+                        "Map each imported part below. Unmapped selected parts are excluded; other original parts stay unchanged."
+                    }));
+                    ui.horizontal(|ui| {
+                        let name_width = (ui.available_width() - ui.spacing().item_spacing.x) * 0.5;
+                        ui.add_sized(
+                            [name_width, ui.spacing().interact_size.y],
+                            egui::Label::new(crate::localization::tr("Imported part")).truncate(),
+                        );
+                        ui.label(crate::localization::tr("Replaces game part"));
+                    });
                     let mut choices = Vec::new();
                     for (index, source) in sources.iter().enumerate() {
                         let id = egui::Id::new(("replacement_target", token, index));
@@ -3876,7 +3923,8 @@ impl LabApplication {
                 });
             }
         });
-        ui.small(crate::localization::tr("View  /  Include in mod"));
+        ui.small(crate::localization::tr("View: viewport only · Include: exported mesh"));
+        ui.small(crate::localization::tr("Untick Include to remove output. Edit keeps geometry for restoration; Output Preview shows the exported result."));
     }
 
     fn draw_cdmw_parts(&mut self, ui: &mut egui::Ui, actions: &mut Vec<UiAction>) {
@@ -3956,7 +4004,8 @@ impl LabApplication {
                                 let mut included = binding["included"].as_bool().unwrap_or(true);
                                 let enabled = replacement["available"].as_bool().unwrap_or(false)
                                     && replacement["comparison"].as_str().unwrap_or("edit") == "edit";
-                                if ui.add_enabled(enabled, egui::Checkbox::new(&mut included, crate::localization::tr("Mod")))
+                                if ui.add_enabled(enabled, egui::Checkbox::new(&mut included, crate::localization::tr("Include")))
+                                    .on_disabled_hover_text(crate::localization::tr(replacement["reason"].as_str().unwrap_or_default()))
                                     .on_hover_text(crate::localization::tr("Include in mod · independent of viewport visibility")).changed() {
                                     actions.push(UiAction::CdmwCommand {
                                         command: "replacement_include",
@@ -3994,8 +4043,15 @@ impl LabApplication {
             ui.horizontal_wrapped(|ui| {
                 for (action, title, label) in [("duplicate", "Duplicate", "Duplicate part"), ("delete", "Delete", "Delete part")] {
                     let reason = self.cdmw_part_action_reason(action);
-                    if ui.add_enabled(reason.is_none(), Button::new(crate::localization::tr(title)))
+                    let explain_delete = action == "delete" && !selected.is_empty();
+                    if ui.add_enabled(reason.is_none() || explain_delete, Button::new(crate::localization::tr(title)))
                         .on_disabled_hover_text(crate::localization::tr(reason.unwrap_or_default())).clicked() {
+                        if action == "delete" {
+                            if let Some(action) = self.cdmw_part_delete_action() {
+                                actions.push(action);
+                            }
+                            continue;
+                        }
                         actions.push(UiAction::CdmwCommand {
                             command: "topology",
                             arguments: json!({
@@ -4037,6 +4093,13 @@ impl LabApplication {
             return Some("This session is read-only");
         }
         if state_str(&self.cdmw_state, "output_policy") != Some("free_edit_rebuild") {
+            if action == "delete" {
+                if self.cdmw_has_archive_refit()
+                    || state_str(&self.cdmw_state, "output_policy") == Some("replacement_game_asset") {
+                    return Some("Finish Mesh, then choose Continue editing modified mesh before deleting whole parts. Use Include in the new session to remove parts from game output.");
+                }
+                return Some("Deleting whole parts requires Free Edit. To remove a part from the exported PAC, untick Include instead.");
+            }
             return Some("Choose Free Edit under Output to change the part structure");
         }
         let selected = self.selected_part_indices();

@@ -239,6 +239,7 @@ def import_scene_mesh_with_report(
     selected_member: str = "",
     stop_event: Optional[threading.Event] = None,
     preserve_authoring: bool = False,
+    preserve_skinning: bool = False,
     blender_path: str = "",
 ) -> SceneImportResult:
     raise_if_cancelled(stop_event, "Scene import cancelled.")
@@ -248,7 +249,8 @@ def import_scene_mesh_with_report(
         return _import_zip_result(source_path, selected_member=selected_member,
                                   include_external_audit=include_external_audit,
                                   tolerate_missing_texture_files=tolerate_missing_texture_files,
-                                  stop_event=stop_event, preserve_authoring=preserve_authoring, blender_path=blender_path)
+                                  stop_event=stop_event, preserve_authoring=preserve_authoring,
+                                  preserve_skinning=preserve_skinning, blender_path=blender_path)
     if suffix == ".obj":
         mesh = import_obj(str(source_path))
         raise_if_cancelled(stop_event, "Scene import cancelled.")
@@ -306,6 +308,7 @@ def import_scene_mesh_with_report(
         )
     if suffix in {".gltf", ".glb"}:
         return _import_gltf_result(source_path, preserve_authoring=preserve_authoring,
+                                   preserve_skinning=preserve_skinning,
                                    include_external_audit=include_external_audit,
                                    tolerate_missing_texture_files=tolerate_missing_texture_files, stop_event=stop_event)
     if suffix == ".fbx":
@@ -362,7 +365,7 @@ def import_scene_mesh_with_report(
     raise ValueError(f"Unsupported mesh import format: {source_path.suffix or source_path.name}")
 
 
-def _import_zip_result(source_path, *, selected_member, include_external_audit, tolerate_missing_texture_files, stop_event, preserve_authoring, blender_path):
+def _import_zip_result(source_path, *, selected_member, include_external_audit, tolerate_missing_texture_files, stop_event, preserve_authoring, preserve_skinning, blender_path):
     from cdmw.core.model_catalogue import resolve_importable_model_path, zip_importable_member_refs
 
     members = zip_importable_member_refs(source_path, stop_event=stop_event)
@@ -382,6 +385,7 @@ def _import_zip_result(source_path, *, selected_member, include_external_audit, 
         tolerate_missing_texture_files=tolerate_missing_texture_files,
         stop_event=stop_event,
         preserve_authoring=preserve_authoring,
+        preserve_skinning=preserve_skinning,
         blender_path=blender_path,
     )
     member_label = str(selected_member or (members[0] if members else resolved_path.name)).replace("\\", "/")
@@ -391,7 +395,7 @@ def _import_zip_result(source_path, *, selected_member, include_external_audit, 
     return result
 
 
-def _import_gltf_result(source_path, *, preserve_authoring, include_external_audit, tolerate_missing_texture_files, stop_event):
+def _import_gltf_result(source_path, *, preserve_authoring, preserve_skinning, include_external_audit, tolerate_missing_texture_files, stop_event):
     from .mesh_glb_interchange import _load_glb_roundtrip_sidecar
     sidecar = _load_glb_roundtrip_sidecar(source_path) if (
         Path(f"{source_path}.meta.json").is_file() or (source_path.parent / "mesh.cdmeta.json").is_file()) else None
@@ -401,6 +405,7 @@ def _import_gltf_result(source_path, *, preserve_authoring, include_external_aud
         tolerate_missing_texture_files=tolerate_missing_texture_files,
         stop_event=stop_event,
         preserve_authoring=preserve_authoring or sidecar is not None,
+        preserve_skinning=preserve_skinning,
     )
     raise_if_cancelled(stop_event, "Scene import cancelled.")
     if sidecar is not None:

@@ -8,6 +8,7 @@ from itertools import chain
 from types import MappingProxyType
 
 from cdmw.models import ArchiveEntry
+from cdmw.services.mesh_archive_results import MeshArchiveMaterialContext, MeshArchiveResult
 from cdmw.ui.archive_browser.remote_preview_dependencies import (
     MAX_ARCHIVE_PREVIEW_ENTRIES,
     ArchivePreviewDependencySet,
@@ -28,6 +29,11 @@ class ArchiveWorkflowDependencyContext:
     entries_by_normalized_path: Mapping[str, Sequence[ArchiveEntry]]
     entries_by_basename: Mapping[str, Sequence[ArchiveEntry]]
     remote: bool
+    material_contexts: tuple[MeshArchiveMaterialContext, ...] = ()
+
+    def material_context_for(self, entry: ArchiveEntry) -> MeshArchiveMaterialContext | None:
+        return next((context for context in self.material_contexts
+                     if context.source_identity == entry.identity), None)
 
     def entry_for_path(self, path: str) -> ArchiveEntry | None:
         normalized = str(path or "").replace("\\", "/").strip("/").casefold()
@@ -41,6 +47,25 @@ class ArchiveWorkflowDependencyContext:
         return next((candidate for candidate in self.entries if candidate.identity == entry.identity), None)
 
 
+def archive_result_dependency_context(result: MeshArchiveResult) -> ArchiveWorkflowDependencyContext:
+    """Resolve another pass against the rebuilt source and its captured dependencies."""
+    if not result.assets:
+        raise ArchiveWorkflowDependenciesUnavailable("The edited result contains no mesh assets.")
+    paths: dict[str, list[ArchiveEntry]] = {}
+    basenames: dict[str, list[ArchiveEntry]] = {}
+    for entry in result.entries:
+        normalized = entry.path.replace("\\", "/").strip("/").casefold()
+        paths.setdefault(normalized, []).append(entry)
+        basenames.setdefault(entry.basename.casefold(), []).append(entry)
+    return ArchiveWorkflowDependencyContext(
+        result.assets[0], result.entries,
+        MappingProxyType({key: tuple(values) for key, values in paths.items()}),
+        MappingProxyType({key: tuple(values) for key, values in basenames.items()}),
+        remote=all(entry.prepared_path is not None for entry in result.entries),
+        material_contexts=result.material_contexts,
+    )
+
+
 def archive_workflow_dependency_context(
     owner: object,
     entry: ArchiveEntry,
@@ -49,6 +74,10 @@ def archive_workflow_dependency_context(
 
     if not isinstance(entry, ArchiveEntry):
         raise ArchiveWorkflowDependenciesUnavailable("The archive workflow has no valid selected entry.")
+    edited_resolver = getattr(owner.archive, "edited_result_context", None)
+    edited_context = edited_resolver(entry) if callable(edited_resolver) else None
+    if isinstance(edited_context, ArchiveWorkflowDependencyContext):
+        return edited_context
     remote_bridge = getattr(owner.archive, "archive_remote_bridge", None)
     if remote_bridge is not None and bool(getattr(remote_bridge, "displays_v2", False)):
         resolver = getattr(remote_bridge, "prepared_dependencies_for", None)
@@ -144,6 +173,8 @@ def merge_archive_workflow_dependency_contexts(
             {key: tuple(value) for key, value in basenames.items()}
         ),
         remote=True,
+        material_contexts=tuple({context.source_identity: context
+            for source in reversed(contexts) for context in source.material_contexts}.values()),
     )
 
 
@@ -152,5 +183,6 @@ __all__ = [
     "ArchiveWorkflowDependencyContext",
     "MAX_MERGED_ARCHIVE_WORKFLOW_ENTRIES",
     "archive_workflow_dependency_context",
+    "archive_result_dependency_context",
     "merge_archive_workflow_dependency_contexts",
 ]

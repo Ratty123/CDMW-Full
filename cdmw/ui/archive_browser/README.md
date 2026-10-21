@@ -8,6 +8,7 @@ feature coordination in focused modules as they are extracted from the shell.
 
 - [Mesh replacement review status](#mesh-replacement-review-status)
 - [Loose mod imports and tool availability](#loose-mod-imports-and-tool-availability)
+- [Edited Mesh Editor results](#edited-mesh-editor-results)
 - [Catalogue and Item Finder](#catalogue-and-item-finder)
 - [Scanner failures and recovery](#scanner-failures-and-recovery)
 - [Body & Face Finder](#body--face-finder)
@@ -53,6 +54,47 @@ subsequent alignment updates. Reference-material completion rebuilds the preview
 When a PAM has an indexed PAMLOD companion, both meshes must rebuild successfully.
 A failed companion rebuild stops the build with the companion path and error;
 it cannot produce a package containing only the PAM.
+
+## Edited Mesh Editor results
+
+After accepting **Finish Edit Mesh**, choose **Add to Archive Browser**. Eligible
+game-format meshes appear in **Controls > Edited results** for the current app
+session. Select one and choose **Open in Mesh Editor**, or double-click it, to
+start another editing pass from the rebuilt bytes. The loaded archive catalogue
+and Game/Package path stay in place. These entries do not install a mod or change
+PAMT/PAZ archives.
+
+Choose **Start next edit pass** on the accepted Finish page to use the
+same handoff and reopen the current source asset directly, without visiting the
+browser. **Add to Archive Browser** remains useful for choosing another asset from
+a combined Refit result. Both routes retain the other edited output files for
+subsequent mod builds. **Resume current edit** instead resumes the existing working state.
+
+The background output worker captures the validated revision, rebuilds every
+combined Refit asset through its own writer, and retains the source dependency
+context. Prepared materials, textures, rig and physics resources are copied into
+the immutable local result so preview-cache eviction cannot remove them. Legacy
+unprepared dependencies continue to reference the original read-only archives.
+Missing Refit source contexts, failed rebuilds, changed dependencies, cancellation
+and stale revisions refuse publication. Results are bounded to 8,192 entries and
+1 GiB of prepared files; the list is not restored after restarting CDMW.
+
+The next pass loads clean game-format geometry and resolves materials and the rig
+from that result's context, without reusing an unrelated preview or old editing
+runtime. Each saved result also keeps its verified, geometry-free material
+metadata and independently pins the texture package and decoded image caches.
+Opening a result uses its original layers, colour parameters and material owner
+slots, including after the original editor closes. Every reopened editor owns a
+separate package lease, so closing it leaves the saved result reusable.
+Previously edited assets and generated companions travel into later
+outputs, so editing one Refit asset does not discard the other asset's changes.
+Retaining a physics resource or binding is not proof of valid cloth simulation
+after geometry changes. The handoff cannot recreate dependencies absent from the
+original session, or turn an OBJ-only Free Edit result into a supported game mesh.
+
+A **DMM Archive Group** contains replacement files and relies on unchanged files
+in the base game. Opening the group as the only archive root hides those
+dependencies from the browser; use the edited-result handoff for another pass.
 
 ## Loose mod imports and tool availability
 

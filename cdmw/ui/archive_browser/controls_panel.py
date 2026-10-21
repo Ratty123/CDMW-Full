@@ -148,6 +148,7 @@ class ArchiveControlsPanelMixin:
         archive_filter_grid.addWidget(self.archive_extension_picker_button, 1, 2)
         archive_search_layout.addLayout(archive_filter_grid)
         archive_controls_layout.addWidget(archive_search_group)
+        archive_controls_layout.addWidget(self._build_archive_edited_results())
 
         self.archive_preview_settings_status_label = QLabel("")
         self.archive_preview_settings_status_label.setObjectName("HintLabel")

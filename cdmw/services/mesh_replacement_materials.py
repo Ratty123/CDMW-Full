@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import replace
 from collections import defaultdict
 import hashlib
+import re
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
@@ -50,14 +51,44 @@ def material_binding_name(part, names):
 
 
 def _merge_material_rows(current, donor, names):
+    from cdmw.core.material_shader_controls import material_variant_blocks
     from cdmw.modding.material_sidecar_patching import _find_sidecar_material_wrapper_exact
+
+    variants = material_variant_blocks(current)
+    donor_variants = material_variant_blocks(donor)
+    if variants or donor_variants:
+        def indexed(blocks):
+            result = {}
+            for block in blocks:
+                index = re.search(r'\bIndex="(\d+)"', block.group().partition(">")[0])
+                if index is None or int(index.group(1)) in result:
+                    raise ValueError("Material mapping has an ambiguous model-property index.")
+                result[int(index.group(1))] = block
+            return result
+
+        before_variants, after_variants = indexed(variants), indexed(donor_variants)
+        if before_variants.keys() != after_variants.keys():
+            raise ValueError("Material mapping changed the target model-property variants.")
+        edits = []
+        for index, before in before_variants.items():
+            after = after_variants[index].group()
+            start, end = before.start() + before.group().find(">") + 1, before.end() - len("</ModelProperty>")
+            text, changed = _merge_material_rows(current[start:end], after[after.find(">") + 1:-len("</ModelProperty>")], names)
+            if changed:
+                edits.append((start, end, text))
+        for start, end, text in sorted(edits, reverse=True):
+            current = current[:start] + text + current[end:]
+        return current, bool(edits)
+
     edits = []
     for name in names:
         before = _find_sidecar_material_wrapper_exact(current, name)
         after = _find_sidecar_material_wrapper_exact(donor, name)
         if before is None and after is None:
             continue
-        if before is None or after is None or _find_sidecar_material_wrapper_exact(current[before.end():], name):
+        if (before is None or after is None
+                or _find_sidecar_material_wrapper_exact(current[before.end():], name)
+                or _find_sidecar_material_wrapper_exact(donor[after.end():], name)):
             raise ValueError(f"Material mapping is not an unambiguous target wrapper: {name}")
         edits.append((before.start(), before.end(), after.group(0)))
     for start, end, text in sorted(set(edits), reverse=True):
@@ -69,8 +100,10 @@ def _target_material_names(pending, targets):
     from cdmw.modding.mesh_parser import parse_mesh
     original = parse_mesh(pending.snapshot.original_data, pending.state.target_path)
     selected = {part.target_index for part in pending.state.parts if part.part_id in targets}
-    names = {original.submeshes[index].material or original.submeshes[index].name for index in selected}
-    if any((part.material or part.name) in names for index, part in enumerate(original.submeshes) if index not in selected):
+    bindings = material_binding_names(pending.state)
+    owners = {index: material_binding_name(part, bindings) for index, part in enumerate(original.submeshes)}
+    names = {owners[index] for index in selected}
+    if any(owner in names for index, owner in owners.items() if index not in selected):
         raise ValueError("Selected parts share a material with an untouched part. Select all parts using that material.")
     return names
 
@@ -160,8 +193,9 @@ def prepare_imported_materials(pending, targets, resource_root, stop_event=None)
     candidate, candidate_state = compose_import(pending, targets, material_choice="imported", companion_files=())
     geometry = prepare_replacement_output(replace(pending.snapshot, mesh=candidate, replacement_state=candidate_state))
     original = parse_mesh(pending.snapshot.original_data, pending.state.target_path)
+    bindings = material_binding_names(pending.state)
     rows = {part.part_id: part for part in pending.state.parts}
-    mappings = [StaticSubmeshMapping(rows[key].target_index, original.submeshes[rows[key].target_index].name,
+    mappings = [StaticSubmeshMapping(rows[key].target_index, material_binding_name(original.submeshes[rows[key].target_index], bindings),
                                    [index], rows[key].target_index) for index, key in enumerate(targets)]
     options = manual_replacement_options(mappings)
     options.rebuild_material_sidecar = True
@@ -194,6 +228,10 @@ def prepare_imported_materials(pending, targets, resource_root, stop_event=None)
         state.static_mappings = mappings
         state.rebuilt_data = geometry.data
         state.parsed_mesh = parse_mesh(geometry.data, pending.state.target_path)
+        # The retained material builder routes by ``material``. Supply the exact
+        # sidecar owner on this detached metadata copy, leaving PAC bytes intact.
+        for part in state.parsed_mesh.submeshes:
+            part.material = material_binding_name(part, bindings)
         state.preview_model = parsed_mesh_to_preview_model(state.parsed_mesh)
         state.original_sidecars_for_static = _collect_original_mesh_sidecar_texts(target, by_name, stop_event=stop_event)
         if not state.original_sidecars_for_static:
@@ -205,7 +243,7 @@ def prepare_imported_materials(pending, targets, resource_root, stop_event=None)
         resolve_mesh_import_sidecars(state)
         collect_mesh_import_references(state)
         state.texture_references = tuple(reference for reference in state.texture_references
-                                         if reference.material_name in names or reference.part_name in names)
+                                         if reference.material_name.casefold() in names or reference.part_name.casefold() in names)
         configure_mesh_import_materials(state)
         payloads, report = build_static_texture_payloads(state, state.original_sidecars_for_static)
         raise_if_cancelled(stop_event, "Replacement material preparation cancelled.")
@@ -218,7 +256,7 @@ def prepare_imported_materials(pending, targets, resource_root, stop_event=None)
         for part in pending.source.mesh.submeshes:
             if str(part.material or part.name).casefold() not in mapped_sources:
                 raise ValueError(f"Imported material {part.material or part.name} has no proven target binding.")
-        slots = [slot for slot in report.slot_mappings if slot.target_material_name in names]
+        slots = [slot for slot in report.slot_mappings if slot.target_material_name.casefold() in names]
         for slot in slots:
             target_path = str(getattr(slot, "output_texture_path", "") or "").casefold()
             if not target_path or target_path not in outputs:

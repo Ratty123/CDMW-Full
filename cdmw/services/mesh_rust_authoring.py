@@ -7271,6 +7271,15 @@ def _configure_shadow_session_seed(
         shadow_view.session_id,
         freeze=True,
     )
+    if (
+        authoritative_view.output_policy == MeshOutputPolicy.FREE_EDIT.value
+        and not authoritative_view.output_destination
+        and not authoritative_view.output_destination_ready
+        and shadow_view.output_policy == MeshOutputPolicy.FREE_EDIT.value
+    ):
+        # Imported meshes start in Free Edit before the user chooses an output
+        # folder. Keep that guarded state so the editor can show its chooser.
+        return shadow_service.session_view(shadow_view.session_id)
     shadow_view = shadow_service.configure_output_policy(
         shadow_view.session_id,
         authoritative_view.output_policy,
@@ -7572,8 +7581,13 @@ class RustMeshAuthoringSession:
         if cached is not None:
             return cached
         try:
+            # Free Edit imports use the generic renderer document format. The
+            # service keeps their real source format and output-policy guards.
             prepared = PreparedMeshDocument(encode_mesh_document(
-                _mesh_document_arrays(mesh), max_payload_bytes=RUST_MESH_MAX_PAYLOAD_BYTES))
+                _mesh_document_arrays(
+                    mesh,
+                    allow_preview_formats=session.output_policy == MeshOutputPolicy.FREE_EDIT.value,
+                ), max_payload_bytes=RUST_MESH_MAX_PAYLOAD_BYTES))
         except BinaryMeshDocumentError as exc:
             self.state_cache.discard_pending_document()
             raise RustMeshProtocolError(str(exc)) from exc
@@ -7672,8 +7686,16 @@ class RustMeshAuthoringSession:
         self._preflight_mesh_document_capacity(mesh, expansion_factor=factor)
 
     def _preflight_topology_command(self, command: MeshEditCommand) -> int:
-        """Run topology against a disposable clone, then admit its exact result."""
+        """Bound whole-part deletion by the source size; measure other edits on a clone."""
 
+        if command.action == "delete" and _command_truthy(command.params.get("delete_parts")):
+            # Whole-part deletion can only shrink the already admitted document.
+            # Its current size is a conservative bound, so no disposable mesh
+            # clone/session is needed. The real command still owns native
+            # validation, atomic mutation and history below this preflight.
+            return self._preflight_mesh_document_capacity(
+                self.shadow_service.working_mesh(self.shadow_session_id, clone=False)
+            )
         source_mesh = self.shadow_service.working_mesh(
             self.shadow_session_id,
             clone=True,
@@ -9410,7 +9432,13 @@ class RustMeshAuthoringSession:
     def _source_coordinate_snapshot(self, snapshot):
         context = snapshot.archive_refit_context
         if context is None and self.neutral_appearance is None:
-            return snapshot
+            authoritative = self.authoritative_service._session(self.authoritative_session_id)
+            # Reopen seeds the shadow from the accepted, possibly topology-edited
+            # mesh. Its opening base is not the original PAC described by the
+            # retained provenance. Validate against the authoritative source base.
+            return replace(snapshot, base_mesh=(
+                authoritative.base_mesh if authoritative.base_mesh_is_original_parse else None
+            ))
         setattr(snapshot.mesh, "_cdmw_edit_operations", tuple(snapshot.edit_operations))
         source_mesh = self._source_coordinate_mesh(snapshot.mesh)
         return replace(
@@ -9754,7 +9782,10 @@ class RustMeshAuthoringSession:
         exact_output_validation: dict[str, object] | None = None
         free_edit_output_validation: dict[str, object] | None = None
         if shadow_view.output_policy == MeshOutputPolicy.EXACT_GAME_ASSET.value:
-            shadow_report = self.shadow_service.validate_export(self.shadow_session_id)
+            source_base = (authoritative_session.base_mesh
+                if self.neutral_appearance is None and authoritative_session.archive_refit_context is None
+                and authoritative_session.base_mesh_is_original_parse else None)
+            shadow_report = self.shadow_service.validate_export(self.shadow_session_id, original_mesh=source_base)
             self._raise_if_cancelled(stop_event)
             blockers = _validation_blockers(shadow_report)
             if blockers:

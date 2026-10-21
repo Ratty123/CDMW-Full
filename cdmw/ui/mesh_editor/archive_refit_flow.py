@@ -4,7 +4,7 @@ from PySide6.QtWidgets import QDialog
 
 from cdmw.ui.mesh_editor.replace_from_archive_dialog import ReplaceFromArchivePickerDialog
 from cdmw.ui.mesh_editor.replace_from_archive_flow import ReplaceFromArchiveFlowController
-from cdmw.ui.archive_browser.workflow_dependencies import archive_workflow_dependency_context
+from cdmw.ui.archive_browser.workflow_dependencies import ArchiveWorkflowDependencyContext, archive_workflow_dependency_context
 from cdmw.ui.shell.tab_registry import DetachedToolWindow
 
 
@@ -15,7 +15,12 @@ class ArchiveRefitPickerController(ReplaceFromArchiveFlowController):
         session = getattr(service, "current_session", None)
         if session is None:
             raise ValueError("Load the game archive catalogue before choosing a Refit mesh")
-        dependencies = archive_workflow_dependency_context(owner, target_entry)
+        dependencies = getattr(getattr(owner, "mesh_editor_tab", None), "archive_session_dependencies", None)
+        if not (isinstance(dependencies, ArchiveWorkflowDependencyContext)
+                and dependencies.selected_entry.identity == target_entry.identity
+                and dependencies.selected_entry.prepared_sha256 == target_entry.prepared_sha256
+                and dependencies.selected_entry.prepared_path == target_entry.prepared_path):
+            dependencies = archive_workflow_dependency_context(owner, target_entry)
         picker = ReplaceFromArchivePickerDialog(
             service, session, target_entry=dependencies.selected_entry,
             target_dependencies=dependencies, refit_role=role, parent=owner,

@@ -81,6 +81,44 @@ def _wait_for_protocol_worker(tab):
     assert tab.standalone_rust_protocol_thread is None
 
 
+@pytest.mark.parametrize("matching", [True, False], ids=["continued-context", "stale-context"])
+def test_refit_picker_uses_continued_session_dependencies_without_browser_registration(monkeypatch, matching):
+    from cdmw.ui.mesh_editor.archive_refit_flow import ArchiveRefitPickerController
+    from dataclasses import replace
+
+    app = QApplication.instance() or QApplication([])
+    owner = QWidget()
+    catalogue = _Catalogue()
+    catalogue.current_session = _session()
+    target, selected = _entry("edited.pac", 1), _entry("chosen-body.pac", 2)
+    dependencies = _context(target)
+    owner.mesh_editor_tab = SimpleNamespace(archive_session_dependencies=(dependencies if matching
+        else _context(replace(target, prepared_sha256="other-mesh-version"))))
+    owner.archive = SimpleNamespace(archive_catalogue_service=catalogue)
+    opened = []
+    def choose(picker):
+        opened.append(picker)
+        assert picker._target_dependencies is dependencies
+        picker.selected_entry = selected
+        picker.selected_dependencies = _context(selected)
+        return QDialog.Accepted
+    lookups = []
+    def browser_lookup(*args):
+        if matching:
+            pytest.fail("The current edited session already owns its source dependency context")
+        lookups.append(args)
+        return dependencies
+    monkeypatch.setattr("cdmw.ui.mesh_editor.archive_refit_flow.archive_workflow_dependency_context", browser_lookup)
+    try:
+        with patch.object(ReplaceFromArchivePickerDialog, "exec", choose):
+            chosen, _chosen_dependencies = ArchiveRefitPickerController(owner).choose(target, "body")
+        assert chosen is selected and len(opened) == 1
+        assert bool(lookups) is not matching
+    finally:
+        owner.deleteLater()
+        app.processEvents()
+
+
 @pytest.mark.parametrize("role", ["body", "armor"])
 @pytest.mark.parametrize("reason", [
     "Archive selection cancelled; loaded meshes are unchanged",

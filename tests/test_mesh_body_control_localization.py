@@ -26,15 +26,20 @@ def test_rust_localization_discovers_body_and_outfit_child_modules(tmp_path: Pat
         'ui.button(tr("Back to sliders")); let id = "cdmw-morph-workflow"; }\n',
         encoding="utf-8",
     )
+    (root / "delete_guidance.rs").write_text(
+        'fn draw() { ui.heading(tr("Delete unavailable")); let id = "cdmw-delete-guidance"; }\n',
+        encoding="utf-8",
+    )
 
     sources = rust_ui_localization.scan(tmp_path)
 
-    assert set(sources) == {"Body controls", "Matching fitting setups", "Setup", "Back to sliders"}
+    assert set(sources) == {"Body controls", "Matching fitting setups", "Setup", "Back to sliders", "Delete unavailable"}
     for text, filename in (
         ("Body controls", "morph_body_controls.rs"),
         ("Matching fitting setups", "morph_outfit_workflows.rs"),
         ("Setup", "morph_workflow.rs"),
         ("Back to sliders", "morph_workflow.rs"),
+        ("Delete unavailable", "delete_guidance.rs"),
     ):
         assert sources[text] == [{
             "path": (rust_ui_localization.RUST_UI_DIRECTORY / "cdmw_ui" / filename).as_posix(),

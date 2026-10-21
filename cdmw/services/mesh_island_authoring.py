@@ -29,9 +29,15 @@ def island_ui_state(authoring, replacement):
     rows = []
     reason = replacement['reason']
     if session.mesh_format != 'pac':
-        reason = 'Mod inclusion requires an original PAC; island selection and viewport controls remain available.'
+        reason = 'Include requires an original PAC; island selection and viewport controls remain available.'
     elif session.hair_state is not None:
         reason = 'Finish the hair workflow before changing island output.'
+    elif replacement.get('blocked_by') == 'morph_refit':
+        reason = 'Finish Morph & Refit, then choose Start next edit pass to change island inclusion.'
+    elif session.output_policy == 'free_edit_rebuild':
+        reason = 'Include requires Exact PAC output. Free Edit exports OBJ; select an island and use Delete to edit its geometry.'
+    authoritative = authoring.authoritative_service._session(authoring.authoritative_session_id)
+    source_parts = authoritative.base_mesh.submeshes if authoritative.base_mesh_is_original_parse else None
     for index in selected:
         part = mesh.submeshes[index]
         # Islands join coincident positions as well as indexed edges. A geometry
@@ -41,16 +47,25 @@ def island_ui_state(authoring, replacement):
         cached = cache.get(index)
         if cached is None or cached[0] != signature:
             groups = mesh_islands(part, stop_event=authoring._cancel_event)
-            cache[index] = signature, groups
+            # Reopen Edit can start from accepted geometry, so its shadow base
+            # is not necessarily the original PAC that owns island face IDs.
+            source_topology = source_parts is None or (
+                len(mesh.submeshes) == len(source_parts)
+                and len(part.vertices) == len(source_parts[index].vertices)
+                and part.faces == source_parts[index].faces)
+            cache[index] = signature, groups, source_topology
         else:
             groups = cached[1]
+            source_topology = cached[2]
         binding = bindings.get(index)
         excluded = set(binding.excluded_island_faces) if binding else set()
         part_reason = reason
-        if binding and binding.import_positions:
-            part_reason = 'Save and reopen the imported PAC before using reversible island inclusion.'
-        if binding and not binding.included:
+        if not part_reason and binding and binding.import_positions:
+            part_reason = 'Finish the imported PAC, then choose Start next edit pass before changing island inclusion.'
+        if not part_reason and binding and not binding.included:
             part_reason = 'Include this part in the mod before changing its islands.'
+        if not part_reason and not source_topology:
+            part_reason = 'Finish the modified PAC, then choose Start next edit pass before changing island inclusion.'
         part_id = next((row['id'] for row in replacement['parts'] if row['index'] == index), '')
         rows.append({'index': index, 'part_id': part_id, 'name': part.name,
                      'available': not part_reason, 'reason': part_reason,
@@ -77,7 +92,7 @@ def set_island_inclusion(authoring, snapshot, args, *, entry=None, dependencies=
     if part is None or not part.included:
         raise ValueError('Choose a valid included part before changing islands.')
     if part.import_positions:
-        raise ValueError('Save and reopen the imported PAC before using reversible island inclusion.')
+        raise ValueError('Finish the imported PAC, then choose Start next edit pass before changing island inclusion.')
     candidate = mesh_with_part_ids(snapshot, state)
     current = candidate.submeshes[bound_part_indices(candidate, state)[part.part_id]]
     values = args.get('faces')
@@ -99,7 +114,7 @@ def set_island_inclusion(authoring, snapshot, args, *, entry=None, dependencies=
     from cdmw.modding.mesh_parser import parse_mesh
     original = parse_mesh(snapshot.original_data, state.target_path).submeshes[part.target_index]
     if current.faces != original.faces or len(current.vertices) != len(original.vertices):
-        raise ValueError('Island inclusion requires unchanged source topology. Use Free Edit to delete rebuilt geometry.')
+        raise ValueError('Finish the modified PAC, then choose Start next edit pass before changing island inclusion.')
     next_state = replace(state, revision=state.revision + 1, parts=tuple(
         replace(value, excluded_island_faces=tuple(sorted(excluded))) if value.part_id == part.part_id else value
         for value in state.parts))

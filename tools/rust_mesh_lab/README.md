@@ -275,6 +275,16 @@ or mesh history. Exact source bytes and hashes remain on the host; compact
 `physics_profiles` state contains provenance, assignments and supported scalar values
 only.
 
+Free Edit retains read-only source detection for eligible original PACs at LOD0 while
+cloth/jiggle authoring remains disabled. `physics.parts` marks these rows with
+`source_only`, reports current source-binding-layout eligibility separately in
+`geometry_eligible`, and sets `output_supported` false with an `output_reason`.
+The badge adds **(source)** and the evidence explains that edited physics is
+unverified and OBJ does not retain game rig/physics data. Original descriptor
+ownership keeps source counts and profile assignments attached to surviving
+parts after structural deletion; unresolved ownership stays unknown. These
+fields do not validate edited or in-game physics.
+
 Focused Rust coverage: `cargo test --locked
 -p cdmw_mesh_lab cloth_preview_tests::profiles`. Current cloth bytes use the saved rule
 against original neutral source heights, matching PAC output after sculpting. The host
