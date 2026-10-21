@@ -97,87 +97,101 @@ impl LabApplication {
         let selected = self.selected_part_indices();
         let selected_garments: Vec<u32> = selected.into_iter().filter(|part| garments.contains(part)).collect();
         let has_selection = self.selected_counts().total() > 0 || !selected_garments.is_empty();
-        ui.separator();
-        ui.strong(crate::localization::tr("Follow controls"))
-            .on_hover_text(crate::localization::tr(
-                "Select garment vertices, faces or a whole Part to control how strongly they follow the body.",
-            ));
-        ui.push_id("refit-follow-controls", |ui| {
-            ui.add(numeric::slider(&mut self.cdmw_refit_vertex_weight, 0.0..=100.0).text(crate::localization::tr("Selected influence")))
-                .on_hover_text(crate::localization::tr(
-                    "0% protects vertices; 100% follows fully. Rigid components require one influence across each connected piece.",
-                ));
-            ui.add_enabled_ui(authoring && !editing_correction && has_selection, |ui| {
+        let masked = state.get("refit").and_then(|refit| refit.get("garment_settings"))
+            .and_then(Value::as_array).into_iter().flatten()
+            .filter(|row| state_bool(row, "has_vertex_mask")).count();
+        let summary = if masked == 0 { crate::localization::tr("No mask") }
+            else { crate::localization::tr(format!("{} masked Parts", masked)) };
+        let title = format!("{} · {summary}", crate::localization::tr("Local influence"));
+        cdmw_section(ui, "refit-local-influence", &title, None, |ui| {
+            if selected_garments.is_empty() {
+                let counts = self.selected_counts();
                 ui.horizontal_wrapped(|ui| {
-                    if ui.button(crate::localization::tr("Set selected influence")).clicked() {
-                        actions.push(UiAction::CdmwCommand {
-                            command: "morph_set_influence",
-                            arguments: json!({"weight": self.cdmw_refit_vertex_weight / 100.0, "garment_submesh_indices": selected_garments}),
-                            label: "Set garment vertex influence",
-                        });
-                    }
-                    if ui.button(crate::localization::tr("Protect selection")).clicked() {
-                        actions.push(UiAction::CdmwCommand {
-                            command: "morph_set_influence",
-                            arguments: json!({"weight": 0.0, "garment_submesh_indices": selected_garments}),
-                            label: "Protect selected garment vertices",
-                        });
-                    }
-                    if ui.button(crate::localization::tr("Restore selected influence")).clicked() {
-                        actions.push(UiAction::CdmwCommand {
-                            command: "morph_set_influence",
-                            arguments: json!({"weight": 1.0, "garment_submesh_indices": selected_garments}),
-                            label: "Restore selected garment vertex influence",
-                        });
+                    for (label, count) in [("Vertices", counts.vertices), ("Edges", counts.edges), ("Faces", counts.faces)] {
+                        ui.weak(format!("{}: {count}", crate::localization::tr(label)));
                     }
                 });
-            });
-            if ui.add_enabled(
-                authoring && !editing_correction && !selected_garments.is_empty(),
-                Button::new(crate::localization::tr("Clear masks on selected garments")),
-            ).clicked() {
-                actions.push(UiAction::CdmwCommand {
-                    command: "morph_clear_influence",
-                    arguments: json!({"garment_submesh_indices": selected_garments}),
-                    label: "Clear garment influence masks",
-                });
+            } else {
+                ui.weak(crate::localization::tr(format!("{} garment Parts selected", selected_garments.len())));
             }
+            if ui.button(crate::localization::tr("Open Selection tool")).clicked() {
+                self.cancel_active_gesture("Open garment influence selection");
+                self.open_cdmw_tool_settings(ui.ctx(), CdmwRailPage::Select);
+            }
+            ui.push_id("refit-follow-controls", |ui| {
+                ui.add(numeric::slider(&mut self.cdmw_refit_vertex_weight, 0.0..=100.0).text(crate::localization::tr("Selected influence")))
+                    .on_hover_text(crate::localization::tr(
+                        "0% protects vertices; 100% follows fully. Rigid components require one influence across each connected piece.",
+                    ));
+                ui.add_enabled_ui(authoring && !editing_correction && has_selection, |ui| {
+                    ui.horizontal_wrapped(|ui| {
+                        if ui.button(crate::localization::tr("Set selected influence")).clicked() {
+                            actions.push(UiAction::CdmwCommand {
+                                command: "morph_set_influence",
+                                arguments: json!({"weight": self.cdmw_refit_vertex_weight / 100.0, "garment_submesh_indices": selected_garments}),
+                                label: "Set garment vertex influence",
+                            });
+                        }
+                        if ui.button(crate::localization::tr("Protect selection")).clicked() {
+                            actions.push(UiAction::CdmwCommand {
+                                command: "morph_set_influence",
+                                arguments: json!({"weight": 0.0, "garment_submesh_indices": selected_garments}),
+                                label: "Protect selected garment vertices",
+                            });
+                        }
+                        if ui.button(crate::localization::tr("Restore selected influence")).clicked() {
+                            actions.push(UiAction::CdmwCommand {
+                                command: "morph_set_influence",
+                                arguments: json!({"weight": 1.0, "garment_submesh_indices": selected_garments}),
+                                label: "Restore selected garment vertex influence",
+                            });
+                        }
+                    });
+                });
+                if ui.add_enabled(
+                    authoring && !editing_correction && !selected_garments.is_empty(),
+                    Button::new(crate::localization::tr("Clear masks on selected garments")),
+                ).clicked() {
+                    actions.push(UiAction::CdmwCommand {
+                        command: "morph_clear_influence",
+                        arguments: json!({"garment_submesh_indices": selected_garments}),
+                        label: "Clear garment influence masks",
+                    });
+                }
+            });
         });
     }
 
     pub(super) fn draw_cdmw_refit_garment_parts(
-        &mut self,
-        ui: &mut egui::Ui,
-        actions: &mut Vec<UiAction>,
-        state: &Value,
+        &mut self, ui: &mut egui::Ui, actions: &mut Vec<UiAction>, state: &Value,
     ) {
         let garments = value_u32_list(state.get("refit").unwrap_or(&Value::Null), "garment_submesh_indices");
         let selected = self.selected_part_indices();
         let visible = self.cdmw_visible_submeshes();
-        self.cdmw_refit_region_targets.retain(|part| garments.contains(part));
-        ui.strong(crate::localization::tr("Garment parts"));
-        ui.small(crate::localization::tr("Click a name to edit strength; check Region to limit where it follows."));
         let settings = state.get("refit").and_then(|refit| refit.get("garment_settings"))
             .and_then(Value::as_array);
-        let can_configure = state_bool(&self.cdmw_state, "authoring_enabled")
-            && !state_str(state, "correction_definition_id").is_some_and(|id| !id.is_empty())
-            && !self.cdmw_refit_settings_dirty.is_dirty();
-        ui.push_id("refit-garment-parts", |ui| {
-            for part in &garments {
-                ui.push_id(part, |ui| {
-                    ui.horizontal(|ui| {
-                        let mut checked = self.cdmw_refit_region_targets.contains(part);
-                        if ui.checkbox(&mut checked, crate::localization::tr("Region"))
-                            .on_hover_text(crate::localization::tr("Choose garments for the body-region buttons below. Your body selection is kept."))
-                            .changed()
-                        {
-                            if checked {
-                                self.cdmw_refit_region_targets.push(*part);
-                                self.cdmw_refit_region_targets.sort_unstable();
-                            } else {
-                                self.cdmw_refit_region_targets.retain(|candidate| candidate != part);
-                            }
-                        }
+        ui.horizontal_wrapped(|ui| {
+            if ui.button(crate::localization::tr("Select garments")).clicked() {
+                actions.push(UiAction::SetPartSelection(garments.clone()));
+            }
+            if ui.button(crate::localization::tr("Clear selection")).clicked() {
+                actions.push(UiAction::SetPartSelection(Vec::new()));
+            }
+        });
+        for part in &garments {
+            ui.push_id(part, |ui| {
+                ui.horizontal(|ui| {
+                    let setting = settings.and_then(|rows| rows.iter().find(|row| {
+                        row.get("submesh_index").and_then(Value::as_u64) == Some(u64::from(*part))
+                    }));
+                    let mode = setting.and_then(|row| state_str(row, "mode")).unwrap_or("surface");
+                    let enabled = setting.and_then(|row| row.get("enabled")).and_then(Value::as_bool).unwrap_or(true);
+                    let label = if !enabled { "Skip" } else { match mode {
+                        "rigid_component" => "Rigid component", "rigid" => "Offset follow", _ => "Flexible",
+                    }};
+                    // Reserve the summary first so even long names leave it visible.
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        ui.weak(crate::localization::tr(label));
                         let name = self.cdmw_morph_part_names(&[*part]);
                         let active = selected.contains(part);
                         if ui.add_enabled(
@@ -203,49 +217,55 @@ impl LabApplication {
                             actions.push(UiAction::SetPartSelection(next));
                         }
                     });
-                    let setting = settings.and_then(|rows| rows.iter().find(|row| {
-                        row.get("submesh_index").and_then(Value::as_u64) == Some(u64::from(*part))
-                    }));
-                    let mode = setting.and_then(|row| state_str(row, "mode")).unwrap_or("surface");
-                    let enabled = setting.and_then(|row| row.get("enabled")).and_then(Value::as_bool).unwrap_or(true);
-                    let current = if enabled { mode } else { "skip" };
-                    let mut choice = current;
-                    ui.add_enabled_ui(can_configure, |ui| {
-                        crate::localization::combo("Fit as")
-                            .selected_text(crate::localization::tr(match current {
-                                "rigid_component" => "Rigid component",
-                                "rigid" => "Offset follow",
-                                "skip" => "Skip",
-                                _ => "Flexible",
-                            }))
-                            .show_ui(ui, |ui| {
-                                ui.selectable_value(&mut choice, "surface", crate::localization::tr("Flexible"))
-                                    .on_hover_text(crate::localization::tr("Follow the body surface. Suitable for cloth and flexible armor."));
-                                ui.selectable_value(&mut choice, "rigid_component", crate::localization::tr("Rigid component"))
-                                    .on_hover_text(crate::localization::tr("Keep daggers, pendants and armor plates in shape. Move each connected piece without bending or stretching it."));
-                                ui.selectable_value(&mut choice, "skip", crate::localization::tr("Skip"))
-                                    .on_hover_text(crate::localization::tr("Leave this Part out of body following and Fit to body."));
-                                if mode == "rigid" {
-                                    ui.selectable_value(&mut choice, "rigid", crate::localization::tr("Offset follow"))
-                                        .on_hover_text(crate::localization::tr("Preserve each vertex's local offset from the body. This mode can bend a connected piece. Inward tightening requires Surface or Rigid component."));
-                                }
-                            });
-                    }).response.on_disabled_hover_text(crate::localization::tr("Apply pending settings before fitting."));
-                    if choice != current {
-                        let mut arguments = json!({"submesh_indices": [part], "enabled": choice != "skip"});
-                        if choice != "skip" {
-                            arguments["mode"] = json!(choice);
-                        }
-                        actions.push(UiAction::CdmwCommand {
-                            command: "refit_configure",
-                            arguments,
-                            label: "Set garment fitting mode",
-                        });
-                    }
                 });
+            });
+        }
+    }
+
+    pub(super) fn draw_cdmw_refit_body_region(
+        &mut self, ui: &mut egui::Ui, actions: &mut Vec<UiAction>, state: &Value, edit_targets: &[u32],
+    ) {
+        let refit = state.get("refit").unwrap_or(&Value::Null);
+        let garments = value_u32_list(refit, "garment_submesh_indices");
+        self.cdmw_refit_region_targets.retain(|part| garments.contains(part));
+        // The host serializes garment_regions as [garment_index, regions] pairs.
+        let restricted = refit.get("garment_regions").and_then(Value::as_array).into_iter().flatten()
+            .filter(|pair| pair.get(1).and_then(Value::as_array).is_some_and(|regions| !regions.is_empty())).count();
+        let summary = if restricted == 0 { crate::localization::tr("Whole body") }
+            else { crate::localization::tr(format!("{} restricted Parts", restricted)) };
+        let title = format!("{} · {summary}", crate::localization::tr("Body region"));
+        cdmw_section(ui, "refit-body-region", &title, None, |ui| {
+            ui.weak(crate::localization::tr("Choose target garments, then select the body faces they may follow."));
+            if ui.add_enabled(!edit_targets.is_empty(), Button::new(crate::localization::tr("Use editing targets")))
+                .on_hover_text(crate::localization::tr("Capture the garments from Editing without changing the viewport selection.")).clicked()
+            { self.cdmw_refit_region_targets = edit_targets.to_vec(); }
+            for part in &garments {
+                let mut checked = self.cdmw_refit_region_targets.contains(part);
+                let name = self.cdmw_morph_part_names(&[*part]);
+                if ui.scope(|ui| {
+                    ui.style_mut().wrap_mode = Some(egui::TextWrapMode::Truncate);
+                    ui.checkbox(&mut checked, &name)
+                }).inner.on_hover_text(&name)
+                    .on_hover_text(crate::localization::tr("Choose garments for the body-region buttons below. Your body selection is kept.")).changed()
+                {
+                    if checked { self.cdmw_refit_region_targets.push(*part); self.cdmw_refit_region_targets.sort_unstable(); }
+                    else { self.cdmw_refit_region_targets.retain(|candidate| candidate != part); }
+                }
             }
-            ui.strong(crate::localization::tr("Allowed body region"))
-                .on_hover_text(crate::localization::tr("Check garments, select the body faces they may follow, then apply the region."));
+            ui.weak(crate::localization::tr(format!("{} target garments", self.cdmw_refit_region_targets.len())));
+            ui.horizontal_wrapped(|ui| {
+                let body = value_u32_list(state, "driver_submesh_indices");
+                if ui.add_enabled(!body.is_empty(), Button::new(crate::localization::tr("Select body"))).clicked() {
+                    actions.push(UiAction::SetPartSelection(body));
+                }
+                if ui.button(crate::localization::tr("Open Selection tool")).clicked() {
+                    self.cancel_active_gesture("Open body region selection");
+                    self.open_cdmw_tool_settings(ui.ctx(), CdmwRailPage::Select);
+                }
+            });
+            if state_bool(state, "unbaked") {
+                ui.weak(crate::localization::tr("Reset or Bake before changing the body region."));
+            }
             let targets = self.cdmw_refit_region_targets.clone();
             let ready = state_bool(&self.cdmw_state, "authoring_enabled")
                 && !state_str(state, "correction_definition_id").is_some_and(|id| !id.is_empty())

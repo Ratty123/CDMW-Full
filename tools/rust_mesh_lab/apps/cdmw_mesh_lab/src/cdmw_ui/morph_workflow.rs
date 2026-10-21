@@ -84,24 +84,41 @@ impl LabApplication {
         let pending = state_bool(&state, "authoring_baseline_ready")
             || state_str(&state, "correction_definition_id").is_some_and(|id| !id.is_empty())
             || self.cdmw_morph_comparison_active();
+        let body = value_u32_list(&state, "driver_submesh_indices");
+        let garments = value_u32_list(state.get("refit").unwrap_or(&Value::Null), "garment_submesh_indices");
+        if matches!(workflow.tab, MorphTab::Setup | MorphTab::Fit) {
+            self.draw_cdmw_refit_roles(ui, &body, &garments);
+        }
         match workflow.tab {
             MorphTab::Setup => {
                 self.draw_cdmw_morph_meshes(ui, actions, &state);
                 ui.separator();
                 ui.add_enabled_ui(!pending, |ui| {
-                    self.draw_cdmw_refit_setup(ui, actions, &state);
+                    if self.draw_cdmw_refit_setup(ui, actions, &state) {
+                        workflow.tab = MorphTab::Fit;
+                    }
                 });
             }
             MorphTab::Fit => {
                 ui.add_enabled_ui(!pending, |ui| {
                     if self.draw_cdmw_refit_section(ui, actions, &state) {
-                        workflow.tab = MorphTab::Shape;
-                        workflow.create = true;
-                        workflow.sculpted = false;
+                        workflow.tab = MorphTab::Setup;
                     }
                 });
             }
             MorphTab::Shape => {
+                let has_definitions = state.get("definitions").and_then(Value::as_array)
+                    .is_some_and(|definitions| !definitions.is_empty());
+                if !workflow.create && !garments.is_empty() && !has_definitions
+                    && ui.add_enabled(!pending && !state_bool(&state, "unbaked"),
+                        Button::new(crate::localization::tr("Create body slider")))
+                        .on_hover_text(crate::localization::tr("Select the body and open the slider creator. The bound garments will follow.")).clicked()
+                {
+                    actions.push(UiAction::SetPartSelection(body.clone()));
+                    self.cdmw_morph_definition_edit_id.clear();
+                    workflow.create = true;
+                    workflow.sculpted = false;
+                }
                 if workflow.create {
                     if ui
                         .button(crate::localization::tr("Back to sliders"))

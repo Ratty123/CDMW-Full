@@ -169,6 +169,7 @@ fn correction_start_save_and_cancel_use_explicit_selected_garments() -> TestResu
 fn garment_influence_controls_keep_vertex_scope_and_type_fractional_weights() -> TestResult {
     let mut ui = authoring_ui()?;
     ui.click("Fit")?;
+    ui.open_refit_detail("Local influence")?;
     assert!(ui.actions_from_click("Set selected influence")?.is_empty());
     select_authoring_element(&mut ui, 1, SelectionDomain::Vertex)?;
     ui.type_number_in_row("Selected influence", 100.0, "37.5")?;
@@ -190,47 +191,38 @@ fn garment_influence_controls_keep_vertex_scope_and_type_fractional_weights() ->
 }
 
 fn toggle_region_target(ui: &mut HeadlessUi, garment: &str) -> TestResult {
-    let row = ui.reveal(garment)?;
-    ui.click_where("Region", |rect| (rect.center().y - row.center().y).abs() < 8.0)
-}
-
-fn choose_part_fit(
-    ui: &mut HeadlessUi, garment: &str, current: &str, next: &str,
-) -> Result<Vec<UiAction>, Box<dyn std::error::Error>> {
-    let row = ui.reveal(garment)?;
-    ui.click_where(current, |rect| {
-        rect.top() >= row.bottom() && rect.top() - row.bottom() < 32.0
-    })?;
-    ui.actions_from_click(next)
+    ui.click(garment)
 }
 
 #[test]
-fn garment_fit_choices_set_only_that_parts_mode_and_enablement_before_fit() -> TestResult {
+fn garment_fit_choices_use_the_single_scoped_editor_and_preserve_skip() -> TestResult {
     let mut ui = authoring_ui()?;
     ui.click("Fit")?;
-    let sleeve = ui.reveal("2 · Sleeve")?;
-    let plate = ui.reveal("3 · Plate")?;
-    let fit = ui.reveal("Fit to body")?;
-    assert!(sleeve.bottom() < plate.top() && plate.bottom() < fit.top());
-
-    // Picking another row's mode must not depend on the current mesh selection.
-    ui.click("2 · Sleeve")?;
-    let rigid = choose_part_fit(&mut ui, "3 · Plate", "Flexible", "Rigid component")?;
+    assert!(ui.label_rect("2 · Sleeve").is_none());
+    let fit = ui.reveal("Fit all enabled garments")?;
+    assert!(fit.bottom() < ui.reveal("Adjust garments")?.top());
+    ui.click("Review parts")?;
+    ui.click("3 · Plate")?;
+    ui.choose("Fit as", "Flexible", "Rigid component")?;
+    let rigid = ui.actions_from_click("Apply to Selected Garments")?;
     assert_eq!(command_arguments(&rigid, "refit_configure"),
-        json!({"submesh_indices": [2], "enabled": true, "mode": "rigid_component"}));
-    assert_eq!(ui.application.selected_part_indices(), vec![1]);
-    // The host's authoritative response supplies the committed row value.
+        json!({"submesh_indices": [2], "mode": "rigid_component"}));
     ui.application.cdmw_state["morph_refit"]["refit"]["garment_settings"][1]["mode"] = json!("rigid_component");
+    ui.application.cdmw_refit_settings_dirty = Default::default();
     ui.frame(Vec::new());
-    let skip = choose_part_fit(&mut ui, "3 · Plate", "Rigid component", "Skip")?;
-    assert_eq!(command_arguments(&skip, "refit_configure"),
-        json!({"submesh_indices": [2], "enabled": false}));
+    ui.choose("Fit as", "Rigid component", "Skip")?;
+    let skip = ui.actions_from_click("Apply to Selected Garments")?;
+    assert_eq!(command_arguments(&skip, "refit_configure"), json!({"submesh_indices": [2], "enabled": false}));
     ui.application.cdmw_state["morph_refit"]["refit"]["garment_settings"][1]["enabled"] = json!(false);
+    ui.application.cdmw_refit_settings_dirty = Default::default();
     ui.frame(Vec::new());
-    let flexible = choose_part_fit(&mut ui, "3 · Plate", "Skip", "Flexible")?;
+    ui.reveal("Skip")?;
+    ui.choose("Fit as", "Skip", "Flexible")?;
+    let flexible = ui.actions_from_click("Apply to Selected Garments")?;
     assert_eq!(command_arguments(&flexible, "refit_configure"),
         json!({"submesh_indices": [2], "enabled": true, "mode": "surface"}));
-    assert_eq!(command_arguments(&ui.actions_from_click("Fit to body")?, "refit_fit_to_body"), json!({}));
+    ui.application.cdmw_refit_settings_dirty = Default::default();
+    assert_eq!(command_arguments(&ui.actions_from_click("Fit all enabled garments")?, "refit_fit_to_body"), json!({}));
     Ok(())
 }
 
@@ -240,28 +232,22 @@ fn fit_waits_for_pending_settings_and_legacy_offset_mode_is_not_labelled_rigid()
     ui.application.cdmw_state["morph_refit"]["refit"]["garment_settings"][1]["mode"] = json!("rigid");
     select_authoring_parts(&mut ui, &[2])?;
     ui.click("Fit")?;
-    let rigid = choose_part_fit(&mut ui, "3 · Plate", "Offset follow", "Rigid component")?;
-    assert_eq!(command_arguments(&rigid, "refit_configure"),
-        json!({"submesh_indices": [2], "enabled": true, "mode": "rigid_component"}));
-    ui.choose("Mode", "Offset follow", "Rigid component")?;
-    assert!(ui.actions_from_click("Fit to body")?.is_empty());
-    let row = ui.reveal("2 · Sleeve")?;
-    ui.click_where("Flexible", |rect| {
-        rect.top() >= row.bottom() && rect.top() - row.bottom() < 32.0
-    })?;
-    assert!(ui.label_rect("Skip").is_none(), "part mode menu opened over unapplied edits");
+    ui.choose("Fit as", "Offset follow", "Rigid component")?;
+    assert!(ui.actions_from_click("Fit all enabled garments")?.is_empty());
     assert_eq!(command_arguments(&ui.actions_from_click("Apply to Selected Garments")?, "refit_configure"),
         json!({"submesh_indices": [2], "mode": "rigid_component"}));
     Ok(())
 }
 
 #[test]
-fn fit_garment_names_highlight_parts_and_scope_strength_without_expanding_sections() -> TestResult {
+fn fit_garment_names_highlight_parts_and_scope_strength_in_compact_sections() -> TestResult {
     let mut ui = authoring_ui()?;
     ui.application.cdmw_state["morph_refit"]["refit"]["garment_settings"][0]["intensity_percent"] = json!(37.5);
     ui.application.cdmw_state["morph_refit"]["refit"]["garment_settings"][1]["intensity_percent"] = json!(125.0);
     ui.click("Fit")?;
-    assert!(ui.label_rect("Allowed body region").is_some());
+    ui.open_refit_detail("Body region")?;
+    ui.open_refit_detail("Body region")?;
+    ui.click("Review parts")?;
     ui.click("2 · Sleeve")?;
     assert_eq!(ui.application.selected_part_indices(), vec![1]);
     assert_eq!(ui.application.cdmw_refit_intensity, 37.5);
@@ -275,7 +261,8 @@ fn fit_garment_names_highlight_parts_and_scope_strength_without_expanding_sectio
         .collect::<Vec<_>>();
     assert!(!expected.is_empty());
     assert_eq!(ui.application.face_selection_overlay.as_ref().ok_or("garment highlight")?.positions, expected);
-    ui.type_number_in_row("Intensity %", 37.5, "42.5")?;
+    ui.open_refit_detail("Follow body shape")?;
+    ui.type_number_in_row("Body-shape following %", 37.5, "42.5")?;
     assert_eq!(command_arguments(&ui.actions_from_click("Apply to Selected Garments")?, "refit_configure"),
         json!({"submesh_indices": [1], "intensity_percent": 42.5}));
 
@@ -290,6 +277,7 @@ fn fit_garment_names_highlight_parts_and_scope_strength_without_expanding_sectio
     }
     ui.frame(vec![Event::ModifiersChanged(egui::Modifiers::NONE)]);
     assert_eq!(ui.application.selected_part_indices(), vec![1, 2]);
+    ui.open_refit_detail("Local influence")?;
     ui.type_number_in_row("Selected influence", 100.0, "50")?;
     assert_eq!(command_arguments(&ui.actions_from_click("Set selected influence")?, "morph_set_influence"),
         json!({"garment_submesh_indices": [1, 2], "weight": 0.5}));
@@ -300,6 +288,7 @@ fn fit_garment_names_highlight_parts_and_scope_strength_without_expanding_sectio
 fn body_region_targets_remain_explicit_when_viewport_selection_changes() -> TestResult {
     let mut ui = authoring_ui()?;
     ui.click("Fit")?;
+    ui.open_refit_detail("Body region")?;
     select_authoring_element(&mut ui, 0, SelectionDomain::Face)?;
     let body_faces = ui.application.mesh.as_ref().ok_or("mesh")?.selection.faces.clone();
     assert!(ui.actions_from_click("Use selected body region")?.is_empty());
@@ -332,8 +321,9 @@ fn rigid_component_combo_dispatches_mode_with_typed_intensity() -> TestResult {
     let mut ui = authoring_ui()?;
     select_authoring_parts(&mut ui, &[2])?;
     ui.click("Fit")?;
-    ui.choose("Mode", "Surface", "Rigid component")?;
-    ui.type_number_in_row("Intensity %", 100.0, "175")?;
+    ui.choose("Fit as", "Flexible", "Rigid component")?;
+    ui.open_refit_detail("Follow body shape")?;
+    ui.type_number_in_row("Body-shape following %", 100.0, "175")?;
     assert_eq!(ui.application.cdmw_refit_mode, "rigid_component");
     let apply = ui.actions_from_click("Apply to Selected Garments")?;
     assert_eq!(command_arguments(&apply, "refit_configure"), json!({

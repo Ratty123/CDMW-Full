@@ -11,6 +11,7 @@ fn diagnostics_ui(selected: &[u32]) -> Result<HeadlessUi, Box<dyn std::error::Er
         ..Selection::default()
     })?;
     ui.click("Fit")?;
+    ui.click("Check current fit")?;
     Ok(ui)
 }
 

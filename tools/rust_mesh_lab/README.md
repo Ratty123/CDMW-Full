@@ -569,7 +569,7 @@ and dialog rectangles independently of transient control IDs.
 ### Morph and Refit
 
 Morph & Refit can load body and armor from the archive catalogue, assign their roles,
-and preview an initial **Fit to body** without a shape slider. The host's native Surface
+and preview an initial **Fit all enabled garments** without a shape slider. The host's native Surface
 solver preserves layers and limits sleeve/cuff distortion, with a 90-second command
 budget for large fits. Inspect complex trim before Bake. Exact archive refits preserve
 source topology and rebuild each loaded asset separately. See the [Mesh Editor

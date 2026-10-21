@@ -1825,19 +1825,29 @@ Geometry Layers and Action History start collapsed. Morph & Refit opens directly
 and drafts stay available when returning from another tool or moving between expanded,
 pinned and floating settings. Closing panels preserves geometry and selection.
 
-**Setup** groups mesh loading, asset roles, body assignment and garment binding. It
-offers named Part checkboxes without an inner scrollbar; long
-names stay on one line with the full name on hover. **Open Selection tool** opens the
-standard selection controls for picking a region and preserves the current selection.
-New sliders capture that selection; existing sliders and presets use their saved regions
-without requiring another selection.
+**Setup** follows **1 · Body**, **2 · Garments**, and **3 · Bind to body**.
+Load and selection actions sit with their role. **Use loaded parts** retains per-asset
+body assignment and **Set body from selection**; **Choose Parts** retains the named
+Part checkboxes and **Open Selection tool**, without an inner scrollbar. Long names
+remain on one line with the full name on hover. Binding uses the explicit selected
+garment set; **Continue to Fit** becomes available once garments are bound. **Clear
+Refit** remains separate from preview Reset and Bake.
 
-**Fit** shows the garment list before **Fit to body**. Each Part has a **Fit as**
-selector: **Flexible**, **Rigid component** or **Skip**. Choices apply directly to
-that Part, leaving other settings unchanged. Click its name to highlight it in the
-viewport and load its strength settings; Ctrl-click selects several Parts.
-Garment settings, selected/all apply actions, Follow controls and Allowed body
-region are exposed directly, without nested expanders.
+**Fit** starts with **Fit all enabled garments**, whose scope is independent of the
+settings selection. **Review parts** opens the compact **Choose garments** list;
+rows show each Part's mode or **Skip**. Click a name to highlight that Part and edit
+its settings; Ctrl-click selects several. **Adjust garments** has one **Editing**
+scope and one Apply action, targeting either selected garments or all bound garments.
+Choosing a garment switches the editor to the selected scope. Clearing a selected
+scope disables Apply; it never silently expands to all garments. **Fit as** offers
+Flexible, Rigid component, legacy Offset follow and Skip. **Skip**, or clearing
+**Refit enabled**, excludes the targets while retaining their mode and settings.
+
+Tightness and Clearance stay visible. **Follow body shape** contains **Body-shape
+following %** (the former Intensity control). **Body region**, **Local influence**
+and **Check current fit** open directly from their headings. Region and influence
+headings show existing restrictions and masks even when closed. Optional sections
+retain their open state while using the tool. **Create body slider** is in Shape.
 **Shape** offers **Body**, **Sides** and **Sliders** pages for coordinated controls,
 paired adjustments and manual values. **+ Create** opens **Procedural** or **Sculpted**
 creation; **Edit slider** opens its procedural fields directly. Sculpted creation
@@ -1861,10 +1871,10 @@ Scrolling a panel cannot carry camera zoom into a later viewport click.
 
 #### Asset roles and catalogue browsers
 
-**Setup** shows a compact card for each loaded asset, with its current
-body/armor role, Part count, and full path on hover. **Set as body** assigns only that
-asset's Parts as the driver, making an incorrect role easy to correct. **Add as
-Body...** and **Add as Armor...** open the loaded game archive catalogue with search,
+**Setup** lists loaded assets under their body or garment role, with Part counts
+and full paths on hover. **Set as body**, inside **Use loaded parts**, assigns only
+that asset's Parts as the driver. **Load body...** and **Load garments...** open the
+loaded game archive catalogue with search,
 paging, and source previews. Choosing a body assigns its Parts as the driver; choosing
 armor adds and selects its Parts ready for binding. No Free Edit or external mesh file
 is required. The panel lists loaded files separately from the assigned body driver and
@@ -1874,7 +1884,7 @@ Both browsers search the same catalogue: the chosen role determines what the
 mesh does. Body is the shape driver; armor is the garment that follows it after
 binding. If you load armor before assigning a body, the initial mesh becomes
 the body driver, including when an existing Morph profile has no assigned driver.
-If you started with clothing instead, Add as Body assigns the
+If you started with clothing instead, Load body assigns the
 new body while keeping the original clothing available for selection and binding.
 
 The catalogue comes from the archive workspace, including when Mesh Editor is detached
@@ -1884,8 +1894,8 @@ list on the left and a taller combined preview on the right. The current target 
 selected source share one view in their original archive coordinates, preserving their
 relative size and position.
 
-Each has its own **Solid** or **Wire** display choice. **Add as Armor...** starts with a
-shaded, untextured solid target and wire armor; **Add as Body...** starts with a solid
+Each has its own **Solid** or **Wire** display choice. **Load garments...** starts with a
+shaded, untextured solid target and wire armor; **Load body...** starts with a solid
 body source and wire target. Wire edges overlay solid surfaces, including hidden edges,
 to make overlap visible.
 
@@ -1947,18 +1957,19 @@ replaces the garment set; select every garment that should participate.
 
 Surface, Offset follow and Rigid component modes retain each garment's enabled state,
 body-follow intensity, Tightness and clearance. **Changes not applied** marks pending
-settings; **Apply to Selected Garments** and **Apply to All Bound Garments** apply them.
+settings. The single Apply button follows **Editing**: **Apply to Selected Garments**
+or **Apply to All Bound Garments**.
 Only fields you change are applied. A **Mixed** marker identifies settings that differ
 across the chosen garments. Mixed numeric fields initially display the first Part's
-value; **Use displayed intensity**, **Use displayed tightness** and **Use displayed
+value; **Use displayed following**, **Use displayed tightness** and **Use displayed
 clearance** explicitly choose that value for the whole scope. Unchanged fields retain
 each Part's settings and masks. Apply is disabled until a field changes, and a refused
-update retains the pending edits. Apply pending settings before using the per-Part
-mode selectors or **Fit to body**; those actions stay disabled while edits are pending.
+update retains the pending edits. Apply pending settings before **Fit all enabled
+garments**; fitting stays disabled while edits are pending.
 Tightness requires Surface or Rigid component mode on every chosen garment.
 
-**Fit to body** tightens all enabled bound garments around the loaded body. It needs
-no viewport selection, body slider, original body or skeleton. It sets **Tightness %**
+**Fit all enabled garments** tightens all enabled bound garments around the loaded
+body. It needs no viewport selection, body slider, original body or skeleton. It sets **Tightness %**
 to 100 and clearance to at least 0.1%, retaining each Part's mode, intensity, masks and
 allowed body region. Inputs must already share the intended alignment and pose.
 After excluding islands with **Include** and starting a new edit session from the
@@ -1974,8 +1985,8 @@ still reject the fit and retain the previous preview.
 | Rigid component | Keeps connected or touching hard pieces together, including matching material seams; follows the fitted cloth and moves clear of the body without changing dimensions. | Daggers, hard plates, assembled necklaces, pendants, buckles and trim. |
 | Skip | Disables body following and fitting for this Part, retaining its stored settings. | Accessories to leave unchanged and position manually. |
 
-**Intensity %** controls body-slider following. **Tightness %** independently controls
-inward fitting: 0 retains the earlier following/clearance behavior, 100 requests a
+**Body-shape following %** controls body-slider following. **Tightness %** independently
+controls inward fitting: 0 retains the earlier following/clearance behavior, 100 requests a
 natural snug fit, and intermediate values blend from the same neutral geometry.
 Clearance sets the gap as a percentage of body size. Parts joined into one rigid
 component require consistent intensity, Tightness, clearance and mask influence.
@@ -2073,9 +2084,9 @@ in-game appearance.
 
 #### Inspect the current fit
 
-**Analyze current fit** measures selected bound garment Parts, or all bound garments
-when none are selected. It inspects the current preview without applying pending
-settings. The read-only native query runs off the UI thread and does not change
+**Analyze current fit**, inside **Check current fit**, measures the garments in
+**Editing** (selected or all bound garments). It inspects the current preview without
+applying pending settings. The read-only native query runs off the UI thread and does not change
 geometry, settings, revisions or Undo/Redo history. It is disabled while another host
 request is pending.
 
@@ -2095,13 +2106,15 @@ analyze again. The initial-binding warning remains separate from these current r
 
 #### Control what follows the body
 
-In **Fit**, click a name in **Garment parts** to highlight that piece in the viewport
-and load its fitting settings. Ctrl-click names to add or remove Parts from the
-selection. Use **Intensity %** for body-shape following and **Tightness %** for inward
-fitting, then **Apply to Selected Garments**. Names stay on one line; hover to read
-the full name. Hidden Parts must be shown before selecting them.
+In **Fit**, open **Choose garments** or use **Review parts**, then click a name to
+highlight that piece in the viewport and load its fitting settings. Ctrl-click names
+to add or remove Parts from the selection. Use **Body-shape following %** under
+**Follow body shape** for body-slider following and **Tightness %** for inward fitting,
+then use the Apply action for the displayed **Editing** scope. Names stay on one line;
+hover to read the full name. Hidden Parts must be shown before selecting them.
 
-**Follow controls** is directly visible and uses the ordinary vertex, edge, face or whole-Part selection.
+**Local influence** uses the ordinary vertex, edge, face or whole-Part selection.
+Its **Open Selection tool** action retains that selection.
 Set **Selected influence** and choose **Set selected influence** to assign that weight
 to the selected garment vertices. **Protect selection** assigns zero; **Restore
 selected influence** assigns full influence. **Clear masks on selected garments**
@@ -2119,16 +2132,18 @@ their shared influence together. Setting influence or clearing masks applies the
 whole selection as one undoable edit, preserving each Part's mode, intensity and
 clearance.
 
-**Allowed body region** is directly visible below the garment list. Its **Region**
-checkboxes keep binding targets separate from viewport selection:
+**Body region** keeps binding targets separate from viewport selection:
 
-1. Check **Region** beside the garments that should use the constraint.
-2. Select the body faces or vertices they may follow.
+1. Open **Body region**. Check its target garment names, or use **Use editing targets**
+   to capture the current **Editing** scope.
+2. Select the body faces or vertices they may follow. **Select body** and **Open
+   Selection tool** provide the existing selection routes.
 3. Choose **Use selected body region**.
 
-Checking **Region** preserves selected body faces or vertices. Clicking a garment
-name instead selects that garment for editing and replaces the body selection.
-Region checkboxes choose where a garment may follow; they do not change strength.
+Target checkboxes and **Use editing targets** preserve selected body faces or vertices.
+Those targets remain captured when the viewport selection changes. Clicking a garment
+name in **Choose garments** still selects it for editing and replaces the body selection.
+Region targets choose where garments may follow; they do not change strength.
 
 Only complete triangles inside the selected body vertices are eligible for binding.
 A region with no usable triangle is refused. **Use whole body** removes the constraint

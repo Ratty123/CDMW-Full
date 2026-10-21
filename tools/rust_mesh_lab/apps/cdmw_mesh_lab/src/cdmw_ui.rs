@@ -1069,7 +1069,7 @@ fn refit_mixed_numeric_choice(
         ui.horizontal(|ui| {
             ui.weak(crate::localization::tr("Mixed"));
             let label = match key {
-                "intensity_percent" => "Use displayed intensity",
+                "intensity_percent" => "Use displayed following",
                 "tightness_percent" => "Use displayed tightness",
                 _ => "Use displayed clearance",
             };
@@ -3185,10 +3185,7 @@ impl LabApplication {
     }
 
     fn draw_cdmw_morph_meshes(
-        &mut self,
-        ui: &mut egui::Ui,
-        actions: &mut Vec<UiAction>,
-        state: &Value,
+        &mut self, ui: &mut egui::Ui, actions: &mut Vec<UiAction>, state: &Value,
     ) {
         let blocked = if self.cdmw_morph_comparison_active() {
             "Turn outfit corrections back on to change the loaded meshes."
@@ -3206,25 +3203,6 @@ impl LabApplication {
         } else {
             ""
         };
-        ui.horizontal_wrapped(|ui| {
-            for (role, label) in [("body", "Add as Body..."), ("armor", "Add as Armor...")] {
-                if ui
-                    .add_enabled(blocked.is_empty(), Button::new(crate::localization::tr(label)))
-                    .on_hover_text(crate::localization::tr(if role == "body" {
-                        "Choose any archive mesh and assign it as the body that drives shape changes."
-                    } else {
-                        "Choose armor or clothing to follow the body. If needed, the current mesh is assigned as the body."
-                    }))
-                    .on_disabled_hover_text(crate::localization::tr(blocked))
-                    .clicked()
-                {
-                    actions.push(UiAction::ChooseCdmwRefitMesh { role });
-                }
-            }
-        });
-        if !blocked.is_empty() {
-            ui.small(crate::localization::tr(blocked));
-        }
         let body = value_u32_list(state, "driver_submesh_indices");
         let mut assets = self
             .cdmw_state
@@ -3241,56 +3219,89 @@ impl LabApplication {
                         .map_or(0, |lod| lod.submeshes.len() as u64))).collect::<Vec<_>>()
             }));
         }
-        for (asset_index, asset) in assets.iter().enumerate() {
-            let indices = value_u32_list(asset, "part_indices");
-            let body_count = indices.iter().filter(|index| body.contains(index)).count();
-            let is_body = !indices.is_empty() && body_count == indices.len();
-            let (role, colour) = if is_body {
-                ("BODY", REFIT_BODY_COLOUR)
-            } else if body_count > 0 {
-                ("MIXED", REFIT_ARMOR_COLOUR)
-            } else if body.is_empty() {
-                ("UNASSIGNED", ui.visuals().weak_text_color())
-            } else {
-                ("ARMOR", REFIT_ARMOR_COLOUR)
-            };
-            let path = state_str(asset, "path").unwrap_or("");
-            ui.push_id(("refit-asset", asset_index), |ui| {
-                ui.group(|ui| {
-                    ui.horizontal(|ui| {
-                        ui.colored_label(colour, RichText::new(crate::localization::tr(role)).strong());
-                        ui.weak(crate::localization::tr(format!("{} Parts", indices.len())));
+        let bound = value_u32_list(state.get("refit").unwrap_or(&Value::Null), "garment_submesh_indices");
+        let garments = if body.is_empty() { Vec::new() } else if bound.is_empty() {
+            self.document.as_ref().and_then(|doc| doc.lods.get(self.active_lod_index))
+                .map(|lod| (0..lod.submeshes.len() as u32)
+                    .filter(|part| !body.contains(part)).collect::<Vec<_>>()).unwrap_or_default()
+        } else { bound };
+        for (role, title, load, select, assigned) in [
+            ("body", "1 · Body", "Load body...", "Select body", body.as_slice()),
+            ("armor", "2 · Garments", "Load garments...", "Select garments", garments.as_slice()),
+        ] {
+            if role == "armor" { ui.separator(); }
+            ui.strong(crate::localization::tr(title));
+            ui.horizontal_wrapped(|ui| {
+                if ui.add_enabled(blocked.is_empty(), Button::new(crate::localization::tr(load)))
+                    .on_hover_text(crate::localization::tr(if role == "body" {
+                        "Choose any archive mesh and assign it as the body that drives shape changes."
+                    } else {
+                        "Choose armor or clothing to follow the body. If needed, the current mesh is assigned as the body."
+                    })).on_disabled_hover_text(crate::localization::tr(blocked)).clicked()
+                { actions.push(UiAction::ChooseCdmwRefitMesh { role }); }
+                if ui.add_enabled(!assigned.is_empty(), Button::new(crate::localization::tr(select)))
+                    .on_hover_text(crate::localization::tr("Select the loaded Parts for editing. This does not load another file.")).clicked()
+                { actions.push(UiAction::SetPartSelection(assigned.to_vec())); }
+            });
+            for (asset_index, asset) in assets.iter().enumerate() {
+                let indices = value_u32_list(asset, "part_indices");
+                let shown = indices.iter().copied().filter(|part| {
+                    if role == "body" { body.contains(part) } else { !body.contains(part) }
+                }).collect::<Vec<_>>();
+                if shown.is_empty() { continue; }
+                let path = state_str(asset, "path").unwrap_or("");
+                ui.push_id(("refit-asset", role, asset_index), |ui| {
+                    ui.horizontal_wrapped(|ui| {
+                        let mixed = indices.iter().any(|part| body.contains(part))
+                            && indices.iter().any(|part| !body.contains(part));
+                        ui.colored_label(if role == "body" { REFIT_BODY_COLOUR } else { REFIT_ARMOR_COLOUR },
+                            crate::localization::tr(if mixed { "MIXED" } else if role == "body" { "BODY" } else if body.is_empty() { "UNASSIGNED" } else { "ARMOR" }));
+                        ui.weak(crate::localization::tr(format!("{} Parts", shown.len())));
+                        if ui.small_button(crate::localization::tr("Select")).clicked() {
+                            actions.push(UiAction::SetPartSelection(shown));
+                        }
                     });
                     ui.add(egui::Label::new(path.rsplit(['/', '\\']).next().unwrap_or(path)).truncate())
                         .on_hover_text(path);
-                    ui.horizontal(|ui| {
-                        if ui.button(crate::localization::tr("Select")).clicked() {
-                            actions.push(UiAction::SetPartSelection(indices.clone()));
-                        }
-                        if !is_body && ui.add_enabled(blocked.is_empty(), Button::new(crate::localization::tr("Set as body")))
-                            .on_hover_text(crate::localization::tr("Assign only this asset's Parts as the body. Other loaded assets become garment candidates."))
-                            .on_disabled_hover_text(crate::localization::tr(blocked)).clicked() {
-                            actions.push(UiAction::CdmwCommand {
-                                command: "refit_set_driver", arguments: json!({"submesh_indices": indices}),
-                                label: "Set refit body",
-                            });
-                        }
-                    });
                 });
-            });
+            }
+            if role == "body" {
+                cdmw_section(ui, "refit-use-loaded-body", "Use loaded parts", None, |ui| {
+                    for (index, asset) in assets.iter().enumerate() {
+                        let indices = value_u32_list(asset, "part_indices");
+                        let path = state_str(asset, "path").unwrap_or("");
+                        ui.push_id(index, |ui| {
+                            ui.add(egui::Label::new(path.rsplit(['/', '\\']).next().unwrap_or(path)).truncate()).on_hover_text(path);
+                            if ui.small_button(crate::localization::tr("Select")).clicked() {
+                                actions.push(UiAction::SetPartSelection(indices.clone()));
+                            }
+                            if ui.add_enabled(blocked.is_empty() && !indices.is_empty(), Button::new(crate::localization::tr("Set as body")))
+                                .on_hover_text(crate::localization::tr("Assign only this asset's Parts as the body. Other loaded assets become garment candidates."))
+                                .on_disabled_hover_text(crate::localization::tr(blocked)).clicked()
+                            {
+                                actions.push(UiAction::CdmwCommand { command: "refit_set_driver",
+                                    arguments: json!({"submesh_indices": indices}), label: "Set refit body" });
+                            }
+                        });
+                    }
+                    let selected = self.selected_part_indices();
+                    if ui.add_enabled(blocked.is_empty() && !selected.is_empty(), Button::new(crate::localization::tr("Set body from selection")))
+                        .on_disabled_hover_text(crate::localization::tr(if blocked.is_empty() { "Select one or more body Parts" } else { blocked })).clicked()
+                    {
+                        actions.push(UiAction::CdmwCommand { command: "refit_set_driver",
+                            arguments: json!({"submesh_indices": selected}), label: "Set refit driver" });
+                    }
+                });
+            }
         }
+        if !blocked.is_empty() { ui.weak(crate::localization::tr(blocked)); }
         let selected = self.selected_part_indices();
-        let counts = self.selected_counts();
-        ui.weak(crate::localization::tr(format!("{} Parts selected", selected.len())))
-            .on_hover_text(crate::localization::tr(format!(
-                "{} vertices · {} edges · {} faces",
-                counts.vertices, counts.edges, counts.faces
-            )));
-        if ui.button(crate::localization::tr("Open Selection tool")).clicked() {
-            self.cancel_active_gesture("Open selection for Morph & Refit");
-            self.open_cdmw_tool_settings(ui.ctx(), CdmwRailPage::Select);
-        }
         cdmw_section(ui, "morph-part-picker", "Choose Parts", None, |ui| {
+            ui.weak(crate::localization::tr(format!("{} Parts selected", selected.len())));
+            if ui.button(crate::localization::tr("Open Selection tool")).clicked() {
+                self.cancel_active_gesture("Open selection for Morph & Refit");
+                self.open_cdmw_tool_settings(ui.ctx(), CdmwRailPage::Select);
+            }
             let parts = self
                 .document
                 .as_ref()
@@ -3336,7 +3347,6 @@ impl LabApplication {
     fn draw_cdmw_refit_roles(
         &self,
         ui: &mut egui::Ui,
-        actions: &mut Vec<UiAction>,
         body: &[u32],
         garments: &[u32],
     ) {
@@ -3352,94 +3362,18 @@ impl LabApplication {
                 self.cdmw_morph_part_names(garments)
             )));
         });
-        let available_garments = if body.is_empty() {
-            Vec::new()
-        } else if garments.is_empty() {
-            self.document
-                .as_ref()
-                .and_then(|doc| doc.lods.get(self.active_lod_index))
-                .map(|lod| {
-                    (0..lod.submeshes.len() as u32)
-                        .filter(|index| !body.contains(index))
-                        .collect::<Vec<_>>()
-                })
-                .unwrap_or_default()
-        } else {
-            garments.to_vec()
-        };
-        let selected = self.selected_part_indices();
-        ui.horizontal_wrapped(|ui| {
-            for (indices, label) in [(body, "Select body"), (available_garments.as_slice(), "Select garments")] {
-                if label == "Select garments" && indices.is_empty() && !body.is_empty() {
-                    let unbaked = self.cdmw_state.get("morph_refit")
-                        .is_some_and(|state| state_bool(state, "unbaked"));
-                    if ui.add_enabled(!unbaked, Button::new(crate::localization::tr("Load armor...")))
-                        .on_hover_text(crate::localization::tr("No garment Parts are loaded. Choose armor or clothing from the archive."))
-                        .on_disabled_hover_text(crate::localization::tr("Reset or Bake before loading armor"))
-                        .clicked()
-                    {
-                        actions.push(UiAction::ChooseCdmwRefitMesh { role: "armor" });
-                    }
-                    continue;
-                }
-                if ui
-                    .add_enabled(!indices.is_empty(), Button::new(crate::localization::tr(label)).selected(
-                        !indices.is_empty() && indices.len() == selected.len()
-                            && indices.iter().all(|index| selected.contains(index))
-                    ))
-                    .on_hover_text(crate::localization::tr("Select the loaded Parts for editing. This does not load another file."))
-                    .on_disabled_hover_text(crate::localization::tr("Assign body Parts first using the control below"))
-                    .clicked()
-                {
-                    actions.push(UiAction::SetPartSelection(indices.to_vec()));
-                }
-            }
-        });
-        ui.colored_label(
-            if garments.is_empty() {
-                REFIT_ARMOR_COLOUR
-            } else {
-                REFIT_READY_COLOUR
-            },
-            crate::localization::tr(if body.is_empty() {
-                "Assign a body in Setup."
-            } else if available_garments.is_empty() {
-                "Load armor."
-            } else if garments.is_empty() {
-                "Select garments, then bind."
-            } else {
-                "Ready to fit"
-            }),
-        );
     }
 
-    fn draw_cdmw_refit_setup(&mut self, ui: &mut egui::Ui, actions: &mut Vec<UiAction>, state: &Value) {
+    fn draw_cdmw_refit_setup(&mut self, ui: &mut egui::Ui, actions: &mut Vec<UiAction>, state: &Value) -> bool {
         let profile_id = state_str(state, "profile_id").unwrap_or("");
         let selected_parts = self.selected_part_indices();
         let driver_parts = value_u32_list(state, "driver_submesh_indices");
         let bound_garments = value_u32_list(state.get("refit").unwrap_or(&Value::Null), "garment_submesh_indices");
         let morph_unbaked = state_bool(state, "unbaked");
-        self.draw_cdmw_refit_roles(ui, actions, &driver_parts, &bound_garments);
-        if ui
-            .add_enabled(
-                !morph_unbaked && !selected_parts.is_empty() && bound_garments.is_empty(),
-                Button::new(crate::localization::tr("Set body from selection")),
-            )
-            .on_disabled_hover_text(crate::localization::tr(if morph_unbaked {
-                "Reset or Bake before changing the body"
-            } else if !bound_garments.is_empty() {
-                "Clear Refit before changing the body"
-            } else {
-                "Select one or more body Parts above"
-            }))
-            .clicked()
-        {
-            actions.push(UiAction::CdmwCommand {
-                command: "refit_set_driver",
-                arguments: json!({"submesh_indices": selected_parts}),
-                label: "Set refit driver",
-            });
-        }
+        ui.strong(crate::localization::tr("3 · Bind to body"));
+        ui.colored_label(if bound_garments.is_empty() { REFIT_ARMOR_COLOUR } else { REFIT_READY_COLOUR },
+            crate::localization::tr(if driver_parts.is_empty() { "Assign a body in Setup." }
+                else if bound_garments.is_empty() { "Select garments, then bind." } else { "Ready to fit" }));
         let has_driver = !driver_parts.is_empty();
         if ui
             .add_enabled(
@@ -3474,6 +3408,9 @@ impl LabApplication {
                 label: "Bind refit garments",
             });
         }
+        let continue_to_fit = ui.add_enabled(!bound_garments.is_empty(),
+            Button::new(crate::localization::tr("Continue to Fit"))).clicked();
+        ui.separator();
         if ui
             .add_enabled(!profile_id.is_empty(), Button::new(crate::localization::tr("Clear Refit")))
             .on_disabled_hover_text(crate::localization::tr("Activate a Morph profile before clearing Refit"))
@@ -3485,6 +3422,7 @@ impl LabApplication {
                 label: "Clear refit",
             });
         }
+        continue_to_fit
     }
 
     fn draw_cdmw_refit_section(
@@ -3495,47 +3433,66 @@ impl LabApplication {
     ) -> bool {
         let profile_id = state_str(state, "profile_id").unwrap_or("");
         let selected_parts = self.selected_part_indices();
-        let driver_parts = value_u32_list(state, "driver_submesh_indices");
         let refit = state.get("refit").cloned().unwrap_or(Value::Null);
         let bound_garments = value_u32_list(&refit, "garment_submesh_indices");
-        let morph_unbaked = state_bool(state, "unbaked");
-        let mut create_body_slider = false;
+        let mut go_to_setup = false;
         ui.push_id("morph-refit", |ui| {
-            self.draw_cdmw_refit_roles(ui, actions, &driver_parts, &bound_garments);
-            let has_definitions = state
-                .get("definitions")
-                .and_then(Value::as_array)
-                .is_some_and(|definitions| !definitions.is_empty());
-            if !bound_garments.is_empty() && !has_definitions
-                && ui.add_enabled(!morph_unbaked, Button::new(crate::localization::tr("Create body slider")))
-                    .on_hover_text(crate::localization::tr("Select the body and open the slider creator. The bound garments will follow."))
-                    .clicked()
-            {
-                actions.push(UiAction::SetPartSelection(driver_parts.clone()));
-                self.cdmw_morph_definition_edit_id.clear();
-                create_body_slider = true;
-            }
-            if state_bool(&refit, "distance_warning") {
-                ui.colored_label(Color32::from_rgb(245, 190, 75),
-                crate::localization::tr("Initial binding: some garment vertices were far from the body. Check alignment and scale."));
-            }
-            let configurable = !profile_id.is_empty() && !bound_garments.is_empty();
-            if !configurable {
+            if profile_id.is_empty() || bound_garments.is_empty() {
                 self.cdmw_refit_settings_dirty = RefitSettingsEdits::default();
                 self.cdmw_refit_hydration_key.clear();
                 ui.weak(crate::localization::tr("Bind garments in Setup."));
+                go_to_setup = ui.button(crate::localization::tr("Go to Setup")).clicked();
                 return;
             }
-            let selected_bound_garments = selected_parts
-                .iter()
-                .copied()
-                .filter(|index| bound_garments.contains(index))
-                .collect::<Vec<_>>();
-            let edit_targets = if selected_bound_garments.is_empty() {
-                &bound_garments
-            } else {
-                &selected_bound_garments
-            };
+            let selected_bound_garments = selected_parts.iter().copied()
+                .filter(|index| bound_garments.contains(index)).collect::<Vec<_>>();
+            let scope_id = egui::Id::new("cdmw-refit-edit-scope");
+            let previous = ui.data_mut(|data| data.get_temp::<(String, bool, Vec<u32>)>(scope_id));
+            // Picking garments retargets the editor; losing that selection must
+            // never turn a selected-only draft into an all-garment operation.
+            let mut edit_all = previous.as_ref().filter(|(profile, _, _)| profile == profile_id)
+                .map_or(selected_bound_garments.is_empty(), |(_, all, selected)| {
+                    if selected != &selected_bound_garments && !selected_bound_garments.is_empty() { false } else { *all }
+                });
+            ui.strong(crate::localization::tr("Fit the outfit"));
+            let enabled_count = bound_garments.iter().filter(|part| {
+                !refit.get("garment_settings").and_then(Value::as_array).into_iter().flatten().any(|row| {
+                    row.get("submesh_index").and_then(Value::as_u64) == Some(u64::from(**part))
+                        && row.get("enabled").and_then(Value::as_bool) == Some(false)
+                })
+            }).count();
+            let mut review_parts = false;
+            ui.horizontal_wrapped(|ui| {
+                ui.weak(crate::localization::tr(format!("{} enabled / {} garments", enabled_count, bound_garments.len())));
+                review_parts = ui.button(crate::localization::tr("Review parts")).clicked();
+            });
+            if ui.add_enabled(!self.cdmw_refit_settings_dirty.is_dirty(),
+                Button::new(crate::localization::tr("Fit all enabled garments"))).on_hover_text(
+                crate::localization::tr("Tighten all enabled bound garments around the loaded body, regardless of selection. Keeps folds, openings, masks and each Part's mode. Sets Tightness to 100% and Clearance to at least 0.1%. Reset reverts it; Bake keeps it.")
+            ).on_disabled_hover_text(crate::localization::tr("Apply pending settings before fitting.")).clicked() {
+                actions.push(UiAction::CdmwCommand { command: "refit_fit_to_body", arguments: json!({}), label: "Fit to body" });
+            }
+            if state_bool(&refit, "distance_warning") {
+                egui::CollapsingHeader::new(RichText::new(crate::localization::tr("Initial binding warning")).color(REFIT_ARMOR_COLOUR))
+                    .id_salt("refit-binding-warning").show(ui, |ui| {
+                        ui.label(crate::localization::tr("Initial binding: some garment vertices were far from the body. Check alignment and scale."));
+                    });
+            }
+            ui.separator();
+            ui.strong(crate::localization::tr("Adjust garments"));
+            let scope_label = ui.label(crate::localization::tr("Editing"));
+            ComboBox::from_id_salt("refit-editing-scope")
+                .width(ui.available_width())
+                .truncate()
+                .selected_text(crate::localization::tr(if edit_all {
+                    format!("All bound garments · {}", bound_garments.len())
+                } else { format!("Selected garments · {}", selected_bound_garments.len()) }))
+                .show_ui(ui, |ui| {
+                    ui.selectable_value(&mut edit_all, true, crate::localization::tr("All bound garments"));
+                    ui.selectable_value(&mut edit_all, false, crate::localization::tr("Selected garments"));
+                }).response.labelled_by(scope_label.id);
+            ui.data_mut(|data| data.insert_temp(scope_id, (profile_id.to_owned(), edit_all, selected_bound_garments.clone())));
+            let edit_targets = if edit_all { &bound_garments } else { &selected_bound_garments };
             let scope_changed = self.cdmw_refit_settings_dirty.retarget(profile_id, edit_targets);
             let mixed_fields = refit_mixed_fields(&refit, edit_targets);
             let hydration_target = edit_targets.first().copied();
@@ -3598,21 +3555,10 @@ impl LabApplication {
                     self.cdmw_refit_hydration_key = hydration_key;
                 }
             }
-            ui.separator();
-            self.draw_cdmw_refit_garment_parts(ui, actions, state);
-            if ui.add_enabled(!self.cdmw_refit_settings_dirty.is_dirty(),
-                Button::new(crate::localization::tr("Fit to body"))).on_hover_text(
-                crate::localization::tr("Tighten enabled garments around the loaded body, keeping folds, openings, masks and each Part's mode. Sets Tightness to 100% and Clearance to at least 0.1%. Reset reverts it; Bake keeps it.")
-            ).on_disabled_hover_text(crate::localization::tr("Apply pending settings before fitting.")).clicked() {
-                actions.push(UiAction::CdmwCommand {
-                    command: "refit_fit_to_body",
-                    arguments: json!({}),
-                    label: "Fit to body",
-                });
-            }
-            ui.separator();
-            ui.add_enabled_ui(configurable, |ui| {
-                ui.weak(crate::localization::tr("Only changed fields are applied. Mixed numeric fields initially show the first Part's value."));
+            cdmw_section(ui, "refit-garment-parts", "Choose garments", review_parts.then_some(true), |ui| {
+                self.draw_cdmw_refit_garment_parts(ui, actions, state);
+            });
+            ui.add_enabled_ui(!edit_targets.is_empty(), |ui| {
                 let enabled_mixed = mixed_fields.contains("enabled")
                     && !self.cdmw_refit_settings_dirty.fields.contains("enabled");
                 if enabled_mixed {
@@ -3628,38 +3574,47 @@ impl LabApplication {
                 }
                 let mode_mixed = mixed_fields.contains("mode")
                     && !self.cdmw_refit_settings_dirty.fields.contains("mode");
-                crate::localization::combo("Mode")
-                    .selected_text(crate::localization::tr(if mode_mixed { "Mixed" } else { match self.cdmw_refit_mode.as_str() {
+                let mut chose_mode = false;
+                let mode_label = ui.label(crate::localization::tr("Fit as"));
+                ComboBox::from_id_salt("refit-fitting-mode")
+                    .width(ui.available_width())
+                    .truncate()
+                    .selected_text(crate::localization::tr(if !self.cdmw_refit_enabled && !enabled_mixed { "Skip" }
+                    else if mode_mixed { "Mixed" } else { match self.cdmw_refit_mode.as_str() {
                         "rigid" => "Offset follow",
                         "rigid_component" => "Rigid component",
-                        _ => "Surface",
+                        _ => "Flexible",
                     }}))
                     .show_ui(ui, |ui| {
                         if ui.selectable_value(
                             &mut self.cdmw_refit_mode,
                             "surface".to_owned(),
-                            crate::localization::tr("Surface"),
+                            crate::localization::tr("Flexible"),
                         ).on_hover_text(crate::localization::tr("Follow the body surface. Suitable for cloth and flexible armor.")).clicked() {
                             self.cdmw_refit_settings_dirty.mark("mode");
+                            chose_mode = true;
                         }
                         if ui.selectable_value(&mut self.cdmw_refit_mode, "rigid".to_owned(), crate::localization::tr("Offset follow"))
                             .on_hover_text(crate::localization::tr("Preserve each vertex's local offset from the body. This mode can bend a connected piece. Inward tightening requires Surface or Rigid component.")).clicked() {
                             self.cdmw_refit_settings_dirty.mark("mode");
+                            chose_mode = true;
                         }
                         if ui.selectable_value(&mut self.cdmw_refit_mode, "rigid_component".to_owned(), crate::localization::tr("Rigid component"))
                             .on_hover_text(crate::localization::tr("Move each connected garment piece with one rotation and translation. Suitable for hard armor plates.")).clicked() {
                             self.cdmw_refit_settings_dirty.mark("mode");
+                            chose_mode = true;
                         }
-                    });
-                ui.push_id("refit-intensity", |ui| {
-                    if ui.add(
-                        crate::cdmw_ui::numeric::slider(&mut self.cdmw_refit_intensity, 0.0..=200.0)
-                            .text(crate::localization::tr("Intensity %")),
-                    ).on_hover_text(crate::localization::tr("How strongly the garment follows body changes. 100% follows fully; 0% stays still.")).changed() {
-                        self.cdmw_refit_settings_dirty.mark("intensity_percent");
-                    }
-                    refit_mixed_numeric_choice(ui, "intensity_percent", mixed_fields.contains("intensity_percent"), true, &mut self.cdmw_refit_settings_dirty);
-                });
+                        if ui.selectable_label(!self.cdmw_refit_enabled && !enabled_mixed, crate::localization::tr("Skip"))
+                            .on_hover_text(crate::localization::tr("Leave these Parts out of body following and fitting. Their mode and settings are retained.")).clicked()
+                        {
+                            self.cdmw_refit_enabled = false;
+                            self.cdmw_refit_settings_dirty.mark("enabled");
+                        }
+                    }).response.labelled_by(mode_label.id);
+                if chose_mode && !enabled_mixed && !self.cdmw_refit_enabled {
+                    self.cdmw_refit_enabled = true;
+                    self.cdmw_refit_settings_dirty.mark("enabled");
+                }
                 let tightness_enabled = if self.cdmw_refit_settings_dirty.fields.contains("mode") {
                     self.cdmw_refit_mode != "rigid"
                 } else {
@@ -3690,6 +3645,22 @@ impl LabApplication {
                     }
                     refit_mixed_numeric_choice(ui, "clearance_percent", mixed_fields.contains("clearance_percent"), true, &mut self.cdmw_refit_settings_dirty);
                 });
+                let following = if mixed_fields.contains("intensity_percent")
+                    && !self.cdmw_refit_settings_dirty.fields.contains("intensity_percent") {
+                    crate::localization::tr("Mixed")
+                } else { format!("{:.1}%", self.cdmw_refit_intensity) };
+                let following_title = format!("{} · {following}", crate::localization::tr("Follow body shape"));
+                cdmw_section(ui, "refit-body-following", &following_title, None, |ui| {
+                    ui.push_id("refit-intensity", |ui| {
+                        if ui.add(
+                            crate::cdmw_ui::numeric::slider(&mut self.cdmw_refit_intensity, 0.0..=200.0)
+                                .text(crate::localization::tr("Body-shape following %")),
+                        ).on_hover_text(crate::localization::tr("How strongly the garment follows body changes. 100% follows fully; 0% stays still.")).changed() {
+                            self.cdmw_refit_settings_dirty.mark("intensity_percent");
+                        }
+                        refit_mixed_numeric_choice(ui, "intensity_percent", mixed_fields.contains("intensity_percent"), true, &mut self.cdmw_refit_settings_dirty);
+                    });
+                });
                 if self.cdmw_refit_settings_dirty.is_dirty() {
                     ui.colored_label(REFIT_ARMOR_COLOUR, crate::localization::tr("Changes not applied"));
                 }
@@ -3700,13 +3671,18 @@ impl LabApplication {
                     "clearance_percent": self.cdmw_refit_clearance,
                     "tightness_percent": self.cdmw_refit_tightness,
                 });
-                refit_apply_button(ui, actions, "Apply to Selected Garments", &selected_bound_garments, &values, &self.cdmw_refit_settings_dirty);
-                refit_apply_button(ui, actions, "Apply to All Bound Garments", &bound_garments, &values, &self.cdmw_refit_settings_dirty);
+                refit_apply_button(ui, actions, if edit_all { "Apply to All Bound Garments" } else { "Apply to Selected Garments" },
+                    edit_targets, &values, &self.cdmw_refit_settings_dirty)
+                    .on_hover_text(crate::localization::tr("Only changed fields are applied. Mixed numeric fields initially show the first Part's value."));
             });
+            ui.separator();
+            self.draw_cdmw_refit_body_region(ui, actions, state, edit_targets);
             self.draw_cdmw_refit_follow_controls(ui, actions, state);
-            self.draw_cdmw_refit_diagnostics(ui, actions, state, edit_targets);
+            cdmw_section(ui, "refit-current-diagnostics", "Check current fit", None, |ui| {
+                self.draw_cdmw_refit_diagnostics(ui, actions, state, edit_targets);
+            });
         });
-        create_body_slider
+        go_to_setup
     }
 
     fn draw_cdmw_right_panels(&mut self, root_ui: &mut egui::Ui, actions: &mut Vec<UiAction>) {
