@@ -639,6 +639,7 @@ struct SubmeshCleanupResult {
     BoneAssignments bones;
     std::vector<int> source_vertex_map;
     std::vector<int> source_vertex_offsets;
+    std::vector<int> source_face_indices;
     int removed_vertices = 0;
     int removed_faces = 0;
     int merged_vertices = 0;

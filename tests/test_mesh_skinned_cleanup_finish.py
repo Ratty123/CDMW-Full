@@ -146,7 +146,7 @@ def test_remove_doubles_can_undo_redo_finish_reopen_and_publish_without_changing
         accepted = service.working_mesh(sid, clone=True)
         assert accepted.submeshes[0].bone_indices == cleaned.submeshes[0].bone_indices
         assert accepted.submeshes[0].bone_weights == cleaned.submeshes[0].bone_weights
-        assert not service.validate_export(sid).ok  # Cleanup has no exact PAC writer.
+        assert service.validate_export(sid).ok  # Verified cleanup now also has an exact PAC route.
 
         reopened = RustMeshAuthoringSession.create(
             SimpleNamespace(mesh_service=service, active_session_id=sid),

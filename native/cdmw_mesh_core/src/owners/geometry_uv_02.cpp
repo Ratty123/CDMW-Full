@@ -19,6 +19,7 @@ struct CleanupTopology {
     std::vector<Vec3> vertices;
     std::vector<std::array<int, 3>> faces;
     std::vector<int> index_map;
+    std::vector<int> source_face_indices;
     int merged_vertices = 0;
     int degenerate_faces = 0;
     int duplicate_faces = 0;
@@ -27,9 +28,13 @@ struct CleanupTopology {
 CleanupTopology build_cleanup_topology(
     std::vector<Vec3> vertices,
     const std::vector<std::array<int, 3>>& faces,
+    const std::vector<int>& source_face_indices,
     const std::set<int>& selected,
     double threshold_squared
 ) {
+    if (source_face_indices.size() != faces.size()) {
+        throw std::runtime_error("cleanup source face lineage does not match its triangles");
+    }
     std::vector<int> remap(vertices.size(), 0);
     for (std::size_t i = 0; i < remap.size(); ++i) remap[i] = static_cast<int>(i);
     int merged_vertices = 0;
@@ -53,9 +58,11 @@ CleanupTopology build_cleanup_topology(
     }
     std::set<std::array<int, 3>> seen_faces;
     std::vector<std::array<int, 3>> kept_faces;
+    std::vector<int> kept_source_faces;
     int degenerate_faces = 0;
     int duplicate_faces = 0;
-    for (const auto& face : faces) {
+    for (std::size_t face_index = 0; face_index < faces.size(); ++face_index) {
+        const auto& face = faces[face_index];
         const std::array<int, 3> remapped{
             remap[static_cast<std::size_t>(face[0])],
             remap[static_cast<std::size_t>(face[1])],
@@ -67,6 +74,7 @@ CleanupTopology build_cleanup_topology(
             ++duplicate_faces;
         } else {
             kept_faces.push_back(remapped);
+            kept_source_faces.push_back(source_face_indices[face_index]);
         }
     }
     std::set<int> used_vertices;
@@ -89,11 +97,12 @@ CleanupTopology build_cleanup_topology(
     }
     return {
         std::move(compacted_vertices), std::move(compacted_faces), std::move(index_map),
+        std::move(kept_source_faces),
         merged_vertices, degenerate_faces, duplicate_faces,
     };
 }
 
-std::vector<SubmeshCleanupResult> run_cleanup(const JsonValue& root) {
+std::vector<SubmeshCleanupResult> run_cleanup(const JsonValue& root, bool update_session = true) {
     const JsonValue* submeshes = root.get("submeshes");
     if (submeshes == nullptr || submeshes->type != JsonValue::Type::Array) {
         throw std::runtime_error("missing submeshes array");
@@ -133,7 +142,9 @@ std::vector<SubmeshCleanupResult> run_cleanup(const JsonValue& root) {
         const std::string source_vertex_offsets_path = string_or(item.get("source_vertex_offsets_output_path"), "");
         const bool suppress_index_map_report = bool_or(item.get("suppress_index_map_report"), false);
 
-        CleanupTopology cleaned = build_cleanup_topology(std::move(vertices), faces, selected, threshold_squared);
+        CleanupTopology cleaned = build_cleanup_topology(
+            std::move(vertices), faces, mesh_source_face_indices_from_item(item, faces.size()),
+            selected, threshold_squared);
         const int removed_vertices = static_cast<int>(cleaned.index_map.size()) - static_cast<int>(cleaned.vertices.size());
         const int removed_faces = static_cast<int>(faces.size()) - static_cast<int>(cleaned.faces.size());
         if (cleaned.merged_vertices <= 0 && removed_vertices <= 0 && removed_faces <= 0) {
@@ -156,6 +167,7 @@ std::vector<SubmeshCleanupResult> run_cleanup(const JsonValue& root) {
         result.vertices = std::move(cleaned.vertices);
         result.faces = std::move(cleaned.faces);
         result.index_map = std::move(cleaned.index_map);
+        result.source_face_indices = std::move(cleaned.source_face_indices);
         if (!result.normals_path.empty()) {
             result.normals = compute_smooth_normals(result.vertices, result.faces);
         }
@@ -207,10 +219,10 @@ std::vector<SubmeshCleanupResult> run_cleanup(const JsonValue& root) {
         result.degenerate_faces = cleaned.degenerate_faces;
         result.duplicate_faces = cleaned.duplicate_faces;
         result.suppress_index_map_report = suppress_index_map_report;
-        if (MeshSessionSubmesh* session = mutable_mesh_session_submesh_for_item(item)) {
+        if (MeshSessionSubmesh* session = update_session ? mutable_mesh_session_submesh_for_item(item) : nullptr) {
             session->vertices = result.vertices;
             session->faces = result.faces;
-            session->source_face_indices = identity_indices(session->faces.size());
+            session->source_face_indices = result.source_face_indices;
             session->normals = result.normals.size() == result.vertices.size() ? result.normals : std::vector<Vec3>();
             session->uvs = result.uvs.size() == result.vertices.size() ? result.uvs : std::vector<Vec2>();
             session->tangents = result.tangents.size() == result.vertices.size() ? result.tangents : std::vector<Vec3>();

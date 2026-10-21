@@ -3914,6 +3914,50 @@ fn integrated_inspector_hair_movement_keeps_button_edges_clickable() -> TestResu
 }
 
 #[test]
+fn integrated_exact_pac_cleanup_enables_remove_doubles_and_keeps_other_repairs_locked() -> TestResult
+{
+    for (format, lod, enabled) in [
+        ("pac", 0, true),
+        ("pam", 0, false),
+        ("pamlod", 0, false),
+        ("pac", 1, false),
+    ] {
+        let mut ui = HeadlessUi::new_integrated_cdmw_for_controls(
+            triangle_application()?,
+            egui::vec2(1_440.0, 980.0),
+        );
+        ui.application.cdmw_state["mesh_format"] = json!(format);
+        ui.application.cdmw_state["lod_index"] = json!(lod);
+        ui.click("Cleanup")?;
+        assert_eq!(
+            has_mesh_action(&ui.actions_from_click("Remove Doubles")?, "remove_doubles"),
+            enabled
+        );
+        for label in [
+            "Delete Loose Vertices",
+            "Compact Orphans",
+            "Repair Winding",
+            "Fill Holes",
+        ] {
+            assert!(
+                !ui.actions_from_click(label)?
+                    .iter()
+                    .any(|action| matches!(action, UiAction::CdmwMeshAction { .. }))
+            );
+        }
+        if enabled {
+            ui.reveal("Exact: Remove Doubles")?;
+            ui.application.cdmw_state["authoring_enabled"] = json!(false);
+            assert!(!has_mesh_action(
+                &ui.actions_from_click("Remove Doubles")?,
+                "remove_doubles"
+            ));
+        }
+    }
+    Ok(())
+}
+
+#[test]
 fn integrated_exact_cleanup_and_layer_locks_show_actionable_reasons_then_enable_in_free_edit()
 -> TestResult {
     let mut ui = HeadlessUi::new_integrated_cdmw_for_controls(

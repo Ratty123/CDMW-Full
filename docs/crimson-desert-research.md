@@ -320,6 +320,26 @@ evidence; packaged, visible-UI and in-game behaviour were not checked.
 The [island mapper](../cdmw/modding/mesh_islands.py) and its
 [focused tests](../tests/test_mesh_islands.py) own this bounded correspondence.
 
+Exact PAC LOD0 **Remove Doubles** retains original-relative vertex and face
+lineage, original donor skin/cloth records, bounds and opaque data. The native
+result is composed before geometry/history commit, and Finish must pass the
+existing exact serializer. Review scope: 2026-10-21, `1fe43bf7` plus this scoped
+native cleanup/writer change. Changed weights, missing or stale lineage,
+unsupported layouts and unrepresentable output remain refused.
+
+The supplied `cd_phw_00_ub_00_0163.pac` (SHA-256
+`7ef0e06838ac0380bdb3a05a2b12cdff19a4853d3f4f4953d830d7dc87d9f41e`)
+stores four byte-identical geometry payloads. Compacting LOD0 alone was correctly
+blocked because a lower LOD would outrank it. Cleanup can synchronize independently
+stored copies only after proving identical complete payloads, descriptor counts
+and vertex/index splits. Output checks cover all rewritten payloads and counts;
+distinct lower LODs retain the original rank guard and byte-preservation checks.
+The supplied asset passed Undo/Redo, Exact Finish, PAC reparse and JMM loose-package
+creation for part 3 (917 to 817 vertices) and all five parts (3,522 to 2,915 vertices).
+Surviving skin/cloth and tangent/handedness bits, source bounds and the input ZIP
+were preserved. This is source/native, headless and supplied-asset export evidence;
+packaged visible UI, animation and in-game behavior remain unverified.
+
 Free Edit is a separate non-exact interchange output. Its new OBJ-based package
 does not confer unrestricted PAC/PAM/PAMLOD writeback. Importing geometry from
 OBJ, glTF/GLB, DAE or the configured Blender FBX route also does not establish

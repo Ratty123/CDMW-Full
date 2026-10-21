@@ -304,6 +304,20 @@ void mesh_editor_commit_apply_results(
         state.topology_provenance_ms,
         state.topology_provenance_parent_entries
     );
+    if (state.cleanup_operation) {
+        for (const SubmeshMeshEditResult& result : state.results) {
+            const auto current = native_session.find(result.index);
+            if (current == native_session.end()) {
+                continue;
+            }
+            MeshSessionSubmesh updated = mesh_editor_submesh_from_result(result);
+            updated.name = current->second.name;
+            updated.material = current->second.material;
+            updated.texture = current->second.texture;
+            updated.extra_attrs = current->second.extra_attrs;
+            current->second = std::move(updated);
+        }
+    }
     mesh_editor_delete_apply_parts(native_session, state);
     mesh_editor_append_apply_submeshes(session, native_session, state);
     if (!state.stroke_phase.empty() && session.active_stroke.active) {

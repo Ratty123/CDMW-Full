@@ -485,7 +485,7 @@ SubmeshMeshEditResult mesh_editor_result_from_cleanup_result(
     result.bones = source.bones;
     result.source_vertex_map = source.source_vertex_map;
     result.source_vertex_offsets = source.source_vertex_offsets;
-    result.source_face_indices = identity_indices(source.faces.size());
+    result.source_face_indices = source.source_face_indices;
     result.index_map = source.index_map;
     result.copy_vertex_indices.assign(source.vertices.size(), -1);
     for (std::size_t old_index = 0; old_index < source.index_map.size(); ++old_index) {

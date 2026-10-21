@@ -152,8 +152,10 @@ void mesh_editor_execute_apply_operation(
         state.results = run_mesh_editor_material_edit(session, state.edit_root, edit, state.operation);
     } else if (state.cleanup_operation) {
         state.edit_root.object_value["cleanup"] = edit;
+        // Compose against the unchanged session before publishing geometry or
+        // history. Cleanup's standalone cache update must not run first.
         state.results = mesh_editor_results_from_cleanup_results(
-            run_cleanup(state.edit_root), state.operation
+            run_cleanup(state.edit_root, false), state.operation
         );
     } else {
         state.results = run_mesh_edit(state.edit_root);

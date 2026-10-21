@@ -1,7 +1,7 @@
 """Native durability of the topology provenance contract.
 
 These exercise the real ``cdmw-mesh-core`` session: identity at open, composition
-before mutation for the three admitted operations, invalidation for everything
+before mutation for admitted operations, invalidation for everything
 else, and byte-identical restoration through undo and redo.
 """
 

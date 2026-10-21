@@ -24,7 +24,8 @@ constexpr const char* MESH_TOPOLOGY_BLOCKER_EMPTY_SUBMESH = "TOPOLOGY_EMPTY_SUBM
 constexpr double MESH_TOPOLOGY_WEIGHT_SUM_TOLERANCE = 1e-12;
 
 bool mesh_editor_is_rebuildable_topology_action(const std::string& action) {
-    return action == "delete" || action == "loop_cut" || action == "subdivide";
+    return action == "delete" || action == "loop_cut" || action == "subdivide"
+        || action == "remove_doubles";
 }
 
 // Kahan-compensated sum. The Python owner normalizes with math.fsum, and a naive

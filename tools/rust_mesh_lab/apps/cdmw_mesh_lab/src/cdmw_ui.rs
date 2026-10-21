@@ -2864,10 +2864,20 @@ impl LabApplication {
 
     fn draw_cdmw_cleanup_page(&mut self, ui: &mut egui::Ui, actions: &mut Vec<UiAction>) {
         let free_edit = state_str(&self.cdmw_state, "output_policy") == Some("free_edit_rebuild");
+        let exact_pac = state_str(&self.cdmw_state, "output_policy") == Some("exact_game_asset")
+            && state_str(&self.cdmw_state, "mesh_format") == Some("pac")
+            && self.cdmw_state.get("lod_index").and_then(Value::as_u64) == Some(0)
+            && state_bool(&self.cdmw_state, "authoring_enabled");
         let selected =
             self.selected_counts().total() > 0 || !self.selected_part_indices().is_empty();
         ui.label(RichText::new(crate::localization::tr("Cleanup & Repair")).strong());
-        if !free_edit {
+        if exact_pac {
+            ui.label(format!(
+                "{}: {}",
+                crate::localization::tr("Exact"),
+                crate::localization::tr("Remove Doubles"),
+            ));
+        } else if !free_edit {
             ui.colored_label(
                 Color32::from_rgb(245, 190, 75),
                 crate::localization::tr("Cleanup is locked by Exact output. Choose Free Edit under Output to allow topology repair."),
@@ -2895,7 +2905,10 @@ impl LabApplication {
                 ("Fill Holes", "fill_holes", json!({})),
             ] {
                 if ui
-                    .add_enabled(free_edit, Button::new(crate::localization::tr(label)))
+                    .add_enabled(
+                        free_edit || (exact_pac && action == "remove_doubles"),
+                        Button::new(crate::localization::tr(label)),
+                    )
                     .on_hover_text(crate::localization::tr(if selected {
                         "Remove Doubles uses selected vertices. Other cleanup actions repair each selected element's owning Part."
                     } else {

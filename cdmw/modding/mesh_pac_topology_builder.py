@@ -10,7 +10,8 @@ original record or is derived from named original parents.
 What this writer will not do, ever: choose a nearest donor, transfer skin weights
 by proximity, drop a bone influence to fit six slots, guess a byte it has not
 proven, or move the descriptor bounds. Lower LODs stay byte-identical except
-for an explicitly deleted whole part, suppressed in its own slot at every LOD.
+for an explicitly deleted whole part or verified byte-identical copies of LOD0
+that must follow a provenance-backed Remove Doubles operation.
 """
 
 from __future__ import annotations
@@ -20,6 +21,7 @@ import math
 import struct
 from typing import Mapping, Sequence
 
+from cdmw.domain.mesh.operations import mesh_edit_operations_from_dicts
 from cdmw.domain.mesh.topology import (
     SubmeshTopologyProvenance,
     TOPOLOGY_BOUNDS_EXCEED_SOURCE,
@@ -31,7 +33,10 @@ from cdmw.domain.mesh.topology import (
     TOPOLOGY_PROTECTED_BYTES_DIVERGE,
     TOPOLOGY_PROVENANCE_REQUIRED,
     TOPOLOGY_PROVENANCE_VERSION,
+    TOPOLOGY_OPERATION_REMOVE_DOUBLES,
+    TOPOLOGY_REBUILDABLE_OPERATIONS,
     TOPOLOGY_SKIN_INFLUENCE_CAPACITY_EXCEEDED,
+    validate_topology_operation_history,
     validate_topology_provenance,
 )
 
@@ -326,6 +331,54 @@ def _hide_deleted_pac_parts(data: bytes, deleted: Sequence[int]) -> bytes:
     return rebuilt
 
 
+def _matching_cleanup_lods(original_mesh, edited_mesh, original_data, payloads, descriptors, lod_count, section_0):
+    """Synchronize cleanup only into independently stored exact LOD0 copies.
+
+    Matching counts or positions do not prove correspondence. Require identical
+    complete geometry payloads, descriptor counts and vertex/index splits, plus
+    valid direct-record cleanup lineage. Distinct lower LODs keep the rank guard.
+    """
+    operations = mesh_edit_operations_from_dicts(getattr(edited_mesh, "_cdmw_edit_operations", ()) or ())
+    names = {operation.operation for operation in operations
+             if operation.operation in TOPOLOGY_REBUILDABLE_OPERATIONS}
+    if names != {TOPOLOGY_OPERATION_REMOVE_DOUBLES} or validate_topology_operation_history(operations):
+        return ()
+    if _deleted_part_indices(edited_mesh):
+        return ()
+    changed = False
+    for original, edited in zip(original_mesh.submeshes, edited_mesh.submeshes):
+        provenance = getattr(edited, "topology_provenance", None)
+        if provenance is None:
+            continue
+        if not isinstance(provenance, SubmeshTopologyProvenance) or validate_topology_provenance(
+            provenance, output_vertex_count=len(edited.vertices), output_face_count=len(edited.faces)
+        ):
+            return ()
+        if (provenance.original_vertex_count != len(original.vertices)
+                or provenance.original_face_count != len(original.faces)
+                or edited.source_vertex_map_authority != "topology"
+                or provenance.derived_vertex_count
+                or len({origin.direct_parent for origin in provenance.vertex_origins}) != len(edited.vertices)):
+            return ()
+        changed = True
+    if not changed:
+        return ()
+    reference = payloads.get(lod_count)
+    if not reference:
+        return ()
+    split = _original_split_bytes(original_data, section_0, 0)
+    if (split != sum(len(part.vertices) for part in original_mesh.submeshes) * PROVEN_PAC_STRIDE
+            or len(reference) != split + sum(len(part.faces) for part in original_mesh.submeshes) * 6):
+        return ()  # Unknown geometry-section bytes cannot be copied into a new layout.
+    return tuple(lod for lod in range(1, lod_count)
+                 if payloads.get(lod_count - lod) == reference
+                 and _original_split_bytes(original_data, section_0, lod) == split
+                 and all(lod < len(descriptor.vertex_counts) and lod < len(descriptor.index_counts)
+                         and descriptor.vertex_counts[lod] == descriptor.vertex_counts[0]
+                         and descriptor.index_counts[lod] == descriptor.index_counts[0]
+                         for descriptor in descriptors))
+
+
 def _layout_blockers(
     original_mesh: ParsedMesh,
     edited_mesh: ParsedMesh,
@@ -347,7 +400,7 @@ def _layout_blockers(
       start reading a lower LOD as LOD0.
     """
     try:
-        _payloads, sections, lod_count, _section_0_data, section_0 = _section_payloads(original_data)
+        payloads, sections, lod_count, _section_0_data, section_0 = _section_payloads(original_data)
         descriptors = _validated_pac_descriptor_prefix(
             _find_pac_descriptors(original_data, section_0["offset"], section_0["size"], lod_count),
             sections,
@@ -362,6 +415,8 @@ def _layout_blockers(
     deleted_indices = frozenset(_deleted_part_indices(edited_mesh))
     if len(descriptors) < len(original_submeshes):
         return (TOPOLOGY_CONTRACT_UNSUPPORTED,)
+    matching_cleanup_lods = _matching_cleanup_lods(
+        original_mesh, edited_mesh, original_data, payloads, descriptors, lod_count, section_0)
 
     blockers: list[str] = []
     seen_offsets: set[int] = set()
@@ -399,6 +454,10 @@ def _layout_blockers(
 
     output_rank = (output_face_total, output_vertex_total, output_non_empty)
     for lod_index in range(1, lod_count):
+        if lod_index in matching_cleanup_lods:
+            # This stored copy will receive the same validated records/indices,
+            # so its rank remains exactly tied to LOD0 after serialization.
+            continue
         lower_faces = 0
         lower_vertices = 0
         lower_non_empty = 0
@@ -629,6 +688,9 @@ def build_pac_topology_rebuild(
         raise PacTopologyRebuildBlocked(
             (TOPOLOGY_CONTRACT_UNSUPPORTED,), "PAC descriptor count does not match the parsed original submeshes."
         )
+    matching_cleanup_lods = _matching_cleanup_lods(
+        original_mesh, edited_mesh, original_data, payloads, descriptors, lod_count, section_0)
+    rebuilt_lods = (0, *matching_cleanup_lods)
 
     metrics: dict[str, object] = {}
     lod0_section_index = lod_count
@@ -669,12 +731,13 @@ def build_pac_topology_rebuild(
             raise PacTopologyRebuildBlocked(
                 (TOPOLOGY_CONTRACT_UNSUPPORTED,), f"PAC descriptor {submesh_index} points outside section 0."
             )
-        # LOD0 counts only. The descriptor bounds and every lower LOD count entry
-        # are left exactly as the source wrote them.
+        # Only proven targets change; descriptor bounds and distinct lower LOD
+        # counts remain exactly as the source wrote them.
         vertex_count_offset = relative_descriptor + 40
         index_count_offset = vertex_count_offset + descriptor.stored_lod_count * 2
-        struct.pack_into("<H", section_0_data, vertex_count_offset, len(records))
-        struct.pack_into("<I", section_0_data, index_count_offset, len(faces) * 3)
+        for lod_index in rebuilt_lods:
+            struct.pack_into("<H", section_0_data, vertex_count_offset + lod_index * 2, len(records))
+            struct.pack_into("<I", section_0_data, index_count_offset + lod_index * 4, len(faces) * 3)
 
         if provenance is not None:
             admitted_submeshes.append(submesh_index)
@@ -694,6 +757,8 @@ def build_pac_topology_rebuild(
 
     section_payloads: dict[int, bytes] = dict(payloads)
     section_payloads[lod0_section_index] = bytes(vertex_buffer + index_buffer)
+    for lod_index in matching_cleanup_lods:
+        section_payloads[lod_count - lod_index] = section_payloads[lod0_section_index]
     lod0_split = len(vertex_buffer)
 
     header = bytearray(original_data[:0x50])
@@ -718,7 +783,7 @@ def build_pac_topology_rebuild(
     cursor += lod_count * 4
     for lod_index in range(lod_count):
         section_index = lod_count - lod_index
-        split = lod0_split if section_index == lod0_section_index else _original_split_bytes(
+        split = lod0_split if lod_index in rebuilt_lods else _original_split_bytes(
             original_data, section_0, lod_index
         )
         struct.pack_into("<I", section_0_data, cursor + lod_index * 4, section_offsets[section_index] + split)
@@ -742,6 +807,7 @@ def build_pac_topology_rebuild(
         original_lod0_payload=original_lod0_payload,
         lod0_section_index=lod0_section_index,
         payloads=payloads,
+        matching_cleanup_lods=matching_cleanup_lods,
     )
     if deleted_submeshes:
         try:
@@ -776,7 +842,8 @@ def build_pac_topology_rebuild(
                 "l1_quantization_error": float(metrics.get("l1_quantization_error", 0.0) or 0.0),
                 "protected_bytes_preserved": not bool(deleted_submeshes),
                 "original_bounds_preserved": True,
-                "lower_lods_preserved": not bool(deleted_submeshes) or lod_count == 1,
+                "lower_lods_preserved": not matching_cleanup_lods and (not bool(deleted_submeshes) or lod_count == 1),
+                "synchronized_cleanup_lod_indices": matching_cleanup_lods,
                 "unknown_sections_preserved": True,
                 "deleted_submesh_indices": deleted_submeshes,
                 "deleted_part_encoding": "source_record_tiny_draw" if deleted_submeshes else "",
@@ -813,6 +880,7 @@ def _verify_rebuilt_pac(
     original_lod0_payload: bytes,
     lod0_section_index: int,
     payloads: Mapping[int, bytes],
+    matching_cleanup_lods: Sequence[int] = (),
 ) -> None:
     """Reparse and compare before any caller sees the bytes."""
     reparsed = parse_pac(rebuilt, str(getattr(edited_mesh, "path", "") or ""))
@@ -839,6 +907,8 @@ def _verify_rebuilt_pac(
             )
 
     rebuilt_sections = {section["index"]: section for section in _parse_par_sections(rebuilt)}
+    lod0_section = rebuilt_sections[lod0_section_index]
+    rebuilt_lod0_payload = rebuilt[lod0_section["offset"]:lod0_section["offset"] + lod0_section["size"]]
     for index, payload in payloads.items():
         if index == 0 or index == lod0_section_index:
             continue
@@ -848,10 +918,11 @@ def _verify_rebuilt_pac(
                 (TOPOLOGY_CONTRACT_UNSUPPORTED,), f"Rebuilt PAC dropped source section {index}."
             )
         rebuilt_payload = rebuilt[section["offset"] : section["offset"] + section["size"]]
-        if hashlib.sha256(rebuilt_payload).hexdigest() != hashlib.sha256(payload).hexdigest():
+        expected_payload = rebuilt_lod0_payload if lod0_section_index - index in matching_cleanup_lods else payload
+        if hashlib.sha256(rebuilt_payload).hexdigest() != hashlib.sha256(expected_payload).hexdigest():
             raise PacTopologyRebuildBlocked(
                 (TOPOLOGY_CONTRACT_UNSUPPORTED,),
-                f"Rebuilt PAC changed section {index}, which the exact serializer must copy unchanged.",
+                f"Rebuilt PAC section {index} does not match its proven source or synchronized cleanup output.",
             )
     if len(original_lod0_payload) == 0:
         raise PacTopologyRebuildBlocked(

@@ -24,6 +24,7 @@ from cdmw.domain.mesh.topology import (
     TOPOLOGY_OPERATION_DELETE_FACES,
     TOPOLOGY_OPERATION_LOOP_CUT,
     TOPOLOGY_OPERATION_SUBDIVIDE_MIDPOINT,
+    TOPOLOGY_OPERATION_REMOVE_DOUBLES,
 )
 
 
@@ -167,6 +168,7 @@ _FREE_EDIT_REBUILD = AuthoringCapability(
 #: practice they are blocked on stock geometry rather than merely uncommon.
 _TOPOLOGY_CAPABILITY: dict[str, AuthoringCapability] = {
     TOPOLOGY_OPERATION_DELETE_FACES: AuthoringCapability(AuthoringSupport.EXACT),
+    TOPOLOGY_OPERATION_REMOVE_DOUBLES: AuthoringCapability(AuthoringSupport.EXACT),
     TOPOLOGY_OPERATION_LOOP_CUT: AuthoringCapability(
         AuthoringSupport.UNPROVEN,
         "Loop Cut derives vertices whose protected bytes cannot be derived",
@@ -189,7 +191,6 @@ _BLOCKED_EXACT_AUTHORING_ACTIONS: dict[str, str] = {
     "dissolve": "Dissolve has no exact writeback route",
     "split": "Split has no exact writeback route",
     "mirror": "Mirror has no exact writeback route",
-    "remove_doubles": "Remove Doubles has no exact writeback route",
     "delete_loose_vertices": "Delete Loose has no exact writeback route",
     "compact_orphans": "Compact Orphans has no exact writeback route",
     "fix_winding": "Fix Winding has no exact writeback route",
@@ -310,6 +311,10 @@ def topology_authoring_capability(
     if topology_operation is None:
         return geometry
     name = str(topology_operation or "").strip()
+    if name == TOPOLOGY_OPERATION_REMOVE_DOUBLES and normalize_mesh_format(mesh_format) != "pac":
+        return AuthoringCapability(
+            AuthoringSupport.BLOCKED, "Remove Doubles has no exact writeback route", _NO_EXACT_ROUTE_DETAIL,
+        )
     capability = _TOPOLOGY_CAPABILITY.get(name)
     if capability is not None:
         return capability
@@ -376,8 +381,7 @@ def action_authoring_capability(
         return geometry
     if reason is not None:
         return AuthoringCapability(AuthoringSupport.BLOCKED, reason, _NO_EXACT_ROUTE_DETAIL)
-    capability = _TOPOLOGY_CAPABILITY.get(operation)
-    return capability
+    return topology_authoring_capability(mesh_format, lod_index=lod_index, topology_operation=operation)
 
 
 def output_policy_state(

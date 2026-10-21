@@ -2316,11 +2316,21 @@ into its placement/build workflow.
 Normal tools include service-routed recalc, tangent generation, flip, sharpen/soften,
 weighted normals, and source-normal copy commands; cleanup tools include remove doubles,
 delete loose vertices, compact orphans, winding repair, and hole fill. Widgets only emit
-descriptors. **Remove Doubles** can finish on skinned source meshes in **Free Edit**:
-each surviving skin row must match its original donor record, including its source map,
-record offset, descriptor and stride. Missing or conflicting lineage and altered weights
-remain blocked. Undo/Redo and reopening retain these rows; Free Edit still publishes
-OBJ geometry without a rig, and cleanup gains no exact game-format writeback route.
+descriptors. **Remove Doubles** supports **Exact Game Asset** for PAC LOD0. Native
+cleanup retains original-relative vertex and face lineage through Undo/Redo and
+reopening. The exact writer retains each survivor's original skin and cloth record;
+altered weights, missing lineage, invalid bounds and unsupported layouts remain blocked.
+Other cleanup actions still require **Free Edit**.
+
+Distinct lower LODs remain unchanged. Independently stored, byte-identical LOD0
+copies may receive the same verified cleanup only when their descriptor counts and
+vertex/index splits also match. Their counts and offsets are updated and their
+complete payloads checked against the rebuilt LOD0. A distinct lower LOD that would
+outrank the new LOD0 still blocks output; no approximate correspondence is inferred.
+
+**Free Edit** also accepts verified compacted source rows, checked against the
+original source map, record offset, descriptor and stride. Its OBJ output retains
+geometry without a rig.
 
 `triangulate_display` and `quadrangulate_display` are deliberately not
 among them: the service refuses both unless the caller passes
