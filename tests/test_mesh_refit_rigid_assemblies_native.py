@@ -146,3 +146,121 @@ def test_post_fit_correction_cannot_detach_a_rigid_assembly_piece():
         assert _state(session) == before
         assert [p.vertices for p in _snapshot(mesh, session).submeshes] == [
             p.vertices for p in fitted.submeshes]
+
+
+def _flexible_band_and_pendant():
+    body = _part("body", [(-.2, 0., 0.), (.2, 0., 0.), (.2, .5, 0.), (-.2, .5, 0.)],
+                 [(0, 1, 2), (0, 2, 3)], material="skin", texture="")
+    band = _part("flexible band", [(-.05, .3, .04), (.05, .3, .04),
+                                   (.05, .32, .04), (-.05, .32, .04)],
+                 [(0, 1, 2), (0, 2, 3)], material="cloth", texture="")
+    pendant = _part("pendant", [(-.01, .15, .04), (.01, .15, .04),
+                                (.01, .3, .04), (-.01, .3, .04)],
+                    [(0, 1, 2), (0, 2, 3)], material="metal", texture="")
+    return _mesh(body, band, pendant)
+
+
+def _midpoint(part, first, second):
+    return tuple((a + b) / 2 for a, b in zip(part.vertices[first], part.vertices[second]))
+
+
+@pytest.mark.parametrize("tightness", (0., 50., 100.))
+def test_rigid_pendant_tracks_its_flexible_attachment_during_body_changes(tightness):
+    mesh = _flexible_band_and_pendant()
+    with _bound(mesh) as session:
+        # A nonuniform body change moves the band farther sideways than the
+        # pendant's centre. Averaging body targets alone detaches their join.
+        _upload_field(session, 0, [[.5 * y, 0., 0.] for _, y, _ in mesh.submeshes[0].vertices])
+        _command(session, "morph_configure_refit", {
+            "garment_submesh_indices": [1, 2], "garment_settings": [
+                {"submesh_index": i, "mode": "surface" if i == 1 else "rigid_component",
+                 "tightness_percent": tightness, "clearance_percent": .1}
+                for i in (1, 2)],
+        })
+        before = _snapshot(mesh, session)
+        _command(session, "morph_change", {
+            "definition_id": "control", "value": 100., "phase": "end", "change_id": "shear"})
+        fitted = _snapshot(mesh, session)
+        assert _midpoint(fitted.submeshes[2], 2, 3) == pytest.approx(
+            _midpoint(fitted.submeshes[1], 0, 1), abs=2e-5)
+        _assert_rigid(mesh.submeshes[2].vertices, fitted.submeshes[2].vertices)
+        assert fitted.submeshes[1].vertices != before.submeshes[1].vertices
+        assert mesh_native_core.undo_native_mesh_editor_session(session)
+        assert [p.vertices for p in _snapshot(mesh, session).submeshes] == [p.vertices for p in before.submeshes]
+        assert mesh_native_core.redo_native_mesh_editor_session(session)
+        assert [p.vertices for p in _snapshot(mesh, session).submeshes] == [p.vertices for p in fitted.submeshes]
+
+
+@pytest.mark.parametrize("tightness", (50., 100.))
+def test_rigid_necklace_assembly_tracks_flexible_fit_on_a_sloping_body(tightness):
+    mesh = _flexible_band_and_pendant()
+    mesh.submeshes[0].vertices = [(x, y, .2 * y) for x, y, _ in mesh.submeshes[0].vertices]
+    for part in mesh.submeshes[1:]:
+        part.vertices = [(x, y, .15) for x, y, _ in part.vertices]
+    pendant = mesh.submeshes[2]
+    ring = _part("ring", [(-.014, .282, .15), (.014, .282, .15),
+                          (.014, .302, .15), (-.014, .302, .15)],
+                 [(0, 1, 2), (0, 2, 3)], material="trim", texture="")
+    mesh = _mesh(*mesh.submeshes, ring)
+    with _bound(mesh) as session:
+        _command(session, "morph_configure_refit", {
+            "garment_submesh_indices": [1, 2, 3], "garment_settings": [
+                {"submesh_index": i, "mode": "surface" if i == 1 else "rigid_component",
+                 "tightness_percent": tightness, "clearance_percent": .1}
+                for i in (1, 2, 3)],
+        })
+        fitted = _snapshot(mesh, session)
+        assert _midpoint(fitted.submeshes[2], 2, 3) == pytest.approx(
+            _midpoint(fitted.submeshes[1], 0, 1), abs=5e-5)
+        _assert_rigid(pendant.vertices + ring.vertices,
+                      fitted.submeshes[2].vertices + fitted.submeshes[3].vertices)
+        assert fitted.submeshes[2].vertices[0][2] < fitted.submeshes[2].vertices[3][2] - .01
+        assert fitted.submeshes[0].vertices == mesh.submeshes[0].vertices
+
+
+@pytest.mark.parametrize("intensity,mask", ((50., None), (100., .5), (50., .5), (0., None)))
+def test_flexible_attachment_does_not_apply_follow_strength_twice(intensity, mask):
+    mesh = _flexible_band_and_pendant()
+    with _bound(mesh) as session:
+        _upload_field(session, 0, [[.5 * y, 0., 0.] for _, y, _ in mesh.submeshes[0].vertices])
+        _command(session, "morph_configure_refit", {
+            "garment_submesh_indices": [1, 2], "garment_settings": [
+                {"submesh_index": i, "mode": "surface" if i == 1 else "rigid_component",
+                 "intensity_percent": intensity, "clearance_percent": 0.,
+                 "vertex_mask": None if mask is None else {
+                     "vertex_indices": list(range(4)), "weights": [mask] * 4}}
+                for i in (1, 2)],
+        })
+        _command(session, "morph_change", {
+            "definition_id": "control", "value": 100., "phase": "end", "change_id": "strength"})
+        fitted = _snapshot(mesh, session)
+        expected = (.15 * intensity / 100. * (1. if mask is None else mask), .3, .04)
+        assert _midpoint(fitted.submeshes[1], 0, 1) == pytest.approx(expected, abs=1e-7)
+        assert _midpoint(fitted.submeshes[2], 2, 3) == pytest.approx(expected, abs=1e-7)
+        _assert_rigid(mesh.submeshes[2].vertices, fitted.submeshes[2].vertices)
+
+
+@pytest.mark.parametrize("case", ("skipped", "different-intensity", "protected", "distant", "nearby-edge"))
+def test_unrelated_or_independently_configured_cloth_does_not_capture_the_necklace(case):
+    mesh = _flexible_band_and_pendant()
+    if case in ("distant", "nearby-edge"):
+        distance = 1. if case == "distant" else .005
+        mesh.submeshes[1].vertices = [(x, y + distance, z) for x, y, z in mesh.submeshes[1].vertices]
+    results = []
+    for enabled in (False, True):
+        with _bound(mesh) as session:
+            _upload_field(session, 0, [[.5 * y, 0., 0.] for _, y, _ in mesh.submeshes[0].vertices])
+            band_settings = {"submesh_index": 1, "mode": "surface", "clearance_percent": 0.,
+                             "enabled": enabled and case != "skipped"}
+            if case == "different-intensity":
+                band_settings["intensity_percent"] = 50.
+            elif case == "protected":
+                band_settings["vertex_mask"] = {"vertex_indices": [], "weights": []}
+            _command(session, "morph_configure_refit", {
+                "garment_submesh_indices": [1, 2], "garment_settings": [band_settings,
+                    {"submesh_index": 2, "mode": "rigid_component", "clearance_percent": 0.}],
+            })
+            _command(session, "morph_change", {
+                "definition_id": "control", "value": 100., "phase": "end", "change_id": case})
+            results.append(_snapshot(mesh, session).submeshes[2].vertices)
+    assert results[0] == results[1]

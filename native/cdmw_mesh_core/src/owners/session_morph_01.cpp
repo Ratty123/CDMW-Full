@@ -606,6 +606,26 @@ void mesh_editor_refit_components(
     std::map<int, MeshSessionSubmesh> drivers;
     for (const auto& item : driver_visible) { drivers[item.first].vertices = item.second; drivers[item.first].faces = submeshes.at(item.first).faces; }
     const auto spatial = build_refit_spatial_index_native(drivers, refit.driver_submesh_indices);
+    std::map<int, MeshSessionSubmesh> flexible;
+    std::map<int, std::vector<Vec3>> flexible_base, flexible_target;
+    std::set<int> flexible_parts;
+    for (const auto& item : refit.garment_settings) {
+        if (!item.second.enabled || item.second.mode != "surface") continue;
+        flexible_parts.insert(item.first);
+        flexible[item.first].vertices = residual.at(item.first);
+        flexible[item.first].faces = submeshes.at(item.first).faces;
+        const auto base = base_layer.find(item.first);
+        const auto current = layer.find(item.first);
+        for (std::size_t i = 0; i < residual.at(item.first).size(); ++i) {
+            const auto& point = residual.at(item.first)[i];
+            flexible_base[item.first].push_back(add_vec3(point, base == base_layer.end() ? Vec3{} : base->second[i]));
+            flexible_target[item.first].push_back(add_vec3(point, current == layer.end() ? Vec3{} : current->second[i]));
+        }
+    }
+    // Bind in authored coordinates on every evaluation, never to the preceding
+    // preview. A dangling ornament follows its join, not its whole-body average.
+    const auto supports = build_refit_spatial_index_native(flexible, flexible_parts);
+    const double join_tolerance = std::max(tolerance * 4.0, refit.driver_diagonal * 0.0005);
     for (const auto& component : components) {
         const auto& first = vertices[component.second.front()];
         const auto& settings = refit.garment_settings.at(first.submesh);
@@ -627,15 +647,73 @@ void mesh_editor_refit_components(
         }
         original_center = scale_vec3(original_center, 1.0 / original.size());
         target_center = scale_vec3(target_center, 1.0 / target.size());
+        std::vector<MeshRefitVertexBindingRuntime> attachments;
+        double closest_support = refit.driver_diagonal * 0.03;
+        if (supports.root >= 0 && first.weight > 0.0) for (const auto index : component.second) {
+            const auto& vertex = vertices[index];
+            long long tests = 0;
+            const auto binding = closest_refit_binding_native(residual.at(vertex.submesh)[vertex.vertex], supports, tests);
+            if (binding.distance > join_tolerance) {
+                const Vec3 offset = sub_vec3(residual.at(vertex.submesh)[vertex.vertex],
+                    mesh_editor_refit_driver_point(binding, residual));
+                const double height = dot_vec3(offset, refit_binding_face_normal_native(binding, residual));
+                // Apart from actual joins, only follow an overlapping layer.
+                // A nearby cloth edge beside an ornament is not its attachment.
+                if (height * height < binding.distance * binding.distance * 0.5) continue;
+            }
+            const auto& support_settings = refit.garment_settings.at(binding.driver_submesh_index);
+            // Different follow strengths are deliberate. Do not override them or
+            // apply an already masked/intensity-scaled cloth displacement twice.
+            if (!conforming && support_settings.intensity_percent != settings.intensity_percent) continue;
+            double weight = 0.0;
+            for (int c = 0; c < 3; ++c)
+                weight += binding.barycentric[c] * mesh_editor_refit_mask_weight(masks,
+                    binding.driver_submesh_index, binding.driver_vertices[c]);
+            if (std::abs(weight - first.weight) > 1.0e-12) continue;
+            closest_support = std::min(closest_support, binding.distance);
+            attachments.push_back(binding);
+        }
+        std::vector<Vec3> support_source, support_target;
+        for (const auto& binding : attachments) {
+            // Prefer the closest attachment patch. Nearby cloth under the rest
+            // of a pendant must not dilute the motion of its actual join.
+            if (binding.distance > std::min(refit.driver_diagonal * 0.03, closest_support + join_tolerance)) continue;
+            std::array<Vec3, 3> source_triangle{}, target_triangle{};
+            refit_triangle_corners_native(flexible_base, binding.driver_submesh_index, binding.driver_vertices, source_triangle);
+            refit_triangle_corners_native(flexible_target, binding.driver_submesh_index, binding.driver_vertices, target_triangle);
+            const auto a = refit_face_frame_native(source_triangle), b = refit_face_frame_native(target_triangle);
+            if (!a.valid || !b.valid) continue;
+            const Vec3 source = mesh_editor_refit_driver_point(binding, flexible_base);
+            const Vec3 target = mesh_editor_refit_driver_point(binding, flexible_target);
+            // Symmetric frame samples retain orientation even at a single-point
+            // or straight-edge join, without inheriting cloth stretch or scale.
+            for (const auto& axes : {std::make_pair(a.tangent, b.tangent),
+                                    std::make_pair(a.bitangent, b.bitangent), std::make_pair(a.normal, b.normal)})
+                for (const double sign : {-1.0, 1.0}) {
+                    support_source.push_back(add_vec3(source, scale_vec3(axes.first, sign * join_tolerance)));
+                    support_target.push_back(add_vec3(target, scale_vec3(axes.second, sign * join_tolerance)));
+                }
+        }
+        const bool attached = !support_source.empty();
+        if (attached) {
+            original_center = {}; target_center = {};
+            for (std::size_t i = 0; i < support_source.size(); ++i) {
+                original_center = add_vec3(original_center, support_source[i]);
+                target_center = add_vec3(target_center, support_target[i]);
+            }
+            original_center = scale_vec3(original_center, 1.0 / support_source.size());
+            target_center = scale_vec3(target_center, 1.0 / support_target.size());
+        }
         const bool assembled = std::any_of(component.second.begin(), component.second.end(), [&](const auto i) {
             return topology_roots[i] != topology_roots[component.second.front()];
         });
-        // A necklace's authored joins establish one assembled ornament. Follow
-        // may rotate that assembly with the body; tightening translates it to
-        // the fitted surface without tipping its chain and pendants onto the neck.
-        auto rotation = conforming && assembled ? std::array<double, 4>{1.0, 0.0, 0.0, 0.0}
-            : refit_component_rotation_native(original, target, original_center, target_center);
-        const double amount = conforming ? 1.0 : settings.intensity_percent / 100.0 * first.weight;
+        // With no Flexible attachment, tightening translates an assembly without
+        // tipping its chain and pendants onto the neck. An attachment instead
+        // supplies one shared rigid transform, including its fitted orientation.
+        auto rotation = conforming && assembled && !attached ? std::array<double, 4>{1.0, 0.0, 0.0, 0.0}
+            : refit_component_rotation_native(attached ? support_source : original, attached ? support_target : target,
+                original_center, target_center);
+        const double amount = conforming || attached ? 1.0 : settings.intensity_percent / 100.0 * first.weight;
         const double half_angle = std::acos(std::clamp(rotation[0], -1.0, 1.0));
         if (half_angle > 1.0e-12) {
             const double scale = std::sin(half_angle * amount) / std::sin(half_angle);

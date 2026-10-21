@@ -1916,9 +1916,13 @@ and **Apply to Selected Garments** can set their mode together. Matching materia
 borders with tiny coordinate differences also move as one piece, without snapping
 the authored vertices.
 Touching ornaments, including tiny gaps at their joins, form one rigid assembly.
-Fit translates that assembly while retaining the original spacing and orientation
-of its links and pendants; body-slider following can still rotate it. This preserves
-authored overlaps at joins and prevents the pieces from twisting into each other.
+A rigid assembly follows its closest nearby Flexible attachment, moving and rotating
+with that area while retaining the shape and spacing of all its links and pendants.
+Use matching body-follow intensity and mask influence at the join for coordinated
+body-slider following; deliberately different strengths retain independent following.
+Without a nearby Flexible attachment, Fit translates the assembly while retaining
+its original orientation; body-slider following can still rotate it. This preserves
+authored overlaps at joins and prevents pieces from twisting into each other.
 An unchanged hard shape can leave extra space where it cannot sit flush to the body.
 Rigid means shape-preserving, not fixed in place. Fitting retains the authored
 spacing between nearby cloth and hard pieces before resolving body contact.
