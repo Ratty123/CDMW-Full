@@ -87,6 +87,57 @@ def _armour_rig_fixture(model_path):
     return original, bytes(data), bytes(skeleton)
 
 
+def _with_influences_at_lod(data, count, lod):
+    from cdmw.modding.pac_cloth import pac_cloth_lods
+
+    result = bytearray(data)
+    for part in pac_cloth_lods(data)[lod].submeshes:
+        for offset in part.source_vertex_offsets:
+            record = bytearray(result[offset:offset + 40])
+            record[39] = (record[39] & 192) | 63
+            pack_pac_skin_weights(record, tuple(range(count)), (1 / count,) * count, context="physics policy fixture")
+            result[offset:offset + 40] = record
+    return bytes(result)
+
+
+@pytest.mark.parametrize("prebuilt", [False, True])
+@pytest.mark.parametrize("count,keep_physics,lod", [(4, True, 0), (5, True, 0), (6, True, 3), (6, False, 3)])
+def test_variant_preparation_rechecks_physics_against_every_lod(prebuilt, count, keep_physics, lod):
+    from cdmw.services.new_item_planning import ModelFiles
+    from cdmw.services.new_item_variants import prepare_variant_models
+
+    snapshot, appearance, result, scene, _body = _body_transfer_request()
+    data = _with_influences_at_lod(snapshot.payload(appearance.model_path), count, lod)
+    appearance = replace(appearance, keep_template_physics=keep_physics)
+    result.rebuilt_data = data
+    model = ModelFiles(data, material_route="builder") if prebuilt else result
+    spec = SimpleNamespace(template_key=1, variants=(appearance,))
+    if keep_physics and count > 4:
+        with pytest.raises(ValueError, match="Turn off Template cloth / physics"):
+            prepare_variant_models(spec, snapshot, {appearance.identity: model}, {appearance.identity: scene})
+    else:
+        prepared = prepare_variant_models(spec, snapshot, {appearance.identity: model}, {appearance.identity: scene})
+        assert prepared[appearance.identity].pac_data == data
+
+
+def test_legacy_plan_cannot_reenable_physics_for_an_applied_six_weight_model(tmp_path):
+    from cdmw.domain.new_item.spec import ModelSource, NewItemSpec
+    from cdmw.services.new_item_planning import ModelFiles
+    from tests.test_new_item_provenance import setup_game
+    from tests.test_new_item_service import TEMPLATE, imported_pac
+
+    service, snapshot, _entries = setup_game(tmp_path, current=False)
+    model = ModelFiles(_with_influences_at_lod(imported_pac(), 6, 3))
+    spec = NewItemSpec(template_key=TEMPLATE, internal_name="Six_Weight_Physics", display_names={"eng": "Six weights"},
+                       model_source=ModelSource.IMPORTED)
+    # Apply was completed with physics off. Changing only the plan choice must
+    # not reuse that output with template simulation enabled.
+    plan = service.plan(spec, snapshot, model=model)
+    assert not any(path.endswith(".hkx") for path in plan.new_paths)
+    with pytest.raises(ValueError, match="Turn off Template cloth / physics"):
+        service.plan(replace(spec, keep_template_physics=True), snapshot, model=model)
+
+
 @pytest.mark.parametrize("family", ["1_pc/10_pgw", "3_npc/other"])
 def test_armour_variant_resolves_its_declared_skeleton_outside_the_model_family(family):
     from cdmw.services.new_item_variants import validate_variant_rig
@@ -292,3 +343,19 @@ def test_body_surface_excludes_triangles_whose_bones_the_armour_cannot_represent
     assert donor.faces == body.submeshes[0].faces
     assert donor.bone_indices == [(0,)] * 3  # target slot 0 means body bone 1
     assert donor.bone_weights == [(1.0,)] * 3
+
+
+def test_body_surface_reports_partial_row_loss_separately_from_unsupported_regions():
+    from cdmw.services.new_item_skinning import _body_surface
+    from cdmw.modding.mesh_skinning import PAC_SKIN_WEIGHT_LAYOUT
+    body = ParsedMesh(submeshes=[SubMesh(
+        name="body", vertices=[(0.,0.,0.),(1.,0.,0.),(0.,1.,0.),(1.,1.,0.)], faces=[(0,1,2),(1,2,3)],
+        bone_indices=[(0,1),(1,),(1,),(0,)], bone_weights=[(.25,.75),(1.,),(1.,),(1.,)],
+        source_vertex_stride=40, source_skin_weight_layout=PAC_SKIN_WEIGHT_LAYOUT)])
+    report = {}
+    donor = _body_surface(body, (0,1), (1,), report=report)
+    assert donor.faces == [(0,1,2)]
+    assert donor.bone_weights[0] == (1.,)
+    assert report == {"partially_filtered_vertices":1,"unsupported_vertices":1,
+                      "maximum_removed_mass":1.,"maximum_partial_removed_mass":.25,
+                      "maximum_renormalization_change":.25,"removed_body_bones":(0,),"excluded_faces":1}

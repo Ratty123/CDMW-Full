@@ -26,6 +26,18 @@ class MeshReplacementOutput:
     revision: tuple[int, int, int]
 
 
+def replacement_target_data(snapshot, state):
+    """Keep captured archive bytes authoritative; derive approved metadata locally."""
+    if state.palette_extension is None:
+        return snapshot.original_data
+    from cdmw.modding.pac_palette_extension import extend_pac_palette
+    data, contract = extend_pac_palette(snapshot.original_data,
+        getattr(snapshot.mesh, "interchange_skeleton", None), state.palette_extension.appended_names)
+    if contract != state.palette_extension:
+        raise ValueError("The captured palette extension no longer matches this target/PAB.")
+    return data
+
+
 def manual_replacement_options(mappings=(), *, removed=()):
     # These defaults are local to Mesh Editor. New Item retains its own fitting.
     return StaticMeshReplacementOptions(
@@ -147,6 +159,8 @@ def prepare_replacement_output(snapshot) -> MeshReplacementOutput:
     validation = validate_replacement_geometry(snapshot.mesh, state, snapshot.original_data)
     if not validation.ok:
         raise ValueError("; ".join(issue.message for issue in validation.blockers))
+    captured_original = snapshot.original_data
+    snapshot = replace(snapshot, original_data=replacement_target_data(snapshot, state))
     original = parse_mesh(snapshot.original_data, state.target_path)
     indices = bound_part_indices(snapshot.mesh, state)
     if {part.target_index for part in state.parts} != set(range(len(original.submeshes))):
@@ -347,6 +361,9 @@ def prepare_replacement_output(snapshot) -> MeshReplacementOutput:
         from cdmw.modding.pac_weapon_collisions import create_weapon_colliders
         data = create_weapon_colliders(data)
     parsed = parse_mesh(data, state.target_path)
+    if state.palette_extension is not None:
+        from cdmw.modding.pac_palette_extension import validate_palette_extension
+        validate_palette_extension(captured_original, data, snapshot.mesh.interchange_skeleton, state.palette_extension)
     if not parsed.submeshes or len(parsed.submeshes) != len(original.submeshes):
         raise ValueError("Replacement writer changed the required target section layout.")
     final_report = validate_mesh_export(parsed, exact_output=False, edit_operations=(), requires_edit_operations=False)

@@ -27,6 +27,8 @@ class MeshImportBuildState:
     supplemental_files: Sequence[Path]
     stop_event: Optional[threading.Event]
     on_log: Optional[Callable[[str], None]] = None
+    palette_extension: Any = None
+    palette_skeleton: Any = None
     imported_mesh: Any = None
     manifest_payload: Any = None
     original_baseline: Any = None

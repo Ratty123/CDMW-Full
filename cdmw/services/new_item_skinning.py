@@ -1,6 +1,7 @@
 """Imported New Item skinning and isolation from template motion."""
 from dataclasses import replace
 from pathlib import PurePosixPath
+import math
 
 from cdmw.core.skeleton_resolver import resolve_skeleton_for_model
 from cdmw.domain.cancellation import raise_if_cancelled
@@ -9,6 +10,12 @@ from cdmw.modding.mesh_skinning import (
     PAC_SKIN_WEIGHT_LAYOUT, SOURCE_VERTEX_MAP_TOPOLOGY, ensure_final_target_skin_weights,
 )
 from cdmw.modding.skeleton_parser import parse_pab
+
+
+def validate_imported_skin_physics(parts):
+    """Require four skeletal lanes when retaining template simulation bindings."""
+    if any(len(row) > 4 for part in parts for row in part.bone_indices):
+        raise ValueError("Turn off Template cloth / physics for five or six skeletal influences, or explicitly reduce to four and review loss.")
 
 
 def strip_template_vertex_physics(data):
@@ -41,11 +48,50 @@ def strip_template_material_physics(data):
     return document.apply(edits) if edits else data
 
 
-def _body_surface(mesh, body_palette, target_palette):
+def hide_variant_geometry(snapshot, target_path, *, stop_event=None):
+    """Hide one exact family slot using the retained all-LOD placeholder writer."""
+    from cdmw.domain.mesh.replacement import MeshReplacementState, ReplacementPart, PART_ID_ATTRIBUTE
+    from cdmw.services.mesh_replacement_output import prepare_replacement_output
+    from cdmw.services.new_item_planning import ModelFiles
+    from cdmw.services.new_item_variants import xml_path
+    import hashlib
+
+    raise_if_cancelled(stop_event)
+    original = snapshot.payload(target_path)
+    mesh = parse_pac(original, target_path)
+    digest = hashlib.sha256(original).hexdigest()
+    parts = tuple(ReplacementPart(f"{digest[:16]}:{index}", index, included=False)
+                  for index in range(len(mesh.submeshes)))
+    for part, binding in zip(mesh.submeshes, parts, strict=True):
+        setattr(part, PART_ID_ATTRIBUTE, binding.part_id)
+    # The output preparer expects a frozen dataclass capture for local replaces.
+    from cdmw.services.mesh_service import MeshService
+    service = MeshService()
+    mesh._cdmw_original_data = original
+    sid = service.open_edit_session(mesh).session_id
+    try:
+        captured = service.capture_export_snapshot(sid)
+        # Capture clones omit UI-independent part attributes on an initial session.
+        for part, binding in zip(captured.mesh.submeshes, parts, strict=True):
+            setattr(part, PART_ID_ATTRIBUTE, binding.part_id)
+        captured = replace(captured, replacement_state=MeshReplacementState(target_path, digest, parts))
+        payload = prepare_replacement_output(captured).data
+    finally:
+        service.close_edit_session(sid)
+    raise_if_cancelled(stop_event)
+    sidecar = xml_path(target_path)
+    return ModelFiles(payload, side_files={sidecar: snapshot.payload(sidecar)} if snapshot.has_entry(sidecar) else {},
+                      material_route="template", notes=(f"Hidden template geometry: {target_path}; every stored LOD retains its slot.",))
+
+
+def _body_surface(mesh, body_palette, target_palette, *, report=None):
     """Keep supported body triangles and remap their named bones into the armour."""
     failure = "A verified character body with compatible skin weights is required for this armour import."
-    if not body_palette or not target_palette:
+    if not body_palette or not target_palette or len(set(target_palette)) != len(target_palette):
         raise ValueError(failure)
+    metrics = {"partially_filtered_vertices": 0, "unsupported_vertices": 0,
+               "maximum_removed_mass": 0.0, "maximum_partial_removed_mass": 0.0,
+               "maximum_renormalization_change": 0.0, "removed_body_bones": set(), "excluded_faces": 0}
     target_slots = {bone: slot for slot, bone in enumerate(target_palette)}
     donor = SubMesh(name=PurePosixPath(mesh.path).name, source_vertex_stride=40,
                     source_skin_weight_layout=PAC_SKIN_WEIGHT_LAYOUT)
@@ -56,16 +102,30 @@ def _body_surface(mesh, body_palette, target_palette):
         rows = []
         for indices, weights in zip(part.bone_indices, part.bone_weights):
             if (not indices or len(indices) != len(weights)
+                    or any(not math.isfinite(weight) or weight < 0 for weight in weights)
+                    or sum(weights) <= 0
                     or any(weight > 0 and not 0 <= index < len(body_palette) for index, weight in zip(indices, weights))):
                 raise ValueError(failure)
             kept = [(target_slots[body_palette[index]], weight) for index, weight in zip(indices, weights)
                     if weight > 0 and body_palette[index] in target_slots]
             total = sum(weight for _index, weight in kept)
+            removed = sum(weight for index, weight in zip(indices, weights)
+                          if weight > 0 and body_palette[index] not in target_slots) / sum(weights)
+            metrics["maximum_removed_mass"] = max(metrics["maximum_removed_mass"], removed)
+            metrics["partially_filtered_vertices"] += int(0 < removed < 1)
+            if 0 < removed < 1:
+                metrics["maximum_partial_removed_mass"] = max(metrics["maximum_partial_removed_mass"], removed)
+                metrics["maximum_renormalization_change"] = max(metrics["maximum_renormalization_change"],
+                    *(abs(weight / total - weight / sum(weights)) for _index, weight in kept))
+            metrics["unsupported_vertices"] += int(total <= 0)
+            metrics["removed_body_bones"].update(body_palette[index] for index, weight in zip(indices, weights)
+                                                if weight > 0 and body_palette[index] not in target_slots)
             rows.append((tuple(index for index, _weight in kept), tuple(weight / total for _index, weight in kept))
                         if total > 0 else ((), ()))
         # A hand or face may use bones absent from this armour's palette. Do not
         # invent a replacement bone for it or include its unsupported triangles.
         faces = [face for face in part.faces if all(rows[index][0] for index in face)]
+        metrics["excluded_faces"] += len(part.faces) - len(faces)
         used = sorted({index for face in faces for index in face})
         mapping = {old: len(donor.vertices) + offset for offset, old in enumerate(used)}
         donor.vertices.extend(part.vertices[index] for index in used)
@@ -74,7 +134,24 @@ def _body_surface(mesh, body_palette, target_palette):
         donor.faces.extend(tuple(mapping[index] for index in face) for face in faces)
     if not donor.faces:
         raise ValueError(failure)
+    if report is not None:
+        report.update({**metrics, "removed_body_bones": tuple(sorted(metrics["removed_body_bones"]))})
     return donor
+
+
+def verified_body_surface(snapshot, skeleton, target_palette):
+    """The same provenance-backed body as preview, with quantified palette filtering."""
+    from cdmw.services.effect_character_reference import _body_mesh_paths
+    rig_folder = PurePosixPath(skeleton.path).parent
+    prefix = str(rig_folder).casefold() + "/nude/"
+    paths = _body_mesh_paths((path for path in snapshot.entries if path.startswith(prefix)), {}, rig_model=rig_folder.name)
+    if not paths:
+        raise ValueError("No verified character body is available for this target skeleton.")
+    body_path = paths[0]
+    data = snapshot.payload(body_path)
+    report = {}
+    donor = _body_surface(parse_pac(data, body_path), resolve_pac_bone_palette(data, skeleton), target_palette, report=report)
+    return donor, body_path, report
 
 
 def rebind_armour_from_body(snapshot, target_path, files, *, stop_event=None):
@@ -109,10 +186,19 @@ def rebind_armour_from_body(snapshot, target_path, files, *, stop_event=None):
         raise ValueError(failure)
     body_path = paths[0]
     body_data = snapshot.payload(body_path)
-    donor = _body_surface(parse_pac(body_data, body_path), resolve_pac_bone_palette(body_data, skeleton), target_palette)
+    donor_report = {}
+    donor = _body_surface(parse_pac(body_data, body_path), resolve_pac_bone_palette(body_data, skeleton), target_palette,
+                          report=donor_report)
     original = parse_pac(files.pac_data, target_path)
     working = replace(original, submeshes=[])
     summary = []
+    if donor_report["partially_filtered_vertices"] or donor_report["unsupported_vertices"]:
+        names = ", ".join(skeleton.bones[index].name for index in donor_report["removed_body_bones"])
+        summary.append(f"Warning: skin weights donor filtering renormalized {donor_report['partially_filtered_vertices']} "
+                       f"partially supported vertices; excluded {donor_report['unsupported_vertices']} unsupported vertices "
+                       f"and {donor_report['excluded_faces']} faces. Maximum partial-row loss "
+                       f"{donor_report['maximum_partial_removed_mass']:.2%}; normalization change up to "
+                       f"{donor_report['maximum_renormalization_change']:.2%}. Missing donor bones: {names}. Review deformation.")
     for index, part in enumerate(original.submeshes):
         raise_if_cancelled(stop_event, "Armour weight transfer cancelled.")
         updated = replace(part, bone_indices=[], bone_weights=[], source_vertex_map=[],

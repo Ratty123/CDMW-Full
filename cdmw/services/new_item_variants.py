@@ -98,8 +98,13 @@ def prepare_variant_models(spec, snapshot, models, scenes, *, on_log=None, on_pr
             files = route_model_files(files, MaterialRoute(appearance.material_route), result=model,
                                       scene=scenes.get(appearance.identity), glow=appearance.glow_choice(),
                                       translucency=appearance.translucency, on_log=on_log, stop_event=stop_event)
+        if appearance.keep_template_physics:
+            from cdmw.modding.pac_cloth import pac_cloth_lods
+            from cdmw.services.new_item_skinning import validate_imported_skin_physics
+            validate_imported_skin_physics(part for level in pac_cloth_lods(files.pac_data) for part in level.submeshes)
         try:
-            validate_variant_rig(snapshot, appearance.model_path, files.pac_data, prefab_path=appearance.prefab_path)
+            validate_variant_rig(snapshot, appearance.model_path, files.pac_data, prefab_path=appearance.prefab_path,
+                                 palette_extension=files.palette_extension)
         except _SkinPaletteBoundsError:
             source = getattr(scenes.get(appearance.identity), "mesh", None)
             if (isinstance(model, ModelFiles) or "/armor/" not in appearance.model_path.replace("\\", "/").casefold()
@@ -121,7 +126,7 @@ def prepare_variant_models(spec, snapshot, models, scenes, *, on_log=None, on_pr
     return result
 
 
-def validate_variant_rig(snapshot, target_path, payload, *, prefab_path=""):
+def validate_variant_rig(snapshot, target_path, payload, *, prefab_path="", palette_extension=None):
     """Preserve an exact attachment or require the target's actual skin palette."""
     from cdmw.core.skeleton_resolver import resolve_skeleton_for_model
     from cdmw.modding.mesh_parser import parse_pac, resolve_pac_bone_palette
@@ -130,7 +135,7 @@ def validate_variant_rig(snapshot, target_path, payload, *, prefab_path=""):
     mesh = parse_pac(payload, target_path)
     if not mesh.total_vertices:
         raise ValueError("The variant import contains no supported mesh geometry.")
-    if payload == original:
+    if payload == original and palette_extension is None:
         return "unchanged template binding"
     target_mesh = parse_pac(original, target_path)
 
@@ -141,11 +146,11 @@ def validate_variant_rig(snapshot, target_path, payload, *, prefab_path=""):
                     for indices,weights in zip(part.bone_indices,part.bone_weights))
             for part in value.submeshes)
 
-    if rigid(target_mesh):
+    if rigid(target_mesh) and palette_extension is None:
         if not rigid(mesh):
             raise ValueError("The rigid target requires its single attachment slot; this import changes the skin binding.")
         return "rigid prefab attachment"
-    if prefab_path and rigid(mesh):
+    if prefab_path and rigid(mesh) and palette_extension is None:
         # A socket-attached weapon can contain weighted accessories without a
         # character PAB. A rigid replacement keeps the selected prefab's slot;
         # the discarded accessory weights do not give the import a body rig.
@@ -163,10 +168,15 @@ def validate_variant_rig(snapshot, target_path, payload, *, prefab_path=""):
     palette = resolve_pac_bone_palette(original, skeleton)
     if skeleton.parser_mode != "fixed" or skeleton.parse_warning or not palette:
         raise ValueError("The selected variant's skeleton is missing or ambiguous.")
-    if resolve_pac_bone_palette(payload, skeleton) != palette:
+    output_palette = resolve_pac_bone_palette(payload, skeleton)
+    if palette_extension is not None:
+        from cdmw.modding.pac_palette_extension import validate_palette_extension
+        validate_palette_extension(original, payload, skeleton, palette_extension)
+    elif output_palette != palette:
         raise ValueError("The import's skin palette differs from the selected variant's target rig.")
-    limit = len(palette)
-    for part in mesh.submeshes:
+    limit = len(output_palette)
+    from cdmw.modding.pac_cloth import pac_cloth_lods
+    for part in (part for level in pac_cloth_lods(payload) for part in level.submeshes):
         for indices, weights in zip(part.bone_indices,part.bone_weights):
             if any(weight > 0 and not 0 <= index < limit for index,weight in zip(indices,weights)):
                 raise _SkinPaletteBoundsError("The imported skin weights reference bones outside the target palette.")

@@ -42,6 +42,8 @@ def build_mesh_import_preview(
     stop_event: Optional[threading.Event] = None,
     on_progress: Optional[Callable[[int, int, str], None]] = None,
     on_log: Optional[Callable[[str], None]] = None,
+    palette_extension: object = None,
+    palette_skeleton: object = None,
 ) -> MeshImportPreviewResult:
     state = MeshImportBuildState(
         entry=entry,
@@ -57,6 +59,8 @@ def build_mesh_import_preview(
         supplemental_files=supplemental_files,
         stop_event=stop_event,
         on_log=on_log,
+        palette_extension=palette_extension,
+        palette_skeleton=palette_skeleton,
     )
     stages = (
         (load_mesh_import_sources, "Read source"),

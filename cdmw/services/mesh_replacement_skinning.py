@@ -17,11 +17,100 @@ def _bind_matrix(values):
     if len(values) != 16:
         raise ValueError("Imported skin has an incomplete inverse bind matrix.")
     matrix = transpose(values)
+    inverse = _invert_affine_matrix(matrix)
     if (len(matrix) != 16 or not all(math.isfinite(v) for v in matrix)
             or any(abs(matrix[12 + i] - (1.0 if i == 3 else 0.0)) > 1e-6 for i in range(4))
-            or _invert_affine_matrix(matrix) is None):
+            or inverse is None or not all(math.isfinite(v) for v in inverse)):
         raise ValueError("Imported skin has an invalid or singular inverse bind matrix.")
     return matrix
+
+
+def _parents(nodes):
+    parents = {}
+    for index, node in enumerate(nodes):
+        for child in node.get("children", ()):
+            if not isinstance(child, int) or not 0 <= child < len(nodes) or child in parents:
+                raise ValueError("Imported rig has invalid or ambiguous joint parents.")
+            parents[child] = index
+    return parents
+
+
+def _nearest_joint_parent(index, parents, names):
+    seen = {index}
+    while index in parents:
+        index = parents[index]
+        if index in seen:
+            raise ValueError("Imported rig hierarchy contains a cycle.")
+        seen.add(index)
+        if index in names:
+            return names[index]
+    return None
+
+
+def _target_bind_frame(skin, target_skin):
+    """Prove the model frame using all known incoming joints, not just used ones.
+
+    Blender can change each bone's local basis while keeping the same named
+    hierarchy and bind-joint centers. Imported animation is discarded, so a
+    proper similarity fitted to those centers is sufficient for game-space
+    geometry. It is not permission to retarget a different rest skeleton.
+    """
+    target_by_name = {}
+    for index, node in enumerate(target_skin["nodes"]):
+        target_by_name.setdefault(str(node.get("name", "")), []).append(index)
+    source_names, target_names, matches = {}, {}, []
+    inverses = skin.get("inverse_bind_matrices", ())
+    for slot, node_index in enumerate(skin["joints"]):
+        name = str(skin["nodes"][node_index].get("name", ""))
+        targets = target_by_name.get(name, ())
+        if not targets:
+            continue  # An unused foreign joint does not define the game rig.
+        if not name or len(targets) != 1 or name in source_names.values():
+            raise ValueError("Imported rig has ambiguous matching joint names.")
+        target = targets[0]
+        source_names[node_index], target_names[target] = name, name
+        source_inverse = _bind_matrix(inverses[slot]) if inverses else _identity_matrix()
+        target_inverse = _bind_matrix(target_skin["inverse_bind_matrices"][target])
+        matches.append((_invert_affine_matrix(source_inverse), _invert_affine_matrix(target_inverse), source_inverse))
+    source_parents, target_parents = _parents(skin["nodes"]), _parents(target_skin["nodes"])
+    source_parent_names = {name: _nearest_joint_parent(index, source_parents, source_names)
+                           for index, name in source_names.items()}
+    target_parent_names = {name: _nearest_joint_parent(index, target_parents, target_names)
+                           for index, name in target_names.items()}
+    if source_parent_names != target_parent_names:
+        raise ValueError("Imported joint hierarchy differs from the matching game skeleton.")
+    frames = [_multiply_matrix(target, source_inverse) for _source, target, source_inverse in matches]
+    if not frames:
+        raise ValueError("Imported rig has no matching bind joints.")
+    if all(abs(a - b) <= 2e-5 * max(1.0, abs(a), abs(b)) for other in frames[1:] for a, b in zip(frames[0], other)):
+        return frames[0]
+
+    import numpy as np
+
+    source = np.asarray([(matrix[3], matrix[7], matrix[11]) for matrix, _target, _inverse in matches])
+    target = np.asarray([(matrix[3], matrix[7], matrix[11]) for _source, matrix, _inverse in matches])
+    if not np.isfinite(source).all() or not np.isfinite(target).all():
+        raise ValueError("Imported rig has non-finite rest-joint centers.")
+    centered_source, centered_target = source - source.mean(axis=0), target - target.mean(axis=0)
+    # Two axes must be measurable. Collinear/coincident joints leave a model
+    # rotation unresolved even when the weighted part uses only one bone.
+    for points in (centered_source, centered_target):
+        singular = np.linalg.svd(points, compute_uv=False)
+        if len(singular) < 2 or singular[0] <= 1e-8 or singular[1] <= singular[0] * 1e-5:
+            raise ValueError("Rest-joint centers are degenerate; a common model transform cannot be proven.")
+    left, _singular, right = np.linalg.svd(centered_source.T @ centered_target)
+    rotation = right.T @ left.T
+    if np.linalg.det(rotation) < 0:
+        right[-1] *= -1
+        rotation = right.T @ left.T
+    scale = float(np.sum((centered_source @ rotation.T) * centered_target) / np.sum(centered_source * centered_source))
+    translation = target.mean(axis=0) - scale * (rotation @ source.mean(axis=0))
+    extent = float(np.max(np.linalg.norm(centered_target, axis=1)))
+    error = np.linalg.norm(scale * (source @ rotation.T) + translation - target, axis=1)
+    if not math.isfinite(scale) or scale <= 0 or not np.isfinite(error).all() or float(error.max()) > max(1e-7, extent * 2e-5):
+        raise ValueError("Rest-joint positions do not match one rigid or uniform-scale game-rig transform.")
+    return tuple(float(scale * rotation[row, column]) if column < 3 else float(translation[row])
+                 for row in range(3) for column in range(4)) + (0., 0., 0., 1.)
 
 
 def retain_imported_skinning(source, snapshot, state):
@@ -57,9 +146,8 @@ def retain_imported_skinning(source, snapshot, state):
         if not skin or len(part.bone_indices) != len(part.vertices) or len(part.bone_weights) != len(part.vertices):
             raise ValueError(f"Imported skin requires complete joint weights in {part.name}.")
         nodes, joints = skin["nodes"], skin["joints"]
-        inverses = skin.get("inverse_bind_matrices", ())
         used = {joint for row in part.bone_indices for joint in row}
-        remap, frames, used_names = {}, [], set()
+        remap, used_names = {}, set()
         for joint in sorted(used):
             if not 0 <= joint < len(joints):
                 raise ValueError(f"Imported skin references an invalid joint in {part.name}.")
@@ -68,16 +156,14 @@ def retain_imported_skinning(source, snapshot, state):
             if not name or name in used_names or len(matches) != 1:
                 raise ValueError(f"Imported joint {name or '<unnamed>'} has no unique match in the target PAC bone palette. Use the matching game armature and target item.")
             used_names.add(name)
-            slot, bone_index = matches[0]
+            slot, _bone_index = matches[0]
             remap[joint] = slot
-            incoming_inverse = _bind_matrix(inverses[joint]) if inverses else _identity_matrix()
-            target_inverse = _bind_matrix(target_skin["inverse_bind_matrices"][bone_index])
-            frames.append(_multiply_matrix(_invert_affine_matrix(target_inverse), incoming_inverse))
-        if not frames:
+        if not remap:
             raise ValueError(f"Imported skin has no non-zero influences in {part.name}.")
-        frame = frames[0]
-        if any(abs(a - b) > 2e-5 * max(1.0, abs(a), abs(b)) for other in frames[1:] for a, b in zip(frame, other)):
-            raise ValueError(f"Imported joint bind frames disagree in {part.name}. Export using the matching game armature in its rest pose; rig retargeting is unavailable.")
+        try:
+            frame = _target_bind_frame(skin, target_skin)
+        except ValueError as exc:
+            raise ValueError(f"Imported joint bind frames disagree in {part.name}: {exc} Rig retargeting is unavailable.") from exc
         indices, weights = [], []
         for joints_row, weights_row in zip(part.bone_indices, part.bone_weights):
             if len(joints_row) != len(weights_row):

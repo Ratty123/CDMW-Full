@@ -42,6 +42,7 @@ class MeshImportPreviewResult:
     #: boundary can compare its own account against it instead of the two
     #: agreeing only by having read the same pipeline.
     imported_material_manifest: Any = None
+    palette_extension: Any = None
 
 @dataclass(slots=True)
 class ArchiveLooseExportResult:

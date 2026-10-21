@@ -54,7 +54,7 @@ def save_replacement_state(state, project_root, generation_dir, stop_event=None)
     if sum(len(part.excluded_island_faces) for part in state.parts) > 4_000_000:
         raise ValueError("Replacement draft island masks exceed the face limit.")
     return {
-        "version": (15 if regional_jiggle else 14 if state.weapon_collisions else 13 if islands else 12 if any(part.shader_controls is not None for part in state.parts) else 11 if any(part.emission is not None for part in state.parts) else 10 if any(part.translucency_surface is not None for part in state.parts) else 9 if guides else 8 if translucent else
+        "version": (16 if state.palette_extension is not None else 15 if regional_jiggle else 14 if state.weapon_collisions else 13 if islands else 12 if any(part.shader_controls is not None for part in state.parts) else 11 if any(part.emission is not None for part in state.parts) else 10 if any(part.translucency_surface is not None for part in state.parts) else 9 if guides else 8 if translucent else
                     7 if physics_profiles else 6 if relative_jiggle else
                     5 if any(part.jiggle is not None for part in state.parts) else
                     4 if any(part.cloth is not None for part in state.parts) else
@@ -64,6 +64,7 @@ def save_replacement_state(state, project_root, generation_dir, stop_event=None)
         "target_path": state.target_path, "target_sha256": state.target_sha256,
         "target_location": state.target_location, "revision": state.revision,
         **({"weapon_collisions": True} if state.weapon_collisions else {}),
+        **({"palette_extension": state.palette_extension.to_dict()} if state.palette_extension is not None else {}),
         "parts": [{"part_id": part.part_id, "target_index": part.target_index,
                    "source_part_ids": list(part.source_part_ids), "included": part.included,
                    "material_choice": part.material_choice, "source_label": part.source_label,
@@ -98,9 +99,15 @@ def load_replacement_state(payload, project_root):
 def _load_replacement_state(payload, project_root):
     if payload is None:
         return None
-    if (not isinstance(payload, dict) or payload.get("version") not in {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15}
+    if (not isinstance(payload, dict) or payload.get("version") not in {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16}
             or (payload["version"] < 3 and ("neutral_appearance" in payload or "neutral_coordinates" in payload))):
         raise ValueError("Unsupported replacement draft state.")
+    extension = None
+    if payload["version"] == 16:
+        from cdmw.modding.pac_palette_extension import PacPaletteExtension
+        extension = PacPaletteExtension.from_dict(payload.get("palette_extension"))
+    elif "palette_extension" in payload:
+        raise ValueError("Palette extension requires its explicit draft version.")
     weapon_collisions = payload.get("weapon_collisions", False)
     if (type(weapon_collisions) is not bool
             or (payload["version"] == 14 and not weapon_collisions)
@@ -246,4 +253,4 @@ def _load_replacement_state(payload, project_root):
     return MeshReplacementState(str(payload["target_path"]), str(payload["target_sha256"]),
         tuple(parts), int(payload["revision"]), location(payload.get("target_location")),
         tuple(file(v) for v in payload.get("dependencies", [])),
-        tuple(file(v) for v in payload.get("companion_files", [])), appearance, neutral, weapon_collisions)
+        tuple(file(v) for v in payload.get("companion_files", [])), appearance, neutral, weapon_collisions, extension)

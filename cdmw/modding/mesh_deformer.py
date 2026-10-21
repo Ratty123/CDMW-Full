@@ -279,7 +279,8 @@ def clone_mesh_for_editing(mesh: ParsedMesh) -> ParsedMesh:
         has_uvs=bool(mesh.has_uvs),
         has_bones=bool(mesh.has_bones),
     )
-    for attr in ("interchange_skeleton", "interchange_bone_palette", "interchange_animations", "interchange_nodes", "_cdmw_roundtrip_sidecar_validated"):
+    for attr in ("interchange_skeleton", "interchange_bone_palette", "interchange_palette_extension",
+                 "interchange_animations", "interchange_nodes", "_cdmw_roundtrip_sidecar_validated"):
         if hasattr(mesh, attr):
             setattr(cloned_mesh, attr, copy.deepcopy(getattr(mesh, attr)))
     return cloned_mesh

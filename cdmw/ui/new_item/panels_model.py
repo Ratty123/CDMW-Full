@@ -621,7 +621,7 @@ class ModelPanel(ModelPanelPreviewMixin, QGroupBox):
         action_row = QHBoxLayout()
         self.fit_button = QPushButton("Fit to template")
         self.fit_button.setToolTip(
-            "Back to the first guess: the model scaled to the template's length, turned onto its axes, centred on it; the numbers go back to zero."
+            "Scale and align the geometry to the template. Imported weights stay attached to their vertices; this does not retarget the rig. The placement numbers return to zero."
         )
         self.fit_button.clicked.connect(self._fit_to_template)
         action_row.addWidget(self.fit_button)
@@ -784,10 +784,30 @@ class ModelPanel(ModelPanelPreviewMixin, QGroupBox):
         self.clear_button.setToolTip("Discard the imported model.")
         self.clear_button.clicked.connect(self._controller.discard_model)
         row.addWidget(self.clear_button)
+        self.skinning_button = QPushButton("Skin weights…")
+        self.skinning_button.setToolTip("Keep, reduce or deliberately transfer weights for each imported part. Review losses in Import details.")
+        self.skinning_button.clicked.connect(self._edit_skinning)
+        self.skinning_button.setEnabled(False)
+        row.addWidget(self.skinning_button)
+        self.hide_variant_button = QPushButton("Hide this variant")
+        self.hide_variant_button.setToolTip("Hide this exact equipment slot at every LOD. Other companion slots keep their chosen models. "
+                                           "Choose Keep template to restore it.")
+        self.hide_variant_button.clicked.connect(self._controller.start_hide_model_variant)
+        row.addWidget(self.hide_variant_button)
         row.addStretch(1)
         import_row = QWidget()
         import_row.setLayout(row)
         model_layout.addWidget(import_row)
+        skin_row = QHBoxLayout()
+        skin_row.addWidget(QLabel("Weights on next import"))
+        self.import_skin_policy = QComboBox()
+        self.import_skin_policy.addItem("Keep imported weights", "preserve")
+        self.import_skin_policy.addItem("Transfer from template", "transfer")
+        self.import_skin_policy.addItem("Reduce to six influences", "reduce")
+        self.import_skin_policy.setToolTip("Used when importing a rigged model. Keeping weights refuses missing bones or excess influences. "
+                                         "Transfer deliberately replaces authored weights; reduction reports removed weights before Apply placement.")
+        skin_row.addWidget(self.import_skin_policy, 1)
+        model_layout.addLayout(skin_row)
         self.import_summary = QLabel("No imported model.")
         self.import_summary.setWordWrap(True)
         self.import_summary.setTextFormat(Qt.TextFormat.PlainText)
@@ -898,6 +918,8 @@ class ModelPanel(ModelPanelPreviewMixin, QGroupBox):
     def _model_source_changed(self, keep: bool) -> None:
         draft = self._controller.draft
         draft.model_source = ModelSource.TEMPLATE if keep else ModelSource.IMPORTED
+        for lane in ("model_skinning", "model_hide"):
+            self._controller.cancel_operation(lane)
         self.plain_pbr.setEnabled(not keep)
         self.own_sheath.setEnabled(not keep)
         self._refresh_import_widgets()
@@ -1223,9 +1245,18 @@ class ModelPanel(ModelPanelPreviewMixin, QGroupBox):
         self._controller.draft.sheathed_model = SheathedModel.OWN_MODEL if own else SheathedModel.TEMPLATE
         self._controller.invalidate_plan()
 
+    def _edit_skinning(self):
+        from cdmw.ui.new_item.skinning_dialog import SkinningDialog
+        source = self._controller.model_import
+        if source is not None and source.skinning_target:
+            self._skinning_dialog = SkinningDialog(source, self._controller.start_model_skinning, self)
+            self._skinning_dialog.open()
+
     def _show_model(self, result: object) -> None:
         self._apply_error = ""
         source = self._controller.model_import
+        self.skinning_button.setEnabled(bool(source is not None and source.skinning_target
+            and source.mesh_generation == source.skinning_generation and not self._controller.busy))
         keep = self._controller.draft.model_source is ModelSource.TEMPLATE
         # Retained imports are available for switching back; their presence does not
         # override the selected source or mutate the variant while projecting its state.
@@ -1267,12 +1298,13 @@ class ModelPanel(ModelPanelPreviewMixin, QGroupBox):
         if result is not None:
             entry = self._controller.model_entry
             head = f"Placed over {entry.basename}" if entry is not None else "Placed"
-            size = len(getattr(result, "rebuilt_data", b"") or b"")
+            size = len(getattr(result, "rebuilt_data", getattr(result, "pac_data", b"")) or b"")
             extras = len(tuple(getattr(result, "supplemental_file_specs", ()) or ()))
             if source is None:
                 self.import_summary.setText(f"{head}\n{size:,} bytes · {extras} side files")
                 self.import_summary.setToolTip(head)
             lines.append(note(f"{head}: the rebuilt mesh is {size:,} bytes, {extras} side file(s)", OK))
+            lines.extend(note(text, None) for text in getattr(result, "notes", ()))
             self.apply_status.set_note("Applied: the plan will write this mesh.", OK)
         elif source is not None:
             self.apply_status.set_note("Not applied yet: the plan needs Apply the placement.", WARN)

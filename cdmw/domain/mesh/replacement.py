@@ -17,6 +17,7 @@ from .shader_controls import ShaderControls
 
 if TYPE_CHECKING:
     from cdmw.modding.mesh_neutral_appearance import NeutralMeshAppearance
+    from cdmw.modding.pac_palette_extension import PacPaletteExtension
 
 
 @dataclass(frozen=True, slots=True)
@@ -65,6 +66,8 @@ class MeshReplacementState:
     neutral_coordinates: bool = False
     # Explicit experimental cloth-contact capsules on rigid weapon parts.
     weapon_collisions: bool = False
+    # File-level experiment only, pending current-game consumer qualification.
+    palette_extension: PacPaletteExtension | None = None
 
     def __post_init__(self):
         if type(self.weapon_collisions) is not bool:

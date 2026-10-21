@@ -1516,7 +1516,7 @@
         },
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 855,
+          "line": 875,
           "sink": "setFormat"
         }
       ]
@@ -4396,7 +4396,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 879,
+          "line": 899,
           "sink": "setToolTip"
         }
       ]
@@ -4491,7 +4491,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_variants.py",
-          "line": 237,
+          "line": 247,
           "sink": "ValueError"
         }
       ]
@@ -4516,37 +4516,37 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_skinning.py",
-          "line": 48,
+          "line": 91,
           "sink": "ValueError"
         },
         {
           "path": "cdmw/services/new_item_skinning.py",
-          "line": 55,
+          "line": 101,
           "sink": "ValueError"
         },
         {
           "path": "cdmw/services/new_item_skinning.py",
-          "line": 60,
+          "line": 108,
           "sink": "ValueError"
         },
         {
           "path": "cdmw/services/new_item_skinning.py",
-          "line": 76,
+          "line": 136,
           "sink": "ValueError"
         },
         {
           "path": "cdmw/services/new_item_skinning.py",
-          "line": 100,
+          "line": 177,
           "sink": "ValueError"
         },
         {
           "path": "cdmw/services/new_item_skinning.py",
-          "line": 104,
+          "line": 181,
           "sink": "ValueError"
         },
         {
           "path": "cdmw/services/new_item_skinning.py",
-          "line": 109,
+          "line": 186,
           "sink": "ValueError"
         }
       ]
@@ -7151,7 +7151,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 814,
+          "line": 834,
           "sink": "setToolTip"
         }
       ]
@@ -7651,7 +7651,7 @@
         },
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 954,
+          "line": 976,
           "sink": "getOpenFileName:filter-label"
         },
         {
@@ -7661,7 +7661,7 @@
         },
         {
           "path": "cdmw/ui/new_item/panels_model_preview_mixin.py",
-          "line": 401,
+          "line": 410,
           "sink": "getOpenFileName:filter-label"
         },
         {
@@ -8856,7 +8856,7 @@
         },
         {
           "path": "cdmw/services/mesh_replacement_draft.py",
-          "line": 160,
+          "line": 167,
           "sink": "ValueError"
         },
         {
@@ -9721,7 +9721,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 1276,
+          "line": 1308,
           "sink": "set_note"
         },
         {
@@ -13511,17 +13511,17 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_skinning.py",
-          "line": 90,
+          "line": 167,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/new_item_skinning.py",
-          "line": 117,
+          "line": 203,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/new_item_skinning.py",
-          "line": 126,
+          "line": 212,
           "sink": "raise_if_cancelled"
         }
       ]
@@ -15742,16 +15742,6 @@
       ]
     },
     {
-      "key": "Back to the first guess: the model scaled to the template's length, turned onto its axes, centred on it; the numbers go back to zero.",
-      "origins": [
-        {
-          "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 623,
-          "sink": "setToolTip"
-        }
-      ]
-    },
-    {
       "key": "Back to the shipped colour.",
       "origins": [
         {
@@ -16876,7 +16866,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 954,
+          "line": 976,
           "sink": "getOpenFileName:filter-label"
         }
       ]
@@ -19801,7 +19791,7 @@
         },
         {
           "path": "cdmw/ui/new_item/panels_model_preview_mixin.py",
-          "line": 250,
+          "line": 255,
           "sink": "set_note"
         }
       ]
@@ -19811,7 +19801,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model_preview_mixin.py",
-          "line": 251,
+          "line": 256,
           "sink": "setText"
         }
       ]
@@ -19841,7 +19831,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model_preview_mixin.py",
-          "line": 318,
+          "line": 327,
           "sink": "set_note"
         }
       ]
@@ -19881,7 +19871,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_model_mixin.py",
-          "line": 456,
+          "line": 575,
           "sink": "log"
         }
       ]
@@ -22206,7 +22196,7 @@
         },
         {
           "path": "cdmw/ui/new_item/panels_model_preview_mixin.py",
-          "line": 277,
+          "line": 286,
           "sink": "setText"
         },
         {
@@ -22281,7 +22271,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_variants.py",
-          "line": 348,
+          "line": 358,
           "sink": "ValueError"
         }
       ]
@@ -22441,7 +22431,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model_preview_mixin.py",
-          "line": 344,
+          "line": 353,
           "sink": "setText"
         }
       ]
@@ -24657,6 +24647,26 @@
       ]
     },
     {
+      "key": "Checking imported skin weights",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/controller_model_mixin.py",
+          "line": 448,
+          "sink": "progress"
+        }
+      ]
+    },
+    {
+      "key": "Checking imported skin weights…",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/panels_model_preview_mixin.py",
+          "line": 262,
+          "sink": "setText"
+        }
+      ]
+    },
+    {
       "key": "Checking installed overlay state...",
       "origins": [
         {
@@ -25981,7 +25991,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model_preview_mixin.py",
-          "line": 411,
+          "line": 420,
           "sink": "getExistingDirectory"
         }
       ]
@@ -26336,7 +26346,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_import.py",
-          "line": 210,
+          "line": 220,
           "sink": "ValueError"
         }
       ]
@@ -26416,7 +26426,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 1024,
+          "line": 1046,
           "sink": "setToolTip"
         }
       ]
@@ -26497,6 +26507,16 @@
       ]
     },
     {
+      "key": "Choose a verified character body resolved through this target's snapshot.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_skinning_preflight.py",
+          "line": 110,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
       "key": "Choose a weapon PAC before changing its preview placement.",
       "origins": [
         {
@@ -26531,7 +26551,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_import.py",
-          "line": 152,
+          "line": 153,
           "sink": "ValueError"
         }
       ]
@@ -26691,7 +26711,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model_preview_mixin.py",
-          "line": 401,
+          "line": 410,
           "sink": "getOpenFileName"
         }
       ]
@@ -26891,7 +26911,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 832,
+          "line": 852,
           "sink": "QPushButton"
         }
       ]
@@ -27236,7 +27256,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_import.py",
-          "line": 204,
+          "line": 214,
           "sink": "ValueError"
         }
       ]
@@ -27371,7 +27391,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 954,
+          "line": 976,
           "sink": "getOpenFileName"
         }
       ]
@@ -27746,7 +27766,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_import.py",
-          "line": 308,
+          "line": 318,
           "sink": "ValueError"
         }
       ]
@@ -27768,6 +27788,16 @@
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_jiggle.rs",
           "line": 261,
           "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Choose weights for each part. Reduction reports appear in Import details before Apply placement.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/skinning_dialog.py",
+          "line": 16,
+          "sink": "QLabel"
         }
       ]
     },
@@ -29831,7 +29861,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_draft.py",
-          "line": 146,
+          "line": 153,
           "sink": "ValueError"
         }
       ]
@@ -29841,7 +29871,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_output.py",
-          "line": 326,
+          "line": 340,
           "sink": "ValueError"
         }
       ]
@@ -29876,7 +29906,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_draft.py",
-          "line": 143,
+          "line": 150,
           "sink": "ValueError"
         }
       ]
@@ -30481,7 +30511,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 1202,
+          "line": 1224,
           "sink": "setText"
         },
         {
@@ -41481,7 +41511,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_output.py",
-          "line": 408,
+          "line": 425,
           "sink": "ValueError"
         }
       ]
@@ -41551,7 +41581,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_variants.py",
-          "line": 335,
+          "line": 345,
           "sink": "ValueError"
         }
       ]
@@ -44476,7 +44506,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_materials.py",
-          "line": 808,
+          "line": 809,
           "sink": "on_log"
         }
       ]
@@ -44486,7 +44516,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_materials.py",
-          "line": 869,
+          "line": 870,
           "sink": "on_log"
         }
       ]
@@ -44496,7 +44526,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_materials.py",
-          "line": 856,
+          "line": 857,
           "sink": "on_log"
         }
       ]
@@ -44521,7 +44551,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_materials.py",
-          "line": 798,
+          "line": 799,
           "sink": "on_log"
         }
       ]
@@ -44531,7 +44561,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_materials.py",
-          "line": 896,
+          "line": 897,
           "sink": "on_log"
         }
       ]
@@ -45412,7 +45442,7 @@
       ]
     },
     {
-      "key": "Exact geometry/topology authoring is governed by cdmw/domain/mesh/authoring_capability.py and the final writer: LOD0 only for the proven path, with operation-specific blocked and unproven cases. Free Edit publishes a new non-exact OBJ package and does not grant unrestricted PAC writeback.",
+      "key": "Exact geometry/topology authoring is governed by cdmw/domain/mesh/authoring_capability.py and the final writer: LOD0 only for the proven path, with operation-specific blocked and unproven cases. Free Edit publishes a new non-exact OBJ package and does not grant unrestricted PAC writeback. Palette extension remains an internal file experiment pending final resource stride, matrix/upload/draw/shader and special-physics consumer qualification plus game acceptance.",
       "origins": [
         {
           "path": "schemas/archive_content_capabilities.v1.json",
@@ -45766,7 +45796,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_output.py",
-          "line": 281,
+          "line": 295,
           "sink": "ValueError"
         }
       ]
@@ -46151,7 +46181,7 @@
         },
         {
           "path": "cdmw/services/mesh_replacement_output.py",
-          "line": 43,
+          "line": 55,
           "sink": "ValueError"
         }
       ]
@@ -49306,7 +49336,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 833,
+          "line": 853,
           "sink": "setToolTip"
         }
       ]
@@ -49316,7 +49346,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 847,
+          "line": 867,
           "sink": "setText"
         }
       ]
@@ -49336,7 +49366,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 941,
+          "line": 963,
           "sink": "setText"
         }
       ]
@@ -49346,7 +49376,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 975,
+          "line": 997,
           "sink": "emit"
         }
       ]
@@ -52126,7 +52156,7 @@
         },
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 1238,
+          "line": 1269,
           "sink": "setText"
         }
       ]
@@ -53281,7 +53311,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 943,
+          "line": 965,
           "sink": "setText"
         }
       ]
@@ -53641,7 +53671,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 841,
+          "line": 861,
           "sink": "QPushButton"
         }
       ]
@@ -55896,7 +55926,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_draft.py",
-          "line": 222,
+          "line": 229,
           "sink": "ValueError"
         }
       ]
@@ -55951,7 +55981,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_draft.py",
-          "line": 157,
+          "line": 164,
           "sink": "ValueError"
         }
       ]
@@ -56671,7 +56701,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_output.py",
-          "line": 319,
+          "line": 333,
           "sink": "ValueError"
         }
       ]
@@ -56701,7 +56731,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_draft.py",
-          "line": 226,
+          "line": 233,
           "sink": "ValueError"
         }
       ]
@@ -59312,12 +59342,52 @@
       ]
     },
     {
+      "key": "Hide this exact equipment slot at every LOD. Other companion slots keep their chosen models. Choose Keep template to restore it.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/panels_model.py",
+          "line": 793,
+          "sink": "setToolTip"
+        }
+      ]
+    },
+    {
+      "key": "Hide this variant",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/panels_model.py",
+          "line": 792,
+          "sink": "QPushButton"
+        }
+      ]
+    },
+    {
       "key": "Hide very small files below this original size.",
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/controls_panel.py",
           "line": 217,
           "sink": "setToolTip"
+        }
+      ]
+    },
+    {
+      "key": "Hiding geometry in {value_0} at every LOD.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/controller_model_mixin.py",
+          "line": 500,
+          "sink": "log"
+        }
+      ]
+    },
+    {
+      "key": "Hiding the selected variant…",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/panels_model_preview_mixin.py",
+          "line": 264,
+          "sink": "setText"
         }
       ]
     },
@@ -60501,7 +60571,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model_preview_mixin.py",
-          "line": 360,
+          "line": 369,
           "sink": "setText"
         }
       ]
@@ -61011,7 +61081,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model_preview_mixin.py",
-          "line": 401,
+          "line": 410,
           "sink": "getOpenFileName:filter-label"
         },
         {
@@ -61576,7 +61646,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_model_mixin.py",
-          "line": 438,
+          "line": 556,
           "sink": "emit"
         }
       ]
@@ -61596,7 +61666,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_import.py",
-          "line": 318,
+          "line": 328,
           "sink": "ValueError"
         }
       ]
@@ -61671,7 +61741,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 799,
+          "line": 819,
           "sink": "setText"
         }
       ]
@@ -61916,7 +61986,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_import.py",
-          "line": 343,
+          "line": 353,
           "sink": "ValueError"
         }
       ]
@@ -62082,11 +62152,21 @@
       ]
     },
     {
-      "key": "Imported joint bind frames disagree in {value_0}. Export using the matching game armature in its rest pose; rig retargeting is unavailable.",
+      "key": "Imported joint bind frames disagree in {value_0}: {value_1} Rig retargeting is unavailable.",
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_skinning.py",
-          "line": 80,
+          "line": 166,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Imported joint hierarchy differs from the matching game skeleton.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_replacement_skinning.py",
+          "line": 81,
           "sink": "ValueError"
         }
       ]
@@ -62096,7 +62176,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_skinning.py",
-          "line": 69,
+          "line": 157,
           "sink": "ValueError"
         }
       ]
@@ -62181,7 +62261,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_import.py",
-          "line": 207,
+          "line": 217,
           "sink": "ValueError"
         }
       ]
@@ -62211,7 +62291,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_import.py",
-          "line": 249,
+          "line": 259,
           "sink": "ValueError"
         }
       ]
@@ -62255,9 +62335,64 @@
       "key": "Imported part",
       "origins": [
         {
+          "path": "cdmw/ui/new_item/skinning_dialog.py",
+          "line": 20,
+          "sink": "setHorizontalHeaderLabels"
+        },
+        {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
           "line": 3877,
           "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Imported rig has ambiguous matching joint names.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_replacement_skinning.py",
+          "line": 69,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Imported rig has invalid or ambiguous joint parents.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_replacement_skinning.py",
+          "line": 33,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Imported rig has no matching bind joints.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_replacement_skinning.py",
+          "line": 84,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Imported rig has non-finite rest-joint centers.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_replacement_skinning.py",
+          "line": 93,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Imported rig hierarchy contains a cycle.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_replacement_skinning.py",
+          "line": 43,
+          "sink": "ValueError"
         }
       ]
     },
@@ -62276,7 +62411,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_skinning.py",
-          "line": 23,
+          "line": 24,
           "sink": "ValueError"
         }
       ]
@@ -62286,7 +62421,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_skinning.py",
-          "line": 84,
+          "line": 170,
           "sink": "ValueError"
         }
       ]
@@ -62296,7 +62431,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_skinning.py",
-          "line": 88,
+          "line": 174,
           "sink": "ValueError"
         }
       ]
@@ -62306,7 +62441,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_skinning.py",
-          "line": 77,
+          "line": 162,
           "sink": "ValueError"
         }
       ]
@@ -62316,7 +62451,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_skinning.py",
-          "line": 65,
+          "line": 153,
           "sink": "ValueError"
         }
       ]
@@ -62326,7 +62461,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_skinning.py",
-          "line": 58,
+          "line": 147,
           "sink": "ValueError"
         }
       ]
@@ -62336,8 +62471,18 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_skinning.py",
-          "line": 92,
+          "line": 178,
           "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Imported skin weights",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/skinning_dialog.py",
+          "line": 12,
+          "sink": "setWindowTitle"
         }
       ]
     },
@@ -62346,7 +62491,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_skinning.py",
-          "line": 46,
+          "line": 135,
           "sink": "ValueError"
         }
       ]
@@ -62356,7 +62501,17 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_skinning.py",
-          "line": 41,
+          "line": 130,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Imported weights belong to another template variant; import against this variant again.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/model_import.py",
+          "line": 1360,
           "sink": "ValueError"
         }
       ]
@@ -64566,7 +64721,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_model_mixin.py",
-          "line": 325,
+          "line": 327,
           "sink": "report"
         }
       ]
@@ -65356,7 +65511,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_draft.py",
-          "line": 243,
+          "line": 250,
           "sink": "ValueError"
         }
       ]
@@ -65506,7 +65661,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_draft.py",
-          "line": 208,
+          "line": 215,
           "sink": "ValueError"
         }
       ]
@@ -65671,17 +65826,17 @@
         },
         {
           "path": "cdmw/services/mesh_replacement_draft.py",
-          "line": 174,
+          "line": 181,
           "sink": "ValueError"
         },
         {
           "path": "cdmw/services/mesh_replacement_draft.py",
-          "line": 177,
+          "line": 184,
           "sink": "ValueError"
         },
         {
           "path": "cdmw/services/mesh_replacement_draft.py",
-          "line": 232,
+          "line": 239,
           "sink": "ValueError"
         },
         {
@@ -65751,7 +65906,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_draft.py",
-          "line": 130,
+          "line": 137,
           "sink": "ValueError"
         }
       ]
@@ -65761,7 +65916,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_output.py",
-          "line": 406,
+          "line": 423,
           "sink": "ValueError"
         }
       ]
@@ -65771,7 +65926,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_draft.py",
-          "line": 140,
+          "line": 147,
           "sink": "ValueError"
         }
       ]
@@ -65781,7 +65936,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_draft.py",
-          "line": 118,
+          "line": 125,
           "sink": "ValueError"
         }
       ]
@@ -65791,7 +65946,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_draft.py",
-          "line": 187,
+          "line": 194,
           "sink": "ValueError"
         }
       ]
@@ -65801,7 +65956,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_draft.py",
-          "line": 202,
+          "line": 209,
           "sink": "ValueError"
         }
       ]
@@ -66021,7 +66176,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_draft.py",
-          "line": 108,
+          "line": 115,
           "sink": "ValueError"
         }
       ]
@@ -66316,7 +66471,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_draft.py",
-          "line": 218,
+          "line": 225,
           "sink": "ValueError"
         }
       ]
@@ -67511,7 +67666,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_output.py",
-          "line": 333,
+          "line": 347,
           "sink": "ValueError"
         }
       ]
@@ -67556,7 +67711,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_draft.py",
-          "line": 149,
+          "line": 156,
           "sink": "ValueError"
         }
       ]
@@ -67732,6 +67887,41 @@
       ]
     },
     {
+      "key": "Keep imported weights",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/panels_model.py",
+          "line": 804,
+          "sink": "addItem"
+        },
+        {
+          "path": "cdmw/ui/new_item/skinning_dialog.py",
+          "line": 33,
+          "sink": "addItem"
+        }
+      ]
+    },
+    {
+      "key": "Keep imported weights needs a complete fixed-layout target skeleton.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_skinning_preflight.py",
+          "line": 167,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Keep imported weights needs the selected template's unique matching skeleton.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_skinning_preflight.py",
+          "line": 163,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
       "key": "Keep model centred",
       "origins": [
         {
@@ -67773,6 +67963,16 @@
           "path": "cdmw/ui/shell/about_documentation_en.py",
           "line": 54,
           "sink": "python-return:_build_start_sections"
+        }
+      ]
+    },
+    {
+      "key": "Keep preserves rigid attachments too. Transfer replaces the artist's weights. Reduction removes the weakest influences and reports lost mass; review deformation.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/skinning_dialog.py",
+          "line": 40,
+          "sink": "setToolTip"
         }
       ]
     },
@@ -67993,6 +68193,16 @@
           "path": "cdmw/ui/new_item/effect_recipe_panel.py",
           "line": 37,
           "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Keep, reduce or deliberately transfer weights for each imported part. Review losses in Import details.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/panels_model.py",
+          "line": 788,
+          "sink": "setToolTip"
         }
       ]
     },
@@ -72491,7 +72701,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_output.py",
-          "line": 134,
+          "line": 146,
           "sink": "ValueError"
         }
       ]
@@ -72501,7 +72711,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_output.py",
-          "line": 126,
+          "line": 138,
           "sink": "ValueError"
         }
       ]
@@ -72511,7 +72721,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_output.py",
-          "line": 118,
+          "line": 130,
           "sink": "ValueError"
         }
       ]
@@ -72521,7 +72731,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_output.py",
-          "line": 122,
+          "line": 134,
           "sink": "ValueError"
         }
       ]
@@ -72691,7 +72901,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_draft.py",
-          "line": 95,
+          "line": 96,
           "sink": "ValueError"
         }
       ]
@@ -72966,7 +73176,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_import.py",
-          "line": 226,
+          "line": 236,
           "sink": "ValueError"
         }
       ]
@@ -75806,12 +76016,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_model_mixin.py",
-          "line": 608,
+          "line": 729,
           "sink": "emit"
         },
         {
           "path": "cdmw/ui/new_item/controller_model_mixin.py",
-          "line": 609,
+          "line": 730,
           "sink": "emit"
         }
       ]
@@ -78802,6 +79012,16 @@
       ]
     },
     {
+      "key": "Missing equipment palette bones: {value_0}. Keep imported weights cannot substitute bones. Palette extension requires separate validation. {value_1}",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_skinning_preflight.py",
+          "line": 139,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
       "key": "Missing explicit alignment mapping",
       "origins": [
         {
@@ -78891,7 +79111,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_import.py",
-          "line": 179,
+          "line": 189,
           "sink": "ValueError"
         }
       ]
@@ -80211,7 +80431,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_model_mixin.py",
-          "line": 333,
+          "line": 354,
           "sink": "raise_if_cancelled"
         }
       ]
@@ -80391,7 +80611,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_model_mixin.py",
-          "line": 363,
+          "line": 384,
           "sink": "progress"
         }
       ]
@@ -83906,7 +84126,7 @@
         },
         {
           "path": "cdmw/services/new_item_planning.py",
-          "line": 178,
+          "line": 179,
           "sink": "raise_if_cancelled"
         },
         {
@@ -84596,7 +84816,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_variants.py",
-          "line": 291,
+          "line": 301,
           "sink": "ValueError"
         }
       ]
@@ -85026,7 +85246,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_variants.py",
-          "line": 228,
+          "line": 238,
           "sink": "ValueError"
         }
       ]
@@ -85951,22 +86171,22 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 791,
+          "line": 811,
           "sink": "QLabel"
         },
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 797,
+          "line": 817,
           "sink": "NoteLabel"
         },
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 1248,
+          "line": 1279,
           "sink": "set_note"
         },
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 1249,
+          "line": 1280,
           "sink": "setText"
         }
       ]
@@ -88267,6 +88487,16 @@
       ]
     },
     {
+      "key": "No verified character body is available for this target skeleton.",
+      "origins": [
+        {
+          "path": "cdmw/services/new_item_skinning.py",
+          "line": 149,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
       "key": "No vertices selected",
       "origins": [
         {
@@ -88446,7 +88676,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_draft.py",
-          "line": 200,
+          "line": 207,
           "sink": "ValueError"
         }
       ]
@@ -88456,7 +88686,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_draft.py",
-          "line": 190,
+          "line": 197,
           "sink": "ValueError"
         }
       ]
@@ -88951,7 +89181,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 1278,
+          "line": 1310,
           "sink": "set_note"
         },
         {
@@ -91831,12 +92061,12 @@
         },
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 806,
+          "line": 826,
           "sink": "QPushButton"
         },
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 928,
+          "line": 950,
           "sink": "setText"
         }
       ]
@@ -92241,7 +92471,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_model_mixin.py",
-          "line": 528,
+          "line": 649,
           "sink": "emit"
         },
         {
@@ -92261,7 +92491,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 807,
+          "line": 827,
           "sink": "setToolTip"
         }
       ]
@@ -92976,7 +93206,7 @@
         },
         {
           "path": "cdmw/ui/new_item/model_import.py",
-          "line": 881,
+          "line": 886,
           "sink": "RunCancelled"
         },
         {
@@ -95556,7 +95786,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_output.py",
-          "line": 97,
+          "line": 109,
           "sink": "ValueError"
         }
       ]
@@ -96656,7 +96886,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_output.py",
-          "line": 386,
+          "line": 403,
           "sink": "ValueError"
         }
       ]
@@ -96666,7 +96896,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_output.py",
-          "line": 380,
+          "line": 397,
           "sink": "ValueError"
         }
       ]
@@ -96676,7 +96906,17 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_output.py",
-          "line": 398,
+          "line": 415,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Palette extension requires its explicit draft version.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_replacement_draft.py",
+          "line": 110,
           "sink": "ValueError"
         }
       ]
@@ -98946,7 +99186,7 @@
         },
         {
           "path": "cdmw/services/mesh_replacement_draft.py",
-          "line": 180,
+          "line": 187,
           "sink": "ValueError"
         },
         {
@@ -99541,7 +99781,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 1274,
+          "line": 1305,
           "sink": "setToolTip"
         }
       ]
@@ -99551,7 +99791,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 1274,
+          "line": 1305,
           "sink": "setToolTip"
         }
       ]
@@ -99866,7 +100106,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_model_mixin.py",
-          "line": 480,
+          "line": 601,
           "sink": "emit"
         }
       ]
@@ -100181,7 +100421,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 861,
+          "line": 881,
           "sink": "QCheckBox"
         }
       ]
@@ -100506,7 +100746,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_planning.py",
-          "line": 855,
+          "line": 860,
           "sink": "log"
         }
       ]
@@ -101477,6 +101717,16 @@
       ]
     },
     {
+      "key": "Prepare an existing-bone palette experiment from the original source-coordinate session.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_replacement_import.py",
+          "line": 158,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
       "key": "Prepare changes first",
       "origins": [
         {
@@ -101886,7 +102136,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model_preview_mixin.py",
-          "line": 255,
+          "line": 260,
           "sink": "setText"
         }
       ]
@@ -101916,7 +102166,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_model_mixin.py",
-          "line": 499,
+          "line": 620,
           "sink": "log"
         },
         {
@@ -102456,7 +102706,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/model_import.py",
-          "line": 1345,
+          "line": 1353,
           "sink": "on_log"
         }
       ]
@@ -102746,12 +102996,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_model_mixin.py",
-          "line": 547,
+          "line": 668,
           "sink": "log"
         },
         {
           "path": "cdmw/ui/new_item/panels_model_preview_mixin.py",
-          "line": 254,
+          "line": 259,
           "sink": "set_note"
         },
         {
@@ -102856,7 +103106,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model_preview_mixin.py",
-          "line": 257,
+          "line": 266,
           "sink": "setText"
         }
       ]
@@ -102986,7 +103236,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_planning.py",
-          "line": 874,
+          "line": 879,
           "sink": "add"
         }
       ]
@@ -108747,6 +108997,16 @@
       ]
     },
     {
+      "key": "Re-import before changing skin policy after Mesh Editor geometry edits.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/controller_model_mixin.py",
+          "line": 429,
+          "sink": "emit"
+        }
+      ]
+    },
+    {
       "key": "Reach at {value_0}: {value_1} x {value_2} x {value_3} m, {value_4}.",
       "origins": [
         {
@@ -109591,7 +109851,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model_preview_mixin.py",
-          "line": 246,
+          "line": 251,
           "sink": "set_note"
         }
       ]
@@ -109601,7 +109861,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model_preview_mixin.py",
-          "line": 247,
+          "line": 252,
           "sink": "setText"
         }
       ]
@@ -109671,7 +109931,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_model_mixin.py",
-          "line": 330,
+          "line": 332,
           "sink": "report"
         }
       ]
@@ -110756,7 +111016,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_output.py",
-          "line": 354,
+          "line": 371,
           "sink": "ValueError"
         }
       ]
@@ -112077,6 +112337,31 @@
       ]
     },
     {
+      "key": "Reduce to four influences",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/skinning_dialog.py",
+          "line": 35,
+          "sink": "addItem"
+        }
+      ]
+    },
+    {
+      "key": "Reduce to six influences",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/panels_model.py",
+          "line": 806,
+          "sink": "addItem"
+        },
+        {
+          "path": "cdmw/ui/new_item/skinning_dialog.py",
+          "line": 34,
+          "sink": "addItem"
+        }
+      ]
+    },
+    {
       "key": "Reduces the surface's colour coverage. Subtracted from twice the Colour mixing value and stored in the material texture's red channel. Unchecked: keep the source texture, or use black (0).",
       "origins": [
         {
@@ -113046,7 +113331,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_draft.py",
-          "line": 216,
+          "line": 223,
           "sink": "ValueError"
         }
       ]
@@ -113066,7 +113351,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_draft.py",
-          "line": 170,
+          "line": 177,
           "sink": "ValueError"
         }
       ]
@@ -113391,7 +113676,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_draft.py",
-          "line": 230,
+          "line": 237,
           "sink": "ValueError"
         }
       ]
@@ -113401,7 +113686,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_draft.py",
-          "line": 182,
+          "line": 189,
           "sink": "ValueError"
         }
       ]
@@ -113411,7 +113696,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_draft.py",
-          "line": 184,
+          "line": 191,
           "sink": "ValueError"
         }
       ]
@@ -115026,12 +115311,12 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_import.py",
-          "line": 279,
+          "line": 289,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/mesh_replacement_import.py",
-          "line": 290,
+          "line": 300,
           "sink": "raise_if_cancelled"
         }
       ]
@@ -115051,7 +115336,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_output.py",
-          "line": 301,
+          "line": 315,
           "sink": "ValueError"
         }
       ]
@@ -115081,7 +115366,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_draft.py",
-          "line": 245,
+          "line": 252,
           "sink": "ValueError"
         }
       ]
@@ -115121,7 +115406,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_draft.py",
-          "line": 193,
+          "line": 200,
           "sink": "ValueError"
         }
       ]
@@ -115136,7 +115421,7 @@
         },
         {
           "path": "cdmw/services/mesh_replacement_draft.py",
-          "line": 211,
+          "line": 218,
           "sink": "ValueError"
         }
       ]
@@ -115156,7 +115441,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_draft.py",
-          "line": 234,
+          "line": 241,
           "sink": "ValueError"
         }
       ]
@@ -115166,7 +115451,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_draft.py",
-          "line": 123,
+          "line": 130,
           "sink": "ValueError"
         }
       ]
@@ -115176,7 +115461,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_draft.py",
-          "line": 120,
+          "line": 127,
           "sink": "ValueError"
         }
       ]
@@ -115226,7 +115511,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_draft.py",
-          "line": 236,
+          "line": 243,
           "sink": "ValueError"
         }
       ]
@@ -115256,12 +115541,12 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_import.py",
-          "line": 149,
+          "line": 150,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/mesh_replacement_import.py",
-          "line": 194,
+          "line": 204,
           "sink": "raise_if_cancelled"
         }
       ]
@@ -115291,12 +115576,12 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_import.py",
-          "line": 283,
+          "line": 293,
           "sink": "ValueError"
         },
         {
           "path": "cdmw/services/mesh_replacement_import.py",
-          "line": 287,
+          "line": 297,
           "sink": "ValueError"
         }
       ]
@@ -115326,7 +115611,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_output.py",
-          "line": 153,
+          "line": 167,
           "sink": "ValueError"
         }
       ]
@@ -115506,7 +115791,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_output.py",
-          "line": 62,
+          "line": 74,
           "sink": "ValueError"
         }
       ]
@@ -115516,7 +115801,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_output.py",
-          "line": 64,
+          "line": 76,
           "sink": "ValueError"
         }
       ]
@@ -115526,7 +115811,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_output.py",
-          "line": 67,
+          "line": 79,
           "sink": "ValueError"
         }
       ]
@@ -115546,7 +115831,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_output.py",
-          "line": 139,
+          "line": 151,
           "sink": "ValueError"
         }
       ]
@@ -115556,7 +115841,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_output.py",
-          "line": 351,
+          "line": 368,
           "sink": "ValueError"
         }
       ]
@@ -115946,7 +116231,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_output.py",
-          "line": 400,
+          "line": 417,
           "sink": "ValueError"
         }
       ]
@@ -116811,7 +117096,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 1238,
+          "line": 1269,
           "sink": "setText"
         }
       ]
@@ -118277,6 +118562,26 @@
       ]
     },
     {
+      "key": "Rest-joint centers are degenerate; a common model transform cannot be proven.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_replacement_skinning.py",
+          "line": 100,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Rest-joint positions do not match one rigid or uniform-scale game-rig transform.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_replacement_skinning.py",
+          "line": 111,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
       "key": "Restart",
       "origins": [
         {
@@ -119551,7 +119856,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 928,
+          "line": 950,
           "sink": "setText"
         }
       ]
@@ -119836,7 +120141,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_output.py",
-          "line": 343,
+          "line": 357,
           "sink": "ValueError"
         }
       ]
@@ -121582,6 +121887,16 @@
       ]
     },
     {
+      "key": "Run imported skin preflight against the selected template before Apply placement.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/model_import.py",
+          "line": 1358,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
       "key": "Run rebuild report",
       "origins": [
         {
@@ -122846,12 +123161,12 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_draft.py",
-          "line": 197,
+          "line": 204,
           "sink": "ValueError"
         },
         {
           "path": "cdmw/services/mesh_replacement_import.py",
-          "line": 347,
+          "line": 357,
           "sink": "ValueError"
         }
       ]
@@ -123307,6 +123622,16 @@
         {
           "path": "cdmw/ui/new_item/panels_model.py",
           "line": 590,
+          "sink": "setToolTip"
+        }
+      ]
+    },
+    {
+      "key": "Scale and align the geometry to the template. Imported weights stay attached to their vertices; this does not retarget the rig. The placement numbers return to zero.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/panels_model.py",
+          "line": 623,
           "sink": "setToolTip"
         }
       ]
@@ -131001,7 +131326,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_draft.py",
-          "line": 162,
+          "line": 169,
           "sink": "ValueError"
         }
       ]
@@ -131021,7 +131346,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_draft.py",
-          "line": 220,
+          "line": 227,
           "sink": "ValueError"
         }
       ]
@@ -131046,7 +131371,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_draft.py",
-          "line": 165,
+          "line": 172,
           "sink": "ValueError"
         }
       ]
@@ -133091,7 +133416,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 872,
+          "line": 892,
           "sink": "setToolTip"
         }
       ]
@@ -134217,9 +134542,34 @@
       ]
     },
     {
+      "key": "Skin weights",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/skinning_dialog.py",
+          "line": 20,
+          "sink": "setHorizontalHeaderLabels"
+        }
+      ]
+    },
+    {
       "key": "Skin weights are read-only while neutral appearance uses different bone transforms; changing them could move saved vertices.",
       "origins": [],
       "manual": true
+    },
+    {
+      "key": "Skin weights could not be prepared: {value_0}",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/controller_model_mixin.py",
+          "line": 482,
+          "sink": "emit"
+        },
+        {
+          "path": "cdmw/ui/new_item/controller_model_mixin.py",
+          "line": 483,
+          "sink": "emit"
+        }
+      ]
     },
     {
       "key": "Skin weights unavailable.",
@@ -134228,6 +134578,16 @@
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_vertex_inspector.rs",
           "line": 546,
           "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Skin weights…",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/panels_model.py",
+          "line": 787,
+          "sink": "QPushButton"
         }
       ]
     },
@@ -134246,7 +134606,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_skinning.py",
-          "line": 39,
+          "line": 128,
           "sink": "ValueError"
         }
       ]
@@ -134281,7 +134641,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 863,
+          "line": 883,
           "sink": "setToolTip"
         }
       ]
@@ -134313,6 +134673,16 @@
           "path": "cdmw/ui/new_item/controller_preview_mixin.py",
           "line": 664,
           "sink": "python-return:material_shader_options"
+        }
+      ]
+    },
+    {
+      "key": "Skinning choices must identify each imported part uniquely.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_skinning_preflight.py",
+          "line": 35,
+          "sink": "ValueError"
         }
       ]
     },
@@ -139531,7 +139901,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_draft.py",
-          "line": 167,
+          "line": 174,
           "sink": "ValueError"
         },
         {
@@ -140306,7 +140676,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_skinning.py",
-          "line": 48,
+          "line": 137,
           "sink": "ValueError"
         }
       ]
@@ -140981,7 +141351,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 878,
+          "line": 898,
           "sink": "QCheckBox"
         }
       ]
@@ -141023,6 +141393,16 @@
           "path": "cdmw/ui/new_item/panels_model.py",
           "line": 514,
           "sink": "addItem"
+        }
+      ]
+    },
+    {
+      "key": "Template part restrictions cannot select a body region.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_skinning_preflight.py",
+          "line": 112,
+          "sink": "ValueError"
         }
       ]
     },
@@ -143046,32 +143426,32 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_model_mixin.py",
-          "line": 539,
+          "line": 660,
           "sink": "RuntimeError"
         },
         {
           "path": "cdmw/ui/new_item/controller_model_mixin.py",
-          "line": 541,
+          "line": 662,
           "sink": "RuntimeError"
         },
         {
           "path": "cdmw/ui/new_item/controller_model_mixin.py",
-          "line": 546,
+          "line": 667,
           "sink": "RuntimeError"
         },
         {
           "path": "cdmw/ui/new_item/controller_model_mixin.py",
-          "line": 577,
+          "line": 698,
           "sink": "RuntimeError"
         },
         {
           "path": "cdmw/ui/new_item/model_import.py",
-          "line": 971,
+          "line": 976,
           "sink": "TypeError"
         },
         {
           "path": "cdmw/ui/new_item/model_import.py",
-          "line": 973,
+          "line": 978,
           "sink": "ValueError"
         }
       ]
@@ -144036,7 +144416,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model_preview_mixin.py",
-          "line": 340,
+          "line": 349,
           "sink": "setText"
         }
       ]
@@ -144055,6 +144435,16 @@
       "key": "The capture identity does not match the reviewed experiment.",
       "origins": [],
       "manual": true
+    },
+    {
+      "key": "The captured palette extension no longer matches this target/PAB.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_replacement_output.py",
+          "line": 37,
+          "sink": "ValueError"
+        }
+      ]
     },
     {
       "key": "The captures do not belong to the reviewed experiment protocol.",
@@ -144161,7 +144551,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 1192,
+          "line": 1214,
           "sink": "getColor"
         }
       ]
@@ -144431,7 +144821,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_skinning.py",
-          "line": 104,
+          "line": 190,
           "sink": "ValueError"
         }
       ]
@@ -145096,7 +145486,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model_preview_mixin.py",
-          "line": 356,
+          "line": 365,
           "sink": "setText"
         }
       ]
@@ -145141,7 +145531,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_variants.py",
-          "line": 167,
+          "line": 176,
           "sink": "ValueError"
         }
       ]
@@ -145151,7 +145541,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_import.py",
-          "line": 171,
+          "line": 179,
           "sink": "ValueError"
         }
       ]
@@ -145536,12 +145926,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_model_mixin.py",
-          "line": 397,
+          "line": 418,
           "sink": "emit"
         },
         {
           "path": "cdmw/ui/new_item/controller_model_mixin.py",
-          "line": 398,
+          "line": 419,
           "sink": "emit"
         }
       ]
@@ -145571,7 +145961,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_model_mixin.py",
-          "line": 371,
+          "line": 392,
           "sink": "emit"
         }
       ]
@@ -145861,7 +146251,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_import.py",
-          "line": 338,
+          "line": 348,
           "sink": "ValueError"
         }
       ]
@@ -146101,17 +146491,17 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_model_mixin.py",
-          "line": 484,
+          "line": 605,
           "sink": "emit"
         },
         {
           "path": "cdmw/ui/new_item/controller_model_mixin.py",
-          "line": 485,
+          "line": 606,
           "sink": "emit"
         },
         {
           "path": "cdmw/ui/new_item/controller_model_mixin.py",
-          "line": 486,
+          "line": 607,
           "sink": "emit"
         }
       ]
@@ -146746,7 +147136,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_variants.py",
-          "line": 146,
+          "line": 151,
           "sink": "ValueError"
         }
       ]
@@ -147046,7 +147436,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_import.py",
-          "line": 156,
+          "line": 164,
           "sink": "ValueError"
         }
       ]
@@ -147086,7 +147476,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_import.py",
-          "line": 224,
+          "line": 234,
           "sink": "ValueError"
         }
       ]
@@ -147098,6 +147488,16 @@
           "path": "cdmw/ui/archive_browser/appearance_swap.py",
           "line": 209,
           "sink": "QLabel"
+        }
+      ]
+    },
+    {
+      "key": "The selected template donor parts are invalid.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_skinning_preflight.py",
+          "line": 106,
+          "sink": "ValueError"
         }
       ]
     },
@@ -147116,7 +147516,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_variants.py",
-          "line": 350,
+          "line": 360,
           "sink": "ValueError"
         }
       ]
@@ -147126,12 +147526,12 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_variants.py",
-          "line": 161,
+          "line": 166,
           "sink": "ValueError"
         },
         {
           "path": "cdmw/services/new_item_variants.py",
-          "line": 165,
+          "line": 170,
           "sink": "ValueError"
         }
       ]
@@ -147691,7 +148091,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 969,
+          "line": 991,
           "sink": "emit"
         }
       ]
@@ -147917,11 +148317,21 @@
       ]
     },
     {
+      "key": "The variant could not be hidden: {value_0}",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/controller_model_mixin.py",
+          "line": 517,
+          "sink": "emit"
+        }
+      ]
+    },
+    {
       "key": "The variant import contains no supported mesh geometry.",
       "origins": [
         {
           "path": "cdmw/services/new_item_variants.py",
-          "line": 132,
+          "line": 137,
           "sink": "ValueError"
         }
       ]
@@ -147951,7 +148361,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model_preview_mixin.py",
-          "line": 322,
+          "line": 331,
           "sink": "setText"
         }
       ]
@@ -149191,7 +149601,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_import.py",
-          "line": 345,
+          "line": 355,
           "sink": "ValueError"
         }
       ]
@@ -149641,7 +150051,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_output.py",
-          "line": 146,
+          "line": 158,
           "sink": "ValueError"
         }
       ]
@@ -151102,12 +151512,47 @@
       ]
     },
     {
+      "key": "Transfer donor",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/skinning_dialog.py",
+          "line": 20,
+          "sink": "setHorizontalHeaderLabels"
+        }
+      ]
+    },
+    {
       "key": "Transfer from Original",
       "origins": [
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_rig.rs",
           "line": 729,
           "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Transfer from template",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/panels_model.py",
+          "line": 805,
+          "sink": "addItem"
+        },
+        {
+          "path": "cdmw/ui/new_item/skinning_dialog.py",
+          "line": 36,
+          "sink": "addItem"
+        }
+      ]
+    },
+    {
+      "key": "Transfer from verified body",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/skinning_dialog.py",
+          "line": 37,
+          "sink": "addItem"
         }
       ]
     },
@@ -151421,7 +151866,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_draft.py",
-          "line": 228,
+          "line": 235,
           "sink": "ValueError"
         }
       ]
@@ -151481,7 +151926,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_draft.py",
-          "line": 151,
+          "line": 158,
           "sink": "ValueError"
         }
       ]
@@ -151511,7 +151956,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_draft.py",
-          "line": 224,
+          "line": 231,
           "sink": "ValueError"
         }
       ]
@@ -151531,7 +151976,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_draft.py",
-          "line": 154,
+          "line": 161,
           "sink": "ValueError"
         }
       ]
@@ -151777,11 +152222,21 @@
       ]
     },
     {
+      "key": "Turn off Template cloth / physics for five or six skeletal influences, or explicitly reduce to four and review loss.",
+      "origins": [
+        {
+          "path": "cdmw/services/new_item_skinning.py",
+          "line": 18,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
       "key": "Turn off Template cloth / physics to transfer this armour's weights from the character body.",
       "origins": [
         {
           "path": "cdmw/services/new_item_variants.py",
-          "line": 111,
+          "line": 116,
           "sink": "ValueError"
         }
       ]
@@ -153406,7 +153861,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_output.py",
-          "line": 69,
+          "line": 81,
           "sink": "ValueError"
         }
       ]
@@ -154136,7 +154591,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_draft.py",
-          "line": 103,
+          "line": 104,
           "sink": "ValueError"
         }
       ]
@@ -155421,7 +155876,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 813,
+          "line": 833,
           "sink": "QPushButton"
         }
       ]
@@ -155941,7 +156396,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 870,
+          "line": 890,
           "sink": "QCheckBox"
         }
       ]
@@ -156572,6 +157027,16 @@
         {
           "path": "cdmw/ui/settings_tab.py",
           "line": 222,
+          "sink": "setToolTip"
+        }
+      ]
+    },
+    {
+      "key": "Used when importing a rigged model. Keeping weights refuses missing bones or excess influences. Transfer deliberately replaces authored weights; reduction reports removed weights before Apply placement.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/panels_model.py",
+          "line": 807,
           "sink": "setToolTip"
         }
       ]
@@ -157411,7 +157876,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_variants.py",
-          "line": 332,
+          "line": 342,
           "sink": "add"
         }
       ]
@@ -157421,7 +157886,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_variants.py",
-          "line": 300,
+          "line": 310,
           "sink": "add"
         }
       ]
@@ -157431,7 +157896,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_variants.py",
-          "line": 339,
+          "line": 349,
           "sink": "add"
         }
       ]
@@ -157441,7 +157906,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_variants.py",
-          "line": 352,
+          "line": 362,
           "sink": "add"
         }
       ]
@@ -157461,7 +157926,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_variants.py",
-          "line": 314,
+          "line": 324,
           "sink": "add"
         }
       ]
@@ -159121,7 +159586,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 1052,
+          "line": 1074,
           "sink": "set_note"
         }
       ]
@@ -159141,7 +159606,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 1052,
+          "line": 1074,
           "sink": "set_note"
         }
       ]
@@ -159992,6 +160457,16 @@
       ]
     },
     {
+      "key": "Weights on next import",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/panels_model.py",
+          "line": 802,
+          "sink": "QLabel"
+        }
+      ]
+    },
+    {
       "key": "Weights truncated",
       "origins": [
         {
@@ -160688,6 +161163,16 @@
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_jiggle.rs",
           "line": 349,
           "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Whole template",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/skinning_dialog.py",
+          "line": 45,
+          "sink": "addItem"
         }
       ]
     },
@@ -166127,7 +166612,7 @@
       ]
     },
     {
-      "key": "cdmw/modding/mesh_parser.py + mesh_pac_builder.py: parse, render, edit and byte-level rebuild",
+      "key": "cdmw/modding/mesh_parser.py + mesh_pac_builder.py: parse, render, edit and byte-level rebuild. pac_palette_extension.py adds a source/PAB-bound existing-bone extension for decoded 3/9 layouts; owned fixtures and complete Rosa primary output independently verify appended slots at every LOD. Static executable 1.0.0.2976 analysis confirms counted palette reading, count-sized CPU remapping and 1024 entry/index limits. Sixty authorized Rust D3D12 captures compare exact four/six-weight LOD0 outputs with the original nine-weight reference under seven controlled poses and three decoded PHW motion samples; localized reduction loss still needs artist review.",
       "origins": [
         {
           "path": "schemas/archive_content_capabilities.v1.json",
@@ -171331,7 +171816,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_planning.py",
-          "line": 732,
+          "line": 737,
           "sink": "add"
         }
       ]
@@ -174696,7 +175181,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_native_clone.py",
-          "line": 165,
+          "line": 167,
           "sink": "RuntimeError"
         }
       ]
@@ -174751,7 +175236,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_native_clone.py",
-          "line": 180,
+          "line": 182,
           "sink": "RuntimeError"
         }
       ]
@@ -177272,6 +177757,21 @@
       ]
     },
     {
+      "key": "preserve",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/panels_model.py",
+          "line": 804,
+          "sink": "addItem"
+        },
+        {
+          "path": "cdmw/ui/new_item/skinning_dialog.py",
+          "line": 33,
+          "sink": "addItem"
+        }
+      ]
+    },
+    {
       "key": "preset clone: {value_0}",
       "origins": [
         {
@@ -178667,6 +179167,26 @@
         {
           "path": "cdmw/ui/texture_editor_tab.py",
           "line": 1366,
+          "sink": "addItem"
+        }
+      ]
+    },
+    {
+      "key": "reduce",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/panels_model.py",
+          "line": 806,
+          "sink": "addItem"
+        },
+        {
+          "path": "cdmw/ui/new_item/skinning_dialog.py",
+          "line": 34,
+          "sink": "addItem"
+        },
+        {
+          "path": "cdmw/ui/new_item/skinning_dialog.py",
+          "line": 35,
           "sink": "addItem"
         }
       ]
@@ -180801,7 +181321,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_planning.py",
-          "line": 693,
+          "line": 698,
           "sink": "add"
         }
       ]
@@ -182421,7 +182941,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_planning.py",
-          "line": 681,
+          "line": 686,
           "sink": "add"
         }
       ]
@@ -182521,7 +183041,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model_preview_mixin.py",
-          "line": 354,
+          "line": 363,
           "sink": "ValueError"
         }
       ]
@@ -183207,6 +183727,21 @@
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
           "line": 479,
+          "sink": "addItem"
+        }
+      ]
+    },
+    {
+      "key": "transfer",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/panels_model.py",
+          "line": 805,
+          "sink": "addItem"
+        },
+        {
+          "path": "cdmw/ui/new_item/skinning_dialog.py",
+          "line": 36,
           "sink": "addItem"
         }
       ]
@@ -185471,7 +186006,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 1273,
+          "line": 1304,
           "sink": "setText"
         }
       ]
@@ -185481,7 +186016,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 1264,
+          "line": 1295,
           "sink": "setText"
         }
       ]
@@ -186651,12 +187186,12 @@
         },
         {
           "path": "cdmw/services/mesh_service_native_clone.py",
-          "line": 105,
+          "line": 107,
           "sink": "RuntimeError"
         },
         {
           "path": "cdmw/services/mesh_service_native_clone.py",
-          "line": 139,
+          "line": 141,
           "sink": "RuntimeError"
         },
         {
@@ -187632,12 +188167,42 @@
       ]
     },
     {
+      "key": "{value_0} has an invalid imported joint.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_skinning_preflight.py",
+          "line": 59,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "{value_0} has incomplete imported weight rows.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_skinning_preflight.py",
+          "line": 56,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
       "key": "{value_0} has multiple related HKX/HKT files. Choose which one to open on the Placement view.",
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/hkx_document_actions.py",
           "line": 170,
           "sink": "QLabel"
+        }
+      ]
+    },
+    {
+      "key": "{value_0} has no imported weights to preserve; choose template transfer.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_skinning_preflight.py",
+          "line": 46,
+          "sink": "ValueError"
         }
       ]
     },
@@ -187682,11 +188247,21 @@
       ]
     },
     {
+      "key": "{value_0} has weights without their imported rig identity.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_skinning_preflight.py",
+          "line": 53,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
       "key": "{value_0} holds no model the studio can read. It reads {value_1}.",
       "origins": [
         {
           "path": "cdmw/ui/new_item/model_import.py",
-          "line": 1091,
+          "line": 1096,
           "sink": "python-return:_nothing_to_import"
         }
       ]
@@ -187696,7 +188271,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/model_import.py",
-          "line": 1087,
+          "line": 1092,
           "sink": "python-return:_nothing_to_import"
         }
       ]
@@ -187811,7 +188386,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/model_import.py",
-          "line": 1097,
+          "line": 1102,
           "sink": "python-return:fbx_needs_blender_message"
         }
       ]
@@ -187896,7 +188471,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 972,
+          "line": 994,
           "sink": "emit"
         }
       ]
@@ -190346,7 +190921,7 @@
         },
         {
           "path": "cdmw/services/new_item_variants.py",
-          "line": 339,
+          "line": 349,
           "sink": "payload"
         }
       ]
@@ -191101,7 +191676,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 1275,
+          "line": 1306,
           "sink": "note"
         }
       ]
@@ -191206,7 +191781,7 @@
         },
         {
           "path": "cdmw/services/new_item_planning.py",
-          "line": 670,
+          "line": 675,
           "sink": "add"
         },
         {
@@ -191651,7 +192226,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 1263,
+          "line": 1294,
           "sink": "note"
         }
       ]

@@ -52,6 +52,8 @@ def _copy_mesh_validation_metadata(source: ParsedMesh, target: ParsedMesh) -> No
         "_cdmw_requires_edit_operations",
         "material_slots",
         "unknown_sections",
+        "interchange_palette_extension",
+        "interchange_skeleton",
     ):
         if not hasattr(source, name):
             continue

@@ -58,7 +58,7 @@ __all__ = [
 
 Vec3 = Tuple[float, float, float]
 Bounds = Tuple[Vec3, Vec3]
-MODEL_IMPORTER_SCHEMA_VERSION = 2
+MODEL_IMPORTER_SCHEMA_VERSION = 3
 MODEL_FIT_VERSION = 4
 
 
@@ -831,6 +831,11 @@ class ModelImportSource:
     mesh_generation: int = 0
     #: the (bake, placement) the studio applied last, when a result was built from this source
     applied: Optional[Tuple[ModelPlacement, ModelPlacement]] = field(default=None)
+    skinning_reports: tuple = ()
+    skinning_target: str = ""
+    raw_import_mesh: object = None
+    skinning_choices: tuple = ()
+    skinning_generation: int = 0
 
     @property
     def label(self) -> str:
@@ -1258,7 +1263,8 @@ def load_model_import_source(
             if model_path is None:
                 raise ValueError(_nothing_to_import(chosen, root))
         raise_if_cancelled(stop_event)
-        scene = import_scene_mesh_with_report(Path(model_path), include_external_audit=False)
+        scene = import_scene_mesh_with_report(Path(model_path), include_external_audit=False,
+                                              preserve_skinning=True, stop_event=stop_event)
         raise_if_cancelled(stop_event)
         preview_model = parsed_mesh_to_preview_model(scene.mesh)
         texture_count = int(attach_scene_preview_textures(preview_model, scene, Path(model_path)) or 0)
@@ -1295,6 +1301,7 @@ def load_model_import_source(
             owns_extract_root=owns_root,
             centroid=analysis.centroid,
             principal_frame=analysis.principal_frame,
+            raw_import_mesh=scene.mesh,
         )
     except BaseException:
         if owns_root:
@@ -1316,6 +1323,7 @@ def build_placed_import(
     stop_event: Optional[threading.Event] = None,
     on_progress: Optional[Callable[[int, int, str], None]] = None,
     on_log: Optional[Callable[[str], None]] = None,
+    keep_template_physics: bool = False,
 ):
     """The Builder's import over the template's mesh `entry`, headless: the Full Import
     Model Replacement (the imported model owns the visible mesh, the generated textures
@@ -1346,12 +1354,19 @@ def build_placed_import(
     scene = dc_replace(source.scene, mesh=bind_static_import_to_attachment(
         source.baked_scene_mesh(), entry.path, attachment_prefab_data,
     ))
+    if any(part.interchange_skin for part in scene.mesh.submeshes):
+        raise ValueError("Run imported skin preflight against the selected template before Apply placement.")
+    if source.skinning_target and source.skinning_target.casefold() != entry.path.casefold():
+        raise ValueError("Imported weights belong to another template variant; import against this variant again.")
 
     def forward_progress(current: int, total: int, detail: str) -> None:
         if on_progress is not None:
             on_progress(int(current) + 1, int(total) + 1, detail)
 
-    return build_mesh_import_preview(
+    if keep_template_physics:
+        from cdmw.services.new_item_skinning import validate_imported_skin_physics
+        validate_imported_skin_physics(scene.mesh.submeshes)
+    result = build_mesh_import_preview(
         entry,
         Path(source.model_path),
         import_mode="static_replacement",
@@ -1364,4 +1379,11 @@ def build_placed_import(
         stop_event=stop_event,
         on_progress=forward_progress,
         on_log=on_log,
+        palette_extension=getattr(scene.mesh, "interchange_palette_extension", None),
+        palette_skeleton=getattr(scene.mesh, "interchange_skeleton", None),
     )
+    if source.skinning_reports:
+        result.summary_lines.extend("Skin weights import: " + report.summary() for report in source.skinning_reports)
+        result.summary_lines.append("Skin weights physics: " + ("retain template bindings" if keep_template_physics
+                                   else "skeletal output; inherited template cloth and jiggle removed at Build plan"))
+    return result

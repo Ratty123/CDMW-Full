@@ -123,6 +123,7 @@ class ModelFiles:
     material_route: str = ""
     notes: Tuple[str, ...] = ()
     warnings: Tuple[str, ...] = ()
+    palette_extension: object = None
 
 
 @dataclass(slots=True)
@@ -643,6 +644,10 @@ class _Planner(EffectPlanningMixin):
                     from cdmw.services.new_item_skinning import strip_template_vertex_physics
                     payload = strip_template_vertex_physics(payload)
                     self.summary.append(f"  {item.path}: template cloth and jiggle bindings removed from every LOD.")
+                elif self.spec.model_source is ModelSource.IMPORTED and (item.path == old_pac or item.path in self.model.side_files):
+                    from cdmw.modding.pac_cloth import pac_cloth_lods
+                    from cdmw.services.new_item_skinning import validate_imported_skin_physics
+                    validate_imported_skin_physics(part for level in pac_cloth_lods(payload) for part in level.submeshes)
             elif role == "prefab":
                 try:
                     result = rewrite_prefab_paths_any_length(self.prefab_source(item.path), pac_map)
@@ -959,6 +964,7 @@ def model_files_from_import(result: object, *, family: ItemModelFamily) -> Model
         pac_data=data, side_files=side,
         notes=tuple(line for line in lines if line.startswith("Skin weights ")),
         warnings=tuple(line.removeprefix("Warning: ") for line in lines if line.startswith("Warning: skin weights ")),
+        palette_extension=getattr(result, "palette_extension", None),
     )
 
 

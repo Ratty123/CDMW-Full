@@ -292,7 +292,7 @@ class NewItemModelControllerMixin:
         finally:
             self.model_result = saved
 
-    def start_model_import(self, path: Path) -> bool:
+    def start_model_import(self, path: Path, *, skin_policy="preserve", palette_extension_bones=()) -> bool:
         """Read a model file (or a zip holding one) for the studio's own placement: the
         scene import and the source's textures, off the UI thread. On success the model
         shows over the template at a first fit; a result built before is dropped."""
@@ -313,6 +313,8 @@ class NewItemModelControllerMixin:
         import_snapshot = self.snapshot
         import_template_key = int(self.draft.template_key)
         import_variant = self._active_variant
+        import_entry = self.template_primary_entry()
+        wearable = self._template_is_wearable()
         template_geometry = self._template_geometry_build()
         template_build = template_geometry[1] if template_geometry is not None else None
         match_grip = self._template_uses_weapon_fit()
@@ -330,6 +332,25 @@ class NewItemModelControllerMixin:
             report(f"Reading {chosen.name}...")
             result = load_model_import_source(chosen, stop_event=stop_event, blender_path=blender, on_log=report)
             try:
+                from cdmw.services.mesh_skinning_preflight import has_authored_skin, prepare_new_item_skin
+                authored = has_authored_skin(result.scene.mesh)
+                if wearable:
+                    result.skinning_target = import_entry.path
+                if authored:
+                    from cdmw.domain.mesh.skin_policy import SkinningChoice
+                    choices = tuple(SkinningChoice(i, skin_policy) for i, part in enumerate(result.scene.mesh.submeshes)
+                                    if part.interchange_skin or part.bone_indices or part.bone_weights)
+                    from cdmw.ui.new_item.model_import import prepare_model_import_mesh_edit
+                    mesh, reports = prepare_new_item_skin(
+                        result.scene.mesh, import_snapshot, import_entry.path, choices=choices, stop_event=stop_event,
+                        **({"palette_extension_bones":tuple(palette_extension_bones)} if palette_extension_bones else {}))
+                    result.scene, result.preview_model, analysis, result.texture_count = prepare_model_import_mesh_edit(
+                        mesh, scene=result.scene, model_path=result.model_path, stop_event=stop_event)
+                    result.preview_mesh = mesh
+                    result.bounds, result.centroid, result.principal_frame = analysis.bounds, analysis.centroid, analysis.principal_frame
+                    result.skinning_reports, result.skinning_target = reports, import_entry.path
+                    result.skinning_choices = choices
+                    result.notes += tuple(item.summary() for item in reports)
                 raise_if_cancelled(stop_event, "Model import cancelled before template fitting.")
                 template_mesh = None
                 if template_build is not None:
@@ -345,7 +366,7 @@ class NewItemModelControllerMixin:
                 result.fit_template_frame = template_analysis.principal_frame
                 result.fit_match_grip = bool(match_grip)
                 result.set_bake(
-                    fitted_placement(
+                    ModelPlacement() if authored else fitted_placement(
                         result.bounds,
                         result.fit_template_bounds,
                         source_centroid=result.centroid,
@@ -399,6 +420,103 @@ class NewItemModelControllerMixin:
 
         return self._run("model_import", task, done, failed, task_accepts_progress=True)
 
+    def start_model_skinning(self, choices) -> bool:
+        """Re-prepare explicit per-part decisions from the retained original skin."""
+        source, snapshot, variant = self.model_import, self.snapshot, self._active_variant
+        if source is None or source.raw_import_mesh is None or not source.skinning_target:
+            return False
+        if source.mesh_generation != source.skinning_generation:
+            self.status_message.emit("Re-import before changing skin policy after Mesh Editor geometry edits.", True)
+            return False
+        choices, generation = tuple(choices), source.mesh_generation
+        draft_revision = self._draft_revision
+        source_bake, placement, flip = source.bake, self.model_placement, source.flip_texture_v
+        from cdmw.modding.mesh_glb_assets import transpose
+        from cdmw.modding.scene_geometry_utils import _multiply_matrix
+        # Placement uses row vectors; the donor sampler uses column vectors.
+        # Apply the fit first, then placement about the fitted origin.
+        transfer_transform = _multiply_matrix(
+            transpose(placement.matrix(origin=source.baked_origin())), transpose(source_bake.matrix()))
+        target = source.skinning_target
+        captured_scene = source.scene
+        extension = getattr(captured_scene.mesh, "interchange_palette_extension", None)
+        extension_bones = extension.appended_names if extension is not None else ()
+
+        def task(log, progress, stop_event):
+            from cdmw.services.mesh_skinning_preflight import prepare_new_item_skin
+            with source.usage():
+                progress(0, 0, "Checking imported skin weights")
+                mesh, reports = prepare_new_item_skin(source.raw_import_mesh, snapshot, target,
+                    choices=choices, stop_event=stop_event, transfer_transform=transfer_transform,
+                    palette_extension_bones=extension_bones)
+                prepared = prepare_model_import_mesh_edit(mesh, scene=captured_scene,
+                    model_path=source.model_path, stop_event=stop_event)
+                baked = bake_mesh(mesh, source_bake)
+                for report in reports:
+                    log(report.summary())
+                return prepared, reports, baked
+
+        def done(result):
+            if (self.snapshot is not snapshot or self.model_import is not source or self._active_variant != variant
+                    or self._draft_revision != draft_revision
+                    or source.mesh_generation != generation or source.bake != source_bake
+                    or self.model_placement != placement or source.flip_texture_v != flip):
+                return
+            prepared, reports, baked = result
+            scene, preview, analysis, textures = prepared
+            source.scene, source.preview_model, source.preview_mesh = scene, preview, scene.mesh
+            source.bounds, source.centroid, source.principal_frame = analysis.bounds, analysis.centroid, analysis.principal_frame
+            source.texture_count, source.skinning_reports, source.skinning_choices = textures, reports, choices
+            source.notes = tuple(item.summary() for item in reports)
+            source.mesh_generation += 1
+            source.skinning_generation = source.mesh_generation
+            source.set_bake(source_bake)
+            source._baked_scene_mesh = source._baked_preview_mesh = baked
+            source.applied = None
+            self.model_placement = placement
+            self.set_imported_model(None, None)
+            self.model_import_changed.emit(source)
+            self.model_placement_changed.emit(self.model_placement)
+
+        def failed(message):
+            self.status_message.emit(f"Skin weights could not be prepared: {message}", True)
+            self.model_apply_failed.emit(f"Skin weights could not be prepared: {message}")
+
+        return self._run("model_skinning", task, done, failed, task_accepts_progress=True, source_owners=(source,))
+
+    def start_hide_model_variant(self) -> bool:
+        """Prepare a reversible hidden companion without changing other family slots."""
+        if self.snapshot is None or self.draft.template_key is None:
+            return False
+        if self._active_variant is None:
+            primary = self.primary_variant_identity()
+            if primary is None:
+                return False
+            self.select_variant(primary)
+        snapshot, variant, source, entry = self.snapshot, self._active_variant, self.model_import, self.template_primary_entry()
+        draft_revision = self._draft_revision
+        def task(log, stop_event):
+            from cdmw.services.new_item_skinning import hide_variant_geometry
+            log(f"Hiding geometry in {entry.basename} at every LOD.")
+            return hide_variant_geometry(snapshot, entry.path, stop_event=stop_event)
+        def done(result):
+            if (self.snapshot is not snapshot or self._active_variant != variant or self.model_import is not source
+                    or self._draft_revision != draft_revision):
+                return
+            self.model_import = None
+            self.model_placement = ModelPlacement()
+            self.draft.template_transform = ()
+            self.draft.glow_parts, self.draft.shader_controls, self.draft.surface_settings = (), (), ()
+            self.draft.translucency = None
+            self.draft.keep_template_physics = False
+            self.set_imported_model(entry, result)
+            self.model_import_changed.emit(None)
+            self.model_placement_changed.emit(self.model_placement)
+            self._cleanup_model_source(source)
+        def failed(message):
+            self.status_message.emit(f"The variant could not be hidden: {message}", True)
+        return self._run("model_hide", task, done, failed, source_owners=(source,) if source else ())
+
     def set_model_placement(self, placement: ModelPlacement) -> None:
         """Move the active model (the gizmo, the numbers, a fit, a reset). A result
         built at another placement is dropped: it no longer says where the model sits."""
@@ -445,6 +563,7 @@ class NewItemModelControllerMixin:
         source_generation = source.mesh_generation
         source_flip = source.flip_texture_v
         model_source = self.draft.model_source
+        keep_physics = self.draft.keep_template_physics
         # A UI edit must not change the inputs underneath the worker. Source
         # leases still belong to the original import; the copy freezes its values.
         build_source = copy.copy(source)
@@ -464,12 +583,14 @@ class NewItemModelControllerMixin:
                     stop_event=stop_event,
                     on_progress=progress,
                     on_log=log,
+                    keep_template_physics=keep_physics,
                 )
 
         def done(result: object) -> None:
             if (self.snapshot is not snapshot or self.model_import is not source or self._active_variant != variant
                     or self.model_placement != placement or source.bake != source_bake
                     or source.mesh_generation != source_generation or source.flip_texture_v != source_flip
+                    or self.draft.keep_template_physics != keep_physics
                     or self.draft.model_source != model_source):
                 cleanup = getattr(result,"cleanup",None)
                 if callable(cleanup):
@@ -612,7 +733,7 @@ class NewItemModelControllerMixin:
 
     def discard_model(self) -> None:
         """Drop the imported model, its placement and any result: back to the template's model."""
-        if self._lane in {"model_import", "model_apply", "model_part_edit", "model_editor"}:
+        if self._lane in {"model_import", "model_apply", "model_part_edit", "model_editor", "model_skinning", "model_hide"}:
             self.cancel_operation(self._lane)
         previous = self.model_import
         self.model_import = None

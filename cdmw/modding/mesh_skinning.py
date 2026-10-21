@@ -58,6 +58,8 @@ def source_vertex_map_is_target_donor_lineage(original: SubMesh, candidate: SubM
 
 
 def finalize_merged_skin_provenance(merged: SubMesh, sources: Sequence[SubMesh], target: SubMesh) -> None:
+    if any(has_skin_rows(source) for source in sources) and any(not has_skin_rows(source) for source in sources):
+        raise ValueError("Map skinned and unskinned imported parts separately, or explicitly transfer their weights before merging.")
     if sources and all(source_vertex_map_is_target_donor_lineage(target, source) for source in sources):
         merged.source_vertex_map = [int(value) for source in sources for value in source.source_vertex_map]
         merged.source_vertex_map_authority = SOURCE_VERTEX_MAP_TARGET_DONOR
@@ -146,6 +148,8 @@ def ensure_final_target_skin_weights(
         if summary is not None:
             summary.append(f"Skin weights target {target_index} ({label}): preserved valid target-rig weights.")
         return
+    if has_skin_rows(merged):
+        raise ValueError(f"Cannot preserve invalid or over-capacity imported skin weights in {label}; choose an explicit reduction or transfer.")
     if target.source_vertex_stride != 40:
         raise ValueError(
             f"Cannot author skin weights for target {target_index} ({label}): "
@@ -204,18 +208,24 @@ def pack_pac_skin_weights(
 
     if len(record) != 40:
         raise ValueError(f"Cannot encode {context}: expected proven 40-byte PAC vertex record, got {len(record)} bytes.")
+    bone_indices, bone_weights = tuple(bone_indices or ()), tuple(bone_weights or ())
+    if len(bone_indices) != len(bone_weights):
+        raise ValueError(f"Cannot encode {context}: incomplete skin-weight row.")
     merged: dict[int, float] = {}
-    for raw_bone, raw_weight in zip(tuple(bone_indices or ()), tuple(bone_weights or ())):
+    for raw_bone, raw_weight in zip(bone_indices, bone_weights):
         try:
             bone, weight = int(raw_bone), float(raw_weight)
-        except (TypeError, ValueError, OverflowError):
-            continue
+        except (TypeError, ValueError, OverflowError) as exc:
+            raise ValueError(f"Cannot encode {context}: invalid skin influence.") from exc
+        if not math.isfinite(weight) or weight < 0 or (weight > 0 and bone < 0):
+            raise ValueError(f"Cannot encode {context}: invalid skin influence.")
         if bone >= 0 and math.isfinite(weight) and weight > 0.0:
             merged[bone] = merged.get(bone, 0.0) + weight
     capacity = 4 if record[PAC_SKIN_GATE_OFFSET] & PAC_SKIN_GATE_MASK != PAC_SKIN_GATE_DISABLED else PAC_SKIN_PALETTE_SLOTS
-    if capacity == 4 and len(merged) > capacity:
-        raise ValueError(f"Cannot encode {context}: cloth vertices support only four skeletal influences.")
-    strongest = sorted(merged.items(), key=lambda item: (-item[1], item[0]))[:capacity]
+    if len(merged) > capacity:
+        kind = "cloth vertices support only four" if capacity == 4 else "ordinary vertices support only six"
+        raise ValueError(f"Cannot encode {context}: {kind} skeletal influences; explicitly reduce and review weight loss first.")
+    strongest = sorted(merged.items(), key=lambda item: (-item[1], item[0]))
     if not strongest:
         raise ValueError(f"Cannot encode {context}: skin-weight row is empty or invalid.")
     out_of_range = [bone for bone, _weight in strongest if bone > PAC_SKIN_MAX_BONE_INDEX]

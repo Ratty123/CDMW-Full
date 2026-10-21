@@ -38,6 +38,12 @@ def load_mesh_import_sources(state: MeshImportBuildState) -> None:
         read_entry_data=lambda entry: read_archive_entry_data(entry, stop_event=state.stop_event),
     )
     state.original_data = state.original_baseline.data
+    if state.palette_extension is not None:
+        from cdmw.modding.pac_palette_extension import extend_pac_palette
+        state.original_data, contract = extend_pac_palette(
+            state.original_data, state.palette_skeleton, state.palette_extension.appended_names)
+        if contract != state.palette_extension:
+            raise ValueError("The imported palette extension no longer matches the template/PAB.")
     state.original_mesh = api.parse_mesh(state.original_data, state.entry.path)
     if state.texture_entries_by_basename is not None:
         state.original_sidecars_for_static = api._collect_original_mesh_sidecar_texts(
@@ -421,6 +427,9 @@ def finish_mesh_import_preview(state: MeshImportBuildState):
     )
     state.summary_lines.extend(validation_lines)
     raise_if_cancelled(state.stop_event, "Mesh import preview cancelled.")
+    if state.palette_extension is not None:
+        from cdmw.modding.pac_palette_extension import validate_palette_extension
+        validate_palette_extension(state.original_baseline.data, state.rebuilt_data, state.palette_skeleton, state.palette_extension)
     return api.MeshImportPreviewResult(
         rebuilt_data=state.rebuilt_data,
         parsed_mesh=state.parsed_mesh,
@@ -438,4 +447,5 @@ def finish_mesh_import_preview(state: MeshImportBuildState):
         source_owned_output_draw_sections=tuple(getattr(state.static_report, "output_draw_sections", ()) or ()),
         material_authority_settings=state.material_authority_settings,
         imported_material_manifest=state.imported_material_manifest,
+        palette_extension=state.palette_extension,
     )

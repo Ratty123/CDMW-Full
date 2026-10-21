@@ -381,29 +381,179 @@ does not prove that a smooth-skinned mesh belongs to a particular rig. Related
 character races can share the principal PHM, PHW or PTM skeletons; resolution
 must be demonstrated by the palette.
 
+These are supported authoring limits for the inspected layout, not a claim that
+every stored game record has at most six influences. Untouched records can retain
+extra raw influence data. The authored import mapper refuses more than six
+influences, but the lower-level ordinary-record packer still selects the strongest
+six in other call paths. Retained cloth records reject more than four; the full
+topology rebuild can instead clear donor cloth lanes and use an ordinary record.
+Those are separate weight-loss and physics decisions which a shared import policy
+must expose explicitly.
+
 **Conclusion:** The reader and writer must use the same proven layout, preserve
-protected lanes, and reject unresolved or excessive influences. Agreement
-between two implementations is not useful if both use the same wrong offsets.
+protected lanes, and reject unresolved or unapproved excessive influences.
+Agreement between two implementations is not useful if both use the same wrong
+offsets.
 
 Mesh Editor **Import Replacement** now retains authored GLB/glTF influences for
 compatible PAC targets. Used joint names must resolve uniquely into the captured
-target palette, and inverse bind matrices must agree on one conversion into the
-game rig's bind space. Unused armature joints do not require palette entries.
+target palette. Matching known joints must retain their hierarchy and establish
+one conversion into the game rig's bind space. A common inverse-bind conversion
+is accepted directly. Blender's per-bone local-axis changes are also supported
+when noncollinear rest-joint centers prove one proper rotation, positive uniform
+scale and translation. Unused foreign joints do not require palette entries;
+unused matching game joints still participate in the compatibility proof.
 Unknown used bones, incompatible frames, unsupported layouts and excessive
-influences are refused; no foreign-rig retargeting or palette extension is claimed.
+influences are refused; foreign-rig retargeting remains unavailable.
 PAC output quantizes weights to its byte representation. Unskinned replacements
-retain donor-weight transfer. New Item's separate model import still uses static
-conversion, and Free Edit's OBJ output does not retain a rig.
+retain donor-weight transfer. Create New Item now preserves compatible authored
+skin before conversion using the same proof, starts in game bind space and offers
+explicit per-part preservation, four/six-influence reduction and named template/body
+transfer. Reduction, donor filtering and byte quantization have separate reports.
+Preservation failure cannot initiate transfer. Free Edit's OBJ output does not retain a rig.
 
-Reviewed on 2026-10-21 against `277b82ccc786` plus the scoped authored-weight patch.
+The initial authored-weight route was reviewed on 2026-10-21 against
+`277b82ccc786` plus the scoped authored-weight patch.
 The [mapping service](../cdmw/services/mesh_replacement_skinning.py) and
 [owned regression fixtures](../tests/test_mesh_replacement_imported_skinning.py)
 verify joint-to-palette mapping, bind-space conversion, serialization and reparse,
 history, repeated imports, and the actual neutral Rust-host import/Finish handoff.
 The [material UV checks](../tests/test_scene_gltf_uv_bake.py) cover weight retention
 through texture-driven vertex reordering and seam splits.
-This is source and executable fixture evidence. The reporter's armour, packaged
-appearance and in-game animation remain unverified.
+The Blender bone-axis correction was reviewed on 2026-10-21 against
+`a7ca7e498ab4` plus the scoped compatibility patch. The
+[bind-frame checks](../tests/test_mesh_replacement_bind_frames.py) cover changed
+local bases, a single used joint, neutral-coordinate PAC serialization, and
+refusal of changed hierarchy, changed unused known joints, reflection and
+degenerate rest centers. The two authored-weight test files passed together
+(21 tests). This is source and executable fixture evidence, not game proof.
+
+Inspection of the supplied Rosa Cassius Blender/GLB pair found matching garment
+geometry and all 448 named joint parents. The source has up to nine influences
+per vertex; the GLB keeps four, affecting 5,469 original garment vertices and
+discarding up to 32.86% of a vertex's original weight before renormalization.
+An analytical strongest-six preparation would still affect 1,465 original vertices,
+remove up to 12.93% of a vertex's weight, and remove over 5% on 61 vertices. Those
+figures measure source reduction, not output quantization. CDMW's authored-skin
+reader retains the weights actually present in the GLB. A separate ordinary-record
+packing check found a maximum individual weight change of 1.345 percentage points;
+the byte writer reserves a nonzero byte for each retained positive influence.
+Neither result establishes deformation quality. The
+rest-joint centers match the installed PHW skeleton within 1.1 micrometers after
+one common transform, despite differing local bone axes. Blender 5.1.1 read a
+file saved by 5.2.45, so this establishes the inspected geometry/rig data, not
+complete newer-version feature or source-material parity. The GLB contains eight
+embedded PNGs; its source armour materials reference external DDS files that
+were not supplied alongside the Blender file.
+
+Installed item tables, English localization and prefab references resolve the
+reported **Elegant Carmine Leather Armor** to five PACs. Its primary
+`cd_phw_00_ub_00_0170.pac` has 93 resolved palette entries, but lacks the GLB's
+used `Bip01 L Thigh_Side` and `Bip01 Neck` joints. Preparing the complete GLB
+against that exact PAC correctly refuses the missing palette bone without
+changing the live mesh revision. A matching whole skeleton therefore does not
+establish compatibility with a single equipment PAC. Asset provenance for this
+inspection is the primary PAC SHA-256
+`dacc5740226f21d075535ee54a4ebd690294b9ec920b653163b79624cab9dafa`
+and PHW PAB SHA-256
+`1686637e26ecde30943cb6519178b6efc8bcc40f4c5c053ea7620c1ba6621605`;
+Steam's installed app manifest reports build ID `25477059`. This is installation
+metadata, not a runtime executable or in-game check. The selected PAB resolved
+with palette confidence; exact appearance/variant consumers remain a separate
+question. The five item PAC palettes together still lack Neck, which is the sole
+influence on the imported 337-vertex `Main_submesh3.001` part. A bounded scan of
+45 primary PHW torso PACs in the selected archive found no complete 51-bone match;
+this is not a search of every possible target asset.
+
+The 2026-10-21 investigation also verified that the matching PHW nude body is not
+a complete skeleton palette: it lacks Neck and R UpperArm used by this outfit.
+The current [body donor filter](../cdmw/services/new_item_skinning.py) removes
+unsupported influences and renormalizes partially supported rows before excluding
+faces with zero-supported vertices. Against the selected armor palette this
+changes 3,119 body rows and leaves 5,228 rows with no supported influence, before
+garment transfer. A 128-vertex-per-part closest-triangle sample against the filtered
+usable donor measured a 0.363 m p95 and 0.435 m maximum for the rigid pelvis-bound
+part. These are sampled surface distances, not transferred-weight or animation
+results. They support explicit donor selection, region review and preservation
+of intentional rigid weighting instead of an automatic whole-outfit substitute.
+
+A bounded metadata-only palette experiment on an owned copy appended the two
+missing existing PHW hashes at slots 93 and 94. Sequential decoding located the
+count at byte 27,570 and the following bounds/volume trailer at byte 27,944.
+Inserting eight bytes required the metadata size and eight absolute LOD stream
+pointers to grow by eight. All four geometry sections remained byte-identical;
+all parsed LOD parts, original influences, guide data and embedded-volume
+semantics remained unchanged. Independent decoding of a standalone weight record
+resolved both appended slots. Full-GLB replacement preparation then succeeded
+against this copy without publishing a live edit.
+
+The 2026-10-21 implementation adds a [semantic palette writer](../cdmw/modding/pac_palette_extension.py)
+for bounded decoded 3/9 layouts and a source/PAB-bound extension contract. It
+preserves old slots, uniquely resolves appended existing identities, relocates all
+LOD streams, and rejects malformed or undecoded metadata. The
+[New Item validator](../cdmw/services/new_item_variants.py) retains palette equality
+unless the exact contract authorizes the appended identities; it checks every LOD.
+Replacement output, history and versioned drafts retain that intent separately
+from original archive bytes. Extending this list does not add or modify PAB bones.
+
+A complete seven-part primary from the supplied four-influence GLB was written
+with 95 entries, imported
+materials and inherited template physics disabled. Independent decoding of every
+stored skin record verified both appended slots across four LODs; matched source
+rows retained their named influence sets with maximum byte-weight change of
+1.345 percentage points. Lower LODs compact/reorder source vertices, so the
+comparison matched final positions rather than assuming identical vertex order.
+The supplied GLB/Blender hashes and all 34 available PAMT fingerprints stayed unchanged.
+This is final file-level output evidence. Source-owned tests cover strict refusal,
+all-LOD relocation, authored New Item import, reduction, donor loss, selected donor
+surfaces, hidden companion slots, history and draft reopen.
+
+A separate unapproved six-influence Blender/GLB candidate was then exported directly
+from the original Blender vertex identities, with the supplied GLB's embedded
+material/image graph retained. Position-only restoration was rejected because
+coincident source vertices have different weights. Deterministic reduction affects
+1,465 original vertices; 61 lose over 5%, with maximum removed mass 12.93%. It still
+needs only the same two extra palette bones. Complete 95-slot six-influence primary
+output also passed independent all-LOD checks, with maximum byte-weight change
+1.892 percentage points. The review copy, loss-hotspot CSV and output are preparation
+and file-level evidence; original inputs stay unchanged.
+
+The authorized rendered follow-up produced **60 Rust D3D12 captures** on the Radeon
+RX 9070 XT: seven controlled PAB joint poses and three full-decoder PHW PAA frame
+samples, comparing the exact written four/six-weight LOD0 PACs with the original
+nine-weight Blender geometry from two views. All motion tracks matched the same PHW
+PAB hashes; bind reconstruction error stayed below 4.19e-6 in matrix elements. Shared
+camera/framing and exact generated DDS base/normal pixels were retained. The sampled
+walk's symmetric nearest-vertex p95 error decreased from 2.63 to 0.44 mm; the crouch
+sample decreased from 4.95 to 1.02 mm. This metric does not establish source-vertex
+correspondence or triangle-surface error. A separate comparison using original
+surface vertex IDs, excluding one unused vertex, still measures up to **10.5 mm**
+displacement from six-weight reduction in the raised-arm stress pose. The 61 vertices
+losing over 5% still need artist approval. The material presentation is common
+imported glTF appearance; PABC/body masks, inherited material auxiliaries, body
+clipping, simulation, full playback and lower-LOD deformation are not qualified.
+
+Bounded static analysis of build **1.0.0.2976**, executable SHA-256
+`57da440d72f4db974f25fef047cf84c4dadd999a88cb2a3c5af4c9bd67fde1e7`,
+confirmed the current metadata loader at `0x142C619E0`, counted-palette read at
+`0x142C6505B`–`0x142C650CE` inside `0x142C63D60`, and bounds/volume reader at
+`0x142C65110`. The palette is a u16 count followed by u32 hashes, stored at model
+offsets `+0x88`/`+0x90`. Binding work at `0x142CD53B0` sizes a u16 remap to that
+count and binary-searches skeleton hashes, with explicit 1,024-entry/index bounds.
+Unresolved hashes fall back to bone zero in that engine path; CDMW requires unique
+resolution before writing. The remap-resource path jumps from `0x142C6AA30` into
+`.xtls` at `0x1508E2CF0` and prepares a resource using the captured count. Seven
+complete bounded bodies, 3,308 instructions, matched independent PE/Capstone
+decoding byte for byte. REA's automatic provider analysis timed out; the confirming
+exports came from an isolated read-only Ghidra project copy without full analysis.
+Older source-comment addresses are interior instructions in this build and were
+not treated as current function entries.
+
+Palette extension remains an internal experiment behind the consumer rollout
+gate. Final resource stride, matrix allocation/upload, draw/shader/partition and
+special-physics consumers remain unqualified. Source six-influence approval,
+selected PABC/companion appearance, full motion playback and game acceptance remain open.
+No packaging, installation or game launch was performed for this implementation.
 
 Sources: [skinning research][modding-notes], [weight writer][mesh-skinning],
 [real-layout regression entry point][skin-tests].
@@ -1323,7 +1473,7 @@ This is a research register, not a promised delivery schedule.
 | Can every relevant prefab be structurally edited? | Header/type grammar and constrained heap/relocation rules | Resolve ambiguous groups/lengths without permissive fallback; independent edited-asset game checks |
 | Can PCG/PARG/PASG bodies be fully decoded? | Shared reflection metadata and a distinct pointee-tail lead | A complete grammar checked against independent counts/boundaries and representative assets |
 | Can exact mesh authoring be broadened? | Operation/LOD-specific writer gates | Source-preserving layouts, lower-LOD correspondence and physics/skin retention for each new operation |
-| Do imported authored-weight garments animate correctly in game? | Compatible GLB/glTF-to-PAC mapping and written-weight fixture checks | Matching target rig, the reporter's armour, and controlled packaged/game animation comparisons |
+| Do imported authored-weight garments animate correctly in game? | New Item preserves compatible authored skin with explicit loss/transfer policies. The internal source/PAB-bound 93-to-95 extension passed complete Rosa primary output, materials and independently decoded four-LOD skin records. Current 1.0.0.2976 executable analysis confirms the counted reader, count-sized CPU remap, 1,024-entry/index bounds and remap-resource preparation. Sixty D3D12 captures compare four/six-weight LOD0 outputs with the original under seven controlled poses and three decoded PHW motion samples; six weights is closer, with localized reduction loss still present. | Final resource stride, matrix/upload/draw/shader and special-physics consumers; artist approval of the six-influence source; exact PABC/item/companion appearance, full playback, lower-LOD deformation and packaged/game animation comparisons |
 | Can skeletons be restructured? | Proven fixed-layout hierarchy and bind transforms | A semantic writer, all dependent bindings and game acceptance |
 | Do generated hair and new cloth/collider profiles behave correctly in game? | Experimental authoring and bounded preview | Exact exported equipment, activation, movement/collision and reload comparisons |
 | What is the remaining EyeCover overlap mechanism? | Inspected scene-buffer composition and overlap-related user observation | Active-frame resource/permutation capture and a verified fix or bounded workaround |

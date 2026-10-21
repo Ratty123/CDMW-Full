@@ -143,7 +143,8 @@ def verify_import_sources(pending, *, include_materials=False):
             raise ValueError(f"Imported dependency changed during preparation: {path}. Import again.")
 
 
-def prepare_import(snapshot, path, *, target_part_ids=(), entry=None, dependencies=(), stop_event=None):
+def prepare_import(snapshot, path, *, target_part_ids=(), entry=None, dependencies=(), stop_event=None,
+                   palette_extension_bones=()):
     """Run on the managed protocol worker. The existing session is untouched."""
     from cdmw.modding.scene_importer import import_scene_mesh_with_report
     raise_if_cancelled(stop_event, "Replacement import cancelled.")
@@ -151,6 +152,13 @@ def prepare_import(snapshot, path, *, target_part_ids=(), entry=None, dependenci
     if source_path.suffix.lower() not in {".obj", ".dae", ".gltf", ".glb"}:
         raise ValueError("Choose an OBJ, DAE, glTF or GLB replacement.")
     state = snapshot.replacement_state or initial_replacement_state(snapshot, entry, dependencies)
+    if palette_extension_bones:
+        from cdmw.modding.pac_palette_extension import extend_pac_palette
+        if state.palette_extension is not None or state.neutral_coordinates:
+            raise ValueError("Prepare an existing-bone palette experiment from the original source-coordinate session.")
+        _derived, contract = extend_pac_palette(
+            snapshot.original_data, getattr(snapshot.mesh, "interchange_skeleton", None), palette_extension_bones)
+        state = replace(state, palette_extension=contract)
     chosen = tuple(target_part_ids) or tuple(part.part_id for part in state.parts)
     if len(set(chosen)) != len(chosen) or not set(chosen).issubset({part.part_id for part in state.parts}):
         raise ValueError("The selected replacement parts are no longer available.")
@@ -170,7 +178,9 @@ def prepare_import(snapshot, path, *, target_part_ids=(), entry=None, dependenci
     if not source.mesh.submeshes or not source.mesh.total_faces:
         raise ValueError("The imported model has no editable triangle geometry.")
     from cdmw.services.mesh_replacement_skinning import retain_imported_skinning
-    source.mesh = retain_imported_skinning(source.mesh, snapshot, state)
+    from cdmw.services.mesh_replacement_output import replacement_target_data
+    skin_snapshot = replace(snapshot, original_data=replacement_target_data(snapshot, state))
+    source.mesh = retain_imported_skinning(source.mesh, skin_snapshot, state)
     if not material_error:
         try:
             for binding in source.material_bindings:

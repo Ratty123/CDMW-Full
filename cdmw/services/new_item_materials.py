@@ -647,6 +647,7 @@ def _finish_plain_pbr_route(
             material_route=MaterialRoute.PLAIN_PBR.value,
             notes=tuple(lines),
             warnings=tuple(warnings),
+            palette_extension=files.palette_extension,
         ),
         rewritten=tuple(result.rewritten),
         lines=tuple(lines),
@@ -1013,6 +1014,7 @@ def route_model_files(
     return ModelFiles(
         pac_data=files.pac_data, side_files=files.side_files, material_route=MaterialRoute.BUILDER.value,
         notes=(*files.notes, "the Builder's material sidecar as it came (Material Authority)"), warnings=files.warnings,
+        palette_extension=files.palette_extension,
     )
 
 

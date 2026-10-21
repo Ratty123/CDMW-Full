@@ -109,7 +109,7 @@ class ModelPanelPreviewMixin:
             return
         settings.setValue(IMPORT_DIR_SETTING, str(Path(path).parent))
         self.import_model.setChecked(True)
-        self._controller.start_model_import(Path(path))
+        self._controller.start_model_import(Path(path), skin_policy=self.import_skin_policy.currentData())
 
     def _refresh_apply_status(self) -> None:
         imported = self._controller.draft.model_source is ModelSource.IMPORTED
@@ -223,13 +223,18 @@ class ModelPanelPreviewMixin:
             self.import_button,
             self.apply_button,
             self.fit_button,
+            self.import_skin_policy,
+            self.hide_variant_button,
             self.open_part_editor_button,
             self.use_part_editor_button,
             self.translucency_editor.paint_mask,
             self.shader_controls_editor.paint_mask,
         ):
             widget.setEnabled(not busy)
-        model_busy = bool(busy) and lane in {"model_import", "model_apply", "model_part_edit", "transparency_mask"}
+        source = self._controller.model_import
+        self.skinning_button.setEnabled(bool(not busy and source is not None and source.skinning_target
+            and source.mesh_generation == source.skinning_generation))
+        model_busy = bool(busy) and lane in {"model_import", "model_apply", "model_part_edit", "model_skinning", "model_hide", "transparency_mask"}
         self._set_placement_visible(
             self._controller.draft.template_key is not None or model_busy
         )
@@ -253,6 +258,10 @@ class ModelPanelPreviewMixin:
             self.part_editor_status.setVisible(True)
             self.part_editor_status.set_note("Preparing the Mesh Editor changes...", EDIT)
             self.operation_label.setText("Preparing Mesh Editor changes…")
+        elif busy and lane == "model_skinning":
+            self.operation_label.setText("Checking imported skin weights…")
+        elif busy and lane == "model_hide":
+            self.operation_label.setText("Hiding the selected variant…")
         elif busy and lane == "transparency_mask":
             self.operation_label.setText("Preparing the transparency painter…")
         self.operation_label.setToolTip(self.operation_label.text())
@@ -261,7 +270,7 @@ class ModelPanelPreviewMixin:
             self._refresh_apply_status()
 
     def _operation_progress(self, lane: str, current: int, total: int, detail: str) -> None:
-        if str(lane) not in {"model_import", "model_apply", "model_part_edit", "transparency_mask"}:
+        if str(lane) not in {"model_import", "model_apply", "model_part_edit", "model_skinning", "model_hide", "transparency_mask"}:
             return
         self.operation_label.setText(str(detail or "Working…"))
         self.operation_label.setToolTip(self.operation_label.text())

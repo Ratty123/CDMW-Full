@@ -2105,35 +2105,121 @@ keeps its original bindings; copying the template model itself also retains them
 
 ### Imported armour and skinning
 
-**Imported armour:** complete wearable replacements transfer weights from the whole
-compatible template surface, independently of its material sections. Partial edits
-retain their selected part's donor. Build plan resolves the template's declared PAB
-through `cdmw/core/skeleton_resolver.py`, including descriptors outside the model
-folder, and checks the rebuilt palette and every weighted index. Rigid helmets keep
-their prefab attachment; deforming headgear uses its character rig.
+**Imported armour:** compatible GLB/glTF skin is retained before scene conversion.
+Create New Item reuses Import Replacement's named-joint, hierarchy and bind-frame
+proof. The first placement is identity in proven game bind space; **Fit to template**
+is an explicit geometry edit and leaves weights attached to their source vertices.
+Missing equipment bones, incompatible rigs and excess influences refuse preservation.
+They never initiate donor transfer for an authored skin.
+
+**Weights on next import** selects preservation, deliberate template transfer or
+reduction to six influences. **Skin weights…** then exposes each part separately:
+keep, reduce to four/six, transfer from the template (optionally one named surface),
+or transfer from the verified character body. Transfer uses the current fit and
+placement, including rotation about the fitted origin; changing weights preserves
+that placement. Import details and Build plan
+retain the named donor, separate removed mass/normalization/byte-quantization results,
+1%/5% reduction review counts and native surface-distance warnings. These thresholds
+prioritize review; they do not establish deformation quality. Keep rigid pieces on
+their authored bones and restrict donors where limbs or layers lie close together.
+Mixed parts are weighted individually before merging; the shared merge/writer
+refuses incomplete skin and silent influence truncation.
+
+Complete wearable replacements transfer weights from the whole compatible template
+surface, independently of its material sections. Partial edits retain their selected
+part's donor. Build plan resolves the template's declared PAB through
+`cdmw/core/skeleton_resolver.py`, including descriptors outside the model folder,
+and checks the rebuilt palette and every weighted index. Rigid helmets keep their
+prefab attachment; deforming headgear uses its character rig.
 
 #### Verified body weight donors
 
 Some torso templates carry influences beyond their resolved character palette. For an
 unrigged scene import with **Template cloth / physics** off, Build plan can rebuild
 those weights from the matching, verified character body used by the existing character
-preview. `cdmw/services/new_item_skinning.py` maps body bones into the armour's own
-palette before transferring weights. Body triangles with no compatible influences are
-excluded. The body and PAB are tracked snapshot inputs and stay unchanged. The plan
-names the donor and warns to check fit and deformation; distant surface matches also
-warn.
+preview. `cdmw/services/new_item_skinning.py` maps body palette slots through the
+resolved PAB into the armour's own palette. The body and PAB are tracked snapshot
+inputs and stay unchanged. The plan names the donor and warns to check fit and
+deformation; distant surface matches also warn.
 
-Valid imported bindings stay intact. Authored source weights, a changed palette,
-retained template physics, or a missing usable body do not receive this automatic
-transfer.
+The current donor filter drops influences that the equipment palette cannot represent
+and renormalizes a row when supported influences remain. Faces touching a row with no
+supported influences are excluded. Reports quantify partial and unsupported vertices,
+excluded faces, maximum partial-row loss and normalization change separately.
+A successfully resolved body therefore does not establish that its original
+weights were retained, that it includes every character bone, or that its remaining
+surface is a suitable donor for every garment part. Closest-triangle distance alone
+cannot distinguish nearby limbs, layers, front/back surfaces or rigid decorations.
 
-The normal scene-import path supplies geometry for template/body weighting; this
-does not add external bone-name or animation retargeting. New topology does not
-rebuild cloth simulation. Body coverage, clipping and companion appearance still
-need inspection. The existing animation/skinning tools can check the planned PAC
-against PAB/PAA motion; headless deformation is not proof of in-game equipment or
-physics behavior. Skin-transfer notes and fit/material warnings survive material
-routing and appear in Build plan for their own variant.
+Bindings already present at variant validation stay intact when valid. Explicit
+weights, a changed palette, retained template physics, or a missing usable body do not
+receive the automatic body fallback. Authored skin uses preservation unless the user
+deliberately selects another policy. Data discarded by the source exporter remains lost.
+
+#### Imported-outfit investigation boundary
+
+The 2026-10-21 Rosa Cassius investigation verified a compatible PHW rest layout, but
+the selected Elegant Carmine Leather Armor primary PAC lacks `Bip01 L Thigh_Side`
+and `Bip01 Neck`. The inspected PHW body lacks Neck and R UpperArm itself. A body
+reference can help with fit or an explicitly chosen transfer; it cannot recover
+influences lost at export, add equipment palette entries or recreate cloth simulation.
+The neck-bound source part is rigidly weighted to Neck, making blind body transfer
+unsuitable for preserving its authored behavior.
+
+The internal file-level palette experiment now uses a semantic writer and captured
+`PacPaletteExtension` contract. It accepts only decoded, fully framed PAC 3/9 layouts,
+uniquely resolves existing names/hashes against the same fixed PAB, retains the
+original palette prefix and relocates every LOD stream. The normal import UI keeps
+the existing-palette guard. Runtime allocation/upload/draw limits must be qualified
+before exposing extension as a supported import choice. New Item's validator accepts
+an expanded palette only with its exact source/PAB-bound contract, never by disabling
+palette equality. Fit, placement, Mesh Editor copies and material routes retain that
+contract and its fixed PAB; every LOD is bounds-checked.
+
+On 2026-10-21 the supplied four-influence GLB produced a complete seven-part Rosa
+primary with 95 slots,
+imported materials and physics off. Independent final-record decoding verified
+appended slots at all four LODs and source weights within measured byte quantization
+(maximum 1.345 percentage points). This is file-level evidence, not game acceptance.
+
+A separate review copy was then exported directly from the original Blender source
+with explicit six-influence reduction. It retains the supplied GLB's embedded
+materials/images and still needs the same two extra palette bones. Reduction affects
+1,465 original vertices, with 61 losing over 5% and maximum removed mass 12.93%.
+The six-influence primary also passes independent four-LOD output checks; its maximum
+byte-weight change is 1.892 percentage points. Position-only restoration was refused because coincident source
+vertices can have different weights; the Blender export retains their identities.
+
+The authorized rendered review now contains 60 Rust D3D12 captures: seven controlled
+joint poses and three decoded PHW PAA samples, each comparing the exact four/six-weight
+LOD0 outputs with the original nine-weight Blender geometry from two views. The same
+rig, camera, framing and generated DDS base/normal textures are used throughout. Six
+weights reduced symmetric nearest-vertex p95 distances in the walking sample from
+2.63 to 0.44 mm, and in the crouching sample from 4.95 to 1.02 mm. These distances
+are diagnostics, not source-vertex correspondence. An independent original-vertex
+comparison still finds up to 10.5 mm displacement from six-weight reduction in the
+raised-arm stress pose; the 61 high-loss source vertices still require artist review.
+The captures use a common imported material presentation, without PABC/body masks,
+inherited material auxiliaries, body geometry or simulation. Lower-LOD deformation,
+packaged behavior and game acceptance remain unverified.
+
+Static analysis of the SHA-pinned 1.0.0.2976 executable confirmed the counted
+palette reader, count-sized CPU remap array, hash-to-skeleton search with explicit
+1,024-entry/index limits, and count-driven remap-resource preparation. Ghidra
+instruction bytes matched an independent decoder. Final matrix/upload/draw and
+special-physics consumers remain unqualified; these findings do not enable the
+experimental palette control or prove in-game binding of the appended hashes.
+
+Use the exact variant selector for the other equipment PACs. **Hide this variant**
+creates reversible tiny placeholders at every stored LOD, keeps the slot/material
+identity, and leaves other companions' selections intact. **Keep template** restores
+the slot. Five/six-influence skeletal output requires **Template cloth / physics**
+off. Apply checks this policy, and Build plan rechecks every LOD so re-enabling physics
+after Apply cannot bypass it. Inherited cloth/jiggle lanes, material simulation
+assignments and HKX are handled by the existing all-LOD planning policy. New topology
+does not recreate simulation.
+The Rosa appearance/PABC, body coverage, clipping, chosen companion arrangement,
+complete motion playback and actual equipment behavior remain separate review gates.
 
 ### Worker requests and publication
 
@@ -2143,6 +2229,9 @@ imports until the worker thread exits. The resident viewport remains present whi
 its replacement is prepared. Output reviews variants, records, acquisition routes,
 table provenance and changed files. Plans are tied to their draft revision and
 source payload/file fingerprints, checked again before atomic publication.
+Skin-weight and variant-hiding results also require the captured draft revision.
+Changing the model source or discarding the import cancels these jobs, and a late
+completion cannot override a newer choice, including Keep template followed by Import.
 
 ### Compatible mod bases
 
