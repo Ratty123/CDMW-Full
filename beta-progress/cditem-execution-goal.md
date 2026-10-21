@@ -22,7 +22,7 @@ the feature authority; this companion owns execution.
 | --- | --- | --- |
 | Stable identity | Existing UUIDs and retained reservations; actual image-preparation update/removal/reinstall/profile-transfer fixtures now verified | Preserve the same contracts through native use and saves |
 | Definition publication | B106/B111 retained results; portable paired-publication fixture has 41 cases/963 checks | Join actual backing/metadata/decoder routing and qualify the game reader boundary |
-| Exact private archive | Retained path-review checks and B93/B98 preparation result | Use the small exact archive/payload in the first concrete native I/O discriminator |
+| Exact private archive | B113 actual exact B93 PAZ path independently reviewed; original preparation/reviewer checks retained | Use that exact 112-byte archive and 102-byte payload in the concrete native I/O discriminator |
 | Separate package images | New maintained service/diagnostic CLI; 24 focused cases verified on actual compiler output | Feed each exact immutable image to a qualified native producer after the small-fixture proof |
 | Native resource use | B99 game metadata lookup; B109 wrapper and current concrete open/read/size/holder source qualification | Demonstrate exact private bytes under the bounded normal-return contract, then actual resource use and retirement |
 | End-to-end independence | No production native admission | Prove two same-donor packages through acquisition/equip/restart/update/removal/save and the separate absent-provider case |
@@ -71,11 +71,12 @@ Readiness reviewed on 2026-10-21 at
 B110 source-access script, B112 path candidate and preparation receipt. It does
 not redate the earlier tests or game observations.
 
-**Current decision: use the reviewed corrected caller after the next fresh
-game/install and quiet-provider handoff. No manual launch is needed.** The first
-B113 activation reached its startup/install handshake but captured no callback
-or private-path body. Retained B112 remains source-only. The unchanged separately
-frozen B113 current-loader binary is:
+**Current decision: exact private archive-path construction is verified for
+the bounded B113 route; proceed to the separate small payload read. No manual
+launch is needed.** The first activation captured valid headers only. The next
+run through the reviewed v5 caller produced complete packets and passed fresh
+independent exact-path/provenance review. Retained B112 remains source-only.
+The unchanged separately frozen B113 current-loader binary is:
 467,456 bytes, SHA-256
 `b653093237e1f6b2b21702d9ff3cd9970fcd78da606c6b0d43fddbf68073312e`.
 The `/W4 /WX /guard:cf` build passed in 14.43 seconds. Six owned callback cases
@@ -92,8 +93,8 @@ inspection of current UAL 9.7.4 finds the required forwarding/startup shapes at
 new offsets; the separately pinned variant uses those witnesses. The first
 controlled run now verifies startup and callback/phase/IAT observer installation
 on thread 23488 with current UAL; all three Live Edit chats received that result.
-This does not establish the later engine callback, phase or private path. No
-loader was replaced. The actual FastLoad setting is
+That first startup-only result did not establish the later callback or path;
+the complete path result below now does. No loader was replaced. The actual FastLoad setting is
 `bin64/CrimsonFastLoad/startup.ini`: FastStart=1, CustomLoadingScreen=1,
 Background empty, SaveSlot=latest. Preserve its existing automatic world load
 and ordinary game writes under the recorded human authority. The no-world
@@ -103,7 +104,7 @@ explicit save/load commands and configuration changes while recording that
 existing automatic behavior. Exact temporary-ASI recovery preserves absence or
 original bytes/mtime. Concrete I/O source qualification is now complete for the
 bounded small-read premise described in the owning technical contract. The
-actual path remains unobserved and private payload read unperformed. The size-entry decompilation
+actual exact path is now independently verified; private payload read remains unperformed. The size-entry decompilation
 refusal is retained; its direct thunk and actual body were separately resolved.
 The new actual-replay unknown remains open in the complete exported ledger.
 
@@ -121,20 +122,40 @@ pre-restoration clock sample, not total duration; the separately retained timing
 correction records that limit. File-write times corroborate prompt completion.
 
 The separately frozen v5 caller fixes fresh heartbeat/decision sampling, records
-the liveness reason, samples completion after restoration, and keeps header-only
-packets incomplete. Its 76 focused mocked cases, two CLI parsers and 12 source
-parses pass; independent review passes. The native binary is unchanged. No
-second run or new lane follows automatically from those checks. Actual evidence
-and the corrected caller are under the continuation's `run/` directory.
+the close judgement, samples completion after restoration, and keeps header-only
+packets incomplete. Its retained 76 mocked cases and independent source review
+pass; the native binary is unchanged.
+
+The next actual run, `b113-b73aeb63d14c46fe953465093f3faa76`, bound game PID
+32492 / creation FILETIME 134370748513604264 to host 49348 and guardian 44384.
+All five wires are complete. The native path matches the independently prepared
+B93 `root/0000/0.paz` exactly, allowing path-separator equivalence only; flags
+31/error 0, private group/file/archive ordinal zero and provider 1/1/ItemInfo
+6816 checks pass. The actual phase and stock packets also re-decode consistently.
+The guardian closed on the terminal result with heartbeat age 218ms, used the
+authorized force fallback after the normal-close grace, and measured 24.406s
+after exact restoration, within the unchanged 225/240-second bounds. Fresh
+process absence, original ASI absence, exact stock-stage/session cleanup and all
+14 selected input/preservation pins pass.
+
+Actual release: `run/B113_V5_ACTUAL_PHASE_RELEASE.json`, SHA-256
+`4965d88647007f37de10bf3340d476e28430ea2fa51d4a00ad3d1762ba190895`.
+Independent review: `run/v5-attempt1-review/review-result.json`, SHA-256
+`7eb5cff3b04a942ca60ad6ec93a3ed3b4c72b4165f5334b8f10b34547033034a`.
+Both paths are relative to the current ignored continuation directory. Fresh
+decodes, bound-session reconstruction, 57 caller/source pins and post-run pins
+pass. Offline reviewer consistency remains distinct from this actual capture
+provenance join. The game/build lane was returned; the queued Create Item reader
+then took REA. No grant carries forward into the next read/build operation.
 
 | Stage | Live game in the current route | Required observation |
 | --- | --- | --- |
 | Concrete I/O source qualification | No; bounded source/API premise established | Preserve exact method/holder guards; AL success is not transferred-byte proof and general retirement remains open |
-| B113 private archive path | First activation captured headers only; corrected run pending | The actual private index produces the exact prepared archive path; retain the output holder and verify the expected provider/ItemInfo checks |
+| B113 private archive path | Verified actual exact-path result; first failed activation retained | Exact prepared B93 PAZ path, retained holder and stable provider/ItemInfo checks independently joined |
 | Exact small payload read | Yes, after path and I/O qualification | Read the expected bytes from the owned archive under the qualified completion/lifetime contract |
 | Independent item lifecycle | Later | Two same-donor packages use their own native definitions/resources through acquisition, equip, restart, update, removal and save reload |
 
-The first existing source-qualified live step is B112's path-helper call at
+The B113 run now verifies B112's path-helper route at
 module offset `0x1376bf0` using the real private index from the supported callback.
 It opens no file, reads no payload and publishes no item. The maintained
 [exact archive reviewer](../cdmw/ui/new_item/INDEPENDENT_ITEMS.md#private-archive-path-evidence-review)

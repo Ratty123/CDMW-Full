@@ -18,7 +18,7 @@ original `CDISO-*` criteria, with narrowly scoped subtask results recorded below
 | Package identity and retained bindings | Existing implementation, exercised in the new preparation route | UUIDs and reservations survive owned-fixture updates/removal/reinstall/profile transfer; native lifecycle still required |
 | Native definition registration | Partial research evidence | B84 game rows; B106 typed backing; B111 selected-reader observations. Actual decoder/resource joins and the game reader boundary remain open |
 | Paired publication and lifetime | Verified owned-memory increment | `CDISO-RE-02A`: retained C++ result, 41 cases/963 checks. Both lookup paths and resource completion are modeled |
-| Exact private archive expectation | Completed bounded increment | `CDISO-RE-03A`: retained 52-test and B93/B98 preparation results |
+| Exact private archive expectation | Verified preparation and actual path construction | `CDISO-RE-03A`: retained preparation/reviewer checks; B113 exact native path independently reviewed, bytes/use still open |
 | Separate package resource images | Newly verified preparation increment | `CDISO-RE-03B`: actual compiler output, one immutable image per UUID, 24 focused cases verified; native discovery/use remains open |
 | Native resource open/read/use | Concrete method/holder source qualified; native proof open | Current read waits pending I/O before normal return under bounded Win32 assumptions; AL success hides errors/count. Exact bytes, resource use and general retirement remain unproved |
 | Fully independent native items | Open | Production `native_admission=false`; no combined-file-free native lifecycle acceptance |
@@ -34,28 +34,25 @@ checks were not rerun.
 
 ### In-game testing readiness
 
-**No manual game launch is needed.** Retained B112 remains source-only; the
-separately frozen B113 current-loader variant is now built and offline-verified.
-Six callback cases reproduce the old race and verify the single-claim fix;
-twelve startup-frame checks and the inert `0 -> 0` check pass. The first
-controlled activation passed startup/install but captured only valid headers
-before an early liveness-triggered close. The reviewed v5 caller fixes clock
-sampling and packet classification; a fresh handoff is needed for the exact path.
-The bounded small-read source premise is now qualified; actual exact-byte
-delivery still needs its own native run. Equip and save scenarios follow native
-definition/resource integration. The
-[execution checkpoint](cditem-execution-goal.md#first-in-game-test-and-notification)
-defines the readiness evidence and notice before that first run, preserving the
-existing controlled-game authorization.
+**No manual game launch is needed.** The unchanged compiled B113 current-loader
+probe now produced the exact prepared private archive path. Fresh independent
+review joins its complete packets to the owned game/process/source, with provider
+1/1 and ItemInfo 6816 unchanged. Exact restoration completed in 24.406s; all owned
+processes are absent and 14 selected preservation/input pins match. The first
+incomplete run and its caller correction remain retained. Payload delivery,
+resource use, equip and saves still require their own evidence. The frozen B114
+read source passes 52 synthetic decoder checks; its 18-case native-header fixture
+has not been compiled or run. Complete its Windows-call composition review,
+coordinated build and bounded caller before the separate read run.
 
 ### Next engineering steps
 
-1. Obtain the next current-owner/quiet handoff and run unchanged B113 through
-   the reviewed v5 caller. Preserve the first incomplete run and its exact limits.
-   Then use the source-qualified small-read premise on the exact B93 archive:
+1. Use the verified exact B93 path for the separate small-read discriminator:
    real size 112, capacity/request 102, offset zero, all bytes checked after
-   normal return and private objects retained until exit. Extend only after
-   actual byte delivery, keeping resource use and retirement separately open.
+   normal return and private objects retained until exit. Complete source/API
+   composition review, coordinated compilation and the bounded caller, then
+   obtain fresh current-owner/quiet handoffs for actual execution. Extend only
+   after exact byte delivery, keeping resource use and retirement open.
 2. Carry common preflight and retained ownership into actual B106 backing,
    private metadata and decoder routing. Qualify the real reader boundary before
    either native map exposes an entry.
@@ -72,12 +69,11 @@ bounded manager-method pass, exported and normally closed; its complete
 2,200-record/136-unknown-revision bundle and absent-process receipt were handed
 to the queued Create Item reader after repair's quiet boundary. Three complete
 method roots, the size thunk and holder constructor now qualify the bounded
-normal-return I/O premise. Actual path/read/use and retirement remain
-open. The later B113 activation passed startup/install but closed early on
-monitor liveness before any callback/path body. Its owned processes are absent,
-temporary ASI absence restored and 14 preserved/input pins unchanged. The
-reviewed v5 caller passes 76 mocked cases; the native binary is unchanged.
-Repair reclaimed resources for R30; no second lane/run is assumed. New receipts:
+normal-return I/O premise. The B113 v5 run now verifies exact native path
+construction with the differing current UAL. Its independent raw-packet and
+restoration review passes. Payload read/use and retirement remain open. The
+game/build lane was returned after the run; the queued reader then took REA.
+Refresh ownership for the next operation. New receipts:
 `workspace/reports/cditem-execution/20261021-native-path-continuation/`.
 Earlier readiness evidence is in
 `workspace/reports/cditem-execution/20261021-native-test-readiness/`;
@@ -85,6 +81,8 @@ the preceding 24-case preparation evidence remains in
 `workspace/reports/cditem-execution/20261021-package-resource-images/`.
 
 ## Completed work
+
+- 2026-10-21 | CDISO-RE-03 actual exact path | Unchanged B113 through reviewed v5 produced the exact independently prepared B93 private PAZ path. Fresh independent decodes and actual process/source/session joins pass; provider 1/1 and ItemInfo 6816 unchanged. Healthy-heartbeat terminal closure and exact restoration completed in 24.406s, all owned processes absent and 14 selected pins match. The first incomplete activation remains retained. This closes only the bounded path question; payload delivery/use, retirement, admission and all original acceptance states remain open. Source-only B114 has 52 synthetic decoder checks; its native fixture remains uncompiled. Evidence: `workspace/reports/cditem-execution/20261021-native-path-continuation/run/v5-attempt1-review/review-result.json`.
 
 - 2026-10-21 | CDISO-RE-03 first current-loader activation | B113 passed actual startup and callback/phase/IAT installation with current UAL, supporting the loader-hash clarification. A liveness-triggered close at 28.609s left valid headers and no result bodies; exact heartbeat consumption was not recorded. All owned processes closed, original ASI absence and exact staging restored, 14 selected pins match. V5 corrects the source clock race, completion timing and incomplete-packet labels; 76 focused mocked cases and independent review pass. Native path/bytes/use/admission and every original acceptance state remain open. The separately retained timing correction does not claim an exact total monotonic run duration. Evidence: `workspace/reports/cditem-execution/20261021-native-path-continuation/run/`.
 

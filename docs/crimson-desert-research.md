@@ -1060,13 +1060,13 @@ by itself demonstrate incompatibility. Inspection of UAL 9.7.4 preserves the
 required forwarding/startup instruction shapes at changed code, import and
 phase offsets. A separately pinned private probe variant uses those witnesses;
 the strict build, actual frame-matcher fixture and no-session inert check pass.
-The first controlled activation now passed its startup handshake and installed
-the guarded callback/phase observers and import hooks with that current loader.
-It closed early on monitor liveness before any observer/path result body, so
-later engine phase, exact archive path and resource use remain unproved. The
-source clock race is corrected in a separately reviewed caller; the exact
-heartbeat consumed in that run was not logged. Restoration and process closure
-are verified. Production loader admission remains unchanged.
+The first controlled activation passed startup/install but closed early with
+incomplete headers; that failure is preserved. A corrected bounded caller then
+captured the exact independently prepared private archive path with the same
+current loader and unchanged probe binary. Fresh independent packet/provenance
+review and exact restoration pass. The differing loader therefore worked for
+this guarded path route. Payload delivery, resource use and production loader
+admission remain separate and unproved.
 
 ### 13.2 Native item registration: a rejected shortcut
 
@@ -1159,8 +1159,9 @@ retirement remain unproved.
 The new offline [private archive path reviewer](../cdmw/ui/new_item/INDEPENDENT_ITEMS.md#private-archive-path-evidence-review)
 binds independently pinned preparation, the selected private archive and its
 expected payload. It refuses a different archive beneath the same root. Focused
-fixtures and a retained-input check passed on 2026-10-21; native capture
-provenance, byte delivery and resource use remain unverified.
+fixtures and a retained-input check passed on 2026-10-21. The later controlled
+B113 capture now passes exact-path review and a separate actual process/source
+provenance join. Byte delivery and resource use remain unverified.
 
 The maintained [per-package resource image preparation](../cdmw/ui/new_item/INDEPENDENT_ITEMS.md#per-package-resource-image-preparation)
 now produces a separate PAPGT/PAMT/PAZ image from each package's actual validated
@@ -1184,8 +1185,12 @@ the old concurrent/reentrant behavior and verify the fix with synchronized
 fixture dependencies. No engine metadata/path function or private payload is
 executed by those controls. The compiled probe's first controlled startup
 produced valid headers without a path body before an early liveness-triggered
-close. That is incomplete failed evidence; the corrected caller still needs
-the actual exact archive-path result independently of file-I/O qualification.
+close. That incomplete failed evidence is preserved. The unchanged compiled
+probe then produced the exact B93 private archive path under the corrected
+caller. Fresh independent decodes join complete native packets to the owned
+process and source pins, with provider and ItemInfo counts unchanged. Exact
+restoration and process closure completed in 24.406 seconds. This verifies
+path construction independently of file-I/O qualification.
 
 The next resource proof must reach the intended bytes and their actual engine
 consumer. The source-qualified small-read diagnostic must now demonstrate the

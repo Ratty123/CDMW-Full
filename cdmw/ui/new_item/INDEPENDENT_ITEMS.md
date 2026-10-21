@@ -1156,7 +1156,8 @@ terminal packet misclassification; v5 reads heartbeat before sampling uptime,
 samples the decision clock after all blocking identity/file work, records the
 close judgement and measures completion after restoration. It preserves every
 native guard and the fixed 225/240-second deadline. Seventy-six focused mocked
-cases and independent review pass; no second native run is implied.
+cases and independent source review pass. The unchanged B113 binary then
+produced a complete actual exact-path result through that caller.
 
 The first run restored original ASI absence and exact stock staging, left all
 owned processes absent and retained 14 selected input/preservation matches.
@@ -1164,9 +1165,22 @@ The old 32.422s value is a pre-restoration sample, not exact total duration;
 the preserved timing correction makes that distinction. Current FastLoad's
 automatic latest-save transition stays unchanged under existing recorded human
 scope, while the caller issues no input/explicit load or configuration change.
-The exact archive path, native byte delivery/use and general retirement remain
-unproved. Production bootstrap/admission and sealed B112/native B113 bytes are
-unchanged.
+The next actual run independently verifies the exact prepared B93 private
+archive path, with provider 1/1 and ItemInfo 6816 unchanged. All five complete
+wires, actual process/birth/session/source joins and restoration pass fresh
+review; post-restoration duration is 24.406s with healthy-heartbeat terminal
+closure. The first failed result remains retained. Native byte delivery/use and
+general retirement remain unproved. Production bootstrap/admission and sealed
+B112/native B113 bytes are unchanged.
+
+The separately frozen B114 source observes one fixed 102-byte read at offset
+zero from the actual 112-byte archive. It preserves AL separately from the
+all-byte comparison, complements every initial buffer byte and retains private
+objects until process exit. Its 52 synthetic decoder checks pass; the 18-case
+actual-header fixture remains uncompiled. Selected live Windows-root/import
+composition, a coordinated build and the current-owner bounded caller remain
+prerequisites. Exact-byte observation will not itself establish resource use,
+production retirement or native item admission.
 
 
 ### Proposed startup admission lifecycle

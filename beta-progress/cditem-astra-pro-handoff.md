@@ -23,7 +23,7 @@ review continued on `main` at `099e9f7e7a5555f07246ab475b399c15215e419c`.
 | Maintained paired-publication experiment | Retained portable C++ run: 41 cases/963 checks; independent source review passes | Common preflight and retained backing are established on owned memory; actual native joins and reader synchronization remain open |
 | B99 metadata lookup | Retained actual-game result with independently verified restoration | Private metadata lookup is settled; native byte delivery and resource use remain open |
 | B109 / current resource-method qualification | Wrapper, concrete open/read/size, size thunk and holder constructor source qualified | Execute the bounded exact-byte discriminator; AL success is not count proof, and general retirement remains open |
-| B112 / B113 path candidate | B112 source-only; B113 first actual startup/install passed, result bodies not captured | Use reviewed v5 caller after fresh handoff; bind a complete actual path to the exact prepared archive |
+| B112 / B113 path candidate | B112 source-only; B113 exact actual path independently reviewed through v5 | Preserve the first incomplete run; use the verified exact B93 archive for the separate payload read |
 | Exact path evidence review | Maintained offline tool; retained 52-test and B93/B98 preparation results | Exact small archive and payload expectation are available for the next path/open/read experiment |
 | Per-package resource images | New service and diagnostic CLI; 24 focused cases verified with actual compiler fixtures | Separate immutable image bytes and reservation provenance are ready as research inputs; native consumption remains open |
 
@@ -89,16 +89,15 @@ The owning technical contract records the source/API assumptions and refusals.
 
 ### Immediate engineering sequence
 
-1. Use the separately frozen, compiled B113 current-loader path candidate after
-   the reviewed v5 caller and a fresh game/install/quiet handoff. The first
-   activation produced headers only before early closure; preserve that failed
-   result. Its live private-index path call can precede concrete I/O
-   qualification; the captured path still needs the exact-archive review.
-   Concrete method/holder source qualification now supports the bounded
-   small B93 read: real size 112, request/capacity 102 at offset zero, complemented
-   initial buffer, exact bytes checked after normal return and private objects
-   retained until exit. Native byte delivery remains unproved; extend only after
-   that discriminator passes.
+1. Continue from the verified B113 exact private B93 archive path. B114 is a
+   frozen source-only read successor with 52 synthetic decoder checks; its
+   18-case actual-header native fixture remains uncompiled/unrun. Complete
+   selected live Windows-root/import composition qualification, independent
+   source review, coordinated compilation and the reviewed bounded caller.
+   Then obtain fresh current ownership and test real size 112, request/capacity
+   102 at offset zero with a complemented buffer, checking every byte after
+   normal return and retaining private objects until exit. Exact byte delivery,
+   actual resource use and general retirement remain separate open questions.
 2. Use the maintained paired-publication experiment as the ordering/lifetime
    baseline. Join actual B106 backing, metadata and decoder routing to both
    native maps, then qualify the real consumer boundary and failure/lifetime.
@@ -192,8 +191,23 @@ close decision, samples completion after restoration and keeps valid header-only
 packets incomplete. Its 76 mocked cases, two CLI parsers and 12 source parses
 pass, with independent source review. Source packet SHA-256 is
 `2a890b5b52885169b56c37be4239bed12cb626081b6724e16b843cc5af8b5857`.
-The native binary is unchanged; repair owns the next R30 sequence and no next
-lane is assumed. R29 hook order is source-qualified: CDMW-first permits R29's
+
+The next controlled run `b113-b73aeb63d14c46fe953465093f3faa76` now verifies
+the exact B93 `root/0000/0.paz` path. Game 32492/birth 134370748513604264,
+host 49348 and guardian 44384 are joined to complete callback, phase, resource,
+path and stock packets. Fresh independent decodes, exact preparation review,
+bound-session reconstruction and 57 caller/source pins pass. Provider 1/1 and
+ItemInfo 6816 remain unchanged. Close followed the terminal result with healthy
+heartbeat age 218ms; the authorized force fallback and exact restoration finish
+at 24.406s. All owned processes are absent, ASI absence/staging/session restored
+and 14 selected input/preservation pins match. Release SHA-256
+`4965d88647007f37de10bf3340d476e28430ea2fa51d4a00ad3d1762ba190895`;
+independent `run/v5-attempt1-review/review-result.json` SHA-256
+`7eb5cff3b04a942ca60ad6ec93a3ed3b4c72b4165f5334b8f10b34547033034a`.
+The game/build lane was returned and Create Item took REA after closure; no
+current grant is assumed. This path result is not native payload/use proof.
+The native binary is unchanged. R30's captured loading-probe sources match
+the selected R29 tap behavior. Source-qualified hook order is: CDMW-first permits R29's
 optional observer omission; R29-first makes B113 refuse the occupied CreateFile2
 slot before applying patches. Actual future composition must still be observed.
 Receipts, source pins and lane releases are in
