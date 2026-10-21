@@ -89,15 +89,15 @@ The owning technical contract records the source/API assumptions and refusals.
 
 ### Immediate engineering sequence
 
-1. Continue from the verified B113 exact private B93 archive path. B114 is a
-   frozen source-only read successor with 52 synthetic decoder checks; its
-   18-case actual-header native fixture remains uncompiled/unrun. Complete
-   selected live Windows-root/import composition qualification, independent
-   source review, coordinated compilation and the reviewed bounded caller.
-   Then obtain fresh current ownership and test real size 112, request/capacity
-   102 at offset zero with a complemented buffer, checking every byte after
-   normal return and retaining private objects until exit. Exact byte delivery,
-   actual resource use and general retirement remain separate open questions.
+1. Continue from the verified exact B93 path. B115 source/API/hook joins and
+   69 synthetic checks pass, and all four strict targets compile. The compiled
+   read controls fail after the simulated getter boundary; eight API controls
+   and five pre-call read refusals pass. Static inspection finds fixture function
+   addresses computed 4 GiB too high; actual targets are CFG-valid. Preserve the
+   source/binary/failure and qualify a separately versioned fixture-only runtime
+   address correction with the same header and CFG. Own-process/inert and final bounded-caller checks remain
+   before any actual 102-byte read. Fresh compiler/game/pair/quiet handoffs are
+   required; no old window or pair is adopted automatically.
 2. Use the maintained paired-publication experiment as the ordering/lifetime
    baseline. Join actual B106 backing, metadata and decoder routing to both
    native maps, then qualify the real consumer boundary and failure/lifetime.

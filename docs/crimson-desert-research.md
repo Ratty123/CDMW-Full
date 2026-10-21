@@ -1192,6 +1192,15 @@ process and source pins, with provider and ItemInfo counts unchanged. Exact
 restoration and process closure completed in 24.406 seconds. This verifies
 path construction independently of file-I/O qualification.
 
+The separately versioned small-read prototype now builds with bounded
+selected Windows entry/root and hook-composition witnesses. Its compiled
+synthetic tests fail once they reach the simulated file manager, while the
+selected API-guard controls pass. This is retained failed isolated validation;
+static inspection locates incorrect computed function addresses in the test
+fixture. A separate fixture-only correction must pass compiled validation
+before a game payload run.
+Production admission remains unchanged.
+
 The next resource proof must reach the intended bytes and their actual engine
 consumer. The source-qualified small-read diagnostic must now demonstrate the
 exact retained bytes after normal return, with a fresh complemented buffer and

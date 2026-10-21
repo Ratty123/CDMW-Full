@@ -155,6 +155,32 @@ then took REA. No grant carries forward into the next read/build operation.
 | Exact small payload read | Yes, after path and I/O qualification | Read the expected bytes from the owned archive under the qualified completion/lifetime contract |
 | Independent item lifecycle | Later | Two same-donor packages use their own native definitions/resources through acquisition, equip, restart, update, removal and save reload |
 
+The separate B115 source now adds selected live Windows witnesses: three module
+identities, 17 complete entry/root spans (1,949 bytes), eight thunk slots and nine
+export joins. File hashes are configure-only; bounded live witnesses are checked
+around the fixed read. Exact R29/R30/R31 selected hook-source/compiler joins pass.
+Transitive OS semantics remain an explicit assumption. Source review, 69
+synthetic decoder checks and the adapted bounded caller review pass.
+
+Actual strict compilation built all four B115 targets. The ASI is 490,496 bytes,
+SHA-256 `2f2a5b11dc155928ea5254687719ca7f07b2cabb184db83b8724489c4ec66e78`.
+The first compiled test run passes eight API-guard controls and five pre-call
+read refusals; the remaining 13 read controls terminate with `0xc0000409`.
+Those logs alone do not distinguish CFG from a caught fixture exception/abort.
+Static COFF/PE inspection now finds selected fixture function addresses computed
+4 GiB too high, while the actual targets are valid linked CFG entries. Qualify
+a fixture-only runtime-address correction with the same actual header and CFG
+enabled; the original ASI stays unchanged. The actual abort site was not captured.
+Own-process API and no-session inert checks were not run after the failed stage.
+The frozen source and binary remain unchanged; all 82 source pins match, no
+game/install/input/provider action occurred and the compiler window was returned.
+The build/tests finished in 13.435s; the last test-log write is 17:37:23 UTC,
+before the 17:38 window ended. No automatic rebuild or game replay follows.
+Failure/release receipt: `b115-build-proof/failure-and-resource-release.json`,
+SHA-256 `feb6f30c4a58af6f468f5b56803fc7f7a5241481b3a150ec6e9ee9bdcb4357f0`,
+relative to the current ignored continuation directory. Diagnose only the
+failing owned boundary, then qualify a separately versioned correction.
+
 The B113 run now verifies B112's path-helper route at
 module offset `0x1376bf0` using the real private index from the supported callback.
 It opens no file, reads no payload and publishes no item. The maintained

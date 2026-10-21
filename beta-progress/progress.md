@@ -40,19 +40,23 @@ review joins its complete packets to the owned game/process/source, with provide
 1/1 and ItemInfo 6816 unchanged. Exact restoration completed in 24.406s; all owned
 processes are absent and 14 selected preservation/input pins match. The first
 incomplete run and its caller correction remain retained. Payload delivery,
-resource use, equip and saves still require their own evidence. The frozen B114
-read source passes 52 synthetic decoder checks; its 18-case native-header fixture
-has not been compiled or run. Complete its Windows-call composition review,
-coordinated build and bounded caller before the separate read run.
+resource use, equip and saves still require their own evidence. The separate
+B115 read source and selected API/hook interpretation pass independent review
+and 69 synthetic checks. All four native targets compile, but the compiled
+read controls fail after the simulated getter boundary. Eight API-guard controls
+and five pre-call read refusals pass. Static inspection finds fixture targets
+computed 4 GiB too high; qualify a separate fixture-only address correction,
+then complete own-process/inert and bounded-caller checks before a game read.
 
 ### Next engineering steps
 
-1. Use the verified exact B93 path for the separate small-read discriminator:
-   real size 112, capacity/request 102, offset zero, all bytes checked after
-   normal return and private objects retained until exit. Complete source/API
-   composition review, coordinated compilation and the bounded caller, then
-   obtain fresh current-owner/quiet handoffs for actual execution. Extend only
-   after exact byte delivery, keeping resource use and retirement open.
+1. Qualify the separately versioned fixture-only runtime-address correction
+   for B115; preserve the failed source/binary and passing API controls. Keep
+   the actual header and CFG intact, then finish
+   own-process/inert and bounded-caller checks. Obtain fresh resource handoffs
+   before the exact B93 native read: size 112, capacity/request 102, offset zero,
+   every byte checked after normal return and private objects retained until
+   exit. Resource use and general retirement remain separately open.
 2. Carry common preflight and retained ownership into actual B106 backing,
    private metadata and decoder routing. Qualify the real reader boundary before
    either native map exposes an entry.
@@ -81,6 +85,8 @@ the preceding 24-case preparation evidence remains in
 `workspace/reports/cditem-execution/20261021-package-resource-images/`.
 
 ## Completed work
+
+- 2026-10-21 | CDISO-RE-03 read-probe qualification | Frozen B115 adds bounded selected Windows-module/code/thunk/export witnesses and retains exact R29/R30/R31 hook-source joins. Independent source review and 69 synthetic checks pass; all four strict native targets compile. Compiled validation passes eight API controls and five pre-call read refusals, while 13 read controls terminate `0xc0000409`; static inspection finds fixture function addresses computed 4 GiB too high while the actual targets are CFG-valid. The separate fixture-only correction needs compiled validation. Own-process/inert checks are unrun, no game/read admission follows, and all 82 source pins remain exact. Compiler resources returned after 13.435s of build/tests. The exact-path milestone and all original acceptance states are retained. Evidence: `workspace/reports/cditem-execution/20261021-native-path-continuation/b115-build-proof/failure-and-resource-release.json`.
 
 - 2026-10-21 | CDISO-RE-03 actual exact path | Unchanged B113 through reviewed v5 produced the exact independently prepared B93 private PAZ path. Fresh independent decodes and actual process/source/session joins pass; provider 1/1 and ItemInfo 6816 unchanged. Healthy-heartbeat terminal closure and exact restoration completed in 24.406s, all owned processes absent and 14 selected pins match. The first incomplete activation remains retained. This closes only the bounded path question; payload delivery/use, retirement, admission and all original acceptance states remain open. Source-only B114 has 52 synthetic decoder checks; its native fixture remains uncompiled. Evidence: `workspace/reports/cditem-execution/20261021-native-path-continuation/run/v5-attempt1-review/review-result.json`.
 

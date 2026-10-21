@@ -1173,14 +1173,27 @@ closure. The first failed result remains retained. Native byte delivery/use and
 general retirement remain unproved. Production bootstrap/admission and sealed
 B112/native B113 bytes are unchanged.
 
-The separately frozen B114 source observes one fixed 102-byte read at offset
-zero from the actual 112-byte archive. It preserves AL separately from the
-all-byte comparison, complements every initial buffer byte and retains private
-objects until process exit. Its 52 synthetic decoder checks pass; the 18-case
-actual-header fixture remains uncompiled. Selected live Windows-root/import
-composition, a coordinated build and the current-owner bounded caller remain
-prerequisites. Exact-byte observation will not itself establish resource use,
-production retirement or native item admission.
+The retained B114 source provides the fixed 102-byte normal-return byte
+observation. The separate B115 successor adds three selected Windows module
+identities, 17 complete entry/root spans (1,949 bytes), eight thunk slots and
+nine exports, preserving the strict IAT planner and AL/byte distinction. Full
+system-file hashing occurs at configure; the callback rechecks bounded live
+identity/bytes/slots/exports and preserves LastError. Exact selected R29/R30/R31
+hook-source/compiler joins transfer the conditional source interpretation.
+Internal OS callees/handlers/data retain the documented-semantics assumption.
+
+The B115 wire has 70 QWORD fields, ten pointers and 102 bytes in each 744-byte
+frame; six added witnesses record the selected guard counts before/after read.
+Source review and 69 synthetic decoder checks pass. All four strict native
+targets compile, but only eight API controls and five pre-call read refusals
+pass the first compiled run; 13 read controls terminate `0xc0000409` after
+reaching the simulated getter boundary. Static COFF/PE inspection finds fixture
+function addresses computed 4 GiB too high; the actual targets have valid linked
+CFG entries. The abort site itself was not captured. Retain the failed source
+and ASI, and qualify a separate fixture-only runtime-address correction using
+the unchanged actual header and CFG
+before own-process/inert checks and actual execution. Exact native byte
+delivery, resource use, production retirement and item admission remain open.
 
 
 ### Proposed startup admission lifecycle
