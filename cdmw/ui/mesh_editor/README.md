@@ -165,12 +165,23 @@ and [edited-result preparation](../../services/mesh_archive_results.py).
 headings in the Inspector, below Parts. Select parts, then open the material
 control you need; it remains accessible when Parts is collapsed.
 
+Each part has a full-width selectable name, with **View** and **Include** directly
+below it. **View** only affects the viewport; **Include** controls exported output.
+Physics badges share the controls row or wrap below it, so they do not squeeze
+part names. Hover over a name or badge for the full material and physics details.
+Selection and visibility tools stay above the list; Duplicate, Delete and the
+output-policy menu stay together below it.
+
 ### Mesh islands
 
 Open **Parts**, select a part, and expand **Mesh islands** to address disconnected
 pieces inside that part. Selecting an island selects its faces for the existing
 move, rotate, scale and Free Edit tools; it does not create a new material or part.
 Mesh islands starts collapsed and opens when you click its heading.
+Islands are grouped under their part name, with a separate selectable island row
+and **View**, **Include** and **Isolate** controls beneath it. Long names retain
+their full text on hover. Hover over the section heading for selection and seam
+grouping guidance.
 Coincident UV-seam vertices are grouped at 1e-5 model-unit precision without
 welding or moving the model. Existing **Linked** selection still follows vertex
 indices when that stricter connectivity is wanted.
@@ -942,7 +953,9 @@ edits.
 ### Detected physics
 
 The **Parts** list marks parts with cloth, spline or jiggle influence. Select a
-part to expand **Detected physics** in the Inspector or Cloth page. It shows
+part and expand **Detected physics** below **Mesh islands** in the Inspector.
+It starts collapsed, with each selected part's evidence grouped under its name.
+The Cloth page keeps its physics details expanded initially. The details show
 retained source vertex counts, the guide mesh and its fixed anchors, exact
 profile assignments by variant, and current disabled contributions where the
 editor can still prove vertex ownership. Hover over a part for the same evidence.

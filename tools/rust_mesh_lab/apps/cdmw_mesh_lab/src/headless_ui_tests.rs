@@ -1929,8 +1929,11 @@ fn integrated_parts_visibility_filters_drawing_and_selection_without_changing_ge
         ui.application.selected_part_indices().is_empty(),
         "hidden part was selectable"
     );
-    // Locate the checkbox from its painted square next to the part label.
-    let label = ui.reveal("1: Back")?;
+    // Locate the painted View checkbox beneath this part's name.
+    let name = ui.reveal("1: Back")?;
+    let label = ui.label_rect_where("View", |rect| {
+        rect.top() > name.bottom() && rect.top() < name.bottom() + name.height() * 2.0
+    }).ok_or("part View label")?;
     let checkbox = ui
         .output
         .shapes
@@ -2004,7 +2007,8 @@ fn integrated_parts_rows_stay_compact_with_long_names_and_materials() -> TestRes
         })
         .collect::<Vec<_>>();
     assert_eq!(rows.len(), 2);
-    assert!((rows[1].center().y - rows[0].center().y).abs() <= 28.0);
+    assert!((rows[1].left() - rows[0].left()).abs() <= 2.0, "{rows:?}");
+    assert!((rows[1].center().y - rows[0].center().y).abs() <= 72.0);
     Ok(())
 }
 
@@ -5215,7 +5219,7 @@ fn integrated_replacement_view_checkbox_toggles_from_its_painted_square() -> Tes
             "parts": [{"index": 0, "id": "stable:0", "name": "Triangle", "included": true}]
         });
         ui.settle_layout();
-        let label = ui.reveal("Include")?;
+        let label = ui.reveal("View")?;
         let checkbox = ui
             .output
             .shapes

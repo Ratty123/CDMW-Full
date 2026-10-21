@@ -692,15 +692,24 @@ impl Default for ClothView {
 }
 
 impl LabApplication {
-    pub(super) fn draw_cdmw_physics_detection(&self, ui: &mut egui::Ui, indices: &[u32]) {
+    pub(super) fn draw_cdmw_physics_detection(&self, ui: &mut egui::Ui, indices: &[u32], default_open: bool) {
         let rows: Vec<_> = self.cdmw_state["physics"]["parts"].as_array().into_iter().flatten()
             .filter(|part| indices.contains(&(state_u64(part, "index") as u32))).collect();
         if rows.is_empty() { return; }
+        ui.separator();
         crate::localization::collapsing("Detected physics")
-            .id_salt(ui.id().with("detected-physics")).default_open(true).show(ui, |ui| {
+            .id_salt(ui.id().with("detected-physics")).default_open(default_open).show(ui, |ui| {
                 for part in &rows {
-                    if rows.len() > 1 { ui.strong(state_str(part, "name").unwrap_or_default()); }
-                    for line in physics_lines(part) { ui.small(line); }
+                    egui::Frame::group(ui.style()).show(ui, |ui| {
+                        ui.set_width(ui.available_width());
+                        let name = state_str(part, "name").unwrap_or_default();
+                        ui.add(egui::Label::new(egui::RichText::new(name).strong()).truncate())
+                            .on_hover_text(name);
+                        for line in physics_lines(part) {
+                            ui.add(egui::Label::new(egui::RichText::new(line).small()).wrap());
+                        }
+                    });
+                    ui.add_space(4.0);
                 }
             });
     }
@@ -711,7 +720,7 @@ impl LabApplication {
             cloth["parts"].as_array().into_iter().flatten()
                 .filter(|part| state_bool(part, "included")).map(|part| state_u64(part, "index") as u32).collect()
         };
-        self.draw_cdmw_physics_detection(ui, &inspected);
+        self.draw_cdmw_physics_detection(ui, &inspected, true);
         if !state_bool(&cloth, "available") {
             ui.label(crate::localization::tr(state_str(&cloth, "reason").unwrap_or("Cloth influence is unavailable.")));
             let parts = self.cdmw_state["replacement"]["parts"].as_array().cloned().unwrap_or_default();

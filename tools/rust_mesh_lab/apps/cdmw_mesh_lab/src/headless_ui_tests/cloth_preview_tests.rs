@@ -553,6 +553,7 @@ fn physics_detection_shows_spline_evidence_without_a_preview_rig() -> TestResult
     ui.application.handle_actions(vec![UiAction::SetPartSelection(vec![0])]);
     ui.application.cdmw_pending_request = None; // Selection itself sends a host command.
     ui.settle_layout();
+    ui.click("Detected physics")?;
     ui.reveal("Physics: Spline")?;
     ui.reveal("330 / 870 source vertices use guides")?;
     ui.reveal("Guide vertices by LOD: 330 / 120 / 40 / 10")?;
@@ -628,6 +629,7 @@ fn physics_detection_free_edit_distinguishes_source_geometry_and_output() -> Tes
     ui.application.handle_actions(vec![UiAction::SetPartSelection(vec![0])]);
     ui.application.cdmw_pending_request = None;
     ui.settle_layout();
+    ui.click("Detected physics")?;
     ui.reveal("Physics: Cloth + jiggle (source)")?;
     ui.reveal("Current geometry retains the source binding layout; edited physics is unverified.")?;
     ui.reveal("Variant 0: Lower Fabric (cloth)")?;
@@ -655,6 +657,7 @@ fn physics_detection_keeps_unknown_guides_distinct_from_no_bindings() -> TestRes
     }]});
     ui.application.handle_actions(vec![UiAction::SetPartSelection(vec![0])]);
     ui.settle_layout();
+    ui.click("Detected physics")?;
     ui.reveal("Physics: Guide bindings")?;
     ui.reveal("Unknown guide layout")?;
     assert!(ui.label_rect("Physics: Spline").is_none());

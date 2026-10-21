@@ -1,6 +1,41 @@
 use super::*;
 
 #[test]
+fn island_controls_keep_long_part_names_above_controls_at_larger_text_sizes() -> TestResult {
+    let name = "CD_PHM_00_Mask_Belt_0105_01_01_01";
+    for (size, font, density) in [
+        (egui::vec2(1440.0, 1080.0), 11.0, "normal"),
+        (egui::vec2(1000.0, 900.0), 18.0, "comfortable"),
+    ] {
+        let mut ui = island_ui(size)?;
+        ui.application.apply_cdmw_theme_payload(&json!({"font_point_size": font, "density": density}));
+        ui.application.cdmw_state["mesh_islands"]["parts"][0]["name"] = json!(name);
+        ui.settle_layout();
+        ui.click("Mesh islands")?;
+        let island = ui.reveal("Island 1 · 1 faces")?;
+        let part = ui.label_rect(name).ok_or("part name above island")?;
+        assert!(island.top() > part.bottom());
+        let view = ui.label_rect_where("View", |rect| {
+            rect.top() > island.bottom() && rect.top() < island.bottom() + island.height() * 3.0
+        }).ok_or("View below island name")?;
+        let include = ui.label_rect_where("Include", |rect| {
+            (rect.center().y - view.center().y).abs() < 2.0
+        }).ok_or("Include beside View")?;
+        assert!(view.right() < include.left());
+        ui.click("Island 1 · 1 faces")?;
+        assert_eq!(ui.application.mesh.as_ref().ok_or("mesh")?.selection.faces.len(), 1);
+        ui.last_actions.clear();
+        ui.click_at(include.center());
+        assert!(ui.last_actions.iter().any(|action| matches!(action,
+            UiAction::CdmwCommand { command: "replacement_islands", arguments, .. }
+            if arguments == &json!({"part_id":"owned:0","faces":[0],"included":false}))));
+        ui.click_at(view.center());
+        assert_eq!(ui.application.mesh.as_ref().ok_or("mesh")?.viewport_hidden_faces().len(), 1);
+    }
+    Ok(())
+}
+
+#[test]
 fn island_controls_survive_host_reload_and_clip_restored_selection() -> TestResult {
     let root = tempdir()?;
     let mut ui = island_ui(egui::vec2(1280.0, 900.0))?;
@@ -174,7 +209,7 @@ fn island_controls_dispatch_exact_mod_mask_and_preserve_deformation_alignment() 
     ui.click("Mesh islands")?;
     let row = ui.reveal("Island 1 · 1 faces")?;
     ui.last_actions.clear();
-    ui.click_where("Include", |rect| (rect.center().y - row.center().y).abs() < 2.0)?;
+    ui.click_where("Include", |rect| rect.top() > row.bottom() && rect.top() < row.bottom() + row.height() * 2.0)?;
     let actions = std::mem::take(&mut ui.last_actions);
     assert!(actions.iter().any(|action| matches!(action,
         UiAction::CdmwCommand { command:"replacement_islands", arguments, .. }
@@ -218,7 +253,7 @@ fn island_controls_explain_disabled_mod_and_reenable_after_host_update() -> Test
     ui.reveal(reason)?;
     let row = ui.reveal("Island 1 · 1 faces")?;
     ui.last_actions.clear();
-    ui.click_where("Include", |rect| (rect.center().y - row.center().y).abs() < 2.0)?;
+    ui.click_where("Include", |rect| rect.top() > row.bottom() && rect.top() < row.bottom() + row.height() * 2.0)?;
     assert!(!ui.last_actions.iter().any(|action| matches!(
         action,
         UiAction::CdmwCommand {
@@ -226,7 +261,7 @@ fn island_controls_explain_disabled_mod_and_reenable_after_host_update() -> Test
             ..
         }
     )));
-    ui.click_where("View", |rect| (rect.center().y - row.center().y).abs() < 2.0)?;
+    ui.click_where("View", |rect| rect.top() > row.bottom() && rect.top() < row.bottom() + row.height() * 2.0)?;
     assert_eq!(
         ui.application
             .mesh
@@ -244,7 +279,7 @@ fn island_controls_explain_disabled_mod_and_reenable_after_host_update() -> Test
     assert!(ui.label_rect(reason).is_none());
     let row = ui.reveal("Island 1 · 1 faces")?;
     ui.last_actions.clear();
-    ui.click_where("Include", |rect| (rect.center().y - row.center().y).abs() < 2.0)?;
+    ui.click_where("Include", |rect| rect.top() > row.bottom() && rect.top() < row.bottom() + row.height() * 2.0)?;
     assert!(ui.last_actions.iter().any(|action| matches!(action,
         UiAction::CdmwCommand { command:"replacement_islands", arguments, .. }
         if arguments == &json!({"part_id":"owned:0","faces":[0],"included":false}))));

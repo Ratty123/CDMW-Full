@@ -1,6 +1,73 @@
 use super::*;
 
 #[test]
+fn parts_layout_keeps_names_clear_and_view_include_independent() -> TestResult {
+    let name = "CD_PHM_00_Mask_Belt_0105_01_01_01";
+    let title = format!("0: {name}");
+    for (size, font, density) in [
+        (egui::vec2(1440.0, 1080.0), 11.0, "normal"),
+        (egui::vec2(1000.0, 900.0), 18.0, "comfortable"),
+    ] {
+        let mut application = two_part_application()?;
+        Arc::make_mut(application.document.as_mut().ok_or("document")?)
+            .lods[0].submeshes[0].name = name.into();
+        let mut ui = HeadlessUi::new_integrated_cdmw_for_controls(application, size);
+        ui.application.apply_cdmw_theme_payload(&json!({"font_point_size": font, "density": density}));
+        ui.application.cdmw_state["replacement"] = json!({
+            "available": true, "comparison": "edit", "parts": [
+                {"index": 0, "id": "owned:0", "included": true},
+                {"index": 1, "id": "owned:1", "included": true}
+            ]
+        });
+        ui.application.cdmw_state["physics"] = json!({"parts": [
+            {"index": 0, "name": name, "kind": "cloth", "guide_counts": [3],
+                "vertex_counts": [3], "jiggle_counts": [1]},
+            {"index": 1, "name": "Part B", "kind": "jiggle", "vertex_counts": [3],
+                "jiggle_counts": [2]}
+        ]});
+        ui.settle_layout();
+        let before = ui.application.mesh.as_ref().ok_or("mesh")?.structural_fingerprint();
+        let first = ui.reveal(&title)?;
+        let view = ui.label_rect_where("View", |rect| {
+            rect.top() > first.bottom() && rect.top() < first.bottom() + first.height() * 2.0
+        }).ok_or("View below part name")?;
+        let include = ui.label_rect_where("Include", |rect| {
+            (rect.center().y - view.center().y).abs() < 2.0
+        }).ok_or("Include beside View")?;
+        assert!(view.right() < include.left());
+        let badge = ui.label_rect("Cloth + jiggle").ok_or("physics badge")?;
+        assert!(badge.top() > first.bottom(), "physics displaced the name");
+        ui.click(&title)?;
+        assert_eq!(ui.application.selected_part_indices(), vec![0]);
+        ui.last_actions.clear();
+        ui.click_at(view.center());
+        assert!(ui.application.cdmw_hidden_parts.contains(&0));
+        assert!(!has_host_command(&ui.last_actions, "replacement_include"));
+        ui.click_at(view.center());
+        assert!(ui.application.cdmw_hidden_parts.is_empty());
+        ui.last_actions.clear();
+        ui.click_at(include.center());
+        assert!(ui.last_actions.iter().any(|action| matches!(action,
+            UiAction::CdmwCommand { command: "replacement_include", arguments, .. }
+            if arguments == &json!({"part_ids": ["owned:0"], "included": false}))));
+        assert!(ui.application.cdmw_hidden_parts.is_empty());
+        ui.click(&title)?;
+        ui.click("1: Part B")?;
+        assert_eq!(ui.application.selected_part_indices(), vec![0, 1]);
+        let physics = ui.reveal("Detected physics")?;
+        let islands = ui.label_rect("Mesh islands").ok_or("islands before physics")?;
+        assert!(physics.top() > islands.bottom());
+        assert!(ui.label_rect("Physics: Cloth + jiggle").is_none());
+        ui.click("Detected physics")?;
+        ui.reveal("Physics: Cloth + jiggle")?;
+        ui.reveal("Physics: Jiggle contribution")?;
+        assert_eq!(ui.application.mesh.as_ref().ok_or("mesh")?.structural_fingerprint(), before);
+        assert_eq!(ui.application.selected_part_indices(), vec![0, 1]);
+    }
+    Ok(())
+}
+
+#[test]
 fn parts_delete_guidance_offers_free_edit_without_deleting_the_selection() -> TestResult {
     let mut ui = HeadlessUi::new_integrated_cdmw_for_controls(
         two_part_application()?,
