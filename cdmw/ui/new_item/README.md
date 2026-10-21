@@ -246,6 +246,11 @@ interface for that same workflow without exposing Classic.
 
 ### Startup preparation
 
+Switching to another tab during interface startup suspends the first-frame deadline.
+Returning resumes startup with the same Rust process and workflow. Hidden time does
+not count towards the state-acknowledgement deadline; visible startup and stalled
+updates retain their existing timeouts.
+
 After the main window is visible and startup dialogs finish, the shell preloads only the
 archive tables on the existing cancellable snapshot worker. Create New Item's interface
 stays unconstructed until opened; startup does not launch its Rust renderer or warm a

@@ -456,6 +456,122 @@ def test_rust_texture_completion_is_dropped_after_archive_selection_changes(
     assert harness._mesh_editor_pending_rust_texture_launch is None
 
 
+@pytest.mark.parametrize("route", ["context_menu", "preview_button"])
+def test_repeated_hidden_texture_handoffs_open_and_close_different_pacs(tmp_path, monkeypatch, route):
+    from PySide6.QtCore import QEvent
+    from PySide6.QtWidgets import QApplication
+    from cdmw.models import ArchivePreviewResult
+    from cdmw.services.mesh_service import MeshService
+    from cdmw.ui.archive_browser.preview_cache import ArchivePreviewCacheMixin, ARCHIVE_MODEL_RENDERER_D3D11
+    from cdmw.workers.mesh_editor_aux_workers import MeshArchiveSessionLoadResult
+    from tests.test_archive_d3d11_process_lifecycle import _PreviewResultHarness
+    from tests.test_mesh_editor_direct_mode import _mesh
+    from tests.test_mesh_rust_editor_selection import _tab
+
+    class Archive(_PreviewResultHarness, ArchivePreviewCacheMixin):
+        def _render_archive_preview(self, entry, *, force=False):
+            # The archive decoder is outside this lifecycle regression. Preserve
+            # its request numbering and publish owned prepared results below.
+            self.render_requests.append((entry, force))
+            self.archive_preview_request_id += 1
+
+        def _archive_model_renderer_backend(self):
+            return ARCHIVE_MODEL_RENDERER_D3D11
+
+        @staticmethod
+        def _same_archive_entry(first, second):
+            return first.identity == second.identity
+
+        def _current_archive_mesh_entry(self):
+            return self.entry
+
+    app = QApplication.instance() or QApplication([])
+    first = _entry(tmp_path, "first.pac")
+    geometry = _package(tmp_path / "initial", first, textured=False)
+    launch = _LaunchHarness(first, geometry)
+    archive = Archive()
+    archive.archive_preview_cache = {}
+    archive.shell = launch
+    archive.archive_isolated_renderer_button = None
+    launch.archive = archive
+    editor = _tab(tmp_path)
+    launch.mesh_editor_tab = editor
+    launch._write_crash_report = lambda *args, **kwargs: pytest.fail(str(args))
+    launch._collect_crash_context = lambda: {}
+    launch._record_runtime_event = lambda *args, **kwargs: None
+    monkeypatch.setattr(editor, "_ensure_standalone_live_stroke_dispatcher", lambda: None)
+    monkeypatch.setattr(editor, "_start_archive_material_context_resolution", lambda *args: False)
+    monkeypatch.setattr("cdmw.ui.mesh_editor.tab.native_mesh_core_available", lambda: False)
+    monkeypatch.setattr("cdmw.ui.archive_browser.preview_result.validate_dotnet_preview_package", lambda _: (True, ()))
+
+    sessions = []
+
+    def load_owned_geometry(request_id, entry, **_kwargs):
+        mesh = _mesh(two_parts=False)
+        mesh.path = entry.path
+        service = MeshService()
+        view = service.open_edit_session(mesh, mode="edit")
+        result = MeshArchiveSessionLoadResult(service=service, view=view, mesh=mesh, source_sha256="a" * 64)
+        editor._handle_archive_session_loaded(request_id, result)
+        sessions.append(view.session_id)
+
+    monkeypatch.setattr(editor, "_start_archive_session_load_when_indexes_ready", load_owned_geometry)
+    previous_request = 0
+    try:
+        for index in range(6):
+            entry = _entry(tmp_path, f"mesh-{index % 3}.pac", offset=(index % 3) * 8)
+            archive.entry = entry  # Context-menu selection does not request a preview.
+            if route == "context_menu":
+                launch._launch_archive_mesh_editor_for_entry(entry)
+            else:
+                launch._open_current_archive_mesh_editor()
+            request_id = archive._archive_texture_request_id
+            assert request_id > previous_request, "the new PAC must not wait on the old texture job"
+            assert archive._archive_texture_request_loading
+            assert len(sessions) == index
+            pending = launch._mesh_editor_pending_rust_texture_launch
+            if previous_request:
+                # Old queued completions must leave the next PAC's wait intact.
+                launch._finish_pending_rust_mesh_editor_texture_launch(request_id=previous_request, success=True)
+                archive._handle_archive_resident_package_applied(str(previous_package), index)
+                assert launch._mesh_editor_pending_rust_texture_launch is pending
+                assert archive._archive_texture_request_id == request_id
+                assert archive._archive_texture_request_loading and len(sessions) == index
+            textured = _package(tmp_path / f"textured-{index}", entry, textured=True)
+            texture = textured / "body.dds"
+            texture.write_bytes(b"owned texture fixture")
+            model = SimpleNamespace(path=entry.path, meshes=(SimpleNamespace(preview_texture_dds_path=str(texture)),))
+            result = ArchivePreviewResult(status="ok", preferred_view="model",
+                dotnet_preview_package_path=str(textured), preview_model=model)
+            lease = _Lease()
+            monkeypatch.setattr("cdmw.ui.mesh_editor.shell_bridge.acquire_dotnet_preview_package_cache_lease_for_path", lambda _, current=lease: current)
+            controller = archive.archive_d3d11_preview_host.controller
+            controller.package_generation = index + 1
+            controller.applied_package_generation = 0  # The hidden viewport never acknowledges.
+            archive._apply_archive_preview_result(result, request_id=request_id)
+            app.processEvents()
+            assert len(sessions) == index + 1
+            assert editor._current_target_entry().identity == entry.identity
+            assert editor.archive_material_context_package_path == str(textured)
+            assert editor.archive_material_context_package_lease is lease and lease.active
+            assert not archive._archive_texture_request_loading
+            assert archive._archive_texture_request_id == 0
+            assert archive._archive_pending_texture_result is None
+            assert launch._mesh_editor_pending_rust_texture_launch is None
+            assert editor.close_standalone_session()
+            assert editor.standalone_controller is None and not lease.active
+            assert texture.read_bytes() == b"owned texture fixture"
+            previous_request = request_id
+            previous_package = textured
+        assert len(set(sessions)) == 6
+        assert len(archive.render_requests) == 6
+        assert controller.clear_count == 6
+    finally:
+        editor.request_shutdown()
+        editor.deleteLater()
+        app.sendPostedEvents(None, QEvent.DeferredDelete)
+
+
 @pytest.mark.parametrize("stale", [False, True])
 def test_hidden_archive_preparation_resumes_mesh_editor_without_renderer_ack(tmp_path, stale, monkeypatch):
     from PySide6.QtWidgets import QApplication

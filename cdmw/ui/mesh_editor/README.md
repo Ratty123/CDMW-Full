@@ -251,6 +251,10 @@ original output bytes.
 **Open Mesh** can lease the prepared texture package and its matching material
 context while Archive Browser is hidden. It does not wait for the archive
 viewport to render the package; stale requests and mismatched entries are rejected.
+Once the editor owns the texture lease, clearing Archive Preview retires its pending
+texture acknowledgement. Each subsequent PAC starts its own request through either
+**Open in Mesh Editor** or the preview's editor button, including after closing a
+session before the archive viewport rendered its textures.
 Large command responses, including dense jiggle data returned after part selection,
 use an atomic session-owned file with verified size and SHA-256. The control pipe
 keeps its 256 KiB limit; referenced response state is bounded to 16 MiB.

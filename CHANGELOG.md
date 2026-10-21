@@ -7,6 +7,11 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 ## [Unreleased]
 
+### Fixed
+
+- Mesh Editor opens successive PAC files from either Archive Browser action without getting stuck waiting for a previous mesh's textures.
+- Switching away from Create New Item while its interface starts no longer causes a false timeout. Returning continues the same workspace.
+
 ### Docs
 
 - Add a public Crimson Desert research reference covering file formats, findings, evidence levels and open questions, with ongoing maintenance and archival guidelines.

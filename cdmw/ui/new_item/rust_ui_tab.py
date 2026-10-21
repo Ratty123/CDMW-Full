@@ -113,9 +113,11 @@ class RustNewItemStudioTab(QWidget):
             self.use_rust()
         elif self._rust_mode and not self._closed:
             self.workflow.show()
+            if self._process is not None and not self._stopping and not self._first_frame_ready:
+                self._startup_deadline.start(30000)
             if self._ready:
-                if not self._first_frame_ready:
-                    self._startup_deadline.start(30000)
+                if self._sent_generation > self._received_generation:
+                    self._state_delivery.start()
                 self._timer.start()
                 self._state_fingerprint = b""
                 self._publish_state()
@@ -123,6 +125,9 @@ class RustNewItemStudioTab(QWidget):
     def hideEvent(self, event):  # noqa: N802
         super().hideEvent(event)
         if self._rust_mode:
+            # A hidden child does not render its first frame. Resume its startup
+            # and acknowledgement budgets when this workspace is shown again.
+            self._startup_deadline.stop()
             self._timer.stop()
             self.workflow.hide()
 
@@ -198,7 +203,8 @@ class RustNewItemStudioTab(QWidget):
         process.setProgram(launch.executable)
         process.setArguments(["--cdmw-new-item-session", str(launch.manifest), "--embedded-parent-hwnd", str(parent_hwnd)])
         process.start()
-        self._startup_deadline.start(30000)
+        if self.isVisible() or self._prewarming:
+            self._startup_deadline.start(30000)
 
     @Slot(str)
     def _prepare_failed(self, message):
@@ -242,8 +248,9 @@ class RustNewItemStudioTab(QWidget):
                 return
             self._ready = True
             self._host._focus_request_supported = "host_focus_v1" in message.get("capabilities", ())
-            self._timer.start()
-            self._publish_state()
+            if self.isVisible() or self._prewarming:
+                self._timer.start()
+                self._publish_state()
         elif kind == "input":
             self._input_received.emit(message)
         elif kind == "state_received":
@@ -294,7 +301,8 @@ class RustNewItemStudioTab(QWidget):
     @Slot()
     def _publish_state(self):
         if (self._sent_generation > self._received_generation and self._state_delivery.isValid()
-                and self._state_delivery.elapsed() > 10000 and self._ready and not self._stopping):
+                and self._state_delivery.elapsed() > 10000 and self._ready and not self._stopping
+                and (self.isVisible() or self._prewarming)):
             self._fail("The Rust interface stopped acknowledging updates. Use Retry to reopen the same workspace.")
             return
         if (not self._ready or self._closed or not self._rust_mode or self._stopping

@@ -98,14 +98,26 @@ class ArchivePreviewDotNetLifecycleMixin:
     def _shutdown_archive_isolated_renderer_host(self) -> None:
         host = getattr(self, "archive_d3d11_preview_host", None)
         controller = getattr(host, "controller", None)
-        if controller is None:
-            return
-        if bool(getattr(self.shell, "_shutting_down", False)):
-            controller.shutdown()
-        else:
-            controller.clear_preview()
+        if controller is not None:
+            if bool(getattr(self.shell, "_shutting_down", False)):
+                controller.shutdown()
+            else:
+                controller.clear_preview()
         self.archive_isolated_renderer_active_package = None
         self.archive_isolated_renderer_package_source = ""
+        if bool(getattr(self, "_archive_texture_request_loading", False)):
+            # Clearing the viewport withdraws its pending package acknowledgement.
+            # Mesh Editor has already acquired its own texture lease before this
+            # handoff; the next PAC must start a fresh request, not wait on this one.
+            self._archive_texture_request_loading = False
+            self._archive_texture_request_id = 0
+            self._archive_texture_request_automatic = False
+            self._archive_texture_package_generation = 0
+            self._archive_texture_package_path = ""
+            self._archive_texture_render_settings = None
+            self._archive_pending_texture_result = None
+            self._archive_textures_visible = False
+            self._sync_archive_texture_action_state()
 
     def _open_archive_isolated_d3d11_preview(self) -> None:
         """Save texture intent and apply it without restarting the renderer."""

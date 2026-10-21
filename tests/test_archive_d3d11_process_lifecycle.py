@@ -224,6 +224,37 @@ def test_long_lived_archive_host_clears_normally_and_shuts_down_with_app() -> No
     assert harness.archive_d3d11_preview_host.controller.shutdown_count == 1
 
 
+@pytest.mark.parametrize("host_state", ["normal", "missing", "shutdown"])
+def test_retiring_the_preview_releases_its_texture_wait_without_reporting_failure(host_state):
+    harness = _LifecycleHarness()
+    harness.archive_isolated_renderer_button = _FakeCheckbox()
+    harness._archive_texture_request_loading = True
+    harness._archive_texture_request_id = 9
+    harness._archive_texture_request_automatic = True
+    harness._archive_texture_package_generation = 4
+    harness._archive_texture_package_path = "prepared-package"
+    harness._archive_texture_render_settings = harness.settings
+    harness._archive_pending_texture_result = object()
+    harness._archive_textures_visible = True
+    if host_state == "missing":
+        harness.archive_d3d11_preview_host = None
+    harness._shutting_down = host_state == "shutdown"
+
+    harness._shutdown_archive_isolated_renderer_host()
+
+    assert not harness._archive_texture_request_loading
+    assert harness._archive_texture_request_id == 0
+    assert not harness._archive_texture_request_automatic
+    assert harness._archive_texture_package_generation == 0
+    assert harness._archive_texture_package_path == ""
+    assert harness._archive_texture_render_settings is None
+    assert harness._archive_pending_texture_result is None
+    assert not harness._archive_textures_visible
+    assert harness.archive_isolated_renderer_active_package is None
+    assert harness.archive_isolated_renderer_button.enabled
+    assert harness.messages == [] and harness.render_requests == []
+
+
 def test_archive_texture_action_starts_one_latest_wins_texture_request() -> None:
     harness = _LifecycleHarness()
 
