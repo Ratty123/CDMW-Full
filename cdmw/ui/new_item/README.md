@@ -13,6 +13,7 @@
 - [Output review and Mod Management](#output-review-and-mod-management)
 - [Perks and Effects workspace](#perks-and-effects-workspace)
 - [Model and Placement workflow](#model-and-placement-workflow)
+- [Edit, export, and reopen](#edit-export-and-reopen)
 - [Mod manager exports](#mod-manager-exports)
 - [Archive boundaries and recovery](#archive-boundaries-and-recovery)
 - [Current game tables and extended authoring](#current-game-tables-and-extended-authoring)
@@ -1647,6 +1648,43 @@ Editor and use [Import Replacement](../mesh_editor/README.md#imported-glb-skin-w
 The Mesh Editor session remains open; reopen editing and finish again to accept another
 revision without losing its history. New Item exposes the generated submesh name beside
 the source materials for per-part Glow. This is face separation, not a knife/cap tool.
+
+## Edit, export, and reopen
+
+The Mesh Editor handoff and the New Item export have separate acceptance points:
+
+1. **Finish Edit Mesh** accepts geometry in the Mesh Editor session. **Use Mesh
+   Editor changes** then captures that stable session/revision in New Item's worker.
+   A changed source, variant, snapshot or mesh revision cannot publish an obsolete
+   handoff. The accepted handoff advances the import's mesh generation and clears
+   its previous placement result and build plan.
+2. Review and **Apply placement** for the changed import, then **Build plan**.
+   The plan belongs to the current draft revision and records the selected template,
+   allocated item identity and source dependencies. Changing a plan input requires
+   a new plan; the old preview is not export authority.
+3. **Write mod folder** publishes that plan to the reviewed destination, with an
+   optional sibling ZIP. The service checks source provenance before work and again
+   before publication. Wait for completion and retain the final path; selecting an
+   output folder, accepting a mesh edit or building a plan does not write the mod.
+4. For output verification, read the completed package's actual mesh, material and
+   table payloads. Record their hashes and the new item key/internal name from the
+   plan. Check a deliberate geometry/material change and the item-to-prefab-to-mesh
+   references, rather than reopening the template and comparing its cached preview.
+
+**Add to existing mod** uses an exported folder as the base for another plan; it
+does not reconstruct the prior editor session. Select the mod folder itself and
+rebuild the plan. Installed-overlay previews read mounted content, so they do not
+verify an uninstalled export. A portable `.cditem` is a separate
+[authoring package contract](INDEPENDENT_ITEMS.md), not a loose-manager folder or
+a complete Mesh Editor history. Keep these routes distinct when recording what
+was reopened. For mesh-session, draft and edited-result recovery, see
+[Mesh Editor's reopening routes](../mesh_editor/README.md#edit-export-and-reopen).
+
+If output completion is uncertain, inspect the named final folder and ZIP before
+retrying. A new export refuses an existing destination. An add-to-existing operation
+has different intent: review its base and rebuild before retrying; do not treat it
+as a fresh-folder export. None of these offline checks establishes installed or
+in-game appearance.
 
 ## Mod manager exports
 

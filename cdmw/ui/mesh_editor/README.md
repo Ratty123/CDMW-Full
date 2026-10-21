@@ -4,6 +4,7 @@
 
 - [Layout and shared controls](#layout-and-shared-controls)
 - [Feature ownership and scope](#feature-ownership-and-scope)
+- [Edit, export, and reopen](#edit-export-and-reopen)
 - [Parts and appearance](#parts-and-appearance)
 - [Opening meshes and preparing sessions](#opening-meshes-and-preparing-sessions)
 - [Collapsible panels and tool icons](#collapsible-panels-and-tool-icons)
@@ -99,6 +100,63 @@ Replacement imports, reversible output inclusion, experimental translucency and 
 extend that foundation through the Inspector's Parts and material controls.
 General material assignment, recolouring and in-game swaps remain separate
 workflows. Hair Appearance has a scoped DDS handoff.
+
+## Edit, export, and reopen
+
+Choose the reopening route by what you need to recover or verify:
+
+| Action | State it reads | Persistence and proof boundary |
+|---|---|---|
+| **Resume current edit** after Finish | The accepted mesh in the existing `MeshService` session. | Keeps the original source reference and accepted state; the reopened editor starts a new per-action history. It does not read a package from disk. |
+| **Start next edit pass** | Validated rebuilt game bytes and retained source dependencies. | Makes the edited bytes the next baseline and clears the previous pass's edit state. This is an in-app continuation, not restart recovery. |
+| **Add to Archive Browser**, then open **Edited results** | Prepared entries with source identity, rebuilt-byte hashes and dependency context. | Results survive closing the editor, but remain local to the current CDMW app session. |
+| Resume a matching saved draft | The source-bound workspace and newest valid saved generation, or its previous valid generation. | Recovers authoring state, not the last exported mod. Source-fingerprint mismatch refuses recovery without deleting the draft. |
+| Open the exported mesh/package payload | The file at the completed output path, with its required companions. | Establishes output readback only when those exact bytes and dependencies are used. Opening the original archive entry does not establish this. |
+| Preview an installed overlay | The currently mounted overlay and its metadata. | Checks installed content, which can differ from both the live edit and an uninstalled export. |
+
+For an existing game mesh, start from the exact archive entry through **Modify
+Original**. Retain its archive path and source hash: the same filename can occur
+in stock archives, prepared edited results and mounted overlays. `ArchiveEntry.identity`
+identifies the source location; `prepared_sha256` identifies prepared bytes when
+present. Neither a filename nor a session revision alone identifies a portable result.
+
+**Finish Edit Mesh** accepts one validated revision into CDMW. Its successful
+validation remains usable by **Build Mod** until a later edit invalidates it.
+Finish does not write the mod folder, install an overlay, or by itself prove that
+a recoverable draft was saved. Draft autosave applies only to sessions with an
+associated project path; it records mesh/layer revisions separately from output
+validation. If saving fails on close, retry saving or explicitly choose to close
+without saving. Keep the workspace manifest, project descriptor and generation
+files together; copying only `mesh_layer_project.json` is insufficient.
+
+Choose the output appropriate to the session. Archive-bound sessions can **Build
+Mod** with all generated companions. **Export Mesh File** is a separate rebuilt
+asset route and is unavailable when required replacement companions cannot travel
+with it. Free Edit uses **Export Free Edit Package**; Finish only accepts its
+geometry after checking the chosen destination. Editable GLB/FBX/OBJ exchange
+packages retain their own [companion contract](#editable-mesh-exchange).
+
+To verify a finished export, record the accepted revision, source hash, final
+output path and hashes of the mesh and generated companions. Read the published
+files, then compare a known edit and the relevant materials/LOD data against the
+accepted result. Keep the original archive and any earlier package distinguishable;
+a matching preview with no file provenance is insufficient. Unchanged dependencies
+may still come from the original game data, so a mod package is not automatically
+a self-contained editing project. See [validation and export](#validation-and-export)
+for package layouts and the separate installation boundary.
+
+After an uncertain export outcome, inspect the final folder and optional ZIP
+before retrying. These mesh-package routes refuse existing destinations; use a
+new destination after identifying the completed output rather than deleting it
+to make a retry succeed. Keep rejected draft generations for diagnosis. A recovered
+generation may be older than the newest save attempt; identify the loaded generation
+in any verification record.
+
+The owning code is [Finish publication](tab_rust_process.py),
+[output orchestration](tab_direct_output.py),
+[draft persistence](../../services/mesh_layer_project_service.py),
+[source-bound draft discovery](../../services/modify_original_workspace_service.py),
+and [edited-result preparation](../../services/mesh_archive_results.py).
 
 ## Parts and appearance
 
