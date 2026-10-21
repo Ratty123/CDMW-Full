@@ -89,19 +89,27 @@ def _expected_output(source, owners, excluded):
     return bytes(expected), masks
 
 
-def _record_island_pac(*, count=6, axes=(0, 1, 2), scale=1, mirror=False, disappear=False, vary_masks=False):
+def _record_island_pac(*, count=6, axes=(0, 1, 2), scale=1, mirror=False, disappear=False, vary_masks=False, corner_motion=False):
     """Intersecting component bounds, retained UV/skin, and changing normals."""
     square = [(10000, 10000, 20000), (30000, 10000, 20000),
               (10000, 30000, 20000), (30000, 10000, 20000),
               (30000, 30000, 20000), (10000, 30000, 20000)]
+    if corner_motion:
+        # A fine corner next to a longer panel, like the reported belt accessory.
+        square = [(10000, 10000, 20000), (12000, 10000, 20000),
+                  (10000, 12000, 20000), (12000, 10000, 20000),
+                  (30000, 30000, 20000), (10000, 12000, 20000)]
     uvs = [(0, 0), (1, 0), (0, 1), (1, 0), (1, 1), (0, 1)]
     lods = []
     for lod in range(4):
         components = []
         for owner in range(count):
+            shape = list(square)
+            if corner_motion and lod == 3:
+                shape[0] = (10000, 13750, 20000)
             points = [tuple(round(((65535 - p[a] if mirror else p[a]) + owner // 2 * 2000
                                    + lod * (300, -200, 100)[a]) * scale) for a in axes)
-                      for p in (square if owner % 2 == 0 else [tuple(p[a] for a in (2, 0, 1)) for p in square])]
+                      for p in (shape if owner % 2 == 0 else [tuple(p[a] for a in (2, 0, 1)) for p in shape])]
             components.append((owner, points, [(0, 1, 2), (3, 4, 5)]))
         if disappear and lod == 3:
             components = components[:1]
@@ -133,6 +141,33 @@ def test_retained_records_map_intersecting_bounds_without_touching_other_bytes(e
     expected, masks = _expected_output(source, owners, set(excluded))
     assert pac_island_face_masks(source, {0: masks[0, 0]})[1] == masks
     assert apply_pac_island_exclusions(source, source, {0: masks[0, 0]}) == expected
+
+
+@pytest.mark.parametrize('excluded', [(0,), (1,)])
+@pytest.mark.parametrize('vary_masks', [False, True], ids=['raw-records', 'resolved-skin'])
+@pytest.mark.parametrize('axes,scale,mirror', [((0, 1, 2), 1, False),
+                                             ((2, 0, 1), .125, False),
+                                             ((1, 2, 0), .5, True)])
+def test_retained_corner_motion_maps_within_its_incident_neighbourhood(excluded, vary_masks, axes, scale, mirror):
+    source, owners = _record_island_pac(count=2, corner_motion=True, vary_masks=vary_masks,
+                                        axes=axes, scale=scale, mirror=mirror)
+    expected, masks = _expected_output(source, owners, set(excluded))
+    assert pac_island_face_masks(source, {0: masks[0, 0]})[1] == masks
+    assert apply_pac_island_exclusions(source, source, {0: masks[0, 0]}) == expected
+
+
+@pytest.mark.parametrize('position', [(10000, 16000, 20000), (29000, 29000, 20000)])
+@pytest.mark.parametrize('vary_masks', [False, True], ids=['raw-records', 'resolved-skin'])
+def test_retained_corner_motion_outside_its_incident_neighbourhood_stays_rejected(position, vary_masks):
+    source, _ = _record_island_pac(count=2, corner_motion=True, vary_masks=vary_masks)
+    raw = bytearray(source)
+    part = pac_cloth_lods(source)[3].submeshes[0]
+    # LOD3 reverses the components. Move owner 0 beyond its local neighbours,
+    # including near a distant vertex in the same connected source component.
+    struct.pack_into('<3H', raw, part.source_vertex_offsets[6],
+                     *(value + 3 * shift for value, shift in zip(position, (300, -200, 100))))
+    with pytest.raises(ValueError, match='ambiguous at LOD 3'):
+        pac_island_face_masks(bytes(raw), {0: (0, 1)})
 
 
 @pytest.mark.parametrize('fault', ['uv', 'nan_uv', 'skin', 'collision', 'merged', 'remote', 'position_conflict'])
@@ -309,13 +344,15 @@ def test_failed_island_mapping_leaves_session_and_history_unchanged(tmp_path, mo
         service.close_edit_session(session.authoritative_session_id, force_without_saving=True)
 
 
-def test_island_host_command_restores_output_with_history_and_finish(tmp_path, monkeypatch):
+@pytest.mark.parametrize('corner_motion', [False, True], ids=['separated-bounds', 'local-record-motion'])
+def test_island_host_command_restores_output_with_history_and_finish(tmp_path, monkeypatch, corner_motion):
     from cdmw.models import ArchiveEntry
     from cdmw.services.mesh_replacement_output import prepare_replacement_output
     from tests.test_mesh_rust_authoring_exact_output import _open_exact_session, _request
     from tests.test_mesh_rust_replacement import command
 
-    source, owners = _island_pac(_island_lods())
+    source, owners = (_record_island_pac(corner_motion=True, vary_masks=True) if corner_motion
+                      else _island_pac(_island_lods()))
     monkeypatch.setattr('tests.test_mesh_rust_authoring_exact_output._pac_fixture', lambda **kw: source)
     _, service, session = _open_exact_session(tmp_path / 'session')
     try:

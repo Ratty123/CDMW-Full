@@ -300,6 +300,26 @@ Other constrained operations can preserve or deliberately update validated
 records across multiple LODs. The final writer remains authoritative for each
 operation.
 
+PAC island exclusion can follow exact retained UV and skin records through
+simplification, including movement within the matching preceding-LOD vertex's
+incident neighbourhood. Each vertex must agree on inclusion, and the matching
+preceding component must be consistently mapped. The movement limit is the
+matching vertex's longest incident edge, measured from that vertex or a directly
+connected neighbour. A neighbour's longer edges do not enlarge the allowance.
+Conflicting records, mixed inclusion and movement outside that local bound
+remain refused.
+
+Reviewed on 2026-10-21 against `1b2cea2e56e7` plus the scoped island-mapping fix.
+Owned fixtures reproduce the LOD3 corner failure. A retained copy of
+`cd_m0001_00_de_phm_ub_11002.pac` (SHA-256
+`a2bf53e967398f4f6c74c3c2da65525f689ecc9bd87ebc2da515d3281fb5862c`)
+confirmed all six islands of `CD_PHM_00_Belt_0281_00_01_01` can be excluded
+individually across four LODs, with only the expected triangle indices changing.
+The source copy remained unchanged. This is source, fixture and retained-asset
+evidence; packaged, visible-UI and in-game behaviour were not checked.
+The [island mapper](../cdmw/modding/mesh_islands.py) and its
+[focused tests](../tests/test_mesh_islands.py) own this bounded correspondence.
+
 Free Edit is a separate non-exact interchange output. Its new OBJ-based package
 does not confer unrestricted PAC/PAM/PAMLOD writeback. Importing geometry from
 OBJ, glTF/GLB, DAE or the configured Blender FBX route also does not establish

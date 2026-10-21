@@ -146,8 +146,10 @@ def _retained_island_faces(data, previous, current, record_owners, position_owne
     """Require exact retained records and bounded motion at every component vertex.
 
     A match spanning included and excluded source geometry is never authority.
-    Movement must fit an incident edge of the matching preceding-LOD record;
-    this follows progressive simplification without increasing spatial bounds.
+    Movement must stay within one incident-edge length of the matching
+    preceding-LOD vertex or one of its directly connected neighbours. This
+    permits a simplified corner to move along its local triangle fan without
+    treating distant vertices of the same component as spatial authority.
     Return None when this independent correspondence cannot prove the output.
     """
     if not previous.vertices or not previous.faces:
@@ -155,6 +157,12 @@ def _retained_island_faces(data, previous, current, record_owners, position_owne
     positions = np.asarray(previous.vertices, dtype=np.float64)
     triangles = np.asarray(previous.faces, dtype=np.intp)
     radius_squared = np.zeros(len(positions))
+    neighbours = [set() for _ in positions]
+    for face_index, face in enumerate(previous.faces):
+        if face_index % 4096 == 0:
+            raise_if_cancelled(stop_event)
+        for vertex in face:
+            neighbours[vertex].update(face)
     for left, right in ((0, 1), (1, 2), (2, 0)):
         raise_if_cancelled(stop_event)
         delta = positions[triangles[:, left]] - positions[triangles[:, right]]
@@ -208,7 +216,18 @@ def _retained_island_faces(data, previous, current, record_owners, position_owne
                 return None
             delta = positions[matches] - current.vertices[vertex]
             if not np.any(np.sum(delta * delta, axis=1) <= radius_squared[matches]):
-                return None
+                for match in matches:
+                    local = list(neighbours[match])
+                    comparisons += len(local)
+                    if comparisons > 2_000_000:
+                        return None
+                    delta = positions[local] - current.vertices[vertex]
+                    # Keep the matching record's radius. A neighbour's longer
+                    # edges must not enlarge the allowed local displacement.
+                    if np.any(np.sum(delta * delta, axis=1) <= radius_squared[match]):
+                        break
+                else:
+                    return None
             flags.add(included)
         if len(flags) != 1:
             return None
@@ -223,7 +242,8 @@ def pac_island_face_masks(original_data, exclusions, *, stop_event=None):
     Prefer exact source positions. Simplified disconnected components can also
     map within bounded, separated source envelopes; overlapping or excessive
     simplification can also use exact retained UV/skin records with bounded
-    preceding-LOD motion. Unproven mappings fail before output is published.
+    preceding-LOD motion within the matching record's incident neighbourhood.
+    Unproven mappings fail before output is published.
     """
     from cdmw.modding.pac_cloth import pac_cloth_lods
 
