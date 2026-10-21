@@ -887,9 +887,10 @@ classification rather than acquiring an independent-new-item claim.
 ### Retained evidence and unresolved contracts
 
 Review scope: 2026-10-21 continuation from
-`0aa0a1bea155c982a5aea8ce0ac39edf9d3e166f`, retained B106/B111 source and the
-new portable paired-publication experiment. Historical native/game results
-remain distinct from the new owned-memory C++ run.
+`099e9f7e7a5555f07246ab475b399c15215e419c`, retained native/publication results
+and the new per-package resource preparation. The new verification uses actual
+package/compiler and archive code on owned synthetic fixtures. Historical
+native/game results and the preceding C++ run remain separate evidence.
 
 | Evidence | Established for that scope | Not established |
 | --- | --- | --- |
@@ -900,6 +901,7 @@ remain distinct from the new owned-memory C++ run.
 | New portable paired-publication experiment | Common preflight, concrete modeled backing, reentry refusal and retained ownership across both map store phases | Actual engine constructors/lookups/metadata/decoding/I/O, atomic concurrent visibility or game admission |
 | B99 recorded game experiment | Private metadata parsing and lookup of the expected entry | Native payload read/use, shared visibility, retirement or saved ownership |
 | B109 source qualification | File-manager wrapper, raw path/holder ABI and conditional close/release | Concrete virtual open/read/size/completion or payload use |
+| Per-package resource image preparation | Actual validated compiler outputs, separate archive bytes, retained/proposed reservations and owned-fixture lifecycle | Native routing, image consumption, full resource closure, runtime lifetime or saves |
 
 The retained B111 result is built and executed, correcting an earlier
 prepared-only handoff. Its qualified receipt has SHA-256
@@ -944,6 +946,150 @@ B106's separate native constructor evidence initializes null pointer cells and
 does not establish construction of full decoded ItemInfo rows. Fixture teardown
 is single-threaded and proves no native retirement with outstanding readers.
 The new sources remain outside production CMake targets and release provenance.
+
+### Per-package resource image preparation
+
+The research service [independent_item_native_resources.py](../../services/independent_item_native_resources.py)
+prepares separate resource images from actual validated package/compiler
+contributions. The diagnostic command
+[inspect_cditem_native_resources.py](../../../scripts/inspect_cditem_native_resources.py)
+consumes those same images and prints their identities and byte-level checks.
+This is the `CDISO-RE-03B` preparation increment. It does not install a profile
+or provide a callable game backend.
+
+Each package retains its own PAPGT, PAMT and PAZ byte strings. The private PAPGT
+contains one group for that package, and the archive contains only the current
+resource additions joined to its validated ownership and reservations. The group name `0000` and archive ordinal zero are local to each image;
+they do not allocate global engine identities or establish native routing. Shared
+definition tables, texture registries and shop/group integrations remain listed
+as omitted work. The builder never combines the packages into one carrier.
+
+```mermaid
+flowchart TD
+    A["Package A"] --> V["Existing package and source validation"]
+    B["Package B"] --> V
+    P["Retained identity profile"] --> V
+    V --> C["Per-package contributions"]
+    C --> O["Ownership and current-member joins"]
+    O --> IA["Package A image"]
+    O --> IB["Package B image"]
+    IA --> Q["Checksum, entry and payload verification"]
+    IB --> Q
+    Q --> R["Immutable research inputs and diagnostic report"]
+    R -. "Requires separate proof" .-> N["Native open, read, use and lifetime"]
+```
+
+#### Identity and reservation provenance
+
+| Identity | Meaning |
+| --- | --- |
+| Package UUID | Logical owner, preserved across supported revisions |
+| Canonical content digest | Package recipe/content identity |
+| Artifact digest | Exact input ZIP bytes, which can change on repacking |
+| Binding digest | Destination reservation mapping, including retained claims |
+| Resource image digest | Exact generated resource files, separate from package identity |
+
+Each symbol/path is classified against the resolver's captured prior profile.
+Existing matching claims remain retained; new claims remain proposed. An update
+can contain both. The preparation does not commit proposals or make them stable
+in a later independent profile. Retired reservations remain visible but are not
+silently emitted as current archive entries.
+
+Two fresh profiles can assign different numeric bindings depending on order.
+Reversed-order equivalence therefore requires the same retained or imported
+profile. A name-only update can change package content while leaving every
+resource-image byte unchanged, because shared definitions are outside the image.
+Repacking identical canonical content can change the artifact digest without
+changing the resource image.
+
+#### Byte contract and side effects
+
+The implementation reuses the existing archive serializers and readers. It
+validates the captured source PAPGT before preserving its header metadata,
+builds a fresh private group list, then checks the full PAPGT/PAMT/PAZ checksum
+chain, exact member set, offsets, sizes and payload bytes. Current image entries
+are uncompressed raw data. This proves a generated format/input relationship;
+it does not prove that every game resource family accepts this storage route.
+
+Package, source revision, external contribution and observed registry/profile/
+mount state are checked through the existing owners. A changed state refuses
+preparation. Limits and cancellation apply before a successful image set is
+returned. Stock-only/mixed packages, unsupported private ownership and empty
+private-resource contributions refuse this research route.
+
+The images remain in memory and the command does not publish a game archive,
+profile or resource image. Existing checksum policy may use temporary PAZ data
+and the installed checksum helper above its size threshold. The work does not
+build that helper, and helper execution is distinct from invoking the game's
+native file manager.
+
+#### Evidence and continuation
+
+Verification uses actual package reading, compiler lowering, identity
+reservation logic, archive serialization and parsing on owned synthetic game
+fixtures. It covers two same-donor packages, exact member bytes, retained-profile
+order, independent update/removal/reinstall and profile transfer, plus input
+and output refusal paths. Native capture, game asset consumption and save
+compatibility remain separate evidence.
+
+The focused Windows verification establishes 24 cases: 23 initially passed,
+then the cancellation assertion was corrected to the actual `RunCancelled`
+type and its single targeted rerun passed. The service and command were unchanged.
+The other 23 passing cases were not rerun. Independent source and identity
+reviews pass. The update case demonstrates retained numeric symbols with mixed
+retained/proposed resource paths; fresh-profile numeric proposals are a separate
+case.
+
+Both archive and default virtual preparation contexts produced these small
+fixture images. These sizes describe this fixture, not a general mod budget or
+a performance benchmark.
+
+| Observed image | Members | Logical payload | PAZ | PAPGT + PAMT | Total |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| 1 | 4 | 2,818 B | 2,848 B | 843 B | 3,691 B |
+| 2 | 4 | 2,820 B | 2,848 B | 845 B | 3,693 B |
+
+Their PAZs are below the existing 64 KiB helper threshold. Evidence, exact source
+pins, the initial assertion failure and the successful correction are retained
+in `workspace/reports/cditem-execution/20261021-package-resource-images/`.
+
+#### Commands and API
+
+Run the diagnostic command from the project root. Paths below are placeholders:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\inspect_cditem_native_resources.py --game-root "C:\path\to\Crimson Desert" "C:\path\to\item.cditem"
+```
+
+The default `--target virtual` selects the existing identity/dependency context;
+`--target archive` selects the other current context. Neither option selects a
+native backend. Repeat `--folder` for ordinary mod folders required by the
+existing dependency checks. The command prints JSON and does not export images.
+
+The service API returns a tuple of `NativeResourceImage` owners. Each owner's
+`files` property returns the exact `meta/0.papgt`, `0000/0.pamt` and
+`0000/0.paz` relative names paired with immutable bytes. `report()` returns a
+detached JSON object. A future research producer must consume these exact
+bytes and establish its own current source/profile and native-lifetime checks;
+this result is not a persistent runtime lease.
+
+The focused verification owner is the single new test module:
+
+```powershell
+$cditemImagesTemp = Join-Path $env:TEMP ("cdmw-resource-images-" + [guid]::NewGuid().ToString("N"))
+.\.venv\Scripts\python.exe -m pytest -q -s -p no:cacheprovider tests\test_independent_item_native_resources.py --basetemp "$cditemImagesTemp"
+```
+
+### Native I/O continuation after image preparation
+
+The native I/O next step remains concrete method qualification. Retained B49
+callers pass equal counts in two argument positions and consume the buffer
+without testing the read return. B109 release ignores the conditional-close
+result before freeing its holder. Neither behavior supplies a completed-read
+or safe-retirement contract. A future producer must consume the exact prepared
+image bytes after source-qualified open/read/completion and lifetime joins;
+preparing these images does not close those gates.
+
 
 ### Proposed startup admission lifecycle
 

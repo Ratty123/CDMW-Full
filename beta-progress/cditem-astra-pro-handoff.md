@@ -1,7 +1,7 @@
 # CDMW .cditem Astra / Pro reasoning handoff
 
 - Created: 2026-10-18, Europe/Stockholm.
-- Status: Active implementation, reviewed 2026-10-21. Read the current restart checkpoint below first. Exact archive review and the owned-memory paired-publication experiment are verified for their scopes; actual native integration remains incomplete, `native_admission=false`.
+- Status: Active implementation, reviewed 2026-10-21. Separate package resource images are now verified for their preparation scope; retained archive/publication results remain valid. Read the current checkpoint first. Actual native integration remains incomplete, `native_admission=false`.
 - Execution entry point: [cditem-execution-goal.md](cditem-execution-goal.md).
 - Feature authority and completion state: [cditem-conflict-isolation-plan.md](cditem-conflict-isolation-plan.md).
 - Shared completed work: [progress.md](progress.md).
@@ -14,17 +14,18 @@ the existing [CDISO goal](cditem-conflict-isolation-plan.md) and
 [CDRUN execution companion](cditem-execution-goal.md). The readable
 [progress snapshot](progress.md#cditem-current-progress) summarizes evidence and
 next steps; it does not create a second acceptance checklist. Current source
-review continued on `main` at `0aa0a1bea155c982a5aea8ce0ac39edf9d3e166f`.
+review continued on `main` at `099e9f7e7a5555f07246ab475b399c15215e419c`.
 
 | Evidence or work | Current status | Meaning for the next step |
 | --- | --- | --- |
 | B106 typed original backing | Retained isolated-native result, 16 cases and 1,458 checks | Join actual prepared primary/expiry/metadata and decoder routing to the lookup maps |
 | B111 fixed-backing append | Retained executed result; 12 pins verified in the preceding increment | New entries can become visible before diagnostic owner count; count-last is not a readiness boundary |
-| Maintained paired-publication experiment | New portable C++ run: 41 cases/963 checks; independent source review passes | Common preflight and retained backing are established on owned memory; actual native joins and reader synchronization remain open |
+| Maintained paired-publication experiment | Retained portable C++ run: 41 cases/963 checks; independent source review passes | Common preflight and retained backing are established on owned memory; actual native joins and reader synchronization remain open |
 | B99 metadata lookup | Retained actual-game result with independently verified restoration | Private metadata lookup is settled; native byte delivery and resource use remain open |
 | B109 / B110 resource calls | B109 wrapper source qualified; B110 concrete virtual targets pending | Qualify open/read/size/completion and handle lifetime under current source ownership |
 | B112 path candidate | Retained preparation, no actual path call verified | Use a separately versioned candidate and bind the result to the exact prepared archive |
-| New path evidence review | Maintained offline tool; 52 focused tests and retained B93/B98 preparation check pass | Exact archive and payload expectation are available for the next path/open/read experiment |
+| Exact path evidence review | Maintained offline tool; retained 52-test and B93/B98 preparation results | Exact small archive and payload expectation are available for the next path/open/read experiment |
+| Per-package resource images | New service and diagnostic CLI; 24 focused cases verified with actual compiler fixtures | Separate immutable image bytes and reservation provenance are ready as research inputs; native consumption remains open |
 
 B111's existing receipt is
 `workspace/reports/cditem-execution/20261018-native-review/batch111-fixed-backing-append/qualified-result.json`,
@@ -52,29 +53,59 @@ backing resolutions and 32 partial-map observations. Both lookups and resource
 completion are modeled; B106 null-cell construction and actual engine decoding
 remain distinct.
 
-New evidence is retained in
+New image-preparation evidence is retained in
+`workspace/reports/cditem-execution/20261021-package-resource-images/`.
+The preceding publication evidence remains in
 `workspace/reports/cditem-execution/20261021-publication-readiness/`.
 Earlier archive-review/goal evidence remains in
 `workspace/reports/cditem-execution/20261021-independent-content-start/`.
 The active durable goal is `goal_d5b01b2303ab9a85`. Keep that goal and the
 Markdown snapshot aligned.
 
+The [image preparation contract and diagram](../cdmw/ui/new_item/INDEPENDENT_ITEMS.md#per-package-resource-image-preparation)
+describe one immutable PAPGT/PAMT/PAZ image per UUID, exact current-resource
+ownership/reservation joins, distinct content/artifact/binding/image identities
+and detached reports. Shared tables, integrations, dependencies and unresolved
+references are reported, not packed. Group `0000` and archive ordinal zero are
+image-local and supply no global engine identity or native route.
+
+The new verification initially passed 23 cases. One test expected the wrong
+cancellation message; it was corrected to assert `RunCancelled` and its single
+targeted rerun passed. The service/CLI and other 23 cases were unchanged.
+Actual compiler/archive bytes, A-only updates preserving B, retained order,
+name-only image stability, retired-path omission, removal/reinstall, actual
+profile transfer and repacked ZIP identity are verified. The update retains
+numeric symbols while adding proposed resource paths; fresh-profile numeric
+proposals are checked separately. Independent source/identity reviews pass.
+
+Retained B49 callers pass equal counts in two positions and consume a read
+buffer without testing its return. Their capacity/request and completion/error
+meanings remain unqualified. B109's open wrapper does not visibly initialize
+the local holder output before the virtual call; its release path ignores a
+conditional-close failure before freeing the holder. Do not promote these
+caller expectations to a completed-read or safe-retirement contract. The
+reviewed source pins are retained in the new session baseline.
+
 ### Immediate engineering sequence
 
-1. Qualify B110's concrete manager virtual methods, then prepare a new bounded
-   native path/open/read candidate using the exact archive and payload expectation.
-   Verify actual returned bytes before attempting higher-level resource use.
+1. With current source/provider ownership, qualify B110's manager vptr and concrete
+   +8 open, +0x10 read and +0x20 size methods. Prepare a new bounded candidate
+   against the exact small B93 archive/payload expectation. Verify completion,
+   returned bytes and holder lifetime before extending to the new multi-resource
+   package images or attempting higher-level resource use.
 2. Use the maintained paired-publication experiment as the ordering/lifetime
    baseline. Join actual B106 backing, metadata and decoder routing to both
    native maps, then qualify the real consumer boundary and failure/lifetime.
 3. Join definitions and resources, establish first-instance acquisition, and run
    two same-donor packages through the native lifecycle and save scenarios.
 
-The fresh read-only census found no game or compiler process. Java/Codex
-ownership and a current source/provider grant remain unconfirmed. The C++
-experiment used an isolated Linux build; no shared Windows compiler, provider,
-game, installation or save was used. Historical grants and process IDs below
-do not establish current ownership.
+The fresh read-only census found no Java, game or compiler process; two Codex
+processes remained unidentified. This session has no callable REA provider or
+current source/provider handoff. That blocks the concrete native source step.
+The new Python verification used owned temporary fixtures; no shared native
+compiler/provider, actual game installation or save was used. Historical grants
+and process absence do not establish current ownership. Preserve sealed B110
+and obtain a supported current source handoff before resuming that work.
 
 ### Historical checkpoint boundary
 

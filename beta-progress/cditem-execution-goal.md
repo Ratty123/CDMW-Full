@@ -2,7 +2,7 @@
 
 - Plan ID: `CDRUN`
 - Created: 2026-10-18, Europe/Stockholm.
-- Status: Active implementation, reviewed 2026-10-21. Exact private-archive review and the owned-memory paired-publication experiment pass their focused checks. Actual native registration/resource use, full scenarios and delivery remain incomplete; `native_admission=false`.
+- Status: Active implementation, reviewed 2026-10-21. Separate package resource-image preparation now passes its focused scope; exact archive review and paired-publication evidence are retained. Actual native registration/resource use, full scenarios and delivery remain incomplete; `native_admission=false`.
 - Original execution model: the user's selected GPT-6.1 Sol with Max reasoning, retained as historical context.
 - Current reasoning and research entry point: [the maintained handoff](cditem-astra-pro-handoff.md).
 - Project: `D:\CLAUDETEST\CDMW Full`.
@@ -13,42 +13,48 @@
 ## Current execution checkpoint
 
 Reviewed on 2026-10-21 from `main` at
-`0aa0a1bea155c982a5aea8ce0ac39edf9d3e166f`. The user's current instruction
-authorizes implementation with a maintained goal, progress log, research,
-technical documentation and diagrams. The authoritative goal remains
-[CDISO](cditem-conflict-isolation-plan.md); this companion owns execution.
+`099e9f7e7a5555f07246ab475b399c15215e419c`. The user's instruction authorizes
+implementation with a maintained goal, progress, research, technical
+documentation and diagrams. [CDISO](cditem-conflict-isolation-plan.md) remains
+the feature authority; this companion owns execution.
 
 | Workstream | Current evidence | Next action |
 | --- | --- | --- |
-| Stable identity | Existing package identity, retained bindings and reservations remain implemented | Preserve these contracts when native registration consumes contributions |
-| Definition publication | B106/B111 retained results; new portable paired-publication fixture passes 41 cases/963 checks | Join actual native backing/metadata/decoder routing to common preflight; qualify the game reader boundary |
-| Private resource identity | New offline archive-path review; focused checks and retained B93/B98 preparation check pass | Use exact prepared archive identity in the next separately versioned native path/open/read candidate |
-| Native resource use | B99 game metadata lookup; B109 source-qualified wrapper; B110 virtual roots and B112 actual path call still pending | Qualify concrete open/read/size/completion and holder lifetime, then observe exact private bytes |
-| End-to-end independence | No production native admission | Prove two same-donor packages through native acquisition/equip/restart/update/removal/save and the separate absent-provider save case |
+| Stable identity | Existing UUIDs and retained reservations; actual image-preparation update/removal/reinstall/profile-transfer fixtures now verified | Preserve the same contracts through native use and saves |
+| Definition publication | B106/B111 retained results; portable paired-publication fixture has 41 cases/963 checks | Join actual backing/metadata/decoder routing and qualify the game reader boundary |
+| Exact private archive | Retained path-review checks and B93/B98 preparation result | Use the small exact archive/payload in the first concrete native I/O discriminator |
+| Separate package images | New maintained service/diagnostic CLI; 24 focused cases verified on actual compiler output | Feed each exact immutable image to a qualified native producer after the small-fixture proof |
+| Native resource use | B99 game metadata lookup; B109 source-qualified wrapper; B110 concrete methods pending | Qualify open/read/size/completion and holder lifetime, then demonstrate exact private bytes and use |
+| End-to-end independence | No production native admission | Prove two same-donor packages through acquisition/equip/restart/update/removal/save and the separate absent-provider case |
 
-B111 was executed on 2026-10-19. The earlier 2026-10-21 increment verified all
-12 references in its retained result. Its selected numeric reader exposed
-new ordinals before the diagnostic owner count in 168 observations. Count-last
-does not supply the required consumer readiness boundary.
+The new [resource preparation contract](../cdmw/ui/new_item/INDEPENDENT_ITEMS.md#per-package-resource-image-preparation)
+owns the image API, identity distinctions, storage representation, diagram and
+focused command. Each package has separate PAPGT/PAMT/PAZ bytes. Shared
+definitions, integrations, declared dependencies and unresolved graph edges
+remain visible in the report. The command does not publish game/profile/image
+files or commit proposed reservations. Large checks retain the existing
+temporary-file and installed-helper policy.
 
-The new paired-publication experiment ran only in an isolated Linux workspace.
-It reproduced a late second-map refusal in retained B111 C++ and implements
-common validation before any store, retained backing and reentry-safe ownership.
-Both lookup paths, rows and resource completion are modeled; its 32 partial-map
-observations leave arbitrary-reader atomicity unproved. The source is excluded
-from production CMake targets and release provenance. See the
-[owning contract and focused command](../native/cdmw_virtual_loader/research/README.md).
+The exact Windows test module initially passed 23 cases and failed one
+cancellation-message assertion. The service correctly raised `RunCancelled`
+before resolution. The test now asserts that exact exception type, and its
+single targeted rerun passed; the other 23 cases and service/CLI were unchanged.
+Both independent source reviews pass. Evidence and source pins are in
+`workspace/reports/cditem-execution/20261021-package-resource-images/`.
 
-The archive checker verifies input and packet consistency only. It does not
-prove capture provenance or native payload read/use. See the
-[technical contract](../cdmw/ui/new_item/INDEPENDENT_ITEMS.md#private-archive-path-evidence-review)
-and [current progress](progress.md#cditem-current-progress).
+B111's retained selected-reader observations reject count-last as a readiness
+boundary. The preceding C++ experiment establishes common preflight and
+retained ownership on modeled backing, with 32 partial-map observations. The
+existing archive reviewer checks exact preparation and packet consistency.
+Neither result supplies native completed-read, resource-use or reader-lifetime
+evidence. Their unchanged 41-case and 52-case checks were not rerun.
 
-The fresh read-only census found no game or compiler process. Java/Codex
-ownership and a current source/provider grant remain unconfirmed. No shared
-Windows compiler, provider, game, installation or save was used by this increment.
-Before native execution, refresh ownership and bind the supported caller to the
-exact candidate and available lane. Historical grants below remain dated evidence.
+The fresh read-only census found no Java, game or compiler process. Two Codex
+processes remained unidentified, and this session has no callable REA provider
+or current source/provider handoff. No shared native compiler/provider, actual
+game installation or save was used. Python tests used owned temporary fixtures.
+Before native work, refresh ownership and bind the supported caller to the
+exact candidate and available lane. Historical grants below are dated evidence.
 
 ## 1. Goal and relationship to the existing plan
 

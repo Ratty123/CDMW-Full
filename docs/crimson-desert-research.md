@@ -1054,10 +1054,27 @@ expected payload. It refuses a different archive beneath the same root. Focused
 fixtures and a retained-input check passed on 2026-10-21; native capture
 provenance, byte delivery and resource use remain unverified.
 
+The maintained [per-package resource image preparation](../cdmw/ui/new_item/INDEPENDENT_ITEMS.md#per-package-resource-image-preparation)
+now produces a separate PAPGT/PAMT/PAZ image from each package's actual validated
+compiler contributions. Each included resource is joined to that package's
+ownership and reservations. Shared definitions and integrations remain omitted
+and reported; this preparation does not publish a game or profile change.
+
+Twenty-four focused cases are verified on owned synthetic fixtures, covering
+exact compiler/archive bytes, independent updates, retained ordering,
+removal/reinstall and identity-profile transfer. The report distinguishes
+package UUID, canonical content, exact ZIP artifact, reservation and resource-image
+digests. It also distinguishes current resources from retained retired paths.
+The image-local group and archive ordinal do not establish native discovery.
+Small fixture verification does not qualify the large-payload helper path,
+native decoding, resource retirement or save behavior.
+
 The next resource proof must reach the intended bytes and their actual engine
-consumer. It must then join the independently owned item definitions in one
-supported lifecycle. Metadata success and related Loadouts observations remain
-separate evidence.
+consumer. First qualify the concrete file-manager methods and completed-read/
+holder-lifetime contract against the exact small retained fixture. Then extend
+that demonstrated route to the separate package images and join independently
+owned item definitions in one supported lifecycle. Metadata success, prepared
+archive bytes and related Loadouts observations remain separate evidence.
 
 Sources: [resource-admission research and recorded receipt limits][virtual-loader]
 and the [independent-content evidence boundary](../cdmw/ui/new_item/INDEPENDENT_ITEMS.md#retained-evidence-and-unresolved-contracts).
