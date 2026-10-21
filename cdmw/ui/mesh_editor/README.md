@@ -1961,6 +1961,11 @@ Tightness requires Surface or Rigid component mode on every chosen garment.
 no viewport selection, body slider, original body or skeleton. It sets **Tightness %**
 to 100 and clearance to at least 0.1%, retaining each Part's mode, intensity, masks and
 allowed body region. Inputs must already share the intended alignment and pose.
+After excluding islands with **Include** and starting a new edit session from the
+finished PAC, unused vertex records do not need body correspondences for tightening.
+They retain their followed positions while the remaining garment surface is fitted;
+topology and exclusion stay intact. Visible surfaces with unreliable body matches
+still reject the fit and retain the previous preview.
 
 | Mode | Fitting behavior | Typical use |
 | --- | --- | --- |

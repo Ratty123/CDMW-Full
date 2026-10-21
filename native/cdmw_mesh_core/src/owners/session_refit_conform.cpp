@@ -271,6 +271,13 @@ void mesh_editor_conform_refit(const MeshRefitRuntime &refit, const std::map<int
     std::vector<bool> reliable(nodes.size(), false);
     for (std::size_t i = 0; i < nodes.size(); ++i) {
         auto &node = nodes[i];
+        // PAC island exclusions retain vertex records after their triangles
+        // disappear. These records have no surface to fit: keep their followed
+        // positions without requiring a body correspondence or a solve target.
+        if (node.area == 0.0) {
+            node.mobility = 0.0;
+            continue;
+        }
         const auto vertex = node.vertices.front();
         const auto binding = bindings.find(vertex);
         if (binding == bindings.end())

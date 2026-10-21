@@ -20,7 +20,7 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 ### Fixed
 
-- Morph & Refit keeps rigid necklaces and ornaments aligned with nearby Flexible attachment areas during fitting and body changes, preserving their shape and assembled joins. Different follow strengths, Skip and protected parts retain their existing behavior.
+- Morph & Refit keeps rigid necklaces and ornaments aligned with nearby Flexible attachment areas during fitting and body changes, preserving their shape and assembled joins. Different follow strengths, Skip and protected parts retain their existing behavior. Fit to body no longer reports unreliable body matches for hidden island remnants after finishing a mesh and starting a new edit session.
 - Create New Item respects ignored archive folders, so excluded `dmmsa`, `dmmgen` and custom mod folders no longer block loading as missing archives.
 - Mesh Editor fixes false topology errors when finishing reopened geometry edits. Parts and mesh islands use Include for output exclusion, explain restrictions and blocked Delete actions, and offer Free Edit where supported. Completed fitting, imports and geometry edits can continue from the finished mesh.
 - Mesh Editor preserves colours and texture layers when starting another edit pass or reopening an edited Archive Browser result, including after the original editing session closes.
