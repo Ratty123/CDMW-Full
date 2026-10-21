@@ -188,6 +188,7 @@ class PingResult:
 class CacheHealthRequest:
     package_root: str
     ignored_folders: tuple[str, ...] = ()
+    use_default_ignored_folders: bool = True
 
 
 @dataclass(frozen=True, slots=True)
@@ -220,6 +221,7 @@ class OpenArchiveRequest:
     force_refresh: bool = False
     supersedes_session_id: str | None = None
     ignored_folders: tuple[str, ...] = ()
+    use_default_ignored_folders: bool = True
 
 
 @dataclass(frozen=True, slots=True)

@@ -604,7 +604,7 @@ def test_a_plain_rescan_records_the_previous_session_for_closure() -> None:
     bridge = ArchiveRemoteWindowBridge(window)
     from types import SimpleNamespace
     configured_folders = ["Extras/Old", "My backups"]
-    window.settings = SimpleNamespace(value=lambda key, default: configured_folders if key == "archive/ignored_folders" else default)
+    window.settings = SimpleNamespace(value=lambda key, default: configured_folders if key == "archive/ignored_folders_override" else default)
     open_calls = []
     bridge._controller.open_archive = lambda *args, **kwargs: open_calls.append((args, kwargs))
 
@@ -616,5 +616,6 @@ def test_a_plain_rescan_records_the_previous_session_for_closure() -> None:
 
     assert bridge._superseded_session_id == "session-old"
     assert open_calls[-1][1]["ignored_folders"] == ("Extras/Old", "My backups")
+    assert open_calls[-1][1]["use_default_ignored_folders"] is False
     configured_folders.append("Added later")
     assert open_calls[-1][1]["ignored_folders"] == ("Extras/Old", "My backups")

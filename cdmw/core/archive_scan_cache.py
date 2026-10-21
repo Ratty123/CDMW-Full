@@ -80,17 +80,19 @@ _ARCHIVE_CACHE_ROOT_PREFIXES: Tuple[str, ...] = (
 _ARCHIVE_ITEM_ICON_THUMBNAIL_CACHE_LOCK = threading.Lock()
 _ARCHIVE_ITEM_ICON_THUMBNAIL_MANIFEST_CACHE: Dict[str, Tuple[Tuple[int, int], Dict[str, object]]] = {}
 _ARCHIVE_SCAN_CACHE_SUPPORTED_VERSIONS = {3}
-_ARCHIVE_SCAN_IGNORED_TOP_LEVEL_DIRS: frozenset[str] = frozenset(BUILTIN_IGNORED_ARCHIVE_FOLDERS)
+_ARCHIVE_SCAN_IGNORED_TOP_LEVEL_DIRS: frozenset[str] = frozenset(name.casefold() for name in BUILTIN_IGNORED_ARCHIVE_FOLDERS)
 
 
-def discover_pamt_files(package_root: Path, *, ignored_folders: Iterable[str] = ()) -> List[Path]:
+def discover_pamt_files(
+    package_root: Path, *, ignored_folders: Iterable[str] = (), use_default_ignored_folders: bool = True,
+) -> List[Path]:
     root = package_root.expanduser().resolve()
     if root.is_file() and root.suffix.lower() == ".pamt":
         return [root]
     if not root.exists() or not root.is_dir():
         raise ValueError(f"Archive package root does not exist or is not a folder: {root}")
     files: List[Path] = []
-    ignored = _ARCHIVE_SCAN_IGNORED_TOP_LEVEL_DIRS | {
+    ignored = (_ARCHIVE_SCAN_IGNORED_TOP_LEVEL_DIRS if use_default_ignored_folders else frozenset()) | {
         path.casefold() for path in normalize_ignored_archive_folders(ignored_folders)
     }
     for directory, subdirectories, filenames in os.walk(root):

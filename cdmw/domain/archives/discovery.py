@@ -5,8 +5,12 @@ from __future__ import annotations
 from collections.abc import Iterable
 
 
-BUILTIN_IGNORED_ARCHIVE_FOLDERS = ("cdmods", "backups", ".cdmw", "crimsonforge_backups")
+BUILTIN_IGNORED_ARCHIVE_FOLDERS = (
+    "cdmods", "backups", ".cdmw", "crimsonforge_backups",
+    "dmmsa", "dmmgen", "CrimsonFastLoad.backup",
+)
 ARCHIVE_IGNORED_FOLDERS_SETTING = "archive/ignored_folders"
+ARCHIVE_IGNORED_FOLDERS_OVERRIDE_SETTING = "archive/ignored_folders_override"
 
 
 def normalize_ignored_archive_folders(values: Iterable[str]) -> tuple[str, ...]:

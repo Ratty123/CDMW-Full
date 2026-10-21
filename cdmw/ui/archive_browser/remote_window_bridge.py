@@ -206,6 +206,7 @@ class ArchiveRemoteWindowBridge(QObject):
             query=query,
             force_refresh=force_refresh,
             ignored_folders=read_ignored_archive_folders(getattr(self._window.shell, "settings", None)),
+            use_default_ignored_folders=False,
             selection_identity=self.current_selection_identity(),
         )
 

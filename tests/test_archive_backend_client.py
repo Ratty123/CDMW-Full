@@ -119,13 +119,21 @@ def test_cache_root_preserves_an_absolute_junction_alias(tmp_path: Path, monkeyp
     assert client._cache_root == expected
 
 
-def test_custom_exclusions_are_refused_by_an_older_worker(tmp_path: Path) -> None:
+@pytest.mark.parametrize("ignored,use_defaults,capabilities", [
+    (("Extras/Old",), True, ()),
+    (("dmmsa",), False, ("archive_ignored_folders_v1",)),
+    ((), False, ("archive_ignored_folders_v1",)),
+])
+def test_custom_exclusions_are_refused_by_an_older_worker(tmp_path: Path, ignored, use_defaults, capabilities) -> None:
     client = _client(tmp_path)
+    client.ensure_ready()
+    assert _wait_until(lambda: client.is_ready)
+    client._capabilities = capabilities
     failures = []
     client.request_failed.connect(lambda request_id, error: failures.append((request_id, error)))
     request = client.submit(
         ArchiveBackendOperation.CACHE_HEALTH,
-        CacheHealthRequest("synthetic-root", ignored_folders=("Extras/Old",)),
+        CacheHealthRequest("synthetic-root", ignored_folders=ignored, use_default_ignored_folders=use_defaults),
         ui_generation=1,
     )
     assert _wait_until(lambda: bool(failures))

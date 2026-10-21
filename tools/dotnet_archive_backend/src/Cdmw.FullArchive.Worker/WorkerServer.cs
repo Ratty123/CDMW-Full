@@ -227,7 +227,7 @@ internal sealed class WorkerServer(Stream input, Stream output, string cacheRoot
                 native.AbiVersion,
                 ArchiveIndex.Version,
                 Environment.ProcessId,
-                ["character_catalog_v1", "archive_ignored_folders_v1"]));
+                ["character_catalog_v1", "archive_ignored_folders_v1", "archive_ignored_folders_v2"]));
     }
 
     private async Task HandleCancelAsync(

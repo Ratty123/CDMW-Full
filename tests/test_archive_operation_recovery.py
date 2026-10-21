@@ -195,10 +195,10 @@ def test_page_recovery_preserves_query_and_rejects_changed_source_before_publica
     assert [call[0] for call in client.calls] == ["open_archive", "create_query", "fetch_page", "open_archive"]
 
 
-def test_worker_recovery_and_refresh_keep_the_session_folder_exclusions(operation):
+@pytest.mark.parametrize("ignored,use_defaults", [(("Extras/Old", "Backup copies"), True), (("dmmsa",), False), ((), False)])
+def test_worker_recovery_and_refresh_keep_the_session_folder_exclusions(operation, ignored, use_defaults):
     _, client, service, failures, _ = operation
-    ignored = ("Extras/Old", "Backup copies")
-    service.open_archive(OpenArchiveRequest("C:/game", ignored_folders=ignored), ui_generation=1)
+    service.open_archive(OpenArchiveRequest("C:/game", ignored_folders=ignored, use_default_ignored_folders=use_defaults), ui_generation=1)
     session = ArchiveSessionHandle("session", "C:/game", "fp", 4, 3, False)
     client.result(session)
     service.create_query(ArchiveQuery(session.session_id), ui_generation=1)
@@ -210,10 +210,12 @@ def test_worker_recovery_and_refresh_keep_the_session_folder_exclusions(operatio
     advance(operation, 1)
     assert client.calls[-1][0] == "open_archive"
     assert to_wire(client.calls[-1][1])["ignored_folders"] == list(ignored)
+    assert to_wire(client.calls[-1][1])["use_default_ignored_folders"] is use_defaults
     client.result(replace(session, session_id="recovered"))
     assert not failures
     service.refresh_archive("C:/game", ui_generation=2)
     assert client.calls[-1][1].ignored_folders == ignored
+    assert client.calls[-1][1].use_default_ignored_folders is use_defaults
 
 
 def test_progressing_work_can_run_long_and_duplicate_progress_does_not_reset_idle_time(operation):

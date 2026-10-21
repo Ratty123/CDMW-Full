@@ -194,9 +194,10 @@ def test_open_keeps_previous_rows_until_new_first_page_is_ready() -> None:
     published: list[ArchiveQueryHandle] = []
     controller.queryPublished.connect(published.append)
 
-    controller.open_archive("C:/game", query=ArchiveQuery(""), ignored_folders=("Extras/Old",))
+    controller.open_archive("C:/game", query=ArchiveQuery(""), ignored_folders=("Extras/Old",), use_default_ignored_folders=False)
     open_id, _request, generation = service.latest("open_archive")
     assert _request.ignored_folders == ("Extras/Old",)
+    assert _request.use_default_ignored_folders is False
     assert model.data(model.index(0, 0)) == "visible.pac"
     service.complete(open_id, _session())
     query_request_id, _query, _ = service.latest("create_query")

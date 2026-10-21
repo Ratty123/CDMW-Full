@@ -28,6 +28,7 @@ internal static class FullArchiveTestRunner
             ("archive_discovery_excludes_backups", ArchiveDiscoveryTests.ScanAndExportAsync),
             ("existing_backup_cache_is_rebuilt", ArchiveDiscoveryTests.ExistingBackupCacheAsync),
             ("custom_ignored_folders", ArchiveDiscoveryTests.CustomFoldersAsync),
+            ("removable_default_ignored_folders", ArchiveDiscoveryTests.RemovableDefaultsAsync),
             ("compact_dependency_index", CompactDependencyIndexAsync),
             ("query_lookup_search_prepare_export", QueryLookupSearchPrepareExportAsync),
             ("preview_association_and_prepare_batch", PreviewAssociationAndPrepareBatchAsync),
@@ -70,7 +71,8 @@ internal static class FullArchiveTestRunner
         if (archiveDiscoveryOnly)
         {
             tests = tests.Where(static test => test.Name is "native_and_generation_cache"
-                or "archive_discovery_excludes_backups" or "existing_backup_cache_is_rebuilt" or "custom_ignored_folders").ToArray();
+                or "archive_discovery_excludes_backups" or "existing_backup_cache_is_rebuilt" or "custom_ignored_folders"
+                or "removable_default_ignored_folders").ToArray();
         }
         if (archiveQueryOnly)
         {
@@ -1802,6 +1804,8 @@ internal static class FullArchiveTestRunner
                 Require(pingResult is { ProtocolVersion: 3, NativeAbiVersion: 1, IndexVersion: 3 }, "worker ping compatibility data changed");
                 Require(pingResult?.Capabilities?.Contains("archive_ignored_folders_v1") == true,
                     "worker did not advertise custom folder exclusions");
+                Require(pingResult?.Capabilities?.Contains("archive_ignored_folders_v2") == true,
+                    "worker did not advertise removable default exclusions");
 
                 var ignoredFolder = Path.Combine(fixture.Root, "My backups");
                 Directory.CreateDirectory(ignoredFolder);
@@ -1842,6 +1846,27 @@ internal static class FullArchiveTestRunner
                 var page = WorkerProtocol.ReadPayload<ArchivePage>(pageResult)
                     ?? throw new InvalidDataException("worker page result is empty");
                 Require(page.Rows.Count == 1 && page.Rows[0].Path == "text/hello.txt", "worker page result changed");
+
+                var defaultDirectory = Path.Combine(fixture.Root, "dmmsa");
+                Directory.CreateDirectory(defaultDirectory);
+                File.Copy(fixture.Pamt, Path.Combine(defaultDirectory, "0.pamt"));
+                File.Copy(fixture.Paz, Path.Combine(defaultDirectory, "0.paz"));
+                var editableOpenId = Guid.NewGuid();
+                await SendAsync(process, WorkerProtocol.Request(
+                    editableOpenId, 22, WorkerProtocol.OpenArchive,
+                    new OpenArchiveRequest(fixture.Root, IgnoredFolders: ["my BACKUPS"], UseDefaultIgnoredFolders: false))).ConfigureAwait(false);
+                var editableResult = await ReadTerminalAsync(process, editableOpenId).ConfigureAwait(false);
+                Require(editableResult.Status == WorkerMessageStatus.Result
+                    && WorkerProtocol.ReadPayload<ArchiveSessionHandle>(editableResult)?.EntryCount == 8,
+                    "worker did not include a default folder removed from the editable list");
+                var editableHealthId = Guid.NewGuid();
+                await SendAsync(process, WorkerProtocol.Request(
+                    editableHealthId, 22, WorkerProtocol.CacheHealth,
+                    new CacheHealthRequest(fixture.Root, IgnoredFolders: ["my BACKUPS"], UseDefaultIgnoredFolders: false))).ConfigureAwait(false);
+                var editableHealth = await ReadTerminalAsync(process, editableHealthId).ConfigureAwait(false);
+                Require(editableHealth.Status == WorkerMessageStatus.Result
+                    && WorkerProtocol.ReadPayload<CacheHealthResult>(editableHealth)?.State == "current",
+                    "worker cache health reapplied removed defaults");
 
                 var unavailableNameQueryId = Guid.NewGuid();
                 await SendAsync(process, WorkerProtocol.Request(

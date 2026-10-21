@@ -57,7 +57,7 @@ internal sealed class WorkerRuntime : IAsyncDisposable
                     var result = await _cache.InspectAsync(
                         payload.PackageRoot,
                         cancellationToken,
-                        publishProgress, payload.IgnoredFolders).ConfigureAwait(false);
+                        publishProgress, payload.IgnoredFolders, payload.UseDefaultIgnoredFolders).ConfigureAwait(false);
                     return WorkerProtocol.Response(request, WorkerMessageStatus.Result, result);
                 }
             case WorkerProtocol.OpenArchive:

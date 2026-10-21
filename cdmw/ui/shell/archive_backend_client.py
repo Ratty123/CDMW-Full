@@ -510,8 +510,12 @@ class ArchiveBackendClient(QObject):
             if (pending.envelope.operation in {
                     ArchiveBackendOperation.OPEN_ARCHIVE, ArchiveBackendOperation.REFRESH_ARCHIVE,
                     ArchiveBackendOperation.CACHE_HEALTH,
-                } and (pending.envelope.payload or {}).get("ignored_folders")
-                    and "archive_ignored_folders_v1" not in self._capabilities):
+                } and (
+                    ((pending.envelope.payload or {}).get("use_default_ignored_folders") is False
+                     and "archive_ignored_folders_v2" not in self._capabilities)
+                    or ((pending.envelope.payload or {}).get("ignored_folders")
+                        and "archive_ignored_folders_v1" not in self._capabilities)
+                )):
                 self._fail_request(request_id, ArchiveBackendError(
                     "unsupported_ignored_folders",
                     "The archive backend does not support custom ignored folders. Update or rebuild CDMW before scanning with these exclusions.",

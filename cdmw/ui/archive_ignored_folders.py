@@ -11,7 +11,7 @@ from PySide6.QtWidgets import (
 )
 
 from cdmw.domain.archives.discovery import (
-    ARCHIVE_IGNORED_FOLDERS_SETTING, BUILTIN_IGNORED_ARCHIVE_FOLDERS,
+    ARCHIVE_IGNORED_FOLDERS_OVERRIDE_SETTING,
     normalize_ignored_archive_folders,
 )
 from cdmw.services.settings_service import read_ignored_archive_folders
@@ -24,12 +24,6 @@ class ArchiveIgnoredFoldersGroup(QGroupBox):
         self.settings = settings
         self.get_package_root = lambda: str(settings.value("archive/package_root", "") or "")
         layout = QVBoxLayout(self)
-        layout.addWidget(QLabel("Always ignored at the game-folder root:"))
-        self.builtin_folders_label = QLabel(", ".join(BUILTIN_IGNORED_ARCHIVE_FOLDERS))
-        self.builtin_folders_label.setWordWrap(True)
-        self.builtin_folders_label.setTextInteractionFlags(Qt.TextSelectableByMouse)
-        layout.addWidget(self.builtin_folders_label)
-        layout.addWidget(QLabel("Your ignored folders:"))
         self.folder_list = QListWidget()
         self.folder_list.setSelectionMode(QAbstractItemView.ExtendedSelection)
         self.folder_list.setContextMenuPolicy(Qt.CustomContextMenu)
@@ -73,8 +67,6 @@ class ArchiveIgnoredFoldersGroup(QGroupBox):
         except ValueError:
             self.status_label.setText("Enter a folder path relative to the game folder, without wildcards or '..'.")
             return False
-        builtins = {name.casefold() for name in BUILTIN_IGNORED_ARCHIVE_FOLDERS}
-        folders = tuple(folder for folder in folders if folder.casefold().split("/")[0] not in builtins)
         self.folder_list.clear()
         self.folder_list.addItems(folders)
         self._save()
@@ -87,7 +79,7 @@ class ArchiveIgnoredFoldersGroup(QGroupBox):
 
     def _save(self):
         folders = [self.folder_list.item(row).text() for row in range(self.folder_list.count())]
-        self.settings.setValue(ARCHIVE_IGNORED_FOLDERS_SETTING, folders)
+        self.settings.setValue(ARCHIVE_IGNORED_FOLDERS_OVERRIDE_SETTING, folders)
         self.settings.sync()
         self.status_label.setText("Changes apply the next time archives are loaded or refreshed.")
 

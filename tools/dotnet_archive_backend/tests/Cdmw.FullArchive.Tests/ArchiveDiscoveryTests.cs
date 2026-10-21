@@ -9,6 +9,55 @@ namespace Cdmw.FullArchive.Tests;
 
 internal static class ArchiveDiscoveryTests
 {
+    public static async Task RemovableDefaultsAsync()
+    {
+        await using var fixture = await SyntheticArchiveFixture.CreateAsync().ConfigureAwait(false);
+        var cacheRoot = Path.Combine(Path.GetTempPath(), $"cdmw-removable-defaults-{Guid.NewGuid():N}");
+        var cache = new ArchiveCacheStore(cacheRoot);
+        try
+        {
+            string[] defaults = ["cdmods", "backups", ".cdmw", "crimsonforge_backups", "dmmsa", "dmmgen", "CrimsonFastLoad.backup"];
+            foreach (var folder in defaults)
+            {
+                var directory = Path.Combine(fixture.Root, folder.ToUpperInvariant());
+                Directory.CreateDirectory(directory);
+                File.Copy(fixture.Pamt, Path.Combine(directory, "0.pamt"));
+                File.Copy(fixture.Paz, Path.Combine(directory, "0.paz"));
+            }
+            var native = new NativeArchiveCore();
+            using var sessions = new ArchiveSessionManager(native, cache);
+            var original = await sessions.OpenAsync(new OpenArchiveRequest(fixture.Root), CancellationToken.None).ConfigureAwait(false);
+            Require(original.EntryCount == 4, "default discovery indexed an ignored folder");
+            foreach (var restoredFolder in defaults)
+            {
+                var ignored = defaults.Where(folder => folder != restoredFolder).ToArray();
+                var request = JsonSerializer.Deserialize<OpenArchiveRequest>(
+                    JsonSerializer.Serialize(new OpenArchiveRequest(fixture.Root, IgnoredFolders: ignored, UseDefaultIgnoredFolders: false), WorkerProtocol.JsonOptions),
+                    WorkerProtocol.JsonOptions)!;
+                var restored = await sessions.OpenAsync(request, CancellationToken.None).ConfigureAwait(false);
+                Require(!restored.CacheHit && restored.EntryCount == 8, "removing a default did not rebuild with its archives");
+                var session = sessions.GetRequired(restored.SessionId);
+                var restoredPamt = Path.Combine(fixture.Root, restoredFolder.ToUpperInvariant(), "0.pamt");
+                Require(Enumerable.Range(0, 8).Any(id => session.ReadEntry(id).SourcePamt.Equals(restoredPamt, StringComparison.OrdinalIgnoreCase)),
+                    "native indexing silently reapplied a removed default");
+            }
+            var emptyRequest = new OpenArchiveRequest(fixture.Root, IgnoredFolders: [], UseDefaultIgnoredFolders: false);
+            var all = await sessions.OpenAsync(emptyRequest, CancellationToken.None).ConfigureAwait(false);
+            Require(!all.CacheHit && all.EntryCount == 32, "clearing the list did not include every source");
+            var health = await cache.InspectAsync(fixture.Root, CancellationToken.None, ignoredFolders: [], useDefaultIgnoredFolders: false).ConfigureAwait(false);
+            Require(health.State == "current", "cache health reapplied defaults to an empty list");
+            var refreshed = await sessions.RefreshAsync(emptyRequest, CancellationToken.None).ConfigureAwait(false);
+            Require(!refreshed.CacheHit && refreshed.EntryCount == 32, "refresh reapplied cleared defaults");
+            var reset = await sessions.OpenAsync(new OpenArchiveRequest(fixture.Root), CancellationToken.None).ConfigureAwait(false);
+            Require(!reset.CacheHit && reset.EntryCount == 4, "reapplying defaults reused the unfiltered catalogue");
+        }
+        finally
+        {
+            await cache.WaitForMaintenanceAsync(CancellationToken.None).ConfigureAwait(false);
+            if (Directory.Exists(cacheRoot)) Directory.Delete(cacheRoot, recursive: true);
+        }
+    }
+
     public static async Task CustomFoldersAsync()
     {
         await using var fixture = await SyntheticArchiveFixture.CreateAsync().ConfigureAwait(false);

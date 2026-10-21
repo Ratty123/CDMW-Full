@@ -8192,16 +8192,6 @@
       ]
     },
     {
-      "key": "Always ignored at the game-folder root:",
-      "origins": [
-        {
-          "path": "cdmw/ui/archive_ignored_folders.py",
-          "line": 27,
-          "sink": "QLabel"
-        }
-      ]
-    },
-    {
       "key": "Ambient Occlusion",
       "origins": [],
       "manual": true
@@ -161973,16 +161963,6 @@
           "path": "cdmw/ui/research/classification_review_state.py",
           "line": 245,
           "sink": "python-return:unknown_member_local_text"
-        }
-      ]
-    },
-    {
-      "key": "Your ignored folders:",
-      "origins": [
-        {
-          "path": "cdmw/ui/archive_ignored_folders.py",
-          "line": 32,
-          "sink": "QLabel"
         }
       ]
     },

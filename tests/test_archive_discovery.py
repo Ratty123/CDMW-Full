@@ -8,7 +8,7 @@ import pytest
 from cdmw.core import archive_scan_cache
 from cdmw.core.archive_scan_cache import discover_pamt_files
 from cdmw.models import ArchiveEntry
-from cdmw.domain.archives.discovery import normalize_ignored_archive_folders
+from cdmw.domain.archives.discovery import BUILTIN_IGNORED_ARCHIVE_FOLDERS, normalize_ignored_archive_folders
 
 
 def test_custom_nested_folders_are_pruned_without_hiding_similar_names(tmp_path, monkeypatch):
@@ -37,6 +37,19 @@ def test_ignored_folders_reject_ambiguous_or_outside_paths(path):
 
 def test_ignored_folders_normalize_separators_and_duplicate_case():
     assert normalize_ignored_archive_folders([" Extras\\Old/ ", "extras/old"]) == ("Extras/Old",)
+
+
+@pytest.mark.parametrize("folder", BUILTIN_IGNORED_ARCHIVE_FOLDERS)
+def test_default_ignored_folder_can_be_restored_or_all_exclusions_cleared(tmp_path, folder):
+    ignored_index = tmp_path / folder.swapcase() / "0009" / "0.pamt"
+    live_index = tmp_path / "0009" / "0.pamt"
+    for path in (ignored_index, live_index):
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(b"index")
+    assert discover_pamt_files(tmp_path) == [live_index]
+    remaining = [name for name in BUILTIN_IGNORED_ARCHIVE_FOLDERS if name != folder]
+    assert set(discover_pamt_files(tmp_path, ignored_folders=remaining, use_default_ignored_folders=False)) == {live_index, ignored_index}
+    assert set(discover_pamt_files(tmp_path, use_default_ignored_folders=False)) == {live_index, ignored_index}
 
 
 @pytest.mark.parametrize("live_parent", ["", "game_files"])

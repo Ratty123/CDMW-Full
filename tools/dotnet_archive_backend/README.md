@@ -16,9 +16,10 @@ reference Archive Lite projects, assemblies, settings, processes, or caches.
 
 ## Archive discovery exclusions
 
-Directory scans skip the archive root's `backups/`, `Cdmods/`, `.cdmw/`, and `crimsonforge_backups/` directories,
-case-insensitively, before descending into them. Saved virtual-loader generations
-and other internal copies never enter the live catalogue. Native discovery, source
+Directory scans skip the archive root's `backups/`, `Cdmods/`, `.cdmw/`,
+`crimsonforge_backups/`, `dmmsa/`, `dmmgen/` and `CrimsonFastLoad.backup/` directories
+by default, case-insensitively, before descending into them. Saved virtual-loader
+generations and other ignored copies stay outside the live catalogue. Native discovery, source
 fingerprints and shared archive readers use the same exclusions. Live
 archive groups and overlays remain discoverable, including groups under
 `game_files/`. A cached catalogue fingerprinted with ignored internal sources becomes stale
@@ -35,6 +36,14 @@ Changing included sources invalidates an old catalogue, while edits inside an
 ignored subtree do not. Python session recovery retains the captured list.
 The worker advertises `archive_ignored_folders_v1`; the client refuses a custom
 exclusion request when an older worker does not advertise support.
+
+The optional `use_default_ignored_folders` flag defaults to `true`, preserving
+older callers' additive exclusions. Settings sends `false` with the complete
+editable list, so removing a default actually includes that folder. An empty
+list with this flag disabled includes every folder. This mode requires the
+`archive_ignored_folders_v2` capability, including for an empty list; the client
+refuses it with older workers before scanning. Fingerprinting, cache health and
+native indexing use the same selection, and refresh/recovery preserve both fields.
 
 ## Worker protocol
 

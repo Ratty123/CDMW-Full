@@ -11,7 +11,8 @@ public static class ArchiveFingerprint
         string packageRoot,
         CancellationToken cancellationToken,
         Func<ProgressUpdate, Task>? progress = null,
-        IReadOnlyList<string>? ignoredFolders = null)
+        IReadOnlyList<string>? ignoredFolders = null,
+        bool useDefaultIgnoredFolders = true)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(packageRoot);
         var root = Path.GetFullPath(packageRoot);
@@ -20,7 +21,7 @@ public static class ArchiveFingerprint
             throw new DirectoryNotFoundException($"Archive root does not exist: {root}");
         }
 
-        var files = DiscoverSourceFiles(root, ignoredFolders);
+        var files = DiscoverSourceFiles(root, ignoredFolders, useDefaultIgnoredFolders);
         if (!files.Any(static path => path.EndsWith(".pamt", StringComparison.OrdinalIgnoreCase)))
         {
             throw new InvalidDataException("No PAMT files were found under the selected archive root.");
@@ -88,7 +89,8 @@ public static class ArchiveFingerprint
         Func<ProgressUpdate, Task>? progress,
         ProgressUpdate update) => progress is null ? Task.CompletedTask : progress(update);
 
-    public static IReadOnlyList<string> DiscoverSourceFiles(string root, IReadOnlyList<string>? ignoredFolders = null)
+    public static IReadOnlyList<string> DiscoverSourceFiles(
+        string root, IReadOnlyList<string>? ignoredFolders = null, bool useDefaultIgnoredFolders = true)
     {
         if (File.Exists(root))
         {
@@ -137,7 +139,7 @@ public static class ArchiveFingerprint
                 || path.EndsWith(".pathc", StringComparison.OrdinalIgnoreCase)));
             foreach (var child in Directory.EnumerateDirectories(directory, "*", topLevelOptions))
             {
-                if (directory == root && IsIgnoredArchiveDirectory(child)) continue;
+                if (useDefaultIgnoredFolders && directory == root && IsIgnoredArchiveDirectory(child)) continue;
                 if (ignored.Contains(Path.GetRelativePath(root, child).Replace('\\', '/'))) continue;
                 pending.Push(child);
             }
@@ -151,6 +153,9 @@ public static class ArchiveFingerprint
         return name.Equals("cdmods", StringComparison.OrdinalIgnoreCase)
             || name.Equals("backups", StringComparison.OrdinalIgnoreCase)
             || name.Equals("crimsonforge_backups", StringComparison.OrdinalIgnoreCase)
+            || name.Equals("dmmsa", StringComparison.OrdinalIgnoreCase)
+            || name.Equals("dmmgen", StringComparison.OrdinalIgnoreCase)
+            || name.Equals("CrimsonFastLoad.backup", StringComparison.OrdinalIgnoreCase)
             || name.Equals(".cdmw", StringComparison.OrdinalIgnoreCase);
     }
 

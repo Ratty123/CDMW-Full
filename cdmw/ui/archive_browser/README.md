@@ -73,26 +73,29 @@ use the same rule.
 
 ## Catalogue and Item Finder
 
-Game-folder scans skip the top-level `cdmods`, `backups`, `.cdmw` and
-`crimsonforge_backups` folders, regardless of letter case. Backup indexes do not
-enter the live catalogue or its fingerprint; existing catalogues containing them
-rebuild automatically. Explicitly opening a backup `.pamt` remains available for
-inspection.
+Game-folder scans ignore the top-level `cdmods`, `backups`, `.cdmw`,
+`crimsonforge_backups`, `dmmsa`, `dmmgen` and `CrimsonFastLoad.backup` folders by
+default, regardless of letter case. Ignored indexes do not enter the live
+catalogue or its fingerprint. Explicitly opening an ignored `.pamt` remains
+available for inspection.
 
-**Settings > Paths > Ignored folders** lists these built-in exclusions and saved
+**Settings > Paths > Ignored folders** lists these removable defaults and saved
 custom folder paths. **Add folder...** selects a folder inside the current game
 directory; **Add path...** also accepts a relative path that does not exist yet.
 Nested paths such as `extras/old` exclude that subtree, without excluding other
-folders named `old`. Matching ignores letter case. Select multiple custom rows
-to remove them with **Remove selected** or the context menu. Built-in exclusions
-remain in place.
+folders named `old`. Matching ignores letter case. Select any rows, including
+defaults, to remove them with **Remove selected** or the context menu. Removed
+defaults stay removed after reopening Settings; clearing the list allows all
+folders to be scanned. Existing custom exclusions are retained alongside the
+defaults until the list is edited.
 
 Changes apply on the next archive load or refresh. The filtered source list owns
 both the catalogue fingerprint and native indexing, so cached results update when
 an exclusion adds or removes archive sources. Ignored files are unavailable to
 tools using that catalogue. Worker retries retain the exclusions captured when
-the session opened. The setting is saved as `archive/ignored_folders`; no game
-files are changed.
+the session opened. The complete edited list is saved as
+`archive/ignored_folders_override`; older `archive/ignored_folders` custom entries
+are read when no override is saved. No game files are changed.
 
 The standalone resident catalogue is the only listing authority. Its status messages reach the
 owning shell through the archive workspace's `shell` reference. Preview requests are

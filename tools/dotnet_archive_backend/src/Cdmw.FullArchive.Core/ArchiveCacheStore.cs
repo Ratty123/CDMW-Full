@@ -83,7 +83,8 @@ public sealed partial class ArchiveCacheStore
         string packageRoot,
         CancellationToken cancellationToken,
         Func<ProgressUpdate, Task>? progress = null,
-        IReadOnlyList<string>? ignoredFolders = null)
+        IReadOnlyList<string>? ignoredFolders = null,
+        bool useDefaultIgnoredFolders = true)
     {
         var canonicalRoot = CanonicalRoot(packageRoot);
         var rootId = DeriveRootId(canonicalRoot);
@@ -97,7 +98,7 @@ public sealed partial class ArchiveCacheStore
         ArchiveFingerprintResult fingerprint;
         try
         {
-            fingerprint = await ArchiveFingerprint.ComputeAsync(canonicalRoot, cancellationToken, progress, ignoredFolders).ConfigureAwait(false);
+            fingerprint = await ArchiveFingerprint.ComputeAsync(canonicalRoot, cancellationToken, progress, ignoredFolders, useDefaultIgnoredFolders).ConfigureAwait(false);
         }
         catch (Exception exception) when (exception is IOException or InvalidDataException or UnauthorizedAccessException)
         {
@@ -150,7 +151,8 @@ public sealed partial class ArchiveCacheStore
         NativeArchiveCore native,
         CancellationToken cancellationToken,
         Func<ProgressUpdate, Task>? progress = null,
-        IReadOnlyList<string>? ignoredFolders = null)
+        IReadOnlyList<string>? ignoredFolders = null,
+        bool useDefaultIgnoredFolders = true)
     {
         ArgumentNullException.ThrowIfNull(native);
         var canonicalRoot = CanonicalRoot(packageRoot);
@@ -159,7 +161,7 @@ public sealed partial class ArchiveCacheStore
         await rootGate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            var fingerprint = await ArchiveFingerprint.ComputeAsync(canonicalRoot, cancellationToken, progress, ignoredFolders).ConfigureAwait(false);
+            var fingerprint = await ArchiveFingerprint.ComputeAsync(canonicalRoot, cancellationToken, progress, ignoredFolders, useDefaultIgnoredFolders).ConfigureAwait(false);
             if (!forceRefresh)
             {
                 var cached = await TryOpenCurrentAsync(
@@ -195,7 +197,7 @@ public sealed partial class ArchiveCacheStore
                         indexPath,
                         update => progress?.Invoke(update).GetAwaiter().GetResult(),
                         cancellationToken,
-                        ignoredFolders is { Count: > 0 }
+                        !useDefaultIgnoredFolders || ignoredFolders is { Count: > 0 }
                             ? fingerprint.SourceFiles.Where(static path => path.EndsWith(".pamt", StringComparison.OrdinalIgnoreCase)).ToArray()
                             : null),
                     CancellationToken.None).ConfigureAwait(false);

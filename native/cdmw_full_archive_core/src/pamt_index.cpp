@@ -446,7 +446,8 @@ std::vector<Entry> scan_package_root(const fs::path& package_root, const Progres
             const auto& item = *iterator;
             if (iterator.depth() == 0 && item.is_directory(error)) {
                 const auto name = lower_copy(item.path().filename().string());
-                if (name == "cdmods" || name == "backups" || name == ".cdmw" || name == "crimsonforge_backups") {
+                if (name == "cdmods" || name == "backups" || name == ".cdmw" || name == "crimsonforge_backups"
+                    || name == "dmmsa" || name == "dmmgen" || name == "crimsonfastload.backup") {
                     iterator.disable_recursion_pending();
                     continue;
                 }

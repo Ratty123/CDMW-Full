@@ -7,7 +7,10 @@ import sys
 from typing import Any
 
 from cdmw.constants import APP_NAME, LEGACY_APP_NAMES
-from cdmw.domain.archives.discovery import ARCHIVE_IGNORED_FOLDERS_SETTING
+from cdmw.domain.archives.discovery import (
+    ARCHIVE_IGNORED_FOLDERS_OVERRIDE_SETTING, ARCHIVE_IGNORED_FOLDERS_SETTING,
+    BUILTIN_IGNORED_ARCHIVE_FOLDERS,
+)
 from cdmw.core.classification_registry import configure_texture_classification_registry
 from cdmw.services.workspace_layout import WORKSPACE_MIGRATION_SETTINGS_KEY, migrate_legacy_workspace_layout
 
@@ -17,11 +20,18 @@ MODEL_TEXTURE_ON_DEMAND_MIGRATION_SETTINGS_KEY = "archive/model_texture_on_deman
 
 def read_ignored_archive_folders(settings: object | None) -> tuple[str, ...]:
     if settings is None:
-        return ()
-    value = settings.value(ARCHIVE_IGNORED_FOLDERS_SETTING, [])
+        return BUILTIN_IGNORED_ARCHIVE_FOLDERS
+    value = settings.value(ARCHIVE_IGNORED_FOLDERS_OVERRIDE_SETTING, None)
+    use_defaults = value is None
+    if use_defaults:
+        value = settings.value(ARCHIVE_IGNORED_FOLDERS_SETTING, [])
     if isinstance(value, str):
-        return (value,) if value else ()
-    return tuple(str(item) for item in (value or ()))
+        value = [value] if value else []
+    folders = (*BUILTIN_IGNORED_ARCHIVE_FOLDERS, *(value or ())) if use_defaults else (value or ())
+    result: dict[str, str] = {}
+    for item in folders:
+        result.setdefault(str(item).casefold(), str(item))
+    return tuple(result.values())
 
 
 def migrate_model_texture_setting_to_on_demand(settings: object) -> bool:

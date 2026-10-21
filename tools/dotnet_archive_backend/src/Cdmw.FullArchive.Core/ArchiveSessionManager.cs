@@ -41,7 +41,7 @@ public sealed class ArchiveSessionManager : IDisposable
             forceRefresh,
             _native,
             cancellationToken,
-            progress, request.IgnoredFolders).ConfigureAwait(false);
+            progress, request.IgnoredFolders, request.UseDefaultIgnoredFolders).ConfigureAwait(false);
         var sessionId = Guid.NewGuid().ToString("N");
         var session = new ArchiveSession(sessionId, generation);
         if (!_sessions.TryAdd(sessionId, session))
