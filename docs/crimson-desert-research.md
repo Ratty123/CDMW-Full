@@ -594,6 +594,15 @@ consequences. Transient preview deformation is not automatically a permanent
 mesh edit, and a correction for one source binding cannot silently transfer to
 another.
 
+Reviewed 2026-10-22: body-centred rigid assemblies retain their lateral placement
+during fitting; an incidental one-sided cloth contact is not an attachment.
+Flexible layer fitting takes up authored slack while preserving ordered layers,
+crossing folds and waist-band height contours. Solid wall depth requires coherent,
+closed geometry; duplicated or open skins remain flexible. Focused native checks
+and two caller-provided PAC outfit saves cover the authoring Fit command,
+Undo/Redo, Bake, export/reload and static triangle contacts. Offscreen geometry
+captures supplement those checks; they do not establish packaged or in-game proof.
+
 The exact output policy still applies after fitting. A useful preview does not
 establish absence of clipping during all game animations or compatibility with
 every retained physics profile.

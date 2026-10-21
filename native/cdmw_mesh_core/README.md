@@ -195,6 +195,33 @@ remain disconnected. Neither change snaps source vertices or changes topology.
 parity and shifted-body-seam regressions. `tests/test_mesh_refit_tightening_native.py`
 retains fitting, masks, rigid-component, history and atomic-failure coverage.
 
+Full Tightness takes up slack between ordered flexible layers toward their clearance
+gap. Intermediate Tightness blends from the followed geometry; zero retains the
+original gap. Authored vertex-side evidence distinguishes crossing folds from coarse
+outer triangles cutting an inner layer. Surface-less records retained by exclusions
+cannot establish a layer. Hard trim retains its authored standoff.
+Layer order uses the body's outward direction, including solid belts with inward
+back faces. Current surface queries, inner-cloth rays and exact edge/triangle
+crossings supply contacts on the outer shell; corrections do not push its support
+back into the body. Body clearance takes priority over the nominal cloth gap in
+narrow joints. Authored crossing hanging ribbons retain their fold relationships.
+For shells initially buried in a larger body, the existing combined-volume exit
+solver retains ownership; exact crossing repair applies to mostly exterior shells.
+Uniformly influenced waist bands retain their followed height contour during
+conforming and contact correction. Wall depth requires a consistently oriented,
+closed surface with measurable volume; duplicated or open skins retain their
+flexibility. Wall-aware contact gaps preserve solid bands without treating nearby
+rope knots or crossing tails as the backing layer. Nonuniform masks retain their
+individual constraints.
+
+Body-centred rigid assemblies require a central Flexible join or joins spanning the
+centre during fitting. An incidental one-sided overlap cannot steer them. Their
+lateral placement uses the retained body frame through rigid body rotation, and the
+same motion constraint applies during body and layer contact correction. Tightness,
+uniform influence and real attachments retain their authority. Local ornaments
+can still follow their backing cloth. `tests/test_mesh_refit_rigid_assemblies_native.py`
+owns centring, attachment, rigid-distance and Undo/Redo regressions.
+
 The body and source topology remain unchanged during an initial garment fit. Complex
 trim still needs inspection; static clearance is not animation or in-game proof. The
 owning focused regression file is `tests/test_native_mesh_editor_morph_refit.py` at the

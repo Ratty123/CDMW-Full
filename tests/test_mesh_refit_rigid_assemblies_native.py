@@ -240,12 +240,15 @@ def test_flexible_attachment_does_not_apply_follow_strength_twice(intensity, mas
         _assert_rigid(mesh.submeshes[2].vertices, fitted.submeshes[2].vertices)
 
 
-@pytest.mark.parametrize("case", ("skipped", "different-intensity", "protected", "distant", "nearby-edge"))
+@pytest.mark.parametrize("case", ("skipped", "different-intensity", "protected", "distant", "nearby-edge", "nearby-layer"))
 def test_unrelated_or_independently_configured_cloth_does_not_capture_the_necklace(case):
     mesh = _flexible_band_and_pendant()
     if case in ("distant", "nearby-edge"):
         distance = 1. if case == "distant" else .005
         mesh.submeshes[1].vertices = [(x, y + distance, z) for x, y, z in mesh.submeshes[1].vertices]
+    elif case == "nearby-layer":
+        # Cloth behind an ornament is contact geometry, not an authored join.
+        mesh.submeshes[1].vertices = [(x, y, z - .003) for x, y, z in mesh.submeshes[1].vertices]
     results = []
     for enabled in (False, True):
         with _bound(mesh) as session:
@@ -264,3 +267,70 @@ def test_unrelated_or_independently_configured_cloth_does_not_capture_the_neckla
                 "definition_id": "control", "value": 100., "phase": "end", "change_id": case})
             results.append(_snapshot(mesh, session).submeshes[2].vertices)
     assert results[0] == results[1]
+
+
+@pytest.mark.parametrize("offset", (0., .015), ids=("centred", "saved-off-centre"))
+def test_unattached_rigid_plate_clears_a_symmetric_body_without_sideways_drift(offset):
+    plate = _part("plate", [(-.045, .2, .13), (.045, .2, .13),
+                            (.045, .3, .13), (-.045, .3, .13)],
+                  [(0, 1, 2), (0, 2, 3)], material="metal", texture="")
+    plate.vertices = [(x + offset, y, z) for x, y, z in plate.vertices]
+    mesh = _mesh(_arm(), plate)
+    with _bound(mesh) as session:
+        _fit(session, mode="rigid_component")
+        fitted = _snapshot(mesh, session).submeshes[1]
+    _assert_rigid(plate.vertices, fitted.vertices)
+    assert sum(v[0] for v in fitted.vertices) / len(fitted.vertices) == pytest.approx(0., abs=2e-5)
+    samples = fitted.vertices + [tuple(sum(fitted.vertices[i][axis] for i in face) / 3
+                                       for axis in range(3)) for face in fitted.faces]
+    assert min(math.hypot(x, z) for x, _, z in samples) > .06
+
+
+@pytest.mark.parametrize("gap", (0., .003), ids=("touching", "nearby"))
+def test_nearby_headwrap_cannot_slide_a_rigid_necklace_around_the_body(gap):
+    z = .1 - gap
+    headwrap = _part("headwrap", [(-.045, .3, z), (-.025, .3, z),
+                                 (-.025, .34, z), (-.045, .34, z)],
+                     [(0, 1, 2), (0, 2, 3)], material="cloth", texture="")
+    vertices, faces = [], []
+    for left, right, bottom, top in ((-.04, -.03, .2, .4), (.03, .04, .2, .4),
+                                      (-.04, .04, .19, .21)):
+        offset = len(vertices)
+        vertices.extend(((left, bottom, .10), (right, bottom, .10),
+                         (right, top, .10), (left, top, .10)))
+        faces.extend(((offset, offset + 1, offset + 2), (offset, offset + 2, offset + 3)))
+    necklace = _part("necklace", vertices, faces, material="metal", texture="")
+    mesh = _mesh(_arm(), headwrap, necklace)
+    with _bound(mesh) as session:
+        request = {"garment_submesh_indices": [1, 2], "garment_settings": [
+            {"submesh_index": i, "mode": "surface" if i == 1 else "rigid_component",
+             "tightness_percent": 100., "clearance_percent": .1} for i in (1, 2)]}
+        _command(session, "morph_configure_refit", request)
+        fitted = _snapshot(mesh, session)
+        _assert_rigid(necklace.vertices, fitted.submeshes[2].vertices)
+        assert sum(v[0] for v in fitted.submeshes[2].vertices) / len(vertices) == pytest.approx(0., abs=2e-5)
+        assert fitted.submeshes[1].vertices != headwrap.vertices
+        assert min(math.hypot(x, z) for x, _, z in fitted.submeshes[2].vertices) > .06
+        assert mesh_native_core.undo_native_mesh_editor_session(session)
+        assert [p.vertices for p in _snapshot(mesh, session).submeshes] == [p.vertices for p in mesh.submeshes]
+        assert mesh_native_core.redo_native_mesh_editor_session(session)
+        _command(session, "morph_configure_refit", request)
+        assert [p.vertices for p in _snapshot(mesh, session).submeshes] == [p.vertices for p in fitted.submeshes]
+
+
+@pytest.mark.parametrize("tightness,weight", ((0., 1.), (50., 1.), (100., .5), (100., 0.)))
+def test_rigid_centring_respects_tightness_and_zero_influence(tightness, weight):
+    plate = _part("offset plate", [(-.03, .2, .13), (.06, .2, .13),
+                                   (.06, .3, .13), (-.03, .3, .13)],
+                  [(0, 1, 2), (0, 2, 3)], material="metal", texture="")
+    mesh = _mesh(_arm(), plate)
+    with _bound(mesh) as session:
+        _fit(session, mode="rigid_component", tightness=tightness, vertex_masks=[{
+            "submesh_index": 1, "vertex_indices": list(range(4)), "weights": [weight] * 4,
+        }])
+        fitted = _snapshot(mesh, session).submeshes[1]
+    _assert_rigid(plate.vertices, fitted.vertices)
+    assert sum(v[0] for v in fitted.vertices) / 4 == pytest.approx(
+        .015 * (1. - tightness / 100. * weight), abs=2e-5)
+    if tightness == 0. or weight == 0.:
+        assert fitted.vertices == plate.vertices

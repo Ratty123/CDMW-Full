@@ -263,9 +263,62 @@ void mesh_editor_conform_refit(const MeshRefitRuntime &refit, const std::map<int
             &binding;
     const auto garment_spatial = build_refit_spatial_index_native(garments, garment_set);
     const auto garment_surfaces = mesh_editor_refit_surface_indices(garments, indices, surface_roots);
+    std::map<std::size_t, Vec3> band_axes;
+    std::map<std::size_t, Vec3> solid_band_axes;
+    for (const auto& surface : garment_surfaces) {
+        if (refit.garment_settings.at(surface.first.first).mode != "surface") continue;
+        const Vec3 axis = mesh_editor_refit_band_axis(surface.second, body, tolerance);
+        if (dot_vec3(axis, axis) > 0.5) {
+            band_axes[surface.first.second] = axis;
+            if (mesh_editor_refit_band_has_walls(surface.second, indices.at(surface.first.first), tolerance))
+                solid_band_axes[surface.first.second] = axis;
+        }
+    }
+    std::map<std::size_t, std::vector<std::size_t>> band_nodes;
+    for (std::size_t i = 0; i < nodes.size(); ++i)
+        if (nodes[i].area > 0.0 && band_axes.count(surface_roots[i])) band_nodes[surface_roots[i]].push_back(i);
+    for (auto group = band_nodes.begin(); group != band_nodes.end();) {
+        const auto& first = nodes[group->second.front()];
+        const bool uniform = std::all_of(group->second.begin(), group->second.end(), [&](const auto i) {
+            return std::abs(nodes[i].mobility - first.mobility) < 1.0e-9
+                && std::abs(nodes[i].tightness - first.tightness) < 1.0e-9
+                && std::all_of(nodes[i].vertices.begin(), nodes[i].vertices.end(), [&](const auto& vertex) {
+                    return refit.garment_settings.at(vertex.first).mode == "surface";
+                });
+        });
+        if (!uniform) group = band_nodes.erase(group); else ++group;
+    }
+    std::map<std::size_t, std::vector<std::size_t>> solid_band_nodes;
+    for (const auto& group : band_nodes) if (solid_band_axes.count(group.first)) solid_band_nodes.emplace(group);
+    const auto level_bands = [&](std::vector<Vec3>& field) {
+        for (const auto& group : band_nodes) {
+            const Vec3 axis = band_axes.at(group.first);
+            double height = 0.0, area = 0.0;
+            for (const auto i : group.second) { height += dot_vec3(field[i], axis) * nodes[i].area; area += nodes[i].area; }
+            if (area > 0.0) for (const auto i : group.second)
+                field[i] = add_vec3(field[i], scale_vec3(axis, height / area - dot_vec3(field[i], axis)));
+        }
+    };
     std::map<int, std::vector<Vec3>> garment_positions;
     for (const auto &item : garments)
         garment_positions[item.first] = item.second.vertices;
+    using LayerKey = std::pair<int, std::size_t>;
+    std::map<std::pair<LayerKey, LayerKey>, int> layer_orders;
+    const auto ordered_layer = [&](std::size_t source, const LayerKey& target) {
+        auto first = garment_surfaces.end();
+        for (const auto& vertex : nodes[source].vertices) {
+            first = garment_surfaces.find({vertex.first, surface_roots[source]});
+            if (first != garment_surfaces.end()) break;
+        }
+        if (first == garment_surfaces.end()) return false;
+        const auto keys = std::minmax(first->first, target);
+        const auto key = std::make_pair(keys.first, keys.second);
+        auto found = layer_orders.find(key);
+        if (found == layer_orders.end()) found = layer_orders.emplace(key,
+            mesh_editor_refit_layer_order(garment_surfaces.at(key.first), garment_surfaces.at(key.second),
+                garments, body, driver_visible, refit.driver_diagonal * 0.06, tolerance)).first;
+        return found->second != 0;
+    };
     std::vector<std::size_t> visited(body.triangles.size(), 0);
     std::vector<Vec3> body_points(nodes.size()), body_normals(nodes.size());
     std::vector<bool> reliable(nodes.size(), false);
@@ -376,21 +429,26 @@ void mesh_editor_conform_refit(const MeshRefitRuntime &refit, const std::map<int
             clearance = std::max(clearance, refit.garment_settings.at(source.first).clearance_percent *
                                                 refit.driver_diagonal / 100.0);
         const double height = dot_vec3(sub_vec3(node.point, target_point), target_normal);
-        // Carry stacked shells with their inner layer's field. The standoff is
-        // measured on the neutral garment; projecting every shell to skin would
-        // erase layer separation before collision correction could preserve it.
-        double inner_height = height;
+        // Flexible layers take up slack at full Tightness, retaining a clearance
+        // gap and their authored order. Hard trim keeps its original standoff.
+        std::map<std::pair<int, std::size_t>, std::pair<double, bool>> inner_layers;
+        const bool band = band_nodes.count(surface_roots[i]) != 0;
+        const bool solid_band = solid_band_nodes.count(surface_roots[i]) != 0;
+        double wall_depth = 0.0;
         if (garment_spatial.root >= 0) {
             for (const auto &hit : refit_surface_line_hits_native(node.point, target_normal,
                                                                   refit.driver_diagonal * 0.06, garment_spatial)) {
                 if (hit.driver_submesh_index == vertex.first
-                    && surface_roots[indices.at(hit.driver_submesh_index)[hit.driver_vertices[0]]] == surface_roots[i])
+                    && surface_roots[indices.at(hit.driver_submesh_index)[hit.driver_vertices[0]]] == surface_roots[i]) {
+                    if (solid_band) wall_depth = std::max(wall_depth, height - dot_vec3(sub_vec3(
+                        mesh_editor_refit_driver_point(hit, garment_positions), target_point), target_normal));
                     continue;
+                }
                 if (dot_vec3(refit_binding_face_normal_native(hit, garment_positions), target_normal) < 0.5)
                     continue;
                 const Vec3 point = mesh_editor_refit_driver_point(hit, garment_positions);
                 const double h = dot_vec3(sub_vec3(point, target_point), target_normal);
-                if (h >= inner_height)
+                if (h >= height)
                     continue;
                 // Penetration does not erase a layer. A larger body may already
                 // contain both shells; retain their relative spacing as they exit.
@@ -401,14 +459,46 @@ void mesh_editor_conform_refit(const MeshRefitRuntime &refit, const std::map<int
                 if (distance_squared_vec3(mesh_editor_refit_driver_point(inner_body, driver_visible),
                                           target_point) > std::pow(refit.driver_diagonal * 0.05, 2.0))
                     continue;
-                inner_height = h;
+                const auto key = std::make_pair(hit.driver_submesh_index,
+                    surface_roots[indices.at(hit.driver_submesh_index)[hit.driver_vertices[0]]]);
+                const bool ordered = ordered_layer(i, key);
+                const auto found = inner_layers.find(key);
+                if (found == inner_layers.end()) inner_layers.emplace(key, std::make_pair(h, ordered));
+                else {
+                    found->second.first = std::min(found->second.first, h);
+                    found->second.second &= ordered;
+                }
             }
         }
-        const double standoff = std::max(0.0, height - inner_height);
+        std::vector<std::tuple<double, int, bool>> ordered_layers;
+        for (const auto& inner : inner_layers)
+            ordered_layers.emplace_back(inner.second.first, inner.first.first, inner.second.second);
+        std::sort(ordered_layers.begin(), ordered_layers.end(), std::greater<>());
+        bool flexible = std::all_of(node.vertices.begin(), node.vertices.end(), [&](const auto& vertex) {
+            return refit.garment_settings.at(vertex.first).mode == "surface";
+        });
+        const bool nested_band = band && std::any_of(ordered_layers.begin(), ordered_layers.end(), [&](const auto& inner) {
+            return std::get<2>(inner) && refit.garment_settings.at(std::get<1>(inner)).mode == "surface";
+        });
+        double standoff = 0.0, previous_height = height, previous_clearance = clearance;
+        for (const auto& inner : ordered_layers) {
+            const auto& settings = refit.garment_settings.at(std::get<1>(inner));
+            // Nearby rope knots do not define a waist band's backing surface.
+            // Keep its ordered wrap and the band's own wall depth instead.
+            if (nested_band && settings.mode == "surface" && !std::get<2>(inner)) continue;
+            const double inner_clearance = settings.clearance_percent * refit.driver_diagonal / 100.0;
+            const double gap = std::max(0.0, previous_height - std::get<0>(inner));
+            const bool inner_flexible = settings.mode == "surface";
+            standoff += flexible && inner_flexible && std::get<2>(inner) ? mesh_editor_refit_layer_gap(gap,
+                std::max(previous_clearance, inner_clearance), 1.0, tolerance) : gap;
+            previous_height = std::get<0>(inner);
+            previous_clearance = inner_clearance;
+            flexible = inner_flexible;
+        }
         // Reserve a small contact band for interpolation over curved body faces.
         // Clearance is a minimum; the final contact solve checks the actual gap.
         node.target =
-            sub_vec3(add_vec3(target_point, scale_vec3(target_normal, clearance * 2.0 + standoff)), node.point);
+            sub_vec3(add_vec3(target_point, scale_vec3(target_normal, clearance * 2.0 + standoff + wall_depth)), node.point);
     }
     // A protruding waist vertex can initially bind to a nearby arm. Reject an
     // isolated target only when it both jumps far beyond its cloth neighborhood
@@ -544,6 +634,12 @@ void mesh_editor_conform_refit(const MeshRefitRuntime &refit, const std::map<int
                 screen[i] = nodes[i].area;
         }
     }
+    // A waist band tightens around the torso while retaining its height contour.
+    // Give attached trim the same broad target before solving their shared field.
+    std::vector<Vec3> band_targets;
+    for (const auto& node : nodes) band_targets.push_back(node.target);
+    level_bands(band_targets);
+    for (std::size_t i = 0; i < nodes.size(); ++i) nodes[i].target = band_targets[i];
     // Overlapping surface islands share a local displacement field, including
     // islands stored in one Part. A belt or folded panel follows the cloth underneath instead of independently
     // seeking the skin. Barycentric links preserve details even when the two
@@ -552,6 +648,7 @@ void mesh_editor_conform_refit(const MeshRefitRuntime &refit, const std::map<int
         std::array<std::size_t, 4> nodes;
         std::array<double, 4> weights;
         double strength;
+        Vec3 target{};
     };
     std::vector<LayerLink> layer_links;
     for (const auto& item : garment_surfaces) {
@@ -590,7 +687,20 @@ void mesh_editor_conform_refit(const MeshRefitRuntime &refit, const std::map<int
                 invalid |= link.nodes[c + 1] == i
                     || (nearest.barycentric[c] > 1.0e-7 && !reliable[link.nodes[c + 1]]);
             }
-            if (!invalid) layer_links.push_back(link);
+            if (!invalid) {
+                bool flexible = refit.garment_settings.at(part).mode == "surface";
+                double clearance = refit.garment_settings.at(part).clearance_percent * refit.driver_diagonal / 100.0;
+                for (const auto& vertex : nodes[i].vertices) {
+                    const auto& settings = refit.garment_settings.at(vertex.first);
+                    flexible &= settings.mode == "surface";
+                    clearance = std::max(clearance, settings.clearance_percent * refit.driver_diagonal / 100.0);
+                }
+                if (flexible && ordered_layer(i, item.first)) {
+                    const double gap = mesh_editor_refit_layer_gap(std::abs(height), clearance, 1.0, tolerance);
+                    link.target = scale_vec3(normal, std::copysign(gap, height) - height);
+                }
+                layer_links.push_back(link);
+            }
         }
     }
     std::vector<double> diagonal(nodes.size());
@@ -609,8 +719,10 @@ void mesh_editor_conform_refit(const MeshRefitRuntime &refit, const std::map<int
             diagonal[edge.b] += lambda * edge.weight;
     }
     for (const auto& link : layer_links) for (int c = 0; c < 4; ++c)
-        if (nodes[link.nodes[c]].mobility > 0.0)
+        if (nodes[link.nodes[c]].mobility > 0.0) {
             diagonal[link.nodes[c]] += link.strength * link.weights[c] * link.weights[c];
+            rhs[link.nodes[c]] = add_vec3(rhs[link.nodes[c]], scale_vec3(link.target, link.strength * link.weights[c]));
+        }
     const auto multiply = [&](const std::vector<Vec3> &values) {
         std::vector<Vec3> result(nodes.size());
         for (std::size_t i = 0; i < nodes.size(); ++i)
@@ -668,6 +780,7 @@ void mesh_editor_conform_refit(const MeshRefitRuntime &refit, const std::map<int
     }
     if (!converged)
         fail(nodes.front().vertices.front().first, "fitting did not converge; previous preview retained");
+    level_bands(displacement);
     // Limit local strain, not the common translation. Stopping every component
     // of an unsafe displacement pins small folds and creates flared hem corners;
     // carrying the triangle together lets its detail follow the fitted silhouette.

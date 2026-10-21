@@ -177,7 +177,7 @@ def test_layers_material_seams_and_protection_are_retained():
         assert fitted.submeshes[1].vertices == fitted.submeshes[2].vertices
         assert fitted.submeshes[1].vertices[0] == sleeve.vertices[0]
         for a, b in zip(fitted.submeshes[1].vertices[64:160], fitted.submeshes[3].vertices[64:160]):
-            assert math.hypot(b[0], b[2])-math.hypot(a[0], a[2]) > .005
+            assert math.hypot(b[0], b[2])-math.hypot(a[0], a[2]) > .0004
 
 
 def test_layers_starting_inside_a_larger_body_keep_their_spacing():
@@ -187,7 +187,9 @@ def test_layers_starting_inside_a_larger_body_keep_their_spacing():
         fitted = _snapshot(mesh,session)
         for inner,outer in zip(fitted.submeshes[1].vertices,fitted.submeshes[2].vertices):
             assert math.hypot(inner[0],inner[2]) > .08
-            assert math.hypot(outer[0],outer[2])-math.hypot(inner[0],inner[2]) > .005
+            # Full Tightness removes slack, including after both layers exit
+            # a larger body. It must not remove their order or clearance gap.
+            assert .0004 < math.hypot(outer[0],outer[2])-math.hypot(inner[0],inner[2]) < .002
 
 
 @pytest.mark.parametrize("constraint", ("free", "protected", "inactive"))

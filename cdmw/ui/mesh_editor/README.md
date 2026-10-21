@@ -2009,14 +2009,26 @@ and **Apply to Selected Garments** can set their mode together. Matching materia
 borders with tiny coordinate differences also move as one piece, without snapping
 the authored vertices.
 Touching ornaments, including tiny gaps at their joins, form one rigid assembly.
-A rigid assembly follows its closest nearby Flexible attachment, moving and rotating
-with that area while retaining the shape and spacing of all its links and pendants.
+A rigid assembly follows its Flexible attachment, moving and rotating with that
+area while retaining the shape and spacing of all its links and pendants.
+Jewelry spanning the body's centre uses a central join or joins on both sides;
+a headwrap touching only one side does not steer the entire necklace. Without
+such an attachment, fitting centres the assembly on the body and preserves that
+placement during clearance correction. Tightness and influence control how much
+centring is applied; Skip and zero influence leave the piece in place.
 Use matching body-follow intensity and mask influence at the join for coordinated
 body-slider following; deliberately different strengths retain independent following.
 Without a nearby Flexible attachment, Fit translates the assembly while retaining
 its original orientation; body-slider following can still rotate it. This preserves
 authored overlaps at joins and prevents pieces from twisting into each other.
 An unchanged hard shape can leave extra space where it cannot sit flush to the body.
+For separate Flexible layers, Tightness also takes up the loose gap between an
+outer belt and its wrap. It retains a clearance gap and their layer order instead
+of squeezing both onto the skin. Authored crossing folds retain their construction;
+coarse faces cutting through an otherwise outer layer are checked as contacts.
+Waist bands retain their height contour as they tighten. Proven solid walls keep
+their depth; open or double-sided bands remain flexible. Nonuniform influence
+masks retain their per-vertex control.
 Rigid means shape-preserving, not fixed in place. Fitting retains the authored
 spacing between nearby cloth and hard pieces before resolving body contact.
 Clearance then moves each connected hard piece as a whole, so cloth fitting to a

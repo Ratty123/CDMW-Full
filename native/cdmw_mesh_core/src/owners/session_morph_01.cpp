@@ -531,6 +531,139 @@ std::array<double, 4> refit_component_rotation_native(
     return q;
 }
 
+double mesh_editor_refit_layer_gap(double authored_gap, double clearance, double tightness, double tolerance) {
+    const double snug_gap = std::min(authored_gap, std::max(clearance, tolerance * 4.0));
+    return authored_gap + (snug_gap - authored_gap) * std::clamp(tightness, 0.0, 1.0);
+}
+
+Vec3 mesh_editor_refit_band_axis(const RefitSpatialIndexNative& surface, const RefitSpatialIndexNative& body,
+                               double tolerance) {
+    const auto& bounds = surface.nodes.at(surface.root);
+    const auto& driver = body.nodes.at(body.root);
+    const Vec3 extent = sub_vec3(bounds.maximum, bounds.minimum);
+    const Vec3 body_extent = sub_vec3(driver.maximum, driver.minimum);
+    const auto up = std::distance(body_extent.begin(), std::max_element(body_extent.begin(), body_extent.end()));
+    double width = std::numeric_limits<double>::infinity();
+    for (int axis = 0; axis < 3; ++axis) if (axis != up) {
+        width = std::min(width, extent[axis]);
+        const double center = (driver.maximum[axis] + driver.minimum[axis]) * 0.5;
+        if (center < bounds.minimum[axis] - tolerance || center > bounds.maximum[axis] + tolerance) return {};
+    }
+    if (width < length_vec3(body_extent) * 0.04 || extent[up] > width * 0.4) return {};
+    Vec3 axis{};
+    axis[up] = 1.0;
+    return axis;
+}
+
+bool mesh_editor_refit_band_has_walls(const RefitSpatialIndexNative& surface,
+    const std::vector<std::size_t>& indices, double tolerance) {
+    std::map<std::pair<std::size_t, std::size_t>, std::pair<int, int>> edges;
+    const auto& bounds = surface.nodes.at(surface.root);
+    const Vec3 center = scale_vec3(add_vec3(bounds.minimum, bounds.maximum), 0.5);
+    double volume = 0.0, area = 0.0;
+    for (const auto& face : surface.triangles) {
+        const Vec3 a = sub_vec3(face.corners[0], center), b = sub_vec3(face.corners[1], center), c = sub_vec3(face.corners[2], center);
+        const Vec3 cross{b[1]*c[2]-b[2]*c[1], b[2]*c[0]-b[0]*c[2], b[0]*c[1]-b[1]*c[0]};
+        volume += dot_vec3(a, cross);
+        const Vec3 ab = sub_vec3(b, a), ac = sub_vec3(c, a);
+        area += length_vec3(Vec3{ab[1]*ac[2]-ab[2]*ac[1], ab[2]*ac[0]-ab[0]*ac[2], ab[0]*ac[1]-ab[1]*ac[0]});
+        for (int edge = 0; edge < 3; ++edge) {
+            const auto first = indices[face.driver_vertices[edge]], second = indices[face.driver_vertices[(edge + 1) % 3]];
+            if (first == second) continue;
+            auto& incidence = edges[std::minmax(first, second)];
+            ++incidence.first; incidence.second += first < second ? 1 : -1;
+        }
+    }
+    return std::abs(volume) > area * tolerance * 12.0 && std::all_of(edges.begin(), edges.end(),
+        [](const auto& edge) { return edge.second.first == 2 && edge.second.second == 0; });
+}
+
+
+int mesh_editor_refit_layer_order(
+    const RefitSpatialIndexNative& first, const RefitSpatialIndexNative& second,
+    const std::map<int, MeshSessionSubmesh>& garments, const RefitSpatialIndexNative& body,
+    const std::map<int, std::vector<Vec3>>& body_positions, double reach, double tolerance
+) {
+    const auto& first_bounds = first.nodes.at(first.root);
+    const auto& second_bounds = second.nodes.at(second.root);
+    int shared_spans = 0;
+    for (int axis = 0; axis < 3; ++axis) {
+        const double a = first_bounds.maximum[axis] - first_bounds.minimum[axis];
+        const double b = second_bounds.maximum[axis] - second_bounds.minimum[axis];
+        if (std::min(a, b) > std::max(tolerance * 4.0, reach * 0.25)
+            && std::min(a, b) >= std::max(a, b) * 0.5)
+            ++shared_spans;
+    }
+    // A local knot or hanging strip beside a broad waist shell is trim, not
+    // another nested garment. Retain its authored displacement relationship.
+    if (shared_spans < 2) return 0;
+    std::array<int, 2> sides{};
+    std::array<bool, 2> wraps{};
+    int orientation = 0;
+    for (const auto& pair : {std::make_pair(&first, &second), std::make_pair(&second, &first)}) {
+        bool positive = false, negative = false;
+        Vec3 normal_sum{};
+        std::size_t normal_count = 0;
+        const auto sample = [&](const Vec3& point) {
+            long long tests = 0;
+            const auto binding = closest_refit_binding_native(point, *pair.second, tests);
+            if (binding.distance > reach) return false;
+            const auto& vertices = garments.at(binding.driver_submesh_index).vertices;
+            Vec3 nearest{};
+            for (int c = 0; c < 3; ++c)
+                nearest = add_vec3(nearest, scale_vec3(vertices[binding.driver_vertices[c]], binding.barycentric[c]));
+            // Layer order follows the body's outside. A solid belt's inner
+            // faces have the opposite winding to the cloth beneath them.
+            const auto driver = closest_refit_binding_native(point, body, tests);
+            const Vec3 normal = refit_binding_face_normal_native(driver, body_positions);
+            normal_sum = add_vec3(normal_sum, normal);
+            ++normal_count;
+            const Vec3 offset = sub_vec3(point, nearest);
+            const double height = dot_vec3(offset, normal);
+            // At a faceted rim the nearest point may be a shared vertex. Its
+            // offset need only run mainly across the surface to establish side.
+            if (height * height < binding.distance * binding.distance * 0.5) return false;
+            positive |= height > tolerance * 4.0;
+            negative |= height < -tolerance * 4.0;
+            return positive && negative;
+        };
+        std::set<std::pair<int, int>> visited;
+        for (const auto& triangle : pair.first->triangles) {
+            for (int c = 0; c < 3; ++c)
+                if (visited.insert({triangle.driver_submesh_index, triangle.driver_vertices[c]}).second
+                    && sample(triangle.corners[c])) break;
+            if (positive && negative) break;
+        }
+        wraps[orientation] = normal_count > 0 && length_vec3(normal_sum) < normal_count * 0.75;
+        sides[orientation++] = positive && negative ? 2 : positive ? 1 : negative ? -1 : 0;
+    }
+    // Consistent outer corners establish order even if a coarse outer face
+    // cuts an inner corner. Interleaved authored folds have mixed outer corners.
+    int order = 0;
+    if (sides[0] == 1 && sides[1] == 1) return 0;
+    if (sides[0] == 1) order = 1;
+    else if (sides[1] == 1) order = -1;
+    else if (sides[0] == -1 && sides[1] != 2) order = -1;
+    else if (sides[1] == -1 && sides[0] != 2) order = 1;
+    // Crossing hanging ribbons are an authored fold, even when their corners
+    // happen to agree on a side. A shell surrounding the body can instead have
+    // coarse faces that cut its inner wrap and must be repaired.
+    if (order != 0 && !wraps[0] && !wraps[1]) {
+        for (const auto& pair : {std::make_pair(&first, &second), std::make_pair(&second, &first)}) {
+            std::set<std::pair<int, int>> edges;
+            for (const auto& face : pair.first->triangles) for (int c = 0; c < 3; ++c) {
+                if (!edges.insert(std::minmax(face.driver_vertices[c], face.driver_vertices[(c + 1) % 3])).second) continue;
+                const Vec3 a = face.corners[c], b = face.corners[(c + 1) % 3];
+                const Vec3 delta = sub_vec3(b, a);
+                const double length = length_vec3(delta);
+                if (length > tolerance && !refit_surface_line_hits_native(scale_vec3(add_vec3(a, b), 0.5),
+                        scale_vec3(delta, 1.0 / length), length * 0.5, *pair.second).empty()) return 0;
+            }
+        }
+    }
+    return order;
+}
+
 void mesh_editor_refit_components(
     const MeshRefitRuntime& refit,
     const std::map<int, MeshSessionSubmesh>& submeshes,
@@ -539,7 +672,8 @@ void mesh_editor_refit_components(
     const std::map<int, std::vector<Vec3>>& base_layer,
     const RefitMaskWeightsNative& masks,
     std::map<int, std::vector<Vec3>>& layer,
-    bool conforming = false
+    bool conforming = false,
+    std::map<int, std::vector<Vec3>>* centering_axes = nullptr
 ) {
     if (std::none_of(refit.garment_settings.begin(), refit.garment_settings.end(),
         [](const auto& item) { return item.second.enabled && item.second.mode == "rigid_component"; })) return;
@@ -606,6 +740,27 @@ void mesh_editor_refit_components(
     std::map<int, MeshSessionSubmesh> drivers;
     for (const auto& item : driver_visible) { drivers[item.first].vertices = item.second; drivers[item.first].faces = submeshes.at(item.first).faces; }
     const auto spatial = build_refit_spatial_index_native(drivers, refit.driver_submesh_indices);
+    std::vector<Vec3> body_source, body_target;
+    Vec3 body_source_center{}, body_target_center{}, body_min{}, body_max{};
+    for (const auto& item : refit.driver_baseline_positions) for (std::size_t i = 0; i < item.second.size(); ++i) {
+        const auto& point = item.second[i];
+        if (body_source.empty()) body_min = body_max = point;
+        for (int axis = 0; axis < 3; ++axis) {
+            body_min[axis] = std::min(body_min[axis], point[axis]);
+            body_max[axis] = std::max(body_max[axis], point[axis]);
+        }
+        body_source.push_back(point);
+        body_target.push_back(driver_visible.at(item.first)[i]);
+        body_source_center = add_vec3(body_source_center, point);
+        body_target_center = add_vec3(body_target_center, body_target.back());
+    }
+    body_source_center = scale_vec3(body_source_center, 1.0 / body_source.size());
+    body_target_center = scale_vec3(body_target_center, 1.0 / body_target.size());
+    const auto body_rotation = refit_component_rotation_native(body_source, body_target, body_source_center, body_target_center);
+    const Vec3 body_center = scale_vec3(add_vec3(body_min, body_max), 0.5);
+    const Vec3 body_extent = sub_vec3(body_max, body_min);
+    const auto up_axis = std::distance(body_extent.begin(), std::max_element(body_extent.begin(), body_extent.end()));
+    Vec3 up{}; up[up_axis] = 1.0;
     std::map<int, MeshSessionSubmesh> flexible;
     std::map<int, std::vector<Vec3>> flexible_base, flexible_target;
     std::set<int> flexible_parts;
@@ -647,6 +802,28 @@ void mesh_editor_refit_components(
         }
         original_center = scale_vec3(original_center, 1.0 / original.size());
         target_center = scale_vec3(target_center, 1.0 / target.size());
+        Vec3 authored_normal{};
+        for (const auto& binding : refit.bindings) {
+            const auto part = indices.find(binding.garment_submesh_index);
+            if (part != indices.end() && root_of(part->second[binding.garment_vertex_index]) == component.first)
+                authored_normal = add_vec3(authored_normal,
+                    refit_binding_face_normal_native(binding, refit.driver_baseline_positions));
+        }
+        const Vec3 lateral{up[1]*authored_normal[2]-up[2]*authored_normal[1],
+                           up[2]*authored_normal[0]-up[0]*authored_normal[2],
+                           up[0]*authored_normal[1]-up[1]*authored_normal[0]};
+        Vec3 source_axis{};
+        int lateral_axis = 0;
+        for (int axis = 1; axis < 3; ++axis)
+            if (std::abs(lateral[axis]) > std::abs(lateral[lateral_axis])) lateral_axis = axis;
+        if (length_vec3(lateral) > original.size() * 1.0e-6) source_axis[lateral_axis] = 1.0;
+        double side_min = std::numeric_limits<double>::infinity(), side_max = -side_min;
+        for (const auto i : component.second) {
+            const auto& vertex = vertices[i];
+            const double side = dot_vec3(sub_vec3(residual.at(vertex.submesh)[vertex.vertex], body_center), source_axis);
+            side_min = std::min(side_min, side); side_max = std::max(side_max, side);
+        }
+        const bool spans_center = side_min < -tolerance && side_max > tolerance;
         std::vector<MeshRefitVertexBindingRuntime> attachments;
         double closest_support = refit.driver_diagonal * 0.03;
         if (supports.root >= 0 && first.weight > 0.0) for (const auto index : component.second) {
@@ -654,11 +831,12 @@ void mesh_editor_refit_components(
             long long tests = 0;
             const auto binding = closest_refit_binding_native(residual.at(vertex.submesh)[vertex.vertex], supports, tests);
             if (binding.distance > join_tolerance) {
+                // A one-sided scarf overlap must not capture a body-centred
+                // assembly. Local ornaments can still follow their backing cloth.
+                if (spans_center) continue;
                 const Vec3 offset = sub_vec3(residual.at(vertex.submesh)[vertex.vertex],
                     mesh_editor_refit_driver_point(binding, residual));
                 const double height = dot_vec3(offset, refit_binding_face_normal_native(binding, residual));
-                // Apart from actual joins, only follow an overlapping layer.
-                // A nearby cloth edge beside an ornament is not its attachment.
                 if (height * height < binding.distance * binding.distance * 0.5) continue;
             }
             const auto& support_settings = refit.garment_settings.at(binding.driver_submesh_index);
@@ -674,6 +852,7 @@ void mesh_editor_refit_components(
             attachments.push_back(binding);
         }
         std::vector<Vec3> support_source, support_target;
+        double attachment_min = std::numeric_limits<double>::infinity(), attachment_max = -attachment_min;
         for (const auto& binding : attachments) {
             // Prefer the closest attachment patch. Nearby cloth under the rest
             // of a pendant must not dilute the motion of its actual join.
@@ -683,6 +862,9 @@ void mesh_editor_refit_components(
             refit_triangle_corners_native(flexible_target, binding.driver_submesh_index, binding.driver_vertices, target_triangle);
             const auto a = refit_face_frame_native(source_triangle), b = refit_face_frame_native(target_triangle);
             if (!a.valid || !b.valid) continue;
+            const double side = dot_vec3(sub_vec3(mesh_editor_refit_driver_point(binding, residual), body_center), source_axis);
+            attachment_min = std::min(attachment_min, side);
+            attachment_max = std::max(attachment_max, side);
             const Vec3 source = mesh_editor_refit_driver_point(binding, flexible_base);
             const Vec3 target = mesh_editor_refit_driver_point(binding, flexible_target);
             // Symmetric frame samples retain orientation even at a single-point
@@ -694,6 +876,12 @@ void mesh_editor_refit_components(
                     support_target.push_back(add_vec3(target, scale_vec3(axes.second, sign * join_tolerance)));
                 }
         }
+        if (conforming && spans_center
+            && (attachment_min > join_tolerance || attachment_max < -join_tolerance)) {
+            // A single lateral contact cannot locate an entire centred necklace.
+            // A central join or joins spanning the centre remain real anchors.
+            support_source.clear(); support_target.clear();
+        }
         const bool attached = !support_source.empty();
         if (attached) {
             original_center = {}; target_center = {};
@@ -703,6 +891,28 @@ void mesh_editor_refit_components(
             }
             original_center = scale_vec3(original_center, 1.0 / support_source.size());
             target_center = scale_vec3(target_center, 1.0 / support_target.size());
+        }
+        Vec3 centering_axis{};
+        if (conforming && !attached && spans_center && first.weight > 0.0) {
+            // Retain the body's authored lateral axis through body rotation;
+            // individual triangle normals would bias it by a tessellation step.
+            centering_axis = refit_rotate_quaternion_native(body_rotation, source_axis);
+            const Vec3 current_body_center = add_vec3(body_target_center,
+                refit_rotate_quaternion_native(body_rotation, sub_vec3(body_center, body_source_center)));
+            double minimum = std::numeric_limits<double>::infinity(), maximum = -minimum;
+            for (const auto& point : original) {
+                const double side = dot_vec3(sub_vec3(point, current_body_center), centering_axis);
+                minimum = std::min(minimum, side); maximum = std::max(maximum, side);
+            }
+            target_center = sub_vec3(target_center, scale_vec3(centering_axis,
+                dot_vec3(sub_vec3(target_center, original_center), centering_axis)
+                + (minimum + maximum) * 0.5 * settings.tightness_percent / 100.0 * first.weight));
+        }
+        if (centering_axes) for (const auto i : component.second) {
+            const auto& vertex = vertices[i];
+            auto& axes = (*centering_axes)[vertex.submesh];
+            axes.resize(submeshes.at(vertex.submesh).vertices.size());
+            axes[vertex.vertex] = centering_axis;
         }
         const bool assembled = std::any_of(component.second.begin(), component.second.end(), [&](const auto i) {
             return topology_roots[i] != topology_roots[component.second.front()];
@@ -759,7 +969,13 @@ void mesh_editor_refit_components(
                 const Vec3 normal = refit_binding_face_normal_native(binding, driver_visible);
                 const double missing = clearance - dot_vec3(sub_vec3(predicted,
                     mesh_editor_refit_driver_point(binding, driver_visible)), normal);
-                if (missing > missing_max) { missing_max = missing; correction = scale_vec3(normal, missing); }
+                if (missing <= tolerance) continue;
+                const Vec3 direction = sub_vec3(normal, scale_vec3(centering_axis, dot_vec3(normal, centering_axis)));
+                const double freedom = dot_vec3(normal, direction);
+                if (missing > missing_max && freedom > 1.0e-8) {
+                    missing_max = missing;
+                    correction = scale_vec3(direction, missing / freedom);
+                }
             }
             if (missing_max <= tolerance) break;
             clearance_shift = add_vec3(clearance_shift, correction);
@@ -794,7 +1010,8 @@ void mesh_editor_relieve_refit_surface(
     std::map<int, std::vector<Vec3>>& layer,
     const RefitMaskWeightsNative* fitting_masks = nullptr,
     bool validate_only = false,
-    const std::map<int, std::vector<Vec3>>* layer_reference = nullptr
+    const std::map<int, std::vector<Vec3>>* layer_reference = nullptr,
+    const std::map<int, std::vector<Vec3>>* centering_axes = nullptr
 ) {
     std::map<int, double> clearances;
     for (const auto& item : refit.garment_settings) {
@@ -891,6 +1108,11 @@ void mesh_editor_relieve_refit_surface(
         Vec3 rest_offset;
         Vec3 normal;
         double limit = 0.0;
+        double snug_gap = -1.0;
+        std::pair<int, std::size_t> target_surface{-1, 0};
+        bool ordered = false;
+        mutable std::array<std::size_t, 3> live_corners{};
+        mutable int live_generation = -1;
     };
     const auto sample_point = [&](const SurfaceSample& sample, bool original) {
         Vec3 point{0.0, 0.0, 0.0};
@@ -1017,11 +1239,25 @@ void mesh_editor_relieve_refit_surface(
         for (const auto i : group.second) mobility = std::min(mobility, cohorts[i].mobility);
         for (const auto i : group.second) cohorts[i].mobility = mobility;
     }
+    std::vector<Vec3> contact_fixed_axes(cohorts.size());
+    if (centering_axes) for (const auto& group : rigid_groups) {
+        Vec3 axis{};
+        for (const auto i : group.second) for (const auto& vertex : cohorts[i].vertices) {
+            const auto found = centering_axes->find(vertex.first);
+            if (found != centering_axes->end()) axis = add_vec3(axis, found->second[vertex.second]);
+        }
+        const double length = length_vec3(axis);
+        if (length > tolerance) for (const auto i : group.second)
+            contact_fixed_axes[i] = scale_vec3(axis, 1.0 / length);
+    }
+    const auto project_contact = [&](std::size_t i, const Vec3& delta) {
+        return sub_vec3(delta, scale_vec3(contact_fixed_axes[i], dot_vec3(delta, contact_fixed_axes[i])));
+    };
     const auto move_contact = [&](std::size_t i, const Vec3& delta) {
         if (rigid_vertex[i]) {
             for (const auto j : rigid_groups.at(rigid_roots[i]))
-                cohorts[j].position = add_vec3(cohorts[j].position, delta);
-        } else cohorts[i].position = add_vec3(cohorts[i].position, delta);
+                cohorts[j].position = add_vec3(cohorts[j].position, project_contact(i, delta));
+        } else cohorts[i].position = add_vec3(cohorts[i].position, project_contact(i, delta));
     };
     std::map<std::size_t, std::pair<Vec3, Vec3>> opening_bounds;
     for (const auto& edge : edges) {
@@ -1056,6 +1292,148 @@ void mesh_editor_relieve_refit_surface(
     // which surface is outside. Only couple nearby surfaces facing the body.
     const auto layer_roots = mesh_editor_refit_surface_roots(garments, vertex_cohorts, cohorts.size());
     const auto layer_surfaces = mesh_editor_refit_surface_indices(layer_garments, vertex_cohorts, layer_roots);
+    std::map<std::size_t, Vec3> band_axes;
+    std::map<std::size_t, Vec3> solid_band_axes;
+    if (fitting_masks) for (const auto& surface : layer_surfaces) {
+        if (refit.garment_settings.at(surface.first.first).mode != "surface") continue;
+        const Vec3 axis = mesh_editor_refit_band_axis(surface.second, spatial_index, tolerance);
+        if (dot_vec3(axis, axis) < 0.5) continue;
+        std::set<std::size_t> vertices;
+        const auto& map = vertex_cohorts.at(surface.first.first);
+        for (const auto& face : surface.second.triangles)
+            for (const auto vertex : face.driver_vertices) vertices.insert(map[vertex]);
+        const auto first = *vertices.begin();
+        const auto& first_settings = refit.garment_settings.at(cohorts[first].vertices.front().first);
+        const bool uniform = std::all_of(vertices.begin(), vertices.end(), [&](const auto i) {
+            return std::abs(cohorts[i].mobility - cohorts[first].mobility) < 1.0e-9
+                && std::all_of(cohorts[i].vertices.begin(), cohorts[i].vertices.end(), [&](const auto& vertex) {
+                    const auto& settings = refit.garment_settings.at(vertex.first);
+                    return settings.mode == "surface"
+                        && std::abs(settings.tightness_percent - first_settings.tightness_percent) < 1.0e-9;
+                });
+        });
+        if (uniform) {
+            for (const auto i : vertices) contact_fixed_axes[i] = axis;
+            band_axes[surface.first.second] = axis;
+            if (mesh_editor_refit_band_has_walls(surface.second, map, tolerance)) solid_band_axes[surface.first.second] = axis;
+        }
+    }
+    std::vector<double> band_wall_depth(cohorts.size(), 0.0);
+    for (const auto& surface : layer_surfaces) if (solid_band_axes.count(surface.first.second)) {
+        const auto& map = vertex_cohorts.at(surface.first.first);
+        std::set<std::size_t> vertices;
+        for (const auto& face : surface.second.triangles)
+            for (const auto vertex : face.driver_vertices) vertices.insert(map[vertex]);
+        for (const auto i : vertices) {
+            long long tests = 0;
+            const auto body = closest_refit_binding_native(layer_rest[i], spatial_index, tests);
+            const Vec3 normal = refit_binding_face_normal_native(body, driver_visible);
+            double depth = std::numeric_limits<double>::infinity();
+            for (const auto& hit : refit_surface_line_hits_native(layer_rest[i], normal, refit.driver_diagonal * 0.03, surface.second)) {
+                Vec3 point{};
+                for (int c = 0; c < 3; ++c) point = add_vec3(point,
+                    scale_vec3(layer_rest[map[hit.driver_vertices[c]]], hit.barycentric[c]));
+                const double distance = dot_vec3(sub_vec3(layer_rest[i], point), normal);
+                if (distance > tolerance * 4.0) depth = std::min(depth, distance);
+            }
+            if (std::isfinite(depth)) band_wall_depth[i] = depth;
+        }
+    }
+    using LayerKey = std::pair<int, std::size_t>;
+    std::map<std::pair<LayerKey, LayerKey>, int> layer_orders;
+    struct LayerProbe {
+        SurfaceSample inner;
+        LayerKey outer;
+        Vec3 normal;
+        double clearance = 0.0;
+        SurfaceSample contact{};
+        bool exact_contact = false;
+        mutable std::vector<std::array<std::size_t, 3>> live_faces;
+        mutable int live_generation = -1;
+    };
+    std::vector<LayerProbe> layer_probes;
+    std::map<LayerKey, bool> exterior_layers;
+    if (fitting_masks) for (const auto& surface : layer_surfaces) {
+        std::set<std::size_t> vertices;
+        const auto& map = vertex_cohorts.at(surface.first.first);
+        for (const auto& face : surface.second.triangles)
+            for (const auto vertex : face.driver_vertices) vertices.insert(map[vertex]);
+        double outside = 0.0, area = 0.0;
+        for (const auto i : vertices) {
+            const auto& vertex = cohorts[i].vertices.front();
+            const Vec3 point = residual.at(vertex.first)[vertex.second];
+            long long tests = 0;
+            const auto body = closest_refit_binding_native(point, spatial_index, tests);
+            const double height = dot_vec3(sub_vec3(point, mesh_editor_refit_driver_point(body, driver_visible)),
+                refit_binding_face_normal_native(body, driver_visible));
+            area += contact_mass[i];
+            if (height >= -tolerance * 4.0) outside += contact_mass[i];
+        }
+        // A shell buried in a larger body needs the combined-volume exit first.
+        // Isolated authored penetrations in otherwise exterior cloth still need
+        // triangle contact repair after that cloth has cleared the body.
+        exterior_layers[surface.first] = outside >= area * 0.5;
+    }
+    std::vector<bool> layer_boundary(cohorts.size(), false);
+    for (const auto& edge : edge_faces) if (edge.second != 2)
+        layer_boundary[edge.first.first] = layer_boundary[edge.first.second] = true;
+    const auto interior_layer_feature = [&](const SurfaceSample& sample) {
+        std::vector<std::size_t> active;
+        for (int c = 0; c < 3; ++c) if (sample.weights[c] > 1.0e-7) active.push_back(sample.corners[c]);
+        if (active.size() == 1) return !layer_boundary[active[0]];
+        if (active.size() != 2) return false;
+        const auto edge = edge_faces.find(std::minmax(active[0], active[1]));
+        return edge != edge_faces.end() && edge->second == 2;
+    };
+    const auto layer_contact_normal = [&](const SurfaceSample& sample, const std::vector<Vec3>& normals,
+                                          const Vec3& face_normal) {
+        Vec3 normal{};
+        for (int c = 0; c < 3; ++c) normal = add_vec3(normal, scale_vec3(normals[sample.corners[c]], sample.weights[c]));
+        const double length = length_vec3(normal);
+        if (length <= tolerance) return face_normal;
+        return scale_vec3(normal, (dot_vec3(normal, face_normal) < 0.0 ? -1.0 : 1.0) / length);
+    };
+    std::vector<Vec3> reference_normals(cohorts.size());
+    for (const auto& part : layer_garments) for (const auto& face : part.second.faces) {
+        const auto& map = vertex_cohorts.at(part.first);
+        const Vec3 a = sub_vec3(layer_rest[map[face[1]]], layer_rest[map[face[0]]]);
+        const Vec3 b = sub_vec3(layer_rest[map[face[2]]], layer_rest[map[face[0]]]);
+        const Vec3 normal{a[1]*b[2]-a[2]*b[1], a[2]*b[0]-a[0]*b[2], a[0]*b[1]-a[1]*b[0]};
+        for (const auto vertex : face) reference_normals[map[vertex]] = add_vec3(reference_normals[map[vertex]], normal);
+    }
+    for (auto& normal : reference_normals) {
+        const double length = length_vec3(normal);
+        if (length > 0.0) normal = scale_vec3(normal, 1.0 / length);
+    }
+    auto live_layer_garments = layer_garments;
+    std::map<LayerKey, RefitSpatialIndexNative> live_layer_surfaces;
+    int live_layer_generation = 0;
+    const auto refresh_layer_surfaces = [&] {
+        for (auto& part : live_layer_garments) {
+            const auto& map = vertex_cohorts.at(part.first);
+            for (std::size_t i = 0; i < map.size(); ++i) part.second.vertices[i] = cohorts[map[i]].position;
+        }
+        live_layer_surfaces = mesh_editor_refit_surface_indices(live_layer_garments, vertex_cohorts, layer_roots);
+        ++live_layer_generation;
+    };
+    const auto current_layer_sample = [&](const LayerConstraint& constraint, const Vec3& point) {
+        auto other = constraint.second;
+        if (constraint.ordered) {
+            if (constraint.live_generation != live_layer_generation) {
+                const auto surface = live_layer_surfaces.find(constraint.target_surface);
+                if (surface == live_layer_surfaces.end()) throw std::runtime_error("Fit to body: opposing layer lost its surface");
+                long long tests = 0;
+                const auto binding = closest_refit_binding_native(point, surface->second, tests);
+                for (int c = 0; c < 3; ++c)
+                    constraint.live_corners[c] = vertex_cohorts.at(binding.driver_submesh_index)[binding.driver_vertices[c]];
+                constraint.live_generation = live_layer_generation;
+            }
+            other.corners = constraint.live_corners;
+        }
+        other.weights = closest_triangle_point_native(point, cohorts[other.corners[0]].position,
+            cohorts[other.corners[1]].position, cohorts[other.corners[2]].position).barycentric;
+        return other;
+    };
     for (const auto& target : layer_surfaces) {
         const int target_part = target.first.first;
         const auto target_root = target.first.second;
@@ -1077,7 +1455,12 @@ void mesh_editor_relieve_refit_surface(
             authored_normal[i] = refit_face_normal_native(points[face[0]], points[face[1]], points[face[2]]);
             authored_side[i] = dot_vec3(sub_vec3(layer_rest[i], points[face[0]]), authored_normal[i]);
         }
-        const auto bind_layer = [&](const SurfaceSample& sample) {
+        const auto bind_layer = [&](const SurfaceSample& sample, int source_part) {
+            const LayerKey source{source_part, layer_roots[sample.corners[0]]};
+            const auto source_surface = layer_surfaces.find(source);
+            // PAC exclusions retain unused vertex records. A record without a
+            // usable triangle cannot establish an opposing garment layer.
+            if (source_surface == layer_surfaces.end()) return;
             const Vec3 point = layer_sample_point(sample);
             if (!close_to_target(point)) return;
             long long candidate_tests = 0;
@@ -1092,22 +1475,87 @@ void mesh_editor_relieve_refit_surface(
             }
             if (rigid_vertex[sample.corners[0]] && rigid_vertex[other.corners[0]]
                 && rigid_roots[sample.corners[0]] == rigid_roots[other.corners[0]]) return;
-            const Vec3 normal = refit_face_normal_native(
+            Vec3 normal = refit_face_normal_native(
                 layer_rest[other.corners[0]], layer_rest[other.corners[1]], layer_rest[other.corners[2]]
             );
+            int pair_order = 0;
+            if (fitting_masks && refit.garment_settings.at(source_part).mode == "surface"
+                && refit.garment_settings.at(target_part).mode == "surface") {
+                const auto keys = std::minmax(source, target.first);
+                const auto key = std::make_pair(keys.first, keys.second);
+                auto found = layer_orders.find(key);
+                if (found == layer_orders.end()) found = layer_orders.emplace(key,
+                    mesh_editor_refit_layer_order(layer_surfaces.at(key.first), layer_surfaces.at(key.second),
+                        layer_garments, spatial_index, driver_visible, refit.driver_diagonal * 0.06, tolerance)).first;
+                pair_order = source == key.first ? found->second : -found->second;
+            }
+            if (pair_order == 0 && refit.garment_settings.at(source_part).mode == "surface"
+                && refit.garment_settings.at(target_part).mode == "surface"
+                && (band_axes.count(source.second) || band_axes.count(target_root))) return;
+            // Probe from the inner cloth along its outside. A nearest query in
+            // this direction can instead pick a belt's side wall or back face.
+            // Rays only constrain outer triangles that actually cover the cloth.
+            if (pair_order < 0) {
+                Vec3 direction{};
+                for (int c = 0; c < 3; ++c)
+                    direction = add_vec3(direction, scale_vec3(reference_normals[sample.corners[c]], sample.weights[c]));
+                const double length = length_vec3(direction);
+                if (length <= tolerance) return;
+                direction = scale_vec3(direction, 1.0 / length);
+                const auto body = closest_refit_binding_native(point, spatial_index, candidate_tests);
+                const Vec3 body_normal = refit_binding_face_normal_native(body, driver_visible);
+                // A buried sleeve first needs the body's combined-volume exit,
+                // not an outward ray from an internal arm or torso face.
+                if (dot_vec3(sub_vec3(point, mesh_editor_refit_driver_point(body, driver_visible)), body_normal)
+                        < tolerance * 4.0) return;
+                const Vec3 support = layer_sample_point(other);
+                const double across = dot_vec3(sub_vec3(point, support), body_normal);
+                if (across * across < nearest.distance * nearest.distance * 0.5) return;
+                const auto support_body = closest_refit_binding_native(support, spatial_index, candidate_tests);
+                if (dot_vec3(body_normal, refit_binding_face_normal_native(support_body, driver_visible)) < 0.5
+                    || distance_squared_vec3(mesh_editor_refit_driver_point(body, driver_visible),
+                        mesh_editor_refit_driver_point(support_body, driver_visible))
+                        > std::pow(refit.driver_diagonal * 0.05, 2.0)) return;
+                const double alignment = dot_vec3(direction, body_normal);
+                if (std::abs(alignment) < 0.5) return;
+                if (alignment < 0.0) direction = scale_vec3(direction, -1.0);
+                bool before = false, after = false;
+                for (const auto& hit : refit_surface_line_hits_native(point, direction, refit.driver_diagonal * 0.03, target_index)) {
+                    SurfaceSample contact{{}, hit.barycentric};
+                    for (int c = 0; c < 3; ++c)
+                        contact.corners[c] = vertex_cohorts.at(hit.driver_submesh_index)[hit.driver_vertices[c]];
+                    const double height = dot_vec3(sub_vec3(layer_sample_point(contact), point), direction);
+                    before |= height < -tolerance * 4.0;
+                    after |= height > tolerance * 4.0;
+                }
+                // Solid trim already threaded through this cloth is an authored
+                // join. Its displacement links retain that construction.
+                if (before && after) return;
+                layer_probes.push_back({sample, target.first, direction,
+                    std::max(clearances.at(source_part), clearances.at(target_part))});
+                return;
+            }
+            const bool interior_feature = pair_order != 0 && interior_layer_feature(other);
+            if (interior_feature) normal = layer_contact_normal(other, reference_normals, normal);
+            if (pair_order != 0) {
+                const auto body = closest_refit_binding_native(point, spatial_index, candidate_tests);
+                if (dot_vec3(normal, refit_binding_face_normal_native(body, driver_visible)) < 0.0)
+                    normal = scale_vec3(normal, -1.0);
+            }
             const double height = dot_vec3(sub_vec3(point, layer_sample_point(other)), normal);
             // Near-coincident material skins are attachments, not measurable
             // separated shells. Their field links retain the join; assigning a
             // hard side from micrometre-scale source rounding creates chatter.
             const double order_epsilon = fitting_masks
                 ? std::max(tolerance * 4.0, refit.driver_diagonal * 1.0e-5) : tolerance * 4.0;
-            if (std::abs(height) <= order_epsilon || std::abs(height) < nearest.distance * 0.15) return;
-            if (fitting_masks && length_vec3(sub_vec3(sub_vec3(point, layer_sample_point(other)),
+            if ((pair_order == 0 && std::abs(height) <= order_epsilon)
+                || std::abs(height) < nearest.distance * 0.15) return;
+            if (fitting_masks && !interior_feature && length_vec3(sub_vec3(sub_vec3(point, layer_sample_point(other)),
                     scale_vec3(normal, height))) > tolerance * 4.0) return;
             // Intersecting authored trim has no consistent layer order in this
             // neighborhood. Its displacement links preserve the construction;
             // conflicting hard half-spaces would tear it apart or inflate it.
-            if (fitting_masks) for (int c = 0; c < 3; ++c) {
+            if (fitting_masks && pair_order == 0) for (int c = 0; c < 3; ++c) {
                 if (sample.weights[c] <= 0.0) continue;
                 for (const auto neighbor : layer_neighbors[sample.corners[c]])
                     if (height * authored_side[neighbor] < -tolerance * tolerance
@@ -1122,7 +1570,35 @@ void mesh_editor_relieve_refit_surface(
             const double region_radius = std::max(nearest.distance * 2.0, refit.driver_diagonal * 0.05);
             if (distance_squared_vec3(mesh_editor_refit_driver_point(first_body, driver_visible),
                                       mesh_editor_refit_driver_point(second_body, driver_visible)) > region_radius * region_radius) return;
-            layer_constraints.push_back({sample, other, sub_vec3(point, layer_sample_point(other)), normal, 0.25 * std::abs(height)});
+            double minimum_gap = 0.75 * std::abs(height);
+            bool flexible = fitting_masks != nullptr;
+            double tightness = 1.0, clearance = 0.0;
+            for (const auto& side : {sample, other}) for (int c = 0; c < 3; ++c) {
+                if (side.weights[c] <= 0.0) continue;
+                const auto& cohort = cohorts[side.corners[c]];
+                clearance = std::max(clearance, cohort.clearance);
+                for (const auto& vertex : cohort.vertices) {
+                    const auto& settings = refit.garment_settings.at(vertex.first);
+                    flexible &= settings.mode == "surface";
+                    tightness = std::min(tightness, settings.tightness_percent / 100.0 * cohort.mobility);
+                }
+            }
+            flexible &= pair_order != 0;
+            double wall_depth = 0.0;
+            for (int c = 0; c < 3; ++c) wall_depth += sample.weights[c] * band_wall_depth[sample.corners[c]];
+            if (flexible) minimum_gap = mesh_editor_refit_layer_gap(
+                pair_order * height <= tolerance ? std::max(std::abs(height), clearance + wall_depth) : std::abs(height),
+                clearance + wall_depth, tightness, tolerance);
+            const double reference_height = pair_order != 0
+                ? pair_order * std::max(std::abs(height), tolerance * 4.0) : height;
+            // Authored corners establish the layer order. A coarse triangle
+            // cutting through the inner layer is a contact to fix, not a fold
+            // whose inverted order should be preserved.
+            const Vec3 rest_offset = add_vec3(sub_vec3(point, layer_sample_point(other)),
+                scale_vec3(normal, reference_height - height));
+            layer_constraints.push_back({sample, other, rest_offset, normal,
+                std::abs(reference_height) - minimum_gap, flexible && tightness > 0.0 ? minimum_gap : -1.0,
+                target.first, pair_order != 0});
         };
         for (const auto& source : garments) {
             const auto& indices = vertex_cohorts.at(source.first);
@@ -1130,23 +1606,29 @@ void mesh_editor_relieve_refit_surface(
                 return source.first == target_part && layer_roots[index] == target_root;
             };
             for (const auto index : std::set<std::size_t>(indices.begin(), indices.end())) {
-                if (!same_surface(index)) bind_layer({{index, index, index}, {1.0, 0.0, 0.0}});
+                if (!same_surface(index)) bind_layer({{index, index, index}, {1.0, 0.0, 0.0}}, source.first);
             }
             std::set<std::pair<std::size_t, std::size_t>> sampled_edges;
             for (const auto& face : source.second.faces) {
                 const std::array<std::size_t, 3> corners{indices[face[0]], indices[face[1]], indices[face[2]]};
                 if (same_surface(corners[0])) continue;
-                bind_layer({corners, {1.0 / 3.0, 1.0 / 3.0, 1.0 / 3.0}});
+                bind_layer({corners, {1.0 / 3.0, 1.0 / 3.0, 1.0 / 3.0}}, source.first);
                 for (std::size_t corner = 0; corner < 3; ++corner) {
                     sampled_edges.insert(std::minmax(corners[corner], corners[(corner + 1) % 3]));
                 }
             }
             for (const auto& edge : sampled_edges) {
-                bind_layer({{edge.first, edge.second, edge.second}, {0.5, 0.5, 0.0}});
+                bind_layer({{edge.first, edge.second, edge.second}, {0.5, 0.5, 0.0}}, source.first);
             }
         }
     }
+    const bool ordered_layers = !layer_probes.empty() || std::any_of(layer_constraints.begin(), layer_constraints.end(),
+        [](const auto& constraint) { return constraint.ordered; });
     if (fitting_masks) for (const auto& constraint : layer_constraints) {
+        // Ordered contact moves the outer cloth away from its fixed support.
+        // Diffusing that correction back through the inner shell would undo
+        // the separation and drive unrelated trim in the opposite direction.
+        if (constraint.ordered) continue;
         // Contact must carry nearby shells together. Coupling their displacement
         // fields retains the measured standoff without smoothing either surface.
         for (int a=0;a<3;++a) for (int b=0;b<3;++b) {
@@ -1374,8 +1856,11 @@ void mesh_editor_relieve_refit_surface(
     for (const auto& item : point_bindings) {
         const auto& binding = item.second;
         auto& cohort = cohorts[item.first];
-        cohort.position = add_vec3(cohort.original, scale_vec3(refit_binding_face_normal_native(binding, driver_visible),
-            point_lifts.at({binding.driver_submesh_index, binding.driver_vertices})));
+        const Vec3 normal = refit_binding_face_normal_native(binding, driver_visible);
+        const Vec3 direction = project_contact(item.first, normal);
+        const double freedom = dot_vec3(normal, direction);
+        if (freedom > 1.0e-8) cohort.position = add_vec3(cohort.original, scale_vec3(direction,
+            point_lifts.at({binding.driver_submesh_index, binding.driver_vertices}) / freedom));
     }
     struct BodyConstraint {
         SurfaceSample sample;
@@ -1548,26 +2033,164 @@ void mesh_editor_relieve_refit_surface(
             add_body_constraint({corners, {1.0 / 3.0, 1.0 / 3.0, 1.0 / 3.0}}, item.second);
         }
     }
-    const auto project_layers = [&](double& maximum_correction) {
+    std::vector<LayerProbe> crossing_layer_probes;
+    const auto refresh_layer_crossings = [&] {
+        crossing_layer_probes.clear();
+        for (const auto& pair : layer_orders) {
+            if (pair.second == 0) continue;
+            const LayerKey outer = pair.second > 0 ? pair.first.first : pair.first.second;
+            const LayerKey inner = pair.second > 0 ? pair.first.second : pair.first.first;
+            if (!exterior_layers.at(inner)) continue;
+            const auto& outer_surface = live_layer_surfaces.at(outer);
+            const auto& inner_surface = live_layer_surfaces.at(inner);
+            std::set<std::tuple<long long, long long, long long>> accepted;
+            for (const bool inner_edges : {false, true}) {
+                const auto& source = inner_edges ? inner_surface : outer_surface;
+                const auto& target = inner_edges ? outer_surface : inner_surface;
+                std::set<std::pair<int, int>> visited;
+                for (const auto& face : source.triangles) for (int edge = 0; edge < 3; ++edge) {
+                    const auto first = face.driver_vertices[edge], second = face.driver_vertices[(edge + 1) % 3];
+                    if (!visited.insert(std::minmax(first, second)).second) continue;
+                    const Vec3 a = face.corners[edge], b = face.corners[(edge + 1) % 3];
+                    const Vec3 delta = sub_vec3(b, a);
+                    const double length = length_vec3(delta);
+                    if (length <= tolerance) continue;
+                    for (const auto& hit : refit_surface_line_hits_native(scale_vec3(add_vec3(a, b), 0.5),
+                            scale_vec3(delta, 1.0 / length), length * 0.5, target)) {
+                        SurfaceSample contact{{}, hit.barycentric};
+                        for (int c = 0; c < 3; ++c)
+                            contact.corners[c] = vertex_cohorts.at(hit.driver_submesh_index)[hit.driver_vertices[c]];
+                        const Vec3 point = sample_point(contact, false);
+                        if (!accepted.insert(mesh_editor_refit_cell(point, tolerance * 4.0)).second) continue;
+                        SurfaceSample outer_contact = contact;
+                        const double weight = std::clamp(dot_vec3(sub_vec3(point, a), delta) / (length * length), 0.0, 1.0);
+                        const auto& map = vertex_cohorts.at(face.driver_submesh_index);
+                        const SurfaceSample edge_sample{{map[first], map[second], map[second]}, {1.0 - weight, weight, 0.0}};
+                        if (inner_edges) {
+                            contact = edge_sample;
+                        } else outer_contact = edge_sample;
+                        Vec3 normal{};
+                        for (int c = 0; c < 3; ++c)
+                            normal = add_vec3(normal, scale_vec3(garment_normals[contact.corners[c]], contact.weights[c]));
+                        const double normal_length = length_vec3(normal);
+                        if (normal_length <= tolerance) continue;
+                        normal = scale_vec3(normal, 1.0 / normal_length);
+                        long long tests = 0;
+                        const auto body = closest_refit_binding_native(point, spatial_index, tests);
+                        const Vec3 outside = body_contact_normal(body, point);
+                        const double alignment = dot_vec3(normal, outside);
+                        if (std::abs(alignment) < 0.5) normal = outside;
+                        else if (alignment < 0.0) normal = scale_vec3(normal, -1.0);
+                        crossing_layer_probes.push_back({contact, outer, normal,
+                            std::max(clearances.at(inner.first), clearances.at(outer.first)), outer_contact, true});
+                    }
+                }
+            }
+        }
+    };
+    const auto project_layer_probes = [&](double& maximum_correction, bool validate = false, bool tighten = false) {
+        for (const auto* probes : {&layer_probes, &crossing_layer_probes}) for (const auto& probe : *probes) {
+            const Vec3 point = sample_point(probe.inner, false);
+            Vec3 normal{};
+            for (int c = 0; c < 3; ++c)
+                normal = add_vec3(normal, scale_vec3(garment_normals[probe.inner.corners[c]], probe.inner.weights[c]));
+            const double length = length_vec3(normal);
+            normal = length > tolerance ? scale_vec3(normal, 1.0 / length) : probe.normal;
+            if (std::abs(dot_vec3(normal, probe.normal)) < 0.5) normal = probe.normal;
+            if (dot_vec3(normal, probe.normal) < 0.0) normal = scale_vec3(normal, -1.0);
+            const double reach = refit.driver_diagonal * 0.03;
+            if (probe.live_generation != live_layer_generation) {
+                probe.live_faces.clear();
+                long long tests = 0;
+                const auto inner_body = closest_refit_binding_native(point, spatial_index, tests);
+                if (probe.exact_contact) probe.live_faces.push_back(probe.contact.corners);
+                else for (const auto& hit : refit_surface_line_hits_native(point, normal, reach, live_layer_surfaces.at(probe.outer))) {
+                    std::array<std::size_t, 3> corners{};
+                    for (int c = 0; c < 3; ++c)
+                        corners[c] = vertex_cohorts.at(hit.driver_submesh_index)[hit.driver_vertices[c]];
+                    const Vec3 contact = sample_point({corners, hit.barycentric}, false);
+                    const auto outer_body = closest_refit_binding_native(contact, spatial_index, tests);
+                    if (dot_vec3(body_contact_normal(outer_body, contact), normal) < 0.5
+                        || distance_squared_vec3(mesh_editor_refit_driver_point(inner_body, driver_visible),
+                            mesh_editor_refit_driver_point(outer_body, driver_visible))
+                            > std::pow(refit.driver_diagonal * 0.05, 2.0)) continue;
+                    probe.live_faces.push_back(corners);
+                }
+                probe.live_generation = live_layer_generation;
+            }
+            for (const auto& corners : probe.live_faces) {
+                SurfaceSample outer{corners, probe.exact_contact ? probe.contact.weights : Vec3{}};
+                const Vec3& a = cohorts[outer.corners[0]].position;
+                const Vec3& b = cohorts[outer.corners[1]].position;
+                const Vec3& c = cohorts[outer.corners[2]].position;
+                Vec3 contact = sample_point(outer, false);
+                if (!probe.exact_contact) {
+                    if (std::abs(dot_vec3(refit_face_normal_native(a, b, c), normal)) < 0.3) continue;
+                    MeshEditorScreenRay ray;
+                    ray.origin = add_vec3(point, scale_vec3(normal, reach));
+                    ray.direction = scale_vec3(normal, -1.0);
+                    double distance = 0.0;
+                    if (!mesh_editor_ray_intersects_triangle(ray, a, b, c, distance) || distance > reach * 2.0) continue;
+                    contact = add_vec3(ray.origin, scale_vec3(ray.direction, distance));
+                    outer.weights = closest_triangle_point_native(contact, a, b, c).barycentric;
+                }
+                const double gap = dot_vec3(sub_vec3(contact, point), normal);
+                // Body clearance takes priority in a narrow joint. Shape fitting
+                // targets the full layer gap; final contacts retain a positive
+                // separation without forcing cloth into an adjacent body surface.
+                double wall_depth = 0.0;
+                for (int c = 0; c < 3; ++c) wall_depth += outer.weights[c] * band_wall_depth[outer.corners[c]];
+                const double missing = probe.clearance * (tighten || band_axes.count(probe.outer.second) ? 1.0 : 0.25) + wall_depth - gap;
+                if (missing <= tolerance) continue;
+                if (validate) {
+                    if (gap >= -tolerance * 4.0) continue;
+                    throw std::runtime_error("Fit to body: Part " + std::to_string(probe.outer.first)
+                        + " cannot clear Part " + std::to_string(cohorts[probe.inner.corners[0]].vertices.front().first)
+                        + " beneath its triangles (gap "
+                        + std::to_string(gap) + ", requested " + std::to_string(probe.clearance)
+                        + "); previous preview retained");
+                }
+                double weight_squared = 0.0;
+                for (int c = 0; c < 3; ++c)
+                    weight_squared += outer.weights[c] * outer.weights[c] * cohorts[outer.corners[c]].mobility
+                        * dot_vec3(normal, project_contact(outer.corners[c], normal));
+                if (weight_squared <= 0.0) continue;
+                maximum_correction = std::max(maximum_correction, missing);
+                for (int c = 0; c < 3; ++c)
+                    move_contact(outer.corners[c], scale_vec3(normal,
+                        missing * outer.weights[c] * cohorts[outer.corners[c]].mobility / weight_squared));
+            }
+        }
+    };
+    const auto project_layers = [&](double& maximum_correction, bool tighten = false) {
         for (const auto& constraint : layer_constraints) {
             const Vec3 point = sample_point(constraint.first, false);
-            const Vec3& a = cohorts[constraint.second.corners[0]].position;
-            const Vec3& b = cohorts[constraint.second.corners[1]].position;
-            const Vec3& c = cohorts[constraint.second.corners[2]].position;
-            const Vec3 normal = refit_face_normal_native(a, b, c);
-            const double height = dot_vec3(sub_vec3(point, a), normal);
+            const auto other = current_layer_sample(constraint, point);
+            Vec3 normal = refit_face_normal_native(cohorts[other.corners[0]].position,
+                cohorts[other.corners[1]].position, cohorts[other.corners[2]].position);
+            const bool interior_feature = constraint.ordered && interior_layer_feature(other);
+            if (interior_feature) normal = layer_contact_normal(other, garment_normals, normal);
+            // Solid belt trim has inward-facing back faces too. Ordered cloth
+            // contact follows the body's outside, rather than that face winding.
+            if (constraint.ordered && dot_vec3(normal, constraint.normal) < 0.0)
+                normal = scale_vec3(normal, -1.0);
+            const Vec3 offset = sub_vec3(point, sample_point(other, false));
+            const double height = dot_vec3(offset, normal);
             const double rest_height = dot_vec3(constraint.rest_offset, constraint.normal);
             const double order = rest_height > 0.0 ? 1.0 : -1.0;
-            const double missing = std::abs(rest_height) - constraint.limit - order * height;
-            if (missing <= tolerance) continue;
-            // Keep the authored layer order without pulling an already-clear
-            // belt or trim back toward a surface that moved away from it.
+            const double minimum_gap = std::abs(rest_height) - constraint.limit;
+            const bool band = band_axes.count(layer_roots[constraint.first.corners[0]]) != 0;
+            double missing = minimum_gap * (constraint.ordered && !tighten && !band ? 0.25 : 1.0) - order * height;
+            if (missing <= tolerance) {
+                if (!tighten || constraint.snug_gap < 0.0
+                    || order * height <= constraint.snug_gap * 1.25 + tolerance) continue;
+                missing = 0.25 * (constraint.snug_gap * 1.25 - order * height);
+            }
+            // Preserve order throughout. During shape fitting, take up slack
+            // only where a flexible layer still covers the opposing sample.
             const double correction = -order * missing;
-            SurfaceSample other = constraint.second;
-            other.weights = closest_triangle_point_native(point, a, b, c).barycentric;
-            const Vec3 offset = sub_vec3(point, sample_point(other, false));
             // A nearby open edge does not cover a point past that edge.
-            if (length_vec3(sub_vec3(offset, scale_vec3(normal, height)))
+            if (!interior_feature && length_vec3(sub_vec3(offset, scale_vec3(normal, height)))
                     > (fitting_masks ? tolerance * 4.0 : refit.driver_diagonal * 0.005)) continue;
             maximum_correction = std::max(maximum_correction, std::abs(correction));
             // Sum each rigid piece's Jacobian before projecting: barycentric
@@ -1575,19 +2198,26 @@ void mesh_editor_relieve_refit_surface(
             std::map<std::size_t, double> weights;
             for (int c = 0; c < 3; ++c) {
                 const auto a = constraint.first.corners[c], b = other.corners[c];
-                weights[rigid_vertex[a] ? rigid_roots[a] : a] += constraint.first.weights[c];
-                weights[rigid_vertex[b] ? rigid_roots[b] : b] -= other.weights[c];
+                // An ordered outer shell must clear the inner cloth. Moving
+                // both sides equally would push that cloth back into the body
+                // every time its contact solver restores the body clearance.
+                if (!constraint.ordered || order > 0.0)
+                    weights[rigid_vertex[a] ? rigid_roots[a] : a] += constraint.first.weights[c];
+                if (!constraint.ordered || order < 0.0)
+                    weights[rigid_vertex[b] ? rigid_roots[b] : b] -= other.weights[c];
             }
             double weight_squared = 0.0;
             for (const auto& weight : weights)
                 weight_squared += weight.second * weight.second
-                    * (fitting_masks ? cohorts[weight.first].mobility : 1.0);
+                    * (fitting_masks ? cohorts[weight.first].mobility : 1.0)
+                    * dot_vec3(normal, project_contact(weight.first, normal));
             if (weight_squared <= 0.0) continue;
             const Vec3 delta = scale_vec3(normal, correction / weight_squared);
             for (const auto& weight : weights)
                 move_contact(weight.first, scale_vec3(delta, -weight.second
                     * (fitting_masks ? cohorts[weight.first].mobility : 1.0)));
         }
+        project_layer_probes(maximum_correction, false, tighten);
     };
     // Solve shape and contour constraints first, then use the final passes
     // only for sample clearance. Cohorts keep UV/material seams joined.
@@ -1598,6 +2228,11 @@ void mesh_editor_relieve_refit_surface(
         std::vector<Vec3> previous;
         if (fitting_masks) for (const auto& cohort : cohorts) previous.push_back(cohort.position);
         if (iteration < shape_iterations && iteration % 64 == 0) refresh_body_anchors();
+        if (ordered_layers && iteration % 16 == 0) {
+            refresh_layer_surfaces();
+            build_garment_normals();
+            refresh_layer_crossings();
+        }
         double maximum_correction = 0.0;
         // The conformed silhouette already supplies the shape target. Pulling
         // contacts back into that penetrating pose fights a larger body's fit.
@@ -1608,7 +2243,8 @@ void mesh_editor_relieve_refit_surface(
             cohort.position = add_vec3(cohort.position, delta);
             maximum_correction = std::max(maximum_correction, length_vec3(delta));
         }
-        if (iteration < shape_iterations || fitting_masks) project_layers(maximum_correction);
+        if (iteration < shape_iterations || fitting_masks)
+            project_layers(maximum_correction, fitting_masks && iteration < shape_iterations);
         // Limit stretching and collapse while allowing edges to rotate around
         // the body. Locking displacement directions would pin a folded cuff
         // inside a hand even when it can bend clear without excessive stretch.
@@ -1749,9 +2385,12 @@ void mesh_editor_relieve_refit_surface(
                 Cohort& cohort = cohorts[constraint.sample.corners[corner]];
                 const double weight = constraint.sample.weights[corner];
                 if (weight <= 0.0) continue;
-                const Vec3 delta = scale_vec3(normal, missing * weight / weight_squared);
+                const auto i = constraint.sample.corners[corner];
+                const Vec3 direction = project_contact(i, normal);
+                const double freedom = dot_vec3(normal, direction);
+                if (freedom <= 1.0e-8) continue;
+                const Vec3 delta = scale_vec3(direction, missing * weight / (weight_squared * freedom));
                 if (fitting_masks) {
-                    const auto i = constraint.sample.corners[corner];
                     contact_delta[i] = add_vec3(contact_delta[i], delta);
                     contact_count[i] += 1.0;
                 } else cohort.position = add_vec3(cohort.position, delta);
@@ -1761,7 +2400,7 @@ void mesh_editor_relieve_refit_surface(
             for (const auto& group : rigid_groups) {
                 Vec3 correction{};
                 for (const auto i : group.second) if (contact_count[i] > 0.0) {
-                    const Vec3 candidate = scale_vec3(contact_delta[i], 1.0 / contact_count[i]);
+                    const Vec3 candidate = project_contact(i, scale_vec3(contact_delta[i], 1.0 / contact_count[i]));
                     if (dot_vec3(candidate, candidate) > dot_vec3(correction, correction)) correction = candidate;
                 }
                 for (const auto i : group.second) {
@@ -1809,9 +2448,9 @@ void mesh_editor_relieve_refit_surface(
                 for (const auto i : group.second) correction[i] = translation;
             }
             for (std::size_t i = 0; i < cohorts.size(); ++i)
-                cohorts[i].position = add_vec3(previous[i], scale_vec3(correction[i], cohorts[i].mobility));
+                cohorts[i].position = add_vec3(previous[i], scale_vec3(project_contact(i, correction[i]), cohorts[i].mobility));
             // Smoothing a common body lift must not erase layer separation.
-            project_layers(maximum_correction);
+            project_layers(maximum_correction, iteration < shape_iterations);
             bool guarded = false;
             int guarded_part = clearances.begin()->first;
             // Neighboring strain projections can oppose one another. Reduce
@@ -1929,19 +2568,29 @@ void mesh_editor_relieve_refit_surface(
                 + std::to_string(height) + ", requested " + std::to_string(constraint.clearance) + ")");
         }
     }
+    if (ordered_layers) {
+        refresh_layer_surfaces();
+        build_garment_normals();
+        refresh_layer_crossings();
+        double unused_correction = 0.0;
+        project_layer_probes(unused_correction, true);
+        if (!crossing_layer_probes.empty()) throw std::runtime_error("Fit to body: Part "
+            + std::to_string(crossing_layer_probes.front().outer.first)
+            + " still intersects its inner cloth; previous preview retained");
+    }
     if (fitting_masks) for (const auto& constraint : layer_constraints) {
         const Vec3 point=sample_point(constraint.first,false);
-        const auto& a=cohorts[constraint.second.corners[0]].position;
-        const auto& b=cohorts[constraint.second.corners[1]].position;
-        const auto& c=cohorts[constraint.second.corners[2]].position;
-        const Vec3 normal=refit_face_normal_native(a,b,c);
-        const double height=dot_vec3(sub_vec3(point,a),normal);
-        auto closest=constraint.second;
-        closest.weights=closest_triangle_point_native(point,a,b,c).barycentric;
+        const auto closest=current_layer_sample(constraint,point);
+        Vec3 normal=refit_face_normal_native(cohorts[closest.corners[0]].position,
+            cohorts[closest.corners[1]].position,cohorts[closest.corners[2]].position);
+        const bool interior_feature=constraint.ordered && interior_layer_feature(closest);
+        if (interior_feature) normal=layer_contact_normal(closest,garment_normals,normal);
+        if (constraint.ordered && dot_vec3(normal,constraint.normal)<0.0) normal=scale_vec3(normal,-1.0);
         const Vec3 offset=sub_vec3(point,sample_point(closest,false));
+        const double height=dot_vec3(offset,normal);
         // A point past an open triangle edge does not overlap that layer.
         // Only its perpendicular projection onto the face can establish order.
-        if (length_vec3(sub_vec3(offset,scale_vec3(normal,height))) > tolerance*4.0) continue;
+        if (!interior_feature && length_vec3(sub_vec3(offset,scale_vec3(normal,height))) > tolerance*4.0) continue;
         const double rest=dot_vec3(constraint.rest_offset,constraint.normal);
         // Apply the same contact tolerance as the body validator. Near-coincident
         // skins must not require sub-tolerance positive gaps while body contact
@@ -2060,11 +2709,12 @@ void mesh_editor_add_refit_layer(
     mesh_editor_refit_components(*morph.refit, submeshes, driver_visible, residual, base_layer, masks, layer);
     if (tightening) {
         const auto followed = layer;
+        std::map<int, std::vector<Vec3>> centering_axes;
         mesh_editor_conform_refit(*morph.refit, submeshes, driver_visible, residual, masks, layer);
-        mesh_editor_refit_components(*morph.refit, submeshes, driver_visible, residual, followed, masks, layer, true);
+        mesh_editor_refit_components(*morph.refit, submeshes, driver_visible, residual, followed, masks, layer, true, &centering_axes);
         mesh_editor_validate_conformed_refit(*morph.refit, submeshes, residual, followed, layer, "conforming");
         const auto conformed = layer;
-        mesh_editor_relieve_refit_surface(*morph.refit, submeshes, driver_visible, residual, layer, &masks, false, &followed);
+        mesh_editor_relieve_refit_surface(*morph.refit, submeshes, driver_visible, residual, layer, &masks, false, &followed, &centering_axes);
         mesh_editor_validate_conformed_refit(*morph.refit, submeshes, residual, conformed, layer, "clearance", &followed);
     }
 }

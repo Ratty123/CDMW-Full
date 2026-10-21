@@ -7,10 +7,22 @@ import pytest
 from cdmw.models import ArchiveEntry
 from cdmw.modding.mesh_parser import parse_pac
 from tests.test_mesh_islands import _island_lods, _island_pac
-from tests.test_mesh_refit_tightening_native import _bound, _fit, _mesh
+from tests.test_mesh_refit_tightening_native import _arm, _bound, _fit, _mesh, _sleeve
 from tests.test_mesh_rust_authoring_exact_output import _open_exact_session, _request
 from tests.test_mesh_rust_replacement import command
 from tests.test_native_mesh_editor_morph_refit import _part, _snapshot, mesh_native_core
+
+
+def test_unused_vertex_record_near_another_layer_is_not_a_surface():
+    original = _sleeve()
+    unused = (.105, .25, 0.)
+    inner = _part("wrap", original.vertices + [unused], original.faces, material="cloth", texture="")
+    mesh = _mesh(_arm(), inner, _sleeve(radius=.11))
+    with _bound(mesh) as session:
+        _fit(session, (1, 2))
+        fitted = _snapshot(mesh, session)
+        assert fitted.submeshes[1].vertices[-1] == unused
+        assert fitted.submeshes[1].faces == inner.faces
 
 
 @pytest.mark.parametrize("whole_part", (False, True), ids=("island", "whole-part"))
