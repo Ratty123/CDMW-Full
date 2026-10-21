@@ -36,7 +36,7 @@ Reviewed on **2026-10-21** against `main@099e9f7e7a5555f07246ab475b399c15215e419
 | Resource ownership and donor independence | Supported private material/DDS references and proven donor-row detachment | Close every required explicit/implicit reference for the selected family and prove native consumption | `CDISO-RES-01`, `CDISO-DEP-01` |
 | Native definition registration | Recorded B84 extra-row game experiment; B106 typed backing and B111 selected-reader experiments | Join actual backing, metadata and decoder routing to both native maps; qualify all affected consumers and lifetime | `CDISO-RE-02` |
 | Paired publication and ownership | Retained portable C++ experiment: 41 cases, 963 checks; common preflight and retained backing pass | Transfer the demonstrated ordering to actual native storage and a qualified reader boundary; both lookups/resources here are modeled | `CDISO-RE-02A` |
-| Native private resources | Recorded B99 metadata lookup; B109 source-qualified file-manager wrapper | Qualify the concrete native open/read/size/completion route and demonstrate actual payload use and retirement | `CDISO-RE-03` |
+| Native private resources | Recorded B99 metadata lookup; B109 wrapper plus current concrete open/read/size/holder source qualification | Demonstrate exact private bytes, actual resource use and retirement; normal-return source inference is not live I/O proof | `CDISO-RE-03` |
 | Exact private archive expectation | Maintained offline checker; retained 52-test and B93/B98 preparation results | Carry the exact archive/payload identity into a separately versioned native candidate; actual path/read/use remain open | `CDISO-RE-03A` |
 | Separate package resource images | New actual compiler preparation; 24 focused cases verified, including exact bytes, retained profiles and independent updates | Consume the exact images through a qualified native route; shared definitions and unresolved resource edges remain outside them | `CDISO-RE-03B` |
 | Per-package native backend | Design and isolated research; current shipped package routes still compose | Admit complete owned contributions without combined game tables, indexes or archive carriers | `CDISO-DECIDE-01`, `CDISO-RUN-01` |
@@ -45,7 +45,7 @@ Reviewed on **2026-10-21** against `main@099e9f7e7a5555f07246ab475b399c15215e419
 
 ### Immediate engineering sequence
 
-1. Execute the separately frozen B113 current-loader path candidate after its current-owner caller and game/install handoff pass. The strict build, callback race controls, startup-frame checks and inert check now pass; exact archive-path execution remains unproved. Separately, with current source/provider ownership, qualify B110's concrete open/read/size/completion and holder lifetime. Prove the small B93 payload read before extending to separate package resource images without merging carriers.
+1. Execute the separately frozen B113 current-loader path candidate after its current-owner caller and game/install handoff pass. The strict build, callback race controls, startup-frame checks and inert check now pass; exact archive-path execution remains unproved. Concrete open/read/size/holder source qualification now establishes a bounded small-read premise: require real size 112, request/capacity 102 at offset zero, compare every returned byte after normal return, and retain private objects until process exit. AL success alone is insufficient. Prove that B93 payload read before extending to separate package resource images without merging carriers.
 2. Use the new paired-publication experiment as the ordering/lifetime baseline. Join actual B106 primary-cell backing, private metadata and decoder routing before either native map exposes a new entry. Qualify the game reader boundary and failure/lifetime behavior; the portable model does not establish those contracts.
 3. Join definitions and resources in one startup-scoped native contribution, then exercise two independently authored same-donor packages with distinct private assets through acquisition, equip, restart and save reload.
 4. Extend only from that demonstrated scope. Keep native missing-provider save behavior, ordinary maintenance and any unresolved resource family explicitly open.
@@ -65,6 +65,13 @@ build `1.0.0.2976`. UAL 9.7.4 preserves the inspected forwarding/startup shapes
 at changed offsets; whole-file difference alone is not incompatibility.
 Current live flags, IAT destinations, callback frames and exact archive path
 still require the controlled run. B112 and production guards remain unchanged.
+The same continuation qualified the actual manager methods and holder from the
+unchanged executable and current/retained REA evidence. Read pending branches
+wait before normal return under the qualified Win32/private-holder assumptions;
+AL `1` can still hide terminal errors and exposes no transferred count. Exact
+native bytes, resource use and general retirement remain open. The complete
+provider evidence was exported and the lane returned. No CDISO acceptance
+checkbox changes follow from this source result.
 Evidence: `workspace/reports/cditem-execution/20261021-native-path-continuation/`.
 
 ### Document map

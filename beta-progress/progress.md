@@ -20,7 +20,7 @@ original `CDISO-*` criteria, with narrowly scoped subtask results recorded below
 | Paired publication and lifetime | Verified owned-memory increment | `CDISO-RE-02A`: retained C++ result, 41 cases/963 checks. Both lookup paths and resource completion are modeled |
 | Exact private archive expectation | Completed bounded increment | `CDISO-RE-03A`: retained 52-test and B93/B98 preparation results |
 | Separate package resource images | Newly verified preparation increment | `CDISO-RE-03B`: actual compiler output, one immutable image per UUID, 24 focused cases verified; native discovery/use remains open |
-| Native resource open/read/use | Open, current source-owner handoff pending | B99 metadata and B109 wrapper source are established. Concrete virtual methods, completed reads, use and lifetime remain unproved |
+| Native resource open/read/use | Concrete method/holder source qualified; native proof open | Current read waits pending I/O before normal return under bounded Win32 assumptions; AL success hides errors/count. Exact bytes, resource use and general retirement remain unproved |
 | Fully independent native items | Open | Production `native_admission=false`; no combined-file-free native lifecycle acceptance |
 | Native persistence and missing-provider saves | Open | Two-item native lifecycle and separately written absent-provider save/reinstall evidence remain required |
 
@@ -40,8 +40,9 @@ Six callback cases reproduce the old race and verify the single-claim fix;
 twelve startup-frame checks and the inert `0 -> 0` check pass. The first
 controlled run will check the exact private archive path after the current-owner
 caller and game/install handoff are ready.
-Payload reads need separate I/O qualification; equip and save scenarios follow
-native definition/resource integration. The
+The bounded small-read source premise is now qualified; actual exact-byte
+delivery still needs its own native run. Equip and save scenarios follow native
+definition/resource integration. The
 [execution checkpoint](cditem-execution-goal.md#first-in-game-test-and-notification)
 defines the readiness evidence and notice before that first run, preserving the
 existing controlled-game authorization.
@@ -49,9 +50,10 @@ existing controlled-game authorization.
 ### Next engineering steps
 
 1. Complete the current-owner caller and game/install handoff for built B113.
-   Separately, obtain current source/provider access and qualify B110's concrete
-   open/read/size, completion and holder lifetime. Use the small exact B93
-   archive/payload before extending the native route to the new package images.
+   Then use the source-qualified small-read premise on the exact B93 archive:
+   real size 112, capacity/request 102, offset zero, all bytes checked after
+   normal return and private objects retained until exit. Extend only after
+   actual byte delivery, keeping resource use and retirement separately open.
 2. Carry common preflight and retained ownership into actual B106 backing,
    private metadata and decoder routing. Qualify the real reader boundary before
    either native map exposes an entry.
@@ -63,8 +65,13 @@ game/install and REA owners, verified the exact installed 2976 executable, and
 used/returned a compiler-only grant. Current UAL 9.7.4 retains the inspected
 startup/forwarding shapes at changed offsets; differing file identity alone is
 not incompatibility. The clarification was sent to all three active Live Edit
-chats. Live startup/path evidence and concrete I/O remain open. No CDItem game
-run, installation write or provider query has occurred. New source/build/owned-native receipts:
+chats. The subsequent current-owner REA handoff was accepted, used for the
+bounded manager-method pass, exported and normally closed; its complete
+2,200-record/136-unknown-revision bundle and absent-process receipt were handed
+to the queued Create Item reader after repair's quiet boundary. Three complete
+method roots, the size thunk and holder constructor now qualify the bounded
+normal-return I/O premise. Actual startup/path/read/use and retirement remain
+open; no CDItem game run or installation write has occurred. New receipts:
 `workspace/reports/cditem-execution/20261021-native-path-continuation/`.
 Earlier readiness evidence is in
 `workspace/reports/cditem-execution/20261021-native-test-readiness/`;
@@ -72,6 +79,8 @@ the preceding 24-case preparation evidence remains in
 `workspace/reports/cditem-execution/20261021-package-resource-images/`.
 
 ## Completed work
+
+- 2026-10-21 | CDISO-RE-03 concrete I/O source | Qualified manager open/read/size, the size thunk and holder constructor against the unchanged 2976 executable and current/retained REA evidence. Normal pending reads wait under the bounded valid-handle/unique-operation Win32 premise; AL success still hides terminal errors and transferred count. Exact 112-byte archive/102-byte content replay and general retirement remain open. Complete provider continuity was exported and normally closed, with all owned processes absent; no native I/O/game/install action or acceptance checkbox change. Evidence: `workspace/reports/cditem-execution/20261021-native-path-continuation/io-method-review/io-source-joins.json`.
 
 - 2026-10-21 | CDISO-RE-03 continuation | Built the separately frozen B113 current-loader path probe from `main@a7ca7e49`. Six owned native callback cases include two deterministic original race controls; the fixed chain, twelve actual startup-frame checks, inert `0 -> 0` child and 21 decoder cases pass. Static UAL 9.7.4 forwarding/phase/return witnesses are captured; loader hash difference alone is not incompatibility. Compiler-only grant returned. Actual exact path, native I/O, item/resource publication and persistence remain open; no acceptance checkbox closed. Evidence: `workspace/reports/cditem-execution/20261021-native-path-continuation/`.
 

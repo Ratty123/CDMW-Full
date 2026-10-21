@@ -24,7 +24,7 @@ the feature authority; this companion owns execution.
 | Definition publication | B106/B111 retained results; portable paired-publication fixture has 41 cases/963 checks | Join actual backing/metadata/decoder routing and qualify the game reader boundary |
 | Exact private archive | Retained path-review checks and B93/B98 preparation result | Use the small exact archive/payload in the first concrete native I/O discriminator |
 | Separate package images | New maintained service/diagnostic CLI; 24 focused cases verified on actual compiler output | Feed each exact immutable image to a qualified native producer after the small-fixture proof |
-| Native resource use | B99 game metadata lookup; B109 source-qualified wrapper; B110 concrete methods pending | Qualify open/read/size/completion and holder lifetime, then demonstrate exact private bytes and use |
+| Native resource use | B99 game metadata lookup; B109 wrapper and current concrete open/read/size/holder source qualification | Demonstrate exact private bytes under the bounded normal-return contract, then actual resource use and retirement |
 | End-to-end independence | No production native admission | Prove two same-donor packages through acquisition/equip/restart/update/removal/save and the separate absent-provider case |
 
 The new [resource preparation contract](../cdmw/ui/new_item/INDEPENDENT_ITEMS.md#per-package-resource-image-preparation)
@@ -51,12 +51,16 @@ evidence. Their unchanged 41-case and 52-case checks were not rerun.
 
 The local Codex continuation at `main@a7ca7e49` reconciled the current owners.
 The installed game is the retained `1.0.0.2976` executable with the same SHA-256.
-Live Edit repair owns the game/install lane; Dye owns the read-only REA session
-and has offered a separate export/closure handoff. A fresh compiler-only grant
-was used and returned after the strict B113 current-loader build and owned
-checks. No game run, installation write or provider query was performed by CDItem.
-Refresh ownership before using the remaining lanes; historical grants below
-remain dated evidence.
+Live Edit repair owns the game/install lane. The compiler-only grant was
+returned after the strict B113 current-loader build and owned checks. Dye then
+exported and normally closed the read-only REA session. CDItem imported the
+complete continuity, performed the bounded manager-method pass, exported all
+2,200 records/136 unknown revisions and normally closed the target and SDK.
+Fresh process census confirms its provider/client processes are absent. The
+queued Create Item reader received the full bundle and release pins, subject to
+repair's next quiet game trial. No CDItem game run or installation write has
+occurred. Refresh ownership before another shared-lane operation; historical
+grants below remain dated evidence.
 
 ## First in-game test and notification
 
@@ -86,12 +90,15 @@ destinations, phase flags, observed startup frames and timing remain live checks
 No loader was replaced. The old FastStart setting and four CDMW recovery targets
 are absent, so their historical caller cannot be reused unchanged. A narrowly
 scoped temporary-ASI recovery/caller must preserve original absence as well as
-existing bytes. Concrete I/O qualification awaits the current REA owner's
-export/normal-close release; a local successor client is prepared but unstarted.
+existing bytes. Concrete I/O source qualification is now complete for the
+bounded small-read premise described in the owning technical contract. The
+actual path and native read remain unperformed. The size-entry decompilation
+refusal is retained; its direct thunk and actual body were separately resolved.
+The new actual-replay unknown remains open in the complete exported ledger.
 
 | Stage | Live game in the current route | Required observation |
 | --- | --- | --- |
-| Concrete I/O source qualification | No | Identify the manager's actual open/read/size methods and their completion, failure and holder-lifetime contracts |
+| Concrete I/O source qualification | No; bounded source/API premise established | Preserve exact method/holder guards; AL success is not transferred-byte proof and general retirement remains open |
 | B112 private archive path | Yes, once its own run is ready | The actual private index produces the exact prepared archive path; retain the output holder and verify the expected provider/ItemInfo checks |
 | Exact small payload read | Yes, after path and I/O qualification | Read the expected bytes from the owned archive under the qualified completion/lifetime contract |
 | Independent item lifecycle | Later | Two same-donor packages use their own native definitions/resources through acquisition, equip, restart, update, removal and save reload |

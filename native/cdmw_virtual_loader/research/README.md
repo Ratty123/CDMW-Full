@@ -169,7 +169,9 @@ treat null pointer cells as complete ItemInfo rows. Its stock primary cells
 remain null; stock checks cover map state and keys, while new rows are modeled.
 
 The next integration must join actual constructed backing, native metadata and
-decoder routing to the same publication discipline. Resource work must qualify
-the concrete native open/read/size/completion and holder lifetime, then
-demonstrate the exact private bytes. Native two-item acquisition, equip,
-restart, updates/removal, save reload and missing-provider behavior remain open.
+decoder routing to the same publication discipline. The current
+[concrete I/O source contract](../../../cdmw/ui/new_item/INDEPENDENT_ITEMS.md#native-io-continuation-after-image-preparation)
+now qualifies the bounded normal-return small-read premise. AL success still
+hides terminal errors and actual count; exact native bytes and general
+retirement remain unproved. Native two-item acquisition, equip, restart,
+updates/removal, save reload and missing-provider behavior remain open.

@@ -22,7 +22,7 @@ review continued on `main` at `099e9f7e7a5555f07246ab475b399c15215e419c`.
 | B111 fixed-backing append | Retained executed result; 12 pins verified in the preceding increment | New entries can become visible before diagnostic owner count; count-last is not a readiness boundary |
 | Maintained paired-publication experiment | Retained portable C++ run: 41 cases/963 checks; independent source review passes | Common preflight and retained backing are established on owned memory; actual native joins and reader synchronization remain open |
 | B99 metadata lookup | Retained actual-game result with independently verified restoration | Private metadata lookup is settled; native byte delivery and resource use remain open |
-| B109 / B110 resource calls | B109 wrapper source qualified; B110 concrete virtual targets pending | Qualify open/read/size/completion and handle lifetime under current source ownership |
+| B109 / current resource-method qualification | Wrapper, concrete open/read/size, size thunk and holder constructor source qualified | Execute the bounded exact-byte discriminator; AL success is not count proof, and general retirement remains open |
 | B112 / B113 path candidate | B112 retained source-only; B113 current-loader variant built and offline-verified | Finish the current-owner caller/lane handoff, then bind the actual path result to the exact prepared archive |
 | Exact path evidence review | Maintained offline tool; retained 52-test and B93/B98 preparation results | Exact small archive and payload expectation are available for the next path/open/read experiment |
 | Per-package resource images | New service and diagnostic CLI; 24 focused cases verified with actual compiler fixtures | Separate immutable image bytes and reservation provenance are ready as research inputs; native consumption remains open |
@@ -79,21 +79,24 @@ numeric symbols while adding proposed resource paths; fresh-profile numeric
 proposals are checked separately. Independent source/identity reviews pass.
 
 Retained B49 callers pass equal counts in two positions and consume a read
-buffer without testing its return. Their capacity/request and completion/error
-meanings remain unqualified. B109's open wrapper does not visibly initialize
-the local holder output before the virtual call; its release path ignores a
-conditional-close failure before freeing the holder. Do not promote these
-caller expectations to a completed-read or safe-retirement contract. The
-reviewed source pins are retained in the new session baseline.
+buffer without testing its return. The current complete method captures now
+establish capacity/request/offset and pending-wait semantics. Only AL is a
+defined read return; AL `1` also follows diagnosed terminal errors, and the
+actual count stays local. B109's release still ignores conditional-close
+failure and selects the free family from current TLS. Use the bounded
+process-retained exact-byte diagnostic; no safe general retirement is inferred.
+The owning technical contract records the source/API assumptions and refusals.
 
 ### Immediate engineering sequence
 
 1. Use the separately frozen, compiled B113 current-loader path candidate after
    its reviewed current-owner caller and game/install handoff. Its live private-index path call can precede concrete I/O
    qualification; the captured path still needs the exact-archive review.
-   Separately, with current source/provider ownership, qualify B110's concrete
-   open/read/size, completion and holder-lifetime contracts. Use the small B93
-   archive/payload before extending to the new package images.
+   Concrete method/holder source qualification now supports the bounded
+   small B93 read: real size 112, request/capacity 102 at offset zero, complemented
+   initial buffer, exact bytes checked after normal return and private objects
+   retained until exit. Native byte delivery remains unproved; extend only after
+   that discriminator passes.
 2. Use the maintained paired-publication experiment as the ordering/lifetime
    baseline. Join actual B106 backing, metadata and decoder routing to both
    native maps, then qualify the real consumer boundary and failure/lifetime.
@@ -110,12 +113,14 @@ to launch the game while the candidate is still being prepared.
 
 B110's `capture_vptr.py` is inert without its required current scope material.
 It contains historical peer identities and requires separately pinned
-`original_grant` and `rea_first` evidence. Preserve those guards. The narrow
-source handoff must identify the manager at `0x146a85460`, its vptr and first
-five slots, then qualify the concrete `+8` open, `+0x10` read and `+0x20` size
-bodies and their necessary helpers. The retained executable source is build
-`1.0.0.2976`; compatibility with a current game installation remains a separate
-run requirement.
+`original_grant` and `rea_first` evidence. Preserve those historical guards.
+The current continuation obtained a distinct source/provider handoff rather than
+reusing them. Manager `0x146a85460` points to vtable `0x1457122f0`: open
+`0x1413273a0`, read `0x1413276b0`, size entry `0x141327b50` with a direct jump to
+`0x14b68a7e0`. The complete three roots total 1,582 bytes/371 instructions;
+the thunk is 5 bytes. Holder constructor `0x141326550` adds 205 bytes/50
+instructions and joins an already retained exact REA capture. The installed
+build `1.0.0.2976` matches the retained source; live guards remain required.
 
 B112's `path_probe.hpp` already describes the qualified path call, fresh null
 output holder, one-attempt callback join and process-lifetime retention. Its
@@ -128,9 +133,13 @@ call. The exact-archive reviewer must also accept the captured path.
 The local Codex continuation on `main@a7ca7e49` identified the active Live Edit
 repair game/install owner and Dye REA owner. A current compiler-only grant was
 used and returned. The installed game matches the retained exact 2976 source.
-The REA client/toolchain route is available locally; a successor client is
-prepared and awaits Dye's current export/normal-close release before activation.
-Historical peer IDs in B110 remain unchanged and confer no new access.
+Dye's complete REA export/normal-close release was subsequently accepted.
+The bounded successor imported all continuity, resolved the methods and retained
+the size-entry decompilation rejection before resolving its actual body. Its
+complete 2,200-record/136-unknown-revision bundle, 23 current unknown heads and
+normal-close/absent-process receipt were handed to the queued Create Item
+reader, subject to repair's quiet game trial. Historical peer IDs in B110
+remain unchanged and confer no new access.
 
 B112 source review found a concrete callback race: a losing metadata callback
 could independently win the path one-shot and read the producer's unfinished
@@ -156,8 +165,14 @@ B112 and the first frozen B113 snapshot remain unchanged. The current session
 host was copied only after all twelve build-provenance source pins passed.
 The old FastStart path and four-file CDMW recovery baseline are absent; adapt
 the bounded caller to exact temporary-ASI recovery, then obtain a current game
-handoff. No CDItem game run, installation write or provider query has occurred.
-Receipts, source pins and compiler release are in
+handoff. No CDItem game run or installation write has occurred. The concrete
+source/API join is `io-method-review/io-source-joins.json`, SHA-256
+`0516d5f8f51bef73c4ef3c2495ce6ac6be1307704e1854e470ddd5d2581d25d6`.
+The exported provider bundle is 230,500,327 bytes, SHA-256
+`df5cafecc0b79c8431cebe85741c0ef733892b6d49e59f84666e12abdf1aec77`.
+Actual-replay unknown
+`unk_c2a90d7e95a33b19c4b65c99279b9d1061bcdd0ed6eddf17946d8b6fe002bf98`
+remains open. Receipts, source pins and lane releases are in
 `workspace/reports/cditem-execution/20261021-native-path-continuation/`.
 
 The earlier `277b82cc` readiness review and its preceding Python verification

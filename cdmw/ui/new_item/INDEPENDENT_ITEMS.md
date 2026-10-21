@@ -900,7 +900,7 @@ native/game results and the preceding C++ run remain separate evidence.
 | B111 native isolated experiment | Stable selected map backing and initialized results during deterministic write-step observations | Full native name callback, concurrent readers/writers, coherent ItemInfo owner or game admission |
 | New portable paired-publication experiment | Common preflight, concrete modeled backing, reentry refusal and retained ownership across both map store phases | Actual engine constructors/lookups/metadata/decoding/I/O, atomic concurrent visibility or game admission |
 | B99 recorded game experiment | Private metadata parsing and lookup of the expected entry | Native payload read/use, shared visibility, retirement or saved ownership |
-| B109 source qualification | File-manager wrapper, raw path/holder ABI and conditional close/release | Concrete virtual open/read/size/completion or payload use |
+| B109 and current concrete I/O source qualification | Wrapper, actual open/read/size and holder construction; bounded normal-return completion inference | Actual private byte delivery/use, generic diagnostic paths or safe general retirement |
 | Per-package resource image preparation | Actual validated compiler outputs, separate archive bytes, retained/proposed reservations and owned-fixture lifecycle | Native routing, image consumption, full resource closure, runtime lifetime or saves |
 
 The retained B111 result is built and executed, correcting an earlier
@@ -1082,13 +1082,46 @@ $cditemImagesTemp = Join-Path $env:TEMP ("cdmw-resource-images-" + [guid]::NewGu
 
 ### Native I/O continuation after image preparation
 
-The native I/O next step remains concrete method qualification. Retained B49
-callers pass equal counts in two argument positions and consume the buffer
-without testing the read return. B109 release ignores the conditional-close
-result before freeing its holder. Neither behavior supplies a completed-read
-or safe-retirement contract. A future producer must consume the exact prepared
-image bytes after source-qualified open/read/completion and lifetime joins;
-preparing these images does not close those gates.
+The 2026-10-21 continuation qualifies the concrete methods against the unchanged
+`1.0.0.2976` executable and current/retained REA evidence. Manager `0x146a85460`
+uses vtable `0x1457122f0`. The complete open/read/size roots contain 1,582
+bytes/371 instructions; size has an additional 5-byte entry thunk. The 205-byte,
+50-instruction holder constructor matches an existing full REA capture. Empty
+older instruction replies and the new size-entry decompilation refusal remain
+retained evidence; they were not treated as complete bodies.
+
+| Method | Qualified selected contract | Refusals and limits |
+| --- | --- | --- |
+| Open `0x1413273a0` | Manager, fresh holder-output pointer, narrow NUL-terminated path, 64-bit cached-size override, fifth DWORD flags; returns the output-slot address | Use override `UINT64_MAX` and flags zero for a real size query; null output means failure. Return address is not an open Boolean |
+| Read `0x1413276b0` | Manager, private holder, buffer, DWORD capacity, DWORD requested count, DWORD low file offset; seventh retained caller argument is unused | Only AL is defined. AL `1` also follows diagnosed I/O failure and exposes no actual transferred count. Refuse request zero, offset beyond size, or request exceeding capacity/remaining bytes |
+| Size `0x141327b50` → `0x14b68a7e0` | Returns holder `+0x10` when size-valid byte `+0x0c` is set; otherwise calls `GetFileSizeEx` without caching that query | Null holder diagnoses and returns zero; failed query diagnoses and returns `UINT64_MAX` |
+| Holder `0x141326550` | Allocates 24 bytes aligned to 16 using current TLS byte `+0x1fd`; initializes HANDLE `+0`, flags `+8`, dword `+0x0c=0x100` and size `+0x10=0` | Allocation failure raises a noncontinuable exception. B109 release ignores conditional-close failure and chooses the free family from current TLS; general retirement is unproved |
+
+The read uses a unique stack `OVERLAPPED` and event. With a valid retained
+private handle, original Win32 semantics, one outstanding operation and normal
+return, every captured branch is terminal: a pending `ReadFile` always reaches
+`GetOverlappedResult(..., TRUE)` before event close and return. This is an
+inference from the complete body and the official
+[ReadFile](https://learn.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-readfile)
+and [GetOverlappedResult](https://learn.microsoft.com/en-us/windows/win32/api/ioapiset/nf-ioapiset-getoverlappedresult)
+contracts, not observed native completion. Process retention is an ownership
+choice; it is not the completion barrier and does not qualify exceptional or
+invalid-handle diagnostic paths.
+
+The next bounded discriminator must open the exact B93 archive with real size
+112, require capacity/request 102 and offset zero, seed each buffer byte with
+`expected[i] ^ 0xff`, then compare all 102 bytes and expected SHA-256 only after
+normal return. Keep the private index, native/raw paths, file holder and buffer
+until the owned process exits. A passing comparison would establish observed
+exact content, not an API success status, exposed transferred count, decoding,
+resource use or production retirement. Actual replay remains unperformed.
+
+Source pins, physical captures, retained failures, API assumptions and joins
+are recorded in
+`workspace/reports/cditem-execution/20261021-native-path-continuation/io-method-review/io-source-joins.json`,
+SHA-256 `0516d5f8f51bef73c4ef3c2495ce6ac6be1307704e1854e470ddd5d2581d25d6`.
+The complete provider bundle was exported and normally closed. Preparing
+per-package images does not close native byte delivery or admission gates.
 
 ### Bounded private-path probe continuation
 

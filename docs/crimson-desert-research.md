@@ -1143,9 +1143,14 @@ own receiver, lifecycle and actual-consumer evidence.
 
 Separate `.cditem` experiments recorded private native metadata parsing and
 lookup of the expected private entry. Source qualification established the
-file-manager wrapper and conditional holder close/release. These findings do
-not establish the concrete virtual open/read/size/completion path, actual
-payload consumption, visible item use or native resource retirement.
+file-manager wrapper and conditional holder close/release. The 2026-10-21
+continuation now identifies the concrete open/read/size methods and holder
+construction against the unchanged executable and current/retained REA evidence.
+The complete read body waits pending I/O before normal return under the bounded
+valid-private-handle and unique-operation Win32 assumptions. Its AL success
+value still hides terminal errors and exposes no transferred count. These are
+source/API conclusions; actual private bytes, visible use and general resource
+retirement remain unproved.
 
 The new offline [private archive path reviewer](../cdmw/ui/new_item/INDEPENDENT_ITEMS.md#private-archive-path-evidence-review)
 binds independently pinned preparation, the selected private archive and its
@@ -1177,10 +1182,11 @@ executed by those controls. The compiled probe still requires its actual exact
 archive-path run, independently of concrete file-I/O qualification.
 
 The next resource proof must reach the intended bytes and their actual engine
-consumer. First qualify the concrete file-manager methods and completed-read/
-holder-lifetime contract against the exact small retained fixture. Then extend
-that demonstrated route to the separate package images and join independently
-owned item definitions in one supported lifecycle. Metadata success, prepared
+consumer. The source-qualified small-read diagnostic must now demonstrate the
+exact retained bytes after normal return, with a fresh complemented buffer and
+private objects retained until process exit. That retention does not establish
+production retirement. Then extend the demonstrated route to separate package
+images and join independently owned item definitions in one supported lifecycle. Metadata success, prepared
 archive bytes and related Loadouts observations remain separate evidence.
 
 Sources: [resource-admission research and recorded receipt limits][virtual-loader]
