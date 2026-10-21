@@ -2316,7 +2316,13 @@ into its placement/build workflow.
 Normal tools include service-routed recalc, tangent generation, flip, sharpen/soften,
 weighted normals, and source-normal copy commands; cleanup tools include remove doubles,
 delete loose vertices, compact orphans, winding repair, and hole fill. Widgets only emit
-descriptors. `triangulate_display` and `quadrangulate_display` are deliberately not
+descriptors. **Remove Doubles** can finish on skinned source meshes in **Free Edit**:
+each surviving skin row must match its original donor record, including its source map,
+record offset, descriptor and stride. Missing or conflicting lineage and altered weights
+remain blocked. Undo/Redo and reopening retain these rows; Free Edit still publishes
+OBJ geometry without a rig, and cleanup gains no exact game-format writeback route.
+
+`triangulate_display` and `quadrangulate_display` are deliberately not
 among them: the service refuses both unless the caller passes
 `allow_legacy_display_cleanup=True`, so they are legacy/archive-path helpers rather than
 tools the rail may offer. `MeshEditorTab.update_editor_session_state()`,

@@ -13,6 +13,7 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 ### Fixed
 
+- Mesh Editor Free Edit: Remove Duplicates on skinned meshes can finish while retaining verified source weights; exact game-format writeback remains restricted.
 - Mesh Editor opens successive PAC files from either Archive Browser action without getting stuck waiting for a previous mesh's textures.
 - Switching away from Create New Item while its interface starts no longer causes a false timeout. Returning continues the same workspace.
 

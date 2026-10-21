@@ -558,7 +558,10 @@ def _validate_material(
         )
 
 
-def _validate_skin_weight_rows(issues, bone_indices, bone_weights, submesh_index, original_submesh, skeleton_bone_count, topology_contract, *, exact_output=True):
+def _validate_skin_weight_rows(
+    issues, bone_indices, bone_weights, submesh_index, original_submesh,
+    skeleton_bone_count, topology_contract, *, exact_output=True, source_vertex_indices=None,
+):
     preserved_unnormalized = False
     # Free Edit publishes OBJ geometry, without a shared rig or PAC writeback.
     # Additive sources retain their own influence references. The editor can
@@ -590,6 +593,7 @@ def _validate_skin_weight_rows(issues, bone_indices, bone_weights, submesh_index
             and _skinning_row_matches_original(
                 original_submesh, vertex_index, index_row, weight_row,
                 topology_contract=topology_contract,
+                source_vertex_indices=source_vertex_indices,
             )
         )
         preserved_extra_lanes = MAX_SKIN_INFLUENCES < len(index_row) <= 8 and preserved_pac_row
@@ -649,6 +653,7 @@ def _validate_skin_weight_rows(issues, bone_indices, bone_weights, submesh_index
                 index_row,
                 weight_row,
                 topology_contract=topology_contract,
+                source_vertex_indices=source_vertex_indices,
             ):
                 preserved_unnormalized = True
             else:
@@ -707,8 +712,13 @@ def _validate_skinning(
         )
         return True
     topology_contract = _export_topology_contract(submesh, original_submesh)
+    source_vertex_indices = (
+        _free_edit_skinning_source_vertices(submesh, original_submesh)
+        if not exact_output and topology_contract is None else None
+    )
     changed_from_original = original_submesh is not None and _skinning_changed_from_original(
-        original_submesh, bone_indices, bone_weights, topology_contract=topology_contract
+        original_submesh, bone_indices, bone_weights, topology_contract=topology_contract,
+        source_vertex_indices=source_vertex_indices,
     )
     if changed_from_original:
         if safe_replacement_authorized and exact_output and mesh_format == "pac":
@@ -742,7 +752,11 @@ def _validate_skinning(
                 ),
                 actual=(mesh_format or "unknown") if safe_replacement_authorized else "changed",
             )
-    _validate_skin_weight_rows(issues, bone_indices, bone_weights, submesh_index, original_submesh, skeleton_bone_count, topology_contract, exact_output=exact_output)
+    _validate_skin_weight_rows(
+        issues, bone_indices, bone_weights, submesh_index, original_submesh,
+        skeleton_bone_count, topology_contract, exact_output=exact_output,
+        source_vertex_indices=source_vertex_indices,
+    )
     return True
 
 
@@ -960,6 +974,50 @@ def _validate_safe_skin_weight_replacement(
     _validate_safe_skin_weight_rows(issues, submesh, submesh_index, palette_size)
 
 
+def _free_edit_skinning_source_vertices(
+    submesh: object,
+    original_submesh: object | None,
+) -> tuple[int, ...] | None:
+    """Admit only a compacted subset of the same original donor records.
+
+    Cleanup remaps bone rows and source records together. This proves retained
+    skinning for non-exact output; it supplies no exact topology/writeback proof.
+    """
+    vertex_count = len(tuple(getattr(submesh, "vertices", ()) or ()))
+    original_count = len(tuple(getattr(original_submesh, "vertices", ()) or ()))
+    if not 0 < vertex_count < original_count:
+        return None
+    for part in (original_submesh, submesh):
+        if getattr(part, "source_vertex_map_authority", "") != "target_donor_record":
+            return None
+    for name in ("source_descriptor_offset", "source_vertex_stride", "source_skin_weight_layout"):
+        if getattr(submesh, name, None) != getattr(original_submesh, name, None):
+            return None
+    stride = _coerce_index(getattr(original_submesh, "source_vertex_stride", None))
+    if stride is None or stride <= 0:
+        return None
+    channels = tuple(
+        tuple(_coerce_index(value) for value in (getattr(part, name, ()) or ()))
+        for part in (original_submesh, submesh)
+        for name in ("source_vertex_map", "source_vertex_offsets")
+    )
+    original_sources, original_offsets, sources, offsets = channels
+    if tuple(map(len, channels)) != (original_count, original_count, vertex_count, vertex_count):
+        return None
+    if any(value is None or value < 0 for values in channels for value in values):
+        return None
+    original_rows = {source: index for index, source in enumerate(original_sources)}
+    if len(original_rows) != original_count or len(set(original_offsets)) != original_count:
+        return None
+    mapped = tuple(original_rows.get(source, -1) for source in sources)
+    if len(set(mapped)) != vertex_count or any(
+        parent < 0 or offsets[index] != original_offsets[parent]
+        for index, parent in enumerate(mapped)
+    ):
+        return None
+    return mapped
+
+
 def _skinning_row_matches_original(
     original_submesh: object | None,
     vertex_index: int,
@@ -967,12 +1025,17 @@ def _skinning_row_matches_original(
     weight_row: tuple[object, ...],
     *,
     topology_contract: SubmeshTopologyProvenance | None = None,
+    source_vertex_indices: Sequence[int] | None = None,
 ) -> bool:
     if original_submesh is None:
         return False
     original_indices = tuple(getattr(original_submesh, "bone_indices", ()) or ())
     original_weights = tuple(getattr(original_submesh, "bone_weights", ()) or ())
-    if topology_contract is not None:
+    if source_vertex_indices is not None:
+        if vertex_index >= len(source_vertex_indices):
+            return False
+        vertex_index = source_vertex_indices[vertex_index]
+    elif topology_contract is not None:
         # Output positions are renumbered by a topology edit, so "the original
         # row" is the row of this vertex's single original parent.
         if vertex_index >= len(topology_contract.vertex_origins):
@@ -991,17 +1054,19 @@ def _skinning_changed_from_original(
     bone_weights: Sequence[object],
     *,
     topology_contract: SubmeshTopologyProvenance | None = None,
+    source_vertex_indices: Sequence[int] | None = None,
 ) -> bool:
     original_indices = tuple(getattr(original_submesh, "bone_indices", ()) or ())
     original_weights = tuple(getattr(original_submesh, "bone_weights", ()) or ())
     if topology_contract is not None:
+        source_vertex_indices = tuple(origin.direct_parent for origin in topology_contract.vertex_origins)
+    if source_vertex_indices is not None:
         # Every direct vertex must still carry its original row exactly. A derived
         # row is not compared here: the exact serializer recomputes it from the
         # original parents and never trusts a submitted row.
-        if len(bone_indices) != len(topology_contract.vertex_origins):
+        if len(bone_indices) != len(source_vertex_indices):
             return True
-        for index, origin in enumerate(topology_contract.vertex_origins):
-            parent = origin.direct_parent
+        for index, parent in enumerate(source_vertex_indices):
             if parent == TOPOLOGY_DERIVED_SOURCE_SENTINEL:
                 continue
             if parent >= len(original_indices) or parent >= len(original_weights):
