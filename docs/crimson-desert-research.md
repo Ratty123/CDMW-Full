@@ -1001,9 +1001,25 @@ maintenance and a coherent full owner remain open.
 The retained fixed-backing fixture was already built and run on 2026-10-19.
 The 2026-10-21 review matched its twelve referenced source/result/binary pins;
 it did not rerun the experiment or promote it to game evidence. Native
-independence remains unadmitted. The source basis reviewed for this update is
-`905c0ca7b55763f554968031628138d49af4d8b6`; other reference sections retain
-their existing review scope.
+independence remains unadmitted. That reconciliation reviewed source
+`905c0ca7b55763f554968031628138d49af4d8b6`.
+
+A further 2026-10-21 continuation from
+`0aa0a1bea155c982a5aea8ce0ac39edf9d3e166f` reproduced a separate composition
+hazard: sequential single-map calls can expose the numeric entry before the
+name map refuses validation. Source review also identified premature cleanup
+on observer reentry. A maintained
+[paired-publication C++ experiment](../native/cdmw_virtual_loader/research/README.md)
+now validates both maps and concrete owned backing before writes, retains their
+ownership together, and rejects recursive publication without cleanup.
+Its 41 cases and 963 checks pass under address/undefined sanitizers.
+
+This is new owned-memory model evidence. Both lookup paths, rows, metadata routes
+and completed resource bytes are modeled; no engine constructor, native file
+operation or game execution occurred. The fixture deliberately records partial
+numeric/name visibility, so concurrent-reader atomicity remains unproved.
+Joining actual native storage and decoding to a qualified reader boundary is
+still required. Other reference sections retain their existing review scope.
 
 Sources: [native registration investigation][virtual-loader] and the
 [current identity/native architecture contract](../cdmw/ui/new_item/INDEPENDENT_ITEMS.md#runtime-registration-research).

@@ -886,9 +886,10 @@ classification rather than acquiring an independent-new-item claim.
 
 ### Retained evidence and unresolved contracts
 
-Review scope: 2026-10-21 source/documentation reconciliation against source
-`905c0ca7b55763f554968031628138d49af4d8b6` and the retained B111 receipt.
-Historical native and game experiments below were not rerun for this update.
+Review scope: 2026-10-21 continuation from
+`0aa0a1bea155c982a5aea8ce0ac39edf9d3e166f`, retained B106/B111 source and the
+new portable paired-publication experiment. Historical native/game results
+remain distinct from the new owned-memory C++ run.
 
 | Evidence | Established for that scope | Not established |
 | --- | --- | --- |
@@ -896,6 +897,7 @@ Historical native and game experiments below were not rerun for this update.
 | B84 recorded game experiment | Four additional ItemInfo rows with numeric/name/getter joins | Full inventory acquisition, all consumers or ordinary cache lifetime |
 | B106 native isolated experiment | Original typed array backing and retained cleanup under explicit helper substitutions | Live allocator/unwind admission or coherent publication |
 | B111 native isolated experiment | Stable selected map backing and initialized results during deterministic write-step observations | Full native name callback, concurrent readers/writers, coherent ItemInfo owner or game admission |
+| New portable paired-publication experiment | Common preflight, concrete modeled backing, reentry refusal and retained ownership across both map store phases | Actual engine constructors/lookups/metadata/decoding/I/O, atomic concurrent visibility or game admission |
 | B99 recorded game experiment | Private metadata parsing and lookup of the expected entry | Native payload read/use, shared visibility, retirement or saved ownership |
 | B109 source qualification | File-manager wrapper, raw path/holder ABI and conditional close/release | Concrete virtual open/read/size/completion or payload use |
 
@@ -913,6 +915,35 @@ is not a readiness barrier. Actual primary/expiry/metadata storage and private
 decoder routing must be ready before the first visible entry in either map.
 Other readers, iterators, writers and borrowed-pointer lifetimes still require
 their own qualification.
+
+### Paired map publication and retained ownership
+
+The maintained [C++ experiment and diagram](../../../native/cdmw_virtual_loader/research/README.md)
+join both maps to one owner of primary cells, expiry, modeled metadata, decoded
+fixture rows and resource bytes. Both snapshots and every new ordinal's concrete
+joins validate before the first map write. The remaining store phases allocate
+nothing and perform no fallible validation. A publishing state rejects recursive
+prepare/publish and fault-injection calls without releasing active backing.
+
+A new isolated reproducer confirmed the retained B111 composition hazard:
+numeric publication can succeed before name publication refuses its stale state.
+Source review also found that observer reentry could release nodes while the
+outer B111 publication continued. The new unit addresses those failure boundaries
+without changing the sealed predecessor.
+
+The portable successor passes 41 cases and 963 checks with address/undefined
+sanitizers. Its 34 write observations include 42 valid backing resolutions before
+the final owner count and 32 partial numeric/name visibility observations.
+Those partial states explicitly preserve the need for a qualified game reader
+boundary. Final tested/reviewed source hashes match the project files; evidence
+is in `workspace/reports/cditem-execution/20261021-publication-readiness/`.
+
+Both lookup paths and resource completion are modeled. The fixture checks exact
+owned archive/range/payload bytes; it performs no file I/O or native query.
+B106's separate native constructor evidence initializes null pointer cells and
+does not establish construction of full decoded ItemInfo rows. Fixture teardown
+is single-threaded and proves no native retirement with outstanding readers.
+The new sources remain outside production CMake targets and release provenance.
 
 ### Proposed startup admission lifecycle
 
@@ -1005,8 +1036,9 @@ initializer behavior.
 
 ### Next decisive proof
 
-Join the retained original backing, private metadata and decoder routing with
-both lookup maps. In parallel, qualify the concrete native private resource
+Carry the paired-publication ordering and ownership discipline into actual
+constructed backing, private metadata and decoder routing for both native maps.
+Qualify the real reader boundary and concrete native private-resource
 open/read/use path. Then exercise two separately authored same-donor packages
 with distinct private assets through acquisition, equip, restart, supported
 updates/removal and save reload without combined replacement game files.

@@ -1,7 +1,7 @@
 # CDMW .cditem Astra / Pro reasoning handoff
 
 - Created: 2026-10-18, Europe/Stockholm.
-- Status: Active implementation, reviewed 2026-10-21. Read the current restart checkpoint below first. B111 retained execution is verified, exact private-archive evidence review is implemented, and the full native feature remains incomplete; `native_admission=false`.
+- Status: Active implementation, reviewed 2026-10-21. Read the current restart checkpoint below first. Exact archive review and the owned-memory paired-publication experiment are verified for their scopes; actual native integration remains incomplete, `native_admission=false`.
 - Execution entry point: [cditem-execution-goal.md](cditem-execution-goal.md).
 - Feature authority and completion state: [cditem-conflict-isolation-plan.md](cditem-conflict-isolation-plan.md).
 - Shared completed work: [progress.md](progress.md).
@@ -14,12 +14,13 @@ the existing [CDISO goal](cditem-conflict-isolation-plan.md) and
 [CDRUN execution companion](cditem-execution-goal.md). The readable
 [progress snapshot](progress.md#cditem-current-progress) summarizes evidence and
 next steps; it does not create a second acceptance checklist. Current source
-review began on `main` at `905c0ca7b55763f554968031628138d49af4d8b6`.
+review continued on `main` at `0aa0a1bea155c982a5aea8ce0ac39edf9d3e166f`.
 
 | Evidence or work | Current status | Meaning for the next step |
 | --- | --- | --- |
 | B106 typed original backing | Retained isolated-native result, 16 cases and 1,458 checks | Join actual prepared primary/expiry/metadata and decoder routing to the lookup maps |
-| B111 fixed-backing append | Retained executed result; all 12 referenced pins verified this iteration | New entries can become visible before diagnostic owner count; count-last is not a readiness boundary |
+| B111 fixed-backing append | Retained executed result; 12 pins verified in the preceding increment | New entries can become visible before diagnostic owner count; count-last is not a readiness boundary |
+| Maintained paired-publication experiment | New portable C++ run: 41 cases/963 checks; independent source review passes | Common preflight and retained backing are established on owned memory; actual native joins and reader synchronization remain open |
 | B99 metadata lookup | Retained actual-game result with independently verified restoration | Private metadata lookup is settled; native byte delivery and resource use remain open |
 | B109 / B110 resource calls | B109 wrapper source qualified; B110 concrete virtual targets pending | Qualify open/read/size/completion and handle lifetime under current source ownership |
 | B112 path candidate | Retained preparation, no actual path call verified | Use a separately versioned candidate and bind the result to the exact prepared archive |
@@ -30,8 +31,8 @@ B111's existing receipt is
 SHA-256 `98ecd954cfe82c35847ca0c19b4be66957bec9a05bcb1ed0881c5e8b5230552f`.
 It records 24 positive cases, 42 refusals, 5,371 checks, 336 write-step
 observations and 2,408 retained native numeric calls. In 168 observations,
-the new ordinal was visible before the diagnostic owner count. This iteration
-verified retained evidence; it did not rebuild or rerun B111. The name lookup
+the new ordinal was visible before the diagnostic owner count. The preceding
+2026-10-21 increment verified that retained result without a rerun. The name lookup
 remains a model, heap/TLS are substituted, and all-reader/engine readiness is
 unproved.
 
@@ -42,26 +43,38 @@ pinned B112 packet against that exact archive. A passing report keeps native
 execution, payload read, resource use and admission false. Existing sealed
 B93/B98/B112 sources and evidence are unchanged.
 
-Current evidence is retained in
+The new [paired-publication contract and diagram](../native/cdmw_virtual_loader/research/README.md)
+records two concrete B111 composition hazards: second-map validation can fail
+after first-map visibility, and observer reentry can trigger premature cleanup.
+The successor checks both maps and concrete backing before writes, then retains
+one owner through a store-only phase. Its 34 write observations include 42 early
+backing resolutions and 32 partial-map observations. Both lookups and resource
+completion are modeled; B106 null-cell construction and actual engine decoding
+remain distinct.
+
+New evidence is retained in
+`workspace/reports/cditem-execution/20261021-publication-readiness/`.
+Earlier archive-review/goal evidence remains in
 `workspace/reports/cditem-execution/20261021-independent-content-start/`.
-The previous ThinkForge goal snapshot is preserved there; the active durable
-goal is `goal_d5b01b2303ab9a85`. Keep that goal and the Markdown snapshot aligned.
+The active durable goal is `goal_d5b01b2303ab9a85`. Keep that goal and the
+Markdown snapshot aligned.
 
 ### Immediate engineering sequence
 
 1. Qualify B110's concrete manager virtual methods, then prepare a new bounded
    native path/open/read candidate using the exact archive and payload expectation.
    Verify actual returned bytes before attempting higher-level resource use.
-2. Join B106 backing and B111 map publication to actual metadata and decoder
-   routing. Observe newly visible ordinals through that prepared state, then
-   qualify the required consumer readiness and failure/lifetime boundaries.
+2. Use the maintained paired-publication experiment as the ordering/lifetime
+   baseline. Join actual B106 backing, metadata and decoder routing to both
+   native maps, then qualify the real consumer boundary and failure/lifetime.
 3. Join definitions and resources, establish first-instance acquisition, and run
    two same-donor packages through the native lifecycle and save scenarios.
 
-The read-only census found an active game, Java and compiler processes whose
-ownership is not established for this iteration. No game, provider, install,
-save or compiler lane was taken over. Historical grants, process IDs and release
-notes below do not establish current ownership.
+The fresh read-only census found no game or compiler process. Java/Codex
+ownership and a current source/provider grant remain unconfirmed. The C++
+experiment used an isolated Linux build; no shared Windows compiler, provider,
+game, installation or save was used. Historical grants and process IDs below
+do not establish current ownership.
 
 ### Historical checkpoint boundary
 

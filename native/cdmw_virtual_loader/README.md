@@ -173,3 +173,12 @@ Do not poll until an unknown hook disappears or promote game loading based on
 the harness. The
 [feature loading map and acceptance gates](../../cdmw/ui/new_item/VIRTUAL_LOADER.md)
 are the authoritative scope and limitations.
+
+## Independent item publication research
+
+The separate [paired-publication experiment](research/README.md) prepares both
+item identity maps and their owned fixture backing before publication. Its
+standalone C++20 checks cover refusal, visibility, reentry and lifetime. Both
+lookup paths, decoded rows and resource completion are modeled. The research
+subdirectory is outside the production CMake targets and source provenance;
+its focused isolated build does not rebuild or enable this runtime.

@@ -9,7 +9,7 @@
 - Completion log: [progress.md](progress.md)
 - Initial reviewed branch: RR/independent-item-packages.
 - Initial reviewed HEAD: d4b38e5082d4f9b4b4cce14f9ee2ecdb37994aaf, with concurrent uncommitted work.
-- Current source review: 2026-10-21, main at 905c0ca7b55763f554968031628138d49af4d8b6.
+- Current source review: 2026-10-21, main at 0aa0a1bea155c982a5aea8ce0ac39edf9d3e166f.
 - Current authorization: The user has instructed implementation with a maintained goal, real progress, professional research/technical documentation and diagrams. Continue the existing goal and preserve its acceptance conditions. Earlier execution permissions remain recorded in the execution companion; refresh actual process and shared-lane ownership before using them.
 
 ## Goal
@@ -26,7 +26,7 @@ The game can still have central in-memory registries. Unique, independently owne
 
 ## Current status and next steps
 
-Reviewed on **2026-10-21** against `main@905c0ca7b55763f554968031628138d49af4d8b6` and the retained evidence identified below. This review does not rerun historical game experiments.
+Reviewed on **2026-10-21** against `main@0aa0a1bea155c982a5aea8ce0ac39edf9d3e166f`, the retained evidence and the new owned-memory C++ experiment identified below. Historical game experiments were not rerun.
 
 **Overall status: implementation in progress; native independence is not admitted.** Existing UUID/binding work remains completed. Native definitions, private payload use and the native save lifecycle still need their own proof.
 
@@ -34,7 +34,8 @@ Reviewed on **2026-10-21** against `main@905c0ca7b55763f554968031628138d49af4d8b
 | --- | --- | --- | --- |
 | Stable logical identity and retained bindings | Implemented UUID, per-symbol reservations, collision refusal and profile transfer; bounded composed-route lifecycle observations | Carry the same bindings through the admitted native lifecycle; profile transfer is not automatic save migration | `CDISO-ID-01`, `CDISO-ID-01A`, `CDISO-LIFE-01` |
 | Resource ownership and donor independence | Supported private material/DDS references and proven donor-row detachment | Close every required explicit/implicit reference for the selected family and prove native consumption | `CDISO-RES-01`, `CDISO-DEP-01` |
-| Native definition registration | Recorded B84 extra-row game experiment; B106 typed backing and B111 selected-reader experiments | Join backing, metadata, decoder routing and both maps before visibility; qualify all affected consumers and lifetime | `CDISO-RE-02` |
+| Native definition registration | Recorded B84 extra-row game experiment; B106 typed backing and B111 selected-reader experiments | Join actual backing, metadata and decoder routing to both native maps; qualify all affected consumers and lifetime | `CDISO-RE-02` |
+| Paired publication and ownership | New portable C++ experiment: 41 cases, 963 checks; common preflight and retained backing pass | Transfer the demonstrated ordering to actual native storage and a qualified reader boundary; both lookups/resources here are modeled | `CDISO-RE-02A` |
 | Native private resources | Recorded B99 metadata lookup; B109 source-qualified file-manager wrapper | Qualify the concrete native open/read/size/completion route and demonstrate actual payload use and retirement | `CDISO-RE-03` |
 | Exact private archive expectation | New offline checker; 52 focused tests and retained B93/B98 preparation check pass | Carry the exact archive/payload identity into a separately versioned native candidate; actual path/read/use remain open | `CDISO-RE-03A` |
 | Per-package native backend | Design and isolated research; current shipped package routes still compose | Admit complete owned contributions without combined game tables, indexes or archive carriers | `CDISO-DECIDE-01`, `CDISO-RUN-01` |
@@ -44,7 +45,7 @@ Reviewed on **2026-10-21** against `main@905c0ca7b55763f554968031628138d49af4d8b
 ### Immediate engineering sequence
 
 1. Continue from B99/B109 and B110/B112 preparation: qualify concrete open/read/size/completion and holder lifetime, then carry the exact archive/payload expectation into a separately versioned native candidate. Refresh actual shared-lane ownership first.
-2. Preserve and reuse B106/B111. Join actual private primary/expiry/metadata storage and decoder routing before either map exposes a new entry. Qualify consumer readiness and failure/lifetime behavior; a final count write is not a readiness barrier.
+2. Use the new paired-publication experiment as the ordering/lifetime baseline. Join actual B106 primary-cell backing, private metadata and decoder routing before either native map exposes a new entry. Qualify the game reader boundary and failure/lifetime behavior; the portable model does not establish those contracts.
 3. Join definitions and resources in one startup-scoped native contribution, then exercise two independently authored same-donor packages with distinct private assets through acquisition, equip, restart and save reload.
 4. Extend only from that demonstrated scope. Keep native missing-provider save behavior, ordinary maintenance and any unresolved resource family explicitly open.
 
@@ -122,7 +123,11 @@ That line is a format example, not a completed task.
 
 The user has authorized implementation and asks for a maintained high-level goal, readable real progress, technical documentation and diagrams. This document remains the feature authority; the execution companion remains the operational authority. ThinkForge goal `goal_d5b01b2303ab9a85` follows this work.
 
-**Corrected retained result:** B111 was built and executed on 2026-10-19. Its qualified receipt records 24 positive cases, 42 refusals, 5,371 checks, 336 write-step observations and 2,408 retained native numeric lookups. The 2026-10-21 integrity check matched all 12 receipt references, including the seven prepared source files and exact binary. This is review of retained evidence, not a new native run.
+**New bounded result, CDISO-RE-02A:** A maintained [paired-publication experiment](../native/cdmw_virtual_loader/research/README.md) passes 41 cases and 963 checks under address/undefined-behavior sanitizers in an isolated Linux workspace. One owner retains both maps, modeled rows/metadata/routes and resource bytes. Both maps and concrete backing validate before the first store; recursive publication refuses without cleanup. A retained-source reproducer confirms that sequential B111 calls can publish the first map before the second refuses. Source review also identified B111 observer reentry as a premature-cleanup hazard.
+
+The 34 write observations include 42 valid backing resolutions before the final owner count and 32 partial numeric/name visibility observations. Complete backing is established within this fixture; atomic game-reader visibility, actual B106 constructor execution in this successor, native metadata/decoder joins and native I/O remain unproved. B106's constructor result concerns null pointer cells, not complete decoded ItemInfo rows. Evidence and independent source review: `workspace/reports/cditem-execution/20261021-publication-readiness/`. Shared Windows compiler/provider/game lanes were not consumed.
+
+**Corrected retained result:** B111 was built and executed on 2026-10-19. Its qualified receipt records 24 positive cases, 42 refusals, 5,371 checks, 336 write-step observations and 2,408 retained native numeric lookups. The earlier 2026-10-21 integrity check matched all 12 receipt references, including the seven prepared source files and exact binary. This is review of retained evidence, not a new native run.
 
 The result includes 168 observations of new ordinals before the diagnostic owner count includes them. It proves the selected owned-memory map behavior and rejects count-last as a publication barrier. It does not prove a coherent full ItemInfo owner, actual native name callback, concurrent readers/writers, live heap/TLS, payload use or game admission. `native_admission=false` remains unchanged.
 
@@ -583,6 +588,14 @@ Phase headings group work; they do not require broad resource cloning before eng
   Work: Identify the native construction/parsing, insertion, duplicate detection, lookup, linking/finalization, and destruction/lifetime chain for ItemInfo and every auxiliary definition used by the selected equipment scope. Keep the separate resource-discovery gate below explicit; typed record insertion alone does not establish renderable resource loading.
 
   Acceptance: Document receiver and argument meanings, valid startup phase/thread, allocators, record/storage ownership, auxiliary fixups, cache behavior, failure cleanup, and persistence lookup. Do not assume a table-loader entry, an inventory type ID, or a mesh-loading function is an insertion API. No raw registry write, hard-coded unverified function invocation, or omitted finalization step may be used as proof.
+
+- [x] **CDISO-RE-02A: Join both identity maps to retained backing in an owned C++ experiment.**
+
+  Scope: Implement one separately owned publication unit with concrete primary-cell, expiry, metadata, decoded-fixture-row and private-route storage. Prepare and revalidate both maps before any map write. Preserve the sealed B106/B111 experiments and existing production gates.
+
+  Acceptance: An isolated portable C++ executable must reproduce the sequential-map refusal hazard from retained B111, then exercise the successor's complete preflight, second-map refusal, exact row/resource joins, write-step visibility, publication reentry and lifetime/cleanup. No allocation or fallible validation may occur after the first publication write. Record modeled readers/resources separately from retained native constructors, native lookups, actual game I/O and concurrent-reader qualification. This subtask does not close CDISO-RE-02.
+
+  Completion: 2026-10-21. Maintained `native/cdmw_virtual_loader/research/paired_item_publication.hpp` and its standalone fixture pass 41 cases/963 checks, with 34 write observations, 42 early-visible backing resolutions and 32 partial-pair observations. Exact tested/reviewed source hashes match the transferred project files. Independent source review passes. The B111 sequential-call refusal hazard is reproduced; the successor has common preflight, concrete owned backing, store-only phases and reentry-safe ownership. Address/undefined sanitizers pass with LeakSanitizer disabled for the runner's process-metadata limitation; explicit allocation/destruction assertions pass. Both lookup paths and resources are modeled. No actual engine code, native I/O, concurrent-reader, game or admission result is claimed; CDISO-RE-02 remains open. Evidence: `workspace/reports/cditem-execution/20261021-publication-readiness/`.
 
 - [ ] **CDISO-RE-03: Prove additive discovery of entirely new resource identities.**
 

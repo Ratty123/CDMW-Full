@@ -16,7 +16,8 @@ original `CDISO-*` criteria, with narrowly scoped subtask results recorded below
 | Outcome | Status | Evidence and remaining work |
 | --- | --- | --- |
 | Package identity and retained bindings | Existing implementation | UUIDs, digest checks, symbol bindings and reservations are established; preserve them when the native backend consumes contributions |
-| Native definition registration | Partial research evidence | B84 actual game rows; B106 typed backing; B111 selected-reader interleavings. Coherent readiness, routing and all affected consumers remain open |
+| Native definition registration | Partial research evidence | B84 actual game rows; B106 typed backing; B111 selected-reader interleavings. Actual decoder/resource joins and the game reader boundary remain open |
+| Paired publication and lifetime | Verified owned-memory increment | `CDISO-RE-02A`: portable C++ common preflight and retained backing; 41 cases/963 checks. Both lookup paths and resource completion are modeled |
 | Exact private archive expectation | Completed bounded increment | `CDISO-RE-03A`: maintained offline reviewer, 52 focused tests and retained B93/B98 preparation check |
 | Native resource open/read/use | Open | B99 metadata lookup and B109 wrapper source are established. Concrete virtual methods, actual payload reads, use and lifetime remain unproved |
 | Fully independent native items | Open | Production `native_admission=false`; no combined-file-free native lifecycle acceptance |
@@ -27,15 +28,17 @@ original `CDISO-*` criteria, with narrowly scoped subtask results recorded below
 1. Qualify B110's concrete open/read/size/completion and holder-lifetime contracts.
    Carry the exact prepared archive/payload identity into a separately versioned
    native candidate, then observe the actual private bytes.
-2. Join B106 backing, private metadata and decoder routing with B111 map
-   publication before the first visible entry. Establish the consumer readiness
-   and failure/lifetime boundary.
+2. Carry the paired-publication experiment's common preflight and ownership
+   discipline into actual B106 backing, private metadata and decoder routing.
+   Qualify the real reader boundary before either native map exposes an entry.
 3. Integrate the native definition and resource routes, prove first acquisition,
    then exercise two same-donor packages through equip/restart/update/removal/save.
 
-Live game, provider and compiler ownership must be refreshed before that work
-uses an occupied lane. Source review, this implementation and its offline checks
-did not take over those processes.
+The fresh read-only census found no game or compiler process, but Java/Codex
+ownership and a current source/provider grant remain unconfirmed. The new C++
+experiment ran in an isolated Linux workspace. No shared Windows compiler,
+provider, game, installation or save was used; native work still needs its exact
+current ownership and supported caller.
 
 ## Completed work
 
@@ -260,3 +263,5 @@ did not take over those processes.
 - 2026-10-21 | CDISO-RE-03A | Implemented exact private-archive path evidence review. All 52 focused tests pass, including real CLI use and refusal of sibling archives, changed pins/payloads, invalid packet joins and inactive/duplicate native declarations. The retained B93/B98 preparation passes a new read-only check. No actual B112 path call, native payload use or admission is claimed. [Technical contract](../cdmw/ui/new_item/INDEPENDENT_ITEMS.md#private-archive-path-evidence-review); local evidence: `workspace/reports/cditem-execution/20261021-independent-content-start/`.
 
 - 2026-10-21 | CDISO-DOC-02 | Maintained the canonical independent-content goal, current progress view, execution/research handoff, technical contract and two Mermaid diagrams. Documentation checks pass: 28 new or moved local links, all 18 original CDISO checkbox states and all 142 historical dated progress entries preserved. Verified all 12 retained B111 receipt pins and corrected its current status to executed; no native rerun or new native admission. The next engineering work and evidence limits are explicit.
+
+- 2026-10-21 | CDISO-RE-02A | Implemented the maintained paired-map publication and ownership experiment. The retained B111 sequential-call refusal is reproduced; common preflight, concrete modeled backing, reentry refusal and exact cleanup pass 41 cases/963 checks under address/undefined sanitizers. The 34 store observations include 42 early-visible backing resolutions and 32 partial-map observations, preserving the concurrency limit. Final project source hashes match the independently reviewed/tested files. No actual native constructor/lookup/I/O, game or admission claim. [Owning contract and diagram](../native/cdmw_virtual_loader/research/README.md); evidence: `workspace/reports/cditem-execution/20261021-publication-readiness/`.

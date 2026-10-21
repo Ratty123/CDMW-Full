@@ -2,7 +2,7 @@
 
 - Plan ID: `CDRUN`
 - Created: 2026-10-18, Europe/Stockholm.
-- Status: Active implementation, reviewed 2026-10-21. Exact private-archive evidence review is implemented and focused checks pass. Native registration/resource use, full scenarios and delivery remain incomplete; `native_admission=false`.
+- Status: Active implementation, reviewed 2026-10-21. Exact private-archive review and the owned-memory paired-publication experiment pass their focused checks. Actual native registration/resource use, full scenarios and delivery remain incomplete; `native_admission=false`.
 - Original execution model: the user's selected GPT-6.1 Sol with Max reasoning, retained as historical context.
 - Current reasoning and research entry point: [the maintained handoff](cditem-astra-pro-handoff.md).
 - Project: `D:\CLAUDETEST\CDMW Full`.
@@ -13,7 +13,7 @@
 ## Current execution checkpoint
 
 Reviewed on 2026-10-21 from `main` at
-`905c0ca7b55763f554968031628138d49af4d8b6`. The user's current instruction
+`0aa0a1bea155c982a5aea8ce0ac39edf9d3e166f`. The user's current instruction
 authorizes implementation with a maintained goal, progress log, research,
 technical documentation and diagrams. The authoritative goal remains
 [CDISO](cditem-conflict-isolation-plan.md); this companion owns execution.
@@ -21,26 +21,34 @@ technical documentation and diagrams. The authoritative goal remains
 | Workstream | Current evidence | Next action |
 | --- | --- | --- |
 | Stable identity | Existing package identity, retained bindings and reservations remain implemented | Preserve these contracts when native registration consumes contributions |
-| Definition publication | B106 typed backing and retained executed B111 fixed-backing fixture | Join actual record/metadata/decoder readiness to both maps before visibility; qualify affected consumers |
+| Definition publication | B106/B111 retained results; new portable paired-publication fixture passes 41 cases/963 checks | Join actual native backing/metadata/decoder routing to common preflight; qualify the game reader boundary |
 | Private resource identity | New offline archive-path review; focused checks and retained B93/B98 preparation check pass | Use exact prepared archive identity in the next separately versioned native path/open/read candidate |
 | Native resource use | B99 game metadata lookup; B109 source-qualified wrapper; B110 virtual roots and B112 actual path call still pending | Qualify concrete open/read/size/completion and holder lifetime, then observe exact private bytes |
 | End-to-end independence | No production native admission | Prove two same-donor packages through native acquisition/equip/restart/update/removal/save and the separate absent-provider save case |
 
-B111 was executed on 2026-10-19. This iteration verified all 12 references in
-its retained result, without rerunning it. Its selected numeric reader exposed
+B111 was executed on 2026-10-19. The earlier 2026-10-21 increment verified all
+12 references in its retained result. Its selected numeric reader exposed
 new ordinals before the diagnostic owner count in 168 observations. Count-last
 does not supply the required consumer readiness boundary.
 
-The new checker verifies input and packet consistency only. It does not prove
-capture provenance or native payload read/use. See the
+The new paired-publication experiment ran only in an isolated Linux workspace.
+It reproduced a late second-map refusal in retained B111 C++ and implements
+common validation before any store, retained backing and reentry-safe ownership.
+Both lookup paths, rows and resource completion are modeled; its 32 partial-map
+observations leave arbitrary-reader atomicity unproved. The source is excluded
+from production CMake targets and release provenance. See the
+[owning contract and focused command](../native/cdmw_virtual_loader/research/README.md).
+
+The archive checker verifies input and packet consistency only. It does not
+prove capture provenance or native payload read/use. See the
 [technical contract](../cdmw/ui/new_item/INDEPENDENT_ITEMS.md#private-archive-path-evidence-review)
 and [current progress](progress.md#cditem-current-progress).
 
-The current process census found an active game, Java and compiler processes
-without ownership established for this iteration. No live process, provider,
-build lane, installation or save was taken over. Before native execution,
-refresh ownership and bind the supported caller to the exact candidate and
-available lane. Historical grants below remain dated evidence.
+The fresh read-only census found no game or compiler process. Java/Codex
+ownership and a current source/provider grant remain unconfirmed. No shared
+Windows compiler, provider, game, installation or save was used by this increment.
+Before native execution, refresh ownership and bind the supported caller to the
+exact candidate and available lane. Historical grants below remain dated evidence.
 
 ## 1. Goal and relationship to the existing plan
 
