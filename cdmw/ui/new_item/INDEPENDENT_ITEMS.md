@@ -1147,9 +1147,26 @@ preserves the required forwarding/startup instruction shapes at moved offsets.
 A differing whole-file hash alone does not establish incompatibility. The
 experiment uses separately qualified witnesses and retains actual IAT, phase,
 first-thread, outside-loader and observed-frame guards. Its strict build,
-startup-frame fixture and no-session inert check pass. Live startup timing,
-the exact prepared archive path and all native I/O remain unproved. Production
-bootstrap/admission gates and sealed B112 sources are unchanged.
+startup-frame fixture and no-session inert check pass. The first controlled
+activation now passed startup and callback/phase/IAT installation with that
+loader. It closed on monitor liveness before any result body; four valid headers
+and an empty stock wire are incomplete failed evidence, not a path result.
+The consumed heartbeat was not logged. Source review found a clock race and
+terminal packet misclassification; v5 reads heartbeat before sampling uptime,
+samples the decision clock after all blocking identity/file work, records the
+close judgement and measures completion after restoration. It preserves every
+native guard and the fixed 225/240-second deadline. Seventy-six focused mocked
+cases and independent review pass; no second native run is implied.
+
+The first run restored original ASI absence and exact stock staging, left all
+owned processes absent and retained 14 selected input/preservation matches.
+The old 32.422s value is a pre-restoration sample, not exact total duration;
+the preserved timing correction makes that distinction. Current FastLoad's
+automatic latest-save transition stays unchanged under existing recorded human
+scope, while the caller issues no input/explicit load or configuration change.
+The exact archive path, native byte delivery/use and general retirement remain
+unproved. Production bootstrap/admission and sealed B112/native B113 bytes are
+unchanged.
 
 
 ### Proposed startup admission lifecycle

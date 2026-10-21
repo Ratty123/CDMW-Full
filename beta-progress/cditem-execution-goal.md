@@ -58,9 +58,11 @@ complete continuity, performed the bounded manager-method pass, exported all
 2,200 records/136 unknown revisions and normally closed the target and SDK.
 Fresh process census confirms its provider/client processes are absent. The
 queued Create Item reader received the full bundle and release pins, subject to
-repair's next quiet game trial. No CDItem game run or installation write has
-occurred. Refresh ownership before another shared-lane operation; historical
-grants below remain dated evidence.
+repair's next quiet game trial. Its later bounded query produced the complete
+2,203-record/137-unknown-revision/24-head successor and normal closure. CDItem
+then ran its first current-loader activation, described below, and returned the
+game/install lane. Repair reclaimed resources for R30. Refresh ownership before
+another operation; historical grants below remain dated evidence.
 
 ## First in-game test and notification
 
@@ -69,9 +71,11 @@ Readiness reviewed on 2026-10-21 at
 B110 source-access script, B112 path candidate and preparation receipt. It does
 not redate the earlier tests or game observations.
 
-**Current decision: finish the current-owner caller and lane handoff outside
-the game. The user does not need to launch it.** Retained B112 remains
-source-only. Its separately frozen B113 current-loader variant is now built:
+**Current decision: use the reviewed corrected caller after the next fresh
+game/install and quiet-provider handoff. No manual launch is needed.** The first
+B113 activation reached its startup/install handshake but captured no callback
+or private-path body. Retained B112 remains source-only. The unchanged separately
+frozen B113 current-loader binary is:
 467,456 bytes, SHA-256
 `b653093237e1f6b2b21702d9ff3cd9970fcd78da606c6b0d43fddbf68073312e`.
 The `/W4 /WX /guard:cf` build passed in 14.43 seconds. Six owned callback cases
@@ -85,21 +89,48 @@ rerun.
 The human clarified that differing `winmm.dll` bytes do not establish
 incompatibility, and all three active Live Edit chats were notified. Static
 inspection of current UAL 9.7.4 finds the required forwarding/startup shapes at
-new offsets; the separately pinned variant uses those witnesses. Actual IAT
-destinations, phase flags, observed startup frames and timing remain live checks.
-No loader was replaced. The old FastStart setting and four CDMW recovery targets
-are absent, so their historical caller cannot be reused unchanged. A narrowly
-scoped temporary-ASI recovery/caller must preserve original absence as well as
-existing bytes. Concrete I/O source qualification is now complete for the
+new offsets; the separately pinned variant uses those witnesses. The first
+controlled run now verifies startup and callback/phase/IAT observer installation
+on thread 23488 with current UAL; all three Live Edit chats received that result.
+This does not establish the later engine callback, phase or private path. No
+loader was replaced. The actual FastLoad setting is
+`bin64/CrimsonFastLoad/startup.ini`: FastStart=1, CustomLoadingScreen=1,
+Background empty, SaveSlot=latest. Preserve its existing automatic world load
+and ordinary game writes under the recorded human authority. The no-world
+prerequisite in the initial caller was unnecessary; no settings change or new
+routine approval is required. The reviewed v3-format scope forbids input,
+explicit save/load commands and configuration changes while recording that
+existing automatic behavior. Exact temporary-ASI recovery preserves absence or
+original bytes/mtime. Concrete I/O source qualification is now complete for the
 bounded small-read premise described in the owning technical contract. The
-actual path and native read remain unperformed. The size-entry decompilation
+actual path remains unobserved and private payload read unperformed. The size-entry decompilation
 refusal is retained; its direct thunk and actual body were separately resolved.
 The new actual-replay unknown remains open in the complete exported ledger.
+
+Actual attempt `b113-ffdcb3ab22e2432c97a3936eb9483a55` bound game PID 14464,
+creation FILETIME 134370733783733162, to host 11172 and guardian 29092. The
+guardian requested close after 28.609 seconds on a monitor-liveness judgement;
+the consumed heartbeat was not logged, so its exact failure cause is unknown.
+Source review found a stale-tick race, and final collection also misclassified
+valid header-only packets as malformed. The four headers and empty stock wire
+remain incomplete, failed evidence. No private-path call or byte delivery was
+observed. Normal close followed by the authorized force fallback completed;
+all owned processes are absent, ASI absence and stock staging restored, and 14
+selected preserved/input pins match. The old 32.422-second value is a
+pre-restoration clock sample, not total duration; the separately retained timing
+correction records that limit. File-write times corroborate prompt completion.
+
+The separately frozen v5 caller fixes fresh heartbeat/decision sampling, records
+the liveness reason, samples completion after restoration, and keeps header-only
+packets incomplete. Its 76 focused mocked cases, two CLI parsers and 12 source
+parses pass; independent review passes. The native binary is unchanged. No
+second run or new lane follows automatically from those checks. Actual evidence
+and the corrected caller are under the continuation's `run/` directory.
 
 | Stage | Live game in the current route | Required observation |
 | --- | --- | --- |
 | Concrete I/O source qualification | No; bounded source/API premise established | Preserve exact method/holder guards; AL success is not transferred-byte proof and general retirement remains open |
-| B112 private archive path | Yes, once its own run is ready | The actual private index produces the exact prepared archive path; retain the output holder and verify the expected provider/ItemInfo checks |
+| B113 private archive path | First activation captured headers only; corrected run pending | The actual private index produces the exact prepared archive path; retain the output holder and verify the expected provider/ItemInfo checks |
 | Exact small payload read | Yes, after path and I/O qualification | Read the expected bytes from the owned archive under the qualified completion/lifetime contract |
 | Independent item lifecycle | Later | Two same-donor packages use their own native definitions/resources through acquisition, equip, restart, update, removal and save reload |
 

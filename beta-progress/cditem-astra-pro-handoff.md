@@ -23,7 +23,7 @@ review continued on `main` at `099e9f7e7a5555f07246ab475b399c15215e419c`.
 | Maintained paired-publication experiment | Retained portable C++ run: 41 cases/963 checks; independent source review passes | Common preflight and retained backing are established on owned memory; actual native joins and reader synchronization remain open |
 | B99 metadata lookup | Retained actual-game result with independently verified restoration | Private metadata lookup is settled; native byte delivery and resource use remain open |
 | B109 / current resource-method qualification | Wrapper, concrete open/read/size, size thunk and holder constructor source qualified | Execute the bounded exact-byte discriminator; AL success is not count proof, and general retirement remains open |
-| B112 / B113 path candidate | B112 retained source-only; B113 current-loader variant built and offline-verified | Finish the current-owner caller/lane handoff, then bind the actual path result to the exact prepared archive |
+| B112 / B113 path candidate | B112 source-only; B113 first actual startup/install passed, result bodies not captured | Use reviewed v5 caller after fresh handoff; bind a complete actual path to the exact prepared archive |
 | Exact path evidence review | Maintained offline tool; retained 52-test and B93/B98 preparation results | Exact small archive and payload expectation are available for the next path/open/read experiment |
 | Per-package resource images | New service and diagnostic CLI; 24 focused cases verified with actual compiler fixtures | Separate immutable image bytes and reservation provenance are ready as research inputs; native consumption remains open |
 
@@ -90,7 +90,9 @@ The owning technical contract records the source/API assumptions and refusals.
 ### Immediate engineering sequence
 
 1. Use the separately frozen, compiled B113 current-loader path candidate after
-   its reviewed current-owner caller and game/install handoff. Its live private-index path call can precede concrete I/O
+   the reviewed v5 caller and a fresh game/install/quiet handoff. The first
+   activation produced headers only before early closure; preserve that failed
+   result. Its live private-index path call can precede concrete I/O
    qualification; the captured path still needs the exact-archive review.
    Concrete method/holder source qualification now supports the bounded
    small B93 read: real size 112, request/capacity 102 at offset zero, complemented
@@ -164,15 +166,37 @@ the unchanged checker then passed inside that variant. Production source,
 B112 and the first frozen B113 snapshot remain unchanged. The current session
 host was copied only after all twelve build-provenance source pins passed.
 The old FastStart path and four-file CDMW recovery baseline are absent; adapt
-the bounded caller to exact temporary-ASI recovery, then obtain a current game
-handoff. No CDItem game run or installation write has occurred. The concrete
+the bounded caller to exact temporary-ASI recovery. That route now has actual
+startup/install and restoration evidence. The current nested FastLoad startup.ini
+automatically loads latest save; existing human scope covers that preserved
+behavior, with no explicit input/load or configuration change. A no-world
+precondition was an unnecessary caller assumption. The concrete
 source/API join is `io-method-review/io-source-joins.json`, SHA-256
 `0516d5f8f51bef73c4ef3c2495ce6ac6be1307704e1854e470ddd5d2581d25d6`.
 The exported provider bundle is 230,500,327 bytes, SHA-256
 `df5cafecc0b79c8431cebe85741c0ef733892b6d49e59f84666e12abdf1aec77`.
 Actual-replay unknown
 `unk_c2a90d7e95a33b19c4b65c99279b9d1061bcdd0ed6eddf17946d8b6fe002bf98`
-remains open. Receipts, source pins and lane releases are in
+remains open. First live run `b113-ffdcb3ab22e2432c97a3936eb9483a55` bound
+PID 14464/birth 134370733783733162; startup and observer/IAT install passed on
+23488. A monitor-liveness decision closed at 28.609s before any callback/path
+body; the consumed heartbeat was not logged. The valid headers and empty stock
+wire remain incomplete/failed. Source review found the stale-loop-tick race and
+terminal header misclassification. Exact original ASI absence, stock-stage
+cleanup, 14 selected pins and empty game/host/guardian census pass. The original
+32.422s measurement precedes restoration and is not exact total duration; keep
+`B113_V3_TIMING_CORRECTION.json` with the original release receipt.
+
+V5 fixes fresh liveness/decision sampling after all blocking inputs, records the
+close decision, samples completion after restoration and keeps valid header-only
+packets incomplete. Its 76 mocked cases, two CLI parsers and 12 source parses
+pass, with independent source review. Source packet SHA-256 is
+`2a890b5b52885169b56c37be4239bed12cb626081b6724e16b843cc5af8b5857`.
+The native binary is unchanged; repair owns the next R30 sequence and no next
+lane is assumed. R29 hook order is source-qualified: CDMW-first permits R29's
+optional observer omission; R29-first makes B113 refuse the occupied CreateFile2
+slot before applying patches. Actual future composition must still be observed.
+Receipts, source pins and lane releases are in
 `workspace/reports/cditem-execution/20261021-native-path-continuation/`.
 
 The earlier `277b82cc` readiness review and its preceding Python verification

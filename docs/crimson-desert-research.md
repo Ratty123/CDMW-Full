@@ -1060,9 +1060,13 @@ by itself demonstrate incompatibility. Inspection of UAL 9.7.4 preserves the
 required forwarding/startup instruction shapes at changed code, import and
 phase offsets. A separately pinned private probe variant uses those witnesses;
 the strict build, actual frame-matcher fixture and no-session inert check pass.
-Actual system-function destinations, phase flags, observed startup frames and
-timing before archive reads remain controlled-game checks. Production loader
-admission is unchanged; this is static and isolated-native evidence.
+The first controlled activation now passed its startup handshake and installed
+the guarded callback/phase observers and import hooks with that current loader.
+It closed early on monitor liveness before any observer/path result body, so
+later engine phase, exact archive path and resource use remain unproved. The
+source clock race is corrected in a separately reviewed caller; the exact
+heartbeat consumed in that run was not logged. Restoration and process closure
+are verified. Production loader admission remains unchanged.
 
 ### 13.2 Native item registration: a rejected shortcut
 
@@ -1178,8 +1182,10 @@ production and the independent path one-shot. The separately frozen successor
 claims that complete chain once. Deterministic owned native controls reproduce
 the old concurrent/reentrant behavior and verify the fix with synchronized
 fixture dependencies. No engine metadata/path function or private payload is
-executed by those controls. The compiled probe still requires its actual exact
-archive-path run, independently of concrete file-I/O qualification.
+executed by those controls. The compiled probe's first controlled startup
+produced valid headers without a path body before an early liveness-triggered
+close. That is incomplete failed evidence; the corrected caller still needs
+the actual exact archive-path result independently of file-I/O qualification.
 
 The next resource proof must reach the intended bytes and their actual engine
 consumer. The source-qualified small-read diagnostic must now demonstrate the

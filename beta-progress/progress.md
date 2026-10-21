@@ -38,8 +38,9 @@ checks were not rerun.
 separately frozen B113 current-loader variant is now built and offline-verified.
 Six callback cases reproduce the old race and verify the single-claim fix;
 twelve startup-frame checks and the inert `0 -> 0` check pass. The first
-controlled run will check the exact private archive path after the current-owner
-caller and game/install handoff are ready.
+controlled activation passed startup/install but captured only valid headers
+before an early liveness-triggered close. The reviewed v5 caller fixes clock
+sampling and packet classification; a fresh handoff is needed for the exact path.
 The bounded small-read source premise is now qualified; actual exact-byte
 delivery still needs its own native run. Equip and save scenarios follow native
 definition/resource integration. The
@@ -49,7 +50,8 @@ existing controlled-game authorization.
 
 ### Next engineering steps
 
-1. Complete the current-owner caller and game/install handoff for built B113.
+1. Obtain the next current-owner/quiet handoff and run unchanged B113 through
+   the reviewed v5 caller. Preserve the first incomplete run and its exact limits.
    Then use the source-qualified small-read premise on the exact B93 archive:
    real size 112, capacity/request 102, offset zero, all bytes checked after
    normal return and private objects retained until exit. Extend only after
@@ -70,8 +72,12 @@ bounded manager-method pass, exported and normally closed; its complete
 2,200-record/136-unknown-revision bundle and absent-process receipt were handed
 to the queued Create Item reader after repair's quiet boundary. Three complete
 method roots, the size thunk and holder constructor now qualify the bounded
-normal-return I/O premise. Actual startup/path/read/use and retirement remain
-open; no CDItem game run or installation write has occurred. New receipts:
+normal-return I/O premise. Actual path/read/use and retirement remain
+open. The later B113 activation passed startup/install but closed early on
+monitor liveness before any callback/path body. Its owned processes are absent,
+temporary ASI absence restored and 14 preserved/input pins unchanged. The
+reviewed v5 caller passes 76 mocked cases; the native binary is unchanged.
+Repair reclaimed resources for R30; no second lane/run is assumed. New receipts:
 `workspace/reports/cditem-execution/20261021-native-path-continuation/`.
 Earlier readiness evidence is in
 `workspace/reports/cditem-execution/20261021-native-test-readiness/`;
@@ -79,6 +85,8 @@ the preceding 24-case preparation evidence remains in
 `workspace/reports/cditem-execution/20261021-package-resource-images/`.
 
 ## Completed work
+
+- 2026-10-21 | CDISO-RE-03 first current-loader activation | B113 passed actual startup and callback/phase/IAT installation with current UAL, supporting the loader-hash clarification. A liveness-triggered close at 28.609s left valid headers and no result bodies; exact heartbeat consumption was not recorded. All owned processes closed, original ASI absence and exact staging restored, 14 selected pins match. V5 corrects the source clock race, completion timing and incomplete-packet labels; 76 focused mocked cases and independent review pass. Native path/bytes/use/admission and every original acceptance state remain open. The separately retained timing correction does not claim an exact total monotonic run duration. Evidence: `workspace/reports/cditem-execution/20261021-native-path-continuation/run/`.
 
 - 2026-10-21 | CDISO-RE-03 concrete I/O source | Qualified manager open/read/size, the size thunk and holder constructor against the unchanged 2976 executable and current/retained REA evidence. Normal pending reads wait under the bounded valid-handle/unique-operation Win32 premise; AL success still hides terminal errors and transferred count. Exact 112-byte archive/102-byte content replay and general retirement remain open. Complete provider continuity was exported and normally closed, with all owned processes absent; no native I/O/game/install action or acceptance checkbox change. Evidence: `workspace/reports/cditem-execution/20261021-native-path-continuation/io-method-review/io-source-joins.json`.
 
