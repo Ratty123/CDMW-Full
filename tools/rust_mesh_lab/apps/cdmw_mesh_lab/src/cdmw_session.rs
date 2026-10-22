@@ -2,7 +2,7 @@
 
 use cdmw_formats::{MeshDocument, MeshFormat, MeshLod, SourceRange, Submesh};
 use cdmw_mesh::hair::HairState;
-use cdmw_mesh::{Provenance, WorkingMesh};
+use cdmw_mesh::{Provenance, VertexHandle, WorkingMesh};
 use cdmw_texture::{DdsMetadata, TextureRole, inspect_dds};
 use crossbeam_channel::{Receiver, Sender, TryRecvError, bounded};
 use serde::{Deserialize, Serialize, de::IgnoredAny};
@@ -376,6 +376,12 @@ enum Incoming {
 #[derive(Debug, Clone)]
 enum Outbound {
     Message(Value),
+    VertexTransaction {
+        request_id: u64,
+        base_revision: u64,
+        label: String,
+        candidate: Candidate,
+    },
     HairTransaction {
         request_id: u64,
         base_revision: u64,
@@ -890,6 +896,24 @@ impl CdmwBridge {
         Ok(request_id)
     }
 
+    pub fn submit_vertex_transaction(
+        &mut self,
+        document: &MeshDocument,
+        mesh: &WorkingMesh,
+        handles: &[VertexHandle],
+        label: &str,
+    ) -> Result<u64, SessionError> {
+        let candidate = build_vertex_candidate(
+            &self.manifest.session_id, document, mesh, self.source_lod_index, handles,
+        )?;
+        let request_id = self.take_request_id();
+        self.outbound.try_send(Outbound::VertexTransaction {
+            request_id, base_revision: self.shadow_revision,
+            label: label.to_owned(), candidate,
+        }).map_err(|error| SessionError::Protocol(format!("outbound queue is busy: {error}")))?;
+        Ok(request_id)
+    }
+
     pub fn submit_hair_transaction(
         &mut self,
         document: &MeshDocument,
@@ -912,6 +936,7 @@ impl CdmwBridge {
                 .submeshes
                 .iter()
                 .map(|part| CandidateSubmesh {
+                    vertex_indices: None,
                     positions: part.positions.clone(),
                     normals: part.normals.clone(),
                     uvs: part.uvs.clone(),
@@ -1013,6 +1038,7 @@ impl CdmwBridge {
             submeshes: changed
                 .iter()
                 .map(|(_, p)| CandidateSubmesh {
+                    vertex_indices: None,
                     positions: p.positions.clone(),
                     normals: p.normals.clone(),
                     indices: p.indices.clone(),
@@ -3055,6 +3081,8 @@ fn spawn_output_writer(
                         base_revision,
                         label,
                         candidate,
+                    } | Outbound::VertexTransaction {
+                        request_id, base_revision, label, candidate,
                     } => write_candidate(
                         &root,
                         &session_id,
@@ -3115,6 +3143,8 @@ struct Candidate {
 
 #[derive(Debug, Clone, Serialize)]
 struct CandidateSubmesh {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    vertex_indices: Option<Vec<u32>>,
     positions: Vec<[f32; 3]>,
     normals: Vec<[f32; 3]>,
     uvs: Vec<[f32; 2]>,
@@ -3237,6 +3267,7 @@ fn build_candidate(
         .submeshes
         .iter()
         .map(|submesh| CandidateSubmesh {
+            vertex_indices: None,
             source_vertices: None,
             positions: submesh.positions.clone(),
             normals: submesh.normals.clone(),
@@ -3272,6 +3303,47 @@ fn build_candidate(
         hair: None,
         hair_update: None,
     })
+}
+
+fn build_vertex_candidate(
+    session_id: &str,
+    document: &MeshDocument,
+    mesh: &WorkingMesh,
+    lod_index: usize,
+    handles: &[VertexHandle],
+) -> Result<Candidate, SessionError> {
+    let lod = document.lods.get(lod_index).ok_or_else(|| {
+        SessionError::InvalidPayload(format!("document has no source LOD {lod_index}"))
+    })?;
+    let mut candidate = Candidate {
+        schema: CANDIDATE_SCHEMA, session_id: session_id.to_owned(),
+        submeshes: lod.submeshes.iter().map(|_| CandidateSubmesh {
+            vertex_indices: Some(Vec::new()), positions: Vec::new(),
+            normals: Vec::new(), uvs: Vec::new(), indices: Vec::new(), source_vertices: None,
+        }).collect(),
+        selection: candidate_selection(mesh)?, hair: None, hair_update: None,
+    };
+    let mut ordered = BTreeMap::new();
+    for handle in handles {
+        let vertex = mesh.vertex(*handle).ok_or_else(|| SessionError::InvalidPayload("stale changed vertex".into()))?;
+        let Provenance::Source { submesh, element } = vertex.provenance else {
+            return Err(SessionError::InvalidPayload("native topology must be committed through CDMW before export".into()));
+        };
+        ordered.insert((submesh, element), vertex);
+    }
+    for ((part, index), vertex) in ordered {
+        let source = lod.submeshes.get(part as usize)
+            .ok_or_else(|| SessionError::InvalidPayload("vertex submesh is invalid".into()))?;
+        if index as usize >= source.positions.len() {
+            return Err(SessionError::InvalidPayload("vertex source index is invalid".into()));
+        }
+        let target = &mut candidate.submeshes[part as usize];
+        target.vertex_indices.as_mut().expect("sparse candidate").push(index);
+        target.positions.push(vertex.position);
+        if !source.normals.is_empty() { target.normals.push(vertex.normal); }
+        if !source.uvs.is_empty() { target.uvs.push(vertex.uv); }
+    }
+    Ok(candidate)
 }
 
 fn candidate_selection(mesh: &WorkingMesh) -> Result<CandidateSelection, SessionError> {
@@ -3798,6 +3870,46 @@ mod tests {
         assert_eq!(candidate.submeshes[0].indices, vec![0, 1, 2]);
         assert_eq!(candidate.selection.vertices_by_submesh["0"], vec![0]);
         assert!(candidate.selection.source_indices.is_empty());
+    }
+
+    #[test]
+    fn sparse_vertex_candidate_contains_only_the_committed_gesture_changes() {
+        let mut document = document();
+        let source = &mut document.lods[0].submeshes[0];
+        source.positions.resize(50_000, [10.0, 0.0, 0.0]);
+        source.normals.resize(50_000, [0.0, 1.0, 0.0]);
+        source.uvs.resize(50_000, [0.0, 0.0]);
+        let other = source.clone();
+        document.lods[0].submeshes.extend([other.clone(), other]);
+        let mut mesh = WorkingMesh::from_document(&document).expect("mesh");
+        let handle = mesh.vertices().next().expect("vertex").0;
+        let mut operator = cdmw_interaction::OperatorController::default();
+        let gesture = operator.begin(&mesh, "Grab").expect("begin");
+        mesh.apply_positions(&std::collections::HashMap::from([(handle, [0.5, 0.0, 0.0])])).expect("edit");
+        let changes = operator.changed_vertices(&mesh, gesture).expect("changes");
+        let candidate = build_vertex_candidate("session", &document, &mesh, 0, &changes).expect("candidate");
+        let part = &candidate.submeshes[0];
+        assert!(part.positions.len() <= 3, "include changed normals, never unrelated vertices");
+        assert_eq!(part.vertex_indices.as_ref().unwrap().len(), part.positions.len());
+        assert!(part.indices.is_empty());
+        let bytes = serde_json::to_vec(&candidate).expect("serialize");
+        assert!(bytes.len() < 2_000, "small stroke encoded {} bytes", bytes.len());
+        let full = serde_json::to_vec(&build_candidate("session", &document, &mesh, 0).expect("legacy candidate")).expect("full serialize");
+        println!("150000-vertex geometry candidate: full {} bytes, sparse {} bytes", full.len(), bytes.len());
+        let root = tempdir().expect("root");
+        let mut wire = Vec::new();
+        write_candidate(root.path(), "session", 1, 1, 0, "Grab", &candidate, &mut wire).expect("write candidate");
+        let request: Value = serde_json::from_slice(&wire).expect("control request");
+        assert_eq!(request["candidate"]["count"], 3);
+        assert_eq!(request["candidate"]["byte_length"], bytes.len());
+        assert_eq!(request["candidate"]["sha256"], sha256_upper(&bytes));
+        // A second stroke returning to the source must still emit the vertex.
+        operator.confirm(&mut mesh, &mut cdmw_mesh::History::new(64 * 1024 * 1024), gesture).expect("commit");
+        let gesture = operator.begin(&mesh, "Grab").expect("second begin");
+        mesh.apply_positions(&std::collections::HashMap::from([(handle, document.lods[0].submeshes[0].positions[0])])).expect("restore");
+        let changes = operator.changed_vertices(&mesh, gesture).expect("second changes");
+        let candidate = build_vertex_candidate("session", &document, &mesh, 0, &changes).expect("second candidate");
+        assert!(candidate.submeshes[0].vertex_indices.as_ref().unwrap().contains(&0));
     }
 
     #[test]

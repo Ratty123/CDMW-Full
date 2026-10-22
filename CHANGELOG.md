@@ -9,6 +9,8 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 ### Added
 
+- Mesh Editor adds Sculpt > Bend: anchor one point and drag another to bend a selected rope or necklace section while retaining its thickness, with Undo/Redo and cancellation.
+
 - Morph & Refit adds independent fitting controls for whole mesh islands, with an option to inherit their Part settings again.
 
 - Create New Item preserves compatible imported skin weights and offers per-part weight reduction, named template/body transfer, loss reports and reversible hiding of equipment variants. Weight transfer follows the model's fit and placement, newer model choices take priority over background work, and Build plan checks that retained physics is compatible with the chosen weights. Missing bones and excess influences refuse preservation; foreign-rig retargeting and in-game deformation remain unverified.
@@ -21,6 +23,8 @@ experimental-feature notes do not establish equivalent in-game behavior.
 - Settings lists all ignored folders together and lets you remove any default. Archive scans also ignore `dmmsa`, `dmmgen` and `CrimsonFastLoad.backup` by default, while preserving saved custom exclusions.
 
 ### Fixed
+
+- Mesh Editor reduces work after Grab and other viewport drags by submitting only changed vertices, while retaining validation and Undo/Redo.
 
 - Morph & Refit adjusts rigid necklace depth and tilt while keeping the assembly centred, and fits belts snugly over cloth wraps. Raised cords and compact knots retain their relief and construction, and rolled belt edges are checked for new self-crossings. Bands retain their height contour, proven wall depth and clearance. Follow strengths, Skip and protected parts retain their controls. Fitting after Part or island removal avoids false clearance-solve failures and limits stretching in attached cords; PAC exports preserve those exclusions.
 - Create New Item respects ignored archive folders, so excluded `dmmsa`, `dmmgen` and custom mod folders no longer block loading as missing archives.

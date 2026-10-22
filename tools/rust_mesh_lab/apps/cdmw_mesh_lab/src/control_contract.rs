@@ -411,6 +411,7 @@ fn runtime_route(key: &str) -> RuntimeRoute {
         "tool.select" => (Kind::LocalTool, "ViewportTool::Select"),
         "tool.move" => (Kind::LocalTool, "ViewportTool::Move"),
         "tool.grab" => (Kind::LocalTool, "ViewportTool::Grab"),
+        "tool.bend" => (Kind::LocalTool, "ViewportTool::Bend"),
         "tool.smooth" => (Kind::LocalTool, "ViewportTool::Smooth"),
         "tool.inflate" => (Kind::LocalTool, "ViewportTool::Inflate"),
         "tool.pinch" => (Kind::LocalTool, "ViewportTool::Pinch"),
@@ -574,6 +575,7 @@ vertex.apply|vertex_parameters|executable|session|true|
 tool.select|tools|executable|session|false|
 tool.move|tools|executable|session|false|
 tool.grab|tools|executable|session|false|
+tool.bend|tools|executable|session|false|
 tool.smooth|tools|executable|session|false|
 tool.inflate|tools|executable|session|false|
 tool.pinch|tools|executable|session|false|

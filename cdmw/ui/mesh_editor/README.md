@@ -1750,6 +1750,15 @@ native data counts toward the existing history memory budget; a new edit after
 Undo still discards the previous Redo branch.
 
 Select, Move, Rotate, Scale, Grab, Smooth, Inflate, and Pinch execute locally in Rust.
+Completed viewport drags submit only changed vertex attributes, including the normal
+one-ring, instead of copying and serializing every Part's geometry. Revision, payload,
+topology, capacity, export validation and one-entry shadow history remain enforced.
+The v1 candidate accepts sorted, unique per-Part `vertex_indices` for sparse updates;
+position and supplied normal/UV rows follow that index order. Such updates cannot
+create missing attribute channels or carry topology/source-vertex changes. Every Part
+still has a candidate slot, and unchanged slots contain empty updates. Legacy full
+candidates remain accepted. The existing base revision identifies the geometry to
+which each delta applies.
 Selection is acknowledged with a selection-only command; it never sends geometry
 channels. Geometry candidates preserve original channel values when their Rust `f32`
 representation is unchanged, including fractional PAC values. Whole-part translation
@@ -1757,6 +1766,21 @@ preserves authored normals; rotation and nonuniform scaling transform them witho
 replacing custom shading with face averages. Partial-part deformation still updates
 affected geometry normals. Selection, bone choice, output policy, and layer presentation
 changes leave resident geometry loaded.
+
+**Sculpt > Bend** holds point **1** while you drag point **2**. Select the whole rope
+Part or island, click the fixed end, then drag farther along that section. For a
+vertex-region selection, use X-Ray to include its back side. **Reset anchor** lets you
+choose another fixed point. The first click creates no history entry; release commits
+one Bend entry, and Esc, focus loss or viewport resize cancels an unfinished drag.
+
+Bend follows only the selected connected component in the anchored Part. Exact
+coincident seams in that Part connect; nearby or other Parts never enlarge the scope.
+The fixed side stays in place, while circular bending rotates cross-sections without
+scaling and retains the centreline's arc length. The endpoint follows a constrained
+curve and may stop short of the cursor. Tight bends are limited to avoid collapsing
+the inside. This is intended for elongated sections, with enough lengthwise segments;
+it does not add geometry or solve collisions, knots or arbitrary branching shapes.
+Undo and Redo use the existing validated Mesh Editor history.
 
 Geometry updates reuse successfully uploaded textures when their ownership is unchanged
 and retain the Bones overlay preference. Numeric transform steps use the same revisioned

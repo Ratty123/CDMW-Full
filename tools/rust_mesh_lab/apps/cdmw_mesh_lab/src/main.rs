@@ -2,6 +2,7 @@
 #![recursion_limit = "256"]
 
 mod camera;
+mod cdmw_bend;
 mod cdmw_cloth;
 mod cdmw_hair;
 mod cdmw_history;
@@ -1579,6 +1580,7 @@ enum CdmwRailPage {
     Rotate,
     Scale,
     Grab,
+    Bend,
     Smooth,
     Inflate,
     Pinch,
@@ -1656,6 +1658,7 @@ struct CdmwPendingRequest {
 enum CdmwLocalEdit {
     Selection(String),
     Geometry(String),
+    VertexGeometry(String, Vec<VertexHandle>),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -2145,6 +2148,7 @@ struct LabApplication {
     overlay_wire_width: f32,
     overlay_vertex_size: f32,
     viewport_tool: ViewportTool,
+    bend_anchor: Option<cdmw_interaction::bend::BendRegion>,
     selection_tool: SelectionTool,
     brush_radius: f32,
     brush_strength: f32,
@@ -2324,6 +2328,7 @@ impl LabApplication {
             overlay_wire_width: 1.2,
             overlay_vertex_size: 2.5,
             viewport_tool: ViewportTool::Select,
+            bend_anchor: None,
             selection_tool: SelectionTool::Click,
             brush_radius: 48.0,
             brush_strength: 0.18,
@@ -2611,7 +2616,8 @@ impl LabApplication {
 
     fn submit_cdmw_local_edit(&mut self, edit: CdmwLocalEdit) {
         match edit {
-            CdmwLocalEdit::Geometry(label) => self.submit_cdmw_transaction(&label),
+            CdmwLocalEdit::Geometry(label) => self.submit_cdmw_transaction(&label, None),
+            CdmwLocalEdit::VertexGeometry(label, handles) => self.submit_cdmw_transaction(&label, Some(&handles)),
             CdmwLocalEdit::Selection(label) => {
                 let Some(mesh) = &self.mesh else {
                     return;
@@ -2628,7 +2634,7 @@ impl LabApplication {
         }
     }
 
-    fn submit_cdmw_transaction(&mut self, label: &str) {
+    fn submit_cdmw_transaction(&mut self, label: &str, handles: Option<&[VertexHandle]>) {
         if self.cdmw_busy() {
             self.status = "Finish the pending CDMW operation before editing again".to_owned();
             return;
@@ -2639,7 +2645,11 @@ impl LabApplication {
         }
         let result = match (&mut self.cdmw_bridge, &self.document, &self.mesh) {
             (Some(bridge), Some(document), Some(mesh)) => {
-                bridge.submit_transaction(document, mesh, label)
+                if let Some(handles) = handles {
+                    bridge.submit_vertex_transaction(document, mesh, handles, label)
+                } else {
+                    bridge.submit_transaction(document, mesh, label)
+                }
             }
             _ => return,
         };
@@ -4309,6 +4319,7 @@ impl LabApplication {
                 ui.horizontal_wrapped(|ui| {
                     for tool in [
                         ViewportTool::Grab,
+                        ViewportTool::Bend,
                         ViewportTool::Smooth,
                         ViewportTool::Inflate,
                         ViewportTool::Pinch,
@@ -4326,6 +4337,9 @@ impl LabApplication {
                         }
                     }
                 });
+                if self.viewport_tool == ViewportTool::Bend {
+                    self.draw_bend_settings(ui);
+                }
                 if self.viewport_tool.sculpt_tool().is_some() {
                     if self.viewport_tool != ViewportTool::Grab {
                         ui.add(
@@ -5729,6 +5743,10 @@ impl LabApplication {
             };
             return;
         }
+        if self.viewport_tool == ViewportTool::Bend {
+            self.begin_bend_gesture(rectangle, point);
+            return;
+        }
         if self.viewport_tool == ViewportTool::Select {
             if !self.ensure_projection(rectangle) {
                 return;
@@ -5880,6 +5898,8 @@ impl LabApplication {
             pivot,
             last_pointer: point,
             last_sample: point,
+            start_pointer: point,
+            bend: None,
         });
         if self.viewport_tool.sculpt_tool().is_some() && self.viewport_tool != ViewportTool::Grab {
             self.update_edit_gesture(rectangle, point, true);
@@ -5958,6 +5978,11 @@ impl LabApplication {
                 .as_mut()
                 .ok_or(cdmw_interaction::InteractionError::InvalidTransition)?;
             match gesture.tool {
+                ViewportTool::Bend => {
+                    let delta = self.camera.screen_delta_to_world(point - gesture.start_pointer, rectangle);
+                    self.operator.bend(mesh, gesture.gesture_id,
+                        gesture.bend.as_ref().ok_or(cdmw_interaction::InteractionError::InvalidTransition)?, delta)
+                }
                 ViewportTool::Move => {
                     let delta = if gesture.axis == GizmoAxis::Free {
                         self.camera.screen_delta_to_world(screen_delta, rectangle)
@@ -6206,6 +6231,21 @@ impl LabApplication {
             };
         }
         if let Some(gesture) = self.edit_gesture.take() {
+            let changed = self.mesh.as_ref().ok_or(cdmw_interaction::InteractionError::InvalidTransition)
+                .and_then(|mesh| self.operator.changed_vertices(mesh, gesture.gesture_id));
+            let changed = match changed {
+                Ok(changed) => changed,
+                Err(error) => {
+                    self.edit_gesture = Some(gesture);
+                    self.cancel_active_gesture(format!("Could not capture edit; rolled back: {error}"));
+                    return;
+                }
+            };
+            if changed.is_empty() && gesture.tool == ViewportTool::Bend {
+                self.edit_gesture = Some(gesture);
+                self.cancel_active_gesture("Bend made no change");
+                return;
+            }
             let result = self.mesh.as_mut().map_or(
                 Err(cdmw_interaction::InteractionError::InvalidTransition),
                 |mesh| {
@@ -6215,8 +6255,13 @@ impl LabApplication {
             );
             self.status = match result {
                 Ok(()) => {
-                    cdmw_transaction =
-                        Some(CdmwLocalEdit::Geometry(gesture.tool.label().to_owned()));
+                    if gesture.tool == ViewportTool::Bend
+                        && let (Some(anchor), Some(mesh)) = (&mut self.bend_anchor, &self.mesh) {
+                        anchor.accept_geometry(mesh);
+                    }
+                    cdmw_transaction = Some(CdmwLocalEdit::VertexGeometry(
+                        gesture.tool.label().to_owned(), changed,
+                    ));
                     format!("{} committed as one undo entry", gesture.tool.label())
                 }
                 Err(error) => format!("Tool commit failed: {error}"),
@@ -6433,6 +6478,10 @@ impl LabApplication {
     }
 
     fn paint_gizmo(&self, ui: &egui::Ui, rectangle: egui::Rect) {
+        if self.viewport_tool == ViewportTool::Bend {
+            self.paint_bend_handles(ui, rectangle);
+            return;
+        }
         if let Some((tool, pivot)) = self.weapon_gizmo() {
             self.paint_transform_gizmo(ui, rectangle, tool, pivot);
             return;

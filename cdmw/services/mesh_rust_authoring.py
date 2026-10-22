@@ -8489,13 +8489,27 @@ class RustMeshAuthoringSession:
             normals = _finite_rows(raw.get("normals"), 3, "normals")
             uvs = _finite_rows(raw.get("uvs"), 2, "uvs")
             indices = _integer_values(raw.get("indices"), "indices")
-            if len(positions) != len(target.vertices):
+            sparse = "vertex_indices" in raw
+            vertex_indices = None
+            if sparse:
+                raw_vertices = raw["vertex_indices"]
+                if not isinstance(raw_vertices, list) or any(type(index) is not int for index in raw_vertices):
+                    raise RustMeshProtocolError("Mesh candidate vertex indices must be integers")
+                vertex_indices = _integer_values(raw_vertices, "vertex indices")
+                if (vertex_indices != sorted(set(vertex_indices))
+                        or any(index >= len(target.vertices) for index in vertex_indices)):
+                    raise RustMeshProtocolError("Mesh candidate vertex indices are duplicate, unordered or out of range")
+                if indices or raw.get("source_vertices") is not None:
+                    raise RustMeshProtocolError("Sparse mesh candidate cannot change topology")
+                if len(positions) != len(vertex_indices):
+                    raise RustMeshProtocolError("Sparse mesh candidate vertex count does not match positions")
+            elif len(positions) != len(target.vertices):
                 raise RustMeshProtocolError("Mesh candidate changed vertex count outside CDMW topology")
             if normals and len(normals) != len(positions):
                 raise RustMeshProtocolError("Mesh candidate normal count does not match positions")
             if uvs and len(uvs) != len(positions):
                 raise RustMeshProtocolError("Mesh candidate UV count does not match positions")
-            if indices != _submesh_indices(target):
+            if not sparse and indices != _submesh_indices(target):
                 raise RustMeshProtocolError("Mesh candidate changed topology outside CDMW topology")
             channel_values = (
                 ("replace_positions_same_count", "vertices", positions),
@@ -8503,19 +8517,30 @@ class RustMeshAuthoringSession:
                 ("replace_uv0_same_count", "uvs", uvs),
             )
             for operation_name, attribute, values in channel_values:
-                original = list(getattr(target, attribute, ()) or ())
-                if not values or original == values:
+                if not values:
                     continue
-                values = _preserve_unchanged_rust_channel(original, values)
-                if original == values:
+                original = getattr(target, attribute, ()) or ()
+                if vertex_indices is not None:
+                    if len(original) != len(target.vertices):
+                        raise RustMeshProtocolError("Sparse mesh candidate cannot create missing attribute channels")
+                    before = [original[index] for index in vertex_indices]
+                else:
+                    before = list(original)
+                values = _preserve_unchanged_rust_channel(before, values)
+                if before == values:
                     continue
+                if vertex_indices is not None:
+                    patched = list(original)
+                    for index, value in zip(vertex_indices, values):
+                        patched[index] = value
+                    values = patched
                 setattr(target, attribute, values)
                 operations.append(
                     {
                         "operation": operation_name,
                         "lod_index": active_lod_index,
                         "submesh_index": submesh_index,
-                        "vertex_count": len(positions),
+                        "vertex_count": len(target.vertices),
                         "source": RUST_MESH_EDIT_BACKEND,
                         "created_by": "CDMW Edit Mesh",
                     }

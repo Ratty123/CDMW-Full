@@ -73,6 +73,7 @@ pub struct WorkingMesh {
     edge_by_pair: HashMap<(VertexHandle, VertexHandle), EdgeHandle>,
     // Rebuilt with topology, ordered once for deterministic sculpt reductions.
     neighbors: Arc<SecondaryMap<VertexHandle, Vec<VertexHandle>>>,
+    incident_faces: Arc<SecondaryMap<VertexHandle, Vec<FaceHandle>>>,
     pub selection: Selection,
     pub topology_generation: u64,
     pub geometry_revision: u64,
@@ -212,12 +213,18 @@ impl WorkingMesh {
             edges: SlotMap::with_key(),
             edge_by_pair: HashMap::new(),
             neighbors: Arc::new(SecondaryMap::new()),
+            incident_faces: Arc::new(SecondaryMap::new()),
             selection: Selection::default(),
             topology_generation: 1,
             geometry_revision: 1,
             selection_revision: 1,
             operation_sequence: 0,
         }
+    }
+
+    #[must_use]
+    pub const fn identity(&self) -> u64 {
+        self.identity
     }
 
     #[must_use]
@@ -324,6 +331,11 @@ impl WorkingMesh {
     #[must_use]
     pub fn vertex_neighbor_slice(&self, handle: VertexHandle) -> Option<&[VertexHandle]> {
         self.neighbors.get(handle).map(Vec::as_slice)
+    }
+
+    #[must_use]
+    pub fn vertex_face_slice(&self, handle: VertexHandle) -> Option<&[FaceHandle]> {
+        self.incident_faces.get(handle).map(Vec::as_slice)
     }
 
     #[must_use]
@@ -1127,10 +1139,15 @@ impl WorkingMesh {
         self.edges.clear();
         self.edge_by_pair.clear();
         let mut neighbors = SecondaryMap::new();
+        let mut incident_faces = SecondaryMap::new();
         for handle in self.vertices.keys() {
             neighbors.insert(handle, Vec::new());
+            incident_faces.insert(handle, Vec::new());
         }
         for (face_handle, face) in &self.faces {
+            for handle in face.vertices {
+                incident_faces.get_mut(handle).ok_or(MeshError::StaleHandle)?.push(face_handle);
+            }
             for (first, second) in [
                 (face.vertices[0], face.vertices[1]),
                 (face.vertices[1], face.vertices[2]),
@@ -1164,6 +1181,7 @@ impl WorkingMesh {
             adjacent.sort_unstable();
         }
         self.neighbors = Arc::new(neighbors);
+        self.incident_faces = Arc::new(incident_faces);
         Ok(())
     }
 
@@ -1177,10 +1195,10 @@ impl WorkingMesh {
         {
             return Err(MeshError::StaleHandle);
         }
-        Ok(self
-            .faces
-            .values()
-            .filter(|face| face.vertices.iter().any(|handle| changed.contains(handle)))
+        Ok(changed.iter()
+            .filter_map(|handle| self.incident_faces.get(*handle))
+            .flatten()
+            .filter_map(|handle| self.faces.get(*handle))
             .flat_map(|face| face.vertices)
             .collect())
     }
@@ -1193,10 +1211,13 @@ impl WorkingMesh {
             }
             accumulators.insert(*handle, Vec3::ZERO);
         }
-        for face in self.faces.values() {
-            if !face.vertices.iter().any(|handle| scope.contains(handle)) {
-                continue;
-            }
+        let mut faces = scope.iter()
+            .filter_map(|handle| self.incident_faces.get(*handle))
+            .flatten().copied().collect::<Vec<_>>();
+        faces.sort_unstable();
+        faces.dedup();
+        for handle in faces {
+            let face = self.faces.get(handle).ok_or(MeshError::StaleHandle)?;
             let a = Vec3::from_array(
                 self.vertices
                     .get(face.vertices[0])
@@ -1588,6 +1609,10 @@ fn estimate_mesh_bytes(mesh: &WorkingMesh) -> usize {
             bytes.saturating_add(std::mem::size_of::<Vec<VertexHandle>>())
                 .saturating_add(adjacent.capacity().saturating_mul(std::mem::size_of::<VertexHandle>()))
         })
+        + mesh.incident_faces.values().fold(0_usize, |bytes, adjacent| {
+            bytes.saturating_add(std::mem::size_of::<Vec<FaceHandle>>())
+                .saturating_add(adjacent.capacity().saturating_mul(std::mem::size_of::<FaceHandle>()))
+        })
 }
 
 #[cfg(test)]
@@ -1848,6 +1873,8 @@ mod tests {
             expected.dedup();
             assert_eq!(mesh.vertex_neighbor_slice(handle), Some(expected.as_slice()));
             assert_eq!(mesh.vertex_neighbors(handle), Some(expected.into_iter().collect()));
+            let expected_faces = mesh.faces().filter_map(|(face, value)| value.vertices.contains(&handle).then_some(face)).collect::<Vec<_>>();
+            assert_eq!(mesh.vertex_face_slice(handle), Some(expected_faces.as_slice()));
         }
     }
 
@@ -1920,11 +1947,13 @@ mod tests {
         let handles = mesh.vertices.keys().collect();
         mesh.translate_vertices(&handles, Vec3::Z)?;
         assert!(Arc::ptr_eq(&before.neighbors, &mesh.neighbors));
+        assert!(Arc::ptr_eq(&before.incident_faces, &mesh.incident_faces));
         let mut history = History::new(1_000_000);
         let before_topology = mesh.clone();
         let faces = mesh.faces.keys().collect();
         mesh.duplicate_faces_to_new_submesh(&faces)?;
         assert!(!Arc::ptr_eq(&before_topology.neighbors, &mesh.neighbors));
+        assert!(!Arc::ptr_eq(&before_topology.incident_faces, &mesh.incident_faces));
         assert_cached_adjacency_matches_edges(&mesh);
         history.commit("duplicate", before_topology.clone(), &mesh)?;
         let after_topology = mesh.clone();
@@ -1936,6 +1965,7 @@ mod tests {
         let faces = mesh.faces.keys().collect();
         mesh.delete_faces(&faces)?;
         assert_eq!(mesh.vertex_neighbor_slice(removed), None);
+        assert_eq!(mesh.vertex_face_slice(removed), None);
         assert_cached_adjacency_matches_edges(&mesh);
         Ok(())
     }

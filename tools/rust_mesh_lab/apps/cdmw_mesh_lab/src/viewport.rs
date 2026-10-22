@@ -495,6 +495,7 @@ pub enum ViewportTool {
     Rotate,
     Scale,
     Grab,
+    Bend,
     Smooth,
     Inflate,
     Pinch,
@@ -531,6 +532,7 @@ impl ViewportTool {
             Self::Rotate => "Rotate",
             Self::Scale => "Scale",
             Self::Grab => "Grab",
+            Self::Bend => "Bend",
             Self::Smooth => "Smooth",
             Self::Inflate => "Inflate",
             Self::Pinch => "Pinch",
@@ -844,6 +846,8 @@ pub struct EditGesture {
     pub pivot: Vec3,
     pub last_pointer: Vec2,
     pub last_sample: Vec2,
+    pub start_pointer: Vec2,
+    pub bend: Option<cdmw_interaction::bend::BendStroke>,
 }
 
 impl SelectionGesture {

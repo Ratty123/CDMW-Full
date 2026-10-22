@@ -2422,6 +2422,21 @@
       ]
     },
     {
+      "key": "1 anchored: drag 2 to bend",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_bend.rs",
+          "line": 22,
+          "sink": "rust-presentation"
+        },
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_bend.rs",
+          "line": 86,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
       "key": "1 archive mesh entry matches. Rows load incrementally as you scroll.",
       "origins": [
         {
@@ -16645,8 +16660,43 @@
       "key": "Bend",
       "origins": [
         {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_bend.rs",
+          "line": 108,
+          "sink": "rust-presentation"
+        },
+        {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_hair.rs",
           "line": 1067,
+          "sink": "rust-presentation"
+        },
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
+          "line": 617,
+          "sink": "rust-presentation"
+        },
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/viewport.rs",
+          "line": 535,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Bend made no change",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs",
+          "line": 6248,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Bend preview: release to commit; Esc cancels",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_bend.rs",
+          "line": 131,
           "sink": "rust-presentation"
         }
       ]
@@ -26387,6 +26437,16 @@
       ]
     },
     {
+      "key": "Choose a second point farther along the selected rope: {value_0}",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_bend.rs",
+          "line": 100,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
       "key": "Choose a simple folder name without path separators.",
       "origins": [
         {
@@ -29272,6 +29332,16 @@
       ]
     },
     {
+      "key": "Click 1 to anchor, then drag 2.",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_bend.rs",
+          "line": 24,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
       "key": "Click Load Model to choose a related .pac/.pam/.pamlod inside this editor.",
       "origins": [
         {
@@ -29313,6 +29383,16 @@
           "path": "tools/placement_studio/window_editing.py",
           "line": 101,
           "sink": "setItemData"
+        }
+      ]
+    },
+    {
+      "key": "Click a visible vertex in the selected rope section",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_bend.rs",
+          "line": 79,
+          "sink": "rust-presentation"
         }
       ]
     },
@@ -33662,6 +33742,16 @@
       ]
     },
     {
+      "key": "Could not anchor Bend: {value_0}",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_bend.rs",
+          "line": 88,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
       "key": "Could not apply late exact-clone materials: {value_0}",
       "origins": [
         {
@@ -33753,6 +33843,16 @@
           "path": "cdmw/ui/mesh_editor/tab_state.py",
           "line": 651,
           "sink": "_set_dotnet_status"
+        }
+      ]
+    },
+    {
+      "key": "Could not capture edit; rolled back: {value_0}",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs",
+          "line": 6242,
+          "sink": "rust-presentation"
         }
       ]
     },
@@ -34478,6 +34578,16 @@
           "path": "cdmw/ui/mesh_editor/tab_dotnet_resources.py",
           "line": 656,
           "sink": "_set_dotnet_status"
+        }
+      ]
+    },
+    {
+      "key": "Could not start Bend: {value_0}",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_bend.rs",
+          "line": 111,
+          "sink": "rust-presentation"
         }
       ]
     },
@@ -40898,6 +41008,16 @@
           "path": "cdmw/ui/archive_browser/static_replacement_icon_selection.py",
           "line": 164,
           "sink": "setToolTip"
+        }
+      ]
+    },
+    {
+      "key": "Drag a second point farther along the rope, or reset the anchor",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_bend.rs",
+          "line": 93,
+          "sink": "rust-presentation"
         }
       ]
     },
@@ -117197,6 +117317,16 @@
       ]
     },
     {
+      "key": "Reset anchor",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_bend.rs",
+          "line": 31,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
       "key": "Reset appearance",
       "origins": [
         {
@@ -129252,11 +129382,41 @@
       ]
     },
     {
+      "key": "Select the rope section before using Bend",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_bend.rs",
+          "line": 47,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
       "key": "Select the scalp sections to attach rigidly",
       "origins": [
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_hair.rs",
           "line": 796,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Select the whole rope Part or island first.",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_bend.rs",
+          "line": 20,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Select the whole rope, including its back side; use X-Ray for vertex selections. Click the fixed point, then drag a second point sideways. Thickness and length stay fixed, so the endpoint may stop short of the cursor. Only the selected connected section moves. Esc cancels.",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_bend.rs",
+          "line": 26,
           "sink": "rust-presentation"
         }
       ]

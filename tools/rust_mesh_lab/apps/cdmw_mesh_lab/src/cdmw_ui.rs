@@ -608,12 +608,13 @@ const CDMW_VIEW_MODES: [(ViewMode, &str); 7] = [
 const CDMW_WIDE_CHROME_MIN_WIDTH: f32 = 1_280.0;
 pub(super) const CDMW_TOOLS_SIDEBAR: &str = "cdmw_tools_sidebar_visible";
 pub(super) const CDMW_INSPECTOR_SIDEBAR: &str = "cdmw_inspector_sidebar_visible";
-const CDMW_RAIL_TOOLS: [(CdmwRailPage, &str, Option<ViewportTool>); 16] = [
+const CDMW_RAIL_TOOLS: [(CdmwRailPage, &str, Option<ViewportTool>); 17] = [
     (CdmwRailPage::Select, "Select", Some(ViewportTool::Select)),
     (CdmwRailPage::Move, "Move", Some(ViewportTool::Move)),
     (CdmwRailPage::Rotate, "Rotate", Some(ViewportTool::Rotate)),
     (CdmwRailPage::Scale, "Scale", Some(ViewportTool::Scale)),
     (CdmwRailPage::Grab, "Grab", Some(ViewportTool::Grab)),
+    (CdmwRailPage::Bend, "Bend", Some(ViewportTool::Bend)),
     (CdmwRailPage::Smooth, "Smooth", Some(ViewportTool::Smooth)),
     (
         CdmwRailPage::Inflate,
@@ -846,6 +847,11 @@ fn cdmw_sidebar_button(
                     line([0.76, -0.43], [0.76, 0.0]);
                     curve([[0.76, 0.0], [0.8, 0.38], [0.68, 0.67], [0.43, 0.94]]);
                     curve([[0.43, 0.94], [0.38, 1.02], [0.06, 1.0], [-0.2, 1.0]]);
+                }
+                CdmwRailPage::Bend => {
+                    curve([[-0.85, 0.8], [-0.85, -0.9], [0.7, -0.9], [0.7, 0.45]]);
+                    painter.circle_filled(p(-0.85, 0.8), radius * 0.16, stroke.color);
+                    path(&[[0.35, 0.1], [0.7, 0.45], [1.0, 0.05]]);
                 }
                 CdmwRailPage::Smooth => {
                     curve([[-1.0, 0.1], [-0.65, -0.52], [-0.37, -0.52], [0.0, 0.0]]);
@@ -2038,6 +2044,7 @@ impl LabApplication {
                         | CdmwRailPage::Smooth
                         | CdmwRailPage::Inflate
                         | CdmwRailPage::Pinch => self.draw_cdmw_brush_page(ui, page),
+                        CdmwRailPage::Bend => self.draw_bend_settings(ui),
                         CdmwRailPage::VertexParameters => {
                             self.draw_vertex_parameters_body(ui, actions)
                         }
@@ -2127,7 +2134,7 @@ impl LabApplication {
                             ui,
                             actions,
                             "Sculpt",
-                            &CDMW_RAIL_TOOLS[4..8],
+                            &CDMW_RAIL_TOOLS[4..9],
                             busy,
                             authoring,
                             &policy_reason,
@@ -2136,7 +2143,7 @@ impl LabApplication {
                             ui,
                             actions,
                             "Mesh Data",
-                            &CDMW_RAIL_TOOLS[8..15],
+                            &CDMW_RAIL_TOOLS[9..16],
                             busy,
                             authoring,
                             &policy_reason,

@@ -872,6 +872,19 @@ backup/rollback flow. Source PAMT/PAZ files remain unchanged.
   drag previews locally, mouse release commits one undo entry, and Esc, resize, or focus
   loss rolls the gesture back.
 
+  **Bend** uses two handles: select the whole rope Part or island, click **1** to
+  anchor it, then drag **2** farther along it. Cross-sections rotate without scaling
+  and the centreline keeps its arc length, so the endpoint may stop short of the
+  cursor. Only the selected connected component of the anchored Part moves, including
+  its exact coincident seams. Include the back side when selecting vertices. The
+  fixed side stays in place; Reset anchor chooses another fixed point. Release adds
+  one history entry, while Esc, resize and focus loss restore the stroke baseline.
+  Tight bends are limited; sparse geometry and collisions remain limitations.
+
+  Viewport geometry gestures submit sparse changed-vertex attributes rather than
+  cloning and serializing the complete document and graph on release. The host retains
+  the same identity/revision, payload, topology and prepared-commit validation.
+
   Position edits leave every out-of-scope position exact and recompute normals only for
   the affected one-ring; face deletion, face midpoint subdivision, selected-edge
   midpoint subdivision, face duplication, face extrusion, and individual-face inset

@@ -1,5 +1,7 @@
 #![forbid(unsafe_code)]
 
+pub mod bend;
+
 use cdmw_mesh::{EdgeHandle, FaceHandle, History, MeshError, Selection, VertexHandle, WorkingMesh};
 use glam::{Quat, Vec2, Vec3};
 use serde::{Deserialize, Serialize};
@@ -1043,6 +1045,44 @@ impl OperatorController {
         }
         mesh.apply_positions(&positions)?;
         Ok(())
+    }
+
+    pub fn bend(
+        &self,
+        mesh: &mut WorkingMesh,
+        gesture_id: u64,
+        stroke: &bend::BendStroke,
+        delta: Vec3,
+    ) -> Result<(), InteractionError> {
+        self.require_running(gesture_id)?;
+        if !stroke.matches_mesh(mesh) {
+            return Err(InteractionError::InvalidTransition);
+        }
+        let mut positions = stroke.positions(delta)?;
+        positions.retain(|handle, position| {
+            mesh.vertex(*handle).is_some_and(|vertex| vertex.position != *position)
+        });
+        if !positions.is_empty() {
+            mesh.apply_positions(&positions)?;
+        }
+        Ok(())
+    }
+
+    /// Attribute changes since this gesture began, including its normal one-ring.
+    pub fn changed_vertices(
+        &self,
+        mesh: &WorkingMesh,
+        gesture_id: u64,
+    ) -> Result<Vec<VertexHandle>, InteractionError> {
+        self.require_running(gesture_id)?;
+        let before = &self.active.as_ref()
+            .ok_or(InteractionError::InvalidTransition)?.before;
+        if before.identity() != mesh.identity() || before.topology_generation != mesh.topology_generation {
+            return Err(InteractionError::InvalidTransition);
+        }
+        Ok(mesh.vertices()
+            .filter_map(|(handle, vertex)| (before.vertex(handle) != Some(vertex)).then_some(handle))
+            .collect())
     }
 
     pub fn confirm(
