@@ -9,6 +9,7 @@ from pathlib import Path
 from uuid import uuid4
 
 from cdmw.domain.mesh.export_validation import MeshExportValidationReport
+from cdmw.domain.mesh.operations import mesh_edit_operations_from_dicts
 from cdmw.modding.mesh_edit_ops import refresh_mesh_totals
 from cdmw.modding.mesh_neutral_appearance import NeutralMeshAppearance
 from cdmw.services.mesh_service_state import MeshExportSnapshot
@@ -169,9 +170,27 @@ def _archive_refit_snapshots(snapshot, *, clone_geometry):
                 if hasattr(part, channel):
                     setattr(original, channel, getattr(part, channel))
         refresh_mesh_totals(mesh)
+        # The combined session owns edits made after loading the extra asset.
+        # Its Part indices must become source-local indices for the exact writer;
+        # retaining only the opening source ledger loses later Fit/viewport edits.
+        operations = list(mesh_edit_operations_from_dicts(asset.source.edit_operations))
+        local_indices = {combined: local for local, combined in enumerate(asset.part_indices)}
+        for operation in mesh_edit_operations_from_dicts(snapshot.edit_operations):
+            if operation.lod_index == 0:
+                if operation.submesh_index in local_indices:
+                    operation = replace(operation, submesh_index=local_indices[operation.submesh_index])
+                elif 0 <= operation.submesh_index < len(snapshot.mesh.submeshes):
+                    continue
+                # Invalid targets still reach the validator; splitting cannot
+                # silently discard an unsafe or malformed operation.
+            elif asset is not context.assets[0]:
+                continue  # Only the primary asset contributes additional LODs.
+            if operation not in operations:
+                operations.append(operation)
         result.append((asset.entry, replace(
             asset.source, mesh=mesh, mesh_revision=snapshot.mesh_revision,
             native_edit_revision=snapshot.native_edit_revision, archive_refit_context=None,
+            edit_operations=tuple(operations),
         )))
     return tuple(result)
 
@@ -206,6 +225,7 @@ def archive_refit_candidate_snapshot(session, mesh, context):
         session_id=session.session_id, mesh_revision=session.revision,
         native_edit_revision=session.revision, material_generation=0,
         texture_revisions=(), mesh=mesh, base_mesh=None, original_data=b"",
+        edit_operations=tuple(getattr(mesh, "_cdmw_edit_operations", ()) or ()),
         archive_refit_context=context,
     )
 

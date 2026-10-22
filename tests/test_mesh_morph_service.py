@@ -346,7 +346,14 @@ def test_refit_and_following_slider_share_a_bounded_budget_and_reject_failed_out
         before_view = service.session_view(session_id)
         before_state = service.cached_morph_state(session_id)
         before_revision = service._session(session_id).morph_session_revision
-        with patch.object(mesh_service_morph, "native_mesh_editor_session_command", return_value=None):
+        before_operations = service._session(session_id).edit_operations
+        native = mesh_service_morph.native_mesh_editor_session_command
+        # Configuration reads the current Part/island settings before mutation.
+        # Fail the write, so this still tests refusal after a successful read.
+        def refuse_configuration(command, *args, **kwargs):
+            return None if command == "morph_configure_refit" else native(command, *args, **kwargs)
+
+        with patch.object(mesh_service_morph, "native_mesh_editor_session_command", side_effect=refuse_configuration):
             with pytest.raises(RuntimeError, match="morph_configure_refit failed"):
                 service.configure_refit(
                     session_id, (2,), enabled=True, intensity_percent=100.0,
@@ -355,6 +362,7 @@ def test_refit_and_following_slider_share_a_bounded_budget_and_reject_failed_out
         assert service.session_view(session_id) == before_view
         assert service.cached_morph_state(session_id) == before_state
         assert service._session(session_id).morph_session_revision == before_revision
+        assert service._session(session_id).edit_operations == before_operations
         after_mesh = service.working_mesh(session_id, clone=True)
         assert [part.vertices for part in after_mesh.submeshes] == [part.vertices for part in before_mesh.submeshes]
     finally:

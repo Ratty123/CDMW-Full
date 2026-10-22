@@ -32,11 +32,21 @@ def _entry(root, name, source):
 
 
 def _load_pair(tmp_path, *, assign_body=True, texture_paths=None,
-               primary_appearance=None, incoming_appearance=None, role="armor", distinct_material=False):
+               primary_appearance=None, incoming_appearance=None, role="armor", distinct_material=False,
+               edit_before_append=False):
     source, authority, session = _open_exact_session(
         tmp_path / "session", base_texture_path=texture_paths[0] if texture_paths else None,
         neutral_appearance=primary_appearance,
     )
+    if edit_before_append:
+        from cdmw.domain.mesh import MeshEditCommand, MeshEditSelection
+
+        count = len(session.shadow_service.working_mesh(session.shadow_session_id, clone=False).submeshes[0].vertices)
+        changed = session.shadow_service.apply_command(
+            session.shadow_session_id, MeshEditCommand("recalculate_normals", mode="edit",
+                selection=MeshEditSelection.from_maps(vertices_by_submesh={0: tuple(range(count))})))
+        assert changed.ok
+        assert session.shadow_service._session(session.shadow_session_id).edit_operations
     primary = _entry(tmp_path, "owned-rust-exact.pac", source)
     armor = _entry(tmp_path, "armor.pac", source)
     other = MeshService()
@@ -111,6 +121,81 @@ def test_archive_refit_finish_and_build_mod_preserve_both_original_files(tmp_pat
         assert len(archive_refit_snapshots(authority.capture_export_snapshot("authoritative-rust-exact"))) == 2
     finally:
         session.cancel()
+        authority.close_edit_session("authoritative-rust-exact", force_without_saving=True)
+
+
+def test_archive_refit_finish_retains_each_assets_admitted_channel_edits(tmp_path):
+    from cdmw.domain.mesh.operations import mesh_edit_operations_from_dicts
+
+    _source, authority, editor, _primary, _armor, _loaded = _load_pair(
+        tmp_path, assign_body=False, edit_before_append=True)
+    try:
+        _edit_both(editor)
+        snapshot = editor.shadow_service.capture_export_snapshot(editor.shadow_session_id)
+        finished = editor.finish(_request(editor, "finish_request", 21))
+        for _entry, component in archive_refit_snapshots(snapshot):
+            operations = mesh_edit_operations_from_dicts(component.edit_operations)
+            assert any(row.operation == "replace_positions_same_count" and row.submesh_index == 0
+                       for row in operations)
+        assert all(asset["status"] == "passed"
+                   for asset in finished["exact_output_validation"]["assets"])
+    finally:
+        editor.cancel()
+        authority.close_edit_session("authoritative-rust-exact", force_without_saving=True)
+
+
+def test_archive_refit_keeps_untracked_channel_rejection_after_splitting(tmp_path):
+    _source, authority, editor, _primary, _armor, _loaded = _load_pair(tmp_path, assign_body=False)
+    try:
+        _edit_both(editor)
+        snapshot = editor.shadow_service.capture_export_snapshot(editor.shadow_session_id)
+        # A valid position edit must never authorize an unrelated UV edit.
+        part = snapshot.mesh.submeshes[-1]
+        part.uvs = [(.123, .456), *part.uvs[1:]]
+        _entry, component = archive_refit_snapshots(snapshot)[-1]
+        report = editor.shadow_service.validate_export_snapshot(component)
+        assert any(issue.code == "untracked_edit_channel" and "uv0" in issue.message for issue in report.blockers)
+        with pytest.raises(RuntimeError, match="untracked_edit_channel"):
+            editor.shadow_service.rebuild_result_from_snapshot(component)
+    finally:
+        editor.cancel()
+        authority.close_edit_session("authoritative-rust-exact", force_without_saving=True)
+
+
+@pytest.mark.parametrize("neutral", [False, True])
+def test_archive_refit_fit_and_bake_finish_after_an_earlier_channel_edit(tmp_path, neutral):
+    from cdmw.modding.mesh_neutral_appearance import NeutralMeshAppearance
+    from tests.test_mesh_neutral_face_editing import IDENTITY
+
+    matrix = (*IDENTITY[:12], .2, .1, .15, 1.)
+    appearance = NeutralMeshAppearance("owned/refit.pabc", tuple(range(8)), (matrix,)*8) if neutral else None
+    _source, authority, editor, _primary, _armor, _loaded = _load_pair(
+        tmp_path, assign_body=False, role="body", edit_before_append=True,
+        primary_appearance=appearance, incoming_appearance=appearance)
+    try:
+        _rig_command(editor, 3, "refit_bind", {"submesh_indices": [0]})
+        service, sid = editor.shadow_service, editor.shadow_session_id
+        before = list(service.working_mesh(sid, clone=True).submeshes[0].vertices)
+        _rig_command(editor, 4, "refit_fit_to_body", {})
+        fitted = list(service.working_mesh(sid, clone=True).submeshes[0].vertices)
+        assert fitted != before
+        operations = service._session(sid).edit_operations
+        _rig_command(editor, 5, "undo", {})
+        assert service.working_mesh(sid, clone=True).submeshes[0].vertices == before
+        _rig_command(editor, 6, "redo", {})
+        assert service.working_mesh(sid, clone=True).submeshes[0].vertices == fitted
+        assert service._session(sid).edit_operations == operations
+        _rig_command(editor, 7, "morph_bake", {})
+        finished = editor.finish(_request(editor, "finish_request", 8))
+        assert all(asset["status"] == "passed"
+                   for asset in finished["exact_output_validation"]["assets"])
+        output = authority.working_mesh(editor.authoritative_session_id, clone=True)
+        if appearance is not None:
+            output = appearance.to_neutral(output)
+        for actual, expected in zip(output.submeshes[0].vertices, fitted, strict=True):
+            assert actual == pytest.approx(expected, abs=1e-6)
+    finally:
+        editor.cancel()
         authority.close_edit_session("authoritative-rust-exact", force_without_saving=True)
 
 

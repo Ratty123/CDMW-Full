@@ -37,7 +37,7 @@ from cdmw.domain.mesh import (
     summarize_mesh_workspace,
     validate_mesh_export,
 )
-from cdmw.domain.mesh.operations import MeshEditOperation
+from cdmw.domain.mesh.operations import MeshEditOperation, mesh_edit_operations_from_dicts
 from cdmw.domain.mesh.authoring_capability import (
     MeshOutputPolicy,
     normalize_mesh_format,
@@ -1870,7 +1870,20 @@ class MeshService(MeshUvServiceMixin, _MeshServiceSessionLayerCore):
                 )
             )
         if recorded:
-            session.edit_operations = tuple(session.edit_operations) + tuple(recorded)
+            # The admitted topology operation owns the output channels and its
+            # original-relative mapping. Earlier morph rows describe the old
+            # vertex count and must not reject a later Bake -> Face Delete.
+            targets = {(row.lod_index, row.submesh_index) for row in recorded}
+            retained = []
+            for value in session.edit_operations:
+                rows = mesh_edit_operations_from_dicts((value,))
+                if rows and rows[0].created_by == "CDMW Morph & Refit" and (
+                    rows[0].operation in {"replace_positions_same_count", "replace_normals_same_count"}
+                    and (rows[0].lod_index, rows[0].submesh_index) in targets
+                ):
+                    continue
+                retained.append(value)
+            session.edit_operations = tuple(retained) + tuple(recorded)
 
     def _dispatch_geometry_command(
         self,

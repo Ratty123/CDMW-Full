@@ -2073,6 +2073,14 @@ Waist bands retain their height contour and taper as they tighten. The sides of
 a rolled profile move together, including on open or double-sided bands, so an
 inner edge does not push through the outer face. Proven solid walls keep their
 depth. Nonuniform influence masks retain their per-vertex control.
+Irregularly spaced rolled edges share a smooth circumferential displacement
+field. Contact pressure spreads over the band's physical width, preserving
+separation from the inner wrap without introducing narrow ridges that disrupt
+the band and its attached rope. This changes fitting movement, not source folds
+or material identity.
+If the smoother profile cannot resolve a new self-crossing, fitting retries the
+previous checked profile/cloth paths from the same starting pose. Each attempt
+must still pass all body, layer, shape and rigidity checks.
 Rolled belt edges are checked for new self-crossings, including open or repeated
 skins. An unresolved crossing retains the previous preview.
 Small inset Flexible details, such as raised belt cords, follow their band
@@ -2390,8 +2398,12 @@ and open a separate mesh to use that route.
 **Finish Edit Mesh** keeps edits to both body and armor. **Build Mod** rebuilds
 each asset through its own exact game-format writer and packages every original
 archive path together. Hiding an asset changes the view without omitting its
-output. Draft generations retain each source fingerprint and asset mapping;
-Undo/Redo restores those mappings with the geometry. A failure rebuilding any
+output. Native fitting records its position/normal edits, and splitting the combined
+session remaps admitted edit operations to each source file's own Part indices.
+Earlier channel edits remain valid through Fit, Bake and Finish; unrelated
+unrecorded channel changes still block output. Draft generations retain each
+source fingerprint and asset mapping; Undo/Redo restores those mappings with
+the geometry. A failure rebuilding any
 asset prevents the package from being published. Shipped archives remain
 unchanged; installation still uses the existing confirmation and recovery flow.
 

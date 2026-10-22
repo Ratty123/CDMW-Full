@@ -71,7 +71,7 @@ void mesh_editor_conform_refit(const MeshRefitRuntime &refit, const std::map<int
                                const std::map<int, std::vector<Vec3>> &driver_visible,
                                const std::map<int, std::vector<Vec3>> &residual,
                                const RefitMaskWeightsNative &masks, std::map<int, std::vector<Vec3>> &layer,
-                               bool coherent_bands) {
+                               bool coherent_bands, bool smooth_bands) {
     struct Node {
         Vec3 point{}, normal{}, target{}, key{}, rest{};
         double area = 0.0, mobility = 1.0, tightness = 1.0;
@@ -317,7 +317,7 @@ void mesh_editor_conform_refit(const MeshRefitRuntime &refit, const std::map<int
             for (const auto& node:nodes) { positions.push_back(node.point); mass.push_back(node.area); }
             const auto& bounds = body.nodes[body.root];
             mesh_editor_cohere_refit_bands(band_nodes,band_axes,positions,
-                scale_vec3(add_vec3(bounds.minimum,bounds.maximum),0.5),mass,field);
+                scale_vec3(add_vec3(bounds.minimum,bounds.maximum),0.5),mass,field,false,smooth_bands);
         }
     };
     std::map<int, std::vector<Vec3>> garment_positions;

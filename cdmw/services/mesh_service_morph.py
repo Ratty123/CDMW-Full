@@ -30,6 +30,7 @@ from cdmw.domain.mesh import (
     mesh_morph_driver_topology_fingerprint,
     procedural_morph_pivot,
 )
+from cdmw.domain.mesh.operations import mesh_edit_operations_from_dicts
 from cdmw.modding.mesh_native_core import (
     _native_preview_delta_output_dir,
     create_native_mesh_editor_morph_runtime_snapshot,
@@ -2082,6 +2083,25 @@ class MeshMorphServiceMixin(MeshMorphLayerMixin, MeshMorphAuthoringMixin, MeshMo
             session.native_editor_mesh_dirty = True
             session.native_editor_mesh_dirty_counts = counts
             _apply_native_editor_dirty_counts(session)
+            # A native fit/morph admits position and regenerated-normal edits,
+            # just like a viewport transaction. Keep this ledger complete when
+            # other channel edits already enabled exact-writer coverage checks.
+            operations = list(session.edit_operations)
+            recorded = {(row.operation, row.lod_index, row.submesh_index, row.vertex_count)
+                        for row in mesh_edit_operations_from_dicts(operations)}
+            for part in sorted(set(affected) | set(changed)):
+                for operation in ("replace_positions_same_count", "replace_normals_same_count"):
+                    key = (operation, session.lod_index, part, counts[part][0])
+                    if key in recorded:
+                        continue
+                    operations.append({
+                        "operation": operation, "lod_index": session.lod_index,
+                        "submesh_index": part, "vertex_count": counts[part][0],
+                        "source": "resident_native", "created_by": "CDMW Morph & Refit",
+                        "metadata": {"service_action": action},
+                    })
+                    recorded.add(key)
+            session.edit_operations = tuple(operations)
             session.revision += 1
             autosave = getattr(self, "_schedule_mesh_layer_autosave", None)
             if callable(autosave):

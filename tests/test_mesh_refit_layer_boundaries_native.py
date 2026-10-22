@@ -313,6 +313,50 @@ def test_open_rolled_band_edges_do_not_cross_their_own_surface(repeated_draw_fac
     assert max(math.hypot(x, z) for x, _, z in after.vertices) < .09
 
 
+@pytest.mark.parametrize("segments,scale,up", ((24, 1., 1), (48, .1, 0), (48, 10., 2)))
+def test_irregular_rolled_band_and_separate_rope_keep_smooth_layered_profiles(segments, scale, up):
+    body = _arm()
+    body.vertices = [(x * (.95 + 1.8*y), y, z * (.8 + .5*y)) for x, y, z in body.vertices]
+    profile = ((-.032, .130), (-.023, .139), (-.026, .132),
+               (.022, .130), (.026, .137), (.032, .130))
+    vertices, faces = [], []
+    for row, (height, radius) in enumerate(profile):
+        for segment in range(segments):
+            # Imported rolled edges need not share angular vertex columns.
+            angle = 2*math.pi*segment/segments + .055*math.sin(row*1.7 + segment*.73)
+            vertices.append((radius*math.cos(angle), .24 + height + .006*math.cos(3*angle),
+                             radius*.85*math.sin(angle)))
+    for row in range(len(profile)-1):
+        for segment in range(segments):
+            a, b = row*segments + segment, row*segments + (segment+1) % segments
+            faces.extend(((a, b, b+segments), (a, b+segments, a+segments)))
+    band = _part("irregular rolled cloth", vertices, faces, material="same", texture="")
+    rope = _waist_rope(segments=segments)
+    rope.vertices = [(x, y, z*.85) for x, y, z in rope.vertices]
+    source = _mesh(body, _sleeve(radius=.1), band, rope)
+    for part in source.submeshes:
+        part.vertices = [tuple(scale*p[(axis + 1 - up) % 3] for axis in range(3)) for p in part.vertices]
+    fitted = _fitted_mesh(source, (0,), (1, 2, 3))
+    _assert_no_surface_crossings(fitted.submeshes[0], fitted.submeshes[2])
+    _assert_no_surface_crossings(fitted.submeshes[1], fitted.submeshes[2])
+    _assert_no_surface_crossings(fitted.submeshes[2], fitted.submeshes[2])
+    _assert_no_surface_crossings(fitted.submeshes[3], fitted.submeshes[3])
+    across = [axis for axis in range(3) if axis != up]
+    before = np.asarray(band.vertices).reshape(len(profile), segments, 3)
+    after = np.asarray(fitted.submeshes[2].vertices).reshape(len(profile), segments, 3)
+    shift = (np.linalg.norm(after[:, :, across], axis=2)
+             - np.linalg.norm(before[:, :, across], axis=2)) / scale
+    # Collision repair must not introduce short alternating ridges along a
+    # smooth rolled edge, even though its tessellation is irregular.
+    second = np.roll(shift, 1, axis=1) + np.roll(shift, -1, axis=1) - 2*shift
+    assert np.abs(second).max() < .004
+    old_rope = np.asarray(rope.vertices).reshape(segments, 8, 3)
+    new_rope = np.asarray(fitted.submeshes[3].vertices).reshape(segments, 8, 3)
+    diameter_ratio = (np.linalg.norm(new_rope[:, :4] - new_rope[:, 4:], axis=2)
+                      / np.linalg.norm(old_rope[:, :4] - old_rope[:, 4:], axis=2))
+    assert diameter_ratio.min() > .75 and diameter_ratio.max() < 1.25
+
+
 @pytest.mark.parametrize("segments,scale,up", ((16, .1, 0), (24, 1., 1), (32, 10., 2)))
 @pytest.mark.parametrize("packed", (False, True), ids=("separate-parts", "one-part"))
 def test_rolled_band_and_rigid_tails_can_be_refitted_after_bake(segments, scale, up, packed):

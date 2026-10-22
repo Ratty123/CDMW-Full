@@ -597,7 +597,8 @@ void mesh_editor_cohere_refit_bands(
     const Vec3& center,
     const std::vector<double>& mass,
     std::vector<Vec3>& field,
-    bool clearance = false
+    bool clearance = false,
+    bool smooth_profile = true
 ) {
     constexpr int count = 128;
     const double circle = 2.0 * std::acos(-1.0);
@@ -628,23 +629,23 @@ void mesh_editor_cohere_refit_bands(
                 const int bin = (left+side)%count;
                 const double area = mass[i]*blend;
                 weight[bin] += area;
+                const double y = dot_vec3(sub_vec3(positions[i],center),axis);
+                height[bin] += area*y;
+                height_squared[bin] += area*y*y;
                 if (clearance) value[bin] = std::max(value[bin],shift);
                 else {
-                    const double y = dot_vec3(sub_vec3(positions[i],center),axis);
                     value[bin] += area*shift;
-                    height[bin] += area*y;
-                    height_squared[bin] += area*y*y;
                     height_value[bin] += area*y*shift;
                 }
             }
         }
         double covariance=0.0, variance=0.0, height_scale=0.0;
-        if (!clearance) for (int bin=0;bin<count;++bin) if (weight[bin]>0.0) {
+        for (int bin=0;bin<count;++bin) if (weight[bin]>0.0) {
             covariance += height_value[bin]-height[bin]*value[bin]/weight[bin];
             variance += height_squared[bin]-height[bin]*height[bin]/weight[bin];
             height_scale += height_squared[bin];
         }
-        const double slope = variance > std::max(1.0e-18,height_scale*1.0e-12) ? covariance/variance : 0.0;
+        const double slope = !clearance && variance > std::max(1.0e-18,height_scale*1.0e-12) ? covariance/variance : 0.0;
         std::vector<std::array<double,3>> stations;
         for (int bin=0;bin<count;++bin) if (weight[bin] > 0.0) {
             const double mean = clearance ? value[bin] : value[bin]/weight[bin];
@@ -652,6 +653,45 @@ void mesh_editor_cohere_refit_bands(
             stations.push_back({circle*bin/count,mean-slope*y,slope});
         }
         if (stations.empty()) continue;
+        if (smooth_profile) {
+            // Interpolating independently averaged profile samples can reproduce
+            // tessellation-sized pressure spikes. Use one smooth periodic field:
+            // its support follows the band's physical width rather than its mesh
+            // density. Clearance uses an upper envelope so smoothing cannot erase
+            // an outward contact correction.
+            double radius = 0.0, total_mass = 0.0;
+            for (const auto i : group.second) {
+                Vec3 radial = sub_vec3(positions[i], center);
+                const double y = dot_vec3(radial, axis);
+                radial = sub_vec3(radial, scale_vec3(axis, y));
+                radius += mass[i] * length_vec3(radial);
+                total_mass += mass[i];
+            }
+            radius /= std::max(total_mass, 1.0e-30);
+            // Within-station variance measures the profile width without treating
+            // a sloping band's height contour as extra cloth to smooth across.
+            const double support = std::clamp(std::sqrt(std::max(0.0,variance)/std::max(total_mass,1.0e-30))
+                /std::max(radius,1.0e-12), circle/count*1.5, 0.3);
+            const auto source_stations = stations;
+            for (auto& station : stations) {
+                double total = 0.0, shift = 0.0;
+                for (std::size_t j=0; j<source_stations.size(); ++j) {
+                    const auto& sample = source_stations[j];
+                    double distance = std::abs(sample[0]-station[0]);
+                    distance = std::min(distance,circle-distance);
+                    const double kernel = std::exp(-0.5*distance*distance/(support*support));
+                    if (clearance) {
+                        if (sample[1] > 0.0) station[1] = std::max(station[1],sample[1]*kernel);
+                    } else {
+                        const double previous = j ? source_stations[j-1][0] : source_stations.back()[0]-circle;
+                        const double next = j+1<source_stations.size() ? source_stations[j+1][0] : source_stations.front()[0]+circle;
+                        const double area = kernel*(next-previous);
+                        total += area; shift += area*sample[1];
+                    }
+                }
+                if (!clearance && total>0.0) station[1] = shift/total;
+            }
+        }
         for (std::size_t j=0;j<group.second.size();++j) {
             const auto i = group.second[j];
             const auto& sample = samples[j];
@@ -1188,7 +1228,8 @@ void mesh_editor_relieve_refit_surface(
     bool validate_only = false,
     const std::map<int, std::vector<Vec3>>* layer_reference = nullptr,
     const std::map<int, std::vector<Vec3>>* centering_axes = nullptr,
-    bool coherent_bands = false
+    bool coherent_bands = false,
+    bool smooth_bands = true
 ) {
     std::map<int, double> clearances;
     for (const auto& item : refit.garment_settings) {
@@ -3252,7 +3293,7 @@ void mesh_editor_relieve_refit_surface(
                 translation = scale_vec3(translation, 1.0 / group.second.size());
                 for (const auto i : group.second) correction[i] = translation;
             }
-            mesh_editor_cohere_refit_bands(band_nodes,band_axes,layer_rest,band_center,contact_mass,correction,true);
+            mesh_editor_cohere_refit_bands(band_nodes,band_axes,layer_rest,band_center,contact_mass,correction,true,smooth_bands);
             for (std::size_t i = 0; i < cohorts.size(); ++i)
                 cohorts[i].position = add_vec3(previous[i], scale_vec3(project_contact(i, correction[i]), cohorts[i].mobility));
             // Smoothing a common body lift must not erase layer separation.
@@ -3260,7 +3301,7 @@ void mesh_editor_relieve_refit_surface(
             project_details(maximum_correction);
             if (!band_nodes.empty()) {
                 for (std::size_t i=0;i<cohorts.size();++i) correction[i] = sub_vec3(cohorts[i].position,previous[i]);
-                mesh_editor_cohere_refit_bands(band_nodes,band_axes,layer_rest,band_center,contact_mass,correction,true);
+                mesh_editor_cohere_refit_bands(band_nodes,band_axes,layer_rest,band_center,contact_mass,correction,true,smooth_bands);
                 for (std::size_t i=0;i<cohorts.size();++i) cohorts[i].position = add_vec3(previous[i],correction[i]);
                 project_details(maximum_correction,false);
             }
@@ -3473,7 +3514,7 @@ void mesh_editor_relieve_refit_surface(
 void mesh_editor_conform_refit(
     const MeshRefitRuntime&, const std::map<int, MeshSessionSubmesh>&,
     const std::map<int, std::vector<Vec3>>&, const std::map<int, std::vector<Vec3>>&,
-    const RefitMaskWeightsNative&, std::map<int, std::vector<Vec3>>&, bool);
+    const RefitMaskWeightsNative&, std::map<int, std::vector<Vec3>>&, bool, bool);
 void mesh_editor_validate_conformed_refit(
     const MeshRefitRuntime&, const std::map<int, MeshSessionSubmesh>&,
     const std::map<int, std::vector<Vec3>>&, const std::map<int, std::vector<Vec3>>&,
@@ -3567,13 +3608,13 @@ void mesh_editor_add_refit_layer(
     mesh_editor_refit_components(*morph.refit, submeshes, driver_visible, residual, base_layer, masks, layer);
     if (tightening) {
         const auto followed = layer;
-        const auto fit = [&](bool coherent_bands) {
+        const auto fit = [&](bool coherent_bands, bool smooth_bands = true) {
             std::map<int, std::vector<Vec3>> centering_axes;
-            mesh_editor_conform_refit(*morph.refit, submeshes, driver_visible, residual, masks, layer, coherent_bands);
+            mesh_editor_conform_refit(*morph.refit, submeshes, driver_visible, residual, masks, layer, coherent_bands, smooth_bands);
             mesh_editor_refit_components(*morph.refit, submeshes, driver_visible, residual, followed, masks, layer, true, &centering_axes);
             mesh_editor_validate_conformed_refit(*morph.refit, submeshes, residual, followed, layer, "conforming");
             const auto conformed = layer;
-            mesh_editor_relieve_refit_surface(*morph.refit, submeshes, driver_visible, residual, layer, &masks, false, &followed, &centering_axes, coherent_bands);
+            mesh_editor_relieve_refit_surface(*morph.refit, submeshes, driver_visible, residual, layer, &masks, false, &followed, &centering_axes, coherent_bands, smooth_bands);
             mesh_editor_validate_conformed_refit(*morph.refit, submeshes, residual, conformed, layer, "clearance", &followed);
             // Resolve the hanging rigid pose against the settled cloth. It must not
             // perturb a separate waist-band contact solve or inherit the scarf's tilt.
@@ -3584,11 +3625,16 @@ void mesh_editor_add_refit_layer(
         try {
             fit(true);
         } catch (const MeshRefitBandCrossing&) {
-            // Some authored profiles already fit with the ordinary cloth solve.
-            // Preserve that compatibility with one retry from the same neutral
-            // pose. All body, layer, strain and rigidity checks run again.
+            // Preserve previously accepted profiles through the earlier checked
+            // fitter. Each attempt starts at the same followed pose and repeats
+            // every body, layer, strain and rigidity check.
             layer = followed;
-            fit(false);
+            try {
+                fit(true,false);
+            } catch (const MeshRefitBandCrossing&) {
+                layer = followed;
+                fit(false);
+            }
         }
     }
 }

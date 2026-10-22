@@ -335,19 +335,24 @@ fitter, so correction capture can normalize partial influence correctly.
 
 #### Rigid hanging poses and island overrides
 
-The fitting solve uses a coherent profile field for eligible wrapping bands.
-If it cannot resolve a new band self-crossing, one bounded retry starts from the
-same followed neutral pose and uses the existing ordinary cloth solve. This
-retains compatible authored profiles that the new field cannot fit. Other failure
-types refuse directly.
-The retry re-runs the complete conforming, rigid-pose and clearance validation;
-it never publishes the rejected first candidate or relaxes a collision check.
+The fitting solve first smooths a coherent profile field for eligible wrapping
+bands. If that candidate retains a new self-crossing, it retries the earlier
+checked profile field, followed by the existing ordinary cloth solve if needed.
+These are at most three attempts, each from the same followed neutral pose.
+This retains previously accepted authored profiles without weakening checks.
+Other failure types refuse directly. Each attempt re-runs complete conforming,
+rigid-pose and clearance validation; no rejected candidate is published.
 
 Short wrapping surfaces are identified from their dimensions and the selected
 body's axis, independently of PAC names, material names or character identity.
 With uniform mask influence and Tightness, their fitting field shares radial
 movement across the profile while retaining a linear height gradient for taper.
 Clearance carries the profile's largest radial correction across its skins.
+The periodic field is smoothed over a support derived from the band's physical
+width and radius, rather than its vertex density. Outward clearance uses a
+smooth upper envelope, so spreading a contact cannot average away its required
+lift. This prevents irregular profile sampling from introducing narrow ridges
+while retaining the existing layer and triangle checks.
 Wrapped inset cords interpolate backing weights through overlapping angular
 samples, avoiding independent nearest-face motion on their near and far sides.
 Other surfaces and nonuniform masks retain their existing fitting paths.

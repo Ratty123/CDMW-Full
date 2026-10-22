@@ -1804,8 +1804,8 @@ def _validate_edit_operations(
         )
     # Coverage exists for the sidecar round trip, where the operation list is
     # meant to be exhaustive. A resident session's list is not: it records the
-    # admitted topology operations and nothing else, so feeding it here would
-    # start demanding operations for every unrelated channel a session had
+    # admitted topology and morph channels, not every service edit. Feeding it
+    # here would start demanding operations for every unrelated channel a session had
     # already changed, which is a behaviour change for workflows that previously
     # carried no operations at all.
     # When a candidate/sidecar supplied an exhaustive operation list, native

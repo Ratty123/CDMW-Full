@@ -211,6 +211,36 @@ def test_reopened_deleted_geometry_can_finish_without_losing_original_topology_b
         service.close_edit_session(first.authoritative_session_id, force_without_saving=True)
 
 
+def test_baked_morph_can_delete_a_face_and_finish_with_its_new_topology(tmp_path):
+    from cdmw.domain.mesh import MeshEditCommand, MeshEditSelection
+    from tests.test_mesh_morph_service import _author_command
+
+    _source, authority, editor = _open_exact_session(tmp_path / "session")
+    service, sid = editor.shadow_service, editor.shadow_session_id
+    try:
+        authored = replace(_author_command(), selection=MeshEditSelection.from_maps(
+            vertices_by_submesh={0: (0, 1, 2, 3)}))
+        assert service.apply_command(sid, authored).ok
+        assert service.set_morph_value(sid, "volume", 10.)[0].ok
+        assert service.bake_morph(sid)[0].ok
+        baked = list(service.working_mesh(sid, clone=True).submeshes[0].vertices)
+        operations = service._session(sid).edit_operations
+        assert service.apply_command(sid, MeshEditCommand("delete", mode="edit",
+            selection=MeshEditSelection.from_maps(faces_by_submesh={0: (0,)}))).ok
+        assert service.undo(sid).ok
+        assert service.working_mesh(sid, clone=True).submeshes[0].vertices == baked
+        assert service._session(sid).edit_operations == operations
+        assert service.redo(sid).ok
+        finished = editor.finish(_request(editor, "finish_request", 1))
+        assert finished["exact_output_validation"]["status"] == "passed"
+        mesh = authority.working_mesh(editor.authoritative_session_id, clone=True)
+        assert len(mesh.submeshes[0].faces) == 1
+        assert len(mesh.submeshes[0].vertices) == 3
+    finally:
+        editor.cancel()
+        authority.close_edit_session(editor.authoritative_session_id, force_without_saving=True)
+
+
 def test_exact_finish_runs_existing_snapshot_writer_before_atomic_commit(
     tmp_path: Path,
 ) -> None:
