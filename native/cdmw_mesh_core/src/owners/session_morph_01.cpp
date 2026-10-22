@@ -582,6 +582,95 @@ bool mesh_editor_refit_band_has_walls(const RefitSpatialIndexNative& surface,
 }
 
 
+struct MeshRefitBandCrossing : std::runtime_error {
+    MeshRefitBandCrossing() : std::runtime_error(
+        "Fit to body: a waist band still crosses its own surface; previous preview retained") {}
+};
+
+// Fit a wrapping band's circumference without independently moving the near
+// and far skins of its rolled profile. Angular interpolation supports irregular
+// tessellation; area weighting keeps the result independent of vertex density.
+void mesh_editor_cohere_refit_bands(
+    const std::map<std::size_t, std::vector<std::size_t>>& groups,
+    const std::map<std::size_t, Vec3>& axes,
+    const std::vector<Vec3>& positions,
+    const Vec3& center,
+    const std::vector<double>& mass,
+    std::vector<Vec3>& field,
+    bool clearance = false
+) {
+    constexpr int count = 128;
+    const double circle = 2.0 * std::acos(-1.0);
+    for (const auto& group : groups) {
+        const auto axis = axes.at(group.first);
+        int first = 0;
+        while (std::abs(axis[first]) > 0.5) ++first;
+        int second = (first+1)%3;
+        if (std::abs(axis[second]) > 0.5) second = (second+1)%3;
+        std::array<double,count> weight{}, value{}, height{}, height_squared{}, height_value{};
+        if (clearance) value.fill(-std::numeric_limits<double>::infinity());
+        std::vector<std::pair<Vec3,double>> samples;
+        for (const auto i : group.second) {
+            Vec3 radial = sub_vec3(positions[i],center);
+            radial = sub_vec3(radial,scale_vec3(axis,dot_vec3(radial,axis)));
+            const double length = length_vec3(radial);
+            if (length > 0.0) radial = scale_vec3(radial,1.0/length);
+            double angle = std::atan2(radial[second],radial[first]);
+            if (angle < 0.0) angle += circle;
+            samples.push_back({radial,angle});
+            const double shift = dot_vec3(field[i],radial);
+            const double coordinate = angle/circle*count;
+            const int left = static_cast<int>(coordinate);
+            const double fraction = coordinate-left;
+            for (int side=0;side<2;++side) {
+                const double blend = side ? fraction : 1.0-fraction;
+                if (blend <= 1.0e-12) continue;
+                const int bin = (left+side)%count;
+                const double area = mass[i]*blend;
+                weight[bin] += area;
+                if (clearance) value[bin] = std::max(value[bin],shift);
+                else {
+                    const double y = dot_vec3(sub_vec3(positions[i],center),axis);
+                    value[bin] += area*shift;
+                    height[bin] += area*y;
+                    height_squared[bin] += area*y*y;
+                    height_value[bin] += area*y*shift;
+                }
+            }
+        }
+        double covariance=0.0, variance=0.0, height_scale=0.0;
+        if (!clearance) for (int bin=0;bin<count;++bin) if (weight[bin]>0.0) {
+            covariance += height_value[bin]-height[bin]*value[bin]/weight[bin];
+            variance += height_squared[bin]-height[bin]*height[bin]/weight[bin];
+            height_scale += height_squared[bin];
+        }
+        const double slope = variance > std::max(1.0e-18,height_scale*1.0e-12) ? covariance/variance : 0.0;
+        std::vector<std::array<double,3>> stations;
+        for (int bin=0;bin<count;++bin) if (weight[bin] > 0.0) {
+            const double mean = clearance ? value[bin] : value[bin]/weight[bin];
+            const double y = height[bin]/weight[bin];
+            stations.push_back({circle*bin/count,mean-slope*y,slope});
+        }
+        if (stations.empty()) continue;
+        for (std::size_t j=0;j<group.second.size();++j) {
+            const auto i = group.second[j];
+            const auto& sample = samples[j];
+            const auto right = std::lower_bound(stations.begin(),stations.end(),sample.second,
+                [](const auto& station,double angle){return station[0] < angle;});
+            auto high = right==stations.end() ? stations.front() : *right;
+            auto low = right==stations.begin() ? stations.back() : *std::prev(right);
+            if (right==stations.begin()) low[0] -= circle;
+            if (right==stations.end()) high[0] += circle;
+            const double blend = high[0] > low[0]
+                ? std::clamp((sample.second-low[0])/(high[0]-low[0]),0.0,1.0) : 0.0;
+            const double y = dot_vec3(sub_vec3(positions[i],center),axis);
+            const double a = low[1]+low[2]*y, b = high[1]+high[2]*y;
+            const double shift = a+(b-a)*blend;
+            field[i] = add_vec3(scale_vec3(sample.first,shift),scale_vec3(axis,dot_vec3(field[i],axis)));
+        }
+    }
+}
+
 int mesh_editor_refit_layer_order(
     const RefitSpatialIndexNative& first, const RefitSpatialIndexNative& second,
     const std::map<int, MeshSessionSubmesh>& garments, const RefitSpatialIndexNative& body,
@@ -1098,7 +1187,8 @@ void mesh_editor_relieve_refit_surface(
     const RefitMaskWeightsNative* fitting_masks = nullptr,
     bool validate_only = false,
     const std::map<int, std::vector<Vec3>>* layer_reference = nullptr,
-    const std::map<int, std::vector<Vec3>>* centering_axes = nullptr
+    const std::map<int, std::vector<Vec3>>* centering_axes = nullptr,
+    bool coherent_bands = false
 ) {
     std::map<int, double> clearances;
     for (const auto& item : refit.garment_settings) {
@@ -1417,6 +1507,11 @@ void mesh_editor_relieve_refit_surface(
             if (mesh_editor_refit_band_has_walls(surface.second, map, tolerance)) solid_band_axes[surface.first.second] = axis;
         }
     }
+    std::map<std::size_t,std::vector<std::size_t>> band_nodes;
+    if (coherent_bands) for (std::size_t i=0;i<cohorts.size();++i)
+        if (band_axes.count(layer_roots[i]) && cohorts[i].has_surface) band_nodes[layer_roots[i]].push_back(i);
+    const auto& body_bounds = spatial_index.nodes[spatial_index.root];
+    const Vec3 band_center = scale_vec3(add_vec3(body_bounds.minimum,body_bounds.maximum),0.5);
     std::vector<double> band_wall_depth(cohorts.size(), 0.0);
     for (const auto& surface : layer_surfaces) if (solid_band_axes.count(surface.first.second)) {
         const auto& map = vertex_cohorts.at(surface.first.first);
@@ -1734,6 +1829,56 @@ void mesh_editor_relieve_refit_surface(
         detail.second.second.backing = compact_supports.at(root);
         for (auto& parent : detail.second.second.backing) parent.second /= compact_mass[root];
     }
+    // Share a continuous backing field across a surrounding cord's profile.
+    // Overlapping angular bins avoid a discontinuity at a tessellation column.
+    if (coherent_bands) for (const auto& band : band_axes) {
+        constexpr int bins = 128;
+        const double circle = 2.0*std::acos(-1.0);
+        int first=0;
+        while (std::abs(band.second[first])>0.5) ++first;
+        int second=(first+1)%3;
+        if (std::abs(band.second[second])>0.5) second=(second+1)%3;
+        std::array<double,bins> mass{};
+        std::array<std::map<std::size_t,double>,bins> supports;
+        std::vector<std::pair<std::size_t,double>> vertices;
+        for (const auto& detail : detail_candidates) {
+            if (layer_roots[detail.first]!=band.first) continue;
+            const Vec3 radial = sub_vec3(layer_rest[detail.first],band_center);
+            double angle = std::atan2(radial[second],radial[first]);
+            if(angle<0.0) angle+=circle;
+            vertices.push_back({detail.first,angle});
+            const double coordinate=angle/circle*bins;
+            const int left=static_cast<int>(coordinate);
+            const double fraction=coordinate-left;
+            for(int side=0;side<2;++side) {
+                const double blend=side?fraction:1.0-fraction;
+                if(blend<=1.0e-12) continue;
+                const int bin=(left+side)%bins;
+                const double area=contact_mass[detail.first]*blend;
+                mass[bin]+=area;
+                for(const auto& parent:detail.second.second.backing) supports[bin][parent.first]+=area*parent.second;
+            }
+        }
+        std::vector<std::pair<double,int>> stations;
+        for(int bin=0;bin<bins;++bin) if(mass[bin]>0.0) {
+            stations.push_back({circle*bin/bins,bin});
+            for(auto& parent:supports[bin]) parent.second/=mass[bin];
+        }
+        if(stations.empty()) continue;
+        for(const auto& vertex:vertices) {
+            const auto right=std::lower_bound(stations.begin(),stations.end(),vertex.second,
+                [](const auto& station,double angle){return station.first<angle;});
+            auto high=right==stations.end()?stations.front():*right;
+            auto low=right==stations.begin()?stations.back():*std::prev(right);
+            if(right==stations.begin()) low.first-=circle;
+            if(right==stations.end()) high.first+=circle;
+            const double blend=high.first>low.first?std::clamp((vertex.second-low.first)/(high.first-low.first),0.0,1.0):0.0;
+            auto& support=detail_candidates.at(vertex.first).second.backing;
+            support.clear();
+            for(const auto& parent:supports[low.second]) support[parent.first]+=(1.0-blend)*parent.second;
+            for(const auto& parent:supports[high.second]) support[parent.first]+=blend*parent.second;
+        }
+    }
     const auto resolve_detail = [&](auto&& self, std::size_t i) -> const std::map<std::size_t, double>& {
         const auto known = detail_supports.find(i);
         if (known != detail_supports.end()) return known->second;
@@ -1812,10 +1957,10 @@ void mesh_editor_relieve_refit_surface(
         if (detail == detail_offsets.end()) weights[rigid_vertex[i] ? rigid_roots[i] : i] += weight;
         else for (const auto& parent : detail_supports.at(i)) weights[parent.first] += weight * parent.second;
     };
-    const auto project_details = [&](double& maximum_correction) {
+    const auto project_details = [&](double& maximum_correction, bool adjust_strain = true) {
         // Strain in a carried strand belongs to its backing field. Moving only
         // the detail vertices is undone by the next attachment projection.
-        for (int pass = 0; !validate_only && pass < 2; ++pass) for (const auto& edge : edges) {
+        for (int pass = 0; adjust_strain && !validate_only && pass < 2; ++pass) for (const auto& edge : edges) {
             if (!detail_offsets.count(edge.first) && !detail_offsets.count(edge.second)) continue;
             const Vec3 delta = sub_vec3(live_point(edge.second), live_point(edge.first));
             const double length = length_vec3(delta);
@@ -3107,11 +3252,18 @@ void mesh_editor_relieve_refit_surface(
                 translation = scale_vec3(translation, 1.0 / group.second.size());
                 for (const auto i : group.second) correction[i] = translation;
             }
+            mesh_editor_cohere_refit_bands(band_nodes,band_axes,layer_rest,band_center,contact_mass,correction,true);
             for (std::size_t i = 0; i < cohorts.size(); ++i)
                 cohorts[i].position = add_vec3(previous[i], scale_vec3(project_contact(i, correction[i]), cohorts[i].mobility));
             // Smoothing a common body lift must not erase layer separation.
             project_layers(maximum_correction, iteration < shape_iterations);
             project_details(maximum_correction);
+            if (!band_nodes.empty()) {
+                for (std::size_t i=0;i<cohorts.size();++i) correction[i] = sub_vec3(cohorts[i].position,previous[i]);
+                mesh_editor_cohere_refit_bands(band_nodes,band_axes,layer_rest,band_center,contact_mass,correction,true);
+                for (std::size_t i=0;i<cohorts.size();++i) cohorts[i].position = add_vec3(previous[i],correction[i]);
+                project_details(maximum_correction,false);
+            }
             bool guarded = false;
             int guarded_part = clearances.begin()->first;
             // Neighboring strain projections can oppose one another. Reduce
@@ -3228,12 +3380,13 @@ void mesh_editor_relieve_refit_surface(
     if (fitting_masks) {
         refresh_detail_frames();
         double unused = 0.0;
-        project_details(unused);
+        project_details(unused,band_nodes.empty());
         if (!band_axes.empty()) {
             refresh_layer_surfaces();
             refresh_band_crossings();
             if (band_crossings_present)
-                throw std::runtime_error("Fit to body: a waist band still crosses its own surface; previous preview retained");
+                throw MeshRefitBandCrossing();
+
         }
     }
     if (fitting_masks) for (const auto& group : rigid_groups) {
@@ -3320,7 +3473,7 @@ void mesh_editor_relieve_refit_surface(
 void mesh_editor_conform_refit(
     const MeshRefitRuntime&, const std::map<int, MeshSessionSubmesh>&,
     const std::map<int, std::vector<Vec3>>&, const std::map<int, std::vector<Vec3>>&,
-    const RefitMaskWeightsNative&, std::map<int, std::vector<Vec3>>&);
+    const RefitMaskWeightsNative&, std::map<int, std::vector<Vec3>>&, bool);
 void mesh_editor_validate_conformed_refit(
     const MeshRefitRuntime&, const std::map<int, MeshSessionSubmesh>&,
     const std::map<int, std::vector<Vec3>>&, const std::map<int, std::vector<Vec3>>&,
@@ -3414,18 +3567,29 @@ void mesh_editor_add_refit_layer(
     mesh_editor_refit_components(*morph.refit, submeshes, driver_visible, residual, base_layer, masks, layer);
     if (tightening) {
         const auto followed = layer;
-        std::map<int, std::vector<Vec3>> centering_axes;
-        mesh_editor_conform_refit(*morph.refit, submeshes, driver_visible, residual, masks, layer);
-        mesh_editor_refit_components(*morph.refit, submeshes, driver_visible, residual, followed, masks, layer, true, &centering_axes);
-        mesh_editor_validate_conformed_refit(*morph.refit, submeshes, residual, followed, layer, "conforming");
-        const auto conformed = layer;
-        mesh_editor_relieve_refit_surface(*morph.refit, submeshes, driver_visible, residual, layer, &masks, false, &followed, &centering_axes);
-        mesh_editor_validate_conformed_refit(*morph.refit, submeshes, residual, conformed, layer, "clearance", &followed);
-        // Resolve the hanging rigid pose against the settled cloth. It must not
-        // perturb a separate waist-band contact solve or inherit the scarf's tilt.
-        const auto settled = layer;
-        mesh_editor_refit_components(*morph.refit, submeshes, driver_visible, residual, settled, masks, layer, true, nullptr, true);
-        mesh_editor_validate_conformed_refit(*morph.refit, submeshes, residual, settled, layer, "rigid pose", &followed);
+        const auto fit = [&](bool coherent_bands) {
+            std::map<int, std::vector<Vec3>> centering_axes;
+            mesh_editor_conform_refit(*morph.refit, submeshes, driver_visible, residual, masks, layer, coherent_bands);
+            mesh_editor_refit_components(*morph.refit, submeshes, driver_visible, residual, followed, masks, layer, true, &centering_axes);
+            mesh_editor_validate_conformed_refit(*morph.refit, submeshes, residual, followed, layer, "conforming");
+            const auto conformed = layer;
+            mesh_editor_relieve_refit_surface(*morph.refit, submeshes, driver_visible, residual, layer, &masks, false, &followed, &centering_axes, coherent_bands);
+            mesh_editor_validate_conformed_refit(*morph.refit, submeshes, residual, conformed, layer, "clearance", &followed);
+            // Resolve the hanging rigid pose against the settled cloth. It must not
+            // perturb a separate waist-band contact solve or inherit the scarf's tilt.
+            const auto settled = layer;
+            mesh_editor_refit_components(*morph.refit, submeshes, driver_visible, residual, settled, masks, layer, true, nullptr, true);
+            mesh_editor_validate_conformed_refit(*morph.refit, submeshes, residual, settled, layer, "rigid pose", &followed);
+        };
+        try {
+            fit(true);
+        } catch (const MeshRefitBandCrossing&) {
+            // Some authored profiles already fit with the ordinary cloth solve.
+            // Preserve that compatibility with one retry from the same neutral
+            // pose. All body, layer, strain and rigidity checks run again.
+            layer = followed;
+            fit(false);
+        }
     }
 }
 

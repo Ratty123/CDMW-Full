@@ -313,6 +313,88 @@ def test_open_rolled_band_edges_do_not_cross_their_own_surface(repeated_draw_fac
     assert max(math.hypot(x, z) for x, _, z in after.vertices) < .09
 
 
+@pytest.mark.parametrize("segments,scale,up", ((16, .1, 0), (24, 1., 1), (32, 10., 2)))
+@pytest.mark.parametrize("packed", (False, True), ids=("separate-parts", "one-part"))
+def test_rolled_band_and_rigid_tails_can_be_refitted_after_bake(segments, scale, up, packed):
+    # Owned geometry exercises different sizes, body axes, tessellations and
+    # Part packing. No PAC asset, material name or character identity is used.
+    from copy import deepcopy
+    from cdmw.domain.mesh.islands import mesh_islands
+
+    body = _arm()
+    body.vertices = [(x * (1. + y), y, z * (1. + .3 * y)) for x, y, z in body.vertices]
+    profile = ((-.02, .130), (-.014, .137), (-.017, .132),
+               (.014, .130), (.017, .136), (.02, .130))
+    vertices = [(r * math.cos(2 * math.pi * s / segments),
+                 .24 + y + .008 * math.sin(6 * math.pi * s / segments),
+                 r * math.sin(2 * math.pi * s / segments))
+                for y, r in profile for s in range(segments)]
+    faces = []
+    for row in range(len(profile) - 1):
+        for s in range(segments):
+            a, b = row * segments + s, row * segments + (s + 1) % segments
+            faces.extend(((a, b, b + segments), (a, b + segments, a + segments)))
+    band = _part("A", vertices, faces, material="same", texture="")
+    _assert_no_surface_crossings(band, band)
+    tails = [_part("B", [(sign * .138, y, z) for y in (.04, .13, .24) for z in (-.008, .008)],
+                   [(a, a+2, a+3) for a in (0, 2)] + [(a, a+3, a+1) for a in (0, 2)],
+                   material="same", texture="") for sign in (-1, 1)]
+    source = _mesh(body, _sleeve(radius=.1),
+                   *([_combined_part("A", (band, *tails))] if packed else [band, *tails]),
+                   _waist_rope(segments=segments))
+    for part in source.submeshes:
+        part.vertices = [tuple(scale * p[(axis + 1 - up) % 3] for axis in range(3)) for p in part.vertices]
+    current = source
+    for _ in range(2):
+        garments = list(range(1, len(current.submeshes)))
+        session = _open(current)
+        try:
+            _command(session, "morph_upload", {"profile": {
+                "profile_id": "mixed", "name": "Mixed", "topology_fingerprint": "a" * 64,
+                "definitions": [], "fields": [],
+            }})
+            _command(session, "morph_set_driver", {"submesh_indices": [0]})
+            _command(session, "morph_bind", {"garment_submesh_indices": garments})
+            settings = [{"submesh_index": i, "mode": "surface", "tightness_percent": 100.,
+                         "clearance_percent": .1} for i in garments]
+            if packed:
+                settings[1]["island_settings"] = [
+                    {"face_indices": list(group), "mode": "rigid_component",
+                     "tightness_percent": 100., "clearance_percent": .1}
+                    for group in mesh_islands(current.submeshes[2])[1:]
+                ]
+            else:
+                for setting in settings[2:4]:
+                    setting["mode"] = "rigid_component"
+            _command(session, "morph_configure_refit", {"garment_submesh_indices": garments,
+                                                       "garment_settings": settings})
+            fitted = _snapshot(current, session)
+        finally:
+            mesh_native_core.close_native_mesh_editor_session(session)
+        assert fitted.submeshes[0].vertices == current.submeshes[0].vertices
+        for old, new in zip(current.submeshes, fitted.submeshes):
+            assert new.faces == old.faces and new.uvs == old.uvs
+            assert new.bone_indices == old.bone_indices and new.bone_weights == old.bone_weights
+        b = fitted.submeshes[2]
+        only_band = _part("band", b.vertices[:len(vertices)], band.faces, material="same", texture="")
+        _assert_no_surface_crossings(only_band, only_band)
+        _assert_no_surface_crossings(fitted.submeshes[0], only_band)
+        _assert_no_surface_crossings(fitted.submeshes[-1], fitted.submeshes[-1])
+        tail_points = ([b.vertices[len(vertices):len(vertices)+6], b.vertices[-6:]] if packed
+                       else [p.vertices for p in fitted.submeshes[3:5]])
+        old_tail_points = ([current.submeshes[2].vertices[len(vertices):len(vertices)+6],
+                            current.submeshes[2].vertices[-6:]] if packed
+                           else [p.vertices for p in current.submeshes[3:5]])
+        for old, new in zip(old_tail_points, tail_points):
+            a, b = np.asarray(old), np.asarray(new)
+            assert np.linalg.norm(a[:, None]-a[None, :], axis=2) == pytest.approx(
+                np.linalg.norm(b[:, None]-b[None, :], axis=2), abs=scale*1e-7)
+        # Reopen a published fit as a new neutral mesh, including float32 output.
+        current = deepcopy(fitted)
+        for part in current.submeshes:
+            part.vertices = [tuple(p) for p in np.asarray(part.vertices, dtype=np.float32).astype(float)]
+
+
 def test_partial_waist_band_protection_keeps_the_pinned_vertex():
     band = _refit_tube_part("waist band", .13, 0., (.22, .24, .26), 32)
     fitted = _fitted_mesh(_mesh(_arm(), band), (0,), (1,), vertex_masks=[{

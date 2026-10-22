@@ -1998,14 +1998,19 @@ body-follow intensity, Tightness and clearance. **Changes not applied** marks pe
 settings. The single Apply button follows **Editing**: **Apply to Selected Garments**
 or **Apply to All Bound Garments**.
 Choose **Selected mesh islands** in **Editing** to fit whole selected islands.
-**Choose mesh islands** opens the Parts panel on its islands tab. Each island
-inherits its Part until edited; mode, Skip, body following, Tightness and clearance
+**Choose mesh islands** expands an embedded list grouped by garment Part. Each
+row shows its effective Fit-as type and **Inherited** or **Custom** status. Click
+to select an island, Ctrl-click for several, or use **Select islands** and
+**Clear selection**. Each island inherits its Part until edited; mode, Skip, body following, Tightness and clearance
 can then be overridden independently. **Apply to Selected Islands** changes only
 the fields you edit. **Use Part settings** removes those overrides. Part settings
 remain the defaults for the other islands, and island overrides survive Part edits,
 Undo/Redo, Bake, saved fitting setups and draft reopening. Output Part identities,
 vertices, faces, UVs and skin weights are retained. Independent rigid island
 overrides do not automatically regroup with nearby ornaments.
+An enabled Custom island still fits when its Part is set to Skip; inherited
+islands follow that Skip. Use **Use Part settings** on the Custom island to make
+it follow the Part again.
 
 Only fields you change are applied. A **Mixed** marker identifies settings that differ
 across the chosen garments. Mixed numeric fields initially display the first Part's
@@ -2064,15 +2069,17 @@ For separate Flexible layers, Tightness also takes up the loose gap between an
 outer belt and its wrap. It retains a clearance gap and their layer order instead
 of squeezing both onto the skin. Authored crossing folds retain their construction;
 coarse faces cutting through an otherwise outer layer are checked as contacts.
-Waist bands retain their height contour as they tighten. Proven solid walls keep
-their depth; open or double-sided bands remain flexible. Nonuniform influence
-masks retain their per-vertex control.
+Waist bands retain their height contour and taper as they tighten. The sides of
+a rolled profile move together, including on open or double-sided bands, so an
+inner edge does not push through the outer face. Proven solid walls keep their
+depth. Nonuniform influence masks retain their per-vertex control.
 Rolled belt edges are checked for new self-crossings, including open or repeated
 skins. An unresolved crossing retains the previous preview.
 Small inset Flexible details, such as raised belt cords, follow their band
 without being flattened into it. Compact touching knot pieces keep their shape
 and attachment; long hanging panels retain their own fit. Details turn with the
-backing as it bends.
+backing as it bends. Surrounding cords share a continuous backing fit across
+their thickness, including when refitting an exported or baked mesh.
 Rigid means shape-preserving, not fixed in place. Fitting retains the authored
 spacing between nearby cloth and hard pieces before resolving body contact.
 Clearance then moves each connected hard piece as a whole, so cloth fitting to a
@@ -2083,8 +2090,8 @@ their dimensions, but may refuse a fit that cannot satisfy body or layer spacing
 Corrections that detach or deform a rigid assembly are refused with the previous
 preview retained.
 Use **Skip** for accessories that should stay unchanged while the cloth fits, then
-position them manually. One Part can contain both flexible and hard geometry; its
-mode applies to the whole Part.
+position them manually. One Part can contain both flexible and hard geometry;
+use its mesh-island controls to give those pieces different fit types.
 
 The fitter uses local body-surface correspondences and a seam-connected displacement
 solve, then checks contacts against the complete body, including when an allowed

@@ -70,7 +70,8 @@ mesh_editor_smooth_refit_contact(const std::vector<Vec3> &target, const std::vec
 void mesh_editor_conform_refit(const MeshRefitRuntime &refit, const std::map<int, MeshSessionSubmesh> &submeshes,
                                const std::map<int, std::vector<Vec3>> &driver_visible,
                                const std::map<int, std::vector<Vec3>> &residual,
-                               const RefitMaskWeightsNative &masks, std::map<int, std::vector<Vec3>> &layer) {
+                               const RefitMaskWeightsNative &masks, std::map<int, std::vector<Vec3>> &layer,
+                               bool coherent_bands) {
     struct Node {
         Vec3 point{}, normal{}, target{}, key{}, rest{};
         double area = 0.0, mobility = 1.0, tightness = 1.0;
@@ -302,12 +303,21 @@ void mesh_editor_conform_refit(const MeshRefitRuntime &refit, const std::map<int
     std::map<std::size_t, std::vector<std::size_t>> solid_band_nodes;
     for (const auto& group : band_nodes) if (solid_band_axes.count(group.first)) solid_band_nodes.emplace(group);
     const auto level_bands = [&](std::vector<Vec3>& field) {
+        if (band_nodes.empty()) return;
         for (const auto& group : band_nodes) {
             const Vec3 axis = band_axes.at(group.first);
             double height = 0.0, area = 0.0;
             for (const auto i : group.second) { height += dot_vec3(field[i], axis) * nodes[i].area; area += nodes[i].area; }
             if (area > 0.0) for (const auto i : group.second)
                 field[i] = add_vec3(field[i], scale_vec3(axis, height / area - dot_vec3(field[i], axis)));
+        }
+        if (coherent_bands) {
+            std::vector<Vec3> positions;
+            std::vector<double> mass;
+            for (const auto& node:nodes) { positions.push_back(node.point); mass.push_back(node.area); }
+            const auto& bounds = body.nodes[body.root];
+            mesh_editor_cohere_refit_bands(band_nodes,band_axes,positions,
+                scale_vec3(add_vec3(bounds.minimum,bounds.maximum),0.5),mass,field);
         }
     };
     std::map<int, std::vector<Vec3>> garment_positions;

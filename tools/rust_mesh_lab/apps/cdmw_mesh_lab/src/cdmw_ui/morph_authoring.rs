@@ -222,6 +222,67 @@ impl LabApplication {
         }
     }
 
+    pub(super) fn draw_cdmw_refit_island_parts(
+        &mut self, ui: &mut egui::Ui, actions: &mut Vec<UiAction>, state: &Value,
+    ) {
+        let garments = value_u32_list(&state["refit"], "garment_submesh_indices");
+        let selected = self.selected_refit_islands(&garments);
+        let visible = self.cdmw_visible_submeshes();
+        let rows = self.cdmw_state["mesh_islands"]["fit_parts"].as_array().cloned().unwrap_or_default();
+        let faces_of = |island: &Value| value_u32_list(island, "faces");
+        ui.horizontal_wrapped(|ui| {
+            if ui.button(crate::localization::tr("Select islands")).clicked() {
+                let islands = rows.iter().filter_map(|row| Some((row["index"].as_u64()? as u32, row["islands"].as_array()?)))
+                    .filter(|(part, _)| garments.contains(part))
+                    .flat_map(|(part, groups)| groups.iter().map(move |island| (part, faces_of(island))))
+                    .collect();
+                actions.push(UiAction::SelectIslands(islands));
+            }
+            if ui.button(crate::localization::tr("Clear selection")).clicked() {
+                actions.push(UiAction::SelectIslands(Vec::new()));
+            }
+        });
+        for row in rows {
+            let Some(part) = row["index"].as_u64().map(|index| index as u32) else { continue; };
+            if !garments.contains(&part) { continue; }
+            let parent = state["refit"]["garment_settings"].as_array().into_iter().flatten()
+                .find(|setting| setting["submesh_index"].as_u64() == Some(u64::from(part)));
+            ui.push_id(("fit-islands", part), |ui| {
+                ui.strong(self.cdmw_morph_part_names(&[part]));
+                for (index, island) in row["islands"].as_array().into_iter().flatten().enumerate() {
+                    let faces = faces_of(island);
+                    let override_setting = parent.and_then(|parent| parent["island_settings"].as_array())
+                        .and_then(|settings| settings.iter().find(|setting| setting["face_indices"] == json!(faces)));
+                    let setting = override_setting.or(parent);
+                    let label = if setting.and_then(|s| s["enabled"].as_bool()) == Some(false) { "Skip" }
+                        else { match setting.and_then(|s| s["mode"].as_str()).unwrap_or("surface") {
+                            "rigid_component" => "Rigid component", "rigid" => "Offset follow", _ => "Flexible",
+                        }};
+                    ui.push_id(index, |ui| ui.horizontal(|ui| {
+                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                            ui.weak(crate::localization::tr(if override_setting.is_some() { "Custom" } else { "Inherited" }));
+                            ui.weak(crate::localization::tr(label));
+                            let title = crate::localization::tr(format!("Island {} · {} faces", index+1, faces.len()));
+                            let active = selected.contains(&(part, faces.clone()));
+                            if ui.add_enabled(visible.as_ref().is_none_or(|visible| visible.contains(&part)),
+                                Button::selectable(active, &title).truncate())
+                                .on_hover_text(&title)
+                                .on_hover_text(crate::localization::tr("Ctrl-click to select several islands. Inherited settings follow the Part."))
+                                .clicked() {
+                                let target = (part, faces);
+                                let mut next = if ui.input(|input| input.modifiers.command || input.modifiers.ctrl) {
+                                    selected.clone()
+                                } else { Vec::new() };
+                                if active { next.retain(|candidate| candidate != &target); } else { next.push(target); }
+                                actions.push(UiAction::SelectIslands(next));
+                            }
+                        });
+                    }));
+                }
+            });
+        }
+    }
+
     pub(super) fn draw_cdmw_refit_body_region(
         &mut self, ui: &mut egui::Ui, actions: &mut Vec<UiAction>, state: &Value, edit_targets: &[u32],
     ) {

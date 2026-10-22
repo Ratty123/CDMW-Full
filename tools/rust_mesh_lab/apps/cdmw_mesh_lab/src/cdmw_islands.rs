@@ -18,7 +18,7 @@ impl LabApplication {
                 Provenance::Source { submesh, element } => Some((submesh, element)),
                 _ => None,
             })).collect();
-        self.cdmw_state["mesh_islands"]["parts"].as_array().into_iter().flatten()
+        self.cdmw_state["mesh_islands"]["fit_parts"].as_array().into_iter().flatten()
             .filter_map(|part| Some((part["index"].as_u64()? as u32, part["islands"].as_array()?)))
             .filter(|(part, _)| bound.contains(part))
             .flat_map(|(part, islands)| {
@@ -114,7 +114,11 @@ impl LabApplication {
     }
 
     pub(super) fn select_island(&mut self, part: u32, faces: Vec<u32>) {
-        let handles = self.island_handles(part, &faces);
+        self.select_islands(vec![(part, faces)]);
+    }
+
+    pub(super) fn select_islands(&mut self, islands: Vec<(u32, Vec<u32>)>) {
+        let handles = islands.iter().flat_map(|(part, faces)| self.island_handles(*part, faces)).collect::<HashSet<_>>();
         let visible = self.cdmw_visible_submeshes();
         if let Some(mesh) = &mut self.mesh {
             let allowed = visible

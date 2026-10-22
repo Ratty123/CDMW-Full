@@ -27,8 +27,10 @@ def island_ui_state(authoring, replacement):
     cache = authoring.mesh_island_cache
     morph = authoring.shadow_service._morph_sessions.get(session.session_id)
     fit_topology = getattr(morph, 'topology_mesh', None)
+    fit_state = getattr(morph, 'state', None)
+    fitting = set(fit_state.refit.garment_submesh_indices) if fit_state else set()
     authoring.state_cache.observe(session)
-    rows = []
+    rows, fit_rows = [], []
     reason = replacement['reason']
     if session.mesh_format != 'pac':
         reason = 'Include requires an original PAC; island selection and viewport controls remain available.'
@@ -40,7 +42,7 @@ def island_ui_state(authoring, replacement):
         reason = 'Include requires Exact PAC output. Free Edit exports OBJ; select an island and use Delete to edit its geometry.'
     authoritative = authoring.authoritative_service._session(authoring.authoritative_session_id)
     source_parts = authoritative.base_mesh.submeshes if authoritative.base_mesh_is_original_parse else None
-    for index in selected:
+    for index in sorted(set(selected).union(fitting)):
         part = mesh.submeshes[index]
         # Islands join coincident positions as well as indexed edges. A geometry
         # revision therefore invalidates seam connectivity even without topology
@@ -62,6 +64,11 @@ def island_ui_state(authoring, replacement):
         else:
             groups = cached[1]
             source_topology = cached[2]
+        if index in fitting:
+            fit_rows.append({'index': index, 'name': part.name,
+                             'islands': [{'faces': list(faces)} for faces in groups]})
+        if index not in selected:
+            continue
         binding = bindings.get(index)
         excluded = set(binding.excluded_island_faces) if binding else set()
         part_reason = reason
@@ -80,7 +87,7 @@ def island_ui_state(authoring, replacement):
     # One current entry per part; no unbounded retention of old mesh versions.
     for index in set(cache).difference(range(len(mesh.submeshes))):
         del cache[index]
-    return {'parts': rows, 'join_seams': True}
+    return {'parts': rows, 'fit_parts': fit_rows, 'join_seams': True}
 
 
 def set_island_inclusion(authoring, snapshot, args, *, entry=None, dependencies=(), stop_event=None):

@@ -335,6 +335,31 @@ fitter, so correction capture can normalize partial influence correctly.
 
 #### Rigid hanging poses and island overrides
 
+The fitting solve uses a coherent profile field for eligible wrapping bands.
+If it cannot resolve a new band self-crossing, one bounded retry starts from the
+same followed neutral pose and uses the existing ordinary cloth solve. This
+retains compatible authored profiles that the new field cannot fit. Other failure
+types refuse directly.
+The retry re-runs the complete conforming, rigid-pose and clearance validation;
+it never publishes the rejected first candidate or relaxes a collision check.
+
+Short wrapping surfaces are identified from their dimensions and the selected
+body's axis, independently of PAC names, material names or character identity.
+With uniform mask influence and Tightness, their fitting field shares radial
+movement across the profile while retaining a linear height gradient for taper.
+Clearance carries the profile's largest radial correction across its skins.
+Wrapped inset cords interpolate backing weights through overlapping angular
+samples, avoiding independent nearest-face motion on their near and far sides.
+Other surfaces and nonuniform masks retain their existing fitting paths.
+
+These constraints run before the existing triangle, body, layer and self-crossing
+checks. Refused fits still publish neither geometry nor settings. With the
+coherent field, final detail publication adds no unguarded strain correction to
+a settled band.
+Owned tests cover different scales, body axes, densities and Part/island packing,
+including a second fit after float32 publication. This is fitting/export evidence,
+not universal mesh support or in-game validation.
+
 After the shared body and garment contact solve settles, sparse body-centred rigid
 assemblies without a balanced Flexible attachment can adjust depth and pitch as one
 object. The bounded pitch search minimises chest stand-off while clearing the body

@@ -3624,15 +3624,9 @@ impl LabApplication {
                 }
             }
             if scope == 2 {
-                if ui.button(crate::localization::tr("Choose mesh islands")).clicked() {
-                    ui.data_mut(|data| {
-                        data.insert_temp(egui::Id::new("cdmw_parts_panel_open"), true);
-                        data.insert_temp(egui::Id::new("cdmw_parts_panel_islands"), true);
-                    });
-                }
-                if islands.is_empty() {
-                    ui.weak(crate::localization::tr("Select a whole mesh island in Parts."));
-                }
+                cdmw_section(ui, "refit-mesh-islands", "Choose mesh islands", review_parts.then_some(true), |ui| {
+                    self.draw_cdmw_refit_island_parts(ui, actions, state);
+                });
             } else {
                 cdmw_section(ui, "refit-garment-parts", "Choose garments", review_parts.then_some(true), |ui| {
                     self.draw_cdmw_refit_garment_parts(ui, actions, state);

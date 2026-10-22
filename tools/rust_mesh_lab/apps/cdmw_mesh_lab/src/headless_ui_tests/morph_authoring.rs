@@ -236,7 +236,7 @@ fn island_fit_controls_inherit_retarget_and_dispatch_only_changed_fields() -> Te
         }
     }).collect::<Vec<_>>();
     assert!(!faces.is_empty());
-    ui.application.cdmw_state["mesh_islands"] = json!({"parts": [{"index": 1, "available": true,
+    ui.application.cdmw_state["mesh_islands"] = json!({"fit_parts": [{"index": 1,
         "name": "Sleeve", "islands": [{"faces": faces}]}]});
     ui.application.select_island(1, faces.clone());
     ui.click("Fit")?;
@@ -257,7 +257,54 @@ fn island_fit_controls_inherit_retarget_and_dispatch_only_changed_fields() -> Te
     assert!(!ui.application.cdmw_refit_settings_dirty.is_dirty());
     assert!(ui.actions_from_click("Apply to Selected Islands")?.is_empty());
     ui.click("Choose mesh islands")?;
-    assert!(ui.application.egui_context.data_mut(|data| data.get_temp::<bool>(egui::Id::new("cdmw_parts_panel_islands"))).unwrap_or(false));
+    ui.reveal("Inherited")?;
+    let title = format!("Island 1 · {} faces", faces.len());
+    ui.click(&title)?;
+    assert_eq!(ui.application.selected_refit_islands(&[1, 2]), vec![(1, faces.clone())]);
+    ui.application.cdmw_state["morph_refit"]["refit"]["garment_settings"][0]["island_settings"] =
+        json!([{"face_indices": faces, "enabled": true, "mode": "rigid_component"}]);
+    ui.application.cdmw_state["morph_refit"]["refit"]["garment_settings"][0]["enabled"] = json!(false);
+    ui.frame(Vec::new());
+    ui.reveal("Custom")?;
+    ui.reveal("Rigid component")?;
+    assert_eq!(command_arguments(&ui.actions_from_click("Use Part settings")?, "refit_island_configure"),
+        json!({"islands": [{"submesh_index": 1, "face_indices": faces}], "inherit": true}));
+    Ok(())
+}
+
+#[test]
+fn island_list_bulk_selection_and_ctrl_click_keep_whole_island_targets() -> TestResult {
+    let mut ui = authoring_ui()?;
+    let mut groups = Vec::new();
+    for part in [1, 2] {
+        let faces = ui.application.mesh.as_ref().ok_or("mesh")?.faces().filter_map(|(_, face)| {
+            match face.provenance {
+                Provenance::Source { submesh, element } if submesh == part => Some(element),
+                _ => None,
+            }
+        }).collect::<Vec<_>>();
+        assert!(!faces.is_empty());
+        groups.push((part, faces));
+    }
+    ui.application.cdmw_state["mesh_islands"] = json!({"fit_parts": groups.iter().map(|(part, faces)|
+        json!({"index": part, "islands": [{"faces": faces}]})).collect::<Vec<_>>()});
+    ui.click("Fit")?;
+    ui.choose("Editing", "All bound garments · 2", "Selected mesh islands")?;
+    ui.click("Choose mesh islands")?;
+    ui.click("Select islands")?;
+    assert_eq!(ui.application.selected_refit_islands(&[1, 2]), groups);
+    let header = ui.reveal("3 · Plate")?;
+    let position = ui.label_rect_where(&format!("Island 1 · {} faces", groups[1].1.len()),
+        |rect| rect.top() > header.bottom()).ok_or("Plate island row")?.center();
+    let modifiers = egui::Modifiers { ctrl: true, command: true, ..egui::Modifiers::NONE };
+    ui.frame(vec![Event::PointerMoved(position), Event::ModifiersChanged(modifiers)]);
+    for pressed in [true, false] {
+        ui.frame(vec![Event::PointerButton { pos: position, button: PointerButton::Primary, pressed, modifiers }]);
+    }
+    ui.frame(vec![Event::ModifiersChanged(egui::Modifiers::NONE)]);
+    assert_eq!(ui.application.selected_refit_islands(&[1, 2]), vec![groups[0].clone()]);
+    ui.click("Clear selection")?;
+    assert!(ui.application.selected_refit_islands(&[1, 2]).is_empty());
     Ok(())
 }
 

@@ -149,6 +149,14 @@ class RustMeshDerivedStateTests(unittest.TestCase):
             authoring.shadow_service._morph_sessions["owned"] = SimpleNamespace(topology_mesh=neutral)
             fitting = mesh_island_authoring.island_ui_state(authoring, replacement)
             self.assertEqual(1, len(fitting["parts"][0]["islands"]))
+            authoring.shadow_service._morph_sessions["owned"].state = SimpleNamespace(
+                refit=SimpleNamespace(garment_submesh_indices=(0,)))
+            session.selection = MeshEditSelection()
+            authoring.mesh_island_focus = ()
+            fitting = mesh_island_authoring.island_ui_state(authoring, replacement)
+            self.assertEqual([], fitting["parts"])
+            self.assertEqual([{'index': 0, 'name': 'Seam', 'islands': [{'faces': [0, 1]}]}], fitting["fit_parts"])
+            session.selection = MeshEditSelection(source_indices=(0,))
             authoring.shadow_service._morph_sessions.clear()
             self.assertEqual(2, len(mesh_island_authoring.island_ui_state(authoring, replacement)["parts"][0]["islands"]))
 

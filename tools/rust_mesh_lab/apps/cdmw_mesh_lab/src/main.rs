@@ -1511,6 +1511,7 @@ enum UiAction {
         params: Value,
     },
     SetPartSelection(Vec<u32>),
+    SelectIslands(Vec<(u32, Vec<u32>)>),
     SelectIsland {
         part: u32,
         faces: Vec<u32>,
@@ -1562,7 +1563,7 @@ impl UiAction {
             | Self::FrameAll | Self::FrameSelected | Self::FrameRigBone | Self::FrameRigInfluence
             | Self::StandardView(_) | Self::OrbitMode | Self::OrbitYaw(_)
             | Self::Undo | Self::Redo | Self::CdmwHistoryCursor { .. }
-            | Self::SetPartSelection(_) | Self::SelectIsland { .. }
+            | Self::SetPartSelection(_) | Self::SelectIsland { .. } | Self::SelectIslands(_)
             | Self::SetIslandVisibility { .. } | Self::IsolateIsland { .. }
             | Self::ShowAllIslands | Self::SetPartVisibility { .. } => true,
             Self::CdmwCommand { command, .. } => matches!(*command,
@@ -4926,6 +4927,7 @@ impl LabApplication {
                 } => self.submit_cdmw_topology(action, label, params),
                 UiAction::Hair(action) => self.run_hair_action(action),
                 UiAction::SelectIsland { part, faces } => self.select_island(part, faces),
+                UiAction::SelectIslands(islands) => self.select_islands(islands),
                 UiAction::SetIslandVisibility { part, faces, visible } => {
                     self.set_island_visibility(part, faces, visible);
                 }
