@@ -55,6 +55,40 @@ int main() {
             rejected = true;
         }
         if (!rejected) throw std::runtime_error("an unfinished contact solve was accepted");
+
+        // A long seam has both nonuniform motion and very uneven vertex areas.
+        // Its tridiagonal operator has an exact sparse factor, so the existing
+        // residual target must remain reachable with the existing attempt limit.
+        constexpr std::size_t seam_count = 4096;
+        target.resize(seam_count);
+        mass.resize(seam_count);
+        edges.clear();
+        for (std::size_t i = 0; i < seam_count; ++i) {
+            target[i] = {.03 * std::sin(i * .017), -.004, .01 * std::cos(i * .023)};
+            mass[i] = 1.0e-12 * std::pow(10.0, static_cast<double>(i % 5));
+            if (i) edges[{i - 1, i}] = 1.0 + i % 7;
+        }
+        constexpr double stiffness = .005;
+        const auto seam = mesh_editor_smooth_refit_contact(target, mass, edges, stiffness, 512);
+        std::vector<Vec3> error(seam_count);
+        double rhs_norm = 0.0, error_norm = 0.0;
+        for (std::size_t i = 0; i < seam_count; ++i) for (int axis = 0; axis < 3; ++axis) {
+            error[i][axis] = mass[i] * (seam[i][axis] - target[i][axis]);
+            rhs_norm += std::pow(mass[i] * target[i][axis], 2);
+        }
+        for (const auto& edge : edges) for (int axis = 0; axis < 3; ++axis) {
+            const auto a = edge.first.first, b = edge.first.second;
+            const double difference = stiffness * edge.second * (seam[a][axis] - seam[b][axis]);
+            error[a][axis] += difference;
+            error[b][axis] -= difference;
+        }
+        for (std::size_t i = 0; i < seam_count; ++i) {
+            if (std::abs(seam[i][1] + .004) > 1.0e-8)
+                throw std::runtime_error("stiff seam changed uniform motion");
+            for (const auto axis : error[i]) error_norm += axis * axis;
+        }
+        if (error_norm > rhs_norm * 1.0e-6)
+            throw std::runtime_error("stiff seam did not satisfy the unchanged residual target");
         std::cout << "Refit contact solver checks passed.\n";
         return 0;
     } catch (const std::exception& error) {

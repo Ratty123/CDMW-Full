@@ -425,6 +425,44 @@ def test_overlapping_folded_layers_share_fit_without_inflating_or_spiking(segmen
         assert max(folded_radii) - min(folded_radii) > .018
 
 
+@pytest.mark.parametrize("segments", (16, 32))
+@pytest.mark.parametrize("rotated", (False, True))
+def test_thin_rotating_pleats_clear_a_tapered_body_without_collapsing(segments, rotated):
+    body, garment = _arm(.055), _sleeve(segments=segments, radius=.13)
+    body.vertices = [(x * (.7 + 1.3 * y), y, z * (1.25 - .8 * y))
+                     for x, y, z in body.vertices]
+    angles = [2 * math.pi * i / segments for i in range(segments)]
+    angles[1] = .002  # A thin retained face beside a much wider cloth panel.
+    garment.vertices = []
+    for ring, y in enumerate((.1, .15, .2, .25, .3, .35, .4)):
+        for angle in angles:
+            radius = .13 * (1 + .25 * math.sin(4 * angle + 18 * y))
+            height = y + .08 * math.sin(3 * angle + ring * 1.7) * (1 if ring not in (0, 6) else .2)
+            garment.vertices.append((radius * math.cos(angle), height, radius * math.sin(angle)))
+    if rotated:
+        for part in (body, garment):
+            part.vertices = [(y, z, x) for x, y, z in part.vertices]
+    mesh = _mesh(body, garment)
+    with _bound(mesh) as session:
+        _fit(session)
+        fitted = _snapshot(mesh, session)
+    result = fitted.submeshes[1]
+    assert fitted.submeshes[0].vertices == body.vertices
+    for name in ("faces", "uvs", "bone_indices", "bone_weights", "name", "material"):
+        assert getattr(result, name) == getattr(garment, name)
+    _assert_no_surface_crossings(body, result)
+    before, after = np.asarray(garment.vertices), np.asarray(result.vertices)
+    if rotated:
+        before, after = before[:, [2, 0, 1]], after[:, [2, 0, 1]]
+    assert np.hypot(after[:, 0], after[:, 2]).mean() < np.hypot(before[:, 0], before[:, 2]).mean() * .8
+    faces = np.asarray(result.faces)
+    old_area = np.linalg.norm(np.cross(before[faces[:, 1]] - before[faces[:, 0]],
+                                       before[faces[:, 2]] - before[faces[:, 0]]), axis=1)
+    new_area = np.linalg.norm(np.cross(after[faces[:, 1]] - after[faces[:, 0]],
+                                       after[faces[:, 2]] - after[faces[:, 0]]), axis=1)
+    assert np.all(new_area[old_area > 1e-14] > old_area[old_area > 1e-14] * 1e-6)
+
+
 def test_repeat_percentage_reset_bake_and_history_are_neutral_based():
     mesh = _mesh(_arm(), _sleeve())
     with _bound(mesh) as session:

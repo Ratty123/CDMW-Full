@@ -7,6 +7,13 @@ mesh_editor_smooth_refit_contact(const std::vector<Vec3> &target, const std::vec
     const std::size_t count = target.size();
     std::vector<double> diagonal(count);
     std::vector<Vec3> result(target), residual(count), direction(count), z(count);
+    // The graph is fixed throughout PCG. Traverse a contiguous copy rather
+    // than chasing the map's tree nodes on every matrix multiplication.
+    struct Edge { std::size_t a, b; double weight; };
+    std::vector<Edge> graph;
+    graph.reserve(edges.size());
+    for (const auto& edge : edges)
+        graph.push_back({edge.first.first, edge.first.second, lambda * edge.second});
     const auto inner = [](const std::vector<Vec3> &a, const std::vector<Vec3> &b) {
         double value = 0.0;
         for (std::size_t i = 0; i < a.size(); ++i)
@@ -22,48 +29,110 @@ mesh_editor_smooth_refit_contact(const std::vector<Vec3> &target, const std::vec
     // Start at the requested displacement. Uniform motion is already an exact
     // solution, including on tiny retained draws after exclusions. Starting at
     // zero makes the solver reconstruct that motion through very stiff edges.
-    for (const auto &edge : edges) {
-        diagonal[edge.first.first] += lambda * edge.second;
-        diagonal[edge.first.second] += lambda * edge.second;
-        const Vec3 difference = scale_vec3(sub_vec3(target[edge.first.first], target[edge.first.second]),
-                                          lambda * edge.second);
-        residual[edge.first.first] = sub_vec3(residual[edge.first.first], difference);
-        residual[edge.first.second] = add_vec3(residual[edge.first.second], difference);
+    for (const auto &edge : graph) {
+        diagonal[edge.a] += edge.weight;
+        diagonal[edge.b] += edge.weight;
+        const Vec3 difference = scale_vec3(sub_vec3(target[edge.a], target[edge.b]), edge.weight);
+        residual[edge.a] = sub_vec3(residual[edge.a], difference);
+        residual[edge.b] = add_vec3(residual[edge.b], difference);
     }
     if (norm <= 1.0e-30)
         return std::vector<Vec3>(count);
     if (inner(residual, residual) <= norm * 1.0e-6)
         return result;
-    for (std::size_t i = 0; i < count; ++i)
-        direction[i] = z[i] = scale_vec3(residual[i], 1.0 / diagonal[i]);
-    double rz = inner(residual, z);
-    for (int iteration = 0; iteration < maximum_iterations; ++iteration) {
-        std::vector<Vec3> product(count);
-        for (std::size_t i = 0; i < count; ++i)
-            product[i] = scale_vec3(direction[i], std::max(mass[i], 1.0e-16));
-        for (const auto &edge : edges) {
-            const auto a = edge.first.first, b = edge.first.second;
-            const Vec3 difference = scale_vec3(sub_vec3(direction[a], direction[b]), lambda * edge.second);
-            product[a] = add_vec3(product[a], difference);
-            product[b] = sub_vec3(product[b], difference);
+    const auto initial_residual = residual;
+    const auto solve = [&](const auto& apply_preconditioner) {
+        direction = z = apply_preconditioner(residual);
+        double rz = inner(residual, z);
+        for (int iteration = 0; iteration < maximum_iterations; ++iteration) {
+            std::vector<Vec3> product(count);
+            for (std::size_t i = 0; i < count; ++i)
+                product[i] = scale_vec3(direction[i], std::max(mass[i], 1.0e-16));
+            for (const auto &edge : graph) {
+                const auto a = edge.a, b = edge.b;
+                const Vec3 difference = scale_vec3(sub_vec3(direction[a], direction[b]), edge.weight);
+                product[a] = add_vec3(product[a], difference);
+                product[b] = sub_vec3(product[b], difference);
+            }
+            const double denominator = inner(direction, product);
+            if (!std::isfinite(denominator) || denominator <= 0.0) break;
+            const double alpha = rz / denominator;
+            for (std::size_t i = 0; i < count; ++i) {
+                result[i] = add_vec3(result[i], scale_vec3(direction[i], alpha));
+                residual[i] = sub_vec3(residual[i], scale_vec3(product[i], alpha));
+            }
+            if (inner(residual, residual) <= norm * 1.0e-6) return true;
+            z = apply_preconditioner(residual);
+            const double next = inner(residual, z), beta = next / rz;
+            for (std::size_t i = 0; i < count; ++i)
+                direction[i] = add_vec3(z[i], scale_vec3(direction[i], beta));
+            rz = next;
         }
-        const double denominator = inner(direction, product);
-        if (!std::isfinite(denominator) || denominator <= 0.0)
-            break;
-        const double alpha = rz / denominator;
-        for (std::size_t i = 0; i < count; ++i) {
-            result[i] = add_vec3(result[i], scale_vec3(direction[i], alpha));
-            residual[i] = sub_vec3(residual[i], scale_vec3(product[i], alpha));
-        }
-        if (inner(residual, residual) <= norm * 1.0e-6)
-            return result;
-        for (std::size_t i = 0; i < count; ++i)
-            z[i] = scale_vec3(residual[i], 1.0 / diagonal[i]);
-        const double next = inner(residual, z), beta = next / rz;
-        for (std::size_t i = 0; i < count; ++i)
-            direction[i] = add_vec3(z[i], scale_vec3(direction[i], beta));
-        rz = next;
+        return false;
+    };
+    const auto jacobi = [&](const std::vector<Vec3>& rhs) {
+        auto value = rhs;
+        for (std::size_t i = 0; i < count; ++i) value[i] = scale_vec3(value[i], 1.0 / diagonal[i]);
+        return value;
+    };
+    // Preserve established converged results exactly. Only an unfinished solve
+    // gets one sparse-factor retry from the original requested displacement.
+    if (solve(jacobi)) return result;
+    if (maximum_iterations <= 0)
+        throw std::runtime_error("clearance displacement solve did not converge; previous preview retained");
+    result = target;
+    residual = initial_residual;
+    // IC(0) retains the sparse cloth graph in the preconditioner. Diagonal
+    // scaling alone cannot resolve long stiff seams and tiny adjacent faces
+    // within the same bounded PCG budget. The operator and stopping residual
+    // remain unchanged; stabilizing a factor pivot changes only this aid.
+    std::vector<std::vector<std::pair<std::size_t, double>>> lower(count);
+    for (const auto& edge : graph) {
+        const auto ends = std::minmax(edge.a, edge.b);
+        if (ends.first != ends.second && edge.weight != 0.0)
+            lower[ends.second].push_back({ends.first, -edge.weight});
     }
+    std::vector<double> pivots(diagonal);
+    for (std::size_t i = 0; i < count; ++i) {
+        auto& row = lower[i];
+        std::sort(row.begin(), row.end());
+        std::size_t unique = 0;
+        for (const auto& entry : row) {
+            if (unique && row[unique - 1].first == entry.first) row[unique - 1].second += entry.second;
+            else row[unique++] = entry;
+        }
+        row.resize(unique);
+        for (std::size_t slot = 0; slot < row.size(); ++slot) {
+            const auto j = row[slot].first;
+            const auto& other = lower[j];
+            double value = row[slot].second;
+            std::size_t a = 0, b = 0;
+            while (a < slot && b < other.size()) {
+                if (row[a].first < other[b].first) ++a;
+                else if (row[a].first > other[b].first) ++b;
+                else {
+                    value -= row[a].second * pivots[row[a].first] * other[b].second;
+                    ++a;
+                    ++b;
+                }
+            }
+            row[slot].second = value / pivots[j];
+            pivots[i] -= row[slot].second * row[slot].second * pivots[j];
+        }
+        pivots[i] = std::max(pivots[i], diagonal[i] * 1.0e-12);
+    }
+    const auto precondition = [&](const std::vector<Vec3>& rhs) {
+        auto value = rhs;
+        for (std::size_t i = 0; i < count; ++i)
+            for (const auto& entry : lower[i])
+                value[i] = sub_vec3(value[i], scale_vec3(value[entry.first], entry.second));
+        for (std::size_t i = 0; i < count; ++i) value[i] = scale_vec3(value[i], 1.0 / pivots[i]);
+        for (std::size_t i = count; i-- > 0;)
+            for (const auto& entry : lower[i])
+                value[entry.first] = sub_vec3(value[entry.first], scale_vec3(value[i], entry.second));
+        return value;
+    };
+    if (solve(precondition)) return result;
     throw std::runtime_error("clearance displacement solve did not converge; previous preview retained");
 }
 
@@ -799,24 +868,28 @@ void mesh_editor_conform_refit(const MeshRefitRuntime &refit, const std::map<int
     if (!converged)
         fail(nodes.front().vertices.front().first, "fitting did not converge; previous preview retained");
     level_bands(displacement);
-    // Limit local strain, not the common translation. Stopping every component
-    // of an unsafe displacement pins small folds and creates flared hem corners;
-    // carrying the triangle together lets its detail follow the fitted silhouette.
+    // Limit local strain in the moving cloth frame. Correct only violated
+    // orientation and edge constraints, leaving valid translation and rotation
+    // alone instead of resetting a whole face against its neighbors.
     const auto candidate = [&](std::size_t i, double scale) {
         return add_vec3(nodes[i].point, scale_vec3(displacement[i], scale));
     };
-    for (int pass = 0; pass < 64; ++pass) {
+    std::map<int, std::vector<std::set<int>>> local_neighbors;
+    for (const auto& item : garments) {
+        auto& neighbors = local_neighbors[item.first];
+        neighbors.resize(item.second.vertices.size());
+        for (const auto& face : item.second.faces) for (const int a : face) for (const int b : face)
+            neighbors[a].insert(b);
+    }
+    for (int pass = 0; pass < 128; ++pass) {
         bool changed = false;
         for (const auto &item : garments) {
             const auto& map = indices.at(item.first);
-            std::vector<std::set<int>> local_neighbors(item.second.vertices.size());
-            for (const auto& face : item.second.faces) for (const int a : face) for (const int b : face)
-                local_neighbors[a].insert(b);
             std::vector<std::array<double, 4>> rotations(map.size());
             for (std::size_t vertex = 0; vertex < map.size(); ++vertex) {
                 std::vector<Vec3> source, target;
                 Vec3 a{}, b{};
-                for (const auto other : local_neighbors[vertex]) {
+                for (const auto other : local_neighbors.at(item.first)[vertex]) {
                     source.push_back(nodes[map[other]].point);
                     target.push_back(candidate(map[other], 1.0));
                     a = add_vec3(a, source.back());
@@ -836,47 +909,45 @@ void mesh_editor_conform_refit(const MeshRefitRuntime &refit, const std::map<int
                 Vec3 expected{};
                 for (const auto vertex : face)
                     expected = add_vec3(expected, refit_rotate_quaternion_native(rotations[vertex], normal));
-                Vec3 transport{};
-                double mobility = 1.0;
-                for (const auto i : v) {
-                    transport = add_vec3(transport, scale_vec3(displacement[i], 1.0 / 3.0));
-                    mobility = std::min(mobility, nodes[i].mobility);
+                // Project only the violated strain, rather than resetting a
+                // whole face's displacement. Shared corners then receive
+                // compatible local corrections instead of fighting adjacent
+                // folds' rotations and common translation.
+                for (int c = 0; c < 3; ++c) {
+                    const auto a = v[c], b = v[(c + 1) % 3];
+                    const double rest = length_vec3(sub_vec3(nodes[b].point, nodes[a].point));
+                    const Vec3 edge = sub_vec3(candidate(b, 1.0), candidate(a, 1.0));
+                    const double length = length_vec3(edge);
+                    if (rest <= tolerance || length <= tolerance) continue;
+                    const double target = std::clamp(length, rest * 0.05, rest * 2.5);
+                    if (std::abs(length - target) <= tolerance * 0.01) continue;
+                    const double mobility = nodes[a].mobility + nodes[b].mobility;
+                    if (mobility <= 0.0) continue;
+                    const Vec3 correction = scale_vec3(edge, (length - target) / (length * mobility));
+                    displacement[a] = add_vec3(displacement[a], scale_vec3(correction, nodes[a].mobility));
+                    displacement[b] = sub_vec3(displacement[b], scale_vec3(correction, nodes[b].mobility));
+                    changed = true;
                 }
-                if (mobility <= 0.0) transport = Vec3{};
-                const auto transported = [&](std::size_t i, double scale) {
-                    return add_vec3(nodes[i].point, add_vec3(transport,
-                        scale_vec3(sub_vec3(displacement[i], transport), scale)));
-                };
-                const auto safe = [&](double scale) {
-                    std::array<Vec3, 3> p{transported(v[0], scale), transported(v[1], scale), transported(v[2], scale)};
-                    if (dot_vec3(normal, refit_face_normal_native(p[0], p[1], p[2])) < 0.1)
-                        return false;
-                    // Use the same moving neighborhood as final validation.
-                    // A thin folded attachment can invert relative to adjacent
-                    // cloth even while its global normal still points forward.
-                    if (dot_vec3(expected, refit_face_normal_native(p[0], p[1], p[2])) < 0.05)
-                        return false;
-                    for (int c = 0; c < 3; ++c) {
-                        const double a = distance_squared_vec3(nodes[v[c]].point, nodes[v[(c + 1) % 3]].point);
-                        const double b = distance_squared_vec3(p[c], p[(c + 1) % 3]);
-                        if (a > 1.0e-16 && (b < a * 0.0025 || b > a * 6.25))
-                            return false;
-                    }
-                    return true;
-                };
-                if (safe(1.0))
-                    continue;
-                double low = 0.0, high = 1.0;
-                for (int iteration = 0; iteration < 16; ++iteration) {
-                    const double middle = (low + high) * 0.5;
-                    if (safe(middle))
-                        low = middle;
-                    else
-                        high = middle;
-                }
-                for (const auto i : v)
-                    displacement[i] = add_vec3(transport,
-                        scale_vec3(sub_vec3(displacement[i], transport), low * 0.95));
+                const double expected_length = length_vec3(expected);
+                if (expected_length <= tolerance) continue;
+                expected = scale_vec3(expected, 1.0 / expected_length);
+                std::array<Vec3, 3> p{candidate(v[0], 1.0), candidate(v[1], 1.0), candidate(v[2], 1.0)};
+                const Vec3 rest_cross = cross_vec3(sub_vec3(nodes[v[1]].point, nodes[v[0]].point),
+                    sub_vec3(nodes[v[2]].point, nodes[v[0]].point));
+                const double minimum_area = length_vec3(rest_cross) * 0.05;
+                const double area = dot_vec3(expected, cross_vec3(sub_vec3(p[1], p[0]), sub_vec3(p[2], p[0])));
+                if (area >= minimum_area) continue;
+                const std::array<Vec3, 3> gradient{
+                    cross_vec3(sub_vec3(p[1], p[2]), expected),
+                    cross_vec3(sub_vec3(p[2], p[0]), expected),
+                    cross_vec3(sub_vec3(p[0], p[1]), expected)};
+                double freedom = 0.0;
+                for (int c = 0; c < 3; ++c)
+                    freedom += nodes[v[c]].mobility * dot_vec3(gradient[c], gradient[c]);
+                if (freedom <= tolerance * tolerance) continue;
+                for (int c = 0; c < 3; ++c)
+                    displacement[v[c]] = add_vec3(displacement[v[c]], scale_vec3(gradient[c],
+                        (minimum_area - area) * nodes[v[c]].mobility / freedom));
                 changed = true;
             }
         }

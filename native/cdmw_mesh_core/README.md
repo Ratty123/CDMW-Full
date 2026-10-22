@@ -186,6 +186,13 @@ separation, and limits local stretching and sharp new creases. Initial garment-f
 guidance helps sleeves wrap around limbs; body-boundary and garment-opening guards limit
 that guidance around open necks and thin attachments.
 
+Conforming projects violated edge lengths and oriented face areas in the moving
+neighborhood frame. Mobility-weighted local corrections retain common translation
+and valid fold rotation instead of replacing a face's entire displacement and
+opposing adjacent thin panels. Coincident seam cohorts share these corrections;
+zero-mobility vertices remain fixed. The bounded projection still feeds the same
+final orientation, edge-strain and seam validators.
+
 Disconnected garment surface islands participate in layer standoff, links, clearance
 and final validation even when they share one Part. Trustworthy coincident seams keep
 continuous surfaces together. Body correspondence can cross tiny mismatches between
@@ -236,15 +243,23 @@ each time before validation.
 
 Clearance diffusion starts from the requested displacement, retaining uniform
 component motion without reconstructing it through stiff, unevenly sampled edges.
-Its iteration budget and relative residual threshold are unchanged. Edge differences
-evaluate the screened operator without subtracting large diagonal terms. Carried
+Each linear attempt retains the existing iteration limit and relative residual
+threshold. The established diagonal-preconditioned solve returns unchanged when it
+converges. Only an unfinished solve gets one IC(0) sparse-factor retry from the
+original requested displacement. Factor pivot stabilization affects the
+preconditioner, not the screened operator, its right-hand side or its residual
+requirement. Edge differences
+evaluate the screened operator without subtracting large diagonal terms; a contiguous
+graph retains the map's traversal order while avoiding repeated tree traversal. Carried
 trim strain is constrained through its backing controls; adjusting only the trim
 vertices would be discarded by the next attachment projection. Validation-only
 passes do not apply those backing corrections.
 
 The owned solver regression checks uniform movement on uneven cloth sampling,
-tiny retained exclusion draws, unused records, a known nonuniform solution and
-rejection of an unfinished solve. Build and run it separately from the helper:
+tiny retained exclusion draws, unused records, a known nonuniform solution,
+a nonuniform 4,096-node stiff seam that exhausts the previous preconditioner's
+512 iterations, and rejection of an unfinished solve. Build and run it separately
+from the helper:
 
 ```powershell
 cmake --build native/cdmw_mesh_core/build --config Release --target cdmw-refit-contact-test
@@ -256,9 +271,13 @@ add persistent contact samples from both meshes' edge/triangle intersections. Ol
 locations remain constrained as an intersection moves. Exact body contacts bind
 after the broad shape solve, avoiding transient contacts steering already-clear
 fits. Body and ordered-layer contacts are refreshed before declaring convergence
-and checked again before
-publication; unresolved contact retains the previous preview. Refreshed layer normals
-must also settle before the solver can finish. Initially buried layers become
+and checked again before publication; unresolved contact retains the previous preview.
+After broad shape fitting, every 64th clearance pass can finish through the same
+final body, layer, band-crossing and rigid-assembly validators. The padded solve
+target is not an extra user clearance requirement. Failed trial poses are restored
+and their live surfaces refreshed; accepted poses still undergo the caller's final
+triangle-strain validation. Neither requested clearance nor validation tolerances
+are reduced. Initially buried layers become
 eligible for exact layer repair after body clearance, rather than remaining
 excluded for the entire fit. Intersecting closed driver volumes can still refuse
 a fit; a visually plausible partial result does not establish valid separation.
@@ -271,8 +290,10 @@ uniform influence and real attachments retain their authority. Local ornaments
 can still follow their backing cloth. `tests/test_mesh_refit_rigid_assemblies_native.py`
 owns centring, attachment, rigid-distance and Undo/Redo regressions.
 
-The body and source topology remain unchanged during an initial garment fit. Complex
-trim still needs inspection; static clearance is not animation or in-game proof. The
+The body and source topology remain unchanged during an initial garment fit. Layer
+checks constrain recognized contacts, not exhaustive cloth self-collision. Authored
+intersections in open cloth can remain visible after a fit; complex trim and layer
+overlaps still need inspection. Static clearance is not animation or in-game proof. The
 owning focused regression file is `tests/test_native_mesh_editor_morph_refit.py` at the
 repository root.
 

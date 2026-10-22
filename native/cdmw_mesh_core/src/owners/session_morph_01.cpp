@@ -582,6 +582,10 @@ bool mesh_editor_refit_band_has_walls(const RefitSpatialIndexNative& surface,
 }
 
 
+struct MeshRefitContactFailure : std::runtime_error {
+    using std::runtime_error::runtime_error;
+};
+
 struct MeshRefitBandCrossing : std::runtime_error {
     MeshRefitBandCrossing() : std::runtime_error(
         "Fit to body: a waist band still crosses its own surface; previous preview retained") {}
@@ -2932,7 +2936,7 @@ void mesh_editor_relieve_refit_surface(
                 if (missing <= tolerance) continue;
                 if (validate) {
                     if (gap >= -tolerance * 4.0) continue;
-                    throw std::runtime_error("Fit to body: Part " + std::to_string(probe.outer.first)
+                    throw MeshRefitContactFailure("Fit to body: Part " + std::to_string(probe.outer.first)
                         + " cannot clear Part " + std::to_string(cohorts[probe.inner.corners[0]].vertices.front().first)
                         + " beneath its triangles (gap "
                         + std::to_string(gap) + ", requested " + std::to_string(probe.clearance)
@@ -3033,6 +3037,93 @@ void mesh_editor_relieve_refit_surface(
         }
         project_layer_probes(maximum_correction, false, tighten);
     };
+    const auto validate_contacts = [&] {
+        if (fitting_masks) {
+            refresh_detail_frames();
+            double unused = 0.0;
+            project_details(unused,band_nodes.empty());
+            if (!band_axes.empty()) {
+                refresh_layer_surfaces();
+                refresh_band_crossings();
+                if (band_crossings_present)
+                    throw MeshRefitBandCrossing();
+            }
+        }
+        if (fitting_masks) for (const auto& group : rigid_groups) {
+            std::vector<Vec3> source, target;
+            Vec3 a{}, b{};
+            for (const auto i : group.second) {
+                source.push_back(layer_rest[i]);
+                target.push_back(cohorts[i].position);
+                a = add_vec3(a, source.back());
+                b = add_vec3(b, target.back());
+            }
+            a = scale_vec3(a, 1.0 / source.size());
+            b = scale_vec3(b, 1.0 / target.size());
+            const auto rotation = refit_component_rotation_native(source, target, a, b);
+            for (std::size_t i = 0; i < source.size(); ++i)
+                if (distance_squared_vec3(target[i],
+                        add_vec3(b, refit_rotate_quaternion_native(rotation, sub_vec3(source[i], a))))
+                        > tolerance * tolerance * 16.0)
+                    throw MeshRefitContactFailure("Fit to body: Part "
+                        + std::to_string(cohorts[group.first].vertices.front().first)
+                        + " would separate or deform a rigid assembly; previous preview retained");
+        }
+        if (fitting_masks) refresh_body_crossings();
+        if (fitting_masks) for (const auto& constraint : body_constraints) {
+            const Vec3 point = sample_point(constraint.sample, false);
+            long long tests = 0;
+            const auto nearest = closest_refit_binding_native(point, spatial_index, tests);
+            const double height = dot_vec3(sub_vec3(point, mesh_editor_refit_driver_point(nearest, driver_visible)),
+                body_contact_normal(nearest, point));
+            if ((height < -tolerance * 4.0 && inside_body_volume(point))
+                || (nearest.distance < constraint.clearance - tolerance * 4.0)) {
+                const auto& vertex = cohorts[constraint.sample.corners[0]].vertices.front();
+                throw MeshRefitContactFailure("Fit to body: Part " + std::to_string(vertex.first)
+                    + ", vertex " + std::to_string(vertex.second) + " cannot clear the body with its current protection mask or geometry (gap "
+                    + std::to_string(height) + ", requested " + std::to_string(constraint.clearance) + ")");
+            }
+        }
+        if (ordered_layers) {
+            refresh_layer_surfaces();
+            build_garment_normals();
+            refresh_layer_crossings();
+            double unused_correction = 0.0;
+            project_layer_probes(unused_correction, true);
+            if (!crossing_layer_probes.empty()) {
+                throw MeshRefitContactFailure("Fit to body: Part " + std::to_string(crossing_layer_probes.front().outer.first)
+                    + " still intersects Part " + std::to_string(cohorts[crossing_layer_probes.front().inner.corners[0]].vertices.front().first)
+                    + " beneath its triangles; previous preview retained");
+            }
+        }
+        if (fitting_masks) for (const auto& constraint : layer_constraints) {
+            const Vec3 point=sample_point(constraint.first,false);
+            const auto closest=current_layer_sample(constraint,point);
+            Vec3 normal=refit_face_normal_native(cohorts[closest.corners[0]].position,
+                cohorts[closest.corners[1]].position,cohorts[closest.corners[2]].position);
+            const bool interior_feature=constraint.ordered && interior_layer_feature(closest);
+            if (interior_feature) normal=layer_contact_normal(closest,garment_normals,normal);
+            if (constraint.ordered && dot_vec3(normal,constraint.normal)<0.0) normal=scale_vec3(normal,-1.0);
+            const Vec3 offset=sub_vec3(point,sample_point(closest,false));
+            const double height=dot_vec3(offset,normal);
+            // A point past an open triangle edge does not overlap that layer.
+            // Only its perpendicular projection onto the face can establish order.
+            if (!interior_feature && length_vec3(sub_vec3(offset,scale_vec3(normal,height))) > tolerance*4.0) continue;
+            const double rest=dot_vec3(constraint.rest_offset,constraint.normal);
+            // Apply the same contact tolerance as the body validator. Near-coincident
+            // skins must not require sub-tolerance positive gaps while body contact
+            // accepts that same numerical error on either side of its boundary.
+            if ((rest > 0.0 ? height : -height) < -tolerance * 4.0) {
+                throw MeshRefitContactFailure("Fit to body: Part "
+                    + std::to_string(cohorts[constraint.first.corners[0]].vertices.front().first)
+                    + " cannot preserve its garment layer separation from Part "
+                    + std::to_string(cohorts[constraint.second.corners[0]].vertices.front().first)
+                    + " (rest " + std::to_string(rest) + ", gap " + std::to_string(height)
+                    + ", vertex " + std::to_string(cohorts[constraint.first.corners[0]].vertices.front().second) + ")");
+            }
+        }
+    };
+    bool contacts_validated = false;
     // Solve shape and contour constraints first, then use the final passes
     // only for sample clearance. Cohorts keep UV/material seams joined.
     constexpr int wrap_iterations = 16;
@@ -3384,6 +3475,25 @@ void mesh_editor_relieve_refit_surface(
                     + std::to_string(guarded_part) + " cannot preserve its triangles during clearance correction");
             }
         }
+        // The padded contact target and diffusion residual are numerical
+        // aids, not additional user clearance requirements. Once broad shape
+        // fitting is complete, accept an earlier pose only through the exact
+        // same final body, layer, self-crossing and rigid-assembly validators.
+        if (fitting_masks && iteration >= shape_iterations && iteration % 64 == 0) {
+            std::vector<Vec3> trial;
+            for (const auto& cohort : cohorts) trial.push_back(cohort.position);
+            try {
+                validate_contacts();
+                contacts_validated = true;
+                break;
+            } catch (const MeshRefitContactFailure&) {
+            } catch (const MeshRefitBandCrossing&) {
+            }
+            for (std::size_t i = 0; i < cohorts.size(); ++i) cohorts[i].position = trial[i];
+            refresh_detail_frames();
+            refresh_layer_surfaces();
+            build_garment_normals();
+        }
         if (maximum_correction <= tolerance) {
             // A contact can appear between broad-phase updates even though
             // every existing sample has settled. Bind it before declaring
@@ -3418,91 +3528,7 @@ void mesh_editor_relieve_refit_surface(
             if (body_anchors.empty()) break;
         }
     }
-    if (fitting_masks) {
-        refresh_detail_frames();
-        double unused = 0.0;
-        project_details(unused,band_nodes.empty());
-        if (!band_axes.empty()) {
-            refresh_layer_surfaces();
-            refresh_band_crossings();
-            if (band_crossings_present)
-                throw MeshRefitBandCrossing();
-
-        }
-    }
-    if (fitting_masks) for (const auto& group : rigid_groups) {
-        std::vector<Vec3> source, target;
-        Vec3 a{}, b{};
-        for (const auto i : group.second) {
-            source.push_back(layer_rest[i]);
-            target.push_back(cohorts[i].position);
-            a = add_vec3(a, source.back());
-            b = add_vec3(b, target.back());
-        }
-        a = scale_vec3(a, 1.0 / source.size());
-        b = scale_vec3(b, 1.0 / target.size());
-        const auto rotation = refit_component_rotation_native(source, target, a, b);
-        for (std::size_t i = 0; i < source.size(); ++i)
-            if (distance_squared_vec3(target[i],
-                    add_vec3(b, refit_rotate_quaternion_native(rotation, sub_vec3(source[i], a))))
-                    > tolerance * tolerance * 16.0)
-                throw std::runtime_error("Fit to body: Part "
-                    + std::to_string(cohorts[group.first].vertices.front().first)
-                    + " would separate or deform a rigid assembly; previous preview retained");
-    }
-    if (fitting_masks) refresh_body_crossings();
-    if (fitting_masks) for (const auto& constraint : body_constraints) {
-        const Vec3 point = sample_point(constraint.sample, false);
-        long long tests = 0;
-        const auto nearest = closest_refit_binding_native(point, spatial_index, tests);
-        const double height = dot_vec3(sub_vec3(point, mesh_editor_refit_driver_point(nearest, driver_visible)),
-            body_contact_normal(nearest, point));
-        if ((height < -tolerance * 4.0 && inside_body_volume(point))
-            || (nearest.distance < constraint.clearance - tolerance * 4.0)) {
-            const auto& vertex = cohorts[constraint.sample.corners[0]].vertices.front();
-            throw std::runtime_error("Fit to body: Part " + std::to_string(vertex.first)
-                + ", vertex " + std::to_string(vertex.second) + " cannot clear the body with its current protection mask or geometry (gap "
-                + std::to_string(height) + ", requested " + std::to_string(constraint.clearance) + ")");
-        }
-    }
-    if (ordered_layers) {
-        refresh_layer_surfaces();
-        build_garment_normals();
-        refresh_layer_crossings();
-        double unused_correction = 0.0;
-        project_layer_probes(unused_correction, true);
-        if (!crossing_layer_probes.empty()) {
-            throw std::runtime_error("Fit to body: Part " + std::to_string(crossing_layer_probes.front().outer.first)
-                + " still intersects Part " + std::to_string(cohorts[crossing_layer_probes.front().inner.corners[0]].vertices.front().first)
-                + " beneath its triangles; previous preview retained");
-        }
-    }
-    if (fitting_masks) for (const auto& constraint : layer_constraints) {
-        const Vec3 point=sample_point(constraint.first,false);
-        const auto closest=current_layer_sample(constraint,point);
-        Vec3 normal=refit_face_normal_native(cohorts[closest.corners[0]].position,
-            cohorts[closest.corners[1]].position,cohorts[closest.corners[2]].position);
-        const bool interior_feature=constraint.ordered && interior_layer_feature(closest);
-        if (interior_feature) normal=layer_contact_normal(closest,garment_normals,normal);
-        if (constraint.ordered && dot_vec3(normal,constraint.normal)<0.0) normal=scale_vec3(normal,-1.0);
-        const Vec3 offset=sub_vec3(point,sample_point(closest,false));
-        const double height=dot_vec3(offset,normal);
-        // A point past an open triangle edge does not overlap that layer.
-        // Only its perpendicular projection onto the face can establish order.
-        if (!interior_feature && length_vec3(sub_vec3(offset,scale_vec3(normal,height))) > tolerance*4.0) continue;
-        const double rest=dot_vec3(constraint.rest_offset,constraint.normal);
-        // Apply the same contact tolerance as the body validator. Near-coincident
-        // skins must not require sub-tolerance positive gaps while body contact
-        // accepts that same numerical error on either side of its boundary.
-        if ((rest > 0.0 ? height : -height) < -tolerance * 4.0) {
-            throw std::runtime_error("Fit to body: Part "
-                + std::to_string(cohorts[constraint.first.corners[0]].vertices.front().first)
-                + " cannot preserve its garment layer separation from Part "
-                + std::to_string(cohorts[constraint.second.corners[0]].vertices.front().first)
-                + " (rest " + std::to_string(rest) + ", gap " + std::to_string(height)
-                + ", vertex " + std::to_string(cohorts[constraint.first.corners[0]].vertices.front().second) + ")");
-        }
-    }
+    if (!contacts_validated) validate_contacts();
     for (const Cohort& cohort : cohorts) {
         const Vec3 delta = sub_vec3(cohort.position, cohort.original);
         for (const auto& vertex : cohort.vertices) {
