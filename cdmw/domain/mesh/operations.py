@@ -8,6 +8,7 @@ from dataclasses import dataclass, field
 
 from .topology import (
     TOPOLOGY_METADATA_CONTRACT,
+    TOPOLOGY_METADATA_INPUT_VERTEX_COUNT,
     TOPOLOGY_METADATA_KEYS,
     TOPOLOGY_METADATA_OUTPUT_VERTEX_COUNT,
     TOPOLOGY_PROVENANCE_VERSION,
@@ -169,6 +170,21 @@ def validate_mesh_edit_operations(
         for index, operation in enumerate(normalized)
         if _operation_name(operation.operation) in TOPOLOGY_MESH_EDIT_OPERATIONS
     }
+    historical_vertex_counts: dict[int, int] = {}
+    next_topology_inputs: dict[tuple[int, int], int] = {}
+    for operation_index in range(len(normalized) - 1, -1, -1):
+        operation = normalized[operation_index]
+        name = _operation_name(operation.operation)
+        target = (operation.lod_index, operation.submesh_index)
+        if name in TOPOLOGY_MESH_EDIT_OPERATIONS:
+            metadata = operation.metadata if isinstance(operation.metadata, Mapping) else {}
+            next_topology_inputs[target] = _coerce_index(
+                metadata.get(TOPOLOGY_METADATA_INPUT_VERTEX_COUNT), default=-1,
+            )
+        elif name in _SOURCE_MAPPED_OPERATIONS and target in next_topology_inputs:
+            # A later topology edit may remove or add vertices. Earlier
+            # same-count edits describe its input, not today's compacted mesh.
+            historical_vertex_counts[operation_index] = next_topology_inputs[target]
     for operation_index, operation in enumerate(normalized):
         name = _operation_name(operation.operation)
         if not name:
@@ -212,6 +228,7 @@ def validate_mesh_edit_operations(
                 require_source_mapping=require_source_mapping,
                 current_topology_output=(latest_topology.get(
                     (operation.lod_index, operation.submesh_index), operation_index) == operation_index),
+                historical_vertex_count=historical_vertex_counts.get(operation_index),
             )
     return tuple(issues)
 
@@ -288,6 +305,7 @@ def _validate_operation_target(
     allowed_lods: frozenset[int],
     require_source_mapping: bool,
     current_topology_output: bool,
+    historical_vertex_count: int | None,
 ) -> None:
     if operation.lod_index not in allowed_lods:
         _add(
@@ -321,12 +339,18 @@ def _validate_operation_target(
     if name in _SOURCE_MAPPED_OPERATIONS:
         submesh = submeshes[operation.submesh_index]
         actual = len(tuple(getattr(submesh, "vertices", ()) or ()))
-        if operation.vertex_count != actual:
+        expected_count = actual if historical_vertex_count is None else historical_vertex_count
+        if operation.vertex_count != expected_count:
+            target_description = (
+                f"submesh has {actual}"
+                if historical_vertex_count is None
+                else f"next topology operation received {historical_vertex_count}"
+            )
             _add(
                 issues,
                 "blocker",
                 "operation_vertex_count_mismatch",
-                f"Edit operation expected {operation.vertex_count} vertices but submesh has {actual}.",
+                f"Edit operation expected {operation.vertex_count} vertices but {target_description}.",
                 operation_index,
                 operation.submesh_index,
             )

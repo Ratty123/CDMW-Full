@@ -2,6 +2,7 @@
 
 import struct
 from types import SimpleNamespace
+from unittest.mock import patch
 
 import pytest
 
@@ -9,10 +10,10 @@ from cdmw.domain.mesh.authoring_capability import action_authoring_capability
 from cdmw.domain.mesh.topology import validate_topology_operation_history
 from cdmw.modding.mesh_pac_topology_builder import protected_byte_mask, _section_payloads, topology_rebuild_blockers
 from cdmw.modding.mesh_parser import parse_pac
-from cdmw.services.mesh_rust_authoring import RustMeshAuthoringSession
+from cdmw.services.mesh_rust_authoring import RustMeshAuthoringSession, RustMeshValidationError
 from cdmw.services.mesh_service import MeshService
 from tests.test_mesh_pac_topology_serializer import _pac_fixture
-from tests.test_mesh_rust_authoring_exact_output import _request
+from tests.test_mesh_rust_authoring_exact_output import _candidate_reference, _request
 
 
 def _duplicate_pac(*, matching_lods=False):
@@ -53,11 +54,82 @@ def _command(session, request_id, command, **arguments):
     return session.run_command(request)
 
 
-def _cleanup(session, request_id=1):
+def _cleanup(session, request_id=1, *, threshold=0.00001):
     return _command(session, request_id, "mesh_action", action="remove_doubles",
                     selection={"vertices_by_submesh": {"0": [0, 1]},
                                "edges_by_submesh": {}, "faces_by_submesh": {}, "source_indices": []},
-                    params={"threshold": 0.00001})
+                    params={"threshold": threshold})
+
+
+def _move_then_cleanup(session):
+    request = _request(session, "transaction_request", 2)
+    request.update(
+        label="Move",
+        candidate=_candidate_reference(session, request_id=2, first_x=0.125),
+    )
+    session.apply_candidate(request)
+    _cleanup(session, 3, threshold=0.13)
+
+
+@pytest.mark.parametrize("output_policy", ["exact_game_asset", "free_edit_rebuild"])
+@pytest.mark.parametrize("exact_cleanup_session", [True], indirect=True)
+def test_move_then_remove_doubles_can_finish_with_original_skin_rows(
+    exact_cleanup_session, output_policy, tmp_path,
+):
+    source, service, session = exact_cleanup_session
+    if output_policy == "free_edit_rebuild":
+        _command(session, 1, "configure_output_policy", policy=output_policy,
+                 destination=str(tmp_path / "output"))
+    _move_then_cleanup(session)
+
+    result = session.finish(_request(session, "finish_request", 4))
+
+    evidence = "exact_output_validation" if output_policy == "exact_game_asset" else "free_edit_output_validation"
+    assert result[evidence]["status"] == "passed"
+    assert result[evidence]["fallback_used"] is False
+    accepted = service.working_mesh(session.authoritative_session_id, clone=True)
+    part = accepted.submeshes[0]
+    assert len(part.vertices) == 3
+    assert len(part.faces) == 1
+    assert part.vertices[0][0] == pytest.approx(0.0625)
+    original = parse_pac(source).submeshes[0]
+    for row, origin in enumerate(part.topology_provenance.vertex_origins):
+        assert part.bone_indices[row] == original.bone_indices[origin.direct_parent]
+        assert part.bone_weights[row] == original.bone_weights[origin.direct_parent]
+    assert service._session(session.authoritative_session_id).original_data == source
+
+
+@pytest.mark.parametrize("output_policy", ["exact_game_asset", "free_edit_rebuild"])
+@pytest.mark.parametrize("damage", ["weights", "indices"])
+def test_move_then_remove_doubles_still_rejects_skin_changes(
+    exact_cleanup_session, output_policy, damage, tmp_path,
+):
+    source, service, session = exact_cleanup_session
+    if output_policy == "free_edit_rebuild":
+        _command(session, 1, "configure_output_policy", policy=output_policy,
+                 destination=str(tmp_path / "output"))
+    _move_then_cleanup(session)
+    original_prepare = service.prepare_working_mesh_replacement
+
+    def prepare_with_changed_skin(session_id, candidate, **kwargs):
+        # Tamper with the candidate at Finish's admission boundary; the native
+        # shadow remains authoritative until this proposed replacement validates.
+        part = candidate.submeshes[0]
+        if damage == "weights":
+            part.bone_weights[0] = (0.25, 0.75)
+        else:
+            part.bone_indices[0] = (2, 7)
+        return original_prepare(session_id, candidate, **kwargs)
+
+    with (
+        patch.object(service, "prepare_working_mesh_replacement", side_effect=prepare_with_changed_skin),
+        pytest.raises(RustMeshValidationError, match="Bone indices and weights must match"),
+    ):
+        session.finish(_request(session, "finish_request", 4))
+
+    assert service.session_view(session.authoritative_session_id).revision == 0
+    assert service._session(session.authoritative_session_id).original_data == source
+    assert not session.closed
 
 
 @pytest.mark.parametrize("mesh_format,lod,authorable", [

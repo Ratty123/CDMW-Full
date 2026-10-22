@@ -401,6 +401,41 @@ def test_a_topology_operation_without_a_contract_on_its_submesh_is_blocked() -> 
     assert "topology_operation_provenance_missing" in codes
 
 
+@pytest.mark.parametrize("move_count,move_after_cleanup,mismatched", [
+    (4, False, False), (5, False, True), (3, False, True),
+    (4, True, True), (3, True, False),
+])
+def test_move_counts_follow_the_geometry_before_or_after_cleanup(
+    move_count, move_after_cleanup, mismatched,
+) -> None:
+    provenance = compose_topology_provenance(
+        _quad(), copy_vertex_indices=(0, 2, 3), face_origins=(1,),
+    )
+    part = SubMesh(
+        vertices=[(0.0, 0.0, 0.0)] * 3,
+        faces=[(0, 1, 2)],
+        source_vertex_map=list(topology_source_vertex_map(provenance)),
+        source_vertex_map_authority="topology",
+        topology_provenance=provenance,
+    )
+    cleanup = MeshEditOperation(
+        "remove_doubles_topology", submesh_index=0, vertex_count=3,
+        metadata=topology_operation_metadata(
+            input_vertex_count=4, input_face_count=2,
+            output_vertex_count=3, output_face_count=1,
+            source_revision=0, result_revision=1,
+        ),
+    )
+    move = MeshEditOperation("replace_positions_same_count", submesh_index=0, vertex_count=move_count)
+    operations = (cleanup, move) if move_after_cleanup else (move, cleanup)
+
+    issues = validate_mesh_edit_operations(operations, mesh=ParsedMesh(format="pac", submeshes=[part]))
+
+    assert ("operation_vertex_count_mismatch" in {issue.code for issue in issues}) is mismatched
+    if not mismatched:
+        assert issues == ()
+
+
 def test_topology_operation_without_its_metadata_is_blocked() -> None:
     mesh = ParsedMesh(format="pac", submeshes=[_contract_submesh()])
     bare = MeshEditOperation(

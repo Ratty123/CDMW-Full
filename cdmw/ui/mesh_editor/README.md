@@ -2659,6 +2659,9 @@ descriptors. **Remove Doubles** supports **Exact Game Asset** for PAC LOD0. Nati
 cleanup retains original-relative vertex and face lineage through Undo/Redo and
 reopening. The exact writer retains each survivor's original skin and cloth record;
 altered weights, missing lineage, invalid bounds and unsupported layouts remain blocked.
+Moving vertices before **Remove Doubles** can finish in both Exact and Free Edit.
+Earlier moves are checked against the cleanup's recorded input vertex count;
+the final topology and source skin rows must still validate.
 Other cleanup actions still require **Free Edit**.
 
 Distinct lower LODs remain unchanged. Independently stored, byte-identical LOD0
