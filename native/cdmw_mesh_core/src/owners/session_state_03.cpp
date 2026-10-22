@@ -574,6 +574,9 @@ std::size_t mesh_editor_refit_runtime_bytes(const MeshRefitRuntime& refit) {
         + refit.bindings.capacity() * sizeof(MeshRefitVertexBindingRuntime);
     for (const auto& item : refit.garment_settings) {
         retained += sizeof(item) + 3 * sizeof(void*) + item.second.mode.capacity();
+        retained += item.second.island_settings.capacity()*sizeof(MeshRefitIslandSettingsRuntime);
+        for (const auto& island : item.second.island_settings)
+            retained += island.face_indices.capacity()*sizeof(int) + island.mode.capacity();
     }
     for (const auto& row : refit.vertex_masks) {
         retained += sizeof(row) + 3 * sizeof(void*);

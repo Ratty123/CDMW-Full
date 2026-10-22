@@ -1973,6 +1973,16 @@ Surface, Offset follow and Rigid component modes retain each garment's enabled s
 body-follow intensity, Tightness and clearance. **Changes not applied** marks pending
 settings. The single Apply button follows **Editing**: **Apply to Selected Garments**
 or **Apply to All Bound Garments**.
+Choose **Selected mesh islands** in **Editing** to fit whole selected islands.
+**Choose mesh islands** opens the Parts panel on its islands tab. Each island
+inherits its Part until edited; mode, Skip, body following, Tightness and clearance
+can then be overridden independently. **Apply to Selected Islands** changes only
+the fields you edit. **Use Part settings** removes those overrides. Part settings
+remain the defaults for the other islands, and island overrides survive Part edits,
+Undo/Redo, Bake, saved fitting setups and draft reopening. Output Part identities,
+vertices, faces, UVs and skin weights are retained. Independent rigid island
+overrides do not automatically regroup with nearby ornaments.
+
 Only fields you change are applied. A **Mixed** marker identifies settings that differ
 across the chosen garments. Mixed numeric fields initially display the first Part's
 value; **Use displayed following**, **Use displayed tightness** and **Use displayed
@@ -2019,9 +2029,12 @@ placement during clearance correction. Tightness and influence control how much
 centring is applied; Skip and zero influence leave the piece in place.
 Use matching body-follow intensity and mask influence at the join for coordinated
 body-slider following; deliberately different strengths retain independent following.
-Without a nearby Flexible attachment, Fit translates the assembly while retaining
-its original orientation; body-slider following can still rotate it. This preserves
-authored overlaps at joins and prevents pieces from twisting into each other.
+Without a nearby Flexible attachment, sparse, body-centred hanging assemblies
+can adjust depth and pitch together against the settled cloth and body. The
+necklace remains one rigid shape and stays centred; dense plates retain their
+existing orientation rules. The search preserves the assembly's dimensions and
+uses Tightness and influence to blend the adjustment. This preserves authored
+overlaps at joins and prevents pieces from twisting into each other.
 An unchanged hard shape can leave extra space where it cannot sit flush to the body.
 For separate Flexible layers, Tightness also takes up the loose gap between an
 outer belt and its wrap. It retains a clearance gap and their layer order instead
@@ -2111,8 +2124,10 @@ reload the original. No subdivision, remeshing, UV or skin-weight changes are in
 Position-only PAC exports preserve the existing face-index slots, including hidden
 slots left by exclusions, so fitting does not duplicate retained faces.
 
-Fitting recipes and native morph snapshots now write version 2; version 1 reads with
-Tightness disabled. Drafts with Morph & Refit state use layer-project version 8 and
+Fitting recipes and native morph snapshots write version 3 when island overrides
+are present, otherwise version 2. Version 1 reads with Tightness disabled.
+Morph draft payloads similarly use version 3 for island overrides; older apps
+reject these newer files instead of silently dropping the island settings. Drafts with Morph & Refit state use layer-project version 8 and
 retain the neutral geometry and active settings for reopening and Reset. Older readers
 reject these new formats. Existing files are read without being rewritten.
 

@@ -25,6 +25,8 @@ def island_ui_state(authoring, replacement):
         selected = [index for index in authoring.mesh_island_focus if index < len(mesh.submeshes)]
     bindings = {part.target_index: part for part in session.replacement_state.parts} if session.replacement_state else {}
     cache = authoring.mesh_island_cache
+    morph = authoring.shadow_service._morph_sessions.get(session.session_id)
+    fit_topology = getattr(morph, 'topology_mesh', None)
     authoring.state_cache.observe(session)
     rows = []
     reason = replacement['reason']
@@ -43,10 +45,13 @@ def island_ui_state(authoring, replacement):
         # Islands join coincident positions as well as indexed edges. A geometry
         # revision therefore invalidates seam connectivity even without topology
         # changes; selection and output inclusion keep the discovered groups.
-        signature = authoring.state_cache.geometry_revision, id(part), len(part.vertices), len(part.faces)
+        signature = authoring.state_cache.geometry_revision, id(part), id(fit_topology), len(part.vertices), len(part.faces)
         cached = cache.get(index)
         if cached is None or cached[0] != signature:
-            groups = mesh_islands(part, stop_event=authoring._cancel_event)
+            # Fit overrides address the neutral islands. A live preview must not
+            # rename them when fitted surfaces touch or material seams move.
+            island_source = fit_topology.submeshes[index] if fit_topology is not None else part
+            groups = mesh_islands(island_source, stop_event=authoring._cancel_event)
             # Reopen Edit can start from accepted geometry, so its shadow base
             # is not necessarily the original PAC that owns island face IDs.
             source_topology = source_parts is None or (

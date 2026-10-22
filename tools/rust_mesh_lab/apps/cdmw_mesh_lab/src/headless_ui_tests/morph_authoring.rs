@@ -227,6 +227,41 @@ fn garment_fit_choices_use_the_single_scoped_editor_and_preserve_skip() -> TestR
 }
 
 #[test]
+fn island_fit_controls_inherit_retarget_and_dispatch_only_changed_fields() -> TestResult {
+    let mut ui = authoring_ui()?;
+    let faces = ui.application.mesh.as_ref().ok_or("mesh")?.faces().filter_map(|(_, face)| {
+        match face.provenance {
+            Provenance::Source { submesh: 1, element } => Some(element),
+            _ => None,
+        }
+    }).collect::<Vec<_>>();
+    assert!(!faces.is_empty());
+    ui.application.cdmw_state["mesh_islands"] = json!({"parts": [{"index": 1, "available": true,
+        "name": "Sleeve", "islands": [{"faces": faces}]}]});
+    ui.application.select_island(1, faces.clone());
+    ui.click("Fit")?;
+    ui.choose("Editing", "All bound garments · 2", "Selected mesh islands")?;
+    ui.reveal("Selected mesh islands · 1")?;
+    ui.choose("Fit as", "Flexible", "Rigid component")?;
+    assert!(ui.actions_from_click("Use Part settings")?.is_empty());
+    let action = ui.actions_from_click("Apply to Selected Islands")?;
+    assert_eq!(command_arguments(&action, "refit_island_configure"),
+        json!({"islands": [{"submesh_index": 1, "face_indices": faces}], "mode": "rigid_component"}));
+    ui.application.cdmw_refit_settings_dirty = Default::default();
+    ui.frame(Vec::new());
+    let inherited = ui.actions_from_click("Use Part settings")?;
+    assert_eq!(command_arguments(&inherited, "refit_island_configure"),
+        json!({"islands": [{"submesh_index": 1, "face_indices": faces}], "inherit": true}));
+    ui.choose("Fit as", "Flexible", "Rigid component")?;
+    select_authoring_parts(&mut ui, &[])?;
+    assert!(!ui.application.cdmw_refit_settings_dirty.is_dirty());
+    assert!(ui.actions_from_click("Apply to Selected Islands")?.is_empty());
+    ui.click("Choose mesh islands")?;
+    assert!(ui.application.egui_context.data_mut(|data| data.get_temp::<bool>(egui::Id::new("cdmw_parts_panel_islands"))).unwrap_or(false));
+    Ok(())
+}
+
+#[test]
 fn fit_waits_for_pending_settings_and_legacy_offset_mode_is_not_labelled_rigid() -> TestResult {
     let mut ui = authoring_ui()?;
     ui.application.cdmw_state["morph_refit"]["refit"]["garment_settings"][1]["mode"] = json!("rigid");

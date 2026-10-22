@@ -9,6 +9,8 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 ### Added
 
+- Morph & Refit adds independent fitting controls for whole mesh islands, with an option to inherit their Part settings again.
+
 - Create New Item preserves compatible imported skin weights and offers per-part weight reduction, named template/body transfer, loss reports and reversible hiding of equipment variants. Weight transfer follows the model's fit and placement, newer model choices take priority over background work, and Build plan checks that retained physics is compatible with the chosen weights. Missing bones and excess influences refuse preservation; foreign-rig retargeting and in-game deformation remain unverified.
 - Mesh Editor can continue directly from a finished game-format mesh or add it to Archive Browser for another editing pass, retaining source materials, textures, rig and physics dependencies without changing the game archive path.
 
@@ -20,7 +22,7 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 ### Fixed
 
-- Morph & Refit keeps rigid necklaces centred and assembled while fitting belts snugly over cloth wraps. Raised cords and compact knots retain their relief and construction, and rolled belt edges are checked for new self-crossings. Bands retain their height contour, proven wall depth and clearance. Follow strengths, Skip and protected parts retain their controls. Fitting after Part or island removal avoids false clearance-solve failures and limits stretching in attached cords; PAC exports preserve those exclusions.
+- Morph & Refit adjusts rigid necklace depth and tilt while keeping the assembly centred, and fits belts snugly over cloth wraps. Raised cords and compact knots retain their relief and construction, and rolled belt edges are checked for new self-crossings. Bands retain their height contour, proven wall depth and clearance. Follow strengths, Skip and protected parts retain their controls. Fitting after Part or island removal avoids false clearance-solve failures and limits stretching in attached cords; PAC exports preserve those exclusions.
 - Create New Item respects ignored archive folders, so excluded `dmmsa`, `dmmgen` and custom mod folders no longer block loading as missing archives.
 - Mesh Editor fixes false topology errors when finishing reopened geometry edits. Parts and mesh islands use separate tabs in a resizable full-height panel, with compact rows, aligned View / Include columns and expandable physics details. They retain selection and scrolling, explain restrictions and blocked Delete actions, and offer Free Edit where supported. Completed fitting, imports and geometry edits can continue from the finished mesh.
 - Mesh Editor preserves colours and texture layers when starting another edit pass or reopening an edited Archive Browser result, including after the original editing session closes.

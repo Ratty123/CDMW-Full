@@ -98,7 +98,7 @@ void mesh_editor_validate_morph_snapshot_document(
 ) {
     if (document.type != JsonValue::Type::Object
         || mesh_editor_snapshot_string(document, "schema") != MESH_EDITOR_MORPH_RUNTIME_SNAPSHOT_SCHEMA
-        || mesh_editor_snapshot_integer(document, "version", 1) > 2
+        || mesh_editor_snapshot_integer(document, "version", 1) > 3
         || mesh_editor_snapshot_string(document, "snapshot_id") != expected_snapshot_id
         || mesh_editor_snapshot_string(document, "source_session_id").empty()) {
         throw std::runtime_error("morph runtime snapshot identity does not match");
@@ -162,7 +162,10 @@ std::string mesh_editor_morph_snapshot_create_session_report(
     std::ostringstream document_stream;
     document_stream << "{\"schema\":";
     write_escaped(document_stream, MESH_EDITOR_MORPH_RUNTIME_SNAPSHOT_SCHEMA);
-    document_stream << ",\"version\":2,\"snapshot_id\":";
+    const int snapshot_version = session.morph && session.morph->refit
+        && std::any_of(session.morph->refit->garment_settings.begin(),session.morph->refit->garment_settings.end(),
+            [](const auto& item) { return !item.second.island_settings.empty(); }) ? 3 : 2;
+    document_stream << ",\"version\":" << snapshot_version << ",\"snapshot_id\":";
     write_escaped(document_stream, snapshot_id);
     document_stream << ",\"source_session_id\":";
     write_escaped(document_stream, session_id);
@@ -188,7 +191,7 @@ std::string mesh_editor_morph_snapshot_create_session_report(
     write_escaped(out, session_id);
     out << ",\"snapshot\":{\"schema\":";
     write_escaped(out, MESH_EDITOR_MORPH_RUNTIME_SNAPSHOT_SCHEMA);
-    out << ",\"version\":2,\"snapshot_id\":";
+    out << ",\"version\":" << snapshot_version << ",\"snapshot_id\":";
     write_escaped(out, snapshot_id);
     out << ",\"source_session_id\":";
     write_escaped(out, session_id);

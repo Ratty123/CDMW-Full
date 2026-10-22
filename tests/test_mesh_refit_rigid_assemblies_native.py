@@ -30,6 +30,42 @@ def _assert_rigid(original, actual):
                 math.dist(original[a], original[b]), abs=1e-7)
 
 
+@pytest.mark.parametrize("tightness,weight", [(100., 1.), (50., 1.), (100., .5), (0., 1.), (100., 0.)])
+def test_hanging_rigid_assembly_fits_depth_and_pitch_to_sloping_chest(tightness, weight):
+    import numpy as np
+    body = _part("sloping chest", [(x, y, .06+.3*y) for x, y in
+                 ((-.3, 0.), (.3, 0.), (.3, 1.), (-.3, 1.))],
+                 [(0, 1, 2), (0, 2, 3)], material="skin", texture="")
+    vertices, faces = [], []
+    for left, right, bottom, top in ((-.04, -.03, .2, .6), (.03, .04, .2, .6),
+                                     (-.04, .04, .19, .21)):
+        offset = len(vertices)
+        vertices.extend((x+.01, y, .3) for x, y in
+                        ((left, bottom), (right, bottom), (right, top), (left, top)))
+        faces.extend(((offset, offset+1, offset+2), (offset, offset+2, offset+3)))
+    necklace = _part("necklace", vertices, faces, material="metal", texture="")
+    mesh = _mesh(body, necklace)
+    with _bound(mesh) as session:
+        settings = {"mode": "rigid_component", "tightness": tightness, "vertex_masks": [{
+            "submesh_index": 1, "vertex_indices": list(range(len(vertices))), "weights": [weight]*len(vertices),
+        }]}
+        _fit(session, **settings)
+        fitted = _snapshot(mesh, session)
+        actual = np.array(fitted.submeshes[1].vertices)
+        _assert_rigid(vertices, actual)
+        influence = tightness/100.*weight
+        assert (actual[:, 0].min()+actual[:, 0].max())*.5 == pytest.approx(.01*(1.-influence), abs=2e-5)
+        # Uniform translation cannot meet this bound on an inclined chest.
+        gaps = (actual[:, 2]-.06-.3*actual[:, 1])/math.sqrt(1.09)
+        assert gaps.min() > 0.
+        if influence == 1.:
+            assert gaps.max()-gaps.min() < .004
+        tilt = math.degrees(math.atan2(actual[3, 2]-actual[0, 2], actual[3, 1]-actual[0, 1]))
+        assert tilt == pytest.approx(math.degrees(math.atan(.3))*influence, abs=1.)
+        _fit(session, **settings)
+        assert _snapshot(mesh, session).submeshes[1].vertices == fitted.submeshes[1].vertices
+
+
 @pytest.mark.parametrize("packed", (False, True), ids=("material-parts", "one-part"))
 @pytest.mark.parametrize("close", (False, True), ids=("overlapping-join", "small-join-gap"))
 def test_joined_rigid_shells_keep_shape_and_spacing_while_fitting(packed, close):

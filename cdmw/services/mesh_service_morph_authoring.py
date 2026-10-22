@@ -182,7 +182,7 @@ def _settings_payload(settings: MeshRefitGarmentSettings, *, include_mask: bool)
 
 
 def _refit_settings_batch_payload(
-    settings: Sequence[MeshRefitGarmentSettings], *, include_masks: bool = True,
+    settings: Sequence[MeshRefitGarmentSettings], *, include_masks: bool = True, include_islands: bool = False,
 ) -> dict[str, object]:
     """Keep each Part's settings while the resident fitter recomposes once."""
     rows: list[dict[str, object]] = []
@@ -200,6 +200,13 @@ def _refit_settings_batch_payload(
                 "vertex_indices": [index for index, _weight in item.vertex_mask],
                 "weights": [weight for _index, weight in item.vertex_mask],
             }
+        if include_islands or item.island_settings:
+            row["island_settings"] = [
+                {"face_indices": list(island.face_indices), **{
+                    key: getattr(island, key) for key in
+                    ("enabled", "intensity_percent", "mode", "clearance_percent", "tightness_percent")
+                }} for island in item.island_settings
+            ]
         rows.append(row)
     return {
         "garment_submesh_indices": [item.submesh_index for item in settings],

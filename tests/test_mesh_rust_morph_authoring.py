@@ -37,6 +37,7 @@ _SELECTION_OPERATIONS = {
 }
 _OPERATIONS = _SELECTION_OPERATIONS | {
     "fit_refit_to_body",
+    "configure_refit_islands",
     "author_morph_definition",
     "cancel_morph_baseline",
     "capture_authored_morph_definition",
@@ -132,6 +133,8 @@ _DEFINITION = {
     ("command", "arguments", "method", "positional", "keywords"),
     [
         ("refit_fit_to_body", {}, "fit_refit_to_body", (), {}),
+        ("refit_island_configure", {"islands": [{"submesh_index": 2, "face_indices": [0, 1]}], "enabled": False},
+         "configure_refit_islands", (({"submesh_index": 2, "face_indices": [0, 1]},),), {"inherit": False, "enabled": False}),
         ("morph_capture_baseline", {"submesh_indices": [2, 0]},
          "capture_morph_baseline", ((2, 0),), {"selection": None}),
         ("morph_cancel_baseline", {}, "cancel_morph_baseline", (), {}),
@@ -348,6 +351,7 @@ def _pending_state(phase: str) -> MeshMorphState:
         "morph_bake",
         "refit_bind",
         "refit_configure",
+        "refit_island_configure",
         "refit_fit_to_body",
         "morph_set_influence",
         "morph_set_driver_region",

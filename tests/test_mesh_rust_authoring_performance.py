@@ -114,10 +114,12 @@ class RustMeshDerivedStateTests(unittest.TestCase):
             (1., 0., 0.), (1., 1., 0.), (0., 1., 0.),
         ], faces=[(0, 1, 2), (3, 4, 5)])
         mesh = SimpleNamespace(submeshes=[part], lod_levels=[])
-        session = SimpleNamespace(working_mesh=mesh, revision=0, mesh_format="pac",
+        session = SimpleNamespace(session_id="owned", working_mesh=mesh, revision=0, mesh_format="pac",
                                   selection=MeshEditSelection(source_indices=(0,)),
-                                  replacement_state=None, hair_state=None)
-        authoring = SimpleNamespace(shadow_service=SimpleNamespace(_session=lambda _: session),
+                                  replacement_state=None, hair_state=None, output_policy="fixed",
+                                  base_mesh=mesh, base_mesh_is_original_parse=True)
+        service = SimpleNamespace(_session=lambda _: session, _morph_sessions={})
+        authoring = SimpleNamespace(shadow_service=service, authoritative_service=service, authoritative_session_id="owned",
             shadow_session_id="owned", state_cache=RustMeshStateCache(), mesh_island_cache={},
             mesh_island_focus=(), _cancel_event=threading.Event())
         replacement = {"reason": "", "parts": [{"id": "0", "index": 0}]}
@@ -138,6 +140,17 @@ class RustMeshDerivedStateTests(unittest.TestCase):
             moved = mesh_island_authoring.island_ui_state(authoring, replacement)
             self.assertEqual(2, discover.call_count)
             self.assertEqual(2, len(moved["parts"][0]["islands"]))
+            # Active fitting addresses neutral islands, even if a live preview
+            # separates a material seam. Leaving fitting restores live discovery.
+            neutral = SimpleNamespace(submeshes=[SimpleNamespace(vertices=[
+                (0., 0., 0.), (1., 0., 0.), (0., 1., 0.),
+                (1., 0., 0.), (1., 1., 0.), (0., 1., 0.),
+            ], faces=part.faces)])
+            authoring.shadow_service._morph_sessions["owned"] = SimpleNamespace(topology_mesh=neutral)
+            fitting = mesh_island_authoring.island_ui_state(authoring, replacement)
+            self.assertEqual(1, len(fitting["parts"][0]["islands"]))
+            authoring.shadow_service._morph_sessions.clear()
+            self.assertEqual(2, len(mesh_island_authoring.island_ui_state(authoring, replacement)["parts"][0]["islands"]))
 
     def test_preflight_and_publication_share_exact_prepared_binary(self):
         with tempfile.TemporaryDirectory() as temporary:

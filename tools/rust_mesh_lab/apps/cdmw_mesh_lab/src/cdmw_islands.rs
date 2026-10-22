@@ -12,6 +12,25 @@ pub(super) struct HiddenIsland {
 }
 
 impl LabApplication {
+    pub(super) fn selected_refit_islands(&self, bound: &[u32]) -> Vec<(u32, Vec<u32>)> {
+        let selected: HashSet<_> = self.mesh.as_ref().into_iter().flat_map(|mesh|
+            mesh.selection.faces.iter().filter_map(|handle| match mesh.face(*handle)?.provenance {
+                Provenance::Source { submesh, element } => Some((submesh, element)),
+                _ => None,
+            })).collect();
+        self.cdmw_state["mesh_islands"]["parts"].as_array().into_iter().flatten()
+            .filter_map(|part| Some((part["index"].as_u64()? as u32, part["islands"].as_array()?)))
+            .filter(|(part, _)| bound.contains(part))
+            .flat_map(|(part, islands)| {
+                let selected = &selected;
+                islands.iter().filter_map(move |island| {
+                let faces = island_faces(island);
+                (!faces.is_empty() && faces.iter().all(|face| selected.contains(&(part, *face))))
+                    .then_some((part, faces))
+                })
+            }).collect()
+    }
+
     fn island_topology(&self, part: u32) -> Option<u64> {
         let part = self
             .document

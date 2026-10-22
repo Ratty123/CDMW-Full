@@ -263,6 +263,12 @@ class MeshEditorDotNetPayloadMixin(MeshEditorDotNetMaterialParameterMixin, MeshE
                         "mode": settings.mode,
                         "clearance_percent": settings.clearance_percent,
                         "tightness_percent": settings.tightness_percent,
+                        **({"island_settings": [
+                            {"face_indices": list(island.face_indices), **{
+                                key: getattr(island, key) for key in
+                                ("enabled", "intensity_percent", "mode", "clearance_percent", "tightness_percent")
+                            }} for island in settings.island_settings
+                        ]} if settings.island_settings else {}),
                     }
                     for settings in state.refit.garment_settings
                 ],

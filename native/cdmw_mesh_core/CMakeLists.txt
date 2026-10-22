@@ -48,6 +48,8 @@ set(MESH_CORE_OWNER_SOURCES
     src/owners/session_apply_prepare_01.cpp
     src/owners/session_morph_01.cpp
     src/owners/session_refit_conform.cpp
+    src/owners/session_refit_rigid_pose.cpp
+    src/owners/session_refit_islands.cpp
     src/owners/session_refit_diagnostics.cpp
     src/owners/session_morph_snapshot_codec.cpp
     src/owners/session_morph_snapshot_io.cpp

@@ -305,6 +305,7 @@ class MeshRefitGarmentSettings:
     clearance_percent: float = 0.0
     vertex_mask: tuple[tuple[int, float], ...] | None = None
     tightness_percent: float = 0.0
+    island_settings: tuple[MeshRefitIslandSettings, ...] = ()
 
     def __post_init__(self) -> None:
         submesh_index = _strict_mesh_index(self.submesh_index, "Refit garment submesh")
@@ -328,6 +329,13 @@ class MeshRefitGarmentSettings:
         object.__setattr__(self, "mode", mode)
         object.__setattr__(self, "clearance_percent", clearance)
         object.__setattr__(self, "tightness_percent", tightness)
+        islands = tuple(self.island_settings)
+        faces: set[int] = set()
+        for island in islands:
+            if not isinstance(island, MeshRefitIslandSettings) or faces.intersection(island.face_indices):
+                raise ValueError("Refit island overrides must identify distinct whole mesh islands.")
+            faces.update(island.face_indices)
+        object.__setattr__(self, "island_settings", tuple(sorted(islands, key=lambda item: item.face_indices)))
         if self.vertex_mask is not None:
             normalized_mask: list[tuple[int, float]] = []
             seen: set[int] = set()
@@ -339,6 +347,31 @@ class MeshRefitGarmentSettings:
                 seen.add(index)
                 normalized_mask.append((index, weight))
             object.__setattr__(self, "vertex_mask", tuple(sorted(normalized_mask)))
+
+
+@dataclass(frozen=True, slots=True)
+class MeshRefitIslandSettings:
+    face_indices: tuple[int, ...]
+    enabled: bool = True
+    intensity_percent: float = 100.0
+    mode: str = "surface"
+    clearance_percent: float = 0.0
+    tightness_percent: float = 0.0
+
+    def __post_init__(self) -> None:
+        if type(self.enabled) is not bool or any(isinstance(getattr(self, name), bool) for name in
+                ("intensity_percent", "clearance_percent", "tightness_percent")):
+            raise ValueError("Island fitting requires a boolean enabled value and numeric settings.")
+        indices = tuple(_strict_mesh_index(item, "Refit island face") for item in self.face_indices)
+        if not indices or len(set(indices)) != len(indices):
+            raise ValueError("Refit island overrides require nonempty unique face indices.")
+        normalized = MeshRefitGarmentSettings(
+            0, enabled=self.enabled, intensity_percent=self.intensity_percent, mode=self.mode,
+            clearance_percent=self.clearance_percent, tightness_percent=self.tightness_percent,
+        )
+        object.__setattr__(self, "face_indices", tuple(sorted(indices)))
+        for key in ("enabled", "intensity_percent", "mode", "clearance_percent", "tightness_percent"):
+            object.__setattr__(self, key, getattr(normalized, key))
 
 
 @dataclass(frozen=True, slots=True)
@@ -427,6 +460,8 @@ class MeshMorphFittingRecipe:
         object.__setattr__(self, "name", str(self.name or recipe_id).strip() or recipe_id)
         object.__setattr__(self, "driver_submesh_indices", tuple(sorted(drivers)))
         object.__setattr__(self, "garment_settings", tuple(sorted(garments, key=lambda item: item.submesh_index)))
+        object.__setattr__(self, "format", "cdmw.mesh_refit_recipe.v3" if any(item.island_settings for item in garments)
+                           else "cdmw.mesh_refit_recipe.v2")
         object.__setattr__(self, "garment_regions", tuple(sorted(regions)))
         object.__setattr__(self, "topology_fingerprint", _sha256_digest(self.topology_fingerprint, "Recipe topology"))
         object.__setattr__(self, "base_geometry_fingerprint", _sha256_digest(self.base_geometry_fingerprint, "Recipe base geometry"))
@@ -864,6 +899,7 @@ __all__ = [
     "MeshMorphVertexWeight",
     "MeshRefitBindingSummary",
     "MeshRefitGarmentSettings",
+    "MeshRefitIslandSettings",
     "MeshRefitDriverRegion",
     "MeshMorphFittingRecipe",
     "build_weighted_morph_selection",

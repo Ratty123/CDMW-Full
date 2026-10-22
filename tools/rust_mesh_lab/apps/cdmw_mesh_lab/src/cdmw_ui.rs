@@ -3488,19 +3488,19 @@ impl LabApplication {
             let selected_bound_garments = selected_parts.iter().copied()
                 .filter(|index| bound_garments.contains(index)).collect::<Vec<_>>();
             let scope_id = egui::Id::new("cdmw-refit-edit-scope");
-            let previous = ui.data_mut(|data| data.get_temp::<(String, bool, Vec<u32>)>(scope_id));
-            // Picking garments retargets the editor; losing that selection must
-            // never turn a selected-only draft into an all-garment operation.
-            let mut edit_all = previous.as_ref().filter(|(profile, _, _)| profile == profile_id)
-                .map_or(selected_bound_garments.is_empty(), |(_, all, selected)| {
-                    if selected != &selected_bound_garments && !selected_bound_garments.is_empty() { false } else { *all }
+            let previous = ui.data_mut(|data| data.get_temp::<(String, u8, Vec<u32>)>(scope_id));
+            let mut scope = previous.as_ref().filter(|(profile, _, _)| profile == profile_id)
+                .map_or(if selected_bound_garments.is_empty() { 0 } else { 1 }, |(_, scope, selected)| {
+                    if *scope != 2 && selected != &selected_bound_garments && !selected_bound_garments.is_empty() { 1 } else { *scope }
                 });
+            let islands = self.selected_refit_islands(&bound_garments);
             ui.strong(crate::localization::tr("Fit the outfit"));
             let enabled_count = bound_garments.iter().filter(|part| {
-                !refit.get("garment_settings").and_then(Value::as_array).into_iter().flatten().any(|row| {
-                    row.get("submesh_index").and_then(Value::as_u64) == Some(u64::from(**part))
-                        && row.get("enabled").and_then(Value::as_bool) == Some(false)
-                })
+                refit.get("garment_settings").and_then(Value::as_array).into_iter().flatten()
+                    .find(|row| row["submesh_index"].as_u64() == Some(u64::from(**part)))
+                    .is_none_or(|row| row["enabled"].as_bool() != Some(false)
+                        || row["island_settings"].as_array().into_iter().flatten()
+                            .any(|island| island["enabled"].as_bool() == Some(true)))
             }).count();
             let mut review_parts = false;
             ui.horizontal_wrapped(|ui| {
@@ -3525,20 +3525,40 @@ impl LabApplication {
             ComboBox::from_id_salt("refit-editing-scope")
                 .width(ui.available_width())
                 .truncate()
-                .selected_text(crate::localization::tr(if edit_all {
-                    format!("All bound garments · {}", bound_garments.len())
-                } else { format!("Selected garments · {}", selected_bound_garments.len()) }))
+                .selected_text(crate::localization::tr(match scope {
+                    0 => format!("All bound garments · {}", bound_garments.len()),
+                    2 => format!("Selected mesh islands · {}", islands.len()),
+                    _ => format!("Selected garments · {}", selected_bound_garments.len()),
+                }))
                 .show_ui(ui, |ui| {
-                    ui.selectable_value(&mut edit_all, true, crate::localization::tr("All bound garments"));
-                    ui.selectable_value(&mut edit_all, false, crate::localization::tr("Selected garments"));
+                    ui.selectable_value(&mut scope, 0, crate::localization::tr("All bound garments"));
+                    ui.selectable_value(&mut scope, 1, crate::localization::tr("Selected garments"));
+                    ui.selectable_value(&mut scope, 2, crate::localization::tr("Selected mesh islands"));
                 }).response.labelled_by(scope_label.id);
-            ui.data_mut(|data| data.insert_temp(scope_id, (profile_id.to_owned(), edit_all, selected_bound_garments.clone())));
-            let edit_targets = if edit_all { &bound_garments } else { &selected_bound_garments };
-            let scope_changed = self.cdmw_refit_settings_dirty.retarget(profile_id, edit_targets);
-            let mixed_fields = refit_mixed_fields(&refit, edit_targets);
+            ui.data_mut(|data| data.insert_temp(scope_id, (profile_id.to_owned(), scope, selected_bound_garments.clone())));
+            let part_targets = if scope == 0 { &bound_garments } else { &selected_bound_garments };
+            let island_arguments = islands.iter().map(|(part, faces)| json!({"submesh_index": part, "face_indices": faces})).collect::<Vec<_>>();
+            let effective_refit = if scope == 2 {
+                let rows = islands.iter().enumerate().map(|(index, (part, faces))| {
+                    let parent = refit["garment_settings"].as_array().into_iter().flatten()
+                        .find(|row| row["submesh_index"].as_u64() == Some(u64::from(*part)));
+                    let setting = parent.and_then(|parent| parent["island_settings"].as_array())
+                        .and_then(|rows| rows.iter().find(|row| row["face_indices"] == json!(faces)))
+                        .or(parent);
+                    let mut values = refit_setting_values(setting);
+                    values["submesh_index"] = json!(index);
+                    values
+                }).collect::<Vec<_>>();
+                json!({"garment_settings": rows})
+            } else { refit.clone() };
+            let island_targets = (0..islands.len() as u32).collect::<Vec<_>>();
+            let edit_targets = if scope == 2 { &island_targets } else { part_targets };
+            let edit_identity = if scope == 2 { format!("{profile_id}:{islands:?}") } else { profile_id.to_owned() };
+            let scope_changed = self.cdmw_refit_settings_dirty.retarget(&edit_identity, edit_targets);
+            let mixed_fields = refit_mixed_fields(&effective_refit, edit_targets);
             let hydration_target = edit_targets.first().copied();
             if let Some(target) = hydration_target {
-                let setting = refit
+                let setting = effective_refit
                     .get("garment_settings")
                     .and_then(Value::as_array)
                     .and_then(|settings| {
@@ -3596,9 +3616,21 @@ impl LabApplication {
                     self.cdmw_refit_hydration_key = hydration_key;
                 }
             }
-            cdmw_section(ui, "refit-garment-parts", "Choose garments", review_parts.then_some(true), |ui| {
-                self.draw_cdmw_refit_garment_parts(ui, actions, state);
-            });
+            if scope == 2 {
+                if ui.button(crate::localization::tr("Choose mesh islands")).clicked() {
+                    ui.data_mut(|data| {
+                        data.insert_temp(egui::Id::new("cdmw_parts_panel_open"), true);
+                        data.insert_temp(egui::Id::new("cdmw_parts_panel_islands"), true);
+                    });
+                }
+                if islands.is_empty() {
+                    ui.weak(crate::localization::tr("Select a whole mesh island in Parts."));
+                }
+            } else {
+                cdmw_section(ui, "refit-garment-parts", "Choose garments", review_parts.then_some(true), |ui| {
+                    self.draw_cdmw_refit_garment_parts(ui, actions, state);
+                });
+            }
             ui.add_enabled_ui(!edit_targets.is_empty(), |ui| {
                 let enabled_mixed = mixed_fields.contains("enabled")
                     && !self.cdmw_refit_settings_dirty.fields.contains("enabled");
@@ -3659,7 +3691,7 @@ impl LabApplication {
                 let tightness_enabled = if self.cdmw_refit_settings_dirty.fields.contains("mode") {
                     self.cdmw_refit_mode != "rigid"
                 } else {
-                    !refit.get("garment_settings").and_then(Value::as_array).into_iter().flatten().any(|row| {
+                    !effective_refit.get("garment_settings").and_then(Value::as_array).into_iter().flatten().any(|row| {
                         row.get("submesh_index").and_then(Value::as_u64).is_some_and(|index| {
                             edit_targets.iter().any(|target| u64::from(*target) == index)
                         }) && row.get("mode").and_then(Value::as_str) == Some("rigid")
@@ -3712,15 +3744,32 @@ impl LabApplication {
                     "clearance_percent": self.cdmw_refit_clearance,
                     "tightness_percent": self.cdmw_refit_tightness,
                 });
-                refit_apply_button(ui, actions, if edit_all { "Apply to All Bound Garments" } else { "Apply to Selected Garments" },
-                    edit_targets, &values, &self.cdmw_refit_settings_dirty)
-                    .on_hover_text(crate::localization::tr("Only changed fields are applied. Mixed numeric fields initially show the first Part's value."));
+                if scope == 2 {
+                    if ui.add_enabled(!islands.is_empty() && self.cdmw_refit_settings_dirty.is_dirty(),
+                        Button::new(crate::localization::tr("Apply to Selected Islands"))).clicked() {
+                        let mut arguments = self.cdmw_refit_settings_dirty.arguments(&[], &values);
+                        arguments.as_object_mut().unwrap().remove("submesh_indices");
+                        arguments["islands"] = json!(island_arguments);
+                        actions.push(UiAction::CdmwCommand { command: "refit_island_configure", arguments,
+                            label: "Apply island refit settings" });
+                    }
+                    if ui.add_enabled(!islands.is_empty() && !self.cdmw_refit_settings_dirty.is_dirty(),
+                        Button::new(crate::localization::tr("Use Part settings")))
+                        .on_hover_text(crate::localization::tr("Remove the selected islands' overrides. They will follow their Part's fitting settings again.")).clicked() {
+                        actions.push(UiAction::CdmwCommand { command: "refit_island_configure",
+                            arguments: json!({"islands": island_arguments, "inherit": true}), label: "Inherit Part fitting settings" });
+                    }
+                } else {
+                    refit_apply_button(ui, actions, if scope == 0 { "Apply to All Bound Garments" } else { "Apply to Selected Garments" },
+                        edit_targets, &values, &self.cdmw_refit_settings_dirty)
+                        .on_hover_text(crate::localization::tr("Only changed fields are applied. Mixed numeric fields initially show the first Part's value."));
+                }
             });
             ui.separator();
-            self.draw_cdmw_refit_body_region(ui, actions, state, edit_targets);
+            if scope != 2 { self.draw_cdmw_refit_body_region(ui, actions, state, part_targets); }
             self.draw_cdmw_refit_follow_controls(ui, actions, state);
             cdmw_section(ui, "refit-current-diagnostics", "Check current fit", None, |ui| {
-                self.draw_cdmw_refit_diagnostics(ui, actions, state, edit_targets);
+                self.draw_cdmw_refit_diagnostics(ui, actions, state, part_targets);
             });
         });
         go_to_setup

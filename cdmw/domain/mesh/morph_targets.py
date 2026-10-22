@@ -288,12 +288,21 @@ def validate_mesh_morph_fitting_recipe(mesh: object, recipe: MeshMorphFittingRec
         validate_morph_definition_geometry(mesh, definition)
     submeshes = tuple(getattr(mesh, "submeshes", ()) or ())
     for settings in recipe.garment_settings:
+        if settings.island_settings:
+            from .islands import mesh_islands
+            groups = mesh_islands(submeshes[settings.submesh_index])
+            if any(island.face_indices not in groups for island in settings.island_settings):
+                raise ValueError("Fitting recipe island overrides must identify whole source islands.")
         if settings.vertex_mask is not None and any(index >= len(submeshes[settings.submesh_index].vertices) for index, _weight in settings.vertex_mask):
             raise ValueError("Fitting recipe mask vertex is out of range.")
-        if settings.mode == "rigid_component" and settings.vertex_mask is not None:
+        if settings.vertex_mask is not None:
             part = submeshes[settings.submesh_index]
             weights = dict(settings.vertex_mask)
-            for face in part.faces:
+            overrides = {face: island for island in settings.island_settings for face in island.face_indices}
+            for face_index, face in enumerate(part.faces):
+                effective = overrides.get(face_index, settings)
+                if not effective.enabled or effective.mode != "rigid_component":
+                    continue
                 values = [weights.get(index, 0.0) for index in face]
                 if max(values) - min(values) > 1e-8:
                     raise ValueError("Rigid component masks must be uniform within each connected component.")

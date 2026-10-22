@@ -582,6 +582,36 @@ MeshRefitGarmentSettingsRuntime mesh_editor_refit_settings_from_json(
         || settings.clearance_percent < 0.0 || settings.clearance_percent > 5.0) {
         throw std::runtime_error("garment refit clearance must be between 0 and 5 percent of driver size");
     }
+    if (const auto* islands = raw.get("island_settings")) {
+        if (islands->type != JsonValue::Type::Array)
+            throw std::runtime_error("Island fitting settings must be an array");
+        auto defaults = settings;
+        defaults.island_settings.clear();
+        settings.island_settings.clear();
+        std::set<int> seen;
+        for (const auto& island : islands->array_value) {
+            const auto* faces = island.get("face_indices");
+            if (island.type != JsonValue::Type::Object || !faces || faces->type != JsonValue::Type::Array
+                || faces->array_value.empty() || island.get("island_settings") || island.get("vertex_mask"))
+                throw std::runtime_error("Island fitting requires whole face groups and scalar settings");
+            const auto values = mesh_editor_refit_settings_from_json(island,defaults,true);
+            MeshRefitIslandSettingsRuntime target;
+            target.enabled = values.enabled; target.mode = values.mode;
+            target.intensity_percent = values.intensity_percent; target.clearance_percent = values.clearance_percent;
+            target.tightness_percent = values.tightness_percent;
+            for (const auto& face : faces->array_value) {
+                int index = -1;
+                if (!strict_int_or(&face,index) || index < 0 || !seen.insert(index).second)
+                    throw std::runtime_error("Island fitting requires unique nonnegative face indices");
+                target.face_indices.push_back(index);
+            }
+            std::sort(target.face_indices.begin(),target.face_indices.end());
+            settings.island_settings.push_back(std::move(target));
+        }
+        std::sort(settings.island_settings.begin(),settings.island_settings.end(),[](const auto& a,const auto& b) {
+            return a.face_indices < b.face_indices;
+        });
+    }
     return settings;
 }
 
@@ -589,7 +619,8 @@ void mesh_editor_configure_refit_batch(
     const JsonValue& root,
     MeshRefitRuntime& refit,
     const std::map<int, MeshSessionSubmesh>& submeshes,
-    const std::set<int>& garments
+    const std::set<int>& garments,
+    const std::map<int,std::vector<Vec3>>& neutral
 ) {
     const auto* rows = root.get("garment_settings");
     const auto* selected = root.get("garment_submesh_indices");
@@ -616,6 +647,10 @@ void mesh_editor_configure_refit_batch(
         const MeshRefitGarmentSettingsRuntime previous = current == refit.garment_settings.end()
             ? MeshRefitGarmentSettingsRuntime{} : current->second;
         refit.garment_settings[index] = mesh_editor_refit_settings_from_json(row, previous, true);
+        auto topology = submeshes.at(index);
+        const auto original = neutral.find(index);
+        if (original != neutral.end()) topology.vertices = original->second;
+        mesh_editor_validate_refit_islands(topology,refit.garment_settings[index]);
         const auto* mask = row.get("vertex_mask");
         if (!mask) continue;
         if (mask->type == JsonValue::Type::Null) {
@@ -655,12 +690,13 @@ std::string mesh_editor_morph_configure_refit_session_report(
     auto next = mesh_editor_clone_morph_runtime(session);
     auto next_refit = std::make_shared<MeshRefitRuntime>(*next->refit);
     if (root.get("garment_settings")) {
-        mesh_editor_configure_refit_batch(root, *next_refit, submeshes, garments);
+        mesh_editor_configure_refit_batch(root, *next_refit, submeshes, garments, next->neutral_positions);
     } else {
         for (const int index : garments) {
             MeshRefitGarmentSettingsRuntime defaults;
             // Older clients omit tightness. Preserve the authoritative per-Part value.
             defaults.tightness_percent = next_refit->garment_settings[index].tightness_percent;
+            defaults.island_settings = next_refit->garment_settings[index].island_settings;
             next_refit->garment_settings[index] = mesh_editor_refit_settings_from_json(root, defaults, true);
         }
         refit_read_vertex_masks_native(*next_refit, root.get("vertex_masks"), submeshes, garments);
@@ -691,7 +727,10 @@ std::shared_ptr<const MeshRefitRuntime> mesh_editor_rebased_refit(
 ) {
     if (!morph.refit) return {};
     auto refit = std::make_shared<MeshRefitRuntime>(*morph.refit);
-    for (auto& item : refit->garment_settings) item.second.tightness_percent = 0.0;
+    for (auto& item : refit->garment_settings) {
+        item.second.tightness_percent = 0.0;
+        for (auto& island : item.second.island_settings) island.tightness_percent = 0.0;
+    }
     for (const int driver_index : refit->driver_submesh_indices) {
         const auto found = submeshes.find(driver_index);
         if (found == submeshes.end()) throw std::runtime_error("garment refit driver topology changed");

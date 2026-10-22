@@ -136,7 +136,9 @@ void mesh_editor_write_snapshot_refit(std::ostream& out, const MeshMorphRuntime&
             << ",\"mode\":";
         write_escaped(out, item.second.mode);
         out << ",\"clearance_percent\":" << item.second.clearance_percent
-            << ",\"tightness_percent\":" << item.second.tightness_percent << '}';
+            << ",\"tightness_percent\":" << item.second.tightness_percent;
+        mesh_editor_write_refit_island_settings(out,item.second);
+        out << '}';
     }
     out << "],\"driver_diagonal\":" << std::setprecision(17) << refit.driver_diagonal
         << ",\"maximum_distance\":" << refit.maximum_distance
@@ -463,6 +465,9 @@ std::shared_ptr<const MeshRefitRuntime> mesh_editor_refit_from_snapshot(
         settings.mode = mesh_editor_snapshot_string(item, "mode");
         settings.clearance_percent = mesh_editor_snapshot_number(item, "clearance_percent");
         settings.tightness_percent = version >= 2 ? mesh_editor_snapshot_number(item, "tightness_percent") : 0.0;
+        if (version >= 3) settings = mesh_editor_refit_settings_from_json(item,settings,true);
+        else if (item.get("island_settings"))
+            throw std::runtime_error("Island fitting requires runtime snapshot version 3");
         if (settings.intensity_percent < 0.0 || settings.intensity_percent > 200.0
             || (settings.mode != "surface" && settings.mode != "rigid" && settings.mode != "rigid_component")
             || settings.clearance_percent < 0.0 || settings.clearance_percent > 5.0
@@ -590,6 +595,12 @@ std::shared_ptr<MeshMorphRuntime> mesh_editor_morph_runtime_from_snapshot(
     runtime->refit = mesh_editor_refit_from_snapshot(
         raw_runtime.get("refit"), submeshes, runtime->driver_submesh_indices, version
     );
+    if (runtime->refit) for (const auto& item : runtime->refit->garment_settings) {
+        auto topology = submeshes.at(item.first);
+        const auto neutral = runtime->neutral_positions.find(item.first);
+        if (neutral != runtime->neutral_positions.end()) topology.vertices = neutral->second;
+        mesh_editor_validate_refit_islands(topology,item.second);
+    }
     runtime->unbaked = mesh_editor_snapshot_bool(raw_runtime, "unbaked");
     if (runtime->unbaked != mesh_editor_morph_layer_has_value(runtime->current_layer)) {
         throw std::runtime_error("morph runtime snapshot unbaked state does not match its current layer");

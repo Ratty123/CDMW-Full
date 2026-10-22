@@ -22,6 +22,7 @@ from cdmw.domain.mesh import (
     MeshRefitBindingSummary,
     MeshRefitDriverRegion,
     MeshRefitGarmentSettings,
+    MeshRefitIslandSettings,
     build_weighted_morph_selection,
     clamp_morph_value,
     generate_morph_fields,
@@ -1617,6 +1618,59 @@ class MeshMorphServiceMixin(MeshMorphLayerMixin, MeshMorphAuthoringMixin, MeshMo
             )
             return self._morph_result_and_state_locked(session, "morph_configure_refit", report)
 
+    def configure_refit_islands(
+        self, session_id: str, islands: Sequence[Mapping[str, object]], *,
+        inherit: bool = False, **changes: object,
+    ) -> tuple[MeshEditResult, MeshMorphState]:
+        """Override whole selected islands, retaining every other Part and island."""
+        fields = {"enabled", "intensity_percent", "mode", "clearance_percent", "tightness_percent"}
+        if set(changes) - fields or (inherit and changes) or (not inherit and not changes):
+            raise ValueError("Change fitting settings or restore Part settings for the selected islands.")
+        if not islands:
+            raise ValueError("Select at least one whole mesh island.")
+        from cdmw.modding.mesh_islands import mesh_islands
+        from cdmw.services.mesh_service_morph_authoring import _strict_indices
+
+        if type(inherit) is not bool:
+            raise ValueError("Island inheritance must be boolean.")
+
+        session = self._session(session_id)
+        with session.export_lock:
+            data = self._required_morph_data(session)
+            report = self._run_morph_query_locked(session, "morph_state")
+            state = self._morph_state_from_report_locked(session, report, refresh_presets=False)
+            current = {item.submesh_index: item for item in state.refit.garment_settings}
+            topology = data.topology_mesh or session.working_mesh
+            edited: dict[int, MeshRefitGarmentSettings] = {}
+            seen = set()
+            for target in islands:
+                if not isinstance(target, Mapping):
+                    raise ValueError("Island fitting requires Part and face indices.")
+                part = _strict_indices((target.get("submesh_index"),), label="Island Part")[0]
+                faces = tuple(sorted(_strict_indices(target.get("face_indices"), label="Island faces")))
+                key = (part, faces)
+                if part not in current or not faces or key in seen:
+                    raise ValueError("Island fitting requires distinct whole islands in bound garments.")
+                if faces not in mesh_islands(topology.submeshes[part]):
+                    raise ValueError("Select a whole mesh island before changing its fitting settings.")
+                seen.add(key)
+                parent = edited.get(part, current[part])
+                overrides = {item.face_indices: item for item in parent.island_settings}
+                if inherit:
+                    overrides.pop(faces, None)
+                else:
+                    previous = overrides.get(faces) or MeshRefitIslandSettings(faces, **{
+                        name: getattr(parent, name) for name in fields
+                    })
+                    overrides[faces] = replace(previous, **changes)
+                edited[part] = replace(parent, island_settings=tuple(overrides.values()))
+            report = self._run_morph_command_locked(
+                session, "morph_configure_refit", _refit_settings_batch_payload(
+                    tuple(edited.values()), include_masks=False, include_islands=True),
+                history_label="Configure Island Refit", record_history=True,
+            )
+            return self._morph_result_and_state_locked(session, "morph_configure_refit", report)
+
     def fit_refit_to_body(self, session_id: str) -> tuple[MeshEditResult, MeshMorphState]:
         """Fit enabled garments in one transaction using the resident Part settings."""
         session = self._session(session_id)
@@ -1624,8 +1678,11 @@ class MeshMorphServiceMixin(MeshMorphLayerMixin, MeshMorphAuthoringMixin, MeshMo
             report = self._run_morph_query_locked(session, "morph_state")
             state = self._morph_state_from_report_locked(session, report, refresh_presets=False)
             settings = tuple(
-                replace(item, tightness_percent=100.0, clearance_percent=max(0.1, item.clearance_percent))
-                for item in state.refit.garment_settings if item.enabled
+                replace(item, tightness_percent=100.0, clearance_percent=max(0.1, item.clearance_percent),
+                        island_settings=tuple(replace(island, tightness_percent=100.0,
+                            clearance_percent=max(0.1, island.clearance_percent)) if island.enabled else island
+                            for island in item.island_settings))
+                for item in state.refit.garment_settings if item.enabled or any(island.enabled for island in item.island_settings)
             )
             if not settings:
                 raise ValueError("Enable and bind a garment before fitting it to the body.")
@@ -2138,6 +2195,10 @@ class MeshMorphServiceMixin(MeshMorphLayerMixin, MeshMorphAuthoringMixin, MeshMo
                 clearance_percent=float(item.get("clearance_percent", 0.0)),
                 tightness_percent=float(item.get("tightness_percent", 0.0)),
                 vertex_mask=vertex_masks.get(int(item.get("submesh_index", -1))),
+                island_settings=tuple(MeshRefitIslandSettings(
+                    face_indices=tuple(island["face_indices"]),
+                    **{key: island[key] for key in ("enabled", "intensity_percent", "mode", "clearance_percent", "tightness_percent")},
+                ) for island in item.get("island_settings", ())),
             )
             for item in tuple(refit.get("garment_settings") or ())
             if isinstance(item, Mapping)

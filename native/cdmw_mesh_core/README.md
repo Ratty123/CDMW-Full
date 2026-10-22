@@ -333,6 +333,32 @@ read-only arrays stay in host/native operations and are not duplicated in the Ru
 control state. Effective masks come from the same seam-cohort computation as the
 fitter, so correction capture can normalize partial influence correctly.
 
+#### Rigid hanging poses and island overrides
+
+After the shared body and garment contact solve settles, sparse body-centred rigid
+assemblies without a balanced Flexible attachment can adjust depth and pitch as one
+object. The bounded pitch search minimises chest stand-off while clearing the body
+and settled Flexible surfaces. It preserves dimensions, authored joins and lateral
+centring; dense plates and attached accessories keep their existing orientation
+rules. Tightness and uniform mask influence blend the pose. The independent final
+pose does not feed a new displacement into an already settled waist-band solve.
+
+`garment_settings[].island_settings` optionally contains whole source islands,
+identified by sorted `face_indices`, with enabled, mode, intensity, Tightness and
+clearance values. Missing overrides inherit the Part settings. Overrides evaluate
+through temporary fitting domains and merge back into the original Part and vertex
+slots; no output topology, UV or skin records are split. Explicit rigid island
+domains do not merge into neighbouring hard assemblies. Masks and allowed body
+regions still come from their Part. Invalid or partial island requests refuse
+atomically. Clearing the override restores inheritance.
+
+Snapshots containing overrides use version 3; other snapshots retain version 2.
+Version 3 persists every override, validates source island membership on restore,
+and rebases island Tightness along with Part Tightness on Bake. Python fitting
+recipes and morph drafts also select version 3 only for overrides. Versions 1 and
+2 remain readable with their existing semantics. Older apps reject version 3.
+
+
 #### Current-fit diagnostics
 
 `morph_state` accepts `include_refit_diagnostics: true` with explicit, unique bound

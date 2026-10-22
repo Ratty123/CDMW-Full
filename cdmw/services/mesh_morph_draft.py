@@ -49,7 +49,7 @@ def capture_morph_draft(service, session):
     state = service._capture_morph_session_state_locked(session)
     try:
         return {
-            "format": "cdmw.morph_draft.v2",
+            "format": "cdmw.morph_draft.v3" if state.native_snapshot["version"] == 3 else "cdmw.morph_draft.v2",
             "native": Path(state.native_snapshot["path"]).read_text(encoding="utf-8"),
             "profile": _streamed_profile_payload(cache.profile),
             "preset_id": cache.preset_id,
@@ -84,13 +84,14 @@ def load_morph_draft(descriptor, project_root):
             payload = _read_object_stream(stream, parse_definitions=True)
     if checked.size != descriptor.get("size") or checked.digest.hexdigest() != descriptor.get("sha256"):
         raise ValueError("Morph & Refit draft checksum does not match.")
-    if not isinstance(payload, dict) or payload.get("format") != "cdmw.morph_draft.v2":
+    if not isinstance(payload, dict) or payload.get("format") not in {"cdmw.morph_draft.v2", "cdmw.morph_draft.v3"}:
         raise ValueError("Unsupported Morph & Refit draft format.")
     if not isinstance(payload.get("native"), str) or not isinstance(payload.get("profile"), dict):
         raise ValueError("Morph & Refit draft omitted its snapshot or profile.")
     native = read_json(io.StringIO(payload["native"]))
-    if not isinstance(native, dict) or native.get("version") != 2:
-        raise ValueError("Morph & Refit draft requires a version 2 native snapshot.")
+    expected_version = 3 if payload["format"] == "cdmw.morph_draft.v3" else 2
+    if not isinstance(native, dict) or native.get("version") != expected_version:
+        raise ValueError("Morph & Refit draft native snapshot version does not match its format.")
     runtime = native.get("runtime")
     if not isinstance(runtime, dict) or not isinstance(runtime.get("profile"), dict):
         raise ValueError("Morph & Refit draft omitted its native profile.")

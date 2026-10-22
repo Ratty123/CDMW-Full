@@ -17,6 +17,7 @@ from cdmw.domain.mesh import (
     MeshMorphValuePreset,
     MeshRefitDriverRegion,
     MeshRefitGarmentSettings,
+    MeshRefitIslandSettings,
     mesh_morph_base_fingerprint,
     mesh_morph_role_topology_fingerprint,
     validate_mesh_morph_fitting_recipe,
@@ -54,7 +55,7 @@ def _objects(value: object, label: str):
 
 def fitting_recipe_payload(recipe: MeshMorphFittingRecipe, *, streaming: bool = False) -> dict[str, object]:
     return {
-        "format": _RECIPE_FORMAT,
+        "format": recipe.format,
         "recipe_id": recipe.recipe_id,
         "name": recipe.name,
         "profile": (_streamed_profile_payload if streaming else mesh_morph_profile_payload)(recipe.profile),
@@ -73,6 +74,12 @@ def fitting_recipe_payload(recipe: MeshMorphFittingRecipe, *, streaming: bool = 
                 "vertex_mask": None if item.vertex_mask is None else [
                     {"vertex_index": index, "weight": weight} for index, weight in item.vertex_mask
                 ],
+                **({"island_settings": [
+                    {"face_indices": list(island.face_indices), **{
+                        key: getattr(island, key) for key in
+                        ("enabled", "intensity_percent", "mode", "clearance_percent", "tightness_percent")
+                    }} for island in item.island_settings
+                ]} if item.island_settings else {}),
             }
             for item in recipe.garment_settings
         ],
@@ -90,7 +97,7 @@ def fitting_recipe_payload(recipe: MeshMorphFittingRecipe, *, streaming: bool = 
 
 
 def fitting_recipe_from_payload(payload: Mapping[str, object]) -> MeshMorphFittingRecipe:
-    if not isinstance(payload, Mapping) or payload.get("format") not in {_RECIPE_FORMAT, "cdmw.mesh_refit_recipe.v1"}:
+    if not isinstance(payload, Mapping) or payload.get("format") not in {_RECIPE_FORMAT, "cdmw.mesh_refit_recipe.v1", "cdmw.mesh_refit_recipe.v3"}:
         raise ValueError("Unsupported fitting recipe format.")
     profile = payload.get("profile")
     preset = payload.get("preset")
@@ -104,21 +111,28 @@ def fitting_recipe_from_payload(payload: Mapping[str, object]) -> MeshMorphFitti
             for row in _objects(raw_mask, "vertex mask")
         )
         raw_enabled = item.get("enabled", True)
-        if payload["format"] == _RECIPE_FORMAT and (
+        if payload["format"] != "cdmw.mesh_refit_recipe.v1" and (
             isinstance(item.get("tightness_percent"), bool)
             or not isinstance(item.get("tightness_percent"), (int, float))
         ):
             raise ValueError("Fitting recipe v2 requires numeric garment tightness.")
         if not isinstance(raw_enabled, bool):
             raise ValueError("Fitting recipe garment enabled flags must be boolean.")
-        settings.append(MeshRefitGarmentSettings(
+        parent = MeshRefitGarmentSettings(
             submesh_index=_strict_indices((item.get("submesh_index"),), label="Recipe garment")[0],
             enabled=raw_enabled,
             intensity_percent=float(item.get("intensity_percent", 100.0)),
             mode=str(item.get("mode") or "surface"),
             clearance_percent=float(item.get("clearance_percent", 0.0)),
-            tightness_percent=float(item["tightness_percent"]) if payload["format"] == _RECIPE_FORMAT else 0.0,
+            tightness_percent=float(item["tightness_percent"]) if payload["format"] != "cdmw.mesh_refit_recipe.v1" else 0.0,
             vertex_mask=mask,
+        )
+        settings.append(replace(parent,
+            island_settings=tuple(MeshRefitIslandSettings(
+                face_indices=tuple(island.get("face_indices") or ()),
+                **{key: island.get(key, getattr(parent, key)) for key in
+                   ("enabled", "intensity_percent", "mode", "clearance_percent", "tightness_percent")},
+            ) for island in _objects(item.get("island_settings", []), "island settings")),
         ))
     garment_regions = tuple(
         (
@@ -133,6 +147,8 @@ def fitting_recipe_from_payload(payload: Mapping[str, object]) -> MeshMorphFitti
         )
         for item in _objects(payload.get("garment_regions", []), "garment regions")
     )
+    if any(item.island_settings for item in settings) and payload["format"] != "cdmw.mesh_refit_recipe.v3":
+        raise ValueError("Island fitting overrides require recipe format v3.")
     return MeshMorphFittingRecipe(
         recipe_id=str(payload.get("recipe_id") or ""),
         name=str(payload.get("name") or ""),
@@ -506,7 +522,7 @@ class MeshMorphRecipeMixin:
             run("morph_configure_refit", _refit_settings_batch_payload([
                 item for item in recipe.garment_settings
                 if item.submesh_index in targets
-            ]))
+            ], include_islands=True))
             run("morph_apply_preset", {"preset_id": preset.preset_id, "values": dict(preset.values)})
             save_mesh_morph_profile(self._profile_root(), profile)
             save_mesh_morph_preset(self._profile_root(), preset)

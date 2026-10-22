@@ -364,7 +364,8 @@ std::map<std::pair<int, std::size_t>, RefitSpatialIndexNative> mesh_editor_refit
 std::set<std::pair<std::size_t, std::size_t>> mesh_editor_refit_rigid_joins(
     const std::map<int, MeshSessionSubmesh>& garments,
     const std::map<int, std::vector<std::size_t>>& indices,
-    const std::vector<std::size_t>& roots, double tolerance
+    const std::vector<std::size_t>& roots, double tolerance,
+    const std::set<int>& independent = {}
 ) {
     // Exported ornaments often overlap at their joins without shared vertices.
     // Keep that construction, including tiny authored gaps, as one hard object.
@@ -386,6 +387,8 @@ std::set<std::pair<std::size_t, std::size_t>> mesh_editor_refit_rigid_joins(
     };
     for (auto first = surfaces.begin(); first != surfaces.end(); ++first) {
         for (auto second = std::next(first); second != surfaces.end(); ++second) {
+            if (first->first.first != second->first.first
+                && (independent.count(first->first.first) || independent.count(second->first.first))) continue;
             const auto pair = std::minmax(first->first.second, second->first.second);
             if (pair.first == pair.second || joins.count(pair)) continue;
             const auto& a = first->second.nodes[first->second.root];
@@ -719,6 +722,13 @@ int mesh_editor_refit_layer_order(
     return order;
 }
 
+std::vector<Vec3> mesh_editor_refit_rigid_pose(
+    const std::vector<Vec3>&, const std::vector<std::array<std::size_t,3>>&, std::size_t,
+    const Vec3&, const Vec3&, const RefitSpatialIndexNative&,
+    const std::map<int,std::vector<Vec3>>&, const RefitSpatialIndexNative&,
+    const std::map<int,std::vector<Vec3>>&, double, double, double);
+void mesh_editor_write_refit_island_settings(std::ostream&, const MeshRefitGarmentSettingsRuntime&);
+
 void mesh_editor_refit_components(
     const MeshRefitRuntime& refit,
     const std::map<int, MeshSessionSubmesh>& submeshes,
@@ -728,7 +738,8 @@ void mesh_editor_refit_components(
     const RefitMaskWeightsNative& masks,
     std::map<int, std::vector<Vec3>>& layer,
     bool conforming = false,
-    std::map<int, std::vector<Vec3>>* centering_axes = nullptr
+    std::map<int, std::vector<Vec3>>* centering_axes = nullptr,
+    bool depth_pose = false
 ) {
     if (std::none_of(refit.garment_settings.begin(), refit.garment_settings.end(),
         [](const auto& item) { return item.second.enabled && item.second.mode == "rigid_component"; })) return;
@@ -788,7 +799,7 @@ void mesh_editor_refit_components(
         authored[part.first].faces = submeshes.at(part.first).faces;
     }
     for (const auto& join : mesh_editor_refit_rigid_joins(authored, indices, roots,
-             std::max(tolerance, refit.driver_diagonal * 0.0005)))
+             std::max(tolerance, refit.driver_diagonal * 0.0005), refit.independent_island_parts))
         roots[root_of(join.second)] = root_of(join.first);
     std::map<std::size_t, std::vector<std::size_t>> components;
     for (std::size_t i = 0; i < vertices.size(); ++i) components[root_of(i)].push_back(i);
@@ -835,6 +846,16 @@ void mesh_editor_refit_components(
     // Bind in authored coordinates on every evaluation, never to the preceding
     // preview. A dangling ornament follows its join, not its whole-body average.
     const auto supports = build_refit_spatial_index_native(flexible, flexible_parts);
+    auto pose_surfaces = driver_visible;
+    auto pose_parts = drivers;
+    auto pose_indices = refit.driver_submesh_indices;
+    for (const auto& item : flexible_target) {
+        pose_surfaces[item.first] = item.second;
+        pose_parts[item.first].vertices = item.second;
+        pose_parts[item.first].faces = submeshes.at(item.first).faces;
+        pose_indices.insert(item.first);
+    }
+    const auto pose_obstacles = depth_pose ? build_refit_spatial_index_native(pose_parts, pose_indices) : RefitSpatialIndexNative{};
     const double join_tolerance = std::max(tolerance * 4.0, refit.driver_diagonal * 0.0005);
     for (const auto& component : components) {
         const auto& first = vertices[component.second.front()];
@@ -972,6 +993,7 @@ void mesh_editor_refit_components(
         const bool assembled = std::any_of(component.second.begin(), component.second.end(), [&](const auto i) {
             return topology_roots[i] != topology_roots[component.second.front()];
         });
+        if (depth_pose && (!assembled || attached || length_vec3(centering_axis) < .5)) continue;
         // With no Flexible attachment, tightening translates an assembly without
         // tipping its chain and pendants onto the neck. An attachment instead
         // supplies one shared rigid transform, including its fitted orientation.
@@ -989,13 +1011,16 @@ void mesh_editor_refit_components(
         std::vector<Vec3> fitted;
         for (const auto& point : original) fitted.push_back(amount == 0.0 ? point :
             add_vec3(center, refit_rotate_quaternion_native(rotation, sub_vec3(point, original_center))));
+        if (depth_pose) fitted = target;
         auto samples = fitted;
+        std::vector<std::array<std::size_t,3>> rigid_faces;
         if (conforming) {
             std::map<std::size_t,std::size_t> local;
             for (std::size_t i=0;i<component.second.size();++i) local[component.second[i]]=i;
             std::set<std::pair<std::size_t,std::size_t>> sampled_edges;
             for (const auto& item : indices) for (const auto& face : submeshes.at(item.first).faces) {
                 if (!local.count(item.second[face[0]])) continue;
+                rigid_faces.push_back({local.at(item.second[face[0]]), local.at(item.second[face[1]]), local.at(item.second[face[2]])});
                 Vec3 center{};
                 for (int c=0;c<3;++c) {
                     const auto a=local.at(item.second[face[c]]), b=local.at(item.second[face[(c+1)%3]]);
@@ -1009,6 +1034,13 @@ void mesh_editor_refit_components(
         Vec3 clearance_shift{};
         const double clearance = refit.driver_diagonal * settings.clearance_percent / 100.0
             * (conforming ? 1.0 : first.weight);
+        if (depth_pose) {
+            samples = mesh_editor_refit_rigid_pose(samples, rigid_faces, fitted.size(), centering_axis,
+                refit_rotate_quaternion_native(body_rotation, up), spatial, driver_visible,
+                pose_obstacles, pose_surfaces, refit.driver_diagonal,
+                clearance, settings.tightness_percent / 100.0 * first.weight);
+            std::copy_n(samples.begin(), fitted.size(), fitted.begin());
+        }
         // Every clearance adjustment is one shared translation, preserving the hard part.
         // Keep the authored cloth-to-accessory spacing until the joint fit has
         // captured it. Clearing only the hard piece first can move it beyond
@@ -1294,7 +1326,7 @@ void mesh_editor_relieve_refit_surface(
         authored_rigid[item.first].faces = submeshes.at(item.first).faces;
     }
     for (const auto& join : mesh_editor_refit_rigid_joins(authored_rigid, vertex_cohorts, rigid_roots,
-             std::max(tolerance, refit.driver_diagonal * 0.0005)))
+             std::max(tolerance, refit.driver_diagonal * 0.0005), refit.independent_island_parts))
         rigid_roots[root_of(rigid_roots, join.second)] = root_of(rigid_roots, join.first);
     std::map<std::size_t, std::vector<std::size_t>> rigid_groups;
     for (std::size_t i = 0; i < cohorts.size(); ++i) {
@@ -3389,6 +3421,11 @@ void mesh_editor_add_refit_layer(
         const auto conformed = layer;
         mesh_editor_relieve_refit_surface(*morph.refit, submeshes, driver_visible, residual, layer, &masks, false, &followed, &centering_axes);
         mesh_editor_validate_conformed_refit(*morph.refit, submeshes, residual, conformed, layer, "clearance", &followed);
+        // Resolve the hanging rigid pose against the settled cloth. It must not
+        // perturb a separate waist-band contact solve or inherit the scarf's tilt.
+        const auto settled = layer;
+        mesh_editor_refit_components(*morph.refit, submeshes, driver_visible, residual, settled, masks, layer, true, nullptr, true);
+        mesh_editor_validate_conformed_refit(*morph.refit, submeshes, residual, settled, layer, "rigid pose", &followed);
     }
 }
 
@@ -3486,23 +3523,11 @@ SubmeshMeshEditResult mesh_editor_morph_sparse_result(
     return result;
 }
 
-std::vector<SubmeshMeshEditResult> mesh_editor_recompose_morph(
-    MeshEditorSession& session,
-    MeshMorphRuntime& next,
-    const std::string& action,
-    const std::string& delta_output_dir,
-    const std::string& session_id
+void mesh_editor_apply_refit_corrections(
+    const MeshMorphRuntime& next, const std::map<int,MeshSessionSubmesh>& submeshes,
+    const std::map<int,std::vector<Vec3>>& residual, std::map<int,std::vector<Vec3>>& new_layer,
+    const std::map<int,std::vector<Vec3>>& post_refit
 ) {
-    std::map<int, MeshSessionSubmesh>& submeshes = mesh_editor_submeshes(session);
-    std::map<int, std::vector<Vec3>> new_layer = mesh_editor_build_procedural_morph_layer(next, submeshes);
-    const auto post_refit = mesh_editor_build_procedural_morph_layer(next, submeshes, true);
-    std::set<int> indices = mesh_editor_morph_runtime_indices(*session.morph, new_layer);
-    for (const auto& item : post_refit) indices.insert(item.first);
-    if (next.refit) {
-        indices.insert(next.refit->driver_submesh_indices.begin(), next.refit->driver_submesh_indices.end());
-        indices.insert(next.refit->garment_submesh_indices.begin(), next.refit->garment_submesh_indices.end());
-    }
-    const std::map<int, std::vector<Vec3>> residual = mesh_editor_morph_residual_positions(*session.morph, submeshes, indices);
     mesh_editor_add_refit_layer(next, submeshes, residual, new_layer);
     const auto masks = next.refit ? mesh_editor_refit_masks(*next.refit, submeshes, residual) : RefitMaskWeightsNative{};
     const bool check_corrections = next.refit && !post_refit.empty()
@@ -3536,6 +3561,34 @@ std::vector<SubmeshMeshEditResult> mesh_editor_recompose_morph(
         mesh_editor_validate_conformed_refit(*next.refit,submeshes,residual,fitted_layer,new_layer,"garment correction");
         mesh_editor_relieve_refit_surface(*next.refit,submeshes,driver_visible,residual,new_layer,&masks,true,&fitted_layer);
     }
+}
+
+void mesh_editor_apply_island_refit_corrections(
+    const MeshMorphRuntime&, const std::map<int,MeshSessionSubmesh>&,
+    const std::map<int,std::vector<Vec3>>&, std::map<int,std::vector<Vec3>>&,
+    const std::map<int,std::vector<Vec3>>&);
+
+std::vector<SubmeshMeshEditResult> mesh_editor_recompose_morph(
+    MeshEditorSession& session,
+    MeshMorphRuntime& next,
+    const std::string& action,
+    const std::string& delta_output_dir,
+    const std::string& session_id
+) {
+    std::map<int, MeshSessionSubmesh>& submeshes = mesh_editor_submeshes(session);
+    std::map<int, std::vector<Vec3>> new_layer = mesh_editor_build_procedural_morph_layer(next, submeshes);
+    const auto post_refit = mesh_editor_build_procedural_morph_layer(next, submeshes, true);
+    std::set<int> indices = mesh_editor_morph_runtime_indices(*session.morph, new_layer);
+    for (const auto& item : post_refit) indices.insert(item.first);
+    if (next.refit) {
+        indices.insert(next.refit->driver_submesh_indices.begin(), next.refit->driver_submesh_indices.end());
+        indices.insert(next.refit->garment_submesh_indices.begin(), next.refit->garment_submesh_indices.end());
+    }
+    const std::map<int, std::vector<Vec3>> residual = mesh_editor_morph_residual_positions(*session.morph, submeshes, indices);
+    const bool islands = next.refit && std::any_of(next.refit->garment_settings.begin(), next.refit->garment_settings.end(),
+        [](const auto& item) { return !item.second.island_settings.empty(); });
+    if (islands) mesh_editor_apply_island_refit_corrections(next, submeshes, residual, new_layer, post_refit);
+    else mesh_editor_apply_refit_corrections(next, submeshes, residual, new_layer, post_refit);
     for (const auto& item : new_layer) indices.insert(item.first);
     std::vector<SubmeshMeshEditResult> results;
     for (const int index : indices) {
@@ -3643,7 +3696,9 @@ void mesh_editor_write_refit_settings(std::ostream& out, const MeshRefitRuntime&
             << ",\"mode\":";
         write_escaped(out, settings.mode);
         out << ",\"clearance_percent\":" << std::setprecision(17) << settings.clearance_percent
-            << ",\"tightness_percent\":" << settings.tightness_percent << '}';
+            << ",\"tightness_percent\":" << settings.tightness_percent;
+        mesh_editor_write_refit_island_settings(out, settings);
+        out << '}';
     }
     out << ']';
 }

@@ -81,7 +81,8 @@ struct MeshRefitVertexBindingRuntime {
     bool rigid_frame_valid = false;
 };
 
-struct MeshRefitGarmentSettingsRuntime {
+struct MeshRefitIslandSettingsRuntime {
+    std::vector<int> face_indices;
     bool enabled = true;
     double intensity_percent = 100.0;
     std::string mode = "surface";
@@ -89,7 +90,18 @@ struct MeshRefitGarmentSettingsRuntime {
     double tightness_percent = 0.0;
 };
 
+struct MeshRefitGarmentSettingsRuntime {
+    bool enabled = true;
+    double intensity_percent = 100.0;
+    std::string mode = "surface";
+    double clearance_percent = 0.0;
+    double tightness_percent = 0.0;
+    std::vector<MeshRefitIslandSettingsRuntime> island_settings;
+};
+
 struct MeshRefitRuntime {
+    // Evaluation-only domain boundaries. Persisted overrides own their source faces.
+    std::set<int> independent_island_parts;
     std::set<int> driver_submesh_indices;
     std::set<int> garment_submesh_indices;
     std::map<int, std::vector<Vec3>> driver_baseline_positions;
