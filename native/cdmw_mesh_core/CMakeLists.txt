@@ -106,3 +106,7 @@ target_compile_definitions(cdmw-mesh-core-abi PRIVATE
 )
 target_include_directories(cdmw-mesh-core-abi PRIVATE src)
 target_link_libraries(cdmw-mesh-core-abi PRIVATE cdmw-mesh-core-owners)
+
+add_executable(cdmw-refit-contact-test EXCLUDE_FROM_ALL tests/refit_contact_solver.cpp)
+target_compile_features(cdmw-refit-contact-test PRIVATE cxx_std_17)
+target_link_libraries(cdmw-refit-contact-test PRIVATE cdmw-mesh-core-owners)

@@ -1781,6 +1781,33 @@ void mesh_editor_relieve_refit_surface(
         else for (const auto& parent : detail_supports.at(i)) weights[parent.first] += weight * parent.second;
     };
     const auto project_details = [&](double& maximum_correction) {
+        // Strain in a carried strand belongs to its backing field. Moving only
+        // the detail vertices is undone by the next attachment projection.
+        for (int pass = 0; !validate_only && pass < 2; ++pass) for (const auto& edge : edges) {
+            if (!detail_offsets.count(edge.first) && !detail_offsets.count(edge.second)) continue;
+            const Vec3 delta = sub_vec3(live_point(edge.second), live_point(edge.first));
+            const double length = length_vec3(delta);
+            if (length <= tolerance) continue;
+            const double rest = length_vec3(sub_vec3(cohorts[edge.second].original, cohorts[edge.first].original));
+            const double authored = length_vec3(sub_vec3(layer_rest[edge.second], layer_rest[edge.first]));
+            const double target = std::clamp(length, rest * 0.2, std::max(rest, authored) * 2.0);
+            if (std::abs(length - target) <= tolerance) continue;
+            const Vec3 normal = scale_vec3(delta, 1.0 / length);
+            std::map<std::size_t, double> weights;
+            add_contact_weight(weights, edge.first, -1.0);
+            add_contact_weight(weights, edge.second, 1.0);
+            double freedom = 0.0;
+            for (const auto& weight : weights)
+                freedom += weight.second * weight.second * cohorts[weight.first].mobility
+                    * dot_vec3(normal, project_contact(weight.first, normal));
+            if (freedom <= 1.0e-8) continue;
+            for (const auto& weight : weights) {
+                const Vec3 correction = scale_vec3(normal, (target - length) * weight.second
+                    * cohorts[weight.first].mobility / freedom);
+                move_contact(weight.first, correction);
+                maximum_correction = std::max(maximum_correction, length_vec3(correction));
+            }
+        }
         for (const auto& detail : detail_offsets) {
             const Vec3 target = live_point(detail.first);
             maximum_correction = std::max(maximum_correction, length_vec3(sub_vec3(target, cohorts[detail.first].position)));

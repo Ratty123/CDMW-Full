@@ -234,6 +234,23 @@ surface fitting. Layer order is inherited from the backing, and contact correcti
 act through its controls. The final contact passes refresh exact layer crossings
 each time before validation.
 
+Clearance diffusion starts from the requested displacement, retaining uniform
+component motion without reconstructing it through stiff, unevenly sampled edges.
+Its iteration budget and relative residual threshold are unchanged. Edge differences
+evaluate the screened operator without subtracting large diagonal terms. Carried
+trim strain is constrained through its backing controls; adjusting only the trim
+vertices would be discarded by the next attachment projection. Validation-only
+passes do not apply those backing corrections.
+
+The owned solver regression checks uniform movement on uneven cloth sampling,
+tiny retained exclusion draws, unused records, a known nonuniform solution and
+rejection of an unfinished solve. Build and run it separately from the helper:
+
+```powershell
+cmake --build native/cdmw_mesh_core/build --config Release --target cdmw-refit-contact-test
+.\native\cdmw_mesh_core\build\Release\cdmw-refit-contact-test.exe
+```
+
 Transverse body crossings between the regular vertex, midpoint and centroid samples
 add persistent contact samples from both meshes' edge/triangle intersections. Old
 locations remain constrained as an intersection moves. Exact body contacts bind

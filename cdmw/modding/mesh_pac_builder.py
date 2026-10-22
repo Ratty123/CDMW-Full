@@ -744,7 +744,10 @@ def _build_pac_in_place(
                 )
             vertex_updates[rec_off] = payload
 
-        if orig_sm.source_index_offset >= 0:
+        # Exclusions leave degenerate records between retained faces. A
+        # position-only edit must preserve those slots instead of compacting
+        # visible faces over them and duplicating the remaining source draws.
+        if orig_sm.source_index_offset >= 0 and orig_sm.faces != new_sm.faces:
             for fi, (a, b, c) in enumerate(new_sm.faces):
                 if a >= len(new_sm.vertices) or b >= len(new_sm.vertices) or c >= len(new_sm.vertices):
                     raise ValueError(f"PAC face {fi} in submesh {sm_idx} references an out-of-range vertex.")

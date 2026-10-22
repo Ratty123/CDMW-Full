@@ -6,35 +6,46 @@ mesh_editor_smooth_refit_contact(const std::vector<Vec3> &target, const std::vec
                                  double lambda, int maximum_iterations) {
     const std::size_t count = target.size();
     std::vector<double> diagonal(count);
-    std::vector<Vec3> result(count), residual(count), direction(count), z(count);
+    std::vector<Vec3> result(target), residual(count), direction(count), z(count);
     const auto inner = [](const std::vector<Vec3> &a, const std::vector<Vec3> &b) {
         double value = 0.0;
         for (std::size_t i = 0; i < a.size(); ++i)
             value += dot_vec3(a[i], b[i]);
         return value;
     };
+    double norm = 0.0;
     for (std::size_t i = 0; i < count; ++i) {
         diagonal[i] = std::max(mass[i], 1.0e-16);
-        residual[i] = scale_vec3(target[i], diagonal[i]);
+        const Vec3 rhs = scale_vec3(target[i], diagonal[i]);
+        norm += dot_vec3(rhs, rhs);
     }
+    // Start at the requested displacement. Uniform motion is already an exact
+    // solution, including on tiny retained draws after exclusions. Starting at
+    // zero makes the solver reconstruct that motion through very stiff edges.
     for (const auto &edge : edges) {
         diagonal[edge.first.first] += lambda * edge.second;
         diagonal[edge.first.second] += lambda * edge.second;
+        const Vec3 difference = scale_vec3(sub_vec3(target[edge.first.first], target[edge.first.second]),
+                                          lambda * edge.second);
+        residual[edge.first.first] = sub_vec3(residual[edge.first.first], difference);
+        residual[edge.first.second] = add_vec3(residual[edge.first.second], difference);
     }
+    if (norm <= 1.0e-30)
+        return std::vector<Vec3>(count);
+    if (inner(residual, residual) <= norm * 1.0e-6)
+        return result;
     for (std::size_t i = 0; i < count; ++i)
         direction[i] = z[i] = scale_vec3(residual[i], 1.0 / diagonal[i]);
-    const double norm = inner(residual, residual);
     double rz = inner(residual, z);
-    if (norm <= 1.0e-30)
-        return result;
     for (int iteration = 0; iteration < maximum_iterations; ++iteration) {
         std::vector<Vec3> product(count);
         for (std::size_t i = 0; i < count; ++i)
-            product[i] = scale_vec3(direction[i], diagonal[i]);
+            product[i] = scale_vec3(direction[i], std::max(mass[i], 1.0e-16));
         for (const auto &edge : edges) {
             const auto a = edge.first.first, b = edge.first.second;
-            product[a] = sub_vec3(product[a], scale_vec3(direction[b], lambda * edge.second));
-            product[b] = sub_vec3(product[b], scale_vec3(direction[a], lambda * edge.second));
+            const Vec3 difference = scale_vec3(sub_vec3(direction[a], direction[b]), lambda * edge.second);
+            product[a] = add_vec3(product[a], difference);
+            product[b] = sub_vec3(product[b], difference);
         }
         const double denominator = inner(direction, product);
         if (!std::isfinite(denominator) || denominator <= 0.0)

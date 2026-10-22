@@ -5,6 +5,7 @@ from types import SimpleNamespace
 import pytest
 
 from cdmw.models import ArchiveEntry
+from cdmw.modding.mesh_importer import rebuild_mesh_with_report
 from cdmw.modding.mesh_parser import parse_pac
 from tests.test_mesh_islands import _island_lods, _island_pac
 from tests.test_mesh_refit_tightening_native import _arm, _bound, _fit, _mesh, _sleeve
@@ -84,6 +85,15 @@ def test_fit_after_finishing_exclusions_and_reopening(tmp_path, monkeypatch, who
         assert all(after.vertices[v] == garment.vertices[v] for v in unused)
         for channel in ("faces", "uvs", "bone_indices", "bone_weights", "name", "material"):
             assert getattr(after, channel) == getattr(garment, channel)
+        edited = deepcopy(reopened)
+        edited.submeshes[0].vertices = deepcopy(after.vertices)
+        edited.submeshes[0].normals = deepcopy(after.normals)
+        exported = rebuild_mesh_with_report(edited, result.data, original_mesh=reopened)
+        reparsed = parse_pac(exported.data, "fitted-exclusions.pac")
+        assert reparsed.submeshes[0].faces == garment.faces
+        start = garment.source_index_offset
+        end = start + garment.source_index_count * 2
+        assert exported.data[start:end] == result.data[start:end]
         assert mesh_native_core.undo_native_mesh_editor_session(session)
         assert _snapshot(mesh, session).submeshes[1].vertices == garment.vertices
         assert mesh_native_core.redo_native_mesh_editor_session(session)

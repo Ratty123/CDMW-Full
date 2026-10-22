@@ -2090,6 +2090,9 @@ Contact corrections use two shorter smoothing passes to reduce new pointed areas
 around isolated contacts, including on denser meshes. Late adjustments remain local
 enough to clear cuffs and thin trim. This smooths the fitting displacement rather
 than the garment vertices, so authored folds retain their shape.
+Edited outfits retain uniform movement during the clearance solve, including tiny
+draws left by excluded Parts. Attached cords limit stretching through their backing
+cloth, so the final attachment update retains that protection.
 Layer separation is checked again after smoothing. A shortened edge may recover its
 authored length during clearance correction; that limit does not pull the garment
 back to its old width. Thin folds are checked against their moving neighbors. Masks
@@ -2105,6 +2108,8 @@ Repeated fitting evaluates the same neutral mesh. **Reset** restores the pre-fit
 geometry and clears active Tightness. **Bake** makes the preview the new neutral and
 clears Tightness; both actions support Undo/Redo. To undo a baked fit, undo Bake or
 reload the original. No subdivision, remeshing, UV or skin-weight changes are involved.
+Position-only PAC exports preserve the existing face-index slots, including hidden
+slots left by exclusions, so fitting does not duplicate retained faces.
 
 Fitting recipes and native morph snapshots now write version 2; version 1 reads with
 Tightness disabled. Drafts with Morph & Refit state use layer-project version 8 and
