@@ -2021,10 +2021,22 @@ update retains the pending edits. Apply pending settings before **Fit all enable
 garments**; fitting stays disabled while edits are pending.
 Tightness requires Surface or Rigid component mode on every chosen garment.
 
-**Fit all enabled garments** tightens all enabled bound garments around the loaded
-body. It needs no viewport selection, body slider, original body or skeleton. It sets **Tightness %**
-to 100 and clearance to at least 0.1%, retaining each Part's mode, intensity, masks and
-allowed body region. Inputs must already share the intended alignment and pose.
+**Fit all enabled garments** repairs body intersections using each Part and mesh
+island's current settings. It needs no viewport selection, body slider, original body
+or skeleton. It adds at least 0.1% clearance to enabled targets without changing their
+Tightness, mode, intensity, masks or allowed body region. New bindings start at 0%
+Tightness: already clear skirts, drapes and hanging trim retain their loose shape;
+contact corrections affect the local cloth that needs to clear the body, even when
+the bodice and skirt share one material Part. It does not tailor a skirt to the legs.
+Set Tightness deliberately on areas intended to be snug, such as sleeves or waist
+bands, using Part, mesh-island or local influence controls. Materials alone do not
+reliably identify these roles. Existing saved Tightness values remain authoritative;
+older all-fit previews may still contain 100% values that need returning to 0% on
+loose cloth. Inputs must already share the intended alignment and pose.
+Keep jewellery and hard details in **Rigid component** mode when they need moving;
+zero Tightness on Flexible cloth still allows local deformation to clear a contact.
+Use **Skip** for details that should retain their placement. A garment can need
+repairs on its bodice or sleeves while its skirt and hanging details stay loose.
 After excluding islands with **Include** and starting a new edit session from the
 finished PAC, unused vertex records do not need body correspondences for tightening.
 They retain their followed positions while the remaining garment surface is fitted;
@@ -2039,8 +2051,10 @@ still reject the fit and retain the previous preview.
 | Skip | Disables body following and fitting for this Part, retaining its stored settings. | Accessories to leave unchanged and position manually. |
 
 **Body-shape following %** controls body-slider following. **Tightness %** independently
-controls inward fitting: 0 retains the earlier following/clearance behavior, 100 requests a
-natural snug fit, and intermediate values blend from the same neutral geometry.
+controls inward fitting: 0 preserves the authored silhouette while repairing local
+body intersections, 100 requests inward reshaping of the chosen area, and intermediate
+values blend from the same neutral geometry. A safe body gap alone does not establish
+acceptable garment shape; inspect skirts, drapes, cords and other details before Bake.
 Clearance sets the gap as a percentage of body size. Parts joined into one rigid
 component require consistent intensity, Tightness, clearance and mask influence.
 Materials do not choose a mode automatically. A hard piece can span several material

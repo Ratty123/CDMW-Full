@@ -976,7 +976,8 @@ void mesh_editor_validate_conformed_refit(const MeshRefitRuntime &refit,
     std::map<std::tuple<long long, long long, long long>, std::vector<Seam>> seams;
     const auto seam_positions = mesh_editor_refit_seam_positions(refit, submeshes, residual);
     for (const auto &item : refit.garment_settings) {
-        if (!item.second.enabled || item.second.mode == "rigid" || item.second.tightness_percent <= 0.0)
+        if (!item.second.enabled || item.second.mode == "rigid"
+            || (item.second.tightness_percent <= 0.0 && item.second.clearance_percent <= 0.0))
             continue;
         const int part = item.first;
         std::size_t face_index = 0;

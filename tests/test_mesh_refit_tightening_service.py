@@ -111,11 +111,12 @@ def test_fit_reads_authoritative_part_settings_and_publishes_one_undo(resident):
         vertices_by_submesh={1: (0,)}), weight=0.)[0].ok
     assert service.set_refit_driver_region(session, (1,), selection=MeshEditSelection.from_maps(
         faces_by_submesh={0: tuple(range(len(mesh.submeshes[0].faces)))}))[0].ok
+    assert service.configure_refit(session, (1,), tightness_percent=25.)[0].ok
     before = service.cached_morph_state(session).refit
     count = len(service._session(session).undo_stack)
     result, state = service.fit_refit_to_body(session)
     assert result.ok
-    assert state.refit.garment_settings[0] == replace(before.garment_settings[0], tightness_percent=100., clearance_percent=.1)
+    assert state.refit.garment_settings[0] == replace(before.garment_settings[0], clearance_percent=.1)
     assert state.refit.garment_settings[1] == before.garment_settings[1]
     assert state.refit.garment_regions == before.garment_regions
     assert len(service._session(session).undo_stack) == count + 1
@@ -125,12 +126,32 @@ def test_fit_reads_authoritative_part_settings_and_publishes_one_undo(resident):
     assert service.working_mesh(session, clone=True).submeshes[2].vertices == mesh.submeshes[2].vertices
     # A stale/older caller omits tightness without erasing the current native setting.
     assert service.configure_refit(session, (1,), enabled=True, intensity_percent=37.,
-                                   mode="surface", clearance_percent=.1)[1].refit.garment_settings[0].tightness_percent == 100.
+                                   mode="surface", clearance_percent=.1)[1].refit.garment_settings[0].tightness_percent == 25.
     assert service.reset_morph(session)[0].ok
     assert service.working_mesh(session, clone=True).submeshes[1].vertices == mesh.submeshes[1].vertices
     assert service.undo(session).ok
     for a, b in zip(service.working_mesh(session, clone=True).submeshes[1].vertices, fitted):
         assert a == pytest.approx(b)
+
+
+def test_fit_default_leaves_an_already_clear_loose_garment_unchanged(resident):
+    service, open_session = resident
+    mesh = _mesh(_arm(), _sleeve(radius=.13))
+    session = open_session(mesh)
+    profile = MeshMorphProfile(profile_id="fit", name="Fit",
+        topology_fingerprint=mesh_morph_driver_topology_fingerprint(mesh, ()))
+    service._activate_morph_profile_locked(service._session(session), profile)
+    service.set_refit_driver(session, (0,))
+    service.bind_refit(session, (1,))
+    before = service.cached_morph_state_from_runtime(session).refit
+    assert before.garment_settings[0].tightness_percent == 0.
+    result, state = service.fit_refit_to_body(session)
+    assert result.ok
+    assert state.refit.garment_settings[0] == replace(before.garment_settings[0], clearance_percent=.1)
+    current = service.working_mesh(session, clone=True)
+    assert current.submeshes[0].vertices == mesh.submeshes[0].vertices
+    for actual, original in zip(current.submeshes[1].vertices, mesh.submeshes[1].vertices):
+        assert actual == pytest.approx(original, abs=1e-8)
 
 
 def test_recipe_v2_roundtrip_and_legacy_read(tmp_path):
@@ -164,6 +185,7 @@ def test_draft_reopens_with_tightness_and_reset_neutral(resident, tmp_path):
     service._activate_morph_profile_locked(service._session(session), profile)
     service.set_refit_driver(session, (0,))
     service.bind_refit(session, (1,))
+    service.configure_refit(session, (1,), tightness_percent=35.)
     assert service.fit_refit_to_body(session)[0].ok
     fitted = service.working_mesh(session, clone=True).submeshes[1].vertices
     owner = service._session(session)
@@ -173,7 +195,7 @@ def test_draft_reopens_with_tightness_and_reset_neutral(resident, tmp_path):
     assert json.loads(project.read_text())["format"] == "mesh_layer_project_v8"
     mesh._cdmw_mesh_layer_project_path = str(project)
     reopened = open_session(mesh)
-    assert service.cached_morph_state(reopened).refit.garment_settings[0].tightness_percent == 100.
+    assert service.cached_morph_state(reopened).refit.garment_settings[0].tightness_percent == 35.
     for a, b in zip(service.working_mesh(reopened, clone=True).submeshes[1].vertices, fitted):
         assert a == pytest.approx(b)
     assert service.reset_morph(reopened)[0].ok
@@ -219,14 +241,14 @@ def test_failed_fit_through_background_protocol_keeps_preview_and_settings(resid
     from cdmw.workers.mesh_rust_editor_workers import MeshRustProtocolWorker
 
     service, open_session = resident
-    far = _sleeve()
-    far.vertices = [(x+3., y, z) for x, y, z in far.vertices]
-    mesh = _mesh(_arm(), _sleeve(), far)
+    mesh = _mesh(_arm(), _sleeve(radius=.04), _sleeve())
     session = open_session(mesh)
     profile = MeshMorphProfile(profile_id="fit", name="Fit", topology_fingerprint=mesh_morph_driver_topology_fingerprint(mesh, ()))
     service._activate_morph_profile_locked(service._session(session), profile)
     service.set_refit_driver(session, (0,))
     service.bind_refit(session, (1,2))
+    assert service.set_refit_vertex_influence(session, selection=MeshEditSelection.from_maps(
+        vertices_by_submesh={1: tuple(range(len(mesh.submeshes[1].vertices)))}), weight=0.)[0].ok
     editor = RustMeshAuthoringSession.create(SimpleNamespace(mesh_service=service, active_session_id=session),
                                            tmp_path / "rust-fit", process_generation=7)
     try:
@@ -247,7 +269,7 @@ def test_failed_fit_through_background_protocol_keeps_preview_and_settings(resid
         thread.join(30.)
         assert not thread.is_alive()
         assert not results and len(errors) == 1
-        assert "Part 2" in errors[0][3]
+        assert "Part 1" in errors[0][3]
         assert shadow.cached_morph_state_from_runtime(sid).refit == before
         assert shadow.working_mesh(sid, clone=True).submeshes[1].vertices == vertices
         assert shadow.session_view(sid).revision == revision

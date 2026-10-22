@@ -197,7 +197,7 @@ def test_island_following_is_independent_and_global_fit_respects_skips(resident)
     assert service.fit_refit_to_body(session)[0].ok
     state = service.cached_morph_state_from_runtime(session).refit.garment_settings[0]
     assert not state.enabled and state.island_settings[0].enabled
-    assert state.island_settings[0].tightness_percent == 100.
+    assert state.island_settings[0].tightness_percent == 25.
     actual = np.array(service.working_mesh(session, clone=True).submeshes[1].vertices)
     assert actual[:4] == pytest.approx(expected[:4])
 

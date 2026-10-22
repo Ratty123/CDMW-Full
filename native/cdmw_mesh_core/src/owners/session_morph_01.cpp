@@ -1236,6 +1236,10 @@ void mesh_editor_relieve_refit_surface(
     bool smooth_bands = true
 ) {
     std::map<int, double> clearances;
+    const bool clearance_only = fitting_masks && std::none_of(
+        refit.garment_settings.begin(), refit.garment_settings.end(), [](const auto& item) {
+            return item.second.enabled && item.second.mode != "rigid" && item.second.tightness_percent > 0.0;
+        });
     for (const auto& item : refit.garment_settings) {
         if (item.second.enabled && item.second.clearance_percent > 0.0
             && (item.second.mode == "surface" || (fitting_masks && item.second.mode == "rigid_component"))) {
@@ -1333,6 +1337,7 @@ void mesh_editor_relieve_refit_surface(
         double snug_gap = -1.0;
         std::pair<int, std::size_t> target_surface{-1, 0};
         bool ordered = false;
+        bool share_contact_motion = false;
         mutable std::array<std::size_t, 3> live_corners{};
         mutable int live_generation = -1;
     };
@@ -1616,6 +1621,13 @@ void mesh_editor_relieve_refit_surface(
     std::vector<bool> layer_boundary(cohorts.size(), false);
     for (const auto& edge : edge_faces) if (edge.second != 2)
         layer_boundary[edge.first.first] = layer_boundary[edge.first.second] = true;
+    std::set<LayerKey> coarse_open_layers;
+    for (const auto& surface : layer_surfaces) {
+        bool boundary_only = !surface.second.triangles.empty();
+        for (const auto& face : surface.second.triangles) for (const auto vertex : face.driver_vertices)
+            boundary_only &= layer_boundary[vertex_cohorts.at(face.driver_submesh_index)[vertex]];
+        if (boundary_only) coarse_open_layers.insert(surface.first);
+    }
     const auto interior_layer_feature = [&](const SurfaceSample& sample) {
         std::vector<std::size_t> active;
         for (int c = 0; c < 3; ++c) if (sample.weights[c] > 1.0e-7) active.push_back(sample.corners[c]);
@@ -2108,7 +2120,8 @@ void mesh_editor_relieve_refit_surface(
                 const Vec3 body_normal = refit_binding_face_normal_native(body, driver_visible);
                 // A buried sleeve first needs the body's combined-volume exit,
                 // not an outward ray from an internal arm or torso face.
-                if (dot_vec3(sub_vec3(point, mesh_editor_refit_driver_point(body, driver_visible)), body_normal)
+                const bool preserve_coarse_gap = clearance_only && coarse_open_layers.count(target.first);
+                if (!preserve_coarse_gap && dot_vec3(sub_vec3(point, mesh_editor_refit_driver_point(body, driver_visible)), body_normal)
                         < tolerance * 4.0) return;
                 const Vec3 support = layer_sample_point(other);
                 const double across = dot_vec3(sub_vec3(point, support), body_normal);
@@ -2122,6 +2135,7 @@ void mesh_editor_relieve_refit_surface(
                 if (std::abs(alignment) < 0.5) return;
                 if (alignment < 0.0) direction = scale_vec3(direction, -1.0);
                 bool before = false, after = false;
+                double authored_gap = std::numeric_limits<double>::infinity();
                 for (const auto& hit : refit_surface_line_hits_native(point, direction, refit.driver_diagonal * 0.03, target_index)) {
                     SurfaceSample contact{{}, hit.barycentric};
                     for (int c = 0; c < 3; ++c)
@@ -2129,12 +2143,18 @@ void mesh_editor_relieve_refit_surface(
                     const double height = dot_vec3(sub_vec3(layer_sample_point(contact), point), direction);
                     before |= height < -tolerance * 4.0;
                     after |= height > tolerance * 4.0;
+                    if (height > tolerance * 4.0) authored_gap = std::min(authored_gap, height);
                 }
                 // Solid trim already threaded through this cloth is an authored
                 // join. Its displacement links retain that construction.
                 if (before && after) return;
-                layer_probes.push_back({sample, target.first, direction,
-                    std::max(clearances.at(source_part), clearances.at(target_part))});
+                double gap = std::max(clearances.at(source_part), clearances.at(target_part));
+                // A panel without interior vertices cannot bend locally over
+                // a detailed lining. Retain its standoff even if the lining
+                // starts buried. Detailed cloth still uses local contact; an
+                // authored fold is not a gap to inflate throughout the garment.
+                if (preserve_coarse_gap && std::isfinite(authored_gap)) gap = std::max(gap, authored_gap * 0.75);
+                layer_probes.push_back({sample, target.first, direction, gap});
                 return;
             }
             const bool interior_feature = pair_order != 0 && interior_layer_feature(other);
@@ -2198,9 +2218,17 @@ void mesh_editor_relieve_refit_surface(
             // whose inverted order should be preserved.
             const Vec3 rest_offset = add_vec3(sub_vec3(point, layer_sample_point(other)),
                 scale_vec3(normal, reference_height - height));
+            const auto body_gap = [&](const Vec3& position, const auto& binding) {
+                return dot_vec3(sub_vec3(position, mesh_editor_refit_driver_point(binding, driver_visible)),
+                    refit_binding_face_normal_native(binding, driver_visible));
+            };
+            const bool share_contact_motion = (!coarse_open_layers.count(source)
+                    && !coarse_open_layers.count(target.first))
+                || body_gap(point, first_body) < clearance
+                || body_gap(layer_sample_point(other), second_body) < clearance;
             layer_constraints.push_back({sample, other, rest_offset, normal,
                 std::abs(reference_height) - minimum_gap, flexible && tightness > 0.0 ? minimum_gap : -1.0,
-                target.first, pair_order != 0});
+                target.first, pair_order != 0, share_contact_motion});
         };
         for (const auto& source : garments) {
             const auto& indices = vertex_cohorts.at(source.first);
@@ -2243,11 +2271,15 @@ void mesh_editor_relieve_refit_surface(
     }), layer_constraints.end());
     const bool ordered_layers = !layer_probes.empty() || std::any_of(layer_constraints.begin(), layer_constraints.end(),
         [](const auto& constraint) { return constraint.ordered; });
+    // Share local contact motion with attached trim. In contact-only fitting,
+    // links over an already clear body region must not drag a clear lining
+    // when a coarse shell is lifted by a contact elsewhere on that shell.
     if (fitting_masks) for (const auto& constraint : layer_constraints) {
         // Ordered contact moves the outer cloth away from its fixed support.
         // Diffusing that correction back through the inner shell would undo
         // the separation and drive unrelated trim in the opposite direction.
         if (constraint.ordered) continue;
+        if (clearance_only && !constraint.share_contact_motion) continue;
         // Contact must carry nearby shells together. Coupling their displacement
         // fields retains the measured standoff without smoothing either surface.
         for (int a=0;a<3;++a) for (int b=0;b<3;++b) {
@@ -2461,7 +2493,7 @@ void mesh_editor_relieve_refit_surface(
     std::map<std::size_t, MeshRefitVertexBindingRuntime> point_bindings;
     for (std::size_t index = 0; index < cohorts.size(); ++index) {
         const Cohort& cohort = cohorts[index];
-        if (cohort.has_surface) continue;
+        if (cohort.has_surface || (fitting_masks && cohort.mobility <= 0.0)) continue;
         long long candidate_tests = 0;
         const auto nearest = closest_refit_binding_native(cohort.original, spatial_index, candidate_tests);
         const Vec3 normal = refit_binding_face_normal_native(nearest, driver_visible);
@@ -2932,7 +2964,8 @@ void mesh_editor_relieve_refit_surface(
                 // separation without forcing cloth into an adjacent body surface.
                 double wall_depth = 0.0;
                 for (int c = 0; c < 3; ++c) wall_depth += outer.weights[c] * band_wall_depth[outer.corners[c]];
-                const double missing = probe.clearance * (tighten || band_axes.count(probe.outer.second) ? 1.0 : 0.25) + wall_depth - gap;
+                const double missing = probe.clearance * ((clearance_only && coarse_open_layers.count(probe.outer))
+                    || tighten || band_axes.count(probe.outer.second) ? 1.0 : 0.25) + wall_depth - gap;
                 if (missing <= tolerance) continue;
                 if (validate) {
                     if (gap >= -tolerance * 4.0) continue;
@@ -3619,7 +3652,6 @@ void mesh_editor_add_refit_layer(
     }
     const bool tightening = std::any_of(morph.refit->garment_settings.begin(), morph.refit->garment_settings.end(),
         [](const auto& item) { return item.second.enabled && item.second.mode != "rigid" && item.second.tightness_percent > 0.0; });
-    if (!tightening) mesh_editor_relieve_refit_surface(*morph.refit, submeshes, driver_visible, residual, layer);
     for (const auto& item : masks) {
         const auto settings = morph.refit->garment_settings.find(item.first);
         if (settings != morph.refit->garment_settings.end() && settings->second.mode == "rigid_component") continue;
@@ -3632,13 +3664,18 @@ void mesh_editor_add_refit_layer(
         }
     }
     mesh_editor_refit_components(*morph.refit, submeshes, driver_visible, residual, base_layer, masks, layer);
-    if (tightening) {
+    {
         const auto followed = layer;
         const auto fit = [&](bool coherent_bands, bool smooth_bands = true) {
             std::map<int, std::vector<Vec3>> centering_axes;
-            mesh_editor_conform_refit(*morph.refit, submeshes, driver_visible, residual, masks, layer, coherent_bands, smooth_bands);
-            mesh_editor_refit_components(*morph.refit, submeshes, driver_visible, residual, followed, masks, layer, true, &centering_axes);
-            mesh_editor_validate_conformed_refit(*morph.refit, submeshes, residual, followed, layer, "conforming");
+            // Tightening is an explicit reshape. Clearance-only fitting keeps
+            // the authored silhouette and runs the same protected contact and
+            // triangle checks, instead of the older unchecked projection path.
+            if (tightening) {
+                mesh_editor_conform_refit(*morph.refit, submeshes, driver_visible, residual, masks, layer, coherent_bands, smooth_bands);
+                mesh_editor_refit_components(*morph.refit, submeshes, driver_visible, residual, followed, masks, layer, true, &centering_axes);
+                mesh_editor_validate_conformed_refit(*morph.refit, submeshes, residual, followed, layer, "conforming");
+            }
             const auto conformed = layer;
             mesh_editor_relieve_refit_surface(*morph.refit, submeshes, driver_visible, residual, layer, &masks, false, &followed, &centering_axes, coherent_bands, smooth_bands);
             mesh_editor_validate_conformed_refit(*morph.refit, submeshes, residual, conformed, layer, "clearance", &followed);
@@ -3768,7 +3805,8 @@ void mesh_editor_apply_refit_corrections(
     const auto masks = next.refit ? mesh_editor_refit_masks(*next.refit, submeshes, residual) : RefitMaskWeightsNative{};
     const bool check_corrections = next.refit && !post_refit.empty()
         && std::any_of(next.refit->garment_settings.begin(),next.refit->garment_settings.end(),
-            [](const auto& item) { return item.second.enabled && item.second.mode!="rigid" && item.second.tightness_percent>0.0; })
+            [](const auto& item) { return item.second.enabled && item.second.mode!="rigid"
+                && (item.second.tightness_percent>0.0 || item.second.clearance_percent>0.0); })
         && std::any_of(post_refit.begin(),post_refit.end(),[](const auto& part) {
             return std::any_of(part.second.begin(),part.second.end(),[](const Vec3& value) { return dot_vec3(value,value)>0.0; });
         });

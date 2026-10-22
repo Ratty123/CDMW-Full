@@ -3516,7 +3516,7 @@ impl LabApplication {
             });
             if ui.add_enabled(!self.cdmw_refit_settings_dirty.is_dirty(),
                 Button::new(crate::localization::tr("Fit all enabled garments"))).on_hover_text(
-                crate::localization::tr("Tighten all enabled bound garments around the loaded body, regardless of selection. Keeps folds, openings, masks and each Part's mode. Sets Tightness to 100% and Clearance to at least 0.1%. Reset reverts it; Bake keeps it.")
+                crate::localization::tr("Clear body intersections using each Part and mesh island's settings. Keeps your Tightness values and adds at least 0.1% Clearance. Leave Tightness at 0% for loose skirts, drapes and hanging trim; increase it only where a snug fit is wanted. Reset reverts it; Bake keeps it.")
             ).on_disabled_hover_text(crate::localization::tr("Apply pending settings before fitting.")).clicked() {
                 actions.push(UiAction::CdmwCommand { command: "refit_fit_to_body", arguments: json!({}), label: "Fit to body" });
             }
@@ -3703,7 +3703,7 @@ impl LabApplication {
                         tightness_enabled,
                         crate::cdmw_ui::numeric::slider(&mut self.cdmw_refit_tightness, 0.0..=100.0)
                             .text(crate::localization::tr("Tightness %")),
-                    ).on_hover_text(crate::localization::tr("0% keeps the original fit. 100% tightens loose clothing around the body while preserving folds and openings. Rigid components move without changing size."))
+                    ).on_hover_text(crate::localization::tr("0% preserves loose shape while repairing body intersections. Increase only on Parts, mesh islands or areas intended to fit snugly, such as a waist band or sleeve. Keep skirts, drapes and hanging trim at 0%. Rigid components move without changing size."))
                         .on_disabled_hover_text(crate::localization::tr("Tightness requires Surface or Rigid component mode on every selected garment."))
                         .changed() {
                         self.cdmw_refit_settings_dirty.mark("tightness_percent");

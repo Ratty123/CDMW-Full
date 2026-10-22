@@ -1679,8 +1679,8 @@ class MeshMorphServiceMixin(MeshMorphLayerMixin, MeshMorphAuthoringMixin, MeshMo
             report = self._run_morph_query_locked(session, "morph_state")
             state = self._morph_state_from_report_locked(session, report, refresh_presets=False)
             settings = tuple(
-                replace(item, tightness_percent=100.0, clearance_percent=max(0.1, item.clearance_percent),
-                        island_settings=tuple(replace(island, tightness_percent=100.0,
+                replace(item, clearance_percent=max(0.1, item.clearance_percent) if item.enabled else item.clearance_percent,
+                        island_settings=tuple(replace(island,
                             clearance_percent=max(0.1, island.clearance_percent)) if island.enabled else island
                             for island in item.island_settings))
                 for item in state.refit.garment_settings if item.enabled or any(island.enabled for island in item.island_settings)

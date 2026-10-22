@@ -207,6 +207,20 @@ gap. Intermediate Tightness blends from the followed geometry; zero retains the
 original gap. Authored vertex-side evidence distinguishes crossing folds from coarse
 outer triangles cutting an inner layer. Surface-less records retained by exclusions
 cannot establish a layer. Hard trim retains its authored standoff.
+At zero Tightness, contact repair skips silhouette contraction and uses the same
+mobility masks, seam cohorts, body/layer contact solver and final strain checks as
+explicit tightening. Clear unsupported skirt volume and hanging details have no
+inward target, including when they share a material Part with a fitted bodice or
+sleeve. The Fit all service retains Part and island Tightness and raises only
+enabled targets' minimum clearance. Its default 0% bindings therefore repair local
+intersections rather than treating every garment surface as skin-tight clothing.
+Nearby detailed cloth shares contact motion; coarse open panels retain their
+standoff without dragging an already clear lining from a distant contact. Zero-influence unused records stay
+fixed, and post-refit fields cannot reintroduce body intersections into a fit that
+has positive clearance but zero Tightness.
+Contact discovery and final validation retain the established broad-wrap boundary.
+Final clearance, penetration, crossing, strain and layer checks retain their
+original tolerances and refusals.
 Layer order uses the body's outward direction, including solid belts with inward
 back faces. Current surface queries, inner-cloth rays and exact edge/triangle
 crossings supply contacts on the outer shell; corrections do not push its support
