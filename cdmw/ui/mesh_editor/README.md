@@ -2657,11 +2657,17 @@ weighted normals, and source-normal copy commands; cleanup tools include remove 
 delete loose vertices, compact orphans, winding repair, and hole fill. Widgets only emit
 descriptors. **Remove Doubles** supports **Exact Game Asset** for PAC LOD0. Native
 cleanup retains original-relative vertex and face lineage through Undo/Redo and
-reopening. The exact writer retains each survivor's original skin and cloth record;
-altered weights, missing lineage, invalid bounds and unsupported layouts remain blocked.
+reopening. The exact writer retains each survivor's original skin and cloth record,
+with deliberate weight edits limited to the proven skin lanes. Edit weights in
+**Vertex Parameters** before merging; the survivor keeps its own edited weights,
+without averaging other vertices' weights. Missing lineage, unrecorded skin changes,
+invalid bounds and unsupported layouts remain blocked.
 Moving vertices before **Remove Doubles** can finish in both Exact and Free Edit.
 Earlier moves are checked against the cleanup's recorded input vertex count;
 the final topology and source skin rows must still validate.
+Deliberate weight edits followed by Remove Doubles also finish in either mode;
+Free Edit's OBJ output still omits rig weights. Weight editing itself retains its
+Exact PAC LOD0, resolved skeleton, palette and record-layout requirements.
 Other cleanup actions still require **Free Edit**.
 
 Distinct lower LODs remain unchanged. Independently stored, byte-identical LOD0

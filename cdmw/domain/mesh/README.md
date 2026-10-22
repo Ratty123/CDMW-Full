@@ -41,6 +41,15 @@ unproven rather than silently falling back. Imported OBJ/FBX/DAE/glTF sessions
 stay blocked until a new non-exact output folder is selected, while MeshInfo and
 unknown formats retain selection and inspection without mutation.
 
+Explicit PAC skin-weight edits record fingerprints of accepted rows by original
+vertex identity. `skin_weight_edits.py` verifies these through Remove Doubles
+using direct, unique donor lineage, continuous cleanup counts and the immutable
+source bytes, including each record's four- or six-influence capacity. Validation
+requires `original_data` for this composed path; unrecorded row changes, derived
+vertices and other topology operations do not acquire skin-edit authority.
+Exact output patches only the surviving donor's proven skin lanes. Free Edit may
+accept the verified authoring state; its OBJ package still omits rig weights.
+
 ## Authoritative UI lifecycle state
 
 `ui_state.py` defines the immutable `MeshEditorUiState` and its 15 safety

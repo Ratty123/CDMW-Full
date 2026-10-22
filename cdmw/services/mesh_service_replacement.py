@@ -260,6 +260,7 @@ class MeshWorkingReplacementServiceMixin:
                 "validate_mesh_export",
                 working_mesh,
                 original_mesh=session.base_mesh,
+                original_data=session.original_data,
                 skeleton_bone_count=_service_call(
                     "_session_validation_skeleton_bone_count", session
                 ),

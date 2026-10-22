@@ -536,9 +536,11 @@ def _attach_obj_sidecar_edit_operations(
                 )
             )
         if getattr(submesh, "_cdmw_verified_skin_mapping", False) and getattr(submesh, "_cdmw_skin_weights_changed", False):
+            from cdmw.domain.mesh.skin_weight_edits import SKIN_ROW_FINGERPRINTS, skin_row_fingerprints
             operations.append(MeshEditOperation("replace_skin_weights_same_count", lod_index=0,
                                                 submesh_index=submesh_index, vertex_count=actual_vertices, source=source_name,
-                                                metadata={"palette_size": int(submesh._cdmw_source_palette_size)}))
+                                                metadata={"palette_size": int(submesh._cdmw_source_palette_size),
+                                                          SKIN_ROW_FINGERPRINTS: skin_row_fingerprints(submesh)}))
     if not operations:
         return
     allowed_operations: object | None = None

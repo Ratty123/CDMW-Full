@@ -12,6 +12,8 @@ by proximity, drop a bone influence to fit six slots, guess a byte it has not
 proven, or move the descriptor bounds. Lower LODs stay byte-identical except
 for an explicitly deleted whole part or verified byte-identical copies of LOD0
 that must follow a provenance-backed Remove Doubles operation.
+Explicit skin edits may replace a direct survivor's proven skin lanes only
+when its recorded authored row and original donor identity still validate.
 """
 
 from __future__ import annotations
@@ -22,6 +24,7 @@ import struct
 from typing import Mapping, Sequence
 
 from cdmw.domain.mesh.operations import mesh_edit_operations_from_dicts
+from cdmw.domain.mesh.export_validation import validate_mesh_export
 from cdmw.domain.mesh.topology import (
     SubmeshTopologyProvenance,
     TOPOLOGY_BOUNDS_EXCEED_SOURCE,
@@ -38,6 +41,7 @@ from cdmw.domain.mesh.topology import (
     TOPOLOGY_SKIN_INFLUENCE_CAPACITY_EXCEEDED,
     validate_topology_operation_history,
     validate_topology_provenance,
+    identity_topology_provenance,
 )
 
 from .logging import get_logger
@@ -568,7 +572,7 @@ def _authored_record(
             _pack_pac_normal((float(normal[0]), float(normal[1]), float(normal[2])), existing),
         )
     if skin is not None:
-        pack_pac_skin_weights(record, skin[0], skin[1], context="derived PAC topology vertex")
+        pack_pac_skin_weights(record, skin[0], skin[1], context="PAC topology vertex")
     return bytes(record)
 
 
@@ -578,10 +582,14 @@ def _lod0_records_for_submesh(
     original_data: bytes,
     provenance: SubmeshTopologyProvenance | None,
     metrics: dict[str, object],
+    *,
+    skin_weights_authorized: bool = False,
 ) -> list[bytes]:
     records = _original_records(original, original_data)
     if provenance is None:
-        return list(records)
+        if not skin_weights_authorized:
+            return list(records)
+        provenance = identity_topology_provenance(len(original.vertices), len(original.faces))
 
     skinned = _submesh_is_skinned(original)
     bbox_min = tuple(float(value) for value in tuple(getattr(original, "source_bbox_min", ()) or (0.0, 0.0, 0.0)))
@@ -606,6 +614,18 @@ def _lod0_records_for_submesh(
             reference_slots, reference_weights = derived_skin_row(parent_records, origin.weights)
             influence_union_width = max(influence_union_width, len(reference_slots))
             skin = (reference_slots, reference_weights)
+        elif skinned and skin_weights_authorized:
+            parent = origin.direct_parent
+            if (tuple(edited.bone_indices[index]), tuple(edited.bone_weights[index])) != (
+                tuple(original.bone_indices[parent]), tuple(original.bone_weights[parent]),
+            ):
+                live = [(slot, weight) for slot, weight in zip(
+                    edited.bone_indices[index], edited.bone_weights[index],
+                ) if weight > 0.0]
+                reference_slots = tuple(slot for slot, _ in live)
+                reference_weights = tuple(weight for _, weight in live)
+                influence_union_width = max(influence_union_width, len(reference_slots))
+                skin = (reference_slots, reference_weights)
         record = _authored_record(
             template,
             position=positions[index],
@@ -620,12 +640,12 @@ def _lod0_records_for_submesh(
             if set(decoded_slots) != set(reference_slots):
                 raise PacTopologyRebuildBlocked(
                     (TOPOLOGY_SKIN_INFLUENCE_CAPACITY_EXCEEDED,),
-                    f"Encoding derived vertex {index} changed its live palette slot set.",
+                    f"Encoding topology vertex {index} changed its live palette slot set.",
                 )
             if sum(decoded_bytes) != 255:
                 raise PacTopologyRebuildBlocked(
                     (TOPOLOGY_PROTECTED_BYTES_DIVERGE,),
-                    f"Derived vertex {index} encoded to a byte total of {sum(decoded_bytes)}, not 255.",
+                    f"Topology vertex {index} encoded to a byte total of {sum(decoded_bytes)}, not 255.",
                 )
             decoded_by_slot = dict(zip(decoded_slots, decoded_bytes))
             for slot, weight in zip(reference_slots, reference_weights):
@@ -676,6 +696,36 @@ def build_pac_topology_rebuild(
             blockers, "Exact PAC LOD0 topology rebuild is blocked: " + ", ".join(blockers)
         )
 
+    operations = mesh_edit_operations_from_dicts(getattr(edited_mesh, "_cdmw_edit_operations", ()) or ())
+    skin_targets = {operation.submesh_index for operation in operations
+                    if operation.operation == "replace_skin_weights_same_count" and operation.lod_index == 0}
+    changed_skin = False
+    for original, edited in zip(original_mesh.submeshes, edited_mesh.submeshes):
+        provenance = getattr(edited, "topology_provenance", None)
+        parents = (tuple(origin.direct_parent for origin in provenance.vertex_origins)
+                   if provenance is not None else tuple(range(len(edited.vertices))))
+        for index, parent in enumerate(parents):
+            if (0 <= parent < len(original.bone_indices) and parent < len(original.bone_weights)
+                    and index < len(edited.bone_indices) and index < len(edited.bone_weights)
+                    and (tuple(edited.bone_indices[index]), tuple(edited.bone_weights[index]))
+                    != (tuple(original.bone_indices[parent]), tuple(original.bone_weights[parent]))):
+                changed_skin = True
+                break
+    if skin_targets or changed_skin:
+        # The topology writer must never discard an authored skin edit or trust
+        # rows merely because a cleanup operation is present.
+        validation = validate_mesh_export(
+            edited_mesh, original_mesh=original_mesh, original_data=original_data,
+            skeleton_bone_count=max((int(operation.metadata.get("palette_size", 0) or 0)
+                                     for operation in operations
+                                     if operation.operation == "replace_skin_weights_same_count"), default=0) or None,
+        )
+        if not validation.ok:
+            raise PacTopologyRebuildBlocked(
+                tuple(issue.code for issue in validation.blockers),
+                "Exact PAC skin/cleanup validation failed: " + validation.blockers[0].message,
+            )
+
     payloads, sections, lod_count, section_0_data, section_0 = _section_payloads(original_data)
     descriptors = _validated_pac_descriptor_prefix(
         _find_pac_descriptors(original_data, section_0["offset"], section_0["size"], lod_count),
@@ -712,7 +762,10 @@ def build_pac_topology_rebuild(
         # Keep deleted slots' source storage until the all-LOD suppression below.
         # The working mesh and its provenance remain truly empty for Undo/Redo.
         output_provenance = None if submesh_index in deleted_submeshes else provenance
-        records = _lod0_records_for_submesh(original, edited, original_data, output_provenance, submesh_metrics)
+        records = _lod0_records_for_submesh(
+            original, edited, original_data, output_provenance, submesh_metrics,
+            skin_weights_authorized=submesh_index in skin_targets and submesh_index not in deleted_submeshes,
+        )
         faces = tuple(getattr(edited, "faces", ()) or ()) if output_provenance is not None else tuple(
             getattr(original, "faces", ()) or ()
         )

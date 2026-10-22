@@ -568,6 +568,7 @@ class MeshRebuildServiceMixin:
         return _service_call("validate_mesh_export",
             session.working_mesh,
             original_mesh=original_mesh if original_mesh is not None else session.base_mesh,
+            original_data=session.original_data,
             available_textures=available_textures,
             skeleton_bone_count=skeleton_bone_count,
             parse_confidence=session.mesh_asset_parse_confidence,
@@ -611,6 +612,7 @@ class MeshRebuildServiceMixin:
             "validate_mesh_export",
             snapshot.mesh,
             original_mesh=snapshot.base_mesh,
+            original_data=snapshot.original_data,
             available_textures=available_textures,
             skeleton_bone_count=(
                 skeleton_bone_count

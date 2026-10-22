@@ -9,6 +9,7 @@ from pathlib import PurePath
 
 from .operations import validate_mesh_edit_operation_coverage, validate_mesh_edit_operations
 from .skeleton import MAX_SKIN_INFLUENCES
+from .skin_weight_edits import skin_weight_cleanup_sources
 from .topology import (
     SubmeshTopologyProvenance,
     TOPOLOGY_DERIVED_SOURCE_SENTINEL,
@@ -158,6 +159,7 @@ def validate_mesh_export(
     mesh: object,
     *,
     original_mesh: object | None = None,
+    original_data: bytes | None = None,
     available_textures: Iterable[str] | None = None,
     texture_exists: Callable[[str], bool] | None = None,
     skeleton_bone_count: int | None = None,
@@ -256,6 +258,10 @@ def validate_mesh_export(
             ),
             safe_replacement_palette_size=safe_skin_weight_palette_sizes.get(
                 (0, submesh_index)
+            ),
+            safe_replacement_source_vertices=(
+                skin_weight_cleanup_sources(submesh, original_submesh, operation_values, submesh_index, original_data)
+                if active_lod_index == 0 and (0, submesh_index) in safe_skin_weight_targets else None
             ),
             exact_output=exact_output,
             mesh_format=mesh_format,
@@ -691,6 +697,7 @@ def _validate_skinning(
     skeleton_bone_count: int | None,
     safe_replacement_authorized: bool,
     safe_replacement_palette_size: int | None,
+    safe_replacement_source_vertices: tuple[int, ...] | None,
     exact_output: bool,
     mesh_format: str,
 ) -> bool:
@@ -698,6 +705,10 @@ def _validate_skinning(
     bone_weights = tuple(getattr(submesh, "bone_weights", ()) or ())
     has_skinning = bool(bone_indices or bone_weights)
     if not has_skinning:
+        if vertex_count and safe_replacement_authorized and getattr(original_submesh, "bone_indices", ()):
+            _add(issues, "blocker", "skinning_count_mismatch",
+                 "An explicit skin-weight edit must retain complete bone index/weight rows.",
+                 "skeleton", submesh_index=submesh_index, expected=vertex_count, actual=0)
         return False
     if len(bone_indices) != vertex_count or len(bone_weights) != vertex_count:
         _add(
@@ -720,14 +731,17 @@ def _validate_skinning(
         original_submesh, bone_indices, bone_weights, topology_contract=topology_contract,
         source_vertex_indices=source_vertex_indices,
     )
-    if changed_from_original:
-        if safe_replacement_authorized and exact_output and mesh_format == "pac":
+    if changed_from_original or (safe_replacement_authorized and topology_contract is not None):
+        if safe_replacement_authorized and mesh_format == "pac" and (
+            exact_output or safe_replacement_source_vertices is not None
+        ):
             _validate_safe_skin_weight_replacement(
                 issues,
                 submesh,
                 original_submesh,
                 submesh_index,
                 palette_size=safe_replacement_palette_size,
+                source_vertex_indices=safe_replacement_source_vertices,
             )
         else:
             _add(
@@ -872,6 +886,7 @@ def _validate_safe_skin_weight_replacement(
     submesh_index: int,
     *,
     palette_size: int | None,
+    source_vertex_indices: tuple[int, ...] | None = None,
 ) -> None:
     """Validate the narrow PAC record contract that owns editable skin lanes."""
 
@@ -890,7 +905,20 @@ def _validate_safe_skin_weight_replacement(
     stride = _coerce_index(getattr(submesh, "source_vertex_stride", None))
     original_stride = _coerce_index(getattr(original_submesh, "source_vertex_stride", None))
 
-    if len(vertices) != len(original_vertices) or faces != original_faces:
+    # A proven cleanup carries direct original donors and accepted skin-row
+    # fingerprints. Same-count edits retain their stricter identity contract.
+    cleanup = source_vertex_indices is not None
+    expected_count = len(source_vertex_indices) if cleanup else len(original_vertices)
+    expected_source_map = (
+        tuple(original_source_map[index] for index in source_vertex_indices)
+        if cleanup else original_source_map
+    )
+    expected_offsets = (
+        tuple(original_offsets[index] for index in source_vertex_indices)
+        if cleanup else original_offsets
+    )
+
+    if len(vertices) != expected_count or (not cleanup and faces != original_faces):
         _add(
             issues,
             "blocker",
@@ -903,8 +931,8 @@ def _validate_safe_skin_weight_replacement(
         )
     if (
         len(source_map) != len(vertices)
-        or source_map != original_source_map
-        or any(_coerce_index(value) != index for index, value in enumerate(source_map))
+        or source_map != expected_source_map
+        or (not cleanup and any(_coerce_index(value) != index for index, value in enumerate(source_map)))
     ):
         _add(
             issues,
@@ -916,7 +944,7 @@ def _validate_safe_skin_weight_replacement(
             expected="identity source map preserved from the original PAC",
             actual="missing, reordered, or changed",
         )
-    if offsets != original_offsets or len(offsets) != len(vertices):
+    if offsets != expected_offsets or len(offsets) != len(vertices):
         _add(
             issues,
             "blocker",

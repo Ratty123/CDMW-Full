@@ -13,6 +13,7 @@ from dataclasses import replace
 from cdmw.domain.mesh.vertex_parameters import NumericSummary, channel_edit, edit_weights, selected_vertices
 from cdmw.domain.mesh.replacement import bound_part_indices
 from cdmw.domain.mesh.topology import validate_topology_provenance
+from cdmw.domain.mesh.skin_weight_edits import SKIN_ROW_FINGERPRINTS, skin_row_fingerprints
 from cdmw.modding.mesh_skinning import source_vertex_map_is_target_donor_lineage
 from cdmw.modding.pac_cloth import pac_cloth_binding
 from cdmw.modding.mesh_parser import PAC_SKIN_WEIGHT_LAYOUT
@@ -345,6 +346,7 @@ def edit_vertices(authoring, args, check):
                                    "source": RUST_MESH_EDIT_BACKEND, "created_by": "CDMW Vertex Parameters",
                                    **({"metadata": {"contract": "cdmw_exact_pac_skin_weights_v1", "layout": PAC_SKIN_WEIGHT_LAYOUT,
                                                      "vertex_stride": 40, "palette_size": len(skin.palette),
+                                                     SKIN_ROW_FINGERPRINTS: skin_row_fingerprints(part, indices),
                                                      "service_action": "vertex_edit"}} if channel == "weights" else {})})
     if not changed:
         return {"changed": False, "count": sum(map(len, scope.values()))}

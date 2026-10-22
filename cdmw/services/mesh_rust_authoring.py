@@ -8043,9 +8043,15 @@ class RustMeshAuthoringSession:
                     raise RustMeshValidationError(
                         "Skin-weight edit produced a row outside the exact PAC contract; the edit was rolled back."
                     )
+                from cdmw.domain.mesh.skin_weight_edits import SKIN_ROW_FINGERPRINTS, skin_row_fingerprints
+
                 operations = list(tuple(session.edit_operations))
                 for submesh_index in changed_submeshes:
                     submesh = session.working_mesh.submeshes[submesh_index]
+                    before_indices, before_weights = before_rows[submesh_index]
+                    changed_rows = [index for index in range(len(submesh.vertices))
+                                    if (before_indices[index], before_weights[index])
+                                    != (submesh.bone_indices[index], submesh.bone_weights[index])]
                     operations.append(
                         {
                             "operation": "replace_skin_weights_same_count",
@@ -8060,6 +8066,7 @@ class RustMeshAuthoringSession:
                                 "vertex_stride": 40,
                                 "palette_size": len(capability.palette),
                                 "service_action": command,
+                                SKIN_ROW_FINGERPRINTS: skin_row_fingerprints(submesh, changed_rows),
                             },
                         }
                     )
