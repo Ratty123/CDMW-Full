@@ -152,85 +152,83 @@ impl LabApplication {
     }
 
     pub(super) fn draw_cdmw_islands(&mut self, ui: &mut egui::Ui, actions: &mut Vec<UiAction>) {
-        ui.separator();
-        egui::CollapsingHeader::new(crate::localization::tr("Mesh islands"))
-            .id_salt("cdmw-mesh-islands")
-            .default_open(false)
-            .show(ui, |ui| {
-                let parts = self.cdmw_state["mesh_islands"]["parts"]
-                    .as_array()
-                    .cloned()
-                    .unwrap_or_default();
+        use crate::cdmw_ui::{cdmw_list_cell, cdmw_list_columns, cdmw_list_header};
+        let parts = self.cdmw_state["mesh_islands"]["parts"].as_array().cloned().unwrap_or_default();
+        let editing = self.cdmw_state["replacement"]["comparison"].as_str().is_none_or(|mode| mode == "edit");
+        ui.add_enabled_ui(!self.cdmw_busy() && editing, |ui| {
+            if ui.add_enabled(!self.cdmw_hidden_islands.is_empty(), Button::new(crate::localization::tr("Show all islands"))).clicked() {
+                actions.push(UiAction::ShowAllIslands);
+            }
+            ui.separator();
+            ScrollArea::vertical().id_salt("cdmw_mesh_islands").auto_shrink([false, false]).show(ui, |ui| {
                 if parts.is_empty() {
                     ui.small(crate::localization::tr("Select a part, then an island to move, scale or edit it."));
                 }
-                let editing = self.cdmw_state["replacement"]["comparison"]
-                    .as_str()
-                    .is_none_or(|mode| mode == "edit");
-                ui.add_enabled_ui(!self.cdmw_busy() && editing, |ui| {
-                    if ui.add_enabled(!self.cdmw_hidden_islands.is_empty(), Button::new(crate::localization::tr("Show all islands"))).clicked() {
-                        actions.push(UiAction::ShowAllIslands);
-                    }
-                    ScrollArea::vertical().id_salt("cdmw_mesh_islands").min_scrolled_height(160.0).max_height(240.0).auto_shrink([false, true]).show(ui, |ui| {
-                        for row in parts {
-                            let part = row["index"].as_u64().unwrap_or_default() as u32;
-                            let selected_faces: HashSet<_> = self.mesh.as_ref().into_iter().flat_map(|mesh|
-                                mesh.selection.faces.iter().filter_map(|handle| match mesh.face(*handle)?.provenance {
-                                    Provenance::Source { submesh, element } if submesh == part => Some(element),
-                                    _ => None,
-                                })).collect();
-                            ui.push_id(part, |ui| egui::Frame::group(ui.style()).show(ui, |ui| {
-                                ui.set_width(ui.available_width());
-                                ui.spacing_mut().item_spacing.y = 2.0;
-                                let name = row["name"].as_str().map(str::to_owned)
-                                    .unwrap_or_else(|| crate::localization::tr("Part"));
-                                ui.add(egui::Label::new(egui::RichText::new(&name).strong()).truncate())
-                                    .on_hover_text(&name);
-                                if !row["available"].as_bool().unwrap_or(false)
-                                    && let Some(reason) = row["reason"].as_str().filter(|reason| !reason.is_empty()) {
-                                    ui.add(egui::Label::new(crate::localization::tr(reason)).wrap());
-                                }
-                                for (index, island) in row["islands"].as_array().into_iter().flatten().enumerate() {
-                                    let faces = island_faces(island);
-                                    let mut shown = !self.cdmw_hidden_islands.iter().any(|hidden| hidden.part == part && hidden.faces == faces);
-                                    let selected = !faces.is_empty() && faces.iter().all(|face| selected_faces.contains(face));
-                                    if index > 0 { ui.separator(); }
-                                    ui.push_id((part, index), |ui| {
-                                        let title = crate::localization::tr(format!("Island {} · {} faces", index + 1, faces.len()));
-                                        if ui.add_enabled_ui(shown, |ui| {
-                                            ui.add_sized([ui.available_width(), ui.spacing().interact_size.y],
-                                                Button::selectable(selected, (&title, egui::Atom::grow())).truncate())
-                                        }).inner.on_hover_text(&title).clicked() {
-                                            actions.push(UiAction::SelectIsland { part, faces: faces.clone() });
+                let widths = cdmw_list_columns(ui, "Isolate");
+                let headers = cdmw_list_header(ui, widths, "Island", "");
+                ui.spacing_mut().item_spacing.y = 2.0;
+                for row in parts {
+                    let part = row["index"].as_u64().unwrap_or_default() as u32;
+                    let selected_faces: HashSet<_> = self.mesh.as_ref().into_iter().flat_map(|mesh|
+                        mesh.selection.faces.iter().filter_map(|handle| match mesh.face(*handle)?.provenance {
+                            Provenance::Source { submesh, element } if submesh == part => Some(element),
+                            _ => None,
+                        })).collect();
+                    ui.push_id(part, |ui| {
+                        ui.separator();
+                        let name = row["name"].as_str().map(str::to_owned).unwrap_or_else(|| crate::localization::tr("Part"));
+                        ui.add(egui::Label::new(egui::RichText::new(&name).strong()).truncate()).on_hover_text(&name);
+                        if !row["available"].as_bool().unwrap_or(false)
+                            && let Some(reason) = row["reason"].as_str().filter(|reason| !reason.is_empty()) {
+                            ui.add(egui::Label::new(crate::localization::tr(reason)).wrap());
+                        }
+                        for (index, island) in row["islands"].as_array().into_iter().flatten().enumerate() {
+                            let faces = island_faces(island);
+                            let mut shown = !self.cdmw_hidden_islands.iter().any(|hidden| hidden.part == part && hidden.faces == faces);
+                            let selected = !faces.is_empty() && faces.iter().all(|face| selected_faces.contains(face));
+                            ui.push_id(index, |ui| ui.horizontal(|ui| {
+                                let title = crate::localization::tr(format!("Island {} · {} faces", index + 1, faces.len()));
+                                cdmw_list_cell(ui, widths[0], |ui| {
+                                    if ui.add_enabled_ui(shown, |ui| {
+                                        ui.add_sized([ui.available_width(), ui.spacing().interact_size.y],
+                                            Button::selectable(selected, (&title, egui::Atom::grow())).truncate())
+                                    }).inner.on_hover_text(&title).clicked() {
+                                        actions.push(UiAction::SelectIsland { part, faces: faces.clone() });
+                                    }
+                                });
+                                cdmw_list_cell(ui, widths[1], |ui| {
+                                    if ui.small_button(crate::localization::tr("Isolate"))
+                                        .on_hover_text(crate::localization::tr("Show only this island within its part")).clicked() {
+                                        actions.push(UiAction::IsolateIsland { part, faces: faces.clone() });
+                                    }
+                                });
+                                cdmw_list_cell(ui, widths[2], |ui| {
+                                    ui.with_layout(egui::Layout::centered_and_justified(egui::Direction::LeftToRight), |ui| {
+                                        if ui.add(egui::Checkbox::without_text(&mut shown)).labelled_by(headers[0])
+                                            .on_hover_text(crate::localization::tr("View: viewport only · Include: exported mesh")).changed() {
+                                            actions.push(UiAction::SetIslandVisibility { part, faces: faces.clone(), visible: shown });
                                         }
-                                        ui.horizontal_wrapped(|ui| {
-                                            if ui.checkbox(&mut shown, crate::localization::tr("View"))
-                                                .on_hover_text(crate::localization::tr("View: viewport only · Include: exported mesh")).changed() {
-                                                actions.push(UiAction::SetIslandVisibility { part, faces: faces.clone(), visible: shown });
-                                            }
-                                            let mut included = island["included"].as_bool().unwrap_or(true);
-                                            if ui.add_enabled(row["available"].as_bool().unwrap_or(false), egui::Checkbox::new(&mut included, crate::localization::tr("Include")))
-                                                .on_disabled_hover_text(crate::localization::tr(row["reason"].as_str().unwrap_or_default()))
-                                                .on_hover_text(crate::localization::tr("Reversible output exclusion across all LODs; keeps the part and material"))
-                                                .changed() {
-                                                    actions.push(UiAction::CdmwCommand { command: "replacement_islands",
-                                                        arguments: json!({"part_id": row["part_id"], "faces": faces, "included": included}),
-                                                        label: "Change island output inclusion" });
-                                            }
-                                            if ui.small_button(crate::localization::tr("Isolate")).on_hover_text(crate::localization::tr("Show only this island within its part")).clicked() {
-                                                actions.push(UiAction::IsolateIsland { part, faces: faces.clone() });
-                                            }
-                                        });
                                     });
-                                }
+                                });
+                                cdmw_list_cell(ui, widths[3], |ui| {
+                                    let mut included = island["included"].as_bool().unwrap_or(true);
+                                    ui.with_layout(egui::Layout::centered_and_justified(egui::Direction::LeftToRight), |ui| {
+                                        if ui.add_enabled(row["available"].as_bool().unwrap_or(false), egui::Checkbox::without_text(&mut included))
+                                            .labelled_by(headers[1])
+                                            .on_disabled_hover_text(crate::localization::tr(row["reason"].as_str().unwrap_or_default()))
+                                            .on_hover_text(crate::localization::tr("Reversible output exclusion across all LODs; keeps the part and material")).changed() {
+                                            actions.push(UiAction::CdmwCommand { command: "replacement_islands",
+                                                arguments: json!({"part_id": row["part_id"], "faces": faces, "included": included}),
+                                                label: "Change island output inclusion" });
+                                        }
+                                    });
+                                });
                             }));
-                            ui.add_space(4.0);
                         }
                     });
-                });
-            }).header_response.on_hover_text(format!("{}\n{}",
-                crate::localization::tr("Select a part, then an island to move, scale or edit it."),
-                crate::localization::tr("Coincident seam vertices are grouped without welding the model.")));
+                }
+            });
+        });
     }
 }
 

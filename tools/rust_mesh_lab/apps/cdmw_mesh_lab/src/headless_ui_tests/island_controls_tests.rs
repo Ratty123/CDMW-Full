@@ -1,7 +1,7 @@
 use super::*;
 
 #[test]
-fn island_controls_keep_long_part_names_above_controls_at_larger_text_sizes() -> TestResult {
+fn island_controls_keep_compact_columns_at_larger_text_sizes() -> TestResult {
     let name = "CD_PHM_00_Mask_Belt_0105_01_01_01";
     for (size, font, density) in [
         (egui::vec2(1440.0, 1080.0), 11.0, "normal"),
@@ -15,13 +15,10 @@ fn island_controls_keep_long_part_names_above_controls_at_larger_text_sizes() ->
         let island = ui.reveal("Island 1 · 1 faces")?;
         let part = ui.label_rect(name).ok_or("part name above island")?;
         assert!(island.top() > part.bottom());
-        let view = ui.label_rect_where("View", |rect| {
-            rect.top() > island.bottom() && rect.top() < island.bottom() + island.height() * 3.0
-        }).ok_or("View below island name")?;
-        let include = ui.label_rect_where("Include", |rect| {
-            (rect.center().y - view.center().y).abs() < 2.0
-        }).ok_or("Include beside View")?;
+        let view = ui.list_checkbox_rect("Island 1 · 1 faces", "View")?;
+        let include = ui.list_checkbox_rect("Island 1 · 1 faces", "Include")?;
         assert!(view.right() < include.left());
+        assert!((view.center().y - island.center().y).abs() < 3.0);
         ui.click("Island 1 · 1 faces")?;
         assert_eq!(ui.application.mesh.as_ref().ok_or("mesh")?.selection.faces.len(), 1);
         ui.last_actions.clear();
@@ -114,7 +111,7 @@ fn island_ui(size: egui::Vec2) -> Result<HeadlessUi, Box<dyn std::error::Error>>
 }
 
 #[test]
-fn island_controls_start_collapsed_and_materials_stay_outside_parts() -> TestResult {
+fn island_controls_use_separate_tabs_and_return_to_inspector_tools() -> TestResult {
     let mut ui = island_ui(egui::vec2(1280.0, 900.0))?;
     for key in ["translucency", "emission", "shader_controls"] {
         ui.application.cdmw_state[key] = json!({"available": false, "parts": []});
@@ -123,7 +120,7 @@ fn island_controls_start_collapsed_and_materials_stay_outside_parts() -> TestRes
     ui.reveal("Mesh islands")?;
     assert!(ui.label_rect("Show all islands").is_none());
     assert!(ui.label_rect("Island 1 · 1 faces").is_none());
-    ui.click("Parts")?;
+    ui.click("Back to Inspector")?;
     assert!(ui.label_rect("Mesh islands").is_none());
     for (heading, control) in [
         ("Translucency (experimental)", "Apply translucency"),
@@ -140,7 +137,7 @@ fn island_controls_start_collapsed_and_materials_stay_outside_parts() -> TestRes
     assert!(ui.label_rect("Show all islands").is_none());
     ui.click("Mesh islands")?;
     ui.reveal("Island 1 · 1 faces")?;
-    ui.click("Mesh islands")?;
+    ui.click("Parts")?;
     assert!(ui.label_rect("Island 1 · 1 faces").is_none());
     Ok(())
 }
@@ -207,9 +204,9 @@ fn island_controls_select_isolate_and_restore_without_export_edits() -> TestResu
 fn island_controls_dispatch_exact_mod_mask_and_preserve_deformation_alignment() -> TestResult {
     let mut ui = island_ui(egui::vec2(1280.0, 900.0))?;
     ui.click("Mesh islands")?;
-    let row = ui.reveal("Island 1 · 1 faces")?;
     ui.last_actions.clear();
-    ui.click_where("Include", |rect| rect.top() > row.bottom() && rect.top() < row.bottom() + row.height() * 2.0)?;
+    let checkbox = ui.list_checkbox_rect("Island 1 · 1 faces", "Include")?;
+    ui.click_at(checkbox.center());
     let actions = std::mem::take(&mut ui.last_actions);
     assert!(actions.iter().any(|action| matches!(action,
         UiAction::CdmwCommand { command:"replacement_islands", arguments, .. }
@@ -251,9 +248,9 @@ fn island_controls_explain_disabled_mod_and_reenable_after_host_update() -> Test
     ui.application.cdmw_state["mesh_islands"]["parts"][0]["reason"] = json!(reason);
     ui.click("Mesh islands")?;
     ui.reveal(reason)?;
-    let row = ui.reveal("Island 1 · 1 faces")?;
     ui.last_actions.clear();
-    ui.click_where("Include", |rect| rect.top() > row.bottom() && rect.top() < row.bottom() + row.height() * 2.0)?;
+    let checkbox = ui.list_checkbox_rect("Island 1 · 1 faces", "Include")?;
+    ui.click_at(checkbox.center());
     assert!(!ui.last_actions.iter().any(|action| matches!(
         action,
         UiAction::CdmwCommand {
@@ -261,7 +258,8 @@ fn island_controls_explain_disabled_mod_and_reenable_after_host_update() -> Test
             ..
         }
     )));
-    ui.click_where("View", |rect| rect.top() > row.bottom() && rect.top() < row.bottom() + row.height() * 2.0)?;
+    let checkbox = ui.list_checkbox_rect("Island 1 · 1 faces", "View")?;
+    ui.click_at(checkbox.center());
     assert_eq!(
         ui.application
             .mesh
@@ -277,11 +275,43 @@ fn island_controls_explain_disabled_mod_and_reenable_after_host_update() -> Test
     ui.application.cdmw_state["mesh_islands"]["parts"][0]["reason"] = json!("");
     ui.settle_layout();
     assert!(ui.label_rect(reason).is_none());
-    let row = ui.reveal("Island 1 · 1 faces")?;
     ui.last_actions.clear();
-    ui.click_where("Include", |rect| rect.top() > row.bottom() && rect.top() < row.bottom() + row.height() * 2.0)?;
+    let checkbox = ui.list_checkbox_rect("Island 1 · 1 faces", "Include")?;
+    ui.click_at(checkbox.center());
     assert!(ui.last_actions.iter().any(|action| matches!(action,
         UiAction::CdmwCommand { command:"replacement_islands", arguments, .. }
         if arguments == &json!({"part_id":"owned:0","faces":[0],"included":false}))));
+    Ok(())
+}
+
+#[test]
+fn island_tab_uses_full_height_and_remembers_its_own_scroll() -> TestResult {
+    let mut ui = island_ui(egui::vec2(1280.0, 900.0))?;
+    ui.application.cdmw_state["mesh_islands"]["parts"][0]["islands"] = json!(
+        (0..80).map(|_| json!({"faces": [0], "included": true})).collect::<Vec<_>>()
+    );
+    ui.click("Mesh islands")?;
+    let show = ui.label_rect("Show all islands").ok_or("show all")?;
+    let visible = |ui: &HeadlessUi| ui.output.shapes.iter().filter_map(|clipped| match &clipped.shape {
+        egui::Shape::Text(text) if text.galley.job.text.starts_with("Island ")
+            && clipped.clip_rect.contains_rect(text.visual_bounding_rect())
+            && text.visual_bounding_rect().bottom() <= ui.size.y =>
+                Some((text.galley.job.text.clone(), text.visual_bounding_rect())),
+        _ => None,
+    }).collect::<Vec<_>>();
+    let initial = visible(&ui);
+    assert!(initial.len() > 20, "island list remains capped: {} rows", initial.len());
+    assert!(initial.last().ok_or("rows")?.1.bottom() > ui.application.viewport_rect.ok_or("viewport")?.bottom() - 50.0);
+    ui.scroll_inspector(-300.0);
+    ui.settle_layout();
+    let scrolled = visible(&ui);
+    assert_ne!(initial[0].0, scrolled[0].0);
+    assert_eq!(ui.label_rect("Show all islands"), Some(show));
+    ui.click("Parts")?;
+    ui.click("Mesh islands")?;
+    assert_eq!(visible(&ui), scrolled);
+    ui.click("Back to Inspector")?;
+    ui.click("Parts")?;
+    assert_eq!(visible(&ui), scrolled, "reopening did not restore the active island tab");
     Ok(())
 }

@@ -1102,6 +1102,47 @@ fn cdmw_section<R>(
     .inner
 }
 
+// Both lists share the same aligned View / Include columns. Names and physics
+// truncate inside their cells; growing text never pushes a checkbox off-screen.
+pub(super) fn cdmw_list_columns(ui: &egui::Ui, detail: &str) -> [f32; 4] {
+    let measure = |text: &str| ui.painter().layout_no_wrap(
+        crate::localization::tr(text), egui::TextStyle::Body.resolve(ui.style()),
+        ui.visuals().text_color(),
+    ).size().x + ui.spacing().button_padding.x * 2.0;
+    let view = measure("View").max(ui.spacing().interact_size.y);
+    let include = measure("Include").max(ui.spacing().interact_size.y);
+    let detail = measure(detail).max(58.0);
+    let name = (ui.available_width() - view - include - detail - ui.spacing().item_spacing.x * 3.0).max(24.0);
+    [name, detail, view, include]
+}
+
+pub(super) fn cdmw_list_cell<R>(ui: &mut egui::Ui, width: f32, body: impl FnOnce(&mut egui::Ui) -> R) -> R {
+    let size = egui::vec2(width, ui.spacing().interact_size.y);
+    ui.allocate_ui_with_layout(
+        size, egui::Layout::left_to_right(egui::Align::Center), |ui| {
+            ui.set_min_size(size);
+            body(ui)
+        },
+    ).inner
+}
+
+pub(super) fn cdmw_list_header(ui: &mut egui::Ui, widths: [f32; 4], name: &str, detail: &str) -> [egui::Id; 2] {
+    ui.horizontal(|ui| {
+        cdmw_list_cell(ui, widths[0], |ui| ui.weak(crate::localization::tr(name)));
+        cdmw_list_cell(ui, widths[1], |ui| ui.weak(crate::localization::tr(detail)));
+        let mut ids = [egui::Id::NULL; 2];
+        for (index, title) in ["View", "Include"].into_iter().enumerate() {
+            ids[index] = cdmw_list_cell(ui, widths[index + 2], |ui| {
+                ui.with_layout(egui::Layout::centered_and_justified(egui::Direction::LeftToRight), |ui| {
+                    ui.label(crate::localization::tr(title))
+                        .on_hover_text(crate::localization::tr("View: viewport only · Include: exported mesh"))
+                }).inner.id
+            });
+        }
+        ids
+    }).inner
+}
+
 fn cdmw_chrome_row_height(context: &egui::Context) -> f32 {
     let style = context.style_of(context.theme());
     style.spacing.interact_size.y + style.spacing.item_spacing.y * 2.0 + 2.0
@@ -3687,10 +3728,17 @@ impl LabApplication {
 
     fn draw_cdmw_right_panels(&mut self, root_ui: &mut egui::Ui, actions: &mut Vec<UiAction>) {
         let busy = self.cdmw_show_busy_controls();
+        let panel_id = egui::Id::new("cdmw_parts_panel_open");
+        let tab_id = egui::Id::new("cdmw_parts_panel_islands");
+        let mut parts_open = !self.hair.active()
+            && root_ui.ctx().data_mut(|data| data.get_temp::<bool>(panel_id).unwrap_or(false));
+        let columns = cdmw_list_columns(root_ui, "Physics");
+        let min_width = (columns[1..].iter().sum::<f32>() + root_ui.spacing().item_spacing.x * 3.0 + 140.0)
+            .max(300.0).min((root_ui.available_width() - 120.0).max(300.0));
         egui::Panel::right("cdmw_right_panels")
-            .default_size(320.0)
-            .min_size(270.0)
-            .max_size(430.0)
+            .default_size(380.0)
+            .min_size(min_width)
+            .max_size(640.0_f32.max(min_width))
             .resizable(true)
             .show(root_ui, |ui| {
                 ui.horizontal(|ui| {
@@ -3705,11 +3753,35 @@ impl LabApplication {
                     {
                         set_cdmw_sidebar_expanded(ui.ctx(), CDMW_INSPECTOR_SIDEBAR, false);
                     }
-                    ui.label(RichText::new(crate::localization::tr("Inspector")).heading().strong());
+                    if parts_open {
+                        if ui.button(crate::localization::tr("Back to Inspector")).clicked() {
+                            parts_open = false;
+                            ui.ctx().data_mut(|data| data.insert_temp(panel_id, false));
+                        }
+                    } else {
+                        ui.label(RichText::new(crate::localization::tr("Inspector")).heading().strong());
+                    }
                 });
                 ui.separator();
                 // Keep the scrollbar out of the inspector controls' hitboxes.
                 ui.spacing_mut().scroll.floating = false;
+                if parts_open {
+                    let mut islands = ui.ctx().data_mut(|data| data.get_temp::<bool>(tab_id).unwrap_or(false));
+                    ui.horizontal_wrapped(|ui| {
+                        ui.selectable_value(&mut islands, false, crate::localization::tr("Parts"));
+                        ui.selectable_value(&mut islands, true, crate::localization::tr("Mesh islands"))
+                            .on_hover_text(format!("{}\n{}",
+                                crate::localization::tr("Select a part, then an island to move, scale or edit it."),
+                                crate::localization::tr("Coincident seam vertices are grouped without welding the model.")));
+                    });
+                    ui.ctx().data_mut(|data| data.insert_temp(tab_id, islands));
+                    ui.separator();
+                    ui.add_enabled_ui(!busy, |ui| {
+                        if islands { self.draw_cdmw_islands(ui, actions); }
+                        else { self.draw_cdmw_parts(ui, actions); }
+                    });
+                    return;
+                }
                 ScrollArea::vertical().show(ui, |ui| {
                     self.draw_hair_controls(ui, actions);
                     if self.hair.active() {
@@ -3722,9 +3794,12 @@ impl LabApplication {
                     ui.add_enabled_ui(!busy, |ui| {
                         egui::Frame::group(ui.style()).show(ui, |ui| {
                             ui.set_width(ui.available_width());
-                            cdmw_section(ui, "cdmw-parts", "Parts", None, |ui| {
-                                self.draw_cdmw_parts(ui, actions);
-                            });
+                            if ui.add_sized([ui.available_width(), ui.spacing().interact_size.y],
+                                Button::new((crate::localization::tr("Parts"), egui::Atom::grow(), "›")))
+                                .on_hover_text(crate::localization::tr("Parts / Mesh islands"))
+                                .clicked() {
+                                ui.ctx().data_mut(|data| data.insert_temp(panel_id, true));
+                            }
                         });
                         if ["translucency", "emission", "shader_controls"]
                             .iter()
@@ -3904,7 +3979,6 @@ impl LabApplication {
     }
 
     fn draw_cdmw_parts(&mut self, ui: &mut egui::Ui, actions: &mut Vec<UiAction>) {
-        self.draw_cdmw_replacement(ui, actions);
         let selected = self.selected_part_indices();
         let parts = self
             .document
@@ -3960,73 +4034,9 @@ impl LabApplication {
                     }
                 }).response.on_hover_text(crate::localization::tr("Viewport visibility only; hidden parts remain in the output"));
             });
-            let layer_visible = self.cdmw_layer_visible_submeshes();
-            ScrollArea::vertical().id_salt("cdmw_parts_list").min_scrolled_height(160.0).max_height(240.0).auto_shrink([false, true]).show(ui, |ui| {
-                for (index, name, material) in &parts {
-                    ui.push_id(index, |ui| egui::Frame::new()
-                        .fill(ui.visuals().faint_bg_color).inner_margin(6).corner_radius(4)
-                        .show(ui, |ui| {
-                            ui.set_width(ui.available_width());
-                            ui.spacing_mut().item_spacing.y = 2.0;
-                            let in_visible_layer = layer_visible.as_ref().is_none_or(|visible| visible.contains(index));
-                            let mut shown = !self.cdmw_hidden_parts.contains(index);
-                            let active = selected.contains(index);
-                            let physics = self.cdmw_state["physics"]["parts"].as_array()
-                                .and_then(|rows| rows.iter().find(|part| part["index"].as_u64() == Some(u64::from(*index))));
-                            let evidence = physics.map(crate::cdmw_cloth::physics_lines)
-                                .unwrap_or_default().join("\n");
-                            let mut help = crate::localization::tr(format!("{index}: {name}\nMaterial: {material}"));
-                            if !evidence.is_empty() {
-                                help.push('\n');
-                                help.push_str(&evidence);
-                            }
-                            let row = ui.add_enabled_ui(shown && in_visible_layer, |ui| {
-                                ui.add_sized([ui.available_width(), ui.spacing().interact_size.y],
-                                    Button::selectable(active, (crate::localization::tr(format!("{index}: {name}")), egui::Atom::grow()))
-                                        .truncate())
-                            }).inner;
-                            if row.on_hover_text(&help)
-                                .on_disabled_hover_text(format!("{}\n{}", help, crate::localization::tr("Show this part to select it")))
-                                .clicked() {
-                                let mut updated = selected.clone();
-                                if active { updated.retain(|value| value != index); }
-                                else { updated.push(*index); }
-                                updated.sort_unstable();
-                                actions.push(UiAction::SetPartSelection(updated));
-                            }
-                            ui.horizontal_wrapped(|ui| {
-                                if ui.add_enabled(in_visible_layer, egui::Checkbox::new(&mut shown, crate::localization::tr("View")))
-                                    .on_hover_text(crate::localization::tr("Show part in viewport"))
-                                    .on_disabled_hover_text(crate::localization::tr("Show this part's Geometry Layer first"))
-                                    .changed() {
-                                    actions.push(UiAction::SetPartVisibility { indices: vec![*index], visible: shown });
-                                }
-                                if let Some(replacement) = self.cdmw_state.get("replacement")
-                                    && let Some(binding) = replacement.get("parts").and_then(Value::as_array)
-                                        .and_then(|rows| rows.iter().find(|row| row["index"].as_u64() == Some(u64::from(*index)))) {
-                                    let mut included = binding["included"].as_bool().unwrap_or(true);
-                                    let enabled = replacement["available"].as_bool().unwrap_or(false)
-                                        && replacement["comparison"].as_str().unwrap_or("edit") == "edit";
-                                    if ui.add_enabled(enabled, egui::Checkbox::new(&mut included, crate::localization::tr("Include")))
-                                        .on_disabled_hover_text(crate::localization::tr(replacement["reason"].as_str().unwrap_or_default()))
-                                        .on_hover_text(crate::localization::tr("Include in mod · independent of viewport visibility")).changed() {
-                                        actions.push(UiAction::CdmwCommand {
-                                            command: "replacement_include",
-                                            arguments: json!({"part_ids": [binding["id"]], "included": included}),
-                                            label: "Change output inclusion",
-                                        });
-                                    }
-                                }
-                                if let Some(physics) = physics.filter(|part| part["kind"] != "none") {
-                                    ui.add(egui::Label::new(RichText::new(crate::cdmw_cloth::physics_badge(physics)).small().weak()).wrap())
-                                        .on_hover_text(&evidence);
-                                }
-                            });
-                        }));
-                    ui.add_space(4.0);
-                }
-            });
-            ui.horizontal_wrapped(|ui| {
+        });
+        ui.horizontal_wrapped(|ui| {
+            ui.add_enabled_ui(!busy && editing, |ui| {
                 for (action, title, label) in [("duplicate", "Duplicate", "Duplicate part"), ("delete", "Delete", "Delete part")] {
                     let reason = self.cdmw_part_action_reason(action);
                     let explain_delete = action == "delete" && !selected.is_empty();
@@ -4052,20 +4062,95 @@ impl LabApplication {
                     }
                 }
             });
+            if busy && !self.cdmw_pending_request.as_ref().is_some_and(|request| request.origin == Some(CdmwRequestOrigin::WeaponPlacement)) {
+                ui.small(crate::localization::tr("Updating parts…"));
+            } else if state_str(&self.cdmw_state, "output_policy") != Some("free_edit_rebuild") {
+                ui.add_enabled_ui(!busy, |ui| ui.menu_button(crate::localization::tr("Enable part edits…"), |ui| {
+                    self.draw_cdmw_output_policy(ui, actions)
+                })).inner
+                .response
+                .on_hover_text(crate::localization::tr("Duplicate and Delete require Free Edit output"));
+            } else if !selected.is_empty() && selected.len() >= parts.len() {
+                ui.small(crate::localization::tr("Keep at least one part when deleting."));
+            }
         });
-        if busy && !self.cdmw_pending_request.as_ref().is_some_and(|request| request.origin == Some(CdmwRequestOrigin::WeaponPlacement)) {
-            ui.small(crate::localization::tr("Updating parts…"));
-        } else if state_str(&self.cdmw_state, "output_policy") != Some("free_edit_rebuild") {
-            ui.add_enabled_ui(!busy, |ui| ui.menu_button(crate::localization::tr("Enable part edits…"), |ui| {
-                self.draw_cdmw_output_policy(ui, actions)
-            })).inner
-            .response
-            .on_hover_text(crate::localization::tr("Duplicate and Delete require Free Edit output"));
-        } else if !selected.is_empty() && selected.len() >= parts.len() {
-            ui.small(crate::localization::tr("Keep at least one part when deleting."));
-        }
-        self.draw_cdmw_islands(ui, actions);
-        self.draw_cdmw_physics_detection(ui, &selected, false);
+        ui.separator();
+        ScrollArea::vertical().id_salt("cdmw_parts_list")
+            .auto_shrink([false, false]).show(ui, |ui| {
+                self.draw_cdmw_replacement(ui, actions);
+                let widths = cdmw_list_columns(ui, "Physics");
+                let headers = cdmw_list_header(ui, widths, "Part", "Physics");
+                let layer_visible = self.cdmw_layer_visible_submeshes();
+                ui.add_enabled_ui(!busy && editing, |ui| {
+                    ui.spacing_mut().item_spacing.y = 2.0;
+                    for (index, name, material) in &parts {
+                        ui.push_id(index, |ui| ui.horizontal(|ui| {
+                            let in_visible_layer = layer_visible.as_ref().is_none_or(|visible| visible.contains(index));
+                            let mut shown = !self.cdmw_hidden_parts.contains(index);
+                            let active = selected.contains(index);
+                            let physics = self.cdmw_state["physics"]["parts"].as_array()
+                                .and_then(|rows| rows.iter().find(|part| part["index"].as_u64() == Some(u64::from(*index))));
+                            let evidence = physics.map(crate::cdmw_cloth::physics_lines)
+                                .unwrap_or_default().join("\n");
+                            let mut help = crate::localization::tr(format!("{index}: {name}\nMaterial: {material}"));
+                            if !evidence.is_empty() {
+                                help.push('\n');
+                                help.push_str(&evidence);
+                            }
+                            cdmw_list_cell(ui, widths[0], |ui| {
+                                let row = ui.add_enabled_ui(shown && in_visible_layer, |ui| {
+                                    ui.add_sized([ui.available_width(), ui.spacing().interact_size.y],
+                                        Button::selectable(active, (crate::localization::tr(format!("{index}: {name}")), egui::Atom::grow())).truncate())
+                                }).inner;
+                                if row.on_hover_text(&help)
+                                    .on_disabled_hover_text(format!("{}\n{}", help, crate::localization::tr("Show this part to select it"))).clicked() {
+                                    let mut updated = selected.clone();
+                                    if active { updated.retain(|value| value != index); }
+                                    else { updated.push(*index); }
+                                    updated.sort_unstable();
+                                    actions.push(UiAction::SetPartSelection(updated));
+                                }
+                            });
+                            cdmw_list_cell(ui, widths[1], |ui| {
+                                if let Some(physics) = physics.filter(|part| part["kind"] != "none") {
+                                    ui.add(egui::Label::new(RichText::new(crate::cdmw_cloth::physics_badge(physics)).small().weak()).truncate())
+                                        .on_hover_text(&evidence);
+                                }
+                            });
+                            cdmw_list_cell(ui, widths[2], |ui| {
+                                ui.with_layout(egui::Layout::centered_and_justified(egui::Direction::LeftToRight), |ui| {
+                                    if ui.add_enabled(in_visible_layer, egui::Checkbox::without_text(&mut shown)).labelled_by(headers[0])
+                                        .on_hover_text(crate::localization::tr("Show part in viewport"))
+                                        .on_disabled_hover_text(crate::localization::tr("Show this part's Geometry Layer first")).changed() {
+                                        actions.push(UiAction::SetPartVisibility { indices: vec![*index], visible: shown });
+                                    }
+                                });
+                            });
+                            cdmw_list_cell(ui, widths[3], |ui| {
+                                if let Some(replacement) = self.cdmw_state.get("replacement")
+                                    && let Some(binding) = replacement.get("parts").and_then(Value::as_array)
+                                        .and_then(|rows| rows.iter().find(|row| row["index"].as_u64() == Some(u64::from(*index)))) {
+                                    let mut included = binding["included"].as_bool().unwrap_or(true);
+                                    let enabled = replacement["available"].as_bool().unwrap_or(false)
+                                        && replacement["comparison"].as_str().unwrap_or("edit") == "edit";
+                                    ui.with_layout(egui::Layout::centered_and_justified(egui::Direction::LeftToRight), |ui| {
+                                        if ui.add_enabled(enabled, egui::Checkbox::without_text(&mut included)).labelled_by(headers[1])
+                                            .on_disabled_hover_text(crate::localization::tr(replacement["reason"].as_str().unwrap_or_default()))
+                                            .on_hover_text(crate::localization::tr("Include in mod · independent of viewport visibility")).changed() {
+                                            actions.push(UiAction::CdmwCommand {
+                                                command: "replacement_include",
+                                                arguments: json!({"part_ids": [binding["id"]], "included": included}),
+                                                label: "Change output inclusion",
+                                            });
+                                        }
+                                    });
+                                }
+                            });
+                        }));
+                    }
+                });
+                self.draw_cdmw_physics_detection(ui, &selected, false);
+            });
     }
 
     fn cdmw_part_action_reason(&self, action: &str) -> Option<&'static str> {

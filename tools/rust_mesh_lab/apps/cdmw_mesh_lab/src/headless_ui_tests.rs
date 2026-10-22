@@ -1273,7 +1273,7 @@ impl HeadlessUi {
         for label in ["Viewport", "Transform", "Sculpt", "Mesh Data"] {
             ui.click_tool_button(label).expect("open tool section");
         }
-        for label in ["Parts", "Geometry Layers", "Action History"] {
+        for label in ["Geometry Layers", "Action History", "Parts"] {
             ui.click(label).expect("open inspector section");
         }
         ui.scroll_tool_rail(2_000.0);
@@ -1437,9 +1437,32 @@ impl HeadlessUi {
         })
     }
 
+    fn list_checkbox_rect(&mut self, row: &str, column: &str) -> Result<Rect, Box<dyn std::error::Error>> {
+        let header = self.reveal(column)?;
+        let row = self.reveal(row)?;
+        self.output.shapes.iter().filter_map(|clipped| match &clipped.shape {
+            egui::Shape::Rect(shape) if (8.0..=40.0).contains(&shape.rect.width())
+                && (8.0..=40.0).contains(&shape.rect.height())
+                && (shape.rect.center().y - row.center().y).abs() < 3.0
+                && clipped.clip_rect.contains_rect(shape.rect) => Some(shape.rect),
+            _ => None,
+        }).min_by(|a, b| (a.center().x - header.center().x).abs().total_cmp(&(b.center().x - header.center().x).abs()))
+            .filter(|rect| (rect.center().x - header.center().x).abs() < header.width() * 0.5 + 8.0)
+            .ok_or_else(|| format!("painted {column} checkbox beside {row:?}").into())
+    }
+
+    fn actions_from_part_checkbox(&mut self, index: usize, column: &str) -> Result<Vec<UiAction>, Box<dyn std::error::Error>> {
+        let name = self.application.document.as_ref().ok_or("document")?.lods[self.application.active_lod_index].submeshes[index].name.clone();
+        let rect = self.list_checkbox_rect(&format!("{index}: {name}"), column)?;
+        self.last_actions.clear();
+        self.click_at(rect.center());
+        Ok(std::mem::take(&mut self.last_actions))
+    }
+
     fn scroll_inspector(&mut self, distance: f32) {
         let viewport = self.application.viewport_rect.expect("viewport");
-        let position = egui::pos2((viewport.right() + self.size.x) * 0.5, self.size.y * 0.5);
+        // The parts toolbar stays fixed; send the wheel into the list below it.
+        let position = egui::pos2((viewport.right() + self.size.x) * 0.5, viewport.bottom() - 60.0);
         self.frame(vec![Event::PointerMoved(position), wheel_event(distance)]);
         for _ in 0..8 {
             self.frame(Vec::new());
@@ -1457,6 +1480,21 @@ impl HeadlessUi {
 
     fn reveal(&mut self, label: &str) -> Result<Rect, Box<dyn std::error::Error>> {
         self.frame(Vec::new());
+        // These surfaces now have an explicit navigation step in the Inspector.
+        if self.integrated_cdmw && ["Geometry Layers", "Action History", "Translucency (experimental)", "Glow (experimental)", "Shader experiments"].contains(&label) {
+            if let Some(back) = self.label_rect("Back to Inspector") {
+                self.click_at(back.center());
+                self.settle_layout();
+            }
+        }
+        if self.integrated_cdmw && self.label_rect(label).is_none()
+            && self.application.document.as_ref().and_then(|doc| doc.lods.get(self.application.active_lod_index))
+                .is_some_and(|lod| lod.submeshes.iter().enumerate().any(|(index, part)| label == format!("{index}: {}", part.name))) {
+            if let Some(parts) = self.label_rect("Parts") {
+                self.click_at(parts.center());
+                self.settle_layout();
+            }
+        }
         if let Some(rectangle) = self.label_rect(label) {
             return Ok(rectangle);
         }
@@ -1929,29 +1967,7 @@ fn integrated_parts_visibility_filters_drawing_and_selection_without_changing_ge
         ui.application.selected_part_indices().is_empty(),
         "hidden part was selectable"
     );
-    // Locate the painted View checkbox beneath this part's name.
-    let name = ui.reveal("1: Back")?;
-    let label = ui.label_rect_where("View", |rect| {
-        rect.top() > name.bottom() && rect.top() < name.bottom() + name.height() * 2.0
-    }).ok_or("part View label")?;
-    let checkbox = ui
-        .output
-        .shapes
-        .iter()
-        .filter_map(|clipped| match &clipped.shape {
-            egui::Shape::Rect(shape)
-                if shape.rect.width() < 25.0
-                    && shape.rect.height() < 25.0
-                    && shape.rect.width() > 8.0
-                    && shape.rect.right() < label.left()
-                    && (shape.rect.center().y - label.center().y).abs() < 2.0 =>
-            {
-                Some(shape.rect)
-            }
-            _ => None,
-        })
-        .max_by(|a, b| a.right().total_cmp(&b.right()))
-        .ok_or("part visibility checkbox")?;
+    let checkbox = ui.list_checkbox_rect("1: Back", "View")?;
     ui.click_at(checkbox.center());
     assert!(ui.application.cdmw_hidden_parts.is_empty());
     ui.click("1: Back")?;
@@ -3041,6 +3057,7 @@ fn integrated_selection_display_camera_history_and_output_controls_change_real_s
     assert!(ui.application.cdmw_orbit_mode);
     assert!(ui.application.cdmw_rail_page.is_none());
 
+    ui.click("Back to Inspector")?;
     ui.application.cdmw_state["undo_count"] = json!(1);
     ui.application.cdmw_state["redo_count"] = json!(1);
     ui.application.cdmw_state["history_cursor"] = json!(1);
@@ -3663,6 +3680,7 @@ fn integrated_geometry_layer_visibility_dispatches_the_typed_host_command() -> T
         triangle_application()?,
         egui::vec2(1_360.0, 940.0),
     );
+    ui.click("Back to Inspector")?;
     ui.application.cdmw_state["geometry_layers"] = json!({
         "revision": 4,
         "active_layer_id": "detail",
@@ -3712,6 +3730,7 @@ fn integrated_inspector_long_layer_names_keep_button_edges_clickable() -> TestRe
         });
         ui.settle_layout();
         for right_edge in [false, true] {
+            ui.click("Parts")?;
             for (label, expected) in [
                 ("All", vec![0, 1]),
                 ("None", vec![]),
@@ -3725,6 +3744,7 @@ fn integrated_inspector_long_layer_names_keep_button_edges_clickable() -> TestRe
                     "{label} edge ignored at {size:?}, {font}: {actions:?}"
                 );
             }
+            ui.click("Back to Inspector")?;
             for (label, command) in [
                 (name, "layer_activate"),
                 ("Visible", "layer_visibility"),
@@ -3976,6 +3996,7 @@ fn integrated_exact_cleanup_and_layer_locks_show_actionable_reasons_then_enable_
         triangle_application()?,
         egui::vec2(1_440.0, 980.0),
     );
+    ui.click("Back to Inspector")?;
 
     ui.click("Cleanup")?;
     ui.reveal(
@@ -4021,6 +4042,7 @@ fn integrated_geometry_layer_controls_dispatch_and_invalid_empty_copy_or_rename_
         triangle_application()?,
         egui::vec2(1_440.0, 980.0),
     );
+    ui.click("Back to Inspector")?;
     ui.application.cdmw_state["output_policy"] = json!("free_edit_rebuild");
     ui.application.cdmw_state["geometry_layers"] = json!({
         "revision": 4,
@@ -5173,7 +5195,7 @@ fn integrated_replacement_experimental_notice_keeps_import_and_inclusion_availab
     ui.frame(vec![Event::PointerMoved(badge.center())]);
     for _ in 0..3 { ui.frame(Vec::new()); }
     assert!(ui.label_rect(notice).is_some(), "the compact badge retains the full warning on hover");
-    let actions = ui.actions_from_click("Include")?;
+    let actions = ui.actions_from_part_checkbox(0, "Include")?;
     assert!(actions.iter().any(|action| matches!(action,
         UiAction::CdmwCommand { command: "replacement_include", arguments, .. }
             if arguments["included"] == false && arguments["part_ids"] == json!(["stable:0"])
@@ -5219,27 +5241,8 @@ fn integrated_replacement_view_checkbox_toggles_from_its_painted_square() -> Tes
             "parts": [{"index": 0, "id": "stable:0", "name": "Triangle", "included": true}]
         });
         ui.settle_layout();
-        let label = ui.reveal("View")?;
-        let checkbox = ui
-            .output
-            .shapes
-            .iter()
-            .filter_map(|clipped| {
-                let egui::Shape::Rect(shape) = &clipped.shape else {
-                    return None;
-                };
-                let rect = shape.rect;
-                (rect.width() >= 8.0
-                    && rect.width() <= 28.0
-                    && rect.height() >= 8.0
-                    && rect.height() <= 28.0
-                    && (rect.center().y - label.center().y).abs() < 3.0
-                    && rect.right() < label.left()
-                    && label.left() - rect.right() < 100.0)
-                .then_some(rect)
-            })
-            .min_by(|a, b| a.left().total_cmp(&b.left()))
-            .ok_or("view checkbox")?;
+        let name = ui.application.document.as_ref().ok_or("document")?.lods[0].submeshes[0].name.clone();
+        let checkbox = ui.list_checkbox_rect(&format!("0: {name}"), "View")?;
         ui.last_actions.clear();
         ui.click_at(checkbox.center());
         assert!(
@@ -5250,7 +5253,7 @@ fn integrated_replacement_view_checkbox_toggles_from_its_painted_square() -> Tes
         ui.click_at(checkbox.center());
         assert!(ui.application.cdmw_hidden_parts.is_empty());
         if !available {
-            assert!(ui.actions_from_click("Include")?.is_empty());
+            assert!(ui.actions_from_part_checkbox(0, "Include")?.is_empty());
             assert!(ui.actions_from_click("Import Replacement…")?.is_empty());
             assert!(ui.label_rect("Entire Mesh").is_none());
         }
@@ -5269,7 +5272,7 @@ fn integrated_replacement_controls_keep_visibility_independent() -> TestResult {
         "parts": [{"index": 0, "id": "stable:0", "name": "Triangle", "included": true}]
     });
     assert!(
-        ui.actions_from_click("Include")?
+        ui.actions_from_part_checkbox(0, "Include")?
             .iter()
             .any(|action| matches!(action,
                 UiAction::CdmwCommand { command: "replacement_include", arguments, .. }
@@ -5289,7 +5292,7 @@ fn integrated_replacement_controls_keep_visibility_independent() -> TestResult {
     ui.application.cdmw_state["replacement"]["comparison"] = json!("output");
     ui.frame(Vec::new());
     assert!(ui.application.cdmw_visible_submeshes().is_none());
-    assert!(ui.actions_from_click("Include")?.is_empty());
+    assert!(ui.actions_from_part_checkbox(0, "Include")?.is_empty());
     assert!(ui.application.cdmw_hidden_parts.contains(&0));
     Ok(())
 }
@@ -8681,7 +8684,9 @@ fn translucency_controls_send_selected_parts_and_restore_without_changing_geomet
         if arguments == &json!({"part_ids": ["b"], "reset": true})
     )));
     ui.application.cdmw_pending_request = None;
+    ui.click("Parts")?;
     ui.click("None")?;
+    ui.click("Back to Inspector")?;
     assert!(!has_host_command(&ui.actions_from_click("Apply translucency")?, "replacement_translucency"));
     assert_eq!(ui.application.mesh.as_ref().unwrap().draw_snapshot(), before);
     Ok(())
@@ -8730,7 +8735,9 @@ fn emission_controls_send_selected_parts_and_restore() -> TestResult {
     assert!(actions.iter().any(|action| matches!(action, UiAction::CdmwCommand { command: "replacement_emission", arguments, .. }
         if arguments == &json!({"part_ids": ["b"], "reset": true}))));
     ui.application.cdmw_pending_request = None;
+    ui.click("Parts")?;
     ui.click("None")?;
+    ui.click("Back to Inspector")?;
     assert!(!has_host_command(&ui.actions_from_click("Apply glow")?, "replacement_emission"));
     assert_eq!(ui.application.mesh.as_ref().unwrap().draw_snapshot(), before);
     Ok(())
@@ -8771,13 +8778,17 @@ fn shader_controls_send_selected_parts_and_restore() -> TestResult {
         UiAction::CdmwCommand { command: "replacement_shader_controls", arguments, .. }
         if arguments == &json!({"part_ids": ["b"], "reset": true}))));
     ui.application.cdmw_pending_request = None;
+    ui.click("Parts")?;
     ui.click("All")?;
+    ui.click("Back to Inspector")?;
     let actions = ui.actions_from_click("Restore shader controls")?;
     assert!(actions.iter().any(|action| matches!(action,
         UiAction::CdmwCommand { command: "replacement_shader_controls", arguments, .. }
         if arguments == &json!({"part_ids": ["a", "b"], "reset": true}))));
     ui.application.cdmw_pending_request = None;
+    ui.click("Parts")?;
     ui.click("None")?;
+    ui.click("Back to Inspector")?;
     assert!(!has_host_command(&ui.actions_from_click("Apply shader controls")?, "replacement_shader_controls"));
     assert_eq!(ui.application.mesh.as_ref().unwrap().draw_snapshot(), before);
     Ok(())
@@ -8839,11 +8850,14 @@ fn shader_controls_disable_incompatible_and_unknown_selections_but_allow_restore
         UiAction::CdmwCommand { command: "replacement_shader_controls", arguments, .. }
         if arguments["shader_controls"]["shader"] == "SkinnedMeshTranslucent")));
     ui.application.cdmw_pending_request = None;
+    ui.click("Parts")?;
     ui.click("All")?;
+    ui.click("Back to Inspector")?;
     assert!(!has_host_command(&ui.actions_from_click("Apply shader controls")?, "replacement_shader_controls"));
     assert!(has_host_command(&ui.actions_from_click("Restore shader controls")?, "replacement_shader_controls"));
     ui.application.cdmw_pending_request = None;
     ui.click("1: Part B")?;
+    ui.click("Back to Inspector")?;
     ui.application.cdmw_state["shader_controls"]["parts"][1]["shader_options"] = Value::Null;
     ui.settle_layout();
     assert!(!has_host_command(&ui.actions_from_click("Apply shader controls")?, "replacement_shader_controls"));

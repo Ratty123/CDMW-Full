@@ -160,28 +160,29 @@ and [edited-result preparation](../../services/mesh_archive_results.py).
 
 ## Parts and appearance
 
-**Parts** manages selection and mesh structure. **Translucency (experimental)**,
-**Glow (experimental)** and **Shader experiments** have separate collapsible
-headings in the Inspector, below Parts. Select parts, then open the material
-control you need; it remains accessible when Parts is collapsed.
+Click **Parts** in the Inspector to open a resizable panel using the full editor
+height, with separate **Parts** and **Mesh islands** tabs. Each tab has one
+scrolling area; switching tabs or reopening the panel retains its scroll position.
+Use **Back to Inspector** for **Translucency (experimental)**, **Glow (experimental)**,
+**Shader experiments**, **Geometry Layers** and **Action History**. Part selection
+is retained when navigating between these tools.
 
-Each part has a full-width selectable name, with **View** and **Include** directly
-below it. **View** only affects the viewport; **Include** controls exported output.
-Physics badges share the controls row or wrap below it, so they do not squeeze
-part names. Hover over a name or badge for the full material and physics details.
-Selection and visibility tools stay above the list; Duplicate, Delete and the
-output-policy menu stay together below it.
+Parts use compact single-line rows with aligned **View** and **Include** columns.
+**View** only affects the viewport; **Include** controls exported output. Physics
+badges occupy a separate column. Long names and badges truncate; hover for the
+full name, material and physics evidence. Selection, visibility, Duplicate, Delete
+and output-policy controls stay above the scrolling area. Replacement import,
+comparison, placement and mapping controls remain available in the Parts tab.
 
 ### Mesh islands
 
-Open **Parts**, select a part, and expand **Mesh islands** to address disconnected
+Open **Parts**, select a part, then switch to **Mesh islands** to address disconnected
 pieces inside that part. Selecting an island selects its faces for the existing
 move, rotate, scale and Free Edit tools; it does not create a new material or part.
-Mesh islands starts collapsed and opens when you click its heading.
-Islands are grouped under their part name, with a separate selectable island row
-and **View**, **Include** and **Isolate** controls beneath it. Long names retain
-their full text on hover. Hover over the section heading for selection and seam
-grouping guidance.
+The island list is separate from the Parts list and groups islands by their source
+part. Each compact row contains its selectable name, **Isolate**, **View** and
+**Include**. **Show all islands** stays above the list. Long names retain their
+full text on hover. Hover over the tab for selection and seam grouping guidance.
 Coincident UV-seam vertices are grouped at 1e-5 model-unit precision without
 welding or moving the model. Existing **Linked** selection still follows vertex
 indices when that stricter connectivity is wanted.
@@ -953,7 +954,7 @@ edits.
 ### Detected physics
 
 The **Parts** list marks parts with cloth, spline or jiggle influence. Select a
-part and expand **Detected physics** below **Mesh islands** in the Inspector.
+part and expand **Detected physics** below the list in the **Parts** tab.
 It starts collapsed, with each selected part's evidence grouped under its name.
 The Cloth page keeps its physics details expanded initially. The details show
 retained source vertex counts, the guide mesh and its fixed anchors, exact

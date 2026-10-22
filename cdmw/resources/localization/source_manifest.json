@@ -15737,6 +15737,16 @@
       ]
     },
     {
+      "key": "Back to Inspector",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
+          "line": 3757,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
       "key": "Back to mod list",
       "origins": [
         {
@@ -30070,8 +30080,8 @@
       "key": "Coincident seam vertices are grouped without welding the model.",
       "origins": [
         {
-          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_islands.rs",
-          "line": 214,
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
+          "line": 3775,
           "sink": "rust-presentation"
         }
       ]
@@ -63170,13 +63180,13 @@
           "sink": "setHeaderLabels"
         },
         {
-          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_islands.rs",
-          "line": 195,
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
+          "line": 1113,
           "sink": "rust-presentation"
         },
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
-          "line": 3983,
+          "line": 1134,
           "sink": "rust-presentation"
         }
       ]
@@ -66563,6 +66573,11 @@
           "path": "cdmw/ui/mesh_editor/action_bar.py",
           "line": 52,
           "sink": "python-data:_BUTTON_LABELS"
+        },
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_islands.rs",
+          "line": 168,
+          "sink": "rust-presentation"
         }
       ]
     },
@@ -66601,7 +66616,12 @@
       "origins": [
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_islands.rs",
-          "line": 206,
+          "line": 167,
+          "sink": "rust-presentation"
+        },
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_islands.rs",
+          "line": 200,
           "sink": "rust-presentation"
         }
       ]
@@ -77535,8 +77555,8 @@
       "key": "Mesh islands",
       "origins": [
         {
-          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_islands.rs",
-          "line": 156,
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
+          "line": 3772,
           "sink": "rust-presentation"
         }
       ]
@@ -97331,7 +97351,7 @@
         },
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_islands.rs",
-          "line": 181,
+          "line": 179,
           "sink": "rust-presentation"
         },
         {
@@ -97346,12 +97366,17 @@
         },
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
-          "line": 3864,
+          "line": 3939,
           "sink": "rust-presentation"
         },
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
-          "line": 3875,
+          "line": 3950,
+          "sink": "rust-presentation"
+        },
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
+          "line": 4080,
           "sink": "rust-presentation"
         },
         {
@@ -97671,12 +97696,27 @@
         },
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
-          "line": 3716,
+          "line": 3771,
           "sink": "rust-presentation"
         },
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
-          "line": 3725,
+          "line": 3788,
+          "sink": "rust-presentation"
+        },
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
+          "line": 3798,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Parts / Mesh islands",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
+          "line": 3799,
           "sink": "rust-presentation"
         }
       ]
@@ -99227,6 +99267,21 @@
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_hair.rs",
           "line": 1009,
+          "sink": "rust-presentation"
+        },
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
+          "line": 3735,
+          "sink": "rust-presentation"
+        },
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
+          "line": 4079,
+          "sink": "rust-presentation"
+        },
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
+          "line": 4080,
           "sink": "rust-presentation"
         }
       ]
@@ -126855,8 +126910,8 @@
           "sink": "rust-presentation"
         },
         {
-          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_islands.rs",
-          "line": 232,
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
+          "line": 3774,
           "sink": "rust-presentation"
         }
       ]
@@ -158600,13 +158655,13 @@
           "sink": "QLabel"
         },
         {
-          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_islands.rs",
-          "line": 207,
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
+          "line": 1112,
           "sink": "rust-presentation"
         },
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
-          "line": 3998,
+          "line": 1134,
           "sink": "rust-presentation"
         }
       ]
@@ -158651,12 +158706,17 @@
       "origins": [
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_islands.rs",
-          "line": 165,
+          "line": 208,
           "sink": "rust-presentation"
         },
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
-          "line": 3902,
+          "line": 1138,
+          "sink": "rust-presentation"
+        },
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
+          "line": 3977,
           "sink": "rust-presentation"
         }
       ]

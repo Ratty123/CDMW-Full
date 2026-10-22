@@ -27,16 +27,17 @@ fn parts_layout_keeps_names_clear_and_view_include_independent() -> TestResult {
         ]});
         ui.settle_layout();
         let before = ui.application.mesh.as_ref().ok_or("mesh")?.structural_fingerprint();
+        let view = ui.list_checkbox_rect(&title, "View")?;
+        let include = ui.list_checkbox_rect(&title, "Include")?;
         let first = ui.reveal(&title)?;
-        let view = ui.label_rect_where("View", |rect| {
-            rect.top() > first.bottom() && rect.top() < first.bottom() + first.height() * 2.0
-        }).ok_or("View below part name")?;
-        let include = ui.label_rect_where("Include", |rect| {
-            (rect.center().y - view.center().y).abs() < 2.0
-        }).ok_or("Include beside View")?;
+        let second = ui.reveal("1: Part B")?;
         assert!(view.right() < include.left());
+        assert!((view.center().y - first.center().y).abs() < 3.0);
+        assert!(second.top() - first.top() <= if font > 11.0 { 48.0 } else { 32.0 },
+            "rows are no longer compact at {font}: {first:?}, {second:?}");
         let badge = ui.label_rect("Cloth + jiggle").ok_or("physics badge")?;
-        assert!(badge.top() > first.bottom(), "physics displaced the name");
+        assert!(badge.left() > first.right(), "physics overlapped the name");
+        assert!(badge.right() < view.left(), "physics overlapped View");
         ui.click(&title)?;
         assert_eq!(ui.application.selected_part_indices(), vec![0]);
         ui.last_actions.clear();
@@ -243,6 +244,71 @@ fn parts_delete_guidance_keeps_refit_and_replacement_outputs_protected() -> Test
         assert!(ui.label_rect("Choose Free Edit...").is_none());
         assert_eq!(ui.application.cdmw_state["output_policy"], policy);
         assert_eq!(ui.application.selected_part_indices(), vec![0]);
+    }
+    Ok(())
+}
+
+#[test]
+fn parts_panel_uses_available_height_and_keeps_scroll_and_selection_across_tabs() -> TestResult {
+    fn visible_rows(ui: &HeadlessUi) -> Vec<(String, Rect)> {
+        ui.output.shapes.iter().filter_map(|clipped| match &clipped.shape {
+            egui::Shape::Text(text) if text.galley.job.text.contains(": Component ")
+                && clipped.clip_rect.contains_rect(text.visual_bounding_rect())
+                && text.visual_bounding_rect().bottom() <= ui.size.y =>
+                Some((text.galley.job.text.clone(), text.visual_bounding_rect())),
+            _ => None,
+        }).collect()
+    }
+    for (size, font, density) in [
+        (egui::vec2(1440.0, 1080.0), 11.0, "normal"),
+        (egui::vec2(1000.0, 900.0), 18.0, "comfortable"),
+        (egui::vec2(800.0, 1200.0), 11.0, "normal"),
+    ] {
+        let mut application = two_part_application()?;
+        let document = Arc::make_mut(application.document.as_mut().ok_or("document")?);
+        let template = document.lods[0].submeshes[0].clone();
+        document.lods[0].submeshes = (0..80).map(|index| {
+            let mut part = template.clone();
+            part.name = format!("Component {index:02}");
+            part
+        }).collect();
+        application.mesh = Some(WorkingMesh::from_document(document)?);
+        let mut ui = HeadlessUi::new_integrated_cdmw(application, size);
+        ui.application.apply_cdmw_theme_payload(&json!({"font_point_size": font, "density": density}));
+        ui.settle_layout();
+        ui.click("Parts")?;
+        ui.click("0: Component 00")?;
+        let tabs = ui.label_rect("Mesh islands").ok_or("tabs")?;
+        let all = ui.label_rect("All").ok_or("selection toolbar")?;
+        let before = visible_rows(&ui);
+        assert!(before.len() >= if font > 11.0 { 8 } else { 20 }, "too few rows at {size:?}: {}", before.len());
+        let bottom = before.last().ok_or("rows")?.1.bottom();
+        assert!(bottom > ui.application.viewport_rect.ok_or("viewport")?.bottom() - 70.0,
+            "list does not use available height: bottom {bottom}, size {size:?}");
+        ui.scroll_inspector(-350.0);
+        ui.settle_layout();
+        let scrolled = visible_rows(&ui);
+        assert_ne!(before[0].0, scrolled[0].0, "list did not scroll");
+        assert_eq!(ui.label_rect("Mesh islands"), Some(tabs));
+        assert_eq!(ui.label_rect("All"), Some(all));
+        ui.click("Mesh islands")?;
+        ui.reveal("Select a part, then an island to move, scale or edit it.")?;
+        ui.click("Parts")?;
+        assert_eq!(visible_rows(&ui), scrolled, "Parts scroll changed between tabs");
+        assert_eq!(ui.application.selected_part_indices(), vec![0]);
+        ui.click("Back to Inspector")?;
+        ui.reveal("Geometry Layers")?;
+        ui.click("Parts")?;
+        assert_eq!(visible_rows(&ui), scrolled, "Parts scroll changed after reopening");
+        let collapse = ui.sidebar_button("Collapse Inspector").ok_or("collapse")?;
+        ui.click_at(collapse.rect.center());
+        ui.settle_layout();
+        let expand = ui.sidebar_button("Expand Inspector").ok_or("expand")?;
+        ui.click_at(expand.rect.center());
+        ui.settle_layout();
+        assert_eq!(visible_rows(&ui), scrolled, "Parts scroll changed after collapsing the panel");
+        assert_eq!(ui.application.selected_part_indices(), vec![0]);
+        assert!(ui.application.viewport_rect.ok_or("viewport")?.width() >= 100.0);
     }
     Ok(())
 }
