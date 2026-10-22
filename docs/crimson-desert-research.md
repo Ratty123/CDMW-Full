@@ -1375,12 +1375,15 @@ restoration and process closure completed in 24.406 seconds. This verifies
 path construction independently of file-I/O qualification.
 
 The separately versioned small-read prototype now builds with bounded
-selected Windows entry/root and hook-composition witnesses. Its compiled
-synthetic tests fail once they reach the simulated file manager, while the
-selected API-guard controls pass. This is retained failed isolated validation;
+selected Windows entry/root and hook-composition witnesses. Its first compiled
+synthetic run failed once it reached the simulated file manager, while the
+selected API-guard controls passed. This is retained failed isolated validation;
 static inspection locates incorrect computed function addresses in the test
-fixture. A separate fixture-only correction must pass compiled validation
-before a game payload run.
+fixture. The separate fixture-only correction now passes all 18 compiled read
+cases with the actual probe header and CFG unchanged. Actual own-process API
+guards and the unchanged ASI's inactive check also pass. This 2026-10-23
+qualification uses no game or installed file; actual payload delivery remains
+unproved. The initial failed fixture is retained.
 Production admission remains unchanged.
 
 Definition-consumer source review against build `1.0.0.2976` also distinguishes

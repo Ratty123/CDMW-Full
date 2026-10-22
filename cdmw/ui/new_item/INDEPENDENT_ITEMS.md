@@ -1200,10 +1200,13 @@ pass the first compiled run; 13 read controls terminate `0xc0000409` after
 reaching the simulated getter boundary. Static COFF/PE inspection finds fixture
 function addresses computed 4 GiB too high; the actual targets have valid linked
 CFG entries. The abort site itself was not captured. Retain the failed source
-and ASI, and qualify a separate fixture-only runtime-address correction using
-the unchanged actual header and CFG
-before own-process/inert checks and actual execution. Exact native byte
-delivery, resource use, production retirement and item admission remain open.
+and ASI. On 2026-10-23 the separate fixture-only runtime-address correction
+passes all 18 compiled cases using the unchanged actual header and CFG. The
+actual own-process API guard reports 3 modules/17 spans/1,949 bytes/8 slots,
+and the unchanged original ASI remains inactive without a session. The complete
+six-step envelope and source/binary pins validate; no game or installation
+was used. Exact native byte delivery, resource use, production retirement and
+item admission remain open.
 
 
 ### Proposed startup admission lifecycle

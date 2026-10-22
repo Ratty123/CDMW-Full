@@ -1,21 +1,29 @@
 # CDMW .cditem Astra / Pro reasoning handoff
 
 - Created: 2026-10-18, Europe/Stockholm.
-- Status: Paused at user request, 2026-10-22. Separate package resource images are verified for their preparation scope; retained archive/publication results remain valid. Read the current checkpoint first. Actual native integration remains incomplete, `native_admission=false`.
+- Status: Active execution resumed 2026-10-23. Separate package resource images and the corrected isolated native-read fixture are verified for their focused scopes. Read the current checkpoint first. Actual native integration remains incomplete, `native_admission=false`.
 - Execution entry point: [cditem-execution-goal.md](cditem-execution-goal.md).
 - Feature authority and completion state: [cditem-conflict-isolation-plan.md](cditem-conflict-isolation-plan.md).
 - Shared completed work: [progress.md](progress.md).
 
 
-## Current restart checkpoint, 2026-10-22
+## Current restart checkpoint, 2026-10-23
 
-Execution is paused at the user's request. The
-[current pause checkpoint](cditem-execution-goal.md#paused-at-user-request-2026-10-22)
-preserves the completed source workers, caller-v2 checks and safe refusal of
-the approved exact-helper cleanup during another build. No native qualification,
-game payload result or admission has been established. The historical resume
-verified nine retained pins and 100 frozen source pins; changed installation
-facts still require a current owner declaration and composition proof.
+The user resumed execution and directly authorized the required resources
+without other-session coordination. The
+[current checkpoint](cditem-execution-goal.md#resumed-with-direct-authority-2026-10-23)
+records the actual corrected-fixture/own-process/inert qualification. All 18
+native read cases pass; the unchanged strict ASI and original failed fixture
+are retained. The complete offline envelope is independently revalidated;
+no game payload result or admission follows. Seven pause pins and 100 frozen
+source outputs still match, and all 12 actual session-host source pins match.
+
+Actual qualification receipt: `b115-fixture-v2-proof/qualification-result.json`,
+SHA-256 `a5bfb836b228a22a9e8e177b1d95f82ae24d59c8f723cc5e47da672c7633651e`.
+The complete envelope SHA-256 is
+`d95e15cf971d556efab268609f8841dea0158cd0f47a56d34f633e12cc6a8689`.
+Current installation facts require a genuine direct-owner capture in caller v3;
+INI values describe configured behavior, not a new observed world transition.
 
 Retained local source-only results under the native-path continuation:
 `run/b115-current-owner-v2/source-check-receipt.json` (41 focused checks;

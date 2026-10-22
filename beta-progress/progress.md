@@ -6,20 +6,20 @@ Shared completion log for plans in this folder. Keep each entry as a short dated
 
 **Goal: truly independent content with stable identity.**
 
-**Paused at user request, 2026-10-22.** Resource requests are withdrawn and no
-CDItem operation is scheduled. Work and acceptance states are preserved. Caller
-v2 has 41 passing owned-temp/mock checks; actual native qualification and the
-102-byte game read remain unperformed. A source join now separates private-cache
-decoding from unproved central definition routing. The approved exact helper
-cleanup refused on a concurrent build census and stopped no process. See the
-[pause checkpoint](cditem-execution-goal.md#paused-at-user-request-2026-10-22).
+**Execution resumed with direct authority, 2026-10-23.** The corrected native
+fixture now passes all 18 read cases, actual own-process API guards and the
+unchanged ASI's inactive check. Seventeen focused direct-authority checks and
+independent review pass. No game or installed file was used. Current startup
+facts and a reviewed caller successor still precede the 102-byte game read;
+central definition routing and full native item acceptance remain open. See the
+[current checkpoint](cditem-execution-goal.md#resumed-with-direct-authority-2026-10-23).
 
 [Canonical goal and acceptance criteria](cditem-conflict-isolation-plan.md) |
 [Execution](cditem-execution-goal.md) |
 [Research handoff](cditem-astra-pro-handoff.md) |
 [Technical architecture](../cdmw/ui/new_item/INDEPENDENT_ITEMS.md#runtime-registration-research)
 
-Execution status updated 2026-10-22; retained research below keeps its original evidence scope. This is an evidence snapshot. Completion remains owned by the
+Execution status updated 2026-10-23; retained research below keeps its original evidence scope. This is an evidence snapshot. Completion remains owned by the
 original `CDISO-*` criteria, with narrowly scoped subtask results recorded below.
 
 | Outcome | Status | Evidence and remaining work |

@@ -183,3 +183,9 @@ now qualifies the bounded normal-return small-read premise. AL success still
 hides terminal errors and actual count; exact native bytes and general
 retirement remain unproved. Native two-item acquisition, equip, restart,
 updates/removal, save reload and missing-provider behavior remain open.
+
+The separately retained small-read correction passed all 18 compiled fixture
+cases on 2026-10-23 with its actual probe header and CFG unchanged. Actual
+own-process API guards and the original ASI's no-session inactive check also
+pass. These isolated results resolve the fixture qualification prerequisite;
+the exact 102-byte game read and actual resource consumption remain unproved.

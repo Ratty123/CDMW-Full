@@ -2,7 +2,7 @@
 
 - Plan ID: `CDRUN`
 - Created: 2026-10-18, Europe/Stockholm.
-- Status: Paused at user request, 2026-10-22. Separate package resource-image preparation passes its focused scope; exact archive review and paired-publication evidence are retained. Actual native registration/resource use, full scenarios and delivery remain incomplete; `native_admission=false`.
+- Status: Active execution resumed 2026-10-23. Separate package resource-image preparation and the corrected isolated native-read fixture pass their focused scopes. Actual native registration/resource use, full scenarios and delivery remain incomplete; `native_admission=false`.
 - Original execution model: the user's selected GPT-6.1 Sol with Max reasoning, retained as historical context.
 - Current reasoning and research entry point: [the maintained handoff](cditem-astra-pro-handoff.md).
 - Project: `D:\CLAUDETEST\CDMW Full`.
@@ -12,9 +12,43 @@
 
 ## Current execution checkpoint
 
+### Resumed with direct authority, 2026-10-23
+
+The user resumed this goal and directly authorized the required REA/native
+resources without other-session coordination or routine questions. The active
+Codex goal and clean `main@b482e8b22f5f` were verified. All seven retained pause
+pins and 100 frozen source outputs match; the game remains the supported
+`1.0.0.2976` executable. No historical resource grant was reused.
+
+The separately versioned qualifier-v3 binds the actual current human message
+and preserves the reviewed qualifier-v2 native body and cleanup unchanged.
+Seventeen focused authorization/refusal checks and independent review pass.
+Its actual six-step qualification then passed in 3.648 seconds (4.072 seconds
+including the outer launch/closure). All 18 corrected native read cases pass,
+the eight unchanged API controls retain their original passing evidence, the
+own-process guard reports 3 modules/17 spans/1,949 bytes/8 slots, and the original
+ASI remains inert with no session. Fresh closure census is empty. This used no
+game or installed file and does not prove native payload delivery in game.
+
+Exact local proofs under the existing continuation:
+`b115-fixture-v2-proof/qualification-result.json`, SHA-256
+`a5bfb836b228a22a9e8e177b1d95f82ae24d59c8f723cc5e47da672c7633651e`;
+`io-candidate/batch115-qualified-exact-read/offline-native-verification.json`,
+SHA-256 `d95e15cf971d556efab268609f8841dea0158cd0f47a56d34f633e12cc6a8689`.
+The original failed fixture and unchanged strict ASI remain retained.
+
+All seven required Live Edit/FastLoad/UAL files now exist; the installed Live
+Edit pair matches normal v7.240. The four existing FastLoad startup values are
+unchanged; the complete section also records InGameLoads/InGameBackground.
+These are configured startup facts, not a newly observed world transition.
+Caller v3 must join a genuine local capture and the current human authority,
+preserve canonical file containment and the original scope, then pass review
+before the single controlled 102-byte game read. The previous caller remains
+sealed evidence; no old peer declaration is fabricated.
+
 ### Paused at user request, 2026-10-22
 
-Execution is paused; the full objective and acceptance states are preserved.
+This historical pause was superseded by the direct resumption above. The full objective and acceptance states are preserved.
 Both bounded source workers have finished. No CDItem compiler, native test,
 provider, game, installation operation or monitor remains running or queued.
 The unused compiler window was returned to Live Edit. The human-approved stop
