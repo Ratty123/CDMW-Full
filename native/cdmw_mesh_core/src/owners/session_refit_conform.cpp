@@ -477,15 +477,12 @@ void mesh_editor_conform_refit(const MeshRefitRuntime &refit, const std::map<int
         bool flexible = std::all_of(node.vertices.begin(), node.vertices.end(), [&](const auto& vertex) {
             return refit.garment_settings.at(vertex.first).mode == "surface";
         });
-        const bool nested_band = band && std::any_of(ordered_layers.begin(), ordered_layers.end(), [&](const auto& inner) {
-            return std::get<2>(inner) && refit.garment_settings.at(std::get<1>(inner)).mode == "surface";
-        });
         double standoff = 0.0, previous_height = height, previous_clearance = clearance;
         for (const auto& inner : ordered_layers) {
             const auto& settings = refit.garment_settings.at(std::get<1>(inner));
             // Nearby rope knots do not define a waist band's backing surface.
             // Keep its ordered wrap and the band's own wall depth instead.
-            if (nested_band && settings.mode == "surface" && !std::get<2>(inner)) continue;
+            if (band && settings.mode == "surface" && !std::get<2>(inner)) continue;
             const double inner_clearance = settings.clearance_percent * refit.driver_diagonal / 100.0;
             const double gap = std::max(0.0, previous_height - std::get<0>(inner));
             const bool inner_flexible = settings.mode == "surface";

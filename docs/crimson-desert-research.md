@@ -597,18 +597,41 @@ another.
 Reviewed 2026-10-22: body-centred rigid assemblies retain their lateral placement
 during fitting; an incidental one-sided cloth contact is not an attachment.
 Flexible layer fitting takes up authored slack while preserving ordered layers,
-crossing folds and waist-band height contours. Solid wall depth requires coherent,
-closed geometry; duplicated or open skins remain flexible. Focused native checks
-and two caller-provided PAC outfit saves cover the authoring Fit command,
-Undo/Redo, Bake, export/reload and static triangle contacts. Offscreen geometry
-captures supplement those checks; they do not establish packaged or in-game proof.
+waist-band height contours and raised cord relief. Compact touching knot pieces
+share a backing motion; rolled band edges have local repair for new transverse
+self-crossings. Solid wall depth requires coherent, closed geometry; duplicated
+or open skins remain flexible. The native conform/contact owners and focused
+rigid-assembly, layer-boundary and tightening tests own these contracts.
+
+Two caller-provided PAC outfit saves cover the actual authoring Fit command,
+Undo/Redo, repeat fitting, Bake and PAC export/reload on
+`cd_phw_00_nude_00_0001_damian.pac`. Independent static triangle checks found no
+body crossings, band/wrap crossings or band self-crossings in either runtime or
+exported geometry; the necklace remained rigid and centred. Unlit Part-ID colours
+and solid offscreen captures expose the cord, band and wrap separately from front,
+back and both sides. Grey shaded silhouettes alone were insufficient: they hid
+buried rope detail and small rolled-edge crossings in the earlier fit.
+
+An additional fixed selection of twenty original upper/lower garments was tested
+on that body, with verified appearance mappings and archive provenance. Thirteen
+fitted and exported with no transverse body crossings; seven refused while
+retaining geometry, settings and edit history. Eleven accepted garments still
+have self-crossing folds also present with the older fitter; their crossing counts
+were unchanged or lower. Distinct surface colours and solid captures were reviewed,
+so those results are not a claim that all twenty outfits are visually clean or
+that general cloth self-collision is solved. Some previously accepted, intersecting
+fits now refuse publication. Original PACs and source PAMT/PAZ fingerprints were
+unchanged. This is native-source, authoring, asset and offscreen-renderer evidence;
+packaged, visible-UI and in-game proof remain separate.
 
 The exact output policy still applies after fitting. A useful preview does not
 establish absence of clipping during all game animations or compatibility with
 every retained physics profile.
 
 Sources: [Morph & Refit workflow and limits][mesh-editor],
-[body-region decomposition][region-decompose].
+[body-region decomposition][region-decompose],
+[native contact owner](../native/cdmw_mesh_core/src/owners/session_morph_01.cpp),
+[layer regressions](../tests/test_mesh_refit_layer_boundaries_native.py).
 
 ### 5.5 Hair creation
 

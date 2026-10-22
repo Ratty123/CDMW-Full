@@ -3,6 +3,7 @@ from contextlib import contextmanager
 from copy import deepcopy
 import math
 
+import numpy as np
 import pytest
 
 from tests.test_native_mesh_editor_morph_refit import (
@@ -22,6 +23,32 @@ def _sleeve(offset=0.0, segments=32, radius=.1):
 
 def _arm(radius=.06):
     return _refit_tube_part("body", radius, 0., (0., .1, .2, .3, .4, .5), 64, True)
+
+
+def _assert_no_surface_crossings(body, garment):
+    body_triangles = np.asarray(body.vertices)[np.asarray(body.faces)]
+    garment_triangles = np.asarray(garment.vertices)[np.asarray(garment.faces)]
+    for source, target in ((body_triangles, garment_triangles),
+                           (garment_triangles, body_triangles)):
+        e1, e2 = target[:, 1] - target[:, 0], target[:, 2] - target[:, 0]
+        for triangle in source:
+            for a, b in zip(triangle, np.roll(triangle, -1, axis=0)):
+                direction = b - a
+                h = np.cross(direction, e2)
+                determinant = np.einsum("ij,ij->i", e1, h)
+                valid = np.abs(determinant) > 1e-12
+                inverse = np.divide(1., determinant, out=np.zeros_like(determinant), where=valid)
+                offset = a - target[:, 0]
+                u = np.einsum("ij,ij->i", offset, h) * inverse
+                q = np.cross(offset, e1)
+                v = (q @ direction) * inverse
+                distance = np.einsum("ij,ij->i", e2, q) * inverse
+                crosses = valid & (u >= -1e-8) & (v >= -1e-8) & (u + v <= 1. + 1e-8)
+                crosses &= (distance > 1e-8) & (distance < 1. - 1e-8)
+                if body is garment:
+                    adjacent = (triangle[None, :, None, :] == target[:, None, :, :]).all(3).any((1, 2))
+                    crosses &= ~adjacent
+                assert not crosses.any(), f"{body.name} and {garment.name} cross between the clearance samples"
 
 
 @contextmanager
@@ -315,7 +342,8 @@ def test_hem_follows_the_leg_instead_of_dropping_onto_nearby_feet(split_body_sea
 
 
 @pytest.mark.parametrize("arm_offset", (.12, .15))
-def test_layered_sleeve_clears_a_larger_arm_and_torso_without_spiking(arm_offset):
+@pytest.mark.parametrize("reversed_faces", (False, True))
+def test_layered_sleeve_fits_or_safely_refuses_overlapping_body_volumes(arm_offset, reversed_faces):
     body = _refit_tube_part("torso", .12, 0., (.28, .35, .45, .6), 48, True)
     arm = _refit_tube_part("arm", .075, arm_offset, (0., .1, .2, .3, .4, .5), 48, True)
     offset = len(body.vertices)
@@ -324,11 +352,30 @@ def test_layered_sleeve_clears_a_larger_arm_and_torso_without_spiking(arm_offset
     heights = (.05, .1, .15, .2, .25, .3, .35)
     sleeve = _refit_tube_part("sleeve", .065, arm_offset, heights, 32)
     trim = _refit_tube_part("trim", .068, arm_offset, heights, 48)
+    if reversed_faces:
+        sleeve.faces = [tuple(reversed(face)) for face in sleeve.faces]
+        trim.faces = [tuple(reversed(face)) for face in trim.faces]
     mesh = _mesh(body, sleeve, trim)
     with _bound(mesh) as session:
-        _fit(session, (1, 2))
+        # Intersecting closed driver volumes can leave unresolved contacts.
+        # Accept only an actually clear result or an atomic geometry refusal;
+        # sparse samples and a plausible shaded silhouette are insufficient.
+        before_state = _state(session)
+        before_mesh = _snapshot(mesh, session)
+        result = mesh_native_core.native_mesh_editor_session_command("morph_configure_refit", session, {
+            "garment_submesh_indices": [1, 2], "clearance_percent": .1, "tightness_percent": 100.,
+        }, timeout_seconds=15.)
+        if result is None:
+            error = mesh_native_core.last_native_mesh_core_job_error()
+            assert "Fit to body: Part" in error
+            assert any(reason in error for reason in ("intersect", "clear", "preserve"))
+            assert _state(session) == before_state
+            after = _snapshot(mesh, session)
+            assert [p.vertices for p in after.submeshes] == [p.vertices for p in before_mesh.submeshes]
+            return
         fitted = _snapshot(mesh, session)
     for before, after in zip(mesh.submeshes[1:], fitted.submeshes[1:]):
+        _assert_no_surface_crossings(body, after)
         samples = list(after.vertices)
         for face in after.faces:
             triangle = [after.vertices[i] for i in face]
@@ -345,6 +392,7 @@ def test_layered_sleeve_clears_a_larger_arm_and_torso_without_spiking(arm_offset
         assert after.faces == before.faces
         assert after.uvs == before.uvs
         assert after.bone_weights == before.bone_weights
+    _assert_no_surface_crossings(fitted.submeshes[1], fitted.submeshes[2])
 
 
 @pytest.mark.parametrize("segments", (24, 48))

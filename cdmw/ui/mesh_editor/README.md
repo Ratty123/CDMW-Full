@@ -2029,6 +2029,12 @@ coarse faces cutting through an otherwise outer layer are checked as contacts.
 Waist bands retain their height contour as they tighten. Proven solid walls keep
 their depth; open or double-sided bands remain flexible. Nonuniform influence
 masks retain their per-vertex control.
+Rolled belt edges are checked for new self-crossings, including open or repeated
+skins. An unresolved crossing retains the previous preview.
+Small inset Flexible details, such as raised belt cords, follow their band
+without being flattened into it. Compact touching knot pieces keep their shape
+and attachment; long hanging panels retain their own fit. Details turn with the
+backing as it bends.
 Rigid means shape-preserving, not fixed in place. Fitting retains the authored
 spacing between nearby cloth and hard pieces before resolving body contact.
 Clearance then moves each connected hard piece as a whole, so cloth fitting to a
@@ -2044,7 +2050,8 @@ mode applies to the whole Part.
 
 The fitter uses local body-surface correspondences and a seam-connected displacement
 solve, then checks contacts against the complete body, including when an allowed
-region limits correspondence. The body search crosses coincident material seams and
+region limits correspondence. Edge/triangle checks also cover body crossings between
+the regular fitting samples. The body search crosses coincident material seams and
 measures distance to triangle surfaces, so coarse mesh sections do not cut it short.
 Adjoining body Parts can share the correspondence walk across tiny boundary-coordinate
 differences when reversed boundary edges match reciprocally with compatible face orientations.
@@ -2089,6 +2096,9 @@ constrain movement, including coincident seams.
 Unreliable correspondence, unresolved contact or invalid geometry refuses the whole
 candidate and identifies the affected Part; the previous preview and settings remain.
 A refused fit may need a narrower allowed region, different protection or manual edits.
+Inspect the front, back and both sides after fitting, especially thin cords and
+folded skirts. Similar colours or a single grey shaded view can conceal overlap
+even when the fitting command completes.
 
 Repeated fitting evaluates the same neutral mesh. **Reset** restores the pre-fit
 geometry and clears active Tightness. **Bake** makes the preview the new neutral and

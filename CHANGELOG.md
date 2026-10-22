@@ -20,7 +20,7 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 ### Fixed
 
-- Morph & Refit centres rigid necklaces without letting one-sided headwrap contact pull them sideways, while preserving their shape, assembled joins and intended attachments. Belts tighten against their cloth wraps while retaining their height contour, solid wall depth, clearance and authored folds. Different follow strengths, Skip and protected parts retain their existing behavior. Fit to body handles hidden island remnants after finishing a mesh and starting a new edit session.
+- Morph & Refit keeps rigid necklaces centred and assembled while fitting belts snugly over cloth wraps. Raised cords and compact knots retain their relief and construction, and rolled belt edges are checked for new self-crossings. Bands retain their height contour, proven wall depth and clearance. Different follow strengths, Skip and protected parts retain their controls. Fit to body handles hidden island remnants after finishing a mesh and starting a new edit session.
 - Create New Item respects ignored archive folders, so excluded `dmmsa`, `dmmgen` and custom mod folders no longer block loading as missing archives.
 - Mesh Editor fixes false topology errors when finishing reopened geometry edits. Parts and mesh islands group full-width names with explicit View / Include controls and expandable physics details, explain restrictions and blocked Delete actions, and offer Free Edit where supported. Completed fitting, imports and geometry edits can continue from the finished mesh.
 - Mesh Editor preserves colours and texture layers when starting another edit pass or reopening an edited Archive Browser result, including after the original editing session closes.

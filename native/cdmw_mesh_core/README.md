@@ -205,14 +205,46 @@ back faces. Current surface queries, inner-cloth rays and exact edge/triangle
 crossings supply contacts on the outer shell; corrections do not push its support
 back into the body. Body clearance takes priority over the nominal cloth gap in
 narrow joints. Authored crossing hanging ribbons retain their fold relationships.
-For shells initially buried in a larger body, the existing combined-volume exit
-solver retains ownership; exact crossing repair applies to mostly exterior shells.
+For shells initially buried in a larger body, the combined-volume exit solver
+retains ownership until body clearance is established; exact layer repair then
+also covers the emerged shell.
 Uniformly influenced waist bands retain their followed height contour during
 conforming and contact correction. Wall depth requires a consistently oriented,
 closed surface with measurable volume; duplicated or open skins retain their
 flexibility. Wall-aware contact gaps preserve solid bands without treating nearby
 rope knots or crossing tails as the backing layer. Nonuniform masks retain their
 individual constraints.
+New transverse self-crossings on waist bands bind local, two-sided contacts,
+including rolled edges on open or repeated skins. Source-adjacent faces and
+authored crossings are excluded. Contacts retain the source side and move through
+the existing mobility, contour and strain constraints; unresolved crossings refuse
+publication. This is not a general cloth self-collision guarantee.
+
+Small inset Flexible details share their nearby band's displacement, retaining
+their authored relief rather than independently tightening through the backing.
+Adjoining band panels contribute a blended field; free knot ends follow their
+attachment, while long hanging panels retain independent following. A common
+rotation for each connected detail turns its offset with the fitted backing
+without introducing conflicting triangle frames. Compact touching knot islands
+share one backing patch and rotation, retaining their construction while the long
+cord remains flexible. These links require compatible following, Tightness and
+uniform mask influence, and use strictly increasing
+backing area to keep dependency chains acyclic. Other cloth panels retain independent
+surface fitting. Layer order is inherited from the backing, and contact corrections
+act through its controls. The final contact passes refresh exact layer crossings
+each time before validation.
+
+Transverse body crossings between the regular vertex, midpoint and centroid samples
+add persistent contact samples from both meshes' edge/triangle intersections. Old
+locations remain constrained as an intersection moves. Exact body contacts bind
+after the broad shape solve, avoiding transient contacts steering already-clear
+fits. Body and ordered-layer contacts are refreshed before declaring convergence
+and checked again before
+publication; unresolved contact retains the previous preview. Refreshed layer normals
+must also settle before the solver can finish. Initially buried layers become
+eligible for exact layer repair after body clearance, rather than remaining
+excluded for the entire fit. Intersecting closed driver volumes can still refuse
+a fit; a visually plausible partial result does not establish valid separation.
 
 Body-centred rigid assemblies require a central Flexible join or joins spanning the
 centre during fitting. An incidental one-sided overlap cannot steer them. Their

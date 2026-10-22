@@ -4,7 +4,7 @@ import math
 import numpy as np
 import pytest
 
-from tests.test_mesh_refit_tightening_native import _arm, _fit, _mesh, _sleeve
+from tests.test_mesh_refit_tightening_native import _arm, _assert_no_surface_crossings, _fit, _mesh, _sleeve
 from tests.test_native_mesh_editor_morph_refit import (
     _command, _open, _part, _refit_tube_part, _snapshot, mesh_native_core,
 )
@@ -160,6 +160,157 @@ def test_tight_waist_band_retains_its_height_contour_on_a_tapered_body():
     shifts = [after[1] - before[1] for before, after in zip(band.vertices, fitted.submeshes[1].vertices)]
     assert max(shifts) - min(shifts) < 2e-5
     assert max(math.hypot(x, z) for x, _, z in fitted.submeshes[1].vertices) < .09
+
+
+def _waist_rope(radius=.131, thickness=.002, segments=32):
+    sides = 8
+    vertices = []
+    for segment in range(segments):
+        angle = 2. * math.pi * segment / segments
+        for side in range(sides):
+            section = 2. * math.pi * side / sides
+            r = radius + thickness * math.cos(section)
+            vertices.append((r * math.cos(angle), .24 + thickness * math.sin(section),
+                             r * math.sin(angle)))
+    faces = []
+    for segment in range(segments):
+        for side in range(sides):
+            a = segment * sides + side
+            b = ((segment + 1) % segments) * sides + side
+            c = ((segment + 1) % segments) * sides + (side + 1) % sides
+            d = segment * sides + (side + 1) % sides
+            faces.extend(((a, b, c), (a, c, d)))
+    return _part("rope detail", vertices, faces, material="trim", texture="")
+
+
+@pytest.mark.parametrize("hanging_tail", (False, True))
+def test_thin_rope_remains_visible_above_a_snug_fitted_waist_band(hanging_tail):
+    body = _arm()
+    body.vertices = [(x * (1. + y), y, z * (1. + .3 * y)) for x, y, z in body.vertices]
+    band = _refit_tube_part("waist band", .13, 0., (.20, .24, .28), 32)
+    if hanging_tail:
+        tail = _part("hanging tail", [(-.1302, y, z) for y in (-.16, .05, .15, .24)
+                                      for z in (-.04, .04)],
+                     [(a, a + 1, a + 3) for a in (0, 2, 4)]
+                     + [(a, a + 3, a + 2) for a in (0, 2, 4)], material="cloth", texture="")
+        # Exported trim can retain duplicate skins. Its area must not make the
+        # tail's independent leg-following field a backing for the waist rope.
+        tail.faces *= 2
+        band = _combined_part("band and tail", (band, tail))
+    rope = _waist_rope()
+    mesh = _mesh(body, _sleeve(), band, rope)
+    fitted = _fitted_mesh(mesh, (0,), (1, 2, 3))
+    band_points, rope_points = [np.asarray(p.vertices) for p in fitted.submeshes[2:]]
+    # The source rope is partly inset in the band. Preserve its visible outer
+    # profile; merely keeping both pieces outside the cloth misses this bug.
+    for segment in range(32):
+        band_radius = np.linalg.norm(band_points[32 + segment, (0, 2)])
+        section = rope_points[segment * 8:(segment + 1) * 8]
+        radii = np.linalg.norm(section[:, (0, 2)], axis=1)
+        assert radii.max() - band_radius > .0015
+        assert radii.max() - radii.min() > .003
+    assert max(np.linalg.norm(band_points[:96, (0, 2)], axis=1)) < .09
+
+
+def test_rope_follows_both_adjoining_band_panels_after_rebinding():
+    panels = []
+    for start, radius in ((0., .13), (180., .1304)):
+        angles = [math.radians(start + step * 10.) for step in range(23)]
+        vertices = [(radius * math.cos(a), y, radius * math.sin(a))
+                    for y in (.20, .24, .28) for a in angles]
+        faces = []
+        for row in range(2):
+            for column in range(22):
+                a = row * 23 + column
+                faces.extend(((a, a + 23, a + 24), (a, a + 24, a + 1)))
+        panels.append(_part("adjoining band panel", vertices, faces, material="cloth", texture=""))
+    band = _combined_part("overlapping front and back", panels)
+    mesh = _mesh(_arm(), _sleeve(), band, _waist_rope(thickness=.0015))
+    fitted = _fitted_mesh(mesh, (0,), (1, 2, 3))
+    v = np.asarray(fitted.submeshes[2].vertices)
+    triangles = v[np.asarray(band.faces)]
+    e1, e2 = triangles[:, 1] - triangles[:, 0], triangles[:, 2] - triangles[:, 0]
+    for point in np.asarray(fitted.submeshes[3].vertices)[::8]:
+        origin = np.asarray((0., point[1], 0.))
+        direction = point - origin
+        h = np.cross(direction, e2)
+        determinant = np.einsum("ij,ij->i", e1, h)
+        valid = np.abs(determinant) > 1e-13
+        inverse = np.zeros_like(determinant)
+        inverse[valid] = 1. / determinant[valid]
+        offset = origin - triangles[:, 0]
+        u = inverse * np.einsum("ij,ij->i", offset, h)
+        q = np.cross(offset, e1)
+        z = inverse * (q @ direction)
+        distance = inverse * np.einsum("ij,ij->i", e2, q)
+        hits = valid & (u >= -1e-8) & (z >= -1e-8) & (u + z <= 1. + 1e-8) & (distance > 0.)
+        assert hits.any()
+        assert (1. - distance[hits].max()) * np.linalg.norm(direction) > .0005
+
+
+def test_attached_tubular_trim_turns_with_a_sloping_backing():
+    body = _arm()
+    body.vertices = [(x * (.5 + 5 * y), y, z * (.5 + 5 * y)) for x, y, z in body.vertices]
+    rope = _waist_rope()
+    # A short tubular detail near the +X tangent, including its inset side.
+    used = [segment * 8 + side for segment in (31, 0, 1) for side in range(8)]
+    remap = {vertex: local for local, vertex in enumerate(used)}
+    trim = _part("tubular trim", [rope.vertices[i] for i in used],
+                 [tuple(remap[i] for i in face) for face in rope.faces
+                  if all(i in remap for i in face)], material="trim", texture="")
+    band = _refit_tube_part("band backing", .13, 0., (.20, .24, .28), 32)
+    fitted = _fitted_mesh(_mesh(body, band, trim), (0,), (1, 2))
+    points = np.asarray(fitted.submeshes[2].vertices)
+    thickness = points[8] - points[12]
+    # The cone's outward normal tilts down with slope -.3. A fixed world-space
+    # offset would leave this cross-section horizontal and bury its lower side.
+    assert -.4 < thickness[1] / thickness[0] < -.2
+    assert np.linalg.norm(thickness) == pytest.approx(.004, abs=.00015)
+
+
+def test_touching_compact_knot_islands_share_one_backing_motion():
+    body = _arm()
+    body.vertices = [(x * (.5 + 5 * y), y, z * (.5 + 5 * y)) for x, y, z in body.vertices]
+    rope = _waist_rope(segments=64)
+    used = list(range(16))
+    trim = _part("short knot strand", [rope.vertices[i] for i in used],
+                 [face for face in rope.faces if all(i in used for i in face)],
+                 material="trim", texture="")
+    other = _part("touching strand", [(x, y + .001, z + .002) for x, y, z in trim.vertices],
+                  trim.faces, material="trim", texture="")
+    knot = _combined_part("unwelded knot", (trim, other))
+    band = _refit_tube_part("band backing", .13, 0., (.20, .24, .28), 32)
+    fitted = _fitted_mesh(_mesh(body, band, knot), (0,), (1, 2))
+    before, after = np.asarray(knot.vertices), np.asarray(fitted.submeshes[2].vertices)
+    source_distances = np.linalg.norm(before[:, None] - before[None, :], axis=2)
+    fitted_distances = np.linalg.norm(after[:, None] - after[None, :], axis=2)
+    assert np.max(np.abs(source_distances - fitted_distances)) < 1e-8
+    assert np.max(np.linalg.norm(after - before, axis=1)) > .005
+
+
+@pytest.mark.parametrize("repeated_draw_faces", (False, True))
+def test_open_rolled_band_edges_do_not_cross_their_own_surface(repeated_draw_faces):
+    profile = ((-.02, .130), (-.014, .137), (-.017, .132),
+               (.014, .130), (.017, .136), (.02, .130))
+    segments = 16
+    vertices = [(radius * math.cos(2 * math.pi * s / segments),
+                 .24 + height + .002 * math.sin(2 * math.pi * s / segments),
+                 radius * math.sin(2 * math.pi * s / segments))
+                for height, radius in profile for s in range(segments)]
+    faces = []
+    for row in range(len(profile) - 1):
+        for s in range(segments):
+            a, b = row * segments + s, row * segments + (s + 1) % segments
+            faces.extend(((a, b, b + segments), (a, b + segments, a + segments)))
+    if repeated_draw_faces:
+        faces *= 2
+    band = _part("open rolled band", vertices, faces, material="cloth", texture="")
+    _assert_no_surface_crossings(band, band)
+    fitted = _fitted_mesh(_mesh(_arm(), band), (0,), (1,))
+    after = fitted.submeshes[1]
+    _assert_no_surface_crossings(after, after)
+    _assert_no_surface_crossings(fitted.submeshes[0], after)
+    assert max(math.hypot(x, z) for x, _, z in after.vertices) < .09
 
 
 def test_partial_waist_band_protection_keeps_the_pinned_vertex():
