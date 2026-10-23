@@ -98,6 +98,15 @@ save/reload behavior remains unproved.
 The overlay intentionally changes PAPGT after B122; its consumed grant cannot be
 reused. This separate visual test does not establish independent activation.
 
+The V3 owned-dummy platform check passes strict compilation, complete eight-thread
+inspection and independently observed resumption, with cleanup in 1.701304
+seconds within 20 seconds. Independent actual review passes 88 pins. This
+supplies no game reader/writer exclusion. The selected pause also stops the
+target writer; prepared Router activation and
+resumed continuations remain unresolved. A separate owned scratch-store and
+physical-readback experiment is in source preparation. Keep all native admission
+and lifecycle conditions open; see the [reader/writer boundary](cditem-execution-goal.md#reader-boundary-platform-qualification-remains-open).
+
 1. Join the independently reviewed observed unpublished numeric/name pairs to private metadata/backing and central getter/bulk under a qualified consumer boundary. Native numeric values are WORD ordinals; name values are DWORD numeric keys. Guard known source/clone allocation aliases before adapter-controlled writes or releases; native internal-node freshness remains an explicit premise. The portable publication model's name values and metadata route indexes are not the native ABI. Expiry zero permits eviction; eager residency cannot replace rematerialization, reader/maintenance coverage or lifetime proof.
 2. Join definitions, both native maps and resources in one startup-scoped native contribution, including later derived-state validation and a qualified consumer boundary. Then exercise two independently authored same-donor packages with distinct private assets through acquisition, equip, restart and save reload.
 3. Extend only from that demonstrated scope. Keep native missing-provider save behavior, ordinary maintenance and any unresolved resource family explicitly open.

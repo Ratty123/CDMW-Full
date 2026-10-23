@@ -649,15 +649,25 @@ source/compiler evidence live in that project's owning feature document and
 
 #### Reader-boundary platform qualification remains open
 
-The owned-dummy DbgEng route has no pause/read/resume qualification: V1 refused
-its Python logger before engine entry; V2 reached exact S_OK Attach/Wait and
-explicit detach/passive cleanup but refused the five-thread guard before contexts
-or memory inspection, without recording the actual engine count. Loader extras
-remain an inference. V3 is frozen source only: it adds a complete held thread
-inventory, repeated exact engine-cohort equality and SDK-typed TIB stack checks
-under the unchanged 20-second absolute bound. It is uncompiled and unexecuted,
-awaiting independent review and a later root-owned qualification window. No game
-reader lease, writer exclusion, publication or admission follows.
+V3 now passes its strict native build and one owned-dummy qualification. All
+eight captured threads, including the original five, match the engine's complete
+enumeration and five held-identity snapshots. Eight SDK contexts, typed TIB
+bounds and 32-byte stack reads pass; 164 engine-call records retain one creator
+thread and exact S_OK attach, wait, detach and passive cleanup. Debugger-read
+counters remain equal over the paused dwell, and independent controller reads
+prove all four workers advance after explicit detach. Resume is verified at
+1.699965 seconds; both owned processes and their handles are retired/closed by
+1.701304 seconds within the unchanged 20-second cap, without watchdog expiry.
+Root independently decodes the raw contexts/TIBs/stacks and verifies all 43
+raw-file pins. Independent actual review passes 88 source/build/capture pins
+with no material defects. This is an owned-process platform observation, not a
+game reader lease, writer exclusion, publication or admission.
+
+V1's pre-engine logger refusal and V2's five-thread refusal remain preserved.
+V2's actual engine count is still unknown. V3 observes three additional owned
+threads without assigning their type or retrospectively explaining V2. Its
+debugger-read counter equality does not exclude memory caching or establish an
+atomic OS/I/O freeze.
 
 V2 independent actual failure review:
 `api-source-review/20261023-owned-dbgeng-dummy-v2-actual-review/independent-actual-failure-review-v1.json`,
@@ -666,6 +676,31 @@ V2 independent actual failure review:
 V3 source packet: `reader-pause/owned-dbgeng-v3/source-candidate-final.json`,
 7,981 bytes, SHA-256
 `00e1cb392954b9f1f7c73e8a261c0fb3155e3e3edc2455db1f1bd9e6bb672694`.
+
+| New V3 artifact | Bytes | SHA-256 |
+| --- | ---: | --- |
+| `owned-dbgeng-v3-build-20261023/build-proof.json` | 13,018 | `5b51da5fab5265b37f804ebadabc5af710ff077d1109fb48b0425c2b9a89a49c` |
+| `owned-dbgeng-v3-qualification-20261023/attempt1/qualification-result.json` | 10,190,627 | `e433d4bac66451499a0c799018c51a297080263e8be2dde5fcc1a9fcd75fcc1e` |
+| `owned-dbgeng-v3-qualification-20261023/root-actual-tool-join-v1.json` | 3,812 | `3614600adc4dad433f86b90e862010474db73b7676bcdbdf8d5cf4c4296469e9` |
+| `api-source-review/20261023-owned-dbgeng-v3-actual-review/independent-actual-review-v1.json` | 12,968 | `2ac7693480c7a0216b031144dc3181a0c49c34ffd70e77f465779b4d16808dce` |
+| `api-source-review/20261023-reader-writer-next-step-source-v1/reader-writer-next-step-source-review-v1.json` | 15,807 | `d700604f6f5c3b829fda81d950889b068c0a5558f20a93f128db4fd83078ad97` |
+| `api-source-review/20261023-dbgeng-external-store-contract-v1/contract-note-v1.json` | 5,206 | `8650bcae4c8bb112bc1145d75a77c441da4b8624186a8c9830662986a91139ac` |
+
+The selected read-only session suspends the in-target publisher too. B74
+serializes only explicitly wrapped entrants, and B78 cannot prebind its Router
+against the current N/N+4 owner shape: bind requires count, metadata count, span
+and cookie to agree; materialization refuses unbound state before stock
+forwarding. A writer and prepared-Router activation contract remain necessary.
+
+Primary [WriteVirtual documentation](https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/dbgeng/nf-dbgeng-idebugdataspaces-writevirtual)
+warns that S_OK may mean a partial write and that a write may affect a memory
+cache. The selected SDK also treats user-mode Uncached methods as equivalent to
+ordinary reads/writes. The next owned experiment therefore uses a separate
+mutable scratch slot, exact byte counts, independent controller process-memory
+observations during the pause, and observed preimage restoration before detach.
+V4 source preparation is in progress; it supplies no write or game qualification.
+Even successful scratch stores would not prove actual owner-field commits,
+Router activation, safe resumed cleanup/writers or complete reader coverage.
 
 Then join the staged records and unpublished native pairs to both central
 getter/bulk routes, with private metadata/backing, coherent publication, later

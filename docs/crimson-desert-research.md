@@ -1550,7 +1550,21 @@ channels and root restoration checks pass in 47.188 seconds. Independent actual
 capture review now passes with no material defects. Normal closure followed the
 guardian's stale-heartbeat decision while offline review ran, rather than solely
 an explicit result-close request. This restoration is historical and precedes
-the later authorized physical Sword overlay. A separately authored sword package passes full import,
+the later authorized physical Sword overlay.
+
+The V3 owned-dummy DbgEng check now passes strict compilation, all eight held
+threads over five snapshots, typed contexts/TIBs/stacks and explicit
+detach/resumption, with cleanup in 1.701304 seconds within 20 seconds and
+independent actual review passing 88 pins. This is
+platform evidence, without a game reader or writer lease. The selected pause
+also stops the target publisher. Debugger-read counter equality does not exclude
+caching, and [Microsoft's memory-write contract](https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/dbgeng/nf-dbgeng-idebugdataspaces-writevirtual)
+requires attention to partial byte counts and cached stores. A separate owned
+scratch-store test with independent process-memory readback/restoration is in
+source preparation. Actual owner commits, prepared Router activation, resumed
+continuations and complete reader/cleanup coverage remain unqualified.
+
+A separately authored sword package passes full import,
 four hand/sheath attachment checks and exact package readback. Its compiler image
 contains 24 private resources with 29 shared outputs excluded and 12 resource
 boundaries unresolved. Bindings remain proposals and the source's double-sided

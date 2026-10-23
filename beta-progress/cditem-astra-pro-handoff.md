@@ -206,12 +206,18 @@ intentionally changes PAPGT/PATHC after B122; its old grant is consumed. Root le
 the user's game window untouched. This installation is separate from the
 independent native goal and does not advance its admission criteria.
 
-The owned-dummy reader-boundary experiment remains unqualified. V1 refused its
-logger before engine entry; V2 Attach/Wait/detach/passive cleanup reached exact
-S_OK but the five-thread guard refused before context/memory reads, with actual
-engine count unrecorded. V3 is frozen, uncompiled source only for complete held
-inventory and typed TIB checks; no game reader lease or exclusion follows. Exact
-failure/source pins are in the [execution checkpoint](cditem-execution-goal.md#reader-boundary-platform-qualification-remains-open).
+The V3 owned-dummy platform qualification now passes after a strict native build:
+eight complete held threads, five snapshots, SDK contexts/TIBs/32-byte stacks,
+164 creator-thread engine-call records and explicit detach/resume joins pass.
+Resume is independently observed at 1.699965 seconds; owned cleanup completes at
+1.701304 seconds within 20 seconds. Independent actual review passes 88 pins
+without material defects. V1/V2 failures remain preserved, including
+V2's unknown engine count. V3's paused debugger-read counters do not exclude
+caching. The selected pause stops the target writer too; B74 covers only wrapped
+entrants and B78 cannot prebind the incomplete owner shape. V4 source preparation
+will discriminate external scratch stores and physical readback/restoration,
+without game reader, writer, Router or publication qualification. Exact new and
+historical pins are in the [execution checkpoint](cditem-execution-goal.md#reader-boundary-platform-qualification-remains-open).
 
 Retained local source-only results under the native-path continuation:
 `run/b115-current-owner-v2/source-check-receipt.json` (41 focused checks;

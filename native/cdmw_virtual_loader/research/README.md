@@ -303,9 +303,22 @@ the [current execution checkpoint](../../../beta-progress/cditem-execution-goal.
 The user's separate Sword test install uses the existing composed physical
 overlay, item 1,990,000 in group 0041, with verified backup/readback and seven
 unchanged loader companions. It intentionally changes PAPGT/PATHC after B122.
-The reported Live Edit Add callback timeout is under separate diagnosis; no
-rendered weapon/equip/save or independent-native activation is recorded. See
+The supported shop update subsequently adds one sword to Tranan's stock, with
+verified backups, exact readback and independent file review. The user reports
+successful acquisition and supplies screenshots showing the custom sword at
+Tranan and visibly equipped. Sheath duplication and held orientation are accepted
+test limits, with no cosmetic work requested. The Live Edit Add callback timeout
+remains separate; save/reload and independent-native activation are unproved. See
 [the installation boundary](../../../beta-progress/cditem-execution-goal.md#sword-installation-for-the-users-visual-test).
-The owned-dummy DbgEng route also remains unqualified: V1/V2 failed their bounded
-qualification, and V3 is frozen source only. It supplies no reader lease or
-publication approval.
+
+The V3 owned-dummy DbgEng platform check now passes: eight complete held threads,
+five snapshots, typed contexts/TIBs/stacks, explicit detach and independently
+observed worker resumption, with cleanup in 1.701304 seconds within 20 seconds.
+Independent actual review passes 88 source/build/capture pins without defects.
+V1/V2 failures remain preserved. Paused debugger-read counters do not exclude
+caching, and the selected read-only pause stops the target writer too. B74
+covers only wrapped entrants; B78 cannot prebind the incomplete N/N+4 owner.
+The next owned scratch-store experiment is in source preparation, requiring
+exact byte counts and independent physical readback/restoration. No game reader
+lease, writer/Router activation, publication or admission is established. See
+[the platform evidence and writer boundary](../../../beta-progress/cditem-execution-goal.md#reader-boundary-platform-qualification-remains-open).

@@ -51,6 +51,14 @@ of the custom sword at Tranan and visibly equipped. Sheath duplication and held
 orientation remain accepted test limits. Live Edit's longstanding Add timeout
 is separate; save/reload and independent native activation remain unverified.
 
+The V3 owned-dummy platform check now passes complete eight-thread inspection
+and independently observed resumption, with cleanup in 1.701304 seconds within
+20 seconds. Independent actual review passes 88 pins. Paused debugger-read
+counters do not exclude caching; the selected pause stops the target writer
+too. External stores, Router activation and safe
+resumed reader/writer/cleanup coverage remain unqualified. The next owned
+scratch-store/physical-readback experiment is in source preparation.
+
 [Canonical goal and acceptance criteria](cditem-conflict-isolation-plan.md) |
 [Execution](cditem-execution-goal.md) |
 [Research handoff](cditem-astra-pro-handoff.md) |
@@ -131,6 +139,8 @@ the preceding 24-case preparation evidence remains in
 `workspace/reports/cditem-execution/20261021-package-resource-images/`.
 
 ## Completed work
+
+- 2026-10-23 | CDISO-RE-02 owned-dummy reader platform qualification | V3's strict native build and one owned-process run pass complete eight-thread enumeration, five identity snapshots, eight SDK contexts/TIBs/stack reads, 164 creator-thread engine records and explicit detach/resumption. Root decodes all eight contexts and verifies 43 raw files; independent actual review passes 88 pins without material defects. Resume is independently observed at 1.699965 seconds; cleanup completes at 1.701304 seconds within 20 seconds without watchdog expiry. V1/V2 failures remain preserved. Debugger-read counters do not exclude caching; the pause stops the target writer too. A separate external scratch-store/physical-readback experiment is in source preparation; no game reader/writer, Router activation, publication or admission follows. Evidence: [reader/writer boundary](cditem-execution-goal.md#reader-boundary-platform-qualification-remains-open).
 
 - 2026-10-23 | CDISO-RE-02 actual unpublished native pair capture | B122's single controlled game capture produces two complete 6,820-entry private maps from N=6,816 stock plus four checked Rows, with eight native inserts, twelve name callbacks, 45 steps and 13,636 accepted allocations. Public maps/counts and represented owner/metadata/expiry/records remain unchanged. All five physical channels, 222 source pins, seven companions/stock and absence of all five owned roles pass root checks; restoration takes 47.188 seconds. The guardian's stale-heartbeat decision (age 5,218ms, close request absent at that decision) closes the game normally while offline review runs. Exact canonical JSON byte reproduction resolves the retained post-recorder integer-key comparison refusal. Independent actual review now passes with no material defects; its restoration finding is historical and precedes the later Sword overlay. Evidence: [actual pair capture](cditem-execution-goal.md#actual-unpublished-native-pair-capture-2026-10-23).
 

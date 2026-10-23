@@ -1306,6 +1306,17 @@ are fixture contracts. Its publication ordering cannot supply native ABI or
 reader safety. Known source/clone aliases must be guarded before adapter-controlled
 writes/releases; uncertain native insertion state stays retained.
 
+The V3 owned-dummy platform check passes strict compilation, complete eight-thread
+inspection over five snapshots, typed contexts/TIBs/stacks and independently
+observed resumption, with cleanup in 1.701304 seconds within 20 seconds and
+independent actual review passing 88 pins. This does not qualify game exclusion:
+the read-only pause stops the target writer,
+and debugger-read counter equality does not exclude caching. B78's Router
+requires a coherent final count/metadata/span/cookie shape before binding and
+refuses materialization while unbound. External stores, prepared activation and
+resumed continuations need separate qualification; the next owned scratch-store
+experiment is in source preparation. See the [execution evidence](../../../beta-progress/cditem-execution-goal.md#reader-boundary-platform-qualification-remains-open).
+
 A first external sword package also passes actual full import, four hand/sheath
 attachment checks and exact package/model/texture readback with a persistent
 UUID. Its separate compiler image contains 24 private PAC/PAC_XML/DDS/prefab
