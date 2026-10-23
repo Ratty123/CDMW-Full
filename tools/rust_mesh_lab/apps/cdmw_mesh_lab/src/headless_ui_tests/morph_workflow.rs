@@ -81,6 +81,90 @@ fn refit_arguments(actions: &[UiAction]) -> Value {
     }).unwrap_or_else(|| panic!("missing refit_configure: {actions:?}"))
 }
 
+fn refit_feedback_reply(ui: &mut HeadlessUi, label: &'static str, ok: bool, error: &str) -> TestResult {
+    let root = tempdir()?;
+    let revision = ui.application.cdmw_state["base_revision"].as_u64().unwrap_or(0);
+    ui.application.cdmw_bridge = Some(CdmwBridge::for_test(
+        root.path().to_path_buf(), "refit-feedback-ui", 2, revision,
+    ));
+    ui.application.cdmw_pending_request = Some(CdmwPendingRequest {
+        request_id: 1, event: "command_result", label: label.to_owned(), origin: None,
+    });
+    let mut state = ui.application.cdmw_state.clone();
+    state["session_id"] = json!("refit-feedback-ui");
+    state["selection"] = json!({
+        "vertices_by_submesh": {}, "edges_by_submesh": {}, "faces_by_submesh": {},
+        "source_indices": ui.application.selected_part_indices(),
+    });
+    ui.application.handle_cdmw_result("command_result", 1, revision, ok,
+        json!({"state": state, "result": {"status": "noop"}}), error);
+    assert!(ui.application.cdmw_pending_request.is_none(), "{}", ui.application.status);
+    ui.settle_layout();
+    Ok(())
+}
+
+#[test]
+fn workflow_refit_refusal_shows_targeted_guidance_and_expandable_details() -> TestResult {
+    for (error, protected, reason, hint) in [
+        ("mesh-editor-session-json: inline status error: Fit to body: Part 1 still intersects Part 2 beneath its triangles; previous preview retained",
+            false, "Garment layers overlap.", "Try 0.1% Clearance or lower Tightness, then Apply."),
+        ("Fit to body: Part 1, triangle 224 would contain a spike, inverted or collapsed triangle after conforming (orientation -0.688139); previous preview retained",
+            false, "Fitting would fold or damage the mesh.", "Lower Tightness, then Apply. Keep loose trim at 0%."),
+        ("Fit to body: Part 1, vertex 12 cannot clear the body with its current protection mask or geometry (gap -0.001, requested 0.000)",
+            true, "Garment intersects the body.", "Reduce local protection or adjust the garment position, then retry."),
+        ("Fit to body: Part 1, vertex 12 cannot clear the body with its current protection mask or geometry (gap -0.001, requested 0.000)",
+            false, "Garment intersects the body.", "Try 0.1% Clearance or lower Tightness, then Apply."),
+    ] {
+        let mut ui = mixed_refit_ui(&[1])?;
+        ui.application.cdmw_state["morph_refit"]["refit"]["garment_settings"][0]["clearance_percent"] = json!(0.0);
+        ui.application.cdmw_state["morph_refit"]["refit"]["garment_settings"][0]["has_vertex_mask"] = json!(protected);
+        ui.type_number_in_row("Tightness %", 25.0, "64")?;
+        ui.size = egui::vec2(1000.0, 700.0);
+        ui.settle_layout();
+        ui.scroll_tool_rail(-2_000.0);
+        let settings = ui.application.cdmw_state["morph_refit"]["refit"].clone();
+        let mesh = ui.application.mesh.as_ref().ok_or("mesh")?.structural_fingerprint();
+        refit_feedback_reply(&mut ui, "Apply garment refit settings", false, error)?;
+        assert!(ui.label_rect("Fit blocked · preview kept").is_some(), "refusal should reveal its guidance");
+        ui.reveal(reason)?;
+        ui.reveal(hint)?;
+        ui.reveal(if error.contains("Part 2") { "2 · Sleeve, 3 · Plate" } else { "2 · Sleeve" })?;
+        assert!(ui.label_rect(error).is_none(), "raw error should be collapsed");
+        ui.click("Fit details")?;
+        ui.reveal(error)?;
+        assert_eq!(ui.application.cdmw_state["morph_refit"]["refit"], settings);
+        assert_eq!(ui.application.mesh.as_ref().ok_or("mesh")?.structural_fingerprint(), mesh);
+        assert_eq!(ui.application.cdmw_refit_tightness, 64.0);
+        assert!(ui.application.cdmw_refit_settings_dirty.is_dirty());
+    }
+    Ok(())
+}
+
+#[test]
+fn workflow_refit_guidance_survives_selection_and_clears_after_fit_or_reset() -> TestResult {
+    for success in ["Fit to body", "Apply garment refit settings", "Reset morph"] {
+        let mut ui = mixed_refit_ui(&[1])?;
+        refit_feedback_reply(&mut ui, "Fit to body", false,
+            "Fit to body: Part 1 cannot clear Part 2 beneath its triangles; previous preview retained")?;
+        ui.reveal("Increase Clearance or lower Tightness, then Apply.")?;
+        refit_feedback_reply(&mut ui, "Select parts", true, "")?;
+        ui.reveal("Fit blocked · preview kept")?;
+        refit_feedback_reply(&mut ui, success, true, "")?;
+        assert!(ui.application.cdmw_refit_feedback.is_none());
+        assert!(ui.label_rect("Fit blocked · preview kept").is_none());
+    }
+    let mut ui = mixed_refit_ui(&[1])?;
+    refit_feedback_reply(&mut ui, "Apply garment refit settings", false, "Host connection unavailable")?;
+    assert!(ui.application.cdmw_refit_feedback.is_none());
+    assert!(ui.application.status.contains("Host connection unavailable"));
+    refit_feedback_reply(&mut ui, "Fit to body", false,
+        "Fit to body: Part 1 still intersects Part 2 beneath its triangles")?;
+    ui.application.cdmw_state["morph_refit"]["state_revision"] = json!(12);
+    ui.settle_layout();
+    assert!(ui.application.cdmw_refit_feedback.is_none());
+    Ok(())
+}
+
 #[test]
 fn workflow_refit_fresh_tightness_shows_the_default_and_can_explicitly_choose_zero() -> TestResult {
     let mut ui = mixed_refit_ui(&[1])?;

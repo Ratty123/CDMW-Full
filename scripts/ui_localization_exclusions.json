@@ -268,5 +268,83 @@
     "symbol": "_describe",
     "source": "column",
     "reason": "Rust document node kind, not a visible caption."
+  },
+  {
+    "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui/refit_diagnostics.rs",
+    "symbol": "LabApplication::record_cdmw_refit_feedback",
+    "source": "Fit to body:",
+    "reason": "Native error matching token; the Fit panel presents separate translated guidance and keeps the original diagnostic in collapsed details."
+  },
+  {
+    "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui/refit_diagnostics.rs",
+    "symbol": "refit_failure_parts",
+    "source": "Part ",
+    "reason": "Native error matching token; the Fit panel presents separate translated guidance and keeps the original diagnostic in collapsed details."
+  },
+  {
+    "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui/refit_diagnostics.rs",
+    "symbol": "refit_failure_parts",
+    "source": "Parts ",
+    "reason": "Native error matching token; the Fit panel presents separate translated guidance and keeps the original diagnostic in collapsed details."
+  },
+  {
+    "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui/refit_diagnostics.rs",
+    "symbol": "LabApplication::draw_cdmw_refit_feedback",
+    "source": "beneath its triangles",
+    "reason": "Native error matching token; the Fit panel presents separate translated guidance and keeps the original diagnostic in collapsed details."
+  },
+  {
+    "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui/refit_diagnostics.rs",
+    "symbol": "LabApplication::draw_cdmw_refit_feedback",
+    "source": "cannot clear",
+    "reason": "Native error matching token; the Fit panel presents separate translated guidance and keeps the original diagnostic in collapsed details."
+  },
+  {
+    "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui/refit_diagnostics.rs",
+    "symbol": "LabApplication::draw_cdmw_refit_feedback",
+    "source": "cannot clear Part ",
+    "reason": "Native error matching token; the Fit panel presents separate translated guidance and keeps the original diagnostic in collapsed details."
+  },
+  {
+    "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui/refit_diagnostics.rs",
+    "symbol": "LabApplication::record_cdmw_refit_feedback",
+    "source": "clearance displacement solve did not converge",
+    "reason": "Native error matching token; the Fit panel presents separate translated guidance and keeps the original diagnostic in collapsed details."
+  },
+  {
+    "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui/refit_diagnostics.rs",
+    "symbol": "LabApplication::draw_cdmw_refit_feedback",
+    "source": "crosses its own surface",
+    "reason": "Native error matching token; the Fit panel presents separate translated guidance and keeps the original diagnostic in collapsed details."
+  },
+  {
+    "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui/refit_diagnostics.rs",
+    "symbol": "LabApplication::draw_cdmw_refit_feedback",
+    "source": "layer separation",
+    "reason": "Native error matching token; the Fit panel presents separate translated guidance and keeps the original diagnostic in collapsed details."
+  },
+  {
+    "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui/refit_diagnostics.rs",
+    "symbol": "LabApplication::draw_cdmw_refit_feedback",
+    "source": "protection mask",
+    "reason": "Native error matching token; the Fit panel presents separate translated guidance and keeps the original diagnostic in collapsed details."
+  },
+  {
+    "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui/refit_diagnostics.rs",
+    "symbol": "LabApplication::draw_cdmw_refit_feedback",
+    "source": "rigid assembly",
+    "reason": "Native error matching token; the Fit panel presents separate translated guidance and keeps the original diagnostic in collapsed details."
+  },
+  {
+    "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui/refit_diagnostics.rs",
+    "symbol": "LabApplication::draw_cdmw_refit_feedback",
+    "source": "rigid component",
+    "reason": "Native error matching token; the Fit panel presents separate translated guidance and keeps the original diagnostic in collapsed details."
+  },
+  {
+    "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui/refit_diagnostics.rs",
+    "symbol": "LabApplication::draw_cdmw_refit_feedback",
+    "source": "still intersects Part ",
+    "reason": "Native error matching token; the Fit panel presents separate translated guidance and keeps the original diagnostic in collapsed details."
   }
 ]

@@ -2215,6 +2215,7 @@ struct LabApplication {
     cdmw_refit_hydration_key: String,
     cdmw_refit_settings_dirty: cdmw_ui::RefitSettingsEdits,
     cdmw_refit_diagnostics: Option<Value>,
+    cdmw_refit_feedback: Option<cdmw_ui::RefitFeedback>,
     cdmw_cleanup_merge_distance: f32,
     cdmw_loop_cut_count: u32,
     cdmw_loop_cut_factor: f32,
@@ -2395,6 +2396,7 @@ impl LabApplication {
             cdmw_refit_hydration_key: String::new(),
             cdmw_refit_settings_dirty: cdmw_ui::RefitSettingsEdits::default(),
             cdmw_refit_diagnostics: None,
+            cdmw_refit_feedback: None,
             cdmw_cleanup_merge_distance: 0.0001,
             cdmw_loop_cut_count: 1,
             cdmw_loop_cut_factor: 0.5,
@@ -2931,6 +2933,7 @@ impl LabApplication {
             return;
         }
         self.cdmw_pending_request.take();
+        self.record_cdmw_refit_feedback(&label, ok, error);
         if label == "Place weapon preview" && !ok {
             self.reject_weapon_placement();
         }

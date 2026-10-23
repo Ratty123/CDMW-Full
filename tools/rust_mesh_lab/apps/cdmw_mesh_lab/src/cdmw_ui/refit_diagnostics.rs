@@ -1,5 +1,99 @@
-//! Bounded, on-demand observations of the current preview. Never changes a fit.
+//! Fit refusal guidance and bounded observations. Never changes a fit.
 use super::*;
+
+fn refit_failure_parts(detail: &str, garments: &[u32]) -> Vec<u32> {
+    let mut parts = Vec::new();
+    for prefix in ["Part ", "Parts "] {
+        for tail in detail.split(prefix).skip(1) {
+            let numbers: String = tail.chars().take_while(|c| c.is_ascii_digit()
+                || (prefix == "Parts " && matches!(c, ',' | ' '))).collect();
+            for part in numbers.split(|c: char| !c.is_ascii_digit()).filter_map(|s| s.parse::<u32>().ok()) {
+                if garments.contains(&part) && !parts.contains(&part) {
+                    parts.push(part);
+                }
+            }
+        }
+    }
+    parts
+}
+
+impl LabApplication {
+    fn cdmw_refit_preview_revision(&self) -> (Option<u64>, Option<u64>) {
+        (self.cdmw_state["base_revision"].as_u64(),
+            self.cdmw_state.pointer("/morph_refit/state_revision").and_then(Value::as_u64))
+    }
+
+    pub(crate) fn record_cdmw_refit_feedback(&mut self, label: &str, ok: bool, error: &str) {
+        let fitting = matches!(label, "Fit to body" | "Apply garment refit settings"
+            | "Apply island refit settings" | "Inherit Part fitting settings");
+        if !ok && (error.contains("Fit to body:") || error.contains("clearance displacement solve did not converge")) {
+            self.cdmw_refit_feedback = Some(RefitFeedback { detail: error.trim().to_owned(), reveal: true,
+                preview_revision: self.cdmw_refit_preview_revision() });
+        } else if (ok && (fitting || matches!(label, "Reset morph" | "Bake morph" | "Clear refit")))
+            || (!ok && fitting)
+        {
+            self.cdmw_refit_feedback = None;
+        }
+    }
+
+    pub(super) fn draw_cdmw_refit_feedback(&mut self, ui: &mut egui::Ui, garments: &[u32]) {
+        if self.cdmw_refit_feedback.as_ref().is_some_and(|feedback|
+            feedback.preview_revision != self.cdmw_refit_preview_revision())
+        {
+            self.cdmw_refit_feedback = None;
+        }
+        let Some(feedback) = self.cdmw_refit_feedback.as_mut() else { return; };
+        let reveal = std::mem::take(&mut feedback.reveal);
+        let detail = feedback.detail.clone();
+        let parts = refit_failure_parts(&detail, garments);
+        let refit = &self.cdmw_state["morph_refit"]["refit"];
+        let settings = refit["garment_settings"].as_array().into_iter().flatten().filter(|row| {
+            row["submesh_index"].as_u64().is_some_and(|part| parts.is_empty()
+                || parts.iter().any(|index| u64::from(*index) == part))
+        }).collect::<Vec<_>>();
+        let zero_clearance = settings.iter().any(|row| row["clearance_percent"].as_f64() == Some(0.0)
+            || row["island_settings"].as_array().into_iter().flatten()
+                .any(|island| island["clearance_percent"].as_f64() == Some(0.0)));
+        let protected = settings.iter().any(|row| row["has_vertex_mask"].as_bool() == Some(true));
+        let (reason, hint) = if protected && detail.contains("protection mask") {
+            ("Garment intersects the body.", "Reduce local protection or adjust the garment position, then retry.")
+        } else if detail.contains("rigid assembly") || detail.contains("rigid component") {
+            ("Rigid pieces cannot move clear.", "Check the garment size and position, then retry.")
+        } else if detail.contains("triangle") && !detail.contains("beneath its triangles")
+            || detail.contains("crosses its own surface")
+        {
+            ("Fitting would fold or damage the mesh.", "Lower Tightness, then Apply. Keep loose trim at 0%.")
+        } else {
+            let reason = if detail.contains("Part ") && (detail.contains("cannot clear Part ")
+                || detail.contains("still intersects Part ") || detail.contains("layer separation"))
+            {
+                "Garment layers overlap."
+            } else if detail.contains("body") && detail.contains("cannot clear") {
+                "Garment intersects the body."
+            } else {
+                "Fit could not find a safe shape."
+            };
+            (reason, if zero_clearance {
+                "Try 0.1% Clearance or lower Tightness, then Apply."
+            } else {
+                "Increase Clearance or lower Tightness, then Apply."
+            })
+        };
+        let response = egui::Frame::group(ui.style()).show(ui, |ui| {
+            ui.set_width(ui.available_width());
+            ui.colored_label(REFIT_ARMOR_COLOUR, crate::localization::tr("Fit blocked · preview kept"));
+            if !parts.is_empty() {
+                ui.add(egui::Label::new(self.cdmw_morph_part_names(&parts)).wrap());
+            }
+            ui.add(egui::Label::new(crate::localization::tr(reason)).wrap());
+            ui.add(egui::Label::new(crate::localization::tr(hint)).wrap());
+            crate::localization::collapsing("Fit details").id_salt("refit-failure-details").show(ui, |ui| {
+                ui.add(egui::Label::new(&detail).wrap().selectable(true));
+            });
+        }).response;
+        if reveal { response.scroll_to_me(Some(egui::Align::Center)); }
+    }
+}
 
 fn diagnostic_number(value: Option<&Value>) -> String {
     value.and_then(Value::as_f64).filter(|number| number.is_finite())

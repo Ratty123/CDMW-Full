@@ -2042,6 +2042,12 @@ each Part's settings and masks. Apply is disabled until a field changes, and a r
 update retains the pending edits. Apply pending settings before **Fit all enabled
 garments**; fitting stays disabled while edits are pending.
 Tightness requires Surface or Rigid component mode on every chosen garment.
+If fitting is refused, Fit shows the affected garment names, a short reason and a
+targeted next step. Overlaps suggest more Clearance (0.1% when starting at zero) or
+less Tightness; folding, rigid pieces and protected areas have their own guidance.
+The previous preview and pending edits are kept. Raw errors are under **Fit details**.
+The notice survives selection changes and clears after a successful fit, Reset or
+a changed preview.
 
 **Fit all enabled garments** fits a fresh setup at 100% Tightness, with at least
 0.1% clearance. Binding itself leaves the shape unchanged so modes and protection
