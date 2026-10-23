@@ -751,6 +751,51 @@ def _bell(t: float) -> float:
     return max(0.0, math.sin(math.pi * max(0.0, min(1.0, t))))
 
 
+def _variation_id(node: ReflectNode, name: str) -> Optional[int]:
+    value = node.value(name)
+    if value is not None and value.type_name == "EmitterVariationID" and len(value.raw) == 4:
+        return int.from_bytes(value.raw, "little")
+    return None
+
+
+def _nonspawning_subemitters(
+    variations: Sequence[ReflectNode], sources: Mapping[int, Sequence[_Source]],
+) -> set[int]:
+    """Suppress only proven parent-driven births from a zero-count ancestor.
+
+    Draw visibility does not stop a carrier. Match both directions of the link by
+    unique variation IDs, not array positions, and leave unknown graphs intact.
+    This does not approximate trigger timing or recover a moving carrier's path.
+    """
+    indices: dict[int, List[int]] = {}
+    for index, variation in enumerate(variations):
+        identity = _variation_id(variation, "_emitterVariationID")
+        if identity is not None:
+            indices.setdefault(identity, []).append(index)
+    unique = {identity: matches[0] for identity, matches in indices.items() if len(matches) == 1}
+    children: dict[int, set[int]] = {}
+    for identity, parent in unique.items():
+        links = variations[parent].child("_subEmitterDataList")
+        for link in links if isinstance(links, tuple) else ():
+            child = unique.get(_variation_id(link, "_subEmitterVariationID"))
+            if (child not in sources
+                    or _variation_id(variations[child], "_superEmitterVariationID") != identity
+                    or _read(sources[child], "_spawnData", "_emitterSpawnType", None, _number) != 1):
+                continue
+            children.setdefault(parent, set()).add(child)
+    inactive = {index for index, inputs in sources.items()
+                if _read(inputs, "_spawnData", "_spawnCountMax", None, _number) == 0}
+    pending = list(inactive)
+    suppressed: set[int] = set()
+    while pending:
+        for child in children.get(pending.pop(), ()):
+            suppressed.add(child)
+            if child not in inactive:
+                inactive.add(child)
+                pending.append(child)
+    return suppressed
+
+
 #: The colour curve's fourth channel is a temperature and the ramp is written over a
 #: normalised one, but nothing in the binaries says what the temperature's units are, and
 #: the corpus does not agree with itself: across forty shipped effects the channel tops out
@@ -805,9 +850,11 @@ def build_effect_preview(
     notes: List[str] = []
     emitters: List[EmitterPreview] = []
     editor_emitters = []
+    sources_by_index: dict[int, Sequence[_Source]] = {}
     paths = emitter_paths_of(document)
     variations = document.root.child("_emitterVariationDataArray")
-    for index, variation in enumerate(variations if isinstance(variations, tuple) else ()):
+    variations = variations if isinstance(variations, tuple) else ()
+    for index, variation in enumerate(variations):
         name_value = variation.value("_emitterDataName")
         name = str(name_value.value) if name_value is not None else f"emitter {index}"
         embedded = _first_child(variation, "_internalEmitterData")
@@ -834,6 +881,7 @@ def build_effect_preview(
             sources.append(_Source(simulation.root, EmitterLayout(), "_simulationData"))
         elif simulation_name:
             notes.append(f"{name}: simulation preset {simulation_name} is missing")
+        sources_by_index[index] = sources
         enabled = bool(_read(sources, "", "_enableParticleRender", 1, _number))
         field_names = set()
         for holder in (document, base_doc, preset, simulation):
@@ -858,6 +906,8 @@ def build_effect_preview(
                 source_index=index,
                 tracking_position_speed=_number(variation, "_trackingPositionSpeed", 0.0),
             ))
+    suppressed = _nonspawning_subemitters(variations, sources_by_index)
+    emitters = [emitter for emitter in emitters if emitter.source_index not in suppressed]
     box_min = _vec3(document.root, "_boundingBoxMin", (-0.5, -0.5, -0.5))
     box_max = _vec3(document.root, "_boundingBoxMax", (0.5, 0.5, 0.5))
     if not emitters and not paths:
