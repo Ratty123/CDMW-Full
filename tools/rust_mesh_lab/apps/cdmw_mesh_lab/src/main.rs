@@ -2904,6 +2904,8 @@ impl LabApplication {
         let origin = pending.origin.clone();
         let feedback = cdmw_result_feedback(&payload);
         let (revision, state, document) = prepared.into_parts();
+        let retain_refit_feedback = matches!(origin.as_ref(), Some(CdmwRequestOrigin::Selection))
+            && document.is_none() && self.cdmw_refit_feedback_is_current();
         if ok && payload.get("hair_ack").is_some() {
             if let Err(error) =
                 self.accept_hair_ack(payload["hair_ack"].as_u64().unwrap_or(u64::MAX))
@@ -2933,7 +2935,7 @@ impl LabApplication {
             return;
         }
         self.cdmw_pending_request.take();
-        self.record_cdmw_refit_feedback(&label, ok, error);
+        self.record_cdmw_refit_feedback(&label, ok, error, retain_refit_feedback);
         if label == "Place weapon preview" && !ok {
             self.reject_weapon_placement();
         }
@@ -5459,6 +5461,7 @@ impl LabApplication {
         self.cdmw_jiggle.preview.invalidate();
         self.hair.invalidate_scene();
         self.face_selection_overlay = None;
+        self.invalidate_cdmw_refit_overlay();
         self.cdmw_rig.overlay_key = None;
         self.selected_counts_cache.set(None);
         if let Some(renderer) = &mut self.renderer {
@@ -6366,6 +6369,7 @@ impl LabApplication {
     }
 
     fn paint_viewport_overlay(&mut self, ui: &egui::Ui, rectangle: egui::Rect) {
+        self.refresh_cdmw_refit_overlay();
         self.refresh_face_selection_overlay();
         // Face highlights use GPU depth; a CPU projection is only needed for vertex/edge
         // markers and actual picking, never for ordinary camera navigation or face display.
@@ -7279,6 +7283,7 @@ impl ApplicationHandler for LabApplication {
             match restored {
                 Ok(renderer) => {
                     self.renderer = Some(renderer);
+                    self.invalidate_cdmw_refit_overlay();
                     self.hair.invalidate_scene();
                     self.cdmw_rig.overlay_key = None;
                     if let Some(bridge) = &self.cdmw_bridge {

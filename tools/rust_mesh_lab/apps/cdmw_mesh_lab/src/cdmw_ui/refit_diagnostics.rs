@@ -1,6 +1,8 @@
 //! Fit refusal guidance and bounded observations. Never changes a fit.
 use super::*;
 
+const REFIT_WARNING_COLOUR: [f32; 4] = [1.0, 0.35, 0.06, 0.45];
+
 fn refit_failure_parts(detail: &str, garments: &[u32]) -> Vec<u32> {
     let mut parts = Vec::new();
     for prefix in ["Part ", "Parts "] {
@@ -18,25 +20,83 @@ fn refit_failure_parts(detail: &str, garments: &[u32]) -> Vec<u32> {
 }
 
 impl LabApplication {
-    fn cdmw_refit_preview_revision(&self) -> (Option<u64>, Option<u64>) {
+    fn cdmw_refit_preview_revision(&self) -> (Option<u64>, Option<u64>, usize) {
         (self.cdmw_state["base_revision"].as_u64(),
-            self.cdmw_state.pointer("/morph_refit/state_revision").and_then(Value::as_u64))
+            self.cdmw_state.pointer("/morph_refit/state_revision").and_then(Value::as_u64),
+            self.active_lod_index)
     }
 
-    pub(crate) fn record_cdmw_refit_feedback(&mut self, label: &str, ok: bool, error: &str) {
+    pub(crate) fn cdmw_refit_feedback_is_current(&self) -> bool {
+        self.cdmw_refit_feedback.as_ref().is_some_and(|feedback|
+            feedback.preview_revision == self.cdmw_refit_preview_revision())
+    }
+
+    pub(crate) fn record_cdmw_refit_feedback(&mut self, label: &str, ok: bool, error: &str, retain_for_selection: bool) {
         let fitting = matches!(label, "Fit to body" | "Apply garment refit settings"
             | "Apply island refit settings" | "Inherit Part fitting settings");
         if !ok && (error.contains("Fit to body:") || error.contains("clearance displacement solve did not converge")) {
             self.cdmw_refit_feedback = Some(RefitFeedback { detail: error.trim().to_owned(), reveal: true,
-                preview_revision: self.cdmw_refit_preview_revision() });
+                preview_revision: self.cdmw_refit_preview_revision(), highlight: true, overlay: None });
         } else if (ok && (fitting || matches!(label, "Reset morph" | "Bake morph" | "Clear refit")))
             || (!ok && fitting)
         {
             self.cdmw_refit_feedback = None;
+        } else if ok && retain_for_selection {
+            let current = self.cdmw_refit_preview_revision();
+            if let Some(feedback) = &mut self.cdmw_refit_feedback
+                && feedback.preview_revision.2 == current.2
+            {
+                // A validated selection advances both protocol and morph snapshot
+                // watermarks without changing the retained fit.
+                feedback.preview_revision = current;
+            }
         }
     }
 
-    pub(super) fn draw_cdmw_refit_feedback(&mut self, ui: &mut egui::Ui, garments: &[u32]) {
+    pub(crate) fn invalidate_cdmw_refit_overlay(&mut self) {
+        if let Some(feedback) = &mut self.cdmw_refit_feedback { feedback.overlay = None; }
+        if let Some(renderer) = &mut self.renderer {
+            let _ = renderer.set_refit_warning(&[], REFIT_WARNING_COLOUR);
+        }
+    }
+
+    pub(crate) fn cdmw_refit_highlight_parts(&self) -> Vec<u32> {
+        let active = self.cdmw_refit_feedback.as_ref().is_some_and(|feedback|
+            feedback.highlight && feedback.preview_revision == self.cdmw_refit_preview_revision())
+            && !self.hair.active() && !self.cdmw_morph_comparison_active()
+            && self.cdmw_state["replacement"]["comparison"].as_str().is_none_or(|mode| mode == "edit");
+        if !active || self.mesh.is_none() { return Vec::new(); }
+        let garments = value_u32_list(&self.cdmw_state["morph_refit"]["refit"], "garment_submesh_indices");
+        refit_failure_parts(&self.cdmw_refit_feedback.as_ref().unwrap().detail, &garments)
+    }
+
+    pub(crate) fn refresh_cdmw_refit_overlay(&mut self) {
+        let parts = self.cdmw_refit_highlight_parts();
+        let Some(mesh) = self.mesh.as_ref().filter(|_| !parts.is_empty()) else {
+            self.invalidate_cdmw_refit_overlay();
+            return;
+        };
+        let visible = self.cdmw_visible_submeshes();
+        let feedback = self.cdmw_refit_feedback.as_mut().unwrap();
+        if feedback.overlay.as_ref().is_none_or(|overlay| !overlay.matches(mesh, &visible, REFIT_WARNING_COLOUR)) {
+            feedback.overlay = Some(FaceSelectionOverlay::build_for_parts(mesh, visible, REFIT_WARNING_COLOUR, &parts));
+        }
+        if let (Some(renderer), Some(overlay)) = (&mut self.renderer, &mut feedback.overlay)
+            && !overlay.uploaded
+        {
+            match renderer.set_refit_warning(&overlay.positions, REFIT_WARNING_COLOUR) {
+                Ok(()) => overlay.uploaded = true,
+                Err(error) => self.status = format!("Fit highlight failed: {error}"),
+            }
+        }
+    }
+
+    fn select_cdmw_refit_feedback_parts(actions: &mut Vec<UiAction>, parts: Vec<u32>) {
+        actions.push(UiAction::SetPartVisibility { indices: parts.clone(), visible: true });
+        actions.push(UiAction::SetPartSelection(parts));
+    }
+
+    pub(super) fn draw_cdmw_refit_feedback(&mut self, ui: &mut egui::Ui, actions: &mut Vec<UiAction>, garments: &[u32]) {
         if self.cdmw_refit_feedback.as_ref().is_some_and(|feedback|
             feedback.preview_revision != self.cdmw_refit_preview_revision())
         {
@@ -45,6 +105,7 @@ impl LabApplication {
         let Some(feedback) = self.cdmw_refit_feedback.as_mut() else { return; };
         let reveal = std::mem::take(&mut feedback.reveal);
         let detail = feedback.detail.clone();
+        let mut highlight = feedback.highlight;
         let parts = refit_failure_parts(&detail, garments);
         let refit = &self.cdmw_state["morph_refit"]["refit"];
         let settings = refit["garment_settings"].as_array().into_iter().flatten().filter(|row| {
@@ -83,7 +144,27 @@ impl LabApplication {
             ui.set_width(ui.available_width());
             ui.colored_label(REFIT_ARMOR_COLOUR, crate::localization::tr("Fit blocked · preview kept"));
             if !parts.is_empty() {
-                ui.add(egui::Label::new(self.cdmw_morph_part_names(&parts)).wrap());
+                let selected_parts = self.selected_part_indices();
+                let can_select = !self.cdmw_busy();
+                ui.horizontal_wrapped(|ui| {
+                    for part in &parts {
+                        if ui.add_enabled(can_select, Button::new(self.cdmw_morph_part_names(&[*part])).small()
+                            .selected(selected_parts.contains(part)))
+                            .on_hover_text(crate::localization::tr("Select these Parts to adjust their fitting. Hidden Parts are shown."))
+                            .clicked()
+                        {
+                            Self::select_cdmw_refit_feedback_parts(actions, vec![*part]);
+                        }
+                    }
+                });
+                ui.checkbox(&mut highlight, crate::localization::tr("Highlight in viewport"))
+                    .on_hover_text(crate::localization::tr("Highlights the affected garments on the retained preview, including obscured areas."));
+                if ui.add_enabled(can_select, Button::new(crate::localization::tr("Select affected parts")))
+                    .on_hover_text(crate::localization::tr("Select these Parts to adjust their fitting. Hidden Parts are shown."))
+                    .clicked()
+                {
+                    Self::select_cdmw_refit_feedback_parts(actions, parts.clone());
+                }
             }
             ui.add(egui::Label::new(crate::localization::tr(reason)).wrap());
             ui.add(egui::Label::new(crate::localization::tr(hint)).wrap());
@@ -91,6 +172,7 @@ impl LabApplication {
                 ui.add(egui::Label::new(&detail).wrap().selectable(true));
             });
         }).response;
+        if let Some(feedback) = &mut self.cdmw_refit_feedback { feedback.highlight = highlight; }
         if reveal { response.scroll_to_me(Some(egui::Align::Center)); }
     }
 }

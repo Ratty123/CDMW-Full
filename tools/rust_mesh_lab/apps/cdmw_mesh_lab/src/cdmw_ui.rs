@@ -979,7 +979,9 @@ const REFIT_SETTING_KEYS: [&str; 5] = [
 pub(super) struct RefitFeedback {
     detail: String,
     reveal: bool,
-    preview_revision: (Option<u64>, Option<u64>),
+    preview_revision: (Option<u64>, Option<u64>, usize),
+    highlight: bool,
+    overlay: Option<FaceSelectionOverlay>,
 }
 
 #[derive(Default)]
@@ -3531,7 +3533,7 @@ impl LabApplication {
             ).on_disabled_hover_text(crate::localization::tr("Apply pending settings before fitting.")).clicked() {
                 actions.push(UiAction::CdmwCommand { command: "refit_fit_to_body", arguments: json!({}), label: "Fit to body" });
             }
-            self.draw_cdmw_refit_feedback(ui, &bound_garments);
+            self.draw_cdmw_refit_feedback(ui, actions, &bound_garments);
             if state_bool(&refit, "distance_warning") {
                 egui::CollapsingHeader::new(RichText::new(crate::localization::tr("Initial binding warning")).color(REFIT_ARMOR_COLOUR))
                     .id_salt("refit-binding-warning").show(ui, |ui| {

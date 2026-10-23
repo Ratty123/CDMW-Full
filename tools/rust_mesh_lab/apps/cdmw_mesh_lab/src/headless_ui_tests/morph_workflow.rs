@@ -87,16 +87,25 @@ fn refit_feedback_reply(ui: &mut HeadlessUi, label: &'static str, ok: bool, erro
     ui.application.cdmw_bridge = Some(CdmwBridge::for_test(
         root.path().to_path_buf(), "refit-feedback-ui", 2, revision,
     ));
+    let selection = ok && label == "Select parts";
     ui.application.cdmw_pending_request = Some(CdmwPendingRequest {
-        request_id: 1, event: "command_result", label: label.to_owned(), origin: None,
+        request_id: 1, event: "command_result", label: label.to_owned(),
+        origin: selection.then_some(CdmwRequestOrigin::Selection),
     });
     let mut state = ui.application.cdmw_state.clone();
     state["session_id"] = json!("refit-feedback-ui");
+    let reply_revision = revision + u64::from(selection);
+    state["base_revision"] = json!(reply_revision);
+    if selection {
+        // State snapshots refresh this watermark even for selection-only commands.
+        let morph_revision = state["morph_refit"]["state_revision"].as_u64().unwrap_or(0);
+        state["morph_refit"]["state_revision"] = json!(morph_revision + 1);
+    }
     state["selection"] = json!({
         "vertices_by_submesh": {}, "edges_by_submesh": {}, "faces_by_submesh": {},
         "source_indices": ui.application.selected_part_indices(),
     });
-    ui.application.handle_cdmw_result("command_result", 1, revision, ok,
+    ui.application.handle_cdmw_result("command_result", 1, reply_revision, ok,
         json!({"state": state, "result": {"status": "noop"}}), error);
     assert!(ui.application.cdmw_pending_request.is_none(), "{}", ui.application.status);
     ui.settle_layout();
@@ -128,7 +137,8 @@ fn workflow_refit_refusal_shows_targeted_guidance_and_expandable_details() -> Te
         assert!(ui.label_rect("Fit blocked · preview kept").is_some(), "refusal should reveal its guidance");
         ui.reveal(reason)?;
         ui.reveal(hint)?;
-        ui.reveal(if error.contains("Part 2") { "2 · Sleeve, 3 · Plate" } else { "2 · Sleeve" })?;
+        ui.reveal("2 · Sleeve")?;
+        if error.contains("Part 2") { ui.reveal("3 · Plate")?; }
         assert!(ui.label_rect(error).is_none(), "raw error should be collapsed");
         ui.click("Fit details")?;
         ui.reveal(error)?;
@@ -160,8 +170,88 @@ fn workflow_refit_guidance_survives_selection_and_clears_after_fit_or_reset() ->
     refit_feedback_reply(&mut ui, "Fit to body", false,
         "Fit to body: Part 1 still intersects Part 2 beneath its triangles")?;
     ui.application.cdmw_state["morph_refit"]["state_revision"] = json!(12);
-    ui.settle_layout();
+    refit_feedback_reply(&mut ui, "Select parts", true, "")?;
     assert!(ui.application.cdmw_refit_feedback.is_none());
+    Ok(())
+}
+
+#[test]
+fn workflow_refit_warning_highlights_without_selecting_and_selects_from_the_warning() -> TestResult {
+    for (button, expected) in [
+        ("Select affected parts", vec![1, 2]), ("2 · Sleeve", vec![1]), ("3 · Plate", vec![2]),
+    ] {
+        let mut ui = mixed_refit_ui(&[0])?;
+        refit_feedback_reply(&mut ui, "Fit to body", false,
+            "Fit to body: Part 1 still intersects Part 2 beneath its triangles; previous preview retained")?;
+        assert_eq!(ui.application.selected_part_indices(), vec![0]);
+        assert_eq!(ui.application.cdmw_refit_highlight_parts(), vec![1, 2]);
+        ui.application.refresh_cdmw_refit_overlay();
+        let before = ui.application.mesh.as_ref().ok_or("mesh")?.structural_fingerprint();
+        ui.reveal(button)?;
+        let actions = ui.actions_from_click(button)?;
+        assert!(actions.iter().any(|action| matches!(action,
+            UiAction::SetPartSelection(parts) if parts == &expected)), "{actions:?}");
+        // Keep the real selection-command bridge alive after delivering the refusal.
+        let root = tempdir()?;
+        let revision = ui.application.cdmw_state["base_revision"].as_u64().unwrap_or(0);
+        ui.application.cdmw_bridge = Some(CdmwBridge::for_test(root.path().to_path_buf(), "refit-feedback-ui", 2, revision));
+        ui.application.handle_actions(actions);
+        assert_eq!(ui.application.selected_part_indices(), expected);
+        assert_eq!(ui.application.cdmw_pending_request.as_ref().map(|request| &request.origin),
+            Some(&Some(CdmwRequestOrigin::Selection)));
+        assert_eq!(ui.application.mesh.as_ref().ok_or("mesh")?.structural_fingerprint(), before);
+        refit_feedback_reply(&mut ui, "Select parts", true, "")?;
+        assert_eq!(ui.application.cdmw_refit_highlight_parts(), vec![1, 2]);
+        ui.reveal("Fit blocked · preview kept")?;
+    }
+    Ok(())
+}
+
+#[test]
+fn workflow_refit_warning_highlight_obeys_toggle_visibility_and_preview_lifetime() -> TestResult {
+    let mut ui = mixed_refit_ui(&[0])?;
+    refit_feedback_reply(&mut ui, "Fit to body", false,
+        "Fit to body: Parts 1, 2 cannot preserve their garment layer separation")?;
+    let mesh = ui.application.mesh.as_ref().ok_or("mesh")?;
+    let sleeve = &ui.application.document.as_ref().ok_or("document")?.lods[0].submeshes[1];
+    let expected = sleeve.indices.iter().map(|index| sleeve.positions[*index as usize]).collect::<Vec<_>>();
+    let colour = [1.0, 0.35, 0.06, 0.45];
+    let overlay = FaceSelectionOverlay::build_for_parts(mesh, Some(HashSet::from([0, 1])), colour, &[1, 2]);
+    assert_eq!(overlay.positions, expected);
+    assert!(!overlay.positions.is_empty());
+    let sleeve_faces = mesh.faces().filter(|(_, face)| face.submesh == 1).map(|(handle, _)| handle).collect();
+    ui.application.mesh.as_mut().ok_or("mesh")?.set_viewport_hidden_faces(sleeve_faces)?;
+    assert!(FaceSelectionOverlay::build_for_parts(ui.application.mesh.as_ref().ok_or("mesh")?,
+        Some(HashSet::from([0, 1])), colour, &[1, 2]).positions.is_empty());
+    ui.click("Highlight in viewport")?;
+    assert!(ui.application.cdmw_refit_highlight_parts().is_empty());
+    assert_eq!(ui.application.selected_part_indices(), vec![0]);
+    ui.click("Highlight in viewport")?;
+    assert_eq!(ui.application.cdmw_refit_highlight_parts(), vec![1, 2]);
+    ui.application.set_cdmw_part_visibility(vec![2], false);
+    let actions = ui.actions_from_click("Select affected parts")?;
+    assert!(actions.iter().any(|action| matches!(action,
+        UiAction::SetPartVisibility { indices, visible: true } if indices == &[1, 2])));
+    ui.application.cdmw_bridge = None;
+    ui.application.handle_actions(actions);
+    assert!(!ui.application.cdmw_hidden_parts.contains(&2));
+    assert_eq!(ui.application.selected_part_indices(), vec![1, 2]);
+    ui.application.active_lod_index += 1;
+    assert!(ui.application.cdmw_refit_highlight_parts().is_empty());
+    ui.application.refresh_cdmw_refit_overlay();
+    Ok(())
+}
+
+#[test]
+fn workflow_refit_warning_never_selects_unknown_parts_or_guesses_missing_locations() -> TestResult {
+    for error in ["Fit to body: clearance displacement solve did not converge",
+        "Fit to body: Part 999, triangle 1 would collapse; previous preview retained"] {
+        let mut ui = mixed_refit_ui(&[0])?;
+        refit_feedback_reply(&mut ui, "Fit to body", false, error)?;
+        assert!(ui.application.cdmw_refit_highlight_parts().is_empty());
+        assert!(ui.label_rect("Select affected parts").is_none());
+        assert_eq!(ui.application.selected_part_indices(), vec![0]);
+    }
     Ok(())
 }
 

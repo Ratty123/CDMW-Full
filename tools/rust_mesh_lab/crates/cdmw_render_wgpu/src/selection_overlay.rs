@@ -115,6 +115,7 @@ pub async fn verify_face_selection_depth() -> Result<(), RenderError> {
     });
     let mut selection =
         FaceSelectionRenderer::new(&device, format, &texture_layout, &camera_layout, 1);
+    let mut warning = selection.empty_with_shared_pipelines();
     let colour = [1., 0., 0., 0.6];
     let mut first_tint_red = None;
     for (label, xray, depth, empty) in [
@@ -126,6 +127,9 @@ pub async fn verify_face_selection_depth() -> Result<(), RenderError> {
         ("weight gradient", false, 0.6, false),
         ("lit region", false, 0.6, true),
         ("shaded region", false, 0.6, true),
+        ("refit warning", false, 0.6, false),
+        ("refit warning cleared", false, 0.6, false),
+        ("refit selection cleared", false, 0.6, true),
     ] {
         let tinted = label == "lit region" || label == "shaded region";
         let tint_buffer = tinted.then(|| {
@@ -148,6 +152,11 @@ pub async fn verify_face_selection_depth() -> Result<(), RenderError> {
             if empty { &[] } else { &positions },
             colour,
         )?;
+        let refit = label.starts_with("refit");
+        let show_warning = refit && label != "refit warning cleared";
+        warning.upload(&device, &queue, if show_warning {
+            &[[-1., -1., 0.6], [0., -1., 0.6], [-0.5, 1., 0.6]]
+        } else { &[] }, [1.0, 0.35, 0.06, 0.45])?;
         if label == "weight gradient" {
             selection.upload_coloured(
                 &device,
@@ -202,6 +211,7 @@ pub async fn verify_face_selection_depth() -> Result<(), RenderError> {
             pass.set_vertex_buffer(0, tint_buffer.as_ref().unwrap_or(&occluder_buffer).slice(..));
             pass.draw(0..6, 0..1);
             selection.draw(&mut pass, &material.bind_group, &camera_binding, xray);
+            warning.draw(&mut pass, &material.bind_group, &camera_binding, true);
         }
         encoder.copy_texture_to_buffer(
             wgpu::TexelCopyTextureInfo {
@@ -228,6 +238,16 @@ pub async fn verify_face_selection_depth() -> Result<(), RenderError> {
         let pixels = read_headless_pixels(&device, &readback, 32, 32)?;
         let left_red = pixels[(24 * 32 + 10) * 4 + 2];
         let right_red = pixels[(24 * 32 + 22) * 4 + 2];
+        if refit {
+            if (show_warning && left_red < 100) || (!show_warning && left_red > 10)
+                || (empty && right_red > 10) || (!empty && right_red < 100)
+            {
+                return Err(RenderError::InvalidOverlay(format!(
+                    "refit warning did not stay independent of edit selection: {label}, left={left_red}, right={right_red}"
+                )));
+            }
+            continue;
+        }
         if tinted {
             let left_blue = pixels[(24 * 32 + 10) * 4];
             if left_red <= left_blue.saturating_add(40)
@@ -261,6 +281,16 @@ pub async fn verify_face_selection_depth() -> Result<(), RenderError> {
 }
 
 impl FaceSelectionRenderer {
+    pub(super) fn empty_with_shared_pipelines(&self) -> Self {
+        Self {
+            visible: self.visible.clone(),
+            xray: self.xray.clone(),
+            depth: self.depth.clone(),
+            vertices: None,
+            vertex_count: 0,
+        }
+    }
+
     pub(super) fn new(
         device: &wgpu::Device,
         format: wgpu::TextureFormat,

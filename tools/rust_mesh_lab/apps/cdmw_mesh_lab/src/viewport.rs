@@ -570,6 +570,27 @@ pub struct FaceSelectionOverlay {
 }
 
 impl FaceSelectionOverlay {
+    pub fn build_for_parts(
+        mesh: &WorkingMesh, visible: Option<HashSet<u32>>, colour: [f32; 4], parts: &[u32],
+    ) -> Self {
+        let positions = mesh.faces()
+            .filter(|(handle, face)| parts.contains(&face.submesh)
+                && !mesh.viewport_hidden_faces().contains(handle)
+                && visible.as_ref().is_none_or(|visible| visible.contains(&face.submesh)))
+            .flat_map(|(_, face)| face.vertices.iter())
+            .filter_map(|handle| mesh.vertex(*handle).map(|vertex| vertex.position))
+            .collect();
+        Self {
+            geometry_revision: mesh.geometry_revision,
+            topology_generation: mesh.topology_generation,
+            selection_revision: mesh.selection_revision,
+            visible_submeshes: visible,
+            colour,
+            positions,
+            uploaded: false,
+        }
+    }
+
     pub fn build(mesh: &WorkingMesh, visible: Option<HashSet<u32>>, colour: [f32; 4]) -> Self {
         let mut handles = if mesh.selection.submeshes.is_empty() {
             mesh.selection.faces.iter().copied().collect::<Vec<_>>()

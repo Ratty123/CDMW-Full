@@ -2046,8 +2046,15 @@ If fitting is refused, Fit shows the affected garment names, a short reason and 
 targeted next step. Overlaps suggest more Clearance (0.1% when starting at zero) or
 less Tightness; folding, rigid pieces and protected areas have their own guidance.
 The previous preview and pending edits are kept. Raw errors are under **Fit details**.
-The notice survives selection changes and clears after a successful fit, Reset or
-a changed preview.
+Affected garments receive an orange viewport tint, including obscured areas of the
+retained preview. **Highlight in viewport** toggles this independently of selection.
+**Select affected parts** selects the whole reported group; clicking a garment name
+selects that Part. Hidden Parts are shown before selection; hidden islands and layer
+filters remain respected. This uses the normal Part selection and fitting scope, so
+changing scope discards pending edits as usual. The notice survives acknowledged
+selection changes and clears after a successful fit, Reset, another LOD or a changed
+preview. The tint identifies Parts from the refused fit; it does not mark exact
+intersection points on the retained preview.
 
 **Fit all enabled garments** fits a fresh setup at 100% Tightness, with at least
 0.1% clearance. Binding itself leaves the shape unchanged so modes and protection

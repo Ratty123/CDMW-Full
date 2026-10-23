@@ -2796,6 +2796,7 @@ pub struct WindowRenderer {
     effect_pipeline: wgpu::RenderPipeline,
     emission_bloom: emission_bloom::EmissionBloom,
     face_selection: selection_overlay::FaceSelectionRenderer,
+    refit_warning: selection_overlay::FaceSelectionRenderer,
     rig_weights: selection_overlay::FaceSelectionRenderer,
     face_selection_xray: bool,
     effect_particle_alpha_pipeline: wgpu::RenderPipeline,
@@ -3163,6 +3164,7 @@ impl WindowRenderer {
             &camera_bind_group_layout,
             sample_count,
         );
+        let refit_warning = face_selection.empty_with_shared_pipelines();
         gpu_faults.check()?;
         Ok(Self {
             gpu_faults,
@@ -3188,6 +3190,7 @@ impl WindowRenderer {
             effect_pipeline: pipelines.effect,
             emission_bloom: pipelines.emission_bloom,
             face_selection,
+            refit_warning,
             rig_weights,
             face_selection_xray: false,
             effect_particle_alpha_pipeline,
@@ -3496,6 +3499,13 @@ impl WindowRenderer {
 
     pub fn set_face_selection_xray(&mut self, xray: bool) {
         self.face_selection_xray = xray;
+    }
+
+    /// Display-only warning tint, independent of the user's edit selection.
+    pub fn set_refit_warning(
+        &mut self, positions: &[[f32; 3]], colour: [f32; 4],
+    ) -> Result<(), RenderError> {
+        self.refit_warning.upload(&self.device, &self.queue, positions, colour)
     }
 
     /// Display-only, interpolated skin weights; independent of edit selection.
@@ -3991,6 +4001,12 @@ impl WindowRenderer {
                         &self.default_material_binding.bind_group,
                         &self.camera_bind_group,
                         self.face_selection_xray,
+                    );
+                    self.refit_warning.draw(
+                        &mut pass,
+                        &self.default_material_binding.bind_group,
+                        &self.camera_bind_group,
+                        true,
                     );
                 }
                 if self.show_bones
