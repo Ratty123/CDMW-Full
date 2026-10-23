@@ -37,9 +37,16 @@ fixtures/linked/caller reviews pass; root physical/source/process checks pass wi
 29.391-second restoration; independent capture review also passes. B122-v4 now
 passes ten owned native pair cases, including the full stock count, five physical
 encoder channels, inactive loading and independent emitted-code review. Its
-actual game observation and central routing remain pending. A first privately
+controlled game capture also produces both complete unpublished maps, with
+public counts/maps unchanged; root checks pass with 47.188-second restoration.
+Independent actual review now passes with no material defects; central routing
+remains unproved. A first privately
 authored sword package and its 24-member resource image also pass preparation;
-resource use, derived state and lifetime remain open.
+resource use, derived state and lifetime remain open. The sword is now installed
+as item 1,990,000 through the existing composed physical overlay at the user's
+request. The user reports a longstanding Live Edit Add callback timeout under
+separate diagnosis; no visible weapon/equip/save proof or independent native
+activation is recorded.
 
 [Canonical goal and acceptance criteria](cditem-conflict-isolation-plan.md) |
 [Execution](cditem-execution-goal.md) |
@@ -52,7 +59,7 @@ original `CDISO-*` criteria, with narrowly scoped subtask results recorded below
 | Outcome | Status | Evidence and remaining work |
 | --- | --- | --- |
 | Package identity and retained bindings | Existing implementation, exercised in the new preparation route | UUIDs and reservations survive owned-fixture updates/removal/reinstall/profile transfer; native lifecycle still required |
-| Native definition registration | Actual checked private staging and owned native pair qualification | Four real staged records and ten pair fixture cases pass; actual pair creation, central routing, reader/maintenance boundary and lifetime remain open |
+| Native definition registration | Actual checked private staging and both unpublished native maps | Four real staged records, ten pair fixture cases, controlled pair capture and independent actual review pass; central routing, reader/maintenance boundary and lifetime remain open |
 | Paired publication and lifetime | Verified owned-memory increment | `CDISO-RE-02A`: retained C++ result, 41 cases/963 checks. Both lookup paths and resource completion are modeled |
 | Exact private archive expectation | Verified preparation, actual path and selected payload observations | `CDISO-RE-03A`: B113 path, B115 small read and B117 exact per-context physical open/read joins; actual resource use remains open |
 | Separate package resource images | Preparation and selected native bytes verified | `CDISO-RE-03B`: one compiler-produced image per UUID; both distinct 144-byte slices compare completely, with A rechecked after B. Engine consumption remains open |
@@ -70,7 +77,8 @@ checks were not rerun.
 
 ### In-game testing readiness
 
-**No manual game launch is needed.** The unchanged compiled B113 current-loader
+The controlled captures below are historical; the separate installed Sword is
+now in the user's visual test window. The unchanged compiled B113 current-loader
 probe now produced the exact prepared private archive path. Fresh independent
 review joins its complete packets to the owned game/process/source, with provider
 1/1 and ItemInfo 6816 unchanged. Exact restoration completed in 24.406s; all owned
@@ -87,11 +95,11 @@ resource use, equip and saves still require their own evidence.
 
 ### Next engineering steps
 
-1. Capture the fixture-qualified B122 unpublished numeric/name pairs after the
-   already verified four-record Cache stage. Preserve stock prefix/header/maps,
-   exact typed claims, source/clone guards and terminal partial failures. The
-   Bool decoder has two arguments; central materialization has four. Then join
-   getter/bulk and both maps, later derived
+1. Join the independently reviewed B122 unpublished maps and checked Cache
+   records to getter/bulk. Preserve
+   stock prefix/header/maps, exact typed claims, source/clone guards and terminal
+   partial failures. The Bool decoder has two arguments; central materialization
+   has four. Qualify later derived
    state, resource consumers, reader/maintenance coverage and lifetime. Expiry
    zero permits eviction; eager loading cannot waive rematerialization.
 2. Integrate native definitions and resources, prove first acquisition, then run
@@ -120,6 +128,10 @@ the preceding 24-case preparation evidence remains in
 `workspace/reports/cditem-execution/20261021-package-resource-images/`.
 
 ## Completed work
+
+- 2026-10-23 | CDISO-RE-02 actual unpublished native pair capture | B122's single controlled game capture produces two complete 6,820-entry private maps from N=6,816 stock plus four checked Rows, with eight native inserts, twelve name callbacks, 45 steps and 13,636 accepted allocations. Public maps/counts and represented owner/metadata/expiry/records remain unchanged. All five physical channels, 222 source pins, seven companions/stock and absence of all five owned roles pass root checks; restoration takes 47.188 seconds. The guardian's stale-heartbeat decision (age 5,218ms, close request absent at that decision) closes the game normally while offline review runs. Exact canonical JSON byte reproduction resolves the retained post-recorder integer-key comparison refusal. Independent actual review now passes with no material defects; its restoration finding is historical and precedes the later Sword overlay. Evidence: [actual pair capture](cditem-execution-goal.md#actual-unpublished-native-pair-capture-2026-10-23).
+
+- 2026-10-23 | First private sword installed for user test | The user explicitly requested installation. The supported composed physical overlay installs King Arthur's Sword as item 1,990,000 in group 0041 with 52 files and 194,882,496 payload bytes. Both existing metadata files have a matching verified backup; all nine writes read back exactly and seven loader companions remain unchanged. The user reports a longstanding Live Edit Add callback timeout under separate diagnosis. No Tranan placement/inventory grant, root game launch, independent native activation, rendered appearance, equip or save proof follows. The authorized overlay intentionally changes PAPGT after the historical B122 restoration; its old grant is consumed. Evidence: [sword test installation](cditem-execution-goal.md#sword-installation-for-the-users-visual-test).
 
 - 2026-10-23 | CDISO-RE-02 unpublished native pair fixture qualification | B122-v4 passes ten owned native cases including N=6,816, five physical encoder channels, strict decoder refusal and inactive loading. Independent review joins 166 emitted functions and 26 core cross-image contracts; the 369-pin native proof is sealed. Prior compiler failures remain retained. Actual game pair creation, final caller readiness, central publication and lifecycle acceptance stay open. Evidence: [execution checkpoint](cditem-execution-goal.md#unpublished-native-pairs-owned-qualification-2026-10-23).
 

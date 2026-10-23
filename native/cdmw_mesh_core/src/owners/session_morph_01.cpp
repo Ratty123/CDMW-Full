@@ -1,3 +1,5 @@
+#include <chrono>
+
 std::shared_ptr<MeshMorphRuntime> mesh_editor_clone_morph_runtime(const MeshEditorSession& session) {
     return std::make_shared<MeshMorphRuntime>(session.morph ? *session.morph : MeshMorphRuntime{});
 }
@@ -1233,8 +1235,11 @@ void mesh_editor_relieve_refit_surface(
     const std::map<int, std::vector<Vec3>>* layer_reference = nullptr,
     const std::map<int, std::vector<Vec3>>* centering_axes = nullptr,
     bool coherent_bands = false,
-    bool smooth_bands = true
+    bool smooth_bands = true,
+    const std::chrono::steady_clock::time_point* opening_deadline = nullptr
 ) {
+    const auto opening_budget_end = opening_deadline ? *opening_deadline
+        : std::chrono::steady_clock::now() + std::chrono::seconds(75);
     std::map<int, double> clearances;
     const bool clearance_only = fitting_masks && std::none_of(
         refit.garment_settings.begin(), refit.garment_settings.end(), [](const auto& item) {
@@ -1482,6 +1487,7 @@ void mesh_editor_relieve_refit_surface(
     }
     std::vector<Vec3> contact_fixed_axes(cohorts.size());
     std::vector<Vec3> opening_length_axes(cohorts.size());
+    bool refine_openings = false;
     if (fitting_masks) {
         // Sliding an open hem along a sloping hip can be the shortest escape
         // from contact, but shortens the garment. Infer its length direction
@@ -1591,7 +1597,7 @@ void mesh_editor_relieve_refit_surface(
         const Vec3 free = sub_vec3(delta, scale_vec3(contact_fixed_axes[i], dot_vec3(delta, contact_fixed_axes[i])));
         // A compliant length direction still lets a folded cuff clear a hand
         // when outward movement alone cannot resolve its contact.
-        if (dot_vec3(contact_fixed_axes[i], contact_fixed_axes[i]) > 0.5) return free;
+        if (!refine_openings || dot_vec3(contact_fixed_axes[i], contact_fixed_axes[i]) > 0.5) return free;
         const double along = dot_vec3(free, opening_length_axes[i]);
         const double axial = along * along;
         const double transverse = std::max(0.0, dot_vec3(free, free) - axial);
@@ -3265,13 +3271,145 @@ void mesh_editor_relieve_refit_surface(
             }
         }
     };
+    const auto guard_contact_step = [&](const std::vector<Vec3>& previous) {
+    bool guarded = false;
+    int guarded_part = clearances.begin()->first;
+    // Neighboring strain projections can oppose one another. Reduce
+    // the common step and retry within the same bounded solve.
+    for (int backtrack = 0; backtrack < 8 && !guarded; ++backtrack) {
+        if (backtrack > 0) for (std::size_t i=0; i<cohorts.size(); ++i)
+            cohorts[i].position = add_vec3(previous[i], scale_vec3(sub_vec3(cohorts[i].position, previous[i]), 0.5));
+        for (int guard = 0; guard < 24 && !guarded; ++guard) {
+            guarded = true;
+            for (const auto& item : clearances) {
+                if (refit.garment_settings.at(item.first).mode == "rigid_component") continue;
+                const auto& map = vertex_cohorts.at(item.first);
+                for (const auto& face : submeshes.at(item.first).faces) {
+                    const std::array<std::size_t,3> v{map[face[0]],map[face[1]],map[face[2]]};
+                    const Vec3 rest_normal = refit_face_normal_native(previous[v[0]],previous[v[1]],previous[v[2]]);
+                    if (dot_vec3(rest_normal,rest_normal) < 0.5) continue;
+                    Vec3 transport{};
+                    double mobility = 1.0;
+                    for (const auto i : v) {
+                        transport = add_vec3(transport, scale_vec3(sub_vec3(cohorts[i].position, previous[i]), 1.0 / 3.0));
+                        mobility = std::min(mobility, cohorts[i].mobility);
+                    }
+                    if (mobility <= 0.0) transport = Vec3{};
+                    const auto transported = [&](std::size_t i, double step) {
+                        return add_vec3(previous[i], add_vec3(transport,
+                            scale_vec3(sub_vec3(sub_vec3(cohorts[i].position, previous[i]), transport), step)));
+                    };
+                    const auto safe = [&](double step) {
+                        std::array<Vec3,3> point;
+                        for (int c = 0; c < 3; ++c) point[c] = transported(v[c], step);
+                        const Vec3 e1 = sub_vec3(previous[v[1]],previous[v[0]]);
+                        const Vec3 e2 = sub_vec3(previous[v[2]],previous[v[0]]);
+                        const Vec3 d1 = sub_vec3(sub_vec3(point[1],point[0]),e1);
+                        const Vec3 d2 = sub_vec3(sub_vec3(point[2],point[0]),e2);
+                        const auto projected_area = [&](double t) {
+                            const Vec3 a = add_vec3(e1,scale_vec3(d1,t));
+                            const Vec3 b = add_vec3(e2,scale_vec3(d2,t));
+                            return dot_vec3(rest_normal, Vec3{a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]});
+                        };
+                        // The projected area is quadratic throughout a linear
+                        // step. Check its minimum, not just its endpoint.
+                        const double c = projected_area(0.0), end = projected_area(1.0);
+                        const double a = 2.0*(end+c-2.0*projected_area(0.5));
+                        const double b = end-c-a;
+                        const double t = a > 0.0 ? std::clamp(-b/(2.0*a),0.0,1.0) : 1.0;
+                        if (std::min(end,projected_area(t)) < c*0.05) return false;
+                        for (int c = 0; c < 3; ++c) {
+                            const double rest = distance_squared_vec3(cohorts[v[c]].original,cohorts[v[(c+1)%3]].original);
+                            const double now = distance_squared_vec3(point[c],point[(c+1)%3]);
+                            const double before = distance_squared_vec3(previous[v[c]], previous[v[(c+1)%3]]);
+                            // Recover shortened edges when clearing a larger
+                            // body, without attracting the garment to its old size.
+                            const double authored = distance_squared_vec3(layer_rest[v[c]], layer_rest[v[(c+1)%3]]);
+                            // An edge already at the limit must admit a rigid
+                            // translation despite floating-point subtraction.
+                            const double roundoff = std::max(tolerance*tolerance, rest*1.0e-10);
+                            if (rest > tolerance*tolerance && (now < std::min(rest*0.04, before) - roundoff
+                                || now > std::max({rest*4.0, authored*4.0, before}) + roundoff)) return false;
+                        }
+                        return true;
+                    };
+                    if (safe(1.0)) continue;
+                    guarded_part = item.first;
+                    guarded = false;
+                    double low = 0.0, high = 1.0;
+                    for (int step = 0; step < 12; ++step) {
+                        const double middle = (low+high)*0.5;
+                        if (safe(middle)) low = middle; else high = middle;
+                    }
+                    for (const auto i : v) cohorts[i].position = transported(i, low*0.95);
+                }
+        }
+        }
+    }
+    if (!guarded) {
+        throw std::runtime_error("Fit to body: Part "
+            + std::to_string(guarded_part) + " cannot preserve its triangles during clearance correction");
+    }
+    };
+    std::vector<Vec3> clearance_pose;
+    std::chrono::steady_clock::time_point refinement_end{};
+    const auto restore_clearance_pose = [&] {
+        for (std::size_t i = 0; i < cohorts.size(); ++i) cohorts[i].position = clearance_pose[i];
+        refresh_detail_frames();
+        refresh_layer_surfaces();
+        build_garment_normals();
+    };
+    const auto validate_fitted_pose = [&](std::vector<Vec3>* retained_pose = nullptr) {
+        validate_contacts();
+        if (retained_pose) {
+            retained_pose->clear();
+            for (const auto& cohort : cohorts) retained_pose->push_back(cohort.position);
+        }
+        if (!fitting_masks || validate_only || refine_openings) return true;
+        // Establish clearance without the optional length preference first.
+        // A refinement must never discard a pose that already passed the full
+        // body, layer, crossing and rigid checks.
+        clearance_pose.clear();
+        for (const auto& cohort : cohorts) clearance_pose.push_back(cohort.position);
+        const auto now = std::chrono::steady_clock::now();
+        if (now >= opening_budget_end) return true;
+        refinement_end = std::min(opening_budget_end, now + std::chrono::seconds(10));
+        bool changed = false;
+        for (std::size_t i = 0; i < cohorts.size(); ++i) {
+            if (dot_vec3(opening_length_axes[i], opening_length_axes[i]) < 0.5
+                    || cohorts[i].mobility <= 0.0) continue;
+            const double along = dot_vec3(sub_vec3(cohorts[i].position, cohorts[i].original),
+                opening_length_axes[i]);
+            if (std::abs(along) <= tolerance) continue;
+            cohorts[i].position = sub_vec3(cohorts[i].position,
+                scale_vec3(opening_length_axes[i], along * cohorts[i].mobility));
+            changed = true;
+        }
+        if (!changed) return true;
+        refresh_detail_frames();
+        double unused = 0.0;
+        project_details(unused, false);
+        guard_contact_step(clearance_pose);
+        refine_openings = true;
+        try {
+            validate_contacts();
+            return true;
+        } catch (const MeshRefitContactFailure&) {
+        } catch (const MeshRefitBandCrossing&) {
+        }
+        // New contacts remain active while refining the candidate. If it
+        // cannot complete, publish the preceding validated clearance pose.
+        return false;
+    };
     bool contacts_validated = false;
     // Solve shape and contour constraints first, then use the final passes
     // only for sample clearance. Cohorts keep UV/material seams joined.
     constexpr int wrap_iterations = 16;
     constexpr int shape_iterations = 256;
     const int clearance_iterations = fitting_masks ? 512 : 256;
+    try {
     for (int iteration = 0; !validate_only && iteration < shape_iterations + clearance_iterations; ++iteration) {
+        if (refine_openings && std::chrono::steady_clock::now() >= refinement_end) break;
         refresh_detail_frames();
         double detail_correction = 0.0;
         project_details(detail_correction);
@@ -3538,84 +3676,7 @@ void mesh_editor_relieve_refit_surface(
                 for (std::size_t i=0;i<cohorts.size();++i) cohorts[i].position = add_vec3(previous[i],correction[i]);
                 project_details(maximum_correction,false);
             }
-            bool guarded = false;
-            int guarded_part = clearances.begin()->first;
-            // Neighboring strain projections can oppose one another. Reduce
-            // the common step and retry within the same bounded solve.
-            for (int backtrack = 0; backtrack < 8 && !guarded; ++backtrack) {
-                if (backtrack > 0) for (std::size_t i=0; i<cohorts.size(); ++i)
-                    cohorts[i].position = add_vec3(previous[i], scale_vec3(sub_vec3(cohorts[i].position, previous[i]), 0.5));
-                for (int guard = 0; guard < 24 && !guarded; ++guard) {
-                    guarded = true;
-                    for (const auto& item : clearances) {
-                        if (refit.garment_settings.at(item.first).mode == "rigid_component") continue;
-                        const auto& map = vertex_cohorts.at(item.first);
-                        for (const auto& face : submeshes.at(item.first).faces) {
-                            const std::array<std::size_t,3> v{map[face[0]],map[face[1]],map[face[2]]};
-                            const Vec3 rest_normal = refit_face_normal_native(previous[v[0]],previous[v[1]],previous[v[2]]);
-                            if (dot_vec3(rest_normal,rest_normal) < 0.5) continue;
-                            Vec3 transport{};
-                            double mobility = 1.0;
-                            for (const auto i : v) {
-                                transport = add_vec3(transport, scale_vec3(sub_vec3(cohorts[i].position, previous[i]), 1.0 / 3.0));
-                                mobility = std::min(mobility, cohorts[i].mobility);
-                            }
-                            if (mobility <= 0.0) transport = Vec3{};
-                            const auto transported = [&](std::size_t i, double step) {
-                                return add_vec3(previous[i], add_vec3(transport,
-                                    scale_vec3(sub_vec3(sub_vec3(cohorts[i].position, previous[i]), transport), step)));
-                            };
-                            const auto safe = [&](double step) {
-                                std::array<Vec3,3> point;
-                                for (int c = 0; c < 3; ++c) point[c] = transported(v[c], step);
-                                const Vec3 e1 = sub_vec3(previous[v[1]],previous[v[0]]);
-                                const Vec3 e2 = sub_vec3(previous[v[2]],previous[v[0]]);
-                                const Vec3 d1 = sub_vec3(sub_vec3(point[1],point[0]),e1);
-                                const Vec3 d2 = sub_vec3(sub_vec3(point[2],point[0]),e2);
-                                const auto projected_area = [&](double t) {
-                                    const Vec3 a = add_vec3(e1,scale_vec3(d1,t));
-                                    const Vec3 b = add_vec3(e2,scale_vec3(d2,t));
-                                    return dot_vec3(rest_normal, Vec3{a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]});
-                                };
-                                // The projected area is quadratic throughout a linear
-                                // step. Check its minimum, not just its endpoint.
-                                const double c = projected_area(0.0), end = projected_area(1.0);
-                                const double a = 2.0*(end+c-2.0*projected_area(0.5));
-                                const double b = end-c-a;
-                                const double t = a > 0.0 ? std::clamp(-b/(2.0*a),0.0,1.0) : 1.0;
-                                if (std::min(end,projected_area(t)) < c*0.05) return false;
-                                for (int c = 0; c < 3; ++c) {
-                                    const double rest = distance_squared_vec3(cohorts[v[c]].original,cohorts[v[(c+1)%3]].original);
-                                    const double now = distance_squared_vec3(point[c],point[(c+1)%3]);
-                                    const double before = distance_squared_vec3(previous[v[c]], previous[v[(c+1)%3]]);
-                                    // Recover shortened edges when clearing a larger
-                                    // body, without attracting the garment to its old size.
-                                    const double authored = distance_squared_vec3(layer_rest[v[c]], layer_rest[v[(c+1)%3]]);
-                                    // An edge already at the limit must admit a rigid
-                                    // translation despite floating-point subtraction.
-                                    const double roundoff = std::max(tolerance*tolerance, rest*1.0e-10);
-                                    if (rest > tolerance*tolerance && (now < std::min(rest*0.04, before) - roundoff
-                                        || now > std::max({rest*4.0, authored*4.0, before}) + roundoff)) return false;
-                                }
-                                return true;
-                            };
-                            if (safe(1.0)) continue;
-                            guarded_part = item.first;
-                            guarded = false;
-                            double low = 0.0, high = 1.0;
-                            for (int step = 0; step < 12; ++step) {
-                                const double middle = (low+high)*0.5;
-                                if (safe(middle)) low = middle; else high = middle;
-                            }
-                            for (const auto i : v) cohorts[i].position = transported(i, low*0.95);
-                        }
-                }
-                }
-            }
-            if (!guarded) {
-                throw std::runtime_error("Fit to body: Part "
-                    + std::to_string(guarded_part) + " cannot preserve its triangles during clearance correction");
-            }
+            guard_contact_step(previous);
         }
         // The padded contact target and diffusion residual are numerical
         // aids, not additional user clearance requirements. Once broad shape
@@ -3625,9 +3686,12 @@ void mesh_editor_relieve_refit_surface(
             std::vector<Vec3> trial;
             for (const auto& cohort : cohorts) trial.push_back(cohort.position);
             try {
-                validate_contacts();
-                contacts_validated = true;
-                break;
+                if (validate_fitted_pose(&trial)) {
+                    contacts_validated = true;
+                    break;
+                }
+                iteration = std::max(iteration, shape_iterations - 1);
+                continue;
             } catch (const MeshRefitContactFailure&) {
             } catch (const MeshRefitBandCrossing&) {
             }
@@ -3665,10 +3729,33 @@ void mesh_editor_relieve_refit_surface(
                 for (std::size_t i = 0; i < cohorts.size(); ++i) cohorts[i].position = settled[i];
                 if (refreshed_correction > tolerance) continue;
             }
-            if (iteration >= shape_iterations) break;
-            refresh_body_anchors();
-            if (body_anchors.empty()) break;
+            if (iteration < shape_iterations) refresh_body_anchors();
+            if (iteration >= shape_iterations || body_anchors.empty()) {
+                std::vector<Vec3> trial;
+                for (const auto& cohort : cohorts) trial.push_back(cohort.position);
+                try {
+                    if (validate_fitted_pose(&trial)) {
+                        contacts_validated = true;
+                        break;
+                    }
+                    iteration = std::max(iteration, shape_iterations - 1);
+                    continue;
+                } catch (const MeshRefitContactFailure&) {
+                } catch (const MeshRefitBandCrossing&) {
+                }
+                for (std::size_t i = 0; i < cohorts.size(); ++i) cohorts[i].position = trial[i];
+                refresh_detail_frames();
+                refresh_layer_surfaces();
+                build_garment_normals();
+            }
         }
+    }
+    } catch (const std::runtime_error&) {
+        if (clearance_pose.empty()) throw;
+    }
+    if (!contacts_validated && !clearance_pose.empty()) {
+        restore_clearance_pose();
+        contacts_validated = true;
     }
     if (!contacts_validated) validate_contacts();
     for (const Cohort& cohort : cohorts) {
@@ -3696,6 +3783,7 @@ void mesh_editor_add_refit_layer(
     std::map<int, std::vector<Vec3>>& layer
 ) {
     if (!morph.refit) return;
+    const auto opening_budget_end = std::chrono::steady_clock::now() + std::chrono::seconds(75);
     const auto base_layer = layer;
     const auto masks = mesh_editor_refit_masks(*morph.refit, submeshes, residual);
     std::map<int, std::vector<Vec3>> driver_visible;
@@ -3786,7 +3874,7 @@ void mesh_editor_add_refit_layer(
                 mesh_editor_validate_conformed_refit(*morph.refit, submeshes, residual, followed, layer, "conforming");
             }
             const auto conformed = layer;
-            mesh_editor_relieve_refit_surface(*morph.refit, submeshes, driver_visible, residual, layer, &masks, false, &followed, &centering_axes, coherent_bands, smooth_bands);
+            mesh_editor_relieve_refit_surface(*morph.refit, submeshes, driver_visible, residual, layer, &masks, false, &followed, &centering_axes, coherent_bands, smooth_bands, &opening_budget_end);
             mesh_editor_validate_conformed_refit(*morph.refit, submeshes, residual, conformed, layer, "clearance", &followed);
             // Resolve the hanging rigid pose against the settled cloth. It must not
             // perturb a separate waist-band contact solve or inherit the scarf's tilt.
@@ -3968,8 +4056,9 @@ std::vector<SubmeshMeshEditResult> mesh_editor_recompose_morph(
         indices.insert(next.refit->garment_submesh_indices.begin(), next.refit->garment_submesh_indices.end());
     }
     const std::map<int, std::vector<Vec3>> residual = mesh_editor_morph_residual_positions(*session.morph, submeshes, indices);
-    const bool islands = next.refit && std::any_of(next.refit->garment_settings.begin(), next.refit->garment_settings.end(),
-        [](const auto& item) { return !item.second.island_settings.empty(); });
+    const bool islands = next.refit && (!next.refit->excluded_faces.empty()
+        || std::any_of(next.refit->garment_settings.begin(), next.refit->garment_settings.end(),
+            [](const auto& item) { return !item.second.island_settings.empty(); }));
     if (islands) mesh_editor_apply_island_refit_corrections(next, submeshes, residual, new_layer, post_refit);
     else mesh_editor_apply_refit_corrections(next, submeshes, residual, new_layer, post_refit);
     for (const auto& item : new_layer) indices.insert(item.first);

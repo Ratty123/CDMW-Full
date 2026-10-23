@@ -56,6 +56,8 @@ enum Preparation {
     Draw,
     Generate,
     Metadata,
+    // Owned preparation tests exercise this retained binding path.
+    #[cfg_attr(not(test), expect(dead_code))]
     Bind(u32),
     Rebind,
     #[cfg(test)]
@@ -533,8 +535,8 @@ impl LabApplication {
     }
 
     pub(super) fn poll_hair(&mut self) {
-        if self.hair_input_ready() && !self.hair.preparing() && !self.cdmw_busy() {
-            if let Some(preset) = self.hair.requested_preset.take() {
+        if self.hair_input_ready() && !self.hair.preparing() && !self.cdmw_busy()
+            && let Some(preset) = self.hair.requested_preset.take() {
                 if preset != "empty" {
                     self.hair.feedback = "Hairstyle presets are no longer available. Use Draw to create hair.".into();
                 } else if self.hair.state.as_ref().is_some_and(|s| {
@@ -545,7 +547,6 @@ impl LabApplication {
                     self.hair.feedback = "Use Create Hair to start an empty hairstyle.".into();
                 }
             }
-        }
         if !self.cdmw_busy() {
             if let Some(mode) = self.hair.pending_start.take() {
                 self.submit_cdmw_command("hair_begin", json!({"mode": mode}), "Loading character");
@@ -643,8 +644,8 @@ impl LabApplication {
             self.hair.topology_busy = false;
             self.start_hair_job();
         }
-        if !self.cdmw_busy() && self.hair.inflight.is_none() {
-            if let Some(prepared) = self.hair.publications.pop_front() {
+        if !self.cdmw_busy() && self.hair.inflight.is_none()
+            && let Some(prepared) = self.hair.publications.pop_front() {
                 let baseline = self
                     .hair
                     .acknowledged
@@ -700,21 +701,18 @@ impl LabApplication {
                     }
                 }
             }
-        }
         if !self.cdmw_busy()
             && self.hair.job.is_none()
             && self.hair.queued.is_empty()
             && self.hair.publications.is_empty()
             && self.hair.inflight.is_none()
-        {
-            if let Some(redo) = self.hair.pending_history.pop_front() {
+            && let Some(redo) = self.hair.pending_history.pop_front() {
                 self.submit_cdmw_command(
                     if redo { "redo" } else { "undo" },
                     json!({}),
                     if redo { "Redo" } else { "Undo" },
                 );
             }
-        }
         if self.hair.pending_finish && !self.cdmw_busy() && !self.hair.preparing() {
             self.hair.pending_finish = false;
             self.submit_cdmw_finish();
@@ -868,11 +866,10 @@ impl LabApplication {
         if self.hair.topology_busy {
             return Err("Preparing hair sections".into());
         }
-        if let Some((r, m, reason)) = &self.hair.readiness_cache {
-            if *r == revision && *m == materials {
+        if let Some((r, m, reason)) = &self.hair.readiness_cache
+            && *r == revision && *m == materials {
                 return reason.clone().map_or(Ok(()), Err);
             }
-        }
         let state = self.hair.state.as_ref().ok_or("Open Hair first")?;
         let doc = self
             .hair
@@ -1107,9 +1104,8 @@ impl LabApplication {
                     if ui.button(crate::localization::tr("Start empty")).clicked(){actions.push(UiAction::Hair(HairAction::Empty));}
                 } else if ui.button(crate::localization::tr("Prepare existing hair sections")).clicked(){actions.push(UiAction::Hair(HairAction::Prepare));}
                 if ui.button(crate::localization::tr("Change references…")).clicked(){actions.push(UiAction::CdmwCommand{command:"hair_begin",arguments:json!({"change_references":true}),label:"Change hair references"});}
-                if self.hair.state.as_ref().unwrap().bound_reference!=self.hair.state.as_ref().unwrap().scalp.identity {
-                    if ui.button(crate::localization::tr("Rebind to changed head")).clicked(){actions.push(UiAction::Hair(HairAction::Rebind));}
-                }
+                if self.hair.state.as_ref().unwrap().bound_reference!=self.hair.state.as_ref().unwrap().scalp.identity
+                    && ui.button(crate::localization::tr("Rebind to changed head")).clicked(){actions.push(UiAction::Hair(HairAction::Rebind));}
             });
             crate::localization::collapsing("Appearance").show(ui,|ui| {
                 ui.horizontal(|ui| {

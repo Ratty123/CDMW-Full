@@ -603,9 +603,10 @@ and Include exclusions have focused fixture and real authoring-host coverage.
 The caller-provided test33 save was restored from its matching unbaked source and
 produced the same fitted positions as fitting that source directly. Both paths
 exported and reopened successfully; their independent reloads differ within PAC
-position quantization. This is source/native and authoring evidence; final
-packaged workflows, normal-window interaction and broad compatibility review
-remain outstanding.
+position quantization. Both paths also pass when bundled product bytecode,
+resources and native helpers are executed with an external test driver that
+refuses product-source fallback. These are source/native, authoring and packaged
+content checks. Normal-window interaction has not been exercised.
 
 The same source work preserves broad Flexible openings during zero-Tightness
 clearance repairs. Whole-surface orientation distinguishes a rolled hem from a
@@ -614,9 +615,46 @@ reproducers. Plain/rolled, level/tilted, rotated and scaled fixtures now pass,
 alongside rounded-cover regressions. In the caller-provided G03-B03 shirt/body
 pair, the actual Fit, Bake and exact PAC export/reopen passed; maximum retained
 hem-edge height movement in the reopened exports decreased from 6.17 mm with the
-shipped helper to 1.67 mm with the source build. Broad cross-body, packaged and
-visible interaction qualification remains incomplete; a layered forearm fitting
-refusal is unresolved.
+shipped helper to 0.84 mm with the source build. Opening-length refinement follows
+a checked clearance solve and retains that pose if refinement cannot complete.
+The candidate retains newly discovered contacts and the existing geometry and
+clearance checks. This resolves two acceptance regressions found by comparing
+the layered-waist and larger-body cases with the earlier helper.
+
+The source/native authoring matrix covers 30 garments across 14 bodies. With
+explicit fitting roles, 231 combinations passed Fit, Bake, exact PAC export,
+Finish and reopening; all four neutral-material views of each were inspected.
+Another 119 refused geometry or clearance checks and 70 reached the existing
+90-second caller budget. Every refusal or timeout retained the previous geometry.
+These are coverage results, not proof that every pair fits.
+
+The floral trim on `cd_phm_00_ub_00_0310.pac` requires **Rigid component** roles on
+its separate decorative Parts. All 14 bodies pass with that setup, with each
+connected trim piece retaining its shape. The all-Flexible trial distorted petals
+in 13 accepted outputs; those outputs are superseded by the checked rigid-role
+results. The earlier helper reproduces that distortion. Material names do not
+automatically assign fitting roles.
+
+Complex layered forearm refusals and some convergence limits remain unresolved.
+One layered case still refuses with both the current and earlier free fitter,
+although a superseded experiment found a valid fit; refusal does not prove
+geometric incompatibility. Normal-window interaction was waived by the caller;
+rendered inspection does not establish game behavior.
+
+The authoring host now permits Morph & Refit after live Include edits. Binding
+captures garment exclusions, and temporary fitting domains omit their surfaces
+without deleting editable records or overriding user fitting settings. Whole-Part
+and island exclusions remain fixed through body changes, fitting, Undo/Redo, Bake,
+recipes and draft reopening. A fixture-backed real host sequence also passes
+Include, Fit, exact PAC export and reopening with the excluded Part retained as
+excluded output. Native snapshots and Morph drafts carrying this intent use
+version 4; earlier supported versions retain their existing semantics. These are
+source/native and exact-writer checks, also exercised against bundled product
+code and helpers. The 390 owned editing/state scenarios pass across three fit
+modes, including transformed geometry, sculpt, UV and topology edits, local
+influence, exclusions, drafts, recipes, Undo/Redo, Reset and Bake. These do not
+establish game behavior; outfit/body compatibility and its remaining limits are
+recorded above.
 
 Reviewed 2026-10-22: body-centred rigid assemblies retain their lateral placement
 during fitting; an incidental one-sided cloth contact is not an attachment.
@@ -1271,8 +1309,16 @@ incomplete headers; that failure is preserved. A corrected bounded caller then
 captured the exact independently prepared private archive path with the same
 current loader and unchanged probe binary. Fresh independent packet/provenance
 review and exact restoration pass. The differing loader therefore worked for
-this guarded path route. Payload delivery, resource use and production loader
-admission remain separate and unproved.
+this guarded path route. The later selected payload reads are recorded below;
+resource use and production loader admission remain separate and unproved.
+
+On 2026-10-23 the user separately requested installation of the first authored
+Sword for their own visual test. The existing supported composed physical route
+records verified writes and a matching backup. This adds no native registry
+admission or shop/inventory placement; the reported Live Edit Add callback timeout
+is under separate diagnosis, with appearance/equip/save still unproved. The
+[resource and installation boundary](#133-native-resource-loading-separate-from-item-registration)
+distinguishes that overlay from the earlier controlled captures.
 
 ### 13.2 Native item registration: a rejected shortcut
 
@@ -1437,9 +1483,11 @@ field is zero and phase TLS is unknown. These observations qualify neither a
 cold stock-reader path nor all-reader/maintenance coverage or safe publication.
 Original native reservation of an unexposed tail and subsequent checked record
 staging are now observed with stock counts/maps unchanged. Unpublished pair
-preparation now passes ten owned native cases, five physical encoder channels
-and independent emitted-code review. Actual game pair creation remains pending
-before joining getter/bulk with coherent
+preparation passes ten owned native cases, five physical encoder channels
+and independent emitted-code review. Its controlled game capture now also
+produces both complete unpublished maps, with public maps/counts unchanged;
+root physical/source/restoration checks pass. Independent actual review is
+pending before joining getter/bulk with coherent
 maps, failure-stop and lifetime. Complete source review
 explains stock eager materialization and the later auxiliary-state/link checks.
 Expiry zero permits sampled eviction; eager loading cannot replace private
@@ -1494,14 +1542,28 @@ counts/maps stay unchanged. Root physical/source/process checks and restoration
 pass in 29.391 seconds; independent capture review also passes. These are one
 item and three perk records, not central private-item integration or a two-item
 gameplay/save result. The existing unpublished pair builder now passes its owned
-native qualification and independent emitted-code review; actual game map API
-execution remains pending. A separately authored sword package passes full import,
+native qualification and independent emitted-code review. Its controlled game
+capture produces two private 6,820-entry maps from stock N=6,816 plus four staged
+Rows, using eight native inserts and twelve name callbacks. Public maps/counts
+and represented owner/source/record bytes remain unchanged; all five physical
+channels and root restoration checks pass in 47.188 seconds. Independent actual
+capture review now passes with no material defects. Normal closure followed the
+guardian's stale-heartbeat decision while offline review ran, rather than solely
+an explicit result-close request. This restoration is historical and precedes
+the later authorized physical Sword overlay. A separately authored sword package passes full import,
 four hand/sheath attachment checks and exact package readback. Its compiler image
 contains 24 private resources with 29 shared outputs excluded and 12 resource
 boundaries unresolved. Bindings remain proposals and the source's double-sided
 material has no verified plain-PBR shader mapping. These results establish no
-rendered appearance, native resource use, acquisition/equip or save behavior;
-native name values/body offsets differ from the portable model's fixture fields,
+rendered appearance, native resource use, acquisition/equip or save behavior.
+The user's subsequent test-install request is fulfilled by the existing composed
+physical overlay as item 1,990,000 in group 0041, with a matching verified backup,
+exact output readback and seven loader companions unchanged. No shop placement
+or inventory grant was included. The user reports a longstanding Live Edit Add
+callback timeout under separate diagnosis; rendered appearance, acquisition/
+equip and save behavior remain unproved. The overlay intentionally changes
+shared mount metadata after the historical capture and does not establish native
+independent activation. Native name values/body offsets differ from the portable model's fixture fields,
 and its clone-allocation ownership needs checked adapter boundaries. Resource
 consumption, derived state, readers, cleanup, retirement and saved ownership
 remain open. Join the separate resources and independently owned definitions in

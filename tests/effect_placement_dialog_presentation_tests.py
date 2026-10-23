@@ -143,8 +143,7 @@ class _DialogPresentationMixin:
             character_fit_control=character_control,
             compatibility_ui=False,
         )
-        self.addCleanup(workspace.request_shutdown)
-        self.addCleanup(workspace.deleteLater)
+        self.addCleanup(self._shutdown_workspace, workspace)
         workspace.resize(1000, 700)
         workspace.show()
         self.app.processEvents()
@@ -153,6 +152,9 @@ class _DialogPresentationMixin:
         inspector_scroll = workspace.findChild(QScrollArea, "effect_inspector_scroll")
         self.assertEqual(inspector_scroll.horizontalScrollBar().maximum(), 0)
         self.assertIs(character_control.parentWidget(), workspace.preview_options)
+        self.assertTrue(workspace.preview_options.isVisibleTo(workspace))
+        workspace.preview_options_toggle.click()
+        self.app.processEvents()
         self.assertFalse(workspace.preview_options.isVisibleTo(workspace))
         workspace.preview_options_toggle.click()
         self.app.processEvents()
@@ -177,8 +179,11 @@ class _DialogPresentationMixin:
         for spin in (*workspace.offset_spins, *workspace.rotation_spins):
             right_edge = spin.mapTo(inspector_scroll.viewport(), spin.rect().bottomRight()).x()
             self.assertLess(right_edge, inspector_width, "every axis value remains visible at the inspector minimum")
-        self.assertGreater(workspace.offset_spins[0].x(), 80, "the Position caption and X control do not overlap")
-        self.assertGreater(workspace.rotation_spins[0].x(), 80, "the Rotation caption and X control do not overlap")
+        for title, spin in (("Position", workspace.offset_spins[0]), ("Rotation", workspace.rotation_spins[0])):
+            caption = next(label for label in workspace.findChildren(QLabel) if label.text() == title)
+            caption_right = caption.mapTo(workspace.inspector_widget, caption.rect().topRight()).x()
+            spin_left = spin.mapTo(workspace.inspector_widget, spin.rect().topLeft()).x()
+            self.assertLess(caption_right, spin_left, f"the {title} caption and X control do not overlap")
         orphaned_captions = [
             label.text()
             for label in workspace.findChildren(QLabel)
@@ -233,8 +238,7 @@ class _DialogPresentationMixin:
             item_mesh=_blade(), box_min=(-1, -1, -1), box_max=(1, 1, 1),
             host_factory=lambda parent: _Host(parent), compatibility_ui=False,
         )
-        self.addCleanup(workspace.deleteLater)
-        self.addCleanup(workspace.request_shutdown)
+        self.addCleanup(self._shutdown_workspace, workspace)
         workspace.resize(1000, 560)
         workspace.show()
         self.app.processEvents()
@@ -245,6 +249,9 @@ class _DialogPresentationMixin:
         self.app.processEvents()
         self.assertEqual(workspace.apply_button.mapTo(workspace, workspace.apply_button.rect().center()), before)
         self.assertLess(before.y(), workspace.height())
+        self.assertTrue(workspace.show_particles.isVisibleTo(workspace))
+        workspace.preview_options_toggle.click()
+        self.assertFalse(workspace.show_particles.isVisibleTo(workspace))
         workspace.preview_options_toggle.click()
         self.assertTrue(workspace.show_particles.isVisibleTo(workspace))
         original = (workspace.scale, workspace.offset, workspace.rotation)

@@ -433,11 +433,10 @@ impl LabApplication {
                     return;
                 }
                 if self.hair.tool == Some(HairTool::Select) {
-                    if let Some(start) = self.hair.stroke_start {
-                        if start.distance(point) > 5.0 {
+                    if let Some(start) = self.hair.stroke_start
+                        && start.distance(point) > 5.0 {
                             self.select_hair_marquee(start, point, rect, ctrl);
                         }
-                    }
                 } else if self.hair.tool == Some(HairTool::Cut) {
                     self.hair_stroke_point(rect, point, false);
                     let cuts = std::mem::take(&mut self.hair.cuts);
@@ -612,13 +611,12 @@ impl LabApplication {
                         continue;
                     };
                     let mut targets = vec![(gi as usize, row)];
-                    if self.hair.symmetry {
-                        if let Some(pair) = lock.mirrored.and_then(|id| state.locks.iter().find(|l| l.id == id)).and_then(|l| l.guide) {
+                    if self.hair.symmetry
+                        && let Some(pair) = lock.mirrored.and_then(|id| state.locks.iter().find(|l| l.id == id)).and_then(|l| l.guide) {
                             let other_row = (row as f32 * (state.guides[pair as usize].points.len() - 1) as f32
                                 / (state.guides[gi as usize].points.len() - 1) as f32).round() as usize;
                             targets.push((pair as usize, other_row));
                         }
-                    }
                     for (gi, row) in targets {
                         let guide = &mut state.guides[gi];
                         if row == 0 || row >= guide.points.len() || guide.is_pinned(row) == self.hair.paint_static { continue; }
@@ -1363,8 +1361,8 @@ impl LabApplication {
                     egui::Stroke::new(1.0, Color32::LIGHT_BLUE),
                 );
             }
-            if self.hair.tool == Some(HairTool::Select) {
-                if let Some(start) = self.hair.stroke_start {
+            if self.hair.tool == Some(HairTool::Select)
+                && let Some(start) = self.hair.stroke_start {
                     ui.painter().rect_stroke(
                         egui::Rect::from_two_pos(egui::pos2(start.x, start.y), pointer),
                         0.0,
@@ -1372,7 +1370,6 @@ impl LabApplication {
                         egui::StrokeKind::Inside,
                     );
                 }
-            }
         }
     }
 }

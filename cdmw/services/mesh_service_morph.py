@@ -1952,6 +1952,42 @@ class MeshMorphServiceMixin(MeshMorphLayerMixin, MeshMorphAuthoringMixin, MeshMo
             raise RuntimeError(_report_error(report, f"Resident C++ {command} failed."))
         return report
 
+    def _refit_output_exclusions_locked(self, session, garments):
+        from cdmw.domain.mesh.replacement import bound_part_indices
+        from cdmw.domain.mesh.topology import SubmeshTopologyProvenance, validate_topology_provenance
+
+        state = session.replacement_state
+        mesh = self._working_mesh_locked(session, clone=False)
+        indices = bound_part_indices(mesh, state)
+        targets = set(garments)
+        rows = []
+        for binding in state.parts:
+            index = indices[binding.part_id]
+            if index not in targets:
+                continue
+            if not binding.included:
+                rows.append({"submesh_index": index, "all": True})
+                continue
+            excluded = set(binding.excluded_island_faces)
+            if not excluded:
+                continue
+            part = mesh.submeshes[index]
+            provenance = getattr(part, "topology_provenance", None)
+            if isinstance(provenance, SubmeshTopologyProvenance):
+                errors = validate_topology_provenance(provenance, output_vertex_count=len(part.vertices),
+                                                     output_face_count=len(part.faces))
+                if errors:
+                    raise ValueError("Cannot fit excluded islands without valid source face identities.")
+                origins = provenance.face_origins
+            elif part.faces == session.base_mesh.submeshes[binding.target_index].faces:
+                origins = range(len(part.faces))
+            else:
+                raise ValueError("Cannot fit excluded islands without valid source face identities.")
+            faces = [face for face, origin in enumerate(origins) if origin in excluded]
+            if faces:
+                rows.append({"submesh_index": index, "face_indices": faces})
+        return rows
+
     def _run_morph_command_locked(
         self,
         session: _MeshEditSession,
@@ -1965,6 +2001,9 @@ class MeshMorphServiceMixin(MeshMorphLayerMixin, MeshMorphAuthoringMixin, MeshMo
         self._validate_authored_runtime_use_locked(session, command, payload)
         self._ensure_native_morph_session_locked(session)
         request = dict(payload)
+        if command == "morph_bind" and session.replacement_state is not None:
+            request["excluded_faces"] = self._refit_output_exclusions_locked(
+                session, request.get("garment_submesh_indices", ()))
         request["delta_output_dir"] = _native_preview_delta_output_dir()
         request["include_edit_report"] = True
         started = time.perf_counter()

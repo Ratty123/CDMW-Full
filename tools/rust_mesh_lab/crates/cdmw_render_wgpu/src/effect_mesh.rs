@@ -240,7 +240,7 @@ impl MeshParticles {
             || asset.vertices.len() > 8192
             || asset.indices.is_empty()
             || asset.indices.len() > 8192 * 3
-            || asset.indices.len() % 3 != 0
+            || !asset.indices.len().is_multiple_of(3)
             || self.resources.meshes.len() >= 2048
             || self
                 .resources

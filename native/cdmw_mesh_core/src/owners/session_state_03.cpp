@@ -582,6 +582,8 @@ std::size_t mesh_editor_refit_runtime_bytes(const MeshRefitRuntime& refit) {
         retained += sizeof(row) + 3 * sizeof(void*);
         retained += row.second.size() * (sizeof(std::pair<const int, double>) + 3 * sizeof(void*));
     }
+    for (const auto& row : refit.excluded_faces)
+        retained += sizeof(row) + 3*sizeof(void*) + row.second.size()*(sizeof(int) + 3*sizeof(void*));
     for (const auto& garment : refit.garment_regions) {
         retained += sizeof(garment) + 3 * sizeof(void*);
         for (const auto& region : garment.second) {

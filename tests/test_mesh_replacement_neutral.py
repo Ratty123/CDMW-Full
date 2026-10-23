@@ -8,6 +8,7 @@ import pytest
 
 from cdmw.modding.mesh_parser import parse_mesh
 from cdmw.services.mesh_rust_authoring import RustMeshAuthoringSession
+from cdmw.services.mesh_rust_document import decode_mesh_document
 from cdmw.services.mesh_replacement_draft import load_replacement_state, save_replacement_state
 from tests.test_mesh_neutral_face_editing import _appearance
 from tests.test_mesh_rust_authoring_exact_output import _open_exact_session, _request
@@ -39,7 +40,7 @@ def test_experimental_import_is_immediately_available_and_survives_finish_previe
         assert len(snapshot.mesh.submeshes[0].bone_weights) == 3
         expected = host.shadow_service._replacement_output_for_snapshot(snapshot)
         result = command(host, "replacement_compare", {"mode": "output"})
-        document = json.loads((host.root / result["state"]["document"]["path"]).read_bytes())
+        document = decode_mesh_document((host.root / result["state"]["document"]["path"]).read_bytes())
         shown = _appearance().to_neutral(parse_mesh(expected.data, snapshot.mesh.path))
         assert document["lods"][0]["submeshes"][0]["positions"] == [list(p) for p in shown.submeshes[0].vertices]
         command(host, "replacement_compare", {"mode": "edit"})

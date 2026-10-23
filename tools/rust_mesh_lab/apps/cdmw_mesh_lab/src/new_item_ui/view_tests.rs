@@ -1578,8 +1578,7 @@ fn compact_material_checklist_has_no_horizontal_overflow() {
     for font in [14.0, 22.0] {
         for width in [300.0, 300.5, 560.0, 560.5] {
             let context = egui::Context::default();
-            let mut view = PresentationView::default();
-            view.compact_depth = 1;
+            let mut view = PresentationView { compact_depth: 1, ..PresentationView::default() };
             let mut table = control("glow-parts", "table", "", json!({"total":12,
                 "columns":[{"index":0,"width":160}], "rows":[]}));
             table.props["rows"] = json!((0..12).map(|index| json!({"path":[index],

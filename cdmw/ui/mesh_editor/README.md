@@ -388,6 +388,8 @@ grow with their contents up to the available editor height and use the full pane
 Expanded and pinned panels start narrower; tool rows wrap at larger font sizes, and
 action buttons size to their labels. Topology keeps its numeric options in labeled rows
 above the actions.
+Move, Rotate and Scale place labels above their number fields so the complete
+controls remain reachable beside a docked panel and at larger text sizes.
 
 Collapsing panels preserves their widths and open sections, tool settings, mesh
 selection, history, and output inclusion. Layout choices last for the current
@@ -2053,12 +2055,22 @@ bands, using Part, mesh-island or local influence controls. Materials alone do n
 reliably identify these roles. Existing saved Tightness values remain authoritative;
 older all-fit previews may still contain 100% values that need returning to 0% on
 loose cloth. Inputs must already share the intended alignment and pose.
-Keep jewellery and hard details in **Rigid component** mode when they need moving;
-zero Tightness on Flexible cloth still allows local deformation to clear a contact.
+Keep jewellery and hard details, including separate decorative petals, in
+**Rigid component** mode when they should keep their shape while moving. This
+preserves each connected assembly; it does not turn all disconnected pieces in
+a Part into one rigid object. Zero Tightness on Flexible cloth still allows local
+deformation to clear a contact.
 Use **Skip** for details that should retain their placement. A garment can need
 repairs on its bodice or sleeves while its skirt and hanging details stay loose.
-After excluding islands with **Include** and starting a new edit session from the
-finished PAC, unused vertex records do not need body correspondences for tightening.
+Hem preservation follows the clearance solve. If a hem refinement cannot finish
+safely, fitting retains its checked clearance result.
+Part and island exclusions set with **Include** are respected while fitting in the
+same session. Excluded garment surfaces retain their positions and do not obstruct
+the included surfaces. Stored mode, Tightness and influence choices remain
+authoritative, including Custom island overrides. Set inclusion before binding; changing inclusion after
+binding still requires finishing the fitting pass. The body remains a fitting
+reference even when it is excluded from output.
+After starting a new edit session from a finished PAC, unused vertex records do not need body correspondences for tightening.
 They retain their followed positions while the remaining garment surface is fitted;
 topology and exclusion stay intact. Visible surfaces with unreliable body matches
 still reject the fit and retain the previous preview.
@@ -2199,8 +2211,11 @@ slots left by exclusions, so fitting does not duplicate retained faces.
 
 Fitting recipes and native morph snapshots write version 3 when island overrides
 are present, otherwise version 2. Version 1 reads with Tightness disabled.
-Morph draft payloads similarly use version 3 for island overrides; older apps
-reject these newer files instead of silently dropping the island settings. Drafts with Morph & Refit state use layer-project version 8 and
+Native snapshots and Morph drafts with bound Include exclusions use version 4;
+recipes retain their fitting settings and derive exclusions from the current
+output intent when applied. Morph draft payloads otherwise use version 3 for island
+overrides. Older apps reject these newer files instead of silently dropping
+exclusions or island settings. Drafts with Morph & Refit state use layer-project version 8 and
 retain the neutral geometry and active settings for reopening and Reset. Older readers
 reject these new formats. Existing files are read without being rewritten.
 

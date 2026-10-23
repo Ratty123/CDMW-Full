@@ -179,13 +179,12 @@ pub(super) fn prepare(
             // even when both sides of a symmetry pair are inside the brush.
             for &(id, segment, t) in cuts {
                 let lock = state.locks.iter().find(|l| l.id == id).ok_or("Point at a hair lock to cut")?;
-                if let (Some(gi), Some(pair)) = (lock.guide, lock.mirrored) {
-                    if let Some(other) = state.locks.iter().find(|l| l.id == pair).and_then(|l| l.guide) {
+                if let (Some(gi), Some(pair)) = (lock.guide, lock.mirrored)
+                    && let Some(other) = state.locks.iter().find(|l| l.id == pair).and_then(|l| l.guide) {
                         let fraction = (segment as f32 + t) / (state.guides[gi as usize].points.len() - 1) as f32;
                         let along = fraction * (state.guides[other as usize].points.len() - 1) as f32;
                         targets.entry(pair).or_insert((along.floor() as u32, along.fract()));
                     }
-                }
             }
         }
         for (id, (segment, t)) in targets {

@@ -57,6 +57,9 @@ _DECLARED_PYTHON_UI_RETURN_METHODS = {
 
 MANUAL_SOURCE_KEYS = frozenset(
     {
+        # Morph host/service refusals forwarded through the Rust error protocol.
+        "Cannot fit excluded islands without valid source face identities.",
+        "Undo replacement operations before adding geometry layers.",
         # Virtual preparation reports these stages through its data-only worker protocol.
         "Checking item packages…", "Reading game data…", "Comparing external mods…",
         "Preparing {value_0} of {value_1}: {value_2}", "Checking asset identity collisions…",
@@ -1912,7 +1915,7 @@ def _native_ui_keys(manifest: dict[str, object]) -> list[str]:
     """Select only source keys delivered to the Rust helper."""
     return [
         entry["key"] for entry in manifest["entries"]
-        if any(
+        if entry["key"] == "Undo replacement operations before adding geometry layers." or any(
             origin["sink"] == "rust-presentation"
             or origin["path"].startswith((
                 "cdmw/services/mesh_rust_", "cdmw/services/mesh_shader_controls",

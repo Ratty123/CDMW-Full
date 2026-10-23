@@ -217,12 +217,11 @@ impl LabApplication {
             .map(|lock| lock.id).collect();
         self.hair.drawn_previews.retain(|id, _| drawing.contains(id));
         for id in &drawing {
-            if !self.hair.drawn_previews.contains_key(id) {
-                if let Ok(generated) = hair::generate_cached(stroke, &AtomicBool::new(false),
+            if !self.hair.drawn_previews.contains_key(id)
+                && let Ok(generated) = hair::generate_cached(stroke, &AtomicBool::new(false),
                     &scene.scalp_picking, &scene.scalp_indices, Some(&[*id])) {
                     self.hair.drawn_previews.insert(*id, generated);
                 }
-            }
             if let Some(generated) = self.hair.drawn_previews.get(id) {
                 for geometry in generated {
                     let first = snapshot.positions.len() as u32;
@@ -265,12 +264,11 @@ impl LabApplication {
         }
         self.hair.draw_revision += 1;
         snapshot.draw_revision = self.hair.draw_revision;
-        if let Some(renderer) = &mut self.renderer {
-            if let Err(error) = renderer.set_snapshot_with_deformation_interactive(snapshot, None) {
+        if let Some(renderer) = &mut self.renderer
+            && let Err(error) = renderer.set_snapshot_with_deformation_interactive(snapshot, None) {
                 self.hair.feedback = format!("Hair display stopped: {error}");
                 self.hair.playing = false;
             }
-        }
         scene.applied = true;
     }
 }

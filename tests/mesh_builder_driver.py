@@ -18,9 +18,11 @@ from __future__ import annotations
 import os
 import tempfile
 import time
-from contextlib import contextmanager
+from contextlib import ExitStack, contextmanager
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Iterator, Sequence, TypeVar
+from unittest.mock import patch
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 os.environ.setdefault("CDMW_GUI_STARTUP_SMOKE", "1")
@@ -155,18 +157,38 @@ class MeshBuilderDriver:
             entry = self.window.archive.archive_remote_bridge.current_compatibility_entry()
             if entry is None:
                 raise AssertionError("Synthetic Mesh Builder catalogue selection is unavailable.")
-            prompt_archive_static_replacement_options(
-                self.window.archive,
-                entry,
-                self.root / f"{dialog_title}.obj",
-                dialog_title=dialog_title,
-                placement_context_note=placement_context_note,
-                full_import_model_replacement=self.full_import_model_replacement,
-                materials_and_textures_only=self.materials_and_textures_only,
-                _prepared_prompt_preflight=synthetic_builder_preflight(
-                    modify_original_clone_mode=self.modify_original_clone_mode,
-                ),
+            preflight = synthetic_builder_preflight(
+                modify_original_clone_mode=self.modify_original_clone_mode,
             )
+            # Expanding Modify Original can request textured archive geometry.
+            # Keep the real worker/signals but supply the same owned synthetic
+            # preview instead of starting an archive or native preview job.
+            synthetic_preview_bindings = {
+                "_load_native_preview_core_material_manifest_for_alignment_helper": lambda *a, **kw: 0,
+                "build_archive_preview_result": lambda *a, **kw: SimpleNamespace(
+                    preview_model=preflight.original_preview_model,
+                ),
+            }
+            prompt_globals = prompt_archive_static_replacement_options.__globals__
+            with ExitStack() as patches:
+                # These owners compose dependency dictionaries in order; patch
+                # each import site so a later dictionary cannot restore I/O.
+                for namespace in (
+                    prompt_globals,
+                    prompt_globals["create_static_replacement_prompt_setup"].__globals__,
+                    prompt_globals["finish_static_replacement_prompt_transform"].__globals__,
+                ):
+                    patches.enter_context(patch.dict(namespace, synthetic_preview_bindings))
+                prompt_archive_static_replacement_options(
+                    self.window.archive,
+                    entry,
+                    self.root / f"{dialog_title}.obj",
+                    dialog_title=dialog_title,
+                    placement_context_note=placement_context_note,
+                    full_import_model_replacement=self.full_import_model_replacement,
+                    materials_and_textures_only=self.materials_and_textures_only,
+                    _prepared_prompt_preflight=preflight,
+                )
             self.pump()
             opened = set(self.window._modeless_alignment_dialogs) - before
             if len(opened) != 1:

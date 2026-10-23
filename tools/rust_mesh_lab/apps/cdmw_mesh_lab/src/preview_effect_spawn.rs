@@ -150,7 +150,7 @@ pub(crate) fn half_precision(value: f32) -> f32 {
     if absolute >= 65_520. {
         return f32::INFINITY.copysign(value);
     }
-    if absolute < 0.000_061_035_156_25 {
+    if absolute < 0.000_061_035_156 {
         return (value * 16_777_216.).round_ties_even() / 16_777_216.;
     }
     let bits = value.to_bits();
@@ -446,8 +446,8 @@ mod tests {
     #[test]
     fn native_birth_precision_and_delay_reach_indexed_particles() {
         assert_eq!(half_precision(0.2), 0.199_951_17);
-        assert_eq!(half_precision(1.000_488_281_25), 1.); // tie, even mantissa
-        assert_eq!(half_precision(1.001_464_843_75), 1.001_953_1);
+        assert_eq!(half_precision(1.000_488_3), 1.); // tie, even mantissa
+        assert_eq!(half_precision(1.001_464_8), 1.001_953_1);
         assert_eq!(half_precision(2f32.powi(-25)), 0.);
         assert_eq!(half_precision(3. * 2f32.powi(-25)), 2f32.powi(-23));
         assert_eq!(half_precision(-0.2), -0.199_951_17);

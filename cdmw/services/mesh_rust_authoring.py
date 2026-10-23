@@ -9071,12 +9071,10 @@ class RustMeshAuthoringSession:
             raise RustMeshValidationError("Convert hair guides to ordinary geometry before using these mesh operations.")
         if self.replacement_comparison != "edit" and command not in {"state", "replacement_compare", "replacement_cancel"}:
             raise RustMeshValidationError("Return to Edit comparison before changing the mesh.")
-        if shadow_session.replacement_state is not None and (
-            (command.startswith(("morph_", "refit_")) and command not in {
-                "refit_restore_shape_preview", "refit_restore_shape_apply", "refit_restore_shape_cancel"})
-            or command in {"import_editable_package", "layer_delete", "layer_paste"}
-        ):
-            raise RustMeshValidationError("Undo replacement operations before using Morph & Refit or adding geometry layers.")
+        if shadow_session.replacement_state is not None and command in {
+            "import_editable_package", "layer_delete", "layer_paste",
+        }:
+            raise RustMeshValidationError("Undo replacement operations before adding geometry layers.")
         if self.neutral_appearance is not None and command in {
             "refit_load_mesh", "import_editable_package",
         }:

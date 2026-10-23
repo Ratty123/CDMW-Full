@@ -57,6 +57,61 @@ void mesh_editor_write_refit_island_settings(std::ostream& out, const MeshRefitG
     out << ']';
 }
 
+void mesh_editor_read_refit_exclusions(MeshRefitRuntime& refit, const JsonValue* rows,
+    const std::map<int,MeshSessionSubmesh>& submeshes) {
+    if (!rows) return;
+    if (rows->type != JsonValue::Type::Array) throw std::runtime_error("Invalid fitting output exclusions");
+    for (const auto& row : rows->array_value) {
+        int part = -1;
+        if (row.type != JsonValue::Type::Object || !strict_int_or(row.get("submesh_index"),part)
+            || !refit.garment_submesh_indices.count(part) || refit.excluded_faces.count(part))
+            throw std::runtime_error("Invalid fitting output exclusion Part");
+        std::set<int> faces;
+        const auto* all = row.get("all");
+        const auto* indices = row.get("face_indices");
+        if (all) {
+            if (all->type != JsonValue::Type::Bool || !all->bool_value || indices)
+                throw std::runtime_error("Invalid whole-Part fitting exclusion");
+        } else {
+            if (!indices || indices->type != JsonValue::Type::Array || indices->array_value.empty())
+                throw std::runtime_error("Fitting exclusions require explicit face identities");
+            for (const auto& value : indices->array_value) {
+                int face = -1;
+                if (!strict_int_or(&value,face) || face < 0
+                    || static_cast<std::size_t>(face) >= submeshes.at(part).faces.size() || !faces.insert(face).second)
+                    throw std::runtime_error("Invalid fitting exclusion face identity");
+            }
+            std::set<int> excluded_vertices, retained_vertices;
+            for (std::size_t f = 0; f < submeshes.at(part).faces.size(); ++f)
+                for (const int v : submeshes.at(part).faces[f])
+                    (faces.count(static_cast<int>(f)) ? excluded_vertices : retained_vertices).insert(v);
+            for (const int v : excluded_vertices) if (retained_vertices.count(v))
+                throw std::runtime_error("Fitting exclusions must retain distinct whole mesh islands");
+        }
+        refit.excluded_faces.emplace(part,std::move(faces));
+    }
+}
+
+void mesh_editor_write_refit_exclusions(std::ostream& out, const MeshRefitRuntime& refit) {
+    if (refit.excluded_faces.empty()) return;
+    out << ",\"excluded_faces\":[";
+    bool comma = false;
+    for (const auto& item : refit.excluded_faces) {
+        if (comma) out << ',';
+        comma = true;
+        out << "{\"submesh_index\":" << item.first;
+        if (item.second.empty()) out << ",\"all\":true";
+        else {
+            out << ",\"face_indices\":[";
+            bool face_comma = false;
+            for (const int f : item.second) { if (face_comma) out << ','; face_comma = true; out << f; }
+            out << ']';
+        }
+        out << '}';
+    }
+    out << ']';
+}
+
 void mesh_editor_apply_island_refit_corrections(
     const MeshMorphRuntime& morph, const std::map<int,MeshSessionSubmesh>& submeshes,
     const std::map<int,std::vector<Vec3>>& residual, std::map<int,std::vector<Vec3>>& layer,
@@ -70,11 +125,24 @@ void mesh_editor_apply_island_refit_corrections(
     struct Domain { int source; std::vector<int> vertices; int island; };
     std::map<int,Domain> domains;
     std::map<std::pair<int,int>,std::pair<int,int>> owners;
+    std::set<int> split_parts;
     int next = parts.rbegin()->first + 1;
     for (const auto& item : morph.refit->garment_settings) {
-        if (item.second.island_settings.empty()) continue;
+        const auto exclusion = morph.refit->excluded_faces.find(item.first);
+        if (item.second.island_settings.empty() && exclusion == morph.refit->excluded_faces.end()) continue;
+        split_parts.insert(item.first);
         const auto& source = submeshes.at(item.first);
         std::set<int> covered_faces, covered_vertices;
+        const bool exclude_all = exclusion != morph.refit->excluded_faces.end() && exclusion->second.empty();
+        if (exclusion != morph.refit->excluded_faces.end()) {
+            for (std::size_t f = 0; f < source.faces.size(); ++f)
+                if (exclude_all || exclusion->second.count(static_cast<int>(f))) {
+                    covered_faces.insert(static_cast<int>(f));
+                    covered_vertices.insert(source.faces[f].begin(),source.faces[f].end());
+                }
+            if (exclude_all) for (std::size_t v = 0; v < source.vertices.size(); ++v)
+                covered_vertices.insert(static_cast<int>(v));
+        }
         auto topology = source;
         const auto neutral = morph.neutral_positions.find(item.first);
         if (neutral != morph.neutral_positions.end()) topology.vertices = neutral->second;
@@ -83,7 +151,8 @@ void mesh_editor_apply_island_refit_corrections(
                                     int ordinal, bool remainder) {
             Domain domain{item.first, {}, ordinal};
             std::set<int> used;
-            for (const int f : faces) for (const int v : source.faces.at(f)) used.insert(v);
+            for (const int f : faces) if (!covered_faces.count(f))
+                for (const int v : source.faces.at(f)) used.insert(v);
             if (remainder) for (std::size_t v = 0; v < source.vertices.size(); ++v)
                 if (!covered_vertices.count(static_cast<int>(v))) used.insert(static_cast<int>(v));
             if (used.empty()) return;
@@ -100,6 +169,7 @@ void mesh_editor_apply_island_refit_corrections(
                 if (post.count(item.first)) corrections[id].push_back(post.at(item.first).at(v));
             }
             for (const int f : faces) {
+                if (covered_faces.count(f)) continue;
                 const auto& face = source.faces.at(f);
                 part.faces.push_back({local.at(face[0]),local.at(face[1]),local.at(face[2])});
             }
@@ -136,6 +206,11 @@ void mesh_editor_apply_island_refit_corrections(
         fit->garment_submesh_indices.erase(item.first); fit->garment_settings.erase(item.first);
         fit->vertex_masks.erase(item.first); fit->garment_regions.erase(item.first);
     }
+    fit->bindings.erase(std::remove_if(fit->bindings.begin(),fit->bindings.end(),[&](const auto& binding) {
+        return split_parts.count(binding.garment_submesh_index)
+            && !owners.count({binding.garment_submesh_index,binding.garment_vertex_index});
+    }),fit->bindings.end());
+    fit->excluded_faces.clear();
     for (auto& binding : fit->bindings) {
         const auto owner = owners.find({binding.garment_submesh_index,binding.garment_vertex_index});
         if (owner == owners.end()) continue;
@@ -177,13 +252,13 @@ void mesh_editor_apply_island_refit_corrections(
         throw std::runtime_error(message);
     }
     for (const auto& item : morph.refit->garment_settings) {
-        if (item.second.island_settings.empty()) {
+        if (!split_parts.count(item.first)) {
             const auto value = result.find(item.first);
             if (value != result.end()) layer[item.first] = value->second;
             continue;
         }
         auto& target = layer[item.first];
-        target.resize(submeshes.at(item.first).vertices.size());
+        target.assign(submeshes.at(item.first).vertices.size(),Vec3{});
         for (const auto& domain : domains) if (domain.second.source == item.first)
             for (std::size_t v = 0; v < domain.second.vertices.size(); ++v)
                 target[domain.second.vertices[v]] = result.at(domain.first)[v];

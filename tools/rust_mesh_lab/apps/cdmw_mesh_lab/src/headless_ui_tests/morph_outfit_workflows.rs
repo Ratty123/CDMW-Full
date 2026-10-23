@@ -85,6 +85,7 @@ fn correction_comparison_allows_selection_but_blocks_keyboard_and_pointer_edits(
     ui.application.selection_domain = SelectionDomain::Vertex;
     ui.frame(Vec::new());
     ui.click("Setup")?;
+    ui.click("Choose Parts")?;
     ui.click("Open Selection tool")?;
     let selection = ui.actions_from_click("Select All")?;
     assert!(selection.iter().any(|action| matches!(action, UiAction::SelectAllVertices)));

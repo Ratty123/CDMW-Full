@@ -1226,9 +1226,9 @@ fn visible_lock(app: &LabApplication, rect: egui::Rect) -> (Vec2, u64) {
             .map(|i| Vec3::from(scene.frame.positions[*i as usize]))
             .sum::<Vec3>()
             / 3.0;
-        if let Some(p) = app.camera.project(position, rect) {
-            if let Some((id, _, _)) = app.lock_at(p.screen, rect) {
-                if app
+        if let Some(p) = app.camera.project(position, rect)
+            && let Some((id, _, _)) = app.lock_at(p.screen, rect)
+                && app
                     .hair
                     .state
                     .as_ref()
@@ -1236,8 +1236,6 @@ fn visible_lock(app: &LabApplication, rect: egui::Rect) -> (Vec2, u64) {
                 {
                     return (p.screen, id);
                 }
-            }
-        }
     }
     panic!("No visible selectable hair lock");
 }
@@ -2498,7 +2496,7 @@ fn hair_physics_brush_paints_partial_rows_and_keeps_fixed_cards_still() {
         let screen = app.camera.project(center, rect)?.screen;
         let (id, segment, _) = app.lock_at(screen, rect)?;
         let gi = before.locks.iter().find(|l| l.id == id)?.guide? as usize;
-        (segment >= 4 && segment <= 9).then_some((screen, id, gi))
+        (4..=9).contains(&segment).then_some((screen, id, gi))
     }).expect("visible interior hair row");
     app.hair.tool = Some(HairTool::Physics);
     app.hair.physics_selected_only = true;

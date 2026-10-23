@@ -34,7 +34,7 @@ impl LabApplication {
         }
         let ready = state_bool(&self.cdmw_state, "authoring_enabled")
             && !state_bool(state, "authoring_baseline_ready")
-            && !state_str(state, "correction_definition_id").is_some_and(|id| !id.is_empty());
+            && state_str(state, "correction_definition_id").is_none_or(|id| id.is_empty());
         if ui.add_enabled(ready, egui::Checkbox::new(&mut enabled,
             crate::localization::tr("Show outfit corrections")))
             .on_hover_text(crate::localization::tr(

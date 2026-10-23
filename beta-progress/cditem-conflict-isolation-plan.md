@@ -34,7 +34,7 @@ Preparation baseline reviewed on **2026-10-21** against `main@099e9f7e7a5555f072
 | --- | --- | --- | --- |
 | Stable logical identity and retained bindings | Implemented UUID, per-symbol reservations, collision refusal and profile transfer; bounded composed-route lifecycle observations | Carry the same bindings through the admitted native lifecycle; profile transfer is not automatic save migration | `CDISO-ID-01`, `CDISO-ID-01A`, `CDISO-LIFE-01` |
 | Resource ownership and donor independence | Supported private material/DDS references and proven donor-row detachment | Close every required explicit/implicit reference for the selected family and prove native consumption | `CDISO-RES-01`, `CDISO-DEP-01` |
-| Native definition registration | Actual original-helper reservation/four checked off-count Cache records; ten owned native pair cases and independent emitted-code review pass | Observe actual unpublished maps, then join private metadata/backing and central getter/bulk; retain reader/maintenance, failure-stop and lifetime requirements | `CDISO-RE-02` |
+| Native definition registration | Actual original-helper reservation/four checked off-count Cache records and both complete unpublished native maps; ten owned cases and emitted-code review pass | Join private metadata/backing and central getter/bulk; retain reader/maintenance, failure-stop and lifetime requirements | `CDISO-RE-02` |
 | Paired publication and ownership | Retained portable C++ experiment: 41 cases, 963 checks; common preflight and retained backing pass | Transfer the demonstrated ordering to actual native storage and a qualified reader boundary; both lookups/resources here are modeled | `CDISO-RE-02A` |
 | Native private resources | B115's 102-byte read and independently reviewed B117 two-context game reads: both complete 144-byte payloads, with A rechecked after B | Qualify actual resource use, general context independence and retirement; AL does not expose API success or transferred count | `CDISO-RE-03` |
 | Exact private archive expectation | Maintained offline checker, reviewed B113 actual path and B115 physical open/read joins | Preserve exact per-image archive and payload identity in the larger native route | `CDISO-RE-03A` |
@@ -70,17 +70,30 @@ checks pass and restoration takes 29.391 seconds. Its 218 full pins retain all
 167 runtime origins and three decoder sources with 212 recovery rows within 256.
 Independent actual-capture review passes with no material defects. This is staging evidence only.
 
-The B122-v4 unpublished pair candidate now passes ten owned native cases,
+The B122-v4 unpublished pair candidate passes ten owned native cases,
 including N=6,816, five actual encoder channels with unchanged strict game-address
-refusal, inactive loading and independent emitted-code/ABI review. This qualifies
-the fixture composition, not original map APIs in the game. Earlier compiler
+refusal, inactive loading and independent emitted-code/ABI review. Its first
+controlled game capture now also passes: both unpublished maps contain 6,820
+entries after eight original native inserts, while public counts/maps stay 6,816.
+All five physical channels and 222 source pins match; root verifies exact
+restoration in 47.188 seconds. Independent actual-capture review now passes with
+no material defects. The guardian's stale-heartbeat path (age 5,218ms) requested
+normal closure while offline review ran; this was not solely an explicit close
+request. These restoration checks precede the later authorized Sword overlay. Earlier compiler
 path/constant-condition/fixture-alignment failures remain retained. A first
 privately authored sword package also passes four hand/sheath attachment and
 package-readback checks; its separate image contains 24 private resources, with
 29 shared outputs excluded and 12 resource boundaries unresolved. It is compiler
-evidence without native resource use or acquisition/equip/save acceptance.
+evidence without native resource use or acquisition/equip/save acceptance. At the
+user's subsequent request, the sword is installed as item 1,990,000 through the
+existing composed physical overlay, with verified backup and exact output
+readback and seven loader companions unchanged. No Tranan placement or inventory
+grant was included. The user reports a longstanding Live Edit Add callback timeout,
+under separate diagnosis; appearance, equip and save behavior remain unproved.
+The overlay intentionally changes PAPGT after B122; its consumed grant cannot be
+reused. This separate visual test does not establish independent activation.
 
-1. Complete the B122 controlled caller and capture unpublished numeric/name pair preparation in the actual game while preserving central headers/counts/maps. Native numeric values are WORD ordinals; name values are DWORD numeric keys. Guard known source/clone allocation aliases before adapter-controlled writes or releases; native internal-node freshness remains an explicit premise. The portable publication model's name values and metadata route indexes are not the native ABI. Expiry zero permits eviction; eager residency cannot replace rematerialization, reader/maintenance coverage or lifetime proof.
+1. Join the independently reviewed observed unpublished numeric/name pairs to private metadata/backing and central getter/bulk under a qualified consumer boundary. Native numeric values are WORD ordinals; name values are DWORD numeric keys. Guard known source/clone allocation aliases before adapter-controlled writes or releases; native internal-node freshness remains an explicit premise. The portable publication model's name values and metadata route indexes are not the native ABI. Expiry zero permits eviction; eager residency cannot replace rematerialization, reader/maintenance coverage or lifetime proof.
 2. Join definitions, both native maps and resources in one startup-scoped native contribution, including later derived-state validation and a qualified consumer boundary. Then exercise two independently authored same-donor packages with distinct private assets through acquisition, equip, restart and save reload.
 3. Extend only from that demonstrated scope. Keep native missing-provider save behavior, ordinary maintenance and any unresolved resource family explicitly open.
 

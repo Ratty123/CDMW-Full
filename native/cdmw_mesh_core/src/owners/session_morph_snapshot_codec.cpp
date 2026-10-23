@@ -148,6 +148,7 @@ void mesh_editor_write_snapshot_refit(std::ostream& out, const MeshMorphRuntime&
         << ",\"driver_triangle_count\":" << refit.driver_triangle_count
         << ",\"candidate_triangle_tests\":" << refit.candidate_triangle_tests;
     mesh_editor_write_refit_constraints(out, refit);
+    mesh_editor_write_refit_exclusions(out, refit);
     out << '}';
 }
 
@@ -359,6 +360,10 @@ std::shared_ptr<const MeshRefitRuntime> mesh_editor_refit_from_snapshot(
         }
     }
     restore_refit_driver_baselines(raw_refit, submeshes, refit);
+    if (version >= 4) mesh_editor_read_refit_exclusions(*refit,&mesh_editor_snapshot_required_member(
+        *raw_refit,"excluded_faces",JsonValue::Type::Array),submeshes);
+    else if (raw_refit->get("excluded_faces"))
+        throw std::runtime_error("Fitting output exclusions require runtime snapshot version 4");
     refit_read_vertex_masks_native(*refit, raw_refit->get("vertex_masks"), submeshes, refit->garment_submesh_indices);
     if (const auto* raw_regions = raw_refit->get("garment_regions")) {
         if (raw_regions->type != JsonValue::Type::Array) throw std::runtime_error("invalid refit garment regions");

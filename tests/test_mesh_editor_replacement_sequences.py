@@ -381,21 +381,23 @@ def test_invalid_geometry_then_valid_retry_preserves_current_replacement(editor,
     assert checked_output(service, sid, original.original_data).data != previous.data
 
 
-def test_gltf_skin_baking_preserves_static_positions_in_replacement(editor, tmp_path):
+def test_gltf_skin_without_matching_armature_refuses_before_replacement(editor, tmp_path):
     service, sid = editor
     original = service.capture_export_snapshot(sid)
     key = initial_replacement_state(original).parts[0].part_id
     path = _write_gltf(tmp_path, positions=[(0, 0, 0), (1, 0, 0), (0, 1, 0)], indices=[0, 1, 2],
                        normals=[(0, 0, 1)] * 3, uvs=[(0, 0), (1, 0), (0, 1)], weights=[(1, 0, 0, 0)] * 3)
-    pending = prepare_import(original, path, target_part_ids=(key,))
-    assert not pending.source.mesh.has_bones
-    assert not pending.source.mesh.submeshes[0].bone_weights
-    expected = [(0, 1, 0), (1, 1, 0), (0, 2, 0)]
-    assert list(pending.source.mesh.submeshes[0].vertices) == expected
-    candidate, state = compose_import(pending, (key,))
-    assert list(candidate.submeshes[0].vertices) == expected
-    commit_replacement(service, original, candidate, state, label="Baked static glTF import")
-    checked_output(service, sid, original.original_data)
+    before = service.session_view(sid)
+    with pytest.raises(ValueError, match="matching skeleton and resolved PAC bone palette"):
+        prepare_import(original, path, target_part_ids=(key,))
+    after = service.session_view(sid)
+    assert (after.revision, after.undo_count) == (before.revision, before.undo_count)
+    current = service.capture_export_snapshot(sid)
+    assert current.replacement_state is None
+    assert current.original_data == original.original_data
+    for expected, actual in zip(original.mesh.submeshes, current.mesh.submeshes, strict=True):
+        for channel in ("vertices", "normals", "uvs", "faces", "bone_indices", "bone_weights"):
+            assert getattr(actual, channel) == getattr(expected, channel)
 
 
 def test_same_texture_path_and_timestamp_reimports_use_current_pixels(editor, tmp_path):

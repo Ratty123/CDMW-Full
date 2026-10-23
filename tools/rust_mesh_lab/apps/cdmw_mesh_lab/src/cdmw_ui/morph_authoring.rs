@@ -329,7 +329,7 @@ impl LabApplication {
             }
             let targets = self.cdmw_refit_region_targets.clone();
             let ready = state_bool(&self.cdmw_state, "authoring_enabled")
-                && !state_str(state, "correction_definition_id").is_some_and(|id| !id.is_empty())
+                && state_str(state, "correction_definition_id").is_none_or(|id| id.is_empty())
                 && !state_bool(state, "unbaked") && !targets.is_empty();
             ui.horizontal_wrapped(|ui| {
                 let help = if state_bool(state, "unbaked") {
@@ -381,7 +381,7 @@ impl LabApplication {
         let reset_targets: Vec<u32> = targets.iter().copied().filter(|part| corrected.contains(part)).collect();
         let ready = state_bool(&self.cdmw_state, "authoring_enabled")
             && !state_bool(state, "authoring_baseline_ready")
-            && !state_str(state, "correction_definition_id").is_some_and(|id| !id.is_empty())
+            && state_str(state, "correction_definition_id").is_none_or(|id| id.is_empty())
             && !self.cdmw_morph_comparison_active()
             && !targets.is_empty();
         ui.push_id(("morph-correction", definition_id), |ui| {

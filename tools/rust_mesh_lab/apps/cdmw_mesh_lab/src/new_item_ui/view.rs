@@ -105,11 +105,9 @@ impl PresentationView {
                 self.input(dialog, "close_dialog", Value::Null);
             } else if !ui.ctx().egui_wants_keyboard_input()
                 && ui.input_mut(|input| input.consume_key(egui::Modifiers::NONE, egui::Key::Enter))
-            {
-                if let Some(button) = default_button(dialog) {
+                && let Some(button) = default_button(dialog) {
                     self.input(button, "activate", Value::Null);
                 }
-            }
         }
         for (index, dialog) in state.dialogs.iter().enumerate() {
             self.portals.clear();
@@ -688,11 +686,10 @@ impl PresentationView {
             let start = cell[1].max(0) as usize;
             let end = (start + cell[3].max(1) as usize).min(column_count);
             occupied[start..end].fill(true);
-            if cell[3] == 1 && child.kind == "label" && child.text("text").is_empty() {
-                if let Some(texture) = self.textures.get(child.text("image")) {
+            if cell[3] == 1 && child.kind == "label" && child.text("text").is_empty()
+                && let Some(texture) = self.textures.get(child.text("image")) {
                     icons[start] = Some(texture.size_vec2().x.min(64.0));
                 }
-            }
         }
         if occupied.contains(&false) || icons.iter().any(Option::is_some) {
             let fixed = icons.iter().flatten().sum::<f32>();
@@ -1310,13 +1307,12 @@ impl PresentationView {
             rect.min + Vec2::new(v(0), v(1)) * scale,
             Vec2::new(v(2), v(3)) * scale,
         );
-        if response.drag_started() {
-            if let Some(point) = ui.input(|input| input.pointer.press_origin()) {
+        if response.drag_started()
+            && let Some(point) = ui.input(|input| input.pointer.press_origin()) {
                 self.crop_origin.insert(node.id.clone(), point);
             }
-        }
-        if response.dragged() || response.drag_stopped() {
-            if let (Some(start), Some(end)) = (
+        if (response.dragged() || response.drag_stopped())
+            && let (Some(start), Some(end)) = (
                 self.crop_origin.get(&node.id),
                 response.interact_pointer_pos(),
             ) {
@@ -1333,7 +1329,6 @@ impl PresentationView {
                     }
                 }
             }
-        }
         for outside in [
             egui::Rect::from_min_max(rect.min, egui::pos2(rect.right(), selection.top())),
             egui::Rect::from_min_max(egui::pos2(rect.left(), selection.bottom()), rect.max),
@@ -1651,7 +1646,7 @@ impl PresentationView {
                     .min_scrolled_height(0.0)
                     .max_height((height-header_space).max(header_height)).show(ui, |ui| {
                         if node.array("rows").is_empty() && !self.management_page { ui.weak("—"); }
-                        self.table_rows(ui,node,&node.props,&columns,&widths,row_header_width,0,focus_id);
+                        self.table_rows(ui,node,&node.props,&columns,&widths,row_header_width,0);
                     });
                 let scrolling_down = ui.input(|input| input.pointer.latest_pos().is_some_and(|point| rows.inner_rect.contains(point))
                     && input.raw.events.iter().any(|event| matches!(event, egui::Event::MouseWheel { delta, .. } if delta.y < 0.0)));
@@ -1698,7 +1693,6 @@ impl PresentationView {
         widths: &[f32],
         row_header_width: f32,
         depth: usize,
-        focus_id: egui::Id,
     ) {
         if let Some(rows) = props["rows"].as_array() {
             for row in rows {
@@ -1759,9 +1753,8 @@ impl PresentationView {
                                             if cell["selected"] == true { text = text.color(ui.visuals().selection.stroke.color); }
                                             else if let Ok(color) = Color32::from_hex(cell["foreground"].as_str().unwrap_or("")) { text = text.color(color); }
                                             let mut button = egui::Button::selectable(cell["selected"] == true, "").left_text(text).truncate();
-                                            if cell["selected"] != true {
-                                                if let Ok(color) = Color32::from_hex(cell["background"].as_str().unwrap_or("")) { button = button.fill(color); }
-                                            }
+                                            if cell["selected"] != true
+                                                && let Ok(color) = Color32::from_hex(cell["background"].as_str().unwrap_or("")) { button = button.fill(color); }
                                             let response = ui.add_enabled_ui(cell["enabled"] != false,|ui|ui.add_sized(Vec2::new(text_width,control_height(ui)),button)).inner;
                                             if response.clicked() || response.double_clicked() {
                                                 response.request_focus();
@@ -1782,7 +1775,7 @@ impl PresentationView {
                         }
                     });
                     if row["nested"].is_object() {
-                        self.table_rows(ui, node, &row["nested"], columns, widths, row_header_width, depth + 1,focus_id);
+                        self.table_rows(ui, node, &row["nested"], columns, widths, row_header_width, depth + 1);
                         self.paging(ui,node,&row["nested"]);
                     }
                 });

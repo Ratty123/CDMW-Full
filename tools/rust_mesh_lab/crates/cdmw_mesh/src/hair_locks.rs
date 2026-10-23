@@ -101,10 +101,8 @@ pub fn extend_mirrored_guides(state: &HairState, guides: &mut BTreeSet<usize>) {
         .filter_map(|l| l.mirrored)
         .collect();
     for lock in &state.locks {
-        if pairs.contains(&lock.id) {
-            if let Some(guide) = lock.guide {
-                guides.insert(guide as usize);
-            }
+        if pairs.contains(&lock.id) && let Some(guide) = lock.guide {
+            guides.insert(guide as usize);
         }
     }
 }
@@ -202,20 +200,19 @@ pub fn deform_normals(
     let frames: Vec<_> = points.iter().map(|g| frames(g)).collect();
     let curves: Vec<_> = points.iter().map(|g| Curve::new(g)).collect();
     for b in bindings.iter().filter(|b| b.part == part) {
-        if let Some(normal) = normals.get_mut(b.vertex as usize) {
-            if let Some(&(x, y, z)) = frames
+        if let Some(normal) = normals.get_mut(b.vertex as usize)
+            && let Some(&(x, y, z)) = frames
                 .get(b.guide as usize)
                 .and_then(|f| f.get(b.segment as usize))
-            {
-                let (x, y, z) = if b.smooth {
-                    curves[b.guide as usize].sample(b.segment as usize, b.t).1
-                } else { (x, y, z) };
-                let local = Vec3::from(b.normal);
-                if local.length_squared() > 0.1 {
-                    *normal = (x * local.x + y * local.y + z * local.z)
-                        .normalize_or_zero()
-                        .to_array();
-                }
+        {
+            let (x, y, z) = if b.smooth {
+                curves[b.guide as usize].sample(b.segment as usize, b.t).1
+            } else { (x, y, z) };
+            let local = Vec3::from(b.normal);
+            if local.length_squared() > 0.1 {
+                *normal = (x * local.x + y * local.y + z * local.z)
+                    .normalize_or_zero()
+                    .to_array();
             }
         }
     }
@@ -453,7 +450,7 @@ pub fn prepare_existing(
             *edge_counts.entry((a.min(b), a.max(b))).or_default() += 1;
         }
     }
-    let mut seams: BTreeMap<([u32; 3], [u32; 3]), Vec<(u32, u32)>> = BTreeMap::new();
+    let mut seams = BTreeMap::<_, Vec<(u32, u32)>>::new();
     for ((a, b), count) in edge_counts {
         if count == 1 {
             let x = positions[a as usize].map(f32::to_bits);

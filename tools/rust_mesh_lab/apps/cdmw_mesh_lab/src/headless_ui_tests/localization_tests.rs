@@ -10,6 +10,7 @@ fn native_localization_paints_and_activates_controls_in_every_builtin_language()
         Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../../cdmw/resources/localization");
     // A user can name a layer with a word that is also a translated UI label.
     ui.application.cdmw_state["geometry_layers"]["layers"][0]["name"] = json!("History");
+    ui.click("Back to Inspector")?;
     for code in [
         "de", "es-ES", "es-419", "fr", "it", "pt-BR", "pl", "ru", "tr", "ja", "ko", "zh-Hans",
         "zh-Hant", "en",

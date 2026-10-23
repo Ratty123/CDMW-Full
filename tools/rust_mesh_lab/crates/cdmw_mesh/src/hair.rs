@@ -1776,8 +1776,8 @@ mod tests {
         for points in [state.guides[0].points.clone(), moved] {
             let mut positions = mesh.positions.clone();
             let mut normals = mesh.normals.clone();
-            deform(&mesh.bindings, &[points.clone()], 0, &mut positions).unwrap();
-            locks::deform_normals(&mesh.bindings, &[points.clone()], 0, &mut normals);
+            deform(&mesh.bindings, std::slice::from_ref(&points), 0, &mut positions).unwrap();
+            locks::deform_normals(&mesh.bindings, std::slice::from_ref(&points), 0, &mut normals);
             let centers: Vec<_> = positions.chunks_exact(2).map(|p|
                 (Vec3::from(p[0]) + Vec3::from(p[1])) * 0.5).collect();
             let guide: Vec<_> = points.iter().copied().map(Vec3::from).collect();
@@ -2158,7 +2158,7 @@ mod tests {
         sim.advance(
             1.0 / 60.0,
             MotionSettings::default(),
-            &[capsule.clone()],
+            std::slice::from_ref(&capsule),
             Quat::IDENTITY,
         )
         .unwrap();

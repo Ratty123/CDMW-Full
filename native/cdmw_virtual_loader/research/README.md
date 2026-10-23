@@ -271,8 +271,17 @@ unpublished pairs through B66/B64/B67 on owned native responses. Ten cases,
 including N=6,816, five literal encoder channels with unchanged strict decoder
 refusal and inactive loading pass. Independent emitted-code review joins 166
 functions and 26 core contracts across all three images; the 369-pin native
-proof is sealed. Actual map API execution in the game remains pending. Then
-join both getter/bulk routes under
+proof is sealed. Actual game pair preparation now also passes: both unpublished
+maps have 6,820 entries after eight original inserts, with twelve name callbacks,
+45 steps and 13,636 accepted allocations. Public maps/counts remain 6,816, and
+represented source/owner/metadata/expiry/records remain unchanged. Root joins all
+five physical channels, 222 source pins, seven companions/stock and absence of
+five owned roles, with 47.188-second restoration. Independent actual-capture
+review now passes with no material defects. Guardian closure used the retained
+stale-heartbeat policy at age 5,218ms, without a close request at that decision;
+the game closed normally while offline review ran. This historical restoration
+predates the user's separately authorized Sword overlay. No public map/count,
+cleanup execution or native admission is established. Then join both getter/bulk routes under
 concrete reader/maintenance coverage, coherent publication, failure-stop and
 lifetime. Native numeric values are WORD ordinals; name values are DWORD numeric
 keys. Real metadata uses body offsets. This portable model's name values and
@@ -290,3 +299,13 @@ derived-state acceptance or lifetime. Central in-memory registries are permitted
 by the objective; combined replacement definition/index/mount/archive carriers
 remain prohibited. Exact source/native/caller/capture and next-step pins live in
 the [current execution checkpoint](../../../beta-progress/cditem-execution-goal.md#resumed-with-direct-authority-2026-10-23).
+
+The user's separate Sword test install uses the existing composed physical
+overlay, item 1,990,000 in group 0041, with verified backup/readback and seven
+unchanged loader companions. It intentionally changes PAPGT/PATHC after B122.
+The reported Live Edit Add callback timeout is under separate diagnosis; no
+rendered weapon/equip/save or independent-native activation is recorded. See
+[the installation boundary](../../../beta-progress/cditem-execution-goal.md#sword-installation-for-the-users-visual-test).
+The owned-dummy DbgEng route also remains unqualified: V1/V2 failed their bounded
+qualification, and V3 is frozen source only. It supplies no reader lease or
+publication approval.

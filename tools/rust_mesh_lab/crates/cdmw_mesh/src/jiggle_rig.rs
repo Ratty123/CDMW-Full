@@ -97,9 +97,13 @@ fn inverse_affine(m: &Matrix) -> Result<Matrix> {
         ],
         [0.0, 0.0, 0.0, 1.0],
     ];
-    for j in 0..3 {
-        inverse[3][j] = -(tx * inverse[0][j] + ty * inverse[1][j] + tz * inverse[2][j]);
-    }
+    inverse[3] = std::array::from_fn(|j| {
+        if j == 3 {
+            1.0
+        } else {
+            -(tx * inverse[0][j] + ty * inverse[1][j] + tz * inverse[2][j])
+        }
+    });
     if inverse.iter().flatten().any(|value| !value.is_finite()) {
         return Err("Jiggle rig matrix inverse must be finite.");
     }

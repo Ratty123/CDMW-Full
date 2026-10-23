@@ -265,28 +265,34 @@ class DialogTests(_DialogPresentationMixin, _DialogTestCase):
                 workspace.request_shutdown()
                 self._settle(lambda: workspace._thread is None)
 
-    def test_guided_toolbar_pending_resize_is_cancelled_when_panel_is_deleted(self) -> None:
+    def test_guided_toolbar_wraps_at_available_width_and_deletes_cleanly(self) -> None:
         from unittest.mock import patch
-        from PySide6.QtCore import QCoreApplication, QEvent, QSize
-        from PySide6.QtGui import QResizeEvent
-        from cdmw.ui.new_item.effect_placement_guided import _GuidedToolbarPanel
+        from PySide6.QtCore import QCoreApplication, QEvent, QRect
 
-        panel = _GuidedToolbarPanel()
-        panel.resize(400, 50)
-        widths = []
-        panel.resized.connect(widths.append)
-        event = QResizeEvent(QSize(400, 50), QSize(300, 50))
-        QCoreApplication.sendEvent(panel, event)
+        workspace = EffectPlacementWorkspace(
+            item_mesh=_blade(), box_min=(-1, -1, -1), box_max=(1, 1, 1),
+            host_factory=lambda parent: _Host(parent), compatibility_ui=False,
+        )
+        workspace._initial_package_timer.stop()
+        workspace.show()
         self.app.processEvents()
-        self.assertEqual(widths, [400, 400])
-        QCoreApplication.sendEvent(panel, event)
-        panel.deleteLater()
-        QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+        toolbar = workspace.guided_toolbar_layout
+        wide = 4096
+        toolbar.setGeometry(QRect(0, 0, wide, toolbar.heightForWidth(wide)))
+        controls = [toolbar.itemAt(i).widget() for i in range(toolbar.count())]
+        controls = [control for control in controls if not control.isHidden()]
+        self.assertLessEqual(max(control.geometry().top() for control in controls),
+                             min(control.geometry().bottom() for control in controls))
+        toolbar.setGeometry(QRect(0, 0, 400, toolbar.heightForWidth(400)))
+        self.assertGreater(max(control.geometry().top() for control in controls),
+                           min(control.geometry().bottom() for control in controls))
+        self.assertTrue(all(0 <= control.x() and control.geometry().right() < 400 for control in controls))
+        self._shutdown_workspace(workspace)
+        QCoreApplication.sendPostedEvents(workspace, QEvent.Type.DeferredDelete)
         errors = []
         with patch("sys.excepthook", lambda *args: errors.append(args)):
             self.app.processEvents()
         self.assertEqual(errors, [])
-        self.assertEqual(widths, [400, 400, 400])
 
     def test_content_failure_retains_the_scene_and_marks_only_the_current_request_for_retry(self) -> None:
         from dataclasses import replace

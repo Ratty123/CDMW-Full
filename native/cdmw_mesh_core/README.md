@@ -233,6 +233,13 @@ vertices and rigid constraints retain their existing authority.
 When contact is primarily along an opening's length, its soft preference yields
 instead of damping a collar's necessary lift past a shoulder cap. Final body,
 layer and strain validators still decide whether that motion can be published.
+Clearance is established without the optional opening-length preference first.
+The solver retains that checked pose before trying to recover unnecessary axial
+movement. Refinement uses the remaining clearance iterations and a short time
+budget, with the same triangle, strain, body, layer and rigid-assembly checks.
+New contacts remain active for the candidate. An unsuccessful refinement restores
+the preceding checked pose. Final composition and output validation still apply
+to the published geometry; the caller's time and iteration limits are unchanged.
 Layer order uses the body's outward direction, including solid belts with inward
 back faces. Current surface queries, inner-cloth rays and exact edge/triangle
 crossings supply contacts on the outer shell; corrections do not push its support
@@ -447,11 +454,24 @@ domains do not merge into neighbouring hard assemblies. Masks and allowed body
 regions still come from their Part. Invalid or partial island requests refuse
 atomically. Clearing the override restores inheritance.
 
-Snapshots containing overrides use version 3; other snapshots retain version 2.
+Snapshots containing overrides use version 3; other snapshots retain version 2,
+unless they retain output exclusions as described below.
 Version 3 persists every override, validates source island membership on restore,
 and rebases island Tightness along with Part Tightness on Bake. Python fitting
 recipes and morph drafts also select version 3 only for overrides. Versions 1 and
 2 remain readable with their existing semantics. Older apps reject version 3.
+
+`morph_bind.excluded_faces` captures current garment output exclusions as rows
+with `submesh_index` and either `all: true` or explicit `face_indices`. Excluded
+faces must not share indexed vertices with retained faces. Temporary fitting
+domains omit these surfaces and merge only included positions back into their
+original slots; excluded positions, topology and user settings stay intact.
+Rigid and Custom island modes cannot override an output exclusion. Driver Parts
+remain references regardless of output inclusion. Diagnostics sample the retained
+garment surface. Bind, sculpt recomposition, Undo/Redo and Bake retain the same
+intent. Native snapshots and Morph drafts containing these bindings use version
+4; older snapshots still read unchanged. Recipes rebind against current Include
+intent rather than importing another session's output choices.
 
 
 #### Current-fit diagnostics

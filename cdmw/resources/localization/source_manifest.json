@@ -22482,6 +22482,21 @@
       ]
     },
     {
+      "key": "Cannot fit excluded islands without valid source face identities.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_service_morph.py",
+          "line": 1980,
+          "sink": "ValueError"
+        },
+        {
+          "path": "cdmw/services/mesh_service_morph.py",
+          "line": 1985,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
       "key": "Cannot pin launch input",
       "origins": [],
       "manual": true
@@ -42691,7 +42706,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 10033,
+          "line": 10031,
           "sink": "RuntimeError"
         }
       ]
@@ -81721,7 +81736,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_morph_draft.py",
-          "line": 103,
+          "line": 105,
           "sink": "ValueError"
         }
       ]
@@ -81731,7 +81746,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_morph_draft.py",
-          "line": 113,
+          "line": 115,
           "sink": "ValueError"
         }
       ]
@@ -81741,7 +81756,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_morph_draft.py",
-          "line": 94,
+          "line": 96,
           "sink": "ValueError"
         }
       ]
@@ -81751,7 +81766,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_morph_draft.py",
-          "line": 97,
+          "line": 99,
           "sink": "ValueError"
         }
       ]
@@ -81771,7 +81786,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_morph_draft.py",
-          "line": 90,
+          "line": 92,
           "sink": "ValueError"
         }
       ]
@@ -81791,7 +81806,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_morph_draft.py",
-          "line": 100,
+          "line": 102,
           "sink": "ValueError"
         }
       ]
@@ -81941,7 +81956,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 9235,
+          "line": 9233,
           "sink": "RuntimeError"
         }
       ]
@@ -81951,7 +81966,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 9231,
+          "line": 9229,
           "sink": "RuntimeError"
         }
       ]
@@ -81961,7 +81976,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 9206,
+          "line": 9204,
           "sink": "RuntimeError"
         }
       ]
@@ -117991,7 +118006,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_morph.py",
-          "line": 2085,
+          "line": 2124,
           "sink": "RuntimeError"
         }
       ]
@@ -154337,6 +154352,11 @@
       ]
     },
     {
+      "key": "Undo replacement operations before adding geometry layers.",
+      "origins": [],
+      "manual": true
+    },
+    {
       "key": "Undo restored geometry and selection",
       "origins": [
         {
@@ -155171,7 +155191,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_morph_draft.py",
-          "line": 88,
+          "line": 90,
           "sink": "ValueError"
         }
       ]

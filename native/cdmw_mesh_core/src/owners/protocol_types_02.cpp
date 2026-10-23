@@ -111,6 +111,9 @@ struct MeshRefitRuntime {
     std::map<int, std::map<int, double>> vertex_masks;
     // Restrictions are scoped to each garment; missing entries permit every driver face.
     std::map<int, std::map<int, std::set<int>>> garment_regions;
+    // Output exclusions captured at binding. An empty face set excludes the
+    // whole garment; editable geometry and user fitting settings remain intact.
+    std::map<int, std::set<int>> excluded_faces;
     double driver_diagonal = 0.0;
     double maximum_distance = 0.0;
     double p95_distance = 0.0;

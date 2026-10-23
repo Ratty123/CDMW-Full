@@ -549,12 +549,11 @@ pub(super) mod profiles {
                 preset.apply(settings, if preset.spline { spline_available } else { rotation_available });
                 changed = true;
             }
-            if view.loaded.is_some() {
-                if ui.button(crate::localization::tr("Restore manual preview settings"))
+            if view.loaded.is_some()
+                && ui.button(crate::localization::tr("Restore manual preview settings"))
                     .on_hover_text(crate::localization::tr("Profile starting values loaded. Preview sliders can adjust them.")).clicked() {
                     changed |= restore_manual(view, settings, rotation_available, spline_available);
                 }
-            }
             if preset.rotate_guides && !(if preset.spline { spline_available } else { rotation_available }) {
                 ui.small(crate::localization::tr("Guide rotation cannot be applied without orientation neighbors."));
             }

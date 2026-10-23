@@ -142,6 +142,7 @@ $TestsByArea = @{
         "tests/test_mesh_topology_rebuild_integration.py",
         "tests/test_mesh_geometry_layers.py",
         "tests/test_mesh_morph_service.py",
+        "tests/test_mesh_refit_live_exclusions.py",
         "tests/test_static_skin_weight_export.py",
         "tests/test_mesh_output_policy.py",
         "tests/test_mesh_editor_controller.py",

@@ -302,11 +302,10 @@ fn parse_startup_options_from(
     if options.capture_report_json.is_some() && options.capture_output.is_none() {
         bail!("--capture-report-json requires --capture-output");
     }
-    if let Some(size) = options.capture_size {
-        if options.capture_output.is_none() || !(64..=2_048).contains(&size) {
+    if let Some(size) = options.capture_size
+        && (options.capture_output.is_none() || !(64..=2_048).contains(&size)) {
             bail!("--capture-size requires --capture-output and a size within 64..2048");
         }
-    }
     if options.capture_audit_full_model_only && options.capture_audit_output.is_none() {
         bail!("--capture-audit-full-model-only requires --capture-audit-output");
     }
@@ -7253,11 +7252,10 @@ impl ApplicationHandler for LabApplication {
                 self.raw_orbit_captured = false;
                 self.raw_pan_captured = false;
             }
-            WindowEvent::RedrawRequested => {
-                if window.is_visible() != Some(false) {
+            WindowEvent::RedrawRequested
+                if window.is_visible() != Some(false) => {
                     self.redraw(event_loop);
                 }
-            }
             _ => {}
         }
     }

@@ -229,6 +229,7 @@ pub(crate) fn effect_emitter_billboards(
     )
 }
 
+#[cfg(test)]
 pub(crate) fn effect_emitter_billboards_with_limit(
     emitter: &Value,
     emitter_index: usize,

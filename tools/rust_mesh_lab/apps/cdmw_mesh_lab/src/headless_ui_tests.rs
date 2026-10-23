@@ -1483,20 +1483,18 @@ impl HeadlessUi {
     fn reveal(&mut self, label: &str) -> Result<Rect, Box<dyn std::error::Error>> {
         self.frame(Vec::new());
         // These surfaces now have an explicit navigation step in the Inspector.
-        if self.integrated_cdmw && ["Geometry Layers", "Action History", "Translucency (experimental)", "Glow (experimental)", "Shader experiments"].contains(&label) {
-            if let Some(back) = self.label_rect("Back to Inspector") {
+        if self.integrated_cdmw && ["Geometry Layers", "Action History", "Translucency (experimental)", "Glow (experimental)", "Shader experiments"].contains(&label)
+            && let Some(back) = self.label_rect("Back to Inspector") {
                 self.click_at(back.center());
                 self.settle_layout();
             }
-        }
         if self.integrated_cdmw && self.label_rect(label).is_none()
             && self.application.document.as_ref().and_then(|doc| doc.lods.get(self.application.active_lod_index))
-                .is_some_and(|lod| lod.submeshes.iter().enumerate().any(|(index, part)| label == format!("{index}: {}", part.name))) {
-            if let Some(parts) = self.label_rect("Parts") {
+                .is_some_and(|lod| lod.submeshes.iter().enumerate().any(|(index, part)| label == format!("{index}: {}", part.name)))
+            && let Some(parts) = self.label_rect("Parts") {
                 self.click_at(parts.center());
                 self.settle_layout();
             }
-        }
         if let Some(rectangle) = self.label_rect(label) {
             return Ok(rectangle);
         }
@@ -2406,6 +2404,13 @@ fn integrated_sidebar_flyouts_use_available_height_and_full_content_width() -> T
         ui.click_sidebar("Morph & Refit")?;
         ui.click("Setup")?;
         for _ in 0..12 {
+            if ui.label_rect("Choose Parts").is_some() {
+                break;
+            }
+            ui.scroll_tool_window("Morph & Refit", -100.0)?;
+        }
+        ui.click("Choose Parts")?;
+        for _ in 0..12 {
             if ui.label_rect("Open Selection tool").is_some() {
                 break;
             }
@@ -2764,10 +2769,34 @@ fn integrated_sidebar_moved_panels_stay_reachable_after_resize_and_font_changes(
     assert!(
         viewport
             .expand(1.0)
-            .contains_rect(ui.tool_window_rect("Move")?)
+            .contains_rect(ui.tool_window_rect("Move")?),
+        "Move after pinning: {:?} vs {viewport:?}", ui.tool_window_rect("Move")?
     );
     ui.click_sidebar("Close Move settings")?;
     assert!(ui.sidebar_button("Close Viewport settings").is_some());
+    Ok(())
+}
+
+#[test]
+fn integrated_transform_fields_fit_the_viewport_beside_a_docked_panel() -> TestResult {
+    for tool in ["Move", "Rotate", "Scale"] {
+        let mut ui = HeadlessUi::new_integrated_cdmw(
+            triangle_application()?, egui::vec2(1000.0, 650.0),
+        );
+        ui.application.apply_cdmw_theme_payload(
+            &json!({"font_point_size": 18.0, "density": "comfortable"}),
+        );
+        ui.settle_layout();
+        ui.click_sidebar("Collapse Tools")?;
+        ui.click_sidebar(tool)?;
+        ui.click_sidebar("Viewport")?;
+        ui.click_sidebar("Pin Viewport settings")?;
+        let viewport = ui.application.viewport_rect.ok_or("viewport")?;
+        let area = ui.tool_window_rect(tool)?;
+        assert!(viewport.expand(1.0).contains_rect(area), "{tool}: {area:?} vs {viewport:?}");
+        let close = ui.sidebar_button(&format!("Close {tool} settings")).ok_or("close")?;
+        assert!(close.interact_rect.contains(close.rect.center()));
+    }
     Ok(())
 }
 
@@ -3864,9 +3893,9 @@ fn persistent_editor_panels_restore_in_the_real_ui_across_display_sizes() -> Tes
         let mut ui = HeadlessUi::new_integrated_cdmw(triangle_application()?, egui::vec2(width, height));
         ui.application.apply_cdmw_theme_payload(&json!({"font_point_size": font}));
         crate::cdmw_layout::restore(&ui.application.egui_context,
-            &json!({"cdmw_tool_rail": 319.0, "cdmw_right_panels": 407.0}));
+            &json!({"cdmw_tool_rail": 319.0, "cdmw_right_panels": 507.0}));
         ui.settle_layout();
-        for (key, expected) in [("cdmw_tool_rail", 319.0), ("cdmw_right_panels", 407.0)] {
+        for (key, expected) in [("cdmw_tool_rail", 319.0), ("cdmw_right_panels", 507.0)] {
             let panel = PanelState::load(&ui.application.egui_context, egui::Id::new(key)).ok_or(key)?;
             assert!((panel.size().x - expected).abs() <= 1.0, "{width}x{height} {key}: {panel:?}");
         }
@@ -4332,13 +4361,8 @@ fn integrated_tool_buttons_toggle_and_sections_collapse_without_geometry_changes
         ("Transform", "Move"),
         ("Sculpt", "Grab"),
         ("Mesh Data", "Topology"),
-        ("Parts", "Visibility"),
     ] {
-        if heading == "Parts" {
-            ui.click(heading)?;
-        } else {
-            ui.click_tool_button(heading)?;
-        }
+        ui.click_tool_button(heading)?;
         for _ in 0..16 {
             ui.frame(Vec::new());
         }
@@ -4346,13 +4370,14 @@ fn integrated_tool_buttons_toggle_and_sections_collapse_without_geometry_changes
             ui.label_rect(child).is_none(),
             "{heading} did not collapse {child}"
         );
-        if heading == "Parts" {
-            ui.click(heading)?;
-        } else {
-            ui.click_tool_button(heading)?;
-        }
+        ui.click_tool_button(heading)?;
         ui.reveal(child)?;
     }
+    assert!(ui.label_rect("Visibility").is_some());
+    ui.click("Back to Inspector")?;
+    assert!(ui.label_rect("Visibility").is_none());
+    ui.click("Parts")?;
+    ui.reveal("Visibility")?;
     assert_eq!(
         before,
         ui.application
@@ -5534,6 +5559,7 @@ fn integrated_archive_refit_free_edit_is_blocked_before_the_folder_picker() -> T
     // A direct action route also returns before opening a native folder dialog.
     ui.application.choose_cdmw_free_edit();
     assert!(ui.application.status.contains("Archive Refit"));
+    ui.click("Back to Inspector")?;
     ui.reveal("Archive Refit · fixed geometry")?;
     assert!(ui.actions_from_click("Copy Selection")?.is_empty());
     Ok(())

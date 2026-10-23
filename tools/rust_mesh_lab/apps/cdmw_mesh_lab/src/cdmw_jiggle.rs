@@ -197,7 +197,7 @@ fn motion_scale(rest: &DrawSnapshot) -> f32 {
 }
 
 pub(crate) enum Simulation {
-    Approximate(jiggle::Simulation),
+    Approximate(Box<jiggle::Simulation>),
     Decoded(Box<native::Simulation>),
     Cloth(Box<crate::cdmw_cloth::preview::Simulation>),
 }
@@ -801,11 +801,10 @@ impl LabApplication {
             }
         }
         if show_shapes_changed && self.cdmw_jiggle.preview.show_colliders
-            && self.cdmw_jiggle.preview.scene.is_none() && self.cdmw_jiggle.preview.pending.is_none() {
-            if let Err(error) = self.prepare_jiggle_preview(parts, false) {
+            && self.cdmw_jiggle.preview.scene.is_none() && self.cdmw_jiggle.preview.pending.is_none()
+            && let Err(error) = self.prepare_jiggle_preview(parts, false) {
                 self.cdmw_jiggle.preview.feedback = error.to_string();
             }
-        }
         let reason = if self.cdmw_busy() {
             "Wait for the current operation."
         } else if self.cdmw_jiggle.preview.pending.is_some() {
@@ -848,7 +847,7 @@ impl LabApplication {
             ""
         }.to_owned();
         let preview_button_width = ["Preparing preview", "Pause preview", "Resume preview", "Play preview"]
-            .iter().map(|label| ui.painter().layout_no_wrap(crate::localization::tr(*label).into(),
+            .iter().map(|label| ui.painter().layout_no_wrap(crate::localization::tr(*label),
                 egui::TextStyle::Button.resolve(ui.style()), ui.visuals().text_color()).size().x)
             .fold(0.0_f32, f32::max) + 2.0 * ui.spacing().button_padding.x;
         ui.horizontal_wrapped(|ui| {
@@ -1047,7 +1046,7 @@ impl LabApplication {
             frame: rest.clone(),
             normal_sums: vec![Vec3::ZERO; rest.positions.len()],
             rest,
-            simulation: Simulation::Approximate(simulation),
+            simulation: Simulation::Approximate(Box::new(simulation)),
             tick: 0,
             moving,
         };

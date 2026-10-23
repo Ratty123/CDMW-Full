@@ -164,9 +164,17 @@ B122-v4 now reuses B66/B64/B67 for unpublished native pairs while central header
 counts and maps remain untouched. Ten owned native cases, including N=6,816,
 five physical encoder channels with strict game-address refusal and inactive
 loading pass. Independent review joins 166 emitted functions, with 26 core
-functions identical across the ASI and two fixtures. The current caller must
-still complete independent runtime classification and fresh controlled-run
-readiness; no actual game pair observation follows from these checks.
+functions identical across the ASI and two fixtures. Independent caller
+classification and final packet review pass: 222 full pins retain 167 runtime
+origins and four decoders, with 216 recovery sources inside 256. The controlled
+game capture also passes: both private maps contain 6,820 entries after eight
+native inserts, while central maps/counts remain 6,816. Root joins all five
+physical channels, sources, seven companions/stock and 47.188-second restoration.
+Independent actual-capture review passes with no material defects. Closure uses
+the guardian's retained stale-heartbeat path (age 5,218ms, close request absent at
+that decision) while offline review runs; it is not solely an explicit result-close
+request. These exact-restoration findings precede the later authorized physical
+Sword overlay. Consumer/publication, cleanup execution and lifetime remain open.
 Numeric values are WORD ordinals; native name values are DWORD numeric keys,
 and native metadata offsets are not the portable
 model's route indexes. Guard known source/clone aliases before adapter-controlled
@@ -182,6 +190,22 @@ archive witnesses; 29 shared outputs are excluded, 12 resource boundaries remain
 unresolved and bindings are proposals. The source material's double-sided flag
 still has no verified plain-PBR shader mapping. These are authoring/compiler
 results, without rendered appearance, native resource use or equip/save proof.
+The user's subsequent test-install request is fulfilled through the existing
+composed physical overlay: item 1,990,000, group 0041, 52 files, verified backup
+and exact output readback. No Tranan shop placement or inventory grant was
+included. The user reports a longstanding Live Edit Add callback timeout, now
+under separate diagnosis; no rendered weapon, acquisition/equip or save result is
+recorded. Seven loader companions remain unchanged. The physical overlay
+intentionally changes PAPGT/PATHC after B122; its old grant is consumed. Root leaves
+the user's game window untouched. This installation is separate from the
+independent native goal and does not advance its admission criteria.
+
+The owned-dummy reader-boundary experiment remains unqualified. V1 refused its
+logger before engine entry; V2 Attach/Wait/detach/passive cleanup reached exact
+S_OK but the five-thread guard refused before context/memory reads, with actual
+engine count unrecorded. V3 is frozen, uncompiled source only for complete held
+inventory and typed TIB checks; no game reader lease or exclusion follows. Exact
+failure/source pins are in the [execution checkpoint](cditem-execution-goal.md#reader-boundary-platform-qualification-remains-open).
 
 Retained local source-only results under the native-path continuation:
 `run/b115-current-owner-v2/source-check-receipt.json` (41 focused checks;

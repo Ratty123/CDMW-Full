@@ -225,13 +225,26 @@ std::string mesh_editor_refit_diagnostics_json(const JsonValue& root,
     for (const int index : selected) {
         const auto& mesh = submeshes.at(index);
         auto& part = parts[index];
-        part.candidate_samples = mesh.vertices.size() + 4 * mesh.faces.size();
+        std::vector<std::size_t> candidates;
+        const auto excluded = refit.excluded_faces.find(index);
+        if (excluded == refit.excluded_faces.end()) {
+            candidates.resize(mesh.vertices.size() + 4*mesh.faces.size());
+            std::iota(candidates.begin(),candidates.end(),0);
+        } else if (!excluded->second.empty()) {
+            std::set<int> used;
+            for (std::size_t f = 0; f < mesh.faces.size(); ++f) if (!excluded->second.count(static_cast<int>(f)))
+                used.insert(mesh.faces[f].begin(),mesh.faces[f].end());
+            for (const int v : used) candidates.push_back(static_cast<std::size_t>(v));
+            for (std::size_t f = 0; f < mesh.faces.size(); ++f) if (!excluded->second.count(static_cast<int>(f)))
+                for (int slot = 0; slot < 4; ++slot) candidates.push_back(mesh.vertices.size() + 4*f + slot);
+        }
+        part.candidate_samples = candidates.size();
         candidate_samples += part.candidate_samples;
         part.planned_samples = std::min(part.candidate_samples, remaining / parts_left);
         remaining -= part.planned_samples;
         --parts_left;
         for (std::size_t ordinal = 0; ordinal < part.planned_samples; ++ordinal) {
-            const std::size_t candidate = ordinal * part.candidate_samples / part.planned_samples;
+            const std::size_t candidate = candidates[ordinal * part.candidate_samples / part.planned_samples];
             RefitDiagnosticSample sample;
             sample.part = index;
             sample.ordinal = candidate;
@@ -310,6 +323,12 @@ std::string mesh_editor_refit_diagnostics_json(const JsonValue& root,
             for (const int index : refit.garment_submesh_indices) {
                 garments[index].vertices = reference.at(index);
                 garments[index].faces = submeshes.at(index).faces;
+                const auto excluded = refit.excluded_faces.find(index);
+                if (excluded != refit.excluded_faces.end()) {
+                    garments[index].faces.clear();
+                    if (!excluded->second.empty()) for (std::size_t f = 0; f < submeshes.at(index).faces.size(); ++f)
+                        if (!excluded->second.count(static_cast<int>(f))) garments[index].faces.push_back(submeshes.at(index).faces[f]);
+                }
                 for (std::size_t vertex = 0; vertex < reference.at(index).size(); ++vertex) {
                     const auto entry = cohorts.emplace(seam_positions.at(index)[vertex], cohorts.size());
                     if (entry.second) cohort_positions.push_back(reference.at(index)[vertex]);

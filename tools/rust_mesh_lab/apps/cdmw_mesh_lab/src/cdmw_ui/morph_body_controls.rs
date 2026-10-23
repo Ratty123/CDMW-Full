@@ -98,7 +98,7 @@ impl LabApplication {
         };
         let ready = state_bool(&self.cdmw_state, "authoring_enabled")
             && !state_bool(state, "authoring_baseline_ready")
-            && !state_str(state, "correction_definition_id").is_some_and(|id| !id.is_empty());
+            && state_str(state, "correction_definition_id").is_none_or(|id| id.is_empty());
         let manual = pair_number_list(state, "manual_values");
         let mode_id = egui::Id::new(("morph-side-mode", state_str(state, "profile_id").unwrap_or("")));
         let mut side = ui.data_mut(|data| data.get_temp::<String>(mode_id)).unwrap_or_else(|| "both".into());

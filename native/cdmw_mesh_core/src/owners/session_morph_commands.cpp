@@ -494,6 +494,7 @@ std::string mesh_editor_morph_bind_session_report(
     }
     auto rebound = std::make_shared<MeshRefitRuntime>(
         *mesh_editor_build_refit(submeshes, next->driver_submesh_indices, garments, regions));
+    mesh_editor_read_refit_exclusions(*rebound,root.get("excluded_faces"),submeshes);
     if (next->refit) {
         for (const int index : garments) {
             const auto settings = next->refit->garment_settings.find(index);
@@ -512,6 +513,8 @@ std::string mesh_editor_morph_bind_session_report(
                 if (mask != next->refit->vertex_masks.end()) rebound->vertex_masks[index] = mask->second;
                 const auto old_region = next->refit->garment_regions.find(index);
                 if (old_region != next->refit->garment_regions.end()) rebound->garment_regions[index] = old_region->second;
+                const auto excluded = next->refit->excluded_faces.find(index);
+                if (excluded != next->refit->excluded_faces.end()) rebound->excluded_faces[index] = excluded->second;
             }
             std::vector<double> distances;
             for (const auto& binding : rebound->bindings) distances.push_back(binding.distance);

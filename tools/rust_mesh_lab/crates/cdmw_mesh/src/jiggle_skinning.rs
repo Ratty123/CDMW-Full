@@ -61,11 +61,11 @@ pub fn prepare_bone(
     }
     let compose = |pose: &Matrix| -> Result<Matrix> {
         let mut scaled = *pose;
-        for i in 0..3 {
-            for j in 0..3 {
-                scaled[i][j] *= character_space_scale[i];
+        for (row, scale) in scaled.iter_mut().take(3).zip(character_space_scale) {
+            for value in &mut row[..3] {
+                *value *= scale;
             }
-            scaled[i][3] = 0.0;
+            row[3] = 0.0;
         }
         let result = std::array::from_fn(|i| {
             std::array::from_fn(|j| (0..4).map(|k| inverse_bind[i][k] * scaled[k][j]).sum())

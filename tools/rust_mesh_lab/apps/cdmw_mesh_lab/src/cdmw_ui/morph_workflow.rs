@@ -378,7 +378,7 @@ impl LabApplication {
         let authoring = state_bool(&self.cdmw_state, "authoring_enabled");
         let morph_unbaked = state_bool(state, "unbaked");
         let preset_id = state.get("preset_id").and_then(Value::as_str).unwrap_or("");
-        let presets = pair_list(&state, "available_presets");
+        let presets = pair_list(state, "available_presets");
         ui.add_enabled_ui(!profile_id.is_empty(), |ui| {
             let preset_label = ui.label(crate::localization::tr("Saved preset"));
             ComboBox::from_id_salt("Saved preset")
@@ -494,14 +494,14 @@ impl LabApplication {
             ));
         }
         let values = pair_number_list(
-            &state,
+            state,
             if state.get("manual_values").is_some() {
                 "manual_values"
             } else {
                 "values"
             },
         );
-        let effective_values = pair_number_list(&state, "values");
+        let effective_values = pair_number_list(state, "values");
         for (definition_id, host_value) in values {
             let definition = definitions
                 .iter()
@@ -610,7 +610,7 @@ impl LabApplication {
                     }
                 });
             });
-            self.draw_cdmw_morph_correction_button(ui, actions, &state, &definition_id);
+            self.draw_cdmw_morph_correction_button(ui, actions, state, &definition_id);
             if let Some(value) = commit {
                 actions.push(UiAction::CdmwCommand {
                 command: "morph_set_value",

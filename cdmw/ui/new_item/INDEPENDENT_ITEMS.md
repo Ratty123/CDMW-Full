@@ -1289,8 +1289,17 @@ B122-v4 now qualifies B66/B64/B67 unpublished pair preparation on owned native
 responses: ten cases, including N=6,816, five physical encoder channels, strict
 game-address refusal and inactive loading pass. Independent emitted-code review
 joins 166 functions and 26 core cross-image contracts. The 369-pin native proof
-is sealed; actual game pair creation and final controlled-caller review remain
-pending. No central header/count/map publication or cleanup is exercised.
+is sealed. Independent caller classification/final packet review pass with 222
+full pins and 216 recovery sources inside 256. The first controlled game capture
+also passes: two unpublished 6,820-entry maps, eight native inserts, twelve
+callbacks, 45 steps and 13,636 allocations from stock N=6,816 plus four Rows.
+Public maps/counts and represented source/owner/metadata/expiry/records remain
+unchanged. Root physical/source/process/restoration checks pass in 47.188 seconds;
+independent actual-capture review now passes with no material defects. Guardian
+closure used the stale-heartbeat policy at age 5,218ms while offline review ran,
+without a close request at that decision. This historical recovery predates the
+later authorized Sword overlay; it proves no central header/count/map publication,
+cleanup execution or native admission.
 Native name-map values are DWORD item keys, numeric values are WORD ordinals and native
 metadata contains body offsets. The portable model's name values/route indexes
 are fixture contracts. Its publication ordering cannot supply native ABI or
@@ -1303,7 +1312,15 @@ UUID. Its separate compiler image contains 24 private PAC/PAC_XML/DDS/prefab
 resources; 29 shared outputs stay excluded and 12 resource boundaries remain
 unresolved. Source material double-sided behavior has no verified plain-PBR
 shader mapping. Package/image preparation does not establish rendered appearance,
-native discovery/use, acquisition, equip or persistence.
+native discovery/use, acquisition, equip or persistence. At the user's request,
+the existing composed physical installer subsequently installs this package as
+item 1,990,000 in group 0041. Its 52-file overlay, matching metadata backup and
+nine exact target writes and seven unchanged loader companions are verified.
+There was no Tranan placement or inventory grant. The user reports a longstanding
+Live Edit Add callback timeout under separate diagnosis; appearance, acquisition/
+equip and save behavior remain unproved. PAPGT/PATHC intentionally change after
+the historical B122 recovery, and the consumed grant cannot be replayed. This is
+a separate composed-route test, not independent native activation.
 
 Executable-source review identifies typed ItemInfo manager loader slots and
 the global setter/clearer. Vtable `+0x08` resets the manager; `+0x20` loads

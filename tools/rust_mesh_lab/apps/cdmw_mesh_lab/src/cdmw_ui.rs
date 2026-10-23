@@ -1925,7 +1925,7 @@ impl LabApplication {
                     }
                 });
         }
-        let bounds = root_ui.available_rect_before_wrap();
+        let bounds = root_ui.available_rect_before_wrap().intersect(root_ui.max_rect());
         let width = 280.0_f32.min(bounds.width());
         let pressed_layer = context
             .input(|input| {
@@ -1966,10 +1966,10 @@ impl LabApplication {
                     // grow to the remaining editor height and use the full width.
                     ui.set_width(width);
                     ui.set_max_height((bounds.bottom() - ui.cursor().top()).max(1.0));
-                    egui::Frame::popup(ui.style())
-                        .inner_margin(6.0)
-                        .show(ui, |ui| {
-                            ui.set_width((width - 12.0).max(1.0));
+                    let frame = egui::Frame::popup(ui.style()).inner_margin(6.0);
+                    let frame_margin = frame.total_margin();
+                    frame.show(ui, |ui| {
+                            ui.set_width((width - frame_margin.sum().x).max(1.0));
                             self.draw_cdmw_settings_header(ui, page);
                             let morph_active = page == CdmwSidebarPage::Tool(CdmwRailPage::MorphRefit);
                             let footer_height = if morph_active { self.cdmw_morph_footer_height(ui) } else { 0.0 };
@@ -2612,15 +2612,13 @@ impl LabApplication {
         let selected = self.selected_counts().total() > 0;
         match page {
             CdmwRailPage::Rotate => {
-                ui.horizontal(|ui| {
-                    ui.label(crate::localization::tr("Angle °"))
-                        .on_hover_text(crate::localization::tr("Drag a gizmo axis, ring, or center handle in the viewport."));
-                    ui.add(
-                        crate::cdmw_ui::numeric::value(&mut self.transform_rotate_step)
-                            .speed(0.5)
-                            .range(-360.0..=360.0),
-                    );
-                });
+                ui.label(crate::localization::tr("Angle °"))
+                    .on_hover_text(crate::localization::tr("Drag a gizmo axis, ring, or center handle in the viewport."));
+                ui.add(
+                    crate::cdmw_ui::numeric::value(&mut self.transform_rotate_step)
+                        .speed(0.5)
+                        .range(-360.0..=360.0),
+                );
                 let degrees = self.transform_rotate_step;
                 ui.horizontal_wrapped(|ui| {
                     for (label, axis) in [
@@ -2635,15 +2633,13 @@ impl LabApplication {
                 });
             }
             CdmwRailPage::Scale => {
-                ui.horizontal(|ui| {
-                    ui.label(crate::localization::tr("Factor"))
-                        .on_hover_text(crate::localization::tr("Drag a gizmo axis, ring, or center handle in the viewport."));
-                    ui.add(
-                        crate::cdmw_ui::numeric::value(&mut self.transform_scale_factor)
-                            .speed(0.01)
-                            .range(0.001..=100.0),
-                    );
-                });
+                ui.label(crate::localization::tr("Factor"))
+                    .on_hover_text(crate::localization::tr("Drag a gizmo axis, ring, or center handle in the viewport."));
+                ui.add(
+                    crate::cdmw_ui::numeric::value(&mut self.transform_scale_factor)
+                        .speed(0.01)
+                        .range(0.001..=100.0),
+                );
                 let factor = self.transform_scale_factor.max(0.001);
                 ui.horizontal_wrapped(|ui| {
                     for (label, scale) in [
@@ -2659,11 +2655,9 @@ impl LabApplication {
                 });
             }
             _ => {
-                ui.horizontal(|ui| {
-                    ui.label(crate::localization::tr("Axis step"))
-                        .on_hover_text(crate::localization::tr("Drag a gizmo axis, ring, or center handle in the viewport."));
-                    ui.add(crate::cdmw_ui::numeric::value(&mut self.transform_translate_step).speed(0.001));
-                });
+                ui.label(crate::localization::tr("Axis step"))
+                    .on_hover_text(crate::localization::tr("Drag a gizmo axis, ring, or center handle in the viewport."));
+                ui.add(crate::cdmw_ui::numeric::value(&mut self.transform_translate_step).speed(0.001));
                 let step = self.transform_translate_step;
                 ui.horizontal_wrapped(|ui| {
                     for (label, axis, sign) in [
@@ -4357,7 +4351,7 @@ impl LabApplication {
                 let visibility_width = ui
                     .painter()
                     .layout_no_wrap(
-                        crate::localization::tr(visibility_label).into(),
+                        crate::localization::tr(visibility_label),
                         egui::TextStyle::Button.resolve(ui.style()),
                         ui.visuals().text_color(),
                     )
@@ -4697,6 +4691,116 @@ fn pair_number_list(state: &Value, key: &str) -> Vec<(String, f64)> {
         .collect()
 }
 
+
+impl LabApplication {
+    pub(super) fn draw_cdmw_translucency(&self, ui: &mut egui::Ui, actions: &mut Vec<UiAction>) {
+        let Some(state) = self.cdmw_state.get("translucency") else { return };
+        crate::localization::collapsing("Translucency (experimental)")
+            .id_salt("part_translucency").show(ui, |ui| {
+                ui.add(egui::Label::new(egui::RichText::new(
+                    crate::localization::tr("Transparency limitation: Overlapping transparent surfaces may show visible triangles or other visual glitches in game, even within the same model. Avoid overlapping transparent surfaces where possible."))
+                    .color(ui.visuals().warn_fg_color)).wrap());
+                let selected = self.selected_part_indices();
+                let rows = state["parts"].as_array().into_iter().flatten()
+                    .filter(|row| row["index"].as_u64().is_some_and(|index| selected.contains(&(index as u32))))
+                    .collect::<Vec<_>>();
+                let ids = rows.iter().map(|row| row["id"].clone()).collect::<Vec<_>>();
+                let available = state["available"].as_bool().unwrap_or(false);
+                if !available {
+                    ui.small(crate::localization::tr(state["reason"].as_str().unwrap_or("Translucency is unavailable for this mesh.")));
+                } else if ids.is_empty() {
+                    ui.small(crate::localization::tr("Select one or more Parts above."));
+                }
+                let saved = rows.first().map(|row| &row["translucency"]);
+                let saved_surface = rows.first().map(|row| &row["translucency_surface"]);
+                let mixed = rows.iter().any(|row| Some(&row["translucency"]) != saved
+                    || Some(&row["translucency_surface"]) != saved_surface);
+                if mixed { ui.small(crate::localization::tr("Selected parts have different translucency settings.")); }
+                let key = egui::Id::new(("translucency_values", ids.iter().map(Value::to_string).collect::<Vec<_>>(),
+                                        rows.iter().map(|row| (row["translucency"].to_string(), row["translucency_surface"].to_string())).collect::<Vec<_>>()));
+                let mut values = ui.ctx().data_mut(|data| data.get_temp::<[f32; 2]>(key)).unwrap_or_else(|| {
+                    [saved.and_then(|v| v[0].as_f64()).unwrap_or(0.1) as f32,
+                     saved.and_then(|v| v[1].as_f64()).unwrap_or(0.3) as f32]
+                });
+                let surface_key = key.with("surface");
+                let mut surface = ui.ctx().data_mut(|data| data.get_temp::<[Option<f32>; 2]>(surface_key))
+                    .unwrap_or_else(|| [0, 1].map(|index| saved_surface.and_then(|v| v[index].as_f64()).map(|v| v as f32)));
+                let editing = self.cdmw_state["authoring_enabled"].as_bool().unwrap_or(false)
+                    && self.cdmw_state["replacement"]["comparison"].as_str().unwrap_or("edit") == "edit";
+                ui.add_enabled_ui(available && !ids.is_empty() && !self.cdmw_busy() && editing, |ui| {
+                    let presets = [("Clear glass", [0.1, 0.0]), ("Light absorption", [0.1, 0.3]),
+                        ("Medium absorption", [0.5, 0.6]), ("Dense absorption", [1.0, 1.0])];
+                    let label = presets.iter().find(|(_, pair)| *pair == values).map_or("Custom", |(label, _)| *label);
+                    egui::ComboBox::from_id_salt("translucency_preset").selected_text(crate::localization::tr(label)).show_ui(ui, |ui| {
+                        for (label, pair) in presets {
+                            if ui.selectable_label(values == pair, crate::localization::tr(label)).clicked() { values = pair; }
+                        }
+                    });
+                    let mut strength = (values[0] * values[1]).sqrt();
+                    ui.horizontal(|ui| {
+                        ui.label(crate::localization::tr("Clear glass"));
+                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                            ui.label(crate::localization::tr("Dense"));
+                        });
+                    });
+                    if ui.add(crate::cdmw_ui::numeric::slider(&mut strength, 0.0..=1.0))
+                        .on_hover_text(crate::localization::tr("Adjusts thickness and extinction together. This is absorption strength, not an opacity percentage."))
+                        .changed() { values = [strength, strength]; }
+                    let surface_label = match surface {
+                        [None, None] => "Source surface",
+                        [Some(0.9), Some(0.0)] => "Low-shine translucent",
+                        _ => "Custom surface",
+                    };
+                    egui::ComboBox::from_id_salt("translucency_surface_preset").selected_text(crate::localization::tr(surface_label)).show_ui(ui, |ui| {
+                        if ui.selectable_label(surface == [None, None], crate::localization::tr("Source surface")).clicked() {
+                            surface = [None, None];
+                        }
+                        if ui.selectable_label(surface == [Some(0.9), Some(0.0)], crate::localization::tr("Low-shine translucent")).clicked() {
+                            surface = [Some(0.9), Some(0.0)];
+                        }
+                    });
+                    for (index, label) in ["Roughness", "Metallic"].into_iter().enumerate() {
+                        ui.vertical(|ui| {
+                            let mut enabled = surface[index].is_some();
+                            ui.checkbox(&mut enabled, crate::localization::tr(label))
+                                .on_hover_text(crate::localization::tr("Override this channel on selected parts. Uncheck to keep the source texture."));
+                            let mut value = surface[index].unwrap_or(if index == 0 { 0.9 } else { 0.0 });
+                            ui.add_enabled(enabled, crate::cdmw_ui::numeric::slider(&mut value, 0.0..=1.0))
+                                .on_hover_text(crate::localization::tr("Higher roughness softens highlights; lower metallic reduces metallic reflections. Some game reflections may remain."));
+                            surface[index] = enabled.then_some(value);
+                        });
+                    }
+                    crate::localization::collapsing("Advanced").id_salt("translucency_advanced").show(ui, |ui| {
+                        for (name, value) in ["Thickness", "Extinction"].into_iter().zip(values.iter_mut()) {
+                            ui.add(crate::cdmw_ui::numeric::slider(value, 0.0..=1.0)
+                                .text(crate::localization::tr(name)).fixed_decimals(3));
+                        }
+                    }).header_response.on_hover_text(crate::localization::tr("Higher values absorb more light. Glow maps and colours are kept. Game refraction and glow brightness may differ from the preview."));
+                    ui.horizontal_wrapped(|ui| {
+                        if ui.button(crate::localization::tr("Apply translucency")).clicked() {
+                            actions.push(UiAction::CdmwCommand {
+                                command: "replacement_translucency",
+                                arguments: json!({"part_ids": ids, "translucency": values,
+                                    "translucency_surface": surface.iter().any(Option::is_some).then_some(surface)}),
+                                label: "Edit material translucency",
+                            });
+                        }
+                        if ui.add_enabled(rows.iter().any(|row| !row["translucency"].is_null()),
+                                          egui::Button::new(crate::localization::tr("Restore material"))).clicked() {
+                            actions.push(UiAction::CdmwCommand {
+                                command: "replacement_translucency",
+                                arguments: json!({"part_ids": ids, "reset": true}),
+                                label: "Restore material translucency",
+                            });
+                        }
+                    });
+                });
+                ui.ctx().data_mut(|data| data.insert_temp(key, values));
+                ui.ctx().data_mut(|data| data.insert_temp(surface_key, surface));
+            });
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -4813,115 +4917,5 @@ mod tests {
         assert!(application.cdmw_textured_mode_available);
         assert_eq!(application.view_mode, ViewMode::TexturedSolid);
         assert!(application.cdmw_textured_mode_reason.is_empty());
-    }
-}
-
-
-impl LabApplication {
-    pub(super) fn draw_cdmw_translucency(&self, ui: &mut egui::Ui, actions: &mut Vec<UiAction>) {
-        let Some(state) = self.cdmw_state.get("translucency") else { return };
-        crate::localization::collapsing("Translucency (experimental)")
-            .id_salt("part_translucency").show(ui, |ui| {
-                ui.add(egui::Label::new(egui::RichText::new(
-                    crate::localization::tr("Transparency limitation: Overlapping transparent surfaces may show visible triangles or other visual glitches in game, even within the same model. Avoid overlapping transparent surfaces where possible."))
-                    .color(ui.visuals().warn_fg_color)).wrap());
-                let selected = self.selected_part_indices();
-                let rows = state["parts"].as_array().into_iter().flatten()
-                    .filter(|row| row["index"].as_u64().is_some_and(|index| selected.contains(&(index as u32))))
-                    .collect::<Vec<_>>();
-                let ids = rows.iter().map(|row| row["id"].clone()).collect::<Vec<_>>();
-                let available = state["available"].as_bool().unwrap_or(false);
-                if !available {
-                    ui.small(crate::localization::tr(state["reason"].as_str().unwrap_or("Translucency is unavailable for this mesh.")));
-                } else if ids.is_empty() {
-                    ui.small(crate::localization::tr("Select one or more Parts above."));
-                }
-                let saved = rows.first().map(|row| &row["translucency"]);
-                let saved_surface = rows.first().map(|row| &row["translucency_surface"]);
-                let mixed = rows.iter().any(|row| Some(&row["translucency"]) != saved
-                    || Some(&row["translucency_surface"]) != saved_surface);
-                if mixed { ui.small(crate::localization::tr("Selected parts have different translucency settings.")); }
-                let key = egui::Id::new(("translucency_values", ids.iter().map(Value::to_string).collect::<Vec<_>>(),
-                                        rows.iter().map(|row| (row["translucency"].to_string(), row["translucency_surface"].to_string())).collect::<Vec<_>>()));
-                let mut values = ui.ctx().data_mut(|data| data.get_temp::<[f32; 2]>(key)).unwrap_or_else(|| {
-                    [saved.and_then(|v| v[0].as_f64()).unwrap_or(0.1) as f32,
-                     saved.and_then(|v| v[1].as_f64()).unwrap_or(0.3) as f32]
-                });
-                let surface_key = key.with("surface");
-                let mut surface = ui.ctx().data_mut(|data| data.get_temp::<[Option<f32>; 2]>(surface_key))
-                    .unwrap_or_else(|| [0, 1].map(|index| saved_surface.and_then(|v| v[index].as_f64()).map(|v| v as f32)));
-                let editing = self.cdmw_state["authoring_enabled"].as_bool().unwrap_or(false)
-                    && self.cdmw_state["replacement"]["comparison"].as_str().unwrap_or("edit") == "edit";
-                ui.add_enabled_ui(available && !ids.is_empty() && !self.cdmw_busy() && editing, |ui| {
-                    let presets = [("Clear glass", [0.1, 0.0]), ("Light absorption", [0.1, 0.3]),
-                        ("Medium absorption", [0.5, 0.6]), ("Dense absorption", [1.0, 1.0])];
-                    let label = presets.iter().find(|(_, pair)| *pair == values).map_or("Custom", |(label, _)| *label);
-                    egui::ComboBox::from_id_salt("translucency_preset").selected_text(crate::localization::tr(label)).show_ui(ui, |ui| {
-                        for (label, pair) in presets {
-                            if ui.selectable_label(values == pair, crate::localization::tr(label)).clicked() { values = pair; }
-                        }
-                    });
-                    let mut strength = (values[0] * values[1]).sqrt();
-                    ui.horizontal(|ui| {
-                        ui.label(crate::localization::tr("Clear glass"));
-                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                            ui.label(crate::localization::tr("Dense"));
-                        });
-                    });
-                    if ui.add(crate::cdmw_ui::numeric::slider(&mut strength, 0.0..=1.0))
-                        .on_hover_text(crate::localization::tr("Adjusts thickness and extinction together. This is absorption strength, not an opacity percentage."))
-                        .changed() { values = [strength, strength]; }
-                    let surface_label = match surface {
-                        [None, None] => "Source surface",
-                        [Some(0.9), Some(0.0)] => "Low-shine translucent",
-                        _ => "Custom surface",
-                    };
-                    egui::ComboBox::from_id_salt("translucency_surface_preset").selected_text(crate::localization::tr(surface_label)).show_ui(ui, |ui| {
-                        if ui.selectable_label(surface == [None, None], crate::localization::tr("Source surface")).clicked() {
-                            surface = [None, None];
-                        }
-                        if ui.selectable_label(surface == [Some(0.9), Some(0.0)], crate::localization::tr("Low-shine translucent")).clicked() {
-                            surface = [Some(0.9), Some(0.0)];
-                        }
-                    });
-                    for (index, label) in ["Roughness", "Metallic"].into_iter().enumerate() {
-                        ui.vertical(|ui| {
-                            let mut enabled = surface[index].is_some();
-                            ui.checkbox(&mut enabled, crate::localization::tr(label))
-                                .on_hover_text(crate::localization::tr("Override this channel on selected parts. Uncheck to keep the source texture."));
-                            let mut value = surface[index].unwrap_or(if index == 0 { 0.9 } else { 0.0 });
-                            ui.add_enabled(enabled, crate::cdmw_ui::numeric::slider(&mut value, 0.0..=1.0))
-                                .on_hover_text(crate::localization::tr("Higher roughness softens highlights; lower metallic reduces metallic reflections. Some game reflections may remain."));
-                            surface[index] = enabled.then_some(value);
-                        });
-                    }
-                    crate::localization::collapsing("Advanced").id_salt("translucency_advanced").show(ui, |ui| {
-                        for (name, value) in ["Thickness", "Extinction"].into_iter().zip(values.iter_mut()) {
-                            ui.add(crate::cdmw_ui::numeric::slider(value, 0.0..=1.0)
-                                .text(crate::localization::tr(name)).fixed_decimals(3));
-                        }
-                    }).header_response.on_hover_text(crate::localization::tr("Higher values absorb more light. Glow maps and colours are kept. Game refraction and glow brightness may differ from the preview."));
-                    ui.horizontal_wrapped(|ui| {
-                        if ui.button(crate::localization::tr("Apply translucency")).clicked() {
-                            actions.push(UiAction::CdmwCommand {
-                                command: "replacement_translucency",
-                                arguments: json!({"part_ids": ids, "translucency": values,
-                                    "translucency_surface": surface.iter().any(Option::is_some).then_some(surface)}),
-                                label: "Edit material translucency",
-                            });
-                        }
-                        if ui.add_enabled(rows.iter().any(|row| !row["translucency"].is_null()),
-                                          egui::Button::new(crate::localization::tr("Restore material"))).clicked() {
-                            actions.push(UiAction::CdmwCommand {
-                                command: "replacement_translucency",
-                                arguments: json!({"part_ids": ids, "reset": true}),
-                                label: "Restore material translucency",
-                            });
-                        }
-                    });
-                });
-                ui.ctx().data_mut(|data| data.insert_temp(key, values));
-                ui.ctx().data_mut(|data| data.insert_temp(surface_key, surface));
-            });
     }
 }

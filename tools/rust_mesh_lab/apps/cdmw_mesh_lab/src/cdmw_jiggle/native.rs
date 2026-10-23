@@ -126,8 +126,10 @@ mod tests {
     fn decoded_jiggle_regional_overrides_match_the_shared_solver_and_can_be_cleared() {
         let mut shared = simulation(true, vec![255, 240, 240]);
         let mut regional = simulation(true, vec![255, 240, 240]);
-        let mut settings = Settings::default();
-        settings.values = [30.0, 0.25, 0.5, 0.02, 25.0, 0.4, 0.2, 0.01];
+        let mut settings = Settings {
+            values: [30.0, 0.25, 0.5, 0.02, 25.0, 0.4, 0.2, 0.01],
+            ..Settings::default()
+        };
         regional.bone_settings.insert(0, settings.values);
         for step in 0..80 {
             if step == 40 {

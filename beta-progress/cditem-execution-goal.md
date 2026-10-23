@@ -503,11 +503,47 @@ material defects. Root actual tool joins are
 `20261023-direct-authority/b122-v4-offline-seal-tool-join.json`. Native provenance remains fully rehashed
 and transitively sealed rather than flattened into operational recovery.
 
-Final caller classification/source-packet review and fresh startup/resources/
-handoff/seal remain pending. Give the immediate pre-run notice only when ready.
-No actual game pair API execution, public map/count replacement, reader lease,
-cleanup, derived-state/resource use, saved ownership or admission follows from
-this owned qualification. Original acceptance states remain unchanged.
+The owned qualification does not itself establish actual game API execution.
+The subsequent controlled capture is recorded below. Public map/count replacement,
+reader lease, cleanup, derived-state/resource use, saved ownership and admission
+remain unproved; original acceptance states remain unchanged.
+
+#### Actual unpublished native pair capture, 2026-10-23
+
+The retained controlled capture observes both complete unpublished native maps
+after the checked four-row stage: N=6,816 stock plus one item/three perk Rows
+produce two private 6,820-entry maps through eight native inserts, twelve name
+callbacks, 45 steps and 13,636 accepted allocations. Public counts/maps stay
+6,816. Root's direct tool receipt joins all five physical channels to their
+retained bytes, rehashes 222 reviewed source-packet rows with 216 recovery sources
+inside the unchanged 256 limit, confirms unchanged represented stock/owner/record
+data and records normal closure/restoration in 47.188 seconds. The guardian's
+stale-heartbeat decision records age 5,218ms and no close request at that decision;
+normal owned closure succeeds without force while offline review runs. It was
+not solely an explicit result-close request. The seven preserved files and stock mount
+match the pre-run state, and all five owned process roles are absent afterward.
+This is a historical pre-install restoration result, not permission to replay it
+against the later sword overlay.
+
+The first post-run recorder refused Python dictionary equality because numeric
+keys became strings in JSON. Its successor reproduces every retained canonical
+JSON byte while retaining the original decoder, raw addresses and false flags.
+Both attempts remain recorded. Sealed independent actual-capture review now
+passes with no material defects. It separately parses raw structures and joins
+the immutable source/native/process/session/token chain; original raw/offline
+false flags remain unchanged. Full bodies of the four staged Rows are preserved,
+without claiming full body copies for every stock record. Central publication,
+getter/bulk/derived-state acceptance, resource consumption, reader exclusion,
+cleanup execution, retirement, saves and native admission remain unproved.
+Matching PRE/POST bytes and zero instrumented release counters do not establish
+permanence or that engine cleanup never ran. Retained observation/offline review
+are under `run/b122-current-owner-v1/attempt1/`.
+
+| Artifact | Bytes | SHA-256 |
+| --- | ---: | --- |
+| `run/b122-current-owner-v1/source-candidate.json` | 47,160 | `0c81f23a663b75f7b862c90ea77b09e62038b57e04753f749a29a99b1a6e8962` |
+| `20261023-direct-authority/b122-v1-actual-cycle-tool-result.json` | 36,766 | `94b0b00d2261ce389a18331dbe5071bcf84bd86c6d91afb6e65319f9929fb246` |
+| `api-source-review/20261023-b122-v1-actual-review/independent-actual-capture-review-v1.json` | 77,580 | `a2043c9f284332e5a3cd05ce86547548aaf04e608955cae20da732c3a1e35155` |
 
 #### First privately authored sword: package and resource preparation
 
@@ -551,9 +587,55 @@ Exact evidence under `king-arthur-sword-build-v1/`:
 Actual tool chains and original failures remain in direct-authority receipts.
 The source material is double-sided with no verified plain-PBR two-sided shader
 mapping. No rendered appearance, native discovery/use, central registration,
-acquisition/equip/save, installation or admission is established. This sword is
+acquisition/equip/save or admission is established by preparation. This sword is
 the concrete content case for remaining native integration; it was not used in
 the earlier four-row game captures.
+
+#### Sword installation for the user's visual test
+
+The user's later explicit test-install request was fulfilled through the existing
+composed physical overlay, separately from independent native activation. The
+retained installer receipt records item 1,990,000 in group 0041, 52 overlay files
+and 194,882,496 payload bytes. All nine proposed writes read back exactly, both
+existing metadata files have matching verified backups, and seven loader
+companions remain unchanged. No Tranan shop placement or inventory grant was
+included. The installer did not launch the game; the user owns the visual-test
+window and reports a longstanding Live Edit Add callback timeout under separate
+diagnosis. No rendered weapon, acquisition/equip, save persistence or native
+admission is established.
+
+The direct receipt is
+`20261023-direct-authority/king-arthur-sword-archive001-actual-tool-join.json`,
+with the installer result, review and exact plan retained under
+`king-arthur-sword-build-v1/install-operations/archive001/`. The later overlay
+changes the metadata baseline deliberately; prior native-run grants cannot be
+reused against it. No removal or restoration was performed after installation.
+Exact result and root tool joins:
+
+| Artifact | Bytes | SHA-256 |
+| --- | ---: | --- |
+| `king-arthur-sword-build-v1/install-operations/archive001/result.json` | 12,061 | `aa5463fdf650c6bf9ebeabb59a500f9d7908842b47570aacdf1c34a6c57e7ea6` |
+| `20261023-direct-authority/king-arthur-sword-archive001-actual-tool-join.json` | 6,386 | `a2399494fcf45a6d439cf590e2ec78bb189099f1a213c3d5afadb3e88bac856b` |
+
+#### Reader-boundary platform qualification remains open
+
+The owned-dummy DbgEng route has no pause/read/resume qualification: V1 refused
+its Python logger before engine entry; V2 reached exact S_OK Attach/Wait and
+explicit detach/passive cleanup but refused the five-thread guard before contexts
+or memory inspection, without recording the actual engine count. Loader extras
+remain an inference. V3 is frozen source only: it adds a complete held thread
+inventory, repeated exact engine-cohort equality and SDK-typed TIB stack checks
+under the unchanged 20-second absolute bound. It is uncompiled and unexecuted,
+awaiting independent review and a later root-owned qualification window. No game
+reader lease, writer exclusion, publication or admission follows.
+
+V2 independent actual failure review:
+`api-source-review/20261023-owned-dbgeng-dummy-v2-actual-review/independent-actual-failure-review-v1.json`,
+36,004 bytes, SHA-256
+`f7674d615c965ccc47898d54718cd8b84d206a328dc3e0e7aa0b2b6cc569b72d`.
+V3 source packet: `reader-pause/owned-dbgeng-v3/source-candidate-final.json`,
+7,981 bytes, SHA-256
+`00e1cb392954b9f1f7c73e8a261c0fb3155e3e3edc2455db1f1bd9e6bb672694`.
 
 Then join the staged records and unpublished native pairs to both central
 getter/bulk routes, with private metadata/backing, coherent publication, later
