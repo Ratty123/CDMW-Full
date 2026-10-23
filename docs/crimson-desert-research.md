@@ -294,6 +294,17 @@ builders account for the file's lower-detail-to-higher-detail section arrangemen
 while maintaining the corresponding offsets and size records. A file that
 renders once is not enough to establish that every later LOD/reload path is valid.
 
+Scoped source review on 2026-10-23 against `9d542c85799e` plus the LOD-mapping
+correction found a fixed four-section assumption in the Python PAC readers and
+position-edit bounds preservation. Owned two-LOD fixtures returned no geometry;
+three-LOD fixtures with different stored detail counts returned fewer vertices
+and faces than their declared LOD0. The readers, descriptor-prefix checks and
+lower-LOD position updates now use the declared count. An independent binary
+reader confirms the fixture part/detail counts. Focused read, no-edit rebuild,
+and bounds-expansion checks retain source-record ownership and protected vertex
+bytes across two, three and four LODs. This is source and owned-fixture evidence;
+packaged rendering, new layout support and in-game acceptance are not established.
+
 Exact authoring is selected by format, LOD and operation. The proven exact
 topology path is LOD0; lower LODs are not granted arbitrary topology editing.
 Other constrained operations can preserve or deliberately update validated

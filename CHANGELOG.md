@@ -25,6 +25,7 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 ### Fixed
 
+- Mesh Editor correctly reads PAC models with two or three levels of detail and preserves their lower-detail geometry and skin data when position edits expand the bounds.
 - Create New Item correctly reads large stack counts and distinguishes item type from category, including items with secondary descriptions or level requirements. Existing `.cditem` formats and edit limits are preserved.
 - Independent item preparation no longer rejects unrelated sequence files in mounted mods or selected mod folders.
 
