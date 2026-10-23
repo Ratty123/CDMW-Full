@@ -136,11 +136,16 @@ the shared localization catalog instead of maintaining separate translated
 topic copies.
 
 `scripts/export_github_wiki.py --output <wiki-folder>` renders those same topics
-and catalogues as GitHub Markdown for all 14 locales. The exporter adds local
-language navigation, task indexes, stable section anchors and labelled callouts;
-it never pushes or changes repository settings. `--check` compares the local
+and catalogues as 14 native-named GitHub Wiki manuals, a language index and shared
+navigation. Each manual has grouped contents, all 18 guides, stable section
+anchors and labelled callouts. The exporter never pushes or changes repository
+settings. `--check` compares the local
 pages with their source. Keep generated Wiki pages in their separate checkout,
 and review both documentation surfaces when a user-facing contract changes.
+`--source-wiki <old-checkout> --replace-legacy` migrates the earlier per-guide layout
+without regenerating prose. Obsolete generated filenames are removed only with
+that explicit flag; unrelated files are retained. Do not add legacy redirect
+pages, which would repopulate GitHub's global Pages list.
 
 ## Settings and display scaling
 

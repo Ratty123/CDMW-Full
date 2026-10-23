@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import re
+from urllib.parse import unquote
 
 import pytest
 
@@ -10,12 +11,79 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from scripts.export_github_wiki import (
     BUILTIN_LANGUAGES, PAGE_TOPICS, WIKI, DocumentParser, _blocks,
     _translate_html, build_pages, page_slug,
+    build_manuals, manual_slug,
 )
 
 
 @pytest.fixture(scope="module")
 def wiki_pages():
     return build_pages()
+
+
+@pytest.fixture(scope="module")
+def wiki_manuals(wiki_pages):
+    return build_manuals(wiki_pages)
+
+
+def test_manuals_have_one_native_named_page_per_language_and_18_guide_entries(wiki_manuals):
+    assert len(wiki_manuals) == 17
+    assert set(wiki_manuals) == {
+        *(manual_slug(language.code) + ".md" for language in BUILTIN_LANGUAGES),
+        "Languages.md", "_Sidebar.md", "_Footer.md",
+    }
+    assert "Deutsch.md" in wiki_manuals and "日本語.md" in wiki_manuals
+    for language in BUILTIN_LANGUAGES:
+        body = wiki_manuals[manual_slug(language.code) + ".md"]
+        guides = re.findall(r'<a id="guide-([^"]+)"></a>', body)
+        assert set(guides) == {page.lower() for page in PAGE_TOPICS}
+        assert len(guides) == len(PAGE_TOPICS) == 18
+        assert body.count("](#contents)") == 18
+        assert "> [!WARNING]" in body and "> [!IMPORTANT]" in body
+    assert "<details>" not in wiki_manuals["_Sidebar.md"]
+
+
+def test_manual_links_resolve_to_the_reduced_page_set_and_unique_section_ids(wiki_manuals):
+    for filename, body in wiki_manuals.items():
+        anchors = re.findall(r'<a id="([^"]+)"></a>', body)
+        assert len(anchors) == len(set(anchors)), filename
+        for target in re.findall(r"\]\(([^)]+)\)", body):
+            if target.startswith(WIKI):
+                page, _, anchor = target[len(WIKI):].partition("#")
+                destination = unquote(page) + ".md"
+                assert destination in wiki_manuals, (filename, target)
+                if anchor:
+                    assert f'<a id="{anchor}"></a>' in wiki_manuals[destination], (filename, target)
+            elif target.startswith("#"):
+                assert target[1:] in anchors, (filename, target)
+
+
+def test_consolidation_preserves_every_guides_visible_text(wiki_pages, wiki_manuals):
+    def content_lines(text):
+        lines = []
+        for line in text.splitlines():
+            if not line.strip() or line == "---" or line.startswith(("[⌂ ", "🌐 ", "CDMW `", "[↑ ")):
+                continue
+            line = re.sub(r"\]\([^)\n]+\)", "]", line)
+            lines.append(re.sub(r"^#{1,6} ", "", line))
+        return lines
+
+    for language in BUILTIN_LANGUAGES:
+        manual = wiki_manuals[manual_slug(language.code) + ".md"]
+        sections = dict(re.findall(
+            r'<a id="guide-([^"]+)"></a>\n\n## [^\n]+\n\n(.*?)(?=\n\n---\n\n(?:<a id="guide-|CDMW `))',
+            manual, re.DOTALL,
+        ))
+        assert len(sections) == 18
+        for page in PAGE_TOPICS:
+            old = wiki_pages[page_slug(page, language.code) + ".md"].split("\n", 1)[1]
+            assert content_lines(old) == content_lines(sections[page.lower()]), (language.code, page)
+
+
+def test_manual_migration_requires_every_source_guide(wiki_pages):
+    incomplete = dict(wiki_pages)
+    del incomplete["Mesh-Editor-ja.md"]
+    with pytest.raises(ValueError, match="Missing source Wiki guides: Mesh-Editor-ja.md"):
+        build_manuals(incomplete)
 
 
 def test_all_14_locales_have_complete_guides_and_same_language_navigation(wiki_pages):
@@ -73,12 +141,38 @@ def test_export_output_stays_in_the_named_folder_and_check_detects_stale_page(tm
     folder = tmp_path / "wiki"
     monkeypatch.setattr("sys.argv", ["export_github_wiki.py", "--output", str(folder)])
     assert main() == 0
-    assert {file.name for file in folder.iterdir()} == set(build_pages())
+    assert {file.name for file in folder.iterdir()} == set(build_manuals())
     monkeypatch.setattr("sys.argv", ["export_github_wiki.py", "--output", str(folder), "--check"])
     assert main() == 0
     (folder / "Home.md").write_text("stale", encoding="utf-8")
     assert main() == 1
     assert "Stale Wiki pages: Home.md" in capsys.readouterr().out
+
+
+def test_migration_removes_only_known_legacy_pages_with_explicit_flag(tmp_path, monkeypatch, wiki_pages):
+    from scripts.export_github_wiki import main
+
+    source = tmp_path / "published"
+    source.mkdir()
+    for name, body in wiki_pages.items():
+        (source / name).write_text(body, encoding="utf-8")
+    output = tmp_path / "manuals"
+    output.mkdir()
+    obsolete = output / "Archive-Browser.md"
+    obsolete.write_text("old generated guide", encoding="utf-8")
+    unrelated = output / "Personal-notes.md"
+    unrelated.write_text("keep this", encoding="utf-8")
+    arguments = ["export_github_wiki.py", "--source-wiki", str(source), "--output", str(output)]
+    monkeypatch.setattr("sys.argv", arguments)
+    assert main() == 1
+    assert obsolete.exists() and not (output / "Home.md").exists()
+    monkeypatch.setattr("sys.argv", arguments + ["--replace-legacy"])
+    assert main() == 0
+    assert not obsolete.exists() and unrelated.read_text(encoding="utf-8") == "keep this"
+    monkeypatch.setattr("sys.argv", arguments + ["--check"])
+    assert main() == 0
+    obsolete.write_text("unexpected old guide", encoding="utf-8")
+    assert main() == 1
 
 
 @pytest.mark.parametrize("language", BUILTIN_LANGUAGES, ids=lambda language: language.code)

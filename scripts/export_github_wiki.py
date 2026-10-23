@@ -11,6 +11,7 @@ import sys
 from dataclasses import dataclass, field
 from html.parser import HTMLParser
 from pathlib import Path
+from urllib.parse import quote
 
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
@@ -73,6 +74,13 @@ PAGE_REFERENCES = {
     ),
     "Troubleshooting-and-Reporting": ("README.md#privacy-and-support", "SECURITY.md"),
 }
+MANUAL_GROUPS = (
+    ("Start Here", ("Home", "Getting-Started", "Tools-and-Navigation", "FAQ")),
+    ("Assets", ("Archive-Browser", "Create-New-Item", "Model-Library", "Item-Icons")),
+    ("Authoring", ("Mesh-Editor", "Placement-and-Animations", "Textures")),
+    ("Utilities", ("Mod-Management", "Independent-Item-Packages", "Translations-and-Text-Search", "Formats-and-Research")),
+    ("Help", ("Settings-and-Profiles", "Troubleshooting-and-Reporting", "Contributing")),
+)
 
 
 @dataclass
@@ -219,7 +227,7 @@ def _title(page: str, sections: dict, translate) -> str:
 
 
 def build_pages() -> dict[str, str]:
-    """Return all Wiki files; this never touches archives, settings or the network."""
+    """Render individual guides in memory for manual composition and migration."""
     builder = AboutDocumentationEnglishMixin()
     builder.settings_file_path = "CrimsonDesertModWorkbench.cfg"
     builder.archive = type("DocumentationArchive", (), {"archive_cache_root": "workspace/cache"})()
@@ -359,22 +367,122 @@ def build_pages() -> dict[str, str]:
     return result
 
 
+def manual_slug(locale: str) -> str:
+    language = next(entry for entry in BUILTIN_LANGUAGES if entry.code == locale)
+    return "Home" if locale == "en" else language.display_name.replace(" ", "-")
+
+
+def manual_url(locale: str, anchor: str = "") -> str:
+    return WIKI + quote(manual_slug(locale), safe="-") + ("#" + anchor if anchor else "")
+
+
+def _guide_body(markdown: str) -> str:
+    body = markdown.split("\n", 1)[1].strip()
+    body = re.sub(r"\A\[⌂ [^\n]+\n\n", "", body, count=1)
+    body = re.sub(r"\A🌐 [^\n]+\n\n", "", body, count=1)
+    return re.sub(r"\n\n---\n\nCDMW [^\n]+\Z", "", body)
+
+
+def build_manuals(guides: dict[str, str] | None = None) -> dict[str, str]:
+    """Consolidate all guide content into one native-named manual per locale."""
+    if guides is None:
+        guides = build_pages()
+    targets = {
+        page_slug(page, language.code): (language.code, page)
+        for language in BUILTIN_LANGUAGES for page in PAGE_TOPICS
+    }
+    missing = sorted(name + ".md" for name in targets if name + ".md" not in guides)
+    if missing:
+        raise ValueError("Missing source Wiki guides: " + ", ".join(missing))
+
+    def rewrite_link(match):
+        target, _, anchor = match[1][len(WIKI):].partition("#")
+        if target not in targets:
+            return match[0]
+        locale, page = targets[target]
+        return "](" + manual_url(locale, anchor or "guide-" + page.lower()) + ")"
+
+    result = {}
+    order = [page for _, pages in MANUAL_GROUPS for page in pages]
+    for language in BUILTIN_LANGUAGES:
+        locale = language.code
+        catalogue = load_builtin_catalog(locale)["translations"]
+        translate = lambda text: str(catalogue.get(text, text))
+        home = guides[page_slug("Home", locale) + ".md"]
+        titles = {
+            page: translate("Home") if page == "Home" else guides[page_slug(page, locale) + ".md"].splitlines()[0][2:]
+            for page in PAGE_TOPICS
+        }
+        provenance = re.search(r"^CDMW `[^`]+` · `[^`]+`", home, re.MULTILINE)
+        if provenance is None:
+            raise ValueError("Missing documentation provenance: " + locale)
+        parts = [
+            home.splitlines()[0],
+            f"**{language.display_name}** · [🌐 {translate('Language')}]({WIKI}Languages)",
+            '<a id="contents"></a>\n\n## ' + translate("Contents"),
+        ]
+        for group, pages in MANUAL_GROUPS:
+            parts.extend([
+                "**" + translate(group) + "**",
+                "\n".join(f"- [{titles[page]}](#guide-{page.lower()})" for page in pages),
+            ])
+        for page in order:
+            body = _guide_body(guides[page_slug(page, locale) + ".md"])
+            body = re.sub(r"(?m)^(#{1,5}) ", r"#\1 ", body)
+            body = re.sub(r"\]\((" + re.escape(WIKI) + r"[^)\n]+)\)", rewrite_link, body)
+            parts.extend([
+                '---\n\n<a id="guide-' + page.lower() + '"></a>\n\n## ' + titles[page],
+                body,
+                f"[↑ {translate('Contents')}](#contents)",
+            ])
+        parts.append("---\n\n" + provenance[0])
+        result[manual_slug(locale) + ".md"] = "\n\n".join(parts) + "\n"
+    languages = "\n".join(
+        f"- [{language.display_name}]({manual_url(language.code, 'contents')})"
+        for language in BUILTIN_LANGUAGES
+    )
+    result["Languages.md"] = "# 🌐 Languages\n\n" + languages + "\n"
+    result["_Sidebar.md"] = (
+        f"**[CDMW Full Wiki]({WIKI}Home)**\n\n[🌐 Languages]({WIKI}Languages)\n\n" + languages + "\n"
+    )
+    result["_Footer.md"] = guides["_Footer.md"]
+    return result
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output", type=Path, required=True, help="Explicit local Wiki checkout or draft folder.")
     parser.add_argument("--check", action="store_true", help="Check existing pages without writing them.")
+    parser.add_argument("--source-wiki", type=Path, help="Preserve guides from an existing pre-manual Wiki checkout instead of regenerating prose.")
+    parser.add_argument("--replace-legacy", action="store_true", help="Remove only obsolete generated guide files after writing the manuals.")
     args = parser.parse_args()
-    pages = build_pages()
+    legacy_names = {
+        page_slug(page, language.code) + ".md"
+        for page in PAGE_TOPICS for language in BUILTIN_LANGUAGES
+    } | {"Languages.md", "_Sidebar.md", "_Footer.md"}
+    guides = None if args.source_wiki is None else {
+        name: (args.source_wiki / name).read_text(encoding="utf-8") for name in legacy_names
+    }
+    pages = build_manuals(guides)
     output = args.output.resolve()
+    obsolete = sorted(name for name in legacy_names - pages.keys() if (output / name).is_file())
     if args.check:
         stale = [name for name, body in pages.items() if not (output / name).is_file() or (output / name).read_text(encoding="utf-8") != body]
-        if stale:
-            print("Stale Wiki pages: " + ", ".join(stale))
+        if stale or obsolete:
+            if stale:
+                print("Stale Wiki pages: " + ", ".join(stale))
+            if obsolete:
+                print("Obsolete Wiki guide files: " + ", ".join(obsolete))
             return 1
     else:
+        if obsolete and not args.replace_legacy:
+            print("Legacy guide files remain; use --replace-legacy to consolidate this checkout.")
+            return 1
         output.mkdir(parents=True, exist_ok=True)
         for name, body in pages.items():
             (output / name).write_text(body, encoding="utf-8", newline="\n")
+        for name in obsolete:
+            (output / name).unlink()
     print(f"{'Checked' if args.check else 'Exported'} {len(pages)} Wiki files across {len(BUILTIN_LANGUAGES)} locales. No publication performed.")
     return 0
 
