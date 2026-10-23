@@ -1426,6 +1426,12 @@ This avoids missing sprites or unrelated triangles while retaining genuine mesh
 particles. Ribbon trails and movement inherited from carrier emitters are not
 fully simulated.
 
+Parent-driven particles stay off when a resolved carrier has zero spawn count.
+This follows unique variation IDs and matching parent/child links, including
+inherited counts; unknown or ambiguous links keep their existing approximation.
+Hiding a carrier's own geometry does not stop its children. This does not add
+carrier motion, trigger timing, connected ribbon geometry or runtime route data.
+
 ### Imported item material authority
 
 For an imported item, Effects always derives its placed preview from the live import

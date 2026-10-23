@@ -1160,12 +1160,32 @@ requires a valid target and volume; this is not a claim that it spawns everywher
 The selected 45 payload and PAMT hashes were unchanged. No CDMW particle pixel
 capture, packaged viewport or in-game appearance was verified.
 
-The tracking-way resource confirms a separate unresolved gap: a non-drawing
-carrier names three children, two using ribbon geometry type 4. CDKit's headless
-preview produces ribbon points along its sample route, while CDMW retains a flat
-emitter description. The sample path is preview input, not recovered game motion.
-Carrier scheduling, complete ribbon rendering and game parity remain open; RGB
-brightness experiments did not qualify another implementation change.
+The tracking-way resource contains a non-drawing carrier with three children,
+two using ribbon geometry type 4. CDKit's headless preview produces ribbon points
+along its sample route. That route is preview input, not recovered game motion.
+
+A headless follow-up on 2026-10-24, confirmed by `12d89d68`, established one
+carrier control correction. In the real tracking-way file, setting the carrier
+spawn count to zero gave zero particles and ribbon points in CDKit; CDMW had
+continued drawing all three children independently. CDMW now suppresses a
+parent-driven emitter when its resolved ancestor cannot spawn, using unique
+variation IDs, both directions of the link and explicit parent-driven spawn
+mode. Missing or ambiguous links are not guessed. Render visibility remains
+separate: a hidden carrier can still create children. A second real effect
+retained its unrelated emitter while its zero-count carrier's child stopped.
+The four original real-effect descriptors were unchanged by the correction.
+A windowless CPU replay through the production Rust simulation confirmed that
+the corrected zero-count route no longer supplies child draw instances; this
+is not particle pixel capture or in-game proof.
+
+The follow-up inspected 140 effect definitions and compared native frame
+exports for the route, two standalone ribbon effects and a second carrier
+effect. Both standalone ribbon exports reported zero ribbon points despite
+geometry type 4. This limits CDKit as an oracle for general ribbon behaviour.
+No full ribbon or moving-route implementation qualified: connected trail
+geometry, carrier motion and trigger timing remain open, as do runtime route
+binding and game parity. RGB brightness experiments likewise remain without
+a qualified implementation change.
 
 Sources: [effect reflection reader][effect-binary], [constrained writer][effect-edit],
 [dependency and authoring contracts][independent-items], [binary tests][effect-tests].

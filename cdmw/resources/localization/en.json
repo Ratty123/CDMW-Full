@@ -11912,7 +11912,7 @@
     "Spring-back stiffness": "Spring-back stiffness",
     "Spring-back {value_0} → {value_1}": "Spring-back {value_0} → {value_1}",
     "Sprite DDS archive path (inherit when empty)": "Sprite DDS archive path (inherit when empty)",
-    "Sprite particles ignore unused mesh references, so missing mesh files do not hide them. Mesh particles retain their geometry. Ribbon trails and moving emitter paths are not fully simulated.": "Sprite particles ignore unused mesh references, so missing mesh files do not hide them. Mesh particles retain their geometry. Ribbon trails and moving emitter paths are not fully simulated.",
+    "Sprite particles ignore unused mesh references, so missing mesh files do not hide them. Mesh particles retain their geometry. Ribbon trails and moving emitter paths are not fully simulated. Parent-driven particles stay off when their carrier's spawn count is zero.": "Sprite particles ignore unused mesh references, so missing mesh files do not hide them. Mesh particles retain their geometry. Ribbon trails and moving emitter paths are not fully simulated. Parent-driven particles stay off when their carrier's spawn count is zero.",
     "Square": "Square",
     "Stage weight change": "Stage weight change",
     "Staged effect payload is incomplete.": "Staged effect payload is incomplete.",

@@ -138827,7 +138827,7 @@
       ]
     },
     {
-      "key": "Sprite particles ignore unused mesh references, so missing mesh files do not hide them. Mesh particles retain their geometry. Ribbon trails and moving emitter paths are not fully simulated.",
+      "key": "Sprite particles ignore unused mesh references, so missing mesh files do not hide them. Mesh particles retain their geometry. Ribbon trails and moving emitter paths are not fully simulated. Parent-driven particles stay off when their carrier's spawn count is zero.",
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",

@@ -25,7 +25,7 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 ### Fixed
 
-- Create New Item's Effects preview no longer mistakes unused mesh references for mesh particles, fixing missing or incorrectly shaped sprites.
+- Create New Item's Effects preview fixes missing or incorrectly shaped sprites caused by unused mesh references, and keeps parent-driven particles off when their carrier's spawn count is zero.
 - Mesh Editor retains PAC detail-level section layouts when reading, inspecting cloth records and rebuilding models, while preserving lower-detail geometry and skin data during position edits.
 - Create New Item correctly reads large stack counts and distinguishes item type from category, including items with secondary descriptions or level requirements. Existing `.cditem` formats and edit limits are preserved.
 - Independent item preparation no longer rejects unrelated sequence files in mounted mods or selected mod folders.
