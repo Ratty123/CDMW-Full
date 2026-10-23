@@ -323,6 +323,7 @@ class MeshHistoryServiceMixin:
     def undo(self, session_id: str) -> MeshEditResult:
         session = self._session(session_id)
         with session.export_lock:
+            self._require_no_pending_refit_shape_restore_locked(session)
             snapshot = session.undo_stack[-1] if session.undo_stack else None
             profile_lock = self._history_profile_lock(snapshot)
             with profile_lock:
@@ -417,6 +418,7 @@ class MeshHistoryServiceMixin:
     def redo(self, session_id: str) -> MeshEditResult:
         session = self._session(session_id)
         with session.export_lock:
+            self._require_no_pending_refit_shape_restore_locked(session)
             snapshot = session.redo_stack[-1] if session.redo_stack else None
             profile_lock = self._history_profile_lock(snapshot)
             with profile_lock:

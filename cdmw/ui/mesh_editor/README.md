@@ -1881,6 +1881,19 @@ scope disables Apply; it never silently expands to all garments. **Fit as** offe
 Flexible, Rigid component, legacy Offset follow and Skip. **Skip**, or clearing
 **Refit enabled**, excludes the targets while retaining their mode and settings.
 
+**Restore fitting shape…** previews positions from an explicitly chosen matching
+unbaked PAC when an earlier Bake or saved fit has damaged the garment's shape.
+Select the garment Parts or whole mesh islands first, then Bake or Reset any
+current preview and apply pending fitting settings. The source must match the
+loaded source's vertex, triangle, UV and skin identities; names or nearby positions
+alone cannot establish a match. Unsupported or ambiguous edited topology refuses
+restoration. Included selected surfaces are restored; excluded Parts and island
+faces, unused vertices, unselected sculpting, materials and fitting settings remain
+intact. The preview lists its source, SHA-256 and selected scope. **Apply** records
+one undoable edit; **Cancel** restores the preceding geometry and history. Finish
+and conflicting edits wait for that choice, and an unapplied preview is not saved
+into a draft. Restoration does not infer the lost shape from an already baked PAC.
+
 Tightness and Clearance stay visible. **Follow body shape** contains **Body-shape
 following %** (the former Intensity control). **Body region**, **Local influence**
 and **Check current fit** open directly from their headings. Region and influence
@@ -1896,6 +1909,8 @@ separate outfit correction. **Saved** separates **Profiles**, **Presets** and
 **Reset** and **Bake** remain below the scrolling content in every tab and panel
 presentation. A pending sculpted slider replaces them with **Save slider** and
 **Discard base**; an outfit correction shows **Save correction** and **Cancel**.
+Restoring a fitting shape shows **Apply** and **Cancel** in the same strip, with
+the source and selection details in the scrolling area.
 Tab navigation remains available while these operations are pending, while conflicting
 actions stay disabled. Correction comparison also remains accessible in this strip.
 

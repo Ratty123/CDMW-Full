@@ -380,3 +380,27 @@ fn workflow_setup_selects_garment_parts_even_without_an_archive_asset_row() -> T
     )));
     Ok(())
 }
+
+#[test]
+fn restore_fitting_shape_actions_stay_visible_for_a_large_selection() -> TestResult {
+    let mut ui = super::morph_authoring::authoring_ui()?;
+    ui.size = egui::vec2(1000.0, 650.0);
+    ui.application.apply_cdmw_theme_payload(&json!({"font_point_size":18.0,"density":"comfortable"}));
+    let state = &mut ui.application.cdmw_state["morph_refit"];
+    state["shape_restore_source"] = json!("matching-unbaked.pac");
+    state["shape_restore_sha256"] = json!("a".repeat(64));
+    state["shape_restore_vertex_count"] = json!(3000);
+    state["shape_restore_scope"] = json!((0..80).map(|i| json!([i, "selected garment", 1])).collect::<Vec<_>>());
+    ui.settle_layout();
+    for tab in ["Setup", "Fit", "Shape", "Saved"] {
+        ui.click(tab)?;
+        for label in ["Apply", "Cancel"] {
+            let rect = ui.label_rect(label).ok_or("restoration action is hidden")?;
+            assert!(rect.bottom() <= ui.size.y, "{tab}: restoration action outside window");
+        }
+    }
+    assert!(has_host_command(&ui.actions_from_click("Apply")?, "refit_restore_shape_apply"));
+    assert!(has_host_command(&ui.actions_from_click("Cancel")?, "refit_restore_shape_cancel"));
+    assert!(ui.actions_from_click("Finish Edit Mesh")?.is_empty());
+    Ok(())
+}

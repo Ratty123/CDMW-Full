@@ -1587,6 +1587,7 @@ impl LabApplication {
                     && !self.hair.pending_finish
                     && authoring
                     && !self.cdmw_morph_comparison_active()
+                    && state_str(&self.cdmw_state["morph_refit"], "shape_restore_source").unwrap_or("").is_empty()
                     && self.cdmw_host_connected,
                 Button::new(crate::localization::tr(if self.hair.pending_finish {
                     "Saving hair before Finish…"
@@ -1598,6 +1599,8 @@ impl LabApplication {
                 "Finish waits until the pending shadow transaction completes"
             } else if self.cdmw_morph_comparison_active() {
                 "Turn outfit corrections back on before finishing."
+            } else if !state_str(&self.cdmw_state["morph_refit"], "shape_restore_source").unwrap_or("").is_empty() {
+                "Apply or Cancel Restore fitting shape before finishing."
             } else if !authoring {
                 policy_reason
             } else {
@@ -3768,6 +3771,16 @@ impl LabApplication {
             });
             ui.separator();
             if scope != 2 { self.draw_cdmw_refit_body_region(ui, actions, state, part_targets); }
+            if ui.add_enabled(!state_bool(state, "unbaked") && !self.cdmw_refit_settings_dirty.is_dirty()
+                && if scope == 2 { !islands.is_empty() } else { !selected_bound_garments.is_empty() },
+                Button::new(crate::localization::tr("Restore fitting shape…")))
+                .on_hover_text(crate::localization::tr("Preview positions from a matching unbaked PAC for the selected Parts or islands. Sculpted positions in that selection will be replaced.")).clicked()
+            {
+                actions.push(UiAction::ChooseCdmwRefitShape {
+                    parts: if scope == 2 { Vec::new() } else { selected_bound_garments.clone() },
+                    islands: if scope == 2 { islands.clone() } else { Vec::new() },
+                });
+            }
             self.draw_cdmw_refit_follow_controls(ui, actions, state);
             cdmw_section(ui, "refit-current-diagnostics", "Check current fit", None, |ui| {
                 self.draw_cdmw_refit_diagnostics(ui, actions, state, part_targets);

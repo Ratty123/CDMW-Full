@@ -499,6 +499,8 @@ fn runtime_route(key: &str) -> RuntimeRoute {
         "refit.apply_all" => (Kind::ShadowCommand, "refit_configure"),
         "refit.island_apply" | "refit.island_inherit" => (Kind::ShadowCommand, "refit_island_configure"),
         "refit.fit_to_body" => (Kind::ShadowCommand, "refit_fit_to_body"),
+        "refit.restore_shape_apply" => (Kind::ShadowCommand, "refit_restore_shape_apply"),
+        "refit.restore_shape_cancel" => (Kind::ShadowCommand, "refit_restore_shape_cancel"),
         "morph.reset" => (Kind::ShadowCommand, "morph_reset"),
         "morph.bake" => (Kind::ShadowCommand, "morph_bake"),
         "display.mode" => (Kind::LocalState, "view_mode"),
@@ -771,6 +773,9 @@ refit.clear_driver_region|morph_refit|command: "morph_clear_driver_region"|UiAct
 refit.rigid_component|morph_refit|"rigid_component"|cdmw_refit_mode
 refit.load_recipe|morph_refit|ChooseCdmwRefitRecipe|morph_import_recipe
 refit.save_recipe|morph_refit|ChooseCdmwRefitRecipe|morph_export_recipe
+refit.restore_shape|morph_refit|ChooseCdmwRefitShape|refit_restore_shape_preview
+refit.restore_shape_apply|morph_refit|command: "refit_restore_shape_apply"|UiAction::CdmwCommand
+refit.restore_shape_cancel|morph_refit|command: "refit_restore_shape_cancel"|UiAction::CdmwCommand
 morph.load_preset|morph_refit|ChooseCdmwMorphPreset|morph_import_preset
 morph.export_preset|morph_refit|ChooseCdmwMorphPreset|morph_export_preset
 refit.load_mesh|morph_refit|ChooseCdmwRefitMesh|refit_choose_archive

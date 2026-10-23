@@ -12,6 +12,7 @@ experimental-feature notes do not establish equivalent in-game behavior.
 - Mesh Editor adds Sculpt > Bend: anchor one point and drag another to bend a selected rope or necklace section while retaining its thickness, with Undo/Redo and cancellation.
 
 - Morph & Refit adds independent fitting controls for whole mesh islands, with an embedded selection list showing each island's fit type and whether it uses Custom or inherited Part settings. Islands can inherit their Part settings again.
+- Morph & Refit can preview and restore selected garment shapes from a verified matching unbaked PAC, with Apply, Cancel and Undo/Redo. Restore respects Part and island exclusions; recovering a lost shape requires its matching source.
 
 - Create New Item preserves compatible imported skin weights and offers per-part weight reduction, named template/body transfer, loss reports and reversible hiding of equipment variants. Weight transfer follows the model's fit and placement, newer model choices take priority over background work, and Build plan checks that retained physics is compatible with the chosen weights. Missing bones and excess influences refuse preservation; foreign-rig retargeting and in-game deformation remain unverified.
 - Mesh Editor can continue directly from a finished game-format mesh or add it to Archive Browser for another editing pass, retaining source materials, textures, rig and physics dependencies without changing the game archive path.

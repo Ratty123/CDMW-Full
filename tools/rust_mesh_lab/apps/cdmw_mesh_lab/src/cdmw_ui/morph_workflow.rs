@@ -81,7 +81,21 @@ impl LabApplication {
                 crate::localization::tr(failure),
             );
         }
+        if !state_str(&state, "shape_restore_source").unwrap_or("").is_empty() {
+            ui.label(state_str(&state, "shape_restore_source").unwrap_or(""))
+                .on_hover_text(state_str(&state, "shape_restore_sha256").unwrap_or(""));
+            ui.strong(crate::localization::tr("Selected geometry"));
+            for row in state["shape_restore_scope"].as_array().into_iter().flatten() {
+                if let (Some(part), Some(name), Some(islands)) = (row[0].as_u64(), row[1].as_str(), row[2].as_u64()) {
+                    ui.label(crate::localization::tr(if islands == 0 { format!("Part {part}: {name}") }
+                        else { format!("Part {part}: {name} · {islands} selected islands") }));
+                }
+            }
+            ui.data_mut(|data| data.insert_temp(id, workflow));
+            return;
+        }
         let pending = state_bool(&state, "authoring_baseline_ready")
+            || !state_str(&state, "shape_restore_source").unwrap_or("").is_empty()
             || state_str(&state, "correction_definition_id").is_some_and(|id| !id.is_empty())
             || self.cdmw_morph_comparison_active();
         let body = value_u32_list(&state, "driver_submesh_indices");
@@ -243,7 +257,20 @@ impl LabApplication {
             ui.add_enabled_ui(enabled, |ui| {
                 self.draw_cdmw_correction_comparison(ui, actions, &state);
                 ui.add_enabled_ui(!self.cdmw_morph_comparison_active(), |ui| {
-                    if state_str(&state, "correction_definition_id").is_some_and(|id| !id.is_empty()) {
+                    if state_str(&state, "shape_restore_source").is_some_and(|name| !name.is_empty()) {
+                        ui.colored_label(REFIT_READY_COLOUR, crate::localization::tr("Restore preview"));
+                        ui.weak(crate::localization::tr(format!("{} vertices",
+                            state["shape_restore_vertex_count"].as_u64().unwrap_or(0))))
+                            .on_hover_text(crate::localization::tr("Exclusions, materials, UVs, skin and fitting settings are retained. Apply adds one undoable edit."));
+                        ui.horizontal_wrapped(|ui| {
+                            if ui.button(crate::localization::tr("Apply")).clicked() {
+                                actions.push(UiAction::CdmwCommand { command: "refit_restore_shape_apply", arguments: json!({}), label: "Apply restored fitting shape" });
+                            }
+                            if ui.button(crate::localization::tr("Cancel")).clicked() {
+                                actions.push(UiAction::CdmwCommand { command: "refit_restore_shape_cancel", arguments: json!({}), label: "Cancel fitting shape restoration" });
+                            }
+                        });
+                    } else if state_str(&state, "correction_definition_id").is_some_and(|id| !id.is_empty()) {
                         ui.colored_label(REFIT_READY_COLOUR, crate::localization::tr("Outfit correction"));
                         ui.horizontal_wrapped(|ui| {
                             if ui.button(crate::localization::tr("Save correction")).clicked() {

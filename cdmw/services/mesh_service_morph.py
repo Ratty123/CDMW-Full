@@ -193,7 +193,10 @@ def dispose_mesh_morph_session_state(state: _MeshMorphSessionState) -> None:
         raise RuntimeError("Resident C++ Morph & Refit runtime snapshot cleanup failed.")
 
 
-class MeshMorphServiceMixin(MeshMorphLayerMixin, MeshMorphAuthoringMixin, MeshMorphRecipeMixin):
+from cdmw.services.mesh_service_refit_recovery import MeshRefitRecoveryMixin
+
+
+class MeshMorphServiceMixin(MeshMorphLayerMixin, MeshMorphAuthoringMixin, MeshMorphRecipeMixin, MeshRefitRecoveryMixin):
     """Keep UI shells thin while the resident C++ session owns deformation."""
 
     def capture_morph_session_state(self, session_id: str) -> _MeshMorphSessionState:
@@ -2276,6 +2279,7 @@ class MeshMorphServiceMixin(MeshMorphLayerMixin, MeshMorphAuthoringMixin, MeshMo
             correction_definition_id=(data.correction_capture.definition_id if data.correction_capture is not None else ""),
             correction_garment_submesh_indices=(data.correction_capture.garment_submesh_indices if data.correction_capture is not None else ()),
             corrections_enabled=data.corrections_enabled,
+            **self._refit_shape_restore_state_fields_locked(session),
             **self._matching_refit_setup_state_fields_locked(session, data, raw_state),
         )
 

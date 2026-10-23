@@ -59,6 +59,32 @@ fn select_authoring_parts(ui: &mut HeadlessUi, parts: &[u32]) -> TestResult {
     Ok(())
 }
 
+#[test]
+fn restore_fitting_shape_captures_selected_parts_and_islands() -> TestResult {
+    let mut ui = authoring_ui()?;
+    select_authoring_parts(&mut ui, &[2])?;
+    ui.click("Fit")?;
+    let actions = ui.actions_from_click("Restore fitting shape…")?;
+    assert!(actions.iter().any(|action| matches!(action,
+        UiAction::ChooseCdmwRefitShape { parts, islands } if parts == &[2] && islands.is_empty())));
+    let faces = ui.application.mesh.as_ref().ok_or("mesh")?.faces().filter_map(|(_, face)| match face.provenance {
+        Provenance::Source { submesh: 1, element } => Some(element), _ => None,
+    }).collect::<Vec<_>>();
+    ui.application.cdmw_state["mesh_islands"] = json!({"fit_parts": [{"index": 1,
+        "name": "Sleeve", "islands": [{"faces": faces}]}]});
+    ui.application.select_island(1, faces.clone());
+    ui.frame(Vec::new());
+    ui.refit_scope(true)?;
+    ui.choose("Editing", "All bound garments · 2", "Selected mesh islands")?;
+    let actions = ui.actions_from_click("Restore fitting shape…")?;
+    assert!(actions.iter().any(|action| matches!(action,
+        UiAction::ChooseCdmwRefitShape { parts, islands } if parts.is_empty() && islands == &vec![(1, faces.clone())])));
+    ui.application.cdmw_state["morph_refit"]["unbaked"] = json!(true);
+    ui.frame(Vec::new());
+    assert!(ui.actions_from_click("Restore fitting shape…")?.is_empty());
+    Ok(())
+}
+
 fn select_authoring_element(
     ui: &mut HeadlessUi, part: u32, domain: SelectionDomain,
 ) -> TestResult {

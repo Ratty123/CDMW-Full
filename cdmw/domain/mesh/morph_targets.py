@@ -7,6 +7,7 @@ and available source/skin identity. No mesh parsing, file I/O, or fitting runs h
 from __future__ import annotations
 
 from dataclasses import replace
+from collections import Counter
 import hashlib
 import io
 import math
@@ -162,6 +163,71 @@ def validate_morph_target_identity(
         base_mesh, target_mesh, submesh_indices,
         require_source_mapping=require_source_mapping,
     )
+
+
+def match_refit_shape_source(
+    reference_mesh: object,
+    source_mesh: object,
+    *,
+    submesh_indices: Iterable[int],
+) -> tuple[tuple[int, int], ...]:
+    """Match an unbaked source without using names, positions or proximity.
+
+    The reference is the loaded asset before session edits. A retained subset
+    of its source triangles is allowed, including PACs that kept unused vertex
+    records after exclusions. Indexed source identity, UVs and skin must still
+    agree. Duplicate candidates are refused even when their names differ.
+    """
+    reference = _parts(reference_mesh, submesh_indices)
+    candidates = tuple(getattr(source_mesh, "submeshes", ()) or ())
+
+    def identity(part):
+        count = len(tuple(getattr(part, "vertices", ()) or ()))
+        mapping = tuple(getattr(part, "source_vertex_map", ()) or ())
+        authority = str(getattr(part, "source_vertex_map_authority", "") or "")
+        if not count or len(mapping) != count or not authority or len(set(mapping)) != count:
+            raise ValueError("Restore fitting shape requires preserved, unambiguous source vertex identity.")
+        for vertex in mapping:
+            _strict_mesh_index(vertex, "Restore fitting shape source vertex")
+        uvs = tuple(tuple(row) for row in tuple(getattr(part, "uvs", ()) or ()))
+        if len(uvs) != count or any(len(row) != 2 or any(not math.isfinite(float(v)) for v in row) for row in uvs):
+            raise ValueError("Restore fitting shape requires complete finite source UV identity.")
+        # Source-map authority can be promoted by an exact native export;
+        # callers pass the immutable loaded reference rather than that preview.
+        return (mapping, tuple(getattr(part, "source_bone_palette", ()) or ()),
+                str(getattr(part, "source_skin_weight_layout", "") or ""),
+                tuple(tuple(row) for row in tuple(getattr(part, "bone_indices", ()) or ())),
+                tuple(tuple(row) for row in tuple(getattr(part, "bone_weights", ()) or ())), uvs)
+
+    source_identities = []
+    for part in candidates:
+        try:
+            source_identities.append(identity(part))
+        except (TypeError, ValueError, OverflowError):
+            source_identities.append(None)
+    result = []
+    for index, part in reference:
+        expected = identity(part)
+        faces = Counter(tuple(face) for face in part.faces)
+        if not faces:
+            raise ValueError(f"Restore fitting shape: Part {index} has no retained surface.")
+        matches = []
+        for source_index, (candidate, actual) in enumerate(zip(candidates, source_identities)):
+            if actual != expected:
+                continue
+            source_faces = Counter(tuple(face) for face in tuple(getattr(candidate, "faces", ()) or ()))
+            if not faces - source_faces:
+                matches.append(source_index)
+        if len(matches) != 1:
+            reason = "ambiguous source Parts" if matches else "no matching source identity and topology"
+            raise ValueError(f"Restore fitting shape: Part {index} has {reason}.")
+        # Validate source coordinates before any edit can be staged.
+        for position in candidates[matches[0]].vertices:
+            _native_point(position)
+        result.append((index, matches[0]))
+    if len({source for _part, source in result}) != len(result):
+        raise ValueError("Restore fitting shape has ambiguous repeated source Parts.")
+    return tuple(result)
 
 
 def build_morph_sparse_difference(

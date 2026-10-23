@@ -501,6 +501,11 @@ class MeshMorphState:
     body_controls_available: bool = False
     body_controls_reason: str = ""
     matching_recipe_garments: tuple[tuple[str, tuple[int, ...]], ...] = ()
+    shape_restore_source: str = ""
+    shape_restore_sha256: str = ""
+    shape_restore_parts: tuple[int, ...] = ()
+    shape_restore_vertex_count: int = 0
+    shape_restore_scope: tuple[tuple[int, str, int], ...] = ()
 
 
 def mesh_topology_fingerprint(mesh: object, submesh_indices: Iterable[int] | None = None) -> str:

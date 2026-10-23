@@ -69,6 +69,7 @@ def _recipe(mesh, profile=None):
 class Harness(MeshMorphServiceMixin):
     def __init__(self, root, mesh=None):
         self.root = Path(root)
+        self._refit_shape_recoveries = {}
         mesh = mesh or _driver_garment_mesh()
         self.neutral = deepcopy(mesh)
         self.session = SimpleNamespace(

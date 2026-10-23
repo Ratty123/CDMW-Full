@@ -594,6 +594,17 @@ consequences. Transient preview deformation is not automatically a permanent
 mesh edit, and a correction for one source binding cannot silently transfer to
 another.
 
+Reviewed 2026-10-23: explicit fitting-shape recovery is implemented in the native
+command and authoring host. A user-selected unbaked PAC must match immutable source
+vertex, triangle, UV and skin identity before selected included surfaces can be
+previewed. Ambiguous lineage and derived selected vertices refuse restoration.
+Apply/Cancel, Undo/Redo, cancellation, draft isolation, neutral-coordinate output
+and Include exclusions have focused fixture and real authoring-host coverage.
+The caller-provided test33 save was restored from its matching unbaked source,
+fitted and exported/reopened with the same positions as fitting that source
+directly. This is source/native and authoring evidence; final packaged workflows,
+normal-window interaction and broad compatibility review remain outstanding.
+
 Reviewed 2026-10-22: body-centred rigid assemblies retain their lateral placement
 during fitting; an incidental one-sided cloth contact is not an attachment.
 Flexible layer fitting takes up authored slack while preserving ordered layers,

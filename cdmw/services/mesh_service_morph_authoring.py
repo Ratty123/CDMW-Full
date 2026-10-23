@@ -283,6 +283,7 @@ class MeshMorphAuthoringMixin:
         self, session, *, include_baseline: bool = False, allow_correction_comparison: bool = False,
     ):
         data = self._morph_sessions.get(session.session_id)
+        self._require_no_pending_refit_shape_restore_locked(session)
         if data is None or getattr(data, "authoring_operation", False):
             return
         if not allow_correction_comparison and not getattr(data, "corrections_enabled", True):
@@ -860,6 +861,13 @@ class MeshMorphAuthoringMixin:
                     raise RuntimeError("Bind every garment referenced by this profile's corrections before using its sliders.")
 
     def _apply_morph_authoring_command_locked(self, session, action, params, selection):
+        if action == "refit_restore_shape_preview":
+            return self.preview_refit_shape_restore(session.session_id, params.get("path"),
+                params.get("submesh_indices", ()), islands=params.get("islands", ()), stop_event=params.get("stop_event"))[0]
+        if action == "refit_restore_shape_apply":
+            return self.apply_refit_shape_restore(session.session_id)[0]
+        if action == "refit_restore_shape_cancel":
+            return self.cancel_refit_shape_restore(session.session_id)[0]
         values = {key: value for key, value in params.items() if key != "stop_event"}
         if action == "morph_set_corrections_enabled":
             return self.set_morph_corrections_enabled(session.session_id, values.get("enabled"))[0]

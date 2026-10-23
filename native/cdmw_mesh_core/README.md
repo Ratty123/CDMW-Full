@@ -311,6 +311,24 @@ overlaps still need inspection. Static clearance is not animation or in-game pro
 owning focused regression file is `tests/test_native_mesh_editor_morph_refit.py` at the
 repository root.
 
+#### Explicit fitting-shape restoration
+
+The host verifies an explicitly chosen unbaked PAC against immutable loaded source
+identity before sending `morph_restore_shape`. Its `restored_positions` rows contain
+a `submesh_index`, unique `vertex_indices` and matching finite `positions`. The
+command rejects body Parts, unused surface records and active unbaked morph changes.
+It changes selected positions only, regenerates their normals, invalidates tangents
+and rebinds only those vertices against the unchanged driver baseline. Existing
+Part/island settings, masks, regions and unrelated bindings remain intact. Failure
+rolls back geometry, runtime and revisions.
+
+The application stages this command with `suppress_history: true` under
+`refit_restore_shape_preview`. Apply publishes its retained snapshot as one Undo
+entry; Cancel restores it without creating an entry. Pending restoration blocks
+editing, history, Finish and draft autosave. Retained source lineage is required
+for selected edited topology, and Include exclusions are filtered before sending
+native positions. Neither source files nor source archives are modified.
+
 #### Selective following and authored targets
 
 Resident sparse morph fields accept `stage: "base"` (the existing default) or

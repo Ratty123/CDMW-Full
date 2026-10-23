@@ -1480,6 +1480,10 @@ enum UiAction {
     ChooseCdmwRefitRecipe {
         save: bool,
     },
+    ChooseCdmwRefitShape {
+        parts: Vec<u32>,
+        islands: Vec<(u32, Vec<u32>)>,
+    },
     ChooseCdmwRefitMesh {
         role: &'static str,
     },
@@ -4789,6 +4793,7 @@ impl LabApplication {
                 UiAction::ChooseCdmwFreeEdit => self.choose_cdmw_free_edit(),
                 UiAction::ChooseCdmwMorphPreset { save } => self.choose_cdmw_morph_preset(save),
                 UiAction::ChooseCdmwRefitRecipe { save } => self.choose_cdmw_refit_recipe(save),
+                UiAction::ChooseCdmwRefitShape { parts, islands } => self.choose_cdmw_refit_shape(parts, islands),
                 UiAction::ChooseCdmwRefitMesh { role } => self.choose_cdmw_refit_mesh(role),
                 UiAction::ChooseClothCollisionInput { role } => self.choose_cloth_collision_input(role),
                 UiAction::FinishCdmw => self.submit_cdmw_finish(),
@@ -5330,6 +5335,22 @@ impl LabApplication {
                 command: if save { "morph_export_recipe" } else { "morph_import_recipe" },
                 arguments: json!({"path": path.to_string_lossy(), "name": self.cdmw_morph_preset_name}),
                 label: if save { "Save fitting setup" } else { "Load fitting setup" },
+            }]);
+        }
+    }
+
+    fn choose_cdmw_refit_shape(&mut self, parts: Vec<u32>, islands: Vec<(u32, Vec<u32>)>) {
+        if let Some(path) = self.cdmw_file_dialog()
+            .set_title(crate::localization::tr("Restore fitting shape from an unbaked PAC"))
+            .add_filter(crate::localization::tr("PAC model"), &["pac"])
+            .pick_file()
+        {
+            let islands: Vec<_> = islands.into_iter().map(|(part, faces)|
+                json!({"submesh_index": part, "face_indices": faces})).collect();
+            self.handle_actions(vec![UiAction::CdmwCommand {
+                command: "refit_restore_shape_preview",
+                arguments: json!({"path": path.to_string_lossy(), "submesh_indices": parts, "islands": islands}),
+                label: "Preview restored fitting shape",
             }]);
         }
     }

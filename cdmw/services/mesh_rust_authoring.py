@@ -8990,7 +8990,13 @@ class RustMeshAuthoringSession:
             result = self.shadow_service.paste_selection(self.shadow_session_id)
         elif command.startswith("morph_") or command.startswith("refit_"):
             try:
-                result = self._run_bounded_morph_command(command, args)
+                if command == "refit_restore_shape_preview":
+                    _require_argument_keys(args, {"path", "submesh_indices", "islands"}, command)
+                    result = self.shadow_service.preview_refit_shape_restore(self.shadow_session_id, args.get("path"),
+                        tuple(args.get("submesh_indices", ()) or ()), islands=tuple(args.get("islands", ()) or ()),
+                        stop_event=stop_event, _neutral_appearance=self.neutral_appearance)
+                else:
+                    result = self._run_bounded_morph_command(command, args)
             except Exception:
                 self._advance_shadow_protocol_revision(
                     before_revision=before_revision,
@@ -9037,6 +9043,9 @@ class RustMeshAuthoringSession:
         arguments = request.get("arguments")
         args = dict(arguments) if isinstance(arguments, Mapping) else {}
         shadow_session = self.shadow_service._session(self.shadow_session_id)
+        if command not in {"state", "select", "rig_select_bone", "refit_diagnostics",
+                            "refit_restore_shape_apply", "refit_restore_shape_cancel"}:
+            self.shadow_service._require_no_pending_refit_shape_restore_locked(shadow_session)
         if command == "refit_diagnostics":
             # Keep the common session/root/revision checks above, but do not
             # enter mutation guards, document preflight, or revision publication.
@@ -9063,7 +9072,9 @@ class RustMeshAuthoringSession:
         if self.replacement_comparison != "edit" and command not in {"state", "replacement_compare", "replacement_cancel"}:
             raise RustMeshValidationError("Return to Edit comparison before changing the mesh.")
         if shadow_session.replacement_state is not None and (
-            command.startswith("morph_") or command.startswith("refit_") or command in {"import_editable_package", "layer_delete", "layer_paste"}
+            (command.startswith(("morph_", "refit_")) and command not in {
+                "refit_restore_shape_preview", "refit_restore_shape_apply", "refit_restore_shape_cancel"})
+            or command in {"import_editable_package", "layer_delete", "layer_paste"}
         ):
             raise RustMeshValidationError("Undo replacement operations before using Morph & Refit or adding geometry layers.")
         if self.neutral_appearance is not None and command in {
@@ -9103,7 +9114,8 @@ class RustMeshAuthoringSession:
         result = self._execute_shadow_command(command, args, stop_event, before_revision, before_signature)
         # Preview inputs publish their prepared file and state together after
         # the handler's final cancellation check. Do not interrupt that commit.
-        if command != "cloth_collision_input":
+        if command not in {"cloth_collision_input", "refit_restore_shape_preview",
+                            "refit_restore_shape_apply", "refit_restore_shape_cancel"}:
             self._raise_if_cancelled(stop_event)
         # These commands change selection/presentation, not the resident mesh.
         # Protocol revisions still advance so stale requests remain rejected.
@@ -9245,6 +9257,8 @@ class RustMeshAuthoringSession:
         if not callable(cached):
             return
         state = cached(self.shadow_session_id)
+        if getattr(state, "shape_restore_source", "") and command not in {"refit_restore_shape_apply", "refit_restore_shape_cancel"}:
+            raise RustMeshValidationError("Apply or Cancel Restore fitting shape before editing or finishing.")
         if getattr(state, "correction_definition_id", ""):
             if command not in {"morph_save_correction", "morph_cancel_correction"}:
                 raise RustMeshValidationError(
@@ -9413,6 +9427,12 @@ class RustMeshAuthoringSession:
             )
         if command == "refit_fit_to_body":
             return service.fit_refit_to_body(session_id)
+        if command == "refit_restore_shape_apply":
+            _require_argument_keys(args, set(), command)
+            return service.apply_refit_shape_restore(session_id)
+        if command == "refit_restore_shape_cancel":
+            _require_argument_keys(args, set(), command)
+            return service.cancel_refit_shape_restore(session_id)
         if command == "refit_clear":
             return service.clear_refit(session_id)
         if command == "morph_reset":

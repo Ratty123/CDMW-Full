@@ -1357,6 +1357,7 @@ impl HeadlessUi {
                             | UiAction::ChooseCdmwMorphPreset { .. }
                             | UiAction::ChooseCdmwRefitMesh { .. }
                             | UiAction::ChooseCdmwRefitRecipe { .. }
+                            | UiAction::ChooseCdmwRefitShape { .. }
                             | UiAction::ChooseClothCollisionInput { .. }
                     )
                 })

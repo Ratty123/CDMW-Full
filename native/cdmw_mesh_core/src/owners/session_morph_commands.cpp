@@ -740,6 +740,116 @@ std::shared_ptr<const MeshRefitRuntime> mesh_editor_rebased_refit(
     return refit;
 }
 
+std::string mesh_editor_morph_restore_shape_session_report(
+    const JsonValue& root,
+    const std::string& session_id,
+    MeshEditorSession& session,
+    const std::chrono::steady_clock::time_point& started
+) {
+    if (session.morph && (session.morph->unbaked || !session.morph->active_change_id.empty()))
+        throw std::runtime_error("Bake or Reset the current preview before restoring fitting shape");
+    auto next = mesh_editor_clone_morph_runtime(session);
+    auto& submeshes = mesh_editor_submeshes(session);
+    const auto* rows = root.get("restored_positions");
+    if (!rows || rows->type != JsonValue::Type::Array || rows->array_value.empty())
+        throw std::runtime_error("Restore fitting shape requires selected surface vertices");
+    std::map<int, std::map<int, Vec3>> overrides;
+    for (const auto& row : rows->array_value) {
+        int index = -1;
+        if (row.type != JsonValue::Type::Object || !strict_int_or(row.get("submesh_index"), index)
+            || !submeshes.count(index) || overrides.count(index) || next->driver_submesh_indices.count(index))
+            throw std::runtime_error("Restore fitting shape references an invalid, duplicate or body Part");
+        const auto* vertices = row.get("vertex_indices");
+        const auto* positions = row.get("positions");
+        if (!vertices || !positions || vertices->type != JsonValue::Type::Array || positions->type != JsonValue::Type::Array
+            || vertices->array_value.empty() || vertices->array_value.size() != positions->array_value.size()
+            || vertices->array_value.size() > submeshes.at(index).vertices.size())
+            throw std::runtime_error("Restore fitting shape requires matching bounded vertices and positions");
+        std::set<int> surface;
+        for (const auto& face : submeshes.at(index).faces) surface.insert(face.begin(), face.end());
+        auto& selected = overrides[index];
+        for (std::size_t i = 0; i < vertices->array_value.size(); ++i) {
+            int vertex = -1;
+            const auto& position = positions->array_value[i];
+            if (!strict_int_or(&vertices->array_value[i], vertex) || !surface.count(vertex) || selected.count(vertex)
+                || position.type != JsonValue::Type::Array || position.array_value.size() != 3)
+                throw std::runtime_error("Restore fitting shape references an invalid or unused surface vertex");
+            Vec3 point{};
+            for (int axis = 0; axis < 3; ++axis) {
+                const auto& value = position.array_value[axis];
+                if (value.type != JsonValue::Type::Number || !std::isfinite(value.number_value))
+                    throw std::runtime_error("Restored fitting positions must be finite");
+                point[axis] = value.number_value;
+            }
+            selected.emplace(vertex, point);
+        }
+    }
+    auto staged = submeshes;
+    std::map<int, MeshSessionSubmesh> before;
+    for (const auto& part : overrides) {
+        before[part.first] = submeshes.at(part.first);
+        for (const auto& vertex : part.second) staged.at(part.first).vertices[vertex.first] = vertex.second;
+        next->neutral_positions[part.first] = staged.at(part.first).vertices;
+        next->composed_positions[part.first] = staged.at(part.first).vertices;
+        next->current_layer.erase(part.first);
+    }
+    if (next->refit) {
+        auto rebound = std::make_shared<MeshRefitRuntime>(*next->refit);
+        for (const auto& driver : rebound->driver_baseline_positions)
+            if (!submeshes.count(driver.first) || !mesh_editor_refit_baseline_matches_publication(submeshes.at(driver.first).vertices, driver.second))
+                throw std::runtime_error("Rebind the changed body before restoring fitting shape");
+        for (const auto& part : overrides) {
+            if (!rebound->garment_submesh_indices.count(part.first)) continue;
+            const auto region = rebound->garment_regions.find(part.first);
+            const auto regions = region == rebound->garment_regions.end() ? std::map<int, std::set<int>>{} : region->second;
+            const auto source = mesh_editor_build_refit(staged, rebound->driver_submesh_indices, {part.first}, regions);
+            std::map<int, MeshRefitVertexBindingRuntime> selected;
+            for (const auto& binding : source->bindings)
+                if (part.second.count(binding.garment_vertex_index)) selected[binding.garment_vertex_index] = binding;
+            for (auto& binding : rebound->bindings)
+                if (binding.garment_submesh_index == part.first && part.second.count(binding.garment_vertex_index))
+                    binding = selected.at(binding.garment_vertex_index);
+            rebound->candidate_triangle_tests += source->candidate_triangle_tests;
+        }
+        std::vector<double> distances;
+        for (const auto& binding : rebound->bindings) distances.push_back(binding.distance);
+        rebound->maximum_distance = distances.empty() ? 0.0 : *std::max_element(distances.begin(), distances.end());
+        rebound->p95_distance = percentile_95_native(distances);
+        rebound->distance_warning = rebound->maximum_distance > rebound->warning_distance || rebound->p95_distance > rebound->warning_distance;
+        next->refit = std::move(rebound);
+    }
+    const auto previous = session.morph;
+    const auto state_revision = session.morph_state_revision;
+    const auto edit_revision = session.edit_revision;
+    const std::string output = string_or(root.get("delta_output_dir"), "");
+    std::vector<SubmeshMeshEditResult> results;
+    try {
+        for (const auto& part : before) {
+            auto result = mesh_editor_morph_sparse_result(part.first, staged.at(part.first), part.second.vertices,
+                "morph_restore_shape", output, session_id);
+            if (!result.changed_vertices.empty()) results.push_back(std::move(result));
+        }
+        for (const auto& part : before) submeshes.at(part.first) = std::move(staged.at(part.first));
+        next->change_id = "morph_restore_shape";
+        next->state_revision = ++session.morph_state_revision;
+        session.morph = std::move(next);
+        if (!results.empty()) ++session.edit_revision;
+        MeshEditorHistoryEntry history;
+        history.operation = "morph_restore_shape";
+        history.morph_before = previous;
+        const bool published = bool_or(root.get("suppress_history"), false) ? false
+            : mesh_editor_publish_morph_history(session, std::move(history), before, "", false);
+        return mesh_editor_morph_report_json("morph_restore_shape", session_id, session, results,
+            mesh_editor_morph_result_indices(results), published, output, bool_or(root.get("include_edit_report"), true), started);
+    } catch (...) {
+        for (auto& part : before) submeshes.at(part.first) = std::move(part.second);
+        session.morph = previous;
+        session.morph_state_revision = state_revision;
+        session.edit_revision = edit_revision;
+        throw;
+    }
+}
+
 std::string mesh_editor_morph_reset_or_bake_session_report(
     const std::string& command,
     const JsonValue& root,

@@ -655,6 +655,7 @@ class _MeshServiceSessionLayerCore(
     max_history_bytes: int = _DEFAULT_MESH_HISTORY_BYTES
     _sessions: dict[str, _MeshEditSession] = field(default_factory=dict)
     _morph_sessions: dict[str, object] = field(default_factory=dict)
+    _refit_shape_recoveries: dict[str, object] = field(default_factory=dict)
 
     def load_mesh_bytes(self, data: bytes, source_path: Path | str, *, run_roundtrip: bool = False) -> ParsedMesh:
         return _load_mesh_bytes(data, source_path, run_roundtrip=run_roundtrip)
@@ -1110,6 +1111,8 @@ class _MeshServiceSessionLayerCore(
         return True
 
     def _schedule_mesh_layer_autosave(self, session: _MeshEditSession) -> None:
+        if session.session_id in self._refit_shape_recoveries:
+            return
         if session.mesh_layer_project_path is None or len(session.mesh_asset_source_hash) != 64:
             return
         session.mesh_layer_autosave_requested_key = (session.revision, session.geometry_layer_revision)
@@ -1160,7 +1163,8 @@ class _MeshServiceSessionLayerCore(
             return
         try:
             with session.export_lock:
-                if session.closed or expected_key != session.mesh_layer_autosave_requested_key:
+                if (session.closed or expected_key != session.mesh_layer_autosave_requested_key
+                        or session_id in self._refit_shape_recoveries):
                     return
                 self._save_mesh_layer_project_locked(session, stop_event=stop_event)
         except RunCancelled:
@@ -1176,6 +1180,7 @@ class _MeshServiceSessionLayerCore(
         *,
         stop_event: threading.Event | None = None,
     ) -> None:
+        self._require_no_pending_refit_shape_restore_locked(session)
         if session.mesh_layer_project_path is None:
             return
         if (session.replacement_state is not None or session.edit_operations) and not session.native_editor_session_ready:
@@ -1277,6 +1282,11 @@ class MeshService(MeshUvServiceMixin, _MeshServiceSessionLayerCore):
             with session.export_lock:
                 if self._sessions.get(session_key) is not session:
                     return
+                if session_key in self._refit_shape_recoveries:
+                    if force_without_saving:
+                        self._discard_refit_shape_restore_locked(session)
+                    else:
+                        self.cancel_refit_shape_restore(session_key)
                 timer = session.mesh_layer_autosave_timer
                 if timer is not None:
                     timer.cancel()
@@ -1524,6 +1534,8 @@ class MeshService(MeshUvServiceMixin, _MeshServiceSessionLayerCore):
     ) -> MeshEditResult:
         edit_command = _coerce_command(command)
         action = str(edit_command.action or "").strip().lower()
+        if action not in {"select", "set_mode", "morph_refresh", "refit_restore_shape_apply", "refit_restore_shape_cancel"}:
+            self._require_no_pending_refit_shape_restore_locked(session)
         morph_data = self._morph_sessions.get(session.session_id)
         if (morph_data is not None and not getattr(morph_data, "corrections_enabled", True)
                 and action not in {"select", "set_mode", "morph_refresh", "morph_set_corrections_enabled"}):
