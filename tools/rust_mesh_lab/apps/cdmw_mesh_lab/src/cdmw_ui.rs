@@ -1015,11 +1015,19 @@ impl RefitSettingsEdits {
 }
 
 fn refit_setting_values(setting: Option<&Value>) -> Value {
+    let mode = setting.and_then(|row| row.get("mode")).and_then(Value::as_str).unwrap_or("surface");
+    let tightness = if mode != "rigid"
+        && setting.and_then(|row| row.get("tightness_initialized")).and_then(Value::as_bool) == Some(false)
+    {
+        100.0
+    } else {
+        setting.and_then(|row| row.get("tightness_percent")).and_then(Value::as_f64).unwrap_or(0.0)
+    };
     json!({
         "enabled": setting.and_then(|row| row.get("enabled")).and_then(Value::as_bool).unwrap_or(true),
-        "mode": setting.and_then(|row| row.get("mode")).and_then(Value::as_str).unwrap_or("surface"),
+        "mode": mode,
         "intensity_percent": setting.and_then(|row| row.get("intensity_percent")).and_then(Value::as_f64).unwrap_or(100.0),
-        "tightness_percent": setting.and_then(|row| row.get("tightness_percent")).and_then(Value::as_f64).unwrap_or(0.0),
+        "tightness_percent": tightness,
         "clearance_percent": setting.and_then(|row| row.get("clearance_percent")).and_then(Value::as_f64).unwrap_or(0.0),
     })
 }
@@ -3612,8 +3620,8 @@ impl LabApplication {
                             .unwrap_or(0.0) as f32;
                     }
                     if !self.cdmw_refit_settings_dirty.fields.contains("tightness_percent") {
-                        self.cdmw_refit_tightness = setting
-                            .and_then(|value| value.get("tightness_percent"))
+                        self.cdmw_refit_tightness = refit_setting_values(setting)
+                            .get("tightness_percent")
                             .and_then(Value::as_f64)
                             .unwrap_or(0.0) as f32;
                     }

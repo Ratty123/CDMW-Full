@@ -2045,7 +2045,8 @@ Tightness requires Surface or Rigid component mode on every chosen garment.
 
 **Fit all enabled garments** fits a fresh setup at 100% Tightness, with at least
 0.1% clearance. Binding itself leaves the shape unchanged so modes and protection
-can be configured first. Explicit Part and mesh-island Tightness choices, including
+can be configured first. The editor displays the upcoming 100% default, allowing
+0% to be chosen explicitly. Explicit Part and mesh-island Tightness choices, including
 0%, remain authoritative on subsequent fits and in saved setups. Modes, intensity,
 masks and allowed body regions are retained. Fit needs no viewport selection, body
 slider, original body or skeleton; inputs must already share the intended alignment

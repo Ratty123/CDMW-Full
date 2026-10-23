@@ -82,6 +82,36 @@ fn refit_arguments(actions: &[UiAction]) -> Value {
 }
 
 #[test]
+fn workflow_refit_fresh_tightness_shows_the_default_and_can_explicitly_choose_zero() -> TestResult {
+    let mut ui = mixed_refit_ui(&[1])?;
+    ui.application.cdmw_state["morph_refit"]["refit"]["garment_settings"][0]["tightness_percent"] = json!(0.0);
+    ui.application.cdmw_state["morph_refit"]["refit"]["garment_settings"][0]["tightness_initialized"] = json!(false);
+    ui.application.cdmw_state["morph_refit"]["state_revision"] = json!(2);
+    ui.frame(Vec::new());
+    assert_eq!(ui.application.cdmw_refit_tightness, 100.0);
+    ui.type_number_in_row("Tightness %", 100.0, "0")?;
+    assert_eq!(refit_arguments(&ui.actions_from_click("Apply to Selected Garments")?), json!({
+        "submesh_indices": [1], "tightness_percent": 0.0,
+    }));
+
+    for initialized in [Some(true), None] {
+        let mut saved = mixed_refit_ui(&[1])?;
+        let settings = &mut saved.application.cdmw_state["morph_refit"]["refit"]["garment_settings"][0];
+        settings["tightness_percent"] = json!(0.0);
+        if let Some(initialized) = initialized {
+            settings["tightness_initialized"] = json!(initialized);
+        } else {
+            settings.as_object_mut().ok_or("settings")?.remove("tightness_initialized");
+        }
+        saved.application.cdmw_state["morph_refit"]["state_revision"] = json!(2);
+        saved.frame(Vec::new());
+        assert_eq!(saved.application.cdmw_refit_tightness, 0.0);
+        assert!(!has_host_command(&saved.actions_from_click("Apply to Selected Garments")?, "refit_configure"));
+    }
+    Ok(())
+}
+
+#[test]
 fn workflow_refit_mixed_clearance_dispatches_only_changed_fields_to_selected_or_all() -> TestResult {
     for (selected, button, expected) in [
         (vec![1, 2], "Apply to Selected Garments", vec![1, 2]),
