@@ -358,6 +358,150 @@ fn workflow_viewport_part_hover_uses_front_surfaces_and_respects_visibility_and_
     Ok(())
 }
 
+fn long_part_hover_ui() -> Result<HeadlessUi, Box<dyn std::error::Error>> {
+    let mut ui = mixed_refit_ui(&[2])?;
+    let document = Arc::make_mut(ui.application.document.as_mut().ok_or("document")?);
+    let template = document.lods[0].submeshes[2].clone();
+    for index in 3..60 {
+        let mut piece = template.clone();
+        piece.name = format!("Piece {index}");
+        for position in &mut piece.positions { position[0] += (index - 2) as f32 * 3.0; }
+        document.lods[0].submeshes.push(piece);
+    }
+    let mut mesh = WorkingMesh::from_document(document)?;
+    mesh.set_selection(Selection { submeshes: HashSet::from([2]), ..Selection::default() })?;
+    ui.application.mesh = Some(mesh);
+    ui.application.projection = None;
+    let refit = &mut ui.application.cdmw_state["morph_refit"]["refit"];
+    refit["garment_submesh_indices"] = json!((1..60).collect::<Vec<u32>>());
+    for index in 3..60 {
+        refit["garment_settings"].as_array_mut().ok_or("garment settings")?.push(json!({
+            "submesh_index": index, "enabled": true, "mode": "surface", "intensity_percent": 100.0,
+            "clearance_percent": 0.1, "tightness_percent": 0.0 }));
+    }
+    ui.size = egui::vec2(1280.0, 800.0);
+    ui.settle_layout();
+    ui.type_number_in_row("Clearance %", 1.25, "0.75")?;
+    ui.open_refit_detail("Choose garments")?;
+    ui.application.camera.frame_all_in_viewport(ui.application.mesh.as_ref().ok_or("mesh")?,
+        ui.application.viewport_rect.ok_or("viewport")?);
+    ui.frame(Vec::new());
+    Ok(ui)
+}
+
+#[test]
+fn workflow_viewport_part_hover_scrolls_open_lists_and_keeps_selection_and_fit_edits() -> TestResult {
+    let mut ui = long_part_hover_ui()?;
+    let root = tempdir()?;
+    ui.application.cdmw_bridge = Some(CdmwBridge::for_test(root.path().to_path_buf(), "hover-scroll", 2, 0));
+    ui.scroll_tool_rail(-50_000.0);
+    ui.scroll_inspector(-50_000.0);
+    assert!(ui.label_rect("2 · Sleeve").is_none());
+    assert!(ui.label_rect("1: Sleeve").is_none());
+    let state = ui.application.cdmw_state.clone();
+    let mesh = ui.application.mesh.as_ref().ok_or("mesh")?.clone();
+    ui.last_actions.clear();
+    ui.frame(vec![Event::PointerMoved(viewport_part_point(&ui, 1)?)]);
+    ui.settle_layout();
+    for name in ["2 · Sleeve", "1: Sleeve"] {
+        assert!(part_name_has_viewport_outline(&ui, name), "offscreen name was not revealed: {name}");
+    }
+    let before = (ui.label_rect("2 · Sleeve"), ui.label_rect("1: Sleeve"));
+    ui.settle_layout();
+    assert_eq!((ui.label_rect("2 · Sleeve"), ui.label_rect("1: Sleeve")), before,
+        "holding the pointer still must not keep repositioning the lists");
+    assert!(ui.label_rect("60 · Piece 59").is_none());
+    assert!(ui.label_rect("59: Piece 59").is_none());
+    ui.frame(vec![Event::PointerMoved(viewport_part_point(&ui, 59)?)]);
+    ui.settle_layout();
+    for name in ["60 · Piece 59", "59: Piece 59"] {
+        assert!(part_name_has_viewport_outline(&ui, name), "new hovered Part was not revealed: {name}");
+    }
+    assert_eq!(ui.application.cdmw_state, state);
+    let current = ui.application.mesh.as_ref().ok_or("mesh")?;
+    assert_eq!(current.selection, mesh.selection);
+    assert_eq!(current.selection_revision, mesh.selection_revision);
+    assert_eq!(current.structural_fingerprint(), mesh.structural_fingerprint());
+    assert_eq!(ui.application.cdmw_refit_clearance, 0.75);
+    assert!(ui.application.cdmw_refit_settings_dirty.is_dirty());
+    assert!(ui.last_actions.is_empty());
+    assert!(ui.application.cdmw_pending_request.is_none());
+    Ok(())
+}
+
+#[test]
+fn workflow_viewport_part_hover_scroll_cancels_stale_targets_and_yields_to_manual_scrolling() -> TestResult {
+    let mut ui = long_part_hover_ui()?;
+    let root = tempdir()?;
+    ui.application.cdmw_bridge = Some(CdmwBridge::for_test(root.path().to_path_buf(), "hover-scroll", 2, 0));
+    ui.reveal("2 · Sleeve")?;
+    ui.reveal("1: Sleeve")?;
+    let first = viewport_part_point(&ui, 1)?;
+    let last = viewport_part_point(&ui, 59)?;
+    assert!(ui.label_rect("60 · Piece 59").is_none());
+    assert!(ui.label_rect("59: Piece 59").is_none());
+    let before = (ui.label_rect("2 · Sleeve"), ui.label_rect("1: Sleeve"));
+    ui.last_actions.clear();
+    ui.frame(vec![Event::PointerMoved(last)]);
+    ui.frame(vec![Event::PointerGone]);
+    ui.settle_layout();
+    assert!(ui.application.cdmw_part_name_scroll.is_none());
+    assert_eq!((ui.label_rect("2 · Sleeve"), ui.label_rect("1: Sleeve")), before);
+    ui.frame(vec![Event::PointerMoved(last)]);
+    ui.frame(vec![Event::PointerMoved(first)]);
+    ui.settle_layout();
+    assert_eq!((ui.label_rect("2 · Sleeve"), ui.label_rect("1: Sleeve")), before);
+    assert!(ui.label_rect("59: Piece 59").is_none());
+    ui.frame(vec![Event::PointerMoved(last)]);
+    ui.frame(vec![Event::PointerButton { pos: last, button: PointerButton::Secondary,
+        pressed: true, modifiers: egui::Modifiers::NONE }]);
+    ui.settle_layout();
+    assert!(ui.application.cdmw_part_name_scroll.is_none());
+    assert_eq!((ui.label_rect("2 · Sleeve"), ui.label_rect("1: Sleeve")), before);
+    ui.frame(vec![Event::PointerButton { pos: last, button: PointerButton::Secondary,
+        pressed: false, modifiers: egui::Modifiers::NONE }, Event::PointerMoved(first)]);
+    ui.settle_layout();
+    ui.frame(vec![Event::PointerMoved(last)]);
+    ui.scroll_inspector(-50_000.0);
+    assert!(ui.application.cdmw_part_name_scroll.is_none());
+    assert!(ui.label_rect("59: Piece 59").is_some());
+    assert_eq!(ui.label_rect("2 · Sleeve"), before.0, "manual Inspector scrolling must not move the fitting list");
+    let manual = ui.label_rect("59: Piece 59");
+    ui.settle_layout();
+    assert_eq!(ui.label_rect("59: Piece 59"), manual);
+    ui.open_refit_detail("Choose garments")?;
+    ui.click("Back to Inspector")?;
+    ui.frame(vec![Event::PointerMoved(last)]);
+    ui.settle_layout();
+    assert!(ui.application.cdmw_part_name_scroll.is_none());
+    assert!(ui.label_rect("Back to Inspector").is_none(), "closed Parts list must stay closed");
+    assert!(ui.label_rect("60 · Piece 59").is_none(), "closed garment list must stay closed");
+    assert_eq!(ui.application.selected_part_indices(), vec![2]);
+    assert!(ui.last_actions.is_empty());
+    assert!(ui.application.cdmw_pending_request.is_none());
+    Ok(())
+}
+
+#[test]
+fn workflow_viewport_part_hover_scroll_keeps_a_visible_warning_name_in_place() -> TestResult {
+    let mut ui = long_part_hover_ui()?;
+    ui.application.egui_context.global_style_mut(|style| style.scroll_animation = egui::style::ScrollAnimation::none());
+    refit_feedback_reply(&mut ui, "Fit to body", false,
+        "Fit to body: Part 1 still intersects Part 2 beneath its triangles; previous preview retained")?;
+    let before = ui.label_rect("2 · Sleeve").ok_or("visible warning name")?;
+    ui.frame(vec![Event::PointerMoved(viewport_part_point(&ui, 1)?)]);
+    ui.settle_layout();
+    assert!(part_name_has_viewport_outline(&ui, "2 · Sleeve"));
+    assert_eq!(ui.label_rect("2 · Sleeve"), Some(before),
+        "a second offscreen name for the same Part must not scroll past the visible warning");
+    assert_eq!(ui.application.cdmw_refit_highlight_parts(), vec![1, 2]);
+    assert_eq!(ui.application.selected_part_indices(), vec![2]);
+    assert_eq!(ui.application.cdmw_refit_clearance, 0.75);
+    assert!(ui.application.cdmw_refit_settings_dirty.is_dirty());
+    assert!(ui.application.cdmw_pending_request.is_none());
+    Ok(())
+}
+
 #[test]
 fn workflow_part_colours_toggle_restores_display_and_preserves_fit_edits() -> TestResult {
     let mut ui = mixed_refit_ui(&[1])?;

@@ -985,6 +985,27 @@ pub(super) struct RefitFeedback {
     overlay: Option<FaceSelectionOverlay>,
 }
 
+pub(super) struct PartNameRow {
+    part: u32,
+    response: egui::Response,
+    clip_rect: egui::Rect,
+    scroll_root: Option<egui::Id>,
+}
+
+impl PartNameRow {
+    fn fully_visible(&self) -> bool {
+        self.clip_rect.is_positive() && self.response.rect.intersect(self.clip_rect).height() + 0.5
+            >= self.response.rect.height().min(self.clip_rect.height())
+    }
+}
+
+pub(super) struct PartNameScroll {
+    part: u32,
+    targets: HashSet<egui::Id>,
+    viewport_layer: egui::LayerId,
+    viewport_revision: u64,
+}
+
 #[derive(Default)]
 pub(super) struct RefitSettingsEdits {
     fields: std::collections::BTreeSet<&'static str>,
@@ -3392,7 +3413,7 @@ impl LabApplication {
                             egui::Checkbox::new(&mut checked, self.cdmw_part_name_atoms(index,
                                 crate::localization::tr(format!("{} · {name}", index + 1)))),
                         );
-                    self.track_cdmw_part_hover(index, &row);
+                    self.track_cdmw_part_hover(ui, index, &row);
                     if row
                         .on_hover_text(&name)
                         .on_disabled_hover_text(
@@ -4186,7 +4207,7 @@ impl LabApplication {
                                         Button::selectable(active, self.cdmw_part_name_atoms(*index,
                                             (crate::localization::tr(format!("{index}: {name}")), egui::Atom::grow()))).truncate())
                                 }).inner;
-                                self.track_cdmw_part_hover(*index, &row);
+                                self.track_cdmw_part_hover(ui, *index, &row);
                                 if row.on_hover_text(&help)
                                     .on_disabled_hover_text(format!("{}\n{}", help, crate::localization::tr("Show this part to select it"))).clicked() {
                                     let mut updated = selected.clone();

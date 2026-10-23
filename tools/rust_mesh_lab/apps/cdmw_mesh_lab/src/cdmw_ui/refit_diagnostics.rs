@@ -21,34 +21,95 @@ fn refit_failure_parts(detail: &str, garments: &[u32]) -> Vec<u32> {
 }
 
 impl LabApplication {
-    pub(super) fn track_cdmw_part_hover(&mut self, part: u32, response: &egui::Response) {
-        if response.interact_rect.is_positive() {
-            self.cdmw_part_name_rows.push((part, response.interact_rect, response.layer_id));
+    pub(super) fn track_cdmw_part_hover(&mut self, ui: &egui::Ui, part: u32, response: &egui::Response) {
+        let row = PartNameRow { part, response: response.clone(), clip_rect: ui.clip_rect(),
+            scroll_root: ui.stack().iter().find(|entry| entry.kind() == Some(egui::UiKind::ScrollArea)).map(|entry| entry.id) };
+        let pending = self.cdmw_part_name_scroll.as_ref()
+            .filter(|scroll| scroll.part == part && scroll.targets.contains(&response.id))
+            .map(|scroll| scroll.viewport_layer);
+        if let Some(layer) = pending {
+            if self.cdmw_part_scroll_is_current(&response.ctx, part, layer) {
+                self.cdmw_part_name_scroll.as_mut().unwrap().targets.remove(&response.id);
+                if !row.fully_visible() {
+                    // Run inside the row's scroll area, so another pane cannot
+                    // consume this request after the viewport is drawn.
+                    response.scroll_to_me_animation(None, egui::style::ScrollAnimation::none());
+                    response.ctx.request_repaint();
+                }
+            } else {
+                self.cdmw_part_name_scroll = None;
+            }
         }
+        self.cdmw_part_name_rows.push(row);
         if response.hovered() && response.ctx.input(|input| input.pointer.hover_pos().is_some()) {
             self.cdmw_hovered_part = Some(part);
         }
     }
 
+    fn cdmw_viewport_part_hover_allowed(&self, context: &egui::Context) -> bool {
+        !self.hair.active() && self.cdmw_jiggle.preview.scene.is_none() && !self.cdmw_morph_comparison_active()
+            && self.cdmw_state["replacement"]["comparison"].as_str().is_none_or(|mode| mode == "edit")
+            && !context.input(|input| input.pointer.any_down()) && !context.any_popup_open()
+    }
+
+    fn cdmw_part_scroll_is_current(&self, context: &egui::Context, part: u32, layer: egui::LayerId) -> bool {
+        let Some(point) = context.pointer_hover_pos().filter(|_| self.cdmw_viewport_part_hover_allowed(context)) else { return false; };
+        let Some(rectangle) = self.viewport_rect.filter(|rect| rect.contains(point)) else { return false; };
+        if context.layer_id_at(point) != Some(layer) { return false; }
+        let visible = self.cdmw_visible_submeshes();
+        self.mesh.as_ref().zip(self.projection.as_ref()).is_some_and(|(mesh, projection)| {
+            let current = visible.as_ref().map_or_else(
+                || projection.matches(mesh, &self.camera, rectangle, self.viewport_revision),
+                |parts| projection.matches_for_submeshes(mesh, &self.camera, rectangle, self.viewport_revision, parts));
+            current && projection.part_at(Vec2::new(point.x, point.y)) == Some(part)
+        })
+    }
+
+    fn queue_cdmw_part_name_scroll(&mut self, part: u32, layer: egui::LayerId) {
+        if self.cdmw_part_name_scroll.as_ref().is_some_and(|scroll|
+            scroll.part == part && scroll.viewport_revision == self.viewport_revision)
+        { return; }
+        // One name per scroll area: keep an already visible match, otherwise
+        // reveal the closest match when the same Part occurs in several sections.
+        let mut roots = HashMap::<egui::Id, (bool, f32, egui::Id)>::new();
+        for row in self.cdmw_part_name_rows.iter().filter(|row| row.part == part && row.clip_rect.is_positive()) {
+            let Some(root) = row.scroll_root else { continue; };
+            let distance = (row.response.rect.top() - row.clip_rect.bottom())
+                .max(row.clip_rect.top() - row.response.rect.bottom()).max(0.0);
+            roots.entry(root).and_modify(|entry| {
+                entry.0 |= row.fully_visible();
+                if distance < entry.1 { entry.1 = distance; entry.2 = row.response.id; }
+            }).or_insert((row.fully_visible(), distance, row.response.id));
+        }
+        let targets: HashSet<_> = roots.values().filter(|entry| !entry.0).map(|entry| entry.2).collect();
+        if !targets.is_empty() { self.egui_context.request_repaint(); }
+        self.cdmw_part_name_scroll = Some(PartNameScroll { part, targets, viewport_layer: layer,
+            viewport_revision: self.viewport_revision });
+    }
+
     pub(super) fn highlight_cdmw_part_names_from_viewport(
         &mut self, ui: &egui::Ui, rectangle: egui::Rect, response: &egui::Response,
     ) {
-        if self.cdmw_part_name_rows.is_empty() || !response.hovered() || self.hair.active()
-            || self.cdmw_jiggle.preview.scene.is_some() || self.cdmw_morph_comparison_active()
-            || self.cdmw_state["replacement"]["comparison"].as_str().is_some_and(|mode| mode != "edit")
-            || ui.input(|input| input.pointer.any_down()) || ui.ctx().any_popup_open()
-        { return; }
-        let Some(point) = ui.input(|input| input.pointer.hover_pos()).filter(|point| rectangle.contains(*point)) else { return; };
-        if !self.ensure_projection(rectangle) { return; }
+        if self.cdmw_part_name_rows.is_empty() || !response.hovered() || !self.cdmw_viewport_part_hover_allowed(ui.ctx()) {
+            self.cdmw_part_name_scroll = None;
+            return;
+        }
+        let Some(point) = ui.input(|input| input.pointer.hover_pos()).filter(|point| rectangle.contains(*point)) else {
+            self.cdmw_part_name_scroll = None;
+            return;
+        };
+        if !self.ensure_projection(rectangle) { self.cdmw_part_name_scroll = None; return; }
         let part = self.projection.as_ref().and_then(|projection| projection.part_at(Vec2::new(point.x, point.y)));
         self.cdmw_viewport_hovered_part = part;
-        let Some(part) = part else { return; };
+        let Some(part) = part else { self.cdmw_part_name_scroll = None; return; };
+        self.queue_cdmw_part_name_scroll(part, response.layer_id);
         let [r, g, b, _] = PART_HOVER_COLOUR;
         let colour = Color32::from(egui::Rgba::from_rgb(r, g, b));
         // Paint an identification cue on this frame's clipped name rows. Their
         // checkbox/button state and the retained viewport selection stay intact.
-        for (_, rect, layer) in self.cdmw_part_name_rows.iter().filter(|(index, _, _)| *index == part) {
-            ui.ctx().layer_painter(*layer).with_clip_rect(*rect).rect_stroke(
+        for row in self.cdmw_part_name_rows.iter().filter(|row| row.part == part && row.response.interact_rect.is_positive()) {
+            let rect = row.response.interact_rect;
+            ui.ctx().layer_painter(row.response.layer_id).with_clip_rect(rect).rect_stroke(
                 rect.shrink(0.5), 3.0, Stroke::new(2.0, colour), egui::StrokeKind::Inside);
         }
     }
@@ -281,7 +342,7 @@ impl LabApplication {
                     for part in &parts {
                         let row = ui.add_enabled(can_select, Button::new(self.cdmw_part_name_atoms(*part, self.cdmw_morph_part_names(&[*part]))).small()
                             .selected(selected_parts.contains(part)));
-                        self.track_cdmw_part_hover(*part, &row);
+                        self.track_cdmw_part_hover(ui, *part, &row);
                         if row
                             .on_hover_text(crate::localization::tr("Select these Parts to adjust their fitting. Hidden Parts are shown."))
                             .clicked()

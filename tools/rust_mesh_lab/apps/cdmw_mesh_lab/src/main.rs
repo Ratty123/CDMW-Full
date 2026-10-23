@@ -2221,7 +2221,8 @@ struct LabApplication {
     cdmw_hovered_part: Option<u32>,
     cdmw_part_hover_overlay: Option<(u32, FaceSelectionOverlay)>,
     cdmw_viewport_hovered_part: Option<u32>,
-    cdmw_part_name_rows: Vec<(u32, egui::Rect, egui::LayerId)>,
+    cdmw_part_name_rows: Vec<cdmw_ui::PartNameRow>,
+    cdmw_part_name_scroll: Option<cdmw_ui::PartNameScroll>,
     cdmw_cleanup_merge_distance: f32,
     cdmw_loop_cut_count: u32,
     cdmw_loop_cut_factor: f32,
@@ -2409,6 +2410,7 @@ impl LabApplication {
             cdmw_part_hover_overlay: None,
             cdmw_viewport_hovered_part: None,
             cdmw_part_name_rows: Vec::new(),
+            cdmw_part_name_scroll: None,
             cdmw_cleanup_merge_distance: 0.0001,
             cdmw_loop_cut_count: 1,
             cdmw_loop_cut_factor: 0.5,
@@ -5480,6 +5482,7 @@ impl LabApplication {
         self.face_selection_overlay = None;
         self.invalidate_cdmw_refit_overlay();
         self.invalidate_cdmw_part_hover_overlay();
+        self.cdmw_part_name_scroll = None;
         self.cdmw_rig.overlay_key = None;
         self.selected_counts_cache.set(None);
         if let Some(renderer) = &mut self.renderer {

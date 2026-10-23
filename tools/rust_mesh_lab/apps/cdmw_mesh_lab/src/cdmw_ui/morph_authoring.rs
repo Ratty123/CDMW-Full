@@ -198,7 +198,7 @@ impl LabApplication {
                             visible.as_ref().is_none_or(|visible| visible.contains(part)),
                             Button::selectable(active, self.cdmw_part_name_atoms(*part, &name)).truncate(),
                         );
-                        self.track_cdmw_part_hover(*part, &row);
+                        self.track_cdmw_part_hover(ui, *part, &row);
                         if row
                             .on_hover_text(&name)
                             .on_hover_text(crate::localization::tr("Click to highlight this garment and edit its strength. Ctrl-click to select several."))
@@ -252,7 +252,7 @@ impl LabApplication {
             ui.push_id(("fit-islands", part), |ui| {
                 let heading = ui.add(egui::AtomLayout::new(self.cdmw_part_name_atoms(part,
                     RichText::new(self.cdmw_morph_part_names(&[part])).strong())));
-                self.track_cdmw_part_hover(part, &heading);
+                self.track_cdmw_part_hover(ui, part, &heading);
                 for (index, island) in row["islands"].as_array().into_iter().flatten().enumerate() {
                     let faces = faces_of(island);
                     let override_setting = parent.and_then(|parent| parent["island_settings"].as_array())
@@ -311,7 +311,7 @@ impl LabApplication {
                     ui.style_mut().wrap_mode = Some(egui::TextWrapMode::Truncate);
                     ui.checkbox(&mut checked, self.cdmw_part_name_atoms(*part, &name))
                 }).inner;
-                self.track_cdmw_part_hover(*part, &row);
+                self.track_cdmw_part_hover(ui, *part, &row);
                 if row.on_hover_text(&name)
                     .on_hover_text(crate::localization::tr("Choose garments for the body-region buttons below. Your body selection is kept.")).changed()
                 {
