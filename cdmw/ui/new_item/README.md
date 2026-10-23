@@ -1421,6 +1421,11 @@ clones. Mesh particles keep complete supported geometry; unavailable geometry no
 draws an invented gray marker. Untextured particles use mesh coverage, and every
 reported limitation remains visible through the approximation notice.
 
+Unused mesh references no longer switch sprite particles to the mesh renderer.
+This avoids missing sprites or unrelated triangles while retaining genuine mesh
+particles. Ribbon trails and movement inherited from carrier emitters are not
+fully simulated.
+
 ### Imported item material authority
 
 For an imported item, Effects always derives its placed preview from the live import

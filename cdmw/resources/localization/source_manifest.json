@@ -138827,6 +138827,16 @@
       ]
     },
     {
+      "key": "Sprite particles ignore unused mesh references, so missing mesh files do not hide them. Mesh particles retain their geometry. Ribbon trails and moving emitter paths are not fully simulated.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 77,
+          "sink": "python-return:_build_start_sections"
+        }
+      ]
+    },
+    {
       "key": "Square",
       "origins": [
         {

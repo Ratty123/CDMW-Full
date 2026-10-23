@@ -44,6 +44,7 @@ CREATE_NEW_ITEM_SECTION = {
     <p>Tier, Required level and Max durability inherit the template until changed. Reset restores inheritance. These are raw game values; unavailable layouts are disabled and in-game effects remain unverified. Explicit overrides use .cditem v2 and require a reader supporting item.properties; recipes without them retain v1 compatibility.</p>
     <h4>Effects &amp; Perks</h4>
     <p>Browse effects, filter by category or timing, and inspect the selected effect in the placed preview. Review layers, emitters and attachment placement, then apply staged changes before planning. Visual effects and gameplay perks are separate. Keep the default four-perk limit unless deliberately testing the experimental higher limit.</p>
+    <p>Sprite particles ignore unused mesh references, so missing mesh files do not hide them. Mesh particles retain their geometry. Ribbon trails and moving emitter paths are not fully simulated.</p>
     <h4>Distribution</h4>
     <p>Choose how the player obtains the item: a supported shop, recipe, reward or item group. Review quantities, prices, ingredients and dependencies. Recipes and reward edits remain experimental. A valid item record without a working distribution route may never become available during normal play.</p>
     <h4>Output</h4>

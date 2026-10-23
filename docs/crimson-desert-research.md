@@ -1141,12 +1141,31 @@ packages validated, and the existing read-only proof prepared weapon, armour and
 accessory effect grafts. All PAMT and 66 re-read source payload hashes, plus PAZ
 size/timestamps, were unchanged; whole PAZ hashes were not calculated.
 
-This establishes decoded values and package structure, not preview pixels.
-The current windowless material-capture entry point does not execute the particle
-overlay simulation. The inspected effects still expose unavailable particle
-geometry and unsupported spawn shapes through their normal diagnostics. No
-additional rendering change was justified by this comparison; visible animation,
-carrier/sub-emitter scheduling and game parity remain unverified.
+Those initial checks establish decoded values and package structure, not preview
+pixels. The windowless material-capture entry point does not execute the particle
+overlay simulation. Unsupported spawn shapes remain explicit limitations.
+
+Deeper headless review on 2026-10-24, confirmed by `9443daa2`, found four sprite
+emitters across 12 real effects incorrectly routed through mesh rendering because
+they retained an unused `_meshObjectFileName`. One such mesh was absent, hiding
+the firefly emitter in `fx_hit_common_fire_attach_a_loop`. CDKit 0.3.0 independently
+reported geometry type 0 and rendered that isolated emitter without the mesh.
+CDMW now ignores mesh references for geometry type 0, including its omitted
+default and explicit overrides of inherited mesh mode. The four inspected
+geometry-type-2 mesh emitters retain their complete geometry. Four corrected
+placement packages validate. A CPU replay using the production Rust simulation
+and the real firefly descriptor, with a controlled point-spawn selection, changed
+from zero particles to nonzero output. The original surface-spawn mode still
+requires a valid target and volume; this is not a claim that it spawns everywhere.
+The selected 45 payload and PAMT hashes were unchanged. No CDMW particle pixel
+capture, packaged viewport or in-game appearance was verified.
+
+The tracking-way resource confirms a separate unresolved gap: a non-drawing
+carrier names three children, two using ribbon geometry type 4. CDKit's headless
+preview produces ribbon points along its sample route, while CDMW retains a flat
+emitter description. The sample path is preview input, not recovered game motion.
+Carrier scheduling, complete ribbon rendering and game parity remain open; RGB
+brightness experiments did not qualify another implementation change.
 
 Sources: [effect reflection reader][effect-binary], [constrained writer][effect-edit],
 [dependency and authoring contracts][independent-items], [binary tests][effect-tests].

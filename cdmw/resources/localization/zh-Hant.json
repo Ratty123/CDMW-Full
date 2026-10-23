@@ -1616,6 +1616,7 @@
     "Browse character bodies, faces and appearance variants from the installed archives.": "瀏覽已安裝封存檔中的角色身體、臉部和外觀變體。",
     "Browse effects": "瀏覽特效",
     "Browse effects, filter by category or timing, and inspect the selected effect in the placed preview. Review layers, emitters and attachment placement, then apply staged changes before planning. Visual effects and gameplay perks are separate. Keep the default four-perk limit unless deliberately testing the experimental higher limit.": "瀏覽效果，依類別或時間行為篩選，並在放置後的預覽中檢查選取的效果。檢查圖層、發射器與附著位置，然後在規劃前套用暫存的變更。視覺效果與玩法特性彼此獨立。除非刻意測試實驗性的較高上限，否則請維持預設四項特性的限制。",
+    "Sprite particles ignore unused mesh references, so missing mesh files do not hide them. Mesh particles retain their geometry. Ribbon trails and moving emitter paths are not fully simulated.": "精靈粒子會忽略未使用的網格參照，因此不會因缺少網格檔案而隱藏。網格粒子會保留其幾何形狀。帶狀軌跡和移動發射器的路徑尚未完整模擬。",
     "Browse grouped NCNN model recommendations with short descriptions, source pages, and non-downloading model pages.": "瀏覽分組的 NCNN 模型推薦，其中包含簡短說明、來源頁面和非下載模型頁面。",
     "Browse recovered item names, icons, model links, and categories. Results are paged so the Finder stays responsive.": "瀏覽恢復的項目名稱、圖示、模型連結和類別。結果會被分頁，以便 Finder 保持回應。",
     "Browse recovered item names, icons, model links, and related files. Selecting an item scopes the Archive Browser through the direct index, without re-filtering every archive row.": "瀏覽恢復的項目名稱、圖示、模型連結和相關文件。選擇項目可透過直接索引確定 Archive Browser 的範圍，而無需重新過濾每個存檔行。",
