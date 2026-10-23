@@ -1403,16 +1403,28 @@ count, metadata and backing are empty at loader entry. Normal return has 6,816
 entries and matching metadata/cookie. The loader and bootstrap threads differ;
 TLS was not sampled. Pointer presence is not metadata readiness. This does not
 show another reader using partial data or establish exclusion, safe publication
-or lifetime. The actual native caller/completion path remains to qualify.
-Constructor-registered key/name adapters are not lifecycle callbacks. See the
+or lifetime. A subsequent actual return address joins the unchanged serial
+149-family dispatcher: all load and `+0x60` calls precede the retained AF1
+before-finalizer boundary; later passes and outer task completion follow.
+Reconciliation with existing B115 data already establishes that AF1 was reached
+with all 6,816 stock slots resident, matching metadata keys, zero expiry and both
+maps. Both full snapshots precede the private operation. The stock body-reader
+field is zero and phase TLS is unknown. These observations qualify neither a
+cold stock-reader path nor all-reader/maintenance coverage or safe publication.
+The next definition step joins actual private backing/decoding to getter and
+bulk with coherent maps, failure-stop and lifetime. Constructor-registered key/
+name adapters are not lifecycle callbacks. See the
 [current execution checkpoint](../beta-progress/cditem-execution-goal.md#resumed-with-direct-authority-2026-10-23)
 for source/capture pins and the bounded restoration result.
 
 The next resource proof extends the demonstrated read to two separate package
 images and then their actual engine consumer. Two actual-compiler fixture images
 are prepared with distinct 144-byte DDS payloads at offset 2704; native reads
-through both retained contexts remain pending. Constructor side effects require
-an explicit recheck of the first context after creating the second. Process
+through both retained contexts remain pending. The separate producer passes 17
+compiled native cases and 13 aggregate wire reviews with engine substitutes,
+including full-payload/last-byte controls and a recheck of the first context after
+creating the second. These controls preserve constructor side effects as an
+explicit actual-game question. Process
 retention does not establish production retirement. Join these resources and
 independently owned item definitions in one supported lifecycle. Metadata success, prepared
 archive bytes and related Loadouts observations remain separate evidence.

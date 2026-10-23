@@ -1226,7 +1226,11 @@ Each image has 19 folder/four file records, with the selected file at `files+60`
 The constructor's global-byte addition requires explicit A-after-B metadata,
 query and path observations before inferring coexistence. These synthetic inputs
 preserve proposed-binding and unresolved-reference limits. Resource-consumer
-use, general retirement and native item admission remain open.
+use, general retirement and native item admission remain open. The separately
+frozen producer now passes 17 compiled native cases and 13 aggregate reviews,
+using engine substitutes for the construction/query/path/read flow. These include
+the complete A-after-B recheck, both full payloads, byte-143 discrimination and
+alias/refusal controls. Actual two-context game evidence remains distinct.
 
 Executable-source review identifies typed ItemInfo manager loader slots and
 the global setter/clearer. Vtable `+0x08` resets the manager; `+0x20` loads
@@ -1237,7 +1241,26 @@ The worker differs from the bootstrap thread; TLS was not sampled. Global
 pointer presence is not a metadata-readiness boundary. Sequential observations
 do not prove another reader used partial data, exclusion, safe publication or
 lifetime. Constructor-registered key/name adapters are not lifecycle callbacks.
-Actual caller/completion and central backing/routing remain to qualify. The
+The later actual return RIP joins the unchanged serial dispatcher. Its observed
+ordering is:
+
+```mermaid
+flowchart LR
+    P["Family +0x10 publication"] --> L["All 149 +0x20 loads"]
+    L --> S["All 149 +0x60 calls"]
+    S --> A["AF1 before-finalizer boundary"]
+    A --> F["+0x28 / +0x30 / +0x38 / +0x40 passes"]
+    F --> D["Controller completion; outer task finishes later"]
+```
+
+Consumed B115 already supplies actual AF1 source/unwind guards, controller
+membership and two full stock snapshots with all 6,816 slots resident, matching
+keys, zero expiry and both maps. Body `owner+0x90` is zero; both snapshots precede
+the private operation. This avoids a duplicate phase observation. It does not
+establish a stock cold-reader path, phase TLS, all-reader exclusion or borrowed
+pointer lifetime. Join actual backing/private metadata/decoder/cache to ordinary
+getter and direct bulk, then qualify coherent paired publication, reader and
+maintenance coverage and failure-stop. The
 [execution checkpoint](../../../beta-progress/cditem-execution-goal.md#resumed-with-direct-authority-2026-10-23)
 owns exact source/capture/restoration pins and the retained failed controls.
 

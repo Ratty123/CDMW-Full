@@ -181,9 +181,15 @@ the registered ItemInfo owner already globally visible at loader entry with
 empty count/metadata/backing, then 6,816 entries and matching metadata/cookie
 after normal return. Global pointer presence cannot serve as readiness. The
 observed loader and bootstrap threads differ; no TLS sample was captured.
-This sequential pair supplies no concurrent-reader, exclusion or lifetime proof
-and does not qualify central publication. The next discriminator is the native
-caller/completion path. Exact source, compiled controls, consumed capture and
+The later actual return RIP joins the unchanged serial 149-family dispatcher.
+All `+0x20` and `+0x60` calls precede AF1; four later passes precede controller
+completion, and outer task completion occurs later still. Existing B115 AF1
+evidence already records guarded controller membership, all 6,816 stock rows
+resident with matching keys, zero expiry and both maps. Body `owner+0x90` is zero;
+both full stock snapshots precede C and phase TLS remains unknown. Reuse these
+observations; a duplicate generic phase probe is unnecessary. They supply no
+all-reader, maintenance or lifetime boundary for central publication.
+Exact source, compiled controls, consumed captures and
 restoration belong to the [current execution checkpoint](../../../beta-progress/cditem-execution-goal.md#resumed-with-direct-authority-2026-10-23).
 The maintained owned-memory experiment itself is unchanged and was not rerun.
 
@@ -204,12 +210,14 @@ open/read captures, source and owned processes; restoration completed in 39.235
 seconds. Both full stock snapshots precede the private operation. This fixed
 byte observation does not establish resource-consumer behavior, API success/count
 or retirement. Two separate actual-compiler images with distinct 144-byte slices
-at offset 2704 are prepared; native two-context reads remain pending.
+at offset 2704 are prepared. Their separate producer now passes 17 compiled native
+cases and 13 aggregate reviews, including A-after-B and the full-payload last-byte
+controls. Native two-context game reads remain pending.
 
-New executable-source review identifies the ItemInfo manager's typed reset,
-setter, clearer and loader slots. In particular, `+0x08` is reset and `+0x20`
-is loading. A passive two-loader entry/return witness is source-prepared to
-observe global-owner publication relative to loading. It is uncompiled and
-does not establish a safe publication point or reader exclusion. The portable
-paired-publication experiment remains an ordering reference rather than that
-missing native boundary.
+Executable-source review identifies the ItemInfo manager's typed reset, setter,
+clearer and loader slots: `+0x08` resets and `+0x20` loads. The actual passive
+observations above do not establish safe publication. Next join actual central
+allocation/reservation, private rows/cache/decoder and both getter/bulk routes
+under concrete reader/maintenance coverage, coherent paired maps, failure-stop
+and lifetime. The portable experiment remains an ordering reference for that
+integration; it does not supply the missing native boundary.

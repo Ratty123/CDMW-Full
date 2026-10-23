@@ -85,11 +85,33 @@ and A's survival after B creation need explicit observations. Preparation receip
 `ac28c79f6bd2624a62f1fd6d99e94a80649e0d9698d7ce330dc07ccd7dba620f`.
 These owned synthetic assets do not establish game-resource use or reference closure.
 
-The separately versioned B117 producer is source-prepared for those two images;
-native producer-flow qualification and actual reads remain pending. The original
-frozen source is retained while a successor corrects terminal initialization and
-binds the exact offline reviewer before import. Layout and synthetic packet
-checks do not qualify its native construction/query/path/read state machines.
+The separately frozen B117-v3 producer now passes actual compiled qualification:
+17 native cases, including 13 producer flows, wire layout, terminal initialization
+and the own-process API guard. All 13 aggregate wire reviews agree: two accepted
+flows and eleven refusals, including the holder-alias and distinguishing-byte
+controls. The five-step run completed in 20.751 seconds with compiler resources
+returned and an empty closure census; the new ASI stays inactive without a session.
+These controls exercise the actual header with fixture engine substitutes, not
+the game. Actual two-image reads and the controlled caller remain pending.
+
+V3 preserves terminal refusal and verifies the exact reviewer bootstrap before
+import. Explicit padding preserves the asserted context layout under strict
+compilation. V2's failed C4324 build and the qualification helper's missing link
+dependency remain retained; no warning or CFG guard was suppressed. Exact proof:
+`b117-v3-build-proof-20261023/qualification-result.json`, 105,289 bytes, SHA-256
+`dea7f972373f607c410404575eefd8611073275c1e5ca2eebb822772e27dcfd6`.
+Selected 514,560-byte ASI SHA-256:
+`46110fc727af0eee63bcf1bc3a8ce4807a21534315b6b37c2f27a0379113b4f2`.
+Independent PE/COFF/MAP/GFID and retained-case review:
+`api-source-review/20261023-b117-v3-linked-review/independent-linked-native-review-v3.json`,
+36,240 bytes, SHA-256
+`88846004b205a15ad542a1c0fdbd2400dd37745cd00d71ea796e6f51f92ba7dc`.
+The new offline envelope rehashes all 109 operational source pins and preserves
+the original source-only flags:
+`io-candidate/batch117-two-package-byte-read-v3/offline-native-verification.json`,
+4,382 bytes, SHA-256
+`e5a10b84142939606786baa25e8d438ea3c20fc5c92014abc5f690ac32443931`.
+It supplies fixture qualification, with game execution/readiness/admission false.
 
 Native definition work identifies the ItemInfo manager's typed loader, reset,
 setter and clearer slots in the unchanged executable. The separately built
@@ -132,11 +154,50 @@ V3 preserves the failed ICF-folded fixture and qualifies terminal initialization
 with an actual-runtime counterfactual: old retrying code fails the repeated-call
 control and corrected code passes. No production release build was performed.
 
-Constructor-registered callbacks previously considered as a possible lifecycle
-route are source-qualified key/name adapters, not load/publish callbacks.
-The next definition discriminator is the actual loader's native caller and
-completion/reader boundary; neither the global setter nor loader return alone
-establishes safe central integration.
+The separately qualified B119 caller witness subsequently captured actual return
+RIP `0x14FA45A99` at entry and normal exit. The pair again observes the globally
+visible empty manager becoming 6,816 entries. Worker thread 21924 differs from
+bootstrap 27536; TLS was not sampled. The 0.8796-ms interval includes observation
+overhead. Exact restoration completed in 24.391 seconds, all five owned process
+identities are absent, and seven installed witnesses plus the stock mount match.
+The one-attempt caller is consumed. The decoder's false provenance/execution/
+admission flags remain unchanged; separate independent review supplies the joins.
+
+Actual result: `run/b119-current-owner-v1/attempt1/loader-caller-observation-result.json`,
+4,987 bytes, SHA-256
+`8287dd5edbe781f4b288d29a47f677e34ae705dd44f1105de10a831dadb1af04`.
+Independent physical/source/controller review:
+`api-source-review/20261023-b119-caller-review/actual-chain-review.json`,
+23,316 bytes, SHA-256
+`81e75ef88828c02894a81cd595c7314bb9dcaed979589ad41b3ad8ff7bee3e13`.
+
+Current executable bytes join that RIP to `CALL [rax+0x20]` in the 149-family
+serial dispatcher. The later complete `+0x60` pass precedes the retained AF1
+bridge, then `+0x28/+0x30/+0x38/+0x40` passes precede controller completion.
+Outer task completion/draining occurs after the whole task method returns;
+neither ordering nor task-local waits establish all-reader participation.
+Source join: `api-source-review/20261023-b119-dispatch-join/dispatch-source-review.json`,
+27,751 bytes, SHA-256
+`3b5b50734db3da8b882076fbd95be74fc4520238b87d2a6d4f3ef47810eb5e08`.
+
+Reconciliation with the consumed B115 capture withdraws the proposed generic AF1
+repeat. That actual phase already records full-dispatch-source/unwind guards,
+149 families/1,192 bytes, the unique ItemInfo member and controller completion
+still zero. Both full stock snapshots have 6,816 distinct resident pointers,
+matching metadata keys, zero expiry values and both maps; body `owner+0x90` is
+zero. Both snapshots precede C. Phase TLS is unknown, and later callback TLS
+cannot be projected onto the other phase thread. Receipt:
+`api-source-review/20261023-b119-dispatch-join/b115-af1-evidence-reconciliation.json`,
+26,038 bytes, SHA-256
+`ef5bd529421bf65674e40f519b7be1deb239505346d87a74cd4ff2c8a1b34366`.
+
+Next, join actual central allocation/reservation, immutable private rows and the
+real constructor/decoder/cache to both ordinary getter and direct bulk dispatch,
+with coherent backing/metadata/maps and concrete reader/maintenance coverage.
+Resident stock samples do not prove a permanent no-cold invariant or a usable
+stock BodyReader. Qualify failure-stop and retained-pointer lifetime before any
+central exposure. Constructor-registered key/name adapters are not lifecycle
+callbacks; neither the global setter, loader return nor AF1 alone makes publication safe.
 
 The historical ThinkForge goal is cancelled from the earlier pause and cannot
 resume through its available tool; the active Codex goal and these existing

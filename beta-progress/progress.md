@@ -14,11 +14,13 @@ prepared for the next 144-byte reads. Their native consumption, central
 definition routing and full native item acceptance remain open. See the
 [current checkpoint](cditem-execution-goal.md#resumed-with-direct-authority-2026-10-23).
 
-The passive ItemInfo loader now also confirms that the global owner is already
-visible with empty count/metadata/backing at entry, followed by 6,816 entries
-on normal return. Pointer presence is not readiness. The game is closed and
-exact restoration completed in 23.094 seconds. Native caller/completion,
-reader exclusion and central integration remain open.
+The passive ItemInfo loader confirms a globally visible empty manager becoming
+6,816 entries. Its actual return RIP now joins the serial 149-family dispatcher;
+the caller run restored exactly in 24.391 seconds with all owned processes closed.
+Existing B115 evidence already covers the before-finalizer phase with all stock
+rows resident and both maps present. Reader/maintenance coverage, actual private
+dispatch and lifetime remain open. The two-image producer passes 17 compiled
+native cases and 13 aggregate reviews; its actual game reads remain pending.
 
 [Canonical goal and acceptance criteria](cditem-conflict-isolation-plan.md) |
 [Execution](cditem-execution-goal.md) |
@@ -31,7 +33,7 @@ original `CDISO-*` criteria, with narrowly scoped subtask results recorded below
 | Outcome | Status | Evidence and remaining work |
 | --- | --- | --- |
 | Package identity and retained bindings | Existing implementation, exercised in the new preparation route | UUIDs and reservations survive owned-fixture updates/removal/reinstall/profile transfer; native lifecycle still required |
-| Native definition registration | Partial research and passive game evidence | B84 game rows; B106/B111 experiments; global owner already visible before metadata loading completes. Actual decoder/resource joins, caller/completion and reader boundary remain open |
+| Native definition registration | Partial research and actual caller/phase joins | Serial dispatcher and existing resident-stock phase established; actual private allocation/decoding, paired maps, reader/maintenance boundary and lifetime remain open |
 | Paired publication and lifetime | Verified owned-memory increment | `CDISO-RE-02A`: retained C++ result, 41 cases/963 checks. Both lookup paths and resource completion are modeled |
 | Exact private archive expectation | Verified preparation, actual path and small-byte observation | `CDISO-RE-03A`: retained preparation/reviewer checks, B113 path and B115 physical open/read joins; actual resource use remains open |
 | Separate package resource images | Newly verified preparation increment | `CDISO-RE-03B`: actual compiler output, one immutable image per UUID, 24 focused cases verified; native discovery/use remains open |
@@ -69,11 +71,12 @@ resource use, equip and saves still require their own evidence.
 1. Extend the verified small read to two retained private contexts and distinct
    compiler-produced package images. Compare all 144 bytes at offset 2704,
    including their distinguishing last byte; recheck A after B construction.
+   The new producer's compiled and aggregate controls pass; prepare its own caller.
    Native context independence, resource use and general retirement remain open.
 2. Carry common preflight and retained ownership into actual B106 backing,
-   private metadata and decoder routing. The typed loader entry/return is now
-   observed; identify its native caller/completion path and qualify the real
-   reader boundary before either native map exposes an entry.
+   private metadata and decoder routing through getter and bulk. Reuse the
+   actual serial-dispatch/AF1 stock evidence; qualify reader/maintenance coverage,
+   failure-stop and lifetime before either native map exposes an entry.
 3. Integrate native definitions and resources, prove first acquisition, then run
    two same-donor packages through equip/restart/update/removal/save.
 
@@ -100,6 +103,10 @@ the preceding 24-case preparation evidence remains in
 `workspace/reports/cditem-execution/20261021-package-resource-images/`.
 
 ## Completed work
+
+- 2026-10-23 | CDISO-RE-02 actual loader caller and phase reconciliation | B119 captures return RIP `0x14FA45A99`, joined to the serial 149-family dispatcher in the unchanged executable. Independent physical/source/process review passes; exact restoration completes in 24.391 seconds. Reused B115 AF1 captures already show all 6,816 stock slots resident with matching keys and both maps, before C. A proposed duplicate phase probe is withdrawn. Reader exclusion, private central dispatch, failure-stop and lifetime remain open; acceptance states are unchanged. Evidence: `workspace/reports/cditem-execution/20261021-native-path-continuation/api-source-review/20261023-b119-caller-review/actual-chain-review.json` and `api-source-review/20261023-b119-dispatch-join/b115-af1-evidence-reconciliation.json` in that continuation.
+
+- 2026-10-23 | CDISO-RE-03 two-package producer qualification | Separately frozen B117-v3 passes 17 compiled native cases and all 13 aggregate reviews, including A-after-B, full 144-byte comparison, last-byte discrimination and alias/refusal controls. Strict layout padding and the qualification link input correct retained build failures without changing the producer flow or suppressing guards. New ASI is inactive without a session; compiler resources are returned. Actual two-package game reads and native resource use remain pending. Evidence: `workspace/reports/cditem-execution/20261021-native-path-continuation/b117-v3-build-proof-20261023/qualification-result.json`.
 
 - 2026-10-23 | CDISO-RE-02 passive loader ordering | B118-v3 through caller-v2 records the actual derived ItemInfo loader: global owner already equals this while count/metadata/backing are empty; normal return has 6,816 entries and matching metadata/cookie. Independent raw/source/process/controller review passes. Worker and bootstrap threads differ; TLS was not sampled. Pointer presence is not readiness. Exact restoration completes in 23.094 seconds and all five owned processes are absent. No concurrent reader activity, exclusion, insertion, lifetime or native admission follows. Original fixture failure and terminal-initialization correction remain retained; all acceptance states are unchanged. Evidence: `workspace/reports/cditem-execution/20261021-native-path-continuation/api-source-review/20261023-b118-passive-review/b118-v2-actual-capture-review.json`.
 

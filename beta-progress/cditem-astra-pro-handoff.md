@@ -87,12 +87,31 @@ Wire-only provenance/execution/admission flags remain false; the separate
 independent review verifies physical/process/source/controller joins without
 changing those flags.
 
-The two-image B117 producer is frozen source, with native-flow qualification still
-pending. A successor must make refusal terminal and pin the exact imported path
-reviewer; synthetic packet/layout checks do not exercise the native state machines.
-Source review also confirms that constructor-registered callbacks are key/name
-adapters, not lifecycle callbacks. Identify the loader's real caller/completion
-path before choosing a central integration point.
+The two-image B117-v3 producer now passes 17 compiled native cases and all 13
+aggregate wire reviews. Terminal refusal and the verified reviewer bootstrap
+are preserved. Explicit context padding fixes strict compilation without changing
+flow or guards; the earlier failed build and link input remain retained. Actual
+game reads still require a separately reviewed current-owner caller. The
+[execution checkpoint](cditem-execution-goal.md#resumed-with-direct-authority-2026-10-23)
+pins the selected 514,560-byte ASI and full qualification receipt.
+
+B119 subsequently captured actual loader return RIP `0x14FA45A99`. Independent
+capture review passes and restoration completes in 24.391 seconds. The unchanged
+596-byte dispatcher joins this to its serial 149-family `+0x20` loop, followed
+by all `+0x60`, AF1, then `+0x28/+0x30/+0x38/+0x40` before controller completion.
+Outer task draining occurs later; this sequence is not an all-reader lease.
+
+The newer AF1 reconciliation supersedes the source review's proposed passive
+phase repeat: consumed B115 already records the guarded AF1 milestone, unique
+ItemInfo member, 149/1,192 and all 6,816 distinct resident stock pointers with
+matching keys, zero expiry and both maps. Body `owner+0x90` is zero. Both full
+snapshots precede C; phase TLS remains unknown. Reuse this evidence rather than
+another generic visibility/model probe. Next join actual central backing and
+private rows/cache/decoder through getter and direct bulk, with coherent maps,
+reader/maintenance coverage, failure-stop and lifetime. Neither a resident sample
+nor callback TLS proves the cold stock-reader or phase context. Constructor key/
+name adapters are not lifecycle callbacks. Exact newer receipts are pinned in
+the execution checkpoint; original acceptance states remain unchanged.
 
 Retained local source-only results under the native-path continuation:
 `run/b115-current-owner-v2/source-check-receipt.json` (41 focused checks;
