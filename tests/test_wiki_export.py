@@ -92,6 +92,8 @@ def test_procedures_are_steps_with_separate_limits_and_optional_details(wiki_man
     vertex = body.split('<a id="mesh_editor-5"></a>', 1)[1].split("</details>", 1)[0]
     assert "1. Open **Mesh Data** > **Vertex Parameters**" in vertex
     assert "1. Inspect **Position**, **UV Coordinates**, **Normals**, and **Skin Weights**" in vertex
+    assert "- **Discard** clears pending inputs." in vertex
+    assert "1. **Discard**" not in vertex
     assert "> [!NOTE]\n> - Editing depends" in vertex
     assert "UV1 and vertex colours are not editable." in vertex
     assert "<summary><strong>Vertex Parameters</strong></summary>" in body
@@ -109,6 +111,22 @@ def test_sentence_formatting_preserves_code_versions_ellipsis_and_cjk_punctuatio
     assert _sentences("変更を適用します。元のファイルを保持します。") == ["変更を適用します。", "元のファイルを保持します。"]
     with pytest.raises(ValueError, match="Documentation block structure differs: de"):
         _readable_guide("First.\n\nSecond.", "Zuerst.\n\nZweitens.\n\nDrittens.", "de")
+
+
+def test_readable_guide_keeps_discard_separate_from_required_editing_steps():
+    source = (
+        '<a id="vertex"></a>\n\n## Vertex Parameters\n\n'
+        'Open Mesh Data > Vertex Parameters and select vertices. '
+        'Inspect Position, enter changes, then choose Apply. Discard clears pending inputs.\n\n'
+        'Editing depends on the format. Unsupported channels remain read-only.'
+    )
+    rendered = _readable_guide(source, source, "en", mesh=True)
+    assert rendered.startswith('<a id="vertex"></a>\n\n<details>')
+    assert "1. Open **Mesh Data** > **Vertex Parameters**" in rendered
+    assert "1. Inspect **Position**" in rendered
+    assert "- **Discard** clears pending inputs." in rendered
+    assert "1. **Discard**" not in rendered
+    assert "> [!NOTE]\n> - Editing depends" in rendered
 
 
 def test_manual_migration_requires_every_source_guide(wiki_pages):

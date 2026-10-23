@@ -158,26 +158,35 @@ def _sentence_kind(source: str) -> str:
     return ""
 
 
+def _is_instruction(source: str) -> bool:
+    if re.match(r"^[A-Z][A-Za-z &/().+-]*? (?:shows|writes|clears|restores|keeps|opens|loads|includes|requires|retains|starts|accepts|provides|supports?|remains|permits|controls|offers|previews|selects?)\b", source):
+        return False
+    return bool(re.match(r"(?:Use|Open|Choose|Select|Start|Import|Move|Compare|Browse|Review|Read|Load|Inspect|Enter|Follow|Keep|Run|Set|Add|Clear|Reset|Bake|Export|Apply|Turn|Under|For an existing|For external|To verify|When fitting)\b", source))
+
+
 def _readable_prose(source: str, translated: str, locale: str, *, alert: str = "") -> str:
     originals, sentences = _sentences(source), _sentences(translated)
     # Translations may combine sentences. Never infer which translated clause is a warning.
     kinds = [_sentence_kind(sentence) for sentence in originals]
+    instructions = [_is_instruction(sentence) for sentence in originals]
     if len(originals) != len(sentences):
         common = kinds[0] if kinds and len(set(kinds)) == 1 else ""
         kinds = [common] * len(sentences)
-    imperative = bool(re.match(r"(?:Use|Open|Choose|Select|Start|Import|Move|Compare|Browse|Review|Read|Load|Under|For an existing|For external|To verify|When fitting)\b", source))
+        instructions = [bool(instructions) and all(instructions)] * len(sentences)
     groups = []
-    for sentence, kind in zip(sentences, kinds):
+    for sentence, kind, instruction in zip(sentences, kinds, instructions):
         kind = alert or kind
-        if not groups or groups[-1][0] != kind:
-            groups.append((kind, []))
-        groups[-1][1].append(_emphasize_controls(sentence, locale))
+        instruction = instruction and not kind
+        if not groups or groups[-1][:2] != (kind, instruction):
+            groups.append((kind, instruction, []))
+        groups[-1][2].append(_emphasize_controls(sentence, locale))
     rendered = []
-    for kind, items in groups:
-        if len(items) == 1:
+    has_steps = any(instruction for _, instruction, _ in groups)
+    for kind, instruction, items in groups:
+        if len(items) == 1 and not instruction and (kind or not has_steps):
             body = items[0]
         else:
-            marker = "1. " if imperative and not kind else "- "
+            marker = "1. " if instruction else "- "
             body = "\n".join(marker + item for item in items)
         if kind:
             body = "> [!" + kind + "]\n" + "\n".join("> " + line for line in body.splitlines())
@@ -203,9 +212,13 @@ def _readable_guide(source: str, translated: str, locale: str, *, mesh: bool = F
                 folded = False
             if heading[1] in _ADVANCED_MESH_SECTIONS:
                 title = blocks[index + 1][3:]
+                # GitHub cannot jump to a custom anchor inside a closed details body.
+                # Keep the target visible immediately before the expandable title.
+                rendered.append(block)
                 rendered.append("<details>\n<summary><strong>" + html.escape(title) + "</strong></summary>")
                 folded = True
                 skip_heading = True
+                continue
         elif skip_heading and original.startswith("## "):
             skip_heading = False
             continue
