@@ -4556,7 +4556,7 @@
     "Fit": "フィット",
     "Fit Overview": "フィットの概要",
     "Fit Size": "フィットサイズ",
-    "Fit a fresh setup at 100% Tightness with at least 0.1% Clearance. Keeps Tightness values you have explicitly chosen, including 0% for loose skirts, drapes and hanging trim. Set modes and protection before fitting. Reset reverts it; Bake keeps it.": "Fit a fresh setup at 100% Tightness with at least 0.1% Clearance. Keeps Tightness values you have explicitly chosen, including 0% for loose skirts, drapes and hanging trim. Set modes and protection before fitting. Reset reverts it; Bake keeps it.",
+    "Fit a fresh setup at 100% Tightness with at least 0.1% Clearance. Keeps Tightness values you have explicitly chosen, including 0% for loose skirts, drapes and hanging trim. Set modes and protection before fitting. Reset reverts it; Bake keeps it.": "新しい設定を Tightness 100%、クリアランス 0.1% 以上でフィットします。ゆったりしたスカート、ドレープ、垂れ下がる装飾用の 0% を含め、明示的に選んだ Tightness の値を維持します。フィット前にモードと保護を設定してください。「リセット」で元に戻し、「焼く」で形状を確定します。",
     "Fit all enabled garments": "有効なすべての衣服をフィット",
     "Fit analysis is out of date for this preview or selection. Analyze again.": "このプレビューまたは選択に対するフィット解析は古くなっています。再解析してください。",
     "Fit as": "フィット方式",
