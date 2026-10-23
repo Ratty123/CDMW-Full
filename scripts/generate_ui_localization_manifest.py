@@ -57,6 +57,7 @@ _DECLARED_PYTHON_UI_RETURN_METHODS = {
 
 MANUAL_SOURCE_KEYS = frozenset(
     {
+        "item properties changed",
         # Morph host/service refusals forwarded through the Rust error protocol.
         "Cannot fit excluded islands without valid source face identities.",
         "Undo replacement operations before adding geometry layers.",

@@ -393,6 +393,12 @@ class _Planner(EffectPlanningMixin):
     def _apply_row_edits(self, row_bytes: bytes) -> bytes:
         spec = self.spec
         row = parse_iteminfo_row(row_bytes, item_keys=set(self.snapshot.rows) | {int(spec.item_key)})
+        from cdmw.domain.new_item.item_properties import property_values
+        properties = property_values(spec)
+        if any(value is not None for value in properties.values()):
+            from cdmw.core.iteminfo_properties import set_item_properties
+            row_bytes = set_item_properties(row, properties)
+            row = parse_iteminfo_row(row_bytes, item_keys=set(self.snapshot.rows) | {int(spec.item_key)})
         if spec.max_stack_count is not None and int(spec.max_stack_count) != row.max_stack_count:
             row_bytes = set_max_stack_count(row, int(spec.max_stack_count))
             row = parse_iteminfo_row(row_bytes, item_keys=set(self.snapshot.rows) | {int(spec.item_key)})

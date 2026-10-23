@@ -150,7 +150,7 @@ def test_virtual_v2_lowering_preserves_exact_output_and_ids_without_game_writes(
     assert old_lock['identity'] != new_lock['identity']
     assert old_lock['inputs']['outputs'] == new_lock['inputs']['outputs']
     assert old_lock['inputs']['allocations'] == new_lock['inputs']['allocations']
-    assert new_lock['inputs']['runtime_abi'] == 'CDVFS2'
+    assert new_lock['inputs']['runtime_abi'] == 'CDVFS3'
     assert game_bytes(root) == baseline
 
 

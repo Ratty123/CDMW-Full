@@ -1076,6 +1076,12 @@ cannot be recovered from settings alone.
 
 ### Stats and prices
 
+Tier, required level and maximum durability inherit the selected template until
+changed. Only verified field layouts are editable. Explicit `.cditem` overrides
+use the required v2 [`item.properties` capability](INDEPENDENT_ITEMS.md#tier-required-level-and-durability);
+default recipes retain frozen v1 compatibility. These raw values and their
+effects on gameplay remain experimental.
+
 Stats and gameplay perks are explicitly marked experimental. The Stats page uses
 compact, alternating rows with columns that fill the enhancement card, alongside a
 separate shop-price and stack card. The default view labels ItemInfo values as raw game

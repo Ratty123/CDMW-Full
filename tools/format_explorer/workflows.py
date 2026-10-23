@@ -226,7 +226,7 @@ def workflow_for(extension: str) -> FormatWorkflow:
         return FormatWorkflow(
             operations=(
                 FormatOperation("inspect", "Read package identity, dependencies and supported typed modules."),
-                FormatOperation("package", "Create or update a v1 independent item package from Create New Item's Output step."),
+                FormatOperation("package", "Create or update an independent item package from Create New Item's Output step."),
                 FormatOperation("import", "Add item packages through Mod Management > Mods; Independent items provides advanced managed installation."),
             ),
             prerequisites=(

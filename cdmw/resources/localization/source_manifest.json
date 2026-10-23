@@ -35247,7 +35247,7 @@
       ]
     },
     {
-      "key": "Create or update a v1 independent item package from Create New Item's Output step.",
+      "key": "Create or update an independent item package from Create New Item's Output step.",
       "origins": [
         {
           "path": "tools/format_explorer/workflows.py",
@@ -75282,6 +75282,16 @@
       ]
     },
     {
+      "key": "Max durability:",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/panels_stats.py",
+          "line": 304,
+          "sink": "addRow"
+        }
+      ]
+    },
+    {
       "key": "Max ratio: {value_0}x",
       "origins": [
         {
@@ -109772,6 +109782,16 @@
       ]
     },
     {
+      "key": "Raw game value. Returning to the template value restores inheritance. Disabled when the field layout is unknown; in-game effects are unverified.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/panels_stats.py",
+          "line": 301,
+          "sink": "setToolTip"
+        }
+      ]
+    },
+    {
       "key": "Raw profile values. Saved with Build Mod and drafts; Apply and Restore support Undo.",
       "origins": [
         {
@@ -117123,6 +117143,16 @@
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_hair.rs",
           "line": 884,
           "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Required level:",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/panels_stats.py",
+          "line": 304,
+          "sink": "addRow"
         }
       ]
     },
@@ -151622,6 +151652,26 @@
       ]
     },
     {
+      "key": "Tier, Required level and Max durability inherit the template until changed. Reset restores inheritance. These are raw game values; unavailable layouts are disabled and in-game effects remain unverified. Explicit overrides use .cditem v2 and require a reader supporting item.properties; recipes without them retain v1 compatibility.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 76,
+          "sink": "python-return:_build_start_sections"
+        }
+      ]
+    },
+    {
+      "key": "Tier:",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/panels_stats.py",
+          "line": 304,
+          "sink": "addRow"
+        }
+      ]
+    },
+    {
       "key": "Tightness %",
       "origins": [
         {
@@ -167927,7 +167977,7 @@
       ]
     },
     {
-      "key": "cdmw/services/independent_item_package.py and independent_mod_package.py: bounded v1/v2 package admission. Create New Item exports v1; Mod Management > Mods adds packages for the current loader workflow.",
+      "key": "cdmw/services/independent_item_package.py and independent_mod_package.py: bounded v1/v2 package admission. Explicit equipment-property overrides use v2; default recipes remain v1. Mod Management > Mods adds packages for the current loader workflow.",
       "origins": [
         {
           "path": "tools/format_explorer/catalogue.py",
@@ -173710,6 +173760,11 @@
           "sink": "_objects"
         }
       ]
+    },
+    {
+      "key": "item properties changed",
+      "origins": [],
+      "manual": true
     },
     {
       "key": "itemuseinfo",

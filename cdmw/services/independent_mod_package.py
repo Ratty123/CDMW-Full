@@ -74,6 +74,7 @@ def read_v2(meta, blobs, *, stop_event=None):
     legacy_modules = [module for module in modules if module['type'] == 'item.legacy']
     if len(legacy_modules) > 1 or legacy_modules and legacy_modules[0]['id'] != 'item':
         raise IndependentItemError('The legacy adapter permits one module named item.')
+    item_properties(meta)
     from cdmw.services.independent_texture_package import read_texture_modules
     texture_keys = read_texture_modules(meta, blobs, stop_event=stop_event)
     legacy_keys = set()
@@ -148,6 +149,21 @@ def package_logical_size(package):
 
 def has_legacy_item(package):
     return isinstance(package, IndependentItemPackage) or any(module['type'] == 'item.legacy' for module in package.manifest['modules'])
+
+
+def item_properties(manifest):
+    """Admit a single closed override module attached to the owned item."""
+    modules = manifest['modules']
+    properties = [module for module in modules if module['type'] == 'item.properties']
+    if not properties:
+        return {}
+    if len(properties) != 1 or not any(module['type'] == 'item.legacy' for module in modules):
+        raise IndependentItemError('Item properties require one module and its owned legacy item.')
+    from cdmw.domain.new_item.item_properties import checked_properties
+    try:
+        return checked_properties(properties[0]['data'])
+    except ValueError as exc:
+        raise IndependentItemError(str(exc)) from exc
 
 
 def package_operations(package):

@@ -13,7 +13,7 @@ from cdmw.domain.new_item.body_visibility import BodyVisibilityChoice
 from cdmw.domain.new_item.surface import SurfaceEdit
 
 from dataclasses import dataclass, field, replace
-from typing import Dict, List, Mapping, Optional, Sequence, Tuple
+from typing import Callable, Dict, List, Mapping, Optional, Sequence, Tuple
 from cdmw.domain.new_item.authoring import (
     SocketSlot, LevelBonuses, RecipeOverride, RewardAcquisition, VariantAppearance,
 )
@@ -204,6 +204,9 @@ class NewItemDraft:
     price_values: Dict[int, int] = field(default_factory=dict)
     include_perk_prices: bool = True
     max_stack_count: Optional[int] = None
+    item_tier: Optional[int] = None
+    required_level: Optional[int] = None
+    max_durability: Optional[int] = None
     placement_kind: PlacementKind = PlacementKind.NONE
     store_name: str = ""
     old_item_name: str = ""
@@ -263,6 +266,9 @@ class NewItemDraft:
         self.price_values = {}
         self.include_perk_prices = True
         self.max_stack_count = None
+        self.item_tier = None
+        self.required_level = None
+        self.max_durability = None
         self.stem = ""
         self.item_key = None
         self.socket_items = None
@@ -453,6 +459,9 @@ def spec_from_draft(draft: NewItemDraft, grid: Optional[StatGrid]) -> NewItemSpe
         price_edits=price_edits,
         include_perk_prices=draft.include_perk_prices,
         max_stack_count=draft.max_stack_count,
+        item_tier=draft.item_tier,
+        required_level=draft.required_level,
+        max_durability=draft.max_durability,
         placement=placement,
         shop_placements=draft.shop_placements,
         item_groups=draft.item_groups,
@@ -496,7 +505,8 @@ def with_template(draft: NewItemDraft, template_key: Optional[int]) -> NewItemDr
     return copy
 
 
-def stats_summary(draft: NewItemDraft, grid: Optional[StatGrid]) -> tuple[str, bool]:
+def stats_summary(draft: NewItemDraft, grid: Optional[StatGrid], *,
+                  translate: Optional[Callable[[str], str]] = None) -> tuple[str, bool]:
     """Summarize the draft without constructing the combat page."""
     stat_count = price_count = 0
     if grid is not None:
@@ -516,7 +526,8 @@ def stats_summary(draft: NewItemDraft, grid: Optional[StatGrid]) -> tuple[str, b
         1 for key, _label, template in (grid.price_items if grid is not None else ())
         if draft.price_values.get(key, template) != template
     )
-    extras = int(draft.extra_levels > 0) + int(bool(draft.extra_stat_keys)) + int(draft.max_stack_count is not None) + int(draft.own_enhancement_rows)
+    properties_changed = any(value is not None for value in (draft.item_tier, draft.required_level, draft.max_durability))
+    extras = int(draft.extra_levels > 0) + int(bool(draft.extra_stat_keys)) + int(draft.max_stack_count is not None) + int(draft.own_enhancement_rows) + int(properties_changed)
     if not (stat_count or price_count or extras):
         return "Combat and prices: template values", False
     parts = []
@@ -530,6 +541,9 @@ def stats_summary(draft: NewItemDraft, grid: Optional[StatGrid]) -> tuple[str, b
         parts.append(f"{len(draft.extra_stat_keys)} added stat(s)")
     if draft.max_stack_count is not None:
         parts.append("stack changed")
+    if properties_changed:
+        label = "item properties changed"
+        parts.append(translate(label) if translate is not None else label)
     if draft.own_enhancement_rows:
         parts.append("separate enhancement rows")
     return f"Combat and prices: {', '.join(parts)}", True

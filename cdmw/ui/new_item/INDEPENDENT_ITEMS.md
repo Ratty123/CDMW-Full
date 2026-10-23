@@ -187,6 +187,39 @@ legacy recipe and contributes exact final-byte requirements to both deployment
 routes and semantic export. Existing v1 readers explicitly reject the version 2
 boundary.
 
+### Tier, required level and durability
+
+Create New Item's **Stats & Prices** controls inherit the template until changed.
+Tier is an unsigned byte (0..255), required level is an unsigned u32
+(0..4,294,967,295), and maximum durability is an unsigned u16 (0..65,535).
+These are raw serialized values: zero and 65,535 are preserved literally; their
+gameplay or sentinel meanings have not been established. Resetting the panel or
+changing template restores inheritance. Controls with unverified locations are
+disabled; planning also refuses a requested edit if its layout cannot be proven.
+
+An explicit override exports v2 with one required **`item.properties` version 1**
+module accompanying `item.legacy@1`. Its data has exactly `item_tier`,
+`required_level` and `max_durability`; each is an integer in the range above or
+`null` for inheritance, and at least one must be explicit. Duplicate modules,
+unknown fields, booleans and out-of-range values refuse on import. The module
+changes only the newly owned item; stock `item.fields@1` selectors stay unchanged.
+
+The retained v1 recipe and migration provenance remain intact. Recipes without
+these overrides still export v1, with the same frozen vocabulary and canonical
+digest. Existing v1/v2 packages retain their handling. Older readers refuse the
+required capability instead of silently dropping the new settings. Compilation
+identity includes the module and a revised adapter identity, requiring an older
+virtual profile to be rebuilt through **Apply changes**.
+
+The bounded 0x11/0x12 adapters locate tier before the socket/stat block and level
+after the variable secondary description. Durability requires an unambiguous
+complete trailing faction, repair, prefab and inventory-routing structure; a
+fixed distance from EOF is insufficient. Unknown, truncated or ambiguous endings
+refuse. Reads are on demand for the selected item, not a startup-wide row scan.
+Evidence at `a4c3e6e2` plus this scoped change is source, retained fixture rows,
+synthetic physical/virtual compilation and headless controls/native presentation.
+It does not establish current game/save behaviour or the meaning of tier values.
+
 Unknown required features, module types and versions refuse before allocation.
 Optional behavior also refuses until a supported explicit alternative exists;
 it cannot be counted as executed. Bounded `metadata` is preserved uninterpreted

@@ -30,6 +30,7 @@ CREATE_NEW_ITEM_SECTION = {
     <p>Installed overlays removes a selected CDMW install while preserving the others. Shared-file conflicts and recipe dependencies can block removal.</p>
     <p>Merge mods writes a separate DMM package from compatible mod folders. Conflicts block export. Use the merged package in place of its source packages.</p>
     <p>Check mods for game updates compares recorded originals with the current game. Review conflicts before writing a separate updated DMM package; source mods and game files stay unchanged.</p>
+    <p>Tier, Required level and Max durability inherit the template until changed. Reset restores inheritance. These are raw game values; unavailable layouts are disabled and in-game effects remain unverified. Explicit overrides use .cditem v2 and require a reader supporting item.properties; recipes without them retain v1 compatibility.</p>
     <p>Effects are approximate previews and do not add elemental damage. A successful build or game startup does not verify equipping, appearance, stats, or behavior in a save.</p>
                 """,
 }

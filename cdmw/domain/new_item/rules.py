@@ -26,6 +26,7 @@ from functools import lru_cache
 from typing import FrozenSet, Iterable, Mapping, Optional, Tuple
 
 from cdmw.domain.new_item.allocation import is_conventional_localization_key
+from cdmw.domain.new_item.item_properties import PROPERTY_LIMITS
 from cdmw.domain.new_item.spec import (
     EnhancementRows,
     IconSource,
@@ -290,6 +291,10 @@ def validate_spec(spec: NewItemSpec) -> Tuple[ValidationIssue, ...]:
 
     if spec.max_stack_count is not None and not (1 <= int(spec.max_stack_count) <= _U32_MAX):
         issues.append(_issue("max_stack.range", "max_stack_count", "Max stack count is a positive 32-bit integer."))
+    for name, maximum in PROPERTY_LIMITS.items():
+        value = getattr(spec, name)
+        if value is not None and (type(value) is not int or not 0 <= value <= maximum):
+            issues.append(_issue("item_property.range", name, f"{name} must be an integer in 0..{maximum}."))
 
     if spec.effect is not None and not _EFFECT_RE.match(str(spec.effect)):
         issues.append(_issue("effect.shape", "effect", "An effect is named `<stem>.<kind>.effect`, with a shipped level, action, gimmick, system or sequencer reference."))

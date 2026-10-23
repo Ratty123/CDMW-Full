@@ -315,7 +315,10 @@ def from_plan(plan, identity, *, title=None, stop_event=None):
             return None
         return {"pac": blob(value.pac_data), "side_files": {virtual_path(path.lower()): blob(data) for path, data in value.side_files.items()},
                 "material_route": value.material_route}
-    recipe = {"spec": encode(_prepared_spec(plan.spec)), "model": model_value(model),
+    from cdmw.domain.new_item.item_properties import property_values
+    properties = property_values(plan.spec)
+    legacy_spec = replace(_prepared_spec(plan.spec), **dict.fromkeys(properties))
+    recipe = {"spec": encode(legacy_spec), "model": model_value(model),
               "variants": [{"binding": list(key), "model": model_value(value)} for key, value in sorted(variants.items())],
               "icon": blob(icon) if icon is not None else None}
     dependencies = {}
@@ -330,7 +333,15 @@ def from_plan(plan, identity, *, title=None, stop_event=None):
     metadata = {"format": FORMAT, "version": VERSION, "identity": identity,
                 "title": str(title or plan.spec.display_names.get("eng") or "Independent item"),
                 "recipe": recipe, "dependencies": dependencies, "blobs": {key: len(data) for key, data in sorted(blobs.items())}}
-    return _package(metadata, blobs)
+    package = _package(metadata, blobs)
+    if any(value is not None for value in properties.values()):
+        from cdmw.services.independent_mod_package import migrate_v1, read_v2
+        metadata = deepcopy(migrate_v1(package).manifest)
+        metadata['requires']['item.properties'] = 1
+        metadata['modules'].append({'id': 'properties', 'type': 'item.properties', 'version': 1,
+                                    'required': True, 'data': properties})
+        package = read_v2(metadata, blobs, stop_event=stop_event)
+    return package
 
 
 def _package(meta, blobs, *, stop_event=None):
@@ -378,6 +389,10 @@ def _recipe_values(package):
     spec = decode(value["spec"])
     if not isinstance(spec, NewItemSpec) or any(v is not None for v in (spec.item_key, spec.stem, spec.name_key, spec.desc_key)):
         raise IndependentItemError("Portable items must use symbolic identities.")
+    from cdmw.domain.new_item.mod_package import IndependentModPackage
+    if isinstance(package, IndependentModPackage):
+        from cdmw.services.independent_mod_package import item_properties
+        spec = replace(spec, **item_properties(package.manifest))
     for variant in spec.variants or ():
         virtual_path(variant.prefab_path)
         virtual_path(variant.model_path)

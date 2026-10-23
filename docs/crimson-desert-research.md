@@ -1039,6 +1039,21 @@ the supported positive-u32 stack edits or admit high-word source rows through
 those adapters. The `.cditem` wire formats remain unchanged. This is source and
 fixture evidence, with no new game, save, rendering or native-admission claim.
 
+Equipment-property extension, 2026-10-24, against `a4c3e6e2` plus the scoped
+property adapters: Create New Item supports raw tier u8, required level u32 and
+maximum durability u16 overrides on its owned item. Tier is bounded relative to
+the socket/stat block; level follows the variable secondary description.
+Durability is qualified by the complete variable-length faction/repair/prefab and
+inventory-routing suffix, including the different 0x11/0x12 shapes; unknown or
+ambiguous locations refuse. All 15 retained source rows qualify, with stored
+endurance 65,535; that observation does not establish an unlimited-durability
+sentinel. Focused synthetic tests cover scalar limits, unchanged unassigned
+bytes, resized stat blocks, portable admission, both deployment routes and real
+headless controls/native presentation. Explicit overrides require v2
+`item.properties@1`; default recipes and existing v1 wire/digests stay unchanged.
+The public capability reports these source/fixture limits. Current game effects,
+tier labels, level gating and save behaviour remain unverified.
+
 Historical game observations establish acceptance of selected appended item/string
 records and shop substitutions. They do not establish arbitrary table rewrites.
 Later virtual-item observations are narrower experiments described in

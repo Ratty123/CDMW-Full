@@ -51,6 +51,14 @@ def capability_result(name, version):
              'Game and save behavior require separate evidence.'),
             (EvidenceClaim('adapter', 'Typed existing ItemInfo fields', 'iteminfo_operations.py'),
              EvidenceClaim('synthetic', 'Field composition and both deployment routes', 'tests/test_independent_item_fields.py')))
+    if name == 'item.properties' and type(version) is int and version == 1:
+        return CapabilityResult(name, version, True,
+            ('Tier u8, required level u32 and maximum durability u16 for the single owned legacy item.',
+             'Only verified 0x11/0x12 field locations; unknown or ambiguous layouts refuse.',
+             'Inherited values and the frozen v1 recipe remain unchanged.',
+             'Game and save behavior require separate evidence.'),
+            (EvidenceClaim('adapter', 'Bounded ItemInfo equipment properties', 'iteminfo_properties.py'),
+             EvidenceClaim('synthetic', 'Portable properties and both deployment routes', 'tests/test_independent_item_properties.py')))
     if name == 'texture.replace' and type(version) is int and version == 1:
         return CapabilityResult(name, version, True,
             ('Existing directly registered raw 2D block-compressed textures with exact source and registry hashes.',

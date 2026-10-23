@@ -252,6 +252,10 @@ class NewItemSpec:
     shader_controls: tuple[tuple[str, ShaderControls], ...] = ()
     body_visibility: BodyVisibilityChoice = BodyVisibilityChoice()
     surface_settings: tuple[tuple[str, SurfaceEdit], ...] = ()
+    #: None inherits the template. Portable overrides require item.properties@1.
+    item_tier: Optional[int] = None
+    required_level: Optional[int] = None
+    max_durability: Optional[int] = None
 
     @property
     def active_effect_layers(self) -> Tuple[EffectLayer, ...]:

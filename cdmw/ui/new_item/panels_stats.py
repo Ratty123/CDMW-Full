@@ -26,6 +26,7 @@ from PySide6.QtWidgets import (
 )
 
 from cdmw.ui.new_item.controller import NewItemStudioController
+from cdmw.services.active_ui_translation import translate_active_ui_text
 from cdmw.ui.new_item.state import BUY_PRICE_KIND, STAT_KIND, StatGrid, scaled_grid_values, stats_summary
 from cdmw.ui.new_item.ui_kit import EDIT, WARN, NoteLabel, elided, intro_label, note
 
@@ -57,6 +58,8 @@ class StatsPanel(QGroupBox):
         self._grid: Optional[StatGrid] = None
         self._syncing = False
         self._table_resize_pending = False
+        self._property_row = None
+        self._template_properties = {}
         #: the stat keys the Add-a-stat list was last built for, so a rebuild that left the
         #: ladder's stats alone does not refill the whole list
         self._status_choice_keys: Optional[tuple] = None
@@ -285,6 +288,21 @@ class StatsPanel(QGroupBox):
         self.max_stack.setToolTip("How many fit in one inventory slot; equipment is 1.")
         self.max_stack.valueChanged.connect(self._stack_changed)
         stack_form.addRow("Max stack:", self.max_stack)
+        self.property_controls = {}
+        for name, label, maximum in (("item_tier", "Tier:", 255),
+                                      ("required_level", "Required level:", 0xffffffff),
+                                      ("max_durability", "Max durability:", 65535)):
+            # A double represents every u32 exactly; Qt's integer spinbox stops
+            # at signed i32. Zero decimals also keeps native presentation exact.
+            control = QDoubleSpinBox() if name == "required_level" else QSpinBox()
+            if isinstance(control, QDoubleSpinBox):
+                control.setDecimals(0)
+            control.setRange(0, maximum)
+            control.setObjectName("new_item_" + name)
+            control.setToolTip("Raw game value. Returning to the template value restores inheritance. Disabled when the field layout is unknown; in-game effects are unverified.")
+            control.valueChanged.connect(lambda value, field=name: self._property_changed(field, value))
+            self.property_controls[name] = control
+            stack_form.addRow(label, control)
         base_layout.addLayout(stack_form)
         return base
 
@@ -387,6 +405,17 @@ class StatsPanel(QGroupBox):
         self.max_stack.blockSignals(True)
         self.max_stack.setValue(int(draft.max_stack_count if draft.max_stack_count is not None else (row.max_stack_count if row else 1)))
         self.max_stack.blockSignals(False)
+        if row is not self._property_row:
+            from cdmw.core.iteminfo_properties import read_item_properties
+            self._template_properties = read_item_properties(row) if row is not None else {}
+            self._property_row = row
+        for name, control in self.property_controls.items():
+            template = self._template_properties.get(name)
+            value = getattr(draft, name)
+            control.blockSignals(True)
+            control.setValue(value if value is not None else (template[0] if template else 0))
+            control.setEnabled(template is not None)
+            control.blockSignals(False)
         self.own_rows.blockSignals(True)
         self.own_rows.setChecked(bool(draft.own_enhancement_rows))
         self.own_rows.blockSignals(False)
@@ -720,6 +749,14 @@ class StatsPanel(QGroupBox):
         draft.max_stack_count = None if row is not None and int(value) == int(row.max_stack_count) else int(value)
         self._draft_changed(rebuild=False)
 
+    def _property_changed(self, name: str, value: float) -> None:
+        if self._syncing or name not in self._template_properties:
+            return
+        value = int(value)
+        inherited = self._template_properties[name][0]
+        setattr(self._controller.draft, name, None if value == inherited else value)
+        self._draft_changed(rebuild=False)
+
     def _one_copper(self) -> None:
         """Every shop price at every level and every base price becomes 1."""
 
@@ -820,6 +857,9 @@ class StatsPanel(QGroupBox):
         draft.extra_levels = 0
         draft.extra_stat_keys.clear()
         draft.max_stack_count = None
+        draft.item_tier = None
+        draft.required_level = None
+        draft.max_durability = None
         draft.own_enhancement_rows = False
         self.own_rows.blockSignals(True)
         self.own_rows.setChecked(False)
@@ -829,7 +869,7 @@ class StatsPanel(QGroupBox):
             self.price_state_changed.emit()
 
     def summary_text(self) -> tuple[str, bool]:
-        return stats_summary(self._controller.draft, self._grid)
+        return stats_summary(self._controller.draft, self._grid, translate=translate_active_ui_text)
 
 
 __all__ = ["StatsPanel"]

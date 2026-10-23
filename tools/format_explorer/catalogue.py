@@ -170,7 +170,7 @@ def load_rows(manifest: Optional[Path] = None) -> Tuple[FormatRow, ...]:
             decode="none", write="none", priority="none", origin="application",
             evidence=(
                 "cdmw/services/independent_item_package.py and independent_mod_package.py: "
-                "bounded v1/v2 package admission. Create New Item exports v1; "
+                "bounded v1/v2 package admission. Explicit equipment-property overrides use v2; default recipes remain v1. "
                 "Mod Management > Mods adds packages for the current loader workflow."
             ),
             remaining="Package compatibility and required capabilities are checked on admission; game and save compatibility need separate validation.",

@@ -34,7 +34,8 @@ _RECORDS = {
     'PriceEdit': RecordAdapter(spec.PriceEdit),
     'Placement': RecordAdapter(spec.Placement),
     'GlowChoice': RecordAdapter(spec.GlowChoice),
-    'NewItemSpec': RecordAdapter(spec.NewItemSpec),
+    'NewItemSpec': RecordAdapter(spec.NewItemSpec, defaults={
+        'item_tier': None, 'required_level': None, 'max_durability': None}),
     'EmitterEdit': RecordAdapter(effect_authoring.EmitterEdit),
     'EffectLook': RecordAdapter(effect_authoring.EffectLook),
     'EffectLayer': RecordAdapter(effect_authoring.EffectLayer),

@@ -38,6 +38,7 @@ from cdmw.models import (
 )
 from cdmw.domain.new_item.spec import ModelSource
 from cdmw.services.cache_layout import runtime_cache_layout
+from cdmw.services.active_ui_translation import translate_active_ui_text
 from cdmw.services.new_item_service import NewItemService
 from cdmw.ui.new_item.controller import NewItemStudioController
 from cdmw.ui.new_item.panels_identity import IdentityPanel
@@ -93,6 +94,9 @@ def _workflow_step_for_issue(issue: object) -> int:
         "buy_price_edits",
         "price_edits",
         "max_stack_count",
+        "item_tier",
+        "required_level",
+        "max_durability",
         "enhancement",
     }:
         return 3
@@ -803,7 +807,7 @@ class NewItemStudioTab(QWidget):
         else:
             lines.append(note("Model: the template's", OK))
         stats_text, stats_changed = (self._stats_panel.summary_text() if self._stats_panel is not None
-                                     else stats_summary(draft, controller.stat_grid()))
+                                     else stats_summary(draft, controller.stat_grid(), translate=translate_active_ui_text))
         lines.append(note(stats_text, EDIT if stats_changed else OK))
         selected = draft.socket_items
         template_perks = tuple(controller.template_socket_items())
