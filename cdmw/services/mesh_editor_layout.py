@@ -17,6 +17,8 @@ def validated_mesh_layout(value: object) -> dict:
         width = value.get(key)
         if type(width) in (int, float) and math.isfinite(width) and 64 <= width <= 8192:
             result[key] = float(width)
+    if isinstance(value.get("auto_open_parts_on_hover"), bool):
+        result["auto_open_parts_on_hover"] = value["auto_open_parts_on_hover"]
     positions = value.get("floating", {})
     if isinstance(positions, dict):
         positions = {

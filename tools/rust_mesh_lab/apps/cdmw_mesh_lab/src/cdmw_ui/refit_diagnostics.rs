@@ -21,6 +21,16 @@ fn refit_failure_parts(detail: &str, garments: &[u32]) -> Vec<u32> {
 }
 
 impl LabApplication {
+    pub(super) fn draw_cdmw_part_hover_option(&self, ui: &mut egui::Ui) {
+        let mut enabled = crate::cdmw_layout::auto_open_parts_on_hover(ui.ctx());
+        if ui.checkbox(&mut enabled, crate::localization::tr("Open Parts on hover"))
+            .on_hover_text(crate::localization::tr("Open the Parts list when hovering a visible surface. Turn off to keep closed panels closed."))
+            .changed()
+        {
+            crate::cdmw_layout::set_auto_open_parts_on_hover(ui.ctx(), enabled);
+        }
+    }
+
     pub(super) fn track_cdmw_part_hover(&mut self, ui: &egui::Ui, part: u32, response: &egui::Response) {
         let row = PartNameRow { part, response: response.clone(), clip_rect: ui.clip_rect(),
             scroll_root: ui.stack().iter().find(|entry| entry.kind() == Some(egui::UiKind::ScrollArea)).map(|entry| entry.id) };
@@ -107,7 +117,7 @@ impl LabApplication {
         let parts_closed = !cdmw_sidebar_visible(ui.ctx(), CDMW_INSPECTOR_SIDEBAR)
             || ui.ctx().data_mut(|data| !data.get_temp::<bool>(panel_id).unwrap_or(false)
                 || data.get_temp::<bool>(tab_id).unwrap_or(false));
-        if parts_closed {
+        if parts_closed && crate::cdmw_layout::auto_open_parts_on_hover(ui.ctx()) {
             set_cdmw_sidebar_expanded(ui.ctx(), CDMW_INSPECTOR_SIDEBAR, true);
             ui.ctx().data_mut(|data| {
                 data.insert_temp(panel_id, true);
