@@ -1237,8 +1237,18 @@ Both factories had returned true once; this is not a demonstrated format refusal
 Independent physical/source/restoration review passes, with restoration in 40.860
 seconds. Separately frozen v4 corrects the expected arrays and passes four actual
 generation/parser/serializer boundary cases. Runtime algorithms, guards and input
-images are unchanged; v4 still requires its own binary qualification and fresh
-controlled capture. Full two-context game reads remain unproved.
+images are unchanged. V4 now passes its own 17 native cases/13 aggregate reviews
+and inactive loading in 21.304 seconds, followed by independent linked review.
+A fresh controlled caller/capture remains required. Full two-context game reads remain unproved.
+
+The separate B120-v2 reserved-tail adapter passes 21 compiled cases and inactive
+loading with owned responses and synthetic caller instructions. It forwards four
+original helpers, reserving cookie/capacity N+4 while logical counts/maps stay N;
+the observer checks full stock joins and null tails. A pre-CAS terminal-refusal
+gap is corrected and covered. Current PE guards include actual cleanup entry
+thunks, but no original game-header/cleanup instructions execute in these
+fixtures. Linked and actual-game reservation proof are pending. No private Rows,
+Cache staging, public-map admission or lifetime proof follows.
 
 Executable-source review identifies typed ItemInfo manager loader slots and
 the global setter/clearer. Vtable `+0x08` resets the manager; `+0x20` loads

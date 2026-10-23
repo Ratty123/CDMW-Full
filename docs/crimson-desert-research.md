@@ -1432,8 +1432,12 @@ explicit actual-game question. The subsequent game attempt refused metadata
 comparison before either read, and independent review confirms exact restoration
 in 40.860 seconds. A four-byte error in preparing the expected PAPGT group record
 was also present in the fixture's substitute response. A separately frozen source
-successor corrects that boundary with four focused generation/format checks; its
-own binary qualification and game reads remain pending. Process retention does
+successor corrects that boundary with four focused generation/format checks and
+passes its own 17 compiled native cases/13 aggregate reviews plus inactive
+loading, followed by independent linked review. Actual game reads remain pending. The separate
+reserved-tail adapter also passes 21 native cases with owned responses and
+synthetic callers; original game allocation/cleanup and central private-item
+integration remain unproved. Process retention does
 not establish production retirement. Join these resources and
 independently owned item definitions in one supported lifecycle. Metadata success, prepared
 archive bytes and related Loadouts observations remain separate evidence.

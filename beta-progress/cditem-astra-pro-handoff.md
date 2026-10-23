@@ -97,8 +97,9 @@ Independent physical/source/process/restoration review confirms the failed
 observation. The expected PAPGT group-record slice was four bytes late; the
 fixture copied that same wrong expectation. Separately frozen v4 corrects 12:24
 with four checks against actual generation and maintained parsing/serialization,
-preserving runtime algorithms, guards, images and all old artifacts. Its own
-native/linked qualification and fresh caller/capture remain required. The
+preserving runtime algorithms, guards, images and all old artifacts. V4 now passes
+its own 17 compiled cases/13 aggregate reviews and inactive loading in 21.304
+seconds, with independent linked review passing. A fresh caller/capture remains required. The
 [execution checkpoint](cditem-execution-goal.md#resumed-with-direct-authority-2026-10-23)
 pins the historical 514,560-byte ASI, full qualification, failed capture and
 corrected source packet. No full two-context byte or resource-use claim follows.
@@ -127,8 +128,12 @@ The private 0xA0 descriptor is not a valid derived-finalizer owner. Expiry zero
 permits sampled eviction; eager rows cannot replace private rematerialization.
 The next actual step is four original-header forwards reserving a null tail
 with stock logical counts/maps N and cookie/capacity N+4. Ordinary walks use N;
-reset/destruction uses the cookie, and actual cleanup entry thunks still need
-qualification. Old Snapshot/Router reject the reserved shape unchanged. Reuse
+reset/destruction uses the cookie. B120-v2 passes 21 native adapter/near-edge/
+observer cases with owned responses/synthetic callers and inactive loading in
+7.901 seconds; real cleanup thunk bytes match the current PE, while linked and
+actual original-helper reservation/cleanup remain unproved. The pre-CAS refusal
+gap is fixed in its preserved source successor. Old Snapshot/Router reject the
+reserved shape unchanged. Reuse
 the exact B81 Cache only for a later off-count staging step after reservation
 proof. This supplies no central getter/bulk or finalization acceptance. The
 84-pin source-only receipt is pinned in the execution checkpoint.

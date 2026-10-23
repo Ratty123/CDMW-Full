@@ -217,9 +217,18 @@ before reading and restored in 40.860 seconds; independent capture/restoration
 review passes. The preparer sliced expected group bytes at 16:28 rather than the
 actual serialized 12:24 boundary, while the fixture seeded the same wrong bytes.
 Separately frozen v4 corrects those two expectations with four generation/format
-boundary checks, preserving all runtime code, guards and images. Its own native/
-linked qualification and fresh caller/capture remain required. Native two-context
-game reads remain pending.
+boundary checks, preserving all runtime code, guards and images. Its own 17
+native cases/13 aggregate reviews and inactive loading now pass in 21.304 seconds;
+independent linked review also passes. A fresh caller/capture remains required. Native two-context game
+reads remain pending.
+
+B120-v2 separately qualifies 21 compiled reserved-tail adapter/near-edge/observer
+cases and inactive loading with owned responses/synthetic callers. The terminal
+refusal correction prevents a later valid primary call from reserving after a
+pre-CAS refusal. Its actual game reservation and cleanup remain unproved; these
+fixtures execute no original game-header/cleanup instructions. Current PE guards
+include the real cleanup thunks. Linked review and a controlled caller are still
+required, with no private Cache/Rows or logical count/map publication.
 
 Executable-source review identifies the ItemInfo manager's typed reset, setter,
 clearer and loader slots: `+0x08` resets and `+0x20` loads. The actual passive

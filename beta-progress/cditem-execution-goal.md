@@ -161,9 +161,21 @@ remain unchanged; all 64 old outputs are preserved. The new 65-output source
 packet is `io-candidate/batch117-two-package-byte-read-v4/prepared-inputs.json`,
 22,411 bytes, SHA-256
 `d07ce4f8b5c55fb6d3776fa6176860af07c67c7ded015dee572fbbb2637283c5`.
-Its own strict build/native/linked qualification, separately reviewed caller and
-fresh timed one-attempt capture remain required. No readiness or admission gate
-is promoted by the source correction.
+Its own strict build now passes all 17 native cases and 13 aggregate reviews
+(two acceptances/eleven refusals), plus inactive loading. The five steps completed
+in 21.304 seconds with compiler resources returned. Exact qualification:
+`b117-v4-build-proof-20261023/qualification-result.json`, 105,352 bytes, SHA-256
+`be3af7ff7f9e1b820667de7464d4b77e6d61d9d85da3a713cc6202bee45e7f02`.
+Selected 514,560-byte ASI SHA-256:
+`f6759cffa555d49f18cb502dd5ad50cfe26a082659bea66aafb8b1a0fb601bd2`.
+Independent linked review also passes: 41,984 bytes, SHA-256
+`782741a5b34028f52a010d5a44aec8b91cde1fb8f0e2a9e214f4fd8f8eea599d`,
+at `api-source-review/20261023-b117-v4-linked-review/independent-linked-native-review-v4.json`.
+All 364 unique evidence pins join, including corrected physical records in the
+actual COFF/PE and unchanged CFG tables. The separate offline envelope rehashes
+all 110 operational inputs. A reviewed successor caller and fresh timed
+one-attempt capture remain required. No readiness or admission gate is promoted
+by source, linked or owned fixture qualification.
 
 Native definition work identifies the ItemInfo manager's typed loader, reset,
 setter and clearer slots in the unchanged executable. The separately built
@@ -264,6 +276,28 @@ Snapshot and Router require cookie==count and cannot validate this reserved
 shape unchanged. Actual cleanup entry thunks, typed forwarding, code lifetime
 and failure behavior need their own qualification; B106's fixture jumps do not
 qualify game cleanup. Metadata-reserve Bool false means no growth, not failure.
+
+The separately frozen reservation-only B120-v2 now passes its strict native
+build, all 21 fresh-process adapter/near-edge/observer cases and inactive loading.
+These use owned response spies and synthetic caller instructions; no original
+game-header or cleanup instruction bytes execute. The source self-audit first
+caught a pre-CAS refusal that could accept a later primary call. V2 adds one
+terminal refusal load and four controls while preserving each original forward,
+return and LastError. Earlier source and qualification preparation stay intact.
+
+Primary source review rehashes all 40 outputs/125 inputs and checks 14 ranges
+(2,136 bytes), including real cleanup entry thunks, against the current supported
+PE. The actual qualification checks 141 source pins, finishes in 7.901 seconds
+and returns compiler resources. Exact receipt:
+`b120-v2-build-proof-20261023/qualification-result.json`, 52,721 bytes, SHA-256
+`d74543632a63961c74d1412617db6efde027db769fd6a6797e69d2ae0fc74400`.
+Selected 378,880-byte ASI SHA-256:
+`063da742fac6fb44d92bd20292c80f04b3df8e5db96a4f0541e977b4292fb22b`.
+Linked wrapper/GFID/argument/unwind review, a separately reviewed controlled
+caller and actual original-helper reservation remain pending. Nonzero live CFG
+policy refuses without disabling mitigation. No Cache/Rows are staged and no
+logical count or public-map publication, actual cleanup, reader lifetime or
+native item admission is established.
 
 Then join immutable private rows and the real constructor/decoder/cache to the
 reserved storage and both getter/bulk routes, with coherent paired maps, later
