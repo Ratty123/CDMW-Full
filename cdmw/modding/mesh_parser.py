@@ -1677,6 +1677,21 @@ def _find_pac_descriptors(
     return [desc for _, desc in found]
 
 
+def _pac_lod0_section_index(sections: list[dict], lod_count: int) -> int:
+    """Find LOD0's reserved geometry slot, retaining empty lower slots.
+
+    Shipped PACs can keep LOD0 in slot 4 with only two or three declared LODs;
+    compact authored layouts instead end at the declared count. Slots above 4
+    are auxiliary data, never geometry.
+    """
+    return max(lod_count, max(
+        (int(section["index"]) for section in sections
+         if 1 <= int(section.get("index", -1)) <= 4
+         and int(section.get("size", 0) or 0) > 0),
+        default=0,
+    ))
+
+
 def _validated_pac_descriptor_prefix(
     descriptors: list[PacDescriptor],
     sections: list[dict],
@@ -1688,10 +1703,12 @@ def _validated_pac_descriptor_prefix(
 
     if len(descriptors) < 2 or not 1 <= lod_count <= 4:
         return descriptors
+    lod0_section_index = _pac_lod0_section_index(sections, lod_count)
     geometry_sections = tuple(
-        (section, lod_count - int(section.get("index", -1)))
+        (section, lod0_section_index - int(section.get("index", -1)))
         for section in sections
-        if 1 <= int(section.get("index", -1)) <= lod_count
+        if 0 <= lod0_section_index - int(section.get("index", -1)) < lod_count
+        and int(section.get("index", -1)) > 0
         and int(section.get("size", 0) or 0) > 0
     )
     if not geometry_sections:
@@ -2215,6 +2232,7 @@ def parse_pac(data: bytes, filename: str = "") -> ParsedMesh:
         return _pac_fallback_pam(data, filename)
 
     geometry_lod_count = min(n_lods, 4)
+    lod0_section_index = _pac_lod0_section_index(sections, geometry_lod_count)
     descriptors = _validated_pac_descriptor_prefix(
         _find_pac_descriptors(data, sec0["offset"], sec0["size"], n_lods),
         sections,
@@ -2225,11 +2243,11 @@ def parse_pac(data: bytes, filename: str = "") -> ParsedMesh:
         return _pac_fallback_pam(data, filename)
 
     candidates: list[tuple[int, int, int, int, ParsedMesh]] = []
-    for geom_section_idx in range(geometry_lod_count, 0, -1):
+    for geom_section_idx in range(lod0_section_index, lod0_section_index - geometry_lod_count, -1):
         geom_sec = sec_by_idx.get(geom_section_idx)
         if geom_sec is None:
             continue
-        lod = geometry_lod_count - geom_section_idx
+        lod = lod0_section_index - geom_section_idx
         try:
             candidate = _parse_pac_geometry_section(data, filename, descriptors, geom_sec, lod)
         except Exception as exc:
@@ -2515,12 +2533,14 @@ def _build_pac_preview_mesh(data: bytes, filename: str = "") -> PreviewMesh:
     n_lods = data[sec0["offset"] + 4] if sec0["size"] >= 5 else 0
     if not 1 <= n_lods <= 4:
         return _flatten_parsed_mesh_for_preview(parse_pac(data, filename))
-    geom_section_idx = next((idx for idx in range(n_lods, 0, -1) if idx in sec_by_idx), None)
+    lod0_section_index = _pac_lod0_section_index(sections, n_lods)
+    geom_section_idx = next((idx for idx in range(lod0_section_index, lod0_section_index - n_lods, -1)
+                            if idx in sec_by_idx), None)
     if geom_section_idx is None:
         return _flatten_parsed_mesh_for_preview(parse_pac(data, filename))
 
     geom_sec = sec_by_idx[geom_section_idx]
-    lod = n_lods - geom_section_idx
+    lod = lod0_section_index - geom_section_idx
     descriptors = _validated_pac_descriptor_prefix(
         _find_pac_descriptors(data, sec0["offset"], sec0["size"], n_lods),
         sections,

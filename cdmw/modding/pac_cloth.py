@@ -9,7 +9,7 @@ from collections.abc import Mapping
 from cdmw.domain.mesh.cloth import PacClothRule
 from .mesh_parser import (
     PAC_SKIN_EXTRA_INDEX_SENTINEL, SubMesh,
-    _find_pac_descriptors, _parse_pac_geometry_section, _parse_par_sections,
+    _find_pac_descriptors, _pac_lod0_section_index, _parse_pac_geometry_section, _parse_par_sections,
     _validated_pac_descriptor_prefix,
 )
 
@@ -71,8 +71,9 @@ def pac_cloth_lods(data: bytes):
         raise ValueError("Cloth editing requires the known 40-byte PAC layout.")
     levels = []
     seen_offsets = set()
+    lod0_section_index = _pac_lod0_section_index(sections, count)
     for lod in range(count):
-        section = by_index.get(count - lod)
+        section = by_index.get(lod0_section_index - lod)
         if section is None:
             raise ValueError(f"Cloth editing cannot read PAC LOD {lod}.")
         mesh = _parse_pac_geometry_section(data, "cloth.pac", descriptors, section, lod)

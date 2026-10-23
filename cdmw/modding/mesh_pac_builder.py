@@ -26,6 +26,7 @@ from .mesh_parser import (
     _find_pac_descriptors,
     _find_pac_section_layout,
     _np_module,
+    _pac_lod0_section_index,
     _parse_pac_geometry_section,
     _parse_par_sections,
     _validated_pac_descriptor_prefix,
@@ -602,6 +603,7 @@ def _preserve_pac_lower_lod_positions(original_data, mesh, bounds, vertex_update
     if sec0 is None:
         raise ValueError("PAC bounds expansion cannot locate the shared LOD descriptors.")
     lod_count = original_data[sec0["offset"] + 4]
+    lod0_section_index = _pac_lod0_section_index(sections, lod_count)
     descriptors = _validated_pac_descriptor_prefix(
         _find_pac_descriptors(original_data, sec0["offset"], sec0["size"], lod_count),
         sections, filename=mesh.path, lod_count=lod_count,
@@ -611,7 +613,7 @@ def _preserve_pac_lower_lod_positions(original_data, mesh, bounds, vertex_update
                     if desc.descriptor_offset in bounds and desc.vertex_counts[lod]}
         if not required:
             continue
-        section = section_map.get(lod_count - lod)
+        section = section_map.get(lod0_section_index - lod)
         if section is None:
             raise ValueError(f"PAC bounds expansion cannot prove LOD{lod} vertex ownership.")
         lower = _parse_pac_geometry_section(original_data, mesh.path, descriptors, section, lod)
@@ -994,8 +996,9 @@ def _preserved_pac_lod_records(original_data, original_mesh, working_mesh, descr
         if (original.source_descriptor_offset != descriptors[index].descriptor_offset
                 or not _pac_submesh_channels_unchanged(original, working_mesh.submeshes[index])):
             raise ValueError(f"PAC part {index} no longer matches its original descriptor and geometry.")
+    lod0_section_index = _pac_lod0_section_index(list(sec_by_idx.values()), n_lods)
     for lod in range(n_lods):
-        section = sec_by_idx.get(n_lods - lod)
+        section = sec_by_idx.get(lod0_section_index - lod)
         if section is None:
             raise ValueError(f"PAC LOD {lod} has no geometry section to preserve.")
         vertex_counts = [desc.vertex_counts[lod] if lod < len(desc.vertex_counts) else 0
@@ -1048,6 +1051,7 @@ def _build_pac_full_rebuild(
     if n_lods <= 0 or n_lods > 10:
         raise ValueError(f"Invalid PAC LOD count: {n_lods}")
 
+    lod0_section_index = _pac_lod0_section_index(sections, n_lods)
     descriptors = _validated_pac_descriptor_prefix(
         _find_pac_descriptors(original_data, sec0["offset"], sec0["size"], n_lods),
         sections,
@@ -1101,7 +1105,8 @@ def _build_pac_full_rebuild(
     preserved_sections = {
         sec["index"]: original_data[sec["offset"]:sec["offset"] + sec["size"]]
         for sec in sections
-        if sec["index"] > n_lods
+        if sec["index"] > lod0_section_index
+        or 0 < sec["index"] <= lod0_section_index - n_lods
     }
     prepared_submeshes = []
     for sm_idx, (new_sm, desc) in enumerate(zip(working_mesh.submeshes, descriptors)):
@@ -1199,8 +1204,8 @@ def _build_pac_full_rebuild(
         })
     lod_payloads: dict[int, bytes] = {}
     lod_split_bytes: dict[int, int] = {}
-    for sec_idx in range(1, n_lods + 1):
-        lod_idx = n_lods - sec_idx
+    for sec_idx in range(lod0_section_index - n_lods + 1, lod0_section_index + 1):
+        lod_idx = lod0_section_index - sec_idx
         verts_buf = bytearray()
         idx_buf = bytearray()
 
@@ -1323,11 +1328,11 @@ def _build_pac_full_rebuild(
 
     off = 5
     for lod_idx in range(n_lods):
-        sec_idx = n_lods - lod_idx
+        sec_idx = lod0_section_index - lod_idx
         struct.pack_into("<I", sec0_data, off + lod_idx * 4, section_offsets[sec_idx])
     off += n_lods * 4
     for lod_idx in range(n_lods):
-        sec_idx = n_lods - lod_idx
+        sec_idx = lod0_section_index - lod_idx
         split_abs = section_offsets[sec_idx] + lod_split_bytes.get(sec_idx, 0)
         struct.pack_into("<I", sec0_data, off + lod_idx * 4, split_abs)
     section_payloads[0] = bytes(sec0_data)

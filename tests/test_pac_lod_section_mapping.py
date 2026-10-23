@@ -17,7 +17,7 @@ from cdmw.modding.pac_cloth import pac_cloth_lods
 from tests.test_pac_cloth_guide_builder import guide_free_pac
 
 
-def _different_lods(lod_count):
+def _different_lods(lod_count, *, fixed_slots=False):
     """Two owned parts: four vertices at LOD0 and three at each lower LOD."""
     original = guide_free_pac(lods=lod_count, parts=2, flags=0x2004)
     sections = {section["index"]: section for section in _parse_par_sections(original)}
@@ -48,12 +48,22 @@ def _different_lods(lod_count):
     payloads = [metadata, *reversed(geometry)]
     for index, payload in enumerate(payloads):
         struct.pack_into("<II", header, 16 + 8 * index, 0, len(payload))
+    if fixed_slots:
+        # Shipped two/three-LOD PACs leave the lowest reserved slots empty;
+        # their LOD0 still occupies slot 4. Physical payload order is unchanged.
+        slots = [bytes(header[16 + 8 * index:24 + 8 * index]) for index in range(1, lod_count + 1)]
+        header[24:56] = bytes(32)
+        for index, slot in enumerate(slots, 5 - lod_count):
+            header[16 + 8 * index:24 + 8 * index] = slot
     return bytes(header) + b"".join(payloads)
 
 
-@pytest.mark.parametrize("lod_count", [2, 3, 4])
-def test_main_and_fast_pac_readers_keep_the_declared_lod0(lod_count):
-    source = _different_lods(lod_count)
+LAYOUTS = [(2, False), (3, False), (4, False), (2, True), (3, True)]
+
+
+@pytest.mark.parametrize("lod_count,fixed_slots", LAYOUTS)
+def test_main_and_fast_pac_readers_keep_the_declared_lod0(lod_count, fixed_slots):
+    source = _different_lods(lod_count, fixed_slots=fixed_slots)
     expected = pac_cloth_lods(source)[0]
     parsed = parse_pac(source, "owned.pac")
     assert parsed.total_vertices == 8
@@ -72,9 +82,9 @@ def test_main_and_fast_pac_readers_keep_the_declared_lod0(lod_count):
     assert build_mesh(parsed, source) == source
 
 
-@pytest.mark.parametrize("lod_count", [2, 3, 4])
-def test_position_edit_preserves_lower_lods_and_skin_records(lod_count):
-    source = _different_lods(lod_count)
+@pytest.mark.parametrize("lod_count,fixed_slots", LAYOUTS)
+def test_position_edit_preserves_lower_lods_and_skin_records(lod_count, fixed_slots):
+    source = _different_lods(lod_count, fixed_slots=fixed_slots)
     before = pac_cloth_lods(source)
     edited = parse_pac(source, "owned.pac")
     assert edited.total_vertices == 8
@@ -95,9 +105,9 @@ def test_position_edit_preserves_lower_lods_and_skin_records(lod_count):
                 assert output[new_offset + 6:new_offset + 40] == source[old_offset + 6:old_offset + 40]
 
 
-@pytest.mark.parametrize("lod_count", [2, 3, 4])
-def test_descriptor_prefix_requires_exact_sizes_for_the_declared_lods(lod_count):
-    source = _different_lods(lod_count)
+@pytest.mark.parametrize("lod_count,fixed_slots", LAYOUTS)
+def test_descriptor_prefix_requires_exact_sizes_for_the_declared_lods(lod_count, fixed_slots):
+    source = _different_lods(lod_count, fixed_slots=fixed_slots)
     sections = _parse_par_sections(source)
     metadata = sections[0]
     descriptors = _find_pac_descriptors(source, metadata["offset"], metadata["size"], lod_count)
@@ -109,3 +119,51 @@ def test_descriptor_prefix_requires_exact_sizes_for_the_declared_lods(lod_count)
     bad_sections = [dict(section) for section in sections]
     bad_sections[-1]["size"] += 1
     assert _validated_pac_descriptor_prefix(candidates, bad_sections, lod_count=lod_count) == candidates
+
+
+def _assert_lod_stream_pointers(source, lod_count):
+    sections = _parse_par_sections(source)
+    metadata = sections[0]["offset"]
+    by_offset = {section["offset"]: section for section in sections}
+    for lod, mesh in enumerate(pac_cloth_lods(source)):
+        start, = struct.unpack_from("<I", source, metadata + 5 + 4 * lod)
+        split, = struct.unpack_from("<I", source, metadata + 5 + 4 * lod_count + 4 * lod)
+        assert by_offset[start]["index"] > 0
+        assert split == start + sum(len(part.vertices) * 40 for part in mesh.submeshes)
+
+
+@pytest.mark.parametrize("lod_count,fixed_slots", LAYOUTS)
+def test_full_rebuild_retains_source_geometry_slots(lod_count, fixed_slots):
+    from cdmw.modding.mesh_pac_builder import _build_pac_full_rebuild
+
+    source = _different_lods(lod_count, fixed_slots=fixed_slots)
+    original = parse_pac(source, "owned.pac")
+    edited = copy.deepcopy(original)
+    edited.submeshes[0].vertices[0] = (.5, 0., 0.)
+    output = _build_pac_full_rebuild(
+        original, edited, source, preserve_original_submesh_indices=(1,),
+    )
+    assert [section["index"] for section in _parse_par_sections(output)] == [
+        section["index"] for section in _parse_par_sections(source)
+    ]
+    assert parse_pac(output, "owned.pac").submeshes[0].vertices[0] == pytest.approx((.5, 0., 0.), abs=1e-4)
+    _assert_lod_stream_pointers(output, lod_count)
+
+
+@pytest.mark.parametrize("lod_count,fixed_slots", LAYOUTS)
+def test_exact_topology_rebuild_keeps_distinct_lower_lods(lod_count, fixed_slots):
+    from cdmw.modding.mesh_pac_topology_builder import build_pac_topology_rebuild
+    from tests.test_mesh_pac_topology_serializer import _deleted_quad
+
+    source = _different_lods(lod_count, fixed_slots=fixed_slots)
+    original = parse_pac(source, "owned.pac")
+    output = build_pac_topology_rebuild(original, _deleted_quad(original), source)
+    assert len(parse_pac(output, "owned.pac").submeshes[0].faces) == 1
+    old_levels, new_levels = pac_cloth_lods(source), pac_cloth_lods(output)
+    for old, new in zip(old_levels[1:], new_levels[1:], strict=True):
+        for a, b in zip(old.submeshes, new.submeshes, strict=True):
+            assert b.vertices == a.vertices
+            assert b.faces == a.faces
+            assert b.bone_indices == a.bone_indices
+            assert b.bone_weights == a.bone_weights
+    _assert_lod_stream_pointers(output, lod_count)

@@ -56,6 +56,7 @@ from .mesh_parser import (
     ParsedMesh,
     SubMesh,
     _find_pac_descriptors,
+    _pac_lod0_section_index,
     _parse_par_sections,
     _validated_pac_descriptor_prefix,
     parse_pac,
@@ -367,7 +368,8 @@ def _matching_cleanup_lods(original_mesh, edited_mesh, original_data, payloads, 
         changed = True
     if not changed:
         return ()
-    reference = payloads.get(lod_count)
+    lod0_section_index = _pac_lod0_section_index(_parse_par_sections(original_data), lod_count)
+    reference = payloads.get(lod0_section_index)
     if not reference:
         return ()
     split = _original_split_bytes(original_data, section_0, 0)
@@ -375,7 +377,7 @@ def _matching_cleanup_lods(original_mesh, edited_mesh, original_data, payloads, 
             or len(reference) != split + sum(len(part.faces) for part in original_mesh.submeshes) * 6):
         return ()  # Unknown geometry-section bytes cannot be copied into a new layout.
     return tuple(lod for lod in range(1, lod_count)
-                 if payloads.get(lod_count - lod) == reference
+                 if payloads.get(lod0_section_index - lod) == reference
                  and _original_split_bytes(original_data, section_0, lod) == split
                  and all(lod < len(descriptor.vertex_counts) and lod < len(descriptor.index_counts)
                          and descriptor.vertex_counts[lod] == descriptor.vertex_counts[0]
@@ -745,7 +747,7 @@ def build_pac_topology_rebuild(
     rebuilt_lods = (0, *matching_cleanup_lods)
 
     metrics: dict[str, object] = {}
-    lod0_section_index = lod_count
+    lod0_section_index = _pac_lod0_section_index(sections, lod_count)
     vertex_buffer = bytearray()
     index_buffer = bytearray()
     original_lod0_payload = payloads.get(lod0_section_index, b"")
@@ -813,7 +815,7 @@ def build_pac_topology_rebuild(
     section_payloads: dict[int, bytes] = dict(payloads)
     section_payloads[lod0_section_index] = bytes(vertex_buffer + index_buffer)
     for lod_index in matching_cleanup_lods:
-        section_payloads[lod_count - lod_index] = section_payloads[lod0_section_index]
+        section_payloads[lod0_section_index - lod_index] = section_payloads[lod0_section_index]
     lod0_split = len(vertex_buffer)
 
     header = bytearray(original_data[:0x50])
@@ -833,11 +835,11 @@ def build_pac_topology_rebuild(
 
     cursor = 5
     for lod_index in range(lod_count):
-        section_index = lod_count - lod_index
+        section_index = lod0_section_index - lod_index
         struct.pack_into("<I", section_0_data, cursor + lod_index * 4, section_offsets[section_index])
     cursor += lod_count * 4
     for lod_index in range(lod_count):
-        section_index = lod_count - lod_index
+        section_index = lod0_section_index - lod_index
         split = lod0_split if lod_index in rebuilt_lods else _original_split_bytes(
             original_data, section_0, lod_index
         )
