@@ -1314,11 +1314,15 @@ unresolved. Source material double-sided behavior has no verified plain-PBR
 shader mapping. Package/image preparation does not establish rendered appearance,
 native discovery/use, acquisition, equip or persistence. At the user's request,
 the existing composed physical installer subsequently installs this package as
-item 1,990,000 in group 0041. Its 52-file overlay, matching metadata backup and
-nine exact target writes and seven unchanged loader companions are verified.
-There was no Tranan placement or inventory grant. The user reports a longstanding
-Live Edit Add callback timeout under separate diagnosis; appearance, acquisition/
-equip and save behavior remain unproved. PAPGT/PATHC intentionally change after
+item 1,990,000 in group 0041. A subsequent supported update adds quantity one to
+Tranan's compiled stock, retaining all 112 prior lines and the other 435 stores.
+Its 54-file overlay, verified pre-write backups, nine exact target writes and
+seven unchanged loader companions are verified, including independent actual
+review. The user then reports successful shop acquisition and supplies
+screenshots showing the custom sword at Tranan and visibly equipped. Sheath
+duplication and incorrect held orientation remain accepted test limits, with no
+cosmetic work requested. Live Edit's longstanding Add timeout remains separate;
+save/reload and independent native activation remain unproved. PAPGT/PATHC intentionally change after
 the historical B122 recovery, and the consumed grant cannot be replayed. This is
 a separate composed-route test, not independent native activation.
 

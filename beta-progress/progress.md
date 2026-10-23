@@ -44,9 +44,12 @@ remains unproved. A first privately
 authored sword package and its 24-member resource image also pass preparation;
 resource use, derived state and lifetime remain open. The sword is now installed
 as item 1,990,000 through the existing composed physical overlay at the user's
-request. The user reports a longstanding Live Edit Add callback timeout under
-separate diagnosis; no visible weapon/equip/save proof or independent native
-activation is recorded.
+request. Its subsequent supported update adds one sword to Tranan's compiled
+stock while preserving existing entries, with verified backups and exact
+readback. The user reports successful shop acquisition and provides screenshots
+of the custom sword at Tranan and visibly equipped. Sheath duplication and held
+orientation remain accepted test limits. Live Edit's longstanding Add timeout
+is separate; save/reload and independent native activation remain unverified.
 
 [Canonical goal and acceptance criteria](cditem-conflict-isolation-plan.md) |
 [Execution](cditem-execution-goal.md) |
@@ -131,7 +134,7 @@ the preceding 24-case preparation evidence remains in
 
 - 2026-10-23 | CDISO-RE-02 actual unpublished native pair capture | B122's single controlled game capture produces two complete 6,820-entry private maps from N=6,816 stock plus four checked Rows, with eight native inserts, twelve name callbacks, 45 steps and 13,636 accepted allocations. Public maps/counts and represented owner/metadata/expiry/records remain unchanged. All five physical channels, 222 source pins, seven companions/stock and absence of all five owned roles pass root checks; restoration takes 47.188 seconds. The guardian's stale-heartbeat decision (age 5,218ms, close request absent at that decision) closes the game normally while offline review runs. Exact canonical JSON byte reproduction resolves the retained post-recorder integer-key comparison refusal. Independent actual review now passes with no material defects; its restoration finding is historical and precedes the later Sword overlay. Evidence: [actual pair capture](cditem-execution-goal.md#actual-unpublished-native-pair-capture-2026-10-23).
 
-- 2026-10-23 | First private sword installed for user test | The user explicitly requested installation. The supported composed physical overlay installs King Arthur's Sword as item 1,990,000 in group 0041 with 52 files and 194,882,496 payload bytes. Both existing metadata files have a matching verified backup; all nine writes read back exactly and seven loader companions remain unchanged. The user reports a longstanding Live Edit Add callback timeout under separate diagnosis. No Tranan placement/inventory grant, root game launch, independent native activation, rendered appearance, equip or save proof follows. The authorized overlay intentionally changes PAPGT after the historical B122 restoration; its old grant is consumed. Evidence: [sword test installation](cditem-execution-goal.md#sword-installation-for-the-users-visual-test).
+- 2026-10-23 | First private sword installed and seen in game | The supported composed physical overlay installs King Arthur's Sword as item 1,990,000 in group 0041. A later supported shop update adds quantity one to Tranan's stock, producing 54 overlay files and 195,006,352 payload bytes. All 112 prior stock lines and other 435 store rows are preserved. The seven existing target files have byte-verified pre-write backups; all nine output writes and seven unchanged loader companions pass readback and independent review. The user reports successful acquisition and supplies shop/gameplay screenshots showing the custom sword equipped. Sheath duplication and held orientation are accepted test limits, with no cosmetic work requested. The longstanding Live Edit Add timeout is separate; save/reload and independent native activation remain unverified. The overlay intentionally changes PAPGT after historical B122 restoration; its old grant is consumed. Evidence: [sword test installation](cditem-execution-goal.md#sword-installation-for-the-users-visual-test).
 
 - 2026-10-23 | CDISO-RE-02 unpublished native pair fixture qualification | B122-v4 passes ten owned native cases including N=6,816, five physical encoder channels, strict decoder refusal and inactive loading. Independent review joins 166 emitted functions and 26 core cross-image contracts; the 369-pin native proof is sealed. Prior compiler failures remain retained. Actual game pair creation, final caller readiness, central publication and lifecycle acceptance stay open. Evidence: [execution checkpoint](cditem-execution-goal.md#unpublished-native-pairs-owned-qualification-2026-10-23).
 

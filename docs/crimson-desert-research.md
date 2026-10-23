@@ -1558,10 +1558,15 @@ material has no verified plain-PBR shader mapping. These results establish no
 rendered appearance, native resource use, acquisition/equip or save behavior.
 The user's subsequent test-install request is fulfilled by the existing composed
 physical overlay as item 1,990,000 in group 0041, with a matching verified backup,
-exact output readback and seven loader companions unchanged. No shop placement
-or inventory grant was included. The user reports a longstanding Live Edit Add
-callback timeout under separate diagnosis; rendered appearance, acquisition/
-equip and save behavior remain unproved. The overlay intentionally changes
+exact output readback and seven loader companions unchanged. A subsequent
+supported update adds one sword to Tranan's compiled stock while retaining all
+112 prior lines and the other 435 stores; all existing target files have
+byte-verified pre-write backups, and independent actual review passes. The user
+reports successful acquisition and supplies screenshots of the custom sword at
+Tranan and visibly equipped in gameplay. Sheath duplication and incorrect held
+orientation are accepted test limits; the user requests no cosmetic work.
+Live Edit's longstanding Add timeout remains separate, and save/reload behavior
+is unproved. The overlay intentionally changes
 shared mount metadata after the historical capture and does not establish native
 independent activation. Native name values/body offsets differ from the portable model's fixture fields,
 and its clone-allocation ownership needs checked adapter boundaries. Resource

@@ -598,11 +598,31 @@ composed physical overlay, separately from independent native activation. The
 retained installer receipt records item 1,990,000 in group 0041, 52 overlay files
 and 194,882,496 payload bytes. All nine proposed writes read back exactly, both
 existing metadata files have matching verified backups, and seven loader
-companions remain unchanged. No Tranan shop placement or inventory grant was
-included. The installer did not launch the game; the user owns the visual-test
-window and reports a longstanding Live Edit Add callback timeout under separate
-diagnosis. No rendered weapon, acquisition/equip, save persistence or native
-admission is established.
+companions remain unchanged. That first installation contained no shop placement
+or inventory grant. A subsequent supported update adds item 1,990,000 once to
+Tranan's `Store_Camp_Equipment` stock (key 6,600), quantity one with no known
+knowledge requirement. The compiled table retains all 112 prior stock lines in
+order, with only required stock-index changes, and keeps the other 435 store
+rows byte-identical; the resulting 54-file overlay contains
+195,006,352 payload bytes. All nine target writes read back exactly, all seven
+existing target files have byte-verified backups before publication, and the
+seven loader companions remain unchanged. The initial shop verifier refused the
+legacy table filename before writes; its corrected successor uses the pinned
+current-layout source paths and table hashes.
+
+Neither installer launched the game. The user reports a longstanding Live Edit
+Add callback timeout under separate diagnosis. A source correction preserves
+specific server wait messages across client scheduler waits, with an actual
+old-source regression failure and 21 passing owner fixture groups; it does not
+establish a functional Add repair.
+
+The user subsequently reports success and supplies two screenshots showing the
+custom sword at Tranan and visibly equipped in gameplay. This is human-observed
+shop acquisition and rendered equip through the composed `.cditem` route. The
+sheath also displays sword geometry and the held orientation is wrong; the user
+accepts those limits for this test and explicitly requests no cosmetic work.
+No root-controlled game trial, successful Live Edit Add callback, save/reload
+result or independent native admission follows from this observation.
 
 The direct receipt is
 `20261023-direct-authority/king-arthur-sword-archive001-actual-tool-join.json`,
@@ -616,6 +636,16 @@ Exact result and root tool joins:
 | --- | ---: | --- |
 | `king-arthur-sword-build-v1/install-operations/archive001/result.json` | 12,061 | `aa5463fdf650c6bf9ebeabb59a500f9d7908842b47570aacdf1c34a6c57e7ea6` |
 | `20261023-direct-authority/king-arthur-sword-archive001-actual-tool-join.json` | 6,386 | `a2399494fcf45a6d439cf590e2ec78bb189099f1a213c3d5afadb3e88bac856b` |
+| `king-arthur-sword-build-v1/install-operations/archive003-shop/result.json` | 14,256 | `5413af55309406f25d3f38c33a7f1687d585f7f8dcfd86739f5a84e732c2d744` |
+| `20261023-direct-authority/king-arthur-sword-shop-archive003-actual-tool-join.json` | 4,703 | `fec4dc4aa0949be448a452b5c58712aa0af2690cadb6640cb22183375e319916` |
+| `king-arthur-sword-build-v1/shop-update-v1/independent-actual-review-v1/independent-actual-install-review-v1.json` | 10,561 | `9aed5cfaba58415233aa510d772c85c723a41cfe4ec23eaba87a8f08577edde8` |
+| `king-arthur-sword-build-v1/user-visual-test-v1/result.json` | 3,155 | `947fd9fb3ac9f77c2c5beaae81512336ab131e51fa9e8cf4dec9747bc4ab2c62` |
+
+The updated package preserves the UUID, model blobs and item bindings; only its
+typed shop placement changes. The verified recovery set is
+`archive_patch_backups/20261023_190315`. Live Edit's Add investigation and its
+source/compiler evidence live in that project's owning feature document and
+`2026-10-23-add-callback-failure/root/READBACK.md`.
 
 #### Reader-boundary platform qualification remains open
 

@@ -191,11 +191,17 @@ unresolved and bindings are proposals. The source material's double-sided flag
 still has no verified plain-PBR shader mapping. These are authoring/compiler
 results, without rendered appearance, native resource use or equip/save proof.
 The user's subsequent test-install request is fulfilled through the existing
-composed physical overlay: item 1,990,000, group 0041, 52 files, verified backup
-and exact output readback. No Tranan shop placement or inventory grant was
-included. The user reports a longstanding Live Edit Add callback timeout, now
-under separate diagnosis; no rendered weapon, acquisition/equip or save result is
-recorded. Seven loader companions remain unchanged. The physical overlay
+composed physical overlay: item 1,990,000, group 0041, verified backup and exact
+output readback. A subsequent supported update adds quantity one to Tranan's
+compiled stock, with all 112 prior lines and the other 435 stores preserved. Its
+54-file overlay and all nine writes pass readback; all seven existing target
+files have verified pre-write backups; independent actual review passes. The
+user reports successful shop acquisition and supplies screenshots of the sword
+at Tranan and visibly equipped in gameplay. Sheath duplication and incorrect
+held orientation are accepted test limits, with no cosmetic work requested.
+The longstanding Live Edit Add timeout remains separate; no save/reload or
+independent native activation result is recorded. Seven loader companions
+remain unchanged. The physical overlay
 intentionally changes PAPGT/PATHC after B122; its old grant is consumed. Root leaves
 the user's game window untouched. This installation is separate from the
 independent native goal and does not advance its admission criteria.

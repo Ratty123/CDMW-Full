@@ -87,9 +87,14 @@ package-readback checks; its separate image contains 24 private resources, with
 evidence without native resource use or acquisition/equip/save acceptance. At the
 user's subsequent request, the sword is installed as item 1,990,000 through the
 existing composed physical overlay, with verified backup and exact output
-readback and seven loader companions unchanged. No Tranan placement or inventory
-grant was included. The user reports a longstanding Live Edit Add callback timeout,
-under separate diagnosis; appearance, equip and save behavior remain unproved.
+readback and seven loader companions unchanged. A subsequent supported update
+adds one sword to Tranan's compiled stock, preserving all prior stock lines and
+the other 435 stores, with exact output readback and verified pre-write backups.
+The user then reports successful shop acquisition and supplies screenshots of
+the custom sword at Tranan and visibly equipped. Sword geometry in the sheath
+and incorrect held orientation are accepted test limits; no cosmetic work is
+requested. Live Edit's longstanding Add timeout remains a separate issue, and
+save/reload behavior remains unproved.
 The overlay intentionally changes PAPGT after B122; its consumed grant cannot be
 reused. This separate visual test does not establish independent activation.
 
