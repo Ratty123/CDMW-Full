@@ -71,6 +71,9 @@ def build_row(
     name_key: str = "4300529278648432",
     desc_key: str = "4300529278648433",
     item_type: int = 103,
+    item_type_code: int = 0,
+    desc2_key: str = "",
+    equipable_level: int = 0,
     memo: str = "지안 한손검",
     stems=("cd_phm_01_sword_0109_r", "cd_phm_01_sword_0109_l"),
     levels=None,
@@ -78,8 +81,8 @@ def build_row(
     socket_items=(1002791,),
     adds=((COPPER, 500, 0),),
 ) -> bytes:
-    """A row in the documented shape: prefix, filler, description + item type + memo,
-    filler with the stem hashes, stat block, tail."""
+    """A bounded fixture row. The legacy `item_type` argument is its u16 category;
+    `item_type_code` is the distinct u8 before the material references."""
 
     if levels is None:
         levels = [
@@ -90,15 +93,16 @@ def build_row(
     out += struct.pack("<I", key)
     out += struct.pack("<I", len(string_key)) + string_key.encode("ascii")
     out += b"\x00"  # isBlocked
-    out += struct.pack("<I", max_stack)
-    out += struct.pack("<I", 0)
+    out += struct.pack("<Q", max_stack)
     out += _lstr(NAME_TAG, key, name_key)
     out += struct.pack("<I", 0)
     out += struct.pack("<I", equip_type_key(equip) if equip else 0)
     out += struct.pack("<I", 1) + struct.pack("<I", 0x4425304D) + struct.pack("<II", 1, 1)  # one occupied slot
     out += b"\x00" * 16 + struct.pack("<I", 1) + struct.pack("<I", 0xF0E5E879) + b"\x00" * 10  # icon-ish filler
+    out[-9] = item_type_code  # `_itemType` followed by two u32 material references.
     out += _lstr(DESC_TAG, key, desc_key)
-    out += b"\x00" * 17 + struct.pack("<H", item_type) + b"\x00" * 3
+    out += _lstr(b"\x07\x72\x00\x00\x00", key, desc2_key) if desc2_key else bytes(13)
+    out += struct.pack("<IH", equipable_level, item_type) + b"\x00" * 3
     out += b"\x00" * 10 + struct.pack("<h", 3)
     raw_memo = memo.encode("utf-8")
     out += struct.pack("<I", len(raw_memo)) + raw_memo
@@ -128,7 +132,8 @@ class ParseTests(unittest.TestCase):
         self.assertEqual(row.occupied_slots[0].slot_name_hash, 0x4425304D)
         self.assertEqual(row.occupied_slots[0].indexes, (1,))
         self.assertEqual(row.desc_key, "4300529278648433")
-        self.assertEqual(row.item_type, 103)
+        self.assertEqual(row.item_type, 0)
+        self.assertEqual(row.category_info, 103)
         self.assertEqual(row.memo, "지안 한손검")
         self.assertEqual(row.coverage, "stat-block")
         self.assertEqual(row.socket_items, (1002791,))
@@ -146,6 +151,50 @@ class ParseTests(unittest.TestCase):
         self.assertEqual(struct.unpack_from("<I", raw, row.max_stack_count_offset)[0], 1)
         # the second 0x11 in the tail is not mistaken for the block
         self.assertLess(row.stat_block_end, len(raw) - 20)
+
+    def test_item_type_and_category_have_separate_values_and_offsets(self) -> None:
+        raw = build_row(item_type_code=56, item_type=103)
+        row = parse_iteminfo_row(raw)
+        self.assertEqual((row.item_type, row.category_info), (56, 103))
+        self.assertEqual(row.item_type_offset, row.desc_offset - 9)
+        self.assertEqual(raw[row.item_type_offset], 56)
+        self.assertEqual(struct.unpack_from("<H", raw, row.category_info_offset)[0], 103)
+
+    def test_secondary_description_and_level_do_not_hide_category_or_memo(self) -> None:
+        for description, level in (("", 12), ("another_description", 0), ("another_description", 12)):
+            with self.subTest(description=description, level=level):
+                raw = build_row(item_type_code=56, desc2_key=description, equipable_level=level)
+                row = parse_iteminfo_row(raw)
+                self.assertEqual((row.item_type, row.category_info, row.memo), (56, 103, "지안 한손검"))
+                self.assertEqual(row.stat(0, DDD).value, 12000)
+                self.assertEqual(rebuild_stat_block(row), raw)
+
+    def test_invalid_or_truncated_secondary_description_is_not_guessed(self) -> None:
+        raw = build_row(item_type_code=56)
+        desc_end = raw.index(DESC_TAG) + 13 + len("4300529278648433")
+        malformed = bytearray(raw)
+        struct.pack_into("<I", malformed, desc_end + 9, 0xffffffff)
+        for value in (raw[:desc_end + 12], bytes(malformed)):
+            with self.subTest(length=len(value)):
+                row = parse_iteminfo_row(value)
+                self.assertEqual(row.item_type, 56)
+                self.assertIsNone(row.category_info)
+                self.assertIsNone(row.category_info_offset)
+                self.assertIsNone(row.memo)
+
+    def test_retained_rows_decode_full_stack_width_and_separate_classifications(self) -> None:
+        from pathlib import Path
+        from cdmw.core.structured_binary_editor import parse_pabgh_table
+
+        folder = Path(__file__).parent / "fixtures/new_item_golden/gamedata/binary__/client/bin"
+        payload = (folder / "iteminfo.pabgb").read_bytes()
+        header = (folder / "iteminfo.pabgh").read_bytes()
+        rows = {record.row_id: parse_iteminfo_row(payload[start:end])
+                for record, start, end in parse_pabgh_table(header, payload=payload).row_spans(len(payload))}
+        self.assertEqual(rows[11].max_stack_count, 9_000_000_000_000_000_000)
+        self.assertEqual((rows[11].item_type, rows[11].category_info), (32, 60008))
+        self.assertEqual((rows[1001295].item_type, rows[1001295].category_info), (56, 103))
+        self.assertEqual(rows[1001295].memo, "지안 한손검")
 
     def test_level_stats_and_buffs_are_carried(self) -> None:
         levels = [([(DPV, 2000)], [(COPPER, 1)])]
@@ -193,7 +242,7 @@ class ParseTests(unittest.TestCase):
         cut = raw.replace(bytes([0x11, 0x01, 0x01]), bytes([0x13, 0x01, 0x01]))
         row = parse_iteminfo_row(cut)
         self.assertEqual(row.coverage, "no-stat-block")
-        self.assertEqual(row.item_type, 103)
+        self.assertEqual(row.category_info, 103)
         self.assertEqual(row.enchant_levels, ())
 
     def test_item_keys_tighten_the_anchor(self) -> None:
@@ -213,6 +262,17 @@ class ParseTests(unittest.TestCase):
 
 
 class EditTests(unittest.TestCase):
+    def test_stack_edit_clears_old_high_word_without_changing_other_fields(self) -> None:
+        raw = build_row(max_stack=9_000_000_000_000_000_000)
+        row = parse_iteminfo_row(raw)
+        self.assertEqual(row.max_stack_count, 9_000_000_000_000_000_000)
+        changed = set_max_stack_count(row, 5)
+        offset = row.max_stack_count_offset
+        self.assertEqual(changed, raw[:offset] + struct.pack("<Q", 5) + raw[offset + 8:])
+        self.assertEqual(parse_iteminfo_row(changed).max_stack_count, 5)
+        with self.assertRaisesRegex(ItemInfoRowError, "positive u32"):
+            set_max_stack_count(row, 0x100000000)
+
     def test_in_place_edits_change_only_their_bytes(self) -> None:
         raw = build_row()
         row = parse_iteminfo_row(raw)
@@ -270,7 +330,17 @@ class CloneTests(unittest.TestCase):
         # everything else survived: stats, prices, item type, memo, sockets
         self.assertEqual([lvl.stats[0].value for lvl in row.enchant_levels], [12000, 14000])
         self.assertEqual(row.price_list[0].price, 348)
-        self.assertEqual((row.item_type, row.memo, row.socket_items), (103, "지안 한손검", (1002791,)))
+        self.assertEqual((row.category_info, row.memo, row.socket_items), (103, "지안 한손검", (1002791,)))
+
+    def test_clone_preserves_full_stack_and_nonzero_level(self) -> None:
+        template = parse_iteminfo_row(build_row(max_stack=9_000_000_000_000_000_000,
+                                               item_type_code=56, equipable_level=12))
+        raw = clone_iteminfo_row(template, key=1990002, string_key="LongerCloneName_OneHandSword",
+                                name_key="new_name", desc_key="new_description")
+        row = parse_iteminfo_row(raw)
+        self.assertEqual(row.max_stack_count, template.max_stack_count)
+        self.assertEqual((row.item_type, row.category_info, row.memo), (56, 103, template.memo))
+        self.assertEqual(struct.unpack_from("<I", raw, row.category_info_offset - 4)[0], 12)
 
     def test_clone_refusals(self) -> None:
         template = parse_iteminfo_row(build_row())
@@ -473,8 +543,8 @@ class VanillaItemInfoTests(unittest.TestCase):
             if item.stat_block_offset is not None:
                 with_block += 1
             name = equip_names.get(item.equip_type_key, "")
-            if item.item_type is not None and name in weapons:
-                types_by_equip.setdefault(name, set()).add(item.item_type)
+            if item.category_info is not None and name in weapons:
+                types_by_equip.setdefault(name, set()).add(item.category_info)
             if name in weapons and item.enchant_levels:
                 weapon_ladders += 1
                 self.assertIn(1000002, {s.status_key for s in item.enchant_levels[0].stats}, f"{item.string_key} has no DDD")

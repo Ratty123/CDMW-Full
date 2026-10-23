@@ -8,14 +8,16 @@ gap the caller can see. What is modelled, and how it was established:
 
 * **Prefix**, sequential from byte 0 and identical in shape on all 6,573 rows:
   `_key` u32; `_stringKey` (u32 length + ASCII, no terminator); u8 (`_isBlocked`, 0
-  everywhere); `_maxStackCount` u32 (1 on equipment, 5/10/
-  20/50/100 on stackables); u32 0; `_itemName` as a LocalStringInfo sub-record
+  everywhere); `_maxStackCount` u64 (including currency values above u32);
+  `_itemName` as a LocalStringInfo sub-record
   `07 70 00 00 00, u32 own key, u32 length, ASCII key`; u32 0; `_equipTypeInfo` u32
   (`hashlittle(lowercase equip type name, 0xC5EDE)`, 0 for non-equipment);
   `_occupiedEquipSlotDataList` (u32 count, then {u32 slot-name hash, u32 count,
   count x u32}).
-* **`_itemDesc`** is the unique `07 71 00 00 00, own key` sub-record; **`_itemType`**
-  is the u16 seventeen bytes after it, a numeric code per equip type (103 on every
+* **`_itemDesc`** is the unique `07 71 00 00 00, own key` sub-record. **`_itemType`**
+  is the u8 before the two u32 material references immediately preceding it.
+  **`_categoryInfo`** follows `_itemDesc2` (a LocalStringInfo field) and the u32
+  `_equipableLevel`; neither field has to be zero. It is a u16 category (103 on every
   one-hand sword, 202 on every two-hand sword, 442/412/422 on helms by armour class,
   28001 on food, 4001 on notice papers). The developer memo (Korean text) is the
   first length-prefixed UTF-8 string that follows.
@@ -47,9 +49,10 @@ gap the caller can see. What is modelled, and how it was established:
 Stat keys are `statusinfo.pabgb` rows: DDD (1000002) is what every weapon ladder
 carries and DPV (1000003) what every armour ladder carries. Price item keys are
 `Money_*` items (1 = copper, 11 = camp money, 12 = camp food, 15 = camp weapon
-money). Nothing here claims to know `_itemTier`, `_equipableLevel` or
-`_maxEndurance`; the bytes are there but their positions have not been proven, so
-they stay inside the opaque spans.
+money). `_equipableLevel` and the secondary description are walked to locate the
+category, not exposed as authoring controls. `_itemTier` and `_maxEndurance`
+remain opaque. Stored stack counts are u64; existing stack-edit APIs still accept
+only positive u32 values.
 """
 
 from __future__ import annotations
@@ -67,7 +70,6 @@ LEVEL_STAT_ENTRY_BYTES = 5
 STATUSINFO_HASH_INIT = 0xC5EDE
 NAME_TAG = b"\x07\x70\x00\x00\x00"
 DESC_TAG = b"\x07\x71\x00\x00\x00"
-_ITEM_TYPE_GAP = 17
 _STAT_BLOCK_MARKER = 0x11
 _STAT_BLOCK_MARKERS = (0x11, 0x12)
 _MAX_LADDER_LEVELS = 40
@@ -159,6 +161,9 @@ class ItemInfoRow:
     stat_block_flags: Tuple[int, int] = (0, 0)
     #: Preserve the generation of this row, including when a table contains both.
     stat_block_marker: Optional[int] = None
+    #: `_categoryInfo` u16; older readers incorrectly called this `item_type`.
+    category_info: Optional[int] = None
+    category_info_offset: Optional[int] = None
 
     @property
     def max_stack_count_offset(self) -> int:
@@ -414,9 +419,8 @@ def parse_iteminfo_row(raw: bytes, *, item_keys: Optional[Iterable[int]] = None)
         raise ItemInfoRowError("row ends inside its string key")
     is_blocked = data[cursor]
     cursor += 1
-    max_stack_count = _u32(data, cursor)
-    cursor += 4
-    cursor += 4  # u32, zero on every shipped row
+    max_stack_count = struct.unpack_from("<Q", data, cursor)[0]
+    cursor += 8
     name_key, cursor = _read_local_string(data, cursor, NAME_TAG, key)
     cursor += 4  # u32, zero on every shipped row
     equip_type_key = _u32(data, cursor)
@@ -438,19 +442,31 @@ def parse_iteminfo_row(raw: bytes, *, item_keys: Optional[Iterable[int]] = None)
     desc_key = None
     item_type = None
     item_type_offset = None
+    category_info = None
+    category_info_offset = None
     memo = None
     if desc_offset >= 0 and data.find(needle, desc_offset + 1) < 0:
         desc_key, desc_end = _read_local_string(data, desc_offset, DESC_TAG, key)
-        if desc_end + _ITEM_TYPE_GAP + 2 <= len(data) and data[desc_end : desc_end + _ITEM_TYPE_GAP] == b"\x00" * _ITEM_TYPE_GAP:
-            item_type_offset = desc_end + _ITEM_TYPE_GAP
-            item_type = struct.unpack_from("<H", data, item_type_offset)[0]
-            memo = _find_memo(data, item_type_offset + 2)
+        # `_itemType`, `_materialKey`, `_materialMatchInfo` precede the description.
+        if desc_offset - 9 >= prefix_end:
+            item_type_offset = desc_offset - 9
+            item_type = data[item_type_offset]
+        # LocalStringInfo always stores a category byte, a u64 key and a string,
+        # including the empty secondary description. Its text has variable length.
+        try:
+            _secondary, secondary_end = _read_str(data, desc_end + 9, limit=256)
+        except ItemInfoRowError:
+            secondary_end = None
+        if secondary_end is not None and secondary_end + 6 <= len(data):
+            category_info_offset = secondary_end + 4  # `_equipableLevel` is u32.
+            category_info = struct.unpack_from("<H", data, category_info_offset)[0]
+            memo = _find_memo(data, category_info_offset + 2)
     else:
         desc_offset = None
 
-    # stat block: first place (after the item type) where the composite shape holds
+    # stat block: first place (after the category) where the composite shape holds
     block = None
-    search_from = (item_type_offset + 2) if item_type_offset is not None else prefix_end
+    search_from = (category_info_offset + 2) if category_info_offset is not None else prefix_end
     for offset in _stat_block_candidates(data, search_from):
         block = _read_stat_block(data, offset, item_keys)
         if block is not None:
@@ -462,6 +478,7 @@ def parse_iteminfo_row(raw: bytes, *, item_keys: Optional[Iterable[int]] = None)
             desc_key=desc_key, desc_offset=desc_offset, item_type=item_type, item_type_offset=item_type_offset, memo=memo,
             socket_items=(), add_socket_materials=(), stat_block_offset=None, enchant_levels=(), enchant_count=None,
             price_list=(), stat_block_end=None,
+            category_info=category_info, category_info_offset=category_info_offset,
         )
     return ItemInfoRow(
         raw=data, key=key, string_key=string_key, is_blocked=is_blocked, max_stack_count=max_stack_count,
@@ -471,6 +488,7 @@ def parse_iteminfo_row(raw: bytes, *, item_keys: Optional[Iterable[int]] = None)
         enchant_levels=block["levels"], enchant_count=block["count"], price_list=block["prices"], stat_block_end=block["end"],
         stat_block_flags=tuple(block["flags"]),
         stat_block_marker=block["marker"],
+        category_info=category_info, category_info_offset=category_info_offset,
     )
 
 
@@ -484,9 +502,12 @@ def _write_u32(raw: bytes, offset: int, value: int, *, signed: bool = False) -> 
 
 
 def set_max_stack_count(row: ItemInfoRow, value: int) -> bytes:
+    """Store a supported u32 edit in the full u64 field, clearing an old high word."""
     if not 1 <= int(value) <= 0xFFFFFFFF:
         raise ItemInfoRowError("max stack count must be a positive u32")
-    return _write_u32(row.raw, row.max_stack_count_offset, value)
+    out = bytearray(row.raw)
+    struct.pack_into("<Q", out, row.max_stack_count_offset, int(value))
+    return bytes(out)
 
 
 def set_stat_value(row: ItemInfoRow, level: int, status_key: int, value: int) -> bytes:
@@ -819,7 +840,7 @@ def equip_type_key(name: str) -> int:
 def describe_row(row: ItemInfoRow, status_names: Optional[Mapping[int, str]] = None) -> Tuple[str, ...]:
     names = dict(status_names or {})
     lines = [
-        f"{row.string_key} (key {row.key}) type {row.item_type} stack {row.max_stack_count} coverage {row.coverage}",
+        f"{row.string_key} (key {row.key}) type {row.item_type} category {row.category_info} stack {row.max_stack_count} coverage {row.coverage}",
     ]
     for level in row.enchant_levels:
         stats = ", ".join(f"{names.get(s.status_key, s.status_key)}={s.value}" for s in level.stats) or "no stats"

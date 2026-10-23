@@ -25,6 +25,7 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 ### Fixed
 
+- Create New Item correctly reads large stack counts and distinguishes item type from category, including items with secondary descriptions or level requirements. Existing `.cditem` formats and edit limits are preserved.
 - Independent item preparation no longer rejects unrelated sequence files in mounted mods or selected mod folders.
 
 - Mesh Editor reduces work after Grab and other viewport drags by submitting only changed vertices, while retaining validation and Undo/Redo.

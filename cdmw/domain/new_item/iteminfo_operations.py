@@ -102,7 +102,7 @@ def _row(raw, record):
     except (ValueError, struct.error) as exc:
         raise IndependentItemError(f'ItemInfo record {record} has an unsupported row layout.') from exc
     offset = row.max_stack_count_offset
-    if (row.key != record or row.is_blocked != 0 or row.desc_offset is None or row.item_type is None
+    if (row.key != record or row.is_blocked != 0 or row.desc_offset is None or row.category_info is None
             or row.prefix_end > len(raw) or row.max_stack_count < 1
             or raw[offset + 4:offset + 8] != b'\0' * 4):
         raise IndependentItemError(f'ItemInfo record {record} has an unsupported prefix layout.')

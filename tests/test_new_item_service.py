@@ -332,6 +332,14 @@ class _PackageCase(unittest.TestCase):
 
 
 class SnapshotTests(_PackageCase):
+    def test_perk_catalogue_uses_category_instead_of_item_type(self) -> None:
+        rows = {key: parse_iteminfo_row(build_row(key=key, item_type=category, item_type_code=kind,
+                                                 socket_items=(1,) if key == TEMPLATE else ()))
+                for key, category, kind in ((TEMPLATE, 103, 56), (1, 2501, 74),
+                                             (2, 2501, 75), (3, 60008, 74))}
+        snapshot = replace(self.snapshot, rows=rows)
+        self.assertEqual(snapshot.perk_item_keys, frozenset({1, 2}))
+
     def test_snapshot_and_context_describe_the_template(self) -> None:
         snap = self.snapshot
         self.assertEqual(sorted(snap.rows), [COPPER, 11, 15, OTHER, TEMPLATE, 1002791, 1002793, 1002812])

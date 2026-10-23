@@ -1001,13 +1001,24 @@ read/write limits.
 
 | Table or resource | Modelled subset and conclusion | Remaining boundary |
 | --- | --- | --- |
-| ItemInfo | Item identity, internal name, localisation references, equipment/item type and supported status/price/enhancement data | Unknown layouts, opaque fields and undecoded connections are not general editable properties. |
+| ItemInfo | Item identity, full stored stack count, internal name, localisation references, distinct equipment/item type and category, and supported status/price/enhancement data | Unknown layouts, opaque fields and undecoded connections are not general editable properties. |
 | StringInfo | Known string-to-key records, using the table's hash contract | A new string key must remain consistent with its consumers and collision checks. |
 | StoreInfo | Stock lists and supported whole-row/additive changes | Opaque prefixes/tails are preserved; all shop behaviour is not inferred from a valid list. |
 | ItemGroupInfo | Known grouping rows and additive membership | New membership does not establish every gameplay acquisition route. |
 | MultiChangeInfo | Supported enhancement transitions and known item-reference locations | Other payload fields retain their opaque/source-preserving treatment. |
 | Recipe and reward families | Current bounded recipe, item-reward and ItemUse reward codecs and their verified connections | Unknown connections, missing ingredients/tools/rewards and unmodelled consumers block a complete item plan. |
 | PAPPT and icon registries | Supported part/prefab bindings and icon registrations | Registry structure, stem/hash identity, referenced assets and source conflicts must all agree. |
+
+Targeted decoder correction, 2026-10-23, against `9d542c85` plus the scoped
+ItemInfo patch: stack counts use the full eight-byte field; the earlier u8 item
+type is separate from the later u16 category. Category discovery walks the second
+LocalStringInfo description and u32 level requirement rather than requiring
+seventeen zero bytes. Retained fixture rows and focused constructed regressions
+cover large counts, separate classifications, nonzero descriptions/requirements,
+clone preservation and existing field adapters. Stored u64 values do not widen
+the supported positive-u32 stack edits or admit high-word source rows through
+those adapters. The `.cditem` wire formats remain unchanged. This is source and
+fixture evidence, with no new game, save, rendering or native-admission claim.
 
 Historical game observations establish acceptance of selected appended item/string
 records and shop substitutions. They do not establish arbitrary table rewrites.

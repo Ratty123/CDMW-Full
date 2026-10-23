@@ -1913,7 +1913,8 @@ def _validated_source_disposition_evidence(
         paths["iteminfo_header"],
         owner_item_ids,
     )
-    item_types = {row.item_type for row, _raw_hash in item_rows.values()}
+    # The retained source-disposition `item_type` field is the u16 category.
+    item_types = {row.category_info for row, _raw_hash in item_rows.values()}
     equip_type_keys = {row.equip_type_key for row, _raw_hash in item_rows.values()}
     slot_counts = {len(row.occupied_slots) for row, _raw_hash in item_rows.values()}
     if len(item_types) != 1 or None in item_types:

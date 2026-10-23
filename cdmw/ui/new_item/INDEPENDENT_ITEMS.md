@@ -333,6 +333,19 @@ The supported field selectors and value types are:
 | `{"name":"max_stack_count"}` | `u32`, 1–4,294,967,295 | Recognized prefix with unchanged identity and layout |
 | `{"name":"stat_value","enchant_level":0,"status_key":1000002}` | `i32`, −2,147,483,648–2,147,483,647 | Exactly one existing stat at the specified level, in the selected marker layout |
 
+The row reader decodes the stored stack count as u64 and distinguishes the u8
+`_itemType` from the u16 `_categoryInfo`. It walks the secondary LocalStringInfo
+description and u32 level requirement to find the category, including nonzero
+values and variable-length description keys. Perk grouping and recipe searches
+retain their category-based behavior. Malformed secondary descriptions leave the
+category unverified and field-package admission refuses them.
+
+Both existing field adapters still require the stack count's upper u32 to be
+zero, and their stack assignments remain positive u32. The authoring stack setter
+writes the full stored field when applying such an edit. No package field,
+selector, wire version or canonical package identity changed; compiler records
+distinguish the revised item adapters for rebuild and cache validation.
+
 No operation accepts arbitrary offsets, new stats, structure edits or executable
 code. There are at most 4,096 assignments across an active composition and 64 KiB
 per target row. Unknown layouts, duplicate operation IDs, ambiguous stats, wrong

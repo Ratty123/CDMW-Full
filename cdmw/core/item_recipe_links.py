@@ -17,7 +17,7 @@ def recipe_item_connections(recipes, rewards, *, check=lambda: None):
 
 
 def connected_recipe_keys(row, known_keys, recipes, rewards, *, related_keys=None):
-    """Require one list after the item type that consumes or produces this item.
+    """Require one list after the item category that consumes or produces this item.
 
     ItemUse, group and other lists can contain integers that are also recipe
     keys. A longest-run search alone is not evidence of a recipe connection.
@@ -26,7 +26,7 @@ def connected_recipe_keys(row, known_keys, recipes, rewards, *, related_keys=Non
     """
     related = recipe_item_connections(recipes, rewards).get(row.key, ()) if related_keys is None else related_keys
     known = set(known_keys)
-    start = max(row.prefix_end, (row.item_type_offset or row.prefix_end) + 2)
+    start = max(row.prefix_end, (row.category_info_offset or row.prefix_end) + 2)
     stop = row.stat_block_offset if row.stat_block_offset is not None else len(row.raw)
     candidates = []
     for offset in range(start, stop - 7):

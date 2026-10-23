@@ -157,13 +157,13 @@ class NewItemSnapshot:
 
     @property
     def perk_item_keys(self) -> FrozenSet[int]:
-        """The embedded socket items plus every row of the same item type(s): the whole
-        gem catalogue (190 Abyss Gear items of type 2501 in the shipped table), not only
+        """The embedded socket items plus every row of the same category: the whole
+        gem catalogue (190 Abyss Gear items of category 2501 in the shipped table), not only
         the ones some item happens to carry."""
 
         embedded = self.socket_item_keys
-        types = {self.rows[key].item_type for key in embedded if key in self.rows and self.rows[key].item_type is not None}
-        return embedded | frozenset(key for key, row in self.rows.items() if row.item_type in types)
+        categories = {self.rows[key].category_info for key in embedded if key in self.rows and self.rows[key].category_info is not None}
+        return embedded | frozenset(key for key, row in self.rows.items() if row.category_info in categories)
 
     def has_entry(self, path: str) -> bool:
         return str(path or "").replace("\\", "/").strip("/").lower() in self.entries

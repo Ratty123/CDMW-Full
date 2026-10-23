@@ -24,7 +24,7 @@ def replace_recipe_references(row, known_keys, selected, *, source_keys=None):
         return row.raw
     needle = struct.pack("<I", len(old)) + struct.pack(f"<{len(old)}I", *old)
     stop = row.stat_block_offset if row.stat_block_offset is not None else len(row.raw)
-    begin = row.prefix_end if source_keys is None else max(row.prefix_end, (row.item_type_offset or row.prefix_end) + 2)
+    begin = row.prefix_end if source_keys is None else max(row.prefix_end, (row.category_info_offset or row.prefix_end) + 2)
     start = row.raw.find(needle, begin, stop)
     if start < 0 or row.raw.find(needle, start + 1, stop) >= 0:
         raise ValueError("The ItemInfo recipe-list boundary is ambiguous.")

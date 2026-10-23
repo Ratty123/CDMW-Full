@@ -135,3 +135,42 @@ def test_unverified_table_directory_layout_refuses():
     header = struct.pack('<HHI', 1, key, 0)
     with pytest.raises(OverlayConflict, match='u32-key, u16-count'):
         rows_of(raw, header)
+
+
+@pytest.mark.parametrize('marker', [0x11, 0x12])
+def test_existing_field_adapters_accept_nonzero_secondary_description_and_level(marker):
+    raw = build_row(item_type_code=56, desc2_key='second_description', equipable_level=12)
+    parsed = parse_iteminfo_row(raw)
+    marker_at = parsed.stat_block_offset + 8 + 4 * len(parsed.socket_items) + 12 * len(parsed.add_socket_materials)
+    raw = raw[:marker_at] + bytes([marker]) + raw[marker_at + 1:]
+    rows = {parsed.key: raw}
+    operations = [assignment(raw, value=7), assignment(raw, identity='damage', stat=True, value=13000)]
+    compiled = compile_assignments([('owner', operations)], rows)
+    changed = compose_assignments(rows, compiled)[parsed.key]
+    row = parse_iteminfo_row(changed)
+    assert (row.item_type, row.category_info, row.max_stack_count, row.stat(0, DDD).value) == (56, 103, 7, 13000)
+    offsets = {i for value in compiled for i in range(value.offset, value.offset + 4)}
+    assert len(changed) == len(raw)
+    assert all(a == b for i, (a, b) in enumerate(zip(raw, changed)) if i not in offsets)
+
+
+@pytest.mark.parametrize('stat', [False, True])
+def test_existing_field_adapters_still_refuse_a_nonzero_stack_high_word(stat):
+    raw = build_row(max_stack=9_000_000_000_000_000_000)
+    # The historical u32 operation is valid, but its source row is outside this adapter.
+    operation = assignment(raw, stat=stat, expect=12000 if stat else 1)
+    with pytest.raises(IndependentItemError, match='unsupported prefix layout'):
+        compile_assignments([('owner', [operation])], {1001295: raw})
+
+
+def test_field_adapter_refuses_an_unverified_category_even_with_a_known_item_type():
+    from cdmw.core.iteminfo_row import DESC_TAG
+
+    raw = bytearray(build_row(item_type_code=56))
+    secondary_length = raw.index(DESC_TAG) + 13 + len('4300529278648433') + 9
+    struct.pack_into('<I', raw, secondary_length, 0xffffffff)
+    raw = bytes(raw)
+    row = parse_iteminfo_row(raw)
+    assert row.item_type == 56 and row.category_info is None
+    with pytest.raises(IndependentItemError, match='unsupported prefix layout'):
+        compile_assignments([('owner', [assignment(raw)])], {row.key: raw})
