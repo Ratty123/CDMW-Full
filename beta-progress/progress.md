@@ -6,12 +6,12 @@ Shared completion log for plans in this folder. Keep each entry as a short dated
 
 **Goal: truly independent content with stable identity.**
 
-**Execution resumed with direct authority, 2026-10-23.** The corrected native
-fixture now passes all 18 read cases, actual own-process API guards and the
-unchanged ASI's inactive check. Seventeen focused direct-authority checks and
-independent review pass. No game or installed file was used. Current startup
-facts and a reviewed caller successor still precede the 102-byte game read;
-central definition routing and full native item acceptance remain open. See the
+**Exact small native payload verified, 2026-10-23.** The unchanged B115 probe
+returned all 102 expected bytes from the exact private archive in the game.
+Independent physical/source/process review passes; closure and restoration
+completed in 39.235 seconds. Two separate compiler-produced fixture images are
+prepared for the next 144-byte reads. Their native consumption, central
+definition routing and full native item acceptance remain open. See the
 [current checkpoint](cditem-execution-goal.md#resumed-with-direct-authority-2026-10-23).
 
 [Canonical goal and acceptance criteria](cditem-conflict-isolation-plan.md) |
@@ -27,9 +27,9 @@ original `CDISO-*` criteria, with narrowly scoped subtask results recorded below
 | Package identity and retained bindings | Existing implementation, exercised in the new preparation route | UUIDs and reservations survive owned-fixture updates/removal/reinstall/profile transfer; native lifecycle still required |
 | Native definition registration | Partial research evidence | B84 game rows; B106 typed backing; B111 selected-reader observations. Actual decoder/resource joins and the game reader boundary remain open |
 | Paired publication and lifetime | Verified owned-memory increment | `CDISO-RE-02A`: retained C++ result, 41 cases/963 checks. Both lookup paths and resource completion are modeled |
-| Exact private archive expectation | Verified preparation and actual path construction | `CDISO-RE-03A`: retained preparation/reviewer checks; B113 exact native path independently reviewed, bytes/use still open |
+| Exact private archive expectation | Verified preparation, actual path and small-byte observation | `CDISO-RE-03A`: retained preparation/reviewer checks, B113 path and B115 physical open/read joins; actual resource use remains open |
 | Separate package resource images | Newly verified preparation increment | `CDISO-RE-03B`: actual compiler output, one immutable image per UUID, 24 focused cases verified; native discovery/use remains open |
-| Native resource open/read/use | Concrete method/holder source qualified; native proof open | Current read waits pending I/O before normal return under bounded Win32 assumptions; AL success hides errors/count. Exact bytes, resource use and general retirement remain unproved |
+| Native resource open/read/use | Exact 102-byte game observation independently verified | Normal return, zero mismatches and exact archive/process/source joins. AL hides errors/count; separate-image reads, resource use and general retirement remain open |
 | Fully independent native items | Open | Production `native_admission=false`; no combined-file-free native lifecycle acceptance |
 | Native persistence and missing-provider saves | Open | Two-item native lifecycle and separately written absent-provider save/reinstall evidence remain required |
 
@@ -48,27 +48,26 @@ probe now produced the exact prepared private archive path. Fresh independent
 review joins its complete packets to the owned game/process/source, with provider
 1/1 and ItemInfo 6816 unchanged. Exact restoration completed in 24.406s; all owned
 processes are absent and 14 selected preservation/input pins match. The first
-incomplete run and its caller correction remain retained. Payload delivery,
-resource use, equip and saves still require their own evidence. The separate
-B115 read source and selected API/hook interpretation pass independent review
-and 69 synthetic checks. All four native targets compile, but the compiled
-read controls fail after the simulated getter boundary. Eight API-guard controls
-and five pre-call read refusals pass. Static inspection finds fixture targets
-computed 4 GiB too high; qualify a separate fixture-only address correction,
-then complete own-process/inert and bounded-caller checks before a game read.
+incomplete run and its caller correction remain retained. The corrected B115
+fixture subsequently passed all 18 cases with its actual header/CFG unchanged,
+plus own-process guards and the original ASI's inactive check. Reviewed caller-v5
+then obtained all 102 expected bytes in the game, with the exact physical open
+inside the native interval and all six captures re-decoded identically. The
+39.235-second restoration and owned-process closure pass independent review.
+Both full stock snapshots precede the private operation. The original failed
+fixture and two prelaunch caller refusals remain preserved; API success/count,
+resource use, equip and saves still require their own evidence.
 
 ### Next engineering steps
 
-1. Qualify the separately versioned fixture-only runtime-address correction
-   for B115; preserve the failed source/binary and passing API controls. Keep
-   the actual header and CFG intact, then finish
-   own-process/inert and bounded-caller checks. Obtain fresh resource handoffs
-   before the exact B93 native read: size 112, capacity/request 102, offset zero,
-   every byte checked after normal return and private objects retained until
-   exit. Resource use and general retirement remain separately open.
+1. Extend the verified small read to two retained private contexts and distinct
+   compiler-produced package images. Compare all 144 bytes at offset 2704,
+   including their distinguishing last byte; recheck A after B construction.
+   Native context independence, resource use and general retirement remain open.
 2. Carry common preflight and retained ownership into actual B106 backing,
-   private metadata and decoder routing. Qualify the real reader boundary before
-   either native map exposes an entry.
+   private metadata and decoder routing. First observe the source-identified
+   typed loader entry/return; qualify the real reader boundary before either
+   native map exposes an entry.
 3. Integrate native definitions and resources, prove first acquisition, then run
    two same-donor packages through equip/restart/update/removal/save.
 
@@ -84,7 +83,8 @@ to the queued Create Item reader after repair's quiet boundary. Three complete
 method roots, the size thunk and holder constructor now qualify the bounded
 normal-return I/O premise. The B113 v5 run now verifies exact native path
 construction with the differing current UAL. Its independent raw-packet and
-restoration review passes. Payload read/use and retirement remain open. The
+restoration review passes. This historical path-only result was followed by the
+2026-10-23 small-byte observation above; resource use and retirement remain open. The
 game/build lane was returned after the run; the queued reader then took REA.
 Refresh ownership for the next operation. New receipts:
 `workspace/reports/cditem-execution/20261021-native-path-continuation/`.
@@ -94,6 +94,8 @@ the preceding 24-case preparation evidence remains in
 `workspace/reports/cditem-execution/20261021-package-resource-images/`.
 
 ## Completed work
+
+- 2026-10-23 | CDISO-RE-03 exact small native payload | Unchanged B115 through reviewed caller-v5 returned all 102 expected bytes from the exact 112-byte private archive. Independent review joins six physical captures, source/process/session, native intervals and zero mismatches; original decoder false flags remain unchanged. Exact restoration and closure completed in 39.235 seconds. Both full stock snapshots precede the private operation; no API-success/count, general retirement, resource use, item or save proof follows. The 18-case fixture correction, original failures and prelaunch refusals are retained. Two separate actual-compiler fixture images with distinct 144-byte DDS slices at offset 2704 are prepared but not natively read. All original acceptance states remain unchanged. Evidence: `workspace/reports/cditem-execution/20261021-native-path-continuation/api-source-review/20261023-direct-human-authority/b115-v5-actual-read-independent-review.json`.
 
 - 2026-10-21 | CDISO-RE-03 read-probe qualification | Frozen B115 adds bounded selected Windows-module/code/thunk/export witnesses and retains exact R29/R30/R31 hook-source joins. Independent source review and 69 synthetic checks pass; all four strict native targets compile. Compiled validation passes eight API controls and five pre-call read refusals, while 13 read controls terminate `0xc0000409`; static inspection finds fixture function addresses computed 4 GiB too high while the actual targets are CFG-valid. The separate fixture-only correction needs compiled validation. Own-process/inert checks are unrun, no game/read admission follows, and all 82 source pins remain exact. Compiler resources returned after 13.435s of build/tests. The exact-path milestone and all original acceptance states are retained. Evidence: `workspace/reports/cditem-execution/20261021-native-path-continuation/b115-build-proof/failure-and-resource-release.json`.
 

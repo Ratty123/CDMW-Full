@@ -2,7 +2,7 @@
 
 - Plan ID: `CDRUN`
 - Created: 2026-10-18, Europe/Stockholm.
-- Status: Active execution resumed 2026-10-23. Separate package resource-image preparation and the corrected isolated native-read fixture pass their focused scopes. Actual native registration/resource use, full scenarios and delivery remain incomplete; `native_admission=false`.
+- Status: Active execution resumed 2026-10-23. The exact small native payload read is independently verified. Separate package-image consumption, actual native registration/resource use, full scenarios and delivery remain incomplete; `native_admission=false`.
 - Original execution model: the user's selected GPT-6.1 Sol with Max reasoning, retained as historical context.
 - Current reasoning and research entry point: [the maintained handoff](cditem-astra-pro-handoff.md).
 - Project: `D:\CLAUDETEST\CDMW Full`.
@@ -41,10 +41,57 @@ All seven required Live Edit/FastLoad/UAL files now exist; the installed Live
 Edit pair matches normal v7.240. The four existing FastLoad startup values are
 unchanged; the complete section also records InGameLoads/InGameBackground.
 These are configured startup facts, not a newly observed world transition.
-Caller v3 must join a genuine local capture and the current human authority,
-preserve canonical file containment and the original scope, then pass review
-before the single controlled 102-byte game read. The previous caller remains
-sealed evidence; no old peer declaration is fabricated.
+The reviewed caller-v5 then ran the unchanged 490,496-byte B115 ASI (SHA-256
+`2f2a5b11dc155928ea5254687719ca7f07b2cabb184db83b8724489c4ec66e78`).
+The actual game returned normally and all 102 complemented-buffer bytes match
+SHA-256 `9f15808d20095f7c248b1cf63cc694641d53ddb7113538dda96913508704ce4e`.
+Native size is 112, capacity/request 102 and offset zero. The physical exact-PAZ
+open falls inside the native open interval before the read; all six physical
+captures match retained wires and independently re-decode identically. Selected
+native/Windows guard checks pass before and after. This proves this small-byte
+observation under the documented API assumptions, not exposed API success/count,
+resource-consumer behavior or general retirement. Offline decoder false flags
+remain unchanged; external process/source/physical joins establish capture provenance.
+
+Healthy terminal collection and exact restoration completed in 39.235 seconds,
+including the normal close grace and authorized force-close of the exact owned
+game. The original ASI absence, unique staging removal, selected installed files,
+stock mount and private inputs match; all five owned game/host/controller
+identities are absent. Both full stock snapshots precede the private operation;
+there is no post-read full-stock equality claim. The attempt is consumed.
+
+Exact local result: `run/b115-current-owner-v5/attempt1/read-observation-result.json`,
+55,233 bytes, SHA-256
+`36a9b0d48d23b13040ff12b5678dc919bf2eb3a0370ebed7cb6b45e1d394b4c8`.
+Independent physical/source/controller review:
+`api-source-review/20261023-direct-human-authority/b115-v5-actual-read-independent-review.json`,
+57,711 bytes, SHA-256
+`8fa48f45b99cec3ef716373142b2f9f9434f3291db20773b5218236777055a05`.
+
+Two prelaunch refusals remain preserved: v3 correctly refused a changed historical
+host-manifest pin (the current host and all twelve sources were then independently
+joined); v4 correctly refused installed witnesses in the recovery-source set.
+V5 partitions only the exact seven installed witnesses from recovery inputs while
+retaining all 217 packet pins and all installed prelaunch/restoration checks.
+Seven focused checks include the real recovery preparer on an owned temporary
+217-pin fixture. The original recovery guard and failed attempts are unchanged.
+
+Next, qualify two retained private contexts and full 144-byte DDS reads at offset
+2704 from separate actual-compiler images. Their last byte distinguishes them;
+selected metadata records alone are identical. Constructor global side effects
+and A's survival after B creation need explicit observations. Preparation receipt:
+`20261023-direct-authority/package-byte-images/prepared-package-images.json`,
+14,499 bytes, SHA-256
+`ac28c79f6bd2624a62f1fd6d99e94a80649e0d9698d7ce330dc07ccd7dba620f`.
+These owned synthetic assets do not establish game-resource use or reference closure.
+
+Native definition work now identifies the ItemInfo manager's typed loader,
+reset, setter and clearer slots in the unchanged executable. A passive two-loader
+entry/normal-return witness is being qualified before selecting a publication
+point; source discovery does not establish runtime ordering or reader exclusion.
+The historical ThinkForge goal is cancelled from the earlier pause and cannot
+resume through its available tool; the active Codex goal and these existing
+Markdown owners retain the full objective without a duplicate goal.
 
 ### Paused at user request, 2026-10-22
 

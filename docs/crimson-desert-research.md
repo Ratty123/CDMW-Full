@@ -1381,10 +1381,14 @@ selected API-guard controls passed. This is retained failed isolated validation;
 static inspection locates incorrect computed function addresses in the test
 fixture. The separate fixture-only correction now passes all 18 compiled read
 cases with the actual probe header and CFG unchanged. Actual own-process API
-guards and the unchanged ASI's inactive check also pass. This 2026-10-23
-qualification uses no game or installed file; actual payload delivery remains
-unproved. The initial failed fixture is retained.
-Production admission remains unchanged.
+guards and the unchanged ASI's inactive check also pass. The subsequent
+2026-10-23 controlled game run returned all 102 expected bytes from the exact
+112-byte private archive after normal return. Independent review joins physical
+open/read captures, source and owned process identities; exact restoration
+completed in 39.235 seconds. Both full stock snapshots precede the private
+operation. The initial failed fixture is retained. This fixed byte observation
+does not expose API success/count or prove actual resource consumption, general
+retirement or native item admission. Production admission remains unchanged.
 
 Definition-consumer source review against build `1.0.0.2976` also distinguishes
 typed backing from private-byte routing. The ordinary getter's cold branch
@@ -1392,14 +1396,18 @@ first obtains the stock body Reader; bulk has a distinct direct materializer
 call. Retained real private-cache decoding proves explicit helper calls, while
 central routing of newly owned ordinals remains unproved. The earlier stock
 fetch dependency must also be qualified. This is source evidence, not a new
-game failure or independent-item admission.
+game failure or independent-item admission. Further executable review identifies
+the typed loader, reset and global publication slots. A passive loader witness
+is being qualified to observe publication relative to loading; source discovery
+does not establish runtime ordering or reader exclusion.
 
-The next resource proof must reach the intended bytes and their actual engine
-consumer. The source-qualified small-read diagnostic must now demonstrate the
-exact retained bytes after normal return, with a fresh complemented buffer and
-private objects retained until process exit. That retention does not establish
-production retirement. Then extend the demonstrated route to separate package
-images and join independently owned item definitions in one supported lifecycle. Metadata success, prepared
+The next resource proof extends the demonstrated read to two separate package
+images and then their actual engine consumer. Two actual-compiler fixture images
+are prepared with distinct 144-byte DDS payloads at offset 2704; native reads
+through both retained contexts remain pending. Constructor side effects require
+an explicit recheck of the first context after creating the second. Process
+retention does not establish production retirement. Join these resources and
+independently owned item definitions in one supported lifecycle. Metadata success, prepared
 archive bytes and related Loadouts observations remain separate evidence.
 
 Sources: [resource-admission research and recorded receipt limits][virtual-loader]

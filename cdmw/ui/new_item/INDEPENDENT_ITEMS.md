@@ -1204,9 +1204,36 @@ and ASI. On 2026-10-23 the separate fixture-only runtime-address correction
 passes all 18 compiled cases using the unchanged actual header and CFG. The
 actual own-process API guard reports 3 modules/17 spans/1,949 bytes/8 slots,
 and the unchanged original ASI remains inactive without a session. The complete
-six-step envelope and source/binary pins validate; no game or installation
-was used. Exact native byte delivery, resource use, production retirement and
-item admission remain open.
+six-step envelope and source/binary pins validate; that qualification used no
+game or installation. The original failed fixture remains retained.
+
+The subsequent reviewed caller-v5 game run on 2026-10-23 returned all 102
+expected B93 payload bytes from the exact 112-byte archive, with capacity/request
+102, offset zero and zero mismatches. Independent external review joins all six
+physical captures to the retained wires, actual process/source/session and exact
+PAZ open inside the native interval before read. The selected guards pass before
+and after. The fixed normal-return byte observation is verified under the stated
+API assumptions; AL does not expose terminal API success or transferred count.
+The wire-only decoder's false provenance/execution/API flags remain unchanged.
+Private holders remain process-retained. Exact restoration and owned-process
+closure completed in 39.235 seconds. Both full stock snapshots precede the
+private operation; no post-read full-stock comparison is claimed.
+
+Two distinct actual-compiler fixture images now prepare a 144-byte DDS each at
+offset 2704. Full native reads through two retained contexts remain pending.
+Their selected 20-byte file records are identical; the final payload byte differs.
+Each image has 19 folder/four file records, with the selected file at `files+60`.
+The constructor's global-byte addition requires explicit A-after-B metadata,
+query and path observations before inferring coexistence. These synthetic inputs
+preserve proposed-binding and unresolved-reference limits. Resource-consumer
+use, general retirement and native item admission remain open.
+
+Executable-source review also identifies typed ItemInfo manager loader slots
+and the global setter/clearer. Vtable `+0x08` resets the manager; `+0x20` loads
+definitions. This is not a constructor or reader-exclusion boundary. A passive
+two-loader entry/normal-return witness is being qualified to observe global
+publication relative to loading; actual central backing/routing and safe reader
+lifetime remain unproved.
 
 
 ### Proposed startup admission lifecycle

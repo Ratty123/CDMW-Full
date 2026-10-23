@@ -180,12 +180,25 @@ The next integration must join actual constructed backing, native metadata and
 decoder routing to the same publication discipline. The current
 [concrete I/O source contract](../../../cdmw/ui/new_item/INDEPENDENT_ITEMS.md#native-io-continuation-after-image-preparation)
 now qualifies the bounded normal-return small-read premise. AL success still
-hides terminal errors and actual count; exact native bytes and general
-retirement remain unproved. Native two-item acquisition, equip, restart,
+hides terminal errors and actual count; general retirement remains unproved.
+Native two-item acquisition, equip, restart,
 updates/removal, save reload and missing-provider behavior remain open.
 
 The separately retained small-read correction passed all 18 compiled fixture
 cases on 2026-10-23 with its actual probe header and CFG unchanged. Actual
 own-process API guards and the original ASI's no-session inactive check also
-pass. These isolated results resolve the fixture qualification prerequisite;
-the exact 102-byte game read and actual resource consumption remain unproved.
+pass. The subsequent unchanged B115 game run returned all 102 expected bytes
+from the exact 112-byte private archive. Independent review joins the physical
+open/read captures, source and owned processes; restoration completed in 39.235
+seconds. Both full stock snapshots precede the private operation. This fixed
+byte observation does not establish resource-consumer behavior, API success/count
+or retirement. Two separate actual-compiler images with distinct 144-byte slices
+at offset 2704 are prepared; native two-context reads remain pending.
+
+New executable-source review identifies the ItemInfo manager's typed reset,
+setter, clearer and loader slots. In particular, `+0x08` is reset and `+0x20`
+is loading. A passive two-loader entry/return witness is source-prepared to
+observe global-owner publication relative to loading. It is uncompiled and
+does not establish a safe publication point or reader exclusion. The portable
+paired-publication experiment remains an ordering reference rather than that
+missing native boundary.

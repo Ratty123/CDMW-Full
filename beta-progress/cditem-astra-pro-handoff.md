@@ -1,7 +1,7 @@
 # CDMW .cditem Astra / Pro reasoning handoff
 
 - Created: 2026-10-18, Europe/Stockholm.
-- Status: Active execution resumed 2026-10-23. Separate package resource images and the corrected isolated native-read fixture are verified for their focused scopes. Read the current checkpoint first. Actual native integration remains incomplete, `native_admission=false`.
+- Status: Active execution resumed 2026-10-23. The exact small native payload read is independently verified. Read the current checkpoint first. Separate-image native consumption and actual native integration remain incomplete, `native_admission=false`.
 - Execution entry point: [cditem-execution-goal.md](cditem-execution-goal.md).
 - Feature authority and completion state: [cditem-conflict-isolation-plan.md](cditem-conflict-isolation-plan.md).
 - Shared completed work: [progress.md](progress.md).
@@ -12,18 +12,52 @@
 The user resumed execution and directly authorized the required resources
 without other-session coordination. The
 [current checkpoint](cditem-execution-goal.md#resumed-with-direct-authority-2026-10-23)
-records the actual corrected-fixture/own-process/inert qualification. All 18
-native read cases pass; the unchanged strict ASI and original failed fixture
-are retained. The complete offline envelope is independently revalidated;
-no game payload result or admission follows. Seven pause pins and 100 frozen
-source outputs still match, and all 12 actual session-host source pins match.
+records the corrected-fixture/own-process/inert qualification and subsequent
+actual B115 game read. All 102 bytes match the expected B93 payload after normal
+return. Independent review joins six physical captures, source/process/session,
+exact archive open inside the native interval and the retained output. Closure
+and exact restoration completed in 39.235 seconds. The unchanged strict ASI,
+original failed fixture and both prelaunch caller refusals remain retained.
+No API-success/count, resource-consumer, general retirement or admission follows.
 
 Actual qualification receipt: `b115-fixture-v2-proof/qualification-result.json`,
 SHA-256 `a5bfb836b228a22a9e8e177b1d95f82ae24d59c8f723cc5e47da672c7633651e`.
 The complete envelope SHA-256 is
 `d95e15cf971d556efab268609f8841dea0158cd0f47a56d34f633e12cc6a8689`.
-Current installation facts require a genuine direct-owner capture in caller v3;
-INI values describe configured behavior, not a new observed world transition.
+Caller-v5 binds the genuine direct-owner startup capture and current human
+authority. INI values describe configured behavior, not a world transition.
+Its consumed result is `run/b115-current-owner-v5/attempt1/read-observation-result.json`,
+55,233 bytes, SHA-256
+`36a9b0d48d23b13040ff12b5678dc919bf2eb3a0370ebed7cb6b45e1d394b4c8`.
+Independent review is
+`api-source-review/20261023-direct-human-authority/b115-v5-actual-read-independent-review.json`,
+57,711 bytes, SHA-256
+`8fa48f45b99cec3ef716373142b2f9f9434f3291db20773b5218236777055a05`.
+Both full stock snapshots precede the private operation; no post-read full-stock
+equality claim is made. The wire-only decoder's false provenance/execution/API
+flags stay unchanged; the separate external review supplies the actual capture joins.
+
+Two actual-compiler owned-fixture images are now prepared, one per UUID, with
+different 144-byte DDS slices at offset 2704. Their last byte is the only payload
+discriminator. The selected 20-byte metadata record is identical in both and is
+the fourth of four records; retain each complete group separately. The native
+constructor adds to a global byte, so recheck A's metadata/query/path after B
+creation before reading either. Preparation receipt: 14,499 bytes, SHA-256
+`ac28c79f6bd2624a62f1fd6d99e94a80649e0d9698d7ce330dc07ccd7dba620f`,
+under `20261023-direct-authority/package-byte-images/`. These are synthetic assets;
+native reads, complete resource-reference closure and consumer use remain open.
+
+Fresh executable-source review found the missing global setter `0x14241B770`
+and clearer `0x14241B780`, shared by the typed StaticInfoManager2/ItemInfoManager
+vtables. Slot `+0x08` is reset, not a constructor; `+0x20` is loader
+`0x14241B8D0`. Setter/clearer are `+0x10/+0x18`. Review receipt:
+`api-source-review/20261023-item-owner-rip/item-owner-rip-independent-review.json`,
+35,550 bytes, SHA-256
+`36f7cd182e9fbd2a31c02ac3873ca29e14517d5fa56486995e5685d6caad0fe6`.
+A two-loader passive entry/normal-return witness is source-prepared, not compiled
+or game-run. It must qualify early installation, exact slots/body/CFG, forwarding
+and preserved LastError before runtime ordering can be observed. No all-reader
+exclusion or safe central publication point is established by the source discovery.
 
 Retained local source-only results under the native-path continuation:
 `run/b115-current-owner-v2/source-check-receipt.json` (41 focused checks;
@@ -40,16 +74,17 @@ The current goal is **truly independent content with stable identity**. Continue
 the existing [CDISO goal](cditem-conflict-isolation-plan.md) and
 [CDRUN execution companion](cditem-execution-goal.md). The readable
 [progress snapshot](progress.md#cditem-current-progress) summarizes evidence and
-next steps; it does not create a second acceptance checklist. Current source
-review continued on `main` at `099e9f7e7a5555f07246ab475b399c15215e419c`.
+next steps; it does not create a second acceptance checklist. The retained
+preparation baseline is `main@099e9f7e7a5555f07246ab475b399c15215e419c`;
+the current native-read increment was reviewed at `main@5488e368dff9`.
 
 | Evidence or work | Current status | Meaning for the next step |
 | --- | --- | --- |
 | B106 typed original backing | Retained isolated-native result, 16 cases and 1,458 checks | Join actual prepared primary/expiry/metadata and decoder routing to the lookup maps |
 | B111 fixed-backing append | Retained executed result; 12 pins verified in the preceding increment | New entries can become visible before diagnostic owner count; count-last is not a readiness boundary |
 | Maintained paired-publication experiment | Retained portable C++ run: 41 cases/963 checks; independent source review passes | Common preflight and retained backing are established on owned memory; actual native joins and reader synchronization remain open |
-| B99 metadata lookup | Retained actual-game result with independently verified restoration | Private metadata lookup is settled; native byte delivery and resource use remain open |
-| B109 / current resource-method qualification | Wrapper, concrete open/read/size, size thunk and holder constructor source qualified | Execute the bounded exact-byte discriminator; AL success is not count proof, and general retirement remains open |
+| B99 metadata lookup / B115 small read | Actual-game results with independent capture/restoration review | Exact 102-byte observation is established; separate images and resource use remain open |
+| B109 / current resource-method qualification | Wrapper, concrete methods and bounded 102-byte replay qualified | Extend to two retained contexts/nonzero-offset full payloads; AL is not count proof and general retirement remains open |
 | B112 / B113 path candidate | B112 source-only; B113 exact actual path independently reviewed through v5 | Preserve the first incomplete run; use the verified exact B93 archive for the separate payload read |
 | Exact path evidence review | Maintained offline tool; retained 52-test and B93/B98 preparation results | Exact small archive and payload expectation are available for the next path/open/read experiment |
 | Per-package resource images | New service and diagnostic CLI; 24 focused cases verified with actual compiler fixtures | Separate immutable image bytes and reservation provenance are ready as research inputs; native consumption remains open |
@@ -86,8 +121,9 @@ The preceding publication evidence remains in
 `workspace/reports/cditem-execution/20261021-publication-readiness/`.
 Earlier archive-review/goal evidence remains in
 `workspace/reports/cditem-execution/20261021-independent-content-start/`.
-The active durable goal is `goal_d5b01b2303ab9a85`. Keep that goal and the
-Markdown snapshot aligned.
+The historical ThinkForge goal `goal_d5b01b2303ab9a85` remains cancelled from
+the earlier pause; the available resume operation refuses it. Continue the
+active Codex goal and these Markdown owners with the same full acceptance scope.
 
 The [image preparation contract and diagram](../cdmw/ui/new_item/INDEPENDENT_ITEMS.md#per-package-resource-image-preparation)
 describe one immutable PAPGT/PAMT/PAZ image per UUID, exact current-resource
@@ -116,18 +152,16 @@ The owning technical contract records the source/API assumptions and refusals.
 
 ### Immediate engineering sequence
 
-1. Continue from the verified exact B93 path. B115 source/API/hook joins and
-   69 synthetic checks pass, and all four strict targets compile. The compiled
-   read controls fail after the simulated getter boundary; eight API controls
-   and five pre-call read refusals pass. Static inspection finds fixture function
-   addresses computed 4 GiB too high; actual targets are CFG-valid. Preserve the
-   source/binary/failure and qualify a separately versioned fixture-only runtime
-   address correction with the same header and CFG. Own-process/inert and final bounded-caller checks remain
-   before any actual 102-byte read. Fresh compiler/game/pair/quiet handoffs are
-   required; no old window or pair is adopted automatically.
+1. Extend the independently verified B115 small read to both prepared package
+   images, keeping two retained contexts, exact complete metadata and full
+   144-byte slices at offset 2704. Observe constructor side effects and A's
+   survival after B creation. Preserve the consumed C attempt and old wire;
+   qualify a separately versioned producer/decoder/caller before a new game run.
 2. Use the maintained paired-publication experiment as the ordering/lifetime
    baseline. Join actual B106 backing, metadata and decoder routing to both
    native maps, then qualify the real consumer boundary and failure/lifetime.
+   First qualify the two-loader passive witness to observe whether the global
+   owner already points at an incompletely loaded ItemInfo manager.
 3. Join definitions and resources, establish first-instance acquisition, and run
    two same-donor packages through the native lifecycle and save scenarios.
 

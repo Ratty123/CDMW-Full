@@ -9,7 +9,7 @@
 - Completion log: [progress.md](progress.md)
 - Initial reviewed branch: RR/independent-item-packages.
 - Initial reviewed HEAD: d4b38e5082d4f9b4b4cce14f9ee2ecdb37994aaf, with concurrent uncommitted work.
-- Current source review: 2026-10-21, main at 099e9f7e7a5555f07246ab475b399c15215e419c.
+- Retained preparation baseline: 2026-10-21, main at 099e9f7e7a5555f07246ab475b399c15215e419c. The current native-read increment was reviewed on 2026-10-23 at main@5488e368dff9.
 - Current authorization: The user resumed execution with direct authority to use REA and other required resources, without contacting other sessions or requesting routine input. Preserve the full acceptance conditions, exact process/file guards and recovery; no historical session grant is replayed. See the [current checkpoint](cditem-execution-goal.md#resumed-with-direct-authority-2026-10-23).
 
 ## Goal
@@ -26,7 +26,7 @@ The game can still have central in-memory registries. Unique, independently owne
 
 ## Current status and next steps
 
-Reviewed on **2026-10-21** against `main@099e9f7e7a5555f07246ab475b399c15215e419c`, retained native evidence and the new per-package resource preparation. The 24 focused cases use the actual compiler on owned fixtures. Historical game experiments and the unchanged 41-case C++/52-case path-review checks were not rerun.
+Preparation baseline reviewed on **2026-10-21** against `main@099e9f7e7a5555f07246ab475b399c15215e419c`; the 24 focused cases use the actual compiler on owned fixtures. The **2026-10-23** native-read increment below uses its own current source/capture/restoration review. Unchanged 41-case C++/52-case path-review checks and historical game experiments were not rerun.
 
 **Overall status: implementation in progress; native independence is not admitted.** Existing UUID/binding work remains completed. Native definitions, private payload use and the native save lifecycle still need their own proof.
 
@@ -36,8 +36,8 @@ Reviewed on **2026-10-21** against `main@099e9f7e7a5555f07246ab475b399c15215e419
 | Resource ownership and donor independence | Supported private material/DDS references and proven donor-row detachment | Close every required explicit/implicit reference for the selected family and prove native consumption | `CDISO-RES-01`, `CDISO-DEP-01` |
 | Native definition registration | Recorded B84 extra-row game experiment; B106 typed backing and B111 selected-reader experiments | Join actual backing, metadata and decoder routing to both native maps; qualify all affected consumers and lifetime | `CDISO-RE-02` |
 | Paired publication and ownership | Retained portable C++ experiment: 41 cases, 963 checks; common preflight and retained backing pass | Transfer the demonstrated ordering to actual native storage and a qualified reader boundary; both lookups/resources here are modeled | `CDISO-RE-02A` |
-| Native private resources | Recorded B99 metadata lookup; B109 wrapper plus current concrete open/read/size/holder source qualification | Demonstrate exact private bytes, actual resource use and retirement; normal-return source inference is not live I/O proof | `CDISO-RE-03` |
-| Exact private archive expectation | Maintained offline checker and independently reviewed B113 actual exact-path capture | Carry the same archive/payload identity into the small native read; byte delivery and use remain open | `CDISO-RE-03A` |
+| Native private resources | B99 metadata lookup and independently reviewed B115 game read: all 102 expected bytes after normal return | Extend to separate package images, actual resource use and retirement; AL does not expose API success or transferred count | `CDISO-RE-03` |
+| Exact private archive expectation | Maintained offline checker, reviewed B113 actual path and B115 physical open/read joins | Preserve exact per-image archive and payload identity in the larger native route | `CDISO-RE-03A` |
 | Separate package resource images | New actual compiler preparation; 24 focused cases verified, including exact bytes, retained profiles and independent updates | Consume the exact images through a qualified native route; shared definitions and unresolved resource edges remain outside them | `CDISO-RE-03B` |
 | Per-package native backend | Design and isolated research; current shipped package routes still compose | Admit complete owned contributions without combined game tables, indexes or archive carriers | `CDISO-DECIDE-01`, `CDISO-RUN-01` |
 | Coexistence and persistence | Existing ownership refusal rules and bounded composed-route save observations | Native two-item acquisition/equip/reload/update/removal, compatible external mods and separately evidenced missing-provider behavior | `CDISO-COEX-01`, `CDISO-LIFE-01`, `CDISO-VERIFY-01` |
@@ -45,8 +45,8 @@ Reviewed on **2026-10-21** against `main@099e9f7e7a5555f07246ab475b399c15215e419
 
 ### Immediate engineering sequence
 
-1. Continue from the verified B113 exact private archive path. The separate B115 small-read source and selected Windows/API-hook interpretation now pass independent review; strict compilation passes, but compiled read controls fail after the simulated getter boundary. Static inspection finds fixture function targets computed 4 GiB too high; qualify a separately versioned fixture-only runtime-address correction without weakening guards. Preserve the failed source/build and passing selected API controls. Complete native fixture, own-process, inert and bounded caller qualification before the actual B93 112-byte archive/102-byte payload run. AL success alone is insufficient; retain private objects until exit and extend to separate package images only after exact byte delivery.
-2. Use the new paired-publication experiment as the ordering/lifetime baseline. Join actual B106 primary-cell backing, private metadata and decoder routing before either native map exposes a new entry. Qualify the game reader boundary and failure/lifetime behavior; the portable model does not establish those contracts.
+1. Continue from the independently reviewed B115 game read on 2026-10-23: all 102 expected bytes from the exact 112-byte B93 archive, normal return and zero mismatches. The corrected fixture passes all 18 cases with the actual header/CFG unchanged; the original failure remains retained. Extend through two separate actual-compiler package images, each with a distinct 144-byte DDS at offset 2704. Full native reads, second-context survival and actual resource consumption remain to prove; AL alone is insufficient and private objects remain retained until exit.
+2. Use the paired-publication experiment as the ordering/lifetime baseline. Join actual B106 primary-cell backing, private metadata and decoder routing before either native map exposes a new entry. New executable-source review identifies the typed loader/reset/publication slots; observe loader entry/return before choosing an integration point. Native publication ordering, reader exclusion and lifetime remain unproved.
 3. Join definitions and resources in one startup-scoped native contribution, then exercise two independently authored same-donor packages with distinct private assets through acquisition, equip, restart and save reload.
 4. Extend only from that demonstrated scope. Keep native missing-provider save behavior, ordinary maintenance and any unresolved resource family explicitly open.
 
@@ -161,7 +161,7 @@ The user has authorized implementation and asks for a maintained high-level goal
 
 Twenty-four focused cases are verified: 23 passed initially; one cancellation-message assertion was corrected to the existing exception type and its targeted rerun passed. The service and CLI were unchanged. Both archive and default virtual contexts, byte equality, A-only updates preserving B, retained ordering, removal/reinstall, actual profile transfer and corruption/drift refusals are covered. Independent source and identity reviews pass. Evidence: `workspace/reports/cditem-execution/20261021-package-resource-images/`. Native engine calls, resource use, reference closure and admission remain false.
 
-The native source step is blocked in this session: no callable REA provider or current source/provider handoff is available. The fresh read-only census found no Java, game or compiler process; two Codex processes remained unidentified. A quiet census is not a grant. Only Python-owned synthetic fixtures were used; no shared native compiler/provider, actual game installation or save was used.
+The 2026-10-21 session lacked a callable REA provider and current source/provider handoff. That dated blocker was resolved under the user's direct authority on 2026-10-23; current source continuity and a bounded actual game read are recorded in the execution checkpoint. The earlier preparation itself used only owned fixtures and did not use a game installation or save.
 
 **Retained bounded result, CDISO-RE-02A:** A maintained [paired-publication experiment](../native/cdmw_virtual_loader/research/README.md) passes 41 cases and 963 checks under address/undefined-behavior sanitizers in an isolated Linux workspace. One owner retains both maps, modeled rows/metadata/routes and resource bytes. Both maps and concrete backing validate before the first store; recursive publication refuses without cleanup. A retained-source reproducer confirms that sequential B111 calls can publish the first map before the second refuses. Source review also identified B111 observer reentry as a premature-cleanup hazard.
 
