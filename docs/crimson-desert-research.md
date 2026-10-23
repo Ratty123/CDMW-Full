@@ -1486,8 +1486,8 @@ staging are now observed with stock counts/maps unchanged. Unpublished pair
 preparation passes ten owned native cases, five physical encoder channels
 and independent emitted-code review. Its controlled game capture now also
 produces both complete unpublished maps, with public maps/counts unchanged;
-root physical/source/restoration checks pass. Independent actual review is
-pending before joining getter/bulk with coherent
+root physical/source/restoration checks and independent actual review pass.
+Joining getter/bulk still requires coherent
 maps, failure-stop and lifetime. Complete source review
 explains stock eager materialization and the later auxiliary-state/link checks.
 Expiry zero permits sampled eviction; eager loading cannot replace private
