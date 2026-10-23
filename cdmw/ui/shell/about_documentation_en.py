@@ -473,6 +473,7 @@ class AboutDocumentationEnglishMixin:
                 <h4>Rig &amp; Weights</h4>
                 <p>Rig &amp; Weights is temporarily hidden from the tool rail. Its implementation is retained.</p>
                 <h4>Morph &amp; Refit</h4>
+                <p>Open Parts on hover, beside Part colors in Morph &amp; Refit, opens the Parts list when you hover a visible surface. Turn it off to keep closed panels closed; open lists still highlight and reveal matching names. Selection and pending fitting edits stay unchanged.</p>
                 <p>For an existing item, start with Modify Original. Load or assign the body driver, load the garments, select their parts and bind them. Inspect the fit at cuffs, underarms, belts and thin trim. Reset discards a preview; Bake keeps it. Refit changes geometry, not the skeleton or animation.</p>
                 <p>Fit to body previews every bound garment in Surface mode at 100% intensity, with at least 0.1% clearance. No body slider is required. Reset discards the preview; Bake keeps it.</p>
                 <p>Large fits and body-slider changes can take up to 90 seconds. Inspect cuffs, underarms, belts and thin trim before baking; complex folds can still need manual adjustment. Undo a poor bake or reload the original meshes before fitting again.</p>

@@ -2061,8 +2061,11 @@ Hovering a Part name temporarily highlights its visible geometry in cyan, includ
 obscured surfaces, without changing the selection or fitting targets. This also works
 with Part colors off; leaving the name clears the hover tint. Hidden Parts and islands
 stay hidden, and comparison views keep their own display. Hovering a surface in the
-viewport also opens the Parts list, expanding Inspector or switching from Mesh
-islands when needed. It outlines matching Part names in cyan and scrolls them into
+viewport also opens the Parts list when **Open Parts on hover**, beside **Part
+colors**, is enabled (the default). Turn it off to keep closed panels closed.
+The choice is saved with the editor layout when remembering panel sizes is enabled.
+With automatic opening enabled, Inspector expands or switches from Mesh islands
+when needed. Hover outlines matching Part names in cyan and scrolls them into
 view in open lists. It moves only enough to reveal a name and keeps an already visible
 match in place, including fit warnings. It uses the frontmost visible surface,
 keeps selection and fitting edits, and clears over empty space or during drags.

@@ -82,7 +82,7 @@ def test_export_output_stays_in_the_named_folder_and_check_detects_stale_page(tm
 
 
 @pytest.mark.parametrize("language", BUILTIN_LANGUAGES, ids=lambda language: language.code)
-def test_in_app_browser_renders_the_expanded_guides_in_each_locale(tmp_path, language):
+def test_in_app_browser_renders_the_expanded_guides_in_each_locale(tmp_path, language, wiki_pages):
     from PySide6.QtWidgets import QApplication
     from cdmw.ui.localization import UiLocalizer
     from cdmw.ui.shell.about_documentation_en import AboutDocumentationEnglishMixin
@@ -111,6 +111,11 @@ def test_in_app_browser_renders_the_expanded_guides_in_each_locale(tmp_path, lan
                 "Start with a template from the same equipment family. Keep its original model for a first test, set a name, choose one supported shop route, then build a separate package. This checks identity and distribution before you add imported geometry, materials or effects."
             )
             assert localizer.translate(source_paragraph) in body
+            if topic == "mesh_editor":
+                hover_guide = "Open Parts on hover, beside Part colors in Morph & Refit, opens the Parts list when you hover a visible surface. Turn it off to keep closed panels closed; open lists still highlight and reveal matching names. Selection and pending fitting edits stay unchanged."
+                translated = localizer.translate(hover_guide)
+                assert translated in body
+                assert translated in wiki_pages[page_slug("Mesh-Editor", language.code) + ".md"]
         assert "_CDMW_VERTEX_ID" in dialog.browser.toPlainText()
     finally:
         localizer.shutdown()

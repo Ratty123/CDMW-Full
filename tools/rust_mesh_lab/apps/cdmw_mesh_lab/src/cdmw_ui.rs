@@ -413,7 +413,7 @@ pub(crate) mod numeric {
 }
 
 pub(super) mod layout {
-    //! Presentation-only geometry. The host persists it in its existing user cfg.
+    //! Presentation-only layout and preferences, persisted in the existing user cfg.
 
     use egui::{Context, Id, Pos2, Rect, containers::panel::PanelState};
     use serde_json::{Value, json};
@@ -451,6 +451,9 @@ pub(super) mod layout {
         if value["floating"].is_object() {
             values["floating"] = value["floating"].clone();
         }
+        if let Some(enabled) = value["auto_open_parts_on_hover"].as_bool() {
+            values["auto_open_parts_on_hover"] = json!(enabled);
+        }
         context.data_mut(|data| {
             data.insert_temp(
                 state_id(),
@@ -459,6 +462,20 @@ pub(super) mod layout {
                     dirty: false,
                 },
             )
+        });
+    }
+
+    pub(crate) fn auto_open_parts_on_hover(context: &Context) -> bool {
+        context.data_mut(|data| data.get_temp::<Layout>(state_id()).unwrap_or_default()
+            .values["auto_open_parts_on_hover"].as_bool().unwrap_or(true))
+    }
+
+    pub(crate) fn set_auto_open_parts_on_hover(context: &Context, enabled: bool) {
+        context.data_mut(|data| {
+            let mut layout = data.get_temp::<Layout>(state_id()).unwrap_or_default();
+            layout.values["auto_open_parts_on_hover"] = json!(enabled);
+            layout.dirty = true;
+            data.insert_temp(state_id(), layout);
         });
     }
 
@@ -575,6 +592,25 @@ pub(super) mod layout {
                 .size()
                 .x;
             assert!((f64::from(width) - saved[PANELS[0]].as_f64().unwrap()).abs() < 1.0);
+        }
+
+        #[test]
+        fn auto_open_parts_on_hover_round_trips_and_defaults_to_enabled() {
+            let context = Context::default();
+            assert!(auto_open_parts_on_hover(&context));
+            restore(&context, &json!({"auto_open_parts_on_hover": "false"}));
+            assert!(auto_open_parts_on_hover(&context));
+            restore(&context, &json!({PANELS[0]: 310.0, "floating": {"Viewport": [120.0, 180.0]}}));
+            for enabled in [false, true] {
+                set_auto_open_parts_on_hover(&context, enabled);
+                let saved = changed(&context).expect("preference change must be saved");
+                assert_eq!(saved[PANELS[0]], json!(310.0));
+                assert_eq!(saved["floating"]["Viewport"], json!([120.0, 180.0]));
+                let reopened = Context::default();
+                restore(&reopened, &saved);
+                assert_eq!(auto_open_parts_on_hover(&reopened), enabled);
+                assert!(changed(&reopened).is_none());
+            }
         }
 
         #[test]

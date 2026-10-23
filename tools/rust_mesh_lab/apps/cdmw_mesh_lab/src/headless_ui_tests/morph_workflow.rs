@@ -436,6 +436,7 @@ fn workflow_viewport_part_hover_scroll_cancels_stale_targets_and_yields_to_manua
     ui.application.cdmw_bridge = Some(CdmwBridge::for_test(root.path().to_path_buf(), "hover-scroll", 2, 0));
     ui.reveal("2 · Sleeve")?;
     ui.reveal("1: Sleeve")?;
+    ui.settle_layout();
     let first = viewport_part_point(&ui, 1)?;
     let last = viewport_part_point(&ui, 59)?;
     assert!(ui.label_rect("60 · Piece 59").is_none());
@@ -528,6 +529,73 @@ fn workflow_viewport_part_hover_opens_closed_parts_and_keeps_selection_and_fit_e
         ui.settle_layout();
         assert!(ui.label_rect("Back to Inspector").is_none(), "closing from the Inspector must remain possible");
     }
+    Ok(())
+}
+
+#[test]
+fn workflow_viewport_part_hover_toggle_preserves_closed_panels_and_open_list_feedback() -> TestResult {
+    for closed in ["Inspector", "Collapsed", "Mesh islands"] {
+        let mut ui = long_part_hover_ui()?;
+        let root = tempdir()?;
+        ui.application.cdmw_bridge = Some(CdmwBridge::for_test(root.path().to_path_buf(), "hover-toggle", 2, 0));
+        assert!(crate::cdmw_layout::auto_open_parts_on_hover(&ui.application.egui_context));
+        assert!(ui.actions_from_click("Open Parts on hover")?.is_empty());
+        assert!(!crate::cdmw_layout::auto_open_parts_on_hover(&ui.application.egui_context));
+        if closed == "Mesh islands" {
+            ui.click("Mesh islands")?;
+        } else {
+            ui.click("Back to Inspector")?;
+            if closed == "Collapsed" {
+                let collapse = ui.sidebar_button("Collapse Inspector").ok_or("collapse")?;
+                ui.click_at(collapse.rect.center());
+                ui.settle_layout();
+            }
+        }
+        let state = ui.application.cdmw_state.clone();
+        let mesh = ui.application.mesh.as_ref().ok_or("mesh")?.clone();
+        let viewport = ui.application.viewport_rect;
+        ui.last_actions.clear();
+        ui.frame(vec![Event::PointerMoved(viewport_part_point(&ui, 59)?)]);
+        ui.settle_layout();
+        assert_eq!(ui.application.viewport_rect, viewport, "disabled hover must not expand a sidebar");
+        assert!(part_name_has_viewport_outline(&ui, "60 · Piece 59"), "open fitting lists must still reveal and identify Parts");
+        assert!(ui.label_rect("59: Piece 59").is_none());
+        if closed == "Mesh islands" {
+            assert!(ui.application.egui_context.data_mut(|data| data
+                .get_temp::<bool>(egui::Id::new("cdmw_parts_panel_islands")).unwrap_or(false)));
+        } else {
+            assert!(ui.label_rect("Back to Inspector").is_none());
+        }
+        if closed == "Collapsed" { assert!(ui.sidebar_button("Expand Inspector").is_some()); }
+        ui.click("Open Parts on hover")?;
+        ui.frame(vec![Event::PointerMoved(viewport_part_point(&ui, 59)?)]);
+        ui.frame(Vec::new());
+        ui.frame(vec![Event::PointerMoved(viewport_part_point(&ui, 59)?)]);
+        ui.settle_layout();
+        assert!(part_name_has_viewport_outline(&ui, "59: Piece 59"), "re-enabling must restore automatic opening");
+        assert_eq!(ui.application.cdmw_state, state);
+        let current = ui.application.mesh.as_ref().ok_or("mesh")?;
+        assert_eq!(current.selection, mesh.selection);
+        assert_eq!(current.selection_revision, mesh.selection_revision);
+        assert_eq!(current.structural_fingerprint(), mesh.structural_fingerprint());
+        assert_eq!(ui.application.cdmw_refit_clearance, 0.75);
+        assert!(ui.application.cdmw_refit_settings_dirty.is_dirty());
+        assert!(ui.last_actions.is_empty());
+        assert!(ui.application.cdmw_pending_request.is_none());
+    }
+    Ok(())
+}
+
+#[test]
+fn workflow_part_hover_toggle_remains_available_without_a_morph_runtime() -> TestResult {
+    let mut ui = mixed_refit_ui(&[2])?;
+    ui.application.cdmw_state["morph_refit"]["available"] = json!(false);
+    ui.frame(Vec::new());
+    assert!(ui.label_rect("Open Parts on hover").is_some());
+    assert!(ui.actions_from_click("Open Parts on hover")?.is_empty());
+    assert!(!crate::cdmw_layout::auto_open_parts_on_hover(&ui.application.egui_context));
+    assert_eq!(ui.application.selected_part_indices(), vec![2]);
+    assert!(ui.application.cdmw_pending_request.is_none());
     Ok(())
 }
 

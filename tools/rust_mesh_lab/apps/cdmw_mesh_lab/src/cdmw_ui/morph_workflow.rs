@@ -41,6 +41,7 @@ impl LabApplication {
             .cloned()
             .unwrap_or(Value::Null);
         if state.get("available").and_then(Value::as_bool) == Some(false) {
+            self.draw_cdmw_part_hover_option(ui);
             ui.colored_label(
                 REFIT_ARMOR_COLOUR,
                 crate::localization::tr(
@@ -81,6 +82,7 @@ impl LabApplication {
             self.set_cdmw_display_mode(if part_colours { ViewMode::PartId }
                 else { self.cdmw_part_colours_previous_mode });
         }
+        self.draw_cdmw_part_hover_option(ui);
         ui.separator();
         if let Some(failure) = state_str(&state, "failure").filter(|value| !value.trim().is_empty())
         {

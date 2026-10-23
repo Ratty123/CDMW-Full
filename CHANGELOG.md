@@ -19,6 +19,7 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 ### Changed
 
+- Morph & Refit adds an Open Parts on hover toggle. Turning it off keeps closed panels closed while open lists continue highlighting and revealing matching names.
 - Mesh Editor groups its Finish actions, distinguishes Resume current edit from Start next edit pass, and adds clickable help. Overlay restoration is removed from this page.
 - Create New Item re-enables DMM export for testing with updated DMM versions. In-game item and texture compatibility remains unverified.
 - Settings lists all ignored folders together and lets you remove any default. Archive scans also ignore `dmmsa`, `dmmgen` and `CrimsonFastLoad.backup` by default, while preserving saved custom exclusions.
