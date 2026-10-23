@@ -294,16 +294,24 @@ builders account for the file's lower-detail-to-higher-detail section arrangemen
 while maintaining the corresponding offsets and size records. A file that
 renders once is not enough to establish that every later LOD/reload path is valid.
 
-Scoped source review on 2026-10-23 against `9d542c85799e` plus the LOD-mapping
-correction found a fixed four-section assumption in the Python PAC readers and
-position-edit bounds preservation. Owned two-LOD fixtures returned no geometry;
-three-LOD fixtures with different stored detail counts returned fewer vertices
-and faces than their declared LOD0. The readers, descriptor-prefix checks and
-lower-LOD position updates now use the declared count. An independent binary
-reader confirms the fixture part/detail counts. Focused read, no-edit rebuild,
-and bounds-expansion checks retain source-record ownership and protected vertex
-bytes across two, three and four LODs. This is source and owned-fixture evidence;
-packaged rendering, new layout support and in-game acceptance are not established.
+Read-only asset review on 2026-10-24, confirmed by `6cbd9bce` against game
+`1.0.0.2976` (Steam build `25477059`), corrected the 2026-10-23 fixture-only
+interpretation in `8bbb2751`: the declared LOD count does not identify LOD0's
+physical section slot. Three inspected three-LOD game PACs retain slots 4/3/2;
+the earlier count-only change made them load empty. Readers, descriptor-prefix
+validation, cloth LOD inspection and supported edit/rebuild paths now distinguish
+reserved slots from the count, while retaining compact authored layouts.
+
+Of 150 sampled PACs from package `0009`, 147 declared four LODs and three declared
+three. Detailed checks on 33 models retained byte-identical no-edit output.
+Six bounds-expanding edits preserved lower-LOD positions within quantization and
+packed skin/normal/UV records. The three real three-LOD models also passed full
+rebuild and exact LOD0 face-deletion readback with lower sections retained.
+CDKit 0.3.0 independently read the selected source/edited geometry counts and
+the three topology outputs. Two-LOD coverage remains owned-fixture evidence.
+PAMT and re-read selected payload hashes were unchanged; PAZ size/timestamps were
+unchanged, without full-container PAZ hashing. These are headless asset and writer
+checks, not packaged viewport appearance, cloth simulation or in-game acceptance.
 
 Exact authoring is selected by format, LOD and operation. The proven exact
 topology path is LOD0; lower LODs are not granted arbitrary topology editing.
@@ -1107,6 +1115,23 @@ Bare inline-emitter labels are not automatically external
 `effect/binary__/emitter/<name>.paem` dependencies. Explicit `emitter/...`
 paths and inherited PAEM type references still require real resources.
 Suppressing all missing-emitter checks would conceal a different class of error.
+
+Scoped headless review on 2026-10-24 used the installed `1.0.0.2976` resources
+(Steam build `25477059`) and the existing preview services at `6cbd9bce`.
+Eleven effects decoded, and all 39 render-enabled emitters agreed with CDKit
+0.3.0 on burst counts and lifetimes after applying CDMW's existing minimum/range
+guard. Disabled emitters were excluded explicitly; display labels on fully inline
+`EmitterData` objects were not treated as missing inherited files. Four placement
+packages validated, and the existing read-only proof prepared weapon, armour and
+accessory effect grafts. All PAMT and 66 re-read source payload hashes, plus PAZ
+size/timestamps, were unchanged; whole PAZ hashes were not calculated.
+
+This establishes decoded values and package structure, not preview pixels.
+The current windowless material-capture entry point does not execute the particle
+overlay simulation. The inspected effects still expose unavailable particle
+geometry and unsupported spawn shapes through their normal diagnostics. No
+additional rendering change was justified by this comparison; visible animation,
+carrier/sub-emitter scheduling and game parity remain unverified.
 
 Sources: [effect reflection reader][effect-binary], [constrained writer][effect-edit],
 [dependency and authoring contracts][independent-items], [binary tests][effect-tests].

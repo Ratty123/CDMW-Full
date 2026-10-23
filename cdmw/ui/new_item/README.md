@@ -1232,6 +1232,11 @@ Effect support is structural rather than equipment-name based: the service dry-r
 real component graft against every prefab the item will own, accepts only an all-target
 success, and never edits a shared borrowed prefab.
 
+Headless effect decoding and placement-package validation check source values,
+dependencies and package structure. The windowless material-capture command does
+not run the particle overlay simulation. These checks cannot establish the
+animated preview's appearance or the effect's behaviour in the game.
+
 The Effects tab uses 24 px virtualized table rows with the specific variant before its
 source family, reviewed word splits, preserved numeric suffixes and visible Category,
 Type and approximate Size columns; the exact stem stays searchable and appears in
