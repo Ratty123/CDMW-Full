@@ -6,7 +6,7 @@ use cdmw_interaction::{
     SculptTool, SelectionDomain, SelectionOperation, SelectionQuery, SelectionQueryStats,
     SelectionShape, query_selection, query_selection_with_stats, selection_after_operation,
 };
-use cdmw_mesh::{History, MeshError, Provenance, Selection, VertexHandle, WorkingMesh};
+use cdmw_mesh::{DrawSnapshot, History, MeshError, Provenance, Selection, VertexHandle, WorkingMesh};
 use egui::Rect;
 use glam::{Vec2, Vec3};
 use std::collections::{BTreeMap, HashMap, HashSet, VecDeque};
@@ -556,6 +556,27 @@ pub struct ProjectedVertex {
     pub screen: Vec2,
     pub depth: f32,
     pub inside_view: bool,
+}
+
+/// Colour actual Parts, including Parts that share materials or contain generated faces.
+pub fn part_colour_snapshot(
+    mesh: &WorkingMesh, visible: Option<&HashSet<u32>>, snapshot: &DrawSnapshot,
+) -> Vec<[f32; 4]> {
+    let elements = visible.map(|parts| mesh.element_handles_for_submeshes(parts));
+    let mut colours = vec![[0.0; 4]; snapshot.positions.len()];
+    let mut palette = HashMap::new();
+    let faces = mesh.faces().filter(|(handle, _)|
+        elements.as_ref().is_none_or(|elements| elements.faces.contains(handle)));
+    for ((_, face), triangle) in faces.zip(snapshot.indices.chunks_exact(3)) {
+        let colour = *palette.entry(face.submesh).or_insert_with(|| {
+            let hue = (f64::from(face.submesh) * 0.618_033_988_749_895).fract() as f32;
+            egui::ecolor::Hsva::new(hue, 0.65, 0.95, 0.88).to_rgba_unmultiplied()
+        });
+        for index in triangle {
+            colours[*index as usize] = colour;
+        }
+    }
+    colours
 }
 
 #[derive(Debug)]

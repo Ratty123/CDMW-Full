@@ -127,18 +127,27 @@ pub async fn verify_face_selection_depth() -> Result<(), RenderError> {
         ("weight gradient", false, 0.6, false),
         ("lit region", false, 0.6, true),
         ("shaded region", false, 0.6, true),
+        ("part colors", false, 0.6, true),
         ("refit warning", false, 0.6, false),
         ("refit warning cleared", false, 0.6, false),
         ("refit selection cleared", false, 0.6, true),
     ] {
-        let tinted = label == "lit region" || label == "shaded region";
+        let tinted = matches!(label, "lit region" | "shaded region" | "part colors");
         let tint_buffer = tinted.then(|| {
-            let vertices = occluder_positions.map(|position| {
+            let mut vertices = occluder_positions.map(|position| {
                 let mut vertex = GpuVertex::overlay(Vec3::from_array(position));
-                vertex.normal = [0., 0., if label == "lit region" { -1. } else { 1. }];
+                vertex.normal = [0., 0., if label == "shaded region" { 1. } else { -1. }];
                 vertex.deformation = [1., 0.35, 0.06, 0.6];
                 vertex
-            });
+            }).to_vec();
+            if label == "part colors" {
+                let second = vertices.iter().copied().map(|mut vertex| {
+                    vertex.position[0] += 1.0;
+                    vertex.deformation = [0.06, 0.35, 1.0, 0.88];
+                    vertex
+                }).collect::<Vec<_>>();
+                vertices.extend(second);
+            }
             device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
                 label: Some("physics region proof"),
                 contents: bytemuck::cast_slice(&vertices),
@@ -209,7 +218,7 @@ pub async fn verify_face_selection_depth() -> Result<(), RenderError> {
                 &occluder_pipeline
             });
             pass.set_vertex_buffer(0, tint_buffer.as_ref().unwrap_or(&occluder_buffer).slice(..));
-            pass.draw(0..6, 0..1);
+            pass.draw(0..if label == "part colors" { 12 } else { 6 }, 0..1);
             selection.draw(&mut pass, &material.bind_group, &camera_binding, xray);
             warning.draw(&mut pass, &material.bind_group, &camera_binding, true);
         }
@@ -245,6 +254,14 @@ pub async fn verify_face_selection_depth() -> Result<(), RenderError> {
                 return Err(RenderError::InvalidOverlay(format!(
                     "refit warning did not stay independent of edit selection: {label}, left={left_red}, right={right_red}"
                 )));
+            }
+            continue;
+        }
+        if label == "part colors" {
+            let left_blue = pixels[(24 * 32 + 10) * 4];
+            let right_blue = pixels[(24 * 32 + 22) * 4];
+            if left_red <= left_blue.saturating_add(40) || right_blue <= right_red.saturating_add(40) {
+                return Err(RenderError::InvalidOverlay("Part colors lost their distinct surface tints".into()));
             }
             continue;
         }

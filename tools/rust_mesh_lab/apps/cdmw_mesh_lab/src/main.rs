@@ -2142,6 +2142,8 @@ struct LabApplication {
     show_bones: bool,
     deformation_heatmap_enabled: bool,
     deformation_heatmap_applied: bool,
+    cdmw_part_colours_applied: bool,
+    cdmw_part_colours_previous_mode: ViewMode,
     deformation_reference: Option<PersistentDeformationReference>,
     overlay_wire_colour: Color32,
     overlay_vertex_colour: Color32,
@@ -2323,6 +2325,8 @@ impl LabApplication {
             show_bones: false,
             deformation_heatmap_enabled: true,
             deformation_heatmap_applied: true,
+            cdmw_part_colours_applied: false,
+            cdmw_part_colours_previous_mode: ViewMode::TexturedSolid,
             deformation_reference: None,
             overlay_wire_colour: Color32::from_rgb(105, 125, 155),
             overlay_vertex_colour: Color32::from_gray(205),
@@ -3769,14 +3773,19 @@ impl LabApplication {
                 Err(error) => gpu_errors.push(error.to_string()),
             }
             let snapshot = mesh.draw_snapshot();
-            let deformation_reference = deformation_reference_for_snapshot(
+            let part_colours = (self.cdmw_bridge.is_some() && self.view_mode == ViewMode::PartId)
+                .then(|| viewport::part_colour_snapshot(&mesh, None, &snapshot));
+            let deformation_reference = if part_colours.is_none() { deformation_reference_for_snapshot(
                 self.deformation_heatmap_enabled,
                 self.deformation_reference.as_mut(),
                 None,
                 &snapshot,
-            );
-            if let Err(error) =
+            ) } else { None };
+            if let Err(error) = if let Some(colours) = &part_colours {
+                renderer.set_snapshot_with_vertex_colours(&snapshot, colours)
+            } else {
                 renderer.set_snapshot_with_deformation(&snapshot, deformation_reference)
+            }
             {
                 gpu_errors.push(format!("mesh upload failed: {error}"));
             }
@@ -5472,32 +5481,7 @@ impl LabApplication {
         self.ensure_deformation_reference();
         self.refresh_jiggle_regions();
         self.sync_island_visibility();
-        let visible_submeshes = self.cdmw_visible_submeshes();
-        let snapshot = self.mesh.as_ref().map(|mesh| {
-            visible_submeshes.as_ref().map_or_else(
-                || mesh.draw_snapshot(),
-                |visible| mesh.draw_snapshot_for_submeshes(visible),
-            )
-        });
-        let deformation_reference = snapshot.as_ref().and_then(|snapshot| {
-            deformation_reference_for_snapshot(
-                self.deformation_heatmap_enabled,
-                self.deformation_reference.as_mut(),
-                visible_submeshes.as_ref(),
-                snapshot,
-            )
-        });
-        if let (Some(renderer), Some(snapshot)) = (&mut self.renderer, snapshot)
-            && let Err(error) = if let Some(colours) = &self.cdmw_jiggle.region_colours {
-                renderer.set_snapshot_with_vertex_colours(&snapshot, colours)
-            } else if self.edit_gesture.is_some() {
-                renderer.set_snapshot_with_deformation_interactive(&snapshot, deformation_reference)
-            } else {
-                renderer.set_snapshot_with_deformation(&snapshot, deformation_reference)
-            }
-        {
-            self.status = format!("GPU update failed: {error}");
-        }
+        self.refresh_cdmw_mesh_display();
     }
 
     fn update_viewport_rect(&mut self, rectangle: egui::Rect) {
@@ -6672,13 +6656,17 @@ impl LabApplication {
                 || mesh.draw_snapshot(),
                 |visible| mesh.draw_snapshot_for_submeshes(visible),
             );
-            let deformation_reference = deformation_reference_for_snapshot(
+            let part_colours = self.cdmw_part_colours_active().then(||
+                viewport::part_colour_snapshot(mesh, visible_submeshes.as_ref(), &snapshot));
+            let deformation_reference = if part_colours.is_none() { deformation_reference_for_snapshot(
                 self.deformation_heatmap_enabled,
                 self.deformation_reference.as_mut(),
                 visible_submeshes.as_ref(),
                 &snapshot,
-            );
+            ) } else { None };
             if let Err(error) = if let Some(colours) = &self.cdmw_jiggle.region_colours {
+                renderer.set_snapshot_with_vertex_colours(&snapshot, colours)
+            } else if let Some(colours) = &part_colours {
                 renderer.set_snapshot_with_vertex_colours(&snapshot, colours)
             } else {
                 renderer.set_snapshot_with_deformation(&snapshot, deformation_reference)
@@ -6747,6 +6735,8 @@ impl LabApplication {
         if self.deformation_heatmap_applied != self.deformation_heatmap_enabled {
             self.deformation_heatmap_applied = self.deformation_heatmap_enabled;
             self.publish_mesh_snapshot();
+        } else if self.cdmw_part_colours_applied != self.cdmw_part_colours_active() {
+            self.refresh_cdmw_mesh_display();
         }
         self.render_jiggle();
         let paint_jobs = context.tessellate(full_output.shapes, full_output.pixels_per_point);

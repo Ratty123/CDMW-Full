@@ -2042,6 +2042,14 @@ each Part's settings and masks. Apply is disabled until a field changes, and a r
 update retains the pending edits. Apply pending settings before **Fit all enabled
 garments**; fitting stays disabled while edits are pending.
 Tightness requires Surface or Rigid component mode on every chosen garment.
+
+**Part colors**, above the Morph & Refit tabs' content, gives each Part a stable,
+distinct shaded viewport color to make overlaps easier to inspect. It also appears
+under **Viewport → Display**. Colors follow Part identity, including new Parts that
+share a material; hiding other pieces does not reassign their colors. Turning the
+Morph & Refit toggle off restores the previous display mode. This changes only the
+viewport; fitting, selection, pending edits, textures and exports remain intact.
+
 If fitting is refused, Fit shows the affected garment names, a short reason and a
 targeted next step. Overlaps suggest more Clearance (0.1% when starting at zero) or
 less Tightness; folding, rigid pieces and protected areas have their own guidance.

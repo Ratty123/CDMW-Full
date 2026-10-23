@@ -595,8 +595,9 @@ pub(super) mod layout {
     }
 }
 
-const CDMW_VIEW_MODES: [(ViewMode, &str); 7] = [
+const CDMW_VIEW_MODES: [(ViewMode, &str); 8] = [
     (ViewMode::TexturedSolid, "Solid (Textured)"),
+    (ViewMode::PartId, "Part colors"),
     (ViewMode::Solid, "Faces (No Textures)"),
     (ViewMode::SolidWire, "Faces + Wire"),
     (ViewMode::Wireframe, "Wire"),
@@ -2340,7 +2341,7 @@ impl LabApplication {
                         .add_enabled(enabled, Button::new(crate::localization::tr(label)).selected(self.view_mode == mode))
                         .on_disabled_hover_text(crate::localization::tr(&self.cdmw_textured_mode_reason));
                     if response.clicked() {
-                        self.view_mode = mode;
+                        self.set_cdmw_display_mode(mode);
                     }
                 }
             })
@@ -4828,6 +4829,7 @@ mod tests {
             CDMW_VIEW_MODES.map(|(_, label)| label),
             [
                 "Solid (Textured)",
+                "Part colors",
                 "Faces (No Textures)",
                 "Faces + Wire",
                 "Wire",
@@ -4843,7 +4845,6 @@ mod tests {
             ViewMode::NormalMap,
             ViewMode::UvChecker,
             ViewMode::BaseAlpha,
-            ViewMode::PartId,
             ViewMode::MaterialResponse,
             ViewMode::LayerMask,
         ] {

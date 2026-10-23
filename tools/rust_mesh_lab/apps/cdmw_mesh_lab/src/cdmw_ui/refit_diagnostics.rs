@@ -1,4 +1,4 @@
-//! Fit refusal guidance and bounded observations. Never changes a fit.
+//! Viewport diagnostics and fit refusal guidance. Never changes a fit.
 use super::*;
 
 const REFIT_WARNING_COLOUR: [f32; 4] = [1.0, 0.35, 0.06, 0.45];
@@ -20,6 +20,58 @@ fn refit_failure_parts(detail: &str, garments: &[u32]) -> Vec<u32> {
 }
 
 impl LabApplication {
+    pub(crate) fn refresh_cdmw_mesh_display(&mut self) {
+        let visible_submeshes = self.cdmw_visible_submeshes();
+        let snapshot = self.mesh.as_ref().map(|mesh| {
+            visible_submeshes.as_ref().map_or_else(
+                || mesh.draw_snapshot(),
+                |visible| mesh.draw_snapshot_for_submeshes(visible),
+            )
+        });
+        let part_colours = if self.cdmw_part_colours_active() {
+            self.mesh.as_ref().zip(snapshot.as_ref()).map(|(mesh, snapshot)|
+                viewport::part_colour_snapshot(mesh, visible_submeshes.as_ref(), snapshot))
+        } else { None };
+        self.cdmw_part_colours_applied = self.cdmw_part_colours_active();
+        let deformation_reference = snapshot.as_ref().filter(|_| part_colours.is_none()).and_then(|snapshot| {
+            deformation_reference_for_snapshot(
+                self.deformation_heatmap_enabled,
+                self.deformation_reference.as_mut(),
+                visible_submeshes.as_ref(),
+                snapshot,
+            )
+        });
+        if let (Some(renderer), Some(snapshot)) = (&mut self.renderer, snapshot)
+            && let Err(error) = if let Some(colours) = &self.cdmw_jiggle.region_colours {
+                renderer.set_snapshot_with_vertex_colours(&snapshot, colours)
+            } else if let Some(colours) = &part_colours {
+                renderer.set_snapshot_with_vertex_colours(&snapshot, colours)
+            } else if self.edit_gesture.is_some() {
+                renderer.set_snapshot_with_deformation_interactive(&snapshot, deformation_reference)
+            } else {
+                renderer.set_snapshot_with_deformation(&snapshot, deformation_reference)
+            }
+        {
+            self.status = format!("GPU update failed: {error}");
+        }
+    }
+
+    pub(crate) fn cdmw_part_colours_active(&self) -> bool {
+        self.cdmw_mode() && self.view_mode == ViewMode::PartId && !self.hair.active()
+            && self.cdmw_jiggle.region_colours.is_none() && self.cdmw_jiggle.preview.scene.is_none()
+    }
+
+    pub(super) fn set_cdmw_display_mode(&mut self, mode: ViewMode) {
+        let was_coloured = self.view_mode == ViewMode::PartId;
+        if mode == ViewMode::PartId && !was_coloured {
+            self.cdmw_part_colours_previous_mode = self.view_mode;
+        }
+        self.view_mode = mode;
+        if was_coloured != (mode == ViewMode::PartId) {
+            self.refresh_cdmw_mesh_display();
+        }
+    }
+
     fn cdmw_refit_preview_revision(&self) -> (Option<u64>, Option<u64>, usize) {
         (self.cdmw_state["base_revision"].as_u64(),
             self.cdmw_state.pointer("/morph_refit/state_revision").and_then(Value::as_u64),

@@ -73,6 +73,14 @@ impl LabApplication {
                 ui.selectable_value(&mut workflow.tab, tab, crate::localization::tr(label));
             }
         });
+        let mut part_colours = self.view_mode == ViewMode::PartId;
+        if ui.checkbox(&mut part_colours, crate::localization::tr("Part colors"))
+            .on_hover_text(crate::localization::tr("Give each Part a different color to see overlaps. Display only; fitting and exports stay unchanged."))
+            .changed()
+        {
+            self.set_cdmw_display_mode(if part_colours { ViewMode::PartId }
+                else { self.cdmw_part_colours_previous_mode });
+        }
         ui.separator();
         if let Some(failure) = state_str(&state, "failure").filter(|value| !value.trim().is_empty())
         {

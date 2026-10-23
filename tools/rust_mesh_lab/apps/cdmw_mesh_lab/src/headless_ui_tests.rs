@@ -3044,6 +3044,8 @@ fn integrated_selection_display_camera_history_and_output_controls_change_real_s
         ("Vertices", "Wire + Vertices", ViewMode::WireVertices),
         ("Wire + Vertices", "X-Ray", ViewMode::XRay),
         ("X-Ray", "Solid (Textured)", ViewMode::TexturedSolid),
+        ("Solid (Textured)", "Part colors", ViewMode::PartId),
+        ("Part colors", "Solid (Textured)", ViewMode::TexturedSolid),
     ] {
         ui.choose("Display", current, next)?;
         assert_eq!(ui.application.view_mode, expected);

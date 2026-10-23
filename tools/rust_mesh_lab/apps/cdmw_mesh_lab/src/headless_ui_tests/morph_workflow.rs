@@ -81,6 +81,76 @@ fn refit_arguments(actions: &[UiAction]) -> Value {
     }).unwrap_or_else(|| panic!("missing refit_configure: {actions:?}"))
 }
 
+#[test]
+fn workflow_part_colours_toggle_restores_display_and_preserves_fit_edits() -> TestResult {
+    let mut ui = mixed_refit_ui(&[1])?;
+    let root = tempdir()?;
+    ui.application.cdmw_bridge = Some(CdmwBridge::for_test(root.path().to_path_buf(), "part-colours-ui", 2, 0));
+    ui.application.view_mode = ViewMode::SolidWire;
+    ui.type_number_in_row("Clearance %", 0.5, "0.75")?;
+    let state = ui.application.cdmw_state.clone();
+    let mesh = ui.application.mesh.as_ref().ok_or("mesh")?.clone();
+    assert!(ui.actions_from_click("Part colors")?.is_empty());
+    assert_eq!(ui.application.view_mode, ViewMode::PartId);
+    assert!(ui.application.cdmw_part_colours_active());
+    assert!(ui.application.cdmw_part_colours_applied);
+    for tab in ["Shape", "Saved", "Setup", "Fit"] {
+        ui.click(tab)?;
+        assert_eq!(ui.application.view_mode, ViewMode::PartId);
+        ui.reveal("Part colors")?;
+    }
+    assert!(ui.actions_from_click("Part colors")?.is_empty());
+    assert_eq!(ui.application.view_mode, ViewMode::SolidWire);
+    assert!(!ui.application.cdmw_part_colours_applied);
+    assert_eq!(ui.application.cdmw_state, state);
+    let current = ui.application.mesh.as_ref().ok_or("mesh")?;
+    assert_eq!(current.structural_fingerprint(), mesh.structural_fingerprint());
+    assert_eq!(current.selection, mesh.selection);
+    assert_eq!(ui.application.cdmw_refit_clearance, 0.75);
+    assert!(ui.application.cdmw_refit_settings_dirty.is_dirty());
+    Ok(())
+}
+
+#[test]
+fn workflow_part_colours_distinguish_shared_materials_and_stay_stable_when_hidden() -> TestResult {
+    let ui = super::morph_authoring::authoring_ui()?;
+    let mut mesh = ui.application.mesh.as_ref().ok_or("mesh")?.clone();
+    let original = mesh.structural_fingerprint();
+    let snapshot = mesh.draw_snapshot();
+    let colours = viewport::part_colour_snapshot(&mesh, None, &snapshot);
+    let mut by_part = HashMap::new();
+    for ((_, face), triangle) in mesh.faces().zip(snapshot.indices.chunks_exact(3)) {
+        let colour = colours[triangle[0] as usize];
+        assert!(triangle.iter().all(|index| colours[*index as usize] == colour));
+        assert!(by_part.insert(face.submesh, (colour, face.material))
+            .is_none_or(|previous| previous == (colour, face.material)));
+    }
+    assert_ne!(by_part[&1].0, by_part[&2].0);
+    let faces = mesh.faces().filter(|(_, face)| face.submesh == 1).map(|(handle, _)| handle).collect();
+    let generated = mesh.duplicate_faces_to_new_submesh(&faces)?;
+    let hidden = mesh.faces().filter(|(_, face)| face.submesh == 0).map(|(handle, _)| handle).collect();
+    mesh.set_viewport_hidden_faces(hidden)?;
+    let visible = HashSet::from([0, 2, 3]);
+    let snapshot = mesh.draw_snapshot_for_submeshes(&visible);
+    let colours = viewport::part_colour_snapshot(&mesh, Some(&visible), &snapshot);
+    assert_eq!(colours.len(), snapshot.positions.len());
+    let elements = mesh.element_handles_for_submeshes(&visible);
+    for ((handle, face), triangle) in mesh.faces().filter(|(handle, _)| elements.faces.contains(handle))
+        .zip(snapshot.indices.chunks_exact(3))
+    {
+        let colour = colours[triangle[0] as usize];
+        assert!(triangle.iter().all(|index| colours[*index as usize] == colour));
+        assert_ne!(face.submesh, 0, "hidden islands stay hidden");
+        if face.submesh == 2 { assert_eq!(colour, by_part[&2].0); }
+        if generated.contains(&handle) {
+            assert_ne!(colour, by_part[&1].0);
+            assert_eq!(face.material, by_part[&1].1, "new and original Parts share a material");
+        }
+    }
+    assert_eq!(ui.application.mesh.as_ref().ok_or("mesh")?.structural_fingerprint(), original);
+    Ok(())
+}
+
 fn refit_feedback_reply(ui: &mut HeadlessUi, label: &'static str, ok: bool, error: &str) -> TestResult {
     let root = tempdir()?;
     let revision = ui.application.cdmw_state["base_revision"].as_u64().unwrap_or(0);
