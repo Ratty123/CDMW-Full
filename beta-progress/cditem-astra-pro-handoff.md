@@ -214,10 +214,29 @@ Resume is independently observed at 1.699965 seconds; owned cleanup completes at
 without material defects. V1/V2 failures remain preserved, including
 V2's unknown engine count. V3's paused debugger-read counters do not exclude
 caching. The selected pause stops the target writer too; B74 covers only wrapped
-entrants and B78 cannot prebind the incomplete owner shape. V4 source preparation
-will discriminate external scratch stores and physical readback/restoration,
-without game reader, writer, Router or publication qualification. Exact new and
+entrants and B78 cannot prebind the incomplete owner shape. V4's frozen source
+passes 16 changed pure checks and independent source/build-qualifier review for
+external scratch stores and physical readback/restoration. Its first foreign
+MSBuild preflight refusal remains preserved. After that process naturally
+disappears, the unchanged strict build and one owned run pass exact 32-byte
+write/restore, three direct process-memory phases, paused counters and explicit
+detach/resumption, with cleanup in 2.388533 seconds. Root verifies 68 raw files;
+independent actual review passes 120 closure pins without defects. No game reader, writer, Router or
+publication qualification follows. Exact new and
 historical pins are in the [execution checkpoint](cditem-execution-goal.md#reader-boundary-platform-qualification-remains-open).
+
+The finite historical-B122 roster identifies 14 prospective data fields/72 bytes,
+without a runnable publication transaction. Existing Stage Cache allocation is
+bound to original counts/maps/zero metadata tail and the incomplete AF1
+worker/controller; configure-once state cannot adopt its live witnesses through
+a supported continuation API. Dormant Router activation, final-shape hot/cold use,
+native thread/TLS/source and lifetime contracts remain unresolved.
+Reuse B81's separate selected family-zero witness: the same backend decodes the
+four Rows on worker 36652 and later callback thread 416, both TLS selector zero,
+with controlled eviction/rematerialization. That narrows the underlying backend
+question without qualifying arbitrary entrants, concurrency or the final owner.
+The next primary queries target the zero-family heap pair and transitive
+constructor/decoder helpers identified in the execution checkpoint.
 
 Retained local source-only results under the native-path continuation:
 `run/b115-current-owner-v2/source-check-receipt.json` (41 focused checks;

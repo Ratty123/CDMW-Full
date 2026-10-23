@@ -1314,8 +1314,27 @@ the read-only pause stops the target writer,
 and debugger-read counter equality does not exclude caching. B78's Router
 requires a coherent final count/metadata/span/cookie shape before binding and
 refuses materialization while unbound. External stores, prepared activation and
-resumed continuations need separate qualification; the next owned scratch-store
-experiment is in source preparation. See the [execution evidence](../../../beta-progress/cditem-execution-goal.md#reader-boundary-platform-qualification-remains-open).
+resumed continuations need separate qualification. The V4 owned scratch-store
+source is frozen with 16 changed pure checks and independent source/build-qualifier
+reviews passing. After the preserved foreign-MSBuild preflight refusal resolves
+without intervention, its unchanged strict build and one owned native run pass
+exact 32-byte scratch write/restoration, three independent process-memory phases,
+paused counters and explicit detach/resumption. Cleanup completes in 2.388533
+seconds; root verifies 68 raw files and independent actual review passes 120
+closure pins without material defects.
+This establishes an owned external-API premise, not game owner-field publication.
+See the [execution evidence](../../../beta-progress/cditem-execution-goal.md#reader-boundary-platform-qualification-remains-open).
+
+The current staged Cache is also a startup backend: cold allocation requires
+the original counts/maps/zero metadata tail, original reservation worker and
+incomplete AF1 controller. Its configure-once API cannot adopt the populated
+private cells/witnesses into a final-shape continuation. A concrete durable
+Cache/Router activation contract must cover later hot/cold getter/bulk use,
+allocator/TLS/source validity and borrowed lifetimes before native admission.
+The identical native backend has a separate retained B81 family-zero witness for
+controlled rematerialization on two different threads, both TLS selector zero.
+That selected callback evidence does not establish arbitrary later getter/bulk
+thread validity or final-owner publication.
 
 A first external sword package also passes actual full import, four hand/sheath
 attachment checks and exact package/model/texture readback with a persistent

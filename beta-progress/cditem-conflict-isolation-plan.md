@@ -103,9 +103,26 @@ inspection and independently observed resumption, with cleanup in 1.701304
 seconds within 20 seconds. Independent actual review passes 88 pins. This
 supplies no game reader/writer exclusion. The selected pause also stops the
 target writer; prepared Router activation and
-resumed continuations remain unresolved. A separate owned scratch-store and
-physical-readback experiment is in source preparation. Keep all native admission
+resumed continuations remain unresolved. The separate V4 owned scratch-store and
+physical-readback source passes independent review and 16 changed pure checks.
+After the preserved foreign-MSBuild preflight refusal, its unchanged strict
+build and one owned-dummy run now pass. Direct process-memory reads join exact
+32-byte pattern/restoration and paused counters across three phases; worker
+resumption and owned cleanup complete in 2.388533 seconds. Root verifies all 68
+raw files; independent actual review passes 120 closure pins without material
+defects. This is an owned API premise.
+Keep all native admission
 and lifecycle conditions open; see the [reader/writer boundary](cditem-execution-goal.md#reader-boundary-platform-qualification-remains-open).
+
+The concrete store roster also identifies an unresolved durable-cache contract:
+the staged Cache allocator requires the original counts/maps, zero metadata tail,
+startup reservation worker and incomplete AF1 controller. It cannot serve as a
+qualified later getter/bulk backend after publication. Prepared Router activation,
+final-shape cache continuation and native thread/TLS/lifetime proof remain open.
+The identical native backend already has a bounded B81 family-zero witness on
+two different threads with TLS selector zero, including controlled later
+eviction/rematerialization. That retained result does not qualify arbitrary
+later getter/bulk callers or the final published owner.
 
 1. Join the independently reviewed observed unpublished numeric/name pairs to private metadata/backing and central getter/bulk under a qualified consumer boundary. Native numeric values are WORD ordinals; name values are DWORD numeric keys. Guard known source/clone allocation aliases before adapter-controlled writes or releases; native internal-node freshness remains an explicit premise. The portable publication model's name values and metadata route indexes are not the native ABI. Expiry zero permits eviction; eager residency cannot replace rematerialization, reader/maintenance coverage or lifetime proof.
 2. Join definitions, both native maps and resources in one startup-scoped native contribution, including later derived-state validation and a qualified consumer boundary. Then exercise two independently authored same-donor packages with distinct private assets through acquisition, equip, restart and save reload.

@@ -698,9 +698,118 @@ cache. The selected SDK also treats user-mode Uncached methods as equivalent to
 ordinary reads/writes. The next owned experiment therefore uses a separate
 mutable scratch slot, exact byte counts, independent controller process-memory
 observations during the pause, and observed preimage restoration before detach.
-V4 source preparation is in progress; it supplies no write or game qualification.
+V4 is now frozen source with independent implementation and strict-build-qualifier
+reviews passing without concrete defects. Sixteen changed pure checks pass;
+33 direct source/input/dependency pins and 30 retained V1/V2/V3 source/packet pins
+are verified. Ready is 272 bytes, Contract 4,000 bytes, and each of the three
+fixed phase/ACK records is 136 bytes. Each phase binds a fresh token and both
+processes' PID/birth, scratch address and shared deadline. The controller must
+physically observe stopped counters and the initial/pattern/restored scratch
+bytes before acknowledging; partial or uncertain writes have no retry or
+speculative restoration path.
+
+The first strict-build invocation (`ded554`, exit 1) correctly refused at the
+unchanged empty-census preflight because foreign MSBuild PID 54152 was present.
+No build Job, output directory or compiler was created. Exact-handle read-only
+waits confirmed that process remained live at those samples; a later lookup
+(`540124`) establishes that it is missing. Root neither stopped nor adopted it.
+The unchanged qualifier then passes its fresh before/after empty-census strict
+build (`4fafe7`, exit 0) in 6.013318 seconds, with exact compiler/SDK/CFG and source
+joins. Historical preflight failure remains preserved.
+
+One fresh owned-dummy run (`fbe0e0`, exit 0) now passes the actual V4 boundary.
+All eight held threads, five snapshots and SDK contexts/TIBs/32-byte stacks
+remain joined. Both WriteVirtualUncached calls return exact S_OK/32 bytes;
+three helper readbacks and three independent controller process-memory phases
+observe the initial, changed and restored 32-byte scratch. All four physical
+worker counters remain 53 across the three paused dwells, and all sentinels
+match. ACK2 precedes the single restore, ACK3 precedes explicit detach, and
+independent post-detach counters advance from 60 to 67. Resume is verified at
+2.386774 seconds; owned Job retirement follows it, with all handles joined/closed
+and cleanup complete at 2.388533 seconds within 20 seconds, without watchdog
+expiry. Root rehashes all 68 raw files, manually decodes six phase/ACK records
+and eight contexts/TIBs/stacks, and verifies 187 creator-thread trace records
+containing 136 actual engine API calls, all exact S_OK. Independent actual review
+passes 120 closure pins with no material defects. This excludes a
+debugger-cache-only success for these observed bytes;
+it does not establish an atomic OS/I/O freeze or a game publication writer.
+
+| V4 source/build/native artifact | Bytes | SHA-256 |
+| --- | ---: | --- |
+| `reader-pause/owned-dbgeng-v4/source-candidate-final.json` | 11,228 | `e9408dfa92f0ef45a0aa165b7b75a8cfda0a954c74c24d446837204d63611a1c` |
+| `reader-pause/owned-dbgeng-v4-author-evidence-v1/source-freeze-checks-v1.json` | 12,569 | `fc1b885ea3264be8bd689e1ca86e5aa8bc996a40ddf3f1f64f6f215af4503591` |
+| `api-source-review/20261023-owned-dbgeng-v4-independent/independent-source-review-v1.json` | 15,154 | `69f39fbb452c14232525b4279c3174147b915857761ebd81bd0c978d055f9a26` |
+| `qualify_owned_dbgeng_build_v4.py` | 8,542 | `b2446fc1029864c81b21fb3e4f0594cbd355919c20063ebcf95623950cdf032e` |
+| `api-source-review/20261023-owned-dbgeng-v4-build-qualifier-independent/independent-qualifier-source-review-v1.json` | 8,380 | `f69cba8c349b3244f2f7ac7e48f1a93aa24e6160249f5efef6fd9933596fdb0b` |
+| `owned-dbgeng-v4-build-preflight-20261023/refusal1.json` | 2,082 | `3e131ffde5b7f5d9603470334d6bf20e8513ca303d745c52ef1ab476cfc8fd5c` |
+| `owned-dbgeng-v4-build-20261023/actual-build-result.json` | 7,778 | `1c49812997adc303e702bc6913519a2fede430aa06824856f2b0dce85b7dcb20` |
+| `owned-dbgeng-v4-build-20261023/build-proof.json` | 15,958 | `b1ba8c113cb9a19649a9c5c6c5b3f705eb32b3d03adef12dc503fbf4bac5bf65` |
+| `owned-dbgeng-v4-qualification-20261023/resource-window.json` | 2,051 | `a008cfd37a44a950d423e8a98dcc2017048af9b0cb73f21691a47d96f146381e` |
+| `owned-dbgeng-v4-qualification-20261023/attempt1/qualification-result.json` | 10,027,164 | `c88b4e04d90e0284c71eef8fd35d6cff314d71b96f330ab277d14e6db3fc129b` |
+| `owned-dbgeng-v4-qualification-20261023/root-actual-tool-join-v1.json` | 3,593 | `02e8b7e99bc5aef5d5908fb0faf166d681198eaebbfc4549026b296c057fda0b` |
+| `api-source-review/20261023-owned-dbgeng-v4-actual-review/independent-actual-review-v1.json` | 24,940 | `405dfe3ff727fa17abb82e8e16a8673d5ae4797e28bd9aa2f0945753a2cb3792` |
+
 Even successful scratch stores would not prove actual owner-field commits,
 Router activation, safe resumed cleanup/writers or complete reader coverage.
+
+The separate finite source roster identifies 14 prospective data fields/72 bytes
+for the historical B122 shape: four metadata keys, two counts and eight map-header
+fields. Cookie, backing addresses and checked record tails already have their
+intended values. Metadata offsets remaining zero is conditional on qualified
+private Row dispatch and the ordinary cold getter's stock-body prerequisite;
+there is no prepared private offset into the stock body. This is a source-backed
+roster, not an executable publication manifest or permission to reuse historical
+addresses, the consumed B122 grant or the pre-Sword installation baseline.
+
+A concrete durable-cache gap remains: the configured Stage Cache's cold allocator
+first requires the original reservation worker, retained AF1 controller/list and
+controller completion byte zero, then `same_pre` requires original counts/maps
+and a zero metadata tail. Publication or later ordinary getter/bulk context
+therefore violates its guard. Stage and Cache configure once; Cache cannot
+reconfigure with populated private cells/live witnesses, and there is no supported
+API replacement or witness adoption. B78 also exposes no prepared dormant
+stock-forwarding Router activation ABI. A separately versioned continuation must
+preserve actual allocator/TLS/source/Bool-decoder requirements and qualify the
+final-shape hot/cold path after startup. Allocations, target calls and code
+publication must be prepared outside the prospective pause. Borrowed lifetimes,
+reader/writer continuations, reset/maintenance and direct `+40` state remain open.
+
+Source roster:
+`api-source-review/20261023-actual-owner-store-roster-v1/actual-owner-store-roster-v1.json`,
+48,343 bytes, SHA-256
+`0d3dcd7e6a3e786515f3e2ce33cbb2d3ceb580a9d9687bc91bda959c37c52e18`.
+It rehashes 14 owning sources, joining 11 directly to frozen B122 outputs.
+Independent source review passes with no concrete errors:
+`api-source-review/20261023-actual-owner-store-roster-independent-v1/independent-source-review-v1.json`,
+14,418 bytes, SHA-256
+`6028bced3e8c4a92affbab7437037668fbd2166db7846f1b713d60ecb32d8c09`.
+No native operation or publication follows from the roster.
+
+Do not generalize the configured Stage's startup-only guard to the underlying
+native backend. The retained B81 capture already decoded all four private Rows
+on worker 36652 and deliberately evicted/rematerialized/released them on later
+callback thread 416, both with naturally observed TLS selector zero. Its backend
+is byte-identical to B122's Dependencies. Root rehashes 26 source/capture pins,
+independently decodes all 71 raw steps against the retained review and verifies
+five literal native body hashes. This is reused historical family-zero evidence,
+not a new game run or general later-thread/locking contract. Natural eviction,
+arbitrary getter/bulk entrants, TLS block validity, later controller completion
+and after-private-cleanup stock memory remain unproved; the original six
+aggregate-cleanup trace-label refusals and their retained interpretation remain.
+
+The source-backed next question is the zero-family heap path at allocator
+`0x1447EF9B0` and free `0x1447F02BC`, followed by constructor helper
+`0x1412C0290` and decoder helpers `0x14141F4C0`/`0x14038AC90`. Resolve the selected
+entrant/serialization and transitive requirements before implementing the
+durable final-shape Cache/Router continuation. These are build-2976 historical
+source addresses, not a new process/address grant. Source memo:
+`api-source-review/20261023-durable-cache-thread-contract-v1/durable-cache-thread-contract-source-review-v1.json`,
+32,377 bytes, SHA-256
+`3c92a1550acf58146e62e9b8392bcdd23cdbc39f6fbd13dfd1f1d7fd05644dfc`.
+Root file-only witness review:
+`api-source-review/20261023-durable-cache-thread-contract-v1/root-retained-backend-witness-review-v1.json`,
+1,242 bytes, SHA-256
+`228eda41dfc4f6907208cd6f938315da9c94629d6b6999fecc083472a4735a09`.
 
 Then join the staged records and unpublished native pairs to both central
 getter/bulk routes, with private metadata/backing, coherent publication, later

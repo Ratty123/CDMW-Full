@@ -1560,10 +1560,28 @@ independent actual review passing 88 pins. This is
 platform evidence, without a game reader or writer lease. The selected pause
 also stops the target publisher. Debugger-read counter equality does not exclude
 caching, and [Microsoft's memory-write contract](https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/dbgeng/nf-dbgeng-idebugdataspaces-writevirtual)
-requires attention to partial byte counts and cached stores. A separate owned
-scratch-store test with independent process-memory readback/restoration is in
-source preparation. Actual owner commits, prepared Router activation, resumed
+requires attention to partial byte counts and cached stores. The separate owned
+V4 scratch-store experiment with independent process-memory readback/restoration
+now passes independent source review, strict compilation and one owned native
+run. Its first foreign-MSBuild preflight refusal remains preserved. Three direct
+process-memory phases observe exact 32-byte pattern/restoration and fixed worker
+counters, followed by explicit detach/resumption and cleanup in 2.388533 seconds.
+Root verifies 68 raw files; independent actual review passes 120 closure pins
+without material defects. This excludes
+a debugger-cache-only pass for these bytes, without proving an atomic OS/I/O
+freeze or game publication. Actual owner commits, prepared Router activation, resumed
 continuations and complete reader/cleanup coverage remain unqualified.
+
+The actual-owner source roster additionally identifies a durable-cache gap:
+the staged allocator is tied to original owner state and the incomplete startup
+worker/controller context. Dormant Router activation and a final-shape cache
+continuation for later hot/cold getter/bulk use still need native allocator,
+thread/TLS, source and lifetime qualification. Retained hot records do not
+establish that durable route.
+The underlying identical backend nevertheless has a retained B81 family-zero
+witness for controlled eviction/rematerialization on two different threads,
+both with TLS selector zero. It narrows the backend question without qualifying
+arbitrary later callers, concurrency, natural eviction or final-owner publication.
 
 A separately authored sword package passes full import,
 four hand/sheath attachment checks and exact package readback. Its compiler image

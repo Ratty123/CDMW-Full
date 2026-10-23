@@ -318,7 +318,25 @@ Independent actual review passes 88 source/build/capture pins without defects.
 V1/V2 failures remain preserved. Paused debugger-read counters do not exclude
 caching, and the selected read-only pause stops the target writer too. B74
 covers only wrapped entrants; B78 cannot prebind the incomplete N/N+4 owner.
-The next owned scratch-store experiment is in source preparation, requiring
-exact byte counts and independent physical readback/restoration. No game reader
+The V4 owned scratch-store source is frozen and independently reviewed, with
+16 changed pure checks passing. It requires exact byte counts and independent
+physical readback/restoration; its strict-build qualifier is also reviewed.
+The first build preflight refusal is preserved. After the foreign helper
+naturally disappears, the unchanged strict build and one owned run pass exact
+32-byte write/restoration, three independent process-memory phases, held counters
+and explicit detach/resumption, with cleanup in 2.388533 seconds. Root verifies
+all 68 raw files; independent actual review passes 120 closure pins without
+material defects. No game reader
 lease, writer/Router activation, publication or admission is established. See
 [the platform evidence and writer boundary](../../../beta-progress/cditem-execution-goal.md#reader-boundary-platform-qualification-remains-open).
+
+The finite historical-B122 source roster supplies 14 prospective data fields/72
+bytes, but no dormant Router activation ABI or durable Cache continuation. The
+staging allocator requires original owner counts/maps/zero metadata tail and the
+incomplete AF1 worker/controller; configure-once state cannot adopt its live
+witnesses through a supported API. Final-shape hot/cold routing, actual later
+thread/TLS/source validity, maintenance and lifetime proof remain unresolved.
+The underlying byte-identical backend separately retains B81's selected
+family-zero later-thread controlled-rematerialization witness. Preserve that
+bounded evidence; do not equate the Stage guard with a native AF1-only rule or
+promote the selected callback into general later getter/bulk thread safety.

@@ -56,8 +56,23 @@ and independently observed resumption, with cleanup in 1.701304 seconds within
 20 seconds. Independent actual review passes 88 pins. Paused debugger-read
 counters do not exclude caching; the selected pause stops the target writer
 too. External stores, Router activation and safe
-resumed reader/writer/cleanup coverage remain unqualified. The next owned
-scratch-store/physical-readback experiment is in source preparation.
+resumed reader/writer/cleanup coverage remain unqualified. The V4 owned
+scratch-store/physical-readback source is frozen with 16 changed pure checks and
+independent source/strict-build-qualifier review passing. The initial foreign
+MSBuild preflight refusal is preserved; after its natural disappearance, the
+unchanged strict build and one owned run pass exact write/restore, three direct
+process-memory phases, paused counters and explicit detach/resumption. Root joins
+all 68 raw files; cleanup completes in 2.388533 seconds. Independent actual review
+passes 120 closure pins without material defects. No game writer/Router/reader
+or publication proof follows.
+
+The finite actual-owner store roster identifies 14 prospective fields/72 bytes
+for historical B122, alongside missing dormant Router activation and a durable
+Cache continuation. The current allocator still requires original owner state
+and the incomplete AF1 worker/controller context; later hot/cold use is unqualified.
+The byte-identical backend separately retains B81's selected family-zero
+cross-thread/controlled-rematerialization witness. General later native entrants,
+serialization and final-shape Cache/Router activation remain open.
 
 [Canonical goal and acceptance criteria](cditem-conflict-isolation-plan.md) |
 [Execution](cditem-execution-goal.md) |
@@ -139,6 +154,10 @@ the preceding 24-case preparation evidence remains in
 `workspace/reports/cditem-execution/20261021-package-resource-images/`.
 
 ## Completed work
+
+- 2026-10-23 | CDISO-RE-02 owned external scratch-write qualification | After the preserved foreign-MSBuild preflight refusal resolves without process intervention, V4 passes its unchanged strict build and one native owned-dummy run. Exact S_OK/32-byte pattern and restoration are independently observed through three process-memory phases with all four counters held at 53; post-detach counters advance 60 to 67. Eight held threads, five snapshots, typed contexts/TIBs/stacks, 68 raw files and 136 engine API calls join in root's file-only review. Resume precedes owned retirement and cleanup completes in 2.388533 seconds within 20 seconds. Independent actual review passes 120 closure pins without material defects. The independently accepted 14-field/72-byte historical-owner roster identifies missing dormant activation and final-shape Cache continuation; retained B81 evidence separately establishes selected family-zero later-thread rematerialization. This qualifies an owned API premise, without game owner stores, Router activation, durable cache continuation or reader/writer/lifetime admission. Evidence: [reader/writer boundary](cditem-execution-goal.md#reader-boundary-platform-qualification-remains-open).
+
+- 2026-10-23 | CDISO-RE-02 owned scratch-store source preparation | V4 freezes nine sources and passes 16 changed pure cases, exact dependency/wire checks and independent implementation/strict-build-qualifier review. The three fixed phase/ACKs require physically observed initial/pattern/restored scratch bytes and paused counters, fresh process identities/token and exact write counts; uncertain writes have no retry or speculative restore. The first actual build preflight correctly refuses foreign MSBuild PID 54152 before Job/output/compiler creation. V4 remains uncompiled/unexecuted; no scratch-write or game/publication qualification follows. Evidence: [reader/writer boundary](cditem-execution-goal.md#reader-boundary-platform-qualification-remains-open).
 
 - 2026-10-23 | CDISO-RE-02 owned-dummy reader platform qualification | V3's strict native build and one owned-process run pass complete eight-thread enumeration, five identity snapshots, eight SDK contexts/TIBs/stack reads, 164 creator-thread engine records and explicit detach/resumption. Root decodes all eight contexts and verifies 43 raw files; independent actual review passes 88 pins without material defects. Resume is independently observed at 1.699965 seconds; cleanup completes at 1.701304 seconds within 20 seconds without watchdog expiry. V1/V2 failures remain preserved. Debugger-read counters do not exclude caching; the pause stops the target writer too. A separate external scratch-store/physical-readback experiment is in source preparation; no game reader/writer, Router activation, publication or admission follows. Evidence: [reader/writer boundary](cditem-execution-goal.md#reader-boundary-platform-qualification-remains-open).
 
