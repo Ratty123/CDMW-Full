@@ -13,7 +13,7 @@ from scripts.export_github_wiki import (
     BUILTIN_LANGUAGES, PAGE_TOPICS, WIKI, DocumentParser, _blocks,
     _translate_html, build_pages, page_slug,
     build_manuals, manual_slug,
-    _readable_guide, _sentences,
+    _emphasize_controls, _readable_guide, _sentences,
 )
 
 
@@ -66,7 +66,7 @@ def test_consolidation_preserves_every_guides_visible_text(wiki_pages, wiki_manu
             if not line.strip() or line == "---" or line.startswith(("[⌂ ", "🌐 ", "CDMW `", "[↑ ")) or re.fullmatch(r"\*\*[^*]+\*\*", line):
                 continue
             line = re.sub(r"^> ?", "", line)
-            if re.fullmatch(r"\[![A-Z]+\]", line):
+            if re.fullmatch(r"\[![A-Z]+\]", line) or re.fullmatch(r"\*\*(?:ℹ️|⚠️) [^*]+\*\*", line):
                 continue
             line = re.sub(r"^(?:- |\d+\. )", "", line)
             line = re.sub(r"\]\([^)\n]+\)", "]", line)
@@ -94,7 +94,8 @@ def test_procedures_are_steps_with_separate_limits_and_optional_details(wiki_man
     assert "1. Inspect **Position**, **UV Coordinates**, **Normals**, and **Skin Weights**" in vertex
     assert "- **Discard** clears pending inputs." in vertex
     assert "1. **Discard**" not in vertex
-    assert "> [!NOTE]\n> - Editing depends" in vertex
+    assert "> **ℹ️ Info**\n>\n> - Editing depends" in vertex
+    assert "[!NOTE]" not in vertex
     assert "UV1 and vertex colours are not editable." in vertex
     assert "<summary><strong>Vertex Parameters</strong></summary>" in body
     assert "<summary><strong>Authored cloth profiles</strong></summary>" in body
@@ -126,7 +127,27 @@ def test_readable_guide_keeps_discard_separate_from_required_editing_steps():
     assert "1. Inspect **Position**" in rendered
     assert "- **Discard** clears pending inputs." in rendered
     assert "1. **Discard**" not in rendered
-    assert "> [!NOTE]\n> - Editing depends" in rendered
+    assert "> **ℹ️ Info**\n>\n> - Editing depends" in rendered
+
+
+def test_existing_details_use_portable_localized_callouts():
+    source = '<details>\n<summary>Advanced</summary>\n\nEditing depends on the format. Unsupported channels remain read-only.\n\n</details>'
+    rendered = _readable_guide(source, source, "fr")
+    assert "> **ℹ️ Informations**" in rendered
+    assert "[!NOTE]" not in rendered
+
+
+def test_korean_procedures_split_sentences_without_emphasizing_word_fragments(wiki_manuals):
+    assert _sentences("변경을 적용하세요. 원본을 유지하세요.") == ["변경을 적용하세요.", "원본을 유지하세요."]
+    assert _emphasize_controls("지원되는 원본을 유지하세요. 원 도구를 선택하세요.", "ko") == (
+        "지원되는 원본을 유지하세요. **원** 도구를 선택하세요."
+    )
+    assert _emphasize_controls("정점 매개변수를 열고 적용을 선택하세요.", "ko") == (
+        "**정점 매개변수**를 열고 **적용**을 선택하세요."
+    )
+    vertex = wiki_manuals["한국어.md"].split('<a id="mesh_editor-5"></a>', 1)[1].split("</details>", 1)[0]
+    assert vertex.count("\n1. ") == 2
+    assert "지**원**" not in vertex
 
 
 def test_manual_migration_requires_every_source_guide(wiki_pages):

@@ -122,7 +122,8 @@ def _sentences(text: str) -> list[str]:
             rest = masked[index + 1:]
             following = rest.lstrip()
             end = not rest or (len(rest) != len(following) and bool(following) and (
-                following[0].isupper() or following.startswith(("\x00", '"', "“", "«"))
+                following[0].isupper() or "\uac00" <= following[0] <= "\ud7af"
+                or following.startswith(("\x00", '"', "“", "«"))
             ))
         if end:
             pieces.append(masked[start:index + 1].strip())
@@ -138,8 +139,14 @@ def _control_pattern(locale: str):
     names = set(_CONTROLS) | {str(catalogue.get(name, name)) for name in _CONTROLS}
     patterns = []
     for name in sorted(names, key=len, reverse=True):
-        cjk = any("\u3040" <= char <= "\u9fff" or "\uac00" <= char <= "\ud7af" for char in name)
-        patterns.append(re.escape(name) if cjk else r"(?<!\w)" + re.escape(name) + r"(?!\w)")
+        cjk = any("\u3040" <= char <= "\u9fff" for char in name)
+        korean = any("\uac00" <= char <= "\ud7af" for char in name)
+        if korean:
+            # Korean particles attach to control names; short names must not match inside words.
+            suffix = r"(?=\W|$|(?:에서는|으로|에서|은|는|이|가|을|를|와|과|로|에|도|만)(?=\W|$))"
+            patterns.append(r"(?<!\w)" + re.escape(name) + suffix)
+        else:
+            patterns.append(re.escape(name) if cjk else r"(?<!\w)" + re.escape(name) + r"(?!\w)")
     return re.compile("|".join(patterns))
 
 
@@ -164,7 +171,7 @@ def _is_instruction(source: str) -> bool:
     return bool(re.match(r"(?:Use|Open|Choose|Select|Start|Import|Move|Compare|Browse|Review|Read|Load|Inspect|Enter|Follow|Keep|Run|Set|Add|Clear|Reset|Bake|Export|Apply|Turn|Under|For an existing|For external|To verify|When fitting)\b", source))
 
 
-def _readable_prose(source: str, translated: str, locale: str, *, alert: str = "") -> str:
+def _readable_prose(source: str, translated: str, locale: str, *, alert: str = "", portable: bool = False) -> str:
     originals, sentences = _sentences(source), _sentences(translated)
     # Translations may combine sentences. Never infer which translated clause is a warning.
     kinds = [_sentence_kind(sentence) for sentence in originals]
@@ -189,7 +196,14 @@ def _readable_prose(source: str, translated: str, locale: str, *, alert: str = "
             marker = "1. " if instruction else "- "
             body = "\n".join(marker + item for item in items)
         if kind:
-            body = "> [!" + kind + "]\n" + "\n".join("> " + line for line in body.splitlines())
+            if portable:
+                # GitHub Wiki leaves alert markers literal inside HTML details blocks.
+                label = "Warning" if kind in {"WARNING", "CAUTION"} else "Info"
+                label = str(load_builtin_catalog(locale)["translations"].get(label, label))
+                title = ("⚠️ " if kind in {"WARNING", "CAUTION"} else "ℹ️ ") + label
+                body = "> **" + title + "**\n>\n" + "\n".join("> " + line for line in body.splitlines())
+            else:
+                body = "> [!" + kind + "]\n" + "\n".join("> " + line for line in body.splitlines())
         rendered.append(body)
     return "\n\n".join(rendered)
 
@@ -201,8 +215,10 @@ def _readable_guide(source: str, translated: str, locale: str, *, mesh: bool = F
     catalogue = load_builtin_catalog(locale)["translations"]
     rendered = []
     folded = False
+    details_depth = 0
     skip_heading = False
     for index, (original, block) in enumerate(zip(originals, blocks)):
+        portable = folded or details_depth > 0
         following = originals[index + 1] if index + 1 < len(originals) else ""
         heading = re.match(r"^## ([^\n]+)$", following)
         anchor = re.fullmatch(r'<a id="[^"]+"></a>', original)
@@ -228,20 +244,21 @@ def _readable_guide(source: str, translated: str, locale: str, *, mesh: bool = F
         question = re.match(r"^\*\*(.+?)\*\* (.+)$", block)
         if faq and question:
             source_answer = re.match(r"^\*\*(.+?)\*\* (.+)$", original)
-            block = "#### " + question[1] + "\n\n" + _readable_prose(source_answer[2], question[2], locale)
+            block = "#### " + question[1] + "\n\n" + _readable_prose(source_answer[2], question[2], locale, portable=portable)
         elif original.startswith("> [!"):
             kind = original.split("]", 1)[0][4:]
             source_body = "\n".join(line[2:] for line in original.splitlines()[1:])
             translated_body = "\n".join(line[2:] for line in block.splitlines()[1:])
-            block = _readable_prose(source_body, translated_body, locale, alert=kind)
+            block = _readable_prose(source_body, translated_body, locale, alert=kind, portable=portable)
         elif original and not original.startswith(("#", "<", "|", "- ", "1. ", "[")):
-            block = _readable_prose(original, block, locale)
+            block = _readable_prose(original, block, locale, portable=portable)
             label = "Preview" if original.startswith("Open Mesh Data > Cloth > Authored cloth profile") else "Edit" if original.startswith("Under Edit profile for mod") else ""
             if label:
                 block = "**" + str(catalogue.get(label, label)) + "**\n\n" + block
         elif not original.startswith(("#", "<")):
             block = _emphasize_controls(block, locale)
         rendered.append(block)
+        details_depth += original.count("<details>") - original.count("</details>")
     if folded:
         rendered.append("</details>")
     return "\n\n".join(rendered)

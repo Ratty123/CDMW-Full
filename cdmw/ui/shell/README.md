@@ -151,6 +151,8 @@ controls, separates limitations into labelled callouts, and folds optional Mesh
 Editor detail sections. It preserves the original translated sentences and
 technical identifiers; incompatible source/translation block structures refuse
 export. The in-app topics continue to own the wording.
+Folded sections use localized blockquote labels because GitHub Wiki does not
+process native alert markers inside HTML details blocks.
 
 ## Settings and display scaling
 
