@@ -204,9 +204,10 @@ module accompanying `item.legacy@1`. Its data has exactly `item_tier`,
 unknown fields, booleans and out-of-range values refuse on import. The module
 changes only the newly owned item; stock `item.fields@1` selectors stay unchanged.
 
-The retained v1 recipe and migration provenance remain intact. Recipes without
-these overrides still export v1, with the same frozen vocabulary and canonical
-digest. Existing v1/v2 packages retain their handling. Older readers refuse the
+The retained v1 recipe and migration provenance remain intact. Equipment recipes
+without these overrides or extended settings still export v1, with the same
+frozen vocabulary and canonical digest. Existing v1/v2 packages retain their
+handling. Older readers refuse the
 required capability instead of silently dropping the new settings. Compilation
 identity includes the module and a revised adapter identity, requiring an older
 virtual profile to be rebuilt through **Apply changes**.
@@ -219,6 +220,65 @@ refuse. Reads are on demand for the selected item, not a startup-wide row scan.
 Evidence at `a4c3e6e2` plus this scoped change is source, retained fixture rows,
 synthetic physical/virtual compilation and headless controls/native presentation.
 It does not establish current game/save behaviour or the meaning of tier values.
+
+### Extended item settings and usable items
+
+**Stats & Prices > Item settings** edits repair materials, item rules, extraction,
+use actions, cooldown/charge data and existing full-width prices/stat counters.
+**Load item references** prepares selectors in the existing cancellable background
+lane. Unsupported definitions are excluded; unavailable optional tables do not
+disable repair/item-rule controls. Build plan validates the selected dependencies.
+Reset restores the template. An empty repair/use list explicitly clears it;
+`null` inherits. Zero and `false` remain explicit overrides.
+
+These choices require **`item.properties@2`** with the same three scalar keys as
+version 1 plus a required `settings` object. Version 1's exact field set and the
+frozen v1 recipe are unchanged. The settings object has exactly these fields:
+
+| Settings | Serialized contract |
+| --- | --- |
+| `repairs` | Nullable list of `{resource_item, repair_value, repair_style, resource_count}`: positive u32 item key, u16 repair value, u8 style, positive u64 quantity; at most 128 entries |
+| `blocked_store_sell`, `discardable`, `important_item`, `destroy_when_broken`, `preserved_on_extract`, `can_disassemble`, `extractable` | Nullable booleans |
+| `extraction_reward`, `minimum_extract_level` | Nullable u32 existing DropSet key (zero clears), and u16 level |
+| `use_actions` | Nullable list of distinct positive u32 existing ItemUseInfo keys; at most 128 entries |
+| `cooldowns`, `maximum_charges` | Nullable arrays of exactly three u64 timer values or three u32 charge counts, in source order |
+| `charge_type`, `shared_cooldown_group` | Nullable raw u8 type and u32 group hash |
+| `quantities` | Up to 256 `{kind, key, value, level}` edits. `price` uses `level: null`; `buy_price` and `stat` use u16 levels. Keys are positive u32. Prices are u64; raw stat counters are i64. Selectors must be unique and already exist. |
+
+At least one setting must be explicit. Wrong types, unknown fields, duplicates,
+overflow, missing/ambiguous quantities, and overlapping legacy/full-width edits
+refuse. The UI uses exact integer text, including grouped locale input, without
+converting 64-bit values through floating point. Legacy stat/price views and v1
+authoring limits remain 32-bit; `full_value`/`full_price` expose complete storage
+values. A PriceFloor's upper amount word is distinct from its preserved `_symNo`.
+
+Repairs require existing unblocked resource items. Extraction rewards must decode
+and round-trip as supported item-producing DropSets, with existing reward items.
+Use actions require a complete, unblocked ItemUseInfo layout; selected skill and
+condition references and supported reward-box dependencies are checked. Borrowed
+definitions and their table directories/payloads retain exact source pins. This
+does not author arbitrary action payloads, transmutation recipes or runtime code.
+
+**Template > Usable items** exposes inventory-use templates with source actions.
+Selection retains those actions in the required v2 capability. These items keep
+their source appearance and can compile without an equipment mesh; equipment
+model/effect authoring still requires an equipment template. Both physical and
+virtual routes allocate a real owned item and preserve its normal identity rules.
+
+The complete bounded reader covers 115 ItemInfo field spans and discriminated
+ItemUseInfo payloads. Declared icon/prefab/animation fields qualify resource hash
+rebinding and final dependency edges; recipe IDs use a separate namespace, and
+tag/material fields cannot be changed by a coincident hash. Use and recipe lists
+have declared boundaries even with nonempty earlier lists. Unknown layouts retain
+the existing v1 compatibility path; extended writes require complete qualification
+through EOF. Known resource roots do not establish complete engine lookup closure.
+
+Evidence against `82ece562` plus this scoped extension is retained legacy fixture
+inspection, owned constructed layouts, golden clone replay, both synthetic
+deployment routes and real headless controls/native presentation. Timer units,
+charge/style enums, gameplay effects, save behaviour and independent native
+registration remain unverified. Compilation revisions require **Apply changes**
+for older virtual profiles; package UUIDs, legacy recipes and provenance remain.
 
 Unknown required features, module types and versions refuse before allocation.
 Optional behavior also refuses until a supported explicit alternative exists;

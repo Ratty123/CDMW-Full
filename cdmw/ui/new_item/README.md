@@ -1079,8 +1079,19 @@ cannot be recovered from settings alone.
 Tier, required level and maximum durability inherit the selected template until
 changed. Only verified field layouts are editable. Explicit `.cditem` overrides
 use the required v2 [`item.properties` capability](INDEPENDENT_ITEMS.md#tier-required-level-and-durability);
-default recipes retain frozen v1 compatibility. These raw values and their
+equipment defaults retain frozen v1 compatibility. These raw values and their
 effects on gameplay remain experimental.
+
+**Stats & Prices > Item settings** adds repair materials and costs, item rules,
+extraction rewards, use actions, cooldowns/charges and exact 64-bit price/stat
+amounts. Load item references runs in the existing cancellable background lane;
+selected resources, rewards and use definitions are checked during planning.
+**Template > Usable items** also supports inventory-use templates without an
+equipment mesh, retaining source appearance and actions. These features require
+[`item.properties@2`](INDEPENDENT_ITEMS.md#extended-item-settings-and-usable-items).
+Older capabilities and default equipment recipes retain their existing grammar.
+Field locations and source dependencies are qualified; game/save behaviour and
+timer/enum meanings remain unverified.
 
 Stats and gameplay perks are explicitly marked experimental. The Stats page uses
 compact, alternating rows with columns that fill the enhancement card, alongside a

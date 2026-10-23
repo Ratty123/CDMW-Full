@@ -57,6 +57,15 @@ def _endurance_candidate(data, start, marker):
 
 def read_item_properties(row):
     """Return verified name -> (value, byte offset, width) entries only."""
+    from cdmw.core.item_layout import read_item_layout
+    try:
+        layout = read_item_layout(row.raw)
+    except RecordError:
+        layout = None
+    if layout is not None:
+        return {name: (layout.integer(field, width=width), layout.fields[field].start, width)
+                for name, field, width in (('item_tier', '_itemTier', 1),
+                    ('required_level', '_equipableLevel', 4), ('max_durability', '_maxEndurance', 2))}
     result = {}
     if row.category_info_offset is not None:
         offset = row.category_info_offset - 4

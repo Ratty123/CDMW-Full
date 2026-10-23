@@ -58,6 +58,15 @@ _DECLARED_PYTHON_UI_RETURN_METHODS = {
 MANUAL_SOURCE_KEYS = frozenset(
     {
         "item properties changed",
+        "Usable item",
+        "Inventory-use template; no equipment model is required.",
+        "Block shop sale:",
+        "Allow discard:",
+        "Important item:",
+        "Destroy when broken:",
+        "Keep after extraction:",
+        "Allow disassembly:",
+        "Allow extraction:",
         # Planner descriptions are composed into the shared Help/Wiki HTML.
         ": Visible-color PNG path: generic 8-bit image staging for color-like textures.",
         ": Technical preserve path: keep the original DDS unchanged because the current workflow is not trusted for this texture.",

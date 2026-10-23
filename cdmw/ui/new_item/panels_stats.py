@@ -91,6 +91,9 @@ class StatsPanel(QGroupBox):
         from cdmw.ui.new_item.recipe_editor import RecipeEditor
         self.recipes = RecipeEditor(controller)
         self.views.addTab(self.recipes, "Enhancement and crafting recipes")
+        from cdmw.ui.new_item.item_settings_editor import ItemSettingsEditor
+        self.item_settings = ItemSettingsEditor(controller)
+        self.views.addTab(self.item_settings, "Item settings")
         layout.addWidget(self.views, 1)
         controller.template_changed.connect(self.rebuild)
 
@@ -331,6 +334,7 @@ class StatsPanel(QGroupBox):
             self.price_table.blockSignals(False)
             self._syncing = False
         self._refresh_column_actions()
+        self.item_settings.rebuild()
         self._refresh_selected_cell_note(self.table.currentRow(), self.table.currentColumn())
 
     def showEvent(self, event) -> None:  # noqa: N802 - Qt virtual
@@ -860,6 +864,7 @@ class StatsPanel(QGroupBox):
         draft.item_tier = None
         draft.required_level = None
         draft.max_durability = None
+        draft.item_settings = self.item_settings.default_settings()
         draft.own_enhancement_rows = False
         self.own_rows.blockSignals(True)
         self.own_rows.setChecked(False)

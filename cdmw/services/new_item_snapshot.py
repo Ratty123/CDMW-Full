@@ -240,13 +240,24 @@ class NewItemSnapshot:
         key = int(item_key)
         cached = self._families.get(key)
         if cached is None:
-            cached = discover_item_model_family(
-                self.row(key),
-                stringinfo=self.stringinfo_texts,
-                pappt=self.pappt,
-                read_entry=self.payload_or_none,
-                path_exists=self.has_entry,
-            )
+            try:
+                cached = discover_item_model_family(
+                    self.row(key), stringinfo=self.stringinfo_texts, pappt=self.pappt,
+                    read_entry=self.payload_or_none, path_exists=self.has_entry)
+            except ItemModelFamilyError as original:
+                row = self.row(key)
+                from cdmw.core.item_layout import read_item_layout, counted_integers
+                from cdmw.core.item_model_family import find_icon_string
+                from cdmw.core.new_item_record import RecordError
+                try:
+                    uses = counted_integers(read_item_layout(row.raw), '_itemUseInfoList')
+                except RecordError:
+                    raise original
+                if self.equip_type_name(row) or not uses:
+                    raise original
+                icon_hash, icon_string = find_icon_string(row, self.stringinfo_texts)
+                cached = ItemModelFamily(key, '', '', (), (), icon_string, icon_hash,
+                    ('Inventory-use template; no equipment model is required.',))
             self._families[key] = cached
         return cached
 
@@ -676,6 +687,18 @@ def template_facts(snapshot: NewItemSnapshot, template_key: int) -> TemplateFact
         )
         for level in row.enchant_levels
     )
+    uses = ()
+    price_items = tuple(price.item_key for price in row.price_list)
+    if not snapshot.equip_type_name(row) or row.stat_block_offset is None:
+        from cdmw.core.item_layout import read_item_layout, counted_integers
+        from cdmw.core.iteminfo_settings import item_quantities
+        from cdmw.core.new_item_record import RecordError
+        try:
+            layout = read_item_layout(row.raw)
+            uses = counted_integers(layout, '_itemUseInfoList') if not snapshot.equip_type_name(row) else ()
+            price_items = tuple(amount.key for amount in item_quantities(layout) if amount.kind == 'price')
+        except RecordError:
+            pass
     return TemplateFacts(
         key=row.key,
         internal_name=row.string_key,
@@ -686,10 +709,11 @@ def template_facts(snapshot: NewItemSnapshot, template_key: int) -> TemplateFact
         model_stem=model_stem,
         owned_stems=owned,
         levels=levels,
-        price_items=tuple(price.item_key for price in row.price_list),
+        price_items=price_items,
         max_stack_count=int(row.max_stack_count),
         item_group_keys=tuple(group.key for group in groups_containing(snapshot.item_groups, row.key)),
         socket_items=tuple(row.socket_items),
+        use_actions=uses,
     )
 
 

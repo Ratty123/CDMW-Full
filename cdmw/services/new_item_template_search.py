@@ -13,6 +13,7 @@ from cdmw.domain.cancellation import raise_if_cancelled
 
 
 TemplateOption = tuple[int, str, str, str]
+USABLE_ITEMS_CATEGORY = -1
 
 
 @dataclass(frozen=True)
@@ -21,6 +22,7 @@ class TemplateSearchRow:
     name_fields: tuple[str, ...]
     all_fields: tuple[str, ...]
     sort_values: tuple[str, str, int, str, str]
+    usable: bool = False
 
 
 @dataclass(frozen=True)
@@ -35,11 +37,22 @@ def build_template_search_catalogue(snapshot, *, stop_event=None) -> TemplateSea
     display_names = snapshot.item_display_names()
     localized_names = snapshot.item_search_names()
     rows = []
+    usable_keys = set()
     for key, row in snapshot.rows.items():
         raise_if_cancelled(stop_event)
         equip = snapshot.equip_type_name(row)
+        usable = False
         if not equip:
-            continue
+            from cdmw.core.item_layout import item_use_prefix
+            from cdmw.core.new_item_record import RecordError
+            try:
+                usable = not row.is_blocked and bool(item_use_prefix(row.raw))
+            except RecordError:
+                pass
+            if not usable:
+                continue
+            usable_keys.add(int(key))
+            equip = 'Usable item'
         key = int(key)
         internal_name = str(row.string_key or "")
         display_name = str(display_names.get(key, "") or "")
@@ -54,10 +67,12 @@ def build_template_search_catalogue(snapshot, *, stop_event=None) -> TemplateSea
             names,
             (*names, equip.casefold(), str(key)),
             (internal_name.casefold(), display_name.casefold(), key, equip.casefold(), capability.casefold()),
+            usable,
         ))
 
     groups = {group.key: group for group in snapshot.item_groups}
     categories = {}
+    categories[USABLE_ITEMS_CATEGORY] = frozenset(usable_keys)
     for group in snapshot.item_groups:
         if group.name != "ItemGroup_Category_Equipment" and not group.name.startswith("ItemGroup_SubCategory_Equip_"):
             continue
@@ -104,6 +119,8 @@ def search_template_options(
     for row in catalogue.rows:
         raise_if_cancelled(stop_event)
         key = row.option[0]
+        if row.usable and group_key != USABLE_ITEMS_CATEGORY:
+            continue
         if members is not None and key not in members:
             continue
         if not query.is_empty and not any(

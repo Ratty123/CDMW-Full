@@ -11,6 +11,7 @@ from cdmw.domain.mesh.emission import GlowAnimation, RgbGlow
 from cdmw.domain.mesh.shader_controls import ShaderControls
 from cdmw.domain.new_item.body_visibility import BodyVisibilityChoice
 from cdmw.domain.new_item.surface import SurfaceEdit
+from cdmw.domain.new_item.item_settings import ItemSettings
 
 from dataclasses import dataclass, field, replace
 from typing import Callable, Dict, List, Mapping, Optional, Sequence, Tuple
@@ -207,6 +208,7 @@ class NewItemDraft:
     item_tier: Optional[int] = None
     required_level: Optional[int] = None
     max_durability: Optional[int] = None
+    item_settings: Optional[ItemSettings] = None
     placement_kind: PlacementKind = PlacementKind.NONE
     store_name: str = ""
     old_item_name: str = ""
@@ -269,6 +271,7 @@ class NewItemDraft:
         self.item_tier = None
         self.required_level = None
         self.max_durability = None
+        self.item_settings = None
         self.stem = ""
         self.item_key = None
         self.socket_items = None
@@ -462,6 +465,7 @@ def spec_from_draft(draft: NewItemDraft, grid: Optional[StatGrid]) -> NewItemSpe
         item_tier=draft.item_tier,
         required_level=draft.required_level,
         max_durability=draft.max_durability,
+        item_settings=draft.item_settings,
         placement=placement,
         shop_placements=draft.shop_placements,
         item_groups=draft.item_groups,
@@ -526,7 +530,7 @@ def stats_summary(draft: NewItemDraft, grid: Optional[StatGrid], *,
         1 for key, _label, template in (grid.price_items if grid is not None else ())
         if draft.price_values.get(key, template) != template
     )
-    properties_changed = any(value is not None for value in (draft.item_tier, draft.required_level, draft.max_durability))
+    properties_changed = any(value is not None for value in (draft.item_tier, draft.required_level, draft.max_durability, draft.item_settings))
     extras = int(draft.extra_levels > 0) + int(bool(draft.extra_stat_keys)) + int(draft.max_stack_count is not None) + int(draft.own_enhancement_rows) + int(properties_changed)
     if not (stat_count or price_count or extras):
         return "Combat and prices: template values", False

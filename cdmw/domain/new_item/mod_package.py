@@ -59,6 +59,15 @@ def capability_result(name, version):
              'Game and save behavior require separate evidence.'),
             (EvidenceClaim('adapter', 'Bounded ItemInfo equipment properties', 'iteminfo_properties.py'),
              EvidenceClaim('synthetic', 'Portable properties and both deployment routes', 'tests/test_independent_item_properties.py')))
+    if name == 'item.properties' and type(version) is int and version == 2:
+        return CapabilityResult(name, version, True,
+            ('Owned item only; the closed v1 property schema and recipe remain unchanged.',
+             'Complete bounded ItemInfo layouts qualify repair, policy, extraction and use settings.',
+             'Raw u64 prices/cooldowns/repair costs, i64 stat counters and u32 charge limits.',
+             'Use definitions and reward/resource references require verified game dependencies.',
+             'No independent native registration or game/save acceptance is established.'),
+            (EvidenceClaim('adapter', 'Complete item layouts and typed settings', 'item_layout.py'),
+             EvidenceClaim('synthetic', 'Extended settings and package compilation', 'tests/test_independent_item_settings.py')))
     if name == 'texture.replace' and type(version) is int and version == 1:
         return CapabilityResult(name, version, True,
             ('Existing directly registered raw 2D block-compressed textures with exact source and registry hashes.',

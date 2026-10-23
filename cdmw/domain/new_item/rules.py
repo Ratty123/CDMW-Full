@@ -100,6 +100,7 @@ class TemplateFacts:
     item_group_keys: Tuple[int, ...] = ()
     #: The Abyss Gear items the template embeds by default (its tooltip's perk lines).
     socket_items: Tuple[int, ...] = ()
+    use_actions: Tuple[int, ...] = ()
 
 
 @lru_cache(maxsize=4)
@@ -295,6 +296,17 @@ def validate_spec(spec: NewItemSpec) -> Tuple[ValidationIssue, ...]:
         value = getattr(spec, name)
         if value is not None and (type(value) is not int or not 0 <= value <= maximum):
             issues.append(_issue("item_property.range", name, f"{name} must be an integer in 0..{maximum}."))
+    if spec.item_settings is not None:
+        from cdmw.domain.new_item.item_settings import encode_settings
+        try:
+            encode_settings(spec.item_settings)
+            existing = ({('stat', edit.level, edit.status_key) for edit in spec.stat_edits}
+                        | {('buy_price', edit.level, edit.item_key) for edit in spec.buy_price_edits}
+                        | {('price', None, edit.item_key) for edit in spec.price_edits})
+            if any((edit.kind, edit.level, edit.key) in existing for edit in spec.item_settings.quantities):
+                raise ValueError('A quantity cannot be edited through both legacy and full-width settings.')
+        except (ValueError, TypeError) as exc:
+            issues.append(_issue('item_settings.invalid', 'item_settings', str(exc)))
 
     if spec.effect is not None and not _EFFECT_RE.match(str(spec.effect)):
         issues.append(_issue("effect.shape", "effect", "An effect is named `<stem>.<kind>.effect`, with a shipped level, action, gimmick, system or sequencer reference."))
@@ -391,8 +403,12 @@ def validate_against_context(spec: NewItemSpec, context: NewItemContext) -> Tupl
         return tuple(issues)
     if context.item_keys and template.key not in context.item_keys:
         issues.append(_issue("template.unknown", "template_key", f"Item {template.key} is not in the table."))
-    if not template.equip_type_name:
+    use_item = not template.equip_type_name and bool(template.use_actions) and spec.item_settings is not None
+    if not template.equip_type_name and not use_item:
         issues.append(_issue("template.not_equipment", "template_key", f"{template.internal_name} has no equip type; only equipment can be cloned into a new item."))
+    if use_item and spec.needs_own_family:
+        issues.append(_issue('item_settings.use_model', 'item_settings',
+            'Inventory-use templates keep their source appearance; equipment model and effect authoring require an equipment template.'))
     if not template.has_stat_block:
         issues.append(_issue("template.no_stat_block", "template_key", f"{template.internal_name}'s stat block did not decode; stats and prices cannot be edited on this template.", "warning"))
 

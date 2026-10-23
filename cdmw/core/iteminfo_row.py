@@ -49,10 +49,11 @@ gap the caller can see. What is modelled, and how it was established:
 Stat keys are `statusinfo.pabgb` rows: DDD (1000002) is what every weapon ladder
 carries and DPV (1000003) what every armour ladder carries. Price item keys are
 `Money_*` items (1 = copper, 11 = camp money, 12 = camp food, 15 = camp weapon
-money). `_equipableLevel` and the secondary description are walked to locate the
-category, not exposed as authoring controls. `_itemTier` and `_maxEndurance`
-remain opaque. Stored stack counts are u64; existing stack-edit APIs still accept
-only positive u32 values.
+money). This module retains the legacy 32-bit stat/price views and edit contracts.
+`item_layout` supplies complete field boundaries; `iteminfo_properties` exposes
+tier, required level and durability, and `iteminfo_settings` owns full-width
+amounts, repair, policy, extraction and use settings. Stored stack counts are u64;
+existing stack-edit APIs still accept only positive u32 values.
 """
 
 from __future__ import annotations
@@ -90,8 +91,13 @@ class StatValue:
     value: int
     #: Byte offset of the i32 value inside the row (-1 on a value built for a rebuild).
     offset: int = -1
-    #: The u32 after the value; 0 on every shipped weapon and armour, -1 on a few test items. Carried, not interpreted.
+    #: Upper storage word of the raw i64 counter, retained under its legacy name.
     extra: int = 0
+
+    @property
+    def full_value(self):
+        value = (self.value & 0xffffffff) | ((self.extra & 0xffffffff) << 32)
+        return value - (1 << 64) if value & (1 << 63) else value
 
 
 @dataclass(frozen=True, slots=True)
@@ -100,8 +106,16 @@ class PriceEntry:
     price: int
     #: Byte offset of the u32 price inside the row (-1 on an entry built for a rebuild).
     offset: int = -1
-    #: The two u32 between the price and the repeated item key; zero on every shipped entry. Carried, not interpreted.
+    #: Legacy tuple: high u32 amount word, then PriceFloor._symNo. Both preserved.
     reserved: Tuple[int, int] = (0, 0)
+
+    @property
+    def full_price(self):
+        return (self.price & 0xffffffff) | ((self.reserved[0] & 0xffffffff) << 32)
+
+    @property
+    def symbol_number(self):
+        return self.reserved[1]
 
 
 @dataclass(frozen=True, slots=True)
@@ -403,7 +417,7 @@ def _find_memo(raw: bytes, start: int) -> Optional[str]:
     return None
 
 
-def parse_iteminfo_row(raw: bytes, *, item_keys: Optional[Iterable[int]] = None) -> ItemInfoRow:
+def _parse_iteminfo_row(raw: bytes, *, item_keys: Optional[Iterable[int]] = None, layout=None) -> ItemInfoRow:
     """Decode one row. `item_keys` (every key in the table) tightens the stat-block anchor.
 
     Raises :class:`ItemInfoRowError` only when the prefix is not an ItemInfo row at
@@ -432,7 +446,14 @@ def parse_iteminfo_row(raw: bytes, *, item_keys: Optional[Iterable[int]] = None)
     occupied = []
     for _ in range(occupied_count):
         slot_hash = _u32(data, cursor)
-        indexes, cursor = _read_u32_list(data, cursor + 4, limit=16)
+        if layout is None:
+            indexes, cursor = _read_u32_list(data, cursor + 4, limit=16)
+        else:
+            count = _u32(data, cursor + 4)
+            if count > 16 or cursor + 8 + count > layout.fields['_occupiedEquipSlotDataList'].end:
+                raise ItemInfoRowError('Unsupported occupied-slot index list.')
+            indexes = tuple(data[cursor + 8:cursor + 8 + count])
+            cursor += 8 + count
         occupied.append(OccupiedSlot(slot_name_hash=slot_hash, indexes=indexes))
     prefix_end = cursor
 
@@ -445,7 +466,10 @@ def parse_iteminfo_row(raw: bytes, *, item_keys: Optional[Iterable[int]] = None)
     category_info = None
     category_info_offset = None
     memo = None
-    if desc_offset >= 0 and data.find(needle, desc_offset + 1) < 0:
+    if layout is not None:
+        primary = layout.fields['_itemDesc']
+        desc_offset = primary.start if layout.data('_itemDesc').startswith(DESC_TAG) else -1
+    if desc_offset >= 0 and (layout is not None or data.find(needle, desc_offset + 1) < 0):
         desc_key, desc_end = _read_local_string(data, desc_offset, DESC_TAG, key)
         # `_itemType`, `_materialKey`, `_materialMatchInfo` precede the description.
         if desc_offset - 9 >= prefix_end:
@@ -464,10 +488,18 @@ def parse_iteminfo_row(raw: bytes, *, item_keys: Optional[Iterable[int]] = None)
     else:
         desc_offset = None
 
+    if layout is not None:
+        item_type_offset = layout.fields['_itemType'].start
+        item_type = layout.integer('_itemType', width=1)
+        category_info_offset = layout.fields['_categoryInfo'].start
+        category_info = layout.integer('_categoryInfo', width=2)
+        memo, _end = _read_str(data, layout.fields['_itemMemo'].start, limit=4096)
+
     # stat block: first place (after the category) where the composite shape holds
     block = None
     search_from = (category_info_offset + 2) if category_info_offset is not None else prefix_end
-    for offset in _stat_block_candidates(data, search_from):
+    offsets = (layout.fields['_dropDefaultData'].start + 2,) if layout is not None else _stat_block_candidates(data, search_from)
+    for offset in offsets:
         block = _read_stat_block(data, offset, item_keys)
         if block is not None:
             break
@@ -490,6 +522,28 @@ def parse_iteminfo_row(raw: bytes, *, item_keys: Optional[Iterable[int]] = None)
         stat_block_marker=block["marker"],
         category_info=category_info, category_info_offset=category_info_offset,
     )
+
+
+def parse_iteminfo_row(raw: bytes, *, item_keys: Optional[Iterable[int]] = None, structured=False) -> ItemInfoRow:
+    """Retain the legacy fast path; qualify complete layouts when requested/needed."""
+    from cdmw.core.item_layout import read_item_layout
+    from cdmw.core.new_item_record import RecordError
+    if structured:
+        return _parse_iteminfo_row(raw, item_keys=item_keys, layout=read_item_layout(raw))
+    try:
+        result = _parse_iteminfo_row(raw, item_keys=item_keys)
+    except (ItemInfoRowError, struct.error) as original:
+        try:
+            layout = read_item_layout(raw)
+        except RecordError:
+            raise original
+        return _parse_iteminfo_row(raw, item_keys=item_keys, layout=layout)
+    if result.desc_offset is None and bytes(raw).count(DESC_TAG + struct.pack('<I', result.key)) > 1:
+        try:
+            return _parse_iteminfo_row(raw, item_keys=item_keys, layout=read_item_layout(raw))
+        except RecordError:
+            pass
+    return result
 
 
 # --------------------------------------------------------------------------- editors
@@ -560,6 +614,7 @@ def clone_iteminfo_row(
     name_key: str,
     desc_key: Optional[str] = None,
     replace_hashes: Optional[Mapping[int, int]] = None,
+    replace_recipes: Optional[Mapping[int, int]] = None,
 ) -> bytes:
     """A new row from a template: new key (three places), internal name, localisation keys.
 
@@ -578,6 +633,15 @@ def clone_iteminfo_row(
         raise ItemInfoRowError("name key must be ASCII")
     if row.desc_offset is not None and (desc_key is None or not desc_key.isascii()):
         raise ItemInfoRowError("the template has a description key; give the clone one")
+    from cdmw.core.item_layout import read_item_layout, clone_layout_item
+    from cdmw.core.new_item_record import RecordError
+    try:
+        layout = read_item_layout(row.raw)
+    except RecordError:
+        layout = None
+    if layout is not None:
+        return clone_layout_item(layout, key=int(key), string_key=string_key, name_key=name_key,
+                                 desc_key=desc_key, hashes=replace_hashes or {}, recipes=replace_recipes)
     raw = row.raw
     old_key = struct.pack("<I", row.key)
     new_key = struct.pack("<I", int(key))
@@ -607,7 +671,7 @@ def clone_iteminfo_row(
         raise ItemInfoRowError(
             f"the template key still appears {tail.count(old_key)} more time(s) after the description; refusing to guess what it means"
         )
-    for old_hash, new_hash in (replace_hashes or {}).items():
+    for old_hash, new_hash in {**(replace_hashes or {}), **(replace_recipes or {})}.items():
         needle = struct.pack("<I", int(old_hash) & 0xFFFFFFFF)
         if tail.count(needle) == 0:
             raise ItemInfoRowError(f"hash 0x{int(old_hash):08X} does not occur in the template after the prefix")

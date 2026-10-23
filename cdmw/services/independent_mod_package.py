@@ -161,6 +161,17 @@ def item_properties(manifest):
         raise IndependentItemError('Item properties require one module and its owned legacy item.')
     from cdmw.domain.new_item.item_properties import checked_properties
     try:
+        if properties[0]['version'] == 2:
+            from cdmw.domain.new_item.item_properties import PROPERTY_LIMITS
+            from cdmw.domain.new_item.item_settings import decode_settings
+            data = properties[0]['data']
+            if not isinstance(data, dict) or set(data) != set(PROPERTY_LIMITS) | {'settings'}:
+                raise ValueError('Unsupported v2 item properties fields.')
+            values = {name: data[name] for name in PROPERTY_LIMITS}
+            # V2 can carry settings alone; v1 retains its original nonempty rule.
+            if any(value is not None for value in values.values()):
+                checked_properties(values)
+            return dict(values, item_settings=decode_settings(data['settings']))
         return checked_properties(properties[0]['data'])
     except ValueError as exc:
         raise IndependentItemError(str(exc)) from exc

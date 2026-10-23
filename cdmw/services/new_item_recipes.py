@@ -17,6 +17,18 @@ def table_keys(payload, header):
 
 
 def replace_recipe_references(row, known_keys, selected, *, source_keys=None):
+    from cdmw.core.item_layout import read_item_layout, counted_integers, replace_layout_fields
+    from cdmw.core.new_item_record import RecordError
+    try:
+        layout = read_item_layout(row.raw)
+    except RecordError:
+        layout = None
+    if layout is not None:
+        old = counted_integers(layout, '_multiChangeInfoList')
+        if any(key not in known_keys for key in old) or source_keys is not None and tuple(source_keys) != old:
+            raise RecordError('The declared recipe references disagree with their source.')
+        data = struct.pack('<I', len(selected)) + b''.join(struct.pack('<I', key) for key in selected)
+        return replace_layout_fields(layout, {'_multiChangeInfoList': data}).raw
     old = find_multichange_keys(row, known_keys) if source_keys is None else source_keys
     if not old:
         if selected:

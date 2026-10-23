@@ -193,7 +193,45 @@ def audit_references(plan, snapshot, *, stop_event=None):
                 if record.sockets_path:
                     require(record.sockets_path, role='contribution-root', evidence='Decoded added PAPPT socket binding')
 
-    if not outputs and pappt_path not in plan.loose_files:
+    # Qualify roots from the actual final ItemInfo row, rather than assuming
+    # every retained template input remains a resource of the authored item.
+    from cdmw.core.item_layout import read_item_layout, hash_reference_spans
+    from cdmw.core.new_item_record import RecordError
+    from cdmw.core.stringinfo_table import stringinfo_key
+    from cdmw.core.structured_binary_editor import parse_pabgh_table
+    item_pair = snapshot.iteminfo
+    final_body = plan.loose_files.get(item_pair.payload_entry.path, item_pair.payload)
+    final_header = plan.loose_files.get(item_pair.header_entry.path, item_pair.header)
+    final_row = next((final_body[start:end] for directory, start, end in
+        parse_pabgh_table(final_header, payload=final_body).row_spans(len(final_body))
+        if directory.row_id == int(plan.spec.item_key)), None)
+    try:
+        layout = read_item_layout(final_row)
+    except RecordError:
+        layout = None
+    if layout is not None:
+        strings = dict(snapshot.stringinfo_texts)
+        strings.update({stringinfo_key(text): text for text in plan.manifest.get('stringinfo_texts', ())})
+        parts = parse_pappt(plan.loose_files[pappt_path]).index() if pappt_path in plan.loose_files else snapshot.pappt.index()
+        source = f'iteminfo:{plan.spec.item_key}'
+        for role, span in hash_reference_spans(layout):
+            key = int.from_bytes(layout.raw[span.start:span.end], 'little')
+            if key == 0:
+                continue
+            text = strings.get(key)
+            if role == 'prefab' and text in parts:
+                require(parts[text].prefab_path, role='contribution-root', evidence='Declared final ItemInfo prefab field')
+            elif role == 'animation' and text and '/' in text:
+                require(text, role='contribution-root', evidence='Declared final ItemInfo animation field')
+            elif role == 'icon' and text and text.startswith('ItemIcon_Prefab_'):
+                from cdmw.core.item_icon_addition import icon_target_path
+                require(icon_target_path(text), role='contribution-root', evidence='Declared final ItemInfo icon field')
+            else:
+                unresolved.add(f'An ItemInfo {role} hash has no supported resource binding: {key}')
+        unresolved.discard('Final ItemInfo-to-resource reachability is not decoded here; template roots are not proven authoring-only.')
+        unresolved.add('Declared ItemInfo icon/prefab/animation roots are decoded; other table references and engine aliases remain baseline dependencies.')
+
+    if layout is None and not outputs and pappt_path not in plan.loose_files:
         unresolved.add('This contribution retains template resource bindings; final ItemInfo resource roots are not independently decoded here.')
 
     while pending:

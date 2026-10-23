@@ -1039,20 +1039,29 @@ the supported positive-u32 stack edits or admit high-word source rows through
 those adapters. The `.cditem` wire formats remain unchanged. This is source and
 fixture evidence, with no new game, save, rendering or native-admission claim.
 
-Equipment-property extension, 2026-10-24, against `a4c3e6e2` plus the scoped
-property adapters: Create New Item supports raw tier u8, required level u32 and
-maximum durability u16 overrides on its owned item. Tier is bounded relative to
-the socket/stat block; level follows the variable secondary description.
-Durability is qualified by the complete variable-length faction/repair/prefab and
-inventory-routing suffix, including the different 0x11/0x12 shapes; unknown or
-ambiguous locations refuse. All 15 retained source rows qualify, with stored
-endurance 65,535; that observation does not establish an unlimited-durability
-sentinel. Focused synthetic tests cover scalar limits, unchanged unassigned
-bytes, resized stat blocks, portable admission, both deployment routes and real
-headless controls/native presentation. Explicit overrides require v2
-`item.properties@1`; default recipes and existing v1 wire/digests stay unchanged.
-The public capability reports these source/fixture limits. Current game effects,
-tier labels, level gating and save behaviour remain unverified.
+Item settings extension, 2026-10-24, against `82ece562` plus the scoped adapters:
+tier u8, required level u32 and durability u16 retain `item.properties@1`.
+`item.properties@2` adds repairs, item-rule flags, extraction reward references,
+use actions and full-width quantities. A bounded address-free grammar qualifies
+all 115 ItemInfo field spans and discriminated ItemUseInfo payloads. Declared
+icon/prefab/animation and use/recipe fields replace scans on qualified layouts;
+resource hashes and recipe IDs have separate rebinding namespaces. PriceFloor
+amounts occupy eight bytes followed by a separate symbol word; raw stat counters
+occupy eight bytes and enchant levels two. Full-width edits retain these complete
+storage values while preserving the legacy 32-bit views and frozen recipe.
+
+Repair resources, supported extraction rewards, use definitions and established
+action references are checked and pinned to source tables. Usable-item templates
+can compile without equipment meshes through both deployment routes, retaining
+source appearance/actions. The background catalogue preserves cancellation and
+stale-result guards. Unknown layouts, missing dependencies and ambiguous edits
+refuse. Equipment defaults remain v1; extended/usable recipes explicitly require
+v2 support. All 15 retained legacy rows qualify; current layouts, integer limits,
+unassigned-byte preservation and package/UI flows have owned constructed proof.
+Golden replay remains separate historical byte evidence. Timer units, raw enum
+meanings, current game effects, saves and independent native registration remain
+unverified. Stored endurance 65,535 does not establish an unlimited-durability
+sentinel, and known resource roots do not prove complete engine lookup closure.
 
 Historical game observations establish acceptance of selected appended item/string
 records and shop substitutions. They do not establish arbitrary table rewrites.

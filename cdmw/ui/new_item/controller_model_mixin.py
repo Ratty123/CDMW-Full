@@ -213,6 +213,10 @@ class NewItemModelControllerMixin:
     def _commit_template(self, template_key) -> None:
         self.reset_variants()
         self.draft = with_template(self.draft, template_key)
+        context = self.snapshot._contexts.get(template_key) if self.snapshot is not None else None
+        if context is not None and not context.template.equip_type_name and context.template.use_actions:
+            from cdmw.domain.new_item.item_settings import ItemSettings
+            self.draft.item_settings = ItemSettings(use_actions=context.template.use_actions)
         self.invalidate_plan()
         self.model_result = None
         self.model_entry = None

@@ -148,6 +148,8 @@ class TemplatePanel(QGroupBox):
             if equipment:
                 self.category.addItem("Game equipment", equipment.key)
             self.category.addItem("All equipment", None)
+            from cdmw.services.new_item_template_search import USABLE_ITEMS_CATEGORY
+            self.category.addItem("Usable items", USABLE_ITEMS_CATEGORY)
             for group in groups:
                 if group.name.startswith("ItemGroup_SubCategory_Equip_"):
                     self.category.addItem(group.name.removeprefix("ItemGroup_SubCategory_Equip_"), group.key)

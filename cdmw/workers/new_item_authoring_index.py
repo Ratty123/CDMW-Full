@@ -14,6 +14,9 @@ def authoring_index_task(kind, snapshot):
         elif kind == "dyes":
             from cdmw.services.new_item_dyes import load_dye_index
             result = load_dye_index(snapshot, stop_event=stop_event)
+        elif kind == "item-settings":
+            from cdmw.services.new_item_settings import load_settings_index
+            result = load_settings_index(snapshot, stop_event=stop_event)
         else:
             raise ValueError(f"Unsupported authoring index: {kind}")
         raise_if_cancelled(stop_event, "Authoring index cancelled.")

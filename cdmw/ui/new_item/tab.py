@@ -97,6 +97,7 @@ def _workflow_step_for_issue(issue: object) -> int:
         "item_tier",
         "required_level",
         "max_durability",
+        "item_settings",
         "enhancement",
     }:
         return 3

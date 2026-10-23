@@ -262,6 +262,16 @@ def _prefab_pac_path(read_entry: ReadEntry, prefab_path: str) -> str:
     return paths[0] if paths else ""
 
 
+def _resource_offsets(row, role):
+    from cdmw.core.item_layout import read_item_layout, hash_reference_spans
+    from cdmw.core.new_item_record import RecordError
+    try:
+        layout = read_item_layout(row.raw)
+    except RecordError:
+        return range(row.prefix_end, len(row.raw) - 3)
+    return tuple(span.start for kind, span in hash_reference_spans(layout) if kind == role)
+
+
 def find_part_stems(
     row: ItemInfoRow,
     stringinfo: Mapping[int, str],
@@ -279,7 +289,7 @@ def find_part_stems(
     stems = pappt.index()
     raw = row.raw
     found: dict[int, str] = {}
-    for offset in range(row.prefix_end, len(raw) - 3):
+    for offset in _resource_offsets(row, 'prefab'):
         value = int.from_bytes(raw[offset:offset + 4], "little")
         if value in found:
             continue
@@ -293,7 +303,7 @@ def find_icon_string(row: ItemInfoRow, stringinfo: Mapping[int, str]) -> Tuple[O
     """(hash, text) of the row's `ItemIcon_Prefab_*` string, or (None, None)."""
 
     raw = row.raw
-    for offset in range(row.prefix_end, len(raw) - 3):
+    for offset in _resource_offsets(row, 'icon'):
         value = int.from_bytes(raw[offset:offset + 4], "little")
         text = stringinfo.get(value)
         if text is not None and text.startswith(ICON_STRING_PREFIX):

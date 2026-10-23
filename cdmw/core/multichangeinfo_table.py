@@ -81,6 +81,15 @@ def find_multichange_keys(row: ItemInfoRow, known_keys: Iterable[int]) -> Tuple[
     """
 
     known = set(int(k) for k in known_keys)
+    from cdmw.core.item_layout import read_item_layout, counted_integers
+    from cdmw.core.new_item_record import RecordError
+    try:
+        layout = read_item_layout(row.raw)
+    except RecordError:
+        layout = None
+    if layout is not None:
+        keys = counted_integers(layout, '_multiChangeInfoList')
+        return keys if all(key in known for key in keys) else ()
     raw = row.raw
     stop = row.stat_block_offset if row.stat_block_offset is not None else len(raw)
     best: Tuple[int, ...] = ()

@@ -13,10 +13,10 @@ from cdmw.domain.textures.plan import describe_processing_path_kind
 CREATE_NEW_ITEM_SECTION = {
     "id": "new_item_studio",
     "title": "Create New Item",
-    "summary": "Clone an equipment item into a brand-new one: name, stats, model, icon, perks, effect, shop.",
+    "summary": "Clone equipment or a supported usable item.",
     "keywords": "new item studio clone template iteminfo stringinfo store shop item group model family icon perks socket gem effect element preset material pbr shader loose mod install",
     "html": """
-<p><b>Create New Item</b> creates a separate equipment identity from a shipped template.</p>
+<p><b>Create New Item</b> creates a new equipment or usable item from a supported game template.</p>
     <ol>
       <li><b>Template</b>: search internal names, item keys, equipment types, or any available game-language name. The table displays English names when available.</li>
       <li><b>Identity</b>: keep allocated IDs or choose Manual. English names are required; missing item-language entries fall back to English.</li>
@@ -41,7 +41,8 @@ CREATE_NEW_ITEM_SECTION = {
     <p>Appearance belongs to the selected model variant. Review its materials, textures, glow, transparency and icon separately. Imported-model dyes start disabled. Blended transparency and painted cutouts have different shader requirements; overlapping transparent surfaces and unsupported transmission can differ from the game. Inspect the plan's material warnings.</p>
     <h4>Stats &amp; Prices</h4>
     <p>Compare raw values with the template before changing them. Price and enhancement data are separate from visual appearance. Advanced stats, extra levels and bonuses are experimental; a number accepted by the editor is not proof that the game interprets it as intended.</p>
-    <p>Tier, Required level and Max durability inherit the template until changed. Reset restores inheritance. These are raw game values; unavailable layouts are disabled and in-game effects remain unverified. Explicit overrides use .cditem v2 and require a reader supporting item.properties; recipes without them retain v1 compatibility.</p>
+    <p>Tier, Required level and Max durability inherit the template until changed. Reset restores inheritance. These are raw game values; unavailable layouts are disabled and in-game effects remain unverified. Equipment recipes without overrides retain v1 compatibility; extended settings require the corresponding v2 reader.</p>
+    <p>Item settings adds repair materials, item rules, extraction rewards, use actions, cooldowns, charges and full-width amounts. Load item references before choosing resources. Blank overrides inherit; empty lists clear. Choose Usable items in Template for supported inventory-use templates; these keep their source appearance. Extended settings require item.properties version 2. Missing dependencies and unknown layouts refuse; game and save behaviour remain unverified.</p>
     <h4>Effects &amp; Perks</h4>
     <p>Browse effects, filter by category or timing, and inspect the selected effect in the placed preview. Review layers, emitters and attachment placement, then apply staged changes before planning. Visual effects and gameplay perks are separate. Keep the default four-perk limit unless deliberately testing the experimental higher limit.</p>
     <p>Sprite particles ignore unused mesh references, so missing mesh files do not hide them. Mesh particles retain their geometry. Ribbon trails and moving emitter paths are not fully simulated. Parent-driven particles stay off when their carrier's spawn count is zero.</p>

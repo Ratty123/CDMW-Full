@@ -356,7 +356,6 @@ class _Planner(EffectPlanningMixin):
             hashes.update({stringinfo_key(old): stringinfo_key(new) for old, new in self.sheathed_stem_map().items()})
         if self.spec.icon is IconSource.GENERATED and self.family.icon_hash:
             hashes[self.family.icon_hash] = self.icon_hash
-        hashes.update(self.enhancement_map)
         row_bytes = clone_iteminfo_row(
             template,
             key=int(self.spec.item_key),
@@ -364,6 +363,7 @@ class _Planner(EffectPlanningMixin):
             name_key=str(self.spec.name_key),
             desc_key=self.spec.desc_key,
             replace_hashes=hashes or None,
+            replace_recipes=self.enhancement_map or None,
         )
         row_bytes = self._apply_row_edits(row_bytes)
         if not self.spec.include_perk_prices:
@@ -392,7 +392,8 @@ class _Planner(EffectPlanningMixin):
 
     def _apply_row_edits(self, row_bytes: bytes) -> bytes:
         spec = self.spec
-        row = parse_iteminfo_row(row_bytes, item_keys=set(self.snapshot.rows) | {int(spec.item_key)})
+        row = parse_iteminfo_row(row_bytes, item_keys=set(self.snapshot.rows) | {int(spec.item_key)},
+                                 structured=spec.item_settings is not None)
         from cdmw.domain.new_item.item_properties import property_values
         properties = property_values(spec)
         if any(value is not None for value in properties.values()):
@@ -406,7 +407,7 @@ class _Planner(EffectPlanningMixin):
         if sockets is not None and sockets == tuple(row.socket_items):
             sockets = None
         if not (spec.stat_edits or spec.buy_price_edits or spec.price_edits) and sockets is None and spec.socket_slots is None and spec.equipment_bonuses is None:
-            return row_bytes
+            return self._apply_extended_settings(row_bytes)
         if row.stat_block_offset is None:
             raise NewItemPlanError(f"{self.template.string_key} has no decoded stat block; stats, prices and socket items cannot be edited")
         levels: List[EnchantLevel] = list(row.enchant_levels)
@@ -485,7 +486,19 @@ class _Planner(EffectPlanningMixin):
         self.summary.append(
             f"stats: {len(spec.stat_edits)} stat, {len(spec.buy_price_edits)} buy-price and {len(spec.price_edits)} price edit(s)"
         )
-        return rebuilt
+        return self._apply_extended_settings(rebuilt)
+
+    def _apply_extended_settings(self, raw):
+        settings = self.spec.item_settings
+        if settings is None:
+            return raw
+        from cdmw.services.new_item_settings import validate_settings_dependencies, inherited_settings
+        from cdmw.core.iteminfo_settings import set_item_settings
+        validate_settings_dependencies(inherited_settings(settings, raw), self.snapshot, stop_event=self.stop_event)
+        result = set_item_settings(raw, settings)
+        from cdmw.domain.new_item.item_settings import encode_settings
+        self.manifest['item_settings'] = encode_settings(settings)
+        return result
 
     def _check_stat_values_against_the_corpus(self) -> None:
         """Warn when a stat edit sits far outside what shipped equipment carries for it.

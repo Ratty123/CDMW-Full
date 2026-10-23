@@ -48,6 +48,16 @@ def encode_item_use_reward(row):
 
 def item_use_references(row, known_keys):
     """Return the bounded, nonempty ItemInfo use-list or reject its shape."""
+    from cdmw.core.item_layout import read_item_layout, counted_integers
+    try:
+        layout = read_item_layout(row.raw)
+    except RecordError:
+        layout = None
+    if layout is not None:
+        keys = counted_integers(layout, '_itemUseInfoList')
+        if not keys or any(key not in known_keys for key in keys):
+            raise RecordError('ItemInfo has no verified nonempty use list.')
+        return layout.fields['_itemUseInfoList'].start, keys
     offset = row.prefix_end + 12
     stop = row.stat_block_offset if row.stat_block_offset is not None else len(row.raw)
     if offset + 4 > stop:
