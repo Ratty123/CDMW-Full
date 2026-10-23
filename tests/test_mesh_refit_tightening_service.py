@@ -134,7 +134,7 @@ def test_fit_reads_authoritative_part_settings_and_publishes_one_undo(resident):
         assert a == pytest.approx(b)
 
 
-def test_fit_default_leaves_an_already_clear_loose_garment_unchanged(resident):
+def test_fit_default_tightens_a_new_binding_and_retains_a_deliberate_zero(resident):
     service, open_session = resident
     mesh = _mesh(_arm(), _sleeve(radius=.13))
     session = open_session(mesh)
@@ -145,12 +145,86 @@ def test_fit_default_leaves_an_already_clear_loose_garment_unchanged(resident):
     service.bind_refit(session, (1,))
     before = service.cached_morph_state_from_runtime(session).refit
     assert before.garment_settings[0].tightness_percent == 0.
+    assert before.garment_settings[0].tightness_initialized is False
+    assert service.working_mesh(session, clone=True).submeshes[1].vertices == mesh.submeshes[1].vertices
     result, state = service.fit_refit_to_body(session)
     assert result.ok
-    assert state.refit.garment_settings[0] == replace(before.garment_settings[0], clearance_percent=.1)
+    assert state.refit.garment_settings[0] == replace(before.garment_settings[0], clearance_percent=.1,
+        tightness_percent=100., tightness_initialized=True)
     current = service.working_mesh(session, clone=True)
     assert current.submeshes[0].vertices == mesh.submeshes[0].vertices
+    assert max((x*x + z*z)**.5 for x, _, z in current.submeshes[1].vertices) < .08
+    service.reset_morph(session)
+    reset = service.cached_morph_state_from_runtime(session).refit.garment_settings[0]
+    assert reset.tightness_percent == 0. and not reset.tightness_initialized
+    assert service.working_mesh(session, clone=True).submeshes[1].vertices == mesh.submeshes[1].vertices
+    service.fit_refit_to_body(session)
+    assert service.cached_morph_state_from_runtime(session).refit.garment_settings[0].tightness_percent == 100.
+    service.configure_refit(session, (1,), tightness_percent=0.)
+    service.bind_refit(session, (1,))
+    assert service.cached_morph_state_from_runtime(session).refit.garment_settings[0].tightness_percent == 0.
+    service.fit_refit_to_body(session)
+    current = service.working_mesh(session, clone=True)
     for actual, original in zip(current.submeshes[1].vertices, mesh.submeshes[1].vertices):
+        assert actual == pytest.approx(original, abs=1e-8)
+    service.bake_morph(session)
+    service.fit_refit_to_body(session)
+    baked = service.cached_morph_state_from_runtime(session).refit.garment_settings[0]
+    assert baked.tightness_percent == 0. and baked.tightness_initialized
+    for actual, original in zip(service.working_mesh(session, clone=True).submeshes[1].vertices, mesh.submeshes[1].vertices):
+        assert actual == pytest.approx(original, abs=1e-8)
+
+
+def test_unconfigured_tightness_survives_draft_recipe_and_undo_with_island_choices(resident, tmp_path):
+    import hashlib
+    from cdmw.domain.mesh.morph import MeshMorphDefinition, MeshMorphRule, MeshMorphVertexWeight
+
+    service, open_session = resident
+    mesh = _mesh(_arm(), _sleeve(radius=.13))
+    mesh._cdmw_mesh_asset_source_hash = hashlib.sha256(repr(mesh.submeshes).encode()).hexdigest()
+    session = open_session(mesh)
+    definitions = (MeshMorphDefinition(definition_id="shape", label="Shape", category="Test",
+        vertices=(MeshMorphVertexWeight(0, 0, 1.),), pivot=(0., 0., 0.),
+        local_basis=((1., 0., 0.), (0., 1., 0.), (0., 0., 1.)), rule=MeshMorphRule("move", "z")),)
+    profile = MeshMorphProfile(profile_id="fit", name="Fit", definitions=definitions,
+        topology_fingerprint=mesh_morph_driver_topology_fingerprint(mesh, definitions))
+    service._activate_morph_profile_locked(service._session(session), profile)
+    service.set_refit_driver(session, (0,))
+    service.bind_refit(session, (1,))
+    island = {"submesh_index": 1, "face_indices": tuple(range(len(mesh.submeshes[1].faces)))}
+    service.configure_refit_islands(session, (island,), mode="surface")
+    pending = service.cached_morph_state_from_runtime(session).refit.garment_settings[0]
+    assert not pending.tightness_initialized
+    assert not pending.island_settings[0].tightness_initialized
+    assert service.working_mesh(session, clone=True).submeshes[1].vertices == mesh.submeshes[1].vertices
+    _, saved = service.save_refit_setup(session, "Before first fit")
+    identifier, _name = saved.matching_recipes[-1]
+    path = service._profile_root() / "fitting_setups" / f"{identifier}.json"
+    payload = json.loads(path.read_text())
+    assert fitting_recipe_from_payload(payload).garment_settings[0] == pending
+    payload["garment_settings"][0].pop("tightness_initialized")
+    payload["garment_settings"][0]["island_settings"][0].pop("tightness_initialized")
+    legacy = fitting_recipe_from_payload(payload).garment_settings[0]
+    assert legacy.tightness_initialized and legacy.island_settings[0].tightness_initialized
+
+    project = tmp_path / "pending/mesh_layer_project.json"
+    service._session(session).mesh_layer_project_path = project
+    service.retry_mesh_layer_autosave(session)
+    mesh._cdmw_mesh_layer_project_path = str(project)
+    reopened = open_session(mesh)
+    assert service.cached_morph_state_from_runtime(reopened).refit.garment_settings[0] == pending
+    service.fit_refit_to_body(reopened)
+    fitted = service.cached_morph_state_from_runtime(reopened).refit.garment_settings[0]
+    assert fitted.tightness_percent == fitted.island_settings[0].tightness_percent == 100.
+    assert fitted.tightness_initialized and fitted.island_settings[0].tightness_initialized
+    assert max((x*x + z*z)**.5 for x, _, z in service.working_mesh(reopened, clone=True).submeshes[1].vertices) < .08
+    assert service.undo(reopened).ok
+    assert service.cached_morph_state_from_runtime(reopened).refit.garment_settings[0] == pending
+    service.configure_refit_islands(reopened, (island,), tightness_percent=0.)
+    service.fit_refit_to_body(reopened)
+    result = service.cached_morph_state_from_runtime(reopened).refit.garment_settings[0]
+    assert result.tightness_percent == 100. and result.island_settings[0].tightness_percent == 0.
+    for actual, original in zip(service.working_mesh(reopened, clone=True).submeshes[1].vertices, mesh.submeshes[1].vertices):
         assert actual == pytest.approx(original, abs=1e-8)
 
 

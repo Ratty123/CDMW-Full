@@ -1181,7 +1181,8 @@ void mesh_editor_refit_components(
         // captured it. Clearing only the hard piece first can move it beyond
         // its cloth support before the cloth catches up on a larger body.
         const bool resolve_clearance = conforming || settings.tightness_percent <= 0.0;
-        if (resolve_clearance && clearance > 0.0 && first.weight > 0.0) for (int pass = 0; pass < (conforming ? 128 : 32); ++pass) {
+        if (resolve_clearance && (clearance > 0.0 || settings.tightness_percent > 0.0)
+            && first.weight > 0.0) for (int pass = 0; pass < (conforming ? 128 : 32); ++pass) {
             double missing_max = tolerance;
             Vec3 correction{};
             for (const auto& point : samples) {
@@ -1246,7 +1247,7 @@ void mesh_editor_relieve_refit_surface(
             return item.second.enabled && item.second.mode != "rigid" && item.second.tightness_percent > 0.0;
         });
     for (const auto& item : refit.garment_settings) {
-        if (item.second.enabled && item.second.clearance_percent > 0.0
+        if (item.second.enabled && (item.second.clearance_percent > 0.0 || item.second.tightness_percent > 0.0)
             && (item.second.mode == "surface" || (fitting_masks && item.second.mode == "rigid_component"))) {
             clearances[item.first] = refit.driver_diagonal * item.second.clearance_percent / 100.0;
         }
@@ -1255,7 +1256,7 @@ void mesh_editor_relieve_refit_surface(
 
     // A garment triangle can cross a curved body even when all its vertices
     // clear their original bindings. Query the live surface for its edges and
-    // interior as well, without changing topology or the zero-clearance path.
+    // interior as well. Zero clearance permits contact, not body penetration.
     std::map<int, MeshSessionSubmesh> drivers;
     for (const auto& item : driver_visible) {
         drivers[item.first].vertices = item.second;
@@ -3079,8 +3080,11 @@ void mesh_editor_relieve_refit_surface(
                 // separation without forcing cloth into an adjacent body surface.
                 double wall_depth = 0.0;
                 for (int c = 0; c < 3; ++c) wall_depth += outer.weights[c] * band_wall_depth[outer.corners[c]];
-                const double missing = probe.clearance * ((clearance_only && coarse_open_layers.count(probe.outer))
-                    || tighten || band_axes.count(probe.outer.second) ? 1.0 : 0.25) + wall_depth - gap;
+                // At zero user gap, coincident triangles still need a small
+                // numerical separation, as body contacts already receive.
+                const double missing = std::max(tolerance * 8.0,
+                    probe.clearance * ((clearance_only && coarse_open_layers.count(probe.outer))
+                        || tighten || band_axes.count(probe.outer.second) ? 1.0 : 0.25)) + wall_depth - gap;
                 if (missing <= tolerance) continue;
                 if (validate) {
                     if (gap >= -tolerance * 4.0) continue;
@@ -4168,7 +4172,8 @@ void mesh_editor_write_refit_settings(std::ostream& out, const MeshRefitRuntime&
             << ",\"mode\":";
         write_escaped(out, settings.mode);
         out << ",\"clearance_percent\":" << std::setprecision(17) << settings.clearance_percent
-            << ",\"tightness_percent\":" << settings.tightness_percent;
+            << ",\"tightness_percent\":" << settings.tightness_percent
+            << ",\"tightness_initialized\":" << (settings.tightness_initialized ? "true" : "false");
         mesh_editor_write_refit_island_settings(out, settings);
         out << '}';
     }

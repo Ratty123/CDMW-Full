@@ -171,6 +171,7 @@ def _settings_payload(settings: MeshRefitGarmentSettings, *, include_mask: bool)
         "mode": settings.mode,
         "clearance_percent": settings.clearance_percent,
         "tightness_percent": settings.tightness_percent,
+        "tightness_initialized": settings.tightness_initialized,
     }
     if include_mask:
         payload["vertex_masks"] = [] if settings.vertex_mask is None else [{
@@ -194,6 +195,7 @@ def _refit_settings_batch_payload(
             "mode": item.mode,
             "clearance_percent": item.clearance_percent,
             "tightness_percent": item.tightness_percent,
+            "tightness_initialized": item.tightness_initialized,
         }
         if include_masks:
             row["vertex_mask"] = None if item.vertex_mask is None else {
@@ -204,7 +206,7 @@ def _refit_settings_batch_payload(
             row["island_settings"] = [
                 {"face_indices": list(island.face_indices), **{
                     key: getattr(island, key) for key in
-                    ("enabled", "intensity_percent", "mode", "clearance_percent", "tightness_percent")
+                    ("enabled", "intensity_percent", "mode", "clearance_percent", "tightness_percent", "tightness_initialized")
                 }} for island in item.island_settings
             ]
         rows.append(row)

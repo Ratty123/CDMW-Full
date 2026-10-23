@@ -494,6 +494,9 @@ std::string mesh_editor_morph_bind_session_report(
     }
     auto rebound = std::make_shared<MeshRefitRuntime>(
         *mesh_editor_build_refit(submeshes, next->driver_submesh_indices, garments, regions));
+    // Defer the first fit until Fit is pressed, allowing protection and modes
+    // to be configured first. Explicit Tightness choices remain authoritative.
+    for (const int index : garments) rebound->garment_settings[index].tightness_initialized = false;
     mesh_editor_read_refit_exclusions(*rebound,root.get("excluded_faces"),submeshes);
     if (next->refit) {
         for (const int index : garments) {
@@ -560,8 +563,10 @@ MeshRefitGarmentSettingsRuntime mesh_editor_refit_settings_from_json(
                 throw std::runtime_error("garment refit settings require numeric intensity, clearance and tightness");
         }
         const auto* enabled = raw.get("enabled");
+        const auto* initialized = raw.get("tightness_initialized");
         const auto* mode = raw.get("mode");
         if ((enabled && enabled->type != JsonValue::Type::Bool)
+            || (initialized && initialized->type != JsonValue::Type::Bool)
             || (mode && mode->type != JsonValue::Type::String))
             throw std::runtime_error("garment refit settings require a boolean enabled value and string mode");
     }
@@ -570,6 +575,8 @@ MeshRefitGarmentSettingsRuntime mesh_editor_refit_settings_from_json(
     settings.mode = lower_ascii(string_or(raw.get("mode"), settings.mode));
     settings.clearance_percent = number_or(raw.get("clearance_percent"), settings.clearance_percent);
     settings.tightness_percent = number_or(raw.get("tightness_percent"), settings.tightness_percent);
+    settings.tightness_initialized = bool_or(raw.get("tightness_initialized"),
+        raw.get("tightness_percent") ? true : settings.tightness_initialized);
     if (!std::isfinite(settings.tightness_percent)
         || settings.tightness_percent < 0.0 || settings.tightness_percent > 100.0) {
         throw std::runtime_error("garment refit tightness must be between 0 and 100 percent");
@@ -602,6 +609,7 @@ MeshRefitGarmentSettingsRuntime mesh_editor_refit_settings_from_json(
             target.enabled = values.enabled; target.mode = values.mode;
             target.intensity_percent = values.intensity_percent; target.clearance_percent = values.clearance_percent;
             target.tightness_percent = values.tightness_percent;
+            target.tightness_initialized = values.tightness_initialized;
             for (const auto& face : faces->array_value) {
                 int index = -1;
                 if (!strict_int_or(&face,index) || index < 0 || !seen.insert(index).second)
@@ -699,6 +707,7 @@ std::string mesh_editor_morph_configure_refit_session_report(
             MeshRefitGarmentSettingsRuntime defaults;
             // Older clients omit tightness. Preserve the authoritative per-Part value.
             defaults.tightness_percent = next_refit->garment_settings[index].tightness_percent;
+            defaults.tightness_initialized = next_refit->garment_settings[index].tightness_initialized;
             defaults.island_settings = next_refit->garment_settings[index].island_settings;
             next_refit->garment_settings[index] = mesh_editor_refit_settings_from_json(root, defaults, true);
         }
@@ -726,13 +735,20 @@ std::string mesh_editor_morph_configure_refit_session_report(
 
 std::shared_ptr<const MeshRefitRuntime> mesh_editor_rebased_refit(
     const MeshMorphRuntime& morph,
-    const std::map<int, MeshSessionSubmesh>& submeshes
+    const std::map<int, MeshSessionSubmesh>& submeshes,
+    bool reset_fit
 ) {
     if (!morph.refit) return {};
     auto refit = std::make_shared<MeshRefitRuntime>(*morph.refit);
     for (auto& item : refit->garment_settings) {
+        if (!reset_fit) item.second.tightness_initialized = true;
+        else if (item.second.tightness_percent > 0.0) item.second.tightness_initialized = false;
         item.second.tightness_percent = 0.0;
-        for (auto& island : item.second.island_settings) island.tightness_percent = 0.0;
+        for (auto& island : item.second.island_settings) {
+            if (!reset_fit) island.tightness_initialized = true;
+            else if (island.tightness_percent > 0.0) island.tightness_initialized = false;
+            island.tightness_percent = 0.0;
+        }
     }
     for (const int driver_index : refit->driver_submesh_indices) {
         const auto found = submeshes.find(driver_index);
@@ -876,7 +892,7 @@ std::string mesh_editor_morph_reset_or_bake_session_report(
             before = mesh_editor_capture_morph_submeshes(session, *next);
             results = mesh_editor_recompose_morph(session, *next, command, delta_output_dir, session_id);
             next->refit = retained_refit;
-            next->refit = mesh_editor_rebased_refit(*next, mesh_editor_submeshes(session));
+            next->refit = mesh_editor_rebased_refit(*next, mesh_editor_submeshes(session), true);
         } else {
             next->refit.reset();
             before = mesh_editor_capture_morph_submeshes(session, *next);
@@ -889,7 +905,7 @@ std::string mesh_editor_morph_reset_or_bake_session_report(
         next->neutral_positions.clear();
         next->composed_positions.clear();
         next->unbaked = false;
-        next->refit = mesh_editor_rebased_refit(*next, mesh_editor_submeshes(session));
+        next->refit = mesh_editor_rebased_refit(*next, mesh_editor_submeshes(session), false);
     }
     next->active_change_id.clear();
     next->active_definition_id.clear();

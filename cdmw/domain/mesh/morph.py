@@ -306,8 +306,11 @@ class MeshRefitGarmentSettings:
     vertex_mask: tuple[tuple[int, float], ...] | None = None
     tightness_percent: float = 0.0
     island_settings: tuple[MeshRefitIslandSettings, ...] = ()
+    tightness_initialized: bool = True
 
     def __post_init__(self) -> None:
+        if type(self.tightness_initialized) is not bool:
+            raise ValueError("Refit Tightness initialization must be boolean.")
         submesh_index = _strict_mesh_index(self.submesh_index, "Refit garment submesh")
         intensity = float(self.intensity_percent)
         mode = str(self.mode or "surface").strip().lower()
@@ -357,9 +360,10 @@ class MeshRefitIslandSettings:
     mode: str = "surface"
     clearance_percent: float = 0.0
     tightness_percent: float = 0.0
+    tightness_initialized: bool = True
 
     def __post_init__(self) -> None:
-        if type(self.enabled) is not bool or any(isinstance(getattr(self, name), bool) for name in
+        if type(self.enabled) is not bool or type(self.tightness_initialized) is not bool or any(isinstance(getattr(self, name), bool) for name in
                 ("intensity_percent", "clearance_percent", "tightness_percent")):
             raise ValueError("Island fitting requires a boolean enabled value and numeric settings.")
         indices = tuple(_strict_mesh_index(item, "Refit island face") for item in self.face_indices)

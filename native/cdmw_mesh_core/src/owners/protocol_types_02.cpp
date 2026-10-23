@@ -88,6 +88,7 @@ struct MeshRefitIslandSettingsRuntime {
     std::string mode = "surface";
     double clearance_percent = 0.0;
     double tightness_percent = 0.0;
+    bool tightness_initialized = true;
 };
 
 struct MeshRefitGarmentSettingsRuntime {
@@ -96,6 +97,7 @@ struct MeshRefitGarmentSettingsRuntime {
     std::string mode = "surface";
     double clearance_percent = 0.0;
     double tightness_percent = 0.0;
+    bool tightness_initialized = true;
     std::vector<MeshRefitIslandSettingsRuntime> island_settings;
 };
 

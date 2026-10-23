@@ -93,6 +93,18 @@ def test_snug_fit_contracts_loose_side_and_clears_the_other(offset, body_radius)
             assert getattr(fitted.submeshes[1], attr) == getattr(mesh.submeshes[1], attr)
 
 
+def test_zero_clearance_tightening_checks_faces_between_body_contact_points():
+    mesh = _mesh(_arm(), _sleeve(offset=.035, segments=12, radius=.13))
+    with _bound(mesh) as session:
+        for strength in (100., 64., 20.):
+            _fit(session, tightness=strength, clearance_percent=0.)
+            fitted = _snapshot(mesh, session)
+            _assert_no_surface_crossings(fitted.submeshes[0], fitted.submeshes[1])
+            assert fitted.submeshes[0].vertices == mesh.submeshes[0].vertices
+            for channel in ("faces", "uvs", "bone_indices", "bone_weights"):
+                assert getattr(fitted.submeshes[1], channel) == getattr(mesh.submeshes[1], channel)
+
+
 def test_tessellation_taper_ellipse_and_folded_opening():
     radii = []
     for segments in (24, 48):
@@ -463,6 +475,29 @@ def test_thin_rotating_pleats_clear_a_tapered_body_without_collapsing(segments, 
     assert np.all(new_area[old_area > 1e-14] > old_area[old_area > 1e-14] * 1e-6)
 
 
+def test_partial_tightness_repairs_the_requested_pose_before_validation():
+    segments = 12
+    body, garment = _arm(.055), _sleeve(segments=segments, radius=.13)
+    body.vertices = [(x * (.7 + 1.3 * y), y, z * (1.25 - .8 * y))
+                     for x, y, z in body.vertices]
+    angles = [2 * math.pi * i / segments for i in range(segments)]
+    angles[1] = .002
+    garment.vertices = []
+    for ring, y in enumerate((.1, .15, .2, .25, .3, .35, .4)):
+        for angle in angles:
+            radius = .13 * (1 + .25 * math.sin(4 * angle + 18 * y))
+            height = y + .12 * math.sin(3 * angle + ring * 1.7) * (1 if ring not in (0, 6) else .2)
+            garment.vertices.append((radius * math.cos(angle), height, radius * math.sin(angle)))
+    mesh = _mesh(body, garment)
+    with _bound(mesh) as session:
+        for strength in (100., 10., 20., 30., 40., 64., 100.):
+            _fit(session, tightness=strength)
+            fitted = _snapshot(mesh, session)
+            assert _state(session)["refit"]["garment_settings"][0]["tightness_percent"] == strength
+            _assert_no_surface_crossings(fitted.submeshes[0], fitted.submeshes[1])
+            assert fitted.submeshes[0].vertices == body.vertices
+
+
 def test_repeat_percentage_reset_bake_and_history_are_neutral_based():
     mesh = _mesh(_arm(), _sleeve())
     with _bound(mesh) as session:
@@ -684,7 +719,8 @@ def test_rigid_fit_checks_face_interior_and_rejects_a_pinned_collision():
         assert _state(session)==before
 
 
-def test_post_fit_correction_cannot_publish_a_body_intersection():
+@pytest.mark.parametrize("clearance", (0., .1))
+def test_post_fit_correction_cannot_publish_a_body_intersection(clearance):
     mesh = _mesh(_arm(),_sleeve())
     with _bound(mesh) as session:
         _command(session,"morph_upload",{"profile":{
@@ -694,7 +730,7 @@ def test_post_fit_correction_cannot_publish_a_body_intersection():
                        "vertex_indices":list(range(len(mesh.submeshes[1].vertices))),
                        "deltas":[[0.,0.,.05]]*len(mesh.submeshes[1].vertices)}],
         }})
-        _fit(session)
+        _fit(session, clearance_percent=clearance)
         before = _state(session)
         positions = _snapshot(mesh,session).submeshes[1].vertices
         assert mesh_native_core.native_mesh_editor_session_command("morph_change",session,{

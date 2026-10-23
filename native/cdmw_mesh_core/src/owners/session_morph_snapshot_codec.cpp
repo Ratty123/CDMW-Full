@@ -136,7 +136,8 @@ void mesh_editor_write_snapshot_refit(std::ostream& out, const MeshMorphRuntime&
             << ",\"mode\":";
         write_escaped(out, item.second.mode);
         out << ",\"clearance_percent\":" << item.second.clearance_percent
-            << ",\"tightness_percent\":" << item.second.tightness_percent;
+            << ",\"tightness_percent\":" << item.second.tightness_percent
+            << ",\"tightness_initialized\":" << (item.second.tightness_initialized ? "true" : "false");
         mesh_editor_write_refit_island_settings(out,item.second);
         out << '}';
     }
@@ -470,6 +471,8 @@ std::shared_ptr<const MeshRefitRuntime> mesh_editor_refit_from_snapshot(
         settings.mode = mesh_editor_snapshot_string(item, "mode");
         settings.clearance_percent = mesh_editor_snapshot_number(item, "clearance_percent");
         settings.tightness_percent = version >= 2 ? mesh_editor_snapshot_number(item, "tightness_percent") : 0.0;
+        settings.tightness_initialized = version >= 2 && item.get("tightness_initialized")
+            ? mesh_editor_snapshot_bool(item, "tightness_initialized") : true;
         if (version >= 3) settings = mesh_editor_refit_settings_from_json(item,settings,true);
         else if (item.get("island_settings"))
             throw std::runtime_error("Island fitting requires runtime snapshot version 3");

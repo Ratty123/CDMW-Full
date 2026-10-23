@@ -52,7 +52,8 @@ void mesh_editor_write_refit_island_settings(std::ostream& out, const MeshRefitG
             << ",\"intensity_percent\":" << std::setprecision(17) << island.intensity_percent << ",\"mode\":";
         write_escaped(out, island.mode);
         out << ",\"clearance_percent\":" << island.clearance_percent
-            << ",\"tightness_percent\":" << island.tightness_percent << '}';
+            << ",\"tightness_percent\":" << island.tightness_percent
+            << ",\"tightness_initialized\":" << (island.tightness_initialized ? "true" : "false") << '}';
     }
     out << ']';
 }
@@ -194,6 +195,7 @@ void mesh_editor_apply_island_refit_corrections(
             settings.enabled = island.enabled; settings.mode = island.mode;
             settings.intensity_percent = island.intensity_percent; settings.clearance_percent = island.clearance_percent;
             settings.tightness_percent = island.tightness_percent;
+            settings.tightness_initialized = island.tightness_initialized;
             const auto found = std::find(source_groups.begin(),source_groups.end(),island.face_indices);
             add_domain(island.face_indices,settings,static_cast<int>(found-source_groups.begin())+1,false);
             covered_faces.insert(island.face_indices.begin(),island.face_indices.end());

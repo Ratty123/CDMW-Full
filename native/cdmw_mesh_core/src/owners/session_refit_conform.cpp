@@ -868,6 +868,10 @@ void mesh_editor_conform_refit(const MeshRefitRuntime &refit, const std::map<int
     if (!converged)
         fail(nodes.front().vertices.front().first, "fitting did not converge; previous preview retained");
     level_bands(displacement);
+    // Constrain the actual requested pose. A valid full-strength fit can pass
+    // through a folded or inverted triangle at an intermediate percentage.
+    for (std::size_t i = 0; i < nodes.size(); ++i)
+        displacement[i] = scale_vec3(displacement[i], nodes[i].tightness);
     // Limit local strain in the moving cloth frame. Correct only violated
     // orientation and edge constraints, leaving valid translation and rotation
     // alone instead of resetting a whole face against its neighbors.
@@ -956,7 +960,7 @@ void mesh_editor_conform_refit(const MeshRefitRuntime &refit, const std::map<int
     }
     for (std::size_t i = 0; i < nodes.size(); ++i)
         for (const auto &vertex : nodes[i].vertices) {
-            const Vec3 point = candidate(i, nodes[i].tightness);
+            const Vec3 point = candidate(i, 1.0);
             // Share the displacement, retaining each Part's quantized rest
             // position. Protected vertices must not be snapped onto a neighbor.
             layer.at(vertex.first)[vertex.second] = sub_vec3(point, nodes[i].rest);

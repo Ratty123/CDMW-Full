@@ -621,7 +621,8 @@ The candidate retains newly discovered contacts and the existing geometry and
 clearance checks. This resolves two acceptance regressions found by comparing
 the layered-waist and larger-body cases with the earlier helper.
 
-The source/native authoring matrix covers 30 garments across 14 bodies. With
+The earlier source/native authoring matrix covers 30 garments across 14 bodies,
+primarily at zero Tightness; it does not qualify every Tightness/Clearance sequence. With
 explicit fitting roles, 231 combinations passed Fit, Bake, exact PAC export,
 Finish and reopening; all four neutral-material views of each were inspected.
 Another 119 refused geometry or clearance checks and 70 reached the existing

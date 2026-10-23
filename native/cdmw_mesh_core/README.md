@@ -192,6 +192,10 @@ and valid fold rotation instead of replacing a face's entire displacement and
 opposing adjacent thin panels. Coincident seam cohorts share these corrections;
 zero-mobility vertices remain fixed. The bounded projection still feeds the same
 final orientation, edge-strain and seam validators.
+The projection checks the requested Tightness pose, including intermediate
+percentages, rather than validating the full-strength pose and blending afterward.
+Active tightening still checks body and layer contact at zero Clearance. Crossing
+contacts receive a numerical separation target without relaxing final checks.
 
 Disconnected garment surface islands participate in layer standoff, links, clearance
 and final validation even when they share one Part. Trustworthy coincident seams keep
@@ -211,9 +215,14 @@ At zero Tightness, contact repair skips silhouette contraction and uses the same
 mobility masks, seam cohorts, body/layer contact solver and final strain checks as
 explicit tightening. Clear unsupported skirt volume and hanging details have no
 inward target, including when they share a material Part with a fitted bodice or
-sleeve. The Fit all service retains Part and island Tightness and raises only
-enabled targets' minimum clearance. Its default 0% bindings therefore repair local
-intersections rather than treating every garment surface as skin-tight clothing.
+sleeve. Binding leaves the geometry unchanged so modes and protection can be
+configured first. The first Fit all initializes unconfigured Part and island
+Tightness to 100% and raises enabled targets' minimum clearance to 0.1%.
+Explicit Tightness choices, including 0% for loose skirts, drapes and hanging
+details, remain authoritative on repeated fits, rebound garments and saved setups.
+The optional `tightness_initialized` boolean distinguishes new, unconfigured
+bindings from explicit zero values in settings, runtime snapshots and recipes.
+Missing metadata in older saved settings means their Tightness was already chosen.
 Nearby detailed cloth shares contact motion; coarse open panels retain their
 standoff without dragging an already clear lining from a distant contact. Zero-influence unused records stay
 fixed, and post-refit fields cannot reintroduce body intersections into a fit that

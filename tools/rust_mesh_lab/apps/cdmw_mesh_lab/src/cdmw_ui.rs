@@ -3513,7 +3513,7 @@ impl LabApplication {
             });
             if ui.add_enabled(!self.cdmw_refit_settings_dirty.is_dirty(),
                 Button::new(crate::localization::tr("Fit all enabled garments"))).on_hover_text(
-                crate::localization::tr("Clear body intersections using each Part and mesh island's settings. Keeps your Tightness values and adds at least 0.1% Clearance. Leave Tightness at 0% for loose skirts, drapes and hanging trim; increase it only where a snug fit is wanted. Reset reverts it; Bake keeps it.")
+                crate::localization::tr("Fit a fresh setup at 100% Tightness with at least 0.1% Clearance. Keeps Tightness values you have explicitly chosen, including 0% for loose skirts, drapes and hanging trim. Set modes and protection before fitting. Reset reverts it; Bake keeps it.")
             ).on_disabled_hover_text(crate::localization::tr("Apply pending settings before fitting.")).clicked() {
                 actions.push(UiAction::CdmwCommand { command: "refit_fit_to_body", arguments: json!({}), label: "Fit to body" });
             }

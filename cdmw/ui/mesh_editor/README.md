@@ -2043,18 +2043,17 @@ update retains the pending edits. Apply pending settings before **Fit all enable
 garments**; fitting stays disabled while edits are pending.
 Tightness requires Surface or Rigid component mode on every chosen garment.
 
-**Fit all enabled garments** repairs body intersections using each Part and mesh
-island's current settings. It needs no viewport selection, body slider, original body
-or skeleton. It adds at least 0.1% clearance to enabled targets without changing their
-Tightness, mode, intensity, masks or allowed body region. New bindings start at 0%
-Tightness: already clear skirts, drapes and hanging trim retain their loose shape;
-contact corrections affect the local cloth that needs to clear the body, even when
-the bodice and skirt share one material Part. It does not tailor a skirt to the legs.
-Set Tightness deliberately on areas intended to be snug, such as sleeves or waist
-bands, using Part, mesh-island or local influence controls. Materials alone do not
-reliably identify these roles. Existing saved Tightness values remain authoritative;
-older all-fit previews may still contain 100% values that need returning to 0% on
-loose cloth. Inputs must already share the intended alignment and pose.
+**Fit all enabled garments** fits a fresh setup at 100% Tightness, with at least
+0.1% clearance. Binding itself leaves the shape unchanged so modes and protection
+can be configured first. Explicit Part and mesh-island Tightness choices, including
+0%, remain authoritative on subsequent fits and in saved setups. Modes, intensity,
+masks and allowed body regions are retained. Fit needs no viewport selection, body
+slider, original body or skeleton; inputs must already share the intended alignment
+and pose. Choose 0% Tightness for loose skirts, drapes and hanging trim that should
+retain their silhouette while clearing local intersections. Use Part, mesh-island
+or local influence controls when snug and loose cloth share one material.
+Intermediate Tightness checks the requested shape before publishing it, and zero
+Clearance still prevents tightened cloth from passing through the body.
 Keep jewellery and hard details, including separate decorative petals, in
 **Rigid component** mode when they should keep their shape while moving. This
 preserves each connected assembly; it does not turn all disconnected pieces in

@@ -1600,6 +1600,7 @@ class MeshMorphServiceMixin(MeshMorphLayerMixin, MeshMorphAuthoringMixin, MeshMo
         # Older callers use None to omit tightness; keep that compatibility.
         if tightness_percent is not None:
             changes["tightness_percent"] = float(tightness_percent)
+            changes["tightness_initialized"] = True
         if not changes:
             raise ValueError("Change at least one Refit setting before applying.")
         session = self._session(session_id)
@@ -1630,6 +1631,8 @@ class MeshMorphServiceMixin(MeshMorphLayerMixin, MeshMorphAuthoringMixin, MeshMo
         fields = {"enabled", "intensity_percent", "mode", "clearance_percent", "tightness_percent"}
         if set(changes) - fields or (inherit and changes) or (not inherit and not changes):
             raise ValueError("Change fitting settings or restore Part settings for the selected islands.")
+        if "tightness_percent" in changes:
+            changes["tightness_initialized"] = True
         if not islands:
             raise ValueError("Select at least one whole mesh island.")
         from cdmw.modding.mesh_islands import mesh_islands
@@ -1665,7 +1668,7 @@ class MeshMorphServiceMixin(MeshMorphLayerMixin, MeshMorphAuthoringMixin, MeshMo
                 else:
                     previous = overrides.get(faces) or MeshRefitIslandSettings(faces, **{
                         name: getattr(parent, name) for name in fields
-                    })
+                    }, tightness_initialized=parent.tightness_initialized)
                     overrides[faces] = replace(previous, **changes)
                 edited[part] = replace(parent, island_settings=tuple(overrides.values()))
             report = self._run_morph_command_locked(
@@ -1681,11 +1684,15 @@ class MeshMorphServiceMixin(MeshMorphLayerMixin, MeshMorphAuthoringMixin, MeshMo
         with session.export_lock:
             report = self._run_morph_query_locked(session, "morph_state")
             state = self._morph_state_from_report_locked(session, report, refresh_presets=False)
+            def fit_settings(item):
+                if not item.enabled:
+                    return item
+                return replace(item,
+                    tightness_percent=item.tightness_percent if item.tightness_initialized or item.mode == "rigid" else 100.,
+                    tightness_initialized=True,
+                    clearance_percent=max(0.1, item.clearance_percent))
             settings = tuple(
-                replace(item, clearance_percent=max(0.1, item.clearance_percent) if item.enabled else item.clearance_percent,
-                        island_settings=tuple(replace(island,
-                            clearance_percent=max(0.1, island.clearance_percent)) if island.enabled else island
-                            for island in item.island_settings))
+                replace(fit_settings(item), island_settings=tuple(fit_settings(island) for island in item.island_settings))
                 for item in state.refit.garment_settings if item.enabled or any(island.enabled for island in item.island_settings)
             )
             if not settings:
@@ -2256,10 +2263,12 @@ class MeshMorphServiceMixin(MeshMorphLayerMixin, MeshMorphAuthoringMixin, MeshMo
                 mode=str(item.get("mode") or "surface"),
                 clearance_percent=float(item.get("clearance_percent", 0.0)),
                 tightness_percent=float(item.get("tightness_percent", 0.0)),
+                tightness_initialized=item.get("tightness_initialized", True),
                 vertex_mask=vertex_masks.get(int(item.get("submesh_index", -1))),
                 island_settings=tuple(MeshRefitIslandSettings(
                     face_indices=tuple(island["face_indices"]),
                     **{key: island[key] for key in ("enabled", "intensity_percent", "mode", "clearance_percent", "tightness_percent")},
+                    tightness_initialized=island.get("tightness_initialized", True),
                 ) for island in item.get("island_settings", ())),
             )
             for item in tuple(refit.get("garment_settings") or ())
