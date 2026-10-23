@@ -8,6 +8,7 @@ import html
 import json
 import re
 import sys
+from functools import lru_cache
 from dataclasses import dataclass, field
 from html.parser import HTMLParser
 from pathlib import Path
@@ -81,6 +82,156 @@ MANUAL_GROUPS = (
     ("Utilities", ("Mod-Management", "Independent-Item-Packages", "Translations-and-Text-Search", "Formats-and-Research")),
     ("Help", ("Settings-and-Profiles", "Troubleshooting-and-Reporting", "Contributing")),
 )
+_CONTROLS = (
+    "Mesh Data", "Vertex Parameters", "Position", "UV Coordinates", "Normals", "Skin Weights",
+    "Apply", "Discard", "Authored cloth profile", "Use profile in preview", "Edit profile for mod",
+    "Apply profile edit", "Restore profile assignment", "Finish Edit Mesh", "Build Mod", "Free Edit",
+    "Exact Game Asset", "Finish", "Restore", "Undo/Redo", "Create", "Edit", "Draw", "Freehand",
+    "Straight", "Arc", "Circle", "Stroke smoothing", "Bend", "Follow scalp", "Move reach",
+    "Build plan", "Apply placement", "Mod folder", "Independent item package", "Apply changes",
+    "Add to existing mod", "Include mounted items in a new mod", "Import Replacement...",
+    "Open in Mesh Editor", "View", "Mod", "Include", "Output Preview", "Mesh islands",
+    "Solid (Textured)", "Solid + Wire", "X-Ray", "Bounds", "Bones", "Orbit", "Fit", "Frame Selected",
+    "Fit to body", "Reset", "Bake", "Modify Original", "Start next edit pass", "Resume current edit",
+    "Add to Archive Browser", "Edited results", "Export Mesh File", "Import", "Settings",
+    "Archive Locations", "Open Folder", "Auto-Match", "Reload Folder", "Review & Export",
+    "Move", "Rotate", "Scale", "Uniform scale", "Template", "Identity", "Distribution", "Output",
+    "Glow", "Translucency", "Shader experiments", "Parts", "Part colors", "Report a Problem",
+)
+_INLINE_MARKUP = re.compile(r"(`[^`\n]+`|\[[^\]\n]+\]\([^)\n]+\)|\*\*[^*\n]+\*\*)")
+_ADVANCED_MESH_SECTIONS = frozenset({
+    "Material experiments", "Vertex Parameters", "Authored cloth profiles",
+    "Hair Tools (Experimental)", "Rig & Weights",
+})
+
+
+def _sentences(text: str) -> list[str]:
+    """Split prose at sentence ends, protecting controls, links and file identifiers."""
+    protected = []
+    def mask(match):
+        protected.append(match[0])
+        return f"\x00{len(protected) - 1}\x00"
+    masked = _INLINE_MARKUP.sub(mask, text)
+    pieces = []
+    start = 0
+    for index, character in enumerate(masked):
+        end = character in "。！？"
+        if character in ".!?" and not (character == "." and (
+            (index and masked[index - 1] == ".") or masked[index + 1:index + 2] == "."
+        )):
+            rest = masked[index + 1:]
+            following = rest.lstrip()
+            end = not rest or (len(rest) != len(following) and bool(following) and (
+                following[0].isupper() or following.startswith(("\x00", '"', "“", "«"))
+            ))
+        if end:
+            pieces.append(masked[start:index + 1].strip())
+            start = index + 1
+    if masked[start:].strip():
+        pieces.append(masked[start:].strip())
+    return [re.sub(r"\x00(\d+)\x00", lambda match: protected[int(match[1])], piece) for piece in pieces]
+
+
+@lru_cache(maxsize=14)
+def _control_pattern(locale: str):
+    catalogue = load_builtin_catalog(locale)["translations"]
+    names = set(_CONTROLS) | {str(catalogue.get(name, name)) for name in _CONTROLS}
+    patterns = []
+    for name in sorted(names, key=len, reverse=True):
+        cjk = any("\u3040" <= char <= "\u9fff" or "\uac00" <= char <= "\ud7af" for char in name)
+        patterns.append(re.escape(name) if cjk else r"(?<!\w)" + re.escape(name) + r"(?!\w)")
+    return re.compile("|".join(patterns))
+
+
+def _emphasize_controls(text: str, locale: str) -> str:
+    return "".join(
+        part if index % 2 else _control_pattern(locale).sub(lambda match: "**" + match[0] + "**", part)
+        for index, part in enumerate(_INLINE_MARKUP.split(text))
+    )
+
+
+def _sentence_kind(source: str) -> str:
+    if re.search(r"\b(experimental|unverified|not (?:been )?tested in game|may (?:be wrong|not work)|not proof|does not (?:verify|establish))\b", source, re.IGNORECASE):
+        return "WARNING"
+    if re.search(r"\b(unsupported|read-only|not editable|requires?|cannot|do not|does not|depends on|needs? a|source mismatch|not inferred|remain(?:s)? hidden|temporarily hidden|block(?:s)?|refus(?:e|es))\b", source, re.IGNORECASE):
+        return "NOTE"
+    return ""
+
+
+def _readable_prose(source: str, translated: str, locale: str, *, alert: str = "") -> str:
+    originals, sentences = _sentences(source), _sentences(translated)
+    # Translations may combine sentences. Never infer which translated clause is a warning.
+    kinds = [_sentence_kind(sentence) for sentence in originals]
+    if len(originals) != len(sentences):
+        common = kinds[0] if kinds and len(set(kinds)) == 1 else ""
+        kinds = [common] * len(sentences)
+    imperative = bool(re.match(r"(?:Use|Open|Choose|Select|Start|Import|Move|Compare|Browse|Review|Read|Load|Under|For an existing|For external|To verify|When fitting)\b", source))
+    groups = []
+    for sentence, kind in zip(sentences, kinds):
+        kind = alert or kind
+        if not groups or groups[-1][0] != kind:
+            groups.append((kind, []))
+        groups[-1][1].append(_emphasize_controls(sentence, locale))
+    rendered = []
+    for kind, items in groups:
+        if len(items) == 1:
+            body = items[0]
+        else:
+            marker = "1. " if imperative and not kind else "- "
+            body = "\n".join(marker + item for item in items)
+        if kind:
+            body = "> [!" + kind + "]\n" + "\n".join("> " + line for line in body.splitlines())
+        rendered.append(body)
+    return "\n\n".join(rendered)
+
+
+def _readable_guide(source: str, translated: str, locale: str, *, mesh: bool = False, faq: bool = False) -> str:
+    originals, blocks = source.split("\n\n"), translated.split("\n\n")
+    if len(originals) != len(blocks):
+        raise ValueError("Documentation block structure differs: " + locale)
+    catalogue = load_builtin_catalog(locale)["translations"]
+    rendered = []
+    folded = False
+    skip_heading = False
+    for index, (original, block) in enumerate(zip(originals, blocks)):
+        following = originals[index + 1] if index + 1 < len(originals) else ""
+        heading = re.match(r"^## ([^\n]+)$", following)
+        anchor = re.fullmatch(r'<a id="[^"]+"></a>', original)
+        if mesh and anchor and heading:
+            if folded:
+                rendered.append("</details>")
+                folded = False
+            if heading[1] in _ADVANCED_MESH_SECTIONS:
+                title = blocks[index + 1][3:]
+                rendered.append("<details>\n<summary><strong>" + html.escape(title) + "</strong></summary>")
+                folded = True
+                skip_heading = True
+        elif skip_heading and original.startswith("## "):
+            skip_heading = False
+            continue
+        elif folded and original.startswith(("## ", "### ")):
+            rendered.append("</details>")
+            folded = False
+        question = re.match(r"^\*\*(.+?)\*\* (.+)$", block)
+        if faq and question:
+            source_answer = re.match(r"^\*\*(.+?)\*\* (.+)$", original)
+            block = "#### " + question[1] + "\n\n" + _readable_prose(source_answer[2], question[2], locale)
+        elif original.startswith("> [!"):
+            kind = original.split("]", 1)[0][4:]
+            source_body = "\n".join(line[2:] for line in original.splitlines()[1:])
+            translated_body = "\n".join(line[2:] for line in block.splitlines()[1:])
+            block = _readable_prose(source_body, translated_body, locale, alert=kind)
+        elif original and not original.startswith(("#", "<", "|", "- ", "1. ", "[")):
+            block = _readable_prose(original, block, locale)
+            label = "Preview" if original.startswith("Open Mesh Data > Cloth > Authored cloth profile") else "Edit" if original.startswith("Under Edit profile for mod") else ""
+            if label:
+                block = "**" + str(catalogue.get(label, label)) + "**\n\n" + block
+        elif not original.startswith(("#", "<")):
+            block = _emphasize_controls(block, locale)
+        rendered.append(block)
+    if folded:
+        rendered.append("</details>")
+    return "\n\n".join(rendered)
 
 
 @dataclass
@@ -428,6 +579,10 @@ def build_manuals(guides: dict[str, str] | None = None) -> dict[str, str]:
             ])
         for page in order:
             body = _guide_body(guides[page_slug(page, locale) + ".md"])
+            body = _readable_guide(
+                _guide_body(guides[page + ".md"]), body, locale,
+                mesh=page == "Mesh-Editor", faq=page == "FAQ",
+            )
             body = re.sub(r"(?m)^(#{1,5}) ", r"#\1 ", body)
             body = re.sub(r"\]\((" + re.escape(WIKI) + r"[^)\n]+)\)", rewrite_link, body)
             parts.extend([

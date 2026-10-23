@@ -146,6 +146,11 @@ and review both documentation surfaces when a user-facing contract changes.
 without regenerating prose. Obsolete generated filenames are removed only with
 that explicit flag; unrelated files are retained. Do not add legacy redirect
 pages, which would repopulate GitHub's global Pages list.
+The Wiki layout formats procedures as steps, emphasizes existing localized UI
+controls, separates limitations into labelled callouts, and folds optional Mesh
+Editor detail sections. It preserves the original translated sentences and
+technical identifiers; incompatible source/translation block structures refuse
+export. The in-app topics continue to own the wording.
 
 ## Settings and display scaling
 

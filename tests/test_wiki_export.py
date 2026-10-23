@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import re
+import html
 from urllib.parse import unquote
 
 import pytest
@@ -12,6 +13,7 @@ from scripts.export_github_wiki import (
     BUILTIN_LANGUAGES, PAGE_TOPICS, WIKI, DocumentParser, _blocks,
     _translate_html, build_pages, page_slug,
     build_manuals, manual_slug,
+    _readable_guide, _sentences,
 )
 
 
@@ -58,14 +60,20 @@ def test_manual_links_resolve_to_the_reduced_page_set_and_unique_section_ids(wik
 
 
 def test_consolidation_preserves_every_guides_visible_text(wiki_pages, wiki_manuals):
-    def content_lines(text):
+    def content_text(text):
         lines = []
         for line in text.splitlines():
-            if not line.strip() or line == "---" or line.startswith(("[⌂ ", "🌐 ", "CDMW `", "[↑ ")):
+            if not line.strip() or line == "---" or line.startswith(("[⌂ ", "🌐 ", "CDMW `", "[↑ ")) or re.fullmatch(r"\*\*[^*]+\*\*", line):
                 continue
+            line = re.sub(r"^> ?", "", line)
+            if re.fullmatch(r"\[![A-Z]+\]", line):
+                continue
+            line = re.sub(r"^(?:- |\d+\. )", "", line)
             line = re.sub(r"\]\([^)\n]+\)", "]", line)
-            lines.append(re.sub(r"^#{1,6} ", "", line))
-        return lines
+            line = re.sub(r"<a id=\"[^\"]+\"></a>", "", line)
+            line = re.sub(r"</?(?:details|summary|strong)>", "", line)
+            lines.append(re.sub(r"^#{1,6} ", "", line).replace("**", ""))
+        return re.sub(r"\s+", "", html.unescape("".join(lines)))
 
     for language in BUILTIN_LANGUAGES:
         manual = wiki_manuals[manual_slug(language.code) + ".md"]
@@ -76,7 +84,31 @@ def test_consolidation_preserves_every_guides_visible_text(wiki_pages, wiki_manu
         assert len(sections) == 18
         for page in PAGE_TOPICS:
             old = wiki_pages[page_slug(page, language.code) + ".md"].split("\n", 1)[1]
-            assert content_lines(old) == content_lines(sections[page.lower()]), (language.code, page)
+            assert content_text(old) == content_text(sections[page.lower()]), (language.code, page)
+
+
+def test_procedures_are_steps_with_separate_limits_and_optional_details(wiki_manuals):
+    body = wiki_manuals["Home.md"]
+    vertex = body.split('<a id="mesh_editor-5"></a>', 1)[1].split("</details>", 1)[0]
+    assert "1. Open **Mesh Data** > **Vertex Parameters**" in vertex
+    assert "1. Inspect **Position**, **UV Coordinates**, **Normals**, and **Skin Weights**" in vertex
+    assert "> [!NOTE]\n> - Editing depends" in vertex
+    assert "UV1 and vertex colours are not editable." in vertex
+    assert "<summary><strong>Vertex Parameters</strong></summary>" in body
+    assert "<summary><strong>Authored cloth profiles</strong></summary>" in body
+    assert "##### Do I need to install a DDS converter?" in body
+    for language in BUILTIN_LANGUAGES:
+        manual = wiki_manuals[manual_slug(language.code) + ".md"]
+        assert manual.count("<details>") == manual.count("</details>")
+
+
+def test_sentence_formatting_preserves_code_versions_ellipsis_and_cjk_punctuation():
+    assert _sentences("Use Import Replacement... for the mesh. Keep `.cditem` v2. Reopen `mesh.pac`.") == [
+        "Use Import Replacement... for the mesh.", "Keep `.cditem` v2.", "Reopen `mesh.pac`.",
+    ]
+    assert _sentences("変更を適用します。元のファイルを保持します。") == ["変更を適用します。", "元のファイルを保持します。"]
+    with pytest.raises(ValueError, match="Documentation block structure differs: de"):
+        _readable_guide("First.\n\nSecond.", "Zuerst.\n\nZweitens.\n\nDrittens.", "de")
 
 
 def test_manual_migration_requires_every_source_guide(wiki_pages):
