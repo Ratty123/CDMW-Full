@@ -25,6 +25,8 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 ### Fixed
 
+- Independent item preparation no longer rejects unrelated sequence files in mounted mods or selected mod folders.
+
 - Mesh Editor reduces work after Grab and other viewport drags by submitting only changed vertices, while retaining validation and Undo/Redo.
 
 - Morph & Refit adjusts rigid necklace depth and tilt while keeping the assembly centred, and fits belts snugly over cloth wraps. Layered band and rope fits avoid jagged ridges on irregular rolled edges, retaining their taper, height contour, proven wall depth and clearance. Raised cords and compact knots remain visible after fitting again. Local clearance repairs preserve Flexible shirt and cuff hems, including rolled and tilted edges, instead of pulling them toward a narrower part of the body. New self-crossings still reject the fit. Follow strengths, Skip and protected parts retain their controls. Fitting after Part or island removal avoids false clearance-solve failures and limits stretching in attached cords; PAC exports preserve those exclusions. Finish Edit Mesh retains valid body and armor fitting edits alongside earlier mesh edits instead of reporting an unrecorded position change.

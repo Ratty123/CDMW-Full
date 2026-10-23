@@ -53,6 +53,37 @@ def images_by_id(sources, root):
     return {image.identity: image for image in owner.prepare_native_resource_images(sources, root, target="archive")}
 
 
+@pytest.mark.parametrize("transport", ["mounted", "folder"])
+def test_unrelated_foreign_sequence_preserves_private_resource_images(tmp_path, transport):
+    from cdmw.services.independent_item_package import virtual_path
+    from tests.test_independent_item_compatibility import mount_mod
+
+    root, packages, sources = prepared_pair(tmp_path)
+    expected = images_by_id(sources, root)
+    path = "sequencer/binary__/baseseq/gimmickcalledseq/gimmick_craft_repair_01.paseq"
+    folders = ()
+    if transport == "mounted":
+        mount_mod(root, tmp_path / "foreign-source", {path: b"unrelated sequence"})
+    else:
+        folder = tmp_path / "foreign-folder"
+        loose = folder / "files" / path
+        loose.parent.mkdir(parents=True)
+        loose.write_bytes(b"unrelated sequence")
+        folders = (folder,)
+    before = files_in(root)
+    foreign_before = files_in(folders[0]) if folders else None
+    actual = owner.prepare_native_resource_images(sources, root, target="archive", folders=folders)
+    assert {image.identity for image in actual} == {package.identity for package in packages}
+    for image in actual:
+        assert image.files == expected[image.identity].files
+        assert path not in {row["path"] for row in image.report()["members"]}
+    assert files_in(root) == before
+    if folders:
+        assert files_in(folders[0]) == foreign_before
+    with pytest.raises(IndependentItemError, match="Unsupported package resource path"):
+        virtual_path(path)
+
+
 def assert_exact_compiler_bytes(image, changes):
     expected = {path: row["after"] for path, row in changes.items() if row["before"] is None and row["after"] is not None}
     entries = parse_archive_pamt_bytes(image.index_bytes, Path("0000/0.pamt"))

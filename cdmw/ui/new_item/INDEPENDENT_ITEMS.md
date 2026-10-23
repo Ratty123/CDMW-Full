@@ -467,6 +467,12 @@ They report compatible data, shared files that can be merged, record conflicts,
 and unsupported inputs. This is an on-demand file-data comparison, not a runtime
 plugin analyser or continuous external-manager monitor.
 
+External providers can contain unrelated game folders, such as `sequencer/`.
+Those paths retain the same canonical-path and archive-containment checks;
+they are tracked for comparison rather than admitted as `.cditem` resources.
+The package resource-root restrictions remain unchanged, and private resource
+images contain only the selected packages' owned compiler outputs.
+
 Recognized loose `meta/0.papgt` supplies archive discovery and is excluded from
 game-resource payloads. Its parsed bytes retain an original digest. A valid
 `meta/0.pathc` that exactly matches the current game's texture registry is accepted

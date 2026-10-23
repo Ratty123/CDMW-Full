@@ -129,11 +129,16 @@ def canonical(value):
     return json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":"), allow_nan=False).encode("utf-8")
 
 
-def virtual_path(value):
+def _resource_path(value):
     if (not isinstance(value, str) or not value or len(value) > 512 or value != value.lower()
             or "\\" in value or ":" in value or "\0" in value or value.startswith("/")
             or any(p in ("", ".", "..") or p.rstrip(" .") != p for p in value.split("/"))):
         raise IndependentItemError("Invalid package resource path.")
+    return value
+
+
+def virtual_path(value):
+    value = _resource_path(value)
     if value.split("/")[0] not in {"character", "gamedata", "effect", "ui", "texture", "textures", "common", "sound"}:
         raise IndependentItemError(f"Unsupported package resource path: {value}")
     return value

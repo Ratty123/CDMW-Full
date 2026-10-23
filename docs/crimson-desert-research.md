@@ -1466,6 +1466,12 @@ restoration completes in 40.985 seconds. Original raw/offline false flags remain
 unchanged. The selected fixed bytes establish neither actual engine resource
 consumption nor general context independence or retirement.
 
+External-mod comparison validates canonical game-relative paths separately from
+the `.cditem` resource-root allowlist. Unrelated sequence files no longer block
+private-image preparation; mounted and selected-folder fixtures preserve the exact
+package images. Package resource limits, source/containment checks and unresolved
+native capability boundaries remain unchanged.
+
 The separate reserved-tail adapter passes its native fixture, independent linked
 review and controlled-caller source review. Its 216 full source pins protect all
 167 runtime origins with 210 recovery sources within the unchanged 256 limit.

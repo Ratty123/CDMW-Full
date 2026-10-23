@@ -11,7 +11,7 @@ import re
 from cdmw.core.papgt_format import parse_papgt
 from cdmw.domain.archives.overlay_merge import OverlayConflict, _table, merge_overlay_files, owned_item_references
 from cdmw.domain.cancellation import RunCancelled, raise_if_cancelled
-from cdmw.services.independent_item_package import MAX_BLOB, MAX_TOTAL, digest, unpack_recipe, virtual_path
+from cdmw.services.independent_item_package import MAX_BLOB, MAX_TOTAL, _resource_path, digest, unpack_recipe
 from cdmw.services.mod_merge_service import _group, _inventory
 from cdmw.services.new_item_provenance import SourceTracker
 
@@ -219,7 +219,7 @@ def external_mods(root, state, *, folders=(), read_entry=None, stop_event=None, 
         result.archives[name] = tuple(path.name for path in pamts)
         for pamt in pamts:
             for entry in result.tracker.parse_index(pamt, stop_event=stop_event):
-                path = virtual_path(entry.path.lower())
+                path = _resource_path(entry.path.lower())
                 if not Path(entry.paz_file).resolve().is_relative_to(group):
                     raise OverlayConflict(f'Archive resource escapes its mod folder: {name}.')
                 result.providers.setdefault(path, []).append((name, ModFolderPayload(entry=entry)))
@@ -244,7 +244,7 @@ def external_mods(root, state, *, folders=(), read_entry=None, stop_event=None, 
             if source.entry is not None and (not Path(source.entry.pamt_path).resolve().is_relative_to(folder)
                                              or not Path(source.entry.paz_file).resolve().is_relative_to(folder)):
                 raise OverlayConflict(f'Archive resource escapes its mod folder: {label}.')
-            result.providers.setdefault(virtual_path(path), []).append((label, source))
+            result.providers.setdefault(_resource_path(path), []).append((label, source))
             admitted = True
         # Executable mods and patch instruction formats are not final file payloads.
         unknown = [name for name, *_ in inventory if Path(name).suffix.lower() in ('.asi', '.dll', '.json', '.zip', '.rar', '.7z', '.cditem')

@@ -49,6 +49,38 @@ def mount_mod(root, tmp_path, files, name='foreign', first=False):
     return {p: p.read_bytes() for p in group.iterdir() if p.is_file()}
 
 
+@pytest.mark.parametrize('transport', ['mounted', 'folder'])
+@pytest.mark.parametrize('path', [
+    '../escape', 'sequencer/../escape', '/sequencer/file', 'sequencer//file',
+    'sequencer/file.', 'sequencer/file ', 'sequencer\\file', 'sequencer/x:y',
+    'sequencer/\0bad', 'sequencer/' + 'a' * 503,
+])
+def test_external_resources_retain_canonical_path_guards(tmp_path, monkeypatch, transport, path):
+    from cdmw.services.independent_item_compatibility import external_mods
+    from cdmw.services.new_item_mod_base import ModFolderPayload
+    from cdmw.services.new_item_provenance import SourceTracker
+
+    setup_game(tmp_path / 'recipient')
+    root = tmp_path / 'recipient/game'
+    folders = ()
+    if transport == 'mounted':
+        mount_mod(root, tmp_path / 'foreign-source', {'sequencer/test.paseq': b'foreign'})
+        original = SourceTracker.parse_index
+        def malformed_index(self, pamt, **kwargs):
+            return [replace(entry, path=path) for entry in original(self, pamt, **kwargs)]
+        monkeypatch.setattr(SourceTracker, 'parse_index', malformed_index)
+    else:
+        folder = tmp_path / 'foreign-folder'
+        folder.mkdir()
+        source = folder / 'sequence.paseq'
+        source.write_bytes(b'foreign')
+        monkeypatch.setattr('cdmw.services.new_item_mod_base.mod_folder_payloads',
+                            lambda *args, **kwargs: {path: ModFolderPayload(path=source)})
+        folders = (folder,)
+    with pytest.raises(ValueError, match='Invalid package resource path'):
+        external_mods(root, {'directory': 'cdmw'}, folders=folders)
+
+
 @pytest.mark.parametrize('first', [True, False])
 def test_disjoint_external_records_survive_two_items_update_and_removal(tmp_path, first):
     _, one = authored(tmp_path / 'a')
