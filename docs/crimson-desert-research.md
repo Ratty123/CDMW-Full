@@ -1428,8 +1428,13 @@ through both retained contexts remain pending. The separate producer passes 17
 compiled native cases and 13 aggregate wire reviews with engine substitutes,
 including full-payload/last-byte controls and a recheck of the first context after
 creating the second. These controls preserve constructor side effects as an
-explicit actual-game question. Process
-retention does not establish production retirement. Join these resources and
+explicit actual-game question. The subsequent game attempt refused metadata
+comparison before either read, and independent review confirms exact restoration
+in 40.860 seconds. A four-byte error in preparing the expected PAPGT group record
+was also present in the fixture's substitute response. A separately frozen source
+successor corrects that boundary with four focused generation/format checks; its
+own binary qualification and game reads remain pending. Process retention does
+not establish production retirement. Join these resources and
 independently owned item definitions in one supported lifecycle. Metadata success, prepared
 archive bytes and related Loadouts observations remain separate evidence.
 

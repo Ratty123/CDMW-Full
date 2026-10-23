@@ -212,7 +212,14 @@ byte observation does not establish resource-consumer behavior, API success/coun
 or retirement. Two separate actual-compiler images with distinct 144-byte slices
 at offset 2704 are prepared. Their separate producer now passes 17 compiled native
 cases and 13 aggregate reviews, including A-after-B and the full-payload last-byte
-controls. Native two-context game reads remain pending.
+controls. The subsequent caller-v2 game attempt refused at both metadata checks
+before reading and restored in 40.860 seconds; independent capture/restoration
+review passes. The preparer sliced expected group bytes at 16:28 rather than the
+actual serialized 12:24 boundary, while the fixture seeded the same wrong bytes.
+Separately frozen v4 corrects those two expectations with four generation/format
+boundary checks, preserving all runtime code, guards and images. Its own native/
+linked qualification and fresh caller/capture remain required. Native two-context
+game reads remain pending.
 
 Executable-source review identifies the ItemInfo manager's typed reset, setter,
 clearer and loader slots: `+0x08` resets and `+0x20` loads. The actual passive

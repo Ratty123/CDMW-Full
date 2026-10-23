@@ -92,7 +92,8 @@ flows and eleven refusals, including the holder-alias and distinguishing-byte
 controls. The five-step run completed in 20.751 seconds with compiler resources
 returned and an empty closure census; the new ASI stays inactive without a session.
 These controls exercise the actual header with fixture engine substitutes, not
-the game. Actual two-image reads and the controlled caller remain pending.
+the game. The subsequent caller-v2 attempt below refused before payload reading;
+actual two-image reads remain pending.
 
 V3 preserves terminal refusal and verifies the exact reviewer bootstrap before
 import. Explicit padding preserves the asserted context layout under strict
@@ -112,6 +113,57 @@ the original source-only flags:
 4,382 bytes, SHA-256
 `e5a10b84142939606786baa25e8d438ea3c20fc5c92014abc5f690ac32443931`.
 It supplies fixture qualification, with game execution/readiness/admission false.
+
+The first two-package caller packet remained unexecuted after independent review
+found missing eager-import source owners. Caller-v2 seals all 328 source/evidence
+pins, protects all 167 observed local source origins and all 45 decoder inputs,
+and retains the exact seven installed witnesses. Only 67 independently classified
+compilation/proof rows are omitted from the restoration list; all remain sealed.
+The resulting 255 restoration sources fit the unchanged 256 limit. Its 49 focused
+checks and independent source review passed before the fresh timed handoff.
+
+The consumed caller-v2 run then produced an authentic failed observation. Both
+native factories returned true once, with 19 folders/four files and matching
+folder/file/directory/name/group-name bytes, but refused at metadata error23:
+`group_record_match` was zero. Neither lookup/path nor either payload read passed;
+the final 533-record trace has no exact private PAZ open. Both complete stock
+snapshots precede the private operation. Exact restoration completed in 40.860
+seconds, all eleven physical channel joins and preservation pins match, and a
+separate complete census records all five owned PIDs absent. The unchanged
+post-helper's generic normal-return wording is not adopted as a successful byte
+claim. Wire-only provenance/execution/admission flags remain false.
+
+Actual failed result:
+`run/b117-current-owner-v2/attempt1/two-package-read-observation-result.json`,
+12,990 bytes, SHA-256
+`d4f887f6009b8ea2feda4597cdc0c87229ae1392ffd4631a147e60a8da5c6595`.
+Independent failed-capture/source/process/restoration review:
+`api-source-review/20261023-b117-v2-actual-review/independent-failed-capture-review-v2.json`,
+84,715 bytes, SHA-256
+`26a7027136af09ebb7cfb66146d5bfa8a468b83e5532524fdc7adfe8159e0265`.
+
+The source diagnosis identifies a preparation error rather than a demonstrated
+native-format refusal: expected group bytes came from PAPGT 16:28, while the
+maintained format reader/serializer and guarded native parser use 12:24 after
+the twelve-byte header. The fixture seeded the same wrong descriptor into its
+substitute index, masking that boundary. The captured bool is not a raw native
+record capture. Diagnosis and separate census:
+`20261023-direct-authority/b117-v2-group-record-slice-diagnosis.json`,
+50,533 bytes, SHA-256
+`0f0cc9840fb8a6b63888904be2382dfc56e1e3c59a1e2485d514cf118ceea7be`.
+
+Separately frozen B117-v4 corrects only that slice and the two generated expected
+record arrays, with version/provenance documentation and a new independent-input
+boundary test. Four focused cases pass against actual source generation and the
+maintained parser/serializer, including both retained v3 mismatch controls.
+All runtime algorithms, guards, wire/bootstrap code, context tags and six images
+remain unchanged; all 64 old outputs are preserved. The new 65-output source
+packet is `io-candidate/batch117-two-package-byte-read-v4/prepared-inputs.json`,
+22,411 bytes, SHA-256
+`d07ce4f8b5c55fb6d3776fa6176860af07c67c7ded015dee572fbbb2637283c5`.
+Its own strict build/native/linked qualification, separately reviewed caller and
+fresh timed one-attempt capture remain required. No readiness or admission gate
+is promoted by the source correction.
 
 Native definition work identifies the ItemInfo manager's typed loader, reset,
 setter and clearer slots in the unchanged executable. The separately built

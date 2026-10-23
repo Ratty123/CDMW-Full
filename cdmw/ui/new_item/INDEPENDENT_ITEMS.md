@@ -1230,7 +1230,15 @@ use, general retirement and native item admission remain open. The separately
 frozen producer now passes 17 compiled native cases and 13 aggregate reviews,
 using engine substitutes for the construction/query/path/read flow. These include
 the complete A-after-B recheck, both full payloads, byte-143 discrimination and
-alias/refusal controls. Actual two-context game evidence remains distinct.
+alias/refusal controls. Its actual caller-v2 game attempt then refused both
+metadata checks before reading: the preparer selected PAPGT 16:28 instead of the
+serialized 12:24 group record, and the fixture seeded that same wrong expectation.
+Both factories had returned true once; this is not a demonstrated format refusal.
+Independent physical/source/restoration review passes, with restoration in 40.860
+seconds. Separately frozen v4 corrects the expected arrays and passes four actual
+generation/parser/serializer boundary cases. Runtime algorithms, guards and input
+images are unchanged; v4 still requires its own binary qualification and fresh
+controlled capture. Full two-context game reads remain unproved.
 
 Executable-source review identifies typed ItemInfo manager loader slots and
 the global setter/clearer. Vtable `+0x08` resets the manager; `+0x20` loads

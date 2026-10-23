@@ -20,7 +20,10 @@ the caller run restored exactly in 24.391 seconds with all owned processes close
 Existing B115 evidence already covers the before-finalizer phase with all stock
 rows resident and both maps present. Reader/maintenance coverage, actual private
 dispatch and lifetime remain open. The two-image producer passes 17 compiled
-native cases and 13 aggregate reviews; its actual game reads remain pending.
+native cases and 13 aggregate reviews. Its actual attempt refused before reading
+because the preparer selected the expected group record four bytes late. A
+separate source correction passes four boundary checks; its new binary and
+actual two-image reads remain to qualify.
 
 [Canonical goal and acceptance criteria](cditem-conflict-isolation-plan.md) |
 [Execution](cditem-execution-goal.md) |
@@ -71,7 +74,8 @@ resource use, equip and saves still require their own evidence.
 1. Extend the verified small read to two retained private contexts and distinct
    compiler-produced package images. Compare all 144 bytes at offset 2704,
    including their distinguishing last byte; recheck A after B construction.
-   The new producer's compiled and aggregate controls pass; prepare its own caller.
+   The first attempt refused at a wrongly prepared group-record expectation;
+   qualify the separately corrected v4 candidate before its own fresh caller.
    Native context independence, resource use and general retirement remain open.
 2. Carry common preflight and retained ownership into actual B106 backing,
    first qualifying four original-header forwards that reserve a null tail
@@ -110,7 +114,7 @@ the preceding 24-case preparation evidence remains in
 
 - 2026-10-23 | CDISO-RE-02 actual loader caller and phase reconciliation | B119 captures return RIP `0x14FA45A99`, joined to the serial 149-family dispatcher in the unchanged executable. Independent physical/source/process review passes; exact restoration completes in 24.391 seconds. Reused B115 AF1 captures already show all 6,816 stock slots resident with matching keys and both maps, before C. A proposed duplicate phase probe is withdrawn. Reader exclusion, private central dispatch, failure-stop and lifetime remain open; acceptance states are unchanged. Evidence: `workspace/reports/cditem-execution/20261021-native-path-continuation/api-source-review/20261023-b119-caller-review/actual-chain-review.json` and `api-source-review/20261023-b119-dispatch-join/b115-af1-evidence-reconciliation.json` in that continuation.
 
-- 2026-10-23 | CDISO-RE-03 two-package producer qualification | Separately frozen B117-v3 passes 17 compiled native cases and all 13 aggregate reviews, including A-after-B, full 144-byte comparison, last-byte discrimination and alias/refusal controls. Strict layout padding and the qualification link input correct retained build failures without changing the producer flow or suppressing guards. New ASI is inactive without a session; compiler resources are returned. Actual two-package game reads and native resource use remain pending. Evidence: `workspace/reports/cditem-execution/20261021-native-path-continuation/b117-v3-build-proof-20261023/qualification-result.json`.
+- 2026-10-23 | CDISO-RE-03 two-package producer qualification and refused capture | B117-v3 passes 17 compiled native cases and 13 aggregate reviews, but the reviewed caller-v2 game attempt refuses both metadata checks before either read. Exact physical/source/restoration review passes; restoration takes 40.860 seconds. The preparer used PAPGT 16:28 instead of 12:24 for the expected group record, and its fixture copied the same error. Separately frozen v4 corrects that boundary with four focused cases while preserving runtime code/guards/images; its own binary qualification and actual reads remain pending. Original source/build/caller failures are retained; no admission state changes. Evidence: `workspace/reports/cditem-execution/20261021-native-path-continuation/api-source-review/20261023-b117-v2-actual-review/independent-failed-capture-review-v2.json` and the [execution checkpoint](cditem-execution-goal.md#resumed-with-direct-authority-2026-10-23).
 
 - 2026-10-23 | CDISO-RE-02 passive loader ordering | B118-v3 through caller-v2 records the actual derived ItemInfo loader: global owner already equals this while count/metadata/backing are empty; normal return has 6,816 entries and matching metadata/cookie. Independent raw/source/process/controller review passes. Worker and bootstrap threads differ; TLS was not sampled. Pointer presence is not readiness. Exact restoration completes in 23.094 seconds and all five owned processes are absent. No concurrent reader activity, exclusion, insertion, lifetime or native admission follows. Original fixture failure and terminal-initialization correction remain retained; all acceptance states are unchanged. Evidence: `workspace/reports/cditem-execution/20261021-native-path-continuation/api-source-review/20261023-b118-passive-review/b118-v2-actual-capture-review.json`.
 

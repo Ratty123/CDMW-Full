@@ -90,10 +90,18 @@ changing those flags.
 The two-image B117-v3 producer now passes 17 compiled native cases and all 13
 aggregate wire reviews. Terminal refusal and the verified reviewer bootstrap
 are preserved. Explicit context padding fixes strict compilation without changing
-flow or guards; the earlier failed build and link input remain retained. Actual
-game reads still require a separately reviewed current-owner caller. The
+flow or guards; the earlier failed build and link input remain retained. The
+reviewed caller-v2 actual attempt subsequently refused both metadata checks at
+error23 before either read, and exact restoration completed in 40.860 seconds.
+Independent physical/source/process/restoration review confirms the failed
+observation. The expected PAPGT group-record slice was four bytes late; the
+fixture copied that same wrong expectation. Separately frozen v4 corrects 12:24
+with four checks against actual generation and maintained parsing/serialization,
+preserving runtime algorithms, guards, images and all old artifacts. Its own
+native/linked qualification and fresh caller/capture remain required. The
 [execution checkpoint](cditem-execution-goal.md#resumed-with-direct-authority-2026-10-23)
-pins the selected 514,560-byte ASI and full qualification receipt.
+pins the historical 514,560-byte ASI, full qualification, failed capture and
+corrected source packet. No full two-context byte or resource-use claim follows.
 
 B119 subsequently captured actual loader return RIP `0x14FA45A99`. Independent
 capture review passes and restoration completes in 24.391 seconds. The unchanged
