@@ -99,10 +99,15 @@ fixture copied that same wrong expectation. Separately frozen v4 corrects 12:24
 with four checks against actual generation and maintained parsing/serialization,
 preserving runtime algorithms, guards, images and all old artifacts. V4 now passes
 its own 17 compiled cases/13 aggregate reviews and inactive loading in 21.304
-seconds, with independent linked review passing. A fresh caller/capture remains required. The
+seconds, with independent linked review passing. Caller-v3's actual capture now
+compares both 144-byte payloads with zero mismatches and rechecks A after B.
+Physical opens 381/382 join each read interval in the 538-record trace, on read
+thread 41096/TLS family 0, distinct from AF1 thread 21752. Exact restoration takes
+40.985 seconds; independent capture review passes with no material defects. The
 [execution checkpoint](cditem-execution-goal.md#resumed-with-direct-authority-2026-10-23)
 pins the historical 514,560-byte ASI, full qualification, failed capture and
-corrected source packet. No full two-context byte or resource-use claim follows.
+corrected source packet and actual result. The fixed-byte observation does not
+establish actual resource consumption, general independence or lifetime.
 
 B119 subsequently captured actual loader return RIP `0x14FA45A99`. Independent
 capture review passes and restoration completes in 24.391 seconds. The unchanged
@@ -130,13 +135,26 @@ The next actual step is four original-header forwards reserving a null tail
 with stock logical counts/maps N and cookie/capacity N+4. Ordinary walks use N;
 reset/destruction uses the cookie. B120-v2 passes 21 native adapter/near-edge/
 observer cases with owned responses/synthetic callers and inactive loading in
-7.901 seconds; real cleanup thunk bytes match the current PE, while linked and
-actual original-helper reservation/cleanup remain unproved. The pre-CAS refusal
-gap is fixed in its preserved source successor. Old Snapshot/Router reject the
-reserved shape unchanged. Reuse
-the exact B81 Cache only for a later off-count staging step after reservation
-proof. This supplies no central getter/bulk or finalization acceptance. The
-84-pin source-only receipt is pinned in the execution checkpoint.
+7.901 seconds; independent linked review now passes the wrappers/CFG/unwind/ABI
+joins. Its controlled caller also passes independent source review: 216 full pins,
+all 167 runtime origins and 210 recovery sources within the unchanged 256 limit.
+The subsequent controlled game capture passes four original-helper forwards and
+the AF1 reserved shape: counts/maps 6,816, cookie/capacity 6,820, four null tail
+slots and all stock rows resident on thread 51672/TLS family 0. Root physical/
+process checks and exact restoration pass in 30.719 seconds; independent actual
+review also passes with no material defects. Cleanup remains unproved. The pre-CAS refusal gap is
+fixed in its preserved source successor.
+
+The next source review confirms the existing Cache.configure/get accepts base N
+with full native spans N+4. Router coherence and old null-tail snapshots are the
+rejecting contracts. Reuse that Cache for four off-count
+Bindings/Entries/Rows. The Bool decoder takes (Reader*, record); the separate
+central materializer takes (owner, status, uint16 ordinal, Reader*). Full
+pre-stage stock-prefix/header/map comparison, four exact tail witnesses,
+allocation alias checks and retained partial failures remain to implement and
+qualify. The source-only staging and earlier 84-pin consumer receipts are pinned
+in the execution checkpoint; neither supplies central getter/bulk, finalization
+or lifetime acceptance.
 
 Retained local source-only results under the native-path continuation:
 `run/b115-current-owner-v2/source-check-receipt.json` (41 focused checks;

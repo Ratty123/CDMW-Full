@@ -219,16 +219,36 @@ actual serialized 12:24 boundary, while the fixture seeded the same wrong bytes.
 Separately frozen v4 corrects those two expectations with four generation/format
 boundary checks, preserving all runtime code, guards and images. Its own 17
 native cases/13 aggregate reviews and inactive loading now pass in 21.304 seconds;
-independent linked review also passes. A fresh caller/capture remains required. Native two-context game
-reads remain pending.
+independent linked review also passes. Caller-v3's game capture now compares both
+complete 144-byte payloads with zero mismatches, rechecks A after B and joins one
+exact physical PAZ open to each native read interval: records 381/382 in the
+538-record trace, read thread 41096/TLS family 0, distinct from AF1 thread 21752.
+Restoration takes 40.985 seconds. Independent actual-capture review passes;
+original raw/offline false flags remain unchanged. Resource use, general
+independence, lifetime and native admission remain open.
 
 B120-v2 separately qualifies 21 compiled reserved-tail adapter/near-edge/observer
 cases and inactive loading with owned responses/synthetic callers. The terminal
 refusal correction prevents a later valid primary call from reserving after a
-pre-CAS refusal. Its actual game reservation and cleanup remain unproved; these
-fixtures execute no original game-header/cleanup instructions. Current PE guards
-include the real cleanup thunks. Linked review and a controlled caller are still
-required, with no private Cache/Rows or logical count/map publication.
+pre-CAS refusal. These fixtures execute no original game-header/cleanup
+instructions. Current PE guards
+include the real cleanup thunks. Independent linked review now passes 42 functions
+and the wrapper/GFID/argument/unwind joins. Controlled-caller source review also
+passes: 216 full pins/167 runtime origins, with exactly 210 recovery sources
+within the unchanged 256 limit. The subsequent controlled game capture passes
+four original-helper forwards and the AF1 shape with counts/maps 6,816,
+cookie/capacity 6,820, four null tail slots and all stock rows resident on
+thread 51672/TLS family 0. Root physical/process/restoration checks pass in
+30.719 seconds; independent actual review also passes. No private Cache/Rows,
+count/map publication, cleanup execution or lifetime proof follows.
+
+Source review narrows the following stage: Cache.configure/get can use base N
+with full native spans N+4 unchanged; Router and null-tail snapshots remain
+separate rejecting contracts. The checked Bool decoder takes Reader*/record;
+the native materializer takes owner/status/ordinal/Reader*. A new observer must
+anchor full stock prefix/header/maps to a pre-stage capture, allow only four exact tail
+witnesses and guard allocation aliases/partial failures. This is source evidence,
+not executed staging, central dispatch, publication or lifetime qualification.
 
 Executable-source review identifies the ItemInfo manager's typed reset, setter,
 clearer and loader slots: `+0x08` resets and `+0x20` loads. The actual passive

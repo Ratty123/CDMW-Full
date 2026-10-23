@@ -9,7 +9,7 @@
 - Completion log: [progress.md](progress.md)
 - Initial reviewed branch: RR/independent-item-packages.
 - Initial reviewed HEAD: d4b38e5082d4f9b4b4cce14f9ee2ecdb37994aaf, with concurrent uncommitted work.
-- Retained preparation baseline: 2026-10-21, main at 099e9f7e7a5555f07246ab475b399c15215e419c. The current native loading/caller observations were reviewed on 2026-10-23 at main@296934a046c9.
+- Retained preparation baseline: 2026-10-21, main at 099e9f7e7a5555f07246ab475b399c15215e419c. The B115 small-read increment was reviewed on 2026-10-23 at main@296934a046c9; later results use their exact source/capture pins in the execution checkpoint.
 - Current authorization: The user resumed execution with direct authority to use REA and other required resources, without contacting other sessions or requesting routine input. Preserve the full acceptance conditions, exact process/file guards and recovery; no historical session grant is replayed. See the [current checkpoint](cditem-execution-goal.md#resumed-with-direct-authority-2026-10-23).
 
 ## Goal
@@ -34,21 +34,36 @@ Preparation baseline reviewed on **2026-10-21** against `main@099e9f7e7a5555f072
 | --- | --- | --- | --- |
 | Stable logical identity and retained bindings | Implemented UUID, per-symbol reservations, collision refusal and profile transfer; bounded composed-route lifecycle observations | Carry the same bindings through the admitted native lifecycle; profile transfer is not automatic save migration | `CDISO-ID-01`, `CDISO-ID-01A`, `CDISO-LIFE-01` |
 | Resource ownership and donor independence | Supported private material/DDS references and proven donor-row detachment | Close every required explicit/implicit reference for the selected family and prove native consumption | `CDISO-RES-01`, `CDISO-DEP-01` |
-| Native definition registration | B84 extra-row game experiment; B106 backing/B111 readers; actual loader/caller and retained before-finalizer stock captures joined to the serial dispatcher | Join actual backing, private metadata/decoding and both native maps; qualify reader/maintenance coverage, failure-stop and lifetime | `CDISO-RE-02` |
+| Native definition registration | B84/B106/B111 research and actual loader/caller/phase joins; B120 original-helper reservation independently verified | Join actual backing, private metadata/decoding and both native maps; qualify reader/maintenance coverage, failure-stop and lifetime | `CDISO-RE-02` |
 | Paired publication and ownership | Retained portable C++ experiment: 41 cases, 963 checks; common preflight and retained backing pass | Transfer the demonstrated ordering to actual native storage and a qualified reader boundary; both lookups/resources here are modeled | `CDISO-RE-02A` |
-| Native private resources | B99 metadata lookup and independently reviewed B115 game read: all 102 expected bytes after normal return | Extend to separate package images, actual resource use and retirement; AL does not expose API success or transferred count | `CDISO-RE-03` |
+| Native private resources | B115's 102-byte read and independently reviewed B117 two-context game reads: both complete 144-byte payloads, with A rechecked after B | Qualify actual resource use, general context independence and retirement; AL does not expose API success or transferred count | `CDISO-RE-03` |
 | Exact private archive expectation | Maintained offline checker, reviewed B113 actual path and B115 physical open/read joins | Preserve exact per-image archive and payload identity in the larger native route | `CDISO-RE-03A` |
-| Separate package resource images | New actual compiler preparation; 24 focused cases verified, including exact bytes, retained profiles and independent updates | Consume the exact images through a qualified native route; shared definitions and unresolved resource edges remain outside them | `CDISO-RE-03B` |
+| Separate package resource images | Actual compiler preparation and 24 focused cases; exact physical archive opens and both selected payloads now observed in the game | Join the images to actual engine resource consumers; shared definitions and unresolved resource edges remain outside them | `CDISO-RE-03B` |
 | Per-package native backend | Design and isolated research; current shipped package routes still compose | Admit complete owned contributions without combined game tables, indexes or archive carriers | `CDISO-DECIDE-01`, `CDISO-RUN-01` |
 | Coexistence and persistence | Existing ownership refusal rules and bounded composed-route save observations | Native two-item acquisition/equip/reload/update/removal, compatible external mods and separately evidenced missing-provider behavior | `CDISO-COEX-01`, `CDISO-LIFE-01`, `CDISO-VERIFY-01` |
 | Final supported scope | Not complete | Review the actual supported scope and exact delivery evidence without weakening the goal | `CDISO-DONE-01` |
 
 ### Immediate engineering sequence
 
-1. Continue from the independently reviewed 102-byte B115 game read. B117-v3 passed its 17 native cases and 13 aggregate wire reviews, but its actual two-image attempt refused at metadata comparison before either read. The preparer selected the group record four bytes late, and the fixture seeded the same wrong expectation. Separately frozen v4 corrects the serialized boundary with four focused checks and now passes its own 17 native cases/13 aggregate reviews plus independent linked review. Finish its fresh caller before another game capture. Use the two distinct 144-byte DDS slices at offset 2704 and recheck A after B construction. Full native reads, second-context survival and actual resource consumption remain to prove; AL alone is insufficient and private objects remain retained until exit. All failed attempts remain preserved.
-2. Qualify the four original-header forwards that reserve four additional slots while keeping stock counts/maps N; observe N+4 cookie/capacity and null tail at the already-observed AF1 phase. The reservation-only B120-v2 adapter passes 21 owned-response/synthetic-caller native cases; linked and actual-game qualification remain required. Then join real private decoding and both native maps under the paired-publication discipline. Source now explains stock eager loading and later derived-state validation; expiry zero permits eviction, so eager residency cannot replace private rematerialization. Qualify reader/maintenance coverage, failure-stop, derived state and lifetime before exposure. Reuse the actual dispatcher/stock observations; a generic phase repeat supplies no missing boundary.
-3. Join definitions and resources in one startup-scoped native contribution, then exercise two independently authored same-donor packages with distinct private assets through acquisition, equip, restart and save reload.
-4. Extend only from that demonstrated scope. Keep native missing-provider save behavior, ordinary maintenance and any unresolved resource family explicitly open.
+The corrected B117-v4 producer through caller-v3 now reads both distinct 144-byte
+DDS slices at offset 2704 with zero mismatches and rechecks A after B construction.
+Independent actual-capture review passes: PAZ opens 381/382 in the 538-record trace
+join callback thread 41096/TLS family 0, distinct from AF1 thread 21752. Exact
+restoration completes in 40.985 seconds. The earlier metadata refusal and shared
+preparer/fixture record-offset error remain preserved. This establishes the
+selected fixed bytes, with objects retained until exit; actual resource use,
+general independence and lifetime remain open.
+
+The B120 reservation milestone also passes independent actual review. Four
+original-helper forwards and the AF1 snapshot join logical counts/maps 6,816,
+cookie/metadata capacity 6,820, all stock rows resident and four null tail slots
+on thread 51672/TLS family 0. Exact restoration takes 30.719 seconds. Its 216 full
+pins protect all 167 runtime origins with 210 recovery sources within the
+unchanged 256 limit. Cleanup execution and lifetime remain unverified.
+
+1. Stage four private Bindings/Entries/Rows through the unchanged Cache.configure/get with base N and full native spans N+4. Router coherence and the old null-tail observer reject that shape; they are separate contracts. The checked Bool decoder takes two arguments, while the central materializer takes four. Qualify full stock-prefix/header/map preservation, four exact tail records, allocation aliases and failure retention before central getter/bulk routing or map publication. Expiry zero permits eviction; eager residency cannot replace rematerialization, reader/maintenance coverage or lifetime proof.
+2. Join definitions, both native maps and resources in one startup-scoped native contribution, including later derived-state validation and a qualified consumer boundary. Then exercise two independently authored same-donor packages with distinct private assets through acquisition, equip, restart and save reload.
+3. Extend only from that demonstrated scope. Keep native missing-provider save behavior, ordinary maintenance and any unresolved resource family explicitly open.
 
 The [first in-game test checkpoint](cditem-execution-goal.md#first-in-game-test-and-notification)
 owns readiness and user notification. B112 path construction can be tested

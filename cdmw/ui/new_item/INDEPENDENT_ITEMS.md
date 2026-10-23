@@ -1220,7 +1220,7 @@ closure completed in 39.235 seconds. Both full stock snapshots precede the
 private operation; no post-read full-stock comparison is claimed.
 
 Two distinct actual-compiler fixture images now prepare a 144-byte DDS each at
-offset 2704. Full native reads through two retained contexts remain pending.
+offset 2704. The bounded native read through both retained contexts is recorded below.
 Their selected 20-byte file records are identical; the final payload byte differs.
 Each image has 19 folder/four file records, with the selected file at `files+60`.
 The constructor's global-byte addition requires explicit A-after-B metadata,
@@ -1239,7 +1239,13 @@ seconds. Separately frozen v4 corrects the expected arrays and passes four actua
 generation/parser/serializer boundary cases. Runtime algorithms, guards and input
 images are unchanged. V4 now passes its own 17 native cases/13 aggregate reviews
 and inactive loading in 21.304 seconds, followed by independent linked review.
-A fresh controlled caller/capture remains required. Full two-context game reads remain unproved.
+Caller-v3 now compares both complete 144-byte payloads in the game, rechecks A
+after B construction and joins exact PAZ opens 381/382 in the 538-record trace to
+each read interval on thread 41096/TLS family 0, distinct from AF1 thread 21752.
+Restoration takes 40.985 seconds; independent actual-capture review passes with
+no material defects. Original raw/offline false flags remain unchanged. This fixed-byte
+observation does not establish resource consumption, general independence or
+retirement.
 
 The separate B120-v2 reserved-tail adapter passes 21 compiled cases and inactive
 loading with owned responses and synthetic caller instructions. It forwards four
@@ -1247,8 +1253,22 @@ original helpers, reserving cookie/capacity N+4 while logical counts/maps stay N
 the observer checks full stock joins and null tails. A pre-CAS terminal-refusal
 gap is corrected and covered. Current PE guards include actual cleanup entry
 thunks, but no original game-header/cleanup instructions execute in these
-fixtures. Linked and actual-game reservation proof are pending. No private Rows,
-Cache staging, public-map admission or lifetime proof follows.
+fixtures. Independent linked and controlled-caller source reviews now pass. The
+caller protects all 216 full pins/167 runtime origins with 210 recovery sources
+within the unchanged 256 limit. Its subsequent controlled game capture passes
+four original-helper forwards and the AF1 shape: logical counts/maps 6,816,
+cookie/metadata capacity 6,820, four null tail slots and all stock rows resident
+on thread 51672/TLS family 0. Root physical/process/restoration checks pass in
+30.719 seconds; independent actual review also passes. No private Rows,
+Cache staging, public-map admission, cleanup or lifetime proof follows.
+
+The next source review confirms Cache can already use base N and actual spans
+N+4 for four off-count Bindings/Entries/Rows; Router coherence and the old null-tail
+observer reject that shape. The checked Bool decoder takes (Reader*, record);
+the central materializer takes (owner, status, uint16 ordinal, Reader*). A staged
+observer still needs full pre-stage stock-prefix/header/map comparison, four exact tail witnesses, allocation
+alias checks and retained partial failures. No staging implementation or game
+qualification follows from this source review.
 
 Executable-source review identifies typed ItemInfo manager loader slots and
 the global setter/clearer. Vtable `+0x08` resets the manager; `+0x20` loads

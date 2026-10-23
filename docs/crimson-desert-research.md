@@ -1445,10 +1445,9 @@ name adapters are not lifecycle callbacks. See the
 [current execution checkpoint](../beta-progress/cditem-execution-goal.md#resumed-with-direct-authority-2026-10-23)
 for source/capture pins and the bounded restoration result.
 
-The next resource proof extends the demonstrated read to two separate package
-images and then their actual engine consumer. Two actual-compiler fixture images
-are prepared with distinct 144-byte DDS payloads at offset 2704; native reads
-through both retained contexts remain pending. The separate producer passes 17
+The next resource proof joins the two separate package images to an actual
+engine consumer. The actual-compiler fixture images contain distinct 144-byte
+DDS payloads at offset 2704. The separate producer passes 17
 compiled native cases and 13 aggregate wire reviews with engine substitutes,
 including full-payload/last-byte controls and a recheck of the first context after
 creating the second. These controls preserve constructor side effects as an
@@ -1458,12 +1457,30 @@ in 40.860 seconds. A four-byte error in preparing the expected PAPGT group recor
 was also present in the fixture's substitute response. A separately frozen source
 successor corrects that boundary with four focused generation/format checks and
 passes its own 17 compiled native cases/13 aggregate reviews plus inactive
-loading, followed by independent linked review. Actual game reads remain pending. The separate
-reserved-tail adapter also passes 21 native cases with owned responses and
-synthetic callers; original game allocation/cleanup and central private-item
-integration remain unproved. Process retention does
-not establish production retirement. Join these resources and
-independently owned item definitions in one supported lifecycle. Metadata success, prepared
+loading, followed by independent linked review. Its reviewed successor controller
+now compares both complete private payloads in the actual game, with a metadata
+recheck after constructing the second context and exact physical archive-open
+joins. Independent capture review passes with no material defects, and exact
+restoration completes in 40.985 seconds. Original raw/offline false flags remain
+unchanged. The selected fixed bytes establish neither actual engine resource
+consumption nor general context independence or retirement.
+
+The separate reserved-tail adapter passes its native fixture, independent linked
+review and controlled-caller source review. Its 216 full source pins protect all
+167 runtime origins with 210 recovery sources within the unchanged 256 limit.
+Its subsequent controlled game capture passes the four original-helper forwards
+and the expected AF1 reserved shape, with stock logical counts at N, consistent
+stock identity maps and four null tail slots. Physical/process/restoration checks
+and independent actual review pass, with restoration in 30.719 seconds. Cleanup
+execution remains unproved.
+A following source review confirms the existing Cache supports base N with
+native spans N+4; Router coherence and null-tail observers remain separate
+rejecting contracts. The two-argument Bool records decoder and four-argument
+central materializer have distinct APIs. Stock-prefix/header/map preservation,
+four exact staged tail records, alias checks and failure retention still need
+implementation and qualification after reservation. Central private-item
+integration and lifetime remain open. Join these resources and independently
+owned item definitions in one supported lifecycle. Metadata success, prepared
 archive bytes and related Loadouts observations remain separate evidence.
 
 Sources: [resource-admission research and recorded receipt limits][virtual-loader]

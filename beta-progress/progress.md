@@ -6,11 +6,13 @@ Shared completion log for plans in this folder. Keep each entry as a short dated
 
 **Goal: truly independent content with stable identity.**
 
-**Exact small native payload verified, 2026-10-23.** The unchanged B115 probe
-returned all 102 expected bytes from the exact private archive in the game.
-Independent physical/source/process review passes; closure and restoration
-completed in 39.235 seconds. Two separate compiler-produced fixture images are
-prepared for the next 144-byte reads. Their native consumption, central
+**Two separate native payloads verified, 2026-10-23.** The corrected B117-v4
+producer through caller-v3 compares both complete 144-byte payloads at offset
+2704 with zero mismatches and rechecks A after B construction. Independent
+physical/source/process review passes: exact PAZ opens 381/382 in the 538-record
+trace join read thread 41096/TLS family 0, distinct from AF1 thread 21752.
+Closure and exact restoration complete in 40.985 seconds. The earlier B115
+102-byte result remains valid. Actual engine resource consumption, central
 definition routing and full native item acceptance remain open. See the
 [current checkpoint](cditem-execution-goal.md#resumed-with-direct-authority-2026-10-23).
 
@@ -19,13 +21,18 @@ The passive ItemInfo loader confirms a globally visible empty manager becoming
 the caller run restored exactly in 24.391 seconds with all owned processes closed.
 Existing B115 evidence already covers the before-finalizer phase with all stock
 rows resident and both maps present. Reader/maintenance coverage, actual private
-dispatch and lifetime remain open. The two-image producer passes 17 compiled
-native cases and 13 aggregate reviews. Its actual attempt refused before reading
-because the preparer selected the expected group record four bytes late. A
-separate source correction passes four boundary checks and its own 17 native
-cases/13 aggregate reviews plus independent linked review; a fresh caller and actual two-image
-reads remain to qualify. The reserved-tail adapter also passes 21 native cases
-with owned responses and synthetic callers; original game reservation is pending.
+dispatch and lifetime remain open. The first two-image attempt refused before
+reading because the preparer and fixture shared a group-record offset error;
+that failure is retained alongside the corrected producer and successful capture.
+B120-v2 passes 21 native cases, independent linked review and controlled-caller
+source review. Its 216 full pins protect all 167 runtime origins and project to
+210 recovery sources within the unchanged 256 limit. The subsequent controlled
+game reservation passes with logical counts/maps 6,816, cookie/capacity 6,820,
+four null tail slots and all stock rows resident on thread 51672/TLS family 0.
+Root physical/process checks and restoration pass in 30.719 seconds; independent
+actual review also passes. The next source review confirms the existing Cache supports
+base N with native spans N+4; staged stock/tail/alias/failure qualification remains
+pending, followed by central routing and lifetime work.
 
 [Canonical goal and acceptance criteria](cditem-conflict-isolation-plan.md) |
 [Execution](cditem-execution-goal.md) |
@@ -40,9 +47,9 @@ original `CDISO-*` criteria, with narrowly scoped subtask results recorded below
 | Package identity and retained bindings | Existing implementation, exercised in the new preparation route | UUIDs and reservations survive owned-fixture updates/removal/reinstall/profile transfer; native lifecycle still required |
 | Native definition registration | Partial research and actual caller/phase joins | Serial dispatcher and existing resident-stock phase established; actual private allocation/decoding, paired maps, reader/maintenance boundary and lifetime remain open |
 | Paired publication and lifetime | Verified owned-memory increment | `CDISO-RE-02A`: retained C++ result, 41 cases/963 checks. Both lookup paths and resource completion are modeled |
-| Exact private archive expectation | Verified preparation, actual path and small-byte observation | `CDISO-RE-03A`: retained preparation/reviewer checks, B113 path and B115 physical open/read joins; actual resource use remains open |
-| Separate package resource images | Newly verified preparation increment | `CDISO-RE-03B`: actual compiler output, one immutable image per UUID, 24 focused cases verified; native discovery/use remains open |
-| Native resource open/read/use | Exact 102-byte game observation independently verified | Normal return, zero mismatches and exact archive/process/source joins. AL hides errors/count; separate-image reads, resource use and general retirement remain open |
+| Exact private archive expectation | Verified preparation, actual path and selected payload observations | `CDISO-RE-03A`: B113 path, B115 small read and B117 exact per-context physical open/read joins; actual resource use remains open |
+| Separate package resource images | Preparation and selected native bytes verified | `CDISO-RE-03B`: one compiler-produced image per UUID; both distinct 144-byte slices compare completely, with A rechecked after B. Engine consumption remains open |
+| Native resource open/read/use | B115 and both B117 selected game reads independently verified | Normal return, zero mismatches and exact archive/process/source joins. AL hides errors/count; actual resource use, general independence and retirement remain open |
 | Fully independent native items | Open | Production `native_admission=false`; no combined-file-free native lifecycle acceptance |
 | Native persistence and missing-provider saves | Open | Two-item native lifecycle and separately written absent-provider save/reinstall evidence remain required |
 
@@ -73,19 +80,13 @@ resource use, equip and saves still require their own evidence.
 
 ### Next engineering steps
 
-1. Extend the verified small read to two retained private contexts and distinct
-   compiler-produced package images. Compare all 144 bytes at offset 2704,
-   including their distinguishing last byte; recheck A after B construction.
-   The first attempt refused at a wrongly prepared group-record expectation;
-   finish the corrected, compiled and independently reviewed v4's fresh caller.
-   Native context independence, resource use and general retirement remain open.
-2. Carry common preflight and retained ownership into actual B106 backing,
-   first qualifying four original-header forwards that reserve a null tail
-   without changing stock logical counts/maps. Reuse actual AF1 evidence with
-   the exact N/count versus N+4/cookie shape. Then join decoding through getter
-   and bulk, later derived-state checks, reader/maintenance coverage and lifetime.
-   Expiry zero permits eviction; eager loading cannot waive rematerialization.
-3. Integrate native definitions and resources, prove first acquisition, then run
+1. Stage four off-count Rows through the unchanged Cache using base N and
+   actual N+4 spans. Qualify full stock-prefix/header/maps, exact tail records,
+   aliases and retained failures. The Bool decoder has two arguments; central
+   materialization has four. Then join getter/bulk and both maps, later derived
+   state, resource consumers, reader/maintenance coverage and lifetime. Expiry
+   zero permits eviction; eager loading cannot waive rematerialization.
+2. Integrate native definitions and resources, prove first acquisition, then run
    two same-donor packages through equip/restart/update/removal/save.
 
 The later local Codex review on `main@a7ca7e49` identified the actual Live Edit
@@ -112,15 +113,17 @@ the preceding 24-case preparation evidence remains in
 
 ## Completed work
 
-- 2026-10-23 | CDISO-RE-02 resident/cleanup and reserved-tail qualification | Complete consumer-source review explains stock materialization, later auxiliary-state validation, eviction and logical-count versus cookie-based cleanup. The next actual discriminator remains four original-header forwards reserving a null tail with counts/maps unchanged. Reservation-only B120-v2 now passes 21 compiled adapter/near-edge/observer cases with owned responses/synthetic callers and inactive loading in 7.901 seconds. A terminal-refusal gap found before compilation is corrected in the preserved successor. No original game-header/cleanup instructions execute; linked review, actual native reservation, private staging and acceptance remain open. Evidence: `workspace/reports/cditem-execution/20261021-native-path-continuation/b120-v2-build-proof-20261023/qualification-result.json` and the [execution checkpoint](cditem-execution-goal.md#resumed-with-direct-authority-2026-10-23).
+- 2026-10-23 | CDISO-RE-02 original-helper reserved-tail observation | After native/linked/caller source qualification, B120-v2's controlled game capture passes with logical counts/maps 6,816, cookie/metadata capacity 6,820, all stock rows resident and four null tail slots on thread 51672/TLS family 0. Independent actual review passes, including physical/process joins and 30.719-second restoration, with all five owned roles absent and seven companions/stock preserved. The source packet protects all 216 full pins/167 runtime origins with 210 recovery sources within 256. The earlier terminal-refusal correction remains preserved. No verified cleanup execution, private staging, reader lifetime or admission follows. Evidence: `workspace/reports/cditem-execution/20261021-native-path-continuation/api-source-review/20261023-b120-v1-actual-review/independent-actual-capture-review-v2.json` and the [execution checkpoint](cditem-execution-goal.md#resumed-with-direct-authority-2026-10-23).
+
+- 2026-10-23 | CDISO-RE-02 reserved Cache staging source | The existing Cache already supports base N and full native spans N+4; Router coherence and null-tail observers are separate rejecting contracts. Confirmed the two-argument Bool decoder versus four-argument central materializer. Full stock-prefix/maps, four exact tail witnesses, alias checks and partial-failure retention remain to implement and qualify after actual reservation. Evidence: `workspace/reports/cditem-execution/20261021-native-path-continuation/api-source-review/20261023-reserved-cache-staging-next/reserved-cache-staging-source-review.json`.
 
 - 2026-10-23 | CDISO-RE-02 actual loader caller and phase reconciliation | B119 captures return RIP `0x14FA45A99`, joined to the serial 149-family dispatcher in the unchanged executable. Independent physical/source/process review passes; exact restoration completes in 24.391 seconds. Reused B115 AF1 captures already show all 6,816 stock slots resident with matching keys and both maps, before C. A proposed duplicate phase probe is withdrawn. Reader exclusion, private central dispatch, failure-stop and lifetime remain open; acceptance states are unchanged. Evidence: `workspace/reports/cditem-execution/20261021-native-path-continuation/api-source-review/20261023-b119-caller-review/actual-chain-review.json` and `api-source-review/20261023-b119-dispatch-join/b115-af1-evidence-reconciliation.json` in that continuation.
 
-- 2026-10-23 | CDISO-RE-03 two-package producer qualification and refused capture | B117-v3 passes 17 native cases/13 aggregate reviews, but caller-v2's actual metadata checks refuse before either read; exact independent capture/restoration review passes in 40.860 seconds. The preparer and fixture shared a four-byte PAPGT record-offset error. Separately frozen v4 corrects that boundary with four focused cases and passes its own 17 native cases/13 aggregate reviews plus inactive loading in 21.304 seconds, preserving runtime algorithms/guards/images. Independent linked review passes with all 364 unique evidence pins; a new caller and actual reads remain pending. Original failures are retained; no admission state changes. Evidence: `workspace/reports/cditem-execution/20261021-native-path-continuation/b117-v4-build-proof-20261023/qualification-result.json` and the [execution checkpoint](cditem-execution-goal.md#resumed-with-direct-authority-2026-10-23).
+- 2026-10-23 | CDISO-RE-03 two-package native payloads | Corrected B117-v4 through caller-v3 compares both complete 144-byte payloads with zero mismatches and rechecks A after B. Independent actual-capture review joins exact PAZ opens 381/382 in the 538-record trace to read thread 41096/TLS family 0, distinct from AF1 thread 21752; exact restoration completes in 40.985 seconds. The earlier metadata refusal, shared preparer/fixture offset error and its four-case correction remain preserved. Original raw false flags and all admission/acceptance states remain unchanged; resource use, general independence and lifetime remain open. Evidence: `workspace/reports/cditem-execution/20261021-native-path-continuation/api-source-review/20261023-b117-v3-actual-review/independent-actual-capture-review-v3.json` and the [execution checkpoint](cditem-execution-goal.md#resumed-with-direct-authority-2026-10-23).
 
 - 2026-10-23 | CDISO-RE-02 passive loader ordering | B118-v3 through caller-v2 records the actual derived ItemInfo loader: global owner already equals this while count/metadata/backing are empty; normal return has 6,816 entries and matching metadata/cookie. Independent raw/source/process/controller review passes. Worker and bootstrap threads differ; TLS was not sampled. Pointer presence is not readiness. Exact restoration completes in 23.094 seconds and all five owned processes are absent. No concurrent reader activity, exclusion, insertion, lifetime or native admission follows. Original fixture failure and terminal-initialization correction remain retained; all acceptance states are unchanged. Evidence: `workspace/reports/cditem-execution/20261021-native-path-continuation/api-source-review/20261023-b118-passive-review/b118-v2-actual-capture-review.json`.
 
-- 2026-10-23 | CDISO-RE-03 exact small native payload | Unchanged B115 through reviewed caller-v5 returned all 102 expected bytes from the exact 112-byte private archive. Independent review joins six physical captures, source/process/session, native intervals and zero mismatches; original decoder false flags remain unchanged. Exact restoration and closure completed in 39.235 seconds. Both full stock snapshots precede the private operation; no API-success/count, general retirement, resource use, item or save proof follows. The 18-case fixture correction, original failures and prelaunch refusals are retained. Two separate actual-compiler fixture images with distinct 144-byte DDS slices at offset 2704 are prepared but not natively read. All original acceptance states remain unchanged. Evidence: `workspace/reports/cditem-execution/20261021-native-path-continuation/api-source-review/20261023-direct-human-authority/b115-v5-actual-read-independent-review.json`.
+- 2026-10-23 | CDISO-RE-03 exact small native payload | Unchanged B115 through reviewed caller-v5 returned all 102 expected bytes from the exact 112-byte private archive. Independent review joins six physical captures, source/process/session, native intervals and zero mismatches; original decoder false flags remain unchanged. Exact restoration and closure completed in 39.235 seconds. Both full stock snapshots precede the private operation; no API-success/count, general retirement, resource use, item or save proof follows. The 18-case fixture correction, original failures and prelaunch refusals are retained. The later two-image observation is recorded separately above. All original acceptance states remain unchanged. Evidence: `workspace/reports/cditem-execution/20261021-native-path-continuation/api-source-review/20261023-direct-human-authority/b115-v5-actual-read-independent-review.json`.
 
 - 2026-10-21 | CDISO-RE-03 read-probe qualification | Frozen B115 adds bounded selected Windows-module/code/thunk/export witnesses and retains exact R29/R30/R31 hook-source joins. Independent source review and 69 synthetic checks pass; all four strict native targets compile. Compiled validation passes eight API controls and five pre-call read refusals, while 13 read controls terminate `0xc0000409`; static inspection finds fixture function addresses computed 4 GiB too high while the actual targets are CFG-valid. The separate fixture-only correction needs compiled validation. Own-process/inert checks are unrun, no game/read admission follows, and all 82 source pins remain exact. Compiler resources returned after 13.435s of build/tests. The exact-path milestone and all original acceptance states are retained. Evidence: `workspace/reports/cditem-execution/20261021-native-path-continuation/b115-build-proof/failure-and-resource-release.json`.
 

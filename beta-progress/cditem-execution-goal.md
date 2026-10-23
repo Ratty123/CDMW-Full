@@ -79,7 +79,8 @@ Seven focused checks include the real recovery preparer on an owned temporary
 Next, qualify two retained private contexts and full 144-byte DDS reads at offset
 2704 from separate actual-compiler images. Their last byte distinguishes them;
 selected metadata records alone are identical. Constructor global side effects
-and A's survival after B creation need explicit observations. Preparation receipt:
+and A's survival after B creation were explicit questions for the later actual
+capture below. Preparation receipt:
 `20261023-direct-authority/package-byte-images/prepared-package-images.json`,
 14,499 bytes, SHA-256
 `ac28c79f6bd2624a62f1fd6d99e94a80649e0d9698d7ce330dc07ccd7dba620f`.
@@ -93,7 +94,8 @@ controls. The five-step run completed in 20.751 seconds with compiler resources
 returned and an empty closure census; the new ASI stays inactive without a session.
 These controls exercise the actual header with fixture engine substitutes, not
 the game. The subsequent caller-v2 attempt below refused before payload reading;
-actual two-image reads remain pending.
+the separately corrected v4/caller-v3 later establishes the bounded two-image
+reads described below.
 
 V3 preserves terminal refusal and verifies the exact reviewer bootstrap before
 import. Explicit padding preserves the asserted context layout under strict
@@ -173,9 +175,47 @@ Independent linked review also passes: 41,984 bytes, SHA-256
 at `api-source-review/20261023-b117-v4-linked-review/independent-linked-native-review-v4.json`.
 All 364 unique evidence pins join, including corrected physical records in the
 actual COFF/PE and unchanged CFG tables. The separate offline envelope rehashes
-all 110 operational inputs. A reviewed successor caller and fresh timed
-one-attempt capture remain required. No readiness or admission gate is promoted
-by source, linked or owned fixture qualification.
+all 110 operational inputs. Source, linked and owned fixture qualification alone
+do not promote a readiness or admission gate.
+
+The separately reviewed caller-v3 now completes its actual two-context capture.
+Both native reads compare all 144 bytes at offset 2704 with zero mismatches,
+matching the two compiler-image payload hashes, including their differing final
+byte. A's metadata still matches after B construction. Both reads use callback
+thread 41096/TLS family 0; the preceding AF1 phase uses thread 21752. The 538-record
+final physical trace contains exactly one unredirected PAZ open per context,
+records 381/382, on that read thread inside its recorded open interval. Both full
+6,816-row stock snapshots precede the private operation; they do not establish
+post-read stock equality or an all-reader barrier.
+
+The actual result is `run/b117-current-owner-v3/attempt1/two-package-read-observation-result.json`,
+12,964 bytes, SHA-256
+`079e416c4144a1ec9ecdb2f24d8db73a12b7c2ab692b9f0ecc6c1c6f22557746`.
+Root physical/process/restoration join:
+`20261023-direct-authority/b117-v3-actual-cycle-tool-result.json`, 43,590 bytes,
+SHA-256 `ee7e04abadc36390dbf4fca359b496b5271c7afe7fe4aaffbb2482da2925c408`.
+All eleven physical channels match retained bytes; the final trace is retained
+in full. Restoration completes in 40.985 seconds, with all five owned PIDs absent,
+seven current companions, stock mount and six image files matching, and temporary
+ASI/session/generation absent. Independent actual-capture review passes with no
+material defects. Exact receipt:
+`api-source-review/20261023-b117-v3-actual-review/independent-actual-capture-review-v3.json`,
+40,295 bytes, SHA-256
+`b8f673b2738e67b0ef4627d41fd24a34d2cffbe98974084818bb775a0cd80ddc`.
+Its separately retained audit is `independent-actual-audit-v3.json` in the same
+directory, 200,450 bytes, SHA-256
+`cf2f8d38383fa62f6b07faeece72a5c977458f6f046551eb1a2095c03014384b`.
+Original raw/offline provenance flags remain false. This proves the selected fixed bytes;
+API transfer count, resource consumption, general context independence,
+publication, lifetime, retirement and native admission remain unproved.
+
+Caller-v3 protects all 167 current import origins and all 45 read-time inputs;
+its 330 full pins project to the unchanged 256-source recovery limit using only
+seven exact installed witnesses and 68 separately reviewed proof-only rows.
+The two failed preparation checks and earlier refused game capture are preserved.
+The current FastLoad file changed before preparation; new configured-startup facts
+pin its actual bytes and preserve the unchanged settings. Whole companion hashes
+are experiment/restoration witnesses, not general compatibility verdicts.
 
 Native definition work identifies the ItemInfo manager's typed loader, reset,
 setter and clearer slots in the unchanged executable. The separately built
@@ -293,11 +333,67 @@ and returns compiler resources. Exact receipt:
 `d74543632a63961c74d1412617db6efde027db769fd6a6797e69d2ae0fc74400`.
 Selected 378,880-byte ASI SHA-256:
 `063da742fac6fb44d92bd20292c80f04b3df8e5db96a4f0541e977b4292fb22b`.
-Linked wrapper/GFID/argument/unwind review, a separately reviewed controlled
-caller and actual original-helper reservation remain pending. Nonzero live CFG
-policy refuses without disabling mitigation. No Cache/Rows are staged and no
-logical count or public-map publication, actual cleanup, reader lifetime or
-native item admission is established.
+Independent linked review now passes the actual 42-function COFF/MAP/PE joins,
+wrapper GFIDs, caller RIP, full 64-bit array count/fifth destructor, Bool AL and unwind
+contracts. Exact receipt, 65,171 bytes:
+`api-source-review/20261023-b120-v2-linked-independent-review/independent-linked-native-review-v2.json`,
+SHA-256 `7097de27cdcdb51b13ce0132c5e8e325bd7e5f4060298944308e435a3d95825c`.
+Dynamic near/exception fixture coverage is primary-only; the other three wrappers
+have static/direct-State response-spy evidence. The controlled caller now passes
+independent source-packet review with no material defects. Its complete 216 pins
+protect all 167 current Python runtime origins and both exact read-time decoder
+bodies. Only the seven exact installed witnesses are excluded from the external
+recovery list: 209 external packet rows plus the packet total 210 within the
+unchanged 256 limit. No runtime or proof omission rows are used; the complete
+141-source/40-output/125-input native preparation proof remains sealed transitively.
+Exact source review:
+`api-source-review/20261023-b120-controller-review/independent-source-packet-review-v1.json`,
+57,300 bytes, SHA-256
+`82538353b9ffb3574887c4256bdcb34a1291cb394c4fb55edac1a2bd9cd79cb1`.
+The reviewed packet is `run/b120-current-owner-v1/source-candidate.json`, 43,280
+bytes, SHA-256 `47400d7c73e224146dfd00e41e58745cd2b1c8ebf77f8c13652e8f5d9416a2ea`.
+After a fresh timed handoff and pre-run notice, the controlled game run passes
+the four original-helper forwards and AF1 reserved shape: logical primary/
+metadata/map counts 6,816, cookie and metadata capacity 6,820, all 6,816 stock rows
+resident, and four null tail slots on thread 51672/TLS family 0. Exact events and
+stock channels join retained captures; root's complete strict census records all
+five owned roles absent, seven current companions and stock matching, and
+ASI/session/generation absent. Restoration completes in 30.719 seconds.
+Actual result: `run/b120-current-owner-v1/attempt1/reserved-tail-observation-result.json`,
+3,138 bytes, SHA-256
+`46009aecc6790cc06080eeae9ef6b8265593ac51351e109155a175563424356f`.
+Root join: `20261023-direct-authority/b120-v1-actual-cycle-tool-result.json`,
+30,307 bytes, SHA-256
+`44557fa49fe0dac23dfdc2781a5731d1ab1a6aa831f0e4cb100a3c3fd17d7370`.
+Independent actual-capture review passes with no material defects. Its revision-2
+receipt is `api-source-review/20261023-b120-v1-actual-review/independent-actual-capture-review-v2.json`,
+48,472 bytes, SHA-256
+`1a1764041ef1bb3b470644d7d8a39e1f4a21edb60e2c49aff2b1ade75956e37a`.
+The supporting `independent-actual-audit-v1.json` in that directory is 136,051
+bytes, SHA-256 `410c1364b3ed3de01cdb3453929fe2ebcb23ebb08058ff3d1b9e3d2ee5d03f2d`.
+The review distinguishes the configured 225-second close deadline from the
+19.797-second terminal close request; restoration finishes at 30.719 seconds.
+Actual cleanup execution remains unverified. Original raw/offline false
+flags are unchanged. The earlier relative-path preparation refusal occurred
+before resource actions; the completed fixed attempt must not be replayed.
+Nonzero live CFG policy refuses without disabling mitigation. No Cache/Rows are
+staged, and no new logical count or public-map publication, actual cleanup,
+reader lifetime or native item admission is established.
+
+Source review of the next staging boundary confirms that Cache.configure/get
+already accepts base N with full native spans N+4. Router coherence and the old
+null-tail snapshot are the rejecting surfaces. Stage-only work can use four
+Bindings/Entries/Rows and the existing records API without a Cache algorithm
+change or central materializer hook. Its checked Bool decoder takes two arguments
+(Reader*, record); the central native materializer takes four
+(owner, status, uint16 ordinal, Reader*). These are separate call contracts.
+A new staged observer must compare the full N-prefix/maps/header to a pre-stage
+capture, permit only the four exact tail witnesses, retain partial failure and
+check cross-entry allocation aliases. This remains source-only: 14 inspected pins
+and four Row/header/body hashes, receipt
+`api-source-review/20261023-reserved-cache-staging-next/reserved-cache-staging-source-review.json`,
+31,362 bytes, SHA-256
+`e62c077e0a7adb6945cb4524b7951050f2ad44db31ba17e16728b79a24a048cc`.
 
 Then join immutable private rows and the real constructor/decoder/cache to the
 reserved storage and both getter/bulk routes, with coherent paired maps, later
