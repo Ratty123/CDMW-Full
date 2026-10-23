@@ -7944,7 +7944,7 @@
     "Open Package in CDMW...": "CDMW에서 패키지 열기...",
     "Open Page": "페이지 열기",
     "Open Parts on hover": "마우스를 올리면 부품 열기",
-    "Open Parts on hover, beside Part colors in Morph & Refit, opens the Parts list when you hover a visible surface. Turn it off to keep closed panels closed; open lists still highlight and reveal matching names. Selection and pending fitting edits stay unchanged.": "모프 및 맞춤 조정의 파트별 색상 옆에 있는 마우스를 올리면 부품 열기는 보이는 표면에 마우스를 올리면 부품 목록을 엽니다. 닫힌 패널을 그대로 두려면 끄세요. 열린 목록에서는 계속 해당 이름을 강조하고 보이는 위치로 스크롤합니다. 선택과 적용 대기 중인 맞춤 조정은 바뀌지 않습니다.",
+    "Open Parts on hover, beside Part colors in Morph & Refit, opens the Parts list when you hover a visible surface. Turn it off to keep closed panels closed; open lists still highlight and reveal matching names. Selection and pending fitting edits stay unchanged. Hover keeps the chosen Parts or Mesh islands tab and identifies the matching listed island.": "모프 및 맞춤 조정의 파트별 색상 옆에 있는 마우스를 올리면 부품 열기는 보이는 표면에 마우스를 올리면 부품 목록을 엽니다. 닫힌 패널을 그대로 두려면 끄세요. 열린 목록에서는 계속 해당 이름을 강조하고 보이는 위치로 스크롤합니다. 선택과 적용 대기 중인 맞춤 조정은 바뀌지 않습니다. 부품 또는 메시 섬 탭을 선택한 상태가 유지되며, 마우스를 올리면 목록의 해당 아일랜드가 강조됩니다.",
     "Open Placement": "공개 배치",
     "Open Prefab Inspector...": "Prefab Inspector 열기...",
     "Open Preferred File URL": "기본 파일 URL 열기",

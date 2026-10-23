@@ -112,7 +112,7 @@ def test_in_app_browser_renders_the_expanded_guides_in_each_locale(tmp_path, lan
             )
             assert localizer.translate(source_paragraph) in body
             if topic == "mesh_editor":
-                hover_guide = "Open Parts on hover, beside Part colors in Morph & Refit, opens the Parts list when you hover a visible surface. Turn it off to keep closed panels closed; open lists still highlight and reveal matching names. Selection and pending fitting edits stay unchanged."
+                hover_guide = "Open Parts on hover, beside Part colors in Morph & Refit, opens the Parts list when you hover a visible surface. Turn it off to keep closed panels closed; open lists still highlight and reveal matching names. Selection and pending fitting edits stay unchanged. Hover keeps the chosen Parts or Mesh islands tab and identifies the matching listed island."
                 translated = localizer.translate(hover_guide)
                 assert translated in body
                 assert translated in wiki_pages[page_slug("Mesh-Editor", language.code) + ".md"]

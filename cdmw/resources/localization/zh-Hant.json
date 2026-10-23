@@ -7944,7 +7944,7 @@
     "Open Package in CDMW...": "在 CDMW 中打開套件...",
     "Open Page": "開啟頁面",
     "Open Parts on hover": "懸停時開啟零件清單",
-    "Open Parts on hover, beside Part colors in Morph & Refit, opens the Parts list when you hover a visible surface. Turn it off to keep closed panels closed; open lists still highlight and reveal matching names. Selection and pending fitting edits stay unchanged.": "形變與貼合中，依部件著色旁的懸停時開啟零件清單選項，會在指標懸停於可見表面時開啟零件清單。關閉此選項可讓已關閉的面板保持關閉；已開啟的清單仍會醒目提示對應名稱，並捲動到名稱所在位置。選取和待套用的貼合調整保持不變。",
+    "Open Parts on hover, beside Part colors in Morph & Refit, opens the Parts list when you hover a visible surface. Turn it off to keep closed panels closed; open lists still highlight and reveal matching names. Selection and pending fitting edits stay unchanged. Hover keeps the chosen Parts or Mesh islands tab and identifies the matching listed island.": "形變與貼合中，依部件著色旁的懸停時開啟零件清單選項，會在指標懸停於可見表面時開啟零件清單。關閉此選項可讓已關閉的面板保持關閉；已開啟的清單仍會醒目提示對應名稱，並捲動到名稱所在位置。選取和待套用的貼合調整保持不變。 懸停時保留已選擇的「零件」或「網格島」分頁，並醒目提示清單中對應的網格島。",
     "Open Placement": "公開配售",
     "Open Prefab Inspector...": "開啟預製件檢查器...",
     "Open Preferred File URL": "開啟首選文件 URL",

@@ -1023,12 +1023,18 @@ pub(super) struct RefitFeedback {
 
 pub(super) struct PartNameRow {
     part: u32,
+    island_faces: Option<Vec<u32>>,
     response: egui::Response,
     clip_rect: egui::Rect,
     scroll_root: Option<egui::Id>,
 }
 
 impl PartNameRow {
+    fn matches(&self, part: u32, source_face: Option<u32>) -> bool {
+        self.part == part && self.island_faces.as_ref().is_none_or(|faces|
+            source_face.is_some_and(|face| faces.contains(&face)))
+    }
+
     fn fully_visible(&self) -> bool {
         self.clip_rect.is_positive() && self.response.rect.intersect(self.clip_rect).height() + 0.5
             >= self.response.rect.height().min(self.clip_rect.height())
@@ -1037,6 +1043,7 @@ impl PartNameRow {
 
 pub(super) struct PartNameScroll {
     part: u32,
+    island: Option<egui::Id>,
     targets: HashSet<egui::Id>,
     viewport_layer: egui::LayerId,
     viewport_revision: u64,

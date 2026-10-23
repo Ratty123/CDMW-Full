@@ -1,4 +1,137 @@
 use super::*;
+use super::morph_workflow::part_name_has_viewport_outline;
+
+fn island_hover_point(ui: &HeadlessUi, source_face: u32) -> Result<Pos2, Box<dyn std::error::Error>> {
+    let mesh = ui.application.mesh.as_ref().ok_or("mesh")?;
+    let face = mesh.faces().find(|(_, face)| matches!(face.provenance,
+        Provenance::Source { submesh: 0, element } if element == source_face)).ok_or("island face")?.1;
+    let centre = face.vertices.iter().map(|handle| Vec3::from(mesh.vertex(*handle).unwrap().position))
+        .sum::<Vec3>() / 3.0;
+    let point = ui.application.camera.project(centre, ui.application.viewport_rect.ok_or("viewport")?).ok_or("project island")?;
+    assert!(point.inside_view);
+    Ok(egui::pos2(point.screen.x, point.screen.y))
+}
+
+#[test]
+fn island_controls_viewport_hover_keeps_the_tab_and_identifies_the_matching_island() -> TestResult {
+    for automatic in [true, false] {
+        let mut ui = island_ui(egui::vec2(1280.0, 900.0))?;
+        crate::cdmw_layout::set_auto_open_parts_on_hover(&ui.application.egui_context, automatic);
+        ui.click("Mesh islands")?;
+        ui.application.camera.frame_all_in_viewport(ui.application.mesh.as_ref().ok_or("mesh")?,
+            ui.application.viewport_rect.ok_or("viewport")?);
+        let root = tempdir()?;
+        ui.application.cdmw_bridge = Some(CdmwBridge::for_test(root.path().to_path_buf(), "island-hover", 1, 0));
+        let state = ui.application.cdmw_state.clone();
+        let mesh = ui.application.mesh.as_ref().ok_or("mesh")?.clone();
+        ui.last_actions.clear();
+        for source_face in [0, 1] {
+            ui.frame(vec![Event::PointerMoved(island_hover_point(&ui, source_face)?)]);
+            ui.settle_layout();
+            assert!(ui.label_rect("Show all islands").is_some(), "hover switched away from Mesh islands");
+            assert!(part_name_has_viewport_outline(&ui, &format!("Island {} · 1 faces", source_face + 1)));
+            assert!(!part_name_has_viewport_outline(&ui, &format!("Island {} · 1 faces", 2 - source_face)));
+        }
+        ui.frame(vec![Event::PointerGone]);
+        assert!(!part_name_has_viewport_outline(&ui, "Island 2 · 1 faces"));
+        assert_eq!(ui.application.cdmw_state, state);
+        let current = ui.application.mesh.as_ref().ok_or("mesh")?;
+        assert_eq!(current.selection, mesh.selection);
+        assert_eq!(current.selection_revision, mesh.selection_revision);
+        assert_eq!(current.structural_fingerprint(), mesh.structural_fingerprint());
+        assert!(ui.last_actions.is_empty());
+        assert!(ui.application.cdmw_pending_request.is_none());
+        // Reopening the Inspector on hover must also retain the last chosen tab.
+        ui.click("Back to Inspector")?;
+        ui.frame(vec![Event::PointerMoved(island_hover_point(&ui, 1)?)]);
+        ui.settle_layout();
+        assert_eq!(ui.label_rect("Show all islands").is_some(), automatic);
+        if !automatic { continue; }
+        ui.frame(vec![Event::PointerMoved(island_hover_point(&ui, 1)?)]);
+        ui.settle_layout();
+        assert!(part_name_has_viewport_outline(&ui, "Island 2 · 1 faces"));
+    }
+    Ok(())
+}
+
+#[test]
+fn island_controls_viewport_hover_scrolls_between_islands_in_the_same_part() -> TestResult {
+    let mut ui = island_ui(egui::vec2(1280.0, 800.0))?;
+    let document = Arc::make_mut(ui.application.document.as_mut().ok_or("document")?);
+    let part = &mut document.lods[0].submeshes[0];
+    let positions = part.positions[..3].to_vec();
+    let normals = part.normals[..3].to_vec();
+    let uvs = part.uvs[..3].to_vec();
+    part.positions = (0..70).flat_map(|index| positions.iter().map(move |p| [p[0] + index as f32 * 3.0, p[1], p[2]])).collect();
+    part.normals = (0..70).flat_map(|_| normals.clone()).collect();
+    part.uvs = (0..70).flat_map(|_| uvs.clone()).collect();
+    part.source_vertex_indices = (0..210).collect();
+    part.indices = (0..210).collect();
+    ui.application.mesh = Some(WorkingMesh::from_document(document)?);
+    ui.application.projection = None;
+    ui.application.cdmw_state["mesh_islands"]["parts"][0]["islands"] = json!(
+        (0..70).map(|face| json!({"faces":[face],"included":true})).collect::<Vec<_>>());
+    ui.click("Mesh islands")?;
+    ui.application.camera.frame_all_in_viewport(ui.application.mesh.as_ref().ok_or("mesh")?,
+        ui.application.viewport_rect.ok_or("viewport")?);
+    ui.scroll_inspector(-50_000.0);
+    ui.settle_layout();
+    assert!(ui.label_rect("Island 1 · 1 faces").is_none());
+    let mesh = ui.application.mesh.as_ref().ok_or("mesh")?.clone();
+    ui.last_actions.clear();
+    for face in [0, 69] {
+        ui.frame(vec![Event::PointerMoved(island_hover_point(&ui, face)?)]);
+        ui.settle_layout();
+        assert!(part_name_has_viewport_outline(&ui, &format!("Island {} · 1 faces", face + 1)));
+    }
+    let before = ui.label_rect("Island 70 · 1 faces");
+    ui.frame(vec![Event::PointerMoved(island_hover_point(&ui, 0)?)]);
+    ui.frame(vec![Event::PointerMoved(island_hover_point(&ui, 69)?)]);
+    ui.settle_layout();
+    assert_eq!(ui.label_rect("Island 70 · 1 faces"), before, "moving to another island must cancel the old target");
+    ui.frame(vec![Event::PointerMoved(island_hover_point(&ui, 0)?)]);
+    ui.frame(vec![Event::PointerGone]);
+    ui.settle_layout();
+    assert_eq!(ui.label_rect("Island 70 · 1 faces"), before, "leaving must cancel pending island scrolling");
+    assert!(ui.application.cdmw_part_name_scroll.is_none());
+    let current = ui.application.mesh.as_ref().ok_or("mesh")?;
+    assert_eq!(current.selection, mesh.selection);
+    assert_eq!(current.selection_revision, mesh.selection_revision);
+    assert!(ui.last_actions.is_empty());
+    Ok(())
+}
+
+#[test]
+fn island_controls_viewport_hover_uses_the_frontmost_visible_island() -> TestResult {
+    let mut ui = island_ui(egui::vec2(1280.0, 900.0))?;
+    let document = Arc::make_mut(ui.application.document.as_mut().ok_or("document")?);
+    for position in &mut document.lods[0].submeshes[0].positions[3..] {
+        position[0] -= 3.0;
+        position[2] += 0.5;
+    }
+    ui.application.mesh = Some(WorkingMesh::from_document(document)?);
+    ui.application.projection = None;
+    ui.application.camera.set_standard_view(StandardView::Back);
+    ui.click("Mesh islands")?;
+    ui.application.camera.frame_all_in_viewport(ui.application.mesh.as_ref().ok_or("mesh")?,
+        ui.application.viewport_rect.ok_or("viewport")?);
+    ui.application.view_mode = ViewMode::XRay;
+    ui.application.selection_domain = SelectionDomain::Edge;
+    ui.frame(vec![Event::PointerMoved(island_hover_point(&ui, 0)?)]);
+    ui.settle_layout();
+    assert!(part_name_has_viewport_outline(&ui, "Island 2 · 1 faces"));
+    assert!(!part_name_has_viewport_outline(&ui, "Island 1 · 1 faces"));
+    ui.application.set_island_visibility(0, vec![1], false);
+    ui.frame(Vec::new());
+    ui.settle_layout();
+    assert!(part_name_has_viewport_outline(&ui, "Island 1 · 1 faces"));
+    assert!(!part_name_has_viewport_outline(&ui, "Island 2 · 1 faces"));
+    let point = island_hover_point(&ui, 0)?;
+    ui.frame(vec![Event::PointerButton { pos: point, button: PointerButton::Secondary,
+        pressed: true, modifiers: egui::Modifiers::NONE }]);
+    assert!(!part_name_has_viewport_outline(&ui, "Island 1 · 1 faces"));
+    Ok(())
+}
 
 #[test]
 fn island_controls_keep_compact_columns_at_larger_text_sizes() -> TestResult {

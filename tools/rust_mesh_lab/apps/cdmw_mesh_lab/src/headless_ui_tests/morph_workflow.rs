@@ -198,7 +198,7 @@ fn workflow_part_name_hover_clears_and_respects_visible_geometry() -> TestResult
     Ok(())
 }
 
-fn part_name_has_viewport_outline(ui: &HeadlessUi, label: &str) -> bool {
+pub(super) fn part_name_has_viewport_outline(ui: &HeadlessUi, label: &str) -> bool {
     let Some(name) = ui.label_rect(label) else { return false; };
     let colour = Color32::from(egui::Rgba::from_rgb(0.15, 0.85, 1.0));
     ui.output.shapes.iter().any(|shape| matches!(&shape.shape,
@@ -485,23 +485,19 @@ fn workflow_viewport_part_hover_scroll_cancels_stale_targets_and_yields_to_manua
 
 #[test]
 fn workflow_viewport_part_hover_opens_closed_parts_and_keeps_selection_and_fit_edits() -> TestResult {
-    for closed in ["Inspector", "Collapsed", "Mesh islands"] {
+    for closed in ["Inspector", "Collapsed"] {
         let mut ui = long_part_hover_ui()?;
         let root = tempdir()?;
         ui.application.cdmw_bridge = Some(CdmwBridge::for_test(root.path().to_path_buf(), "hover-open", 2, 0));
         ui.open_refit_detail("Choose garments")?;
-        if closed == "Mesh islands" {
-            ui.click("Mesh islands")?;
-        } else {
-            ui.click("Back to Inspector")?;
-            if closed == "Collapsed" {
-                let collapse = ui.sidebar_button("Collapse Inspector").ok_or("collapse")?;
-                ui.click_at(collapse.rect.center());
-                ui.settle_layout();
-                assert!(ui.sidebar_button("Expand Inspector").is_some());
-            }
-            assert!(ui.application.cdmw_part_name_rows.is_empty(), "all Part name lists must start closed");
+        ui.click("Back to Inspector")?;
+        if closed == "Collapsed" {
+            let collapse = ui.sidebar_button("Collapse Inspector").ok_or("collapse")?;
+            ui.click_at(collapse.rect.center());
+            ui.settle_layout();
+            assert!(ui.sidebar_button("Expand Inspector").is_some());
         }
+        assert!(ui.application.cdmw_part_name_rows.is_empty(), "all Part name lists must start closed");
         let state = ui.application.cdmw_state.clone();
         let mesh = ui.application.mesh.as_ref().ok_or("mesh")?.clone();
         let targets = ui.application.cdmw_refit_region_targets.clone();
@@ -572,7 +568,12 @@ fn workflow_viewport_part_hover_toggle_preserves_closed_panels_and_open_list_fee
         ui.frame(Vec::new());
         ui.frame(vec![Event::PointerMoved(viewport_part_point(&ui, 59)?)]);
         ui.settle_layout();
-        assert!(part_name_has_viewport_outline(&ui, "59: Piece 59"), "re-enabling must restore automatic opening");
+        if closed == "Mesh islands" {
+            assert!(ui.label_rect("Show all islands").is_some(), "hover must keep the chosen Mesh islands tab");
+            assert!(ui.label_rect("59: Piece 59").is_none());
+        } else {
+            assert!(part_name_has_viewport_outline(&ui, "59: Piece 59"), "re-enabling must restore automatic opening");
+        }
         assert_eq!(ui.application.cdmw_state, state);
         let current = ui.application.mesh.as_ref().ok_or("mesh")?;
         assert_eq!(current.selection, mesh.selection);

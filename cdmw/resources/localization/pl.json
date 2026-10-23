@@ -7944,7 +7944,7 @@
     "Open Package in CDMW...": "Otwórz pakiet w CDMW...",
     "Open Page": "Otwórz stronę",
     "Open Parts on hover": "Otwieraj Części po najechaniu",
-    "Open Parts on hover, beside Part colors in Morph & Refit, opens the Parts list when you hover a visible surface. Turn it off to keep closed panels closed; open lists still highlight and reveal matching names. Selection and pending fitting edits stay unchanged.": "Otwieraj Części po najechaniu, obok Kolory części w Morfowanie i dopasowanie, otwiera listę części po najechaniu na widoczną powierzchnię. Wyłącz tę opcję, aby zamknięte panele pozostały zamknięte; otwarte listy nadal wyróżniają i odsłaniają pasujące nazwy. Zaznaczenie i oczekujące zmiany dopasowania pozostają bez zmian.",
+    "Open Parts on hover, beside Part colors in Morph & Refit, opens the Parts list when you hover a visible surface. Turn it off to keep closed panels closed; open lists still highlight and reveal matching names. Selection and pending fitting edits stay unchanged. Hover keeps the chosen Parts or Mesh islands tab and identifies the matching listed island.": "Otwieraj Części po najechaniu, obok Kolory części w Morfowanie i dopasowanie, otwiera listę części po najechaniu na widoczną powierzchnię. Wyłącz tę opcję, aby zamknięte panele pozostały zamknięte; otwarte listy nadal wyróżniają i odsłaniają pasujące nazwy. Zaznaczenie i oczekujące zmiany dopasowania pozostają bez zmian. Najechanie zachowuje wybraną kartę Części lub Wyspy siatkowe i wskazuje pasującą wyspę z listy.",
     "Open Placement": "Otwarte miejsce docelowe",
     "Open Prefab Inspector...": "Otwórz Inspektora Prefabrykatów...",
     "Open Preferred File URL": "Otwórz adres URL preferowanego pliku",

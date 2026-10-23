@@ -7944,7 +7944,7 @@
     "Open Package in CDMW...": "CDMW でパッケージを開く…",
     "Open Page": "ページを開く",
     "Open Parts on hover": "ホバー時に部品リストを開く",
-    "Open Parts on hover, beside Part colors in Morph & Refit, opens the Parts list when you hover a visible surface. Turn it off to keep closed panels closed; open lists still highlight and reveal matching names. Selection and pending fitting edits stay unchanged.": "モーフとフィット調整の「パーツ別の色」の横にある「ホバー時に部品リストを開く」は、表示中の表面にポインターを合わせると部品リストを開きます。閉じたパネルをそのままにするにはオフにしてください。開いているリストでは引き続き対応する名前が強調され、見える位置までスクロールします。選択や適用待ちのフィット調整は変わりません。",
+    "Open Parts on hover, beside Part colors in Morph & Refit, opens the Parts list when you hover a visible surface. Turn it off to keep closed panels closed; open lists still highlight and reveal matching names. Selection and pending fitting edits stay unchanged. Hover keeps the chosen Parts or Mesh islands tab and identifies the matching listed island.": "モーフとフィット調整の「パーツ別の色」の横にある「ホバー時に部品リストを開く」は、表示中の表面にポインターを合わせると部品リストを開きます。閉じたパネルをそのままにするにはオフにしてください。開いているリストでは引き続き対応する名前が強調され、見える位置までスクロールします。選択や適用待ちのフィット調整は変わりません。 ホバーしても選択中の「部品」または「メッシュアイランド」タブは変わらず、一覧にある対応するアイランドが強調されます。",
     "Open Placement": "オープン配置",
     "Open Prefab Inspector...": "プレハブ インスペクターを開く...",
     "Open Preferred File URL": "優先ファイルの URL を開く",
