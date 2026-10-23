@@ -452,7 +452,7 @@ or cap changed. Independent actual-capture review passes with no material defect
 Original raw/offline false flags remain unchanged; cleanup execution and all-reader lifetime are
 unverified, and the consumed attempt must not be replayed.
 
-The next native step is unpublished pair preparation using B66/B64/B67, preserving
+The source recommendation preceding B122 was unpublished pair preparation using B66/B64/B67, preserving
 central owner headers/counts/maps. Native numeric values are WORD ordinals and
 name values are DWORD numeric keys; real metadata stores a stock-body byte
 offset, while the portable model uses a fixture route index. B64's assumed clone
@@ -464,6 +464,96 @@ The 32-pin source review is
 Its companion `native-pair-reuse-contract-caveat.json` is 2,712 bytes, SHA-256
 `9623f0db1c237821887d88eafd35d25e892f6fb77a48d07912e11ddc2d4b180d`.
 This is a preparation recommendation, not actual pair/publication qualification.
+
+#### Unpublished native pairs: owned qualification, 2026-10-23
+
+B122-v4 now qualifies the B66/B64/B67 unpublished pair adapter on owned native
+responses after the unchanged checked Cache stage. Numeric values are WORD
+ordinals N+i; name values are full DWORD numeric keys. Source/stock/clone aliases
+and overflow refuse before adapter-controlled writes or retention. Native internal
+node freshness remains an explicit premise, not a whole-heap inventory. Uncertain
+partial state stays retained without retry or guessed cleanup.
+
+Seven actual qualification steps pass in 11.757 seconds: strict Release build,
+ten native cases including N=6,816/all stock residents/13,636 adapter allocations,
+five physical encoder channels through four unchanged decoders, and inactive
+0/0/0. Ordinary fixture addresses retain strict game-review refusal. The full
+stock-count case is compiled-assertion evidence, distinct from the smaller raw
+wire fixture. Compiler before/after censuses are empty. Earlier actual C1083
+lexical-path, C4127 constant-condition and C4324 fixture-alignment failures remain
+frozen; V3's linked ASI stays explicitly unqualified.
+
+Paths below are relative to
+`workspace/reports/cditem-execution/20261021-native-path-continuation/`:
+
+| Artifact | Bytes | SHA-256 |
+| --- | ---: | --- |
+| `native-storage/b122-v4/prepared-inputs.json` | 35,238 | `9c208cb4b5b15549e092b2c5e6be36156870b6084c75b652d94a757221377353` |
+| `b122-v4-build-proof-20261023/qualification-result.json` | 130,881 | `8e67a676df1c533679ed39e453e26b99aec30203b1353348ee5ea6cc38662b28` |
+| `b122-v4-build-proof-20261023/build/Release/CDMWVirtualLoader.asi` | 470,528 | `e70c63585d3d61bd2d797fb949cbf034a58f37f75c465b9067c092e88d1cad32` |
+| `api-source-review/20261023-b122-v4-linked-independent-review/independent-linked-native-review-v1.json` | 364,772 | `6d72454cb1e15d5451ee81cdb7393149b24520a6b4e8e2bfab75372d1dd642fb` |
+| `native-storage/b122-v4/offline-native-verification.json` | 7,984 | `378c338e2c623b69b8d8d714dd150efceff26827d3a1a83792640c6ee35a6640` |
+
+The packet retains 110 outputs/241 inherited inputs; qualification rehashes 369
+native provenance pins. Independent linked review joins 166 emitted functions,
+26 core contracts across all three images, typed returns, callback/CFG/unwind
+contracts and twelve new 4,798-byte guards. Source and linked reviews report no
+material defects. Root actual tool joins are
+`20261023-direct-authority/b122-v4-actual-native-tool-join.json` and
+`20261023-direct-authority/b122-v4-offline-seal-tool-join.json`. Native provenance remains fully rehashed
+and transitively sealed rather than flattened into operational recovery.
+
+Final caller classification/source-packet review and fresh startup/resources/
+handoff/seal remain pending. Give the immediate pre-run notice only when ready.
+No actual game pair API execution, public map/count replacement, reader lease,
+cleanup, derived-state/resource use, saved ownership or admission follows from
+this owned qualification. Original acceptance states remain unchanged.
+
+#### First privately authored sword: package and resource preparation
+
+The selected external sword now builds a real `KingArthurSword.cditem` against
+the actual Ziane one-handed template, with four explicit custom hand/sheath
+bindings across two PAC targets, the existing geometric grip/scale fit and source
+plain-PBR textures. All four attachments and full package-resource readback pass.
+UUID `8984c90632264529b0bb53c9efd9e087` is retained and original credits are
+byte-identical. The package is 26,239,247 bytes, artifact SHA-256
+`ef32bb345364ac8e0653e97d224176d5d99ef0037eb8596eb4c9000d25738b49`,
+with logical content digest
+`93e58b6d7a1c52ac58dc7f4604efeea37538466b3d1e886836eede599840fc13`.
+
+The maintained compiler prepares a separate 181,528,007-byte image containing
+24 private PAC/PAC_XML/DDS/prefab resources. Image identity is
+`a0a1aa9ae4e9d73fd70edff485396d7647dc2da2d9e39cfea4c52b6fc6261896`;
+proposed binding identity is
+`1148759c80a3084248558f2ed00c3d76adb1281faeae1e831c52b4360e17bf54`.
+No reservation is committed. Twenty-nine shared outputs are excluded and twelve
+resource boundaries remain unresolved. Inherited recipe/item-group integrations
+and borrowed dependencies stay explicit.
+
+The first authoring attempt incorrectly expected the legacy primary-model slot;
+the corrected four-variant operation passes in 60.568 seconds. Image preparation
+then exposed external comparison's package-only path policy. The isolated fix
+`28d981af491e2fe5d9100f6b934c1b981a7b657d` preserves unrelated external sequence
+paths while keeping package limits and canonical/containment guards. Twenty-two
+new controls and 74 pre-existing owner checks pass. The corrected real image
+preparation passes in 38.309 seconds with 58 selected source pins rechecked and
+matching archive/registry witnesses. PAMT/selected metadata are hashed; PAZ
+witnesses are identity/size/mtime, not whole payload hashes.
+
+Exact evidence under `king-arthur-sword-build-v1/`:
+
+| Artifact | Bytes | SHA-256 |
+| --- | ---: | --- |
+| `operations/build002/result.json` | 129,781 | `10bff0f55927ce5ea5143afc197a68b12f08954febd824027532433ab4b54678` |
+| `resource-operations/image002/result.json` | 116,802 | `dd732c27e607c75bfe4a5b9cd5d6f78234e7d4c4663cf92936186c1a464db8ed` |
+| `resource-operations/image002/image-report.json` | 193,709 | `6de33b4845aab4c153c0bd786fcacf0d1eb88d07a174bb3d617ef1e0c624fc6a` |
+
+Actual tool chains and original failures remain in direct-authority receipts.
+The source material is double-sided with no verified plain-PBR two-sided shader
+mapping. No rendered appearance, native discovery/use, central registration,
+acquisition/equip/save, installation or admission is established. This sword is
+the concrete content case for remaining native integration; it was not used in
+the earlier four-row game captures.
 
 Then join the staged records and unpublished native pairs to both central
 getter/bulk routes, with private metadata/backing, coherent publication, later

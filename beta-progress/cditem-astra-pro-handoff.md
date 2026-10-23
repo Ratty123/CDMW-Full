@@ -160,13 +160,28 @@ seconds; independent actual-capture review also passes. All five owned roles are
 absent and seven companions/stock match. The four rows are one item plus three
 perks; cleanup, central getter/bulk, resource use and lifetime remain unverified.
 
-Next reuse B66/B64/B67 to prepare unpublished native pairs while central headers,
-counts and maps remain untouched. Numeric values are WORD ordinals; native name
-values are DWORD numeric keys, and native metadata offsets are not the portable
+B122-v4 now reuses B66/B64/B67 for unpublished native pairs while central headers,
+counts and maps remain untouched. Ten owned native cases, including N=6,816,
+five physical encoder channels with strict game-address refusal and inactive
+loading pass. Independent review joins 166 emitted functions, with 26 core
+functions identical across the ASI and two fixtures. The current caller must
+still complete independent runtime classification and fresh controlled-run
+readiness; no actual game pair observation follows from these checks.
+Numeric values are WORD ordinals; native name values are DWORD numeric keys,
+and native metadata offsets are not the portable
 model's route indexes. Guard known source/clone aliases before adapter-controlled
 writes/releases and retain uncertain native insertion state. The known native
 name reader is available; no new generic map model is needed. Exact source,
 native, caller, capture and next-step pins are in the execution checkpoint.
+
+The first selected external sword has become an actual private `.cditem` with
+four custom hand/sheath variants, exact attachment validation, source textures,
+retained UUID and original credits. Package readback passes. A separate image
+passes maintained compiler/archive checks with 24 private resources and unchanged
+archive witnesses; 29 shared outputs are excluded, 12 resource boundaries remain
+unresolved and bindings are proposals. The source material's double-sided flag
+still has no verified plain-PBR shader mapping. These are authoring/compiler
+results, without rendered appearance, native resource use or equip/save proof.
 
 Retained local source-only results under the native-path continuation:
 `run/b115-current-owner-v2/source-check-receipt.json` (41 focused checks;

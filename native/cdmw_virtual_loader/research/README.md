@@ -266,8 +266,13 @@ bulk, resource-use, derived-state, cleanup, reader-lifetime or save acceptance.
 
 Executable-source review identifies the ItemInfo manager's typed reset, setter,
 clearer and loader slots: `+0x08` resets and `+0x20` loads. The actual passive
-observations above do not establish safe publication. Next prepare unpublished
-native pairs through existing B66/B64/B67, then join both getter/bulk routes under
+observations above do not establish safe publication. B122-v4 now prepares
+unpublished pairs through B66/B64/B67 on owned native responses. Ten cases,
+including N=6,816, five literal encoder channels with unchanged strict decoder
+refusal and inactive loading pass. Independent emitted-code review joins 166
+functions and 26 core contracts across all three images; the 369-pin native
+proof is sealed. Actual map API execution in the game remains pending. Then
+join both getter/bulk routes under
 concrete reader/maintenance coverage, coherent publication, failure-stop and
 lifetime. Native numeric values are WORD ordinals; name values are DWORD numeric
 keys. Real metadata uses body offsets. This portable model's name values and

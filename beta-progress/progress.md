@@ -34,9 +34,12 @@ actual review also passes. B121 now stages four checked records through the
 unchanged Cache/native constructor and Bool decoder. Full stock prefix/header/maps
 stay equal except four exact tail pointers, with public counts/maps 6,816. Native
 fixtures/linked/caller reviews pass; root physical/source/process checks pass with
-29.391-second restoration; independent capture review also passes. Next qualify
-unpublished native pairs; central routing, resources, derived state and lifetime
-remain open.
+29.391-second restoration; independent capture review also passes. B122-v4 now
+passes ten owned native pair cases, including the full stock count, five physical
+encoder channels, inactive loading and independent emitted-code review. Its
+actual game observation and central routing remain pending. A first privately
+authored sword package and its 24-member resource image also pass preparation;
+resource use, derived state and lifetime remain open.
 
 [Canonical goal and acceptance criteria](cditem-conflict-isolation-plan.md) |
 [Execution](cditem-execution-goal.md) |
@@ -49,7 +52,7 @@ original `CDISO-*` criteria, with narrowly scoped subtask results recorded below
 | Outcome | Status | Evidence and remaining work |
 | --- | --- | --- |
 | Package identity and retained bindings | Existing implementation, exercised in the new preparation route | UUIDs and reservations survive owned-fixture updates/removal/reinstall/profile transfer; native lifecycle still required |
-| Native definition registration | Partial research and actual caller/phase joins | Serial dispatcher and existing resident-stock phase established; actual private allocation/decoding, paired maps, reader/maintenance boundary and lifetime remain open |
+| Native definition registration | Actual checked private staging and owned native pair qualification | Four real staged records and ten pair fixture cases pass; actual pair creation, central routing, reader/maintenance boundary and lifetime remain open |
 | Paired publication and lifetime | Verified owned-memory increment | `CDISO-RE-02A`: retained C++ result, 41 cases/963 checks. Both lookup paths and resource completion are modeled |
 | Exact private archive expectation | Verified preparation, actual path and selected payload observations | `CDISO-RE-03A`: B113 path, B115 small read and B117 exact per-context physical open/read joins; actual resource use remains open |
 | Separate package resource images | Preparation and selected native bytes verified | `CDISO-RE-03B`: one compiler-produced image per UUID; both distinct 144-byte slices compare completely, with A rechecked after B. Engine consumption remains open |
@@ -84,10 +87,11 @@ resource use, equip and saves still require their own evidence.
 
 ### Next engineering steps
 
-1. Stage four off-count Rows through the unchanged Cache using base N and
-   actual N+4 spans. Qualify full stock-prefix/header/maps, exact tail records,
-   aliases and retained failures. The Bool decoder has two arguments; central
-   materialization has four. Then join getter/bulk and both maps, later derived
+1. Capture the fixture-qualified B122 unpublished numeric/name pairs after the
+   already verified four-record Cache stage. Preserve stock prefix/header/maps,
+   exact typed claims, source/clone guards and terminal partial failures. The
+   Bool decoder has two arguments; central materialization has four. Then join
+   getter/bulk and both maps, later derived
    state, resource consumers, reader/maintenance coverage and lifetime. Expiry
    zero permits eviction; eager loading cannot waive rematerialization.
 2. Integrate native definitions and resources, prove first acquisition, then run
@@ -116,6 +120,10 @@ the preceding 24-case preparation evidence remains in
 `workspace/reports/cditem-execution/20261021-package-resource-images/`.
 
 ## Completed work
+
+- 2026-10-23 | CDISO-RE-02 unpublished native pair fixture qualification | B122-v4 passes ten owned native cases including N=6,816, five physical encoder channels, strict decoder refusal and inactive loading. Independent review joins 166 emitted functions and 26 core cross-image contracts; the 369-pin native proof is sealed. Prior compiler failures remain retained. Actual game pair creation, final caller readiness, central publication and lifecycle acceptance stay open. Evidence: [execution checkpoint](cditem-execution-goal.md#unpublished-native-pairs-owned-qualification-2026-10-23).
+
+- 2026-10-23 | CDISO-RES-01 first private sword preparation | The selected external sword becomes a persistent-UUID `.cditem` with four custom hand/sheath bindings, validated attachments, source textures and exact package readback. Its separate compiler image contains 24 private resources; 29 shared outputs are excluded and 12 resource boundaries stay unresolved. The external-path comparison fix is committed as `28d981af`, with 96 distinct focused checks and successful real image preparation. Native resource use, rendered appearance and acquire/equip/save remain unverified. Evidence: [sword preparation](cditem-execution-goal.md#first-privately-authored-sword-package-and-resource-preparation).
 
 - 2026-10-23 | CDISO-RE-02 checked native Cache tail staging | B121's single controlled game capture stages the existing item and three perk records through the real allocation/constructor/Bool-decoder/inspection APIs, with exact keys/names/cursors and 20 steps. All represented stock prefix/header/maps remain equal except four exact tail pointers; public counts/maps stay 6,816 and cookie/capacity stay 6,820. Eight owned native cases, encoder/parser refusal controls, 100-function linked review and four actual metadata checks pass. The 218-pin caller retains 167 runtime origins/three decoders with 212 recovery rows within 256. Root physical/process/source checks and 29.391-second restoration pass, followed by independent capture review with no material defects. Central getter/bulk/maps, derived-state acceptance, resources, reader/cleanup/retirement/save behavior and admission remain open. Evidence: `workspace/reports/cditem-execution/20261021-native-path-continuation/run/b121-current-owner-v1/attempt1/reserved-cache-stage-observation-result.json` and the [execution checkpoint](cditem-execution-goal.md#resumed-with-direct-authority-2026-10-23).
 

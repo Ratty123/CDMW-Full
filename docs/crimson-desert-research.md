@@ -1436,8 +1436,10 @@ maps. Both full snapshots precede the private operation. The stock body-reader
 field is zero and phase TLS is unknown. These observations qualify neither a
 cold stock-reader path nor all-reader/maintenance coverage or safe publication.
 Original native reservation of an unexposed tail and subsequent checked record
-staging are now observed with stock counts/maps unchanged. The next definition
-step qualifies unpublished native pairs before joining getter/bulk with coherent
+staging are now observed with stock counts/maps unchanged. Unpublished pair
+preparation now passes ten owned native cases, five physical encoder channels
+and independent emitted-code review. Actual game pair creation remains pending
+before joining getter/bulk with coherent
 maps, failure-stop and lifetime. Complete source review
 explains stock eager materialization and the later auxiliary-state/link checks.
 Expiry zero permits sampled eviction; eager loading cannot replace private
@@ -1491,7 +1493,14 @@ header and maps remain equal except four exact tail pointers, and public
 counts/maps stay unchanged. Root physical/source/process checks and restoration
 pass in 29.391 seconds; independent capture review also passes. These are one
 item and three perk records, not central private-item integration or a two-item
-gameplay/save result. Next qualify the existing unpublished native pair builder;
+gameplay/save result. The existing unpublished pair builder now passes its owned
+native qualification and independent emitted-code review; actual game map API
+execution remains pending. A separately authored sword package passes full import,
+four hand/sheath attachment checks and exact package readback. Its compiler image
+contains 24 private resources with 29 shared outputs excluded and 12 resource
+boundaries unresolved. Bindings remain proposals and the source's double-sided
+material has no verified plain-PBR shader mapping. These results establish no
+rendered appearance, native resource use, acquisition/equip or save behavior;
 native name values/body offsets differ from the portable model's fixture fields,
 and its clone-allocation ownership needs checked adapter boundaries. Resource
 consumption, derived state, readers, cleanup, retirement and saved ownership

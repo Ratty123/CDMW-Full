@@ -1285,12 +1285,25 @@ pass; independent capture review also passes. This proves one item/three perk
 records in off-count slots, without central lookup/bulk, resource use, derived
 state, cleanup execution, reader lifetime, retirement or save acceptance.
 
-Next qualify existing B66/B64/B67 unpublished native pair preparation. Native
-name-map values are DWORD item keys, numeric values are WORD ordinals and native
+B122-v4 now qualifies B66/B64/B67 unpublished pair preparation on owned native
+responses: ten cases, including N=6,816, five physical encoder channels, strict
+game-address refusal and inactive loading pass. Independent emitted-code review
+joins 166 functions and 26 core cross-image contracts. The 369-pin native proof
+is sealed; actual game pair creation and final controlled-caller review remain
+pending. No central header/count/map publication or cleanup is exercised.
+Native name-map values are DWORD item keys, numeric values are WORD ordinals and native
 metadata contains body offsets. The portable model's name values/route indexes
 are fixture contracts. Its publication ordering cannot supply native ABI or
 reader safety. Known source/clone aliases must be guarded before adapter-controlled
 writes/releases; uncertain native insertion state stays retained.
+
+A first external sword package also passes actual full import, four hand/sheath
+attachment checks and exact package/model/texture readback with a persistent
+UUID. Its separate compiler image contains 24 private PAC/PAC_XML/DDS/prefab
+resources; 29 shared outputs stay excluded and 12 resource boundaries remain
+unresolved. Source material double-sided behavior has no verified plain-PBR
+shader mapping. Package/image preparation does not establish rendered appearance,
+native discovery/use, acquisition, equip or persistence.
 
 Executable-source review identifies typed ItemInfo manager loader slots and
 the global setter/clearer. Vtable `+0x08` resets the manager; `+0x20` loads
