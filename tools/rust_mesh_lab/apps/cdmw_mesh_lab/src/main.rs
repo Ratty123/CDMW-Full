@@ -2218,6 +2218,8 @@ struct LabApplication {
     cdmw_refit_settings_dirty: cdmw_ui::RefitSettingsEdits,
     cdmw_refit_diagnostics: Option<Value>,
     cdmw_refit_feedback: Option<cdmw_ui::RefitFeedback>,
+    cdmw_hovered_part: Option<u32>,
+    cdmw_part_hover_overlay: Option<(u32, FaceSelectionOverlay)>,
     cdmw_cleanup_merge_distance: f32,
     cdmw_loop_cut_count: u32,
     cdmw_loop_cut_factor: f32,
@@ -2401,6 +2403,8 @@ impl LabApplication {
             cdmw_refit_settings_dirty: cdmw_ui::RefitSettingsEdits::default(),
             cdmw_refit_diagnostics: None,
             cdmw_refit_feedback: None,
+            cdmw_hovered_part: None,
+            cdmw_part_hover_overlay: None,
             cdmw_cleanup_merge_distance: 0.0001,
             cdmw_loop_cut_count: 1,
             cdmw_loop_cut_factor: 0.5,
@@ -5471,6 +5475,7 @@ impl LabApplication {
         self.hair.invalidate_scene();
         self.face_selection_overlay = None;
         self.invalidate_cdmw_refit_overlay();
+        self.invalidate_cdmw_part_hover_overlay();
         self.cdmw_rig.overlay_key = None;
         self.selected_counts_cache.set(None);
         if let Some(renderer) = &mut self.renderer {
@@ -6354,6 +6359,7 @@ impl LabApplication {
 
     fn paint_viewport_overlay(&mut self, ui: &egui::Ui, rectangle: egui::Rect) {
         self.refresh_cdmw_refit_overlay();
+        self.refresh_cdmw_part_hover_overlay();
         self.refresh_face_selection_overlay();
         // Face highlights use GPU depth; a CPU projection is only needed for vertex/edge
         // markers and actual picking, never for ordinary camera navigation or face display.
@@ -7274,6 +7280,7 @@ impl ApplicationHandler for LabApplication {
                 Ok(renderer) => {
                     self.renderer = Some(renderer);
                     self.invalidate_cdmw_refit_overlay();
+                    self.invalidate_cdmw_part_hover_overlay();
                     self.hair.invalidate_scene();
                     self.cdmw_rig.overlay_key = None;
                     if let Some(bridge) = &self.cdmw_bridge {

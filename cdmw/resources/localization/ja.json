@@ -8405,6 +8405,7 @@
     "Part ID": "パートID",
     "Part changes pending. Press Apply to rebuild preview.": "パーツの変更が保留中です。 [適用] を押してプレビューを再構築します。",
     "Part colors": "パーツ別の色",
+    "Part highlight failed: {value_0}": "パーツのハイライトに失敗しました: {value_0}",
     "Part of the existing texture path or filename": "Part of the existing texture path or filename",
     "Part of this chain's config is carried through untouched. Editing the strength is still safe; those bytes are written back unchanged.": "このチェーンの設定の一部はそのまま引き継がれます。強さの編集はまだ安全です。それらのバイトは変更されずに書き戻されます。",
     "Part pick: preview off": "パーツ選択: プレビューオフ",

@@ -8405,6 +8405,7 @@
     "Part ID": "部件 ID",
     "Part changes pending. Press Apply to rebuild preview.": "部件變更。按下“應用”重建預覽。",
     "Part colors": "依部件著色",
+    "Part highlight failed: {value_0}": "部件高亮顯示失敗：{value_0}",
     "Part of the existing texture path or filename": "Part of the existing texture path or filename",
     "Part of this chain's config is carried through untouched. Editing the strength is still safe; those bytes are written back unchanged.": "該鏈的部分配置不變。編輯強度依然安全；這些位元組原封不動地寫回。",
     "Part pick: preview off": "零件選擇：預覽關閉",

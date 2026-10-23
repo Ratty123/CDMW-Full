@@ -8405,6 +8405,7 @@
     "Part ID": "ID детали",
     "Part changes pending. Press Apply to rebuild preview.": "Ожидаются изменения детали. Нажмите «Применить», чтобы восстановить предварительный просмотр.",
     "Part colors": "Цвета частей",
+    "Part highlight failed: {value_0}": "Не удалось подсветить деталь: {value_0}",
     "Part of the existing texture path or filename": "Part of the existing texture path or filename",
     "Part of this chain's config is carried through untouched. Editing the strength is still safe; those bytes are written back unchanged.": "Часть конфигурации этой цепочки сохраняется нетронутой. Редактировать силу по-прежнему безопасно; эти байты записываются обратно без изменений.",
     "Part pick: preview off": "Выбор детали: предварительный просмотр отключен",

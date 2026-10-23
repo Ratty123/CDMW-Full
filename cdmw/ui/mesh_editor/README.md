@@ -2051,6 +2051,10 @@ Morph & Refit toggle off restores the previous display mode. This changes only t
 viewport; fitting, selection, pending edits, textures and exports remain intact.
 Matching swatches beside Part names in Morph & Refit, fit warnings and the Parts
 inspector identify each piece while Part colors is enabled.
+Hovering a Part name temporarily highlights its visible geometry in cyan, including
+obscured surfaces, without changing the selection or fitting targets. This also works
+with Part colors off; leaving the name clears the hover tint. Hidden Parts and islands
+stay hidden, and comparison views keep their own display.
 
 If fitting is refused, Fit shows the affected garment names, a short reason and a
 targeted next step. Overlaps suggest more Clearance (0.1% when starting at zero) or

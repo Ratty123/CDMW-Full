@@ -194,10 +194,12 @@ impl LabApplication {
                         ui.weak(crate::localization::tr(label));
                         let name = self.cdmw_morph_part_names(&[*part]);
                         let active = selected.contains(part);
-                        if ui.add_enabled(
+                        let row = ui.add_enabled(
                             visible.as_ref().is_none_or(|visible| visible.contains(part)),
                             Button::selectable(active, self.cdmw_part_name_atoms(*part, &name)).truncate(),
-                        )
+                        );
+                        self.track_cdmw_part_hover(*part, &row);
+                        if row
                             .on_hover_text(&name)
                             .on_hover_text(crate::localization::tr("Click to highlight this garment and edit its strength. Ctrl-click to select several."))
                             .on_disabled_hover_text(crate::localization::tr("Show this Part in the Parts inspector before selecting it"))
@@ -248,8 +250,9 @@ impl LabApplication {
             let parent = state["refit"]["garment_settings"].as_array().into_iter().flatten()
                 .find(|setting| setting["submesh_index"].as_u64() == Some(u64::from(part)));
             ui.push_id(("fit-islands", part), |ui| {
-                ui.add(egui::AtomLayout::new(self.cdmw_part_name_atoms(part,
+                let heading = ui.add(egui::AtomLayout::new(self.cdmw_part_name_atoms(part,
                     RichText::new(self.cdmw_morph_part_names(&[part])).strong())));
+                self.track_cdmw_part_hover(part, &heading);
                 for (index, island) in row["islands"].as_array().into_iter().flatten().enumerate() {
                     let faces = faces_of(island);
                     let override_setting = parent.and_then(|parent| parent["island_settings"].as_array())
@@ -304,10 +307,12 @@ impl LabApplication {
             for part in &garments {
                 let mut checked = self.cdmw_refit_region_targets.contains(part);
                 let name = self.cdmw_morph_part_names(&[*part]);
-                if ui.scope(|ui| {
+                let row = ui.scope(|ui| {
                     ui.style_mut().wrap_mode = Some(egui::TextWrapMode::Truncate);
                     ui.checkbox(&mut checked, self.cdmw_part_name_atoms(*part, &name))
-                }).inner.on_hover_text(&name)
+                }).inner;
+                self.track_cdmw_part_hover(*part, &row);
+                if row.on_hover_text(&name)
                     .on_hover_text(crate::localization::tr("Choose garments for the body-region buttons below. Your body selection is kept.")).changed()
                 {
                     if checked { self.cdmw_refit_region_targets.push(*part); self.cdmw_refit_region_targets.sort_unstable(); }

@@ -1392,6 +1392,7 @@ impl LabApplication {
 
     pub(super) fn draw_cdmw_ui(&mut self, root_ui: &mut egui::Ui) -> Vec<UiAction> {
         let _language = crate::localization::enter(&self.egui_context);
+        self.cdmw_hovered_part = None;
         let mut actions = Vec::new();
         self.draw_cdmw_delete_guidance(root_ui.ctx(), &mut actions);
         self.draw_cdmw_session_bar(root_ui, &mut actions);
@@ -3381,14 +3382,16 @@ impl LabApplication {
                 ui.style_mut().wrap_mode = Some(egui::TextWrapMode::Truncate);
                 for (index, name) in parts {
                     let mut checked = selected.contains(&index);
-                    if ui
+                    let row = ui
                         .add_enabled(
                             visible
                                 .as_ref()
                                 .is_none_or(|visible| visible.contains(&index)),
                             egui::Checkbox::new(&mut checked, self.cdmw_part_name_atoms(index,
                                 crate::localization::tr(format!("{} · {name}", index + 1)))),
-                        )
+                        );
+                    self.track_cdmw_part_hover(index, &row);
+                    if row
                         .on_hover_text(&name)
                         .on_disabled_hover_text(
                             crate::localization::tr("Show this Part in the Parts inspector before selecting it"),
@@ -4168,6 +4171,8 @@ impl LabApplication {
                                 .and_then(|rows| rows.iter().find(|part| part["index"].as_u64() == Some(u64::from(*index))));
                             let evidence = physics.map(crate::cdmw_cloth::physics_lines)
                                 .unwrap_or_default().join("\n");
+                            let badge = physics.filter(|part| part["kind"] != "none")
+                                .map(crate::cdmw_cloth::physics_badge);
                             let mut help = crate::localization::tr(format!("{index}: {name}\nMaterial: {material}"));
                             if !evidence.is_empty() {
                                 help.push('\n');
@@ -4179,6 +4184,7 @@ impl LabApplication {
                                         Button::selectable(active, self.cdmw_part_name_atoms(*index,
                                             (crate::localization::tr(format!("{index}: {name}")), egui::Atom::grow()))).truncate())
                                 }).inner;
+                                self.track_cdmw_part_hover(*index, &row);
                                 if row.on_hover_text(&help)
                                     .on_disabled_hover_text(format!("{}\n{}", help, crate::localization::tr("Show this part to select it"))).clicked() {
                                     let mut updated = selected.clone();
@@ -4189,8 +4195,8 @@ impl LabApplication {
                                 }
                             });
                             cdmw_list_cell(ui, widths[1], |ui| {
-                                if let Some(physics) = physics.filter(|part| part["kind"] != "none") {
-                                    ui.add(egui::Label::new(RichText::new(crate::cdmw_cloth::physics_badge(physics)).small().weak()).truncate())
+                                if let Some(badge) = &badge {
+                                    ui.add(egui::Label::new(RichText::new(badge).small().weak()).truncate())
                                         .on_hover_text(&evidence);
                                 }
                             });

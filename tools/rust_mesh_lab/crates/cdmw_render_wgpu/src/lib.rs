@@ -2797,6 +2797,7 @@ pub struct WindowRenderer {
     emission_bloom: emission_bloom::EmissionBloom,
     face_selection: selection_overlay::FaceSelectionRenderer,
     refit_warning: selection_overlay::FaceSelectionRenderer,
+    part_hover: selection_overlay::FaceSelectionRenderer,
     rig_weights: selection_overlay::FaceSelectionRenderer,
     face_selection_xray: bool,
     effect_particle_alpha_pipeline: wgpu::RenderPipeline,
@@ -3165,6 +3166,7 @@ impl WindowRenderer {
             sample_count,
         );
         let refit_warning = face_selection.empty_with_shared_pipelines();
+        let part_hover = face_selection.empty_with_shared_pipelines();
         gpu_faults.check()?;
         Ok(Self {
             gpu_faults,
@@ -3191,6 +3193,7 @@ impl WindowRenderer {
             emission_bloom: pipelines.emission_bloom,
             face_selection,
             refit_warning,
+            part_hover,
             rig_weights,
             face_selection_xray: false,
             effect_particle_alpha_pipeline,
@@ -3506,6 +3509,13 @@ impl WindowRenderer {
         &mut self, positions: &[[f32; 3]], colour: [f32; 4],
     ) -> Result<(), RenderError> {
         self.refit_warning.upload(&self.device, &self.queue, positions, colour)
+    }
+
+    /// Temporary Part-name hover tint, independent of edit selection and fit warnings.
+    pub fn set_part_hover(
+        &mut self, positions: &[[f32; 3]], colour: [f32; 4],
+    ) -> Result<(), RenderError> {
+        self.part_hover.upload(&self.device, &self.queue, positions, colour)
     }
 
     /// Display-only, interpolated skin weights; independent of edit selection.
@@ -4003,6 +4013,12 @@ impl WindowRenderer {
                         self.face_selection_xray,
                     );
                     self.refit_warning.draw(
+                        &mut pass,
+                        &self.default_material_binding.bind_group,
+                        &self.camera_bind_group,
+                        true,
+                    );
+                    self.part_hover.draw(
                         &mut pass,
                         &self.default_material_binding.bind_group,
                         &self.camera_bind_group,

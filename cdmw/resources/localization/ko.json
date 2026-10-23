@@ -8405,6 +8405,7 @@
     "Part ID": "파트 ID",
     "Part changes pending. Press Apply to rebuild preview.": "부품 변경이 보류 중입니다. 미리보기를 다시 작성하려면 적용을 누르세요.",
     "Part colors": "파트별 색상",
+    "Part highlight failed: {value_0}": "파트 강조 표시 실패: {value_0}",
     "Part of the existing texture path or filename": "Part of the existing texture path or filename",
     "Part of this chain's config is carried through untouched. Editing the strength is still safe; those bytes are written back unchanged.": "이 체인 구성의 일부는 그대로 유지됩니다. 강도를 편집하는 것은 여전히 ​​안전합니다. 해당 바이트는 변경되지 않고 다시 기록됩니다.",
     "Part pick: preview off": "부품 선택: 미리보기 꺼짐",

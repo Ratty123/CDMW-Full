@@ -2,6 +2,7 @@
 use super::*;
 
 const REFIT_WARNING_COLOUR: [f32; 4] = [1.0, 0.35, 0.06, 0.45];
+const PART_HOVER_COLOUR: [f32; 4] = [0.15, 0.85, 1.0, 0.65];
 
 fn refit_failure_parts(detail: &str, garments: &[u32]) -> Vec<u32> {
     let mut parts = Vec::new();
@@ -20,6 +21,45 @@ fn refit_failure_parts(detail: &str, garments: &[u32]) -> Vec<u32> {
 }
 
 impl LabApplication {
+    pub(super) fn track_cdmw_part_hover(&mut self, part: u32, response: &egui::Response) {
+        if response.hovered() && response.ctx.input(|input| input.pointer.hover_pos().is_some()) {
+            self.cdmw_hovered_part = Some(part);
+        }
+    }
+
+    pub(crate) fn invalidate_cdmw_part_hover_overlay(&mut self) {
+        if self.cdmw_part_hover_overlay.take().is_some()
+            && let Some(renderer) = &mut self.renderer
+        {
+            let _ = renderer.set_part_hover(&[], PART_HOVER_COLOUR);
+        }
+    }
+
+    pub(crate) fn refresh_cdmw_part_hover_overlay(&mut self) {
+        let part = self.cdmw_hovered_part.filter(|_| self.cdmw_mode() && !self.hair.active()
+            && self.cdmw_jiggle.preview.scene.is_none() && !self.cdmw_morph_comparison_active()
+            && self.cdmw_state["replacement"]["comparison"].as_str().is_none_or(|mode| mode == "edit"));
+        let Some((part, mesh)) = part.zip(self.mesh.as_ref()) else {
+            self.invalidate_cdmw_part_hover_overlay();
+            return;
+        };
+        let visible = self.cdmw_visible_submeshes();
+        if self.cdmw_part_hover_overlay.as_ref().is_none_or(|(cached_part, overlay)|
+            *cached_part != part || !overlay.matches(mesh, &visible, PART_HOVER_COLOUR))
+        {
+            self.cdmw_part_hover_overlay = Some((part,
+                FaceSelectionOverlay::build_for_parts(mesh, visible, PART_HOVER_COLOUR, &[part])));
+        }
+        if let (Some(renderer), Some((_, overlay))) = (&mut self.renderer, &mut self.cdmw_part_hover_overlay)
+            && !overlay.uploaded
+        {
+            match renderer.set_part_hover(&overlay.positions, PART_HOVER_COLOUR) {
+                Ok(()) => overlay.uploaded = true,
+                Err(error) => self.status = format!("Part highlight failed: {error}"),
+            }
+        }
+    }
+
     pub(super) fn cdmw_part_name_atoms<'a>(&self, part: u32, label: impl egui::IntoAtoms<'a>) -> egui::Atoms<'a> {
         let mut atoms = egui::Atoms::new(label);
         if self.cdmw_part_colours_active() {
@@ -213,8 +253,10 @@ impl LabApplication {
                 let can_select = !self.cdmw_busy();
                 ui.horizontal_wrapped(|ui| {
                     for part in &parts {
-                        if ui.add_enabled(can_select, Button::new(self.cdmw_part_name_atoms(*part, self.cdmw_morph_part_names(&[*part]))).small()
-                            .selected(selected_parts.contains(part)))
+                        let row = ui.add_enabled(can_select, Button::new(self.cdmw_part_name_atoms(*part, self.cdmw_morph_part_names(&[*part]))).small()
+                            .selected(selected_parts.contains(part)));
+                        self.track_cdmw_part_hover(*part, &row);
+                        if row
                             .on_hover_text(crate::localization::tr("Select these Parts to adjust their fitting. Hidden Parts are shown."))
                             .clicked()
                         {

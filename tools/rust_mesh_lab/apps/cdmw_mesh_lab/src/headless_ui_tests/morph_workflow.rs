@@ -81,6 +81,123 @@ fn refit_arguments(actions: &[UiAction]) -> Value {
     }).unwrap_or_else(|| panic!("missing refit_configure: {actions:?}"))
 }
 
+fn assert_part_name_hover(ui: &mut HeadlessUi, label: &str, part: u32) -> TestResult {
+    let name = ui.reveal(label)?;
+    let state = ui.application.cdmw_state.clone();
+    let mesh = ui.application.mesh.as_ref().ok_or("mesh")?.clone();
+    let targets = ui.application.cdmw_refit_region_targets.clone();
+    let expected = mesh.faces().filter(|(_, face)| face.submesh == part)
+        .flat_map(|(_, face)| face.vertices.iter())
+        .map(|handle| mesh.vertex(*handle).unwrap().position).collect::<Vec<_>>();
+    ui.last_actions.clear();
+    ui.frame(vec![Event::PointerMoved(name.center())]);
+    ui.settle_layout();
+    assert_eq!(ui.application.cdmw_hovered_part, Some(part), "{label}");
+    let (highlighted, overlay) = ui.application.cdmw_part_hover_overlay.as_ref().ok_or("hover overlay")?;
+    assert_eq!(*highlighted, part);
+    assert_eq!(overlay.positions, expected);
+    assert!(!overlay.positions.is_empty());
+    let current = ui.application.mesh.as_ref().ok_or("mesh")?;
+    assert_eq!(current.selection, mesh.selection);
+    assert_eq!(current.selection_revision, mesh.selection_revision);
+    assert_eq!(current.structural_fingerprint(), mesh.structural_fingerprint());
+    assert_eq!(ui.application.cdmw_state, state);
+    assert_eq!(ui.application.cdmw_refit_region_targets, targets);
+    assert!(ui.last_actions.is_empty(), "hover dispatched {:?}", ui.last_actions);
+    assert!(ui.application.cdmw_pending_request.is_none());
+    ui.frame(vec![Event::PointerGone]);
+    assert_eq!(ui.application.cdmw_hovered_part, None, "leaving {label}");
+    assert!(ui.application.cdmw_part_hover_overlay.is_none());
+    Ok(())
+}
+
+#[test]
+fn workflow_part_name_hover_preserves_selection_and_fit_edits() -> TestResult {
+    let mut ui = mixed_refit_ui(&[2])?;
+    let root = tempdir()?;
+    ui.application.cdmw_bridge = Some(CdmwBridge::for_test(root.path().to_path_buf(), "part-hover-ui", 2, 0));
+    ui.type_number_in_row("Clearance %", 1.25, "0.75")?;
+    ui.open_refit_detail("Choose garments")?;
+    assert_part_name_hover(&mut ui, "2 · Sleeve", 1)?;
+    assert_part_name_hover(&mut ui, "3 · Plate", 2)?;
+    ui.click("Part colors")?;
+    assert_part_name_hover(&mut ui, "2 · Sleeve", 1)?;
+    assert_eq!(ui.application.cdmw_refit_clearance, 0.75);
+    assert!(ui.application.cdmw_refit_settings_dirty.is_dirty());
+    assert_part_name_hover(&mut ui, "0: Body", 0)?;
+    ui.open_refit_detail("Choose garments")?;
+    ui.open_refit_detail("Body region")?;
+    assert_part_name_hover(&mut ui, "2 · Sleeve", 1)?;
+    ui.open_refit_detail("Body region")?;
+    ui.click("Setup")?;
+    ui.open_refit_detail("Choose Parts")?;
+    assert_part_name_hover(&mut ui, "1 · Body", 0)?;
+    ui.click("Fit")?;
+    refit_feedback_reply(&mut ui, "Fit to body", false,
+        "Fit to body: Part 1 still intersects Part 2 beneath its triangles; previous preview retained")?;
+    assert_part_name_hover(&mut ui, "2 · Sleeve", 1)?;
+    assert_eq!(ui.application.cdmw_refit_highlight_parts(), vec![1, 2]);
+    ui.application.cdmw_refit_feedback = None;
+    ui.application.cdmw_state["mesh_islands"] = json!({"fit_parts": [{"index": 1,
+        "name": "Sleeve", "islands": [{"faces": [0]}]}]});
+    ui.choose("Editing", "Selected garments · 1", "Selected mesh islands")?;
+    ui.open_refit_detail("Choose mesh islands")?;
+    assert_part_name_hover(&mut ui, "2 · Sleeve", 1)?;
+    Ok(())
+}
+
+#[test]
+fn workflow_part_name_hover_clears_and_respects_visible_geometry() -> TestResult {
+    let mut ui = mixed_refit_ui(&[2])?;
+    let root = tempdir()?;
+    ui.application.cdmw_bridge = Some(CdmwBridge::for_test(root.path().to_path_buf(), "part-hover-ui", 2, 0));
+    ui.open_refit_detail("Choose garments")?;
+    let name = ui.reveal("2 · Sleeve")?;
+    ui.frame(vec![Event::PointerMoved(name.center())]);
+    ui.settle_layout();
+    assert_eq!(ui.application.cdmw_part_hover_overlay.as_ref().map(|(part, _)| *part), Some(1));
+    // Moving straight to another name must replace the cached geometry.
+    let other = ui.reveal("3 · Plate")?;
+    ui.frame(vec![Event::PointerMoved(other.center())]);
+    ui.settle_layout();
+    assert_eq!(ui.application.cdmw_part_hover_overlay.as_ref().map(|(part, _)| *part), Some(2));
+    ui.frame(vec![Event::PointerMoved(ui.application.viewport_rect.ok_or("viewport")?.center())]);
+    assert!(ui.application.cdmw_part_hover_overlay.is_none());
+    // Hidden Parts and hidden Geometry Layers stay hidden on hover.
+    ui.application.cdmw_hidden_parts.insert(1);
+    ui.frame(vec![Event::PointerMoved(name.center())]);
+    ui.settle_layout();
+    assert!(ui.application.cdmw_part_hover_overlay.is_none());
+    assert!(ui.application.cdmw_hidden_parts.contains(&1));
+    ui.application.cdmw_hidden_parts.clear();
+    ui.application.cdmw_state["geometry_layers"]["layers"].as_array_mut().ok_or("layers")?.push(
+        json!({"layer_id": "sleeve", "name": "Sleeve layer", "submesh_indices": [1], "visible": false, "base": false}));
+    ui.frame(Vec::new());
+    assert!(ui.application.cdmw_part_hover_overlay.is_none());
+    ui.application.cdmw_state["geometry_layers"]["layers"][1]["visible"] = json!(true);
+    ui.frame(Vec::new());
+    assert!(ui.application.cdmw_part_hover_overlay.is_some());
+    // Rebuilding the visible mesh excludes hidden islands from the hover buffer.
+    let faces = ui.application.mesh.as_ref().ok_or("mesh")?.faces()
+        .filter_map(|(handle, face)| (face.submesh == 1).then_some(handle)).collect();
+    ui.application.mesh.as_mut().ok_or("mesh")?.set_viewport_hidden_faces(faces)?;
+    ui.application.invalidate_cdmw_part_hover_overlay();
+    ui.frame(Vec::new());
+    assert!(ui.application.cdmw_part_hover_overlay.as_ref().ok_or("hover")?.1.positions.is_empty());
+    ui.application.cdmw_state["replacement"]["comparison"] = json!("source");
+    ui.frame(Vec::new());
+    assert!(ui.application.cdmw_part_hover_overlay.is_none());
+    ui.application.cdmw_state["replacement"]["comparison"] = json!("edit");
+    ui.frame(Vec::new());
+    assert!(ui.application.cdmw_part_hover_overlay.is_some());
+    // A closed page stops contributing hover targets.
+    ui.click("Shape")?;
+    assert!(ui.application.cdmw_part_hover_overlay.is_none());
+    assert_eq!(ui.application.selected_part_indices(), vec![2]);
+    assert!(ui.application.cdmw_pending_request.is_none());
+    Ok(())
+}
+
 #[test]
 fn workflow_part_colours_toggle_restores_display_and_preserves_fit_edits() -> TestResult {
     let mut ui = mixed_refit_ui(&[1])?;

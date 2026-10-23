@@ -8405,6 +8405,7 @@
     "Part ID": "Part ID",
     "Part changes pending. Press Apply to rebuild preview.": "Part changes pending. Press Apply to rebuild preview.",
     "Part colors": "Part colors",
+    "Part highlight failed: {value_0}": "Part highlight failed: {value_0}",
     "Part of the existing texture path or filename": "Part of the existing texture path or filename",
     "Part of this chain's config is carried through untouched. Editing the strength is still safe; those bytes are written back unchanged.": "Part of this chain's config is carried through untouched. Editing the strength is still safe; those bytes are written back unchanged.",
     "Part pick: preview off": "Part pick: preview off",

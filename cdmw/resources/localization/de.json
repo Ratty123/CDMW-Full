@@ -8405,6 +8405,7 @@
     "Part ID": "Teil-ID",
     "Part changes pending. Press Apply to rebuild preview.": "Teiländerungen stehen aus. Klicken Sie auf „Übernehmen“, um die Vorschau neu zu erstellen.",
     "Part colors": "Farben pro Teil",
+    "Part highlight failed: {value_0}": "Hervorheben des Teils fehlgeschlagen: {value_0}",
     "Part of the existing texture path or filename": "Part of the existing texture path or filename",
     "Part of this chain's config is carried through untouched. Editing the strength is still safe; those bytes are written back unchanged.": "Ein Teil der Konfiguration dieser Kette wird unverändert übernommen. Editing the strength is still safe; Diese Bytes werden unverändert zurückgeschrieben.",
     "Part pick: preview off": "Teileauswahl: Vorschau aus",

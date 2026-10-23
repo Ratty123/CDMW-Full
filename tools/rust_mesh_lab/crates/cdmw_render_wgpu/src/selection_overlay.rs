@@ -116,6 +116,7 @@ pub async fn verify_face_selection_depth() -> Result<(), RenderError> {
     let mut selection =
         FaceSelectionRenderer::new(&device, format, &texture_layout, &camera_layout, 1);
     let mut warning = selection.empty_with_shared_pipelines();
+    let mut hover = selection.empty_with_shared_pipelines();
     let colour = [1., 0., 0., 0.6];
     let mut first_tint_red = None;
     for (label, xray, depth, empty) in [
@@ -131,6 +132,10 @@ pub async fn verify_face_selection_depth() -> Result<(), RenderError> {
         ("refit warning", false, 0.6, false),
         ("refit warning cleared", false, 0.6, false),
         ("refit selection cleared", false, 0.6, true),
+        ("part hover", false, 0.6, false),
+        ("part hover cleared", false, 0.6, false),
+        ("part hover selection cleared", false, 0.6, true),
+        ("part hover warning cleared", false, 0.6, false),
     ] {
         let tinted = matches!(label, "lit region" | "shaded region" | "part colors");
         let tint_buffer = tinted.then(|| {
@@ -162,10 +167,16 @@ pub async fn verify_face_selection_depth() -> Result<(), RenderError> {
             colour,
         )?;
         let refit = label.starts_with("refit");
-        let show_warning = refit && label != "refit warning cleared";
+        let hovering = label.starts_with("part hover");
+        let show_hover = hovering && label != "part hover cleared";
+        let show_warning = (refit && label != "refit warning cleared")
+            || (hovering && label != "part hover warning cleared");
         warning.upload(&device, &queue, if show_warning {
             &[[-1., -1., 0.6], [0., -1., 0.6], [-0.5, 1., 0.6]]
         } else { &[] }, [1.0, 0.35, 0.06, 0.45])?;
+        hover.upload(&device, &queue, if show_hover {
+            &[[-1., -1., 0.6], [0., -1., 0.6], [-0.5, 1., 0.6]]
+        } else { &[] }, [0.15, 0.85, 1.0, 0.65])?;
         if label == "weight gradient" {
             selection.upload_coloured(
                 &device,
@@ -221,6 +232,7 @@ pub async fn verify_face_selection_depth() -> Result<(), RenderError> {
             pass.draw(0..if label == "part colors" { 12 } else { 6 }, 0..1);
             selection.draw(&mut pass, &material.bind_group, &camera_binding, xray);
             warning.draw(&mut pass, &material.bind_group, &camera_binding, true);
+            hover.draw(&mut pass, &material.bind_group, &camera_binding, true);
         }
         encoder.copy_texture_to_buffer(
             wgpu::TexelCopyTextureInfo {
@@ -247,6 +259,17 @@ pub async fn verify_face_selection_depth() -> Result<(), RenderError> {
         let pixels = read_headless_pixels(&device, &readback, 32, 32)?;
         let left_red = pixels[(24 * 32 + 10) * 4 + 2];
         let right_red = pixels[(24 * 32 + 22) * 4 + 2];
+        if hovering {
+            let left_blue = pixels[(24 * 32 + 10) * 4];
+            if (show_hover && left_blue < 150) || (!show_hover && (left_blue > 100 || left_red < 100))
+                || (empty && right_red > 10) || (!empty && right_red < 100)
+            {
+                return Err(RenderError::InvalidOverlay(format!(
+                    "Part hover did not stay independent of selection and fit warnings: {label}, left red={left_red}, blue={left_blue}, right red={right_red}"
+                )));
+            }
+            continue;
+        }
         if refit {
             if (show_warning && left_red < 100) || (!show_warning && left_red > 10)
                 || (empty && right_red > 10) || (!empty && right_red < 100)

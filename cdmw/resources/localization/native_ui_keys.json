@@ -1402,6 +1402,7 @@
   "Parser: {value_0}",
   "Part",
   "Part colors",
+  "Part highlight failed: {value_0}",
   "Part selection failed: {value_0}",
   "Part {value_0}",
   "Part {value_0}: {value_1}",

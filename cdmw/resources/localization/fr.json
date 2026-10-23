@@ -8405,6 +8405,7 @@
     "Part ID": "ID de pièce",
     "Part changes pending. Press Apply to rebuild preview.": "Modifications de pièces en attente. Appuyez sur Appliquer pour reconstruire l'aperçu.",
     "Part colors": "Couleurs par pièce",
+    "Part highlight failed: {value_0}": "Échec de la surbrillance de la pièce : {value_0}",
     "Part of the existing texture path or filename": "Part of the existing texture path or filename",
     "Part of this chain's config is carried through untouched. Editing the strength is still safe; those bytes are written back unchanged.": "Une partie de la configuration de cette chaîne est conservée intacte. La modification de la force est toujours sûre ; ces octets sont réécrits inchangés.",
     "Part pick: preview off": "Sélection de pièces : aperçu désactivé",

@@ -98032,6 +98032,16 @@
       ]
     },
     {
+      "key": "Part highlight failed: {value_0}",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui/refit_diagnostics.rs",
+          "line": 58,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
       "key": "Part of the existing texture path or filename",
       "origins": [
         {
