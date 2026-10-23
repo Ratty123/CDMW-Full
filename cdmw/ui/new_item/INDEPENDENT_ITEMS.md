@@ -1259,16 +1259,32 @@ within the unchanged 256 limit. Its subsequent controlled game capture passes
 four original-helper forwards and the AF1 shape: logical counts/maps 6,816,
 cookie/metadata capacity 6,820, four null tail slots and all stock rows resident
 on thread 51672/TLS family 0. Root physical/process/restoration checks pass in
-30.719 seconds; independent actual review also passes. No private Rows,
-Cache staging, public-map admission, cleanup or lifetime proof follows.
+30.719 seconds; independent actual review also passes. That reservation-only
+capture supplies no private Rows/Cache staging, public-map, cleanup or lifetime proof.
 
-The next source review confirms Cache can already use base N and actual spans
-N+4 for four off-count Bindings/Entries/Rows; Router coherence and the old null-tail
-observer reject that shape. The checked Bool decoder takes (Reader*, record);
-the central materializer takes (owner, status, uint16 ordinal, Reader*). A staged
-observer still needs full pre-stage stock-prefix/header/map comparison, four exact tail witnesses, allocation
-alias checks and retained partial failures. No staging implementation or game
-qualification follows from this source review.
+B121 now uses that unchanged Cache with base N/actual spans N+4. Router and the old
+null-tail observer remain separate rejecting contracts. The stage calls the real
+constructor and checked Bool decoder (Reader*, record), while the four-argument
+central materializer remains unhooked. Source/stock/map/previous-allocation alias
+guards and retained partial failures pass eight owned native cases. Actual
+encoder bodies pass separate production-parser checks while strict game review
+correctly refuses the ordinary fixture addresses; independent linked review
+joins 100 emitted functions. The 218-pin caller retains all 167 runtime origins
+and three decoders with 212 recovery rows within the unchanged 256 limit.
+Its subsequent game capture completes four checked records with exact keys,
+names and input cursors. All represented stock prefix/header/maps remain equal
+except four exact tail pointers; public counts/maps stay N=6,816 and capacity/
+cookie N+4. Root physical/source/process checks and 29.391-second restoration
+pass; independent capture review also passes. This proves one item/three perk
+records in off-count slots, without central lookup/bulk, resource use, derived
+state, cleanup execution, reader lifetime, retirement or save acceptance.
+
+Next qualify existing B66/B64/B67 unpublished native pair preparation. Native
+name-map values are DWORD item keys, numeric values are WORD ordinals and native
+metadata contains body offsets. The portable model's name values/route indexes
+are fixture contracts. Its publication ordering cannot supply native ABI or
+reader safety. Known source/clone aliases must be guarded before adapter-controlled
+writes/releases; uncertain native insertion state stays retained.
 
 Executable-source review identifies typed ItemInfo manager loader slots and
 the global setter/clearer. Vtable `+0x08` resets the manager; `+0x20` loads

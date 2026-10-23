@@ -30,9 +30,13 @@ source review. Its 216 full pins protect all 167 runtime origins and project to
 game reservation passes with logical counts/maps 6,816, cookie/capacity 6,820,
 four null tail slots and all stock rows resident on thread 51672/TLS family 0.
 Root physical/process checks and restoration pass in 30.719 seconds; independent
-actual review also passes. The next source review confirms the existing Cache supports
-base N with native spans N+4; staged stock/tail/alias/failure qualification remains
-pending, followed by central routing and lifetime work.
+actual review also passes. B121 now stages four checked records through the
+unchanged Cache/native constructor and Bool decoder. Full stock prefix/header/maps
+stay equal except four exact tail pointers, with public counts/maps 6,816. Native
+fixtures/linked/caller reviews pass; root physical/source/process checks pass with
+29.391-second restoration; independent capture review also passes. Next qualify
+unpublished native pairs; central routing, resources, derived state and lifetime
+remain open.
 
 [Canonical goal and acceptance criteria](cditem-conflict-isolation-plan.md) |
 [Execution](cditem-execution-goal.md) |
@@ -113,9 +117,11 @@ the preceding 24-case preparation evidence remains in
 
 ## Completed work
 
+- 2026-10-23 | CDISO-RE-02 checked native Cache tail staging | B121's single controlled game capture stages the existing item and three perk records through the real allocation/constructor/Bool-decoder/inspection APIs, with exact keys/names/cursors and 20 steps. All represented stock prefix/header/maps remain equal except four exact tail pointers; public counts/maps stay 6,816 and cookie/capacity stay 6,820. Eight owned native cases, encoder/parser refusal controls, 100-function linked review and four actual metadata checks pass. The 218-pin caller retains 167 runtime origins/three decoders with 212 recovery rows within 256. Root physical/process/source checks and 29.391-second restoration pass, followed by independent capture review with no material defects. Central getter/bulk/maps, derived-state acceptance, resources, reader/cleanup/retirement/save behavior and admission remain open. Evidence: `workspace/reports/cditem-execution/20261021-native-path-continuation/run/b121-current-owner-v1/attempt1/reserved-cache-stage-observation-result.json` and the [execution checkpoint](cditem-execution-goal.md#resumed-with-direct-authority-2026-10-23).
+
 - 2026-10-23 | CDISO-RE-02 original-helper reserved-tail observation | After native/linked/caller source qualification, B120-v2's controlled game capture passes with logical counts/maps 6,816, cookie/metadata capacity 6,820, all stock rows resident and four null tail slots on thread 51672/TLS family 0. Independent actual review passes, including physical/process joins and 30.719-second restoration, with all five owned roles absent and seven companions/stock preserved. The source packet protects all 216 full pins/167 runtime origins with 210 recovery sources within 256. The earlier terminal-refusal correction remains preserved. No verified cleanup execution, private staging, reader lifetime or admission follows. Evidence: `workspace/reports/cditem-execution/20261021-native-path-continuation/api-source-review/20261023-b120-v1-actual-review/independent-actual-capture-review-v2.json` and the [execution checkpoint](cditem-execution-goal.md#resumed-with-direct-authority-2026-10-23).
 
-- 2026-10-23 | CDISO-RE-02 reserved Cache staging source | The existing Cache already supports base N and full native spans N+4; Router coherence and null-tail observers are separate rejecting contracts. Confirmed the two-argument Bool decoder versus four-argument central materializer. Full stock-prefix/maps, four exact tail witnesses, alias checks and partial-failure retention remain to implement and qualify after actual reservation. Evidence: `workspace/reports/cditem-execution/20261021-native-path-continuation/api-source-review/20261023-reserved-cache-staging-next/reserved-cache-staging-source-review.json`.
+- 2026-10-23 | CDISO-RE-02 reserved Cache staging source | The source checkpoint confirmed Cache supports base N/full native spans N+4 and distinguished Router/null-tail refusal from the two-argument Bool decoder and four-argument central materializer. Full stock/tail/alias/failure implementation and qualification were then pending; the subsequent B121 staging result is recorded above. Evidence: `workspace/reports/cditem-execution/20261021-native-path-continuation/api-source-review/20261023-reserved-cache-staging-next/reserved-cache-staging-source-review.json`.
 
 - 2026-10-23 | CDISO-RE-02 actual loader caller and phase reconciliation | B119 captures return RIP `0x14FA45A99`, joined to the serial 149-family dispatcher in the unchanged executable. Independent physical/source/process review passes; exact restoration completes in 24.391 seconds. Reused B115 AF1 captures already show all 6,816 stock slots resident with matching keys and both maps, before C. A proposed duplicate phase probe is withdrawn. Reader exclusion, private central dispatch, failure-stop and lifetime remain open; acceptance states are unchanged. Evidence: `workspace/reports/cditem-execution/20261021-native-path-continuation/api-source-review/20261023-b119-caller-review/actual-chain-review.json` and `api-source-review/20261023-b119-dispatch-join/b115-af1-evidence-reconciliation.json` in that continuation.
 

@@ -376,27 +376,97 @@ The review distinguishes the configured 225-second close deadline from the
 Actual cleanup execution remains unverified. Original raw/offline false
 flags are unchanged. The earlier relative-path preparation refusal occurred
 before resource actions; the completed fixed attempt must not be replayed.
-Nonzero live CFG policy refuses without disabling mitigation. No Cache/Rows are
-staged, and no new logical count or public-map publication, actual cleanup,
-reader lifetime or native item admission is established.
+Nonzero live CFG policy refuses without disabling mitigation. That reservation-only
+capture stages no Cache/Rows and establishes no new logical count/public-map
+publication, actual cleanup, reader lifetime or native item admission.
 
-Source review of the next staging boundary confirms that Cache.configure/get
-already accepts base N with full native spans N+4. Router coherence and the old
-null-tail snapshot are the rejecting surfaces. Stage-only work can use four
-Bindings/Entries/Rows and the existing records API without a Cache algorithm
-change or central materializer hook. Its checked Bool decoder takes two arguments
-(Reader*, record); the central native materializer takes four
-(owner, status, uint16 ordinal, Reader*). These are separate call contracts.
-A new staged observer must compare the full N-prefix/maps/header to a pre-stage
-capture, permit only the four exact tail witnesses, retain partial failure and
-check cross-entry allocation aliases. This remains source-only: 14 inspected pins
-and four Row/header/body hashes, receipt
-`api-source-review/20261023-reserved-cache-staging-next/reserved-cache-staging-source-review.json`,
-31,362 bytes, SHA-256
+The following B121 stage reuses Cache.configure/get with base N and full native
+spans N+4 unchanged. Router coherence and the old null-tail snapshot are separate
+rejecting surfaces. The checked Bool decoder takes (Reader*, record); the central
+materializer takes (owner, status, uint16 ordinal, Reader*). B121 calls the former
+without a central materializer hook. Its observer anchors the full N-prefix,
+header and both maps before staging and rechecks them around every record,
+allowing only the four exact primary-tail witnesses. Alias checks include both
+maps' buckets, full entry capacity and 12-byte nodes, plus stock/source/previous
+private allocations. Partial or uncertain work is retained without retry.
+The earlier source-only boundary receipt remains 31,362 bytes, SHA-256
 `e62c077e0a7adb6945cb4524b7951050f2ad44db31ba17e16728b79a24a048cc`.
 
-Then join immutable private rows and the real constructor/decoder/cache to the
-reserved storage and both getter/bulk routes, with coherent paired maps, later
+The V1 quoted-include failure was caught before compilation; its bytes and refusal
+remain retained. V2 qualifies 57 outputs/198 inputs, including the map-alias
+correction. Native qualification runs eight Stage/Cache cases, actual encoder
+bodies through production parsers with ordinary test addresses correctly refused
+by the strict game reviewer, and inactive initialization `0/0/0`. All seven steps
+pass in 11.515 seconds, with 212 source pins and compiler resources returned.
+Exact proof: `b121-v2-build-proof-20261023/qualification-result.json`, 82,052 bytes,
+SHA-256 `1562abca4dd8e22f82d611cea370a30425e123542c989c4b80a4df6ece28103a`.
+The 418,304-byte ASI has SHA-256
+`3b9b21cdd977f07a70047635bbc916ad1dfa3b48313f7a7e58c1d965c1f53209`.
+Independent linked review joins 100 emitted functions, all 11 shared Stage/Cache
+functions, wrapper ABI/CFG/unwind, four encoded channels and 17 pointer joins.
+Receipt: `api-source-review/20261023-b121-v2-linked-independent-review/independent-linked-native-review-v1.json`,
+110,783 bytes, SHA-256
+`e3abdef149edb0f3bf63e4e45c5e77ce293d315e272d1383bf6b4150e45b16dd`.
+The binding case directly tests Cache; uncovered Cache branches and optimizer
+differences remain explicit in that receipt. Owned fixtures execute no game APIs.
+
+The final controlled caller protects 218 full pins/all 167 runtime origins and
+three exact read-time decoder modules. Its real recovery projection is 211
+external packet rows plus the packet, 212 within the unchanged 256 limit; only
+the seven exact installed witnesses are excluded. Complete compiler/history and
+encoder provenance remains sealed transitively, with no omitted runtime rows.
+Four new actual metadata-join/refusal checks pass. Final source review:
+`api-source-review/20261023-b121-controller-review/independent-source-packet-review-v1.json`,
+59,184 bytes, SHA-256
+`051286b5531d69285e90698ddeb731cd5e692b0cdc2a9b32c1686bd1569fe68f`.
+Packet: `run/b121-current-owner-v1/source-candidate.json`, 44,969 bytes, SHA-256
+`301fc1fa340b0152edbe6a74769f9cab54d23044bd1ecf267c2e5de77d9b0f0f`.
+
+After fresh timed resources and the pre-run notice, one consumed game attempt
+passes four original reservation forwards and four checked off-count records.
+Each real allocation/constructor/two-argument Bool decode/inspection completes
+once, with exact keys/names and cursors 1,771/809/804/804. The 20 steps join thread
+45824/TLS family 0; all 4,188 immutable input bytes match before and after. Public
+counts and both maps stay 6,816, cookie/capacity stay 6,820, and the full represented
+stock prefix/header/maps remain equal except the four exact tail pointers.
+Tail expiry and metadata remain zero. These are one item plus three perk rows,
+not two independently authored items or central lookup/resource consumption.
+Actual result: `run/b121-current-owner-v1/attempt1/reserved-cache-stage-observation-result.json`,
+3,944 bytes, SHA-256
+`1db7ce4924189442733c7f609424762c6c90f411c6a7914fc48d39abdfe7f96c`.
+Root joins all four physical files and repeats the unchanged three-module review;
+its complete 432-row strict census shows all five owned roles absent. Seven
+companions/stock match and ASI/session/generation are absent. Restoration finishes
+in 29.391 seconds, within the 240-second cap. Root receipt:
+`20261023-direct-authority/b121-v1-actual-cycle-tool-result.json`, 31,300 bytes,
+SHA-256 `b92618b80d064ecd882b3ad60520e27502709fed07f317ad76aeeb7ae5820954`.
+The source/resource/tool preparation chain is retained in
+`20261023-direct-authority/b121-v1-handoff-preparation-tool-join.json`, 8,472 bytes,
+SHA-256 `02e796e501a51f652f936248966875dcbfbf102f6138b1836df805aea3321850`.
+Idle-helper resource refusals occurred before any authority output/attempt and
+were resolved only through fresh exact-identity/idleness guards. No sealed source
+or cap changed. Independent actual-capture review passes with no material defects:
+`api-source-review/20261023-b121-v1-actual-review/independent-actual-capture-review-v1.json`,
+50,352 bytes, SHA-256
+`be3a53fa374a09038938359e57100508ede1cf52943d1447314c08f1e05fa05e`.
+Original raw/offline false flags remain unchanged; cleanup execution and all-reader lifetime are
+unverified, and the consumed attempt must not be replayed.
+
+The next native step is unpublished pair preparation using B66/B64/B67, preserving
+central owner headers/counts/maps. Native numeric values are WORD ordinals and
+name values are DWORD numeric keys; real metadata stores a stock-body byte
+offset, while the portable model uses a fixture route index. B64's assumed clone
+allocator freshness must be guarded at adapter-controlled write/release points.
+The 32-pin source review is
+`api-source-review/20261023-b121-next-publication-source/next-publication-source-review.json`,
+45,775 bytes, SHA-256
+`75efa81bd2ffbbe15c73be328b88530b45e6a6c761bc1f457de17b71b81926f1`.
+Its companion `native-pair-reuse-contract-caveat.json` is 2,712 bytes, SHA-256
+`9623f0db1c237821887d88eafd35d25e892f6fb77a48d07912e11ddc2d4b180d`.
+This is a preparation recommendation, not actual pair/publication qualification.
+
+Then join the staged records and unpublished native pairs to both central
+getter/bulk routes, with private metadata/backing, coherent publication, later
 derived-state validation and concrete reader/maintenance coverage. Qualify
 failure-stop and retained-pointer lifetime before central exposure. Constructor
 key/name adapters are not lifecycle callbacks; setter, loader return and AF1

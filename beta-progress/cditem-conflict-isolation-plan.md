@@ -34,7 +34,7 @@ Preparation baseline reviewed on **2026-10-21** against `main@099e9f7e7a5555f072
 | --- | --- | --- | --- |
 | Stable logical identity and retained bindings | Implemented UUID, per-symbol reservations, collision refusal and profile transfer; bounded composed-route lifecycle observations | Carry the same bindings through the admitted native lifecycle; profile transfer is not automatic save migration | `CDISO-ID-01`, `CDISO-ID-01A`, `CDISO-LIFE-01` |
 | Resource ownership and donor independence | Supported private material/DDS references and proven donor-row detachment | Close every required explicit/implicit reference for the selected family and prove native consumption | `CDISO-RES-01`, `CDISO-DEP-01` |
-| Native definition registration | B84/B106/B111 research and actual loader/caller/phase joins; B120 original-helper reservation independently verified | Join actual backing, private metadata/decoding and both native maps; qualify reader/maintenance coverage, failure-stop and lifetime | `CDISO-RE-02` |
+| Native definition registration | Actual original-helper reservation and four checked off-count Cache records; central route unadmitted | Qualify unpublished native maps, private metadata/backing and central getter/bulk; retain reader/maintenance, failure-stop and lifetime requirements | `CDISO-RE-02` |
 | Paired publication and ownership | Retained portable C++ experiment: 41 cases, 963 checks; common preflight and retained backing pass | Transfer the demonstrated ordering to actual native storage and a qualified reader boundary; both lookups/resources here are modeled | `CDISO-RE-02A` |
 | Native private resources | B115's 102-byte read and independently reviewed B117 two-context game reads: both complete 144-byte payloads, with A rechecked after B | Qualify actual resource use, general context independence and retirement; AL does not expose API success or transferred count | `CDISO-RE-03` |
 | Exact private archive expectation | Maintained offline checker, reviewed B113 actual path and B115 physical open/read joins | Preserve exact per-image archive and payload identity in the larger native route | `CDISO-RE-03A` |
@@ -61,7 +61,16 @@ on thread 51672/TLS family 0. Exact restoration takes 30.719 seconds. Its 216 fu
 pins protect all 167 runtime origins with 210 recovery sources within the
 unchanged 256 limit. Cleanup execution and lifetime remain unverified.
 
-1. Stage four private Bindings/Entries/Rows through the unchanged Cache.configure/get with base N and full native spans N+4. Router coherence and the old null-tail observer reject that shape; they are separate contracts. The checked Bool decoder takes two arguments, while the central materializer takes four. Qualify full stock-prefix/header/map preservation, four exact tail records, allocation aliases and failure retention before central getter/bulk routing or map publication. Expiry zero permits eviction; eager residency cannot replace rematerialization, reader/maintenance coverage or lifetime proof.
+B121 now stages four independent checked records through that unchanged Cache.
+Native construction, two-argument Bool decoding, exact cursors and inspection
+pass for the existing item and three perk rows. All represented stock prefix,
+header and map bytes remain equal except the four exact tail pointers; public
+counts/maps stay 6,816 and cookie/capacity stay 6,820. Root physical/source/process
+checks pass and restoration takes 29.391 seconds. Its 218 full pins retain all
+167 runtime origins and three decoder sources with 212 recovery rows within 256.
+Independent actual-capture review passes with no material defects. This is staging evidence only.
+
+1. Qualify the existing B66/B64 native builder for unpublished numeric/name pairs after the checked staging result. Native numeric values are WORD ordinals; name values are DWORD numeric keys. Preserve central headers/counts/maps and guard known source/clone allocation aliases before adapter-controlled writes or releases. The portable publication model's name values and metadata route indexes are not the native ABI. Expiry zero permits eviction; eager residency cannot replace rematerialization, reader/maintenance coverage or lifetime proof.
 2. Join definitions, both native maps and resources in one startup-scoped native contribution, including later derived-state validation and a qualified consumer boundary. Then exercise two independently authored same-donor packages with distinct private assets through acquisition, equip, restart and save reload.
 3. Extend only from that demonstrated scope. Keep native missing-provider save behavior, ordinary maintenance and any unresolved resource family explicitly open.
 

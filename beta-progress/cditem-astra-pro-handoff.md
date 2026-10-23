@@ -131,9 +131,9 @@ Complete consumer-source review now explains `+0x60` stock materialization/name
 construction/body close and the later `+0x40` auxiliary-state/link validation.
 The private 0xA0 descriptor is not a valid derived-finalizer owner. Expiry zero
 permits sampled eviction; eager rows cannot replace private rematerialization.
-The next actual step is four original-header forwards reserving a null tail
-with stock logical counts/maps N and cookie/capacity N+4. Ordinary walks use N;
-reset/destruction uses the cookie. B120-v2 passes 21 native adapter/near-edge/
+Four original-header forwards now reserve a null tail with stock logical
+counts/maps N and cookie/capacity N+4. Ordinary walks use N; reset/destruction
+uses the cookie. B120-v2 passes 21 native adapter/near-edge/
 observer cases with owned responses/synthetic callers and inactive loading in
 7.901 seconds; independent linked review now passes the wrappers/CFG/unwind/ABI
 joins. Its controlled caller also passes independent source review: 216 full pins,
@@ -145,16 +145,28 @@ process checks and exact restoration pass in 30.719 seconds; independent actual
 review also passes with no material defects. Cleanup remains unproved. The pre-CAS refusal gap is
 fixed in its preserved source successor.
 
-The next source review confirms the existing Cache.configure/get accepts base N
-with full native spans N+4. Router coherence and old null-tail snapshots are the
-rejecting contracts. Reuse that Cache for four off-count
-Bindings/Entries/Rows. The Bool decoder takes (Reader*, record); the separate
-central materializer takes (owner, status, uint16 ordinal, Reader*). Full
-pre-stage stock-prefix/header/map comparison, four exact tail witnesses,
-allocation alias checks and retained partial failures remain to implement and
-qualify. The source-only staging and earlier 84-pin consumer receipts are pinned
-in the execution checkpoint; neither supplies central getter/bulk, finalization
-or lifetime acceptance.
+B121 reuses that Cache unchanged for four off-count Bindings/Entries/Rows with
+base N/full native spans N+4. Its source guards known stock/source/map/previous
+allocation aliases and retains partial failures. Eight native cases, actual
+encoder-body/parser checks with strict game-address refusal, inactive loading
+and independent 100-function linked review pass. The caller protects 218 full
+pins/all 167 runtime origins/three decoders with 212 recovery rows within 256.
+The consumed actual game capture completes four real constructors, two-argument
+Bool decodes and inspections with exact keys/names/cursors and 20 steps on
+thread 45824/TLS family 0. Full represented stock prefix/header/maps remain equal
+except four exact tail pointers; public counts/maps stay 6,816 and capacity/cookie
+stay 6,820. Root physical/source/process checks and restoration pass in 29.391
+seconds; independent actual-capture review also passes. All five owned roles are
+absent and seven companions/stock match. The four rows are one item plus three
+perks; cleanup, central getter/bulk, resource use and lifetime remain unverified.
+
+Next reuse B66/B64/B67 to prepare unpublished native pairs while central headers,
+counts and maps remain untouched. Numeric values are WORD ordinals; native name
+values are DWORD numeric keys, and native metadata offsets are not the portable
+model's route indexes. Guard known source/clone aliases before adapter-controlled
+writes/releases and retain uncertain native insertion state. The known native
+name reader is available; no new generic map model is needed. Exact source,
+native, caller, capture and next-step pins are in the execution checkpoint.
 
 Retained local source-only results under the native-path continuation:
 `run/b115-current-owner-v2/source-check-receipt.json` (41 focused checks;

@@ -1435,9 +1435,10 @@ with all 6,816 stock slots resident, matching metadata keys, zero expiry and bot
 maps. Both full snapshots precede the private operation. The stock body-reader
 field is zero and phase TLS is unknown. These observations qualify neither a
 cold stock-reader path nor all-reader/maintenance coverage or safe publication.
-The next definition step qualifies original native reservation of an unexposed
-null tail with stock counts/maps unchanged, then joins private decoding to getter
-and bulk with coherent maps, failure-stop and lifetime. Complete source review
+Original native reservation of an unexposed tail and subsequent checked record
+staging are now observed with stock counts/maps unchanged. The next definition
+step qualifies unpublished native pairs before joining getter/bulk with coherent
+maps, failure-stop and lifetime. Complete source review
 explains stock eager materialization and the later auxiliary-state/link checks.
 Expiry zero permits sampled eviction; eager loading cannot replace private
 rematerialization or the later derived-manager validation. Constructor-registered key/
@@ -1473,15 +1474,24 @@ and the expected AF1 reserved shape, with stock logical counts at N, consistent
 stock identity maps and four null tail slots. Physical/process/restoration checks
 and independent actual review pass, with restoration in 30.719 seconds. Cleanup
 execution remains unproved.
-A following source review confirms the existing Cache supports base N with
-native spans N+4; Router coherence and null-tail observers remain separate
-rejecting contracts. The two-argument Bool records decoder and four-argument
-central materializer have distinct APIs. Stock-prefix/header/map preservation,
-four exact staged tail records, alias checks and failure retention still need
-implementation and qualification after reservation. Central private-item
-integration and lifetime remain open. Join these resources and independently
-owned item definitions in one supported lifecycle. Metadata success, prepared
-archive bytes and related Loadouts observations remain separate evidence.
+The following checked stage reuses the unchanged Cache with base N/native spans
+N+4; Router/null-tail observers and the four-argument central materializer remain
+separate contracts. Its native fixtures, encoder/parser controls and independent
+linked/caller reviews pass. The 218-pin caller retains all 167 runtime origins
+and three decoders with 212 recovery rows within the unchanged 256 limit. The
+actual game capture completes four constructors, two-argument Bool decodes and
+inspections with exact keys, names and cursors. Full represented stock prefix,
+header and maps remain equal except four exact tail pointers, and public
+counts/maps stay unchanged. Root physical/source/process checks and restoration
+pass in 29.391 seconds; independent capture review also passes. These are one
+item and three perk records, not central private-item integration or a two-item
+gameplay/save result. Next qualify the existing unpublished native pair builder;
+native name values/body offsets differ from the portable model's fixture fields,
+and its clone-allocation ownership needs checked adapter boundaries. Resource
+consumption, derived state, readers, cleanup, retirement and saved ownership
+remain open. Join the separate resources and independently owned definitions in
+one supported lifecycle. Metadata success, prepared archives and related Loadouts
+observations remain separate evidence.
 
 Sources: [resource-admission research and recorded receipt limits][virtual-loader]
 and the [independent-content evidence boundary](../cdmw/ui/new_item/INDEPENDENT_ITEMS.md#retained-evidence-and-unresolved-contracts).

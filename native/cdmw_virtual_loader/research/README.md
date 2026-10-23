@@ -242,27 +242,46 @@ thread 51672/TLS family 0. Root physical/process/restoration checks pass in
 30.719 seconds; independent actual review also passes. No private Cache/Rows,
 count/map publication, cleanup execution or lifetime proof follows.
 
-Source review narrows the following stage: Cache.configure/get can use base N
-with full native spans N+4 unchanged; Router and null-tail snapshots remain
-separate rejecting contracts. The checked Bool decoder takes Reader*/record;
-the native materializer takes owner/status/ordinal/Reader*. A new observer must
-anchor full stock prefix/header/maps to a pre-stage capture, allow only four exact tail
-witnesses and guard allocation aliases/partial failures. This is source evidence,
-not executed staging, central dispatch, publication or lifetime qualification.
+B121 now stages four checked off-count records using Cache.configure/get with
+base N/full native spans N+4 unchanged. Router/null-tail snapshots remain separate
+contracts. The real constructor and two-argument Bool decoder are called; the
+central four-argument materializer remains unhooked. The new observer anchors the
+full stock prefix/header/maps before staging, allows only four exact tail
+witnesses and guards known source/stock/map/previous-allocation aliases. The V1
+include failure was caught before compilation; V2 includes full map entry-capacity
+alias coverage. Partial or uncertain state is retained without retry.
+Eight owned Stage/Cache cases, actual encoder-body/parser checks with unchanged
+strict game-address refusal and inactive `0/0/0` pass in 11.515 seconds.
+Independent linked review joins 100 emitted functions and four raw encoded frames.
+The final caller retains 218 full pins/167 runtime origins/three decoders, with
+212 recovery rows within the unchanged 256 limit and no omitted runtime owners.
+The subsequent game capture completes four real allocation/construction/Bool
+decode/inspection paths with exact keys/names/cursors and 20 steps on thread
+45824/TLS family 0. Public counts/maps remain 6,816 and capacity/cookie 6,820;
+full represented stock prefix/header/maps differ only in four exact tail pointers.
+Root physical/source/process checks and 29.391-second restoration pass;
+independent capture review also passes. All five owned roles are absent and seven
+companions/stock match. This is one item/three perk rows, with no central lookup,
+bulk, resource-use, derived-state, cleanup, reader-lifetime or save acceptance.
 
 Executable-source review identifies the ItemInfo manager's typed reset, setter,
 clearer and loader slots: `+0x08` resets and `+0x20` loads. The actual passive
-observations above do not establish safe publication. Next join actual central
-allocation/reservation, private rows/cache/decoder and both getter/bulk routes
-under concrete reader/maintenance coverage, coherent paired maps, failure-stop
-and lifetime. The portable experiment remains an ordering reference for that
-integration; it does not supply the missing native boundary.
+observations above do not establish safe publication. Next prepare unpublished
+native pairs through existing B66/B64/B67, then join both getter/bulk routes under
+concrete reader/maintenance coverage, coherent publication, failure-stop and
+lifetime. Native numeric values are WORD ordinals; name values are DWORD numeric
+keys. Real metadata uses body offsets. This portable model's name values and
+route indexes are fixture ABIs, so it remains an ordering reference. The native
+adapter must guard known source/clone ranges before controlled writes/releases;
+B64's assumed clone freshness is insufficient by itself. No whole-heap inventory
+or guessed uncertain cleanup is implied.
 
 The newer complete consumer-source pass explains stock eager materialization
 and the later derived-manager validation. Expiry zero permits sampled eviction;
-it cannot pin a private record permanently. The smallest new actual test forwards
-four original-header calls to reserve a null tail while counts/maps stay N and
-cookie/capacity become N+4. Ordinary walks use N, cleanup uses the cookie; actual
-cleanup entry thunks remain to qualify. Old Snapshot/Router require cookie==count
-and cannot validate this shape unchanged. A later checked Cache tail-seed would
-prove staging only. Keep central getter/bulk, derived-state acceptance and lifetime open.
+it cannot pin a private record permanently. Ordinary walks use N and cleanup uses
+the cookie; actual cleanup execution remains unverified. The executed reservation
+and checked tail stage do not qualify central getter/bulk, private body offsets,
+derived-state acceptance or lifetime. Central in-memory registries are permitted
+by the objective; combined replacement definition/index/mount/archive carriers
+remain prohibited. Exact source/native/caller/capture and next-step pins live in
+the [current execution checkpoint](../../../beta-progress/cditem-execution-goal.md#resumed-with-direct-authority-2026-10-23).
