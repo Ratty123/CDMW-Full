@@ -558,6 +558,11 @@ pub struct ProjectedVertex {
     pub inside_view: bool,
 }
 
+pub fn part_colour(part: u32) -> [f32; 4] {
+    let hue = (f64::from(part) * 0.618_033_988_749_895).fract() as f32;
+    egui::ecolor::Hsva::new(hue, 0.65, 0.95, 0.88).to_rgba_unmultiplied()
+}
+
 /// Colour actual Parts, including Parts that share materials or contain generated faces.
 pub fn part_colour_snapshot(
     mesh: &WorkingMesh, visible: Option<&HashSet<u32>>, snapshot: &DrawSnapshot,
@@ -568,10 +573,7 @@ pub fn part_colour_snapshot(
     let faces = mesh.faces().filter(|(handle, _)|
         elements.as_ref().is_none_or(|elements| elements.faces.contains(handle)));
     for ((_, face), triangle) in faces.zip(snapshot.indices.chunks_exact(3)) {
-        let colour = *palette.entry(face.submesh).or_insert_with(|| {
-            let hue = (f64::from(face.submesh) * 0.618_033_988_749_895).fract() as f32;
-            egui::ecolor::Hsva::new(hue, 0.65, 0.95, 0.88).to_rgba_unmultiplied()
-        });
+        let colour = *palette.entry(face.submesh).or_insert_with(|| part_colour(face.submesh));
         for index in triangle {
             colours[*index as usize] = colour;
         }

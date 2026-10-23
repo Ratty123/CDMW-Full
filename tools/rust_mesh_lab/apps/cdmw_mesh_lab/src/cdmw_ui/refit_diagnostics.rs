@@ -20,6 +20,19 @@ fn refit_failure_parts(detail: &str, garments: &[u32]) -> Vec<u32> {
 }
 
 impl LabApplication {
+    pub(super) fn cdmw_part_name_atoms<'a>(&self, part: u32, label: impl egui::IntoAtoms<'a>) -> egui::Atoms<'a> {
+        let mut atoms = egui::Atoms::new(label);
+        if self.cdmw_part_colours_active() {
+            let [r, g, b, _] = viewport::part_colour(part);
+            let colour = Color32::from(egui::Rgba::from_rgb(r, g, b));
+            // The GUI atlas white pixel gives the badge a solid fill without an extra texture.
+            let white = egui::epaint::WHITE_UV;
+            atoms.push_left(egui::Image::new((egui::TextureId::default(), egui::vec2(10.0, 10.0)))
+                .uv(egui::Rect::from_min_max(white, white)).tint(colour));
+        }
+        atoms
+    }
+
     pub(crate) fn refresh_cdmw_mesh_display(&mut self) {
         let visible_submeshes = self.cdmw_visible_submeshes();
         let snapshot = self.mesh.as_ref().map(|mesh| {
@@ -200,7 +213,7 @@ impl LabApplication {
                 let can_select = !self.cdmw_busy();
                 ui.horizontal_wrapped(|ui| {
                     for part in &parts {
-                        if ui.add_enabled(can_select, Button::new(self.cdmw_morph_part_names(&[*part])).small()
+                        if ui.add_enabled(can_select, Button::new(self.cdmw_part_name_atoms(*part, self.cdmw_morph_part_names(&[*part]))).small()
                             .selected(selected_parts.contains(part)))
                             .on_hover_text(crate::localization::tr("Select these Parts to adjust their fitting. Hidden Parts are shown."))
                             .clicked()

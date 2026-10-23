@@ -112,6 +112,65 @@ fn workflow_part_colours_toggle_restores_display_and_preserves_fit_edits() -> Te
 }
 
 #[test]
+fn workflow_part_colour_swatches_match_the_viewport_and_follow_the_mode() -> TestResult {
+    fn swatch(ui: &HeadlessUi, label: &str, part: u32) -> Result<egui::Rect, Box<dyn std::error::Error>> {
+        let text = ui.label_rect(label).ok_or_else(|| format!("missing Part label {label}"))?;
+        let mesh = ui.application.mesh.as_ref().ok_or("mesh")?;
+        let snapshot = mesh.draw_snapshot();
+        let colours = viewport::part_colour_snapshot(mesh, None, &snapshot);
+        let colour = mesh.faces().zip(snapshot.indices.chunks_exact(3))
+            .find(|((_, face), _)| face.submesh == part)
+            .map(|(_, triangle)| colours[triangle[0] as usize]).ok_or("Part colour")?;
+        let expected = Color32::from(egui::Rgba::from_rgb(colour[0], colour[1], colour[2]));
+        ui.output.shapes.iter().find_map(|shape| match &shape.shape {
+            egui::Shape::Rect(swatch) if swatch.fill == expected
+                && (swatch.rect.size() - egui::vec2(10.0, 10.0)).length() < 1.0 => {
+                let rect = swatch.rect;
+                (shape.clip_rect.intersects(rect) && (rect.center().y - text.center().y).abs() < 3.0
+                    && rect.right() <= text.left() && text.left() - rect.right() < 12.0).then_some(rect)
+            }
+            _ => None,
+        }).ok_or_else(|| {
+            let nearby = ui.output.shapes.iter().filter_map(|shape| match &shape.shape {
+                egui::Shape::Rect(rect) if (rect.rect.center().y - text.center().y).abs() < 3.0 =>
+                    Some((rect.rect, rect.fill)),
+                _ => None,
+            }).take(8).collect::<Vec<_>>();
+            format!("missing matching swatch beside {label}: text={text:?}, expected={expected:?}, nearby={nearby:?}").into()
+        })
+    }
+    let mut ui = mixed_refit_ui(&[2])?;
+    let root = tempdir()?;
+    ui.application.cdmw_bridge = Some(CdmwBridge::for_test(root.path().to_path_buf(), "part-swatch-ui", 2, 0));
+    ui.open_refit_detail("Choose garments")?;
+    ui.reveal("2 · Sleeve")?;
+    assert!(swatch(&ui, "2 · Sleeve", 1).is_err());
+    ui.click("Part colors")?;
+    ui.reveal("2 · Sleeve")?;
+    swatch(&ui, "2 · Sleeve", 1)?;
+    swatch(&ui, "3 · Plate", 2)?;
+    swatch(&ui, "0: Body", 0)?;
+    ui.click("Setup")?;
+    ui.open_refit_detail("Choose Parts")?;
+    ui.reveal("1 · Body")?;
+    swatch(&ui, "1 · Body", 0)?;
+    ui.click("Fit")?;
+    refit_feedback_reply(&mut ui, "Fit to body", false,
+        "Fit to body: Part 1 still intersects Part 2 beneath its triangles; previous preview retained")?;
+    ui.reveal("2 · Sleeve")?;
+    let badge = swatch(&ui, "2 · Sleeve", 1)?;
+    let root = tempdir()?;
+    ui.application.cdmw_bridge = Some(CdmwBridge::for_test(root.path().to_path_buf(), "refit-feedback-ui", 2, 0));
+    ui.click_at(badge.center());
+    assert_eq!(ui.application.selected_part_indices(), vec![1]);
+    refit_feedback_reply(&mut ui, "Select parts", true, "")?;
+    ui.click("Part colors")?;
+    ui.reveal("2 · Sleeve")?;
+    assert!(swatch(&ui, "2 · Sleeve", 1).is_err());
+    Ok(())
+}
+
+#[test]
 fn workflow_part_colours_distinguish_shared_materials_and_stay_stable_when_hidden() -> TestResult {
     let ui = super::morph_authoring::authoring_ui()?;
     let mut mesh = ui.application.mesh.as_ref().ok_or("mesh")?.clone();

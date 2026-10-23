@@ -3386,7 +3386,8 @@ impl LabApplication {
                             visible
                                 .as_ref()
                                 .is_none_or(|visible| visible.contains(&index)),
-                            egui::Checkbox::new(&mut checked, crate::localization::tr(format!("{} · {name}", index + 1))),
+                            egui::Checkbox::new(&mut checked, self.cdmw_part_name_atoms(index,
+                                crate::localization::tr(format!("{} · {name}", index + 1)))),
                         )
                         .on_hover_text(&name)
                         .on_disabled_hover_text(
@@ -4175,7 +4176,8 @@ impl LabApplication {
                             cdmw_list_cell(ui, widths[0], |ui| {
                                 let row = ui.add_enabled_ui(shown && in_visible_layer, |ui| {
                                     ui.add_sized([ui.available_width(), ui.spacing().interact_size.y],
-                                        Button::selectable(active, (crate::localization::tr(format!("{index}: {name}")), egui::Atom::grow())).truncate())
+                                        Button::selectable(active, self.cdmw_part_name_atoms(*index,
+                                            (crate::localization::tr(format!("{index}: {name}")), egui::Atom::grow()))).truncate())
                                 }).inner;
                                 if row.on_hover_text(&help)
                                     .on_disabled_hover_text(format!("{}\n{}", help, crate::localization::tr("Show this part to select it"))).clicked() {

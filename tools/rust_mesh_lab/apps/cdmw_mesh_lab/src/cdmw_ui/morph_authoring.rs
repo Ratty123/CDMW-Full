@@ -196,7 +196,7 @@ impl LabApplication {
                         let active = selected.contains(part);
                         if ui.add_enabled(
                             visible.as_ref().is_none_or(|visible| visible.contains(part)),
-                            Button::selectable(active, &name).truncate(),
+                            Button::selectable(active, self.cdmw_part_name_atoms(*part, &name)).truncate(),
                         )
                             .on_hover_text(&name)
                             .on_hover_text(crate::localization::tr("Click to highlight this garment and edit its strength. Ctrl-click to select several."))
@@ -248,7 +248,8 @@ impl LabApplication {
             let parent = state["refit"]["garment_settings"].as_array().into_iter().flatten()
                 .find(|setting| setting["submesh_index"].as_u64() == Some(u64::from(part)));
             ui.push_id(("fit-islands", part), |ui| {
-                ui.strong(self.cdmw_morph_part_names(&[part]));
+                ui.add(egui::AtomLayout::new(self.cdmw_part_name_atoms(part,
+                    RichText::new(self.cdmw_morph_part_names(&[part])).strong())));
                 for (index, island) in row["islands"].as_array().into_iter().flatten().enumerate() {
                     let faces = faces_of(island);
                     let override_setting = parent.and_then(|parent| parent["island_settings"].as_array())
@@ -305,7 +306,7 @@ impl LabApplication {
                 let name = self.cdmw_morph_part_names(&[*part]);
                 if ui.scope(|ui| {
                     ui.style_mut().wrap_mode = Some(egui::TextWrapMode::Truncate);
-                    ui.checkbox(&mut checked, &name)
+                    ui.checkbox(&mut checked, self.cdmw_part_name_atoms(*part, &name))
                 }).inner.on_hover_text(&name)
                     .on_hover_text(crate::localization::tr("Choose garments for the body-region buttons below. Your body selection is kept.")).changed()
                 {

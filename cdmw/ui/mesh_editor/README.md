@@ -2049,6 +2049,8 @@ under **Viewport → Display**. Colors follow Part identity, including new Parts
 share a material; hiding other pieces does not reassign their colors. Turning the
 Morph & Refit toggle off restores the previous display mode. This changes only the
 viewport; fitting, selection, pending edits, textures and exports remain intact.
+Matching swatches beside Part names in Morph & Refit, fit warnings and the Parts
+inspector identify each piece while Part colors is enabled.
 
 If fitting is refused, Fit shows the affected garment names, a short reason and a
 targeted next step. Overlaps suggest more Clearance (0.1% when starting at zero) or
