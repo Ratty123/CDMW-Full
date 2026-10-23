@@ -1411,8 +1411,12 @@ with all 6,816 stock slots resident, matching metadata keys, zero expiry and bot
 maps. Both full snapshots precede the private operation. The stock body-reader
 field is zero and phase TLS is unknown. These observations qualify neither a
 cold stock-reader path nor all-reader/maintenance coverage or safe publication.
-The next definition step joins actual private backing/decoding to getter and
-bulk with coherent maps, failure-stop and lifetime. Constructor-registered key/
+The next definition step qualifies original native reservation of an unexposed
+null tail with stock counts/maps unchanged, then joins private decoding to getter
+and bulk with coherent maps, failure-stop and lifetime. Complete source review
+explains stock eager materialization and the later auxiliary-state/link checks.
+Expiry zero permits sampled eviction; eager loading cannot replace private
+rematerialization or the later derived-manager validation. Constructor-registered key/
 name adapters are not lifecycle callbacks. See the
 [current execution checkpoint](../beta-progress/cditem-execution-goal.md#resumed-with-direct-authority-2026-10-23)
 for source/capture pins and the bounded restoration result.

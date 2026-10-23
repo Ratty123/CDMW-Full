@@ -1247,9 +1247,9 @@ ordering is:
 ```mermaid
 flowchart LR
     P["Family +0x10 publication"] --> L["All 149 +0x20 loads"]
-    L --> S["All 149 +0x60 calls"]
+    L --> S["All 149 +0x60 calls; ItemInfo materializes stock rows"]
     S --> A["AF1 before-finalizer boundary"]
-    A --> F["+0x28 / +0x30 / +0x38 / +0x40 passes"]
+    A --> F["Later passes; ItemInfo +0x40 builds and validates derived state"]
     F --> D["Controller completion; outer task finishes later"]
 ```
 
@@ -1260,7 +1260,18 @@ the private operation. This avoids a duplicate phase observation. It does not
 establish a stock cold-reader path, phase TLS, all-reader exclusion or borrowed
 pointer lifetime. Join actual backing/private metadata/decoder/cache to ordinary
 getter and direct bulk, then qualify coherent paired publication, reader and
-maintenance coverage and failure-stop. The
+maintenance coverage and failure-stop. Source inspection further establishes
+that expiry zero permits sampled eviction and a hot getter does not refresh it;
+eager loading is insufficient for future private rematerialization. The later
+ItemInfo finalizer also needs manager state beyond the old private 0xA0 descriptor.
+
+First qualify actual original-header reservation with four extra null slots:
+keep logical counts/maps N, primary cookie N+4 and metadata capacity at least N+4. Getter,
+bulk and maintenance use N, while reset/destruction uses the cookie. A reserved
+observer must validate that exact shape; unmodified Snapshot/Router refuse it.
+Actual typed forwards and cleanup entry thunks need their own proof before
+private rows are staged in those slots. Metadata-reserve Bool false is a normal
+no-growth result. The
 [execution checkpoint](../../../beta-progress/cditem-execution-goal.md#resumed-with-direct-authority-2026-10-23)
 owns exact source/capture/restoration pins and the retained failed controls.
 

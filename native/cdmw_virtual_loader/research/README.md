@@ -221,3 +221,12 @@ allocation/reservation, private rows/cache/decoder and both getter/bulk routes
 under concrete reader/maintenance coverage, coherent paired maps, failure-stop
 and lifetime. The portable experiment remains an ordering reference for that
 integration; it does not supply the missing native boundary.
+
+The newer complete consumer-source pass explains stock eager materialization
+and the later derived-manager validation. Expiry zero permits sampled eviction;
+it cannot pin a private record permanently. The smallest new actual test forwards
+four original-header calls to reserve a null tail while counts/maps stay N and
+cookie/capacity become N+4. Ordinary walks use N, cleanup uses the cookie; actual
+cleanup entry thunks remain to qualify. Old Snapshot/Router require cookie==count
+and cannot validate this shape unchanged. A later checked Cache tail-seed would
+prove staging only. Keep central getter/bulk, derived-state acceptance and lifetime open.

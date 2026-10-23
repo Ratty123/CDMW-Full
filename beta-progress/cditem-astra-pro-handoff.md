@@ -113,6 +113,18 @@ nor callback TLS proves the cold stock-reader or phase context. Constructor key/
 name adapters are not lifecycle callbacks. Exact newer receipts are pinned in
 the execution checkpoint; original acceptance states remain unchanged.
 
+Complete consumer-source review now explains `+0x60` stock materialization/name
+construction/body close and the later `+0x40` auxiliary-state/link validation.
+The private 0xA0 descriptor is not a valid derived-finalizer owner. Expiry zero
+permits sampled eviction; eager rows cannot replace private rematerialization.
+The next actual step is four original-header forwards reserving a null tail
+with stock logical counts/maps N and cookie/capacity N+4. Ordinary walks use N;
+reset/destruction uses the cookie, and actual cleanup entry thunks still need
+qualification. Old Snapshot/Router reject the reserved shape unchanged. Reuse
+the exact B81 Cache only for a later off-count staging step after reservation
+proof. This supplies no central getter/bulk or finalization acceptance. The
+84-pin source-only receipt is pinned in the execution checkpoint.
+
 Retained local source-only results under the native-path continuation:
 `run/b115-current-owner-v2/source-check-receipt.json` (41 focused checks;
 SHA-256 `7ea832863efff4c2b451a545b0f35c3defac7822fe6c07be71430ef34082dd1f`)

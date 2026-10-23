@@ -74,9 +74,11 @@ resource use, equip and saves still require their own evidence.
    The new producer's compiled and aggregate controls pass; prepare its own caller.
    Native context independence, resource use and general retirement remain open.
 2. Carry common preflight and retained ownership into actual B106 backing,
-   private metadata and decoder routing through getter and bulk. Reuse the
-   actual serial-dispatch/AF1 stock evidence; qualify reader/maintenance coverage,
-   failure-stop and lifetime before either native map exposes an entry.
+   first qualifying four original-header forwards that reserve a null tail
+   without changing stock logical counts/maps. Reuse actual AF1 evidence with
+   the exact N/count versus N+4/cookie shape. Then join decoding through getter
+   and bulk, later derived-state checks, reader/maintenance coverage and lifetime.
+   Expiry zero permits eviction; eager loading cannot waive rematerialization.
 3. Integrate native definitions and resources, prove first acquisition, then run
    two same-donor packages through equip/restart/update/removal/save.
 
@@ -103,6 +105,8 @@ the preceding 24-case preparation evidence remains in
 `workspace/reports/cditem-execution/20261021-package-resource-images/`.
 
 ## Completed work
+
+- 2026-10-23 | CDISO-RE-02 resident/cleanup source contract | Complete consumer-source review explains the stock pre-finalizer state: `+0x60` materializes rows/builds names/closes the body; `+0x40` later validates links and builds additional manager state. Expiry zero permits sampled eviction; hot getters do not refresh it. Logical-count walks skip an off-count tail, while reset/destruction uses the primary cookie. The next actual discriminator is four original-header forwards reserving a null tail with counts/maps unchanged. All 84 source pins match; no new native execution or acceptance closure follows. Evidence: `workspace/reports/cditem-execution/20261021-native-path-continuation/api-source-review/20261023-iteminfo-resident-semantics/iteminfo-resident-semantics-source-review.json`.
 
 - 2026-10-23 | CDISO-RE-02 actual loader caller and phase reconciliation | B119 captures return RIP `0x14FA45A99`, joined to the serial 149-family dispatcher in the unchanged executable. Independent physical/source/process review passes; exact restoration completes in 24.391 seconds. Reused B115 AF1 captures already show all 6,816 stock slots resident with matching keys and both maps, before C. A proposed duplicate phase probe is withdrawn. Reader exclusion, private central dispatch, failure-stop and lifetime remain open; acceptance states are unchanged. Evidence: `workspace/reports/cditem-execution/20261021-native-path-continuation/api-source-review/20261023-b119-caller-review/actual-chain-review.json` and `api-source-review/20261023-b119-dispatch-join/b115-af1-evidence-reconciliation.json` in that continuation.
 

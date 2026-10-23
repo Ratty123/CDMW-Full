@@ -191,13 +191,34 @@ cannot be projected onto the other phase thread. Receipt:
 26,038 bytes, SHA-256
 `ef5bd529421bf65674e40f519b7be1deb239505346d87a74cd4ff2c8a1b34366`.
 
-Next, join actual central allocation/reservation, immutable private rows and the
-real constructor/decoder/cache to both ordinary getter and direct bulk dispatch,
-with coherent backing/metadata/maps and concrete reader/maintenance coverage.
-Resident stock samples do not prove a permanent no-cold invariant or a usable
-stock BodyReader. Qualify failure-stop and retained-pointer lifetime before any
-central exposure. Constructor-registered key/name adapters are not lifecycle
-callbacks; neither the global setter, loader return nor AF1 alone makes publication safe.
+The complete consumer-source review explains the stock observation: `+0x60`
+loads a body, materializes logical-count rows and builds names, then closes the
+body. The later `+0x40` pass builds auxiliary manager state and validates links;
+the old private 0xA0 descriptor cannot host it. Expiry zero is eligible for
+sampled eviction, and a hot getter does not refresh it. Eager residency therefore
+does not replace private rematerialization or lifetime support. Direct bulk still
+loads the stock body before checking resident cells. Source-only receipt:
+`api-source-review/20261023-iteminfo-resident-semantics/iteminfo-resident-semantics-source-review.json`,
+60,790 bytes, SHA-256
+`a0520db9ac6c514233ea0e69b929c77e6388fac46d629accaf942b7b3268426d`;
+84 source pins checked, with no new native/game execution.
+
+The next actual discriminator forwards four exact original-header helpers to
+reserve four additional primary/expiry/metadata slots, keeping logical counts
+and public maps at stock N. Observe primary cookie N+4, metadata capacity at
+least N+4 and a null tail at AF1 before private row staging. Normal getter, bulk and
+maintenance walk logical N; reset/destruction uses the cookie N+4. Old stock
+Snapshot and Router require cookie==count and cannot validate this reserved
+shape unchanged. Actual cleanup entry thunks, typed forwarding, code lifetime
+and failure behavior need their own qualification; B106's fixture jumps do not
+qualify game cleanup. Metadata-reserve Bool false means no growth, not failure.
+
+Then join immutable private rows and the real constructor/decoder/cache to the
+reserved storage and both getter/bulk routes, with coherent paired maps, later
+derived-state validation and concrete reader/maintenance coverage. Qualify
+failure-stop and retained-pointer lifetime before central exposure. Constructor
+key/name adapters are not lifecycle callbacks; setter, loader return and AF1
+alone do not make publication safe.
 
 The historical ThinkForge goal is cancelled from the earlier pause and cannot
 resume through its available tool; the active Codex goal and these existing
