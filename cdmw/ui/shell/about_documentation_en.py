@@ -30,8 +30,29 @@ CREATE_NEW_ITEM_SECTION = {
     <p>Installed overlays removes a selected CDMW install while preserving the others. Shared-file conflicts and recipe dependencies can block removal.</p>
     <p>Merge mods writes a separate DMM package from compatible mod folders. Conflicts block export. Use the merged package in place of its source packages.</p>
     <p>Check mods for game updates compares recorded originals with the current game. Review conflicts before writing a separate updated DMM package; source mods and game files stay unchanged.</p>
-    <p>Tier, Required level and Max durability inherit the template until changed. Reset restores inheritance. These are raw game values; unavailable layouts are disabled and in-game effects remain unverified. Explicit overrides use .cditem v2 and require a reader supporting item.properties; recipes without them retain v1 compatibility.</p>
     <p>Effects are approximate previews and do not add elemental damage. A successful build or game startup does not verify equipping, appearance, stats, or behavior in a save.</p>
+    <h4>Template</h4>
+    <p>Start with a template from the same equipment family. Keep its original model for a first test, set a name, choose one supported shop route, then build a separate package. This checks identity and distribution before you add imported geometry, materials or effects.</p>
+    <h4>Identity</h4>
+    <p>Use the player-facing name and description for what the player sees. Automatic technical identifiers avoid known collisions; Manual is an advanced choice. Changing the mod folder name changes package metadata, not the item's identity. Updating an existing independent package must preserve its selected package identity explicitly.</p>
+    <h4>Model &amp; Placement</h4>
+    <p>Import the model with its referenced textures. FBX uses the configured Blender executable. Inspect every part and variant; armour needs compatible skin weights and a supported template or body donor. A section cannot exceed 65,535 vertices. A working preview alone does not establish export compatibility.</p>
+    <p>Move, Rotate and Scale select the preview handles. Placement numbers provide exact values; Uniform scale keeps proportions when changing an axis. Review the character reference, size and attachment from several angles. Choose Apply placement before Build plan, and apply again after changing the imported model or placement.</p>
+    <p>Appearance belongs to the selected model variant. Review its materials, textures, glow, transparency and icon separately. Imported-model dyes start disabled. Blended transparency and painted cutouts have different shader requirements; overlapping transparent surfaces and unsupported transmission can differ from the game. Inspect the plan's material warnings.</p>
+    <h4>Stats &amp; Prices</h4>
+    <p>Compare raw values with the template before changing them. Price and enhancement data are separate from visual appearance. Advanced stats, extra levels and bonuses are experimental; a number accepted by the editor is not proof that the game interprets it as intended.</p>
+    <p>Tier, Required level and Max durability inherit the template until changed. Reset restores inheritance. These are raw game values; unavailable layouts are disabled and in-game effects remain unverified. Explicit overrides use .cditem v2 and require a reader supporting item.properties; recipes without them retain v1 compatibility.</p>
+    <h4>Effects &amp; Perks</h4>
+    <p>Browse effects, filter by category or timing, and inspect the selected effect in the placed preview. Review layers, emitters and attachment placement, then apply staged changes before planning. Visual effects and gameplay perks are separate. Keep the default four-perk limit unless deliberately testing the experimental higher limit.</p>
+    <h4>Distribution</h4>
+    <p>Choose how the player obtains the item: a supported shop, recipe, reward or item group. Review quantities, prices, ingredients and dependencies. Recipes and reward edits remain experimental. A valid item record without a working distribution route may never become available during normal play.</p>
+    <h4>Output</h4>
+    <p>Choose the manager, destination and any existing-mod base before Build plan. Read the planned additions, dependencies, warnings and blocking errors. Changing these inputs invalidates the plan. Build plan is read-only; exporting a folder, writing a package and installing an overlay are separate actions.</p>
+    <p>Mod folder supports CDUMM, JMM and build-dependent DMM output, with an optional ZIP. DMM has been re-enabled for testing with an updated manager; new-item and texture preservation still needs in-game verification. Older builds disable this route. Check the installed versions and release notes before choosing it.</p>
+    <p>Add to existing mod deliberately extends a selected package. Include mounted items in a new mod copies supported installed overlay items into a separate package. Review every included item and archive, and follow the generated replacement and rollback instructions rather than enabling overlapping source and combined packages together.</p>
+    <p>Independent item package writes a portable .cditem authoring package, not a game archive. Add it in Mod Management, review Apply changes and use the documented experimental launch route. Physical installation is a separate advanced action. Unknown ownership conflicts, missing dependencies and unsupported modules remain blocked.</p>
+    <h4>Troubleshooting</h4>
+    <p>If Build plan reports unapplied changes, return to the model or effect step and apply them. For missing textures, inspect the import dependencies. For unavailable outputs, read the selected manager's requirements. Keep the original model, working files, exported package and installation receipt distinct so recovery does not depend on the preview session.</p>
                 """,
 }
 
@@ -67,6 +88,7 @@ class AboutDocumentationEnglishMixin:
                   <tr><td>Utilities</td><td><a href="topic:mod_management">Mod Management</a> (including <a href="topic:mod_package_retrofit">Repackage</a>), <a href="topic:format_explorer">Format Explorer</a>, <a href="topic:translation_studio">Translations</a>, <a href="topic:research">Research</a>, and <a href="topic:text_search">Text Search</a></td></tr>
                 </table>
                 <p>On a first run, follow the <a href="topic:first_run_checklist">First Run Checklist</a>. Compact Workspace is the first-run layout; a saved Compact or Classic choice remains authoritative.</p>
+                <p>Documentation follows the source build it describes. Published releases and development builds can differ; check the release notes when controls or output options differ from your installed version.</p>
                 """,
             },
             {
@@ -427,6 +449,8 @@ class AboutDocumentationEnglishMixin:
                   <li>Edits and Undo/Redo stay in an isolated session until Finish Edit Mesh validates and publishes the result. Run validation again before exporting the changed revision.</li>
                 </ul>
                 <p>Use Orbit to navigate without editing: right-drag orbits, middle-drag pans, and the wheel zooms. Fit frames the whole mesh; Frame Selected frames the selection. Solid (Textured) needs resolved materials. Solid + Wire, X-Ray, Normals, Bounds, and Bones provide inspection views.</p>
+                <h4>Parts</h4>
+                <p>View hides geometry only in the viewport; Mod or Include controls output inclusion. Use Output Preview to inspect the prepared result. Mesh islands addresses disconnected pieces within a part. Unsupported lower-LOD mappings block exclusion rather than guessing which triangles should disappear.</p>
                 <h4>Replacement imports</h4>
                 <p>Use Import Replacement... for an entire archive mesh or selected parts. Map every imported part, then choose original materials or imported materials and textures.</p>
                 <p>Imports keep their decoded size and position. Fit to Original is optional; Reset Placement restores the import. Mod controls output inclusion; viewport hiding stays independent.</p>
@@ -449,16 +473,26 @@ class AboutDocumentationEnglishMixin:
                 <h4>Rig &amp; Weights</h4>
                 <p>Rig &amp; Weights is temporarily hidden from the tool rail. Its implementation is retained.</p>
                 <h4>Morph &amp; Refit</h4>
-                <p>Use Browse Body... and Browse Armor... to load archive assets. Assign the body as the driver, then select and bind the garments. Reset or Bake before changing the setup. Finish Edit Mesh keeps both body and armor edits; Build Mod rebuilds each asset at its original archive path. Refit changes geometry, not skeletons or animation.</p>
+                <p>For an existing item, start with Modify Original. Load or assign the body driver, load the garments, select their parts and bind them. Inspect the fit at cuffs, underarms, belts and thin trim. Reset discards a preview; Bake keeps it. Refit changes geometry, not the skeleton or animation.</p>
                 <p>Fit to body previews every bound garment in Surface mode at 100% intensity, with at least 0.1% clearance. No body slider is required. Reset discards the preview; Bake keeps it.</p>
                 <p>Large fits and body-slider changes can take up to 90 seconds. Inspect cuffs, underarms, belts and thin trim before baking; complex folds can still need manual adjustment. Undo a poor bake or reload the original meshes before fitting again.</p>
-                <h4>Save and build</h4>
+                <p>When fitting and removing parts, a reliable sequence is fit, inspect, Bake, Finish Edit Mesh, then Start next edit pass. Exclude unwanted parts in that next pass and build the mod. Unsupported topology remains unsupported after reopening. Body and garment outputs retain their separate original archive paths.</p>
+                <h4>Finish Edit Mesh</h4>
+                <p>Finish accepts one validated revision into CDMW. It does not write a mod folder, install an overlay or guarantee that a recoverable draft was saved. Build Mod can reuse that validation until another edit changes the revision. Free Edit uses its own export package route.</p>
+                <p>Resume current edit continues the accepted working session with the original source as reference. Start next edit pass rebuilds the accepted game bytes as a new baseline. Add to Archive Browser prepares Edited results for the current app session; those entries do not survive restarting CDMW.</p>
+                <h4>Drafts</h4>
+                <p>Draft recovery needs an associated project and matching source data. Keep the project descriptor, workspace manifest and saved generations together. A source mismatch refuses recovery. A recovered older generation is not proof that the latest edit or exported package was recovered.</p>
+                <h4>Export Mesh File</h4>
+                <p>For external editing, keep the exported GLB, FBX or OBJ with its CDMW companions. Exact return needs stable vertex and joint identity; topology-changing modifiers can invalidate it. In Blender, preserve _CDMW_VERTEX_ID attributes for GLB or the CDMW_VERTEX_ID UV layer for FBX, export the intended meshes and armature, and include all bone influences. Follow the editable exchange guide for format-specific settings.</p>
+                <h4>Build Mod</h4>
+                <p>Build Mod includes required generated companions. A single mesh file may be unavailable when those companions cannot travel with it. Existing output folders and ZIPs are not overwritten. After an uncertain outcome, inspect the final output before retrying with a new destination.</p>
+                <p>To verify an export, reopen the actual completed output with its dependencies and compare a known edit. Opening the original archive entry or resuming the live editor does not read back the exported bytes. Preview appearance and package validation remain separate from in-game testing.</p>
                 <ul>
                   <li>Export Mesh File writes a separate rebuilt asset. Build Mod writes a loose manager package or a DMM archive-group package.</li>
                   <li>Install as Overlay requires review, confirmation, a closed game, and verified recovery. Restore Last Overlay Install uses the saved receipt.</li>
                 </ul>
                 <p>Use Textures for texture editing; Hair Appearance also has a dedicated DDS editing handoff. Use Create New Item for a new equipment identity and Placement &amp; Animations for equipment placement.</p>
-                <p>The Rust editor controls currently remain in English. The surrounding app and this guide use the selected interface language.</p>
+                <p>Mesh Editor follows the selected interface language. Tool availability still depends on the source format, selected LOD and output route.</p>
                 """,
             },
         ]
@@ -599,6 +633,24 @@ class AboutDocumentationEnglishMixin:
     def _build_reference_sections(self) -> List[Dict[str, str]]:
         return [
             {
+                "id": "contributing",
+                "title": "Contributing",
+                "category": "Reference",
+                "summary": "Report problems, contribute focused changes and maintain both documentation surfaces.",
+                "keywords": "contributing wiki documentation source build tests security translations",
+                "html": """
+                <p>Use the repository's contribution guide for development requirements and reporting policy. Describe the task, expected result and a reproducible example. Keep code changes focused and run the checks for the affected behaviour. Report source, packaged, preview and game checks separately.</p>
+                <p>Update the GitHub Wiki and Help documentation when workflows, controls, output support or limitations change. Keep all 14 interface locales aligned. The shared documentation source and translation catalogues supply both surfaces; export and check the Wiki before publication.</p>
+                <p>Keep detailed format findings in the public research reference and exact contracts in their owning feature documentation. Do not include game assets, extracted archives, private diagnostics or build output in contributions. Security-sensitive reports follow the security policy.</p>
+                <ul>
+                  <li><a href="https://github.com/Ratty123/CDMW-Full/blob/main/CONTRIBUTING.md">Contributing</a></li>
+                  <li><a href="https://github.com/Ratty123/CDMW-Full/blob/main/README.md#build-from-source">Build from source</a></li>
+                  <li><a href="https://github.com/Ratty123/CDMW-Full/blob/main/tests/README.md">Tests</a></li>
+                  <li><a href="https://github.com/Ratty123/CDMW-Full/blob/main/SECURITY.md">Security</a></li>
+                </ul>
+                """,
+            },
+            {
                 "id": "mod_packaging",
                 "title": "Mod Packaging & Output",
                 "summary": "How loose output, mod-ready folders, metadata, and backups fit together.",
@@ -608,7 +660,7 @@ class AboutDocumentationEnglishMixin:
                 <ul>
                   <li><b>Output root</b> is the normal DDS result folder for Texture Workflow.</li>
                   <li><b>Mod-ready export</b> writes a package-prefixed loose tree with <code>manifest.json</code> and optional manager metadata when that export mode is enabled.</li>
-                  <li><b>Target Mod Managers</b> can write DMM, CDUMM, JMM JSON, Crimson Sharp / Crimson Browser, and Field-JSON v3.1 shapes. CDUMM uses <code>manifest.json</code>, <code>modinfo.json</code>, <code>.no_encrypt</code>, and a <code>files/</code> wrapper; DMM texture folders use <code>modinfo.json</code>, while DMM mesh folders keep <code>manifest.json</code> plus <code>modinfo.json</code>.</li>
+                  <li><b>Target Mod Managers</b>: choose a profile supported by the producing tool. Mesh, texture and new-item packages have different layouts and compatibility limits. Keep the generated folder structure and descriptors intact; do not copy metadata rules from another workflow.</li>
                   <li><b>Texture Replacer</b> is usually the cleanest path for one-off mod-ready texture output because it starts from the edited file and its matched original.</li>
                   <li><b>Archive Browser</b> patch workflows are explicit, confirmed operations with backup/restore support where implemented. They are not part of ordinary browsing.</li>
                 </ul>
@@ -736,6 +788,8 @@ class AboutDocumentationEnglishMixin:
                   <li><b>Archive preview limits</b>: unusual DDS layouts and very large archive scans are still best-effort cases.</li>
                   <li><b>Technical textures</b>: preserve-first handling is still the safer default for normals, masks, packed channels, vectors, and other precision-sensitive maps.</li>
                 </ul>
+                <h4>Report a Problem</h4>
+                <p>Report a Problem is below Support Me in the sidebar and also under Help. Include the installed version, exact action, reproduction steps, expected and actual result, and relevant game or manager setup. Prepare and review the diagnostic draft and screenshots before sending. Reports go to a separate private inbox; keep report evidence links private.</p>
                 """,
             },
         ]

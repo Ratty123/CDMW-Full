@@ -58,6 +58,10 @@ _DECLARED_PYTHON_UI_RETURN_METHODS = {
 MANUAL_SOURCE_KEYS = frozenset(
     {
         "item properties changed",
+        # Planner descriptions are composed into the shared Help/Wiki HTML.
+        ": Visible-color PNG path: generic 8-bit image staging for color-like textures.",
+        ": Technical preserve path: keep the original DDS unchanged because the current workflow is not trusted for this texture.",
+        ": Technical high-precision path: use high-bit-depth staged PNG data for eligible scalar technical textures instead of the generic visible-color path.",
         # Morph host/service refusals forwarded through the Rust error protocol.
         "Cannot fit excluded islands without valid source face identities.",
         "Undo replacement operations before adding geometry layers.",

@@ -135,6 +135,13 @@ article links, breadcrumbs, and back/forward history. English topic data in
 the shared localization catalog instead of maintaining separate translated
 topic copies.
 
+`scripts/export_github_wiki.py --output <wiki-folder>` renders those same topics
+and catalogues as GitHub Markdown for all 14 locales. The exporter adds local
+language navigation, task indexes, stable section anchors and labelled callouts;
+it never pushes or changes repository settings. `--check` compares the local
+pages with their source. Keep generated Wiki pages in their separate checkout,
+and review both documentation surfaces when a user-facing contract changes.
+
 ## Settings and display scaling
 
 Settings font sizes are exact user preferences; responsive screen scaling may

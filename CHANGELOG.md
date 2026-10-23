@@ -44,6 +44,7 @@ experimental-feature notes do not establish equivalent in-game behavior.
 ### Docs
 
 - Add a public Crimson Desert research reference covering file formats, findings, evidence levels and open questions, with ongoing maintenance and archival guidelines.
+- Expand Create New Item and Mesh Editor guides, including output review, fitting, draft recovery and external editing, with matching Wiki guides in all 14 interface locales.
 
 ## [0.11.0-alpha.24] - 2026-10-20
 

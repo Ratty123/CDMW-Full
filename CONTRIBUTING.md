@@ -68,6 +68,14 @@ feature README own exact implementation contracts. Update those owners and the
 affected research sections together when the supported behaviour or evidence
 changes; do not create a competing overview.
 
+The GitHub Wiki and **Help > Documentation** must also reflect user-facing
+workflow, navigation, settings, output, installation and limitation changes.
+Keep all 14 built-in interface locales aligned. The in-app documentation source
+and its translation catalogues supply the Wiki guides; export them into a local
+Wiki checkout with `python scripts/export_github_wiki.py --output <wiki-folder>`,
+then use the same command with `--check` to verify freshness. This command does
+not publish. Review the generated pages and links before an authorized Wiki push.
+
 ### Confirmed progress
 
 Before handing off a research or implementation task, review whether it changes
