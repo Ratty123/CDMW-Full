@@ -302,8 +302,9 @@ the UI does not expose a misleading refraction slider.
 
 ## Opening meshes and preparing sessions
 
-PAC readers use the file's declared LOD count to locate geometry. Supported two-,
-three- and four-LOD models retain the corresponding highest-detail source records.
+PAC readers distinguish the declared LOD count from the reserved geometry slots.
+A three-LOD game model can retain LOD0 in slot 4, with its lowest slot empty.
+Reading, cloth-record inspection and supported rebuilds retain that arrangement.
 Position edits that expand the bounds preserve lower-LOD positions and packed skin
 records within the existing quantization limits; other output restrictions still apply.
 
@@ -2060,11 +2061,12 @@ Hovering a Part name temporarily highlights its visible geometry in cyan, includ
 obscured surfaces, without changing the selection or fitting targets. This also works
 with Part colors off; leaving the name clears the hover tint. Hidden Parts and islands
 stay hidden, and comparison views keep their own display. Hovering a surface in the
-viewport also outlines its matching Part names in cyan and scrolls them into view
-in open lists. It moves only enough to reveal a name and keeps an already visible
+viewport also opens the Parts list, expanding Inspector or switching from Mesh
+islands when needed. It outlines matching Part names in cyan and scrolls them into
+view in open lists. It moves only enough to reveal a name and keeps an already visible
 match in place, including fit warnings. It uses the frontmost visible surface,
 keeps selection and fitting edits, and clears over empty space or during drags.
-Leaving the viewport cancels pending scrolling; closed sections stay closed.
+Leaving the viewport cancels pending scrolling; other closed sections stay closed.
 
 If fitting is refused, Fit shows the affected garment names, a short reason and a
 targeted next step. Overlaps suggest more Clearance (0.1% when starting at zero) or

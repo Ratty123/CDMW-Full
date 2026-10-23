@@ -473,11 +473,84 @@ fn workflow_viewport_part_hover_scroll_cancels_stale_targets_and_yields_to_manua
     ui.click("Back to Inspector")?;
     ui.frame(vec![Event::PointerMoved(last)]);
     ui.settle_layout();
-    assert!(ui.application.cdmw_part_name_scroll.is_none());
-    assert!(ui.label_rect("Back to Inspector").is_none(), "closed Parts list must stay closed");
+    assert!(ui.label_rect("Back to Inspector").is_some(), "viewport hover must reopen the Parts list");
+    assert!(part_name_has_viewport_outline(&ui, "59: Piece 59"));
     assert!(ui.label_rect("60 · Piece 59").is_none(), "closed garment list must stay closed");
     assert_eq!(ui.application.selected_part_indices(), vec![2]);
     assert!(ui.last_actions.is_empty());
+    assert!(ui.application.cdmw_pending_request.is_none());
+    Ok(())
+}
+
+#[test]
+fn workflow_viewport_part_hover_opens_closed_parts_and_keeps_selection_and_fit_edits() -> TestResult {
+    for closed in ["Inspector", "Collapsed", "Mesh islands"] {
+        let mut ui = long_part_hover_ui()?;
+        let root = tempdir()?;
+        ui.application.cdmw_bridge = Some(CdmwBridge::for_test(root.path().to_path_buf(), "hover-open", 2, 0));
+        ui.open_refit_detail("Choose garments")?;
+        if closed == "Mesh islands" {
+            ui.click("Mesh islands")?;
+        } else {
+            ui.click("Back to Inspector")?;
+            if closed == "Collapsed" {
+                let collapse = ui.sidebar_button("Collapse Inspector").ok_or("collapse")?;
+                ui.click_at(collapse.rect.center());
+                ui.settle_layout();
+                assert!(ui.sidebar_button("Expand Inspector").is_some());
+            }
+            assert!(ui.application.cdmw_part_name_rows.is_empty(), "all Part name lists must start closed");
+        }
+        let state = ui.application.cdmw_state.clone();
+        let mesh = ui.application.mesh.as_ref().ok_or("mesh")?.clone();
+        let targets = ui.application.cdmw_refit_region_targets.clone();
+        ui.last_actions.clear();
+        ui.frame(vec![Event::PointerMoved(viewport_part_point(&ui, 59)?)]);
+        ui.frame(Vec::new());
+        assert!(ui.label_rect("Back to Inspector").is_some(), "Parts did not open from {closed}");
+        // Expanding the sidebar changes the viewport size. Continue hovering
+        // the same surface at its current projected position.
+        ui.frame(vec![Event::PointerMoved(viewport_part_point(&ui, 59)?)]);
+        ui.settle_layout();
+        assert!(part_name_has_viewport_outline(&ui, "59: Piece 59"), "Part not revealed from {closed}");
+        assert!(ui.label_rect("60 · Piece 59").is_none(), "collapsed fitting sections must stay closed");
+        assert_eq!(ui.application.cdmw_state, state);
+        let current = ui.application.mesh.as_ref().ok_or("mesh")?;
+        assert_eq!(current.selection, mesh.selection);
+        assert_eq!(current.selection_revision, mesh.selection_revision);
+        assert_eq!(current.structural_fingerprint(), mesh.structural_fingerprint());
+        assert_eq!(ui.application.cdmw_refit_region_targets, targets);
+        assert_eq!(ui.application.cdmw_refit_clearance, 0.75);
+        assert!(ui.application.cdmw_refit_settings_dirty.is_dirty());
+        assert!(ui.last_actions.is_empty());
+        assert!(ui.application.cdmw_pending_request.is_none());
+        ui.click("Back to Inspector")?;
+        ui.settle_layout();
+        assert!(ui.label_rect("Back to Inspector").is_none(), "closing from the Inspector must remain possible");
+    }
+    Ok(())
+}
+
+#[test]
+fn workflow_viewport_part_hover_leaves_closed_parts_alone_over_empty_space_and_during_drags() -> TestResult {
+    let mut ui = mixed_refit_ui(&[2])?;
+    ui.click("Back to Inspector")?;
+    ui.application.camera.frame_all_in_viewport(ui.application.mesh.as_ref().ok_or("mesh")?,
+        ui.application.viewport_rect.ok_or("viewport")?);
+    let empty = ui.application.viewport_rect.ok_or("viewport")?.right_bottom() - egui::vec2(4.0, 4.0);
+    ui.frame(vec![Event::PointerMoved(empty)]);
+    ui.settle_layout();
+    assert!(ui.label_rect("Back to Inspector").is_none());
+    let point = viewport_part_point(&ui, 1)?;
+    ui.frame(vec![Event::PointerMoved(point), Event::PointerButton { pos: point,
+        button: PointerButton::Secondary, pressed: true, modifiers: egui::Modifiers::NONE }]);
+    ui.settle_layout();
+    assert!(ui.label_rect("Back to Inspector").is_none());
+    ui.frame(vec![Event::PointerButton { pos: point, button: PointerButton::Secondary,
+        pressed: false, modifiers: egui::Modifiers::NONE }, Event::PointerGone]);
+    ui.settle_layout();
+    assert!(ui.label_rect("Back to Inspector").is_none());
+    assert_eq!(ui.application.selected_part_indices(), vec![2]);
     assert!(ui.application.cdmw_pending_request.is_none());
     Ok(())
 }

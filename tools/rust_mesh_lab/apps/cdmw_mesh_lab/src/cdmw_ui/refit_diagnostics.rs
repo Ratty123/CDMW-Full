@@ -90,7 +90,7 @@ impl LabApplication {
     pub(super) fn highlight_cdmw_part_names_from_viewport(
         &mut self, ui: &egui::Ui, rectangle: egui::Rect, response: &egui::Response,
     ) {
-        if self.cdmw_part_name_rows.is_empty() || !response.hovered() || !self.cdmw_viewport_part_hover_allowed(ui.ctx()) {
+        if !response.hovered() || !self.cdmw_viewport_part_hover_allowed(ui.ctx()) {
             self.cdmw_part_name_scroll = None;
             return;
         }
@@ -102,7 +102,23 @@ impl LabApplication {
         let part = self.projection.as_ref().and_then(|projection| projection.part_at(Vec2::new(point.x, point.y)));
         self.cdmw_viewport_hovered_part = part;
         let Some(part) = part else { self.cdmw_part_name_scroll = None; return; };
-        self.queue_cdmw_part_name_scroll(part, response.layer_id);
+        let panel_id = egui::Id::new("cdmw_parts_panel_open");
+        let tab_id = egui::Id::new("cdmw_parts_panel_islands");
+        let parts_closed = !cdmw_sidebar_visible(ui.ctx(), CDMW_INSPECTOR_SIDEBAR)
+            || ui.ctx().data_mut(|data| !data.get_temp::<bool>(panel_id).unwrap_or(false)
+                || data.get_temp::<bool>(tab_id).unwrap_or(false));
+        if parts_closed {
+            set_cdmw_sidebar_expanded(ui.ctx(), CDMW_INSPECTOR_SIDEBAR, true);
+            ui.ctx().data_mut(|data| {
+                data.insert_temp(panel_id, true);
+                data.insert_temp(tab_id, false);
+            });
+            // The Inspector is drawn before the viewport. Plan scrolling once
+            // its newly opened Parts rows exist on the next frame.
+            self.cdmw_part_name_scroll = None;
+        } else {
+            self.queue_cdmw_part_name_scroll(part, response.layer_id);
+        }
         let [r, g, b, _] = PART_HOVER_COLOUR;
         let colour = Color32::from(egui::Rgba::from_rgb(r, g, b));
         // Paint an identification cue on this frame's clipped name rows. Their
