@@ -1682,15 +1682,16 @@ def _validated_pac_descriptor_prefix(
     sections: list[dict],
     *,
     filename: str = "",
+    lod_count: int = 4,
 ) -> list[PacDescriptor]:
     """Drop trailing heuristic matches only when a descriptor prefix exactly fits every LOD section."""
 
-    if len(descriptors) < 2:
+    if len(descriptors) < 2 or not 1 <= lod_count <= 4:
         return descriptors
     geometry_sections = tuple(
-        (section, 4 - int(section.get("index", -1)))
+        (section, lod_count - int(section.get("index", -1)))
         for section in sections
-        if int(section.get("index", -1)) in {1, 2, 3, 4}
+        if 1 <= int(section.get("index", -1)) <= lod_count
         and int(section.get("size", 0) or 0) > 0
     )
     if not geometry_sections:
@@ -2213,20 +2214,22 @@ def parse_pac(data: bytes, filename: str = "") -> ParsedMesh:
     if n_lods <= 0 or n_lods > 10:
         return _pac_fallback_pam(data, filename)
 
+    geometry_lod_count = min(n_lods, 4)
     descriptors = _validated_pac_descriptor_prefix(
         _find_pac_descriptors(data, sec0["offset"], sec0["size"], n_lods),
         sections,
         filename=filename,
+        lod_count=geometry_lod_count,
     )
     if not descriptors:
         return _pac_fallback_pam(data, filename)
 
     candidates: list[tuple[int, int, int, int, ParsedMesh]] = []
-    for geom_section_idx in [4, 3, 2, 1]:
+    for geom_section_idx in range(geometry_lod_count, 0, -1):
         geom_sec = sec_by_idx.get(geom_section_idx)
         if geom_sec is None:
             continue
-        lod = 4 - geom_section_idx
+        lod = geometry_lod_count - geom_section_idx
         try:
             candidate = _parse_pac_geometry_section(data, filename, descriptors, geom_sec, lod)
         except Exception as exc:
@@ -2509,16 +2512,20 @@ def _build_pac_preview_mesh(data: bytes, filename: str = "") -> PreviewMesh:
     if sec0 is None:
         return _flatten_parsed_mesh_for_preview(parse_pac(data, filename))
 
-    geom_section_idx = next((idx for idx in [4, 3, 2, 1] if idx in sec_by_idx), None)
+    n_lods = data[sec0["offset"] + 4] if sec0["size"] >= 5 else 0
+    if not 1 <= n_lods <= 4:
+        return _flatten_parsed_mesh_for_preview(parse_pac(data, filename))
+    geom_section_idx = next((idx for idx in range(n_lods, 0, -1) if idx in sec_by_idx), None)
     if geom_section_idx is None:
         return _flatten_parsed_mesh_for_preview(parse_pac(data, filename))
 
     geom_sec = sec_by_idx[geom_section_idx]
-    lod = 4 - geom_section_idx
+    lod = n_lods - geom_section_idx
     descriptors = _validated_pac_descriptor_prefix(
-        _find_pac_descriptors(data, sec0["offset"], sec0["size"], max(1, len(sections) - 1)),
+        _find_pac_descriptors(data, sec0["offset"], sec0["size"], n_lods),
         sections,
         filename=filename,
+        lod_count=n_lods,
     )
     if not descriptors:
         return _flatten_parsed_mesh_for_preview(parse_pac(data, filename))

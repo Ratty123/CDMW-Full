@@ -604,14 +604,14 @@ def _preserve_pac_lower_lod_positions(original_data, mesh, bounds, vertex_update
     lod_count = original_data[sec0["offset"] + 4]
     descriptors = _validated_pac_descriptor_prefix(
         _find_pac_descriptors(original_data, sec0["offset"], sec0["size"], lod_count),
-        sections, filename=mesh.path,
+        sections, filename=mesh.path, lod_count=lod_count,
     )
     for lod in range(1, lod_count):
         required = {desc.descriptor_offset for desc in descriptors
                     if desc.descriptor_offset in bounds and desc.vertex_counts[lod]}
         if not required:
             continue
-        section = section_map.get(4 - lod)
+        section = section_map.get(lod_count - lod)
         if section is None:
             raise ValueError(f"PAC bounds expansion cannot prove LOD{lod} vertex ownership.")
         lower = _parse_pac_geometry_section(original_data, mesh.path, descriptors, section, lod)
@@ -1051,6 +1051,7 @@ def _build_pac_full_rebuild(
     descriptors = _validated_pac_descriptor_prefix(
         _find_pac_descriptors(original_data, sec0["offset"], sec0["size"], n_lods),
         sections,
+        lod_count=n_lods,
     )
     sec0_data = bytearray(original_data[sec0["offset"]:sec0["offset"] + sec0["size"]])
     if len(descriptors) < len(original_mesh.submeshes):

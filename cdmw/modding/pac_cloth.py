@@ -65,7 +65,7 @@ def pac_cloth_lods(data: bytes):
         raise ValueError("This PAC LOD layout does not support cloth editing.")
     descriptors = _validated_pac_descriptor_prefix(
         _find_pac_descriptors(data, metadata["offset"], metadata["size"], count),
-        sections, filename="cloth.pac",
+        sections, filename="cloth.pac", lod_count=count,
     )
     if not descriptors:
         raise ValueError("Cloth editing requires the known 40-byte PAC layout.")

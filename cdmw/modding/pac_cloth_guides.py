@@ -106,6 +106,7 @@ def decode_pac_cloth_guides(data: bytes) -> PacClothGuides | None:
     part_count = struct.unpack_from("<H", data, count_offset)[0]
     descriptors = _validated_pac_descriptor_prefix(
         _find_pac_descriptors(data, start, metadata["size"], lod_count), sections,
+        lod_count=lod_count,
     )
     if not descriptors or len(descriptors) != part_count:
         raise ValueError("PAC guide block cannot be located after every descriptor.")

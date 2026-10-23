@@ -408,6 +408,7 @@ def _layout_blockers(
         descriptors = _validated_pac_descriptor_prefix(
             _find_pac_descriptors(original_data, section_0["offset"], section_0["size"], lod_count),
             sections,
+            lod_count=lod_count,
         )
     except PacTopologyRebuildBlocked as blocked:
         return blocked.blockers
@@ -730,6 +731,7 @@ def build_pac_topology_rebuild(
     descriptors = _validated_pac_descriptor_prefix(
         _find_pac_descriptors(original_data, section_0["offset"], section_0["size"], lod_count),
         sections,
+        lod_count=lod_count,
     )
     original_submeshes = tuple(original_mesh.submeshes)
     edited_submeshes = tuple(edited_mesh.submeshes)

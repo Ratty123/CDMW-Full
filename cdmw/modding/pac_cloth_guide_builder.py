@@ -86,7 +86,7 @@ def guide_creation_layout(data: bytes):
     if count_offset + 2 > end:
         raise ValueError("Guide creation requires a complete descriptor count.")
     descriptors = _validated_pac_descriptor_prefix(
-        _find_pac_descriptors(data, start, metadata["size"], lods), sections)
+        _find_pac_descriptors(data, start, metadata["size"], lods), sections, lod_count=lods)
     count, = struct.unpack_from("<H", data, count_offset)
     if not descriptors or len(descriptors) != count:
         raise ValueError("Guide creation cannot locate every PAC descriptor.")

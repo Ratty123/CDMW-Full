@@ -251,6 +251,7 @@ def decode_pac_embedded_volumes(data: bytes) -> PacEmbeddedVolumes:
         part_count, = struct.unpack_from("<H", data, count_offset)
         descriptors = _validated_pac_descriptor_prefix(
             _find_pac_descriptors(data, start, metadata["size"], lod_count), sections,
+            lod_count=lod_count,
         )
         if not descriptors or len(descriptors) != part_count:
             raise ValueError("PAC model volumes cannot be located after every descriptor.")

@@ -88,7 +88,7 @@ def palette_layout(data):
             or data[count_at + 2:insertion] != struct.pack(f"<{len(hashes)}I", *hashes)):
         raise ValueError("Palette extension cannot prove the sequential palette boundary.")
     descriptors = _validated_pac_descriptor_prefix(
-        _find_pac_descriptors(data, start, metadata["size"], lods), sections)
+        _find_pac_descriptors(data, start, metadata["size"], lods), sections, lod_count=lods)
     count, = struct.unpack_from("<H", data, start + 5 + 8 * lods)
     if not descriptors or len(descriptors) != count:
         raise ValueError("Palette extension requires every original descriptor.")

@@ -439,6 +439,7 @@ def _pac_runtime_abi_preflight_errors(
         descriptors = _validated_pac_descriptor_prefix(
             _find_pac_descriptors(data, int(sec0["offset"]), int(sec0["size"]), n_lods),
             sections,
+            lod_count=n_lods,
         )
     except Exception as exc:
         return (f"Complete source-owned swap PAC runtime ABI validation failed: {exc}",)
