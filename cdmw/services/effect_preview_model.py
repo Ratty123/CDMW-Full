@@ -631,6 +631,11 @@ def _emitter_preview(
     if mesh_name and not points:
         notes.append(f"{name}: spawn mesh {mesh_name.rsplit('/', 1)[-1]} was not read; choose an item or character surface for the preview")
     particle_mesh = _string_from(sources, "_meshObjectFileName")
+    # Sprite geometry (the omitted/default enum value 0) can retain an unused
+    # mesh filename. Reading that as a mesh hides sprites when the file is absent
+    # or substitutes unrelated triangles when it exists. Keep other modes intact.
+    if int(_read(sources, "_renderData", "_geometryType", 0, _number)) == 0:
+        particle_mesh = ""
     # EmitterSpawnData's native constructor initializes this enum to 2.
     spawn_volume = int(_read(sources, "_spawnData", "_spawnVolumeType", 2, _number))
     if spawn_volume in (5, 6) and not points:
