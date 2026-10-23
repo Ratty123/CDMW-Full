@@ -8004,7 +8004,7 @@
     "Open Package in CDMW...": "Open Package in CDMW...",
     "Open Page": "Open Page",
     "Open Parts on hover": "Open Parts on hover",
-    "Open Parts on hover, beside Part colors in Morph & Refit, opens the Parts list when you hover a visible surface. Turn it off to keep closed panels closed; open lists still highlight and reveal matching names. Selection and pending fitting edits stay unchanged.": "Open Parts on hover, beside Part colors in Morph & Refit, opens the Parts list when you hover a visible surface. Turn it off to keep closed panels closed; open lists still highlight and reveal matching names. Selection and pending fitting edits stay unchanged.",
+    "Open Parts on hover, beside Part colors in Morph & Refit, opens the Parts list when you hover a visible surface. Turn it off to keep closed panels closed; open lists still highlight and reveal matching names. Selection and pending fitting edits stay unchanged. Hover keeps the chosen Parts or Mesh islands tab and identifies the matching listed island.": "Open Parts on hover, beside Part colors in Morph & Refit, opens the Parts list when you hover a visible surface. Turn it off to keep closed panels closed; open lists still highlight and reveal matching names. Selection and pending fitting edits stay unchanged. Hover keeps the chosen Parts or Mesh islands tab and identifies the matching listed island.",
     "Open Placement": "Open Placement",
     "Open Prefab Inspector...": "Open Prefab Inspector...",
     "Open Preferred File URL": "Open Preferred File URL",

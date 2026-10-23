@@ -183,6 +183,9 @@ The island list is separate from the Parts list and groups islands by their sour
 part. Each compact row contains its selectable name, **Isolate**, **View** and
 **Include**. **Show all islands** stays above the list. Long names retain their
 full text on hover. Hover over the tab for selection and seam grouping guidance.
+Viewport hover keeps this tab active and highlights the matching listed island,
+scrolling its name into view without changing the selection. It follows the
+frontmost visible island; hidden islands stay hidden.
 Coincident UV-seam vertices are grouped at 1e-5 model-unit precision without
 welding or moving the model. Existing **Linked** selection still follows vertex
 indices when that stricter connectivity is wanted.
@@ -2066,8 +2069,8 @@ stay hidden, and comparison views keep their own display. Hovering a surface in 
 viewport also opens the Parts list when **Open Parts on hover**, beside **Part
 colors**, is enabled (the default). Turn it off to keep closed panels closed.
 The choice is saved with the editor layout when remembering panel sizes is enabled.
-With automatic opening enabled, Inspector expands or switches from Mesh islands
-when needed. Hover outlines matching Part names in cyan and scrolls them into
+With automatic opening enabled, Inspector expands when needed and keeps your
+chosen Parts or Mesh islands tab. Hover outlines matching Part or island names in cyan and scrolls them into
 view in open lists. It moves only enough to reveal a name and keeps an already visible
 match in place, including fit warnings. It uses the frontmost visible surface,
 keeps selection and fitting edits, and clears over empty space or during drags.

@@ -209,13 +209,16 @@ impl LabApplication {
                             let faces = island_faces(island);
                             let mut shown = !self.cdmw_hidden_islands.iter().any(|hidden| hidden.part == part && hidden.faces == faces);
                             let selected = !faces.is_empty() && faces.iter().all(|face| selected_faces.contains(face));
+                            let mut name_response = None;
                             ui.push_id(index, |ui| ui.horizontal(|ui| {
                                 let title = crate::localization::tr(format!("Island {} · {} faces", index + 1, faces.len()));
                                 cdmw_list_cell(ui, widths[0], |ui| {
-                                    if ui.add_enabled_ui(shown, |ui| {
+                                    let response = ui.add_enabled_ui(shown, |ui| {
                                         ui.add_sized([ui.available_width(), ui.spacing().interact_size.y],
                                             Button::selectable(selected, (&title, egui::Atom::grow())).truncate())
-                                    }).inner.on_hover_text(&title).clicked() {
+                                    }).inner;
+                                    name_response = Some(response.clone());
+                                    if response.on_hover_text(&title).clicked() {
                                         actions.push(UiAction::SelectIsland { part, faces: faces.clone() });
                                     }
                                 });
@@ -247,6 +250,9 @@ impl LabApplication {
                                     });
                                 });
                             }));
+                            if let Some(response) = name_response {
+                                self.track_cdmw_island_name(ui, part, faces, &response);
+                            }
                         }
                     });
                 }
