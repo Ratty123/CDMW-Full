@@ -1228,12 +1228,18 @@ query and path observations before inferring coexistence. These synthetic inputs
 preserve proposed-binding and unresolved-reference limits. Resource-consumer
 use, general retirement and native item admission remain open.
 
-Executable-source review also identifies typed ItemInfo manager loader slots
-and the global setter/clearer. Vtable `+0x08` resets the manager; `+0x20` loads
-definitions. This is not a constructor or reader-exclusion boundary. A passive
-two-loader entry/normal-return witness is being qualified to observe global
-publication relative to loading; actual central backing/routing and safe reader
-lifetime remain unproved.
+Executable-source review identifies typed ItemInfo manager loader slots and
+the global setter/clearer. Vtable `+0x08` resets the manager; `+0x20` loads
+definitions. The 2026-10-23 passive game witness now observes the global owner
+equal to `this` at loader entry while count/metadata/backing are empty. Normal
+return has 6,816 entries, matching metadata count/capacity and primary cookie.
+The worker differs from the bootstrap thread; TLS was not sampled. Global
+pointer presence is not a metadata-readiness boundary. Sequential observations
+do not prove another reader used partial data, exclusion, safe publication or
+lifetime. Constructor-registered key/name adapters are not lifecycle callbacks.
+Actual caller/completion and central backing/routing remain to qualify. The
+[execution checkpoint](../../../beta-progress/cditem-execution-goal.md#resumed-with-direct-authority-2026-10-23)
+owns exact source/capture/restoration pins and the retained failed controls.
 
 
 ### Proposed startup admission lifecycle

@@ -1335,15 +1335,15 @@ construction against the unchanged executable and current/retained REA evidence.
 The complete read body waits pending I/O before normal return under the bounded
 valid-private-handle and unique-operation Win32 assumptions. Its AL success
 value still hides terminal errors and exposes no transferred count. These are
-source/API conclusions; actual private bytes, visible use and general resource
-retirement remain unproved.
+source/API conclusions. The later fixed 102-byte game observation is recorded
+below; visible use and general resource retirement remain unproved.
 
 The new offline [private archive path reviewer](../cdmw/ui/new_item/INDEPENDENT_ITEMS.md#private-archive-path-evidence-review)
 binds independently pinned preparation, the selected private archive and its
 expected payload. It refuses a different archive beneath the same root. Focused
 fixtures and a retained-input check passed on 2026-10-21. The later controlled
 B113 capture now passes exact-path review and a separate actual process/source
-provenance join. Byte delivery and resource use remain unverified.
+provenance join. That path result did not itself prove byte delivery or resource use.
 
 The maintained [per-package resource image preparation](../cdmw/ui/new_item/INDEPENDENT_ITEMS.md#per-package-resource-image-preparation)
 now produces a separate PAPGT/PAMT/PAZ image from each package's actual validated
@@ -1397,9 +1397,16 @@ call. Retained real private-cache decoding proves explicit helper calls, while
 central routing of newly owned ordinals remains unproved. The earlier stock
 fetch dependency must also be qualified. This is source evidence, not a new
 game failure or independent-item admission. Further executable review identifies
-the typed loader, reset and global publication slots. A passive loader witness
-is being qualified to observe publication relative to loading; source discovery
-does not establish runtime ordering or reader exclusion.
+the typed loader, reset and global publication slots. The 2026-10-23 passive
+game witness now observes the global ItemInfo owner already set while its
+count, metadata and backing are empty at loader entry. Normal return has 6,816
+entries and matching metadata/cookie. The loader and bootstrap threads differ;
+TLS was not sampled. Pointer presence is not metadata readiness. This does not
+show another reader using partial data or establish exclusion, safe publication
+or lifetime. The actual native caller/completion path remains to qualify.
+Constructor-registered key/name adapters are not lifecycle callbacks. See the
+[current execution checkpoint](../beta-progress/cditem-execution-goal.md#resumed-with-direct-authority-2026-10-23)
+for source/capture pins and the bounded restoration result.
 
 The next resource proof extends the demonstrated read to two separate package
 images and then their actual engine consumer. Two actual-compiler fixture images

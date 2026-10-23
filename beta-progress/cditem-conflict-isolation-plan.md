@@ -9,7 +9,7 @@
 - Completion log: [progress.md](progress.md)
 - Initial reviewed branch: RR/independent-item-packages.
 - Initial reviewed HEAD: d4b38e5082d4f9b4b4cce14f9ee2ecdb37994aaf, with concurrent uncommitted work.
-- Retained preparation baseline: 2026-10-21, main at 099e9f7e7a5555f07246ab475b399c15215e419c. The current native-read increment was reviewed on 2026-10-23 at main@5488e368dff9.
+- Retained preparation baseline: 2026-10-21, main at 099e9f7e7a5555f07246ab475b399c15215e419c. The current native loading observations were reviewed on 2026-10-23 at main@b19370ba807d.
 - Current authorization: The user resumed execution with direct authority to use REA and other required resources, without contacting other sessions or requesting routine input. Preserve the full acceptance conditions, exact process/file guards and recovery; no historical session grant is replayed. See the [current checkpoint](cditem-execution-goal.md#resumed-with-direct-authority-2026-10-23).
 
 ## Goal
@@ -34,7 +34,7 @@ Preparation baseline reviewed on **2026-10-21** against `main@099e9f7e7a5555f072
 | --- | --- | --- | --- |
 | Stable logical identity and retained bindings | Implemented UUID, per-symbol reservations, collision refusal and profile transfer; bounded composed-route lifecycle observations | Carry the same bindings through the admitted native lifecycle; profile transfer is not automatic save migration | `CDISO-ID-01`, `CDISO-ID-01A`, `CDISO-LIFE-01` |
 | Resource ownership and donor independence | Supported private material/DDS references and proven donor-row detachment | Close every required explicit/implicit reference for the selected family and prove native consumption | `CDISO-RES-01`, `CDISO-DEP-01` |
-| Native definition registration | Recorded B84 extra-row game experiment; B106 typed backing and B111 selected-reader experiments | Join actual backing, metadata and decoder routing to both native maps; qualify all affected consumers and lifetime | `CDISO-RE-02` |
+| Native definition registration | Recorded B84 extra-row game experiment; B106 typed backing/B111 selected readers; actual passive loader shows a globally visible empty manager before loading completes | Join actual backing, metadata and decoder routing to both native maps; qualify the loader completion/reader boundary and lifetime | `CDISO-RE-02` |
 | Paired publication and ownership | Retained portable C++ experiment: 41 cases, 963 checks; common preflight and retained backing pass | Transfer the demonstrated ordering to actual native storage and a qualified reader boundary; both lookups/resources here are modeled | `CDISO-RE-02A` |
 | Native private resources | B99 metadata lookup and independently reviewed B115 game read: all 102 expected bytes after normal return | Extend to separate package images, actual resource use and retirement; AL does not expose API success or transferred count | `CDISO-RE-03` |
 | Exact private archive expectation | Maintained offline checker, reviewed B113 actual path and B115 physical open/read joins | Preserve exact per-image archive and payload identity in the larger native route | `CDISO-RE-03A` |
@@ -46,7 +46,7 @@ Preparation baseline reviewed on **2026-10-21** against `main@099e9f7e7a5555f072
 ### Immediate engineering sequence
 
 1. Continue from the independently reviewed B115 game read on 2026-10-23: all 102 expected bytes from the exact 112-byte B93 archive, normal return and zero mismatches. The corrected fixture passes all 18 cases with the actual header/CFG unchanged; the original failure remains retained. Extend through two separate actual-compiler package images, each with a distinct 144-byte DDS at offset 2704. Full native reads, second-context survival and actual resource consumption remain to prove; AL alone is insufficient and private objects remain retained until exit.
-2. Use the paired-publication experiment as the ordering/lifetime baseline. Join actual B106 primary-cell backing, private metadata and decoder routing before either native map exposes a new entry. New executable-source review identifies the typed loader/reset/publication slots; observe loader entry/return before choosing an integration point. Native publication ordering, reader exclusion and lifetime remain unproved.
+2. Use the paired-publication experiment as the ordering/lifetime baseline. Join actual B106 primary-cell backing, private metadata and decoder routing before either native map exposes a new entry. The actual passive loader pair shows the global owner already set with empty count/metadata/backing, then 6,816 entries on normal return. Pointer presence is not readiness. Identify the native caller/completion path and qualify reader exclusion and lifetime before choosing an integration point.
 3. Join definitions and resources in one startup-scoped native contribution, then exercise two independently authored same-donor packages with distinct private assets through acquisition, equip, restart and save reload.
 4. Extend only from that demonstrated scope. Keep native missing-provider save behavior, ordinary maintenance and any unresolved resource family explicitly open.
 
@@ -77,8 +77,9 @@ and production admission remain unchanged.
 The same continuation qualified the actual manager methods and holder from the
 unchanged executable and current/retained REA evidence. Read pending branches
 wait before normal return under the qualified Win32/private-holder assumptions;
-AL `1` can still hide terminal errors and exposes no transferred count. Exact
-native bytes, resource use and general retirement remain open. The complete
+AL `1` can still hide terminal errors and exposes no transferred count. That
+source pass did not prove byte delivery; the later bounded 102-byte observation
+is recorded above. Resource use and general retirement remain open. The complete
 provider evidence was exported and the lane returned. No CDISO acceptance
 checkbox changes follow from this source result.
 Evidence: `workspace/reports/cditem-execution/20261021-native-path-continuation/`.

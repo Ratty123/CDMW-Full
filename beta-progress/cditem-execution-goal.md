@@ -85,10 +85,59 @@ and A's survival after B creation need explicit observations. Preparation receip
 `ac28c79f6bd2624a62f1fd6d99e94a80649e0d9698d7ce330dc07ccd7dba620f`.
 These owned synthetic assets do not establish game-resource use or reference closure.
 
-Native definition work now identifies the ItemInfo manager's typed loader,
-reset, setter and clearer slots in the unchanged executable. A passive two-loader
-entry/normal-return witness is being qualified before selecting a publication
-point; source discovery does not establish runtime ordering or reader exclusion.
+The separately versioned B117 producer is source-prepared for those two images;
+native producer-flow qualification and actual reads remain pending. The original
+frozen source is retained while a successor corrects terminal initialization and
+binds the exact offline reviewer before import. Layout and synthetic packet
+checks do not qualify its native construction/query/path/read state machines.
+
+Native definition work identifies the ItemInfo manager's typed loader, reset,
+setter and clearer slots in the unchanged executable. The separately built
+B118-v3 passive witness, through caller-v2, now records the actual loader pair.
+At entry the global owner already equals `this`, while count, metadata and backing
+are empty. Normal return reports 6,816 entries and matching metadata count,
+capacity and primary cookie. The loader runs on worker thread 15808, distinct
+from bootstrap thread 57588; TLS was not sampled. Global pointer presence is
+therefore unsuitable as a metadata-readiness boundary.
+
+The original loader is forwarded once with native status zero, returned pointer
+equal to the status pointer and preserved LastError. The 0.7661-ms recorded
+interval includes observer/forwarding work; it is not isolated original-body
+timing. Process CFG policy flags are zero in this run; linked CFG targets remain
+qualified, without a claim that live CFG enforcement was tested. Sequential
+snapshots do not show another reader accessing partial data or establish reader
+exclusion, complete aliases, safe publication, insertion or lifetime.
+
+Exact restoration completed in 23.094 seconds under the retained 225/240-second
+bounds. The original ASI absence, session and unique generation absence, seven
+installed witnesses and stock mount match; all five owned process identities
+are absent. No active private-resource chain, stock getter, materializer or
+file-import hook was installed. This attempt is consumed.
+
+Exact local result: `run/b118-current-owner-v2/attempt1/loader-observation-result.json`,
+4,921 bytes, SHA-256
+`58ef5392795ea252a644bab806413a8dea785770205dd6e965b0e4292b755b8f`.
+The 1,056-byte complete wire SHA-256 is
+`f9474dd8e11c308ecd07ce6371d9826e05ca6bb55022891d9464844cd6d14426`.
+The selected 344,064-byte ASI SHA-256 is
+`39d88d3580048ecd30dc04089962c656fef020c786933a3fa58b58cbe5905613`.
+Independent physical/source/controller/restoration review:
+`api-source-review/20261023-b118-passive-review/b118-v2-actual-capture-review.json`,
+31,993 bytes, SHA-256
+`63d2dc03494b2c935fa094a6b3aadb53cae2c239223c6438f74e67216be6ecb2`.
+Its fresh decode equals the retained result; all 96 source pins and 90 recovery
+rows match. Offline decoder provenance/execution/admission flags remain false;
+the separate review establishes the actual capture-chain joins.
+V3 preserves the failed ICF-folded fixture and qualifies terminal initialization
+with an actual-runtime counterfactual: old retrying code fails the repeated-call
+control and corrected code passes. No production release build was performed.
+
+Constructor-registered callbacks previously considered as a possible lifecycle
+route are source-qualified key/name adapters, not load/publish callbacks.
+The next definition discriminator is the actual loader's native caller and
+completion/reader boundary; neither the global setter nor loader return alone
+establishes safe central integration.
+
 The historical ThinkForge goal is cancelled from the earlier pause and cannot
 resume through its available tool; the active Codex goal and these existing
 Markdown owners retain the full objective without a duplicate goal.

@@ -54,10 +54,45 @@ vtables. Slot `+0x08` is reset, not a constructor; `+0x20` is loader
 `api-source-review/20261023-item-owner-rip/item-owner-rip-independent-review.json`,
 35,550 bytes, SHA-256
 `36f7cd182e9fbd2a31c02ac3873ca29e14517d5fa56486995e5685d6caad0fe6`.
-A two-loader passive entry/normal-return witness is source-prepared, not compiled
-or game-run. It must qualify early installation, exact slots/body/CFG, forwarding
-and preserved LastError before runtime ordering can be observed. No all-reader
-exclusion or safe central publication point is established by the source discovery.
+The built B118-v3 passive entry/normal-return witness now ran through reviewed
+caller-v2. The actual derived-loader pair shows global owner equal to `this`
+while entry count/metadata/backing are empty, then 6,816 entries with matching
+metadata count/capacity and primary cookie on normal return. Worker thread 15808
+differs from bootstrap thread 57588; no TLS sample was captured. Global pointer
+presence is not metadata readiness. This does not show concurrent reader use,
+all-reader exclusion, safe insertion/publication, complete aliases or lifetime.
+The observation interval includes forwarding/measurement overhead. Live process
+CFG flags were zero; retain linked CFG proof without claiming enforced live CFG.
+
+Actual result: `run/b118-current-owner-v2/attempt1/loader-observation-result.json`,
+4,921 bytes, SHA-256
+`58ef5392795ea252a644bab806413a8dea785770205dd6e965b0e4292b755b8f`.
+Complete 1,056-byte wire SHA-256:
+`f9474dd8e11c308ecd07ce6371d9826e05ca6bb55022891d9464844cd6d14426`.
+Selected 344,064-byte ASI SHA-256:
+`39d88d3580048ecd30dc04089962c656fef020c786933a3fa58b58cbe5905613`.
+Independent review:
+`api-source-review/20261023-b118-passive-review/b118-v2-actual-capture-review.json`,
+31,993 bytes, SHA-256
+`63d2dc03494b2c935fa094a6b3aadb53cae2c239223c6438f74e67216be6ecb2`.
+Normal-return status/pointer and LastError joins pass. Restoration completed in
+23.094 seconds, all five owned processes absent, original ASI/session/generation
+absence and installed/stock witnesses restored. The attempt is consumed.
+
+V1's ICF-folded fixture failure and v2's initialization retry risk remain retained.
+V3 catches initialization failure inside `call_once`; an actual-runtime malformed
+session control fails with the old retrying initializer and passes with v3.
+No active C resource chain, stock getter/materializer or file-IAT hook is installed.
+Wire-only provenance/execution/admission flags remain false; the separate
+independent review verifies physical/process/source/controller joins without
+changing those flags.
+
+The two-image B117 producer is frozen source, with native-flow qualification still
+pending. A successor must make refusal terminal and pin the exact imported path
+reviewer; synthetic packet/layout checks do not exercise the native state machines.
+Source review also confirms that constructor-registered callbacks are key/name
+adapters, not lifecycle callbacks. Identify the loader's real caller/completion
+path before choosing a central integration point.
 
 Retained local source-only results under the native-path continuation:
 `run/b115-current-owner-v2/source-check-receipt.json` (41 focused checks;
@@ -76,7 +111,7 @@ the existing [CDISO goal](cditem-conflict-isolation-plan.md) and
 [progress snapshot](progress.md#cditem-current-progress) summarizes evidence and
 next steps; it does not create a second acceptance checklist. The retained
 preparation baseline is `main@099e9f7e7a5555f07246ab475b399c15215e419c`;
-the current native-read increment was reviewed at `main@5488e368dff9`.
+the current native loading observations were reviewed at `main@b19370ba807d`.
 
 | Evidence or work | Current status | Meaning for the next step |
 | --- | --- | --- |
@@ -160,8 +195,9 @@ The owning technical contract records the source/API assumptions and refusals.
 2. Use the maintained paired-publication experiment as the ordering/lifetime
    baseline. Join actual B106 backing, metadata and decoder routing to both
    native maps, then qualify the real consumer boundary and failure/lifetime.
-   First qualify the two-loader passive witness to observe whether the global
-   owner already points at an incompletely loaded ItemInfo manager.
+   The passive loader witness now confirms that the global owner points at an
+   incompletely loaded manager. Identify its native caller/completion path and
+   qualify the real reader boundary before central integration.
 3. Join definitions and resources, establish first-instance acquisition, and run
    two same-donor packages through the native lifecycle and save scenarios.
 

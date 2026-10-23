@@ -176,6 +176,17 @@ distinct materializer call. Selecting private bytes at materialization leaves
 that earlier dependency to qualify; actual central routing remains unproved.
 This source conclusion does not record a new game failure or native admission.
 
+The separate 2026-10-23 passive loader experiment on game `1.0.0.2976` observes
+the registered ItemInfo owner already globally visible at loader entry with
+empty count/metadata/backing, then 6,816 entries and matching metadata/cookie
+after normal return. Global pointer presence cannot serve as readiness. The
+observed loader and bootstrap threads differ; no TLS sample was captured.
+This sequential pair supplies no concurrent-reader, exclusion or lifetime proof
+and does not qualify central publication. The next discriminator is the native
+caller/completion path. Exact source, compiled controls, consumed capture and
+restoration belong to the [current execution checkpoint](../../../beta-progress/cditem-execution-goal.md#resumed-with-direct-authority-2026-10-23).
+The maintained owned-memory experiment itself is unchanged and was not rerun.
+
 The next integration must join actual constructed backing, native metadata and
 decoder routing to the same publication discipline. The current
 [concrete I/O source contract](../../../cdmw/ui/new_item/INDEPENDENT_ITEMS.md#native-io-continuation-after-image-preparation)
