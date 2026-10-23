@@ -797,12 +797,36 @@ arbitrary getter/bulk entrants, TLS block validity, later controller completion
 and after-private-cleanup stock memory remain unproved; the original six
 aggregate-cleanup trace-label refusals and their retained interpretation remain.
 
-The source-backed next question is the zero-family heap path at allocator
-`0x1447EF9B0` and free `0x1447F02BC`, followed by constructor helper
-`0x1412C0290` and decoder helpers `0x14141F4C0`/`0x14038AC90`. Resolve the selected
-entrant/serialization and transitive requirements before implementing the
-durable final-shape Cache/Router continuation. These are build-2976 historical
-source addresses, not a new process/address grant. Source memo:
+Read-only source follow-up on the unchanged build-2976 executable now joins 12
+bounded entries to PE/unwind ranges, physical bytes and independent disassembly.
+The allocator's 92-byte unwind root disproves the retained one-byte
+FunctionManager body as a complete extent; its outgoing tails remain separate.
+The wrapper's slot-zero family selector differs from the heap's dynamically
+indexed TLS block: index cell `0x146C88C50`, initialization byte `+0x98` and heap
+pointer `+0x90`. For size `0x440`, alignment `0x10`, offset/flag zero, the selected
+general route requests `0x44F` bytes through `0x1447EFE6C` before any alignment
+adjustment. It cannot be justified by the small power-of-two freelist alone.
+
+Free compares `GS:[0x30]` with the allocation-region owner, then selects local
+handling or the non-owner queue. Three actual `LOCK CMPXCHG` sites join the
+descriptor `+0x28` and owner-heap `+0xB18` queues. These source branches do not
+prove which branch B81 took, queue draining or borrowed-record retirement.
+Constructor helper `0x1412C0290` loads a global default representation. Name
+decoder `0x14141F4C0` allocates/transfers a temporary and has TLS-selected cleanup;
+its deeper helpers remain open. Thunk `0x14038AC90` reaches `0x1488046B0`, which
+reads global `0x146D69A70` and writes a WORD or `0xFFFF`, returning success in AL.
+No manager type or transitive thread independence is inferred.
+
+Independent source review accepts 105 file pins and 780 instruction records
+across 12 unique entries, including repeated capture generations, without
+material capture defects. Neither complete allocator closure nor live heap,
+later-caller locking, reader exclusion or lifetime readiness is established.
+The next exact source targets are allocation primitive `0x1447EFE6C` and
+aligned-pointer recovery `0x1447F01F0`; conditional initialization/queue helpers
+remain explicit. Then qualify one natural ordinary stock cold call and its
+serialization before implementing the durable final-shape Cache/Router route.
+These are source addresses, without a new live process grant. The earlier
+backend/thread question remains recorded in:
 `api-source-review/20261023-durable-cache-thread-contract-v1/durable-cache-thread-contract-source-review-v1.json`,
 32,377 bytes, SHA-256
 `3c92a1550acf58146e62e9b8392bcdd23cdbc39f6fbd13dfd1f1d7fd05644dfc`.
@@ -810,6 +834,39 @@ Root file-only witness review:
 `api-source-review/20261023-durable-cache-thread-contract-v1/root-retained-backend-witness-review-v1.json`,
 1,242 bytes, SHA-256
 `228eda41dfc4f6907208cd6f938315da9c94629d6b6999fecc083472a4735a09`.
+
+New source author receipt:
+`api-source-review/20261023-family0-heap-byte-capture-v1/author-capture-receipt-v1.json`,
+24,580 bytes, SHA-256
+`0044011b738141087d95b1d658aeb0901775faa0e2d2cf1165982644b8b9b1a9`.
+Independent source review:
+`api-source-review/20261023-family0-source-independent-v1/independent-source-review-v1.json`,
+78,350 bytes, SHA-256
+`d1b6b4b21bb9487f294872f0efb379e4bba769ccfeb2abfd050bc489f0c3a552`.
+The read-only REA session is closed. Its exported
+`provider-20261023/primary-cache-20261023/rea-after-family0-source-v1.json`
+is 230,756,745 bytes, SHA-256
+`3228c77f4f66650c0169823fb03ee4b71e0e6720707e552decf5d71e67a85a1e`.
+All 2,231 prior records and 140 unknown revisions survive unchanged; eight
+records are added, leaving 2,239 records and 25 current unknown IDs. Both failed
+uncatalogued-entry queries remain retained. File continuity/close-ack receipt:
+`api-source-review/20261023-family0-root-closure-v1/export-continuity-and-provider-closure-v1.json`,
+10,864 bytes, SHA-256
+`c2371baff9d2e7024515ee8bbaca6e88e9d0dd66436ad5296c80937de54a2a16`.
+This increment uses static tools and read-only provider queries; no target-code
+execution, native build, game process control or installation change occurred.
+
+The ordinary cold-chain seam review additionally joins the three direct E8
+calls at `0x14038AC35`, `0x14038AF14` and `0x14038AF45`. B118/B119's loader-vtable
+cell forwarding does not cover them. Constructor/decoder arguments carry the
+record before primary publication at `0x14038B0A1`; reading the primary slot at
+decoder entry would not establish that association. The native stock Reader
+initializes only byte `+8` and uses a row cursor within the shared body; private
+Row zero-padding/full-buffer-consumption assumptions do not transfer. A direct
+observer and its installation phase still need separate qualification. Source
+receipt: `api-source-review/20261023-stock-cold-observer-seam-review-v1/source-seam-review-v1.json`,
+23,871 bytes, SHA-256
+`858023e575225135c065d808c67f610a57ed0e608775b1d6a4e4c1bc179df146`.
 
 Then join the staged records and unpublished native pairs to both central
 getter/bulk routes, with private metadata/backing, coherent publication, later

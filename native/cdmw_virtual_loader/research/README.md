@@ -340,3 +340,11 @@ The underlying byte-identical backend separately retains B81's selected
 family-zero later-thread controlled-rematerialization witness. Preserve that
 bounded evidence; do not equate the Stage guard with a native AF1-only rule or
 promote the selected callback into general later getter/bulk thread safety.
+The read-only family-zero follow-up now joins 12 bounded entries to PE/unwind
+and independently decoded instruction bytes. It proves a separate indexed TLS
+heap context, the `0x440` aligned route's `0x44F` byte request and an explicit
+atomic non-owner free queue. The selected raw allocation and aligned-pointer
+recovery helpers, live initialization, queue draining and borrowed lifetime
+remain unresolved. Unwind extents do not establish complete logical functions.
+Use the [current source evidence](../../../beta-progress/cditem-execution-goal.md#reader-boundary-platform-qualification-remains-open)
+before preparing a direct-call stock cold witness or durable continuation.

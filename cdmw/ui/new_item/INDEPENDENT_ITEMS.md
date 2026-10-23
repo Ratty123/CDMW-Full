@@ -1335,6 +1335,23 @@ The identical native backend has a separate retained B81 family-zero witness for
 controlled rematerialization on two different threads, both TLS selector zero.
 That selected callback evidence does not establish arbitrary later getter/bulk
 thread validity or final-owner publication.
+Read-only build-2976 byte inspection now distinguishes the slot-zero family
+selector from the allocator's indexed TLS block (`+0x98` initialization,
+`+0x90` heap). A `0x440`/align-16 record takes the general route requesting
+`0x44F` bytes. Free compares the current TEB identity with the allocation-region
+owner and has an explicit atomic non-owner queue path. Twelve bounded entries
+pass independent PE/instruction review; their external helpers, queue draining
+and record lifetime remain unqualified. The constructor's global default,
+name decoder's temporary/TLS cleanup and separate WORD/FFFF global-map lookup
+also remain part of the native context contract. Qualify the remaining selected
+allocation/recovery callees and a natural ordinary cold caller before changing
+the final Cache/Router backend.
+The ordinary getter/materializer/constructor/decoder chain uses direct E8 calls,
+outside the qualified loader-vtable observation seam. Primary publication occurs
+after decoding; a passive observer must associate actual constructor/decoder
+arguments. The stock Reader initializes only its flag byte at `+8` and carries a
+row cursor into the shared body, so private Row padding/full-consumption checks
+cannot validate that ordinary caller.
 
 A first external sword package also passes actual full import, four hand/sheath
 attachment checks and exact package/model/texture readback with a persistent

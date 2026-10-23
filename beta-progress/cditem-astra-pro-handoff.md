@@ -235,8 +235,25 @@ Reuse B81's separate selected family-zero witness: the same backend decodes the
 four Rows on worker 36652 and later callback thread 416, both TLS selector zero,
 with controlled eviction/rematerialization. That narrows the underlying backend
 question without qualifying arbitrary entrants, concurrency or the final owner.
-The next primary queries target the zero-family heap pair and transitive
-constructor/decoder helpers identified in the execution checkpoint.
+The read-only source follow-up now verifies 12 bounded entries against PE,
+unwind and instruction bytes, with independent review of 105 file pins. Family
+selection and the allocator's indexed TLS initialization/context are distinct.
+The selected `0x440`/align-16 route requests `0x44F` bytes; non-owner free has
+three actual atomic queue operations. Constructor/string/global-lookup helpers
+also expose transitive initialization and ownership requirements. Unwind roots
+and captured normal paths are not complete allocator closure, and B81 did not
+observe the precise queue branch or drain lifetime. The next source targets are
+`0x1447EFE6C` and aligned-pointer recovery `0x1447F01F0`, followed by a natural
+stock cold-call witness with a qualified direct-call observer. All prior export
+history survives in the closed provider's 2,239-record bundle; the
+[execution checkpoint](cditem-execution-goal.md#reader-boundary-platform-qualification-remains-open)
+owns exact receipts, hashes and remaining premises. No game run or native
+admission follows from this source increment.
+The ordinary cold chain uses three direct E8 calls, beyond the loader-vtable
+observer's seam. Primary publication follows decoding, so associate the record
+through actual constructor/decoder arguments. Its shared-body Reader initializes
+only byte `+8`; private Row consumption/padding checks do not transfer. A direct
+observer and early installation boundary require separate qualification.
 
 Retained local source-only results under the native-path continuation:
 `run/b115-current-owner-v2/source-check-receipt.json` (41 focused checks;

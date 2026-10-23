@@ -68,11 +68,18 @@ or publication proof follows.
 
 The finite actual-owner store roster identifies 14 prospective fields/72 bytes
 for historical B122, alongside missing dormant Router activation and a durable
-Cache continuation. The current allocator still requires original owner state
+Cache continuation. The staging allocation wrapper still requires original owner state
 and the incomplete AF1 worker/controller context; later hot/cold use is unqualified.
 The byte-identical backend separately retains B81's selected family-zero
 cross-thread/controlled-rematerialization witness. General later native entrants,
 serialization and final-shape Cache/Router activation remain open.
+Read-only source follow-up now verifies 12 bounded entry captures and distinguishes
+the wrapper's family selector from indexed heap TLS. The `0x440` aligned route
+requests `0x44F` bytes; non-owner free has an atomic queue path. Independent
+source review accepts 105 file pins without material capture defects. Allocation
+primitive, aligned-pointer recovery, live initialization and borrowed lifetime
+remain open. The provider is closed with all prior history preserved in 2,239
+records; this source result adds no native/game acceptance.
 
 [Canonical goal and acceptance criteria](cditem-conflict-isolation-plan.md) |
 [Execution](cditem-execution-goal.md) |
@@ -154,6 +161,8 @@ the preceding 24-case preparation evidence remains in
 `workspace/reports/cditem-execution/20261021-package-resource-images/`.
 
 ## Completed work
+
+- 2026-10-23 | CDISO-RE-02 family-zero heap/helper source qualification | Read-only REA and static PE/unwind/instruction analysis distinguish family selection from indexed heap TLS, identify the selected `0x440` allocation's `0x44F` byte request and prove an atomic non-owner free path exists. Independent source review accepts 105 file pins across 12 bounded entries without material capture defects. The closed provider's 2,239-record export retains all prior records and 140 unknown revisions. Allocation/recovery helpers, live initialization, later callers, queue drain and borrowed lifetime remain open; no native/game/admission result is added. Evidence: [source and remaining premises](cditem-execution-goal.md#reader-boundary-platform-qualification-remains-open).
 
 - 2026-10-23 | CDISO-RE-02 owned external scratch-write qualification | After the preserved foreign-MSBuild preflight refusal resolves without process intervention, V4 passes its unchanged strict build and one native owned-dummy run. Exact S_OK/32-byte pattern and restoration are independently observed through three process-memory phases with all four counters held at 53; post-detach counters advance 60 to 67. Eight held threads, five snapshots, typed contexts/TIBs/stacks, 68 raw files and 136 engine API calls join in root's file-only review. Resume precedes owned retirement and cleanup completes in 2.388533 seconds within 20 seconds. Independent actual review passes 120 closure pins without material defects. The independently accepted 14-field/72-byte historical-owner roster identifies missing dormant activation and final-shape Cache continuation; retained B81 evidence separately establishes selected family-zero later-thread rematerialization. This qualifies an owned API premise, without game owner stores, Router activation, durable cache continuation or reader/writer/lifetime admission. Evidence: [reader/writer boundary](cditem-execution-goal.md#reader-boundary-platform-qualification-remains-open).
 

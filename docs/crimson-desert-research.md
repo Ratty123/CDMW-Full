@@ -1582,6 +1582,12 @@ The underlying identical backend nevertheless has a retained B81 family-zero
 witness for controlled eviction/rematerialization on two different threads,
 both with TLS selector zero. It narrows the backend question without qualifying
 arbitrary later callers, concurrency, natural eviction or final-owner publication.
+Read-only build-2976 source inspection now verifies bounded heap/helper entries,
+including a distinct indexed TLS context and atomic cross-owner free handling.
+The selected record allocation takes a general aligned path. Independent
+PE/instruction review accepts the captures while allocation/recovery helpers,
+live readiness, queue draining and borrowed-record lifetime remain open.
+These source findings do not qualify the durable native route.
 
 A separately authored sword package passes full import,
 four hand/sheath attachment checks and exact package readback. Its compiler image

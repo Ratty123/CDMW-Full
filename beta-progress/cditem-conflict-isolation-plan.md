@@ -123,6 +123,12 @@ The identical native backend already has a bounded B81 family-zero witness on
 two different threads with TLS selector zero, including controlled later
 eviction/rematerialization. That retained result does not qualify arbitrary
 later getter/bulk callers or the final published owner.
+Read-only build-2976 source follow-up now verifies the separate indexed TLS heap
+context, the selected `0x440` aligned-allocation path and an atomic non-owner
+free queue. Independent PE/instruction review accepts 12 bounded entry captures;
+outgoing allocation, aligned-pointer recovery, initialization and lifetime
+dependencies remain explicit. Ordinary cold callers and final Cache/Router
+activation still need their own qualification.
 
 1. Join the independently reviewed observed unpublished numeric/name pairs to private metadata/backing and central getter/bulk under a qualified consumer boundary. Native numeric values are WORD ordinals; name values are DWORD numeric keys. Guard known source/clone allocation aliases before adapter-controlled writes or releases; native internal-node freshness remains an explicit premise. The portable publication model's name values and metadata route indexes are not the native ABI. Expiry zero permits eviction; eager residency cannot replace rematerialization, reader/maintenance coverage or lifetime proof.
 2. Join definitions, both native maps and resources in one startup-scoped native contribution, including later derived-state validation and a qualified consumer boundary. Then exercise two independently authored same-donor packages with distinct private assets through acquisition, equip, restart and save reload.
