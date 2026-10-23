@@ -1881,6 +1881,11 @@ scope disables Apply; it never silently expands to all garments. **Fit as** offe
 Flexible, Rigid component, legacy Offset follow and Skip. **Skip**, or clearing
 **Refit enabled**, excludes the targets while retaining their mode and settings.
 
+At 0% Tightness, local clearance repairs favor widening a Flexible hem around the
+body over sliding it toward a narrower waist. Rolled and tilted openings retain
+their contour. Deliberate tightening and protected areas keep their existing
+controls, and unresolved contact or strain still refuses the fit.
+
 **Restore fitting shape…** previews positions from an explicitly chosen matching
 unbaked PAC when an earlier Bake or saved fit has damaged the garment's shape.
 Select the garment Parts or whole mesh islands first, then Bake or Reset any

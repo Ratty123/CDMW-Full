@@ -1383,6 +1383,7 @@ void mesh_editor_relieve_refit_surface(
     };
     std::set<std::pair<std::size_t, std::size_t>> edges;
     std::map<std::pair<std::size_t, std::size_t>, int> edge_faces;
+    std::map<std::pair<std::size_t, std::size_t>, int> edge_windings;
     std::map<std::pair<std::size_t, std::size_t>, std::vector<std::size_t>> edge_opposites;
     std::map<int, MeshSessionSubmesh> garments;
     std::vector<double> contact_mass(cohorts.size(), 0.0);
@@ -1410,6 +1411,7 @@ void mesh_editor_relieve_refit_surface(
                 if (first != second) {
                     edges.insert(std::minmax(first, second));
                     ++edge_faces[std::minmax(first, second)];
+                    edge_windings[std::minmax(first, second)] += first < second ? 1 : -1;
                     edge_opposites[std::minmax(first, second)].push_back(vertex_cohorts.at(item.first)[face[(corner + 2) % 3]]);
                 }
             }
@@ -1479,6 +1481,102 @@ void mesh_editor_relieve_refit_surface(
         for (const auto i : group.second) cohorts[i].mobility = mobility;
     }
     std::vector<Vec3> contact_fixed_axes(cohorts.size());
+    std::vector<Vec3> opening_length_axes(cohorts.size());
+    if (fitting_masks) {
+        // Sliding an open hem along a sloping hip can be the shortest escape
+        // from contact, but shortens the garment. Infer its length direction
+        // from the retained boundary, independently of world axes and Parts.
+        std::map<std::size_t, std::vector<std::pair<std::size_t, std::size_t>>> openings;
+        struct OpeningFrame { Vec3 center, axis; std::size_t surface; std::map<std::size_t, int> vertices; };
+        std::vector<OpeningFrame> opening_frames;
+        struct SurfaceOrientation {
+            std::array<std::array<double, 3>, 3> moment{};
+            double area = 0.0;
+        };
+        std::map<std::size_t, SurfaceOrientation> surface_orientations;
+        for (const auto& part : garments) {
+            const auto& map = vertex_cohorts.at(part.first);
+            for (const auto& face : part.second.faces) {
+                const Vec3 a = sub_vec3(layer_rest[map[face[1]]], layer_rest[map[face[0]]]);
+                const Vec3 b = sub_vec3(layer_rest[map[face[2]]], layer_rest[map[face[0]]]);
+                const Vec3 cross{a[1]*b[2]-a[2]*b[1], a[2]*b[0]-a[0]*b[2], a[0]*b[1]-a[1]*b[0]};
+                const double area = length_vec3(cross);
+                if (area <= tolerance * tolerance) continue;
+                auto& orientation = surface_orientations[root_of(surface_roots, map[face[0]])];
+                orientation.area += area;
+                for (int i = 0; i < 3; ++i) for (int j = 0; j < 3; ++j)
+                    orientation.moment[i][j] += cross[i] * cross[j] / area;
+            }
+        }
+        for (const auto& edge : edges) if (edge_faces.at(edge) == 1)
+            openings[root_of(opening_roots, edge.first)].push_back(edge);
+        for (const auto& opening : openings) {
+            Vec3 center{}, area{};
+            double perimeter = 0.0;
+            std::map<std::size_t, int> degree;
+            for (const auto& edge : opening.second) {
+                const double length = length_vec3(sub_vec3(layer_rest[edge.second], layer_rest[edge.first]));
+                center = add_vec3(center, scale_vec3(add_vec3(layer_rest[edge.first], layer_rest[edge.second]), length * 0.5));
+                perimeter += length;
+                ++degree[edge.first];
+                ++degree[edge.second];
+            }
+            if (perimeter <= tolerance || std::any_of(degree.begin(), degree.end(), [](const auto& v) { return v.second != 2; }))
+                continue;
+            center = scale_vec3(center, 1.0 / perimeter);
+            for (const auto& edge : opening.second) {
+                const Vec3 a = sub_vec3(layer_rest[edge.first], center), b = sub_vec3(layer_rest[edge.second], center);
+                const Vec3 cross{a[1]*b[2]-a[2]*b[1], a[2]*b[0]-a[0]*b[2], a[0]*b[1]-a[1]*b[0]};
+                area = add_vec3(area, scale_vec3(cross, edge_windings.at(edge)));
+            }
+            const double area_length = length_vec3(area);
+            // Narrow slits and nonplanar decorative holes do not establish a
+            // garment's longitudinal direction. A broad retained hem does.
+            if (area_length < perimeter * perimeter * 0.04) continue;
+            const Vec3 axis = scale_vec3(area, 1.0 / area_length);
+            double axial = 0.0, radial = 0.0;
+            for (const auto& vertex : degree) {
+                const Vec3 offset = sub_vec3(layer_rest[vertex.first], center);
+                const double along = dot_vec3(offset, axis);
+                axial += along * along;
+                radial += dot_vec3(offset, offset);
+            }
+            if (axial > radial * 0.08) continue;
+            double facing = 0.0;
+            const auto& orientation = surface_orientations.at(root_of(surface_roots, opening.first));
+            for (int i = 0; i < 3; ++i) for (int j = 0; j < 3; ++j)
+                facing += axis[i] * orientation.moment[i][j] * axis[j];
+            // A flat panel also has a broad planar boundary. Its normal points
+            // across the panel, not along a sleeve or skirt opening; resisting
+            // that direction would obstruct the very contact being repaired.
+            // Use the whole connected cloth: a rolled hem's immediate border
+            // can be horizontal even though the garment extends vertically.
+            if (facing > orientation.area * 0.25) continue;
+            opening_frames.push_back({center, axis, root_of(surface_roots, opening.first), std::move(degree)});
+        }
+        for (const auto& opening : opening_frames) {
+            Vec3 axis = opening.axis;
+            double reach = 0.0;
+            // A slanted or scalloped hem is still the end of its garment.
+            // A second opening on the same surface supplies the longitudinal
+            // direction without flattening that authored hem into its plane.
+            for (const auto& other : opening_frames) {
+                if (other.surface != opening.surface) continue;
+                const Vec3 delta = sub_vec3(other.center, opening.center);
+                const double length = length_vec3(delta);
+                if (length > reach && std::abs(dot_vec3(delta, opening.axis)) > length * 0.7) {
+                    reach = length;
+                    axis = scale_vec3(delta, 1.0 / length);
+                }
+            }
+            for (const auto& vertex : opening.vertices) {
+                const auto i = vertex.first;
+                if (rigid_vertex[i] || std::any_of(cohorts[i].vertices.begin(), cohorts[i].vertices.end(),
+                        [&](const auto& v) { return refit.garment_settings.at(v.first).tightness_percent > 0.0; })) continue;
+                opening_length_axes[i] = axis;
+            }
+        }
+    }
     if (centering_axes) for (const auto& group : rigid_groups) {
         Vec3 axis{};
         for (const auto i : group.second) for (const auto& vertex : cohorts[i].vertices) {
@@ -1490,7 +1588,18 @@ void mesh_editor_relieve_refit_surface(
             contact_fixed_axes[i] = scale_vec3(axis, 1.0 / length);
     }
     const auto project_contact = [&](std::size_t i, const Vec3& delta) {
-        return sub_vec3(delta, scale_vec3(contact_fixed_axes[i], dot_vec3(delta, contact_fixed_axes[i])));
+        const Vec3 free = sub_vec3(delta, scale_vec3(contact_fixed_axes[i], dot_vec3(delta, contact_fixed_axes[i])));
+        // A compliant length direction still lets a folded cuff clear a hand
+        // when outward movement alone cannot resolve its contact.
+        if (dot_vec3(contact_fixed_axes[i], contact_fixed_axes[i]) > 0.5) return free;
+        const double along = dot_vec3(free, opening_length_axes[i]);
+        const double axial = along * along;
+        const double transverse = std::max(0.0, dot_vec3(free, free) - axial);
+        // Preserve a hem where outward motion can clear a sloping surface.
+        // A collar facing a shoulder cap must still be able to lift: damping
+        // a nearly axial contact cannot provide a useful transverse escape.
+        const double resistance = axial > transverse ? 0.8 * transverse / axial : 0.8;
+        return sub_vec3(free, scale_vec3(opening_length_axes[i], resistance * along));
     };
     const auto move_contact = [&](std::size_t i, const Vec3& delta) {
         if (rigid_vertex[i]) {

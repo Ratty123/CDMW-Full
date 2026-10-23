@@ -221,6 +221,18 @@ has positive clearance but zero Tightness.
 Contact discovery and final validation retain the established broad-wrap boundary.
 Final clearance, penetration, crossing, strain and layer checks retain their
 original tolerances and refusals.
+Zero-Tightness Flexible openings prefer contact motion across their retained
+cross-section rather than up the garment, reducing hem lift on a sloping body.
+Closed boundary loops establish the opening plane, while compatible openings on
+the same connected surface supply the length direction for tilted hems. The
+area-weighted orientation of the whole connected cloth distinguishes tubular
+openings from flat panels; a rolled rim's horizontal border alone must not disable
+hem preservation. These preferences use seam cohorts and remain independent of
+world axes, scale and material Part boundaries. Explicit tightening, protected
+vertices and rigid constraints retain their existing authority.
+When contact is primarily along an opening's length, its soft preference yields
+instead of damping a collar's necessary lift past a shoulder cap. Final body,
+layer and strain validators still decide whether that motion can be published.
 Layer order uses the body's outward direction, including solid belts with inward
 back faces. Current surface queries, inner-cloth rays and exact edge/triangle
 crossings supply contacts on the outer shell; corrections do not push its support

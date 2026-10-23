@@ -600,10 +600,23 @@ vertex, triangle, UV and skin identity before selected included surfaces can be
 previewed. Ambiguous lineage and derived selected vertices refuse restoration.
 Apply/Cancel, Undo/Redo, cancellation, draft isolation, neutral-coordinate output
 and Include exclusions have focused fixture and real authoring-host coverage.
-The caller-provided test33 save was restored from its matching unbaked source,
-fitted and exported/reopened with the same positions as fitting that source
-directly. This is source/native and authoring evidence; final packaged workflows,
-normal-window interaction and broad compatibility review remain outstanding.
+The caller-provided test33 save was restored from its matching unbaked source and
+produced the same fitted positions as fitting that source directly. Both paths
+exported and reopened successfully; their independent reloads differ within PAC
+position quantization. This is source/native and authoring evidence; final
+packaged workflows, normal-window interaction and broad compatibility review
+remain outstanding.
+
+The same source work preserves broad Flexible openings during zero-Tightness
+clearance repairs. Whole-surface orientation distinguishes a rolled hem from a
+flat panel, avoiding a misclassification found by eight failing rolled-rim
+reproducers. Plain/rolled, level/tilted, rotated and scaled fixtures now pass,
+alongside rounded-cover regressions. In the caller-provided G03-B03 shirt/body
+pair, the actual Fit, Bake and exact PAC export/reopen passed; maximum retained
+hem-edge height movement in the reopened exports decreased from 6.17 mm with the
+shipped helper to 1.67 mm with the source build. Broad cross-body, packaged and
+visible interaction qualification remains incomplete; a layered forearm fitting
+refusal is unresolved.
 
 Reviewed 2026-10-22: body-centred rigid assemblies retain their lateral placement
 during fitting; an incidental one-sided cloth contact is not an attachment.

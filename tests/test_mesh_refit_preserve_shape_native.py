@@ -83,3 +83,58 @@ def test_clearance_only_fit_rejects_a_post_refit_field_that_reintroduces_body_in
         assert _snapshot(mesh, session).submeshes[1].vertices == before.submeshes[1].vertices
     finally:
         mesh_native_core.close_native_mesh_editor_session(session)
+
+
+@pytest.mark.parametrize("segments", (24, 48))
+@pytest.mark.parametrize("tilted", (False, True))
+@pytest.mark.parametrize("rolled", (False, True), ids=("plain", "rolled"))
+@pytest.mark.parametrize("scale,rotated", ((.25, False), (3., True)))
+def test_clearance_keeps_an_open_hem_below_a_sloping_hip(segments, tilted, rolled, scale, rotated):
+    heights = (0., .3, .45, .6, .75, .9, 1.2)
+    radii = (.18, .22, .21, .18, .14, .13, .13)
+    body = _refit_tube_part("body", 1., 0., heights, 48, True)
+    body.vertices = [(x * radii[heights.index(y)], y, z * radii[heights.index(y)])
+                     for x, y, z in body.vertices]
+    hem_height = .45
+    garment_heights = ((hem_height,) if rolled else ()) + (hem_height, .55, .65, .75, .85, 1.)
+    garment = _refit_tube_part("open shirt", .16, 0., garment_heights, segments)
+    if rolled:
+        # A folded-in rim ends in a horizontal annulus. Its immediate face
+        # normal does not identify the length direction of the whole shirt.
+        garment.vertices[:segments] = [(x * .96, y, z * .96) for x, y, z in garment.vertices[:segments]]
+    if tilted:
+        garment.vertices = [(x, y + .02 * x / .16 * max(0., (.65 - y) / .2), z)
+                            for x, y, z in garment.vertices]
+    original = np.asarray(garment.vertices)
+    axis = np.asarray((1., 2., 3.)) / np.sqrt(14.)
+    skew = np.asarray(((0., -axis[2], axis[1]), (axis[2], 0., -axis[0]), (-axis[1], axis[0], 0.)))
+    rotation = np.eye(3) + np.sin(.7) * skew + (1. - np.cos(.7)) * skew @ skew if rotated else np.eye(3)
+    translation = np.asarray((.12, -.35, .2))
+    for part in (body, garment):
+        part.vertices = (np.asarray(part.vertices) @ rotation.T * scale + translation).tolist()
+    mesh = _mesh(body, garment)
+    with _bound(mesh) as session:
+        _fit(session, tightness=0.)
+        fitted = _snapshot(mesh, session)
+        _fit(session, tightness=0.)
+        np.testing.assert_allclose(_snapshot(mesh, session).submeshes[1].vertices,
+                                   fitted.submeshes[1].vertices, atol=1e-7, rtol=0.)
+    points = (np.asarray(fitted.submeshes[1].vertices) - translation) @ rotation / scale
+    # Contact should expand this hem around the hip, not slide the edge toward
+    # the narrower waist until the intersection vanishes.
+    assert np.max(np.abs(points[:segments, 1] - original[:segments, 1])) < .002
+    _assert_no_surface_crossings(body, fitted.submeshes[1])
+
+
+def test_clearance_lifts_a_collar_past_a_body_cap_without_widening_it():
+    body = _arm(radius=.12)
+    collar = _refit_tube_part("collar over shoulder cap", .06, 0., (.49, .5, .51, .53, .55), 32)
+    mesh = _mesh(body, collar)
+    with _bound(mesh) as session:
+        _fit(session, tightness=0.)
+        fitted = _snapshot(mesh, session)
+    points = np.asarray(fitted.submeshes[1].vertices)
+    assert points[:, 1].min() > .5005
+    np.testing.assert_allclose(np.linalg.norm(points[:, (0, 2)], axis=1), .06, atol=.001, rtol=0.)
+    assert fitted.submeshes[0].vertices == body.vertices
+    _assert_no_surface_crossings(body, fitted.submeshes[1])
