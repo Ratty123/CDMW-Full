@@ -198,6 +198,166 @@ fn workflow_part_name_hover_clears_and_respects_visible_geometry() -> TestResult
     Ok(())
 }
 
+fn part_name_has_viewport_outline(ui: &HeadlessUi, label: &str) -> bool {
+    let Some(name) = ui.label_rect(label) else { return false; };
+    let colour = Color32::from(egui::Rgba::from_rgb(0.15, 0.85, 1.0));
+    ui.output.shapes.iter().any(|shape| matches!(&shape.shape,
+        egui::Shape::Rect(rect) if rect.stroke.color == colour && rect.stroke.width == 2.0
+            && rect.rect.contains(name.center()) && shape.clip_rect.contains(name.center())))
+}
+
+fn viewport_part_point(ui: &HeadlessUi, part: u32) -> Result<Pos2, Box<dyn std::error::Error>> {
+    let mesh = ui.application.mesh.as_ref().ok_or("mesh")?;
+    let face = mesh.faces().find(|(_, face)| face.submesh == part).ok_or("Part face")?.1;
+    let centre = face.vertices.iter().map(|handle| Vec3::from(mesh.vertex(*handle).unwrap().position))
+        .sum::<Vec3>() / 3.0;
+    let rectangle = ui.application.viewport_rect.ok_or("viewport")?;
+    let point = ui.application.camera.project(centre, rectangle).ok_or("project Part")?;
+    assert!(point.inside_view, "Part {part} must be visible in the viewport");
+    Ok(egui::pos2(point.screen.x, point.screen.y))
+}
+
+fn assert_viewport_part_name_hover(ui: &mut HeadlessUi, part: u32, names: &[&str]) -> TestResult {
+    let point = viewport_part_point(ui, part)?;
+    let state = ui.application.cdmw_state.clone();
+    let mesh = ui.application.mesh.as_ref().ok_or("mesh")?.clone();
+    let targets = ui.application.cdmw_refit_region_targets.clone();
+    ui.last_actions.clear();
+    ui.frame(vec![Event::PointerMoved(point)]);
+    ui.settle_layout();
+    assert_eq!(ui.application.cdmw_viewport_hovered_part, Some(part));
+    for name in names { assert!(part_name_has_viewport_outline(ui, name), "missing outline: {name}"); }
+    let current = ui.application.mesh.as_ref().ok_or("mesh")?;
+    assert_eq!(current.selection, mesh.selection);
+    assert_eq!(current.selection_revision, mesh.selection_revision);
+    assert_eq!(current.structural_fingerprint(), mesh.structural_fingerprint());
+    assert_eq!(ui.application.cdmw_state, state);
+    assert_eq!(ui.application.cdmw_refit_region_targets, targets);
+    assert!(ui.application.cdmw_hovered_part.is_none());
+    assert!(ui.application.cdmw_part_hover_overlay.is_none());
+    assert!(ui.last_actions.is_empty());
+    assert!(ui.application.cdmw_pending_request.is_none());
+    ui.frame(vec![Event::PointerGone]);
+    assert!(ui.application.cdmw_viewport_hovered_part.is_none());
+    for name in names { assert!(!part_name_has_viewport_outline(ui, name), "stale outline: {name}"); }
+    Ok(())
+}
+
+#[test]
+fn workflow_viewport_part_hover_identifies_names_without_selection_or_fit_changes() -> TestResult {
+    let mut ui = mixed_refit_ui(&[2])?;
+    let root = tempdir()?;
+    ui.application.cdmw_bridge = Some(CdmwBridge::for_test(root.path().to_path_buf(), "viewport-part-hover", 2, 0));
+    ui.application.camera.frame_all_in_viewport(ui.application.mesh.as_ref().ok_or("mesh")?,
+        ui.application.viewport_rect.ok_or("viewport")?);
+    ui.type_number_in_row("Clearance %", 1.25, "0.75")?;
+    ui.open_refit_detail("Choose garments")?;
+    assert_viewport_part_name_hover(&mut ui, 1, &["2 · Sleeve", "1: Sleeve"])?;
+    let cached = ui.application.projection.as_ref().ok_or("projection")?.interaction.depth_triangles.as_ptr();
+    assert_viewport_part_name_hover(&mut ui, 2, &["3 · Plate", "2: Plate"])?;
+    assert_eq!(ui.application.projection.as_ref().ok_or("projection")?.interaction.depth_triangles.as_ptr(), cached,
+        "moving the pointer must reuse the picking cache");
+    ui.click("Part colors")?;
+    assert_viewport_part_name_hover(&mut ui, 1, &["2 · Sleeve", "1: Sleeve"])?;
+    assert_eq!(ui.application.cdmw_refit_clearance, 0.75);
+    assert!(ui.application.cdmw_refit_settings_dirty.is_dirty());
+    // A popup owns hover feedback until it closes.
+    ui.click("Selected garments · 1")?;
+    assert!(ui.application.egui_context.any_popup_open());
+    ui.frame(vec![Event::PointerMoved(viewport_part_point(&ui, 1)?)]);
+    assert!(ui.application.cdmw_viewport_hovered_part.is_none());
+    ui.frame(vec![key_event(egui::Key::Escape, true), key_event(egui::Key::Escape, false)]);
+    ui.open_refit_detail("Choose garments")?;
+    ui.open_refit_detail("Body region")?;
+    assert_viewport_part_name_hover(&mut ui, 1, &["2 · Sleeve"])?;
+    ui.open_refit_detail("Body region")?;
+    ui.click("Setup")?;
+    ui.open_refit_detail("Choose Parts")?;
+    assert_viewport_part_name_hover(&mut ui, 0, &["1 · Body", "0: Body"])?;
+    ui.click("Fit")?;
+    refit_feedback_reply(&mut ui, "Fit to body", false,
+        "Fit to body: Part 1 still intersects Part 2 beneath its triangles; previous preview retained")?;
+    assert_viewport_part_name_hover(&mut ui, 1, &["2 · Sleeve"])?;
+    assert_eq!(ui.application.cdmw_refit_highlight_parts(), vec![1, 2]);
+    ui.application.cdmw_refit_feedback = None;
+    ui.application.cdmw_state["mesh_islands"] = json!({"fit_parts": [{"index": 1,
+        "name": "Sleeve", "islands": [{"faces": [0]}]}]});
+    ui.choose("Editing", "Selected garments · 1", "Selected mesh islands")?;
+    ui.open_refit_detail("Choose mesh islands")?;
+    assert_viewport_part_name_hover(&mut ui, 1, &["2 · Sleeve"])?;
+    Ok(())
+}
+
+#[test]
+fn workflow_viewport_part_hover_uses_front_surfaces_and_respects_visibility_and_drags() -> TestResult {
+    let mut application = overlapping_parts_application()?;
+    application.camera.set_standard_view(StandardView::Back);
+    application.mesh.as_mut().ok_or("mesh")?.set_selection(Selection {
+        submeshes: HashSet::from([1]), ..Selection::default()
+    })?;
+    let mut ui = HeadlessUi::new_integrated_cdmw_for_controls(application, egui::vec2(1440.0, 1200.0));
+    let root = tempdir()?;
+    ui.application.cdmw_bridge = Some(CdmwBridge::for_test(root.path().to_path_buf(), "viewport-part-hover", 2, 0));
+    ui.application.camera.frame_all_in_viewport(ui.application.mesh.as_ref().ok_or("mesh")?,
+        ui.application.viewport_rect.ok_or("viewport")?);
+    let point = viewport_part_point(&ui, 0)?;
+    ui.last_actions.clear();
+    ui.frame(vec![Event::PointerMoved(point)]);
+    ui.settle_layout();
+    assert_eq!(ui.application.cdmw_viewport_hovered_part, Some(0));
+    ui.application.camera.set_standard_view(StandardView::Front);
+    ui.frame(vec![Event::PointerMoved(viewport_part_point(&ui, 1)?)]);
+    assert_eq!(ui.application.cdmw_viewport_hovered_part, Some(1));
+    ui.application.camera.set_standard_view(StandardView::Back);
+    ui.frame(vec![Event::PointerMoved(point)]);
+    assert_eq!(ui.application.cdmw_viewport_hovered_part, Some(0));
+    // Hover ignores vertex/edge selection domains and X-ray's rear selection policy.
+    ui.application.selection_domain = SelectionDomain::Edge;
+    ui.application.selection_visible_only = false;
+    ui.application.view_mode = ViewMode::XRay;
+    ui.frame(Vec::new());
+    assert_eq!(ui.application.cdmw_viewport_hovered_part, Some(0));
+    ui.application.handle_actions(vec![UiAction::SetPartVisibility { indices: vec![0], visible: false }]);
+    ui.frame(Vec::new());
+    assert_eq!(ui.application.cdmw_viewport_hovered_part, Some(1));
+    assert!(part_name_has_viewport_outline(&ui, "1: Back"));
+    ui.application.handle_actions(vec![UiAction::SetPartVisibility { indices: vec![0], visible: true }]);
+    ui.frame(Vec::new());
+    assert_eq!(ui.application.cdmw_viewport_hovered_part, Some(0));
+    let source_faces = ui.application.mesh.as_ref().ok_or("mesh")?.faces().filter_map(|(_, face)| match face.provenance {
+        Provenance::Source { submesh: 0, element } => Some(element), _ => None,
+    }).collect();
+    ui.application.handle_actions(vec![UiAction::SetIslandVisibility { part: 0, faces: source_faces, visible: false }]);
+    ui.frame(Vec::new());
+    assert_eq!(ui.application.cdmw_viewport_hovered_part, Some(1));
+    ui.application.cdmw_state["geometry_layers"]["layers"].as_array_mut().ok_or("layers")?.push(
+        json!({"layer_id": "back", "name": "Back", "submesh_indices": [1], "visible": false, "base": false}));
+    ui.frame(Vec::new());
+    assert!(ui.application.cdmw_viewport_hovered_part.is_none());
+    ui.application.cdmw_state["geometry_layers"]["layers"][1]["visible"] = json!(true);
+    ui.frame(Vec::new());
+    assert_eq!(ui.application.cdmw_viewport_hovered_part, Some(1));
+    ui.frame(vec![Event::PointerButton { pos: point, button: PointerButton::Secondary, pressed: true,
+        modifiers: egui::Modifiers::NONE }]);
+    assert!(ui.application.cdmw_viewport_hovered_part.is_none());
+    assert!(!part_name_has_viewport_outline(&ui, "1: Back"));
+    ui.frame(vec![Event::PointerButton { pos: point, button: PointerButton::Secondary, pressed: false,
+        modifiers: egui::Modifiers::NONE }]);
+    ui.settle_layout();
+    assert_eq!(ui.application.cdmw_viewport_hovered_part, Some(1));
+    ui.application.cdmw_state["morph_refit"]["corrections_enabled"] = json!(false);
+    ui.frame(Vec::new());
+    assert!(ui.application.cdmw_viewport_hovered_part.is_none());
+    ui.application.cdmw_state["morph_refit"]["corrections_enabled"] = json!(true);
+    let empty = ui.application.viewport_rect.ok_or("viewport")?.right_bottom() - egui::vec2(4.0, 4.0);
+    ui.frame(vec![Event::PointerMoved(empty)]);
+    assert!(ui.application.cdmw_viewport_hovered_part.is_none());
+    assert_eq!(ui.application.selected_part_indices(), vec![1]);
+    assert!(ui.last_actions.is_empty());
+    assert!(ui.application.cdmw_pending_request.is_none());
+    Ok(())
+}
+
 #[test]
 fn workflow_part_colours_toggle_restores_display_and_preserves_fit_edits() -> TestResult {
     let mut ui = mixed_refit_ui(&[1])?;

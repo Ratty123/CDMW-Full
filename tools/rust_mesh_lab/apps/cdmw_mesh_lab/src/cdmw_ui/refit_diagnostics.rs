@@ -22,8 +22,34 @@ fn refit_failure_parts(detail: &str, garments: &[u32]) -> Vec<u32> {
 
 impl LabApplication {
     pub(super) fn track_cdmw_part_hover(&mut self, part: u32, response: &egui::Response) {
+        if response.interact_rect.is_positive() {
+            self.cdmw_part_name_rows.push((part, response.interact_rect, response.layer_id));
+        }
         if response.hovered() && response.ctx.input(|input| input.pointer.hover_pos().is_some()) {
             self.cdmw_hovered_part = Some(part);
+        }
+    }
+
+    pub(super) fn highlight_cdmw_part_names_from_viewport(
+        &mut self, ui: &egui::Ui, rectangle: egui::Rect, response: &egui::Response,
+    ) {
+        if self.cdmw_part_name_rows.is_empty() || !response.hovered() || self.hair.active()
+            || self.cdmw_jiggle.preview.scene.is_some() || self.cdmw_morph_comparison_active()
+            || self.cdmw_state["replacement"]["comparison"].as_str().is_some_and(|mode| mode != "edit")
+            || ui.input(|input| input.pointer.any_down()) || ui.ctx().any_popup_open()
+        { return; }
+        let Some(point) = ui.input(|input| input.pointer.hover_pos()).filter(|point| rectangle.contains(*point)) else { return; };
+        if !self.ensure_projection(rectangle) { return; }
+        let part = self.projection.as_ref().and_then(|projection| projection.part_at(Vec2::new(point.x, point.y)));
+        self.cdmw_viewport_hovered_part = part;
+        let Some(part) = part else { return; };
+        let [r, g, b, _] = PART_HOVER_COLOUR;
+        let colour = Color32::from(egui::Rgba::from_rgb(r, g, b));
+        // Paint an identification cue on this frame's clipped name rows. Their
+        // checkbox/button state and the retained viewport selection stay intact.
+        for (_, rect, layer) in self.cdmw_part_name_rows.iter().filter(|(index, _, _)| *index == part) {
+            ui.ctx().layer_painter(*layer).with_clip_rect(*rect).rect_stroke(
+                rect.shrink(0.5), 3.0, Stroke::new(2.0, colour), egui::StrokeKind::Inside);
         }
     }
 

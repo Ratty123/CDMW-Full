@@ -121,6 +121,16 @@ impl InteractionSnapshot {
         }
     }
 
+    /// Frontmost triangle under the pointer, using the resident depth index.
+    #[must_use]
+    pub fn nearest_triangle(&self, point: Vec2) -> Option<usize> {
+        if !point.is_finite() { return None; }
+        self.depth_index.candidate_indices(point).into_iter().filter_map(|index| {
+            let depth = interpolated_depth(&self.depth_triangles[index], point)?;
+            (0.0..=1.0).contains(&depth).then_some((index, depth))
+        }).min_by(|a, b| a.1.total_cmp(&b.1).then(a.0.cmp(&b.0))).map(|(index, _)| index)
+    }
+
     fn depth_visible(&self, element: &ProjectedElement) -> (bool, usize) {
         if !element.visible || !element.depth.is_finite() {
             return (false, 0);
@@ -1585,6 +1595,24 @@ mod tests {
         assert_eq!(selection.vertices, HashSet::from([handle]));
         assert!(stats.depth_triangles_inspected <= 32, "{stats:?}");
         Ok(())
+    }
+
+    #[test]
+    fn nearest_triangle_uses_surface_depth_and_rejects_empty_or_clipped_space() {
+        let triangle = |depth| ProjectedTriangle {
+            positions: [Vec2::new(-10.0, -10.0), Vec2::new(10.0, -10.0), Vec2::new(0.0, 10.0)],
+            depths: [depth; 3],
+        };
+        let snapshot = InteractionSnapshot::new(1, 1, 1, 1, Vec2::splat(100.0), Vec::new(),
+            vec![triangle(0.8), triangle(-0.1), triangle(0.3), triangle(1.1)]);
+        // Surface interiors near a corner are hits even far from the face centre.
+        assert_eq!(snapshot.nearest_triangle(Vec2::new(8.0, -9.0)), Some(2));
+        assert_eq!(snapshot.nearest_triangle(Vec2::ZERO), Some(2));
+        assert_eq!(snapshot.nearest_triangle(Vec2::new(9.0, 9.0)), None);
+        assert_eq!(snapshot.nearest_triangle(Vec2::splat(f32::NAN)), None);
+        let clipped = InteractionSnapshot::new(1, 1, 1, 1, Vec2::splat(100.0), Vec::new(),
+            vec![triangle(-0.1), triangle(1.1)]);
+        assert_eq!(clipped.nearest_triangle(Vec2::ZERO), None);
     }
 
     #[test]

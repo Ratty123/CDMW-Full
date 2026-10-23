@@ -669,6 +669,7 @@ pub struct ViewportProjection {
     pub interaction: InteractionSnapshot,
     pub vertices: HashMap<VertexHandle, ProjectedVertex>,
     visible_submeshes: Option<Vec<u32>>,
+    triangle_parts: Vec<u32>,
 }
 
 impl ViewportProjection {
@@ -736,6 +737,7 @@ impl ViewportProjection {
                 .as_ref()
                 .map_or_else(|| mesh.faces().count(), |items| items.faces.len()),
         );
+        let mut triangle_parts = Vec::with_capacity(depth_triangles.capacity());
         elements.extend(mesh.vertices().filter_map(|(handle, _)| {
             vertices.get(&handle).map(|projected| ProjectedElement {
                 handle: ProjectedHandle::Vertex(handle),
@@ -782,6 +784,7 @@ impl ViewportProjection {
                     positions: [points[0].screen, points[1].screen, points[2].screen],
                     depths: [points[0].depth, points[1].depth, points[2].depth],
                 });
+                triangle_parts.push(face.submesh);
                 elements.push(ProjectedElement {
                     handle: ProjectedHandle::Face(handle),
                     position: (points[0].screen + points[1].screen + points[2].screen) / 3.0,
@@ -802,12 +805,18 @@ impl ViewportProjection {
                 depth_triangles,
             ),
             vertices,
+            triangle_parts,
             visible_submeshes: visible_submeshes.map(|submeshes| {
                 let mut ordered = submeshes.iter().copied().collect::<Vec<_>>();
                 ordered.sort_unstable();
                 ordered
             }),
         }
+    }
+
+    #[must_use]
+    pub fn part_at(&self, point: Vec2) -> Option<u32> {
+        self.interaction.nearest_triangle(point).and_then(|index| self.triangle_parts.get(index).copied())
     }
 
     #[must_use]

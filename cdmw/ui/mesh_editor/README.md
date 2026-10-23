@@ -2054,7 +2054,10 @@ inspector identify each piece while Part colors is enabled.
 Hovering a Part name temporarily highlights its visible geometry in cyan, including
 obscured surfaces, without changing the selection or fitting targets. This also works
 with Part colors off; leaving the name clears the hover tint. Hidden Parts and islands
-stay hidden, and comparison views keep their own display.
+stay hidden, and comparison views keep their own display. Hovering a surface in the
+viewport also outlines its matching visible Part names in cyan. It uses the frontmost visible
+surface, keeps selection and fitting edits, and clears over empty space or during
+drags. Closed sections and list scrolling stay as you left them.
 
 If fitting is refused, Fit shows the affected garment names, a short reason and a
 targeted next step. Overlaps suggest more Clearance (0.1% when starting at zero) or

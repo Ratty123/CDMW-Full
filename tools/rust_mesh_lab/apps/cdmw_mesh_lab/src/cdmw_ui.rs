@@ -1393,6 +1393,8 @@ impl LabApplication {
     pub(super) fn draw_cdmw_ui(&mut self, root_ui: &mut egui::Ui) -> Vec<UiAction> {
         let _language = crate::localization::enter(&self.egui_context);
         self.cdmw_hovered_part = None;
+        self.cdmw_viewport_hovered_part = None;
+        self.cdmw_part_name_rows.clear();
         let mut actions = Vec::new();
         self.draw_cdmw_delete_guidance(root_ui.ctx(), &mut actions);
         self.draw_cdmw_session_bar(root_ui, &mut actions);
@@ -4552,6 +4554,7 @@ impl LabApplication {
             if edit_allowed || busy {
                 self.handle_viewport_input(ui, rectangle, &response);
             }
+            self.highlight_cdmw_part_names_from_viewport(ui, rectangle, &response);
             self.paint_viewport_overlay(ui, rectangle);
             self.paint_rig_overlay(ui, rectangle);
             self.paint_hair_guides(ui, rectangle);
