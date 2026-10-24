@@ -75,6 +75,7 @@ def read_v2(meta, blobs, *, stop_event=None):
     if len(legacy_modules) > 1 or legacy_modules and legacy_modules[0]['id'] != 'item':
         raise IndependentItemError('The legacy adapter permits one module named item.')
     item_properties(meta)
+    item_stats(meta)
     from cdmw.services.independent_texture_package import read_texture_modules
     texture_keys = read_texture_modules(meta, blobs, stop_event=stop_event)
     legacy_keys = set()
@@ -173,6 +174,20 @@ def item_properties(manifest):
                 checked_properties(values)
             return dict(values, item_settings=decode_settings(data['settings']))
         return checked_properties(properties[0]['data'])
+    except ValueError as exc:
+        raise IndependentItemError(str(exc)) from exc
+
+
+def item_stats(manifest):
+    modules = manifest['modules']
+    stats = [module for module in modules if module['type'] == 'item.stats']
+    if not stats:
+        return {}
+    if len(stats) != 1 or not any(module['type'] == 'item.legacy' for module in modules):
+        raise IndependentItemError('Item stats require one module and its owned legacy item.')
+    from cdmw.domain.new_item.item_stats import decode_stat_settings
+    try:
+        return {'stat_settings': decode_stat_settings(stats[0]['data'])}
     except ValueError as exc:
         raise IndependentItemError(str(exc)) from exc
 

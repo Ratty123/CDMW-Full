@@ -26,6 +26,7 @@ class ItemSettingsIndex:
     rewards: tuple
     unsupported_actions: int
     unavailable: tuple = ()
+    skills: tuple = ()
 
 
 def load_settings_index(snapshot, *, stop_event=None):
@@ -40,10 +41,10 @@ def load_settings_index(snapshot, *, stop_event=None):
         raise_if_cancelled(stop_event)
         if not row.is_blocked:
             items.append((key, english[row.name_key].text if row.name_key in english else row.string_key))
-    actions, rewards, unsupported = [], [], 0
+    actions, rewards, skills, unsupported = [], [], [], 0
     available = snapshot.sources.tables if snapshot.sources is not None else {}
-    unavailable = tuple(name for name in ('itemuseinfo', 'dropsetinfo') if name not in available)
-    for key, raw in (_rows(snapshot, 'itemuseinfo') if 'itemuseinfo' in available else {}).items():
+    unavailable = tuple(name for name in ('itemuseinfo', 'dropsetinfo', 'skillinfo') if name not in available)
+    for key, raw in (_rows(snapshot, 'itemuseinfo', stop_event=stop_event) if 'itemuseinfo' in available else {}).items():
         raise_if_cancelled(stop_event)
         try:
             layout = read_item_use_layout(raw)
@@ -51,7 +52,7 @@ def load_settings_index(snapshot, *, stop_event=None):
             actions.append((key, cursor.text(), layout.variants[0]))
         except (RecordError, UnicodeError):
             unsupported += 1
-    for key, raw in (_rows(snapshot, 'dropsetinfo') if 'dropsetinfo' in available else {}).items():
+    for key, raw in (_rows(snapshot, 'dropsetinfo', stop_event=stop_event) if 'dropsetinfo' in available else {}).items():
         raise_if_cancelled(stop_event)
         try:
             reward = parse_item_reward_set(raw)
@@ -59,37 +60,49 @@ def load_settings_index(snapshot, *, stop_event=None):
                 rewards.append((key, reward.name))
         except (RecordError, UnicodeError):
             pass
-    result = ItemSettingsIndex(tuple(sorted(items)), tuple(sorted(actions)), tuple(sorted(rewards)), unsupported, unavailable)
+    for key, raw in (_rows(snapshot, 'skillinfo', stop_event=stop_event) if 'skillinfo' in available else {}).items():
+        raise_if_cancelled(stop_event)
+        try:
+            cursor = Cursor(raw)
+            cursor.take(4)
+            skills.append((key, cursor.text()))
+        except (RecordError, UnicodeError):
+            pass
+    result = ItemSettingsIndex(tuple(sorted(items)), tuple(sorted(actions)), tuple(sorted(rewards)), unsupported,
+                               unavailable, tuple(sorted(skills)))
     raise_if_cancelled(stop_event)
     snapshot._authoring_indexes['item-settings'] = result
     return result
 
 
-def _rows(snapshot, table):
+def _rows(snapshot, table, *, stop_event=None):
+    raise_if_cancelled(stop_event)
     cache_key = ('item-settings-table', table)
     cached = snapshot._authoring_indexes.get(cache_key)
     if cached is None:
         pair = optional_pair(snapshot, table)
         rows = {}
         for directory, start, end in parse_pabgh_table(pair.header, payload=pair.payload).row_spans(len(pair.payload)):
+            raise_if_cancelled(stop_event)
             raw = pair.payload[start:end]
-            if len(raw) < 4 or int.from_bytes(raw[:4], 'little') != directory.row_id:
+            if len(raw) < 4 or int.from_bytes(raw[:4], 'little') != directory.row_id or directory.row_id in rows:
                 raise RecordError(f'{table} has an unqualified row identity.')
             rows[directory.row_id] = raw
+        raise_if_cancelled(stop_event)
         cached = rows
         snapshot._authoring_indexes[cache_key] = cached
     return cached
 
 
-def _reference(snapshot, table, key):
+def _reference(snapshot, table, key, *, stop_event=None):
     if key == 0:
         return
-    if key not in _rows(snapshot, table):
+    if key not in _rows(snapshot, table, stop_event=stop_event):
         raise RecordError(f'Missing {table} dependency {key}.')
 
 
 def validate_reward(snapshot, key, *, stop_event=None):
-    raw = _rows(snapshot, 'dropsetinfo').get(key)
+    raw = _rows(snapshot, 'dropsetinfo', stop_event=stop_event).get(key)
     if raw is None:
         raise RecordError(f'Missing extraction reward {key}.')
     reward = parse_item_reward_set(raw)
@@ -104,7 +117,7 @@ def validate_reward(snapshot, key, *, stop_event=None):
 
 def load_use_action(snapshot, key, *, stop_event=None):
     raise_if_cancelled(stop_event)
-    raw = _rows(snapshot, 'itemuseinfo').get(key)
+    raw = _rows(snapshot, 'itemuseinfo', stop_event=stop_event).get(key)
     if raw is None:
         raise RecordError(f'Missing item-use action {key}.')
     layout = read_item_use_layout(raw)
@@ -118,12 +131,16 @@ def load_use_action(snapshot, key, *, stop_event=None):
     # their original game definitions; no generic integer is guessed to be a key.
     for member in layout.members:
         raise_if_cancelled(stop_event)
-        table = 'skillinfo' if (member.owner, member.name) == ('SkillLevelData', '_skillInfo') else (
-            'conditioninfo' if member.name == 'conditioninfo' else None)
+        table = 'skillinfo' if (member.owner, member.name) == ('SkillLevelData', '_skillInfo') else {
+            'skill': 'skillinfo', 'conditioninfo': 'conditioninfo', 'sublevelinfo': 'sublevelinfo',
+            'characterinfo': 'characterinfo', 'sequencerspawninfo': 'sequencerspawninfo',
+            'levelgimmicksceneobjectinfo': 'levelgimmicksceneobjectinfo',
+        }.get(member.name)
         if table is not None:
             if member.span.size != 4:
                 raise RecordError('Unsupported use-action reference width.')
-            _reference(snapshot, table, int.from_bytes(raw[member.span.start:member.span.end], 'little'))
+            _reference(snapshot, table, int.from_bytes(raw[member.span.start:member.span.end], 'little'),
+                       stop_event=stop_event)
     if kind == 2:
         reward_use = parse_item_use_reward(raw)
         validate_reward(snapshot, reward_use.reward_key, stop_event=stop_event)
@@ -148,3 +165,18 @@ def inherited_settings(settings, raw):
     template, _quantities = read_item_settings(raw)
     return replace(settings, **{name: getattr(template, name) for name in SETTINGS_FIELDS
                                 if name != 'quantities' and getattr(settings, name) is None})
+
+
+def validate_stat_dependencies(raw, snapshot, *, stop_event=None):
+    from cdmw.core.iteminfo_stats import read_item_stats
+    statistics, skills = read_item_stats(raw)
+    for row in statistics:
+        raise_if_cancelled(stop_event)
+        if row.key == 0:
+            raise RecordError('An item stat has no StatusInfo dependency.')
+        _reference(snapshot, 'statusinfo', row.key, stop_event=stop_event)
+    for skill in skills:
+        raise_if_cancelled(stop_event)
+        if skill.skill_key == 0:
+            raise RecordError('An equipment passive has no SkillInfo dependency.')
+        _reference(snapshot, 'skillinfo', skill.skill_key, stop_event=stop_event)

@@ -393,7 +393,7 @@ class _Planner(EffectPlanningMixin):
     def _apply_row_edits(self, row_bytes: bytes) -> bytes:
         spec = self.spec
         row = parse_iteminfo_row(row_bytes, item_keys=set(self.snapshot.rows) | {int(spec.item_key)},
-                                 structured=spec.item_settings is not None)
+                                 structured=spec.item_settings is not None or spec.stat_settings is not None)
         from cdmw.domain.new_item.item_properties import property_values
         properties = property_values(spec)
         if any(value is not None for value in properties.values()):
@@ -490,15 +490,21 @@ class _Planner(EffectPlanningMixin):
 
     def _apply_extended_settings(self, raw):
         settings = self.spec.item_settings
-        if settings is None:
-            return raw
-        from cdmw.services.new_item_settings import validate_settings_dependencies, inherited_settings
-        from cdmw.core.iteminfo_settings import set_item_settings
-        validate_settings_dependencies(inherited_settings(settings, raw), self.snapshot, stop_event=self.stop_event)
-        result = set_item_settings(raw, settings)
-        from cdmw.domain.new_item.item_settings import encode_settings
-        self.manifest['item_settings'] = encode_settings(settings)
-        return result
+        if settings is not None:
+            from cdmw.services.new_item_settings import validate_settings_dependencies, inherited_settings
+            from cdmw.core.iteminfo_settings import set_item_settings
+            validate_settings_dependencies(inherited_settings(settings, raw), self.snapshot, stop_event=self.stop_event)
+            raw = set_item_settings(raw, settings)
+            from cdmw.domain.new_item.item_settings import encode_settings
+            self.manifest['item_settings'] = encode_settings(settings)
+        if self.spec.stat_settings is not None:
+            from cdmw.core.iteminfo_stats import set_item_stats
+            from cdmw.services.new_item_settings import validate_stat_dependencies
+            from cdmw.domain.new_item.item_stats import encode_stat_settings
+            raw = set_item_stats(raw, self.spec.stat_settings)
+            validate_stat_dependencies(raw, self.snapshot, stop_event=self.stop_event)
+            self.manifest['stat_settings'] = encode_stat_settings(self.spec.stat_settings)
+        return raw
 
     def _check_stat_values_against_the_corpus(self) -> None:
         """Warn when a stat edit sits far outside what shipped equipment carries for it.

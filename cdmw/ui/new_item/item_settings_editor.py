@@ -130,6 +130,9 @@ class ItemSettingsEditor(QWidget):
         self.amounts.cellChanged.connect(self._amount_changed)
         self.amounts.setToolTip('Blank overrides inherit the template. Prices use unsigned 64-bit amounts; stat counters use signed 64-bit amounts. Existing rows only.')
         self.pages.addTab(self.amounts, 'Price and stat amounts')
+        from cdmw.ui.new_item.item_stats_editor import ItemStatsEditor
+        self.stats = ItemStatsEditor(controller, self)
+        self.pages.addTab(self.stats, 'Stats and passive skills')
         self.pages.setToolTip('Raw stored item settings. Unknown layouts and missing dependencies refuse; in-game effects remain unverified.')
         controller.authoring_index_ready.connect(self._ready)
         controller.authoring_index_failed.connect(self._failed)
@@ -229,6 +232,7 @@ class ItemSettingsEditor(QWidget):
 
     def rebuild(self):
         snapshot, draft = self.controller.snapshot, self.controller.draft
+        self.stats.rebuild(self.index)
         row = snapshot.rows.get(draft.template_key) if snapshot is not None else None
         if row is not self._row:
             self._row = row

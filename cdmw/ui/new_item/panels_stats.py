@@ -865,6 +865,7 @@ class StatsPanel(QGroupBox):
         draft.required_level = None
         draft.max_durability = None
         draft.item_settings = self.item_settings.default_settings()
+        draft.stat_settings = None
         draft.own_enhancement_rows = False
         self.own_rows.blockSignals(True)
         self.own_rows.setChecked(False)

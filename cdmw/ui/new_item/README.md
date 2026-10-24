@@ -1093,6 +1093,15 @@ Older capabilities and default equipment recipes retain their existing grammar.
 Field locations and source dependencies are qualified; game/save behaviour and
 timer/enum meanings remain unverified.
 
+**Item settings > Stats and passive skills** adds, edits and removes regeneration
+counters and raw level-based parameters within existing enhancement levels. It
+also supports equipment passive skill lists and levels, with template inheritance
+and explicit clearing. These use the separate
+[`item.stats@1` capability](INDEPENDENT_ITEMS.md#regeneration-level-based-stats-and-equipment-passive-skills).
+Final status/skill dependencies and declared item-use table references are checked
+and pinned. Level-based parameters are raw bytes, not flat bonuses; their gameplay
+meaning and skill-level limits remain unverified. Existing package schemas remain.
+
 Stats and gameplay perks are explicitly marked experimental. The Stats page uses
 compact, alternating rows with columns that fill the enhancement card, alongside a
 separate shop-price and stack card. The default view labels ItemInfo values as raw game

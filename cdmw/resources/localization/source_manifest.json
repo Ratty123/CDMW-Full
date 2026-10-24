@@ -6207,6 +6207,16 @@
       ]
     },
     {
+      "key": "Add passive skill",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/item_stats_editor.py",
+          "line": 64,
+          "sink": "QPushButton"
+        }
+      ]
+    },
+    {
       "key": "Add path...",
       "origins": [
         {
@@ -6262,6 +6272,16 @@
         {
           "path": "cdmw/ui/new_item/panels_perks.py",
           "line": 135,
+          "sink": "QPushButton"
+        }
+      ]
+    },
+    {
+      "key": "Add stat entry",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/item_stats_editor.py",
+          "line": 48,
           "sink": "QPushButton"
         }
       ]
@@ -67107,6 +67127,16 @@
       ]
     },
     {
+      "key": "Invalid stat or passive skill value.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/item_stats_editor.py",
+          "line": 175,
+          "sink": "setText"
+        }
+      ]
+    },
+    {
       "key": "Invalid stroke payload.",
       "origins": [
         {
@@ -69450,6 +69480,11 @@
           "sink": "_table"
         },
         {
+          "path": "cdmw/ui/new_item/item_stats_editor.py",
+          "line": 36,
+          "sink": "_table"
+        },
+        {
           "path": "cdmw/ui/new_item/recipe_editor.py",
           "line": 68,
           "sink": "setHorizontalHeaderLabels"
@@ -70650,6 +70685,11 @@
           "sink": "_table"
         },
         {
+          "path": "cdmw/ui/new_item/item_stats_editor.py",
+          "line": 36,
+          "sink": "_table"
+        },
+        {
           "path": "cdmw/ui/new_item/recipe_editor.py",
           "line": 68,
           "sink": "setHorizontalHeaderLabels"
@@ -70683,6 +70723,21 @@
           "path": "cdmw/ui/new_item/panels_stats.py",
           "line": 566,
           "sink": "note"
+        }
+      ]
+    },
+    {
+      "key": "Level-based parameter",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/item_stats_editor.py",
+          "line": 44,
+          "sink": "addItem"
+        },
+        {
+          "path": "cdmw/ui/new_item/item_stats_editor.py",
+          "line": 121,
+          "sink": "translate_active_ui_text"
         }
       ]
     },
@@ -96718,6 +96773,11 @@
           "path": "cdmw/ui/new_item/item_settings_editor.py",
           "line": 129,
           "sink": "_table"
+        },
+        {
+          "path": "cdmw/ui/new_item/item_stats_editor.py",
+          "line": 36,
+          "sink": "_table"
         }
       ]
     },
@@ -96748,6 +96808,16 @@
           "path": "cdmw/ui/archive_browser/mesh_swap_scope_dialog.py",
           "line": 341,
           "sink": "python-return:_behavior_text"
+        }
+      ]
+    },
+    {
+      "key": "Override equipment passive skills",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/item_stats_editor.py",
+          "line": 55,
+          "sink": "QCheckBox"
         }
       ]
     },
@@ -99103,6 +99173,16 @@
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
           "line": 2787,
           "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Passive skill",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/item_stats_editor.py",
+          "line": 58,
+          "sink": "_table"
         }
       ]
     },
@@ -114752,6 +114832,56 @@
       ]
     },
     {
+      "key": "Regeneration",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/item_stats_editor.py",
+          "line": 44,
+          "sink": "addItem"
+        },
+        {
+          "path": "cdmw/ui/new_item/item_stats_editor.py",
+          "line": 120,
+          "sink": "translate_active_ui_text"
+        }
+      ]
+    },
+    {
+      "key": "Regeneration and level-based stats",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/item_stats_editor.py",
+          "line": 30,
+          "sink": "QLabel"
+        }
+      ]
+    },
+    {
+      "key": "Regeneration counters are signed 64-bit values. Level-based parameters are raw bytes (0–255), not flat stat amounts. Blank inherits. Add or remove entries within existing enhancement levels.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/item_stats_editor.py",
+          "line": 37,
+          "sink": "setToolTip"
+        }
+      ]
+    },
+    {
+      "key": "Regeneration maximum",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/item_stats_editor.py",
+          "line": 44,
+          "sink": "addItem"
+        },
+        {
+          "path": "cdmw/ui/new_item/item_stats_editor.py",
+          "line": 119,
+          "sink": "translate_active_ui_text"
+        }
+      ]
+    },
+    {
       "key": "Regex",
       "origins": [
         {
@@ -115430,6 +115560,11 @@
           "sink": "QCheckBox"
         },
         {
+          "path": "cdmw/ui/new_item/item_stats_editor.py",
+          "line": 129,
+          "sink": "translate_active_ui_text"
+        },
+        {
           "path": "cdmw/ui/new_item/panels_perks.py",
           "line": 146,
           "sink": "QPushButton"
@@ -115640,6 +115775,11 @@
           "sink": "QPushButton"
         },
         {
+          "path": "cdmw/ui/new_item/item_stats_editor.py",
+          "line": 67,
+          "sink": "QPushButton"
+        },
+        {
           "path": "cdmw/ui/new_item/mod_merge_dialog.py",
           "line": 46,
           "sink": "QPushButton"
@@ -115707,6 +115847,16 @@
         {
           "path": "cdmw/ui/new_item/overlay_manager_dialog.py",
           "line": 147,
+          "sink": "QPushButton"
+        }
+      ]
+    },
+    {
+      "key": "Remove stat entries",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/item_stats_editor.py",
+          "line": 51,
           "sink": "QPushButton"
         }
       ]
@@ -118747,6 +118897,11 @@
         {
           "path": "cdmw/ui/new_item/item_settings_editor.py",
           "line": 47,
+          "sink": "QPushButton"
+        },
+        {
+          "path": "cdmw/ui/new_item/item_stats_editor.py",
+          "line": 32,
           "sink": "QPushButton"
         }
       ]
@@ -136542,6 +136697,16 @@
       ]
     },
     {
+      "key": "Skill level",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/item_stats_editor.py",
+          "line": 58,
+          "sink": "_table"
+        }
+      ]
+    },
+    {
       "key": "Skin Weights",
       "origins": [
         {
@@ -140326,8 +140491,13 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/item_settings_editor.py",
-          "line": 299,
+          "line": 303,
           "sink": "translate_active_ui_text"
+        },
+        {
+          "path": "cdmw/ui/new_item/item_stats_editor.py",
+          "line": 36,
+          "sink": "_table"
         }
       ]
     },
@@ -140587,6 +140757,26 @@
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
           "line": 76,
+          "sink": "python-return:_build_start_sections"
+        }
+      ]
+    },
+    {
+      "key": "Stats and passive skills",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/item_settings_editor.py",
+          "line": 135,
+          "sink": "addTab"
+        }
+      ]
+    },
+    {
+      "key": "Stats and passive skills edits regeneration counters and raw level-based parameters within existing enhancement levels. Load item references, add or remove stat entries, and edit equipment passive skills and their levels. Blank overrides inherit; Reset restores the template. Passive skill lists can be inherited or explicitly cleared. These settings require item.stats version 1. Missing status or skill references refuse. Level-based parameters are raw bytes, not flat bonuses; their gameplay meaning remains unverified.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 82,
           "sink": "python-return:_build_start_sections"
         }
       ]
@@ -143572,6 +143762,11 @@
         {
           "path": "cdmw/ui/new_item/item_settings_editor.py",
           "line": 129,
+          "sink": "_table"
+        },
+        {
+          "path": "cdmw/ui/new_item/item_stats_editor.py",
+          "line": 36,
           "sink": "_table"
         }
       ]
@@ -150728,6 +150923,16 @@
           "path": "cdmw/ui/settings_tab.py",
           "line": 984,
           "sink": "QLabel"
+        }
+      ]
+    },
+    {
+      "key": "These raw settings require item.stats version 1. Referenced status and skill tables are verified; gameplay meanings remain unverified.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/item_stats_editor.py",
+          "line": 74,
+          "sink": "setToolTip"
         }
       ]
     },
@@ -169752,16 +169957,6 @@
       ]
     },
     {
-      "key": "conditioninfo",
-      "origins": [
-        {
-          "path": "cdmw/services/new_item_settings.py",
-          "line": 126,
-          "sink": "_reference"
-        }
-      ]
-    },
-    {
       "key": "confirmed",
       "origins": [
         {
@@ -181597,6 +181792,16 @@
       ]
     },
     {
+      "key": "regeneration",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/item_stats_editor.py",
+          "line": 44,
+          "sink": "addItem"
+        }
+      ]
+    },
+    {
       "key": "rejected",
       "origins": [
         {
@@ -183891,7 +184096,17 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_settings.py",
-          "line": 126,
+          "line": 63,
+          "sink": "_rows"
+        },
+        {
+          "path": "cdmw/services/new_item_settings.py",
+          "line": 142,
+          "sink": "_reference"
+        },
+        {
+          "path": "cdmw/services/new_item_settings.py",
+          "line": 182,
           "sink": "_reference"
         }
       ]
@@ -184508,6 +184723,16 @@
           "path": "cdmw/ui/mesh_editor/static_replacement_adapter.py",
           "line": 165,
           "sink": "RuntimeError"
+        }
+      ]
+    },
+    {
+      "key": "statusinfo",
+      "origins": [
+        {
+          "path": "cdmw/services/new_item_settings.py",
+          "line": 177,
+          "sink": "_reference"
         }
       ]
     },
@@ -188826,22 +189051,27 @@
         },
         {
           "path": "cdmw/ui/new_item/item_settings_editor.py",
-          "line": 264,
+          "line": 268,
           "sink": "addItem"
         },
         {
           "path": "cdmw/ui/new_item/item_settings_editor.py",
-          "line": 273,
+          "line": 277,
           "sink": "QTableWidgetItem"
         },
         {
           "path": "cdmw/ui/new_item/item_settings_editor.py",
-          "line": 292,
+          "line": 296,
           "sink": "QTableWidgetItem"
         },
         {
           "path": "cdmw/ui/new_item/item_settings_editor.py",
-          "line": 306,
+          "line": 310,
+          "sink": "QTableWidgetItem"
+        },
+        {
+          "path": "cdmw/ui/new_item/item_stats_editor.py",
+          "line": 141,
           "sink": "QTableWidgetItem"
         },
         {

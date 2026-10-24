@@ -296,6 +296,12 @@ def validate_spec(spec: NewItemSpec) -> Tuple[ValidationIssue, ...]:
         value = getattr(spec, name)
         if value is not None and (type(value) is not int or not 0 <= value <= maximum):
             issues.append(_issue("item_property.range", name, f"{name} must be an integer in 0..{maximum}."))
+    if spec.stat_settings is not None:
+        from cdmw.domain.new_item.item_stats import encode_stat_settings
+        try:
+            encode_stat_settings(spec.stat_settings)
+        except (ValueError, TypeError) as exc:
+            issues.append(_issue('item_stats.invalid', 'stat_settings', str(exc)))
     if spec.item_settings is not None:
         from cdmw.domain.new_item.item_settings import encode_settings
         try:
@@ -409,7 +415,7 @@ def validate_against_context(spec: NewItemSpec, context: NewItemContext) -> Tupl
     if use_item and spec.needs_own_family:
         issues.append(_issue('item_settings.use_model', 'item_settings',
             'Inventory-use templates keep their source appearance; equipment model and effect authoring require an equipment template.'))
-    if not template.has_stat_block:
+    if not template.has_stat_block and spec.stat_settings is None:
         issues.append(_issue("template.no_stat_block", "template_key", f"{template.internal_name}'s stat block did not decode; stats and prices cannot be edited on this template.", "warning"))
 
     name = str(spec.internal_name or "")

@@ -1085,6 +1085,21 @@ meanings, current game effects, saves and independent native registration remain
 unverified. Stored endurance 65,535 does not establish an unlimited-durability
 sentinel, and known resource roots do not prove complete engine lookup closure.
 
+Stat-family extension, 2026-10-24, against `8e9ed31b` plus the scoped adapters:
+`item.stats@1` adds/edits/removes regeneration maxima and regeneration i64 counters,
+and u8 level-based parameters, within existing enhancement levels. It replaces or
+inherits the equipment passive skill list with u32 key/level pairs. Typed declared
+list spans preserve all other stat families, prices, buffs and ItemInfo fields.
+Final status/passive references, including inherited entries, are checked and
+source-pinned. Named use-action skill, condition, sublevel, character, sequencer
+spawn and level-gimmick-scene references also receive existence/directory checks;
+unnamed integers and runtime aliases remain unresolved. V1 recipes and property
+versions 1/2 retain their exact schemas. Constructed legacy/current rows, headless
+controls/native presentation and both synthetic deployment routes provide scoped
+proof. The level-based byte is not established as a flat amount or scaling
+formula, and raw skill levels have no verified gameplay range. Native admission,
+complete reference closure, game/save effects and rate/timer units remain open.
+
 Historical game observations establish acceptance of selected appended item/string
 records and shop substitutions. They do not establish arbitrary table rewrites.
 Later virtual-item observations are narrower experiments described in

@@ -280,6 +280,53 @@ charge/style enums, gameplay effects, save behaviour and independent native
 registration remain unverified. Compilation revisions require **Apply changes**
 for older virtual profiles; package UUIDs, legacy recipes and provenance remain.
 
+### Regeneration, level-based stats and equipment passive skills
+
+**Stats & Prices > Item settings > Stats and passive skills** edits the two
+regeneration counter families and raw level-based parameters. Choose an existing
+enhancement level and StatusInfo entry to add a row; change its Override value or
+use **Remove stat entries**. Blank overrides restore inheritance. Regeneration
+counters are signed i64; level-based parameters are u8 (0..255), not flat bonuses
+or a verified scaling formula. Existing enhancement levels are retained.
+
+**Override equipment passive skills** copies the template list for editing.
+**Load item references** loads the SkillInfo selector in the existing cancellable
+worker. Add skills, edit their raw u32 levels, or remove selected entries. An empty
+overridden list clears the equipment passives; unchecking the override or using
+Reset restores inheritance. These are separate from socket perks and per-level
+equipment buffs. Template changes and the main Stats reset also clear overrides.
+
+Portable edits require a separate **`item.stats@1`** module accompanying the owned
+`item.legacy@1`. Its data has exactly these fields:
+
+| Field | Serialized contract |
+| --- | --- |
+| `statistics` | At most 256 `{kind, level, key, value}` entries. `kind` is `regeneration_max`, `regeneration` or `level_stat`; `level` is an existing u16 enhancement level; `key` is a positive u32 StatusInfo key. Values are i64 counters or u8 parameters. `null` removes an existing entry; an integer updates or adds it. Selectors must be unique. Each resulting family list is bounded to 256 entries. |
+| `passive_skills` | `null` inherits; an empty list clears; otherwise at most 128 `{skill_key, level}` entries with unique positive u32 skill keys and raw u32 levels. |
+
+At least one override is required. Unknown fields/families, booleans, overflow,
+duplicate selectors/skills, ambiguous levels and removal of a missing entry
+refuse. Nested list resizing preserves static stats, prices, equipment buffs,
+effects and every unassigned ItemInfo field. Existing v1 recipes and
+`item.properties` versions 1 and 2 are unchanged, including their exact field
+sets. Older readers refuse the required capability. Compilation revisions require
+**Apply changes** for an older virtual profile while retaining package/item IDs.
+
+Planning checks the final regeneration/level-stat StatusInfo keys and all final
+equipment passive SkillInfo keys, including inherited entries. Directories and
+payloads are pinned to the source. Item-use checks also validate declared skill,
+condition, sublevel, character, sequencer-spawn and level-gimmick-scene references;
+unnamed integers, UI names and runtime aliases are not guessed to be table keys.
+Missing targets and changed dependency payloads refuse before recipient writes.
+This does not establish complete skill/action dependency closure or validate raw
+skill levels against gameplay limits.
+
+Evidence against `8e9ed31b` plus this scoped extension is independently constructed
+legacy/current rows, exact-byte and resizing regressions, package admission and
+synthetic physical/virtual rebuild/removal, and real headless controls/native
+presentation. Gameplay meanings, timer/rate units, native registration and save
+acceptance remain unverified; no packaging or game execution was performed.
+
 Unknown required features, module types and versions refuse before allocation.
 Optional behavior also refuses until a supported explicit alternative exists;
 it cannot be counted as executed. Bounded `metadata` is preserved uninterpreted

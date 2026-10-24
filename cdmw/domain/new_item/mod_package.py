@@ -29,6 +29,14 @@ class UnsupportedCapability(IndependentItemError):
 
 
 def capability_result(name, version):
+    if name == 'item.stats' and type(version) is int and version == 1:
+        return CapabilityResult(name, version, True,
+            ('Owned item only; existing recipe and item.properties schemas are unchanged.',
+             'Regeneration counters are i64; level-stat parameters are raw u8 values, within existing enhancement levels.',
+             'Equipment passive skill keys and levels are u32; referenced tables are verified dependencies.',
+             'Unknown layouts, ambiguous levels and invalid removals refuse; game effects remain unverified.'),
+            (EvidenceClaim('adapter', 'Typed item stat families and passive skills', 'iteminfo_stats.py'),
+             EvidenceClaim('synthetic', 'Portable stats and passive skill compilation', 'tests/test_independent_item_stats.py')))
     if name == 'package.links' and type(version) is int and version == 1:
         return CapabilityResult(name, version, True,
             ('Exact UUID/release/content pins within one deployment; cycles refuse.',
