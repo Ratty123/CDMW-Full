@@ -7,6 +7,10 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 ## [Unreleased]
 
+### Fixed
+
+- Update image handling and build dependencies to address newly disclosed security vulnerabilities.
+
 ### Docs
 
 - Add a public Crimson Desert research reference covering file formats, findings, evidence levels and open questions, with ongoing maintenance and archival guidelines.
