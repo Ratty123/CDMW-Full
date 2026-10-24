@@ -56757,11 +56757,21 @@
       ]
     },
     {
+      "key": "Give each Mesh Island a different color with matching list swatches. Edit view only; fitting and exports stay unchanged.",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_islands.rs",
+          "line": 85,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
       "key": "Give each Part a different color to see overlaps. Display only; fitting and exports stay unchanged.",
       "origins": [
         {
-          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui/morph_workflow.rs",
-          "line": 79,
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
+          "line": 3950,
           "sink": "rust-presentation"
         }
       ]
@@ -61127,11 +61137,11 @@
       ]
     },
     {
-      "key": "Hover an island name in Mesh islands to highlight only that island in the viewport without changing selection. Move away to clear the tint; hidden geometry stays hidden.",
+      "key": "Hover an island name in Mesh islands or Morph & Refit > Choose mesh islands to highlight only that island in the viewport without changing selection. Move away to clear the tint; hidden geometry stays hidden.",
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 354,
+          "line": 361,
           "sink": "python-return:_build_archive_mesh_sections"
         }
       ]
@@ -67758,6 +67768,41 @@
           "path": "cdmw/services/mesh_service_morph.py",
           "line": 1656,
           "sink": "_strict_indices"
+        }
+      ]
+    },
+    {
+      "key": "Island colors",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_islands.rs",
+          "line": 84,
+          "sink": "rust-presentation"
+        },
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
+          "line": 637,
+          "sink": "rust-presentation"
+        },
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
+          "line": 1272,
+          "sink": "rust-presentation"
+        },
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
+          "line": 2425,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Island colors applies in Edit view and keeps selection, pending fitting edits, textures and exports unchanged. New local geometry stays gray until its island data updates.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 361,
+          "sink": "python-return:_build_archive_mesh_sections"
         }
       ]
     },
@@ -92845,18 +92890,28 @@
       "key": "Open Parts on hover",
       "origins": [
         {
-          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui/refit_diagnostics.rs",
-          "line": 26,
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
+          "line": 3959,
           "sink": "rust-presentation"
         }
       ]
     },
     {
-      "key": "Open Parts on hover, beside Part colors in Morph & Refit, opens the Parts list when you hover a visible surface. Turn it off to keep closed panels closed; open lists still highlight and reveal matching names. Selection and pending fitting edits stay unchanged. Hover keeps the chosen Parts or Mesh islands tab and identifies the matching listed island.",
+      "key": "Open Parts on hover is below the color options in Parts and is off by default. Enable it to open the list when hovering a visible surface; saved choices are retained. Open lists still highlight and reveal matching names while keeping the chosen Parts or Mesh islands tab. Selection and pending fitting edits stay unchanged.",
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 354,
+          "line": 361,
+          "sink": "python-return:_build_archive_mesh_sections"
+        }
+      ]
+    },
+    {
+      "key": "Open Parts to find Part colors and Island colors above either list. These options also appear under Viewport > Display and work outside Morph & Refit. Matching swatches identify parts and islands; turn the active color option off to return to the normal display.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 361,
           "sink": "python-return:_build_archive_mesh_sections"
         }
       ]
@@ -93890,8 +93945,8 @@
       "key": "Open the Parts list when hovering a visible surface. Turn off to keep closed panels closed.",
       "origins": [
         {
-          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui/refit_diagnostics.rs",
-          "line": 27,
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
+          "line": 3960,
           "sink": "rust-presentation"
         }
       ]
@@ -99075,8 +99130,8 @@
           "sink": "rust-presentation"
         },
         {
-          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui/morph_workflow.rs",
-          "line": 78,
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
+          "line": 3949,
           "sink": "rust-presentation"
         }
       ]
@@ -167022,6 +167077,16 @@
         {
           "path": "cdmw/services/effect_preview_model.py",
           "line": 730,
+          "sink": "_read"
+        },
+        {
+          "path": "cdmw/services/effect_preview_model.py",
+          "line": 783,
+          "sink": "_read"
+        },
+        {
+          "path": "cdmw/services/effect_preview_model.py",
+          "line": 787,
           "sink": "_read"
         }
       ]
