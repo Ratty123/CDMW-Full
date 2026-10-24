@@ -2,7 +2,7 @@
 # requirements-build.txt, tested on CPython 3.11 and 3.14.
 altgraph==0.17.5
 backports.zstd==1.7.0; python_version < "3.14"
-brotli==1.2.0
+brotli==1.2.1
 cffi==2.0.0
 cryptography==50.0.0
 inflate64==1.0.4
