@@ -2173,9 +2173,24 @@ nonoptimized interpreters before setup. Timestamp and failure-receipt correction
 retain the failed first fake run. Both native products remain uncompiled, and
 no actual channel has executed.
 
+The complete guardian, collector process and acknowledgment publisher now pass
+independent source review and 233 fake-only checks. One authenticated retained
+target lease supplies the stop authority. The real watch enters before arming;
+file collection stays in a separate bounded process. The original native start
+controls the deadline, and target/worker retirement and cleanup are explicit.
+Normal worker exit is required for completion; forced cleanup only proves
+retirement. The configured waits provide no hard real-time guarantee.
+
+The composed watch has not executed against actual Windows components. Actual
+retained-handle, six-case wire, crash-lease and seven-case IPC qualifications,
+exact V5 compile/link and fresh same-binary inert proof remain mandatory.
+Game mode additionally requires an independently reviewed successful owned
+full-watch run with the same components, plus current launch/install/recovery
+proof. Engine lifetime, coherent publication, resources and saves remain open.
+
 A source-reviewed three-case owned crash-lease qualifier is also prepared,
 including guardian death with an independently retained target handle and live
-unassigned sentinel. Its actual execution, complete watch/collector integration,
+unassigned sentinel. Actual execution of that qualifier and the composed watch,
 deadline and stop latency, game Job compatibility and admission remain open.
 
 Production `native_admission=false` and all original acceptance conditions remain
