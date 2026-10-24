@@ -116,7 +116,7 @@ def test_in_app_browser_renders_the_expanded_guides_in_each_locale(tmp_path, lan
                     "Open Parts to find Part colors and Island colors above either list. These options also appear under Viewport > Display and work outside Morph & Refit. Matching swatches identify parts and islands; turn the active color option off to return to the normal display.",
                     "Island colors applies in Edit view and keeps selection, pending fitting edits, textures and exports unchanged. New local geometry stays gray until its island data updates.",
                     "Open Parts on hover is below the color options in Parts and is off by default. Enable it to open the list when hovering a visible surface; saved choices are retained. Open lists still highlight and reveal matching names while keeping the chosen Parts or Mesh islands tab. Selection and pending fitting edits stay unchanged.",
-                    "Hover an island name in Mesh islands or Morph & Refit > Choose mesh islands to highlight only that island in the viewport without changing selection. Move away to clear the tint; hidden geometry stays hidden.",
+                    "Hover an island name in Mesh islands or Morph & Refit > Choose mesh islands to highlight only that island in the viewport. Hover a visible island in the viewport to highlight and reveal its name in the open lists. Move away to clear the highlight. Selection and pending fitting edits stay unchanged; hidden geometry stays hidden.",
                 ):
                     translated = localizer.translate(hover_guide)
                     assert translated in body

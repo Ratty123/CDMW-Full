@@ -5285,7 +5285,7 @@
     "Horizontal guides": "수평 가이드",
     "Horizontal mirror": "수평거울",
     "Hover Current for exact values or selection ranges.": "정확한 값이나 선택 범위를 보려면 현재를 호버하세요.",
-    "Hover an island name in Mesh islands or Morph & Refit > Choose mesh islands to highlight only that island in the viewport without changing selection. Move away to clear the tint; hidden geometry stays hidden.": "메시 섬 또는 모프 및 맞춤 조정 > 메시 아일랜드 선택에서 섬 이름에 마우스를 올리면 선택을 바꾸지 않고 해당 섬만 뷰포트에서 강조합니다. 마우스를 치우면 강조가 사라지며 숨겨진 형상은 숨겨진 상태로 유지됩니다.",
+    "Hover an island name in Mesh islands or Morph & Refit > Choose mesh islands to highlight only that island in the viewport. Hover a visible island in the viewport to highlight and reveal its name in the open lists. Move away to clear the highlight. Selection and pending fitting edits stay unchanged; hidden geometry stays hidden.": "메시 섬 또는 모프 및 맞춤 조정 > 메시 아일랜드 선택에서 섬 이름에 마우스를 올리면 해당 섬만 뷰포트에서 강조합니다. 뷰포트의 보이는 섬에 마우스를 올리면 열린 목록에서 해당 이름을 강조하고 보이도록 스크롤합니다. 마우스를 치우면 강조가 사라집니다. 선택과 적용 대기 중인 맞춤 설정은 바뀌지 않으며 숨겨진 형상은 숨겨진 상태로 유지됩니다.",
     "How disabled mode, direct NCNN, and chaiNNer behave.": "비활성화 모드, 직접 NCNN 및 chaiNNer의 동작 방식.",
     "How far each nudge moves it, in metres. 0.020 is a normal adjustment; 0.100 is flagged as risky because it is large enough to push an item through the body.": "한 번 움직일 때마다 이동하는 거리(미터)입니다. 0.020은 일반 조정입니다. 0.100은 항목을 몸에 밀어 넣을 만큼 크기 때문에 위험하다고 표시됩니다.",
     "How far each turn moves it. Only used by Rotate and Tilt.": "각 회전마다 이동하는 거리입니다. 회전 및 기울이기에서만 사용됩니다.",

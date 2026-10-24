@@ -5285,7 +5285,7 @@
     "Horizontal guides": "水平導軌",
     "Horizontal mirror": "水平鏡子",
     "Hover Current for exact values or selection ranges.": "懸停當前以獲取精確值或選擇範圍。",
-    "Hover an island name in Mesh islands or Morph & Refit > Choose mesh islands to highlight only that island in the viewport without changing selection. Move away to clear the tint; hidden geometry stays hidden.": "在「網格島」或「形變與貼合 > 選擇網格島」中懸停網格島名稱，即可只在檢視範圍中反白該網格島，不變更選取範圍。移開滑鼠即可清除反白；隱藏的幾何體維持隱藏。",
+    "Hover an island name in Mesh islands or Morph & Refit > Choose mesh islands to highlight only that island in the viewport. Hover a visible island in the viewport to highlight and reveal its name in the open lists. Move away to clear the highlight. Selection and pending fitting edits stay unchanged; hidden geometry stays hidden.": "在「網格島」或「形變與貼合 > 選擇網格島」中懸停網格島名稱，即可只在檢視範圍中反白該網格島。在檢視範圍中懸停可見的網格島，即可在已開啟的清單中反白並捲動顯示其名稱。移開滑鼠即可清除反白。選取範圍和待套用的貼合設定維持不變；隱藏的幾何體維持隱藏。",
     "How disabled mode, direct NCNN, and chaiNNer behave.": "禁用模式、直接 NCNN 與停用模式、直接 NCNN 的行為方式。",
     "How far each nudge moves it, in metres. 0.020 is a normal adjustment; 0.100 is flagged as risky because it is large enough to push an item through the body.": "每次輕推可移動多遠（以公尺為單位）。 0.020 為正常調整；0.100 被標記為有風險，因為它足夠大，可以將物體推過身體。",
     "How far each turn moves it. Only used by Rotate and Tilt.": "每轉一圈將其移動多遠。僅用於旋轉和傾斜。",

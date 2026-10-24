@@ -87,11 +87,17 @@ impl LabApplication {
         if self.cdmw_part_name_scroll.as_ref().is_some_and(|scroll|
             scroll.part == part && scroll.island == island && scroll.viewport_revision == self.viewport_revision)
         { return; }
+        // Prefer the exact island in each open list. A visible parent Part
+        // heading must not keep its matching island offscreen.
+        let island_roots: HashSet<_> = self.cdmw_part_name_rows.iter()
+            .filter(|row| row.island_faces.is_some() && row.matches(part, source_face) && row.clip_rect.is_positive())
+            .filter_map(|row| row.scroll_root).collect();
         // One name per scroll area: keep an already visible match, otherwise
         // reveal the closest match when the same Part occurs in several sections.
         let mut roots = HashMap::<egui::Id, (bool, f32, egui::Id)>::new();
         for row in self.cdmw_part_name_rows.iter().filter(|row| row.matches(part, source_face) && row.clip_rect.is_positive()) {
             let Some(root) = row.scroll_root else { continue; };
+            if row.island_faces.is_none() && island_roots.contains(&root) { continue; }
             let distance = (row.response.rect.top() - row.clip_rect.bottom())
                 .max(row.clip_rect.top() - row.response.rect.bottom()).max(0.0);
             roots.entry(root).and_modify(|entry| {
