@@ -40,7 +40,7 @@ def definition_game(extended_game, monkeypatch):
     import tests.test_new_item_provenance as source
     original = source.current_files
     control = {'missing': '', 'changed': '', 'blocked': '', 'duplicate': '', 'no_description': False,
-               'donor': False, 'map_xml': None, 'map_duplicate': False, 'malformed': ''}
+               'donor': False, 'map_xml': None, 'map_duplicate': False, 'malformed': '', 'missing_secondary': False}
     def files():
         result = original()
         base = 'gamedata/binarystaticinfo__/bin/'
@@ -85,7 +85,7 @@ def definition_game(extended_game, monkeypatch):
         for path in tuple(result):
             if path.endswith('.paloc'):
                 table = parse_paloc(result[path])
-                additions = entries_like(table, primary_description, {SECONDARY: 'Original secondary'})
+                additions = () if control['missing_secondary'] else entries_like(table, primary_description, {SECONDARY: 'Original secondary'})
                 if control['donor']:
                     additions += entries_like(table, primary_description, {str((1005300 << 32) | 0x76): 'Donor secondary'})
                 result[path] = encode_paloc(add_localization_entries(table, additions))
@@ -310,3 +310,20 @@ def test_existing_dmm_v3_export_refuses_definition_modules_instead_of_dropping_t
     export = prepare_independent_mod_merge(root, dmm_v3=True).semantic_export
     with pytest.raises(ValueError, match='DMM V3'):
         build_field_json(export, 'Refuse unsupported lowering')
+
+
+@pytest.mark.parametrize('source', ('present', 'missing', 'empty'))
+def test_inherited_secondary_description_is_preserved_and_checked_independently(tmp_path, definition_game, source):
+    definition_game.update(missing_secondary=source=='missing', no_description=source=='empty')
+    service, snapshot, _ = setup_game(tmp_path)
+    fields = dict(choices(snapshot).fields, pattern_descriptions=[])
+    spec = replace(shop_spec('InheritedSecondary'), definition_settings=ItemDefinitionSettings(fields))
+    if source == 'missing':
+        with pytest.raises(ValueError, match='localization dependency'):
+            service.plan(spec, snapshot)
+        return
+    plan = service.plan(spec, snapshot)
+    pair = snapshot.iteminfo
+    body = plan.loose_files[pair.payload_entry.path]; header = plan.loose_files[pair.header_entry.path]
+    raw = next(body[start:end] for row,start,end in parse_pabgh_table(header,payload=body).row_spans(len(body)) if row.row_id==plan.spec.item_key)
+    assert read_item_layout(raw).data('_itemDesc2') == read_item_layout(snapshot.rows[TEMPLATE].raw).data('_itemDesc2')

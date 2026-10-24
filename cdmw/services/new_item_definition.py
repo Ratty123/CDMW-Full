@@ -237,6 +237,9 @@ def apply_definition(raw, settings, snapshot, item_key, template_key, *, stop_ev
         raw = set_definition_fields(raw, dict(settings.fields))
     plan = None
     text = settings.secondary_description
+    if text is None:
+        inherited = decode_local_string(read_item_layout(raw).data('_itemDesc2'))
+        _localization_reference(snapshot, inherited, stop_event=stop_event)
     if text is not None:
         layout = read_item_layout(raw)
         if not text['texts']:
