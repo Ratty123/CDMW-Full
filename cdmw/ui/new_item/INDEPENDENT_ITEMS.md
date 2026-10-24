@@ -752,6 +752,14 @@ hashes and index witnesses remain mandatory, and equipment, status, perk, price
 and resource dependencies retain their guards. It is a compiled-record result;
 it does not establish closed resource ownership or native lifetime.
 
+A source-equal `item.fields` assignment remains an active final-value requirement
+even when its output bytes match the source. Removing its package releases only
+that owner's requirement. A remaining borrowed donor reference still blocks an
+opposing edit; a separately identified clone with no remaining donor reference
+does not. The [lifecycle regressions](../../../tests/test_independent_item_semantic_routes.py)
+cover both outcomes through physical and virtual composition, with exact source
+checks and unchanged clone bytes and bindings.
+
 Both halves of a changed table are required. An external ItemInfo row's serialized
 key must equal its table-directory key; a mismatched identity is refused before
 composition. Multiple external tables can be

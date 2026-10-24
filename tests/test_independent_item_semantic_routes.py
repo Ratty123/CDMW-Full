@@ -1,4 +1,5 @@
 """Scans and on-disk exports retain typed intent during contributor lifecycle."""
+from dataclasses import replace
 from uuid import uuid4
 
 import pytest
@@ -127,20 +128,112 @@ def test_source_equal_requirement_cannot_disappear_under_foreign_edit(tmp_path, 
 def test_source_equal_assignment_and_legacy_requirement_coexist_and_remain_enforced(tmp_path, reverse, remove_legacy):
     service, snapshot, _ = setup_game(tmp_path)
     root, backups = tmp_path / 'game', Backups(tmp_path)
-    legacy = from_plan(service.plan(shop_spec('SourceEqualLegacy'), snapshot, capture_independent=True), uuid4().hex)
+    # A rebased clone alone no longer requires its donor row unchanged. Retain
+    # an actual borrowed reference so either remaining owner requires this row.
+    choice = replace(shop_spec('SourceEqualLegacy'), socket_items=(1001295,))
+    legacy = from_plan(service.plan(choice, snapshot, capture_independent=True), uuid4().hex)
     field = field_package(snapshot, value=snapshot.rows[1001295].max_stack_count)
-    opposite = package_bytes(field_package(snapshot, value=9))
+    opposite = field_package(snapshot, value=9)
     packages = [legacy, field][::-1] if reverse else [legacy, field]
     backups.apply(prepare_install([package_bytes(p) for p in packages], root).preparation)
     bindings = load_registry(root)['items']
+    key = bindings[legacy.identity]['values']['iteminfo']['item']
+    assert snapshot_of(root).rows[key].socket_items == (1001295,)
     assert_scan_and_export_roundtrip(root)
     backups.apply(prepare_remove(legacy.identity if remove_legacy else field.identity, root))
     assert_scan_and_export_roundtrip(root, fields=remove_legacy)
     assert load_registry(root)['items'][legacy.identity]['binding_hash'] == bindings[legacy.identity]['binding_hash']
     before = files_in(root)
-    with pytest.raises(ItemFieldConflict):
-        prepare_install([opposite], root)
+    detail = 'opposing assignments' if remove_legacy else 'complete record unchanged'
+    with pytest.raises(ItemFieldConflict, match=detail) as error:
+        prepare_install([package_bytes(opposite)], root)
+    remaining = field if remove_legacy else legacy
+    assert remaining.identity in str(error.value)
+    assert opposite.identity in str(error.value)
     assert files_in(root) == before
+
+
+@pytest.mark.parametrize('reverse', [False, True])
+@pytest.mark.parametrize('borrowed', [False, True])
+@pytest.mark.parametrize('target', ['archive', 'virtual'])
+def test_removing_source_equal_owner_preserves_only_remaining_record_requirements(tmp_path, reverse, borrowed, target):
+    service, snapshot, _ = setup_game(tmp_path)
+    root, backups = tmp_path / 'game', Backups(tmp_path)
+    choice = shop_spec('DonorLifecycle')
+    if borrowed:
+        choice = replace(choice, socket_items=(1001295,))
+    legacy = from_plan(service.plan(choice, snapshot, capture_independent=True), uuid4().hex)
+    equal = field_package(snapshot, value=snapshot.rows[1001295].max_stack_count)
+    opposite = field_package(snapshot, value=9)
+    paths = {}
+    for package in (legacy, equal, opposite):
+        path = tmp_path / f'{package.identity}.cditem'
+        path.write_bytes(package_bytes(package))
+        paths[package.identity] = path
+
+    def prepare(packages):
+        if target == 'virtual':
+            return prepare_profile(VirtualProfile(tuple(paths[p.identity] for p in packages)), root)
+        return prepare_install([paths[p.identity] for p in packages], root).preparation
+
+    def apply(prepared):
+        return publish_profile(prepared) if target == 'virtual' else backups.apply(prepared)
+
+    def row(key):
+        return virtual_row(root, key) if target == 'virtual' else snapshot_of(root).rows[key]
+
+    packages = (legacy, equal)[::-1] if reverse else (legacy, equal)
+    apply(prepare(packages))
+    binding = load_registry(root)['items'][legacy.identity]
+    key = binding['values']['iteminfo']['item']
+    original_clone = row(key).raw
+    assert (1001295 in row(key).socket_items) == borrowed
+    assert row(1001295).raw == snapshot.rows[1001295].raw
+
+    # A source-equal assignment is a live requirement, even though it writes no
+    # different bytes. With a borrowed donor, the legacy owner also protects it.
+    before = files_in(root)
+    with pytest.raises(ItemFieldConflict) as error:
+        prepare((*packages, opposite) if target == 'virtual' else (opposite,))
+    assert opposite.identity in str(error.value)
+    assert (legacy if borrowed else equal).identity in str(error.value)
+    assert files_in(root) == before
+
+    if target == 'virtual':
+        apply(prepare((legacy,)))
+    else:
+        backups.apply(prepare_remove(equal.identity, root))
+    before = files_in(root)
+    selected = (legacy, opposite) if target == 'virtual' else (opposite,)
+    if borrowed:
+        with pytest.raises(ItemFieldConflict, match='complete record unchanged') as error:
+            prepare(selected)
+        assert legacy.identity in str(error.value) and opposite.identity in str(error.value)
+        assert files_in(root) == before
+    else:
+        prepared = prepare(selected)
+        assert files_in(root) == before, 'preparation must not publish changes'
+        apply(prepared)
+        assert row(1001295).max_stack_count == 9
+        if target == 'archive':
+            assert_scan_and_export_roundtrip(root)
+    assert row(key).raw == original_clone
+    assert load_registry(root)['items'][legacy.identity]['binding_hash'] == binding['binding_hash']
+
+
+@pytest.mark.parametrize('target', ['archive', 'virtual'])
+def test_rebased_clone_still_requires_exact_author_source_dependencies(tmp_path, target):
+    from cdmw.services.independent_item_install import resolve_items
+    service, snapshot, _ = setup_game(tmp_path)
+    package = from_plan(service.plan(shop_spec('PinnedSource'), snapshot, capture_independent=True), uuid4().hex)
+    body = snapshot.iteminfo.payload_entry.path.lower()
+    # The exception permits another contributor's final donor edit. It never
+    # permits compiling this package against different authored source bytes.
+    wrong_source = replace(package, dependencies={**package.dependencies, body: '0' * 64})
+    before = files_in(tmp_path / 'game')
+    with pytest.raises(IndependentItemError, match='incompatible game dependency.*iteminfo'):
+        resolve_items([package_bytes(wrong_source)], tmp_path / 'game', target=target)
+    assert files_in(tmp_path / 'game') == before
 
 
 @pytest.mark.parametrize('reverse', [False, True])

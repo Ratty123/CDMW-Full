@@ -1535,6 +1535,14 @@ may share bytes while retaining both owners. Different requirements for the
 same resource conflict, including an explicit request to retain its original
 value. Ordering an incompatible pair does not prove semantic compatibility.
 
+Removing one owner releases only its requirement. A separately identified clone
+that no longer references its donor does not keep the donor's final ItemInfo row
+protected; a remaining borrowed reference does. Both cases retain exact
+author-source checks. The [2026-10-24 lifecycle audit](../tests/test_independent_item_semantic_routes.py)
+covers source-equal requirements, removal, retained clone bytes/IDs and opposing
+edits in both package orders and physical/virtual composition. This is
+owned-fixture evidence; it does not establish in-game or save behaviour.
+
 The resolver protects borrowed game dependencies, package-owned additions,
 issued IDs, resource paths and the current compiler/binding evidence. Foreign
 mod folders require admitted metadata and known composition rules. Accepting a
