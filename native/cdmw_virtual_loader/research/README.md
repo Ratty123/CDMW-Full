@@ -423,8 +423,15 @@ qualifies owned orchestration only: the decoder copies an identity prefix and
 supplies a synthetic cursor. The configured eight-second wait is separate from
 cleanup and does not prove a hard eight-second total wall limit.
 
-A read-only native context observer separately passes source review but remains
-uncompiled. Its raw current-thread TLS words establish neither readiness,
-first-ever use nor a coherent snapshot/lifetime lease. The real B80 Api caller,
-native record survival after allocating-thread exit, game reader coverage,
-publication and resource/save behavior remain open; `native_admission=false`.
+A separately source-reviewed native retirement caller passes its strict standalone
+build, linked review and one exact-PID direct-interpreter inactive load. The first
+virtualenv PID-join failure remains failed. Its context observer, retained Trial
+and synchronous bounded codec are compiled; the C++ encoder has not executed.
+Raw TLS words establish neither readiness, first-ever use nor a coherent
+snapshot/lifetime lease. File-only collector v2 passes nine new capture-order/
+refusal checks and source review after the preserved v1 refusal. The separate
+eight-second validator and collector still require active external guardian
+arming, immediate current-PID stop, a fresh post-validation completion clock and
+provenance/recovery integration. Actual B80 calls, native post-exit record
+survival, game readers, publication and resource/save behavior stay open;
+`native_admission=false`.

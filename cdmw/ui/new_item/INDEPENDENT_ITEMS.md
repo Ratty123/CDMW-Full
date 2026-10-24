@@ -1873,14 +1873,18 @@ flowchart TD
     B --> R["Join B, inspect and release with the same checks"]
 ```
 
-A separate source-reviewed native retirement caller now passes its strict
-standalone build, including the read-only context observer, retained Trial and
-synchronous terminal/completed codec. Raw current-thread TLS values imply no
-readiness or first-ever use. Linked review and the inactive-load check remain
-pending. The separately source-reviewed eight-second file/clock validator still
-needs an active external guardian, arming and immediate owned-process stop.
-Actual B80 calls, native post-exit record survival, reader exclusion, publication
-and resource/save proof remain open; `native_admission=false` is unchanged.
+A separate source-reviewed native retirement caller passes its strict standalone
+build, independent linked review and one exact-PID direct-interpreter inactive
+load. The original virtualenv PID-join failure remains failed. The caller
+includes the read-only context observer, retained Trial and synchronous
+terminal/completed codec; the C++ encoder has not executed. Raw current-thread
+TLS values imply no readiness or first-ever use. A file-only collector v2 passes
+nine new capture-order/refusal checks and source review after its preserved v1
+review refusal. The eight-second file/clock validator and collector still need
+an active external guardian, arming, immediate owned-process stop and a fresh
+post-validation completion clock. Actual B80 calls, native post-exit record
+survival, reader exclusion, publication and resource/save proof remain open;
+`native_admission=false` is unchanged.
 
 This partial native caller is compiled; the diagram is source-level ordering,
 not a game observation. The external guardian is an unresolved dependency:

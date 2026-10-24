@@ -2101,10 +2101,17 @@ and evidence collection; its identity-prefix fake decoder does not qualify
 native decoding, FLS cleanup or record lifetime. The configured eight-second
 wait does not establish a hard eight-second total wall limit.
 
-A separate read-only native context observer passes source review but remains
-uncompiled. It records raw current-thread TLS values without inferring readiness
-or first-ever use. A real B80 Api caller and post-exit record-survival experiment
-remain open, alongside engine readers, publication and resource/save proof.
+A separately source-reviewed native retirement caller passes its strict
+standalone build, independent linked review and one exact-PID direct-interpreter
+inactive load. The first virtualenv PID-join failure remains failed. The context
+observer, retained Trial and synchronous bounded codec are compiled; the C++
+encoder has not executed. Raw TLS values infer no readiness or first-ever use.
+File-only collector v2 passes nine new capture-order/refusal checks and source
+review after its preserved v1 refusal. The external eight-second validator and
+collector still need active guardian arming, immediate owned-process stop, a
+fresh post-validation completion clock and provenance/recovery integration.
+Actual B80 calls and post-exit record survival remain unperformed, alongside
+engine readers, publication and resource/save proof.
 Production `native_admission=false` and all original acceptance conditions remain
 unchanged.
 
