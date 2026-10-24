@@ -25,6 +25,7 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 ### Fixed
 
+- Update image handling and build dependencies to address newly disclosed security vulnerabilities.
 - Morph & Refit keeps layered waist wraps, belt details and attached bows from collapsing into sharp folds. Default fitting preserves recognized solid accessories, including daggers sharing a Part with cloth, while retaining explicit island settings and exclusions. Fitting unrelated garments together no longer lets one difficult contact over-smooth the others.
 - Create New Item's Effects preview fixes missing or incorrectly shaped sprites caused by unused mesh references, and keeps parent-driven particles off when their carrier's spawn count is zero.
 - Mesh Editor retains PAC detail-level section layouts when reading, inspecting cloth records and rebuilding models, while preserving lower-detail geometry and skin data during position edits.
