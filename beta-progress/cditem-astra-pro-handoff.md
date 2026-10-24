@@ -9,7 +9,7 @@
 
 ## Current restart checkpoint, 2026-10-23
 
-Latest local work: [ordinary DLL placement and allocator source, 2026-10-24](cditem-execution-goal.md#ordinary-dll-placement-and-allocator-source-2026-10-24).
+Latest local work: [owned Cache and Router continuation, 2026-10-24](cditem-execution-goal.md#owned-cache-and-router-continuation-2026-10-24), with the [allocator source checkpoint](cditem-execution-goal.md#ordinary-dll-placement-and-allocator-source-2026-10-24) retained separately.
 
 The user resumed execution and directly authorized the required resources
 without other-session coordination. The
@@ -274,6 +274,8 @@ Existing early UAL startup permits younger threads and does not exclude every
 executor from the shared page. A separate code-publication draft was stopped
 automatically and remains uncompiled/unfrozen; it was not retried. Possible-mutation
 uncertainty would still require exact owned termination while held.
+A later hardware-observer report save was rejected with "blocked by policy";
+no report file, observer implementation or retry followed.
 The reviewed normal-DLL placement packet now passes one owned non-ASLR load:
 the preferred base is `0x180000000`, and all three uncalled compiled wrappers
 fit the numeric source CALL range. Runtime CFG enforcement and production
@@ -294,9 +296,23 @@ its failure policy is unknown, without an observed game defect. Replenishment
 `0x1447F49EC` also passes 67-instruction source review, reaching the producer
 with full cell-derived size and zero R9. Matching free/consumer offsets do not
 establish concrete base identity or drain of the separate context queue.
-Metadata production, initialization, serialization and lifetime stay open. The
+Producer review also passes 75 instructions and joins local metadata stores;
+the 35-instruction descriptor wrapper only routes onward. The normal descriptor
+target also passes 140-instruction review: its block-count store targets scanned
+`D`, while returned `M` comes from another helper and their identity is unproved.
+Post-call R11 preservation remains unresolved. Initial descriptor/backing
+provenance, coherent size, serialization and lifetime stay open. The
 [current evidence checkpoint](cditem-execution-goal.md#ordinary-dll-placement-and-allocator-source-2026-10-24)
 owns exact pins and limits. Game publication and admission stay open.
+
+The [owned Cache and Router continuation](cditem-execution-goal.md#owned-cache-and-router-continuation-2026-10-24)
+is now source/linked reviewed and compiled, with a fresh once-configured Cache,
+dormant stock forwarding and mandatory checking before its publication lock
+releases. It adopts no B121 object and changes no native guard. All fifteen owned
+cases now pass after the preserved resource-guard refusal, including a later
+worker's hot/evict/cold path. Independent actual review passes 62 current pins,
+all raw child/exit joins and lifecycle/refusal assertions without material
+defects; engine/all-reader/context/lifetime and native admission remain unqualified.
 
 Retained local source-only results under the native-path continuation:
 `run/b115-current-owner-v2/source-check-receipt.json` (41 focused checks;

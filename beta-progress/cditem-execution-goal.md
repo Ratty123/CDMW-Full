@@ -12,7 +12,7 @@
 
 ## Current execution checkpoint
 
-Latest local work: [ordinary DLL placement and allocator source, 2026-10-24](#ordinary-dll-placement-and-allocator-source-2026-10-24).
+Latest local work: [owned Cache and Router continuation, 2026-10-24](#owned-cache-and-router-continuation-2026-10-24), with the [allocator source checkpoint](#ordinary-dll-placement-and-allocator-source-2026-10-24) retained separately.
 The full goal is active; all original acceptance conditions remain in force.
 
 ### Resumed with direct authority, 2026-10-23
@@ -969,6 +969,10 @@ Its separate nine-file implementation draft was automatically stopped for
 and unfrozen, without a controller/freezer/source packet; it was not retried.
 Recovery receipt: the same directory's `interrupted-draft-receipt-v1.json`,
 3,332 bytes, SHA-256 `3964f4873483c8e58581107960f88e0ff83d7478911f6f448ad497590dc3640c`.
+A separate read-only hardware-observer report save was subsequently rejected
+with only "blocked by policy". That command created no report file and was not
+retried through another mechanism. No observer implementation or native action
+followed from it.
 Game reader exclusion, live allocator context, durable Cache/Router activation,
 resource consumption, lifetime and native admission remain unproved. This
 increment changes no installed binary, supported package workflow or acceptance
@@ -1143,13 +1147,134 @@ queue drain, current ownership, ordinary field serialization or node lifetime.
 - Retained queue join: `api-source-review/20261024-family0-queue-source-join-v1/queue-source-join-v1.json`,
   56,213 bytes, SHA-256 `80afbde8d3ecd9bcacd3bd219ac6aa8bc1b28e2cd61f08b3d7d506c1819156b0`.
 
-Producer `0x1447F482C`, threshold helper `0x1447F4700`, class/context preparation
-and the separate context queue remain selected source questions. Context/preparation/pointer
-services, a natural stock cold caller,
+Producer `0x1447F482C..0x1447F4937` now passes independent review too: 267
+bytes/75 instructions, row 172297 and standard unwind without a handler or
+chain sibling. It delegates initial descriptor `M` to
+`0x1447F1D48(H,S,Q,G+0x20,G+0x3B0)`, where `G=QWORD[H]`. Selected Q is full
+zero. The later cell `+0x10` reread tests a sentinel; it does not refresh the
+incoming full size. Null/special-cell paths can instead derive effective size
+from preexisting descriptor metadata and the reviewed base/size service.
+
+Local stores establish `M+0x30=H`, DWORD `M+0x1C=min_unsigned(effective_size,0x80000000)`,
+WORD `M+0xC` as the low sixteen quotient bits, and flag `M+0xF` bit zero from
+`M+8` bit one. The division has no local zero-size guard and follows ordinary
+metadata stores. Initial block count, region/backing provenance, coherent
+nonzero size and failure recovery remain unqualified. No live descriptor or
+division was observed; these source conditions do not establish a game defect.
+
+- Producer source: `api-source-review/20261024-family0-candidate-producer-v1/source-capture-result-v1.json`,
+  61,169 bytes, SHA-256 `a77f2c7a7459d20bee0cb882c1c19e0e97b94489853bcdedfb6fd89f81997de0`.
+- Independent producer review: `api-source-review/20261024-family0-candidate-producer-independent-v1/independent-review-v1.json`,
+  53,392 bytes, SHA-256 `4fb8affa5a53c73c1da9c614af29133c6d6bc8ce1cb733950ac349bbec0cfc2b`.
+
+Descriptor factory `0x1447F1D48..0x1447F1DCC` also passes independent review:
+132 bytes/35 instructions, row 172265, standard unwind without a handler or
+chain sibling. It is a routing wrapper with no descriptor payload store. The
+selected auxiliary is full zero, but cell-derived size remains unknown, so no
+numeric mode is asserted. The normal path forwards the producer's fourth and
+fifth arguments as its outgoing fifth and sixth arguments; the alternate path
+restores its stack before an external terminal jump. Both downstream targets,
+`0x1447F38A4` and `0x1447F296C`, retain the descriptor/region/backing questions.
+
+- Descriptor-factory source: `api-source-review/20261024-family0-descriptor-factory-v1/source-capture-result-v1.json`,
+  46,197 bytes, SHA-256 `64628d38f7a14db5b7e16ce1b0cde8bfa8e857ae0c2e672ad1851d10c48cd6e8`.
+- Independent descriptor-factory review: `api-source-review/20261024-family0-descriptor-factory-independent-v1/independent-review-v1.json`,
+  38,508 bytes, SHA-256 `9d3a1f73f057c4a970313543506beb8fdbf388dafa0a87533b9f269222c99b47`.
+
+The normal descriptor target `0x1447F38A4..0x1447F3AC3` now passes independent
+source review: 543 bytes/140 instructions, row 172279, standard unwind without
+a handler or chain sibling, eight calls and twelve local jumps. Its own payload
+store writes the low DWORD of required block count to scanned descriptor `D`,
+after an optional split. Returned `M` comes from `0x1447F3348`; identity with `D`
+is unproved. A nonnull `0x1447F3044` result triggers rescan rather than providing
+returned-descriptor provenance. The bucket-helper call leaves a dependency on
+post-call R11 preservation unresolved. Mode, requested size and rounded extent
+remain symbolic; no live region, backing or lifetime was observed.
+
+- Region-descriptor source: `api-source-review/20261024-family0-region-descriptor-v1/source-capture-result-v1.json`,
+  98,416 bytes, SHA-256 `ce87fdb1b632d44b6e030f9a85985316b2e13431e314d0ee184b8c9b149091ac`.
+- Independent region-descriptor review: `api-source-review/20261024-family0-region-descriptor-independent-v1/independent-review-v1.json`,
+  82,540 bytes, SHA-256 `4a1795430197f72f83b2058ab1c4bdced98d21099da74b3df5651efc9360bf30`.
+
+Returned-descriptor helper `0x1447F3348`, alternate factory `0x1447F296C`,
+threshold helper `0x1447F4700`, class/context preparation and the separate
+context queue retain selected source questions. A natural stock cold caller,
 durable Cache/Router activation, coherent publication, actual resource use and
 the full native two-package/save lifecycle remain open. Production
 `native_admission=false`; no game, installation, packaging or publication run
 was performed in this increment.
+
+#### Owned Cache and Router continuation, 2026-10-24
+
+A separately versioned owned prototype now addresses local dormant activation
+without adopting the old B121 Stage object or changing its guards. It configures
+one fresh Cache before staging four literal toy rows, retains that same Cache,
+and prepares a dormant Router against staged counts N with cookie/capacity F.
+The old B78 bind and Cache reconfiguration/adoption remain rejecting contracts.
+All backing objects, names, records, callbacks and coordination objects remain
+owned by this fixture through process retirement.
+
+The Router owns its noncopyable B74 publication transaction, issues one versioned
+local atomic-scalar descriptor, and requires final shape/context/metadata/witness
+verification before that transaction can release its lock. Every target-owner
+entry acquires the Gate before reading activation state, including stock
+delegation. The full-lifetime callbacks are toy implementations supplied from
+the outset; no real engine allocator, Stage API rebinding or live witness
+adoption is supplied by this design.
+
+The five-source/eighteen-input packet passes independent source review. Its
+first strict build also passes configure, compile/link and PE inspection with
+zero warnings/errors and resources returned. The 214,016-byte executable has
+SHA-256 `8e6f44706da7171aa7d9529ccb19495e2f8758c5adf16259f0110aad8b27b0da`.
+Independent linked review passes 41 current file pins, joins actual RX/GuardCF/
+unwind entries and verifies mandatory final checking before unlock. Compiled
+commit code contains standard-library helper calls. The fixture's
+`no_callbacks_in_commit` assertion therefore covers counted callbacks only;
+neither absence of every machine CALL nor a remote store-only pause is proved.
+
+Paths below remain relative to the existing native-path continuation:
+
+- Frozen source: `native-storage/durable-cache-router-v1/source-candidate-final.json`,
+  10,420 bytes, SHA-256 `5ea1bcdd690bbe4d197dc5133f10f5447e48ee718cd42080fd6b5968b6ea6000`.
+- Independent source review: `api-source-review/20261024-durable-cache-router-source-independent-v1/independent-source-review-v1.json`,
+  33,117 bytes, SHA-256 `15aa650ca61c988c859a8662bff0191d0e794eeacb5662255164aa469ed208e2`.
+- Actual build: `native-storage/durable-cache-router-build-v1/actual-result.json`,
+  15,223 bytes, SHA-256 `307aa6eac073ccd33ad433582fca1489e35d4a908ab6fecbe1c792624038b9d6`.
+- Build proof: `native-storage/durable-cache-router-build-v1/build-proof.json`,
+  2,925 bytes, SHA-256 `0bc3b44d895a0aed823ee0837784e23a2dee068ea2942a155c5850de86086fe7`.
+- Independent linked review: `api-source-review/20261024-durable-cache-router-linked-independent-v1/independent-linked-review-v1.json`,
+  81,788 bytes, SHA-256 `a47bc6f70be44511206fd988bd9a01c5628a384690d88cb584c0f3b1e25fa29a`.
+
+The first execution launch refused before any fixture case because the unchanged
+global resource guard found another MSBuild process. No foreign process was
+stopped or adopted. The later launch passed the same guard and all fifteen
+owned cases: one positive lifecycle and fourteen exact terminal refusals.
+All children retired within their eight-second bounds; before/after resource
+censuses are empty and source/input/output pins remain unchanged. The positive
+case records 176 checks, five allocation/construction/decode calls, ten inspections,
+one release and five original forwards. It exercises retained Cache activation,
+a later-worker hot path, guarded eviction and checked cold rematerialization.
+Independent actual review passes without material defects, joining 62 current
+file pins, all fifteen raw logs/child identities/exits/retirements, all fourteen
+terminal reasons and all twenty-one positive assertions. Its source-derived
+ledger also matches 163 guarded callbacks and 36 lifetime checks. The
+`bad-commit-shape` case terminates during mandatory final checking; its false
+late-assignment flag does not mean the earlier activation store was absent.
+
+Actual run: `native-storage/durable-cache-router-run-v1/actual-result.json`,
+42,413 bytes, SHA-256 `3319d0f954d6872df6b38b228e0b41b4d088962216f8bb3faad54ec06eb9f317`.
+Independent actual review: `api-source-review/20261024-durable-cache-router-actual-independent-v1/independent-actual-review-v1.json`,
+90,687 bytes, SHA-256 `69aaf9bd9807d1f80da6fb07d0a5213c778c05ec9497aefd8edb34b453c64493`.
+Preserved refusal: `native-storage/durable-cache-router-preflight-v1/refusal1.json`,
+1,267 bytes, SHA-256 `0c67ae1ab10b9010d44b7f60b75d400490d77d940ac008894abcecc2b45237a9`.
+
+This is source, compiled and owned runtime evidence, without engine proof.
+The later worker starts after activation; it does not establish
+another reader's half-commit interleaving. Actual allocator/TLS readiness, game
+reader/maintenance coverage, private central Reader routing, remote activation,
+derived state, resource consumption, borrowed-pointer retirement and the native
+two-package/save lifecycle remain open. Runtime CFG enforcement is unqualified;
+all original acceptance lines and `native_admission=false` remain unchanged.
 
 ### Paused at user request, 2026-10-22
 

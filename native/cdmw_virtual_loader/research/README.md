@@ -384,6 +384,21 @@ has no local detached-list requeue if it returns; no game defect or safe
 reclamation follows. Replenishment also passes 67-instruction source review and
 reaches the producer with full cell-derived size. The retained free/consumer
 join matches offsets, without concrete base identity or separate context-queue
-drain. Metadata provenance, coherent nonzero size and lifetime remain unqualified. The
+drain. Producer review passes 75 instructions and joins local metadata stores.
+The 35-instruction descriptor wrapper only routes onward. The normal descriptor
+target also passes 140-instruction review: its block-count store targets scanned
+`D`, without proving identity with returned `M`. Post-call R11 preservation stays
+unresolved. Descriptor/backing provenance, coherent nonzero size and lifetime
+remain unqualified. The
 [placement/source checkpoint](../../../beta-progress/cditem-execution-goal.md#ordinary-dll-placement-and-allocator-source-2026-10-24)
 retains the exact evidence and the stopped, unqualified publication draft.
+
+The [owned Cache and Router continuation](../../../beta-progress/cditem-execution-goal.md#owned-cache-and-router-continuation-2026-10-24)
+passes source/linked review and its strict build. A fresh Cache is retained
+through dormant preparation and versioned local activation, with mandatory
+final checks before its own publication lock releases. Old Stage/Cache guards
+remain unchanged. All fifteen owned cases now pass after a preserved resource-guard
+refusal, including a later-worker hot/evict/cold path. Independent actual review
+passes 62 current pins, raw child/exit joins and lifecycle/refusal assertions
+without material defects. No runtime CFG, engine context, all-reader or
+native-admission proof is established.

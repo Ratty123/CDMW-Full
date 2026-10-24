@@ -107,10 +107,24 @@ diagnostic follows detachment without local requeue if it returns; no game
 defect or safe reclamation is established. Replenishment passes 67-instruction
 source review and reaches the producer with a full cell-derived size. A retained
 queue join matches offsets and tag masks without proving concrete base identity
-or the separate context-queue drain. Actual metadata production, serialization
-and lifetime remain open.
+or the separate context-queue drain. Producer review passes 75 instructions and
+joins owner/size/quotient/flag stores, without initial descriptor/block-count
+provenance or a nonzero divisor guard. The descriptor wrapper's 35 reviewed
+instructions only route to further helpers; no payload fields are populated
+there. The normal descriptor target also passes 140-instruction source review:
+its block-count store targets scanned `D`, without proving identity with returned
+`M`. Post-call R11 preservation is unresolved. Initialization, serialization,
+backing provenance and lifetime remain open.
 See the [exact placement and source evidence](cditem-execution-goal.md#ordinary-dll-placement-and-allocator-source-2026-10-24).
 Game routing, resource use, lifetime and native admission remain open.
+
+The separate [owned Cache and Router continuation](cditem-execution-goal.md#owned-cache-and-router-continuation-2026-10-24)
+passes source/linked review and its strict build. It retains one fresh Cache
+across a versioned local activation API; old Stage guards remain intact. The
+fixed fifteen-case run now passes after the preserved resource-guard refusal,
+including later-worker hot/evict/cold behavior. Independent actual review passes
+62 current pins, raw child/exit joins and lifecycle/refusal assertions without
+material defects. No engine, all-reader or native-admission proof follows.
 
 [Canonical goal and acceptance criteria](cditem-conflict-isolation-plan.md) |
 [Execution](cditem-execution-goal.md) |

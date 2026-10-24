@@ -2005,9 +2005,25 @@ The overlength diagnostic has no local requeue if it returns; no game defect
 is inferred. Replenishment source review reaches the producer with a full
 cell-derived size. A separate free/consumer source join matches offsets and tag
 masks without concrete metadata-base identity or complete queue-drain proof.
-Metadata validity, coherent nonzero size and lifetime remain unqualified. The
+Producer review also joins local owner/size/quotient/flag stores through 75
+instructions, without initial descriptor/block-count provenance or a nonzero
+divisor guard. The descriptor wrapper's 35 reviewed instructions only route
+onward. The normal descriptor target also passes 140-instruction review: its
+block-count store targets scanned `D`, without proving identity with returned
+`M`. Post-call R11 preservation stays unresolved. Descriptor/backing provenance,
+metadata validity, synchronization and lifetime remain unqualified. The
 [placement/source checkpoint](../beta-progress/cditem-execution-goal.md#ordinary-dll-placement-and-allocator-source-2026-10-24)
 records exact receipts and the remaining native prerequisites.
+
+A separate [owned Cache and Router continuation](../beta-progress/cditem-execution-goal.md#owned-cache-and-router-continuation-2026-10-24)
+is source/linked reviewed and compiled. It retains one fresh Cache through
+dormant preparation and checked local activation under its own publication lock;
+old Stage guards remain unchanged. All fifteen owned cases now pass after a
+preserved resource-guard refusal, including later-worker hot/evict/cold behavior;
+independent actual review passes 62 current pins, raw child/exit joins and
+lifecycle/refusal assertions without material defects. This supplies no engine
+context, game reader coverage, central routing, resource use, lifetime or
+native-admission proof.
 
 A separately authored sword package passes full import,
 four hand/sheath attachment checks and exact package readback. Its compiler image

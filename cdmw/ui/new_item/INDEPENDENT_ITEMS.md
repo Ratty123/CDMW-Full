@@ -1644,8 +1644,22 @@ and ordinary staged-list/counter updates. It establishes neither serialization
 nor safe reclamation; an overlength diagnostic has no local requeue if it returns.
 No game defect is inferred. Replenishment source review also passes, reaching
 the producer with a full cell-derived size. Matching free/consumer offsets do
-not establish concrete metadata-base identity or complete queue drain. Metadata
-provenance, coherent nonzero size and lifetime remain unqualified. See the [exact placement/source scope](../../../beta-progress/cditem-execution-goal.md#ordinary-dll-placement-and-allocator-source-2026-10-24).
+not establish concrete metadata-base identity or complete queue drain. Producer
+review also joins its local owner/size/quotient/flag stores. The reviewed
+descriptor wrapper only routes onward. The normal descriptor target also passes
+140-instruction review: its block-count store targets scanned `D`, without
+proving identity with returned `M`. Post-call R11 preservation stays unresolved.
+Descriptor/backing provenance, coherent nonzero size and lifetime remain
+unqualified. See the [exact placement/source scope](../../../beta-progress/cditem-execution-goal.md#ordinary-dll-placement-and-allocator-source-2026-10-24).
+
+A separate [owned Cache and Router continuation](../../../beta-progress/cditem-execution-goal.md#owned-cache-and-router-continuation-2026-10-24)
+is source/linked reviewed and compiled. It retains one fresh Cache through a
+versioned local activation transaction; it neither adopts old Stage witnesses
+nor changes engine guards. Its fifteen owned cases now pass after a preserved
+resource-guard refusal, including later-worker hot/evict/cold behavior. Independent
+actual review passes 62 current pins, raw child/exit joins and lifecycle/refusal
+assertions without material defects. Actual engine context, reader coverage, central routing,
+resource use and lifetime remain unqualified.
 
 A first external sword package also passes actual full import, four hand/sheath
 attachment checks and exact package/model/texture readback with a persistent

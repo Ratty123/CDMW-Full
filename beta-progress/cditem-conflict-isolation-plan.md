@@ -161,10 +161,23 @@ detachment, without local requeue if it returns; no game defect is inferred.
 Replenishment now passes 67-instruction source review and reaches the producer
 with a full cell-derived size, not a proved `0x44F`. The retained free/consumer
 join matches offsets but not concrete bases; a separate context queue remains
-outside this consumer. Metadata validity, nonzero size and lifetime remain
-unqualified. No
-game installation or acceptance changed. Exact pins and limits are
+outside this consumer. Producer review also joins 75 instructions and its
+owner/size/quotient/flag stores. The 35-instruction descriptor wrapper only
+routes arguments. The normal descriptor target also passes 140-instruction
+review: its block-count store targets scanned `D`, without proving identity
+with returned `M`. Post-call R11 preservation stays unresolved. Descriptor/
+backing provenance, metadata validity, nonzero size and lifetime remain
+unqualified. No game installation or acceptance changed. Exact pins and limits are
 in the [placement and allocator checkpoint](cditem-execution-goal.md#ordinary-dll-placement-and-allocator-source-2026-10-24).
+
+A separate [owned Cache and Router continuation](cditem-execution-goal.md#owned-cache-and-router-continuation-2026-10-24)
+is source/linked reviewed and compiled. It retains one fresh Cache and requires
+checked local activation under its own publication transaction, without adopting
+the old Stage. All fifteen owned cases now pass after the preserved resource-guard
+refusal, including retained Cache hot/evict/cold behavior on a later worker.
+Independent actual review passes 62 current pins, raw child/exit joins and
+lifecycle/refusal assertions without material defects. Real engine context,
+all-reader coverage, central routing and lifetime remain unqualified.
 
 1. Join the independently reviewed observed unpublished numeric/name pairs to private metadata/backing and central getter/bulk under a qualified consumer boundary. Native numeric values are WORD ordinals; name values are DWORD numeric keys. Guard known source/clone allocation aliases before adapter-controlled writes or releases; native internal-node freshness remains an explicit premise. The portable publication model's name values and metadata route indexes are not the native ABI. Expiry zero permits eviction; eager residency cannot replace rematerialization, reader/maintenance coverage or lifetime proof.
 2. Join definitions, both native maps and resources in one startup-scoped native contribution, including later derived-state validation and a qualified consumer boundary. Then exercise two independently authored same-donor packages with distinct private assets through acquisition, equip, restart and save reload.
