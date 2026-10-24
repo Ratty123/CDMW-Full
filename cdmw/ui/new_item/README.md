@@ -1463,25 +1463,82 @@ positions for two-point trails and cubic B-spline smoothing for longer trails,
 and extrapolate endpoint neighbours. Their emitter-history writer shifts poses
 on spawn events and their interpolation uses accumulated particle counts.
 
-The 2026-10-24 native follow-up recovered the host's 128-by-2 RGBA path baker:
-position XYZ and scalar scale occupy the first row, with orientation in the
-second. It samples at `float32(i * float32(1/127))` and maps stored custom keys
-to segment parameters. In isolated CPU probes, the position evaluator exactly
-matched independent arithmetic at all 4,224 samples from the 33 real paths:
-29 used the constructor's cubic Bezier default and four explicitly used Linear.
-Bezier controls are endpoint positions plus the corresponding tangent offsets;
-omitted positions default to zero. The probes supplied XML points and stored
-keys with inspected defaults; they did not replay the complete resource loader,
-orientation generation, texture upload or rendered playback.
+The 2026-10-24 native follow-up checks the installed 1.0.0.2976 resource and host
+contracts against Effects source baseline `50c15406`. The nonempty post-load
+preparation step preserves the supplied stored keys, positions, rotations,
+scales and tangents. It replaces zero normals with `(0, 1, 0)` and assigns the
+spline group identifier to its points. Eight owned cases also checked both
+custom-key flags and preparation input flags; this branch does not regenerate
+nonuniform keys. Generic XML/reflection loading, inheritance and empty-resource
+allocation were not replayed.
 
-A separate native cycle-phase fragment matched 264 controlled CPU cases for
-startup/repeated delay and finite loop limits. Its phase reaches the CPU path
-transform under a host gate. That does not establish caller time scaling or
-the mapping of authored movement modes/speeds into particle shader inputs.
-Resource key preparation, complete orientation baking, translation of authored
-flags, parent-specific buffer population and active shader selection remain
-open. The preview still does not consume these paths or connected trail data;
-no additional rendering change qualified from this partial playback contract.
+The complete native 128-by-2 RGBA baker now runs in isolated CPU probes with
+preallocated output. Position XYZ and scalar scale occupy the first row, with
+quaternion XYZW in the second. It samples at
+`float32(i * float32(1/127))` and maps stored custom keys to segment parameters.
+All 4,224 position samples from the 33 real paths match independent float32
+arithmetic bit for bit: 29 paths use the constructor's cubic Bezier default and
+four explicitly use Linear. Bezier controls are endpoint positions plus their
+tangent offsets; omitted positions default to zero. Scalar scale interpolation
+also matches. The same run checks the full orientation output:
+
+- The 27 default `Tangent` paths build their basis from the tangent and global
+  Y up. The six `TangentAndRoll` paths use the normalized interpolation of the
+  authored point normals instead. These modes do not linearly blend point Euler
+  rotations.
+- Cubic tangents use a finite difference in local segment parameter:
+  `lo = max(0, float32(u - float32(0.0005)))`, then
+  `hi = min(1, float32(lo + float32(0.001)))`. The native quaternion-to-Euler and
+  Euler-to-quaternion round trip is included in the replay. Independent basis
+  comparisons have no mismatches and a maximum component error below
+  `0.0000035`. Other rotation modes were not exercised.
+
+The native `EmitterTrackType` registration and host constant builder establish
+the following mapping when a cached named-path pointer is present or
+`_isDynamicMoveTrack` is set. These are particle variable flags, separate from
+constant flags:
+
+| Authored mode | Registered name | Particle path flag |
+| --- | --- | --- |
+| 0 | `DONT_USE_TRACK` | none |
+| 1 | `EMITTER_MOVE_TRACK` | none in this particle-path branch |
+| 2 | `PARTICLE_MOVE_TRACK` | `0x800` |
+| 3 | `PARTICLE_SPAWN_TRACK_LINEAR` | `0x1000` |
+| 4 | `PARTICLE_SPAWN_TRACK_RANDOM` | `0x2000` |
+| 5 | `PARTICLE_POSITION_TRACK` | `0x800` |
+
+`_isDynamicMoveTrack` selects variable bit `0x80000`; `_useBezierMoveTrack`
+selects `0x100000` within the admitted path branch. For modes 2 through 5, the
+host packs a 64-byte path record from the authored transform, replacing row 0 W
+with `_moveTrackPlaySpeed` unchanged and row 1 W with the cached texture handle
+converted to float. It admits at most 512 records and writes the record index
+into the upper half of particle-variable byte offset 148. Isolated native
+fragments passed 48 flag cases, 144 packing/capacity cases and 65 real stored
+mode/speed/transform tuples with controlled resource availability and handles.
+
+Constant speed is a separate host calculation: values strictly above the native
+float32 `0.001` threshold replace both particle lifetime bounds with a host
+scalar divided by `_moveTrackConstantSpeed`. Its fragment passed 24 owned cases
+and the six declared real constant-speed values. The host scalar's population
+and full caller clock remain unqualified; this is not arc-length or world-speed
+proof. In the inspected shader, controller-curve samples participate in the
+path phase, while linear/random spawn modes select their phase differently.
+Neither `age * play_speed` nor one shared phase for every mode is established.
+
+A separate native cycle-phase fragment previously matched 264 controlled CPU
+cases for startup/repeated delay and finite loop limits. Its phase reaches the
+CPU emitter transform under a host gate; this does not establish complete caller
+time scaling or mode-1 activation. Fresh reads reconfirmed all 33 paths, 12
+emitter masters, 41 effects, the selected tracking shader and executable. The
+three package PAMTs stayed unchanged; whole PAZ hashes were not calculated.
+
+The probes supply owned objects from decoded XML/binary fields and inspected
+defaults. Complete inheritance, per-instance overrides, controller selection,
+parent-specific birth/span population, dynamic route binding and active shader
+selection remain open. Texture upload, preview pixels and in-game playback were
+not exercised. The preview still does not consume these paths or connected
+trail data; no additional rendering change qualified from this partial playback
+contract.
 
 ### Imported item material authority
 

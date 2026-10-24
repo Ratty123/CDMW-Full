@@ -1263,9 +1263,9 @@ consumer rules. The checked payload SHA-256 prefixes are `7fcad2def981b61a`
   samples, so this does not justify changing that sampler.
 - A texture-backed move-track branch reads position/scale and orientation from
   two rows at `v = 0.25` and `0.75`, using the same fixed sample-coordinate
-  convention. The native follow-up below also recovers the producer's sample
-  layout and position arithmetic; conversion from authored speed/mode values
-  into the shader's playback parameter remains incomplete.
+  convention. The native follow-up below also checks the complete baker for
+  the observed modes and the host's mode/speed packing. Controller selection
+  and caller state still prevent a complete playback contract.
 - In the examined vertex permutation, render flag `0x40` connects adjacent
   particles within a span; `0x80` also checks the packed spawn-group ordinal and
   count. Each surviving pair is subdivided by the segment count. Two-point trails
@@ -1283,17 +1283,18 @@ consumer rules. The checked payload SHA-256 prefixes are `7fcad2def981b61a`
 A bounded CPU interpretation of the selected compiler arithmetic checked sample
 coordinates, repeat conditions, span/group boundaries, subdivision, smoothing,
 endpoint continuity and history-count formulas with controlled inputs. It did
-not execute the compiled shaders or recover running-game buffers. Authored flags
-and segment counts in the real files do not prove that host upload preserves
-those bits unchanged or selects this permutation.
+not execute the compiled shaders or recover running-game buffers. Authored
+ribbon-connection flags and segment counts in the real files do not prove that
+host upload preserves those bits unchanged or selects this permutation.
 
 The shader pass reread the selected effect and three shader payloads unchanged,
 and fresh DXC output matched the analysed instructions; the two package PAMTs
 stayed unchanged. The earlier corpus recheck covered 7,083 payloads and three
 PAMTs; whole PAZ hashes were not calculated.
 
-Native path-baking follow-up, reviewed 2026-10-24 against CDMW source baseline
-`8e9ed31b` and the same installed 1.0.0.2976 executable (full SHA-256
+Native path preparation, baking and host handoff, reviewed 2026-10-24 against
+CDMW Effects source baseline `50c15406` and the same installed 1.0.0.2976
+executable (full SHA-256
 `57da440d72f4db974f25fef047cf84c4dadd999a88cb2a3c5af4c9bd67fde1e7`):
 
 - The current `SplineObject3D` constructor, point factory and enum registration
@@ -1304,21 +1305,58 @@ Native path-baking follow-up, reviewed 2026-10-24 against CDMW source baseline
   `float32(i * float32(1/127))`. The first RGBA row contains position XYZ and
   scalar scale; the second contains orientation converted to four quaternion
   components. Its upload caller constructs a 128-by-2 texture. These are native
-  instruction findings; the upload and complete orientation bake were not run.
+  instruction findings; the complete baker now also runs in isolated CPU probes
+  for the observed modes. Texture upload was not executed.
 - The baker's custom-key wrapper at RVA `0x274f690` chooses the stored-key
   interval and maps it to a segment index plus fractional parameter. The cubic
   position controls are the start position plus its outer tangent and the end
   position plus its inner tangent. The four explicitly Linear paths use scalar
   float32 interpolation. Equal segment spacing or a distance reparameterization
   is not a substitute for this stored-key branch.
-- Isolated CPU probes executed only the reviewed position branches in private
-  copies of native routines, with their jump-table data and constants. An
-  independent calculation matched all 4,224 samples bit for bit: 3,712 from 29 default-mode paths and
-  512 from four Linear paths. Ten owned position cases also passed. The supplied
-  points and keys came from the real XML, with inspected factory defaults;
-  complete resource loading, inheritance and possible pre-bake key preparation
-  were not replayed. All 33 decoded path payloads were freshly reread unchanged,
-  their `0011` PAMT stayed unchanged, and the executable hash was reconfirmed.
+- The nonempty post-load preparation at RVA `0x274cdf0` preserves the supplied
+  keys, positions, rotations, scales and tangents, assigns each point its spline
+  group identifier and replaces zero normals with Y up. It does not normalize
+  other normals. This passed for all 177 real points; eight owned cases also
+  checked both custom-key flags and preparation input flags with nonuniform
+  keys. Generic XML/reflection loading, inheritance and empty-resource
+  allocation were not replayed.
+- The complete baker, admitted arithmetic helpers and nonempty preparation run
+  in private CPU memory with owned objects and preallocated output. All 4,224
+  position samples again match independent float32 arithmetic bit for bit:
+  3,712 from 29 default-mode paths and 512 from four Linear paths. Scalar scale
+  interpolation also matches. The earlier ten owned position cases remain
+  separate evidence.
+- All 33 paths also pass an independent geometric orientation comparison. The
+  27 default `Tangent` paths use tangent plus global Y up; six `TangentAndRoll`
+  paths interpolate and normalize point normals. Cubic tangent sampling uses
+  local segment offsets of float32 `0.0005` and `0.001`, with endpoint clamping.
+  The replay includes the native quaternion/Euler round trip. The maximum basis
+  component error is below `0.0000035`, with no mismatches. Other rotation modes
+  were not exercised.
+- Native enum registration at RVA `0x20da80` names modes 0 through 5 as
+  `DONT_USE_TRACK`, `EMITTER_MOVE_TRACK`, `PARTICLE_MOVE_TRACK`,
+  `PARTICLE_SPAWN_TRACK_LINEAR`, `PARTICLE_SPAWN_TRACK_RANDOM` and
+  `PARTICLE_POSITION_TRACK`. The host builder at RVA `0x2fcd120` sets particle
+  variable bit `0x800` for modes 2/5, `0x1000` for mode 3 and `0x2000` for mode 4,
+  conditional on a cached path pointer or dynamic declaration. Dynamic and Bezier
+  declarations select variable bits `0x80000` and `0x100000` in that branch.
+  Modes 0/1 do not set these particle-path bits. This does not prove mode-1
+  activation in the separate CPU emitter-transform path.
+- The same builder copies the authored transform into 64-byte path records for
+  modes 2 through 5, packs play speed unchanged into row 0 W and the cached
+  texture handle as float into row 1 W, and places the record index in the
+  particle variable's packed upper 16 bits. Capacity is 512 records. Isolated
+  native fragments passed 48 flag cases, 144 packing/capacity cases and 65 real
+  stored mode/speed/transform tuples. Resource availability and handles were
+  controlled inputs; complete inheritance and per-instance overrides were not
+  reproduced.
+- A separate 67-byte host fragment replaces both particle lifetime bounds with
+  a host scalar divided by authored constant speed when that speed is strictly
+  above float32 `0.001`. It passed 24 owned cases and six real declared values.
+  The scalar's population is not established as arc length or world speed. In
+  the inspected tracking shader, path phase also uses controller-curve samples;
+  linear and random spawn modes choose phase differently. These findings do not
+  justify a common `age * play_speed` path sampler.
 - Reflection offsets map `_spawnTime`, `_spawnDelayMin`, `_delayFirstLoopOnly`
   and `_loopCount` to fields read by one host cycle-phase calculation. Its
   528-byte fragment at RVA `0x2fbb1b1` matched 264 controlled CPU cases exactly,
@@ -1326,16 +1364,23 @@ Native path-baking follow-up, reviewed 2026-10-24 against CDMW source baseline
   and nonnegative clock/delay were premises. This checks startup-only versus
   repeated delay, normalized phase and the positive loop-count cap; it does not
   establish particle birth decisions or zero-duration behaviour. The resulting
-  phase feeds the CPU path-transform caller under a host gate. Caller clock
-  scaling and the complete authored mode/speed-to-GPU mapping remain unproved.
+  phase feeds the CPU path-transform caller under a host gate. Complete caller
+  clock scaling, controller selection and particle birth decisions remain open.
 
-No additional preview rendering change qualified. Resource key preparation,
-complete orientation baking, host playback/mode flags, parent-specific birth/span
+Fresh reads reconfirmed all 33 path payloads, 12 emitter masters, 41 effects
+covering the 70 distinct admitted parameter tuples, the selected tracking shader
+and executable. Fresh DXC output matched the analysed tracking instructions.
+The `0007`, `0011` and `0017` PAMTs stayed unchanged; whole PAZ hashes were not
+calculated. These checks confirm the stored fields and the survey's single-master
+merge, not the game's complete inheritance or per-instance override processing.
+
+No additional preview rendering change qualified. Generic resource loading,
+omitted movement defaults, full controller/clock state, parent-specific birth/span
 population, active shader selection and dynamic route binding remain open.
 The probes did not load the game image or call its entry point, attach to the
-running game, execute shaders or produce CDMW particle pixels. Packaged viewport
-and in-game appearance remain untested. RGB brightness experiments likewise
-remain without a qualified implementation change. Existing translated Help/Wiki
+game, execute shaders or produce CDMW particle pixels. Packaged viewport and
+in-game appearance remain untested. RGB brightness experiments likewise remain
+without a qualified implementation change. Existing translated Help/Wiki
 limitations remain accurate: ribbons and moving emitter paths are still not
 fully simulated.
 
