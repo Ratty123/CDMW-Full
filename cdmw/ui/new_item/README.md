@@ -1447,8 +1447,18 @@ Named motion paths are separate `.spline` resources under
 `miscellaneous/splinedata/`, with 3D control points, tangents and keys in several
 XML layouts. The preview does not currently resolve or sample them. The inspected
 game shaders also consume path transforms, emitter transform history and grouped
-particle spans. File availability does not establish curve baking, playback time
-or trail grouping; those rules remain unimplemented and unverified.
+particle spans. Static consumer analysis establishes the 128-sample half-texel
+mapping already used by the preview's life curves. The inspected trail branches
+subdivide adjacent particles within spans or packed spawn groups, use linear
+positions for two-point trails and cubic B-spline smoothing for longer trails,
+and extrapolate endpoint neighbours. Their emitter-history writer shifts poses
+on spawn events and their interpolation uses accumulated particle counts.
+
+These are conditional shader rules, not a complete playback contract. The host's
+3D path baking, clock/mode mapping, translation of authored flags, parent-specific
+buffer population and active shader permutation still need proof. Those inputs
+remain unimplemented; no further preview rendering change is justified by this
+consumer analysis alone.
 
 ### Imported item material authority
 

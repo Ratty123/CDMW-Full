@@ -1213,13 +1213,52 @@ field names. The inspected vertex path consumes grouped particle spans and
 segment counts. It does not establish how each real effect populates those
 buffers or selects the active permutation.
 
-No further preview rendering change qualified. Exact 3D spline baking and
-playback clocks, birth/group sequencing, transform-history population and dynamic
-route binding remain open. The historical scalar-spline evaluator does not prove
-the 3D path evaluator. No new CDMW particle pixels, packaged viewport or in-game
-appearance were tested. The 7,083 rechecked payloads and three PAMT hashes were
-unchanged; whole PAZ hashes were not calculated. RGB brightness experiments
-likewise remain without a qualified implementation change.
+Further static tracing of those installed shader payloads establishes conditional
+consumer rules. The checked payload SHA-256 prefixes are `7fcad2def981b61a`
+(tracking update), `b946736f1df1d13f` (spawn-point update) and `ef0baf06fc52a8ae`
+(particle vertex shader), from the installed 1.0.0.2976 files:
+
+- Life curves use `u = (127 * progress + 0.5) / 128` with the bilinear-clamp
+  sampler. Progress divides particle elapsed time by its half-precision lifetime;
+  repeating it requires both the variable flag `0x40000` and constant flag `1`.
+  The preview already preserves the 128 packed samples and uses the corresponding
+  interpolation mapping. A check of 15 real tracking-way curves found no lost
+  samples, so this does not justify changing that sampler.
+- A texture-backed move-track branch reads position/scale and orientation from
+  two rows at `v = 0.25` and `0.75`, using the same fixed sample-coordinate
+  convention. That recovers the consumer layout, not the CPU's 3D spline baking
+  or the conversion from authored speed/mode values into its playback parameter.
+- In the examined vertex permutation, render flag `0x40` connects adjacent
+  particles within a span; `0x80` also checks the packed spawn-group ordinal and
+  count. Each surviving pair is subdivided by the segment count. Two-point trails
+  use linear positions. Longer trails use uniform cubic B-spline weights over
+  four neighbours, with extrapolated endpoint neighbours. State checks still
+  gate drawing. The declared next-particle field alone is not its connection rule.
+- The spawn-point writer shifts its four-pose history on nonzero spawn events,
+  updates the event number and accumulates admitted spawn counts. The tracking
+  update uses event matching and those counts to interpolate history, with
+  separate startup branches. Uniform wall-time samples do not reproduce that
+  population rule. The particle age write adds emitter delta time separately
+  from the capped simulation step used elsewhere; the host clock mapping remains
+  unproved.
+
+A bounded CPU interpretation of the selected compiler arithmetic checked sample
+coordinates, repeat conditions, span/group boundaries, subdivision, smoothing,
+endpoint continuity and history-count formulas with controlled inputs. It did
+not execute the compiled shaders or recover running-game buffers. Authored flags
+and segment counts in the real files do not prove that host upload preserves
+those bits unchanged or selects this permutation.
+
+No further preview rendering change qualified. Exact 3D spline baking, host
+playback clocks/mode flags, parent-specific birth/span population, active shader
+selection and dynamic route binding remain open. The historical scalar-spline
+evaluator does not prove the 3D path evaluator. No new CDMW particle pixels,
+packaged viewport or in-game appearance were tested. The selected effect and
+three shader payloads were reread unchanged, and fresh DXC output matched the
+analysed instructions; the two package PAMTs stayed unchanged during this pass.
+The earlier corpus recheck covered 7,083 payloads and three PAMTs; whole PAZ
+hashes were not calculated. RGB brightness experiments likewise remain without
+a qualified implementation change.
 
 Sources: [effect reflection reader][effect-binary], [constrained writer][effect-edit],
 [dependency and authoring contracts][independent-items], [binary tests][effect-tests].
