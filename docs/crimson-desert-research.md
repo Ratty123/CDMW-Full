@@ -1278,8 +1278,8 @@ consumer rules. The checked payload SHA-256 prefixes are `7fcad2def981b61a`
 - A texture-backed move-track branch reads position/scale and orientation from
   two rows at `v = 0.25` and `0.75`, using the same fixed sample-coordinate
   convention. The native follow-up below also checks the complete baker for
-  the observed modes and the host's mode/speed packing. Controller selection
-  and caller state still prevent a complete playback contract.
+  the observed modes and the host's mode/speed packing. Controller resource
+  preparation and caller state still prevent a complete playback contract.
 - In the examined vertex permutation, render flag `0x40` connects adjacent
   particles within a span; `0x80` also checks the packed spawn-group ordinal and
   count. Each surviving pair is subdivided by the segment count. Two-point trails
@@ -1307,7 +1307,7 @@ stayed unchanged. The earlier corpus recheck covered 7,083 payloads and three
 PAMTs; whole PAZ hashes were not calculated.
 
 Native path preparation, baking and host handoff, reviewed 2026-10-24 against
-CDMW Effects source baseline `50c15406` and the same installed 1.0.0.2976
+CDMW Effects source baseline `0b5fca04` and the same installed 1.0.0.2976
 executable (full SHA-256
 `57da440d72f4db974f25fef047cf84c4dadd999a88cb2a3c5af4c9bd67fde1e7`):
 
@@ -1379,7 +1379,8 @@ executable (full SHA-256
   repeated delay, normalized phase and the positive loop-count cap; it does not
   establish particle birth decisions or zero-duration behaviour. The resulting
   phase feeds the CPU path-transform caller under a host gate. Complete caller
-  clock scaling, controller selection and particle birth decisions remain open.
+  clock providers and particle birth decisions remain open. The controller and
+  GPU variable handoff below has narrower direct checks.
 
 Fresh reads reconfirmed all 33 path payloads, 12 emitter masters, 41 effects
 covering the 70 distinct admitted parameter tuples, the selected tracking shader
@@ -1388,9 +1389,49 @@ The `0007`, `0011` and `0017` PAMTs stayed unchanged; whole PAZ hashes were not
 calculated. These checks confirm the stored fields and the survey's single-master
 merge, not the game's complete inheritance or per-instance override processing.
 
+The further controller/instance/history pass on the same executable establishes:
+
+- The controller packer initializes 32 slots to `0xff` and uses `_splineID` as
+  the slot identity. A valid low-byte texture row below 127 gains high bit
+  `0x80` when `_presetName` is nonempty. The shader then chooses the global
+  preset texture with no emitter row offset; unnamed rows use the emitter atlas
+  plus `_curveBeginOffset`. Low seven bits equal to 127 mean missing. The
+  inspected particle-path controller uses slot 11 and a scalar fallback of one.
+  The native fragment at RVA `0x2fcef5d` passed 58 owned packing cases. Actual
+  atlas allocation, preset registration and complete inheritance were not run.
+- The native GPU variable writer at RVA `0x2fd024a` passed 96 controlled CPU
+  cases. It selects among four frame-time fields before multiplying delta time
+  by an instance scalar. It separately writes the instance's double elapsed
+  time as float, its ratio to `_spawnableTime`, and the emitter's CPU cycle
+  phase. Reflection offsets join that denominator to the stored spawn field.
+  These checks do not recover the time providers or pause/reset/update rules;
+  one uniform age-times-speed clock remains unjustified.
+- The host maps `_spawnData._interpolateSpawnpoint` to variable bit `0x10000`,
+  checked in eight isolated native cases. The spawn-point shader requests a
+  history slot for that bit or geometry values 4 through 7. Its pool gate is
+  strictly below 4,096; allocation failure can suppress the spawn. A bounded
+  CPU interpretation checked 45 writer steps with birth gaps, initialization
+  and integer boundaries, plus 24 gate/allocation cases. Admitted birth events
+  shift the four poses and accumulated counts; existing history remains on
+  zero-birth frames. This evaluates the compiled copy/select/phi/state formulas
+  with owned post-transform poses, not real game history or shader execution.
+
+Fresh read-only inspection covers 231 effect payloads containing the 434 known
+motion declarations, 3,025 stored/keyed controller entries and 79 explicit enabled
+spawn-interpolation fields. All eight referenced `.spline2d` presets exist; their
+definitions use both attribute and nested-element XML layouts. Twenty-two scale
+controller overrides name presets without embedded samples: 15 unit constants
+and seven `cubicbezier_descent` references. This identifies a preparation gap to
+investigate, not a proven visual correction. Complete preset baking, inheritance
+and instance selection still need verification. The selected tracking and
+history-writer payloads were freshly reread, fresh DXC output matched, the
+executable hash was reconfirmed and all three PAMTs stayed unchanged. Whole PAZ
+hashes were not calculated.
+
 No additional preview rendering change qualified. Generic resource loading,
-omitted movement defaults, full controller/clock state, parent-specific birth/span
-population, active shader selection and dynamic route binding remain open.
+omitted movement defaults, controller resource allocation/baking, clock providers,
+parent-specific birth/span population, active shader selection and dynamic route
+binding remain open.
 The probes did not load the game image or call its entry point, attach to the
 game, execute shaders or produce CDMW particle pixels. Packaged viewport and
 in-game appearance remain untested. RGB brightness experiments likewise remain

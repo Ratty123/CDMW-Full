@@ -1476,7 +1476,7 @@ and extrapolate endpoint neighbours. Their emitter-history writer shifts poses
 on spawn events and their interpolation uses accumulated particle counts.
 
 The 2026-10-24 native follow-up checks the installed 1.0.0.2976 resource and host
-contracts against Effects source baseline `50c15406`. The nonempty post-load
+contracts against Effects source baseline `0b5fca04`. The nonempty post-load
 preparation step preserves the supplied stored keys, positions, rotations,
 scales and tangents. It replaces zero normals with `(0, 1, 0)` and assigns the
 spline group identifier to its points. Eight owned cases also checked both
@@ -1544,13 +1544,51 @@ time scaling or mode-1 activation. Fresh reads reconfirmed all 33 paths, 12
 emitter masters, 41 effects, the selected tracking shader and executable. The
 three package PAMTs stayed unchanged; whole PAZ hashes were not calculated.
 
+The controller/instance/history follow-up separates three further contracts:
+
+- The host initializes 32 controller slots to `0xff`. A curve's `_splineID`
+  selects its slot; the low byte of `_splineTextureIndex` must be below 127.
+  A nonempty `_presetName` sets the selector's high bit. In the inspected shader,
+  that bit chooses the global preset texture without an emitter row offset;
+  otherwise the row uses the emitter atlas plus `_curveBeginOffset`. A low
+  seven-bit value of 127 is missing. The particle-path branch reads slot 11 and
+  uses a scalar fallback of one. Native packing passed 58 owned cases, including
+  invalid rows and repeated IDs; this does not replay atlas allocation.
+- GPU variable delta time selects one of four frame-time fields and multiplies
+  it by an instance scalar. The host separately writes the instance's double
+  elapsed time converted to float, its ratio to `_spawnableTime`, and the CPU
+  emitter cycle phase. The unmodified packing fragment passed 96 owned cases
+  with controlled selectors and clocks. These separate values do not establish
+  a shared `time * speed` clock or reproduce the providers, pause/reset rules
+  and complete instance update.
+- `_spawnData._interpolateSpawnpoint` selects variable bit `0x10000`; eight
+  native flag cases passed. The inspected spawn-point shader requests history
+  for this bit or geometry values 4 through 7. Its allocation gate admits pool
+  ordinals below 4,096; allocation failure can suppress that spawn. A bounded
+  CPU interpretation checked 45 history-writer steps and 24 allocation/gate
+  cases. Nonzero admitted births advance the four poses, event number and
+  cumulative counts; zero-birth frames retain existing history. This checks the
+  compiled copy/select/state instructions with owned post-transform poses,
+  not shader execution or real instance history buffers.
+
+Fresh inspection of 231 effects covers all 434 previously identified motion
+declarations, with 3,025 stored/keyed controller entries and 79 explicit enabled
+spawn-interpolation fields. Their eight named `.spline2d` preset resources exist
+in both attribute and nested-element XML layouts. Twenty-two scale controllers
+name presets without embedded samples: 15 name unit constants and seven name
+`cubicbezier_descent`. These are input-preparation candidates, not a qualified
+rendering fix; inherited/preset resolution and the complete global preset baker
+remain unverified. Fresh DXC output for the tracking and history-writer shaders
+matches the inspected instructions. Selected payloads, the executable and all
+three PAMTs were checked without game writes or shader execution.
+
 The probes supply owned objects from decoded XML/binary fields and inspected
-defaults. Complete inheritance, per-instance overrides, controller selection,
-parent-specific birth/span population, dynamic route binding and active shader
-selection remain open. Texture upload, preview pixels and in-game playback were
-not exercised. The preview still does not consume these paths or connected
-trail data; no additional rendering change qualified from this partial playback
-contract.
+defaults. Complete inheritance, per-instance overrides, controller resource
+allocation/baking, clock providers, parent-specific birth/span population,
+dynamic route binding and active shader selection remain open. Texture upload,
+preview pixels and in-game playback were not exercised. The preview still does
+not consume these paths or connected trail data; no additional rendering change
+qualified from this partial playback contract.
 
 ### Imported item material authority
 
