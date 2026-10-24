@@ -6,7 +6,7 @@ import pytest
 
 from cdmw.core.mod_compatibility import SEMANTIC_EXPORT_FILE
 from cdmw.domain.new_item.independent import IndependentItemError
-from cdmw.domain.virtual_loader import VirtualProfile
+from cdmw.domain.virtual_loader import VirtualLoaderError, VirtualProfile
 from cdmw.services.independent_item_compatibility import prepare_independent_mod_merge
 from cdmw.services.independent_item_install import prepare_install
 from cdmw.services.independent_item_package import from_plan, package_bytes
@@ -78,8 +78,10 @@ def test_worker_cannot_promote_an_unselected_artifact_to_a_parsed_source_witness
     root = tmp_path.resolve()
     unselected = root / 'unselected.cditem'
     value = {'files': [[str(unselected), [10, 20, 30]]], 'payloads': [],
-             'indexes': [[str(unselected), '0' * 64]]}
-    with pytest.raises(ValueError, match='invalid or incomplete'):
+             'indexes': [[str(unselected), '0' * 64]], 'catalogue': []}
+    admitted = _revision(value, (root,), artifact_paths={unselected})
+    assert admitted.indexes == ((unselected, '0' * 64),)
+    with pytest.raises(VirtualLoaderError, match='invalid or incomplete'):
         _revision(value, (root,), artifact_paths={root / SEMANTIC_EXPORT_FILE})
 
 
@@ -87,21 +89,30 @@ def test_worker_cannot_promote_an_unselected_artifact_to_a_parsed_source_witness
 def test_file_witness_can_never_be_an_archive_coordinate(tmp_path, name):
     from cdmw.services.virtual_loader_process import _revision
     root = tmp_path.resolve()
-    artifact, payload = root / name, root / '0.paz'
-    entry = {'path': 'character/test.txt', 'pamt_path': str(artifact), 'paz_file': str(payload),
+    index, artifact, payload = root / '0.pamt', root / name, root / '0.paz'
+    entry = {'path': 'character/test.txt', 'pamt_path': str(index), 'paz_file': str(payload),
              'offset': 0, 'comp_size': 1, 'orig_size': 1, 'flags': 0, 'paz_index': 0}
-    value = {'files': [[str(artifact), [10, 20, 30]], [str(payload), [1, 20, 30]]],
-             'payloads': [[entry, '0' * 64]], 'indexes': [[str(artifact), '1' * 64]]}
-    with pytest.raises(ValueError, match='invalid or incomplete'):
+    value = {'files': [[str(index), [10, 20, 30]], [str(payload), [1, 20, 30]]],
+             'payloads': [[entry, '0' * 64]], 'indexes': [[str(index), '1' * 64]], 'catalogue': []}
+    admitted = _revision(value, (root,), artifact_paths={artifact})
+    assert admitted.payloads[0].entry.pamt_path == index
+    assert admitted.indexes == ((index, '1' * 64),)
+    value['files'][0][0] = value['indexes'][0][0] = entry['pamt_path'] = str(artifact)
+    with pytest.raises(VirtualLoaderError, match='invalid or incomplete'):
         _revision(value, (root,), artifact_paths={artifact})
 
 
-@pytest.mark.parametrize('omit_all_guards', [False, True])
-def test_real_worker_result_cannot_omit_selected_semantic_witness(tmp_path, monkeypatch, omit_all_guards):
+@pytest.mark.parametrize('omit_all_guards,rebind_cache', [
+    pytest.param(False, False, id='parsed-index'),
+    pytest.param(True, False, id='all-stale-cache'),
+    pytest.param(True, True, id='all-rebound-cache'),
+])
+def test_real_worker_result_cannot_omit_selected_semantic_witness(tmp_path, monkeypatch, omit_all_guards, rebind_cache):
     import json
     from pathlib import Path
     from cdmw.domain.new_item.compilation import _identity
     from cdmw.services import virtual_loader_process as owner
+    from cdmw.services.virtual_loader_cache import _guard_identity, _input_identity, _key
     from cdmw.services.independent_item_package import canonical, digest
     folder, _, _ = exported_fields(tmp_path / 'producer', value=1)
     setup_game(tmp_path / 'recipient')
@@ -114,6 +125,7 @@ def test_real_worker_result_cannot_omit_selected_semantic_witness(tmp_path, monk
         source = Path(command[command.index('--input') + 1])
         assert owner.run_virtual_profile_worker(source, output) == 0
         result = json.loads(output.read_bytes())
+        assert wrapper in dict(result['external_source']['indexes'])
         result['external_source']['indexes'] = [row for row in result['external_source']['indexes'] if row[0] != wrapper]
         if omit_all_guards:
             result['external_source']['files'] = [row for row in result['external_source']['files'] if row[0] != wrapper]
@@ -123,15 +135,29 @@ def test_real_worker_result_cannot_omit_selected_semantic_witness(tmp_path, monk
             profile['inventories'] = []
             profile['compilation']['inputs']['sources'] = dict(profile['sources'])
             profile['compilation']['identity'] = _identity(profile['compilation']['inputs'])
+            if rebind_cache:
+                # Keep the forged profile internally valid so the parent's
+                # independently retained semantic witnesses must reject it.
+                record = profile['build_cache']
+                record['inputs'] = _input_identity(profile['compilation'])
+                record['guards'] = _guard_identity(profile['catalogue'], profile['inventories'])
+                record['key'] = _key(record)
+                owner.validate_profile(profile)
             encoded = canonical(profile)
             checksum = digest(encoded)
             (output.parent / (checksum + '.bin')).write_bytes(encoded)
             result['profile'] = [checksum, len(encoded)]
         output.write_bytes(canonical(result))
+        if not omit_all_guards or rebind_cache:
+            # Without the parent's admission witnesses this otherwise valid
+            # result passes all buffer, cache and source cross-checks.
+            accepted = owner._read_result(json.loads(source.read_bytes()), output.parent, output, None)
+            assert accepted.root == root
         return 0, '', ''
 
     monkeypatch.setattr(owner, 'run_process_with_cancellation', run)
-    with pytest.raises(ValueError, match='invalid or incomplete'):
+    expected = 'Invalid virtual build cache record' if omit_all_guards and not rebind_cache else 'invalid or incomplete'
+    with pytest.raises(VirtualLoaderError, match=expected):
         owner.prepare_profile_in_subprocess(VirtualProfile((), (folder,)), root)
     assert files_in(root) == before
 
@@ -171,13 +197,13 @@ def test_exact_file_witness_does_not_authorize_a_subtree(tmp_path, name):
     from cdmw.services.virtual_loader_process import _revision
     root, artifact = tmp_path / 'game', tmp_path / 'selected' / name
     value = {'files': [[str(artifact), [10, 20, 30]]], 'payloads': [],
-             'indexes': [[str(artifact), '0' * 64]]}
+             'indexes': [[str(artifact), '0' * 64]], 'catalogue': []}
     revision = _revision(value, (root,), artifact_paths={artifact})
     assert revision.indexes == ((artifact, '0' * 64),)
     child = artifact / 'subtree/0.pamt'
     value['files'][0][0] = str(child)
     value['indexes'][0][0] = str(child)
-    with pytest.raises(ValueError, match='invalid or incomplete'):
+    with pytest.raises(VirtualLoaderError, match='invalid or incomplete'):
         _revision(value, (root,), artifact_paths={artifact})
 
 
