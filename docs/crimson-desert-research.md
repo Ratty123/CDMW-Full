@@ -1248,8 +1248,9 @@ consumer rules. The checked payload SHA-256 prefixes are `7fcad2def981b61a`
   samples, so this does not justify changing that sampler.
 - A texture-backed move-track branch reads position/scale and orientation from
   two rows at `v = 0.25` and `0.75`, using the same fixed sample-coordinate
-  convention. That recovers the consumer layout, not the CPU's 3D spline baking
-  or the conversion from authored speed/mode values into its playback parameter.
+  convention. The native follow-up below also recovers the producer's sample
+  layout and position arithmetic; conversion from authored speed/mode values
+  into the shader's playback parameter remains incomplete.
 - In the examined vertex permutation, render flag `0x40` connects adjacent
   particles within a span; `0x80` also checks the packed spawn-group ordinal and
   count. Each surviving pair is subdivided by the segment count. Two-point trails
@@ -1271,16 +1272,57 @@ not execute the compiled shaders or recover running-game buffers. Authored flags
 and segment counts in the real files do not prove that host upload preserves
 those bits unchanged or selects this permutation.
 
-No further preview rendering change qualified. Exact 3D spline baking, host
-playback clocks/mode flags, parent-specific birth/span population, active shader
-selection and dynamic route binding remain open. The historical scalar-spline
-evaluator does not prove the 3D path evaluator. No new CDMW particle pixels,
-packaged viewport or in-game appearance were tested. The selected effect and
-three shader payloads were reread unchanged, and fresh DXC output matched the
-analysed instructions; the two package PAMTs stayed unchanged during this pass.
-The earlier corpus recheck covered 7,083 payloads and three PAMTs; whole PAZ
-hashes were not calculated. RGB brightness experiments likewise remain without
-a qualified implementation change.
+The shader pass reread the selected effect and three shader payloads unchanged,
+and fresh DXC output matched the analysed instructions; the two package PAMTs
+stayed unchanged. The earlier corpus recheck covered 7,083 payloads and three
+PAMTs; whole PAZ hashes were not calculated.
+
+Native path-baking follow-up, reviewed 2026-10-24 against CDMW source baseline
+`8e9ed31b` and the same installed 1.0.0.2976 executable (full SHA-256
+`57da440d72f4db974f25fef047cf84c4dadd999a88cb2a3c5af4c9bd67fde1e7`):
+
+- The current `SplineObject3D` constructor, point factory and enum registration
+  establish cubic Bezier as the omitted curve mode, Linear as mode 2, zero as
+  the omitted position, and tangent offsets as separate point fields. This
+  replaces reliance on the historical scalar-spline evaluator for these facts.
+- The actual baker at RVA `0x274f930` emits 128 samples at
+  `float32(i * float32(1/127))`. The first RGBA row contains position XYZ and
+  scalar scale; the second contains orientation converted to four quaternion
+  components. Its upload caller constructs a 128-by-2 texture. These are native
+  instruction findings; the upload and complete orientation bake were not run.
+- The baker's custom-key wrapper at RVA `0x274f690` chooses the stored-key
+  interval and maps it to a segment index plus fractional parameter. The cubic
+  position controls are the start position plus its outer tangent and the end
+  position plus its inner tangent. The four explicitly Linear paths use scalar
+  float32 interpolation. Equal segment spacing or a distance reparameterization
+  is not a substitute for this stored-key branch.
+- Isolated CPU probes executed only the reviewed position branches in private
+  copies of native routines, with their jump-table data and constants. An
+  independent calculation matched all 4,224 samples bit for bit: 3,712 from 29 default-mode paths and
+  512 from four Linear paths. Ten owned position cases also passed. The supplied
+  points and keys came from the real XML, with inspected factory defaults;
+  complete resource loading, inheritance and possible pre-bake key preparation
+  were not replayed. All 33 decoded path payloads were freshly reread unchanged,
+  their `0011` PAMT stayed unchanged, and the executable hash was reconfirmed.
+- Reflection offsets map `_spawnTime`, `_spawnDelayMin`, `_delayFirstLoopOnly`
+  and `_loopCount` to fields read by one host cycle-phase calculation. Its
+  528-byte fragment at RVA `0x2fbb1b1` matched 264 controlled CPU cases exactly,
+  using an owned ABI wrapper and this process's UCRT `fmodf`. Positive duration
+  and nonnegative clock/delay were premises. This checks startup-only versus
+  repeated delay, normalized phase and the positive loop-count cap; it does not
+  establish particle birth decisions or zero-duration behaviour. The resulting
+  phase feeds the CPU path-transform caller under a host gate. Caller clock
+  scaling and the complete authored mode/speed-to-GPU mapping remain unproved.
+
+No additional preview rendering change qualified. Resource key preparation,
+complete orientation baking, host playback/mode flags, parent-specific birth/span
+population, active shader selection and dynamic route binding remain open.
+The probes did not load the game image or call its entry point, attach to the
+running game, execute shaders or produce CDMW particle pixels. Packaged viewport
+and in-game appearance remain untested. RGB brightness experiments likewise
+remain without a qualified implementation change. Existing translated Help/Wiki
+limitations remain accurate: ribbons and moving emitter paths are still not
+fully simulated.
 
 Sources: [effect reflection reader][effect-binary], [constrained writer][effect-edit],
 [dependency and authoring contracts][independent-items], [binary tests][effect-tests].

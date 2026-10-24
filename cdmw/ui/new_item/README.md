@@ -1454,11 +1454,25 @@ positions for two-point trails and cubic B-spline smoothing for longer trails,
 and extrapolate endpoint neighbours. Their emitter-history writer shifts poses
 on spawn events and their interpolation uses accumulated particle counts.
 
-These are conditional shader rules, not a complete playback contract. The host's
-3D path baking, clock/mode mapping, translation of authored flags, parent-specific
-buffer population and active shader permutation still need proof. Those inputs
-remain unimplemented; no further preview rendering change is justified by this
-consumer analysis alone.
+The 2026-10-24 native follow-up recovered the host's 128-by-2 RGBA path baker:
+position XYZ and scalar scale occupy the first row, with orientation in the
+second. It samples at `float32(i * float32(1/127))` and maps stored custom keys
+to segment parameters. In isolated CPU probes, the position evaluator exactly
+matched independent arithmetic at all 4,224 samples from the 33 real paths:
+29 used the constructor's cubic Bezier default and four explicitly used Linear.
+Bezier controls are endpoint positions plus the corresponding tangent offsets;
+omitted positions default to zero. The probes supplied XML points and stored
+keys with inspected defaults; they did not replay the complete resource loader,
+orientation generation, texture upload or rendered playback.
+
+A separate native cycle-phase fragment matched 264 controlled CPU cases for
+startup/repeated delay and finite loop limits. Its phase reaches the CPU path
+transform under a host gate. That does not establish caller time scaling or
+the mapping of authored movement modes/speeds into particle shader inputs.
+Resource key preparation, complete orientation baking, translation of authored
+flags, parent-specific buffer population and active shader selection remain
+open. The preview still does not consume these paths or connected trail data;
+no additional rendering change qualified from this partial playback contract.
 
 ### Imported item material authority
 
