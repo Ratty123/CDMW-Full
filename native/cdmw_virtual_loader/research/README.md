@@ -485,8 +485,15 @@ review. It owns fresh noninherited mapping/event handles, separates creation
 from arming and acquires published state before reading the start payload.
 The fixed Python binding passes independent review and 100 fake-only binding
 checks, retaining publication history and quarantining uncertain ownership.
-Neither the DLL nor an actual channel has executed; compile/link, linked review
-and owned Windows qualification remain pending.
+A benign producer and the complete owned IPC qualifier now pass independent
+source review. The qualifier requires both actual build proofs and separate
+linked reviews joined to its exact source before native loading or child
+creation. Its 201 fake-only checks cover pipe capacity/ownership, framed status
+and explicit process retirement. A frozen predecessor was refused because
+optimized Python could erase helper assertions; its successor requires isolated,
+nonoptimized interpreters before setup. Timestamp and failure-receipt corrections
+retain the failed first fake run. Both native products remain uncompiled, and
+no actual channel has executed.
 
 A source-reviewed three-case owned crash-lease qualifier is also prepared,
 including guardian death with an independently retained target handle and live
