@@ -1067,8 +1067,9 @@ the small/default route, indexing `H+0x410+24*uint8(classifier AL)`. The retaine
 candidate branch calls `0x1447F4004`, checks candidate `+0x10`, then applies
 `BYTE[candidate+0xF] &= 1`, preserving bit zero. The replenishment branch reaches
 `0x1447F49EC` with `R8B=1`; full-width `R8=1` is not established. The body does
-not populate the size/block-count fields. Producer `0x1447F482C` belongs to a
-different captured branch and is not the selected request's next dependency.
+not populate the size/block-count fields. Its other direct branch calls producer
+`0x1447F482C`; the replenishment capture below also joins the selected route to
+that producer after candidate exhaustion.
 
 - Block/metadata source: `api-source-review/20261024-family0-block-metadata-v1/source-capture-result-v1.json`,
   62,534 bytes, SHA-256 `cb29bcaf9c6b6adcaab015bcf7c0abab316e1eb4e24bee136482523facdec339`.
@@ -1089,8 +1090,61 @@ native call, live cell read or proof of valid metadata/class population.
 - Independent classifier review: `api-source-review/20261024-family0-size-classifier-independent-v1/independent-review-v1.json`,
   29,609 bytes, SHA-256 `96cfe3bfa014feae03cf83429b16ba5e961d8298c64fd49530b40755f2cf05d5`.
 
-The selected candidate helper `0x1447F4004` and replenishment helper
-`0x1447F49EC` are the next bounded source questions. Context/preparation/pointer
+The selected candidate helper `0x1447F4004..0x1447F40D2` is now independently
+reviewed: 206 bytes/64 instructions, row 172286, standard unwind without a
+handler or chain sibling, fourteen local jumps and one external diagnostic.
+For the selected `DL=0` caller, it atomically removes the pointer portion of
+`M+0x28` while preserving its low two tag bits, counts the detached intrusive
+chain and merges an accepted chain into staged `M+0x20`. It transfers staged
+nodes into `M+0x10` only when that available head is empty. The caller ignores
+RAX and tests `M+0x10`; no success/status return ABI is inferred.
+
+The length guard can read node `L+1` before refusal. Detachment precedes the
+overlength diagnostic `0x1447F0404`; if that diagnostic returns, this body has
+no local rollback or requeue for the detached chain. Diagnostic termination or
+external recovery is unqualified, so this is not an observed game defect.
+Only the tagged-head operation is atomic. Ordinary list/link/counter/flag
+writes still need an external serialization and lifetime contract. No valid
+metadata, live drain, safe reclamation or relaxed Stage/Cache guard follows.
+Independent review verifies twelve declared pins plus the packet and all source
+bytes/instructions; it does not replay a native operation.
+
+- Candidate-helper source: `api-source-review/20261024-family0-candidate-helper-v1/source-capture-result-v1.json`,
+  54,406 bytes, SHA-256 `f83dca49d630d443953dfde9289113d717bf2a220dafe136525743fe258b0b2b`.
+- Independent candidate-helper review: `api-source-review/20261024-family0-candidate-helper-independent-v1/independent-review-v1.json`,
+  51,443 bytes, SHA-256 `73e9aa5bdee5e9ae64e5fa6b30f2690445890d3c966b766d32059b56e818c9d9`.
+
+Replenishment `0x1447F49EC..0x1447F4AD7` now passes independent review of 235
+bytes/67 instructions, row 172299 and standard unwind without chains or a
+handler. It consumes only the incoming option byte `R8B`, so the retained
+caller's upper R8 bits remain irrelevant to this body's local use. After
+exhausting candidates it calls `0x1447F3CA8(H,0)`, then reaches
+`0x1447F482C(H,C,QWORD[C+0x10],0)`. That third argument is full-width and
+cell-derived; it is not established as `0x44F`. The last argument is full-zero
+R9. A null-result fallback self-call supplies full-zero R8, preventing that
+nested call's same direct retry. Candidate traversal and external retries are
+not thereby bounded. This body only masks candidate flags locally; metadata
+population and failure guarantees remain delegated.
+
+- Replenishment source: `api-source-review/20261024-family0-replenishment-v1/source-capture-result-v1.json`,
+  57,336 bytes, SHA-256 `2604fcad3b31e876c3d8841bba679a72d11ba415014bfe1ebeb0b0ff3414eabf`.
+- Independent replenishment review: `api-source-review/20261024-family0-replenishment-independent-v1/independent-static-review-v1.json`,
+  12,414 bytes, SHA-256 `706dd6694bfcfa72f430f77cfb80ad79902dee4bca093290c61d19974207bb25`.
+
+A separate retained-source producer/consumer join establishes matching `+0x28`
+offsets and tag masks, but not equality of the concrete metadata bases. Free
+derives its base from pointer/region arithmetic; the consumer obtains its
+candidate through the class cell. The producer's old-tag-zero branch uses a
+separate context `+0xB18` queue, which this consumer never reads. Its upstream
+owner mismatch compares a GS:`0x30` value, distinct from the slot-zero family
+byte and dynamic allocator TLS context. Matching offsets do not prove complete
+queue drain, current ownership, ordinary field serialization or node lifetime.
+
+- Retained queue join: `api-source-review/20261024-family0-queue-source-join-v1/queue-source-join-v1.json`,
+  56,213 bytes, SHA-256 `80afbde8d3ecd9bcacd3bd219ac6aa8bc1b28e2cd61f08b3d7d506c1819156b0`.
+
+Producer `0x1447F482C`, threshold helper `0x1447F4700`, class/context preparation
+and the separate context queue remain selected source questions. Context/preparation/pointer
 services, a natural stock cold caller,
 durable Cache/Router activation, coherent publication, actual resource use and
 the full native two-package/save lifecycle remain open. Production

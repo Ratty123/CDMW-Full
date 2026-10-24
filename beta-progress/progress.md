@@ -100,9 +100,15 @@ compile/link proof. Static follow-up also independently verifies 35 instructions
 for the allocator base/size adapter and body, plus 30 retained caller instructions.
 The subsequent block-service and classifier reviews pass 82 and 31 instructions.
 File-derived arithmetic selects class 25/cell `H+0x668` for the `0x44F` request
-on the small/default path. No live cell or metadata was observed. Candidate and
-replenishment helpers, metadata validity, synchronization and lifetime remain
-the next selected requirements.
+on the small/default path. No live cell or metadata was observed. Independent
+candidate-helper review now passes 64 instructions and joins its atomic tagged
+head extraction to ordinary staged-list/counter updates. The overlength
+diagnostic follows detachment without local requeue if it returns; no game
+defect or safe reclamation is established. Replenishment passes 67-instruction
+source review and reaches the producer with a full cell-derived size. A retained
+queue join matches offsets and tag masks without proving concrete base identity
+or the separate context-queue drain. Actual metadata production, serialization
+and lifetime remain open.
 See the [exact placement and source evidence](cditem-execution-goal.md#ordinary-dll-placement-and-allocator-source-2026-10-24).
 Game routing, resource use, lifetime and native admission remain open.
 

@@ -1943,8 +1943,14 @@ independently verifies the selected allocator base/size arithmetic through
 35 physically joined instructions. Further block-selection and classifier
 reviews identify the selected small/default path and derive class 25/cell
 `H+0x668` for the `0x44F` request. These are file-derived results without a live
-cell read. Candidate/replenishment helpers, metadata validity, coherent nonzero
-size, synchronization and lifetime remain unqualified. The
+cell read. Independent candidate-helper review now joins 64 instructions,
+including atomic tagged-head detachment followed by ordinary staged-list and
+counter updates. External serialization and safe reclamation remain unproved.
+The overlength diagnostic has no local requeue if it returns; no game defect
+is inferred. Replenishment source review reaches the producer with a full
+cell-derived size. A separate free/consumer source join matches offsets and tag
+masks without concrete metadata-base identity or complete queue-drain proof.
+Metadata validity, coherent nonzero size and lifetime remain unqualified. The
 [placement/source checkpoint](../beta-progress/cditem-execution-goal.md#ordinary-dll-placement-and-allocator-source-2026-10-24)
 records exact receipts and the remaining native prerequisites.
 

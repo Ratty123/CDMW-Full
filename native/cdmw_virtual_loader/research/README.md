@@ -377,7 +377,13 @@ from the accepted compile/link proof. Static follow-up independently verifies
 the selected allocator base/size adapter/body and 35 instructions. Subsequent
 block-selection and classifier reviews pass 82 and 31 instructions; file-derived
 `0x44F` arithmetic selects class 25/cell `H+0x668` on the small/default path.
-No live cell is read. Candidate/replenishment helpers, metadata provenance,
-coherent nonzero size, synchronization and lifetime remain unqualified. The
+No live cell is read. Independent candidate-helper review joins 64 instructions:
+atomic tagged-head detachment precedes ordinary staged-list/counter updates.
+Those writes still require external serialization. The overlength diagnostic
+has no local detached-list requeue if it returns; no game defect or safe
+reclamation follows. Replenishment also passes 67-instruction source review and
+reaches the producer with full cell-derived size. The retained free/consumer
+join matches offsets, without concrete base identity or separate context-queue
+drain. Metadata provenance, coherent nonzero size and lifetime remain unqualified. The
 [placement/source checkpoint](../../../beta-progress/cditem-execution-goal.md#ordinary-dll-placement-and-allocator-source-2026-10-24)
 retains the exact evidence and the stopped, unqualified publication draft.

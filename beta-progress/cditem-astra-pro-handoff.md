@@ -287,8 +287,14 @@ unvalidated caller premises. The subsequent block-service source review passes
 82 instructions, but does not populate the required metadata. Independent
 classifier review also passes 31 instructions: the selected `0x44F` request
 derives class 25/cell `H+0x668` on the small/default path. No live cell is read.
-Candidate `0x1447F4004` and replenishment `0x1447F49EC` are the next selected
-source questions; metadata provenance, initialization and lifetime stay open. The
+Candidate `0x1447F4004` now passes independent source review of 64 instructions.
+Atomic tagged-head detachment does not serialize its staged-list/counter writes.
+The overlength diagnostic follows detachment with no local requeue if it returns;
+its failure policy is unknown, without an observed game defect. Replenishment
+`0x1447F49EC` also passes 67-instruction source review, reaching the producer
+with full cell-derived size and zero R9. Matching free/consumer offsets do not
+establish concrete base identity or drain of the separate context queue.
+Metadata production, initialization, serialization and lifetime stay open. The
 [current evidence checkpoint](cditem-execution-goal.md#ordinary-dll-placement-and-allocator-source-2026-10-24)
 owns exact pins and limits. Game publication and admission stay open.
 

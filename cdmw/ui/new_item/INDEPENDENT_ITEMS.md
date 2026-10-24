@@ -1587,9 +1587,14 @@ Static source follow-up independently verifies the allocator's selected
 base/size adapter and body, with 35 instructions and complete local normal
 control flow. Block-selection and classifier source reviews also pass: the
 selected `0x44F` request derives class 25/cell `H+0x668` on the small/default
-path. That is static arithmetic without a live cell read. Candidate/replenishment
-helpers, metadata provenance, coherent nonzero size, synchronization and lifetime
-remain unqualified. See the [exact placement/source scope](../../../beta-progress/cditem-execution-goal.md#ordinary-dll-placement-and-allocator-source-2026-10-24).
+path. That is static arithmetic without a live cell read. Independent candidate
+helper review joins 64 instructions, including atomic tagged-head detachment
+and ordinary staged-list/counter updates. It establishes neither serialization
+nor safe reclamation; an overlength diagnostic has no local requeue if it returns.
+No game defect is inferred. Replenishment source review also passes, reaching
+the producer with a full cell-derived size. Matching free/consumer offsets do
+not establish concrete metadata-base identity or complete queue drain. Metadata
+provenance, coherent nonzero size and lifetime remain unqualified. See the [exact placement/source scope](../../../beta-progress/cditem-execution-goal.md#ordinary-dll-placement-and-allocator-source-2026-10-24).
 
 A first external sword package also passes actual full import, four hand/sheath
 attachment checks and exact package/model/texture readback with a persistent

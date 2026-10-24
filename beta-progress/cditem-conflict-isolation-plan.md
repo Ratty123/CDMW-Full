@@ -154,8 +154,15 @@ from the accepted compile/link proof. Static follow-up also closes the selected
 allocator base/size arithmetic through 35 physically joined instructions;
 the block-selection and classifier reviews also pass. The selected `0x44F`
 request derives class 25/cell `H+0x668` on the small/default path, without a
-native call or live cell read. Candidate/replenishment helpers, metadata
-validity, nonzero size, synchronization and lifetime remain unqualified. No
+native call or live cell read. Independent candidate-helper review now joins
+64 instructions: tagged-head detachment is atomic, while staged list/counter
+updates still need external serialization. An overlength diagnostic follows
+detachment, without local requeue if it returns; no game defect is inferred.
+Replenishment now passes 67-instruction source review and reaches the producer
+with a full cell-derived size, not a proved `0x44F`. The retained free/consumer
+join matches offsets but not concrete bases; a separate context queue remains
+outside this consumer. Metadata validity, nonzero size and lifetime remain
+unqualified. No
 game installation or acceptance changed. Exact pins and limits are
 in the [placement and allocator checkpoint](cditem-execution-goal.md#ordinary-dll-placement-and-allocator-source-2026-10-24).
 
