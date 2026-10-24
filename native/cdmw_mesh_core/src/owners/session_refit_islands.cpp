@@ -178,7 +178,13 @@ void mesh_editor_apply_island_refit_corrections(
             fit->garment_submesh_indices.insert(id);
             fit->garment_settings[id] = settings;
             fit->garment_settings[id].island_settings.clear();
-            if (ordinal) fit->independent_island_parts.insert(id);
+            const auto automatic = morph.refit->automatic_rigid_islands.find(item.first);
+            if (ordinal && (automatic == morph.refit->automatic_rigid_islands.end()
+                    || !automatic->second.count(faces))) fit->independent_island_parts.insert(id);
+            if (morph.refit->automatic_rigid_parts.count(item.first)
+                || (automatic != morph.refit->automatic_rigid_islands.end() && automatic->second.count(faces)))
+                fit->automatic_rigid_parts[id] = morph.refit->automatic_rigid_parts.count(item.first)
+                    ? morph.refit->automatic_rigid_parts.at(item.first) : item.first;
             const auto mask = morph.refit->vertex_masks.find(item.first);
             if (mask != morph.refit->vertex_masks.end()) {
                 auto& target = fit->vertex_masks[id];

@@ -104,6 +104,10 @@ struct MeshRefitGarmentSettingsRuntime {
 struct MeshRefitRuntime {
     // Evaluation-only domain boundaries. Persisted overrides own their source faces.
     std::set<int> independent_island_parts;
+    // Inferred solid attachments may still join touching assembly pieces.
+    // This evaluation-only map is never persisted as a user override.
+    std::map<int, std::set<std::vector<int>>> automatic_rigid_islands;
+    std::map<int, int> automatic_rigid_parts;
     std::set<int> driver_submesh_indices;
     std::set<int> garment_submesh_indices;
     std::map<int, std::vector<Vec3>> driver_baseline_positions;

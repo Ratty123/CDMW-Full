@@ -201,12 +201,12 @@ std::map<int, std::vector<Vec3>> mesh_editor_refit_seam_positions_for_parts(
     // slightly different positions. Recognize matching boundary EDGES, rather
     // than welding every nearby vertex and accidentally joining thin layers.
     // These positions are grouping keys only; retain the authored coordinates.
-    std::map<Vec3, std::size_t> lookup;
+    std::map<std::pair<int, Vec3>, std::size_t> lookup;
     std::vector<Vec3> points;
     std::map<int, std::vector<std::size_t>> indices;
     for (const int part : part_indices) {
         for (const auto& point : residual.at(part)) {
-            const auto entry = lookup.emplace(point, points.size());
+            const auto entry = lookup.emplace(std::make_pair(unique_matches ? -1 : part, point), points.size());
             if (entry.second) points.push_back(point);
             indices[part].push_back(entry.first->second);
         }
@@ -224,10 +224,13 @@ std::map<int, std::vector<Vec3>> mesh_editor_refit_seam_positions_for_parts(
     };
     struct Border { int part; std::size_t a, b; Vec3 normal; };
     std::vector<Border> borders;
+    std::set<std::pair<int, int>> sewn_parts;
+    std::set<std::size_t> used_points;
     for (const int part : part_indices) {
         const auto& map = indices.at(part);
         std::map<std::pair<std::size_t, std::size_t>, std::vector<Border>> edges;
         for (const auto& face : submeshes.at(part).faces) {
+            for (const auto v : face) used_points.insert(map[v]);
             const Vec3 normal = refit_face_normal_native(points[map[face[0]]], points[map[face[1]]], points[map[face[2]]]);
             for (int c = 0; c < 3; ++c) {
                 const auto a = map[face[c]], b = map[face[(c+1)%3]];
@@ -267,6 +270,7 @@ std::map<int, std::vector<Vec3>> mesh_editor_refit_seam_positions_for_parts(
                 } else {
                     join(edge.a, other.b);
                     join(edge.b, other.a);
+                    sewn_parts.insert(std::minmax(edge.part, other.part));
                 }
             }
         }
@@ -279,9 +283,27 @@ std::map<int, std::vector<Vec3>> mesh_editor_refit_seam_positions_for_parts(
         join(borders[i].a, borders[j].b);
         join(borders[i].b, borders[j].a);
     }
+    // Some material splits retain a copy of the entire vertex buffer. Unused
+    // records may follow their used counterpart across a proven material seam;
+    // two used vertices touching at a point must still remain independent.
+    if (!unique_matches) for (const auto& point : lookup) {
+        if (used_points.count(point.second)) continue;
+        for (const int part : part_indices) {
+            if (!sewn_parts.count(std::minmax(part, point.first.first))) continue;
+            const auto other = lookup.find({part, point.first.second});
+            if (other != lookup.end() && used_points.count(other->second)) join(point.second, other->second);
+        }
+    }
     std::map<int, std::vector<Vec3>> result;
     for (const auto& item : indices)
-        for (const auto index : item.second) result[item.first].push_back(points[root_of(index)]);
+        for (const auto index : item.second) {
+            // A coincident point alone is an attachment, not a material seam.
+            // Garment keys identify edge-joined groups without re-welding two
+            // separate groups just because their physical coordinates match.
+            const auto root = root_of(index);
+            result[item.first].push_back(unique_matches ? points[root]
+                : Vec3{static_cast<double>(root) * tolerance * 4.0, 0.0, 0.0});
+        }
     return result;
 }
 
@@ -363,6 +385,34 @@ std::map<std::pair<int, std::size_t>, RefitSpatialIndexNative> mesh_editor_refit
     return result;
 }
 
+struct RefitSurfaceShapeNative {
+    Vec3 minimum{INFINITY, INFINITY, INFINITY}, maximum{-INFINITY, -INFINITY, -INFINITY};
+    bool closed = true;
+};
+
+std::map<std::size_t, RefitSurfaceShapeNative> mesh_editor_refit_surface_shapes(
+    const std::map<int, MeshSessionSubmesh>& garments,
+    const std::map<int, std::vector<std::size_t>>& indices,
+    const std::vector<std::size_t>& roots
+) {
+    std::map<std::size_t, RefitSurfaceShapeNative> shapes;
+    std::map<std::pair<std::size_t, std::size_t>, int> incidence;
+    for (const auto& part : garments) for (const auto& face : part.second.faces) {
+        const auto& map = indices.at(part.first);
+        auto& shape = shapes[roots[map[face[0]]]];
+        for (int c = 0; c < 3; ++c) {
+            for (int axis = 0; axis < 3; ++axis) {
+                shape.minimum[axis] = std::min(shape.minimum[axis], part.second.vertices[face[c]][axis]);
+                shape.maximum[axis] = std::max(shape.maximum[axis], part.second.vertices[face[c]][axis]);
+            }
+            ++incidence[std::minmax(map[face[c]], map[face[(c + 1) % 3]])];
+        }
+    }
+    for (const auto& edge : incidence)
+        if (edge.second != 2) shapes[roots[edge.first.first]].closed = false;
+    return shapes;
+}
+
 std::set<std::pair<std::size_t, std::size_t>> mesh_editor_refit_rigid_joins(
     const std::map<int, MeshSessionSubmesh>& garments,
     const std::map<int, std::vector<std::size_t>>& indices,
@@ -403,6 +453,50 @@ std::set<std::pair<std::size_t, std::size_t>> mesh_editor_refit_rigid_joins(
                 joins.insert(pair);
         }
     }
+    return joins;
+}
+
+std::set<std::pair<std::size_t, std::size_t>> mesh_editor_refit_accessory_joins(
+    const std::map<int, MeshSessionSubmesh>& garments,
+    const std::map<int, std::vector<std::size_t>>& indices,
+    const std::vector<std::size_t>& roots, double tolerance, double diagonal,
+    const std::map<int, int>& source_parts = {}
+) {
+    auto joins = mesh_editor_refit_rigid_joins(garments, indices, roots, tolerance);
+    const auto shapes = mesh_editor_refit_surface_shapes(garments, indices, roots);
+    std::map<int, std::map<int, MeshSessionSubmesh>> sources;
+    for (const auto& part : garments)
+        sources[source_parts.count(part.first) ? source_parts.at(part.first) : part.first].insert(part);
+    for (const auto& source : sources) for (const auto& pair : mesh_editor_refit_rigid_joins(source.second, indices, roots,
+            std::max(tolerance, diagonal * 0.005))) {
+        const auto size = [&](std::size_t root) {
+            const auto& shape = shapes.at(root);
+            const Vec3 extent = sub_vec3(shape.maximum, shape.minimum);
+            return *std::max_element(extent.begin(), extent.end());
+        };
+        const double a = size(pair.first), b = size(pair.second);
+        // Bridge only a small cap/link to a substantially larger accessory.
+        // Only bridge within one authored Part; nearby full-size objects and
+        // separate materials keep independent contact motion across a gap.
+        if (std::min(a, b) <= diagonal * 0.03 && std::min(a, b) * 3.0 <= std::max(a, b)) joins.insert(pair);
+    }
+    return joins;
+}
+
+std::set<std::pair<std::size_t, std::size_t>> mesh_editor_refit_assembly_joins(
+    const MeshRefitRuntime& refit, const std::map<int, MeshSessionSubmesh>& garments,
+    const std::map<int, std::vector<std::size_t>>& indices,
+    const std::vector<std::size_t>& roots, double tolerance
+) {
+    auto joins = mesh_editor_refit_rigid_joins(garments, indices, roots, tolerance, refit.independent_island_parts);
+    std::map<int, MeshSessionSubmesh> automatic;
+    for (const auto& part : garments)
+        if (refit.automatic_rigid_parts.count(part.first)) automatic.insert(part);
+    // Inferred caps and links can have a small authored gap. Preserve that gap
+    // with their assembly, without coupling explicitly independent island fits.
+    const auto attached = mesh_editor_refit_accessory_joins(automatic, indices, roots, tolerance,
+        refit.driver_diagonal, refit.automatic_rigid_parts);
+    joins.insert(attached.begin(), attached.end());
     return joins;
 }
 
@@ -554,7 +648,10 @@ Vec3 mesh_editor_refit_band_axis(const RefitSpatialIndexNative& surface, const R
         const double center = (driver.maximum[axis] + driver.minimum[axis]) * 0.5;
         if (center < bounds.minimum[axis] - tolerance || center > bounds.maximum[axis] + tolerance) return {};
     }
-    if (width < length_vec3(body_extent) * 0.04 || extent[up] > width * 0.4) return {};
+    double transverse_body = 0.0;
+    for (int axis = 0; axis < 3; ++axis) if (axis != up) transverse_body = std::max(transverse_body, body_extent[axis]);
+    const double maximum_height = width * (body_extent[up] >= transverse_body * 1.5 ? 1.0 : 0.4);
+    if (width < length_vec3(body_extent) * 0.04 || extent[up] > maximum_height) return {};
     Vec3 axis{};
     axis[up] = 1.0;
     return axis;
@@ -614,11 +711,36 @@ void mesh_editor_cohere_refit_bands(
         while (std::abs(axis[first]) > 0.5) ++first;
         int second = (first+1)%3;
         if (std::abs(axis[second]) > 0.5) second = (second+1)%3;
+        Vec3 band_center = center;
+        std::vector<double> angles;
+        Vec3 minimum{INFINITY, INFINITY, INFINITY}, maximum{-INFINITY, -INFINITY, -INFINITY};
+        for (const auto i : group.second) {
+            angles.push_back(std::atan2(positions[i][second] - center[second], positions[i][first] - center[first]));
+            for (int c = 0; c < 3; ++c) {
+                minimum[c] = std::min(minimum[c], positions[i][c]);
+                maximum[c] = std::max(maximum[c], positions[i][c]);
+            }
+        }
+        std::sort(angles.begin(), angles.end());
+        double gap = angles.empty() ? circle : angles.front() + circle - angles.back();
+        for (std::size_t i = 1; i < angles.size(); ++i) gap = std::max(gap, angles[i] - angles[i - 1]);
+        // A complete wrap owns its transverse center: a nearby arm or an
+        // asymmetric body bound must not skew its radial fitting field.
+        // Partial material panels still share the body's common center.
+        const double center_offset = std::hypot((minimum[first] + maximum[first]) * 0.5 - center[first],
+            (minimum[second] + maximum[second]) * 0.5 - center[second]);
+        const double width = std::min(maximum[first] - minimum[first], maximum[second] - minimum[second]);
+        // Ignore small sampling asymmetry: nearly concentric rolled layers
+        // need the same center rather than one slightly different per skin.
+        if (gap < circle * 0.25 && center_offset > width * 0.05) {
+            band_center[first] = (minimum[first] + maximum[first]) * 0.5;
+            band_center[second] = (minimum[second] + maximum[second]) * 0.5;
+        }
         std::array<double,count> weight{}, value{}, height{}, height_squared{}, height_value{};
         if (clearance) value.fill(-std::numeric_limits<double>::infinity());
         std::vector<std::pair<Vec3,double>> samples;
         for (const auto i : group.second) {
-            Vec3 radial = sub_vec3(positions[i],center);
+            Vec3 radial = sub_vec3(positions[i],band_center);
             radial = sub_vec3(radial,scale_vec3(axis,dot_vec3(radial,axis)));
             const double length = length_vec3(radial);
             if (length > 0.0) radial = scale_vec3(radial,1.0/length);
@@ -635,7 +757,7 @@ void mesh_editor_cohere_refit_bands(
                 const int bin = (left+side)%count;
                 const double area = mass[i]*blend;
                 weight[bin] += area;
-                const double y = dot_vec3(sub_vec3(positions[i],center),axis);
+                const double y = dot_vec3(sub_vec3(positions[i],band_center),axis);
                 height[bin] += area*y;
                 height_squared[bin] += area*y*y;
                 if (clearance) value[bin] = std::max(value[bin],shift);
@@ -667,7 +789,7 @@ void mesh_editor_cohere_refit_bands(
             // an outward contact correction.
             double radius = 0.0, total_mass = 0.0;
             for (const auto i : group.second) {
-                Vec3 radial = sub_vec3(positions[i], center);
+                Vec3 radial = sub_vec3(positions[i], band_center);
                 const double y = dot_vec3(radial, axis);
                 radial = sub_vec3(radial, scale_vec3(axis, y));
                 radius += mass[i] * length_vec3(radial);
@@ -709,7 +831,7 @@ void mesh_editor_cohere_refit_bands(
             if (right==stations.end()) high[0] += circle;
             const double blend = high[0] > low[0]
                 ? std::clamp((sample.second-low[0])/(high[0]-low[0]),0.0,1.0) : 0.0;
-            const double y = dot_vec3(sub_vec3(positions[i],center),axis);
+            const double y = dot_vec3(sub_vec3(positions[i],band_center),axis);
             const double a = low[1]+low[2]*y, b = high[1]+high[2]*y;
             const double shift = a+(b-a)*blend;
             field[i] = add_vec3(scale_vec3(sample.first,shift),scale_vec3(axis,dot_vec3(field[i],axis)));
@@ -792,8 +914,12 @@ int mesh_editor_refit_layer_order(
         }
         return std::make_pair(area, across_body);
     };
-    if (sides[0] == 2 || sides[1] == 2) {
+    {
         const auto a = surface_profile(first), b = surface_profile(second);
+        // A local folded bow can sit entirely outside its supporting cuff.
+        // Its sides still describe relief, not a second shell to flatten.
+        if ((!wraps[0] && a.first * 2.0 < b.first && a.second < a.first * 0.8)
+            || (!wraps[1] && b.first * 2.0 < a.first && b.second < b.first * 0.8)) return 0;
         // An inset cord has faces around its small cross-section, rather than
         // one broad cloth face. It can straddle a belt without making that belt
         // the outside of the cord. Preserve this attachment instead of assigning
@@ -933,8 +1059,8 @@ void mesh_editor_refit_components(
         authored[part.first].vertices = residual.at(part.first);
         authored[part.first].faces = submeshes.at(part.first).faces;
     }
-    for (const auto& join : mesh_editor_refit_rigid_joins(authored, indices, roots,
-             std::max(tolerance, refit.driver_diagonal * 0.0005), refit.independent_island_parts))
+    for (const auto& join : mesh_editor_refit_assembly_joins(refit, authored, indices, roots,
+             std::max(tolerance, refit.driver_diagonal * 0.0005)))
         roots[root_of(join.second)] = root_of(join.first);
     std::map<std::size_t, std::vector<std::size_t>> components;
     for (std::size_t i = 0; i < vertices.size(); ++i) components[root_of(i)].push_back(i);
@@ -1473,8 +1599,8 @@ void mesh_editor_relieve_refit_surface(
         authored_rigid[item.first].vertices = residual.at(item.first);
         authored_rigid[item.first].faces = submeshes.at(item.first).faces;
     }
-    for (const auto& join : mesh_editor_refit_rigid_joins(authored_rigid, vertex_cohorts, rigid_roots,
-             std::max(tolerance, refit.driver_diagonal * 0.0005), refit.independent_island_parts))
+    for (const auto& join : mesh_editor_refit_assembly_joins(refit, authored_rigid, vertex_cohorts, rigid_roots,
+             std::max(tolerance, refit.driver_diagonal * 0.0005)))
         rigid_roots[root_of(rigid_roots, join.second)] = root_of(rigid_roots, join.first);
     std::map<std::size_t, std::vector<std::size_t>> rigid_groups;
     for (std::size_t i = 0; i < cohorts.size(); ++i) {
@@ -1819,6 +1945,7 @@ void mesh_editor_relieve_refit_surface(
         root_areas[surface.first.second] += area;
     }
     std::map<std::size_t, DetailCandidate> detail_candidates;
+    const auto surface_shapes = mesh_editor_refit_surface_shapes(layer_garments, vertex_cohorts, layer_roots);
     std::map<LayerKey, std::pair<double, std::vector<DetailCandidate>>> detail_backings;
     std::map<int, LayerKey> band_backings;
     for (const auto& surface : layer_surfaces) if (band_axes.count(surface.first.second))
@@ -1834,16 +1961,16 @@ void mesh_editor_relieve_refit_surface(
             })) continue;
         std::map<LayerKey, std::map<std::size_t, std::vector<DetailCandidate>>> backing_parts;
         for (const auto& target : layer_surfaces) {
-            // This field preserves relief on a tightening band. Nearby coat
-            // panels and loose decorations still need independent surface fits.
-            if (!band_axes.count(target.first.second)) continue;
+            // Details can be carried by a sleeve or broad cloth panel too.
+            // Ordered shells below retain their independent tightening field.
+            if (band_axes.count(source.first.second) && !band_axes.count(target.first.second)) continue;
             // Count whole seam-connected surfaces, including their material
             // Parts. Strictly increasing backing area also makes attachment
             // chains acyclic even when a seam has more than one material owner.
             const double source_area = root_areas[source.first.second];
             const double target_area = root_areas[target.first.second];
             if (target.first.second == source.first.second || source_area <= 0.0
-                || !std::isfinite(target_area) || !(target_area >= source_area * 4.0)) continue;
+                || !std::isfinite(target_area) || !(target_area >= source_area * 2.0)) continue;
             const auto& backing_settings = refit.garment_settings.at(target.first.first);
             if (backing_settings.mode != "surface"
                 || backing_settings.tightness_percent != settings.tightness_percent
@@ -1857,24 +1984,26 @@ void mesh_editor_relieve_refit_surface(
             if (order->second != 0) continue;
             const auto& bounds = target.second.nodes[target.second.root];
             const double reach = refit.driver_diagonal * 0.01;
-            const auto& source_bounds = source.second.nodes[source.second.root];
+            const auto& source_bounds = surface_shapes.at(source.first.second);
             bool local = true;
             for (int axis = 0; axis < 3; ++axis) {
                 const double extent = bounds.maximum[axis] - bounds.minimum[axis];
                 local &= source_bounds.maximum[axis] - source_bounds.minimum[axis]
-                    <= std::max(extent * 2.5, extent + reach * 2.0);
+                    <= std::max(extent * 1.25, extent + reach * 2.0);
             }
             // A long skirt or belt tail touching a waist wrap is not a local
             // ornament. Its free length must retain its own body-following field.
-            if (!local) continue;
+            const Vec3 source_extent = sub_vec3(source_bounds.maximum, source_bounds.minimum);
+            if (!local && !(source_bounds.closed
+                    && *std::max_element(source_extent.begin(), source_extent.end()) <= refit.driver_diagonal * 0.25)) continue;
             std::vector<DetailCandidate> candidates;
             double outside = 0.0, weight = 0.0;
-            for (const auto i : vertices) {
+            const auto sample_attachment = [&](std::size_t i, const Vec3& probe) {
                 if (cohorts[i].mobility <= 0.0 || rigid_vertex[i]
-                    || refit_aabb_distance_squared_native(layer_rest[i], bounds.minimum, bounds.maximum) > reach * reach) continue;
+                    || refit_aabb_distance_squared_native(probe, bounds.minimum, bounds.maximum) > reach * reach) return;
                 long long tests = 0;
-                const auto nearest = closest_refit_binding_native(layer_rest[i], target.second, tests);
-                if (nearest.distance > reach) continue;
+                const auto nearest = closest_refit_binding_native(probe, target.second, tests);
+                if (nearest.distance > reach) return;
                 SurfaceSample backing{{}, nearest.barycentric};
                 bool compatible = true;
                 for (int c = 0; c < 3; ++c) {
@@ -1883,15 +2012,15 @@ void mesh_editor_relieve_refit_surface(
                     compatible &= i != j && !rigid_vertex[j]
                         && std::abs(cohorts[i].mobility - cohorts[j].mobility) < 1.0e-9;
                 }
-                if (!compatible) continue;
+                if (!compatible) return;
                 const Vec3 point = layer_sample_point(backing);
-                const auto body = closest_refit_binding_native(layer_rest[i], spatial_index, tests);
+                const auto body = closest_refit_binding_native(probe, spatial_index, tests);
                 const auto support = closest_refit_binding_native(point, spatial_index, tests);
                 const Vec3 normal = refit_binding_face_normal_native(body, driver_visible);
                 if (dot_vec3(normal, refit_binding_face_normal_native(support, driver_visible)) < 0.5
                     || distance_squared_vec3(mesh_editor_refit_driver_point(body, driver_visible),
-                        mesh_editor_refit_driver_point(support, driver_visible)) > reach * reach * 4.0) continue;
-                const Vec3 offset = sub_vec3(layer_rest[i], point);
+                        mesh_editor_refit_driver_point(support, driver_visible)) > reach * reach * 4.0) return;
+                const Vec3 offset = sub_vec3(probe, point);
                 std::map<std::size_t, double> support_weights;
                 for (int c = 0; c < 3; ++c)
                     support_weights[backing.corners[c]] += backing.weights[c];
@@ -1899,6 +2028,19 @@ void mesh_editor_relieve_refit_surface(
                 outside += contact_mass[i] * dot_vec3(offset, normal);
                 weight += contact_mass[i];
                 candidates.push_back({nearest.distance, attachment});
+            };
+            for (const auto i : vertices) sample_attachment(i, layer_rest[i]);
+            // Coarse attachment edges can touch the backing between their
+            // vertices. Do not flatten the entire ornament because that root
+            // happens to have no vertex inside the proximity window.
+            if (candidates.empty()) for (const auto& face : source.second.triangles) {
+                const auto& map = vertex_cohorts.at(source.first.first);
+                for (int c = 0; c < 3; ++c) {
+                    const auto a = map[face.driver_vertices[c]], b = map[face.driver_vertices[(c + 1) % 3]];
+                    sample_attachment(a, scale_vec3(add_vec3(layer_rest[a], layer_rest[b]), 0.5));
+                }
+                sample_attachment(map[face.driver_vertices[0]], scale_vec3(add_vec3(add_vec3(
+                    face.corners[0], face.corners[1]), face.corners[2]), 1.0 / 3.0));
             }
             // The backing's own inner hem must not attach to outer trim.
             if (outside <= weight * tolerance * 4.0) continue;
@@ -1911,6 +2053,8 @@ void mesh_editor_relieve_refit_surface(
         // Carry a surrounding detail with both panels. Hanging tails remain
         // separate supports; their leg-following field must not pull the rope.
         for (const auto& part : backing_parts) {
+            if (!band_axes.count(part.first.second) && std::any_of(backing_parts.begin(), backing_parts.end(),
+                    [&](const auto& candidate) { return band_axes.count(candidate.first.second) != 0; })) continue;
             double distance = 0.0, weight = 0.0;
             std::vector<DetailCandidate> candidates;
             for (const auto& vertex : part.second) {
@@ -1966,8 +2110,51 @@ void mesh_editor_relieve_refit_surface(
         const auto& surface = layer_surfaces.at(detail.first);
         const auto& bounds = surface.nodes[surface.root];
         const Vec3 extent = sub_vec3(bounds.maximum, bounds.minimum);
-        if (*std::max_element(extent.begin(), extent.end()) <= refit.driver_diagonal * 0.03)
+        std::set<std::size_t> vertices;
+        for (const auto& face : surface.triangles) for (const auto v : face.driver_vertices)
+            vertices.insert(vertex_cohorts.at(detail.first.first)[v]);
+        double total = 0.0, supported = 0.0;
+        for (const auto i : vertices) total += contact_mass[i];
+        for (const auto& candidate : detail.second.second) supported += contact_mass[candidate.second.vertex];
+        // A bow or hanging ornament attached only at its root carries the
+        // authored relief with that patch instead of shrinking its free end.
+        if (surface_shapes.at(detail.first.second).closed
+            || *std::max_element(extent.begin(), extent.end()) <= refit.driver_diagonal * 0.03
+            || supported < total * 0.5)
             compact_details.insert(detail.first.second);
+    }
+    // Resolve attachment chains before joining touching ornaments. Otherwise a
+    // knot can acquire its own strand as a control when both share one motion.
+    std::map<std::size_t, std::map<std::size_t, double>> flattened_supports;
+    const auto flatten_support = [&](auto&& self, std::size_t i) -> const std::map<std::size_t, double>& {
+        const auto known = flattened_supports.find(i);
+        if (known != flattened_supports.end()) return known->second;
+        auto& result = flattened_supports[i];
+        const auto detail = detail_candidates.find(i);
+        if (detail == detail_candidates.end()) result[i] = 1.0;
+        else for (const auto& parent : detail->second.second.backing)
+            for (const auto& control : self(self, parent.first)) result[control.first] += parent.second * control.second;
+        return result;
+    };
+    for (const auto& detail : detail_candidates) flatten_support(flatten_support, detail.first);
+    std::set<std::size_t> backing_roots;
+    for (auto& detail : detail_candidates) {
+        detail.second.second.backing = flattened_supports.at(detail.first);
+        for (const auto& parent : detail.second.second.backing) backing_roots.insert(layer_roots[parent.first]);
+    }
+    for (const auto& surface : layer_surfaces) {
+        if (band_axes.count(surface.first.second) || backing_roots.count(surface.first.second)
+            || refit.garment_settings.at(surface.first.first).mode != "surface") continue;
+        std::set<std::size_t> vertices;
+        for (const auto& face : surface.second.triangles) for (const auto v : face.driver_vertices)
+            vertices.insert(vertex_cohorts.at(surface.first.first)[v]);
+        if (vertices.empty() || !std::all_of(vertices.begin(), vertices.end(), [&](const auto i) {
+                return !rigid_vertex[i] && std::abs(cohorts[i].mobility - cohorts[*vertices.begin()].mobility) < 1.0e-9;
+            })) continue;
+        const auto& bounds = surface.second.nodes[surface.second.root];
+        const Vec3 extent = sub_vec3(bounds.maximum, bounds.minimum);
+        if (*std::max_element(extent.begin(), extent.end()) <= refit.driver_diagonal * 0.06)
+            compact_details.insert(surface.first.second);
     }
     auto detail_roots = layer_roots;
     std::map<int, MeshSessionSubmesh> compact_garments;
@@ -1996,11 +2183,17 @@ void mesh_editor_relieve_refit_surface(
         for (const auto& parent : detail.second.second.backing)
             compact_supports[root][parent.first] += parent.second * mass;
     }
-    for (auto& detail : detail_candidates) if (compact_details.count(layer_roots[detail.first])) {
-        const auto root = root_of(detail_roots, detail.first);
+    for (std::size_t i = 0; i < cohorts.size(); ++i) if (compact_details.count(layer_roots[i])) {
+        const auto root = root_of(detail_roots, i);
         if (compact_mass[root] <= 0.0) continue;
-        detail.second.second.backing = compact_supports.at(root);
-        for (auto& parent : detail.second.second.backing) parent.second /= compact_mass[root];
+        auto support = compact_supports.at(root);
+        for (auto& parent : support) parent.second /= compact_mass[root];
+        const DetailCandidate candidate{0.0, DetailAttachment{i, std::move(support)}};
+        if (!detail_candidates.count(i)) {
+            const auto vertex = cohorts[i].vertices.front();
+            detail_backings[{vertex.first, layer_roots[i]}].second.push_back(candidate);
+        }
+        detail_candidates[i] = candidate;
     }
     // Share a continuous backing field across a surrounding cord's profile.
     // Overlapping angular bins avoid a discontinuity at a tessellation column.
@@ -2092,6 +2285,9 @@ void mesh_editor_relieve_refit_surface(
     refresh_detail_frames();
     std::map<LayerKey, std::set<LayerKey>> layer_backings;
     for (const auto& detail : detail_backings) {
+        // A solid accessory can project through several cloth layers. Its
+        // support determines motion, not which side every part of it occupies.
+        if (surface_shapes.at(detail.first.second).closed && !band_axes.count(detail.first.second)) continue;
         std::set<LayerKey> parents;
         for (const auto& sample : detail.second.second) for (const auto& parent : detail_supports.at(sample.second.vertex)) {
             if (parent.second <= 0.0) continue;
@@ -2387,6 +2583,15 @@ void mesh_editor_relieve_refit_surface(
     }), layer_constraints.end());
     const bool ordered_layers = !layer_probes.empty() || std::any_of(layer_constraints.begin(), layer_constraints.end(),
         [](const auto& constraint) { return constraint.ordered; });
+    auto contact_regions = layer_roots;
+    const auto join_contact = [&](std::size_t a, std::size_t b) {
+        contact_regions[root_of(contact_regions, b)] = root_of(contact_regions, a);
+    };
+    for (const auto& constraint : layer_constraints)
+        join_contact(constraint.first.corners[0], constraint.second.corners[0]);
+    for (const auto& detail : detail_supports) for (const auto& parent : detail.second)
+        if (parent.second > 0.0) join_contact(detail.first, parent.first);
+    for (std::size_t i = 0; i < contact_regions.size(); ++i) contact_regions[i] = root_of(contact_regions, i);
     // Share local contact motion with attached trim. In contact-only fitting,
     // links over an already clear body region must not drag a clear lining
     // when a coarse shell is lifted by a contact elsewhere on that shell.
@@ -3526,9 +3731,10 @@ void mesh_editor_relieve_refit_surface(
         // otherwise choose conflicting exits around an armpit and crease cloth.
         std::vector<Vec3> contact_delta(fitting_masks ? cohorts.size() : 0);
         std::vector<double> contact_count(fitting_masks ? cohorts.size() : 0, 0.0);
+        std::map<std::size_t, std::vector<std::pair<Vec3, double>>> rigid_contacts;
         for (auto& constraint : body_constraints) {
             const double contact_clearance = constraint.clearance
-                + (fitting_masks ? std::max(tolerance*8.0,constraint.clearance*0.1) : 0.0);
+                + (fitting_masks ? std::max(tolerance*8.0,constraint.clearance*0.2) : 0.0);
             const Vec3 point = sample_point(constraint.sample, false);
             // The nearest-surface distance bounds a collision-free ball around
             // an exterior sample. Reuse it until the sample leaves that ball;
@@ -3585,6 +3791,11 @@ void mesh_editor_relieve_refit_surface(
             constraint.free_radius = missing <= 0.0 ? std::max(0.0, nearest.distance - contact_clearance) : 0.0;
             if (missing <= 0.0) continue;
             maximum_correction = std::max(maximum_correction, missing);
+            if (fitting_masks && rigid_vertex[constraint.sample.corners[0]]) {
+                const auto i = constraint.sample.corners[0];
+                rigid_contacts[rigid_roots[i]].push_back({project_contact(i, normal), missing});
+                continue;
+            }
             const double weight_squared = dot_vec3(constraint.sample.weights, constraint.sample.weights);
             bool attached = false;
             for (int c = 0; c < 3; ++c) attached |= detail_offsets.count(constraint.sample.corners[c]) != 0;
@@ -3620,9 +3831,20 @@ void mesh_editor_relieve_refit_surface(
         if (fitting_masks) {
             for (const auto& group : rigid_groups) {
                 Vec3 correction{};
-                for (const auto i : group.second) if (contact_count[i] > 0.0) {
-                    const Vec3 candidate = project_contact(i, scale_vec3(contact_delta[i], 1.0 / contact_count[i]));
-                    if (dot_vec3(candidate, candidate) > dot_vec3(correction, correction)) correction = candidate;
+                // One shared translation must satisfy all contacts on a hard
+                // assembly. Choosing only its largest vertex correction can
+                // alternate forever between opposite sides of a curved body.
+                const auto contacts = rigid_contacts.find(group.first);
+                if (contacts != rigid_contacts.end()) for (int pass = 0; pass < 32; ++pass) {
+                    double remaining = 0.0;
+                    for (const auto& contact : contacts->second) {
+                        const double freedom = dot_vec3(contact.first, contact.first);
+                        const double missing = contact.second - dot_vec3(contact.first, correction);
+                        if (missing <= 0.0 || freedom <= 1.0e-8) continue;
+                        correction = add_vec3(correction, scale_vec3(contact.first, missing / freedom));
+                        remaining = std::max(remaining, missing);
+                    }
+                    if (remaining <= tolerance) break;
                 }
                 for (const auto i : group.second) {
                     contact_delta[i] = correction;
@@ -3647,16 +3869,31 @@ void mesh_editor_relieve_refit_surface(
                 // Large corrections need a wider patch to move around a limb;
                 // small residuals need local freedom to finish contact and trim.
                 const double smoothing_length = refit.driver_diagonal * 0.012;
-                const double contact_length = std::clamp(maximum_correction * 2.0,
-                    iteration < shape_iterations ? smoothing_length : smoothing_length * 0.1,
-                    refit.driver_diagonal * 0.05);
+                std::vector<double> surface_correction(cohorts.size(), 0.0);
+                double largest = 0.0;
+                for (std::size_t i = 0; i < cohorts.size(); ++i)
+                    largest = std::max(largest, surface_correction[contact_regions[i]]
+                        = std::max(surface_correction[contact_regions[i]], length_vec3(correction[i])));
+                std::vector<double> lengths(cohorts.size());
+                for (std::size_t i = 0; i < cohorts.size(); ++i)
+                    lengths[i] = std::clamp((largest > 0.0 ? surface_correction[contact_regions[i]] / largest : 1.0)
+                            * maximum_correction * 2.0,
+                        iteration < shape_iterations ? smoothing_length : smoothing_length * 0.1,
+                        refit.driver_diagonal * 0.05);
+                // An unrelated piece must not set this surface's diffusion
+                // radius. Keep the symmetric edge operator positive while
+                // allowing a settled cuff to finish its own small contacts.
+                auto local_weights = contact_weights;
+                for (auto& edge : local_weights) {
+                    const double length = std::min(lengths[edge.first.first], lengths[edge.first.second]);
+                    edge.second *= length * length;
+                }
                 // Split diffusion into two shorter solves. One screened solve has
                 // a pointed response to isolated contacts, especially on dense
                 // meshes. The split rounds that response at the same total scale;
                 // smoothing the correction rather than vertices retains folds.
                 for (int smooth_pass = 0; smooth_pass < 2; ++smooth_pass)
-                    correction = mesh_editor_smooth_refit_contact(correction,contact_mass,contact_weights,
-                        contact_length * contact_length * 0.5);
+                    correction = mesh_editor_smooth_refit_contact(correction,contact_mass,local_weights, 0.5);
             } catch (const std::runtime_error& error) {
                 std::string parts;
                 for (const auto& part:clearances) parts+=(parts.empty()?"":", ")+std::to_string(part.first);
@@ -4043,6 +4280,142 @@ void mesh_editor_apply_island_refit_corrections(
     const std::map<int,std::vector<Vec3>>&, std::map<int,std::vector<Vec3>>&,
     const std::map<int,std::vector<Vec3>>&);
 
+std::shared_ptr<MeshRefitRuntime> mesh_editor_refit_solid_attachments(
+    const MeshRefitRuntime& refit, const std::map<int, MeshSessionSubmesh>& submeshes,
+    const std::map<int, std::vector<Vec3>>& residual
+) {
+    // A small closed object attached to a broader garment needs its own rigid
+    // contact motion. Pulling its cloth controls to clear the object's far end
+    // can crease that cloth. Resolve only recognized attachments; explicit
+    // island choices and partially protected objects remain authoritative.
+    if (std::none_of(refit.garment_settings.begin(), refit.garment_settings.end(), [](const auto& item) {
+            return item.second.enabled && item.second.mode == "surface" && item.second.tightness_percent > 0.0
+                && item.second.intensity_percent == 100.0;
+        })) return {};
+    std::map<int, MeshSessionSubmesh> garments;
+    for (const auto& item : refit.garment_settings) {
+        if (!item.second.enabled) continue;
+        auto part = submeshes.at(item.first);
+        part.vertices = residual.at(item.first);
+        const auto excluded = refit.excluded_faces.find(item.first);
+        if (excluded != refit.excluded_faces.end()) {
+            if (excluded->second.empty()) continue;
+            std::vector<std::array<int, 3>> faces;
+            for (std::size_t f = 0; f < part.faces.size(); ++f)
+                if (!excluded->second.count(static_cast<int>(f))) faces.push_back(part.faces[f]);
+            part.faces = std::move(faces);
+        }
+        if (!part.faces.empty()) garments.emplace(item.first, std::move(part));
+    }
+    const auto keys = mesh_editor_refit_seam_positions(refit, submeshes, residual);
+    const auto masks = mesh_editor_refit_masks(refit, submeshes, residual);
+    std::map<Vec3, std::size_t> lookup;
+    std::map<int, std::vector<std::size_t>> indices;
+    for (const auto& part : garments) for (const auto& key : keys.at(part.first))
+        indices[part.first].push_back(lookup.emplace(key, lookup.size()).first->second);
+    const auto roots = mesh_editor_refit_surface_roots(garments, indices, lookup.size());
+    const auto shapes = mesh_editor_refit_surface_shapes(garments, indices, roots);
+    const auto surfaces = mesh_editor_refit_surface_indices(garments, indices, roots);
+    std::map<int, MeshSessionSubmesh> drivers;
+    for (const int part : refit.driver_submesh_indices) {
+        drivers[part] = submeshes.at(part);
+        drivers[part].vertices = residual.at(part);
+    }
+    const auto body = build_refit_spatial_index_native(drivers, refit.driver_submesh_indices);
+    const double tolerance = std::max(1.0e-6, refit.driver_diagonal * 1.0e-7);
+    const double reach = refit.driver_diagonal * 0.01;
+    std::map<std::size_t, double> areas;
+    std::set<std::size_t> ineligible;
+    for (const auto& part : garments) {
+        const auto& settings = refit.garment_settings.at(part.first);
+        for (const auto& face : part.second.faces) {
+            const auto root = roots[indices.at(part.first)[face[0]]];
+            const auto a = sub_vec3(part.second.vertices[face[1]], part.second.vertices[face[0]]);
+            const auto b = sub_vec3(part.second.vertices[face[2]], part.second.vertices[face[0]]);
+            areas[root] += 0.5 * length_vec3(Vec3{a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]});
+            if (settings.mode != "surface" || settings.tightness_percent <= 0.0
+                || settings.intensity_percent != 100.0) ineligible.insert(root);
+            for (const int v : face)
+                if (mesh_editor_refit_mask_weight(masks, part.first, v) != 1.0) ineligible.insert(root);
+        }
+        for (const auto& island : settings.island_settings) for (const int f : island.face_indices)
+            ineligible.insert(roots[indices.at(part.first)[submeshes.at(part.first).faces[f][0]]]);
+    }
+    std::set<std::size_t> attached;
+    std::set<std::size_t> bands;
+    for (const auto& surface : surfaces) {
+        const auto axis = mesh_editor_refit_band_axis(surface.second, body, tolerance);
+        if (dot_vec3(axis, axis) > 0.5) bands.insert(surface.first.second);
+    }
+    for (const auto& source : surfaces) {
+        const auto root = source.first.second;
+        const auto& shape = shapes.at(root);
+        const Vec3 extent = sub_vec3(shape.maximum, shape.minimum);
+        if (ineligible.count(root) || !shape.closed || *std::max_element(extent.begin(), extent.end()) > refit.driver_diagonal * 0.25
+            || bands.count(root)) continue;
+        for (const auto& target : surfaces) {
+            if (target.first.second == root || areas[target.first.second] < areas[root] * 2.0
+                || refit.garment_settings.at(target.first.first).mode != "surface") continue;
+            if (mesh_editor_refit_layer_order(source.second, target.second, garments, body, residual,
+                    refit.driver_diagonal * 0.06, tolerance) != 0) continue;
+            bool close = false;
+            for (const auto& face : source.second.triangles) for (const auto& point : face.corners) {
+                long long tests = 0;
+                if (closest_refit_binding_native(point, target.second, tests).distance < reach) { close = true; break; }
+            }
+            if (close) { attached.insert(root); break; }
+        }
+    }
+    if (attached.empty()) return {};
+    // Small open links and caps can complete a closed accessory across material
+    // boundaries. Carry touching assembly pieces, never a surrounding band or
+    // a long cloth panel; explicit island and protection choices still win.
+    const auto joins = mesh_editor_refit_accessory_joins(garments, indices, roots,
+        std::max(tolerance * 4.0, refit.driver_diagonal * 0.0005), refit.driver_diagonal);
+    bool expanded = true;
+    while (expanded) {
+        expanded = false;
+        for (const auto& join : joins) for (const auto pair : {join, std::make_pair(join.second, join.first)}) {
+            if (!attached.count(pair.first) || attached.count(pair.second) || ineligible.count(pair.second)
+                || bands.count(pair.second) || areas[pair.second] > areas[pair.first] * 2.0) continue;
+            const auto& shape = shapes.at(pair.second);
+            const Vec3 extent = sub_vec3(shape.maximum, shape.minimum);
+            if (*std::max_element(extent.begin(), extent.end()) > refit.driver_diagonal * 0.1) continue;
+            attached.insert(pair.second);
+            expanded = true;
+        }
+    }
+    auto result = std::make_shared<MeshRefitRuntime>(refit);
+    for (const auto& part : garments) {
+        std::map<std::size_t, std::vector<int>> faces;
+        const auto excluded = refit.excluded_faces.find(part.first);
+        for (std::size_t f = 0; f < submeshes.at(part.first).faces.size(); ++f) {
+            if (excluded != refit.excluded_faces.end() && excluded->second.count(static_cast<int>(f))) continue;
+            const auto root = roots[indices.at(part.first)[submeshes.at(part.first).faces[f][0]]];
+            if (attached.count(root)) faces[root].push_back(static_cast<int>(f));
+        }
+        auto& settings = result->garment_settings.at(part.first);
+        std::size_t selected = 0;
+        for (const auto& group : faces) selected += group.second.size();
+        if (selected == part.second.faces.size() && settings.island_settings.empty()) {
+            settings.mode = "rigid_component";
+            result->automatic_rigid_parts[part.first] = part.first;
+            continue;
+        }
+        for (auto& group : faces) {
+            MeshRefitIslandSettingsRuntime island;
+            island.face_indices = std::move(group.second);
+            island.mode = "rigid_component";
+            island.intensity_percent = settings.intensity_percent;
+            island.clearance_percent = settings.clearance_percent;
+            island.tightness_percent = settings.tightness_percent;
+            result->automatic_rigid_islands[part.first].insert(island.face_indices);
+            settings.island_settings.push_back(std::move(island));
+        }
+    }
+    return result;
+}
+
 std::vector<SubmeshMeshEditResult> mesh_editor_recompose_morph(
     MeshEditorSession& session,
     MeshMorphRuntime& next,
@@ -4060,11 +4433,14 @@ std::vector<SubmeshMeshEditResult> mesh_editor_recompose_morph(
         indices.insert(next.refit->garment_submesh_indices.begin(), next.refit->garment_submesh_indices.end());
     }
     const std::map<int, std::vector<Vec3>> residual = mesh_editor_morph_residual_positions(*session.morph, submeshes, indices);
-    const bool islands = next.refit && (!next.refit->excluded_faces.empty()
-        || std::any_of(next.refit->garment_settings.begin(), next.refit->garment_settings.end(),
+    MeshMorphRuntime fitting = next;
+    if (next.refit) if (auto attachments = mesh_editor_refit_solid_attachments(*next.refit, submeshes, residual))
+        fitting.refit = std::move(attachments);
+    const bool islands = fitting.refit && (!fitting.refit->excluded_faces.empty()
+        || std::any_of(fitting.refit->garment_settings.begin(), fitting.refit->garment_settings.end(),
             [](const auto& item) { return !item.second.island_settings.empty(); }));
-    if (islands) mesh_editor_apply_island_refit_corrections(next, submeshes, residual, new_layer, post_refit);
-    else mesh_editor_apply_refit_corrections(next, submeshes, residual, new_layer, post_refit);
+    if (islands) mesh_editor_apply_island_refit_corrections(fitting, submeshes, residual, new_layer, post_refit);
+    else mesh_editor_apply_refit_corrections(fitting, submeshes, residual, new_layer, post_refit);
     for (const auto& item : new_layer) indices.insert(item.first);
     std::vector<SubmeshMeshEditResult> results;
     for (const int index : indices) {

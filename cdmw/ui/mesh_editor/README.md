@@ -2168,11 +2168,18 @@ previous checked profile/cloth paths from the same starting pose. Each attempt
 must still pass all body, layer, shape and rigidity checks.
 Rolled belt edges are checked for new self-crossings, including open or repeated
 skins. An unresolved crossing retains the previous preview.
-Small inset Flexible details, such as raised belt cords, follow their band
-without being flattened into it. Compact touching knot pieces keep their shape
-and attachment; long hanging panels retain their own fit. Details turn with the
-backing as it bends. Surrounding cords share a continuous backing fit across
-their thickness, including when refitting an exported or baked mesh.
+Small inset Flexible details follow their supporting cloth, including broad
+waist wraps and sleeves away from the body's centre. Folded bows retain their
+relief instead of becoming another cloth layer to flatten. Compact touching
+knot pieces keep their shape and attachment; long hanging panels retain their
+own fit. Coarse attachment edges are sampled between vertices. Surrounding cords
+share a continuous backing fit across their thickness, including after Bake.
+Fresh default fits recognize small closed solid accessories attached to broader
+cloth, including matching material seams and nearby small links or caps.
+Those assemblies use rigid contact motion without changing saved Part or island
+settings. Explicit island choices, Skip, Tightness, follow strength, protection
+and exclusions remain authoritative. Recognition uses geometry, not material
+names; open or ambiguous hard details still need **Rigid component**.
 Rigid means shape-preserving, not fixed in place. Fitting retains the authored
 spacing between nearby cloth and hard pieces before resolving body contact.
 Clearance then moves each connected hard piece as a whole, so cloth fitting to a
@@ -2198,15 +2205,23 @@ Matching panel borders also share displacement when independent mesh quantizatio
 leaves tiny coordinate differences. Reversed boundary edges with agreeing surface
 orientation identify those seams; nearby parallel layer rims remain separate. The
 original coordinate offsets stay intact, and protection carries across the seam.
+An isolated coincident point does not establish a material seam. Unused copies
+of vertices across a proven material split still follow their used counterparts.
 Missing body surfaces, such as a face supplied by a separate mesh, do not pull
 covering cloth onto the hole's rim. Clearance checks distinguish that open space
 from occupied body volume. Waist and cuff rims follow the nearby fit along a
 tapering body while retaining authored flare; narrow bands can tighten even when
 their mesh has no interior vertex row. Smoothing follows the width of each connected
 piece so loading a full body does not make small arm bands resist tightening.
+Contact smoothing stays within connected garment and layer groups, so a difficult
+waist contact does not set the smoothing radius of an unrelated cuff. A hard
+assembly resolves its contacts with one shared translation instead of alternating
+between the largest individual corrections.
 An isolated target on a different nearby body surface, such as a waist vertex
 binding to an arm, is excluded when it jumps far beyond its cloth neighborhood
-and pulls against that neighborhood. Surrounding cloth carries the vertex instead;
+and pulls against that neighborhood. It is also omitted from the shared band field.
+Complete wraps use their own centre so asymmetric body bounds cannot skew that field.
+Surrounding cloth carries the vertex instead;
 allowed regions and retained bindings remain unchanged, and body clearance still applies.
 It follows the broad cloth direction when choosing targets; a small hem fold should
 not redirect a long panel onto nearby feet. Overlapping panels, belts and trim share

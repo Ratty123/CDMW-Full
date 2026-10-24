@@ -344,6 +344,7 @@ void mesh_editor_conform_refit(const MeshRefitRuntime &refit, const std::map<int
             &binding;
     const auto garment_spatial = build_refit_spatial_index_native(garments, garment_set);
     const auto garment_surfaces = mesh_editor_refit_surface_indices(garments, indices, surface_roots);
+    const auto surface_shapes = mesh_editor_refit_surface_shapes(garments, indices, surface_roots);
     std::map<std::size_t, Vec3> band_axes;
     std::map<std::size_t, Vec3> solid_band_axes;
     for (const auto& surface : garment_surfaces) {
@@ -371,19 +372,27 @@ void mesh_editor_conform_refit(const MeshRefitRuntime &refit, const std::map<int
     }
     std::map<std::size_t, std::vector<std::size_t>> solid_band_nodes;
     for (const auto& group : band_nodes) if (solid_band_axes.count(group.first)) solid_band_nodes.emplace(group);
+    std::vector<bool> reliable(nodes.size(), false);
     const auto level_bands = [&](std::vector<Vec3>& field) {
         if (band_nodes.empty()) return;
         for (const auto& group : band_nodes) {
             const Vec3 axis = band_axes.at(group.first);
             double height = 0.0, area = 0.0;
-            for (const auto i : group.second) { height += dot_vec3(field[i], axis) * nodes[i].area; area += nodes[i].area; }
+            for (const auto i : group.second) if (reliable[i]) {
+                height += dot_vec3(field[i], axis) * nodes[i].area; area += nodes[i].area;
+            }
             if (area > 0.0) for (const auto i : group.second)
                 field[i] = add_vec3(field[i], scale_vec3(axis, height / area - dot_vec3(field[i], axis)));
         }
         if (coherent_bands) {
             std::vector<Vec3> positions;
             std::vector<double> mass;
-            for (const auto& node:nodes) { positions.push_back(node.point); mass.push_back(node.area); }
+            for (std::size_t i = 0; i < nodes.size(); ++i) {
+                positions.push_back(nodes[i].point);
+                // A rejected arm/leg target must not enter the band's shared
+                // field and pull the surrounding waist back toward that limb.
+                mass.push_back(reliable[i] ? nodes[i].area : 0.0);
+            }
             const auto& bounds = body.nodes[body.root];
             mesh_editor_cohere_refit_bands(band_nodes,band_axes,positions,
                 scale_vec3(add_vec3(bounds.minimum,bounds.maximum),0.5),mass,field,false,smooth_bands);
@@ -411,7 +420,6 @@ void mesh_editor_conform_refit(const MeshRefitRuntime &refit, const std::map<int
     };
     std::vector<std::size_t> visited(body.triangles.size(), 0);
     std::vector<Vec3> body_points(nodes.size()), body_normals(nodes.size());
-    std::vector<bool> reliable(nodes.size(), false);
     for (std::size_t i = 0; i < nodes.size(); ++i) {
         auto &node = nodes[i];
         // PAC island exclusions retain vertex records after their triangles
@@ -738,6 +746,7 @@ void mesh_editor_conform_refit(const MeshRefitRuntime &refit, const std::map<int
         Vec3 target{};
     };
     std::vector<LayerLink> layer_links;
+    std::set<std::size_t> carried_roots;
     for (const auto& item : garment_surfaces) {
         const int part = item.first.first;
         const auto& surface = item.second;
@@ -785,12 +794,31 @@ void mesh_editor_conform_refit(const MeshRefitRuntime &refit, const std::map<int
                 if (flexible && ordered_layer(i, item.first)) {
                     const double gap = mesh_editor_refit_layer_gap(std::abs(height), clearance, 1.0, tolerance);
                     link.target = scale_vec3(normal, std::copysign(gap, height) - height);
+                } else if (flexible && surface_area[item.first.second] >= surface_area[surface_roots[i]] * 2.0) {
+                    // A local ornament follows its supporting surface. Giving
+                    // it a second skin target first flattens the relief and
+                    // makes the subsequent contact solve fight its attachment.
+                    const auto source = garment_surfaces.find({nodes[i].vertices.front().first, surface_roots[i]});
+                    if (source != garment_surfaces.end()) {
+                        const auto& source_bounds = surface_shapes.at(surface_roots[i]);
+                        bool local = true;
+                        for (int axis = 0; axis < 3; ++axis) {
+                            const double extent = bounds.maximum[axis] - bounds.minimum[axis];
+                            local &= source_bounds.maximum[axis] - source_bounds.minimum[axis]
+                                <= std::max(extent * 1.25, extent + refit.driver_diagonal * 0.02);
+                        }
+                        const Vec3 extent = sub_vec3(source_bounds.maximum, source_bounds.minimum);
+                        if (local || (source_bounds.closed && *std::max_element(extent.begin(), extent.end())
+                                <= refit.driver_diagonal * 0.25)) carried_roots.insert(surface_roots[i]);
+                    }
                 }
                 layer_links.push_back(link);
             }
         }
     }
     std::vector<double> diagonal(nodes.size());
+    for (std::size_t i = 0; i < nodes.size(); ++i)
+        if (carried_roots.count(surface_roots[i])) screen[i] = 0.0;
     std::vector<Vec3> rhs(nodes.size()), displacement(nodes.size()), r(nodes.size()), z(nodes.size()),
         direction(nodes.size());
     for (std::size_t i = 0; i < nodes.size(); ++i) {

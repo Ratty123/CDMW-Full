@@ -476,7 +476,7 @@ class AboutDocumentationEnglishMixin:
                 <p>Rig &amp; Weights is temporarily hidden from the tool rail. Its implementation is retained.</p>
                 <h4>Morph &amp; Refit</h4>
                 <p>For an existing item, start with Modify Original. Load or assign the body driver, load the garments, select their parts and bind them. Inspect the fit at cuffs, underarms, belts and thin trim. Reset discards a preview; Bake keeps it. Refit changes geometry, not the skeleton or animation.</p>
-                <p>Fit to body previews every bound garment in Surface mode at 100% intensity, with at least 0.1% clearance. No body slider is required. Reset discards the preview; Bake keeps it.</p>
+                <p>Fit all enabled garments starts fresh setups at 100% Tightness and retains explicit Part and mesh-island choices. Cloth layers stay separate; recognized solid accessories and attached bows keep their shape. Use Rigid component for unrecognized hard details. Material names alone do not determine stiffness. Excluded surfaces do not affect fitting. Reset discards the preview; Bake keeps it.</p>
                 <p>Large fits and body-slider changes can take up to 90 seconds. Inspect cuffs, underarms, belts and thin trim before baking; complex folds can still need manual adjustment. Undo a poor bake or reload the original meshes before fitting again.</p>
                 <p>When fitting and removing parts, a reliable sequence is fit, inspect, Bake, Finish Edit Mesh, then Start next edit pass. Exclude unwanted parts in that next pass and build the mod. Unsupported topology remains unsupported after reopening. Body and garment outputs retain their separate original archive paths.</p>
                 <h4>Finish Edit Mesh</h4>
