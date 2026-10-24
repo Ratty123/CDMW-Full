@@ -1773,6 +1773,33 @@ flowchart TD
     V --> L["Later owned worker: hot access, eviction, cold rematerialization"]
 ```
 
+A separate owned thread-retirement fixture passes five cases and independent
+source, linked and actual reviews. One Cache and the same fake Api survive
+worker A, retained-handle OS-exit verification, coordinator inspection/release,
+then worker B rematerialization and the same checks. The parked-work negative
+refuses inspection/release when work is done but the OS thread has not exited.
+Its positive case verifies both four-row generations, 64 steps, 72 context
+events and all 16 phases. The fake decoder supplies only an identity prefix and
+synthetic cursor; this does not qualify native decoding or heap lifetime.
+
+This diagram describes that separate owned fixture only:
+
+```mermaid
+flowchart TD
+    C["Configure one Cache and fixed fake Api"] --> A["Worker A materializes four rows"]
+    A --> J["Join A: signaled handle, exit zero, fresh thread times"]
+    J --> I["Coordinator inspects and releases four rows"]
+    I --> B["Worker B rematerializes through the same Cache"]
+    B --> R["Join B, inspect and release with the same checks"]
+```
+
+A separate read-only native context observer passes source review but remains
+uncompiled. It records opaque current-thread TLS values without interpreting
+heap state or guard bytes as readiness or first-ever use. The real B80 Api caller,
+native post-exit record survival, reader exclusion, publication and resource/save
+proof remain open; `native_admission=false` remains unchanged. A configured
+eight-second wait does not establish a hard eight-second total wall limit.
+
 A first external sword package also passes actual full import, four hand/sheath
 attachment checks and exact package/model/texture readback with a persistent
 UUID. Its separate compiler image contains 24 private PAC/PAC_XML/DDS/prefab

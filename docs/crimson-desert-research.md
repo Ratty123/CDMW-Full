@@ -2062,6 +2062,22 @@ lifecycle/refusal assertions without material defects. This supplies no engine
 context, game reader coverage, central routing, resource use, lifetime or
 native-admission proof.
 
+A separate owned thread-retirement fixture passes five cases and independent
+source, linked and actual reviews. It retains one Cache and fake Api through
+worker A, confirmed OS-thread exit, coordinator inspection/release, then worker B
+rematerialization and the same checks. Its parked-work negative refuses release
+when work is done but the OS thread has not exited. This verifies owned ordering
+and evidence collection; its identity-prefix fake decoder does not qualify
+native decoding, FLS cleanup or record lifetime. The configured eight-second
+wait does not establish a hard eight-second total wall limit.
+
+A separate read-only native context observer passes source review but remains
+uncompiled. It records raw current-thread TLS values without inferring readiness
+or first-ever use. A real B80 Api caller and post-exit record-survival experiment
+remain open, alongside engine readers, publication and resource/save proof.
+Production `native_admission=false` and all original acceptance conditions remain
+unchanged.
+
 A separately authored sword package passes full import,
 four hand/sheath attachment checks and exact package readback. Its compiler image
 contains 24 private resources with 29 shared outputs excluded and 12 resource

@@ -412,3 +412,19 @@ refusal, including a later-worker hot/evict/cold path. Independent actual review
 passes 62 current pins, raw child/exit joins and lifecycle/refusal assertions
 without material defects. No runtime CFG, engine context, all-reader or
 native-admission proof is established.
+
+A separate owned thread-retirement fixture passes five cases and independent
+source, linked and actual reviews. Its one Cache/fake Api spans worker A,
+retained-handle OS-exit verification, coordinator inspection/release, worker B
+rematerialization and the same checks. The parked-work negative retains all four
+allocations and refuses release without OS-thread exit. The positive case checks
+both four-row generations, 64 steps, 72 context events and all 16 phases. This
+qualifies owned orchestration only: the decoder copies an identity prefix and
+supplies a synthetic cursor. The configured eight-second wait is separate from
+cleanup and does not prove a hard eight-second total wall limit.
+
+A read-only native context observer separately passes source review but remains
+uncompiled. Its raw current-thread TLS words establish neither readiness,
+first-ever use nor a coherent snapshot/lifetime lease. The real B80 Api caller,
+native record survival after allocating-thread exit, game reader coverage,
+publication and resource/save behavior remain open; `native_admission=false`.
