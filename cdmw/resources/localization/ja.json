@@ -5318,7 +5318,7 @@
     "Horizontal guides": "水平ガイド",
     "Horizontal mirror": "水平ミラー",
     "Hover Current for exact values or selection ranges.": "正確な値や選択範囲を見るには、現在の値にカーソルを合わせてください。",
-    "Hover an island name in Mesh islands or Morph & Refit > Choose mesh islands to highlight only that island in the viewport without changing selection. Move away to clear the tint; hidden geometry stays hidden.": "「メッシュアイランド」または「モーフとフィット調整 > メッシュアイランドを選択」でアイランド名にカーソルを重ねると、選択を変えずにそのアイランドだけをビューポートで強調表示します。カーソルを離すと強調表示が消えます。非表示の形状は非表示のままです。",
+    "Hover an island name in Mesh islands or Morph & Refit > Choose mesh islands to highlight only that island in the viewport. Hover a visible island in the viewport to highlight and reveal its name in the open lists. Move away to clear the highlight. Selection and pending fitting edits stay unchanged; hidden geometry stays hidden.": "「メッシュアイランド」または「モーフとフィット調整 > メッシュアイランドを選択」でアイランド名にカーソルを重ねると、そのアイランドだけをビューポートで強調表示します。ビューポート内の表示中のアイランドにカーソルを重ねると、開いているリストでその名前を強調し、表示位置までスクロールします。カーソルを離すと強調表示が消えます。選択と未適用のフィット設定は変わりません。非表示の形状は非表示のままです。",
     "How disabled mode, direct NCNN, and chaiNNer behave.": "モード、ダイレクト NCNN、チェインナーの無効化方法",
     "How far each nudge moves it, in metres. 0.020 is a normal adjustment; 0.100 is flagged as risky because it is large enough to push an item through the body.": "各ナッジが移動する距離 (メートル単位)。 0.020 は通常の調整です。 0.100 は、アイテムを体内に押し込むのに十分な大きさであるため、危険であるとフラグが立てられます。",
     "How far each turn moves it. Only used by Rotate and Tilt.": "各ターンでどれだけ移動するか。回転と傾斜でのみ使用されます。",

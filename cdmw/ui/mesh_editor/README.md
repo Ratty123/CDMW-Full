@@ -2102,6 +2102,11 @@ view in open lists. It moves only enough to reveal a name and keeps an already v
 match in place, including fit warnings. It uses the frontmost visible surface,
 keeps selection and fitting edits, and clears over empty space or during drags.
 Leaving the viewport cancels pending scrolling; other closed sections stay closed.
+In Morph & Refit's open **Choose mesh islands** list, viewport hover reveals and
+highlights the exact island name, including when another island in the same Part
+was hovered previously. The parent Part heading does not prevent an offscreen
+island name from scrolling into view. Moving away or hovering a different island
+cancels stale scrolling; selection, fitting targets and pending edits stay intact.
 
 If fitting is refused, Fit shows the affected garment names, a short reason and a
 targeted next step. Overlaps suggest more Clearance (0.1% when starting at zero) or
