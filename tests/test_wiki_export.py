@@ -304,10 +304,10 @@ def test_in_app_browser_renders_the_expanded_guides_in_each_locale(tmp_path, lan
             assert localizer.translate(source_paragraph) in body
             if topic == "mesh_editor":
                 for hover_guide in (
-                    "Enable Island colors beside Part colors in Morph & Refit, at the top of Mesh islands, or under Viewport > Display. Matching swatches identify islands in both island lists. Turn the active color option off to return to the normal display.",
+                    "Open Parts to find Part colors and Island colors above either list. These options also appear under Viewport > Display and work outside Morph & Refit. Matching swatches identify parts and islands; turn the active color option off to return to the normal display.",
                     "Island colors applies in Edit view and keeps selection, pending fitting edits, textures and exports unchanged. New local geometry stays gray until its island data updates.",
-                    "Open Parts on hover, beside Part colors in Morph & Refit, opens the Parts list when you hover a visible surface. Turn it off to keep closed panels closed; open lists still highlight and reveal matching names. Selection and pending fitting edits stay unchanged. Hover keeps the chosen Parts or Mesh islands tab and identifies the matching listed island.",
-                    "Hover an island name in Mesh islands to highlight only that island in the viewport without changing selection. Move away to clear the tint; hidden geometry stays hidden.",
+                    "Open Parts on hover is below the color options in Parts and is off by default. Enable it to open the list when hovering a visible surface; saved choices are retained. Open lists still highlight and reveal matching names while keeping the chosen Parts or Mesh islands tab. Selection and pending fitting edits stay unchanged.",
+                    "Hover an island name in Mesh islands or Morph & Refit > Choose mesh islands to highlight only that island in the viewport without changing selection. Move away to clear the tint; hidden geometry stays hidden.",
                 ):
                     translated = localizer.translate(hover_guide)
                     assert translated in body

@@ -467,7 +467,7 @@ pub(super) mod layout {
 
     pub(crate) fn auto_open_parts_on_hover(context: &Context) -> bool {
         context.data_mut(|data| data.get_temp::<Layout>(state_id()).unwrap_or_default()
-            .values["auto_open_parts_on_hover"].as_bool().unwrap_or(true))
+            .values["auto_open_parts_on_hover"].as_bool().unwrap_or(false))
     }
 
     pub(crate) fn set_auto_open_parts_on_hover(context: &Context, enabled: bool) {
@@ -595,11 +595,11 @@ pub(super) mod layout {
         }
 
         #[test]
-        fn auto_open_parts_on_hover_round_trips_and_defaults_to_enabled() {
+        fn auto_open_parts_on_hover_round_trips_and_defaults_to_disabled() {
             let context = Context::default();
-            assert!(auto_open_parts_on_hover(&context));
+            assert!(!auto_open_parts_on_hover(&context));
             restore(&context, &json!({"auto_open_parts_on_hover": "false"}));
-            assert!(auto_open_parts_on_hover(&context));
+            assert!(!auto_open_parts_on_hover(&context));
             restore(&context, &json!({PANELS[0]: 310.0, "floating": {"Viewport": [120.0, 180.0]}}));
             for enabled in [false, true] {
                 set_auto_open_parts_on_hover(&context, enabled);
@@ -3944,6 +3944,24 @@ impl LabApplication {
                                 crate::localization::tr("Coincident seam vertices are grouped without welding the model.")));
                     });
                     ui.ctx().data_mut(|data| data.insert_temp(tab_id, islands));
+                    ui.horizontal_wrapped(|ui| {
+                        let mut part_colours = self.view_mode == ViewMode::PartId && !self.cdmw_island_colours;
+                        if ui.checkbox(&mut part_colours, crate::localization::tr("Part colors"))
+                            .on_hover_text(crate::localization::tr("Give each Part a different color to see overlaps. Display only; fitting and exports stay unchanged."))
+                            .changed()
+                        {
+                            self.set_cdmw_display_mode(if part_colours { ViewMode::PartId }
+                                else { self.cdmw_part_colours_previous_mode });
+                        }
+                        self.draw_cdmw_island_colour_option(ui);
+                    });
+                    let mut automatic = crate::cdmw_layout::auto_open_parts_on_hover(ui.ctx());
+                    if ui.checkbox(&mut automatic, crate::localization::tr("Open Parts on hover"))
+                        .on_hover_text(crate::localization::tr("Open the Parts list when hovering a visible surface. Turn off to keep closed panels closed."))
+                        .changed()
+                    {
+                        crate::cdmw_layout::set_auto_open_parts_on_hover(ui.ctx(), automatic);
+                    }
                     ui.separator();
                     ui.add_enabled_ui(!busy, |ui| {
                         if islands { self.draw_cdmw_islands(ui, actions); }

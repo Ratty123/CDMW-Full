@@ -433,6 +433,7 @@ fn workflow_viewport_part_hover_scrolls_open_lists_and_keeps_selection_and_fit_e
 #[test]
 fn workflow_viewport_part_hover_scroll_cancels_stale_targets_and_yields_to_manual_scrolling() -> TestResult {
     let mut ui = long_part_hover_ui()?;
+    crate::cdmw_layout::set_auto_open_parts_on_hover(&ui.application.egui_context, true);
     let root = tempdir()?;
     ui.application.cdmw_bridge = Some(CdmwBridge::for_test(root.path().to_path_buf(), "hover-scroll", 2, 0));
     ui.reveal("2 · Sleeve")?;
@@ -488,6 +489,7 @@ fn workflow_viewport_part_hover_scroll_cancels_stale_targets_and_yields_to_manua
 fn workflow_viewport_part_hover_opens_closed_parts_and_keeps_selection_and_fit_edits() -> TestResult {
     for closed in ["Inspector", "Collapsed"] {
         let mut ui = long_part_hover_ui()?;
+        ui.click("Open Parts on hover")?;
         let root = tempdir()?;
         ui.application.cdmw_bridge = Some(CdmwBridge::for_test(root.path().to_path_buf(), "hover-open", 2, 0));
         ui.open_refit_detail("Choose garments")?;
@@ -535,8 +537,6 @@ fn workflow_viewport_part_hover_toggle_preserves_closed_panels_and_open_list_fee
         let mut ui = long_part_hover_ui()?;
         let root = tempdir()?;
         ui.application.cdmw_bridge = Some(CdmwBridge::for_test(root.path().to_path_buf(), "hover-toggle", 2, 0));
-        assert!(crate::cdmw_layout::auto_open_parts_on_hover(&ui.application.egui_context));
-        assert!(ui.actions_from_click("Open Parts on hover")?.is_empty());
         assert!(!crate::cdmw_layout::auto_open_parts_on_hover(&ui.application.egui_context));
         if closed == "Mesh islands" {
             ui.click("Mesh islands")?;
@@ -564,7 +564,24 @@ fn workflow_viewport_part_hover_toggle_preserves_closed_panels_and_open_list_fee
             assert!(ui.label_rect("Back to Inspector").is_none());
         }
         if closed == "Collapsed" { assert!(ui.sidebar_button("Expand Inspector").is_some()); }
+        if closed != "Mesh islands" {
+            if closed == "Collapsed" {
+                let expand = ui.sidebar_button("Expand Inspector").ok_or("expand")?;
+                ui.click_at(expand.rect.center());
+                ui.settle_layout();
+            }
+            ui.click("Parts")?;
+        }
         ui.click("Open Parts on hover")?;
+        assert!(crate::cdmw_layout::auto_open_parts_on_hover(&ui.application.egui_context));
+        if closed != "Mesh islands" {
+            ui.click("Back to Inspector")?;
+            if closed == "Collapsed" {
+                let collapse = ui.sidebar_button("Collapse Inspector").ok_or("collapse")?;
+                ui.click_at(collapse.rect.center());
+                ui.settle_layout();
+            }
+        }
         ui.frame(vec![Event::PointerMoved(viewport_part_point(&ui, 59)?)]);
         ui.frame(Vec::new());
         ui.frame(vec![Event::PointerMoved(viewport_part_point(&ui, 59)?)]);
@@ -589,13 +606,32 @@ fn workflow_viewport_part_hover_toggle_preserves_closed_panels_and_open_list_fee
 }
 
 #[test]
-fn workflow_part_hover_toggle_remains_available_without_a_morph_runtime() -> TestResult {
+fn workflow_parts_display_controls_are_outside_morph_and_available_without_its_runtime() -> TestResult {
     let mut ui = mixed_refit_ui(&[2])?;
+    let root = tempdir()?;
+    ui.application.cdmw_bridge = Some(CdmwBridge::for_test(root.path().to_path_buf(), "parts-display-options", 2, 0));
     ui.application.cdmw_state["morph_refit"]["available"] = json!(false);
+    ui.application.cdmw_state["mesh_islands"]["color_faces"] = json!([[0], [0], [0]]);
+    ui.application.view_mode = ViewMode::Solid;
     ui.frame(Vec::new());
-    assert!(ui.label_rect("Open Parts on hover").is_some());
-    assert!(ui.actions_from_click("Open Parts on hover")?.is_empty());
+    for label in ["Part colors", "Island colors", "Open Parts on hover"] {
+        let rect = ui.label_rect(label).ok_or_else(|| format!("missing {label}"))?;
+        assert!(rect.left() >= ui.application.viewport_rect.ok_or("viewport")?.right(),
+            "{label} must belong to the Parts panel");
+    }
+    ui.click("Back to Inspector")?;
+    for label in ["Part colors", "Island colors", "Open Parts on hover"] {
+        assert!(ui.label_rect(label).is_none(), "{label} must not remain in Morph & Refit");
+    }
+    ui.click_tool_button("Selection")?;
+    ui.click("Parts")?;
     assert!(!crate::cdmw_layout::auto_open_parts_on_hover(&ui.application.egui_context));
+    assert!(ui.actions_from_click("Open Parts on hover")?.is_empty());
+    assert!(crate::cdmw_layout::auto_open_parts_on_hover(&ui.application.egui_context));
+    assert!(ui.actions_from_click("Part colors")?.is_empty());
+    assert!(ui.application.cdmw_part_colours_active());
+    assert!(ui.actions_from_click("Island colors")?.is_empty());
+    assert!(ui.application.cdmw_island_colours_active());
     assert_eq!(ui.application.selected_part_indices(), vec![2]);
     assert!(ui.application.cdmw_pending_request.is_none());
     Ok(())
@@ -604,6 +640,7 @@ fn workflow_part_hover_toggle_remains_available_without_a_morph_runtime() -> Tes
 #[test]
 fn workflow_viewport_part_hover_leaves_closed_parts_alone_over_empty_space_and_during_drags() -> TestResult {
     let mut ui = mixed_refit_ui(&[2])?;
+    ui.click("Open Parts on hover")?;
     ui.click("Back to Inspector")?;
     ui.application.camera.frame_all_in_viewport(ui.application.mesh.as_ref().ok_or("mesh")?,
         ui.application.viewport_rect.ok_or("viewport")?);
@@ -642,6 +679,73 @@ fn workflow_viewport_part_hover_scroll_keeps_a_visible_warning_name_in_place() -
     assert_eq!(ui.application.cdmw_refit_clearance, 0.75);
     assert!(ui.application.cdmw_refit_settings_dirty.is_dirty());
     assert!(ui.application.cdmw_pending_request.is_none());
+    Ok(())
+}
+
+#[test]
+fn workflow_refit_island_name_hover_highlights_only_its_faces_without_editing() -> TestResult {
+    for mode in [ViewMode::Solid, ViewMode::PartId] {
+        let mut ui = mixed_refit_ui(&[2])?;
+        let document = Arc::make_mut(ui.application.document.as_mut().ok_or("document")?);
+        let part = &mut document.lods[0].submeshes[1];
+        let positions = part.positions.iter().map(|p| [p[0] + 3.0, p[1], p[2]]).collect::<Vec<_>>();
+        part.positions.extend(positions);
+        part.normals.extend(part.normals.clone());
+        part.uvs.extend(part.uvs.clone());
+        part.source_vertex_indices.extend([3, 4, 5]);
+        part.indices.extend([3, 4, 5]);
+        let mut mesh = WorkingMesh::from_document(document)?;
+        mesh.set_selection(Selection { submeshes: HashSet::from([2]), ..Selection::default() })?;
+        ui.application.mesh = Some(mesh);
+        ui.application.projection = None;
+        ui.application.cdmw_state["mesh_islands"] = json!({"color_faces":[[0],[0,1],[0]],
+            "fit_parts":[{"index":1,"name":"Sleeve","islands":[{"faces":[0]},{"faces":[1]}]}]});
+        let root = tempdir()?;
+        ui.application.cdmw_bridge = Some(CdmwBridge::for_test(root.path().to_path_buf(), "fit-island-hover", 2, 0));
+        ui.choose("Editing", "Selected garments · 1", "Selected mesh islands")?;
+        ui.open_refit_detail("Choose mesh islands")?;
+        ui.application.view_mode = mode;
+        ui.application.cdmw_refit_clearance = 0.75;
+        ui.application.cdmw_refit_settings_dirty.mark("clearance_percent");
+        let state = ui.application.cdmw_state.clone();
+        let mesh = ui.application.mesh.as_ref().ok_or("mesh")?.clone();
+        let targets = ui.application.cdmw_refit_region_targets.clone();
+        ui.last_actions.clear();
+        for face in [0, 1, 0] {
+            let name = ui.reveal(&format!("Island {} · 1 faces", face + 1))?;
+            ui.frame(vec![Event::PointerMoved(name.center())]);
+            ui.settle_layout();
+            let (target, overlay) = ui.application.cdmw_part_hover_overlay.as_ref().ok_or("refit island hover")?;
+            let expected: Vec<_> = mesh.faces().filter(|(_, item)| matches!(item.provenance,
+                Provenance::Source { submesh: 1, element } if element == face))
+                .flat_map(|(_, item)| item.vertices.iter()).map(|handle| mesh.vertex(*handle).unwrap().position).collect();
+            assert_eq!(target.part, 1);
+            assert_eq!(target.island_faces.as_deref(), Some([face].as_slice()));
+            assert_eq!(overlay.positions, expected);
+            assert_eq!(overlay.positions.len(), 3, "must not tint the other island in this Part");
+        }
+        assert_eq!(ui.application.cdmw_state, state);
+        let current = ui.application.mesh.as_ref().ok_or("mesh")?;
+        assert_eq!(current.selection, mesh.selection);
+        assert_eq!(current.selection_revision, mesh.selection_revision);
+        assert_eq!(current.structural_fingerprint(), mesh.structural_fingerprint());
+        assert_eq!(ui.application.cdmw_refit_region_targets, targets);
+        assert_eq!(ui.application.cdmw_refit_clearance, 0.75);
+        assert!(ui.application.cdmw_refit_settings_dirty.is_dirty());
+        assert_eq!(ui.application.view_mode, mode);
+        assert!(ui.last_actions.is_empty());
+        assert!(ui.application.cdmw_pending_request.is_none());
+        ui.application.set_island_visibility(1, vec![0], false);
+        ui.frame(Vec::new());
+        assert!(ui.application.cdmw_part_hover_overlay.as_ref().is_none_or(|(_, overlay)| overlay.positions.is_empty()));
+        ui.application.set_island_visibility(1, vec![0], true);
+        ui.frame(Vec::new());
+        ui.settle_layout();
+        assert_eq!(ui.application.cdmw_part_hover_overlay.as_ref().ok_or("restored hover")?.1.positions.len(), 3);
+        ui.frame(vec![Event::PointerGone]);
+        assert!(ui.application.cdmw_hovered_part.is_none());
+        assert!(ui.application.cdmw_part_hover_overlay.is_none());
+    }
     Ok(())
 }
 

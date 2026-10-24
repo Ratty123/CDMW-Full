@@ -457,6 +457,10 @@ class AboutDocumentationEnglishMixin:
                 </ul>
                 <p>Use Orbit to navigate without editing: right-drag orbits, middle-drag pans, and the wheel zooms. Fit frames the whole mesh; Frame Selected frames the selection. Solid (Textured) needs resolved materials. Solid + Wire, X-Ray, Normals, Bounds, and Bones provide inspection views.</p>
                 <h4>Parts</h4>
+                <p>Open Parts to find Part colors and Island colors above either list. These options also appear under Viewport &gt; Display and work outside Morph &amp; Refit. Matching swatches identify parts and islands; turn the active color option off to return to the normal display.</p>
+                <p>Island colors applies in Edit view and keeps selection, pending fitting edits, textures and exports unchanged. New local geometry stays gray until its island data updates.</p>
+                <p>Open Parts on hover is below the color options in Parts and is off by default. Enable it to open the list when hovering a visible surface; saved choices are retained. Open lists still highlight and reveal matching names while keeping the chosen Parts or Mesh islands tab. Selection and pending fitting edits stay unchanged.</p>
+                <p>Hover an island name in Mesh islands or Morph &amp; Refit &gt; Choose mesh islands to highlight only that island in the viewport without changing selection. Move away to clear the tint; hidden geometry stays hidden.</p>
                 <p>View hides geometry only in the viewport; Mod or Include controls output inclusion. Use Output Preview to inspect the prepared result. Mesh islands addresses disconnected pieces within a part. Unsupported lower-LOD mappings block exclusion rather than guessing which triangles should disappear.</p>
                 <h4>Replacement imports</h4>
                 <p>Use Import Replacement... for an entire archive mesh or selected parts. Map every imported part, then choose original materials or imported materials and textures.</p>
@@ -480,10 +484,6 @@ class AboutDocumentationEnglishMixin:
                 <h4>Rig &amp; Weights</h4>
                 <p>Rig &amp; Weights is temporarily hidden from the tool rail. Its implementation is retained.</p>
                 <h4>Morph &amp; Refit</h4>
-                <p>Enable Island colors beside Part colors in Morph &amp; Refit, at the top of Mesh islands, or under Viewport &gt; Display. Matching swatches identify islands in both island lists. Turn the active color option off to return to the normal display.</p>
-                <p>Island colors applies in Edit view and keeps selection, pending fitting edits, textures and exports unchanged. New local geometry stays gray until its island data updates.</p>
-                <p>Open Parts on hover, beside Part colors in Morph &amp; Refit, opens the Parts list when you hover a visible surface. Turn it off to keep closed panels closed; open lists still highlight and reveal matching names. Selection and pending fitting edits stay unchanged. Hover keeps the chosen Parts or Mesh islands tab and identifies the matching listed island.</p>
-                <p>Hover an island name in Mesh islands to highlight only that island in the viewport without changing selection. Move away to clear the tint; hidden geometry stays hidden.</p>
                 <p>For an existing item, start with Modify Original. Load or assign the body driver, load the garments, select their parts and bind them. Inspect the fit at cuffs, underarms, belts and thin trim. Reset discards a preview; Bake keeps it. Refit changes geometry, not the skeleton or animation.</p>
                 <p>Fit all enabled garments starts fresh setups at 100% Tightness and retains explicit Part and mesh-island choices. Cloth layers stay separate; recognized solid accessories and attached bows keep their shape. Use Rigid component for unrecognized hard details. Material names alone do not determine stiffness. Excluded surfaces do not affect fitting. Reset discards the preview; Bake keeps it.</p>
                 <p>At full Tightness, waistcloth follows the body's changing contour and flexible belts fit over the cloth. Set daggers and other hard pieces to Rigid component so they follow their fitted support without bending.</p>

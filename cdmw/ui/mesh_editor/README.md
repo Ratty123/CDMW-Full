@@ -167,6 +167,10 @@ Use **Back to Inspector** for **Translucency (experimental)**, **Glow (experimen
 **Shader experiments**, **Geometry Layers** and **Action History**. Part selection
 is retained when navigating between these tools.
 
+**Part colors** and **Island colors** sit above both lists and work outside
+Morph & Refit. **Open Parts on hover** is below them and is off by default;
+an existing saved choice is retained.
+
 Parts use compact single-line rows with aligned **View** and **Include** columns.
 **View** only affects the viewport; **Include** controls exported output. Physics
 badges occupy a separate column. Long names and badges truncate; hover for the
@@ -189,9 +193,10 @@ frontmost visible island; hidden islands stay hidden.
 Hovering an island's name temporarily highlights only that island's visible faces
 in the viewport, including obscured surfaces. Leaving the name clears the tint;
 selection, fitting targets and pending edits stay unchanged.
-Enable **Island colors** above this list, beside **Part colors** in Morph & Refit,
-or under **Viewport → Display**. Each island has a stable shaded color, with a
-matching swatch beside its name here and in **Choose mesh islands**. Switching
+Enable **Island colors** beside **Part colors** at the top of the Parts browser,
+or under **Viewport → Display**. These options are available outside Morph & Refit.
+Each island has a stable shaded color, with a matching swatch beside its name here
+and in **Choose mesh islands**. Switching
 between Part and Island colors keeps selection and fitting edits; turning off the
 active color option returns to the previous normal display. Hidden islands keep
 their color when shown again. Colors apply in Edit view; comparison views keep
@@ -2070,11 +2075,11 @@ update retains the pending edits. Apply pending settings before **Fit all enable
 garments**; fitting stays disabled while edits are pending.
 Tightness requires Surface or Rigid component mode on every chosen garment.
 
-**Part colors**, above the Morph & Refit tabs' content, gives each Part a stable,
+**Part colors**, at the top of the Parts browser, gives each Part a stable,
 distinct shaded viewport color to make overlaps easier to inspect. It also appears
 under **Viewport → Display**. Colors follow Part identity, including new Parts that
 share a material; hiding other pieces does not reassign their colors. Turning the
-Morph & Refit toggle off restores the previous display mode. This changes only the
+color toggle off restores the previous display mode. This changes only the
 viewport; fitting, selection, pending edits, textures and exports remain intact.
 **Island colors**, beside it, colors disconnected islands within each Part and
 adds matching swatches in both island lists. The color modes are mutually
@@ -2083,11 +2088,13 @@ Matching swatches beside Part names in Morph & Refit, fit warnings and the Parts
 inspector identify each piece while Part colors is enabled.
 Hovering a Part name temporarily highlights its visible geometry in cyan, including
 obscured surfaces, without changing the selection or fitting targets. This also works
-with Part colors off. In **Mesh islands**, hovering an island name highlights just
-that island. Leaving the name clears the hover tint. Hidden Parts and islands
+with Part colors off. In **Mesh islands** and Morph & Refit's **Choose mesh islands**,
+hovering an island name highlights just that island. Leaving the name clears the
+hover tint. Hidden Parts and islands
 stay hidden, and comparison views keep their own display. Hovering a surface in the
-viewport also opens the Parts list when **Open Parts on hover**, beside **Part
-colors**, is enabled (the default). Turn it off to keep closed panels closed.
+viewport also opens the Parts list when **Open Parts on hover**, below the color
+options in the Parts browser, is enabled. It is off by default, so closed panels
+stay closed. Existing saved choices are retained.
 The choice is saved with the editor layout when remembering panel sizes is enabled.
 With automatic opening enabled, Inspector expands when needed and keeps your
 chosen Parts or Mesh islands tab. Hover outlines matching Part or island names in cyan and scrolls them into
