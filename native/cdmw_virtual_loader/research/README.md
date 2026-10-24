@@ -351,3 +351,19 @@ initialization, queue draining and borrowed lifetime remain unresolved. Unwind
 extents do not establish complete logical functions.
 Use the [current source evidence](../../../beta-progress/cditem-execution-goal.md#reader-boundary-platform-qualification-remains-open)
 before preparing a direct-call stock cold witness or durable continuation.
+
+The separately compiled direct-call precursor now passes all 27 owned native
+cases on 2026-10-24, including forwarding, original C++ exceptions, TLS binding
+restoration, nested/concurrent calls and terminal patch failures. Independent
+linked review accepts genuine same-page calls, selected GuardCF targets and the
+active unwind action; all owned children retire and input pins remain unchanged.
+Independent actual review passes 90 distinct file pins and all raw logs/layouts.
+This qualifies only the measured owned fixture. Early UAL startup does not
+exclude younger threads or every executor from a shared code page. V4’s RW
+scratch proof and unconditional detach cleanup cannot qualify code publication:
+possible-mutation uncertainty must retain the exact owned target until
+termination. The next owned test warms callers before attach and joins complete
+page exclusion, remote protection/write/flush, physical readback and forwarding
+after safe detach. Exact pins, preserved build-postcheck failure and proof limits
+are in the [owned direct-call checkpoint](../../../beta-progress/cditem-execution-goal.md#owned-direct-call-forwarding-and-installation-boundary-2026-10-24).
+Game reader leases, publication, resources, lifetime and admission remain open.

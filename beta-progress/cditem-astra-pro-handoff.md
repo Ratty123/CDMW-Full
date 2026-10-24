@@ -260,6 +260,20 @@ through actual constructor/decoder arguments. Its shared-body Reader initializes
 only byte `+8`; private Row consumption/padding checks do not transfer. A direct
 observer and early installation boundary require separate qualification.
 
+The direct-call precursor now passes all 27 owned native cases on 2026-10-24,
+including full typed returns, C++ unwind/TLS restoration, nesting/concurrency and
+terminal patch failures. Actual calls, selected GuardCF membership and the
+active TLS unwind action pass independent linked review. All children retire;
+the frozen executable and inputs remain unchanged. Independent actual review
+passes 90 distinct file pins and all raw logs/runtime layouts. The original build’s XML
+text-postcheck failure remains recorded, with successful compile/link accepted
+by a separate independent postcheck. This is no game caller or lease.
+Existing early UAL startup permits younger threads and does not exclude every
+executor from the shared page. Reuse V4’s owned debugger for a separate warmed
+caller/code-publication test; possible-mutation failure must hold until exact
+owned termination, never detach unconditionally. The [execution checkpoint](cditem-execution-goal.md#owned-direct-call-forwarding-and-installation-boundary-2026-10-24)
+owns exact pins and remaining limits. Game publication and admission stay open.
+
 Retained local source-only results under the native-path continuation:
 `run/b115-current-owner-v2/source-check-receipt.json` (41 focused checks;
 SHA-256 `7ea832863efff4c2b451a545b0f35c3defac7822fe6c07be71430ef34082dd1f`)

@@ -84,6 +84,16 @@ services, live initialization, ordinary callers and borrowed lifetime remain
 open. Both providers are closed; the latest export preserves all prior history
 in 2,241 records. These source results add no native/game acceptance.
 
+On 2026-10-24 the separately compiled direct-call precursor passes all 27 owned
+native cases, with all children retired, exact pins unchanged and cleanup within
+the bounded batch. Typed forwarding, C++ unwind/TLS restoration, nested and
+concurrent association and terminal installer failures are exercised. Linked
+review accepts the actual call boundaries, GuardCF membership and unwind action.
+Independent actual review passes 90 distinct file pins and all 27 raw logs.
+The existing early UAL phase supplies no whole-page exclusion lease. External
+executable-code publication after already-used callers is the next owned
+discriminator; game routing, resource use, lifetime and admission remain open.
+
 [Canonical goal and acceptance criteria](cditem-conflict-isolation-plan.md) |
 [Execution](cditem-execution-goal.md) |
 [Research handoff](cditem-astra-pro-handoff.md) |
@@ -166,6 +176,7 @@ the preceding 24-case preparation evidence remains in
 ## Completed work
 
 - 2026-10-24 | CDISO-RE-02 selected allocation/recovery source qualification | Independent file review verifies 18 pins and all 131 captured instructions across three further entries. The selected general allocation body and base-relative pointer recovery expose remaining context, block/pointer and metadata prerequisites. The second closed provider export retains all 2,239 prior records and 140 unknown revisions, adding two pseudocode records. No native execution or admission is established. Evidence: [source and remaining premises](cditem-execution-goal.md#reader-boundary-platform-qualification-remains-open).
+- 2026-10-24 | CDISO-RE-02 direct-call precursor execution | All 27 owned native cases pass with unchanged input pins and all child processes retired. Independent linked review accepts same-page calls, selected GuardCF targets and TLS unwind wiring. Existing early startup does not establish whole-page exclusion; external executable-code publication remains the next owned check. No game or native-content acceptance changes. Evidence: [owned fixture and installation boundary](cditem-execution-goal.md#owned-direct-call-forwarding-and-installation-boundary-2026-10-24).
 
 - 2026-10-23 | CDISO-RE-02 family-zero heap/helper source qualification | Read-only REA and static PE/unwind/instruction analysis distinguish family selection from indexed heap TLS, identify the selected `0x440` allocation's `0x44F` byte request and prove an atomic non-owner free path exists. Independent source review accepts 105 file pins across 12 bounded entries without material capture defects. The closed provider's 2,239-record export retains all prior records and 140 unknown revisions. Allocation/recovery helpers, live initialization, later callers, queue drain and borrowed lifetime remain open; no native/game/admission result is added. Evidence: [source and remaining premises](cditem-execution-goal.md#reader-boundary-platform-qualification-remains-open).
 

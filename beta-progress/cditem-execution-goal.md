@@ -901,6 +901,73 @@ receipt: `api-source-review/20261023-stock-cold-observer-seam-review-v1/source-s
 23,871 bytes, SHA-256
 `858023e575225135c065d808c67f610a57ed0e608775b1d6a4e4c1bc179df146`.
 
+#### Owned direct-call forwarding and installation boundary, 2026-10-24
+
+The separately frozen direct-call precursor now has actual owned execution:
+all 27 declared cases pass against the retained MSVC x64 executable, with
+five-second per-case bounds, inherited kill-on-close Job membership, unchanged
+input pins and empty before/after resource censuses. All 27 child processes
+retire; the measured batch takes 0.630530 seconds. The cases exercise typed
+arguments/full pointer and AL returns, LastError, actual constructor-return
+association, original C++ exceptions, nested TLS restoration, four-thread
+association, bounded event loss, unreadable observations and the installer’s
+preflight/partial-write/readback/flush/protection failure branches. Uncertain
+patched pages are never executed and remain retained until owned retirement.
+
+The unchanged build uses `/W4 /WX /Ob0 /guard:cf`. Its original build operation
+remains `FAILED_OR_INCOMPLETE`: a final text assertion expected literal `/Ob0`
+in project XML, while CMake represents it as disabled inline expansion and the
+actual compiler command includes `/Ob0`. A separate independent postcheck
+accepts the successful compile/link output; it does not rewrite that failure
+or rerun the build. Independent emitted-code review accepts genuine CALL RVAs
+`0x21004`, `0x21044`, `0x21084` in one `.scold` page, selected GuardCF membership
+and the active C++ unwind action that restores the adapter’s own TLS binding.
+
+All paths below are relative to the existing native-path continuation:
+
+- Executable: `native-trace/stock-cold-direct-build-v3/build/Release/stock_cold_fixture.exe`,
+  206,848 bytes, SHA-256 `904737f74f1cce3593a8c9d45b578e3185f7f9401c61e136e4c3d9392597ea8b`.
+- Separate build proof: `api-source-review/20261024-stock-cold-retained-build-independent-v1/retained-build-proof-v1.json`,
+  14,483 bytes, SHA-256 `28f1bf7e5f1d0db23ee2a4933751a421e9a3d318ff7b7521e4f2db808527c626`.
+- Independent linked review: `api-source-review/20261024-stock-cold-linked-independent-v1/independent-linked-review-v1.json`,
+  21,879 bytes, SHA-256 `f15cfcb48c430a950adb0e6edcf89f7e6d9184e5dbfbd018748fc1bcae001872`.
+- Actual run: `native-trace/stock-cold-direct-run-v1/actual-run-result.json`,
+  74,093 bytes, SHA-256 `e6241ddb8fc8c8896118603758c8e79b6f4ff6b52c12945a18877b3c5f2c4a82`.
+- Independent actual review: `api-source-review/20261024-stock-cold-owned-run-independent-v1/independent-actual-run-review-v1.json`,
+  27,782 bytes, SHA-256 `fe1d0c954ef495a7ecaa0b41c1e813ff3af1e29cca2846b7ba18c51b13db8661`.
+
+Independent actual review passes without material defects, rehashing 90
+distinct files and joining all 27 logs, 118 JSON records, 78 runtime layouts
+and 13 forwarding summaries to the frozen source/PE/MAP. The raw summaries
+do not serialize every event or failure-injection assertion; those checks
+are assertions executed inside the pinned binary. No replay was performed.
+
+These are owned fixture results, not a natural game caller or installation
+lease. Source review of the existing synchronous UAL startup path finds that
+its thread-age guard permits younger threads; the loader observer also starts
+an evidence writer before its atomic vtable-cell exchanges. Neither supplies
+an exclusive interval for a non-atomic five-byte instruction change or for
+making the whole shared code page non-executable. Early startup, owner zero,
+file hashes and a quiet prelaunch census do not establish that interval.
+The installation source review’s 24 current input pins match:
+`api-source-review/20261024-stock-cold-installation-source-v1/installation-source-review-v1.json`,
+22,163 bytes, SHA-256 `88a3baa2fc7bb2aca2ddde1935ff662b30bc0221697de939721e66104bdd0293`.
+
+The existing V4 debugger experiment proves RW scratch stores, not executable
+code publication. Its unconditional detach cleanup must not carry into a code
+successor: after possible code mutation, uncertain failure must hold the exact
+owned target until termination. The next discriminator reuses that owned
+debugger path, warms the typed callers before attach, excludes every held RIP
+from the complete page, then joins remote protection/write/flush, independent
+physical readback, safe detach and actual forwarding. It cannot assert the
+precursor’s before-first-use premise. Source review of this boundary is
+`api-source-review/20261024-external-code-publication-source-v1/source-review-v1.json`,
+23,222 bytes, SHA-256 `7c7f692067a2449faa51588d0d1e8cdaf64d59f0030007bc7557dd088f806bc7`.
+Game reader exclusion, live allocator context, durable Cache/Router activation,
+resource consumption, lifetime and native admission remain unproved. This
+increment changes no installed binary, supported package workflow or acceptance
+state; broad application, packaging and game gates were not run.
+
 Then join the staged records and unpublished native pairs to both central
 getter/bulk routes, with private metadata/backing, coherent publication, later
 derived-state validation and concrete reader/maintenance coverage. Qualify

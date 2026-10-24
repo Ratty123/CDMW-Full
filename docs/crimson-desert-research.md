@@ -1727,6 +1727,20 @@ prerequisites remain unclosed, alongside live readiness, queue draining and
 borrowed-record lifetime.
 These source findings do not qualify the durable native route.
 
+A separately compiled direct-call precursor passes 27 owned native cases
+on 2026-10-24, exercising typed forwarding, original C++ exceptions, TLS binding
+restoration, nested/concurrent association and terminal patch-failure handling.
+Independent linked review accepts the actual same-page CALL boundaries, selected
+GuardCF membership and active unwind cleanup. All owned processes retire and
+input pins remain unchanged; independent actual review passes all raw logs and
+runtime layouts. These are isolated fixture observations, without
+a natural game call, game thread contract or publication lease. Existing early
+UAL startup does not exclude younger threads or all executors from a shared
+code page. The next owned check must qualify external executable-code changes
+and safe resumption after already-used callers, containing uncertain mutation
+until owned termination. Native routing, resource use and lifecycle remain open;
+see the [exact evidence and limits](../beta-progress/cditem-execution-goal.md#owned-direct-call-forwarding-and-installation-boundary-2026-10-24).
+
 A separately authored sword package passes full import,
 four hand/sheath attachment checks and exact package readback. Its compiler image
 contains 24 private resources with 29 shared outputs excluded and 12 resource

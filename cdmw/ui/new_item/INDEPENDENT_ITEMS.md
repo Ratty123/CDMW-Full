@@ -1463,6 +1463,19 @@ arguments. The stock Reader initializes only its flag byte at `+8` and carries a
 row cursor into the shared body, so private Row padding/full-consumption checks
 cannot validate that ordinary caller.
 
+The separately frozen direct-call precursor passes 27 actual owned native cases
+on 2026-10-24. It covers typed forwarding, actual constructor-return association,
+C++ unwind of the adapter’s own TLS binding, nesting/concurrency, bounded event
+loss and terminal installer failures. Independent linked review accepts the
+three same-page calls, selected GuardCF targets and active unwind action.
+Independent actual review passes all raw logs/runtime layouts and 90 file pins.
+The fixture’s truthful before-first-use/exclusive phase does not transfer to
+UAL startup: younger threads and an evidence writer remain possible. A code
+successor needs whole-page exclusion, checked remote protection/write/flush and
+physical readback before safe resumption; uncertainty after mutation requires
+owned termination while held. See the [exact owned evidence and remaining boundary](../../../beta-progress/cditem-execution-goal.md#owned-direct-call-forwarding-and-installation-boundary-2026-10-24).
+No natural game caller, durable backend, resource use or admission is established.
+
 A first external sword package also passes actual full import, four hand/sheath
 attachment checks and exact package/model/texture readback with a persistent
 UUID. Its separate compiler image contains 24 private PAC/PAC_XML/DDS/prefab

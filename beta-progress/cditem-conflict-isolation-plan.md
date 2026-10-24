@@ -1,7 +1,7 @@
 # Independent .cditem Content with Stable Identity
 
 - Plan ID: CDISO
-- Status: Active execution resumed 2026-10-23. Implementation remains incomplete. Existing identity work is retained; full native loading and persistence acceptance remain open.
+- Status: Active execution; latest owned native fixture qualification 2026-10-24. Implementation remains incomplete. Existing identity work is retained; full native loading and persistence acceptance remain open.
 - Created: 2026-10-17, Europe/Stockholm.
 - Project: D:\CLAUDETEST\CDMW Full
 - Game reference: C:\games\Steam\steamapps\common\Crimson Desert
@@ -136,6 +136,17 @@ service-supplied extended size.
 The actual context, block/pointer services and coherent metadata prerequisites
 remain open. The latest closed export preserves all prior history in 2,241
 records; no native execution or admission follows from these source checks.
+
+The direct-call precursor separately passes all 27 owned native cases on
+2026-10-24, including typed forwarding, C++ unwind/TLS restoration, concurrency
+and terminal patch-failure handling. Independent linked review accepts the
+three genuine same-page calls, selected GuardCF targets and unwind action.
+Independent actual review also passes, joining all raw logs and runtime layouts.
+The existing early UAL phase does not establish whole-page execution exclusion;
+the next owned discriminator must qualify external executable-code publication
+after already-used callers, preserving failure containment. This is fixture
+evidence only, with no game installation or acceptance change. Exact pins and
+limits are in the [reader-boundary checkpoint](cditem-execution-goal.md#reader-boundary-platform-qualification-remains-open).
 
 1. Join the independently reviewed observed unpublished numeric/name pairs to private metadata/backing and central getter/bulk under a qualified consumer boundary. Native numeric values are WORD ordinals; name values are DWORD numeric keys. Guard known source/clone allocation aliases before adapter-controlled writes or releases; native internal-node freshness remains an explicit premise. The portable publication model's name values and metadata route indexes are not the native ABI. Expiry zero permits eviction; eager residency cannot replace rematerialization, reader/maintenance coverage or lifetime proof.
 2. Join definitions, both native maps and resources in one startup-scoped native contribution, including later derived-state validation and a qualified consumer boundary. Then exercise two independently authored same-donor packages with distinct private assets through acquisition, equip, restart and save reload.
