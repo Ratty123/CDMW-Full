@@ -480,6 +480,8 @@ class AboutDocumentationEnglishMixin:
                 <h4>Rig &amp; Weights</h4>
                 <p>Rig &amp; Weights is temporarily hidden from the tool rail. Its implementation is retained.</p>
                 <h4>Morph &amp; Refit</h4>
+                <p>Enable Island colors beside Part colors in Morph &amp; Refit, at the top of Mesh islands, or under Viewport &gt; Display. Matching swatches identify islands in both island lists. Turn the active color option off to return to the normal display.</p>
+                <p>Island colors applies in Edit view and keeps selection, pending fitting edits, textures and exports unchanged. New local geometry stays gray until its island data updates.</p>
                 <p>Open Parts on hover, beside Part colors in Morph &amp; Refit, opens the Parts list when you hover a visible surface. Turn it off to keep closed panels closed; open lists still highlight and reveal matching names. Selection and pending fitting edits stay unchanged. Hover keeps the chosen Parts or Mesh islands tab and identifies the matching listed island.</p>
                 <p>Hover an island name in Mesh islands to highlight only that island in the viewport without changing selection. Move away to clear the tint; hidden geometry stays hidden.</p>
                 <p>For an existing item, start with Modify Original. Load or assign the body driver, load the garments, select their parts and bind them. Inspect the fit at cuffs, underarms, belts and thin trim. Reset discards a preview; Bake keeps it. Refit changes geometry, not the skeleton or animation.</p>

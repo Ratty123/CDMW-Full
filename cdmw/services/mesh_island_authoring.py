@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import replace
 
+from cdmw.domain.cancellation import raise_if_cancelled
 from cdmw.domain.mesh.replacement import bound_part_indices
 from cdmw.modding.mesh_islands import mesh_islands
 from cdmw.services.mesh_replacement_import import (
@@ -30,7 +31,7 @@ def island_ui_state(authoring, replacement):
     fit_state = getattr(morph, 'state', None)
     fitting = set(fit_state.refit.garment_submesh_indices) if fit_state else set()
     authoring.state_cache.observe(session)
-    rows, fit_rows = [], []
+    rows, fit_rows, color_faces = [], [], []
     reason = replacement['reason']
     if session.mesh_format != 'pac':
         reason = 'Include requires an original PAC; island selection and viewport controls remain available.'
@@ -42,8 +43,8 @@ def island_ui_state(authoring, replacement):
         reason = 'Include requires Exact PAC output. Free Edit exports OBJ; select an island and use Delete to edit its geometry.'
     authoritative = authoring.authoritative_service._session(authoring.authoritative_session_id)
     source_parts = authoritative.base_mesh.submeshes if authoritative.base_mesh_is_original_parse else None
-    for index in sorted(set(selected).union(fitting)):
-        part = mesh.submeshes[index]
+    for index, part in enumerate(mesh.submeshes):
+        raise_if_cancelled(authoring._cancel_event)
         # Islands join coincident positions as well as indexed edges. A geometry
         # revision therefore invalidates seam connectivity even without topology
         # changes; selection and output inclusion keep the discovered groups.
@@ -52,18 +53,28 @@ def island_ui_state(authoring, replacement):
         if cached is None or cached[0] != signature:
             # Fit overrides address the neutral islands. A live preview must not
             # rename them when fitted surfaces touch or material seams move.
-            island_source = fit_topology.submeshes[index] if fit_topology is not None else part
+            island_source = (fit_topology.submeshes[index]
+                             if fit_topology is not None and index < len(fit_topology.submeshes) else part)
             groups = mesh_islands(island_source, stop_event=authoring._cancel_event)
+            # Dense source-face identities are shared by the viewport and the
+            # selected-Part list. Discovery and this cache stay worker-owned.
+            roots = [0] * len(island_source.faces)
+            for faces in groups:
+                for offset, face in enumerate(faces):
+                    if offset % 4096 == 0:
+                        raise_if_cancelled(authoring._cancel_event)
+                    roots[face] = faces[0]
             # Reopen Edit can start from accepted geometry, so its shadow base
             # is not necessarily the original PAC that owns island face IDs.
             source_topology = source_parts is None or (
                 len(mesh.submeshes) == len(source_parts)
                 and len(part.vertices) == len(source_parts[index].vertices)
                 and part.faces == source_parts[index].faces)
-            cache[index] = signature, groups, source_topology
+            cache[index] = signature, groups, source_topology, tuple(roots)
         else:
             groups = cached[1]
             source_topology = cached[2]
+        color_faces.append(cache[index][3])
         if index in fitting:
             fit_rows.append({'index': index, 'name': part.name,
                              'islands': [{'faces': list(faces)} for faces in groups]})
@@ -87,7 +98,7 @@ def island_ui_state(authoring, replacement):
     # One current entry per part; no unbounded retention of old mesh versions.
     for index in set(cache).difference(range(len(mesh.submeshes))):
         del cache[index]
-    return {'parts': rows, 'fit_parts': fit_rows, 'join_seams': True}
+    return {'parts': rows, 'fit_parts': fit_rows, 'join_seams': True, 'color_faces': color_faces}
 
 
 def set_island_inclusion(authoring, snapshot, args, *, entry=None, dependencies=(), stop_event=None):

@@ -631,9 +631,10 @@ pub(super) mod layout {
     }
 }
 
-const CDMW_VIEW_MODES: [(ViewMode, &str); 8] = [
+const CDMW_VIEW_MODES: [(ViewMode, &str); 9] = [
     (ViewMode::TexturedSolid, "Solid (Textured)"),
     (ViewMode::PartId, "Part colors"),
+    (ViewMode::PartId, "Island colors"),
     (ViewMode::Solid, "Faces (No Textures)"),
     (ViewMode::SolidWire, "Faces + Wire"),
     (ViewMode::Wireframe, "Wire"),
@@ -1027,6 +1028,16 @@ pub(super) struct PartHoverTarget {
     pub island_faces: Option<Vec<u32>>,
 }
 
+pub(super) fn cdmw_colour_name_atoms<'a>(label: impl egui::IntoAtoms<'a>, colour: Option<[f32; 4]>) -> egui::Atoms<'a> {
+    let mut atoms = egui::Atoms::new(label);
+    if let Some([r, g, b, _]) = colour {
+        let white = egui::epaint::WHITE_UV;
+        atoms.push_left(egui::Image::new((egui::TextureId::default(), egui::vec2(10.0, 10.0)))
+            .uv(egui::Rect::from_min_max(white, white)).tint(Color32::from(egui::Rgba::from_rgb(r, g, b))));
+    }
+    atoms
+}
+
 pub(super) struct PartNameRow {
     part: u32,
     island_faces: Option<Vec<u32>>,
@@ -1256,7 +1267,10 @@ pub(super) fn set_cdmw_sidebar_expanded(context: &egui::Context, id: &str, expan
     context.request_repaint();
 }
 
-fn cdmw_view_mode_label(mode: ViewMode) -> &'static str {
+fn cdmw_view_mode_label(mode: ViewMode, islands: bool) -> &'static str {
+    if mode == ViewMode::PartId && islands {
+        return "Island colors";
+    }
     if mode == ViewMode::UvChecker {
         return "UV Checker";
     }
@@ -2405,16 +2419,20 @@ impl LabApplication {
         ComboBox::from_id_salt("Display")
             .width(ui.available_width())
             .truncate()
-            .selected_text(crate::localization::tr(cdmw_view_mode_label(self.view_mode)))
+            .selected_text(crate::localization::tr(cdmw_view_mode_label(self.view_mode, self.cdmw_island_colours)))
             .show_ui(ui, |ui| {
                 for (mode, label) in CDMW_VIEW_MODES {
+                    let islands = label == "Island colors";
                     let enabled =
-                        mode != ViewMode::TexturedSolid || self.cdmw_textured_mode_available;
+                        (mode != ViewMode::TexturedSolid || self.cdmw_textured_mode_available)
+                            && (!islands || self.cdmw_state["mesh_islands"]["color_faces"].is_array());
                     let response = ui
-                        .add_enabled(enabled, Button::new(crate::localization::tr(label)).selected(self.view_mode == mode))
+                        .add_enabled(enabled, Button::new(crate::localization::tr(label)).selected(self.view_mode == mode
+                            && (mode != ViewMode::PartId || self.cdmw_island_colours == islands)))
                         .on_disabled_hover_text(crate::localization::tr(&self.cdmw_textured_mode_reason));
                     if response.clicked() {
-                        self.set_cdmw_display_mode(mode);
+                        if islands { self.set_cdmw_island_colours(true); }
+                        else { self.set_cdmw_display_mode(mode); }
                     }
                 }
             })
@@ -4638,7 +4656,7 @@ impl LabApplication {
                 egui::Align2::LEFT_TOP,
                 crate::localization::tr(format!(
                     "wgpu · D3D12 · {mode} · {}",
-                    cdmw_view_mode_label(self.view_mode)
+                    cdmw_view_mode_label(self.view_mode, self.cdmw_island_colours)
                 )),
                 egui::TextStyle::Monospace.resolve(ui.style()),
                 Color32::from_gray(190),
@@ -4911,6 +4929,7 @@ mod tests {
             [
                 "Solid (Textured)",
                 "Part colors",
+                "Island colors",
                 "Faces (No Textures)",
                 "Faces + Wire",
                 "Wire",

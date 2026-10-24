@@ -189,9 +189,22 @@ frontmost visible island; hidden islands stay hidden.
 Hovering an island's name temporarily highlights only that island's visible faces
 in the viewport, including obscured surfaces. Leaving the name clears the tint;
 selection, fitting targets and pending edits stay unchanged.
+Enable **Island colors** above this list, beside **Part colors** in Morph & Refit,
+or under **Viewport → Display**. Each island has a stable shaded color, with a
+matching swatch beside its name here and in **Choose mesh islands**. Switching
+between Part and Island colors keeps selection and fitting edits; turning off the
+active color option returns to the previous normal display. Hidden islands keep
+their color when shown again. Colors apply in Edit view; comparison views keep
+their own display. New local geometry stays gray until its island data updates.
 Coincident UV-seam vertices are grouped at 1e-5 model-unit precision without
 welding or moving the model. Existing **Linked** selection still follows vertex
 indices when that stricter connectivity is wanted.
+
+`mesh_islands.color_faces` carries one source-face root ID per triangle for every
+Part, including unselected Parts. The existing cancellable worker discovers and
+caches these seam-aware groups; the renderer and both island lists use the same
+identities. Active fitting uses neutral groups so a live preview cannot merge or
+split their colors. This derived display state does not change output inclusion.
 
 - **View** hides only that island in the viewport and picking. **Isolate** shows
   only that island within its part; **Show all islands** restores viewport masks.
@@ -2063,6 +2076,9 @@ under **Viewport → Display**. Colors follow Part identity, including new Parts
 share a material; hiding other pieces does not reassign their colors. Turning the
 Morph & Refit toggle off restores the previous display mode. This changes only the
 viewport; fitting, selection, pending edits, textures and exports remain intact.
+**Island colors**, beside it, colors disconnected islands within each Part and
+adds matching swatches in both island lists. The color modes are mutually
+exclusive and return to the previous normal display when turned off.
 Matching swatches beside Part names in Morph & Refit, fit warnings and the Parts
 inspector identify each piece while Part colors is enabled.
 Hovering a Part name temporarily highlights its visible geometry in cyan, including
