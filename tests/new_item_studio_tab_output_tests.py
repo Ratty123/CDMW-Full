@@ -113,7 +113,8 @@ class _TabOutputMixin:
         self.assertEqual(stats.table.rowCount(), 3)
         self.assertEqual(stats.table.item(2, 0).text(), "14000", "the new level copies the one below")
         stats.price_table.item(0, 1).setText("999")
-        stats.max_stack.setValue(3)
+        stats.max_stack.setText('3')
+        stats.max_stack.editingFinished.emit()
         # a stat the template lacks: CriticalRate is a StatusInfo entry no ladder here carries
         self.assertEqual(stats.table.columnCount(), 3)
         choices = [stats.new_stat.itemData(i) for i in range(stats.new_stat.count())]

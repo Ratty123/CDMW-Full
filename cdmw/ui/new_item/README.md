@@ -1102,6 +1102,18 @@ Final status/skill dependencies and declared item-use table references are check
 and pinned. Level-based parameters are raw bytes, not flat bonuses; their gameplay
 meaning and skill-level limits remain unverified. Existing package schemas remain.
 
+**Item settings > Inventory and consumables** edits consumable flags, raw type/tag
+IDs, byte selectors, reserve-slot targets and transmutation material eligibility.
+Lists can inherit, replace or explicitly clear; typed source references are
+checked and pinned. **Max stack** accepts exact positive u64 text, including
+grouped digits. Small stack edits keep the legacy recipe path; larger counts and
+inventory overrides require the separate
+[`item.inventory@1` capability](INDEPENDENT_ITEMS.md#consumable-behavior-tags-material-eligibility-and-stack-counts).
+Raw IDs, enums and material-group parameters have unverified gameplay meanings.
+Existing recipe, property, stat and field schemas remain unchanged; older readers
+refuse the new capability. This is source/headless/owned-fixture support, without
+native admission or game/save proof.
+
 Stats and gameplay perks are explicitly marked experimental. The Stats page uses
 compact, alternating rows with columns that fill the enhancement card, alongside a
 separate shop-price and stack card. The default view labels ItemInfo values as raw game

@@ -292,6 +292,14 @@ def validate_spec(spec: NewItemSpec) -> Tuple[ValidationIssue, ...]:
 
     if spec.max_stack_count is not None and not (1 <= int(spec.max_stack_count) <= _U32_MAX):
         issues.append(_issue("max_stack.range", "max_stack_count", "Max stack count is a positive 32-bit integer."))
+    if spec.inventory_settings is not None:
+        from cdmw.domain.new_item.item_inventory import encode_inventory_settings
+        try:
+            encode_inventory_settings(spec.inventory_settings)
+            if spec.max_stack_count is not None and spec.inventory_settings.max_stack_count is not None:
+                raise ValueError('Stack count cannot be edited through both legacy and inventory settings.')
+        except (ValueError, TypeError) as exc:
+            issues.append(_issue('item_inventory.invalid', 'inventory_settings', str(exc)))
     for name, maximum in PROPERTY_LIMITS.items():
         value = getattr(spec, name)
         if value is not None and (type(value) is not int or not 0 <= value <= maximum):

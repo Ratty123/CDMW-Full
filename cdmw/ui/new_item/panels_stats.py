@@ -13,6 +13,7 @@ from PySide6.QtWidgets import (
     QGroupBox,
     QHeaderView,
     QHBoxLayout,
+    QLineEdit,
     QPushButton,
     QScrollArea,
     QSpinBox,
@@ -286,10 +287,10 @@ class StatsPanel(QGroupBox):
         price_action.addWidget(self.set_copper_price_button)
         base_layout.addLayout(price_action)
         stack_form = QFormLayout()
-        self.max_stack = QSpinBox()
-        self.max_stack.setRange(1, 999_999)
-        self.max_stack.setToolTip("How many fit in one inventory slot; equipment is 1.")
-        self.max_stack.valueChanged.connect(self._stack_changed)
+        self.max_stack = QLineEdit()
+        self.max_stack.setMaxLength(64)
+        self.max_stack.setToolTip("How many fit in one inventory slot (1–18,446,744,073,709,551,615). Large counts require item.inventory version 1. Blank inherits the template.")
+        self.max_stack.editingFinished.connect(self._stack_changed)
         stack_form.addRow("Max stack:", self.max_stack)
         self.property_controls = {}
         for name, label, maximum in (("item_tier", "Tier:", 255),
@@ -334,6 +335,7 @@ class StatsPanel(QGroupBox):
             self.price_table.blockSignals(False)
             self._syncing = False
         self._refresh_column_actions()
+        self._refresh_stack()
         self.item_settings.rebuild()
         self._refresh_selected_cell_note(self.table.currentRow(), self.table.currentColumn())
 
@@ -406,9 +408,6 @@ class StatsPanel(QGroupBox):
             self.price_table.setItem(index, 1, price_item)
         row = self._controller.snapshot.row(draft.template_key) if self._controller.snapshot else None
         self._refresh_price_state(row)
-        self.max_stack.blockSignals(True)
-        self.max_stack.setValue(int(draft.max_stack_count if draft.max_stack_count is not None else (row.max_stack_count if row else 1)))
-        self.max_stack.blockSignals(False)
         if row is not self._property_row:
             from cdmw.core.iteminfo_properties import read_item_properties
             self._template_properties = read_item_properties(row) if row is not None else {}
@@ -745,12 +744,37 @@ class StatsPanel(QGroupBox):
         self._controller.draft.own_enhancement_rows = bool(checked)
         self._draft_changed(rebuild=False)
 
-    def _stack_changed(self, value: int) -> None:
+    def _refresh_stack(self) -> None:
+        draft = self._controller.draft
+        snapshot = self._controller.snapshot
+        row = snapshot.rows.get(draft.template_key) if snapshot is not None else None
+        extended = draft.inventory_settings.max_stack_count if draft.inventory_settings else None
+        value = extended if extended is not None else draft.max_stack_count
+        self.max_stack.setText('' if value is None else str(value))
+        self.max_stack.setPlaceholderText(str(row.max_stack_count) if row else '')
+        self.max_stack.setEnabled(row is not None)
+
+    def _stack_changed(self) -> None:
         if self._syncing:
             return
+        from dataclasses import replace
+        from cdmw.domain.new_item.item_inventory import ItemInventorySettings
+        from cdmw.ui.new_item.item_settings_editor import whole_number
         draft = self._controller.draft
         row = self._controller.snapshot.row(draft.template_key) if self._controller.snapshot is not None and draft.template_key is not None else None
-        draft.max_stack_count = None if row is not None and int(value) == int(row.max_stack_count) else int(value)
+        try:
+            text = self.max_stack.text().strip()
+            value = whole_number(text, 1, (1 << 64) - 1) if text else None
+        except ValueError:
+            self.rebuild()
+            self.max_stack.setToolTip("Enter a whole number within the field's range.")
+            return
+        if row is not None and value == row.max_stack_count:
+            value = None
+        draft.max_stack_count = value if value is not None and value <= 0xffffffff else None
+        settings = replace(draft.inventory_settings or ItemInventorySettings(),
+                           max_stack_count=value if value is not None and value > 0xffffffff else None)
+        draft.inventory_settings = None if settings == ItemInventorySettings() else settings
         self._draft_changed(rebuild=False)
 
     def _property_changed(self, name: str, value: float) -> None:
@@ -866,6 +890,7 @@ class StatsPanel(QGroupBox):
         draft.max_durability = None
         draft.item_settings = self.item_settings.default_settings()
         draft.stat_settings = None
+        draft.inventory_settings = None
         draft.own_enhancement_rows = False
         self.own_rows.blockSignals(True)
         self.own_rows.setChecked(False)

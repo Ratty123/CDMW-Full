@@ -13,6 +13,7 @@ from cdmw.domain.new_item.body_visibility import BodyVisibilityChoice
 from cdmw.domain.new_item.surface import SurfaceEdit
 from cdmw.domain.new_item.item_settings import ItemSettings
 from cdmw.domain.new_item.item_stats import ItemStatSettings
+from cdmw.domain.new_item.item_inventory import ItemInventorySettings
 
 from dataclasses import dataclass, field, replace
 from typing import Callable, Dict, List, Mapping, Optional, Sequence, Tuple
@@ -211,6 +212,7 @@ class NewItemDraft:
     max_durability: Optional[int] = None
     item_settings: Optional[ItemSettings] = None
     stat_settings: Optional[ItemStatSettings] = None
+    inventory_settings: Optional[ItemInventorySettings] = None
     placement_kind: PlacementKind = PlacementKind.NONE
     store_name: str = ""
     old_item_name: str = ""
@@ -275,6 +277,7 @@ class NewItemDraft:
         self.max_durability = None
         self.item_settings = None
         self.stat_settings = None
+        self.inventory_settings = None
         self.stem = ""
         self.item_key = None
         self.socket_items = None
@@ -470,6 +473,7 @@ def spec_from_draft(draft: NewItemDraft, grid: Optional[StatGrid]) -> NewItemSpe
         max_durability=draft.max_durability,
         item_settings=draft.item_settings,
         stat_settings=draft.stat_settings,
+        inventory_settings=draft.inventory_settings,
         placement=placement,
         shop_placements=draft.shop_placements,
         item_groups=draft.item_groups,
@@ -534,7 +538,7 @@ def stats_summary(draft: NewItemDraft, grid: Optional[StatGrid], *,
         1 for key, _label, template in (grid.price_items if grid is not None else ())
         if draft.price_values.get(key, template) != template
     )
-    properties_changed = any(value is not None for value in (draft.item_tier, draft.required_level, draft.max_durability, draft.item_settings, draft.stat_settings))
+    properties_changed = any(value is not None for value in (draft.item_tier, draft.required_level, draft.max_durability, draft.item_settings, draft.stat_settings, draft.inventory_settings))
     extras = int(draft.extra_levels > 0) + int(bool(draft.extra_stat_keys)) + int(draft.max_stack_count is not None) + int(draft.own_enhancement_rows) + int(properties_changed)
     if not (stat_count or price_count or extras):
         return "Combat and prices: template values", False

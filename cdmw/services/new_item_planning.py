@@ -393,7 +393,7 @@ class _Planner(EffectPlanningMixin):
     def _apply_row_edits(self, row_bytes: bytes) -> bytes:
         spec = self.spec
         row = parse_iteminfo_row(row_bytes, item_keys=set(self.snapshot.rows) | {int(spec.item_key)},
-                                 structured=spec.item_settings is not None or spec.stat_settings is not None)
+                                 structured=spec.item_settings is not None or spec.stat_settings is not None or spec.inventory_settings is not None)
         from cdmw.domain.new_item.item_properties import property_values
         properties = property_values(spec)
         if any(value is not None for value in properties.values()):
@@ -504,6 +504,13 @@ class _Planner(EffectPlanningMixin):
             raw = set_item_stats(raw, self.spec.stat_settings)
             validate_stat_dependencies(raw, self.snapshot, stop_event=self.stop_event)
             self.manifest['stat_settings'] = encode_stat_settings(self.spec.stat_settings)
+        if self.spec.inventory_settings is not None:
+            from cdmw.core.iteminfo_inventory import set_item_inventory
+            from cdmw.services.new_item_settings import validate_inventory_dependencies
+            from cdmw.domain.new_item.item_inventory import encode_inventory_settings
+            raw = set_item_inventory(raw, self.spec.inventory_settings)
+            validate_inventory_dependencies(raw, self.snapshot, stop_event=self.stop_event)
+            self.manifest['inventory_settings'] = encode_inventory_settings(self.spec.inventory_settings)
         return raw
 
     def _check_stat_values_against_the_corpus(self) -> None:

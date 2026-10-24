@@ -317,7 +317,7 @@ def from_plan(plan, identity, *, title=None, stop_event=None):
                 "material_route": value.material_route}
     from cdmw.domain.new_item.item_properties import property_values
     properties = property_values(plan.spec)
-    legacy_spec = replace(_prepared_spec(plan.spec), item_settings=None, stat_settings=None, **dict.fromkeys(properties))
+    legacy_spec = replace(_prepared_spec(plan.spec), item_settings=None, stat_settings=None, inventory_settings=None, **dict.fromkeys(properties))
     recipe = {"spec": encode(legacy_spec), "model": model_value(model),
               "variants": [{"binding": list(key), "model": model_value(value)} for key, value in sorted(variants.items())],
               "icon": blob(icon) if icon is not None else None}
@@ -335,7 +335,7 @@ def from_plan(plan, identity, *, title=None, stop_event=None):
                 "recipe": recipe, "dependencies": dependencies, "blobs": {key: len(data) for key, data in sorted(blobs.items())}}
     package = _package(metadata, blobs)
     has_properties = any(value is not None for value in properties.values()) or plan.spec.item_settings is not None
-    if has_properties or plan.spec.stat_settings is not None:
+    if has_properties or plan.spec.stat_settings is not None or plan.spec.inventory_settings is not None:
         from cdmw.services.independent_mod_package import migrate_v1, read_v2
         version = 1
         if plan.spec.item_settings is not None:
@@ -352,6 +352,11 @@ def from_plan(plan, identity, *, title=None, stop_event=None):
             metadata['requires']['item.stats'] = 1
             metadata['modules'].append({'id': 'stats', 'type': 'item.stats', 'version': 1,
                 'required': True, 'data': encode_stat_settings(plan.spec.stat_settings)})
+        if plan.spec.inventory_settings is not None:
+            from cdmw.domain.new_item.item_inventory import encode_inventory_settings
+            metadata['requires']['item.inventory'] = 1
+            metadata['modules'].append({'id': 'inventory', 'type': 'item.inventory', 'version': 1,
+                'required': True, 'data': encode_inventory_settings(plan.spec.inventory_settings)})
         package = read_v2(metadata, blobs, stop_event=stop_event)
     return package
 
@@ -407,6 +412,8 @@ def _recipe_values(package):
         spec = replace(spec, **item_properties(package.manifest))
         from cdmw.services.independent_mod_package import item_stats
         spec = replace(spec, **item_stats(package.manifest))
+        from cdmw.services.independent_mod_package import item_inventory
+        spec = replace(spec, **item_inventory(package.manifest))
     for variant in spec.variants or ():
         virtual_path(variant.prefab_path)
         virtual_path(variant.model_path)

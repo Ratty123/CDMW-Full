@@ -10497,6 +10497,26 @@
       ]
     },
     {
+      "key": "Apply stack cap:",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/item_inventory_editor.py",
+          "line": 39,
+          "sink": "addRow"
+        },
+        {
+          "path": "cdmw/ui/new_item/item_inventory_editor.py",
+          "line": 44,
+          "sink": "addRow"
+        },
+        {
+          "path": "cdmw/ui/new_item/item_inventory_editor.py",
+          "line": 62,
+          "sink": "addRow"
+        }
+      ]
+    },
+    {
       "key": "Apply the filter now. Filtering is debounced while typing to keep large archives responsive.",
       "origins": [
         {
@@ -32757,6 +32777,36 @@
       ]
     },
     {
+      "key": "Consumable behavior",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/item_inventory_editor.py",
+          "line": 63,
+          "sink": "addTab"
+        }
+      ]
+    },
+    {
+      "key": "Consumable type IDs:",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/item_inventory_editor.py",
+          "line": 39,
+          "sink": "addRow"
+        },
+        {
+          "path": "cdmw/ui/new_item/item_inventory_editor.py",
+          "line": 44,
+          "sink": "addRow"
+        },
+        {
+          "path": "cdmw/ui/new_item/item_inventory_editor.py",
+          "line": 62,
+          "sink": "addRow"
+        }
+      ]
+    },
+    {
       "key": "Contact",
       "origins": [],
       "manual": true
@@ -44962,6 +45012,26 @@
       ]
     },
     {
+      "key": "Enable UI alerts:",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/item_inventory_editor.py",
+          "line": 39,
+          "sink": "addRow"
+        },
+        {
+          "path": "cdmw/ui/new_item/item_inventory_editor.py",
+          "line": 44,
+          "sink": "addRow"
+        },
+        {
+          "path": "cdmw/ui/new_item/item_inventory_editor.py",
+          "line": 62,
+          "sink": "addRow"
+        }
+      ]
+    },
+    {
       "key": "Enable and bind a garment before fitting it to the body.",
       "origins": [
         {
@@ -45518,6 +45588,11 @@
           "path": "cdmw/ui/new_item/item_settings_editor.py",
           "line": 222,
           "sink": "setText"
+        },
+        {
+          "path": "cdmw/ui/new_item/panels_stats.py",
+          "line": 770,
+          "sink": "setToolTip"
         }
       ]
     },
@@ -60262,6 +60337,26 @@
       ]
     },
     {
+      "key": "Hide on inventory pop:",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/item_inventory_editor.py",
+          "line": 39,
+          "sink": "addRow"
+        },
+        {
+          "path": "cdmw/ui/new_item/item_inventory_editor.py",
+          "line": 44,
+          "sink": "addRow"
+        },
+        {
+          "path": "cdmw/ui/new_item/item_inventory_editor.py",
+          "line": 62,
+          "sink": "addRow"
+        }
+      ]
+    },
+    {
       "key": "Hide raw-preserved rows and show decoded/inferred rows.",
       "origins": [
         {
@@ -61122,11 +61217,11 @@
       ]
     },
     {
-      "key": "How many fit in one inventory slot; equipment is 1.",
+      "key": "How many fit in one inventory slot (1–18,446,744,073,709,551,615). Large counts require item.inventory version 1. Blank inherits the template.",
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_stats.py",
-          "line": 288,
+          "line": 292,
           "sink": "setToolTip"
         }
       ]
@@ -66697,6 +66792,16 @@
       ]
     },
     {
+      "key": "Invalid inventory value or duplicate entry.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/item_inventory_editor.py",
+          "line": 120,
+          "sink": "setText"
+        }
+      ]
+    },
+    {
       "key": "Invalid island inclusion request.",
       "origins": [
         {
@@ -66897,6 +67002,16 @@
         {
           "path": "cdmw/services/archive_overlay_manager.py",
           "line": 147,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Invalid owned item recipe.",
+      "origins": [
+        {
+          "path": "cdmw/services/independent_mod_package.py",
+          "line": 212,
           "sink": "ValueError"
         }
       ]
@@ -67323,6 +67438,46 @@
           "path": "cdmw/ui/archive_browser/asset_family_panel.py",
           "line": 104,
           "sink": "python-return:_archive_reference_role_label"
+        }
+      ]
+    },
+    {
+      "key": "Inventory and consumables",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/item_settings_editor.py",
+          "line": 138,
+          "sink": "addTab"
+        }
+      ]
+    },
+    {
+      "key": "Inventory and consumables edits consumable flags, raw type and tag IDs, reserve slots and material eligibility. Check Override to replace a list; a checked empty list clears it. Separate entries with semicolons. Reserve slots use slot:condition; material groups use group:raw value. Max stack accepts exact whole numbers up to 18,446,744,073,709,551,615; blank inherits. Larger stacks and inventory overrides require item.inventory version 1. Missing material or reserve-slot references refuse. Raw IDs, enums, group parameters and game/save effects remain unverified.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 83,
+          "sink": "python-return:_build_start_sections"
+        }
+      ]
+    },
+    {
+      "key": "Inventory use buff:",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/item_inventory_editor.py",
+          "line": 39,
+          "sink": "addRow"
+        },
+        {
+          "path": "cdmw/ui/new_item/item_inventory_editor.py",
+          "line": 44,
+          "sink": "addRow"
+        },
+        {
+          "path": "cdmw/ui/new_item/item_inventory_editor.py",
+          "line": 62,
+          "sink": "addRow"
         }
       ]
     },
@@ -68533,6 +68688,26 @@
           "path": "cdmw/ui/shell/about_documentation_en.py",
           "line": 78,
           "sink": "python-return:_build_start_sections"
+        }
+      ]
+    },
+    {
+      "key": "Item tag IDs:",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/item_inventory_editor.py",
+          "line": 39,
+          "sink": "addRow"
+        },
+        {
+          "path": "cdmw/ui/new_item/item_inventory_editor.py",
+          "line": 44,
+          "sink": "addRow"
+        },
+        {
+          "path": "cdmw/ui/new_item/item_inventory_editor.py",
+          "line": 62,
+          "sink": "addRow"
         }
       ]
     },
@@ -75402,12 +75577,72 @@
       ]
     },
     {
+      "key": "Material gimmick IDs:",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/item_inventory_editor.py",
+          "line": 39,
+          "sink": "addRow"
+        },
+        {
+          "path": "cdmw/ui/new_item/item_inventory_editor.py",
+          "line": 44,
+          "sink": "addRow"
+        },
+        {
+          "path": "cdmw/ui/new_item/item_inventory_editor.py",
+          "line": 62,
+          "sink": "addRow"
+        }
+      ]
+    },
+    {
       "key": "Material groups",
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/static_replacement_dialog_mesh_diagnostics_callbacks.py",
           "line": 317,
           "sink": "setPlainText"
+        }
+      ]
+    },
+    {
+      "key": "Material groups:",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/item_inventory_editor.py",
+          "line": 39,
+          "sink": "addRow"
+        },
+        {
+          "path": "cdmw/ui/new_item/item_inventory_editor.py",
+          "line": 44,
+          "sink": "addRow"
+        },
+        {
+          "path": "cdmw/ui/new_item/item_inventory_editor.py",
+          "line": 62,
+          "sink": "addRow"
+        }
+      ]
+    },
+    {
+      "key": "Material item IDs:",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/item_inventory_editor.py",
+          "line": 39,
+          "sink": "addRow"
+        },
+        {
+          "path": "cdmw/ui/new_item/item_inventory_editor.py",
+          "line": 44,
+          "sink": "addRow"
+        },
+        {
+          "path": "cdmw/ui/new_item/item_inventory_editor.py",
+          "line": 62,
+          "sink": "addRow"
         }
       ]
     },
@@ -85485,6 +85720,11 @@
           "sink": "raise_if_cancelled"
         },
         {
+          "path": "cdmw/services/new_item_mod_base.py",
+          "line": 260,
+          "sink": "raise_if_cancelled"
+        },
+        {
           "path": "cdmw/services/new_item_planning.py",
           "line": 179,
           "sink": "raise_if_cancelled"
@@ -85497,11 +85737,6 @@
         {
           "path": "cdmw/services/new_item_service.py",
           "line": 353,
-          "sink": "raise_if_cancelled"
-        },
-        {
-          "path": "cdmw/services/new_item_mod_base.py",
-          "line": 260,
           "sink": "raise_if_cancelled"
         }
       ]
@@ -85729,6 +85964,11 @@
     {
       "key": "No",
       "origins": [
+        {
+          "path": "cdmw/ui/new_item/item_inventory_editor.py",
+          "line": 36,
+          "sink": "addItem"
+        },
         {
           "path": "cdmw/ui/new_item/item_settings_editor.py",
           "line": 66,
@@ -96864,6 +97104,11 @@
     {
       "key": "Override",
       "origins": [
+        {
+          "path": "cdmw/ui/new_item/item_inventory_editor.py",
+          "line": 53,
+          "sink": "QCheckBox"
+        },
         {
           "path": "cdmw/ui/new_item/item_settings_editor.py",
           "line": 129,
@@ -110277,6 +110522,26 @@
       ]
     },
     {
+      "key": "Quick-slot index:",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/item_inventory_editor.py",
+          "line": 39,
+          "sink": "addRow"
+        },
+        {
+          "path": "cdmw/ui/new_item/item_inventory_editor.py",
+          "line": 44,
+          "sink": "addRow"
+        },
+        {
+          "path": "cdmw/ui/new_item/item_inventory_editor.py",
+          "line": 62,
+          "sink": "addRow"
+        }
+      ]
+    },
+    {
       "key": "QuickLZ",
       "origins": [],
       "manual": true
@@ -118387,6 +118652,26 @@
       ]
     },
     {
+      "key": "Reserve slots:",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/item_inventory_editor.py",
+          "line": 39,
+          "sink": "addRow"
+        },
+        {
+          "path": "cdmw/ui/new_item/item_inventory_editor.py",
+          "line": 44,
+          "sink": "addRow"
+        },
+        {
+          "path": "cdmw/ui/new_item/item_inventory_editor.py",
+          "line": 62,
+          "sink": "addRow"
+        }
+      ]
+    },
+    {
       "key": "Reset",
       "origins": [
         {
@@ -118999,6 +119284,11 @@
     {
       "key": "Reset this page",
       "origins": [
+        {
+          "path": "cdmw/ui/new_item/item_inventory_editor.py",
+          "line": 22,
+          "sink": "QPushButton"
+        },
         {
           "path": "cdmw/ui/new_item/item_settings_editor.py",
           "line": 47,
@@ -132782,6 +133072,16 @@
       ]
     },
     {
+      "key": "Separate entries with semicolons. A checked empty list clears it; unchecked inherits. Reserve slots use slot:condition; material groups use group:raw value. IDs and raw enum values have unverified gameplay meanings.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/item_inventory_editor.py",
+          "line": 56,
+          "sink": "setToolTip"
+        }
+      ]
+    },
+    {
       "key": "Separate records can coexist; shared output will preserve this mod.",
       "origins": [
         {
@@ -139597,6 +139897,16 @@
       ]
     },
     {
+      "key": "Stack count cannot be edited through both legacy and inventory settings.",
+      "origins": [
+        {
+          "path": "cdmw/services/independent_mod_package.py",
+          "line": 214,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
       "key": "Stage weight change",
       "origins": [
         {
@@ -142732,6 +143042,16 @@
       ]
     },
     {
+      "key": "Tags and material eligibility",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/item_inventory_editor.py",
+          "line": 64,
+          "sink": "addTab"
+        }
+      ]
+    },
+    {
       "key": "Take a picture you already have.",
       "origins": [
         {
@@ -143658,6 +143978,11 @@
           "path": "cdmw/ui/new_item/effect_placement_construction.py",
           "line": 98,
           "sink": "setText"
+        },
+        {
+          "path": "cdmw/ui/new_item/item_inventory_editor.py",
+          "line": 36,
+          "sink": "addItem"
         },
         {
           "path": "cdmw/ui/new_item/item_settings_editor.py",
@@ -151042,6 +151367,16 @@
       ]
     },
     {
+      "key": "These settings require item.inventory version 1. Material and reserve-slot references are verified. Tags, consumable types and byte selectors are raw values; in-game effects remain unverified.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/item_inventory_editor.py",
+          "line": 68,
+          "sink": "setToolTip"
+        }
+      ]
+    },
+    {
       "key": "These tools create separate output files. Add the result from Mods when ready.",
       "origins": [
         {
@@ -158142,6 +158477,26 @@
       ]
     },
     {
+      "key": "Usable alert type:",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/item_inventory_editor.py",
+          "line": 39,
+          "sink": "addRow"
+        },
+        {
+          "path": "cdmw/ui/new_item/item_inventory_editor.py",
+          "line": 44,
+          "sink": "addRow"
+        },
+        {
+          "path": "cdmw/ui/new_item/item_inventory_editor.py",
+          "line": 62,
+          "sink": "addRow"
+        }
+      ]
+    },
+    {
       "key": "Usable item",
       "origins": [],
       "manual": true
@@ -158908,6 +159263,26 @@
           "path": "cdmw/ui/shell/about_documentation_en.py",
           "line": 354,
           "sink": "python-return:_build_archive_mesh_sections"
+        }
+      ]
+    },
+    {
+      "key": "Use immediately:",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/item_inventory_editor.py",
+          "line": 39,
+          "sink": "addRow"
+        },
+        {
+          "path": "cdmw/ui/new_item/item_inventory_editor.py",
+          "line": 44,
+          "sink": "addRow"
+        },
+        {
+          "path": "cdmw/ui/new_item/item_inventory_editor.py",
+          "line": 62,
+          "sink": "addRow"
         }
       ]
     },
@@ -165890,6 +166265,11 @@
           "sink": "QTreeWidgetItem"
         },
         {
+          "path": "cdmw/ui/new_item/item_inventory_editor.py",
+          "line": 36,
+          "sink": "addItem"
+        },
+        {
           "path": "cdmw/ui/new_item/item_settings_editor.py",
           "line": 65,
           "sink": "addItem"
@@ -170072,6 +170452,16 @@
       ]
     },
     {
+      "key": "conditioninfo",
+      "origins": [
+        {
+          "path": "cdmw/services/new_item_settings.py",
+          "line": 211,
+          "sink": "_reference"
+        }
+      ]
+    },
+    {
       "key": "confirmed",
       "origins": [
         {
@@ -173687,6 +174077,16 @@
       ]
     },
     {
+      "key": "gimmickinfo",
+      "origins": [
+        {
+          "path": "cdmw/services/new_item_settings.py",
+          "line": 198,
+          "sink": "_reference"
+        }
+      ]
+    },
+    {
       "key": "glTF / GLB",
       "origins": [
         {
@@ -175070,6 +175470,16 @@
       "key": "item properties changed",
       "origins": [],
       "manual": true
+    },
+    {
+      "key": "iteminfo",
+      "origins": [
+        {
+          "path": "cdmw/services/new_item_settings.py",
+          "line": 193,
+          "sink": "_reference"
+        }
+      ]
     },
     {
       "key": "itemuseinfo",
@@ -182148,6 +182558,16 @@
           "path": "cdmw/ui/shell/about_documentation_en.py",
           "line": 541,
           "sink": "python-return:_build_utility_sections"
+        }
+      ]
+    },
+    {
+      "key": "reserveslotinfo",
+      "origins": [
+        {
+          "path": "cdmw/services/new_item_settings.py",
+          "line": 210,
+          "sink": "_reference"
         }
       ]
     },
@@ -195128,6 +195548,16 @@
           "path": "cdmw/ui/archive_browser/hkx_editor_dialog_collision_part_01.py",
           "line": 192,
           "sink": "_add_collision_value_item"
+        },
+        {
+          "path": "cdmw/ui/new_item/item_inventory_editor.py",
+          "line": 95,
+          "sink": "setText"
+        },
+        {
+          "path": "cdmw/ui/new_item/item_inventory_editor.py",
+          "line": 95,
+          "sink": "setText"
         },
         {
           "path": "cdmw/ui/preview_widgets.py",

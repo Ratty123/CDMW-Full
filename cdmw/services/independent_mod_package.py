@@ -76,6 +76,7 @@ def read_v2(meta, blobs, *, stop_event=None):
         raise IndependentItemError('The legacy adapter permits one module named item.')
     item_properties(meta)
     item_stats(meta)
+    item_inventory(meta)
     from cdmw.services.independent_texture_package import read_texture_modules
     texture_keys = read_texture_modules(meta, blobs, stop_event=stop_event)
     legacy_keys = set()
@@ -189,6 +190,30 @@ def item_stats(manifest):
     try:
         return {'stat_settings': decode_stat_settings(stats[0]['data'])}
     except ValueError as exc:
+        raise IndependentItemError(str(exc)) from exc
+
+
+def item_inventory(manifest):
+    modules = manifest['modules']
+    inventory = [module for module in modules if module['type'] == 'item.inventory']
+    if not inventory:
+        return {}
+    if len(inventory) != 1 or not any(module['type'] == 'item.legacy' for module in modules):
+        raise IndependentItemError('Item inventory requires one module and its owned legacy item.')
+    from cdmw.domain.new_item.item_inventory import decode_inventory_settings
+    try:
+        settings = decode_inventory_settings(inventory[0]['data'])
+        if settings.max_stack_count is not None:
+            from cdmw.services.independent_item_codec import decode
+            from cdmw.domain.new_item.spec import NewItemSpec
+            legacy = next(module for module in modules if module['type'] == 'item.legacy')
+            spec = decode(legacy['data']['spec'])
+            if not isinstance(spec, NewItemSpec):
+                raise ValueError('Invalid owned item recipe.')
+            if spec.max_stack_count is not None:
+                raise ValueError('Stack count cannot be edited through both legacy and inventory settings.')
+        return {'inventory_settings': settings}
+    except (ValueError, KeyError, TypeError) as exc:
         raise IndependentItemError(str(exc)) from exc
 
 

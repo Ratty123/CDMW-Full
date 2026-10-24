@@ -1100,6 +1100,20 @@ proof. The level-based byte is not established as a flat amount or scaling
 formula, and raw skill levels have no verified gameplay range. Native admission,
 complete reference closure, game/save effects and rate/timer units remain open.
 
+Inventory extension, 2026-10-24, against `08a3c63b` plus the scoped adapters:
+`item.inventory@1` edits consumable flags, raw u32 type/tag IDs, u8 quick-slot/alert
+selectors, reserve-slot/condition pairs and transmutation material eligibility.
+The group pair is u16 group key plus a raw u32 parameter; no quantity meaning is
+claimed. Stack editing now accepts exact positive u64 text, preserving the legacy
+u32 recipe path for small edits. Final material item/gimmick/group and reserve
+slot/condition dependencies, including inherited entries, are checked and pinned.
+Complete declared-field resizing preserves unassigned bytes; all earlier package
+schemas stay frozen. Constructed legacy/current rows, headless/native-presentation
+controls and both synthetic deployment/rebuild/removal routes provide scoped
+proof. Tag/type namespaces, byte enum names, group-parameter semantics, native
+admission and game/save effects remain open. Save-at-use/logout-at-use fields
+remain inherited.
+
 Historical game observations establish acceptance of selected appended item/string
 records and shop substitutions. They do not establish arbitrary table rewrites.
 Later virtual-item observations are narrower experiments described in

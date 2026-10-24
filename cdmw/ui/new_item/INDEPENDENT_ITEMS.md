@@ -367,6 +367,57 @@ synthetic physical/virtual rebuild/removal, and real headless controls/native
 presentation. Gameplay meanings, timer/rate units, native registration and save
 acceptance remain unverified; no packaging or game execution was performed.
 
+### Consumable behavior, tags, material eligibility and stack counts
+
+**Stats & Prices > Item settings > Inventory and consumables** has two pages:
+**Consumable behavior** and **Tags and material eligibility**. Flags offer
+Template/Yes/No. Blank byte selectors inherit; explicit zero is retained. Check
+**Override** to edit a list, separate entries with semicolons, and leave a checked
+list empty to clear it. Uncheck it to restore inheritance. Reserve slots use
+`slot:condition` (condition zero means no reference); material groups use
+`group:raw value`. These are eligibility lists, separate from item-group membership
+and crafting recipes. Tags and consumable types are raw u32 IDs with no inferred
+names or namespace. Quick-slot indices and usable-alert types are raw u8 values.
+The second material-group word is a raw parameter, not a verified quantity.
+
+**Max stack** accepts exact whole numbers from 1 through
+18,446,744,073,709,551,615, including grouped digits. Blank or the template value
+restores inheritance. Values up to u32 retain the legacy recipe path; larger
+overrides use the new capability. No floating-point conversion or high-word
+truncation is used. The main Stats reset and template changes clear all overrides;
+Reset on the inventory page preserves the separately edited stack count.
+
+Portable overrides use one required **`item.inventory@1`** module attached to the
+owned `item.legacy@1`. It has exactly these nullable fields; at least one must be
+non-null:
+
+| Fields | Contract |
+| --- | --- |
+| `max_stack_count` | Positive u64; cannot coexist with a legacy stack override. |
+| `apply_max_stack_cap`, `use_immediately`, `hide_on_pop`, `enable_alert_ui`, `inventory_buff` | Boolean flags; `false` is an explicit override. |
+| `quick_slot_index`, `usable_alert_type` | Raw u8 selectors (0..255). |
+| `tags`, `consumable_types` | Lists of unique raw u32 IDs, including zero. |
+| `material_items`, `material_gimmicks` | Lists of unique positive u32 source keys. |
+| `material_groups` | Unique positive u16 `group_key` with a raw u32 `value`. |
+| `reserve_slots` | Unique `{slot_key, condition_key}` pairs; positive u32 slot and nullable-reference u32 condition. |
+
+Override lists are bounded to 256 entries; `null` inherits and `[]` clears. Unknown
+fields/versions, booleans in integer fields, overflow and duplicates refuse.
+Complete legacy/current ItemInfo layouts qualify every edit and preserve all
+unassigned fields. Planning checks final material item/gimmick/group and reserve
+slot/condition references, including inherited entries, and pins their source
+tables. Missing or blocked material items, missing references, duplicate directory
+identities and changed dependency payloads refuse before recipient writes.
+
+V1 recipes, `item.fields@1`, both `item.properties` versions and `item.stats@1`
+retain their existing schemas. Older readers refuse the new required capability.
+The compiler revision requires **Apply changes** for older virtual profiles while
+retaining package and item identities. Evidence against `08a3c63b` plus this
+extension is constructed rows, exact-byte regressions, headless controls/native
+presentation, and synthetic physical/virtual compilation, rebuild and removal.
+Raw enum/tag meanings, group-parameter semantics, native admission and game/save
+effects remain unverified. Save-at-use and logout-at-use flags remain inherited.
+
 Unknown required features, module types and versions refuse before allocation.
 Optional behavior also refuses until a supported explicit alternative exists;
 it cannot be counted as executed. Bounded `metadata` is preserved uninterpreted

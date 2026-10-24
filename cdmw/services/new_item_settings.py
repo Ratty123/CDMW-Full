@@ -180,3 +180,32 @@ def validate_stat_dependencies(raw, snapshot, *, stop_event=None):
         if skill.skill_key == 0:
             raise RecordError('An equipment passive has no SkillInfo dependency.')
         _reference(snapshot, 'skillinfo', skill.skill_key, stop_event=stop_event)
+
+
+def validate_inventory_dependencies(raw, snapshot, *, stop_event=None):
+    from cdmw.core.iteminfo_inventory import read_item_inventory
+    settings = read_item_inventory(raw)
+    for key in settings.material_items:
+        raise_if_cancelled(stop_event)
+        item = snapshot.rows.get(key)
+        if item is None or item.is_blocked:
+            raise RecordError(f'Missing or blocked material item {key}.')
+        _reference(snapshot, 'iteminfo', key, stop_event=stop_event)
+    for key in settings.material_gimmicks:
+        raise_if_cancelled(stop_event)
+        if not key:
+            raise RecordError('A material has no GimmickInfo dependency.')
+        _reference(snapshot, 'gimmickinfo', key, stop_event=stop_event)
+    group_counts = {}
+    for group in snapshot.item_groups:
+        group_counts[group.key] = group_counts.get(group.key, 0) + 1
+    for entry in settings.material_groups:
+        raise_if_cancelled(stop_event)
+        if group_counts.get(entry.group_key, 0) != 1:
+            raise RecordError(f'Missing or ambiguous itemgroupinfo dependency {entry.group_key}.')
+    for entry in settings.reserve_slots:
+        raise_if_cancelled(stop_event)
+        if not entry.slot_key:
+            raise RecordError('A reserve slot has no ReserveSlotInfo dependency.')
+        _reference(snapshot, 'reserveslotinfo', entry.slot_key, stop_event=stop_event)
+        _reference(snapshot, 'conditioninfo', entry.condition_key, stop_event=stop_event)

@@ -18,6 +18,7 @@ from enum import Enum
 from typing import Mapping, Optional, Tuple
 from cdmw.domain.new_item.item_settings import ItemSettings
 from cdmw.domain.new_item.item_stats import ItemStatSettings
+from cdmw.domain.new_item.item_inventory import ItemInventorySettings
 from cdmw.domain.new_item.authoring import SocketSlot, LevelBonuses, RecipeOverride, RewardAcquisition, VariantAppearance
 
 
@@ -260,6 +261,7 @@ class NewItemSpec:
     max_durability: Optional[int] = None
     item_settings: Optional["ItemSettings"] = None
     stat_settings: Optional[ItemStatSettings] = None
+    inventory_settings: Optional[ItemInventorySettings] = None
 
     @property
     def active_effect_layers(self) -> Tuple[EffectLayer, ...]:

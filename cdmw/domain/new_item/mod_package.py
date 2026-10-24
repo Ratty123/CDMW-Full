@@ -29,6 +29,14 @@ class UnsupportedCapability(IndependentItemError):
 
 
 def capability_result(name, version):
+    if name == 'item.inventory' and type(version) is int and version == 1:
+        return CapabilityResult(name, version, True,
+            ('Owned item only; existing recipe, property and stat schemas are unchanged.',
+             'Stack counts are positive u64; flags, raw u8 selectors and bounded lists use complete ItemInfo layouts.',
+             'Material item/gimmick/group and reserve-slot/condition references require verified source dependencies.',
+             'Tag and consumable IDs and material group parameters retain raw meanings; game effects remain unverified.'),
+            (EvidenceClaim('adapter', 'Declared inventory and consumable fields', 'iteminfo_inventory.py'),
+             EvidenceClaim('synthetic', 'Portable inventory compilation', 'tests/test_independent_item_inventory.py')))
     if name == 'item.stats' and type(version) is int and version == 1:
         return CapabilityResult(name, version, True,
             ('Owned item only; existing recipe and item.properties schemas are unchanged.',
