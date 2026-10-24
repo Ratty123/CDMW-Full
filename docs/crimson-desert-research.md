@@ -2137,9 +2137,28 @@ A separate collection-decision component passes source review and 93 fake-only
 checks. It samples the supplied clock after collector and wrapper validation
 and immediately asks the same retained handle to stop on every final decision.
 It supplies no active watchdog, actual Windows clock/stop or retirement proof.
-The next watch design separates collector work from the stop owner and proposes
-direct native-start publication before file I/O. Guardian-crash protection also
-requires separate qualification; neither obligation is implemented here.
+The watch design separates collector work from the sole stop owner. Its
+256-byte start-channel codec passes independent source review and 332 bytes-only
+checks, joining the exact acknowledgment and one-shot 32-byte native start.
+Stateless decoding supplies no publication history, atomic or readiness proof.
+
+The injected crash-stop lease passes source review and 105 fake-only checks;
+its lazy Win64 adapter separately passes source review and 62 fake ABI/wiring
+checks. The source authenticates one handle with the additional Job-assignment right,
+verifies a new unnamed noninherited kill-on-close Job and retains uncertain
+ownership explicitly. Actual Job calls, guardian death, nested/Steam
+compatibility, sole Job-handle ownership and game-child scope remain unqualified.
+
+Caller v5 passes independent source/build-driver review. It opens the matching
+start channel before bridge installation, then commits the same 32-byte start
+and wake signal before the start-file write. The existing Trial and callback
+publication order are retained. V5 remains uncompiled; no channel creator,
+reader or active watch has executed. These are source prerequisites, with no
+deadline, crash-stop, retirement, engine lifetime or native-admission proof.
+
+File-only review of this host's pinned kernel32/KernelBase export tables finds
+no named `InterlockedCompareExchange64` entry. The Python receiver still needs a
+separately qualified native atomic interface; no live symbol lookup occurred.
 
 Production `native_admission=false` and all original acceptance conditions remain
 unchanged.
