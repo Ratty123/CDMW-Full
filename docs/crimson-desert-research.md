@@ -2101,7 +2101,7 @@ and evidence collection; its identity-prefix fake decoder does not qualify
 native decoding, FLS cleanup or record lifetime. The configured eight-second
 wait does not establish a hard eight-second total wall limit.
 
-A separately source-reviewed native retirement caller passes its strict
+A separately source-reviewed native retirement caller v1 passes its strict
 standalone build, independent linked review and one exact-PID direct-interpreter
 inactive load. The first virtualenv PID-join failure remains failed. The context
 observer, retained Trial and synchronous bounded codec are compiled; the C++
@@ -2112,6 +2112,35 @@ collector still need active guardian arming, immediate owned-process stop, a
 fresh post-validation completion clock and provenance/recovery integration.
 Actual B80 calls and post-exit record survival remain unperformed, alongside
 engine readers, publication and resource/save proof.
+
+Arming gate v4 passes independent source and build-driver review after the preserved v2/v3
+refusals. It requires the exact guardian acknowledgment before bridge installation
+and permits mutable callbacks only after successful startup acknowledgment.
+Seventeen pure acknowledgment-codec checks pass, but this source is uncompiled
+and supplies no active guardian or deadline/stop proof. The retained process handle
+has source approval and fake-API checks; its owned Win32 qualification refused
+at the unchanged foreign-build preflight before any child. The separate
+source-reviewed C++ wire fixture remains uncompiled.
+
+Independent static FLS review qualifies owner-gated context retirement, possible
+16-slot context caching and delegated backing handling. It establishes neither
+freeing nor preserving outstanding item-record payloads. Further reviewed mode-2
+visitors distinguish raw zero-node metadata/backing handling from nonzero region
+handoff. Deeper helpers, counter meanings and the private-record-to-node ownership
+join remain open.
+
+A further reviewed nonempty-head allocator path links raw block return to that
+same counter increment. Aligned-pointer membership, complete accounting and
+post-exit lifetime remain unproved.
+
+A separate collection-decision component passes source review and 93 fake-only
+checks. It samples the supplied clock after collector and wrapper validation
+and immediately asks the same retained handle to stop on every final decision.
+It supplies no active watchdog, actual Windows clock/stop or retirement proof.
+The next watch design separates collector work from the stop owner and proposes
+direct native-start publication before file I/O. Guardian-crash protection also
+requires separate qualification; neither obligation is implemented here.
+
 Production `native_admission=false` and all original acceptance conditions remain
 unchanged.
 

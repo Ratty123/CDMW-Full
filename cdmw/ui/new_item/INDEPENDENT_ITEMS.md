@@ -1873,7 +1873,7 @@ flowchart TD
     B --> R["Join B, inspect and release with the same checks"]
 ```
 
-A separate source-reviewed native retirement caller passes its strict standalone
+A separate source-reviewed native retirement caller v1 passes its strict standalone
 build, independent linked review and one exact-PID direct-interpreter inactive
 load. The original virtualenv PID-join failure remains failed. The caller
 includes the read-only context observer, retained Trial and synchronous
@@ -1883,11 +1883,38 @@ nine new capture-order/refusal checks and source review after its preserved v1
 review refusal. The eight-second file/clock validator and collector still need
 an active external guardian, arming, immediate owned-process stop and a fresh
 post-validation completion clock. Actual B80 calls, native post-exit record
-survival, reader exclusion, publication and resource/save proof remain open;
+survival, reader exclusion, publication and resource/save proof remain open.
+
+A separate arming gate v4 passes independent source and build-driver review after the
+preserved v2/v3 refusals. It requires an exact guardian acknowledgment before
+bridge installation and publishes mutable callback permission only after startup
+acknowledgment succeeds. Seventeen pure acknowledgment-codec checks pass. This
+source is uncompiled and supplies no active guardian or deadline/stop proof.
+The retained process handle has source approval and fake-API checks; its owned
+Win32 qualification refused at the unchanged foreign-build preflight before
+any child started. The separate source-reviewed C++ wire fixture is uncompiled.
+
+Independent static FLS review qualifies owner-gated context retirement, possible
+retention in a 16-slot context cache and delegated backing handling. It establishes
+neither freeing nor preserving outstanding item-record payloads. Further reviewed
+mode-2 visitors distinguish raw zero-node metadata/backing handling from nonzero
+region handoff. Deeper helpers, counter meanings and the private-record-to-node
+ownership join remain open. A further reviewed nonempty-head allocator path
+links raw block return to that same counter increment; aligned-pointer membership,
+complete accounting and post-exit lifetime remain unproved.
 `native_admission=false` is unchanged.
 
-This partial native caller is compiled; the diagram is source-level ordering,
-not a game observation. The external guardian is an unresolved dependency:
+A separate collection-decision component passes source review and 93 fake-only
+checks. It samples the supplied clock after collector and wrapper validation
+and immediately asks the same retained handle to stop on every final decision.
+It supplies no active watchdog, actual Windows clock/stop or retirement proof.
+The next watch design separates collector work from the stop owner and proposes
+direct native-start publication before file I/O. Guardian-crash protection also
+requires separate qualification; neither obligation is implemented here.
+
+The v1 caller is compiled; the diagram describes its source-level ordering,
+without a game observation. Arming v4 remains uncompiled, and active external
+guardian integration is unresolved:
 
 ```mermaid
 flowchart TD
