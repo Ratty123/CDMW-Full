@@ -13,6 +13,112 @@ fn island_hover_point(ui: &HeadlessUi, source_face: u32) -> Result<Pos2, Box<dyn
 }
 
 #[test]
+fn island_controls_name_hover_highlights_only_that_island_without_editing() -> TestResult {
+    for mode in [ViewMode::Solid, ViewMode::PartId] {
+        let mut ui = island_ui(egui::vec2(1280.0, 900.0))?;
+        crate::cdmw_layout::set_auto_open_parts_on_hover(&ui.application.egui_context, false);
+        ui.click("Mesh islands")?;
+        ui.click("Island 1 · 1 faces")?;
+        ui.application.view_mode = mode;
+        ui.application.cdmw_refit_clearance = 0.75;
+        ui.application.cdmw_refit_settings_dirty.mark("clearance_percent");
+        ui.application.cdmw_refit_region_targets = vec![0];
+        let root = tempdir()?;
+        ui.application.cdmw_bridge = Some(CdmwBridge::for_test(root.path().to_path_buf(), "island-name-hover", 1, 0));
+        let state = ui.application.cdmw_state.clone();
+        let mesh = ui.application.mesh.as_ref().ok_or("mesh")?.clone();
+        let selection_overlay = ui.application.face_selection_overlay.as_ref().map(|overlay| overlay.positions.clone());
+        ui.last_actions.clear();
+        // Islands share a parent Part, so changing the hovered island must replace the cache.
+        for face in [0, 1, 0] {
+            let name = ui.reveal(&format!("Island {} · 1 faces", face + 1))?;
+            ui.frame(vec![Event::PointerMoved(name.center())]);
+            ui.settle_layout();
+            let (target, overlay) = ui.application.cdmw_part_hover_overlay.as_ref().ok_or("island hover overlay")?;
+            let expected: Vec<_> = mesh.faces().filter(|(_, item)| matches!(item.provenance,
+                Provenance::Source { submesh: 0, element } if element == face))
+                .flat_map(|(_, item)| item.vertices.iter()).map(|handle| mesh.vertex(*handle).unwrap().position).collect();
+            assert_eq!(target.part, 0);
+            assert_eq!(target.island_faces.as_deref(), Some([face].as_slice()));
+            assert_eq!(overlay.positions, expected);
+            assert_eq!(overlay.positions.len(), 3, "hover tinted another island in this Part");
+            assert!(ui.label_rect("Show all islands").is_some());
+        }
+        let current = ui.application.mesh.as_ref().ok_or("mesh")?;
+        assert_eq!(current.selection, mesh.selection);
+        assert_eq!(current.selection_revision, mesh.selection_revision);
+        assert_eq!(current.structural_fingerprint(), mesh.structural_fingerprint());
+        assert_eq!(ui.application.face_selection_overlay.as_ref().map(|overlay| overlay.positions.clone()), selection_overlay);
+        assert_eq!(ui.application.cdmw_state, state);
+        assert_eq!(ui.application.cdmw_refit_clearance, 0.75);
+        assert!(ui.application.cdmw_refit_settings_dirty.is_dirty());
+        assert_eq!(ui.application.cdmw_refit_region_targets, vec![0]);
+        assert_eq!(ui.application.view_mode, mode);
+        assert!(ui.last_actions.is_empty());
+        assert!(ui.application.cdmw_pending_request.is_none());
+        ui.frame(vec![Event::PointerGone]);
+        assert!(ui.application.cdmw_hovered_part.is_none());
+        assert!(ui.application.cdmw_part_hover_overlay.is_none());
+    }
+    Ok(())
+}
+
+#[test]
+fn island_controls_name_hover_clears_and_respects_visibility_and_comparison() -> TestResult {
+    let mut ui = island_ui(egui::vec2(1280.0, 900.0))?;
+    ui.click("Mesh islands")?;
+    ui.settle_layout();
+    let root = tempdir()?;
+    ui.application.cdmw_bridge = Some(CdmwBridge::for_test(root.path().to_path_buf(), "island-name-visibility", 1, 0));
+    let name = ui.reveal("Island 2 · 1 faces")?;
+    ui.frame(vec![Event::PointerMoved(name.center())]);
+    ui.settle_layout();
+    assert_eq!(ui.application.cdmw_part_hover_overlay.as_ref().ok_or("hover")?.1.positions.len(), 3);
+    // Keep the pointer still while the current fitting shape changes.
+    let mesh = ui.application.mesh.as_mut().ok_or("mesh")?;
+    let positions = mesh.vertices().map(|(handle, vertex)|
+        (handle, [vertex.position[0], vertex.position[1] + 0.5, vertex.position[2]])).collect();
+    mesh.apply_positions(&positions)?;
+    let expected: Vec<_> = mesh.faces().filter(|(_, face)| matches!(face.provenance,
+        Provenance::Source { submesh: 0, element: 1 })).flat_map(|(_, face)| face.vertices.iter())
+        .map(|handle| mesh.vertex(*handle).unwrap().position).collect();
+    ui.frame(Vec::new());
+    assert_eq!(ui.application.cdmw_part_hover_overlay.as_ref().ok_or("updated hover")?.1.positions, expected);
+    // Hiding another island must not enlarge the hover to the rest of its Part.
+    ui.application.set_island_visibility(0, vec![0], false);
+    ui.frame(Vec::new());
+    assert_eq!(ui.application.cdmw_part_hover_overlay.as_ref().ok_or("visible hover")?.1.positions, expected);
+    ui.application.set_island_visibility(0, vec![1], false);
+    ui.frame(Vec::new());
+    assert!(ui.application.cdmw_part_hover_overlay.is_none());
+    assert_eq!(ui.application.mesh.as_ref().ok_or("mesh")?.viewport_hidden_faces().len(), 2);
+    ui.application.set_island_visibility(0, vec![1], true);
+    ui.frame(Vec::new());
+    ui.settle_layout();
+    assert_eq!(ui.application.cdmw_part_hover_overlay.as_ref().ok_or("restored hover")?.1.positions, expected);
+    ui.application.cdmw_hidden_parts.insert(0);
+    ui.frame(Vec::new());
+    assert!(ui.application.cdmw_part_hover_overlay.as_ref().is_none_or(|(_, overlay)| overlay.positions.is_empty()));
+    assert!(ui.application.cdmw_hidden_parts.contains(&0));
+    ui.application.cdmw_hidden_parts.clear();
+    ui.application.cdmw_state["replacement"]["comparison"] = json!("output");
+    ui.frame(Vec::new());
+    assert!(ui.application.cdmw_part_hover_overlay.is_none());
+    ui.application.cdmw_state["replacement"]["comparison"] = json!("edit");
+    ui.frame(Vec::new());
+    ui.settle_layout();
+    assert!(ui.application.cdmw_part_hover_overlay.is_some());
+    let other_control = ui.reveal("Show all islands")?;
+    ui.frame(vec![Event::PointerMoved(other_control.center())]);
+    assert!(ui.application.cdmw_part_hover_overlay.is_none());
+    ui.frame(vec![Event::PointerMoved(name.center())]);
+    assert!(ui.application.cdmw_part_hover_overlay.is_some());
+    ui.click("Parts")?;
+    assert!(ui.application.cdmw_part_hover_overlay.is_none());
+    Ok(())
+}
+
+#[test]
 fn island_controls_viewport_hover_keeps_the_tab_and_identifies_the_matching_island() -> TestResult {
     for automatic in [true, false] {
         let mut ui = island_ui(egui::vec2(1280.0, 900.0))?;
