@@ -14,6 +14,8 @@ from scripts.export_github_wiki import BUILTIN_LANGUAGES, build_pages, page_slug
 def test_layer_and_accessory_guidance_is_translated_in_help_and_wiki(tmp_path):
     source = "Fit all enabled garments starts fresh setups at 100% Tightness and retains explicit Part and mesh-island choices. Cloth layers stay separate; recognized solid accessories and attached bows keep their shape. Use Rigid component for unrecognized hard details. Material names alone do not determine stiffness. Excluded surfaces do not affect fitting. Reset discards the preview; Bake keeps it."
     sources = (source, "At full Tightness, waistcloth follows the body's changing contour and flexible belts fit over the cloth. Set daggers and other hard pieces to Rigid component so they follow their fitted support without bending.")
+    sources += ('Turned rims keep their original width while the cloth fits against the body and other layers. Matching material seams stay joined. Check all sides before Bake; conflicting pins can prevent a safe fit.',)
+    sources += ('Refitting preserves smooth shading across texture and material seams without rounding intentional hard edges.',)
     pages = build_pages()
     app = QApplication.instance() or QApplication([])
     builder = AboutDocumentationEnglishMixin()

@@ -595,8 +595,9 @@ void mesh_editor_conform_refit(const MeshRefitRuntime &refit, const std::map<int
         if (garment_spatial.root >= 0) {
             for (const auto &hit : refit_surface_line_hits_native(node.point, target_normal,
                                                                   refit.driver_diagonal * 0.06, garment_spatial)) {
-                if (hit.driver_submesh_index == vertex.first
-                    && surface_roots[indices.at(hit.driver_submesh_index)[hit.driver_vertices[0]]] == surface_roots[i]) {
+                // A sewn material split is still the same cloth, including a
+                // turned rim. It must not become its own supporting layer.
+                if (surface_roots[indices.at(hit.driver_submesh_index)[hit.driver_vertices[0]]] == surface_roots[i]) {
                     if (solid_band) wall_depth = std::max(wall_depth, height - dot_vec3(sub_vec3(
                         mesh_editor_refit_driver_point(hit, garment_positions), target_point), target_normal));
                     continue;
@@ -823,9 +824,7 @@ void mesh_editor_conform_refit(const MeshRefitRuntime &refit, const std::map<int
             // after this solve. Their per-vertex skin targets must not pull a
             // flexible backing into that piece's incompatible deformation.
             if (rigid != source_rigid) continue;
-            if (!reliable[i] || (surface_roots[i] == item.first.second
-                && std::any_of(nodes[i].vertices.begin(), nodes[i].vertices.end(),
-                    [&](const auto& vertex) { return vertex.first == part; }))) continue;
+            if (!reliable[i] || surface_roots[i] == item.first.second) continue;
             if (refit_aabb_distance_squared_native(nodes[i].point, bounds.minimum, bounds.maximum)
                 > std::pow(refit.driver_diagonal * 0.03, 2.0)) continue;
             long long tests = 0;

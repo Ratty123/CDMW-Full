@@ -2100,6 +2100,20 @@ fit over that cloth. Rigid accessories receive their whole-piece placement from
 the fitted support; their separate body targets do not distort the cloth's fit.
 Clearance, authored thickness and folds can still leave space; inspect the result
 before Bake, especially where hard pieces overlap several layers.
+
+Turned rims retain their authored width across the edge while their circumference
+can contract. Thickness constraints run with body and layer contact checks, including
+closed cloth walls and matching seams between materials. Uneven rim triangulation
+can slide along the edge without widening the fold. Pins remain fixed; a pinned
+return that would turn inside out rejects the fit and retains the previous preview.
+Inspect the front, back, sides, top and underside before Bake.
+
+Refitting retains smooth shading across texture and material seams while keeping
+authored hard edges sharp. Normal updates include the neighboring seam when only
+one panel moves, without changing positions, UVs or material assignments. The
+smoothing boundaries survive repeated previews and Undo/Redo; unaffected faces
+retain their existing normals. This does not subdivide coarse mesh silhouettes.
+
 Keep jewellery and hard details, including separate decorative petals, in
 **Rigid component** mode when they should keep their shape while moving. This
 preserves each connected assembly; it does not turn all disconnected pieces in

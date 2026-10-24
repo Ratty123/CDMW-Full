@@ -215,7 +215,7 @@ std::string mesh_editor_morph_upload_preserving_session_report(
         // Report against the pre-transaction geometry, including neutral-only edits.
         for (const auto& item : before) {
             auto result = mesh_editor_morph_sparse_result(item.first, submeshes.at(item.first),
-                item.second.vertices, "morph_upload", output, session_id);
+                item.second.vertices, "morph_upload", output, session_id, item.second.normals);
             if (!result.changed_vertices.empty()) results.push_back(std::move(result));
         }
         next->change_id = "capture-authored";
@@ -257,6 +257,7 @@ std::string mesh_editor_morph_upload_session_report(
     next->current_layer.clear();
     next->neutral_positions.clear();
     next->composed_positions.clear();
+    next->neutral_normals.clear();
     if (next->profile) {
         for (const auto& item : next->profile->definitions) next->values[item.first] = 0.0;
     }
@@ -843,9 +844,12 @@ std::string mesh_editor_morph_restore_shape_session_report(
     const std::string output = string_or(root.get("delta_output_dir"), "");
     std::vector<SubmeshMeshEditResult> results;
     try {
+        std::map<int, std::vector<Vec3>> before_positions;
+        for (const auto& part : before) before_positions[part.first] = part.second.vertices;
+        mesh_editor_refresh_morph_normals(staged, before_positions, next->neutral_normals);
         for (const auto& part : before) {
             auto result = mesh_editor_morph_sparse_result(part.first, staged.at(part.first), part.second.vertices,
-                "morph_restore_shape", output, session_id);
+                "morph_restore_shape", output, session_id, part.second.normals);
             if (!result.changed_vertices.empty()) results.push_back(std::move(result));
         }
         for (const auto& part : before) submeshes.at(part.first) = std::move(staged.at(part.first));
@@ -904,6 +908,7 @@ std::string mesh_editor_morph_reset_or_bake_session_report(
         next->current_layer.clear();
         next->neutral_positions.clear();
         next->composed_positions.clear();
+        next->neutral_normals.clear();
         next->unbaked = false;
         next->refit = mesh_editor_rebased_refit(*next, mesh_editor_submeshes(session), false);
     }

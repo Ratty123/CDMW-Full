@@ -3,8 +3,8 @@ import numpy as np
 import pytest
 
 from tests.test_mesh_refit_layer_boundaries_native import _fitted_mesh
-from tests.test_mesh_refit_tightening_native import _assert_no_surface_crossings, _mesh, _refit_tube_part
-from tests.test_native_mesh_editor_morph_refit import _part
+from tests.test_mesh_refit_tightening_native import _assert_no_surface_crossings, _bound, _mesh, _refit_tube_part
+from tests.test_native_mesh_editor_morph_refit import _part, _snapshot, _state, mesh_native_core
 
 
 def _curved_waist():
@@ -87,3 +87,76 @@ def test_broad_wrap_does_not_bulge_toward_nearby_inward_facing_arms():
     # The complete circumference must be smooth, including between views.
     radial_bend = np.roll(radius, 1, axis=1) - 2 * radius + np.roll(radius, -1, axis=1)
     assert np.max(np.abs(radial_bend)) < .001
+
+
+@pytest.mark.parametrize("scale,up", ((1., 1), (.1, 0), (10., 2)))
+@pytest.mark.parametrize("closed", (False, True), ids=("turned-open-rim", "solid-wall"))
+@pytest.mark.parametrize("layout", ("whole", "material-seam", "pinned-return"))
+def test_sloping_rim_keeps_its_authored_thickness_while_layers_fit(scale, up, closed, layout):
+    body, heights, radii = _curved_waist()
+    rows = (1.01, 1.04, 1.07, 1.10, 1.13, 1.16, 1.19)
+    segments = 32
+    cloth = _refit_tube_part("cloth with turned rim", .15, 0., rows, segments)
+    outer = (len(rows) - 1) * segments
+    inner = len(cloth.vertices)
+    for s in range(segments):
+        angle = 2 * np.pi * s / segments
+        # A sloping return samples a different body height from its outer edge.
+        cloth.vertices.append((.142 * np.cos(angle), 1.184, .142 * np.sin(angle)))
+    for s in range(segments):
+        a, b = outer + s, outer + (s + 1) % segments
+        c, d = inner + s, inner + (s + 1) % segments
+        cloth.faces += [(a, c, d), (a, d, b)]
+    if closed:
+        back = _refit_tube_part("lining", .142, 0., rows[:-1] + (1.184,), segments)
+        offset = len(cloth.vertices)
+        cloth.vertices += back.vertices[:-segments]
+        remap = list(range(offset, offset + len(back.vertices) - segments)) + list(range(inner, inner + segments))
+        cloth.faces += [tuple(remap[i] for i in reversed(face)) for face in back.faces]
+        for s in range(segments):
+            a, b = s, (s + 1) % segments
+            cloth.faces += [(a, b, offset + b), (a, offset + b, offset + a)]
+    cloth = _part(cloth.name, cloth.vertices, cloth.faces, material="cloth", texture="")
+    belt = _refit_tube_part("outer cloth", .18, 0., rows[:-1], segments)
+    parts = [cloth]
+    if layout == "material-seam":
+        split = 2 * segments * (len(rows) - 1)
+        parts = [_part(name, cloth.vertices, faces, material=name, texture="")
+                 for name, faces in (("cloth", cloth.faces[:split]), ("rim", cloth.faces[split:]))]
+    source = _mesh(body, *parts, belt)
+    for part in source.submeshes:
+        part.vertices = [tuple(scale * p[(axis + 1 - up) % 3] for axis in range(3)) for p in part.vertices]
+    settings = {}
+    if layout == "pinned-return":
+        mobile = [i for i in range(len(cloth.vertices)) if not inner <= i < inner + segments]
+        settings["vertex_masks"] = [{"submesh_index": 1, "vertex_indices": mobile, "weights": [1.] * len(mobile)}]
+        # Pinning the oversized inner return while tightening its outer skin
+        # would invert the hem. Refuse atomically instead of moving the pins or
+        # publishing an inside-out rim with the correct unsigned thickness.
+        with _bound(source) as session:
+            state = _state(session)
+            before = _snapshot(source, session)
+            assert mesh_native_core.native_mesh_editor_session_command("morph_configure_refit", session, {
+                "garment_submesh_indices": [1, 2], "tightness_percent": 100., "clearance_percent": .1, **settings,
+            }) is None
+            assert "pinned cloth rim" in mesh_native_core.last_native_mesh_core_job_error()
+            assert _state(session) == state
+            assert [p.vertices for p in _snapshot(source, session).submeshes] == [p.vertices for p in before.submeshes]
+        return
+    fitted = _fitted_mesh(source, (0,), tuple(range(1, len(parts) + 2)), **settings)
+    if layout == "material-seam":
+        assert fitted.submeshes[1].vertices == fitted.submeshes[2].vertices
+    before, after = [np.asarray(mesh.submeshes[1].vertices) / scale for mesh in (source, fitted)]
+    width = lambda points: np.linalg.norm(points[outer:outer + segments] - points[inner:inner + segments], axis=1)
+    assert width(after) == pytest.approx(width(before), abs=2e-5)
+    points = after[:, [(axis + up - 1) % 3 for axis in range(3)]]
+    gaps = np.hypot(points[:outer, 0], points[:outer, 2]) - np.interp(points[:outer, 1], heights, radii)
+    assert gaps.min() > 0.
+    # The outer face must leave room for the authored 8 mm inward return.
+    # Away from that return, an open sheet still fits as closely as thin cloth.
+    assert gaps.max() < .018
+    if not closed:
+        assert gaps[:4 * segments].max() < .008
+    final_cloth = _part("cloth", fitted.submeshes[1].vertices, cloth.faces, material="cloth", texture="")
+    for a, b in ((fitted.submeshes[0], final_cloth), (final_cloth, fitted.submeshes[-1]), (final_cloth, final_cloth)):
+        _assert_no_surface_crossings(a, b)

@@ -138,6 +138,9 @@ struct MeshMorphRuntime {
     // anchor distinguishes subsequent sculpt edits from layer roundoff.
     std::map<int, std::vector<Vec3>> neutral_positions;
     std::map<int, std::vector<Vec3>> composed_positions;
+    // Authored smoothing boundaries must survive a preview that temporarily
+    // flattens a hard edge. Share the immutable reference through preview history.
+    std::map<int, std::shared_ptr<const std::vector<Vec3>>> neutral_normals;
     std::set<int> driver_submesh_indices;
     std::shared_ptr<const MeshRefitRuntime> refit;
     bool unbaked = false;

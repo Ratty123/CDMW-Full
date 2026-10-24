@@ -538,6 +538,7 @@ struct MeshEditorMorphMemoryAccounting {
     std::set<const MeshMorphRuntime*> runtimes;
     std::set<const MeshMorphProfileRuntime*> profiles;
     std::set<const MeshRefitRuntime*> refits;
+    std::set<const std::vector<Vec3>*> normal_references;
 };
 
 std::size_t mesh_editor_morph_position_map_bytes(const std::map<int, std::vector<Vec3>>& positions) {
@@ -602,7 +603,8 @@ std::size_t mesh_editor_morph_runtime_bytes(
     // established metric unchanged while counting every allocated morph layer.
     if (!runtime || (!runtime->profile && !runtime->refit && runtime->values.empty()
         && runtime->current_layer.empty() && runtime->neutral_positions.empty()
-        && runtime->composed_positions.empty() && runtime->driver_submesh_indices.empty())) return 0;
+        && runtime->composed_positions.empty() && runtime->neutral_normals.empty()
+        && runtime->driver_submesh_indices.empty())) return 0;
     if (!accounting.runtimes.insert(runtime.get()).second) return 0;
     std::size_t retained = sizeof(*runtime) + 2 * sizeof(void*)
         + runtime->preset_id.capacity() + runtime->change_id.capacity()
@@ -611,6 +613,11 @@ std::size_t mesh_editor_morph_runtime_bytes(
         + mesh_editor_morph_position_map_bytes(runtime->current_layer)
         + mesh_editor_morph_position_map_bytes(runtime->neutral_positions)
         + mesh_editor_morph_position_map_bytes(runtime->composed_positions);
+    for (const auto& item : runtime->neutral_normals) {
+        retained += sizeof(item) + 3 * sizeof(void*);
+        if (item.second && accounting.normal_references.insert(item.second.get()).second)
+            retained += sizeof(*item.second) + 2 * sizeof(void*) + item.second->capacity() * sizeof(Vec3);
+    }
     for (const auto& item : runtime->values) retained += sizeof(item) + 3 * sizeof(void*) + item.first.capacity();
     if (runtime->profile && accounting.profiles.insert(runtime->profile.get()).second) {
         retained += mesh_editor_morph_profile_bytes(*runtime->profile);

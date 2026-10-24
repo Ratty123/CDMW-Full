@@ -114502,6 +114502,16 @@
       ]
     },
     {
+      "key": "Refitting preserves smooth shading across texture and material seams without rounding intentional hard edges.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 360,
+          "sink": "python-return:_build_archive_mesh_sections"
+        }
+      ]
+    },
+    {
       "key": "Reflection preset",
       "origins": [
         {
@@ -154808,6 +154818,16 @@
           "path": "cdmw/ui/new_item/panels_model.py",
           "line": 614,
           "sink": "setAccessibleName"
+        }
+      ]
+    },
+    {
+      "key": "Turned rims keep their original width while the cloth fits against the body and other layers. Matching material seams stay joined. Check all sides before Bake; conflicting pins can prevent a safe fit.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 360,
+          "sink": "python-return:_build_archive_mesh_sections"
         }
       ]
     },

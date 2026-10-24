@@ -259,9 +259,10 @@ std::map<int, std::vector<Vec3>> mesh_editor_refit_seam_positions_for_parts(
             for (const auto j : found->second) {
                 const auto& other = borders[j];
                 // Adjacent faces traverse a shared edge in opposite directions.
-                // Parallel shell rims and back-to-back linings are not seams.
+                // Turned hems may fold through a material seam. Reject nearly
+                // back-to-back linings, without requiring an outward crease.
                 if (edge.part == other.part
-                    || dot_vec3(edge.normal, other.normal) <= (unique_matches ? 0.5 : 0.0)) continue;
+                    || dot_vec3(edge.normal, other.normal) <= (unique_matches ? 0.5 : -0.95)) continue;
                 if (distance_squared_vec3(points[edge.a], points[other.b]) > tolerance*tolerance
                     || distance_squared_vec3(points[edge.b], points[other.a]) > tolerance*tolerance) continue;
                 if (unique_matches) {
@@ -1842,6 +1843,181 @@ void mesh_editor_relieve_refit_surface(
         layer_neighbors[edge.first].push_back(edge.second);
         layer_neighbors[edge.second].push_back(edge.first);
     }
+    // A turned hem ends at a free border; a closed wall joins opposing skins.
+    // In both cases its cross edges run across the neighboring cloth normal.
+    // Preserve those short spans, not the circumferential edges that must
+    // contract to fit. Use authored geometry and canonical seam vertices so
+    // this also works for split materials, arbitrary axes and open returns.
+    struct RimSpan {
+        std::size_t first, second;
+        double length;
+        std::array<std::size_t, 2> along{};
+        std::array<std::size_t, 3> skin{};
+        double side = 1.0;
+        bool turned = false;
+    };
+    std::vector<RimSpan> rim_spans;
+    if (fitting_masks && !validate_only) {
+        std::vector<Vec3> authored;
+        for (const auto& cohort : cohorts) {
+            const auto& vertex = cohort.vertices.front();
+            authored.push_back(residual.at(vertex.first)[vertex.second]);
+        }
+        std::map<std::size_t, std::pair<Vec3, Vec3>> bounds;
+        for (std::size_t i = 0; i < cohorts.size(); ++i) if (cohorts[i].has_surface) {
+            auto& box = bounds.try_emplace(root_of(surface_roots, i), authored[i], authored[i]).first->second;
+            for (int c = 0; c < 3; ++c) {
+                box.first[c] = std::min(box.first[c], authored[i][c]);
+                box.second[c] = std::max(box.second[c], authored[i][c]);
+            }
+        }
+        struct RimFace { Vec3 normal; std::array<std::size_t, 3> vertices; };
+        std::vector<std::vector<RimFace>> normals(cohorts.size());
+        std::map<std::pair<std::size_t, std::size_t>, int> incidence;
+        std::set<std::array<std::size_t, 3>> faces;
+        for (const auto& part : garments) {
+            const auto& map = vertex_cohorts.at(part.first);
+            for (const auto& face : part.second.faces) {
+                std::array<std::size_t, 3> v{map[face[0]], map[face[1]], map[face[2]]};
+                auto key = v;
+                std::sort(key.begin(), key.end());
+                if (!faces.insert(key).second) continue;
+                const Vec3 normal = refit_face_normal_native(authored[v[0]], authored[v[1]], authored[v[2]]);
+                if (dot_vec3(normal, normal) < 0.5) continue;
+                for (int c = 0; c < 3; ++c) {
+                    normals[v[c]].push_back({normal, v});
+                    ++incidence[std::minmax(v[c], v[(c + 1) % 3])];
+                }
+            }
+        }
+        std::vector<bool> boundary(cohorts.size(), false);
+        std::vector<std::vector<std::size_t>> border_neighbors(cohorts.size());
+        std::vector<bool> closed(cohorts.size(), true);
+        for (const auto& edge : incidence) {
+            if (edge.second == 1) {
+                const auto a = edge.first.first, b = edge.first.second;
+                boundary[a] = boundary[b] = true;
+                border_neighbors[a].push_back(b);
+                border_neighbors[b].push_back(a);
+            }
+            if (edge.second != 2) closed[root_of(surface_roots, edge.first.first)] = false;
+        }
+        std::map<std::size_t, RimSpan> nearest;
+        for (const auto& edge : incidence) {
+            const auto a = edge.first.first, b = edge.first.second;
+            if (rigid_vertex[a] || rigid_vertex[b]) continue;
+            const Vec3 delta = sub_vec3(authored[b], authored[a]);
+            const double length = length_vec3(delta);
+            if (length <= tolerance * 4.0) continue;
+            const auto& box = bounds.at(root_of(surface_roots, a));
+            const bool narrow = length < length_vec3(sub_vec3(box.second, box.first)) * 0.04;
+            const Vec3 direction = scale_vec3(delta, 1.0 / length);
+            double low_a = 0.0, high_a = 0.0, low_b = 0.0, high_b = 0.0;
+            for (const auto& normal : normals[a]) {
+                low_a = std::min(low_a, dot_vec3(normal.normal, direction));
+                high_a = std::max(high_a, dot_vec3(normal.normal, direction));
+            }
+            for (const auto& normal : normals[b]) {
+                low_b = std::min(low_b, dot_vec3(normal.normal, direction));
+                high_b = std::max(high_b, dot_vec3(normal.normal, direction));
+            }
+            bool opposing = false;
+            if (closed[root_of(surface_roots, a)]) for (const auto& na : normals[a]) for (const auto& nb : normals[b])
+                if (dot_vec3(na.normal, nb.normal) < -0.5 && std::abs(dot_vec3(na.normal, direction)) > 0.7
+                        && std::abs(dot_vec3(nb.normal, direction)) > 0.7) opposing = true;
+            // A coarse polygon's outline and a pleat's crease can also turn
+            // sharply. Neither joins a free return to an interior cloth edge.
+            // A hem is a narrow, locally flat return beside a crease. Broad
+            // pleats can meet the border at a sharp angle too, but their panel
+            // widths must remain flexible. These limits use physical geometry,
+            // not triangle size or a particular garment's coordinate system.
+            const bool end_a = narrow && boundary[a] && !boundary[b]
+                && std::max(high_a, -low_a) < 0.25 && std::max(high_b, -low_b) > 0.7;
+            const bool end_b = narrow && boundary[b] && !boundary[a]
+                && std::max(high_b, -low_b) < 0.25 && std::max(high_a, -low_a) > 0.7;
+            // A triangulated rim also contains diagonal edges. Only the
+            // nearest cross-span owns its width; locking diagonals would
+            // resist the intended change in circumference.
+            for (const auto i : {a, b}) if (opposing || (i == a ? end_a : end_b)) {
+                const auto found = nearest.find(i);
+                if (found == nearest.end() || length < found->second.length) {
+                    RimSpan span{a, b, length};
+                    double facing = 0.0;
+                    for (const auto j : {a, b}) for (const auto& face : normals[j]) {
+                        const double value = dot_vec3(face.normal, direction);
+                        if (std::abs(value) > facing) {
+                            facing = std::abs(value);
+                            span.skin = face.vertices;
+                            span.side = value < 0.0 ? -1.0 : 1.0;
+                        }
+                    }
+                    if (boundary[i] && border_neighbors[i].size() == 2) {
+                        span.along = {border_neighbors[i][0], border_neighbors[i][1]};
+                        span.turned = true;
+                    }
+                    nearest[i] = span;
+                }
+            }
+        }
+        std::set<std::pair<std::size_t, std::size_t>> retained;
+        for (const auto& item : nearest) if (retained.insert({item.second.first, item.second.second}).second) {
+            auto span = item.second;
+            if (span.turned) {
+                const Vec3 tangent = sub_vec3(authored[span.along[1]], authored[span.along[0]]);
+                const Vec3 delta = sub_vec3(authored[span.second], authored[span.first]);
+                const double square = dot_vec3(tangent, tangent);
+                if (square > tolerance * tolerance)
+                    span.length = length_vec3(sub_vec3(delta, scale_vec3(tangent, dot_vec3(delta, tangent) / square)));
+                else span.turned = false;
+            }
+            rim_spans.push_back(span);
+        }
+    }
+    const auto active_rim = [&](const RimSpan& span) {
+        return !detail_offsets.count(span.first) && !detail_offsets.count(span.second)
+            && cohorts[span.first].mobility + cohorts[span.second].mobility > 0.0;
+    };
+    const auto reversed_rim = [&](const RimSpan& span) {
+        const auto& v = span.skin;
+        const Vec3 normal = refit_face_normal_native(cohorts[v[0]].position, cohorts[v[1]].position, cohorts[v[2]].position);
+        return span.side * dot_vec3(sub_vec3(cohorts[span.second].position, cohorts[span.first].position), normal) < -tolerance;
+    };
+    for (const auto& span : rim_spans) if ((cohorts[span.first].mobility <= 0.0 || cohorts[span.second].mobility <= 0.0)
+            && reversed_rim(span))
+        throw MeshRefitContactFailure("Fit to body: a pinned cloth rim would turn inside out; previous preview retained");
+    const auto rim_delta = [&](const RimSpan& span) {
+        Vec3 delta = sub_vec3(cohorts[span.second].position, cohorts[span.first].position);
+        if (span.turned) {
+            // Imported rims need not have aligned vertex columns. Preserve
+            // width across the border while allowing along-border shear;
+            // fixing a diagonal's length would inflate an irregular hem as
+            // its circumference shrinks. The live tangent follows bending.
+            const Vec3 tangent = sub_vec3(cohorts[span.along[1]].position, cohorts[span.along[0]].position);
+            const double square = dot_vec3(tangent, tangent);
+            if (square > tolerance * tolerance)
+                delta = sub_vec3(delta, scale_vec3(tangent, dot_vec3(delta, tangent) / square));
+        }
+        return delta;
+    };
+    const auto project_rims = [&](double& maximum) {
+        for (int pass = 0; pass < 4; ++pass) for (const auto& span : rim_spans) {
+            if (!active_rim(span)) continue;
+            auto& a = cohorts[span.first];
+            auto& b = cohorts[span.second];
+            const Vec3 delta = rim_delta(span);
+            const double length = length_vec3(delta);
+            if (length <= tolerance || std::abs(length - span.length) <= tolerance) continue;
+            const Vec3 direction = scale_vec3(delta, 1.0 / length);
+            const Vec3 ga = scale_vec3(project_contact(span.first, direction), a.mobility);
+            const Vec3 gb = scale_vec3(project_contact(span.second, direction), b.mobility);
+            const double weight = dot_vec3(direction, add_vec3(ga, gb));
+            if (weight <= 1.0e-12) continue;
+            const double step = (length - span.length) / weight;
+            a.position = add_vec3(a.position, scale_vec3(ga, step));
+            b.position = sub_vec3(b.position, scale_vec3(gb, step));
+            maximum = std::max(maximum, std::abs(length - span.length));
+        }
+    };
     // Infer local layer order from the authored surfaces, including samples
     // inside coarse outer-shell triangles. Material names do not establish
     // which surface is outside. Only couple nearby surfaces facing the body.
@@ -2619,7 +2795,7 @@ void mesh_editor_relieve_refit_surface(
         for (const auto& source : garments) {
             const auto& indices = vertex_cohorts.at(source.first);
             const auto same_surface = [&](std::size_t index) {
-                return source.first == target_part && layer_roots[index] == target_root;
+                return layer_roots[index] == target_root;
             };
             for (const auto index : std::set<std::size_t>(indices.begin(), indices.end())) {
                 if (!same_surface(index)) bind_layer({{index, index, index}, {1.0, 0.0, 0.0}}, source.first);
@@ -3480,6 +3656,9 @@ void mesh_editor_relieve_refit_surface(
                     throw MeshRefitBandCrossing();
             }
         }
+        for (const auto& span : rim_spans) if (active_rim(span)
+                && std::abs(length_vec3(rim_delta(span)) - span.length) > tolerance * 8.0)
+            throw MeshRefitContactFailure("Fit to body: a cloth rim cannot preserve its thickness and clearance; previous preview retained");
         if (fitting_masks) for (const auto& group : rigid_groups) {
             std::vector<Vec3> source, target;
             Vec3 a{}, b{};
@@ -3991,6 +4170,9 @@ void mesh_editor_relieve_refit_surface(
                 for (std::size_t i=0;i<cohorts.size();++i) cohorts[i].position = add_vec3(previous[i],correction[i]);
                 project_details(maximum_correction,false);
             }
+            // Keep the rim constraint in the contact solve. A cosmetic repair
+            // after validation could put its inner edge back inside the body.
+            project_rims(maximum_correction);
             guard_contact_step(previous);
         }
         // The padded contact target and diffusion residual are numerical
@@ -4270,13 +4452,121 @@ std::set<int> mesh_editor_morph_runtime_indices(
     return indices;
 }
 
+// PAC vertices can be duplicated at UV and material seams. Rebuilding normals
+// independently on either side turns an authored smooth seam into a hard edge.
+// Share area-weighted normals only where both poses still meet and the authored
+// normals agree. Deliberate hard edges and opposite-facing linings stay separate.
+void mesh_editor_refresh_morph_normals(
+    std::map<int, MeshSessionSubmesh>& submeshes,
+    const std::map<int, std::vector<Vec3>>& before,
+    std::map<int, std::shared_ptr<const std::vector<Vec3>>>& neutral_normals
+) {
+    if (std::none_of(before.begin(), before.end(), [&](const auto& part) {
+        return part.second != submeshes.at(part.first).vertices;
+    })) return;
+    std::map<int, std::vector<Vec3>> weighted;
+    std::map<int, std::vector<bool>> affected;
+    Vec3 minimum{INFINITY, INFINITY, INFINITY}, maximum{-INFINITY, -INFINITY, -INFINITY};
+    for (const auto& part : before) {
+        const auto& mesh = submeshes.at(part.first);
+        if (!neutral_normals.count(part.first))
+            neutral_normals[part.first] = std::make_shared<const std::vector<Vec3>>(mesh.normals);
+        auto& normals = weighted[part.first];
+        normals.resize(mesh.vertices.size());
+        auto& moved = affected[part.first];
+        moved.resize(mesh.vertices.size(), false);
+        for (const auto& face : mesh.faces) {
+            const Vec3 normal = face_cross(mesh.vertices[face[0]], mesh.vertices[face[1]], mesh.vertices[face[2]]);
+            const bool changed = std::any_of(face.begin(), face.end(), [&](const auto i) {
+                return mesh.vertices[i] != part.second[i];
+            });
+            for (const auto i : face) {
+                normals[i] = add_vec3(normals[i], normal);
+                moved[i] = moved[i] || changed;
+            }
+        }
+        for (const auto& point : part.second) for (int c = 0; c < 3; ++c) {
+            minimum[c] = std::min(minimum[c], point[c]);
+            maximum[c] = std::max(maximum[c], point[c]);
+        }
+    }
+    if (weighted.empty()) return;
+    const double tolerance = std::max(1.0e-9, length_vec3(sub_vec3(maximum, minimum)) * 1.0e-6);
+    struct Vertex { int part; std::size_t index, root; Vec3 normal; };
+    std::vector<Vertex> vertices;
+    std::map<std::tuple<long long, long long, long long>, std::vector<std::size_t>> buckets;
+    const auto root_of = [&](std::size_t i) {
+        while (vertices[i].root != i) {
+            vertices[i].root = vertices[vertices[i].root].root;
+            i = vertices[i].root;
+        }
+        return i;
+    };
+    for (const auto& part : weighted) {
+        const auto& mesh = submeshes.at(part.first);
+        for (std::size_t i = 0; i < part.second.size(); ++i) {
+            const auto& authored_normals = *neutral_normals.at(part.first);
+            Vec3 normal = i < authored_normals.size() ? authored_normals[i] : Vec3{};
+            const double length = length_vec3(normal);
+            if (length > 1.0e-12) normal = scale_vec3(normal, 1.0 / length);
+            const auto id = vertices.size();
+            vertices.push_back({part.first, i, id, normal});
+            const Vec3 point = before.at(part.first)[i];
+            std::array<long long, 3> key{};
+            for (int c = 0; c < 3; ++c) key[c] = static_cast<long long>(std::floor(point[c] / tolerance));
+            bool matched = false;
+            // Retain one representative per matching seam, so duplicated
+            // vertices do not cause a quadratic search on dense imports.
+            if (length > 1.0e-12) for (int x = -1; x <= 1 && !matched; ++x)
+                for (int y = -1; y <= 1 && !matched; ++y) for (int z = -1; z <= 1 && !matched; ++z) {
+                const auto found = buckets.find({key[0] + x, key[1] + y, key[2] + z});
+                if (found == buckets.end()) continue;
+                for (const auto j : found->second) {
+                    const auto& other = vertices[j];
+                    if (dot_vec3(normal, other.normal) < 0.999
+                        || distance_squared_vec3(point, before.at(other.part)[other.index]) > tolerance * tolerance
+                        || distance_squared_vec3(mesh.vertices[i], submeshes.at(other.part).vertices[other.index]) > tolerance * tolerance)
+                        continue;
+                    const auto a = root_of(id), b = root_of(j);
+                    vertices[std::max(a, b)].root = std::min(a, b);
+                    matched = true;
+                    break;
+                }
+            }
+            if (!matched && length > 1.0e-12) buckets[{key[0], key[1], key[2]}].push_back(id);
+        }
+    }
+    std::vector<Vec3> sums(vertices.size());
+    std::vector<bool> changed(vertices.size(), false);
+    for (std::size_t i = 0; i < vertices.size(); ++i) {
+        const auto& vertex = vertices[i];
+        auto& sum = sums[root_of(i)];
+        sum = add_vec3(sum, weighted.at(vertex.part)[vertex.index]);
+        changed[root_of(i)] = changed[root_of(i)] || affected.at(vertex.part)[vertex.index];
+    }
+    for (std::size_t i = 0; i < vertices.size(); ++i) {
+        const auto& vertex = vertices[i];
+        const Vec3 sum = sums[root_of(i)];
+        const double length = length_vec3(sum);
+        const auto& previous = submeshes.at(vertex.part).normals;
+        weighted.at(vertex.part)[vertex.index] = !changed[root_of(i)] && vertex.index < previous.size()
+            ? previous[vertex.index] : length > 1.0e-12 ? scale_vec3(sum, 1.0 / length)
+                : dot_vec3(vertex.normal, vertex.normal) > 0.5 ? vertex.normal : Vec3{0.0, 1.0, 0.0};
+    }
+    for (auto& part : weighted) {
+        auto& mesh = submeshes.at(part.first);
+        mesh.normals = mesh.faces.empty() ? std::vector<Vec3>{} : std::move(part.second);
+    }
+}
+
 SubmeshMeshEditResult mesh_editor_morph_sparse_result(
     int submesh_index,
     MeshSessionSubmesh& submesh,
     const std::vector<Vec3>& before,
     const std::string& action,
     const std::string& delta_output_dir,
-    const std::string& session_id
+    const std::string& session_id,
+    const std::vector<Vec3>& before_normals
 ) {
     SubmeshMeshEditResult result;
     result.index = submesh_index;
@@ -4284,7 +4574,9 @@ SubmeshMeshEditResult mesh_editor_morph_sparse_result(
     result.sparse = true;
     result.resident_sparse = true;
     for (std::size_t vertex_index = 0; vertex_index < submesh.vertices.size(); ++vertex_index) {
-        if (before[vertex_index] == submesh.vertices[vertex_index]) continue;
+        const bool normal_changed = vertex_index < submesh.normals.size()
+            && (vertex_index >= before_normals.size() || before_normals[vertex_index] != submesh.normals[vertex_index]);
+        if (before[vertex_index] == submesh.vertices[vertex_index] && !normal_changed) continue;
         result.changed_vertices.push_back(static_cast<int>(vertex_index));
         result.before_positions.push_back(before[vertex_index]);
         result.changed_positions.push_back(submesh.vertices[vertex_index]);
@@ -4296,7 +4588,6 @@ SubmeshMeshEditResult mesh_editor_morph_sparse_result(
     }
     if (!result.changed_vertices.empty()) {
         if (!submesh.faces.empty()) {
-            submesh.normals = compute_smooth_normals(submesh.vertices, submesh.faces);
             result.preview_normals = submesh.normals;
         } else {
             submesh.normals.clear();
@@ -4517,23 +4808,27 @@ std::vector<SubmeshMeshEditResult> mesh_editor_recompose_morph(
     else mesh_editor_apply_refit_corrections(fitting, submeshes, residual, new_layer, post_refit);
     for (const auto& item : new_layer) indices.insert(item.first);
     std::vector<SubmeshMeshEditResult> results;
+    std::map<int, std::vector<Vec3>> before, before_normals;
     for (const int index : indices) {
         auto current = submeshes.find(index);
         const auto residual_item = residual.find(index);
         if (current == submeshes.end() || residual_item == residual.end()) continue;
-        const std::vector<Vec3> before = current->second.vertices;
-        const std::vector<Vec3> zero = mesh_editor_zero_morph_layer(before.size());
+        before[index] = current->second.vertices;
+        before_normals[index] = current->second.normals;
+        const std::vector<Vec3> zero = mesh_editor_zero_morph_layer(before[index].size());
         const std::vector<Vec3>& layer = mesh_editor_morph_layer_for_submesh(new_layer, index, zero);
-        if (layer.size() != before.size()) throw std::runtime_error("procedural morph layer size mismatch");
-        for (std::size_t vertex_index = 0; vertex_index < before.size(); ++vertex_index) {
+        if (layer.size() != before[index].size()) throw std::runtime_error("procedural morph layer size mismatch");
+        for (std::size_t vertex_index = 0; vertex_index < before[index].size(); ++vertex_index) {
             current->second.vertices[vertex_index] = add_vec3(residual_item->second[vertex_index], layer[vertex_index]);
         }
-        SubmeshMeshEditResult result = mesh_editor_morph_sparse_result(
-            index, current->second, before, action, delta_output_dir, session_id
-        );
-        if (!result.changed_vertices.empty()) results.push_back(std::move(result));
         next.neutral_positions[index] = residual_item->second;
         next.composed_positions[index] = current->second.vertices;
+    }
+    mesh_editor_refresh_morph_normals(submeshes, before, next.neutral_normals);
+    for (const auto& part : before) {
+        auto result = mesh_editor_morph_sparse_result(part.first, submeshes.at(part.first), part.second,
+            action, delta_output_dir, session_id, before_normals.at(part.first));
+        if (!result.changed_vertices.empty()) results.push_back(std::move(result));
     }
     next.current_layer = std::move(new_layer);
     next.unbaked = mesh_editor_morph_layer_has_value(next.current_layer);

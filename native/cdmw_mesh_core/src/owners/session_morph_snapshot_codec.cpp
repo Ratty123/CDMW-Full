@@ -192,6 +192,10 @@ std::string mesh_editor_morph_runtime_snapshot_payload(const MeshEditorSession& 
         mesh_editor_write_snapshot_vec3s(out, item.second);
         out << ",\"composed_positions\":";
         mesh_editor_write_snapshot_vec3s(out, submeshes.at(item.first).vertices);
+        if (const auto normals = morph.neutral_normals.find(item.first); normals != morph.neutral_normals.end()) {
+            out << ",\"neutral_normals\":";
+            mesh_editor_write_snapshot_vec3s(out, *normals->second);
+        }
         out << '}';
     }
     out << "],\"driver_submesh_indices\":";
@@ -592,6 +596,12 @@ std::shared_ptr<MeshMorphRuntime> mesh_editor_morph_runtime_from_snapshot(
             }
             runtime->neutral_positions[index] = std::move(neutral);
             runtime->composed_positions[index] = visible;
+            if (const auto* raw_normals = row.get("neutral_normals")) {
+                auto normals = mesh_editor_snapshot_vec3s(*raw_normals, "neutral normals");
+                if (!normals.empty() && normals.size() != visible.size())
+                    throw std::runtime_error("morph runtime snapshot normal topology does not match");
+                runtime->neutral_normals[index] = std::make_shared<const std::vector<Vec3>>(std::move(normals));
+            }
         }
     }
     runtime->driver_submesh_indices = mesh_editor_snapshot_submesh_set(
