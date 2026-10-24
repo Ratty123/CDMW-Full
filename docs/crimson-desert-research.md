@@ -2015,6 +2015,11 @@ metadata validity, synchronization and lifetime remain unqualified. The
 [placement/source checkpoint](../beta-progress/cditem-execution-goal.md#ordinary-dll-placement-and-allocator-source-2026-10-24)
 records exact receipts and the remaining native prerequisites.
 
+The bounded TLS-initializer capture also joins 31 instructions: its guard store
+precedes a list of nineteen callback cells, without a local heap-pointer check.
+The numeric loader TLS index is unobserved. Completed readiness, exception
+behavior, ownership and ordinary-caller lifetime remain unqualified.
+
 A separate [owned Cache and Router continuation](../beta-progress/cditem-execution-goal.md#owned-cache-and-router-continuation-2026-10-24)
 is source/linked reviewed and compiled. It retains one fresh Cache through
 dormant preparation and checked local activation under its own publication lock;

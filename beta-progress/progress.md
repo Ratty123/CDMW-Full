@@ -118,6 +118,11 @@ backing provenance and lifetime remain open.
 See the [exact placement and source evidence](cditem-execution-goal.md#ordinary-dll-placement-and-allocator-source-2026-10-24).
 Game routing, resource use, lifetime and native admission remain open.
 
+The bounded TLS-initializer capture joins 31 instructions and places its guard
+store before a list of nineteen callback cells. It supplies no local heap readiness
+check or numeric loader TLS index. Ordinary native caller context, exception
+behavior, ownership and lifetime remain open.
+
 The separate [owned Cache and Router continuation](cditem-execution-goal.md#owned-cache-and-router-continuation-2026-10-24)
 passes source/linked review and its strict build. It retains one fresh Cache
 across a versioned local activation API; old Stage guards remain intact. The

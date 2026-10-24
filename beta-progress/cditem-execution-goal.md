@@ -1196,8 +1196,32 @@ remain symbolic; no live region, backing or lifetime was observed.
 - Independent region-descriptor review: `api-source-review/20261024-family0-region-descriptor-independent-v1/independent-review-v1.json`,
   82,540 bytes, SHA-256 `4a1795430197f72f83b2058ab1c4bdced98d21099da74b3df5651efc9360bf30`.
 
+Independent source review passes TLS entry `0x1448953C4`, its argument adapter
+and root `0x14489535C..0x1448953C2`: 121 bytes/31 instructions, with root row
+174331. The adapters supply full arguments zero, two and zero. The root sets
+selected TLS byte `+0x98=1` before traversing nineteen callback pointer cells.
+Each nonnull candidate goes through a separate indirect dispatch slot. The
+normal-return path does not validate a callback result or the heap at `+0x90`.
+The allocation caller reads its retained TLS block's `+0x90` afterward; identity
+with the initializer's reloaded block requires stable loader TLS bindings.
+
+The dynamic index cell at `0x146C88C50` lies beyond its section's file-backed
+extent. A first sealing attempt stopped at that strict boundary; the corrected
+capture records only virtual metadata and no numeric file/live index. Existing
+code bytes were retained. Standard unwind names a language handler, whose
+payload semantics and callback effects remain unqualified. This source ordering
+does not establish a game defect or completed allocator readiness. The real
+Cache integration still needs the selected native entrant's context, heap
+ownership, initialization, serialization and lifetime contract.
+
+- TLS-initializer source: `api-source-review/20261024-family0-tls-initializer-v1/source-capture-result-v1.json`,
+  46,519 bytes, SHA-256 `e3e8c6cf79e7fa865629726bd3c027bd14560e7be610bb8e565cf8e791d0477a`.
+- Independent TLS-initializer review: `api-source-review/20261024-family0-tls-initializer-independent-v1/independent-review-v1.json`,
+  21,432 bytes, SHA-256 `56698f5131ed08d43220932276e447c640a3c882e3d872d31c326620f2634b3d`.
+
 Returned-descriptor helper `0x1447F3348`, alternate factory `0x1447F296C`,
-threshold helper `0x1447F4700`, class/context preparation and the separate
+threshold helper `0x1447F4700`, the heap's selected TLS initializer and lifetime,
+class/context preparation and the separate
 context queue retain selected source questions. A natural stock cold caller,
 durable Cache/Router activation, coherent publication, actual resource use and
 the full native two-package/save lifecycle remain open. Production

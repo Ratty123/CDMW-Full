@@ -170,6 +170,11 @@ backing provenance, metadata validity, nonzero size and lifetime remain
 unqualified. No game installation or acceptance changed. Exact pins and limits are
 in the [placement and allocator checkpoint](cditem-execution-goal.md#ordinary-dll-placement-and-allocator-source-2026-10-24).
 
+The bounded TLS-initializer capture shows its guard store preceding a list of
+nineteen callback cells, without a local heap-pointer check. The numeric loader
+TLS index is unobserved. Completed readiness, exception behavior, ownership and
+ordinary-caller lifetime remain unqualified.
+
 A separate [owned Cache and Router continuation](cditem-execution-goal.md#owned-cache-and-router-continuation-2026-10-24)
 is source/linked reviewed and compiled. It retains one fresh Cache and requires
 checked local activation under its own publication transaction, without adopting

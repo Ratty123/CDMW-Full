@@ -305,6 +305,11 @@ provenance, coherent size, serialization and lifetime stay open. The
 [current evidence checkpoint](cditem-execution-goal.md#ordinary-dll-placement-and-allocator-source-2026-10-24)
 owns exact pins and limits. Game publication and admission stay open.
 
+The bounded TLS-initializer capture also shows `+0x98=1` preceding a list of
+nineteen callback cells, without a local `+0x90` heap check. The loader's numeric
+TLS index has no file-backed value; initialization, exception behavior, heap
+ownership and ordinary-caller lifetime remain open.
+
 The [owned Cache and Router continuation](cditem-execution-goal.md#owned-cache-and-router-continuation-2026-10-24)
 is now source/linked reviewed and compiled, with a fresh once-configured Cache,
 dormant stock forwarding and mandatory checking before its publication lock

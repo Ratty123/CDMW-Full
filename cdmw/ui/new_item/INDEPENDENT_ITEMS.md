@@ -1588,7 +1588,7 @@ incomplete AF1 controller. Its configure-once API cannot adopt the populated
 private cells/witnesses into a final-shape continuation. A concrete durable
 Cache/Router activation contract must cover later hot/cold getter/bulk use,
 allocator/TLS/source validity and borrowed lifetimes before native admission.
-The identical native backend has a separate retained B81 family-zero witness for
+The underlying native callback API has a separate retained B81 family-zero witness for
 controlled rematerialization on two different threads, both TLS selector zero.
 That selected callback evidence does not establish arbitrary later getter/bulk
 thread validity or final-owner publication.
@@ -1652,6 +1652,11 @@ proving identity with returned `M`. Post-call R11 preservation stays unresolved.
 Descriptor/backing provenance, coherent nonzero size and lifetime remain
 unqualified. See the [exact placement/source scope](../../../beta-progress/cditem-execution-goal.md#ordinary-dll-placement-and-allocator-source-2026-10-24).
 
+The bounded TLS-initializer capture joins 31 instructions. Its `+0x98` guard
+store precedes a list of nineteen callback cells, without a local `+0x90` heap
+check. The loader's numeric TLS index is unobserved. This supplies no completed
+native context, exception, ownership or lifetime contract for a fresh Cache.
+
 A separate [owned Cache and Router continuation](../../../beta-progress/cditem-execution-goal.md#owned-cache-and-router-continuation-2026-10-24)
 is source/linked reviewed and compiled. It retains one fresh Cache through a
 versioned local activation transaction; it neither adopts old Stage witnesses
@@ -1660,6 +1665,18 @@ resource-guard refusal, including later-worker hot/evict/cold behavior. Independ
 actual review passes 62 current pins, raw child/exit joins and lifecycle/refusal
 assertions without material defects. Actual engine context, reader coverage, central routing,
 resource use and lifetime remain unqualified.
+
+This diagram describes only that owned fixture's lifecycle:
+
+```mermaid
+flowchart TD
+    C["Configure one fresh Cache and full-lifetime toy callbacks"] --> S["Stage four private rows; counts N, cookie and capacity F"]
+    S --> D["Prepare dormant Router; retain the same Cache"]
+    D --> P["Router owns Publication and holds Gate"]
+    P --> A["Store final shape and local activation scalar"]
+    A --> V["Verify shape, metadata, context and witnesses before unlock"]
+    V --> L["Later owned worker: hot access, eviction, cold rematerialization"]
+```
 
 A first external sword package also passes actual full import, four hand/sheath
 attachment checks and exact package/model/texture readback with a persistent
@@ -1714,13 +1731,14 @@ that expiry zero permits sampled eviction and a hot getter does not refresh it;
 eager loading is insufficient for future private rematerialization. The later
 ItemInfo finalizer also needs manager state beyond the old private 0xA0 descriptor.
 
-First qualify actual original-header reservation with four extra null slots:
-keep logical counts/maps N, primary cookie N+4 and metadata capacity at least N+4. Getter,
-bulk and maintenance use N, while reset/destruction uses the cookie. A reserved
-observer must validate that exact shape; unmodified Snapshot/Router refuse it.
-Actual typed forwards and cleanup entry thunks need their own proof before
-private rows are staged in those slots. Metadata-reserve Bool false is a normal
-no-growth result. The
+The retained B120 capture already qualifies original-header reservation with
+four extra null slots: logical counts/maps N, primary cookie N+4 and metadata
+capacity N+4. Getter, bulk and maintenance use N, while reset/destruction uses
+the cookie. Its reserved observer validates that exact shape; the old
+Snapshot/B78 Router contracts still refuse it. B121 separately demonstrates
+checked private staging in those slots. Neither capture establishes cleanup
+execution, final-owner activation or ordinary reader lifetime. Metadata-reserve
+Bool false is a normal no-growth result. The
 [execution checkpoint](../../../beta-progress/cditem-execution-goal.md#resumed-with-direct-authority-2026-10-23)
 owns exact source/capture/restoration pins and the retained failed controls.
 

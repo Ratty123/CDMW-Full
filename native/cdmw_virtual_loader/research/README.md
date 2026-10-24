@@ -393,6 +393,11 @@ remain unqualified. The
 [placement/source checkpoint](../../../beta-progress/cditem-execution-goal.md#ordinary-dll-placement-and-allocator-source-2026-10-24)
 retains the exact evidence and the stopped, unqualified publication draft.
 
+The bounded TLS-initializer capture places its guard store before a list of
+nineteen callback cells and has no local heap-pointer check. The numeric loader
+TLS index is unobserved. Completed initialization, exception behavior, heap
+ownership and ordinary-caller lifetime remain unqualified.
+
 The [owned Cache and Router continuation](../../../beta-progress/cditem-execution-goal.md#owned-cache-and-router-continuation-2026-10-24)
 passes source/linked review and its strict build. A fresh Cache is retained
 through dormant preparation and versioned local activation, with mandatory
