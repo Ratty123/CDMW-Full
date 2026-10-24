@@ -77,6 +77,7 @@ def read_v2(meta, blobs, *, stop_event=None):
     item_properties(meta)
     item_stats(meta)
     item_inventory(meta)
+    item_definition(meta)
     from cdmw.services.independent_texture_package import read_texture_modules
     texture_keys = read_texture_modules(meta, blobs, stop_event=stop_event)
     legacy_keys = set()
@@ -214,6 +215,20 @@ def item_inventory(manifest):
                 raise ValueError('Stack count cannot be edited through both legacy and inventory settings.')
         return {'inventory_settings': settings}
     except (ValueError, KeyError, TypeError) as exc:
+        raise IndependentItemError(str(exc)) from exc
+
+
+def item_definition(manifest):
+    modules = manifest['modules']
+    definitions = [module for module in modules if module['type'] == 'item.definition']
+    if not definitions:
+        return {}
+    if len(definitions) != 1 or not any(module['type'] == 'item.legacy' for module in modules):
+        raise IndependentItemError('Item definition requires one module and its owned legacy item.')
+    from cdmw.domain.new_item.item_definition import decode_definition_settings
+    try:
+        return {'definition_settings': decode_definition_settings(definitions[0]['data'])}
+    except ValueError as exc:
         raise IndependentItemError(str(exc)) from exc
 
 

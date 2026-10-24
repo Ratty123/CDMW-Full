@@ -157,6 +157,7 @@ class _Planner(EffectPlanningMixin):
     independent: bool = False
     owned_resource_bytes: int = 0
     private_texture_copies: Dict[str, str] = field(default_factory=dict)
+    definition_text: object = None
 
     def allocate_owned_keys(self, namespace, symbols, used):
         if self.identity_bindings is None:
@@ -393,7 +394,7 @@ class _Planner(EffectPlanningMixin):
     def _apply_row_edits(self, row_bytes: bytes) -> bytes:
         spec = self.spec
         row = parse_iteminfo_row(row_bytes, item_keys=set(self.snapshot.rows) | {int(spec.item_key)},
-                                 structured=spec.item_settings is not None or spec.stat_settings is not None or spec.inventory_settings is not None)
+                                 structured=any(value is not None for value in (spec.item_settings, spec.stat_settings, spec.inventory_settings, spec.definition_settings)))
         from cdmw.domain.new_item.item_properties import property_values
         properties = property_values(spec)
         if any(value is not None for value in properties.values()):
@@ -511,6 +512,12 @@ class _Planner(EffectPlanningMixin):
             raw = set_item_inventory(raw, self.spec.inventory_settings)
             validate_inventory_dependencies(raw, self.snapshot, stop_event=self.stop_event)
             self.manifest['inventory_settings'] = encode_inventory_settings(self.spec.inventory_settings)
+        if self.spec.definition_settings is not None:
+            from cdmw.services.new_item_definition import apply_definition
+            from cdmw.domain.new_item.item_definition import encode_definition_settings
+            raw, self.definition_text = apply_definition(raw, self.spec.definition_settings, self.snapshot,
+                self.spec.item_key, self.spec.template_key, stop_event=self.stop_event)
+            self.manifest['definition_settings'] = encode_definition_settings(self.spec.definition_settings)
         return raw
 
     def _check_stat_values_against_the_corpus(self) -> None:
@@ -604,6 +611,12 @@ class _Planner(EffectPlanningMixin):
             new_entries = entries_like(table, template.name_key, {str(self.spec.name_key): texts[str(self.spec.name_key)]})
             if len(texts) == 2:
                 new_entries += entries_like(table, template.desc_key, {str(self.spec.desc_key): texts[str(self.spec.desc_key)]})
+            if self.definition_text is not None:
+                definition = self.definition_text
+                source_text = index[definition.source_key].text
+                translated = definition.texts.get(language, definition.texts.get('eng', source_text))
+                new_entries += entries_like(table, definition.source_key, {definition.key: translated})
+                texts[definition.key] = translated
             for source, clone in self.price_perks:
                 for old_key, new_key in ((source.name_key, clone.name_key), (source.desc_key, clone.desc_key)):
                     if not old_key:

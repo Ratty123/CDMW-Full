@@ -4142,6 +4142,16 @@
       ]
     },
     {
+      "key": "A new secondary description needs a source item with an existing secondary-description namespace. The template is used when no other source is selected. Blank language overrides use English or the source text.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/item_definition_editor.py",
+          "line": 120,
+          "sink": "setToolTip"
+        }
+      ]
+    },
+    {
       "key": "A new socket changes nothing on its own — route a part to it, or retarget an animation to it, once it exists.",
       "origins": [
         {
@@ -6062,6 +6072,16 @@
       ]
     },
     {
+      "key": "Add entry",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/item_definition_editor.py",
+          "line": 111,
+          "sink": "QPushButton"
+        }
+      ]
+    },
+    {
       "key": "Add file",
       "origins": [
         {
@@ -7858,6 +7878,16 @@
           "path": "tools/placement_studio/window_playback.py",
           "line": 111,
           "sink": "getOpenFileName:filter-label"
+        }
+      ]
+    },
+    {
+      "key": "All gimmicks sealable",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/item_definition_editor.py",
+          "line": 34,
+          "sink": "tr"
         }
       ]
     },
@@ -20427,6 +20457,16 @@
       ]
     },
     {
+      "key": "Bundle entries",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/item_definition_editor.py",
+          "line": 22,
+          "sink": "tr"
+        }
+      ]
+    },
+    {
       "key": "Bundled authoring components are detected here. Missing components do not block startup or package output.",
       "origins": [
         {
@@ -23873,6 +23913,11 @@
           "path": "cdmw/ui/new_item/effect_workspace.py",
           "line": 299,
           "sink": "setAccessibleName"
+        },
+        {
+          "path": "cdmw/ui/new_item/item_definition_editor.py",
+          "line": 302,
+          "sink": "tr"
         },
         {
           "path": "tools/placement_studio/glossary.py",
@@ -29477,6 +29522,16 @@
       ]
     },
     {
+      "key": "Clear secondary description",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/item_definition_editor.py",
+          "line": 95,
+          "sink": "QPushButton"
+        }
+      ]
+    },
+    {
       "key": "Clear selected garment body regions",
       "origins": [
         {
@@ -34137,6 +34192,16 @@
       ]
     },
     {
+      "key": "Costs",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/item_definition_editor.py",
+          "line": 44,
+          "sink": "tr"
+        }
+      ]
+    },
+    {
       "key": "Could not anchor Bend: {value_0}",
       "origins": [
         {
@@ -35032,6 +35097,16 @@
       ]
     },
     {
+      "key": "Count",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/item_definition_editor.py",
+          "line": 43,
+          "sink": "tr"
+        }
+      ]
+    },
+    {
       "key": "Coupon amount",
       "origins": [
         {
@@ -35048,6 +35123,16 @@
           "path": "cdmw/ui/new_item/shader_controls_editor.py",
           "line": 51,
           "sink": "addRow"
+        }
+      ]
+    },
+    {
+      "key": "Craft tool",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/item_definition_editor.py",
+          "line": 39,
+          "sink": "tr"
         }
       ]
     },
@@ -38662,6 +38747,16 @@
       ]
     },
     {
+      "key": "Delete on gimmick unlock",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/item_definition_editor.py",
+          "line": 34,
+          "sink": "tr"
+        }
+      ]
+    },
+    {
       "key": "Delete one copied geometry layer as a single history action.",
       "origins": [
         {
@@ -39335,6 +39430,16 @@
       "key": "Destroy when broken:",
       "origins": [],
       "manual": true
+    },
+    {
+      "key": "Destruction effect reference",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/item_definition_editor.py",
+          "line": 29,
+          "sink": "tr"
+        }
+      ]
     },
     {
       "key": "Detach / reattach a window",
@@ -42402,6 +42507,16 @@
       ]
     },
     {
+      "key": "Dyeable",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/item_definition_editor.py",
+          "line": 22,
+          "sink": "tr"
+        }
+      ]
+    },
+    {
       "key": "Dyes",
       "origins": [
         {
@@ -43612,6 +43727,16 @@
       ]
     },
     {
+      "key": "Edit the Value column. Select a list to add entries, or select entries to remove them. Use loaded reference choices for known IDs. Respawn and routing values retain unverified raw meanings.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/item_definition_editor.py",
+          "line": 119,
+          "sink": "setToolTip"
+        }
+      ]
+    },
+    {
       "key": "Edit the imported model's surface in preview and export. Uses Plain PBR materials.",
       "origins": [
         {
@@ -43768,6 +43893,16 @@
           "path": "cdmw/ui/archive_browser/hkx_editor_dialog_collision_part_01.py",
           "line": 35,
           "sink": "QTreeWidgetItem"
+        }
+      ]
+    },
+    {
+      "key": "Editable grime",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/item_definition_editor.py",
+          "line": 22,
+          "sink": "tr"
         }
       ]
     },
@@ -44193,6 +44328,16 @@
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_hair.rs",
           "line": 1159,
           "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Editor usable",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/item_definition_editor.py",
+          "line": 24,
+          "sink": "tr"
         }
       ]
     },
@@ -45195,6 +45340,11 @@
           "sink": "QCheckBox"
         },
         {
+          "path": "cdmw/ui/new_item/item_definition_editor.py",
+          "line": 44,
+          "sink": "tr"
+        },
+        {
           "path": "cdmw/ui/new_item/overlay_manager_dialog.py",
           "line": 387,
           "sink": "tr"
@@ -45697,6 +45847,16 @@
       ]
     },
     {
+      "key": "Equip in clone actor",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/item_definition_editor.py",
+          "line": 23,
+          "sink": "tr"
+        }
+      ]
+    },
+    {
       "key": "Equip type: {value_0}",
       "origins": [
         {
@@ -45732,12 +45892,32 @@
       ]
     },
     {
+      "key": "Equipment and sharpness",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/item_definition_editor.py",
+          "line": 76,
+          "sink": "tr"
+        }
+      ]
+    },
+    {
       "key": "Equipment asset:",
       "origins": [
         {
           "path": "tools/placement_studio/move_weapon.py",
           "line": 195,
           "sink": "addRow"
+        }
+      ]
+    },
+    {
+      "key": "Equipment compatibility",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/item_definition_editor.py",
+          "line": 27,
+          "sink": "tr"
         }
       ]
     },
@@ -49467,6 +49647,26 @@
       ]
     },
     {
+      "key": "Extended item definition",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/item_settings_editor.py",
+          "line": 141,
+          "sink": "addTab"
+        }
+      ]
+    },
+    {
+      "key": "Extended item definition groups text and knowledge, linked items and bundles, flags, equipment and sharpness, presentation, and world/economy fields. Load definition references, select a field and check Override selected field. Edit Value; select lists to add entries or select rows to remove them. Uncheck to inherit; an overridden empty list clears. Secondary descriptions need a source item with an existing secondary description; language overrides fall back to English or source text. These settings require item.definition version 1 and preserve earlier packages. Missing or ambiguous references refuse. Raw selectors, money identifiers, routing, respawn units and game/save effects remain unverified.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 84,
+          "sink": "python-return:_build_start_sections"
+        }
+      ]
+    },
+    {
       "key": "Extension",
       "origins": [
         {
@@ -50440,6 +50640,16 @@
       "key": "Facial detail",
       "origins": [],
       "manual": true
+    },
+    {
+      "key": "Faction costs and prices",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/item_definition_editor.py",
+          "line": 37,
+          "sink": "tr"
+        }
+      ]
     },
     {
       "key": "Factor",
@@ -56757,6 +56967,51 @@
       ]
     },
     {
+      "key": "Gimmick",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/item_definition_editor.py",
+          "line": 39,
+          "sink": "tr"
+        },
+        {
+          "path": "cdmw/ui/new_item/item_definition_editor.py",
+          "line": 302,
+          "sink": "tr"
+        }
+      ]
+    },
+    {
+      "key": "Gimmick link",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/item_definition_editor.py",
+          "line": 30,
+          "sink": "tr"
+        }
+      ]
+    },
+    {
+      "key": "Gimmick tags",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/item_definition_editor.py",
+          "line": 30,
+          "sink": "tr"
+        }
+      ]
+    },
+    {
+      "key": "Gimmick unlock message",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/item_definition_editor.py",
+          "line": 35,
+          "sink": "tr"
+        }
+      ]
+    },
+    {
       "key": "Give each Part a different color to see overlaps. Display only; fitting and exports stay unchanged.",
       "origins": [
         {
@@ -61113,6 +61368,16 @@
           "path": "cdmw/ui/texture_editor_tab.py",
           "line": 746,
           "sink": "addItem"
+        }
+      ]
+    },
+    {
+      "key": "Housing only",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/item_definition_editor.py",
+          "line": 23,
+          "sink": "tr"
         }
       ]
     },
@@ -66622,6 +66887,16 @@
       ]
     },
     {
+      "key": "Invalid definition value, range or duplicate entry.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/item_definition_editor.py",
+          "line": 247,
+          "sink": "setText"
+        }
+      ]
+    },
+    {
       "key": "Invalid disabled overlay state.",
       "origins": [
         {
@@ -67462,6 +67737,16 @@
       ]
     },
     {
+      "key": "Inventory routing",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/item_definition_editor.py",
+          "line": 37,
+          "sink": "tr"
+        }
+      ]
+    },
+    {
       "key": "Inventory use buff:",
       "origins": [
         {
@@ -67898,6 +68183,16 @@
           "path": "cdmw/ui/new_item/independent_items_page.py",
           "line": 54,
           "sink": "setHeaderLabels"
+        },
+        {
+          "path": "cdmw/ui/new_item/item_definition_editor.py",
+          "line": 43,
+          "sink": "tr"
+        },
+        {
+          "path": "cdmw/ui/new_item/item_definition_editor.py",
+          "line": 302,
+          "sink": "tr"
         }
       ]
     },
@@ -68238,6 +68533,26 @@
           "path": "cdmw/ui/new_item/effect_item_source.py",
           "line": 183,
           "sink": "RunCancelled"
+        }
+      ]
+    },
+    {
+      "key": "Item effect reference",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/item_definition_editor.py",
+          "line": 29,
+          "sink": "tr"
+        }
+      ]
+    },
+    {
+      "key": "Item flags",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/item_definition_editor.py",
+          "line": 76,
+          "sink": "tr"
         }
       ]
     },
@@ -69827,6 +70142,26 @@
       ]
     },
     {
+      "key": "Knowledge link",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/item_definition_editor.py",
+          "line": 20,
+          "sink": "tr"
+        }
+      ]
+    },
+    {
+      "key": "Knowledge obtain type",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/item_definition_editor.py",
+          "line": 20,
+          "sink": "tr"
+        }
+      ]
+    },
+    {
       "key": "Knowledge:",
       "origins": [
         {
@@ -70049,6 +70384,11 @@
     {
       "key": "Language",
       "origins": [
+        {
+          "path": "cdmw/ui/new_item/item_definition_editor.py",
+          "line": 91,
+          "sink": "setHorizontalHeaderLabels"
+        },
         {
           "path": "cdmw/ui/settings_tab.py",
           "line": 179,
@@ -71577,6 +71917,16 @@
       ]
     },
     {
+      "key": "Linked items and bundles",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/item_definition_editor.py",
+          "line": 75,
+          "sink": "tr"
+        }
+      ]
+    },
+    {
       "key": "Linked mesh: {value_0}",
       "origins": [
         {
@@ -72207,6 +72557,16 @@
       ]
     },
     {
+      "key": "Load definition references",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/item_definition_editor.py",
+          "line": 67,
+          "sink": "QPushButton"
+        }
+      ]
+    },
+    {
       "key": "Load dye presets",
       "origins": [
         {
@@ -72353,6 +72713,16 @@
           "path": "cdmw/ui/new_item/recipe_editor.py",
           "line": 26,
           "sink": "QPushButton"
+        }
+      ]
+    },
+    {
+      "key": "Load references and select a list with an available entry.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/item_definition_editor.py",
+          "line": 364,
+          "sink": "setText"
         }
       ]
     },
@@ -73552,6 +73922,36 @@
       ]
     },
     {
+      "key": "Localization category",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/item_definition_editor.py",
+          "line": 42,
+          "sink": "tr"
+        }
+      ]
+    },
+    {
+      "key": "Localization key",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/item_definition_editor.py",
+          "line": 42,
+          "sink": "tr"
+        }
+      ]
+    },
+    {
+      "key": "Localization number",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/item_definition_editor.py",
+          "line": 42,
+          "sink": "tr"
+        }
+      ]
+    },
+    {
       "key": "Localized names",
       "origins": [
         {
@@ -73643,6 +74043,16 @@
           "path": "cdmw/ui/settings_tab.py",
           "line": 253,
           "sink": "addRow"
+        }
+      ]
+    },
+    {
+      "key": "Logout on use",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/item_definition_editor.py",
+          "line": 26,
+          "sink": "tr"
         }
       ]
     },
@@ -74647,6 +75057,16 @@
       ]
     },
     {
+      "key": "Map icon",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/item_definition_editor.py",
+          "line": 28,
+          "sink": "tr"
+        }
+      ]
+    },
+    {
       "key": "Map skinned and unskinned imported parts to separate game parts to preserve authored skin weights.",
       "origins": [
         {
@@ -74663,6 +75083,16 @@
           "path": "cdmw/services/new_item_dyes.py",
           "line": 74,
           "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Map-icon alert",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/item_definition_editor.py",
+          "line": 28,
+          "sink": "tr"
         }
       ]
     },
@@ -76190,6 +76620,11 @@
       "key": "Maximum",
       "origins": [
         {
+          "path": "cdmw/ui/new_item/item_definition_editor.py",
+          "line": 38,
+          "sink": "tr"
+        },
+        {
           "path": "cdmw/ui/new_item/recipe_editor.py",
           "line": 85,
           "sink": "setHorizontalHeaderLabels"
@@ -76253,6 +76688,16 @@
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_jiggle.rs",
           "line": 18,
           "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Maximum drop subitems",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/item_definition_editor.py",
+          "line": 36,
+          "sink": "tr"
         }
       ]
     },
@@ -80129,6 +80574,11 @@
     {
       "key": "Minimum",
       "origins": [
+        {
+          "path": "cdmw/ui/new_item/item_definition_editor.py",
+          "line": 38,
+          "sink": "tr"
+        },
         {
           "path": "cdmw/ui/new_item/recipe_editor.py",
           "line": 85,
@@ -84128,6 +84578,16 @@
           "path": "tools/placement_studio/window_clips.py",
           "line": 100,
           "sink": "QCheckBox"
+        }
+      ]
+    },
+    {
+      "key": "NPC-drop conversion",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/item_definition_editor.py",
+          "line": 21,
+          "sink": "tr"
         }
       ]
     },
@@ -89842,6 +90302,16 @@
       ]
     },
     {
+      "key": "No target",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/item_definition_editor.py",
+          "line": 302,
+          "sink": "tr"
+        }
+      ]
+    },
+    {
       "key": "No target .pac_xml sidecar was resolved; slot metadata patch is unavailable.",
       "origins": [
         {
@@ -91690,6 +92160,16 @@
       "key": "Objects",
       "origins": [],
       "manual": true
+    },
+    {
+      "key": "Occupied equipment slots",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/item_definition_editor.py",
+          "line": 27,
+          "sink": "tr"
+        }
+      ]
     },
     {
       "key": "Off",
@@ -97105,6 +97585,11 @@
       "key": "Override",
       "origins": [
         {
+          "path": "cdmw/ui/new_item/item_definition_editor.py",
+          "line": 91,
+          "sink": "setHorizontalHeaderLabels"
+        },
+        {
           "path": "cdmw/ui/new_item/item_inventory_editor.py",
           "line": 53,
           "sink": "QCheckBox"
@@ -97187,6 +97672,26 @@
         {
           "path": "cdmw/ui/new_item/item_settings_editor.py",
           "line": 74,
+          "sink": "QCheckBox"
+        }
+      ]
+    },
+    {
+      "key": "Override secondary description",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/item_definition_editor.py",
+          "line": 85,
+          "sink": "QCheckBox"
+        }
+      ]
+    },
+    {
+      "key": "Override selected field",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/item_definition_editor.py",
+          "line": 99,
           "sink": "QCheckBox"
         }
       ]
@@ -98407,6 +98912,16 @@
       ]
     },
     {
+      "key": "Packed item",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/item_definition_editor.py",
+          "line": 21,
+          "sink": "tr"
+        }
+      ]
+    },
+    {
       "key": "Packed mask export preserves independent channel data; review R/G/B/A assignments before saving.",
       "origins": [
         {
@@ -98752,6 +99267,16 @@
       ]
     },
     {
+      "key": "Parameter type",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/item_definition_editor.py",
+          "line": 41,
+          "sink": "tr"
+        }
+      ]
+    },
+    {
       "key": "Parameter {value_0}",
       "origins": [
         {
@@ -98768,6 +99293,11 @@
           "path": "cdmw/ui/archive_browser/pac_xml_editor_composition.py",
           "line": 74,
           "sink": "addTab"
+        },
+        {
+          "path": "cdmw/ui/new_item/item_definition_editor.py",
+          "line": 40,
+          "sink": "tr"
         }
       ]
     },
@@ -100410,6 +100940,11 @@
       "key": "Pattern",
       "origins": [
         {
+          "path": "cdmw/ui/new_item/item_definition_editor.py",
+          "line": 41,
+          "sink": "tr"
+        },
+        {
           "path": "cdmw/ui/shell/about_documentation_en.py",
           "line": 153,
           "sink": "python-return:_build_workflow_core_sections"
@@ -100428,6 +100963,16 @@
           "path": "cdmw/ui/texture_workflow/workflow_profiles_ui.py",
           "line": 380,
           "sink": "QLabel"
+        }
+      ]
+    },
+    {
+      "key": "Pattern descriptions",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/item_definition_editor.py",
+          "line": 30,
+          "sink": "tr"
         }
       ]
     },
@@ -103467,6 +104012,16 @@
       ]
     },
     {
+      "key": "Preorder",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/item_definition_editor.py",
+          "line": 25,
+          "sink": "tr"
+        }
+      ]
+    },
+    {
       "key": "Preparation cancelled",
       "origins": [
         {
@@ -105048,6 +105603,16 @@
           "path": "tools/placement_studio/window_clips.py",
           "line": 358,
           "sink": "showMessage"
+        }
+      ]
+    },
+    {
+      "key": "Presentation",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/item_definition_editor.py",
+          "line": 77,
+          "sink": "tr"
         }
       ]
     },
@@ -108863,6 +109428,16 @@
           "path": "cdmw/ui/new_item/item_settings_editor.py",
           "line": 132,
           "sink": "addTab"
+        }
+      ]
+    },
+    {
+      "key": "Prices",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/item_definition_editor.py",
+          "line": 44,
+          "sink": "tr"
         }
       ]
     },
@@ -115205,6 +115780,11 @@
       "key": "Regeneration",
       "origins": [
         {
+          "path": "cdmw/ui/new_item/item_definition_editor.py",
+          "line": 40,
+          "sink": "tr"
+        },
+        {
           "path": "cdmw/ui/new_item/item_stats_editor.py",
           "line": 44,
           "sink": "addItem"
@@ -116132,6 +116712,11 @@
         {
           "path": "cdmw/ui/new_item/bonus_editor.py",
           "line": 60,
+          "sink": "QPushButton"
+        },
+        {
+          "path": "cdmw/ui/new_item/item_definition_editor.py",
+          "line": 112,
           "sink": "QPushButton"
         },
         {
@@ -119285,6 +119870,11 @@
       "key": "Reset this page",
       "origins": [
         {
+          "path": "cdmw/ui/new_item/item_definition_editor.py",
+          "line": 69,
+          "sink": "QPushButton"
+        },
+        {
           "path": "cdmw/ui/new_item/item_inventory_editor.py",
           "line": 22,
           "sink": "QPushButton"
@@ -120713,6 +121303,16 @@
           "path": "tools/placement_studio/corpus.py",
           "line": 358,
           "sink": "log"
+        }
+      ]
+    },
+    {
+      "key": "Respawn timer (raw u64)",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/item_definition_editor.py",
+          "line": 36,
+          "sink": "tr"
         }
       ]
     },
@@ -123017,6 +123617,16 @@
       ]
     },
     {
+      "key": "Reward loot",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/item_definition_editor.py",
+          "line": 23,
+          "sink": "tr"
+        }
+      ]
+    },
+    {
       "key": "Reward routes must identify distinct supported operations.",
       "origins": [
         {
@@ -125247,6 +125857,16 @@
       ]
     },
     {
+      "key": "Save on use",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/item_definition_editor.py",
+          "line": 26,
+          "sink": "tr"
+        }
+      ]
+    },
+    {
       "key": "Save or Cancel the current garment correction before changing Morph & Refit.",
       "origins": [
         {
@@ -126922,6 +127542,66 @@
       ]
     },
     {
+      "key": "Sealable character targets",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/item_definition_editor.py",
+          "line": 31,
+          "sink": "tr"
+        }
+      ]
+    },
+    {
+      "key": "Sealable gimmick targets",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/item_definition_editor.py",
+          "line": 32,
+          "sink": "tr"
+        }
+      ]
+    },
+    {
+      "key": "Sealable item targets",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/item_definition_editor.py",
+          "line": 31,
+          "sink": "tr"
+        }
+      ]
+    },
+    {
+      "key": "Sealable money values",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/item_definition_editor.py",
+          "line": 33,
+          "sink": "tr"
+        }
+      ]
+    },
+    {
+      "key": "Sealable tag targets",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/item_definition_editor.py",
+          "line": 32,
+          "sink": "tr"
+        }
+      ]
+    },
+    {
+      "key": "Sealable tribe targets",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/item_definition_editor.py",
+          "line": 33,
+          "sink": "tr"
+        }
+      ]
+    },
+    {
       "key": "Search",
       "origins": [
         {
@@ -127653,6 +128333,16 @@
           "path": "cdmw/ui/texture_editor_tab.py",
           "line": 870,
           "sink": "_add_tool_setting_row"
+        }
+      ]
+    },
+    {
+      "key": "Secondary description",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/item_definition_editor.py",
+          "line": 83,
+          "sink": "QGroupBox"
         }
       ]
     },
@@ -133580,6 +134270,11 @@
           "sink": "addRow"
         },
         {
+          "path": "cdmw/ui/new_item/item_definition_editor.py",
+          "line": 181,
+          "sink": "tr"
+        },
+        {
           "path": "tools/placement_studio/window_rig_behaviour.py",
           "line": 129,
           "sink": "setHorizontalHeaderLabels"
@@ -134202,6 +134897,26 @@
       ]
     },
     {
+      "key": "Sharpness",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/item_definition_editor.py",
+          "line": 28,
+          "sink": "tr"
+        }
+      ]
+    },
+    {
+      "key": "Sharpness limit",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/item_definition_editor.py",
+          "line": 39,
+          "sink": "tr"
+        }
+      ]
+    },
+    {
       "key": "Sheathe",
       "origins": [
         {
@@ -134218,8 +134933,13 @@
     },
     {
       "key": "Shield",
-      "origins": [],
-      "manual": true
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/item_definition_editor.py",
+          "line": 24,
+          "sink": "tr"
+        }
+      ]
     },
     {
       "key": "Shininess base",
@@ -137507,6 +138227,16 @@
       ]
     },
     {
+      "key": "Slot indices",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/item_definition_editor.py",
+          "line": 38,
+          "sink": "tr"
+        }
+      ]
+    },
+    {
       "key": "Slot kind",
       "origins": [
         {
@@ -137518,6 +138248,16 @@
           "path": "cdmw/ui/recolor_variants_tab.py",
           "line": 425,
           "sink": "addRow"
+        }
+      ]
+    },
+    {
+      "key": "Slot name",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/item_definition_editor.py",
+          "line": 38,
+          "sink": "tr"
         }
       ]
     },
@@ -138540,6 +139280,11 @@
       "key": "Some optional catalogues are unavailable; other item controls remain usable.",
       "origins": [
         {
+          "path": "cdmw/ui/new_item/item_definition_editor.py",
+          "line": 147,
+          "sink": "setText"
+        },
+        {
           "path": "cdmw/ui/new_item/item_settings_editor.py",
           "line": 182,
           "sink": "setText"
@@ -138688,6 +139433,16 @@
           "path": "cdmw/ui/archive_browser/pac_xml_editor_composition.py",
           "line": 77,
           "sink": "addTab"
+        }
+      ]
+    },
+    {
+      "key": "Source (English)",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/item_definition_editor.py",
+          "line": 91,
+          "sink": "setHorizontalHeaderLabels"
         }
       ]
     },
@@ -140915,6 +141670,11 @@
       "key": "Stat",
       "origins": [
         {
+          "path": "cdmw/ui/new_item/item_definition_editor.py",
+          "line": 41,
+          "sink": "tr"
+        },
+        {
           "path": "cdmw/ui/new_item/item_settings_editor.py",
           "line": 303,
           "sink": "translate_active_ui_text"
@@ -141018,6 +141778,16 @@
           "path": "cdmw/domain/mesh/shader_controls.py",
           "line": 1,
           "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Static counters",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/item_definition_editor.py",
+          "line": 40,
+          "sink": "tr"
         }
       ]
     },
@@ -143012,6 +143782,16 @@
       ]
     },
     {
+      "key": "Tag",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/item_definition_editor.py",
+          "line": 302,
+          "sink": "tr"
+        }
+      ]
+    },
+    {
       "key": "Tagging And Notes",
       "origins": [
         {
@@ -143193,6 +143973,11 @@
           "path": "cdmw/ui/mesh_editor/replace_from_archive_dialog.py",
           "line": 819,
           "sink": "setHorizontalHeaderLabels"
+        },
+        {
+          "path": "cdmw/ui/new_item/item_definition_editor.py",
+          "line": 43,
+          "sink": "tr"
         },
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
@@ -143737,6 +144522,16 @@
       ]
     },
     {
+      "key": "Target type",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/item_definition_editor.py",
+          "line": 43,
+          "sink": "tr"
+        }
+      ]
+    },
+    {
       "key": "Target underlay",
       "origins": [
         {
@@ -143988,6 +144783,11 @@
           "path": "cdmw/ui/new_item/effect_placement_construction.py",
           "line": 98,
           "sink": "setText"
+        },
+        {
+          "path": "cdmw/ui/new_item/item_definition_editor.py",
+          "line": 390,
+          "sink": "tr"
         },
         {
           "path": "cdmw/ui/new_item/item_inventory_editor.py",
@@ -144458,6 +145258,16 @@
           "path": "cdmw/ui/shell/log_controller.py",
           "line": 27,
           "sink": "set_status_message"
+        }
+      ]
+    },
+    {
+      "key": "Text and knowledge",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/item_definition_editor.py",
+          "line": 75,
+          "sink": "tr"
         }
       ]
     },
@@ -151377,6 +152187,16 @@
       ]
     },
     {
+      "key": "These settings require item.definition version 1. Uncheck an override to inherit; an empty overridden list clears it. Counters and selectors are raw source values. References are checked; game and save effects remain unverified.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/item_definition_editor.py",
+          "line": 118,
+          "sink": "setToolTip"
+        }
+      ]
+    },
+    {
       "key": "These settings require item.inventory version 1. Material and reserve-slot references are verified. Tags, consumable types and byte selectors are raw values; in-game effects remain unverified.",
       "origins": [
         {
@@ -153152,6 +153972,16 @@
       ]
     },
     {
+      "key": "Tier",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/item_definition_editor.py",
+          "line": 44,
+          "sink": "tr"
+        }
+      ]
+    },
+    {
       "key": "Tier, Required level and Max durability inherit the template until changed. Reset restores inheritance. These are raw game values; unavailable layouts are disabled and in-game effects remain unverified. Equipment recipes without overrides retain v1 compatibility; extended settings require the corresponding v2 reader.",
       "origins": [
         {
@@ -154187,6 +155017,16 @@
       ]
     },
     {
+      "key": "Tower shield",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/item_definition_editor.py",
+          "line": 25,
+          "sink": "tr"
+        }
+      ]
+    },
+    {
       "key": "Towers",
       "origins": [],
       "manual": true
@@ -154223,6 +155063,16 @@
           "path": "tools/format_explorer/workflows.py",
           "line": 1,
           "sink": "python-presentation:workflow"
+        }
+      ]
+    },
+    {
+      "key": "Trade market",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/item_definition_editor.py",
+          "line": 24,
+          "sink": "tr"
         }
       ]
     },
@@ -154825,6 +155675,16 @@
       "key": "Tree View",
       "origins": [],
       "manual": true
+    },
+    {
+      "key": "Tribe",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/item_definition_editor.py",
+          "line": 302,
+          "sink": "tr"
+        }
+      ]
     },
     {
       "key": "Trim Transparent",
@@ -156788,6 +157648,16 @@
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs",
           "line": 3881,
           "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Unpacked item",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/item_definition_editor.py",
+          "line": 21,
+          "sink": "tr"
         }
       ]
     },
@@ -159117,6 +159987,16 @@
       ]
     },
     {
+      "key": "Use average price",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/item_definition_editor.py",
+          "line": 26,
+          "sink": "tr"
+        }
+      ]
+    },
+    {
       "key": "Use bounded plain paths for the copied-save experiment.",
       "origins": [],
       "manual": true
@@ -159185,6 +160065,16 @@
       "key": "Use disposable copies outside the live save folder.",
       "origins": [],
       "manual": true
+    },
+    {
+      "key": "Use drop target",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/item_definition_editor.py",
+          "line": 35,
+          "sink": "tr"
+        }
+      ]
     },
     {
       "key": "Use edited size",
@@ -159468,6 +160358,16 @@
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui/morph_authoring.rs",
           "line": 348,
           "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Use selected value",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/item_definition_editor.py",
+          "line": 114,
+          "sink": "QPushButton"
         }
       ]
     },
@@ -160628,6 +161528,16 @@
           "path": "cdmw/ui/new_item/effect_recipe_panel.py",
           "line": 147,
           "sink": "setHorizontalHeaderLabels"
+        },
+        {
+          "path": "cdmw/ui/new_item/item_definition_editor.py",
+          "line": 41,
+          "sink": "tr"
+        },
+        {
+          "path": "cdmw/ui/new_item/item_definition_editor.py",
+          "line": 181,
+          "sink": "tr"
         },
         {
           "path": "cdmw/ui/new_item/transparency_painter.py",
@@ -164297,6 +165207,16 @@
       ]
     },
     {
+      "key": "Wild",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/item_definition_editor.py",
+          "line": 25,
+          "sink": "tr"
+        }
+      ]
+    },
+    {
       "key": "Wildlife",
       "origins": [
         {
@@ -164898,6 +165818,16 @@
           "path": "cdmw/ui/settings_tab.py",
           "line": 1109,
           "sink": "_add_settings_page"
+        }
+      ]
+    },
+    {
+      "key": "World and economy",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/item_definition_editor.py",
+          "line": 77,
+          "sink": "tr"
         }
       ]
     },
@@ -171003,6 +171933,11 @@
           "path": "cdmw/services/new_item_acquisition_index.py",
           "line": 45,
           "sink": "optional_pair"
+        },
+        {
+          "path": "cdmw/services/new_item_definition.py",
+          "line": 208,
+          "sink": "_qualified_reference"
         }
       ]
     },
@@ -174090,6 +175025,11 @@
       "key": "gimmickinfo",
       "origins": [
         {
+          "path": "cdmw/services/new_item_definition.py",
+          "line": 206,
+          "sink": "_qualified_reference"
+        },
+        {
           "path": "cdmw/services/new_item_settings.py",
           "line": 198,
           "sink": "_reference"
@@ -175484,6 +176424,21 @@
     {
       "key": "iteminfo",
       "origins": [
+        {
+          "path": "cdmw/services/new_item_definition.py",
+          "line": 225,
+          "sink": "_qualified_reference"
+        },
+        {
+          "path": "cdmw/services/new_item_definition.py",
+          "line": 231,
+          "sink": "_qualified_reference"
+        },
+        {
+          "path": "cdmw/services/new_item_definition.py",
+          "line": 246,
+          "sink": "_qualified_reference"
+        },
         {
           "path": "cdmw/services/new_item_settings.py",
           "line": 193,
@@ -180313,6 +181268,16 @@
           "path": "cdmw/ui/settings_tab.py",
           "line": 1122,
           "sink": "_add_settings_page"
+        }
+      ]
+    },
+    {
+      "key": "patterndescriptioninfo",
+      "origins": [
+        {
+          "path": "cdmw/services/new_item_definition.py",
+          "line": 220,
+          "sink": "_qualified_reference"
         }
       ]
     },
@@ -185274,6 +186239,11 @@
     {
       "key": "statusinfo",
       "origins": [
+        {
+          "path": "cdmw/services/new_item_definition.py",
+          "line": 212,
+          "sink": "_reference"
+        },
         {
           "path": "cdmw/services/new_item_settings.py",
           "line": 177,

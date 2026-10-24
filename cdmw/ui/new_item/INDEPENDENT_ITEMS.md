@@ -416,7 +416,86 @@ retaining package and item identities. Evidence against `08a3c63b` plus this
 extension is constructed rows, exact-byte regressions, headless controls/native
 presentation, and synthetic physical/virtual compilation, rebuild and removal.
 Raw enum/tag meanings, group-parameter semantics, native admission and game/save
-effects remain unverified. Save-at-use and logout-at-use flags remain inherited.
+effects remain unverified. Save-at-use and logout-at-use overrides use the separate
+definition capability below.
+
+### Extended item definition
+
+**Stats & Prices > Item settings > Extended item definition** provides six sections:
+
+| Section | Supported overrides |
+| --- | --- |
+| Text and knowledge | Secondary descriptions, KnowledgeInfo link and raw obtain type. |
+| Linked items and bundles | Packed, unpacked and NPC-drop ItemInfo links; minimum-count/GimmickInfo bundle entries. |
+| Item flags | Dyeability, editable grime, housing, reward loot, clone-actor equipment, market/editor/shield/wild/preorder/average-price flags and save/logout at use. |
+| Equipment and sharpness | Observed compatibility hashes and occupied slot/index pairs; u16 sharpness limit and CraftToolInfo link; maximum, regeneration, static and byte-parameter stats. |
+| Presentation | StringInfo map icon and alert, ItemInfo-level EffectInfo references, pattern descriptions and localized parameters. |
+| World and economy | Gimmick link/tags, all six sealing-target variants, raw money identifiers, unlock message/flags, faction item costs/prices/tier, inventory routing, drop limit/target flag and raw respawn value. |
+
+Choose **Load definition references**, select a section and field, then check
+**Override selected field**. Edit the Value column. Select a list and choose
+**Add entry**, or select one or more entries and choose **Remove selected**.
+Nested list entries can be removed without removing their parent. Select a
+reference cell and choose **Use selected value** for a loaded source ID. Uncheck
+an override to inherit; a checked empty list clears it. Reset restores this page;
+the main Stats reset and template changes clear all definition overrides.
+
+Secondary descriptions have their own override and language table. Select a
+source item with an existing numeric secondary description when the template has
+none. Its observed low-word tag and category are copied; the new high word uses
+the allocated item ID. The code does not guess a secondary-description tag.
+**Source (English)** is a preview, while each blank language override uses the
+English override or that language's source text. **Clear secondary description**
+writes an empty reference. Original source localization remains unchanged.
+
+Portable overrides use one required **`item.definition@1`** module attached to
+`item.legacy@1`. Its data has exactly `fields` and `secondary_description`:
+omitted named fields inherit, while `false`, zero and empty lists are explicit.
+The secondary value is `null` or exactly `{source_item, texts}`; empty `texts`
+clears and requires a null source. At least one override is required. The closed
+field registry and nested wire contracts live in
+[`item_definition.py`](../../domain/new_item/item_definition.py); binary widths
+and generation checks live in
+[`iteminfo_definition.py`](../../core/iteminfo_definition.py).
+Lists are bounded to 256 entries (slots: 8, slot indices: 16, pattern parameters:
+64). Counters retain u64/i64 precision; sharpness parameters are u8. Routing must
+match the source generation's fixed 9/10 u16 entries; a faction tier exists only
+in the current layout. Unknown fields/versions, invalid types, duplicates,
+overflow and unsupported layout/discriminant values refuse. Earlier v1 recipes,
+properties, stats, inventory and field schemas remain frozen. Older readers
+refuse this required capability; older compiled virtual profiles need **Apply
+changes**, retaining package and item IDs.
+The experimental DMM V3 field-JSON exporter retains its existing module allowlist
+and refuses this new capability; use the normal retained-source package workflow.
+
+Planning validates all final declared references, including inherited entries,
+against unblocked ItemInfo and named knowledge/effect/gimmick/local-string/
+character/tribe/pattern tables; CraftToolInfo uses its actual u16 root key.
+Sharpness status keys and localized parameters are checked too. Equipment hashes
+and slot indices must be witnessed in supported source rows. Map icons use a
+StringInfo hash/name, unambiguous UI texture XML binding and validated DDS,
+with bounded, cancellable scans. Relevant table, localization, registry and
+texture payloads are pinned; missing, ambiguous or changed dependencies refuse
+before recipient writes. This establishes direct declared-reference checks,
+not complete recursive EffectInfo/GimmickInfo/skill engine closure.
+
+Sealing entries contain `{target_type, item, count, target}`. The common item
+reference and u64 count precede a target payload: 0 ItemInfo/u32, 1 GimmickInfo/u32,
+2 counted UTF-8 tag, 3 CharacterInfo/u32, 4 TribeInfo/u32, or 5 empty/null.
+The embedded schema's selected branch was insufficient. Read-only static analysis
+of the local **1.0.0.2976** executable at reader RVA `0x1531f00` matched the
+schema's read/call sites and resolved this dispatch; this is function-level
+agreement, not whole-build equivalence with CDKit's 3790 metadata. Unsupported
+discriminants refuse. No game code or ASI was executed.
+
+Evidence against `da6a54c6` plus this scoped extension is independently constructed
+legacy/current rows, exact-byte preservation/resizing, closed package admission,
+both owned-fixture deployment/rebuild/removal routes and real headless
+controls/native presentation. The respawn field remains a raw u64; its name does
+not establish seconds or floating-point encoding. Money identifiers and routing
+selectors have no invented namespace/enum labels. Gameplay meanings, complete
+engine closure, native admission and save acceptance remain unverified. No
+packaging, visible UI or game validation was performed for this extension.
 
 Unknown required features, module types and versions refuse before allocation.
 Optional behavior also refuses until a supported explicit alternative exists;

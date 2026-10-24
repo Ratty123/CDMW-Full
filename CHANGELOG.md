@@ -9,6 +9,7 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 ### Added
 
+- Create New Item adds extended item definitions for secondary descriptions, knowledge and item links, bundle entries, item flags, occupied equipment slots, sharpness, presentation references, sealing targets and world/economy fields. Overrides retain existing package compatibility and check supported source references. Raw selectors, counters and game/save effects remain experimental and unverified.
 - Mod Management adds an opt-in, experimental DMM V3 field-JSON export for independent items that reuse existing models and icons. It retains the original `.cditem` sources and IDs, checks dependencies, and refuses unsupported changes. Existing exports and defaults are unchanged; DMM mounting and game behaviour remain unverified.
 
 - Mesh Editor adds Sculpt > Bend: anchor one point and drag another to bend a selected rope or necklace section while retaining its thickness, with Undo/Redo and cancellation.

@@ -102,6 +102,13 @@ class _Walker:
                     raise RecordError('Static item list exceeds the supported bound.')
                 for index in range(count):
                     self.run(body, path + (label or ('list', pc), index), depth + 1)
+            elif code == 'choice':
+                # Closed discriminated payloads. Bodies are application-owned;
+                # package data can select a branch but cannot supply a grammar.
+                selected = values[op[1]]
+                if selected not in op[2]:
+                    raise RecordError('Unsupported item discriminant.')
+                self.run(op[2][selected], path + (('choice', selected),), depth + 1)
             elif code == 'branch':
                 _code, condition, source, compare, destination = op
                 value = values[source]

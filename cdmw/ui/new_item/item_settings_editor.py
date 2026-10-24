@@ -136,6 +136,9 @@ class ItemSettingsEditor(QWidget):
         from cdmw.ui.new_item.item_inventory_editor import ItemInventoryEditor
         self.inventory = ItemInventoryEditor(controller, self)
         self.pages.addTab(self.inventory, 'Inventory and consumables')
+        from cdmw.ui.new_item.item_definition_editor import ItemDefinitionEditor
+        self.definition = ItemDefinitionEditor(controller, self)
+        self.pages.addTab(self.definition, 'Extended item definition')
         self.pages.setToolTip('Raw stored item settings. Unknown layouts and missing dependencies refuse; in-game effects remain unverified.')
         controller.authoring_index_ready.connect(self._ready)
         controller.authoring_index_failed.connect(self._failed)
@@ -237,6 +240,7 @@ class ItemSettingsEditor(QWidget):
         snapshot, draft = self.controller.snapshot, self.controller.draft
         self.stats.rebuild(self.index)
         self.inventory.rebuild()
+        self.definition.rebuild()
         row = snapshot.rows.get(draft.template_key) if snapshot is not None else None
         if row is not self._row:
             self._row = row

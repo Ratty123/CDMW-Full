@@ -29,6 +29,15 @@ class UnsupportedCapability(IndependentItemError):
 
 
 def capability_result(name, version):
+    if name == 'item.definition' and type(version) is int and version == 1:
+        return CapabilityResult(name, version, True,
+            ('Owned item only; existing recipe, property, stat and inventory schemas remain frozen.',
+             'Secondary descriptions use a witnessed source namespace and owned localization keys.',
+             'Linked items, flags, slots/sharpness, presentation and world/economy fields use closed typed layouts.',
+             'Sealing targets are discriminated; reference tables, localization and map-icon resources are checked and pinned.',
+             'Raw enum/counter meanings, complete transitive engine closure and game/save effects remain unverified.'),
+            (EvidenceClaim('adapter', 'Typed ItemInfo definitions', 'iteminfo_definition.py'),
+             EvidenceClaim('synthetic', 'Portable six-area compilation', 'tests/test_independent_item_definition.py')))
     if name == 'item.inventory' and type(version) is int and version == 1:
         return CapabilityResult(name, version, True,
             ('Owned item only; existing recipe, property and stat schemas are unchanged.',

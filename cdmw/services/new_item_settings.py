@@ -75,9 +75,11 @@ def load_settings_index(snapshot, *, stop_event=None):
     return result
 
 
-def _rows(snapshot, table, *, stop_event=None):
+def _rows(snapshot, table, *, stop_event=None, key_width=4):
     raise_if_cancelled(stop_event)
-    cache_key = ('item-settings-table', table)
+    if key_width not in (2, 4):
+        raise RecordError('Unsupported dependency key width.')
+    cache_key = ('item-settings-table', table) if key_width == 4 else ('item-settings-table', table, key_width)
     cached = snapshot._authoring_indexes.get(cache_key)
     if cached is None:
         pair = optional_pair(snapshot, table)
@@ -85,7 +87,7 @@ def _rows(snapshot, table, *, stop_event=None):
         for directory, start, end in parse_pabgh_table(pair.header, payload=pair.payload).row_spans(len(pair.payload)):
             raise_if_cancelled(stop_event)
             raw = pair.payload[start:end]
-            if len(raw) < 4 or int.from_bytes(raw[:4], 'little') != directory.row_id or directory.row_id in rows:
+            if len(raw) < key_width or int.from_bytes(raw[:key_width], 'little') != directory.row_id or directory.row_id in rows:
                 raise RecordError(f'{table} has an unqualified row identity.')
             rows[directory.row_id] = raw
         raise_if_cancelled(stop_event)

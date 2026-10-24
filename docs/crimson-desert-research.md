@@ -1111,8 +1111,30 @@ Complete declared-field resizing preserves unassigned bytes; all earlier package
 schemas stay frozen. Constructed legacy/current rows, headless/native-presentation
 controls and both synthetic deployment/rebuild/removal routes provide scoped
 proof. Tag/type namespaces, byte enum names, group-parameter semantics, native
-admission and game/save effects remain open. Save-at-use/logout-at-use fields
-remain inherited.
+admission and game/save effects remain open. Save-at-use/logout-at-use overrides
+use the separate definition capability below.
+
+Definition extension, 2026-10-24, against `da6a54c6` plus the scoped adapters:
+`item.definition@1` covers secondary descriptions/knowledge, item links/bundles,
+remaining flags, occupied slots/compatibility and sharpness, presentation
+references, and world/economy fields. All earlier recipe/capability schemas stay
+frozen. Secondary text takes an observed source namespace and owns new numeric
+localization keys. Direct typed references are checked and source-pinned;
+CraftToolInfo has a u16 key, map icons resolve through StringInfo and UI texture
+XML/DDS, and missing/ambiguous/changed dependencies refuse. Equipment hashes and
+indices must be witnessed in supported source rows.
+
+Read-only static inspection of the local **1.0.0.2976** executable resolved the
+sealing reader at RVA `0x1531f00`: a common ItemInfo reference and u64 count are
+followed by item (0), gimmick (1), UTF-8 tag (2), character (3), tribe (4), or empty
+(5) payloads. Read sites and typed call targets agree with the embedded schema;
+this is function-level evidence, not equivalence to the complete build 3790
+executable. Unknown discriminants refuse. Independent legacy/current byte
+fixtures, headless/native-presentation editing, closed admission and both owned
+deployment/rebuild/removal routes establish source support. Respawn stays raw
+u64, sealing money stays raw u32, and inventory routing stays a generation-sized
+u16 array. Enum meanings, timer units, recursive engine closure, native admission
+and game/save effects remain open. No ASI/game execution or packaging occurred.
 
 Historical game observations establish acceptance of selected appended item/string
 records and shop substitutions. They do not establish arbitrary table rewrites.

@@ -300,6 +300,12 @@ def validate_spec(spec: NewItemSpec) -> Tuple[ValidationIssue, ...]:
                 raise ValueError('Stack count cannot be edited through both legacy and inventory settings.')
         except (ValueError, TypeError) as exc:
             issues.append(_issue('item_inventory.invalid', 'inventory_settings', str(exc)))
+    if spec.definition_settings is not None:
+        from cdmw.domain.new_item.item_definition import encode_definition_settings
+        try:
+            encode_definition_settings(spec.definition_settings)
+        except (ValueError, TypeError) as exc:
+            issues.append(_issue('item_definition.invalid', 'definition_settings', str(exc)))
     for name, maximum in PROPERTY_LIMITS.items():
         value = getattr(spec, name)
         if value is not None and (type(value) is not int or not 0 <= value <= maximum):

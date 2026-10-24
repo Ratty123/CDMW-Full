@@ -1114,6 +1114,22 @@ Existing recipe, property, stat and field schemas remain unchanged; older reader
 refuse the new capability. This is source/headless/owned-fixture support, without
 native admission or game/save proof.
 
+**Item settings > Extended item definition** groups secondary descriptions and
+knowledge, linked items and bundles, flags, equipment and sharpness, presentation,
+and world/economy data. Load definition references, select a section and field,
+then check **Override selected field**. Edit the Value column; select a list to
+add entries or select rows to remove them. Nested entries are edited and removed
+independently. Loaded reference choices supply known IDs. Uncheck an override to
+inherit; an overridden empty list clears it. Secondary descriptions use a source
+item with an observed secondary-description namespace and receive owned localized
+keys. **Source (English)** shows the source text; blank language overrides fall
+back to English or that language's source text. The separate
+[`item.definition@1` capability](INDEPENDENT_ITEMS.md#extended-item-definition)
+preserves every earlier schema. Map icons require a qualified StringInfo name,
+unambiguous UI texture XML and valid DDS. Raw routing, money identifiers, timers
+and selectors retain unverified meanings; reference validation does not establish
+complete transitive engine closure or native/game/save acceptance.
+
 Stats and gameplay perks are explicitly marked experimental. The Stats page uses
 compact, alternating rows with columns that fill the enhancement card, alongside a
 separate shop-price and stack card. The default view labels ItemInfo values as raw game

@@ -891,6 +891,7 @@ class StatsPanel(QGroupBox):
         draft.item_settings = self.item_settings.default_settings()
         draft.stat_settings = None
         draft.inventory_settings = None
+        draft.definition_settings = None
         draft.own_enhancement_rows = False
         self.own_rows.blockSignals(True)
         self.own_rows.setChecked(False)
