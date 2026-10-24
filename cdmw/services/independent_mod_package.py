@@ -78,6 +78,7 @@ def read_v2(meta, blobs, *, stop_event=None):
     item_stats(meta)
     item_inventory(meta)
     item_definition(meta)
+    item_behavior(meta)
     from cdmw.services.independent_texture_package import read_texture_modules
     texture_keys = read_texture_modules(meta, blobs, stop_event=stop_event)
     legacy_keys = set()
@@ -97,13 +98,13 @@ def read_v2(meta, blobs, *, stop_event=None):
     if len(link_modules) > 1:
         raise IndependentItemError('A package permits only one package.links module.')
     if link_modules:
-        if not any(module['type'] in ('item.legacy', 'item.fields', 'texture.replace') for module in modules):
+        if not any(module['type'] in ('item.legacy', 'item.fields', 'item.overrides', 'texture.replace') for module in modules):
             raise IndependentItemError('Package links require an implemented content module.')
         decode_links(link_modules[0]['data'], meta['identity'], legacy=legacy is not None)
     from cdmw.domain.new_item.iteminfo_operations import MAX_OPERATIONS, decode_assignment
     operation_count = 0
     for module in modules:
-        if module['type'] != 'item.fields':
+        if module['type'] not in ('item.fields','item.overrides'):
             continue
         data = module['data']
         if (not isinstance(data, dict) or set(data) != {'operations'} or not isinstance(data['operations'], list)
@@ -111,6 +112,8 @@ def read_v2(meta, blobs, *, stop_event=None):
             raise IndependentItemError('Invalid ItemInfo field module.')
         identities = set()
         for raw in data['operations']:
+            if not isinstance(raw,dict) or raw.get('kind') != ('field.assign' if module['type']=='item.fields' else 'field.replace'):
+                raise IndependentItemError('The operation kind does not match its frozen capability.')
             operation = decode_assignment(f'{meta["identity"]}/{module["id"]}', raw)
             if operation.identity in identities:
                 raise IndependentItemError('Duplicate ItemInfo operation identity.')
@@ -232,11 +235,23 @@ def item_definition(manifest):
         raise IndependentItemError(str(exc)) from exc
 
 
+def item_behavior(manifest):
+    modules = [module for module in manifest['modules'] if module['type'] == 'item.behavior']
+    if not modules: return {}
+    if len(modules) != 1 or not any(module['type'] == 'item.legacy' for module in manifest['modules']):
+        raise IndependentItemError('Item behavior requires one module and its owned legacy item.')
+    from cdmw.domain.new_item.item_behavior import decode_behavior_settings
+    try:
+        return {'behavior_settings': decode_behavior_settings(modules[0]['data'])}
+    except ValueError as exc:
+        raise IndependentItemError(str(exc)) from exc
+
+
 def package_operations(package):
     if isinstance(package, IndependentItemPackage):
         return []
     return [{'owner': f'{package.identity}/{module["id"]}', 'operations': module['data']['operations']}
-            for module in package.manifest['modules'] if module['type'] == 'item.fields']
+            for module in package.manifest['modules'] if module['type'] in ('item.fields','item.overrides')]
 
 
 def retained_active_packages(root, layers, pending, *, exclude=(), stop_event=None, package_cache=None):

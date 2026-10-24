@@ -47,6 +47,11 @@ def _labels():
 
 class ItemDefinitionEditor(QWidget):
     PATH = Qt.UserRole
+    SETTINGS_ATTRIBUTE = 'definition_settings'
+    SETTINGS_TYPE = ItemDefinitionSettings
+    INDEX_KIND = 'item-definition'
+    READ_FIELDS = staticmethod(read_definition_fields)
+    LABELS = staticmethod(_labels)
     def __init__(self, controller, parent=None):
         super().__init__(parent)
         self.controller = controller
@@ -65,7 +70,7 @@ class ItemDefinitionEditor(QWidget):
         layout = QVBoxLayout(self)
         top = QHBoxLayout()
         self.load = QPushButton('Load definition references')
-        self.load.clicked.connect(lambda: controller.start_authoring_index('item-definition'))
+        self.load.clicked.connect(lambda: controller.start_authoring_index(self.INDEX_KIND))
         self.reset = QPushButton('Reset this page')
         self.reset.clicked.connect(self._reset)
         top.addWidget(self.load); top.addWidget(self.reset); top.addStretch(1)
@@ -125,7 +130,7 @@ class ItemDefinitionEditor(QWidget):
         self._section_changed()
 
     def _section_changed(self):
-        labels = _labels()
+        labels = self.LABELS()
         group = self.section.currentData()
         choices = [(labels[name], name) for name, (_field, section) in FLAGS.items() if section == group]
         choices += [(labels[name], name) for name, (_field, _width, section, _table) in NUMBERS.items() if section == group]
@@ -141,13 +146,16 @@ class ItemDefinitionEditor(QWidget):
         self.rebuild()
 
     def _ready(self, kind, index):
-        if kind == 'item-definition':
+        if kind == self.INDEX_KIND:
             self.index = index
             self.rebuild()
             self.message.setText('Some optional catalogues are unavailable; other item controls remain usable.' if index.unavailable else '')
 
     def _failed(self, kind, message):
-        if kind == 'item-definition': self.message.setText(message)
+        if kind == self.INDEX_KIND: self.message.setText(message)
+
+    def _settings(self):
+        return getattr(self.controller.draft, self.SETTINGS_ATTRIBUTE) or self.SETTINGS_TYPE()
 
     def rebuild(self):
         if self._syncing: return
@@ -165,13 +173,13 @@ class ItemDefinitionEditor(QWidget):
             if snapshot is not self._snapshot: self.index = None
             self._snapshot, self._row = snapshot, row
             self._english = snapshot.english.index() if snapshot is not None else {}
-            try: self._source = read_definition_fields(row.raw) if row else None
+            try: self._source = self.READ_FIELDS(row.raw) if row else None
             except ValueError: self._source = None
         self.setEnabled(self._source is not None)
         self.description.setVisible(self.section.currentData() == 'text')
         self._syncing = True
         try:
-            settings = draft.definition_settings or ItemDefinitionSettings()
+            settings = self._settings()
             name = self.field.currentData()
             self.override.setChecked(name in settings.fields)
             self.tree.setEnabled(name in settings.fields and self._source is not None)
@@ -181,7 +189,7 @@ class ItemDefinitionEditor(QWidget):
             self.model.clear(); self.model.setHorizontalHeaderLabels((tr('Setting'), tr('Value')))
             self._nodes = {}
             if self._source is not None and name:
-                self._build(self.model.invisibleRootItem(), self._display, (), _labels()[name])
+                self._build(self.model.invisibleRootItem(), self._display, (), self.LABELS()[name])
                 if expanded is None:
                     self.tree.expandToDepth(1)
                 else:
@@ -200,7 +208,7 @@ class ItemDefinitionEditor(QWidget):
         title.setData(path, self.PATH); cell.setData(path, self.PATH)
         parent.appendRow((title, cell)); self._nodes[path] = cell
         if isinstance(value, dict):
-            labels = _labels()
+            labels = self.LABELS()
             for key, child in value.items(): self._build(title, child, path+(key,), labels[key])
         elif isinstance(value, list):
             for number, child in enumerate(value): self._build(title, child, path+(number,), str(number+1))
@@ -226,7 +234,7 @@ class ItemDefinitionEditor(QWidget):
 
     def _commit(self, *, fields=None, description=...):
         if self._syncing or self._source is None: return
-        current = self.controller.draft.definition_settings or ItemDefinitionSettings()
+        current = self._settings()
         candidate = ItemDefinitionSettings(deepcopy(current.fields if fields is None else fields),
             deepcopy(current.secondary_description if description is ... else description))
         if not candidate.fields and candidate.secondary_description is None: candidate = None
@@ -240,7 +248,7 @@ class ItemDefinitionEditor(QWidget):
         self.controller.invalidate_plan(); self.message.clear(); self.rebuild()
 
     def _field_commit(self, value):
-        current = self.controller.draft.definition_settings or ItemDefinitionSettings()
+        current = self._settings()
         fields = deepcopy(dict(current.fields)); fields[self.field.currentData()] = value
         self._commit(fields=fields)
 
@@ -251,7 +259,7 @@ class ItemDefinitionEditor(QWidget):
     def _toggle(self, checked):
         if self._syncing or self._source is None: return
         name = self.field.currentData()
-        current = self.controller.draft.definition_settings or ItemDefinitionSettings()
+        current = self._settings()
         fields = deepcopy(dict(current.fields))
         if checked: fields[name] = deepcopy(self._source[name])
         else: fields.pop(name, None)
@@ -434,5 +442,5 @@ class ItemDefinitionEditor(QWidget):
         self._commit(description=value)
 
     def _reset(self):
-        self.controller.draft.definition_settings = None
+        setattr(self.controller.draft, self.SETTINGS_ATTRIBUTE, None)
         self.controller.invalidate_plan(); self.message.clear(); self.rebuild()

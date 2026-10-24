@@ -35,7 +35,7 @@ _RECORDS = {
     'Placement': RecordAdapter(spec.Placement),
     'GlowChoice': RecordAdapter(spec.GlowChoice),
     'NewItemSpec': RecordAdapter(spec.NewItemSpec, defaults={
-        'item_tier': None, 'required_level': None, 'max_durability': None, 'item_settings': None, 'stat_settings': None, 'inventory_settings': None, 'definition_settings': None}),
+        'item_tier': None, 'required_level': None, 'max_durability': None, 'item_settings': None, 'stat_settings': None, 'inventory_settings': None, 'definition_settings': None, 'behavior_settings': None}),
     'EmitterEdit': RecordAdapter(effect_authoring.EmitterEdit),
     'EffectLook': RecordAdapter(effect_authoring.EffectLook),
     'EffectLayer': RecordAdapter(effect_authoring.EffectLayer),

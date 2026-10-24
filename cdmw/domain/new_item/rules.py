@@ -300,6 +300,14 @@ def validate_spec(spec: NewItemSpec) -> Tuple[ValidationIssue, ...]:
                 raise ValueError('Stack count cannot be edited through both legacy and inventory settings.')
         except (ValueError, TypeError) as exc:
             issues.append(_issue('item_inventory.invalid', 'inventory_settings', str(exc)))
+    if spec.behavior_settings is not None:
+        from cdmw.domain.new_item.item_behavior import encode_behavior_settings
+        try:
+            encode_behavior_settings(spec.behavior_settings)
+            if 'drop_defaults' in spec.behavior_settings.fields and (spec.socket_items is not None or spec.socket_slots is not None):
+                raise ValueError('Drop defaults and separate socket overrides cannot both own the same field.')
+        except (ValueError, TypeError) as exc:
+            issues.append(_issue('item_behavior.invalid', 'behavior_settings', str(exc)))
     if spec.definition_settings is not None:
         from cdmw.domain.new_item.item_definition import encode_definition_settings
         try:

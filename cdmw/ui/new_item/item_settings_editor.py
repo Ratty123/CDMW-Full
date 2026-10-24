@@ -4,7 +4,7 @@ import re
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (QAbstractItemView, QCheckBox, QComboBox, QFormLayout, QHBoxLayout,
-    QHeaderView, QLabel, QLineEdit, QPushButton, QTableWidget, QTableWidgetItem, QTabWidget,
+    QFileDialog, QHeaderView, QLabel, QLineEdit, QPushButton, QTableWidget, QTableWidgetItem, QTabWidget,
     QVBoxLayout, QWidget)
 
 from cdmw.core.iteminfo_settings import read_item_settings
@@ -47,6 +47,10 @@ class ItemSettingsEditor(QWidget):
         self.reset = QPushButton('Reset this page')
         self.reset.clicked.connect(self._reset)
         toolbar.addWidget(self.reset)
+        self.write_stock = QPushButton('Write stock item package…')
+        self.write_stock.setToolTip('Write the current combat and item settings for the selected stock item. It keeps its existing identity. Appearance, names and shop placement belong to new-item export.')
+        self.write_stock.clicked.connect(self._write_stock)
+        toolbar.addWidget(self.write_stock)
         toolbar.addStretch(1)
         layout.addLayout(toolbar)
         self.pages = QTabWidget()
@@ -139,12 +143,22 @@ class ItemSettingsEditor(QWidget):
         from cdmw.ui.new_item.item_definition_editor import ItemDefinitionEditor
         self.definition = ItemDefinitionEditor(controller, self)
         self.pages.addTab(self.definition, 'Extended item definition')
+        from cdmw.ui.new_item.item_behavior_editor import ItemBehaviorEditor
+        self.behavior = ItemBehaviorEditor(controller, self)
+        self.pages.addTab(self.behavior, 'Additional item behavior')
         self.pages.setToolTip('Raw stored item settings. Unknown layouts and missing dependencies refuse; in-game effects remain unverified.')
         controller.authoring_index_ready.connect(self._ready)
         controller.authoring_index_failed.connect(self._failed)
         controller.snapshot_ready.connect(self._snapshot)
         controller.busy_changed.connect(lambda busy: self.load.setEnabled(not busy and controller.snapshot is not None))
+        controller.busy_changed.connect(lambda busy: self.write_stock.setEnabled(not busy and controller.snapshot is not None))
         self.rebuild()
+
+    def _write_stock(self):
+        path,_filter=QFileDialog.getSaveFileName(self,self.tr('Write stock item package…'),'',self.tr('Independent item (*.cditem)'))
+        if path:
+            if not path.lower().endswith('.cditem'): path+='.cditem'
+            self.controller.start_stock_item_export(path)
 
     @staticmethod
     def _table(headers):
@@ -241,6 +255,7 @@ class ItemSettingsEditor(QWidget):
         self.stats.rebuild(self.index)
         self.inventory.rebuild()
         self.definition.rebuild()
+        self.behavior.rebuild()
         row = snapshot.rows.get(draft.template_key) if snapshot is not None else None
         if row is not self._row:
             self._row = row

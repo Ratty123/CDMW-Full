@@ -20,6 +20,7 @@ from cdmw.domain.new_item.item_settings import ItemSettings
 from cdmw.domain.new_item.item_stats import ItemStatSettings
 from cdmw.domain.new_item.item_inventory import ItemInventorySettings
 from cdmw.domain.new_item.item_definition import ItemDefinitionSettings
+from cdmw.domain.new_item.item_behavior import ItemBehaviorSettings
 from cdmw.domain.new_item.authoring import SocketSlot, LevelBonuses, RecipeOverride, RewardAcquisition, VariantAppearance
 
 
@@ -264,6 +265,7 @@ class NewItemSpec:
     stat_settings: Optional[ItemStatSettings] = None
     inventory_settings: Optional[ItemInventorySettings] = None
     definition_settings: Optional[ItemDefinitionSettings] = None
+    behavior_settings: Optional[ItemBehaviorSettings] = None
 
     @property
     def active_effect_layers(self) -> Tuple[EffectLayer, ...]:

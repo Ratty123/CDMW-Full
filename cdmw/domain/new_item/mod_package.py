@@ -29,6 +29,22 @@ class UnsupportedCapability(IndependentItemError):
 
 
 def capability_result(name, version):
+    if name == 'item.overrides' and type(version) is int and version == 1:
+        return CapabilityResult(name,version,True,
+            ('Existing unblocked ItemInfo rows only, with exact source-row and table hashes.',
+             'Closed complete-field selectors support properties, settings, inventory, definitions, behavior and progression.',
+             'Disjoint fields compose; opposing writes and protected legacy-row changes refuse.',
+             'Variable-sized records retain row identities and rebuild their directory; no new item identities are allocated.',
+             'Engine and save effects require separate evidence.'),
+            (EvidenceClaim('adapter','Declared stock ItemInfo replacements','iteminfo_overrides.py'),))
+    if name == 'item.behavior' and type(version) is int and version == 1:
+        return CapabilityResult(name, version, True,
+            ('Owned item only; all earlier recipes and capability schemas remain frozen.',
+             'Closed complete fields cover inspection/pages, drop defaults, inventory events/docking, currency, icon/prefab entries and metadata.',
+             'Qualified source references and resources are required; raw enums and timers retain their source meanings.',
+             'Native, game and save acceptance require separate evidence.'),
+            (EvidenceClaim('adapter', 'Typed remaining ItemInfo families', 'iteminfo_behavior.py'),
+             EvidenceClaim('synthetic', 'Independent nonempty legacy/current rows', 'tests/test_iteminfo_behavior.py')))
     if name == 'item.definition' and type(version) is int and version == 1:
         return CapabilityResult(name, version, True,
             ('Owned item only; existing recipe, property, stat and inventory schemas remain frozen.',

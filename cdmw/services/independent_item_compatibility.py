@@ -298,17 +298,35 @@ def _external_table(external, paths, snapshot, stop_event):
     return data
 
 
-def _required_keys(package, snapshot, changes):
+def _required_keys(package, snapshot, changes, *, stop_event=None):
     """Protect referenced records while retaining the donor's source contract."""
     from cdmw.core.iteminfo_row import parse_iteminfo_row
     from cdmw.core.stringinfo_table import stringinfo_key
     from cdmw.services.independent_mod_package import has_legacy_item
     if not has_legacy_item(package):
-        return {'iteminfo': set(), 'equiptypeinfo': set(), 'statusinfo': set()}
+        from cdmw.services.independent_mod_package import package_operations
+        from cdmw.domain.archives.iteminfo_composition import rows_of
+        from cdmw.services.iteminfo_dependency_graph import validate_item_graph
+        declared=[operation for group in package_operations(package) for operation in group['operations']
+                  if operation['kind']=='field.replace']
+        required=set()
+        if declared:
+            pair=snapshot.iteminfo
+            body,head=pair.payload_entry.path.lower(),pair.header_entry.path.lower()
+            rows=rows_of(changes[body]['after'],changes[head]['after'])
+            targets={operation['target']['key'] for operation in declared}
+            for key in targets: required.update(validate_item_graph(rows[key],snapshot,stop_event=stop_event).item_keys-targets)
+        return {'iteminfo': required, 'equiptypeinfo': set(), 'statusinfo': set()}
     spec, *_ = unpack_recipe(package)
     required = {'iteminfo': set(), 'equiptypeinfo': set(), 'statusinfo': set()}
     template_key = int(spec.template_key)
     references = owned_item_references(changes)
+    if spec.behavior_settings is not None:
+        from cdmw.core.iteminfo_behavior import set_behavior_fields
+        from cdmw.services.iteminfo_dependency_graph import validate_item_graph,item_references
+        raw=set_behavior_fields(snapshot.rows[template_key].raw,dict(spec.behavior_settings.fields))
+        references.update(item_references(raw))
+        references.update(validate_item_graph(raw,snapshot,stop_event=stop_event).item_keys-{template_key})
     pending = {template_key} | references
     template = snapshot.rows.get(template_key)
     # The native name map lowercases before hashing. Its ASCII spellings are
@@ -443,7 +461,7 @@ def check_package_dependencies(package, snapshot, external, changes, *, stop_eve
                 if key in owned and parse_iteminfo_row(raw).string_key.casefold() in names:
                     raise OverlayConflict(f'{package.title}; {", ".join(external.labels(paths))}; {body}: '
                         f'owned record {int.from_bytes(key, "little")} is also supplied by another mod.')
-    required = _required_keys(package, snapshot, changes)
+    required = _required_keys(package, snapshot, changes, stop_event=stop_event)
     done = set()
     findings = []
     for path, checksum in package.dependencies.items():
@@ -583,7 +601,7 @@ def _validate_composition_packages(root, pending, layers, snapshot, external, *,
                 texture_writes.setdefault(row['path'], []).append((row['sha256'], f'{package.title} ({row["owner"]})'))
             for path, checksum in texture_dependencies.items():
                 texture_reads.setdefault(path, []).append((checksum, f'{package.title} ({package.identity})'))
-            for key in _required_keys(package, snapshot, changes)['iteminfo']:
+            for key in _required_keys(package, snapshot, changes, stop_event=stop_event)['iteminfo']:
                 protected.setdefault(key, []).append(package.identity)
         package_findings = check_package_dependencies(package, snapshot, external, changes, stop_event=stop_event,
                                                        texture_dependencies=texture_dependencies)

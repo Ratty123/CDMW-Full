@@ -351,6 +351,12 @@ class _Planner(EffectPlanningMixin):
 
     def plan_item_row(self) -> bytes:
         template = self.template
+        if self.spec.behavior_settings is not None:
+            from cdmw.services.new_item_behavior import apply_behavior
+            from cdmw.domain.new_item.item_behavior import encode_behavior_settings
+            raw = apply_behavior(template.raw,self.spec.behavior_settings,self.snapshot,stop_event=self.stop_event)
+            template = parse_iteminfo_row(raw,structured=True)
+            self.manifest['behavior_settings'] = encode_behavior_settings(self.spec.behavior_settings)
         hashes: Dict[int, int] = {}
         if self.clones_model:
             hashes.update({stringinfo_key(old): stringinfo_key(new) for old, new in self.owned_stem_map().items()})
@@ -394,7 +400,7 @@ class _Planner(EffectPlanningMixin):
     def _apply_row_edits(self, row_bytes: bytes) -> bytes:
         spec = self.spec
         row = parse_iteminfo_row(row_bytes, item_keys=set(self.snapshot.rows) | {int(spec.item_key)},
-                                 structured=any(value is not None for value in (spec.item_settings, spec.stat_settings, spec.inventory_settings, spec.definition_settings)))
+                                 structured=any(value is not None for value in (spec.item_settings, spec.stat_settings, spec.inventory_settings, spec.definition_settings, spec.behavior_settings)))
         from cdmw.domain.new_item.item_properties import property_values
         properties = property_values(spec)
         if any(value is not None for value in properties.values()):

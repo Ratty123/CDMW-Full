@@ -309,6 +309,16 @@ def test_in_app_browser_renders_the_expanded_guides_in_each_locale(tmp_path, lan
                 assert translated in wiki_pages[page_slug("Create-New-Item", language.code) + ".md"]
                 if language.code != "en": assert translated != definition_guide
         assert "_CDMW_VERTEX_ID" in dialog.browser.toPlainText()
+        dialog.select_section('new_item_studio')
+        localizer.apply(dialog)
+        import json
+        english=json.loads((Path(__file__).resolve().parents[1]/'cdmw/resources/localization/en.json').read_text(encoding='utf-8'))['translations']
+        for prefix in ('Additional item behavior covers classification,','Write stock item package exports the current combat'):
+            guide=next(key for key in english if key.startswith(prefix))
+            translated=localizer.translate(guide)
+            assert translated in dialog.browser.toPlainText()
+            assert translated in wiki_pages[page_slug('Create-New-Item',language.code)+'.md']
+            if language.code!='en': assert translated!=guide
     finally:
         localizer.shutdown()
         dialog.deleteLater()

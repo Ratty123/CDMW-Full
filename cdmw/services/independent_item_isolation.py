@@ -52,7 +52,7 @@ def assess_contribution(package, plan, snapshot, changes, bindings, *, target, s
         for raw in module["operations"]:
             raise_if_cancelled(stop_event)
             assignment = decode_assignment(module["owner"], raw)
-            stock_edits.append({"module": "item.fields", "owner": assignment.owner,
+            stock_edits.append({"module": "item.overrides" if assignment.adapter == 'cd.iteminfo.declared-v1' else "item.fields", "owner": assignment.owner,
                                 "symbol": assignment.identity, "record": assignment.record,
                                 "field": list(assignment.field), "expected": assignment.expect,
                                 "value": assignment.value})

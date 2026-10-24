@@ -1,4 +1,5 @@
 """Compose declared ItemInfo field operations after validating every active layer."""
+import struct
 from cdmw.domain.archives.overlay_merge import _table, OverlayConflict
 from cdmw.domain.new_item.iteminfo_operations import compile_assignments, compose_assignments
 
@@ -34,6 +35,30 @@ def replace_rows(body, header, replacements):
     return b''.join(result)
 
 
+def replace_rows_with_header(body,header,replacements):
+    """Replace complete records and rebuild offsets, retaining every key/order."""
+    table,records=_table(body,header)
+    if (table.key_width,table.header_size)!=(4,2):
+        raise OverlayConflict('Declared ItemInfo edits require the verified table directory.')
+    keys={int.from_bytes(key,'little') for key,_raw in records}
+    if set(replacements)-keys: raise OverlayConflict('Declared ItemInfo edits cannot add or delete records.')
+    payload=bytearray(); offsets={}
+    for key,raw in records:
+        replacement=replacements.get(int.from_bytes(key,'little'),raw)
+        if not isinstance(replacement,bytes) or not replacement.startswith(key):
+            raise OverlayConflict('Declared ItemInfo edits cannot change record identities.')
+        offsets[key]=len(payload); payload.extend(replacement)
+    directory=header[:2]+b''.join(row.key+struct.pack('<I',offsets[row.key]) for row in table.rows)
+    result=bytes(payload)
+    actual_table,actual_records=_table(result,directory)
+    if [row.key for row in actual_table.rows]!=[row.key for row in table.rows]:
+        raise OverlayConflict('Declared ItemInfo edits changed the directory identities.')
+    if any(after!=(replacements.get(int.from_bytes(key,'little'),before))
+           for (key,before),(_key,after) in zip(records,actual_records)):
+        raise OverlayConflict('Declared ItemInfo edits changed an unassigned record.')
+    return result,directory
+
+
 def operation_contributions(layer):
     value = layer.get('independent_operations', [])
     if not isinstance(value, list) or len(value) > 128:
@@ -63,8 +88,9 @@ def prepare_fields(layers, baseline, *, stop_event=None):
         if any(after.get(key) != expected[key] for key in touched):
             raise OverlayConflict(f'{layer["label"]}: the field-operation journal differs from its declared intent.')
         values = dict(changes)
-        values[body] = dict(changes[body], after=replace_rows(changes[body]['after'], changes[header]['after'],
-                                                           {key: before[key] for key in touched}))
+        payload,directory=replace_rows_with_header(changes[body]['after'],changes[header]['after'],{key:before[key] for key in touched})
+        values[body]=dict(changes[body],after=payload)
+        values[header]=dict(changes[header],after=directory)
         normalized[layer['id']] = values
     return normalized, (body, header, source, compiled)
 
@@ -80,7 +106,7 @@ def finish_fields(current, prepared, *, stop_event=None):
             raise OverlayConflict(f'ItemInfo record {key}: an untyped overlay changes a row required by typed field operations.')
     changed = compose_assignments(source, compiled, stop_event=stop_event)
     result = dict(current)
-    result[body] = replace_rows(current[body], current[header], {key: changed[key] for key in touched})
+    result[body],result[header]=replace_rows_with_header(current[body],current[header],{key:changed[key] for key in touched})
     return result
 
 

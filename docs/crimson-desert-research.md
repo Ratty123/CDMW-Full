@@ -1136,6 +1136,36 @@ u64, sealing money stays raw u32, and inventory routing stays a generation-sized
 u16 array. Enum meanings, timer units, recursive engine closure, native admission
 and game/save effects remain open. No ASI/game execution or packaging occurred.
 
+Behavior/stock extension, 2026-10-24, against `0070351f` plus the scoped adapters:
+`item.behavior@1` adds the 29 remaining complete roots for classification and
+metadata, drop defaults, pages/inspection, docking/inventory events, currency,
+and conditional icons/prefabs. `item.overrides@1` adds declared complete-field
+stock replacements, including variable-sized values, with immutable identity,
+exact source preconditions and directory reconstruction. All previous wire
+schemas remain frozen; stock packages allocate no dummy IDs. The existing studio
+settings page now writes a stock package directly without a new-item plan.
+Localization references reuse qualified existing entries; new localized text
+still uses the independent new-item route.
+
+Category/character-group/item-group references use u16 keys; docking's NPC-only
+field is a u32 ConditionInfo reference. Both default-subitem positions accept the
+established 0/3/9/14/15/16/17/18/255 storage branches; only 0/3/9 carry u32.
+Tag 0's namespace, discard-Y raw bits, currency price-floor units and remaining
+enum/hash meanings are not inferred. Prefab scales are finite float32 triples.
+Known ItemInfo references and decoded prefab/material/effect resources are
+traversed recursively with cycle, size and cancellation checks and source
+witnesses. Borrowed records participate in stock-edit conflicts. Opaque source
+rows, auxiliary condition/effect payloads, implicit runtime lookup and lifetimes
+remain exact-source dependencies with partial closure.
+
+Independent legacy/current byte fixtures, package admission, both owned
+physical/virtual composition routes, rebuild/disable/removal, cancellation,
+source-change refusal and headless native-presentation editing establish source
+support only. No executable/game/ASI execution, real archive writes, packaging
+or publication occurred for this extension. Native admission, game behavior and
+save compatibility remain open. The nearest feature contract owns selectors and
+the closed wire shape; no new schema dump or licensed input is committed.
+
 Historical game observations establish acceptance of selected appended item/string
 records and shop substitutions. They do not establish arbitrary table rewrites.
 Later virtual-item observations are narrower experiments described in

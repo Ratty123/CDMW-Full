@@ -67,8 +67,9 @@ No manual mod merge is required for compatible packages installed through CDMW.
 
 Current equipment packages can include supported template or imported models and
 their item-owned materials, textures, icons and validated accompanying resources.
-The item authoring UI writes v1. V2 admits the same legacy item, existing ItemInfo
-field and package-link modules, and standalone `texture.replace@1` packages.
+Equipment defaults retain v1. Extended item controls write explicitly required
+v2 capabilities. V2 also admits existing ItemInfo field/package-link modules,
+complete stock-item overrides and standalone `texture.replace@1` packages.
 Texture tools create and update packages for supported existing DDS targets without
 an equipment recipe or numeric item allocation. See
 [`INDEPENDENT_TEXTURES.md`](../../services/INDEPENDENT_TEXTURES.md) for the exact
@@ -572,6 +573,85 @@ compiler differs. Older CDMW versions cannot read the new physical inventory.
 The `.cditem` package, identity-profile and virtual-profile formats are unchanged.
 Contexts needed by retained contributions are kept, and byte-identical contexts
 can be reused across rebuilds without discarding history.
+
+### Additional item behavior
+
+**Stats & Prices > Item settings > Additional item behavior** exposes seven
+sections through the existing exact-value tree:
+
+| Section | Complete fields |
+| --- | --- |
+| Classification and links | Item type, category/equipment family, raw material selectors, intrinsic item and hackable-character groups, stage, advice and mission references. |
+| Metadata | Broken-name prefix, memo/filter strings, default texture and emoji texture symbol/path. |
+| Drop defaults | Initial enchantment level, socket items/material amounts, valid/use-socket fields, nested and root default subitems, raw drop-stat type, terrain attachment and raw u32 discard-Y bits. |
+| Pages and inspection | Fixed/dynamic page textures and KnowledgeInfo references; inspection targets, actions, localization references, rewards and effects; complete inspect-action sockets/hashes. |
+| Inventory events and docking | Optional inventory-change event/three ConditionInfo references/destination; attached item/character/gimmick references, sockets, flags, collision and hash arrays. |
+| Currency definition | Optional raw u64 price floor and unit-keyed entries with UI component, minimum, icons and existing localization references. |
+| Conditional icons and prefabs | Full icon/highlight/state/usability conditions and prefab scale, prefab/animation hashes, equipment slots, tribe/gender and docking selectors, flags and data type. |
+
+Load behavior references, select a field, and check **Override selected field**.
+Edit Value; select lists to add/remove entries. Fixed arrays cannot be resized.
+**Enable section** creates an optional record; removing its root writes absence.
+Uncheck to inherit; explicit false, zero and empty lists retain their meanings.
+Reset and changing template clear overrides. References can reuse existing
+localized entries; this capability does not invent new localization namespaces.
+
+The required `item.behavior@1` module is a closed `{fields: {...}}` object. Each
+key selects a complete application-owned ItemInfo root field; descriptors, byte
+offsets, executable readers and unknown/future members are refused. It attaches
+to exactly one `item.legacy@1` recipe. All earlier wire schemas stay frozen.
+Complete drop defaults and the separate socket controls cannot own the same data.
+Legacy inspect actions omit catch-tag storage and refuse a nonzero catch tag.
+Recognized default-subitem tags are 0/3/9/14/15/16/17/18/255; only 0/3/9 carry
+u32 payloads. Character and gimmick payloads are qualified; tag 0 stays raw because
+its reference namespace is unproven. Other enum/hash meanings remain raw.
+
+CategoryInfo, CharacterGroupInfo and ItemGroupInfo keys are u16; equipment,
+stage/advice/mission and condition references are u32. The docking NPC-only member
+is a ConditionInfo reference. Prefab scale stores three finite float32 values.
+Texture symbols require unambiguous XML/DDS bindings; prefab and animation hashes
+require source StringInfo/resource bindings. Raw discard offset, UI component,
+timer/selector and currency semantics retain explicit limits.
+
+### Complete stock-item overrides
+
+**Write stock item package…** on Item settings writes the current combat and
+item settings for the selected template, preserving its original record identity.
+It requires no Build plan and allocates no new item, asset or localization IDs.
+New-item appearance, names and distribution use normal new-item export. New
+localized text requires a new item; stock operations may select existing text
+references or clear secondary text. The service API also accepts full declared
+progression/price roots, existing localized-reference roots and every supported
+definition/behavior/inventory/settings root. Identity, block flag and internal
+name are immutable through this adapter. Primary text references must retain a
+namespace accepted by the existing ItemInfo row reader; arbitrary cross-item
+name/description aliases refuse. Nested and secondary references can select
+qualified existing localization entries.
+
+The new required `item.overrides@1` module contains `field.replace` operations
+using adapter `cd.iteminfo.declared-v1`. Targets identify the actual ItemInfo key;
+selectors are closed `{family, name}` pairs. Each carries the exact pristine row
+digest, expected complete-field value and replacement. Variable-length strings,
+optional records and counted lists rebuild the table directory with preserved
+record order and unrelated bytes. The older `item.fields@1` and all earlier
+capabilities retain their original operation grammar and limits.
+
+Disjoint complete fields compose in either order. Same-field replacements must
+agree; legacy scalar assignments may overlap only when their resulting value
+agrees. Borrowed records stay protected. Rebuild, disable/enable and removal
+recompose active intent; removal restores original rows/offsets without dummy ID
+reservations. Stock exports require shipped source resources and refuse missing,
+changed, blocked, ambiguous or incomplete dependencies before publication.
+
+Known ItemInfo references are followed recursively, including price/repair,
+material/sealing/inspection/docking and reward item links. Declared prefab, model
+sidecar, texture and effect resources are traversed and pinned. Cycles terminate;
+limits are 1,024 items, 4,096 resources and 1 GiB of traversed resource data.
+Cancellation never publishes a partial graph. Each contribution's source reads
+are checked separately, so another package's unrelated reads are not requirements.
+Opaque source rows, auxiliary engine-condition/effect payloads, implicit runtime
+lookup and lifetimes remain complete-source dependencies with partial closure.
+These checks do not establish native admission or game/save behavior.
 
 ## Package dependencies and exported objects
 
@@ -1793,12 +1873,26 @@ flowchart TD
     B --> R["Join B, inspect and release with the same checks"]
 ```
 
-A separate read-only native context observer passes source review but remains
-uncompiled. It records opaque current-thread TLS values without interpreting
-heap state or guard bytes as readiness or first-ever use. The real B80 Api caller,
-native post-exit record survival, reader exclusion, publication and resource/save
-proof remain open; `native_admission=false` remains unchanged. A configured
-eight-second wait does not establish a hard eight-second total wall limit.
+A separate source-reviewed native retirement caller now passes its strict
+standalone build, including the read-only context observer, retained Trial and
+synchronous terminal/completed codec. Raw current-thread TLS values imply no
+readiness or first-ever use. Linked review and the inactive-load check remain
+pending. The separately source-reviewed eight-second file/clock validator still
+needs an active external guardian, arming and immediate owned-process stop.
+Actual B80 calls, native post-exit record survival, reader exclusion, publication
+and resource/save proof remain open; `native_admission=false` is unchanged.
+
+This partial native caller is compiled; the diagram is source-level ordering,
+not a game observation. The external guardian is an unresolved dependency:
+
+```mermaid
+flowchart TD
+    S["Verified startup: bind B80 Api and fixed Step"] --> P["Verified before-finalizer thread constructs Trial"]
+    P --> W["Write and flush the 32-byte start witness"]
+    W --> T["Run the same Cache through both OS-thread retirements"]
+    T --> E["Synchronously write terminal or completed evidence"]
+    G["External guardian arming and immediate stop: pending"] -. "required before game qualification" .-> W
+```
 
 A first external sword package also passes actual full import, four hand/sheath
 attachment checks and exact package/model/texture readback with a persistent

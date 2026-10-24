@@ -1130,6 +1130,30 @@ unambiguous UI texture XML and valid DDS. Raw routing, money identifiers, timers
 and selectors retain unverified meanings; reference validation does not establish
 complete transitive engine closure or native/game/save acceptance.
 
+**Item settings > Additional item behavior** edits classification and links,
+metadata, complete drop defaults, fixed/dynamic pages and inspections, inventory
+events and docking, currency definitions, and conditional icon/prefab entries.
+Load behavior references, select a field and check **Override selected field**.
+The Value tree preserves exact integers and finite prefab scales. Select lists
+to add/remove entries. **Enable section** creates optional data; removing its
+root clears it. Uncheck to inherit; Reset and template changes clear overrides.
+The separate [`item.behavior@1`](INDEPENDENT_ITEMS.md#additional-item-behavior)
+capability preserves earlier package grammars. Source references and decoded
+nested resources are checked; raw enum/hash meanings, discard Y bits and currency
+price-floor units remain unverified.
+
+**Write stock item package…** on Item settings exports the current combat/item
+settings for the selected template directly, retaining its actual identity and
+allocating no new item IDs. No new-item plan is required. Appearance, new-item
+names and shop placement belong to normal new-item export. This uses the separate
+[`item.overrides@1`](INDEPENDENT_ITEMS.md#complete-stock-item-overrides)
+capability. Stock packages can select existing localization references; new
+localized text still needs a new item. Source changes, conflicting edits and
+changes to borrowed records refuse. Known nested references are traversed with
+cycle/budget/cancellation checks; opaque auxiliary payloads remain pinned source
+dependencies. These are source/owned-fixture and headless UI contracts, without
+native registration, game/save, packaging or publication proof.
+
 Stats and gameplay perks are explicitly marked experimental. The Stats page uses
 compact, alternating rows with columns that fill the enhancement card, alongside a
 separate shop-price and stack card. The default view labels ItemInfo values as raw game

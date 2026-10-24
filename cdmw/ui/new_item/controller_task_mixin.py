@@ -346,6 +346,29 @@ class NewItemTaskControllerMixin:
         return self._run("export", task, done,
                          lambda message: self.status_message.emit(message, True), publishes_result=True)
 
+    def start_stock_item_export(self, path) -> bool:
+        """Write settings for the selected source item, without a new-item plan."""
+        from copy import deepcopy
+        from uuid import uuid4
+        from cdmw.ui.new_item.state import spec_from_draft
+        if self.snapshot is None:
+            self.status_message.emit("Read the archives first.", True)
+            return False
+        try: spec=deepcopy(spec_from_draft(self.draft,self.stat_grid()))
+        except ValueError as error:
+            self.status_message.emit(str(error),True)
+            return False
+        snapshot=self.snapshot; identity=uuid4().hex; title=self.export_title
+        def task(log,stop):
+            from cdmw.services.independent_item_operations import stock_item_operations,from_declared_iteminfo_operations
+            from cdmw.services.independent_item_package import write_package
+            operations=stock_item_operations(snapshot,spec,stop_event=stop)
+            package=from_declared_iteminfo_operations(snapshot,identity,title,operations,stop_event=stop)
+            revision=snapshot.provenance.capture()
+            return write_package(package,path,stop_event=stop,validate_source=revision.validate)
+        return self._run("export",task,self.export_finished.emit,
+                         lambda message:self.status_message.emit(message,True),publishes_result=True)
+
     def start_install(self, mutation_service) -> bool:
         """Compatibility entry point for callers predating overlay-only installation."""
         self.status_message.emit("Direct archive installation is no longer available. Use Install as an overlay or write a mod folder.", True)

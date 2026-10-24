@@ -59,6 +59,9 @@ class ItemFieldConflict(IndependentItemError):
 
 
 def decode_assignment(owner, raw):
+    if isinstance(raw,dict) and raw.get('kind')=='field.replace':
+        from cdmw.domain.new_item.iteminfo_overrides import decode_declared_assignment
+        return decode_declared_assignment(owner,raw)
     fields = {'id', 'kind', 'target', 'field', 'value_type', 'expect', 'value', 'precondition_base', 'source_row'}
     if not isinstance(raw, dict) or set(raw) != fields or raw['kind'] != 'field.assign':
         raise IndependentItemError('Unsupported ItemInfo operation fields or kind.')
@@ -121,7 +124,7 @@ def _field(row, selector, adapter):
     return matches[0].value, matches[0].offset
 
 
-def compile_assignments(contributions, source_rows, *, protected=None, stop_event=None):
+def _compile_legacy_assignments(contributions, source_rows, *, protected=None, stop_event=None):
     """Validate every source precondition before producing a write plan.
 
 `protected` contains complete-row requirements of every active legacy package,
@@ -162,7 +165,7 @@ including ones compiled later. Its caller must collect the whole profile first.
     return tuple(compiled)
 
 
-def compose_assignments(source_rows, compiled, *, stop_event=None):
+def _compose_legacy_assignments(source_rows, compiled, *, stop_event=None):
     """Recompose solely from source plus active typed contributions; no undo deltas."""
     result = dict(source_rows)
     grouped = {}
@@ -197,3 +200,20 @@ def compose_assignments(source_rows, compiled, *, stop_event=None):
             if key == record and _field(row, selector, value.operation.adapter) != (value.operation.value, value.offset):
                 raise IndependentItemError(f'ItemInfo record {record}: an assigned value failed round-trip validation.')
     return result
+
+
+def compile_assignments(contributions,source_rows,*,protected=None,stop_event=None):
+    contributions=tuple(contributions)
+    if any(isinstance(raw,dict) and raw.get('kind')=='field.replace' for _owner,operations in contributions
+           if isinstance(operations,(list,tuple)) for raw in operations):
+        from cdmw.domain.new_item.iteminfo_overrides import compile_mixed_assignments
+        return compile_mixed_assignments(contributions,source_rows,protected=protected,stop_event=stop_event)
+    return _compile_legacy_assignments(contributions,source_rows,protected=protected,stop_event=stop_event)
+
+
+def compose_assignments(source_rows,compiled,*,stop_event=None):
+    compiled=tuple(compiled)
+    if any(value.operation.adapter=='cd.iteminfo.declared-v1' for value in compiled):
+        from cdmw.domain.new_item.iteminfo_overrides import compose_mixed_assignments
+        return compose_mixed_assignments(source_rows,compiled,stop_event=stop_event)
+    return _compose_legacy_assignments(source_rows,compiled,stop_event=stop_event)
