@@ -9,7 +9,7 @@ from cdmw.core.archive_extraction import read_archive_entry_data
 from cdmw.core.archive_format import parse_archive_pamt
 from cdmw.core.mod_compatibility import SEMANTIC_EXPORT_FILE, read_semantic_export
 from cdmw.core.papgt_format import papgt_with_directory, parse_papgt, serialize_papgt
-from cdmw.domain.virtual_loader import VirtualProfile
+from cdmw.domain.virtual_loader import VirtualLoaderError, VirtualProfile
 from cdmw.services import archive_overlay_manager as overlays
 from cdmw.services.independent_item_compatibility import prepare_independent_mod_merge
 from cdmw.services.independent_item_install import (
@@ -251,10 +251,12 @@ def test_real_virtual_worker_retains_texture_registry_digest(tmp_path):
 
 
 @pytest.mark.parametrize('route', ['selected', 'active', 'disabled'])
-def test_worker_cannot_omit_the_required_texture_registry_witness(tmp_path, monkeypatch, route):
+@pytest.mark.parametrize('rebind_cache', [False, True], ids=['stale-cache', 'bound-cache'])
+def test_worker_cannot_omit_the_required_texture_registry_witness(tmp_path, monkeypatch, route, rebind_cache):
     import json
     from cdmw.domain.new_item.compilation import _identity
     from cdmw.services import virtual_loader_process as owner
+    from cdmw.services.virtual_loader_cache import _input_identity, _key
     from cdmw.services.independent_item_package import canonical, digest
     root, snapshot = texture_game(tmp_path)
     package = texture_package(snapshot)
@@ -280,15 +282,26 @@ def test_worker_cannot_omit_the_required_texture_registry_witness(tmp_path, monk
         profile['sources'] = [row for row in profile['sources'] if row[0] != registry]
         profile['compilation']['inputs']['sources'] = dict(profile['sources'])
         profile['compilation']['identity'] = _identity(profile['compilation']['inputs'])
+        if rebind_cache:
+            # Preserve internal cache consistency so the retained parent-side
+            # registry witness, rather than an unrelated cache error, refuses.
+            record = profile['build_cache']
+            record['inputs'] = _input_identity(profile['compilation'])
+            record['key'] = _key(record)
+            owner.validate_profile(profile)
         encoded = canonical(profile)
         checksum = digest(encoded)
         (output.parent / (checksum + '.bin')).write_bytes(encoded)
         result['profile'] = [checksum, len(encoded)]
         output.write_bytes(canonical(result))
+        if rebind_cache:
+            accepted = owner._read_result(json.loads(source.read_bytes()), output.parent, output, None)
+            assert accepted.root == root
         return 0, '', ''
 
     monkeypatch.setattr(owner, 'run_process_with_cancellation', run)
-    with pytest.raises(ValueError, match='invalid or incomplete'):
+    expected = 'invalid or incomplete' if rebind_cache else 'Invalid virtual build cache record'
+    with pytest.raises(VirtualLoaderError, match=expected):
         owner.prepare_profile_in_subprocess(VirtualProfile(paths), root)
     assert files_in(root) == before
 

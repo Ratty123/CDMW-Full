@@ -10,6 +10,17 @@ from cdmw.services.new_item_provenance import SourceTracker
 from cdmw.services.virtual_loader_sources import profile_revision
 
 
+def _item_table():
+    from tests.item_layout_fixtures import full_item
+    from tests.test_iteminfo_row import build_row
+    from tests.test_new_item_service import _table4
+    body = 'gamedata/binarystaticinfo__/bin/iteminfo.staticinfobody'
+    payload, header = _table4([(1, full_item(build_row(key=1)))])
+    return SimpleNamespace(payload_entry=SimpleNamespace(path=body),
+        header_entry=SimpleNamespace(path=body.replace('staticinfobody', 'staticinfoheader')),
+        payload=payload, header=header)
+
+
 def _audit_fixture(tmp_path, resources, first):
     index = tmp_path / '0.pamt'
     carrier = tmp_path / '0.paz'
@@ -26,12 +37,13 @@ def _audit_fixture(tmp_path, resources, first):
         provenance=tracker,
         family=lambda _key: family,
         has_entry=lambda path: path in resources,
+        iteminfo=_item_table(), stringinfo_texts={}, pappt=SimpleNamespace(index=lambda: {}),
         pappt_entry=SimpleNamespace(path='character/partprefabtable.pappt'))
     snapshot.payload = lambda path: snapshot.provenance.read(ArchiveEntry(
         path, index, carrier, 0, len(resources[path]), len(resources[path]), 0, 0))
     plan = SimpleNamespace(
         additions=(), manifest={}, loose_files={},
-        spec=SimpleNamespace(template_key=1, variants=None, stem='fixture'))
+        spec=SimpleNamespace(template_key=1, item_key=1, variants=None, stem='fixture'))
     return tracker, snapshot, plan, carrier, unrelated
 
 

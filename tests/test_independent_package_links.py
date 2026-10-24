@@ -5,7 +5,7 @@ import pytest
 
 from cdmw.domain.new_item.independent import IndependentItemError
 from cdmw.domain.new_item.package_links import contract, resolve_package_graph, validate_link_record
-from cdmw.domain.virtual_loader import VirtualProfile
+from cdmw.domain.virtual_loader import VirtualLoaderError, VirtualProfile
 from cdmw.services import archive_overlay_manager as overlays
 from cdmw.services.independent_item_install import load_registry, prepare_install, prepare_remove
 from cdmw.services.independent_item_package import canonical, package_bytes, read_package
@@ -316,10 +316,13 @@ def test_graph_publication_failure_preserves_previous_profile(tmp_path, monkeypa
     assert load_profile(root) == original_profile
 
 
-def test_compiled_reference_cannot_claim_another_retained_item_id(tmp_path):
+@pytest.mark.parametrize('rebind_cache', [False, True], ids=['stale-cache', 'bound-cache'])
+def test_compiled_reference_cannot_claim_another_retained_item_id(tmp_path, rebind_cache):
     import json
     from dataclasses import replace
     from cdmw.domain.new_item.compilation import _identity
+    from cdmw.services.virtual_loader_cache import _input_identity, _key
+    from cdmw.services.virtual_loader_state import validate_profile
     provider, consumer = pair(tmp_path)
     setup_game(tmp_path / 'recipient')
     root = tmp_path / 'recipient/game'
@@ -327,9 +330,16 @@ def test_compiled_reference_cannot_claim_another_retained_item_id(tmp_path):
     profile = json.loads(prepared.profile)
     lock = profile['compilation']
     providers = lock['inputs']['links']['providers']
+    assert providers[provider.identity]['exports']['item']['value'] != providers[consumer.identity]['exports']['item']['value']
     providers[provider.identity]['exports']['item']['value'] = providers[consumer.identity]['exports']['item']['value']
     lock['identity'] = _identity(lock['inputs'])
+    if rebind_cache:
+        record = profile['build_cache']
+        record['inputs'] = _input_identity(lock)
+        record['key'] = _key(record)
+        validate_profile(profile)
     before = files_in(root)
-    with pytest.raises(IndependentItemError, match='retained identity bindings'):
+    error, message = (IndependentItemError, 'retained identity bindings') if rebind_cache else (VirtualLoaderError, 'Invalid virtual build cache record')
+    with pytest.raises(error, match=message):
         publish_profile(replace(prepared, profile=canonical(profile)))
     assert files_in(root) == before

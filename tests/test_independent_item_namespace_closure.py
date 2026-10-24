@@ -4,6 +4,7 @@ from types import SimpleNamespace
 import pytest
 
 from cdmw.services.independent_item_references import audit_references
+from tests.test_virtual_loader_reference_closure import _item_table
 
 
 @pytest.mark.parametrize("qualified", [False, True])
@@ -16,8 +17,9 @@ def test_namespace_resource_boundary_retains_source_carrier_guards(qualified):
     tracker = SimpleNamespace(record_reference_closure=captured.append,
                               capture=lambda: SimpleNamespace(payloads=()))
     snapshot = SimpleNamespace(family=lambda _key: SimpleNamespace(files=(), parts=()),
+        iteminfo=_item_table(), stringinfo_texts={}, pappt=SimpleNamespace(index=lambda: {}),
         pappt_entry=SimpleNamespace(path="character/bin__/partprefabtable.pappt"), provenance=tracker)
-    plan = SimpleNamespace(spec=SimpleNamespace(template_key=1, stem=None),
+    plan = SimpleNamespace(spec=SimpleNamespace(template_key=1, item_key=1, stem=None),
         additions=(SimpleNamespace(path=path, payload_data=payload),), loose_files={}, manifest={})
     graph = audit_references(plan, snapshot)
     assert graph.reference_closure_complete is (not qualified)

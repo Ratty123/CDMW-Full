@@ -1,4 +1,5 @@
 """Shared-files comparisons use the applied virtual packages without publishing."""
+from dataclasses import replace
 import threading
 from uuid import uuid4
 
@@ -15,16 +16,18 @@ from cdmw.services.virtual_loader_state import PROFILE_PATH, generation_path, lo
 from tests.test_archive_overlay_manager import Backups, shop_spec
 from tests.test_independent_item_compatibility import table_change
 from tests.test_independent_item_regressions import files_in
+from tests.test_independent_item_semantic_routes import virtual_row
 from tests.test_independent_items import setup_game
 from tests.test_new_item_service import TEMPLATE
 
 
-def applied_virtual_items(tmp_path, monkeypatch):
+def applied_virtual_items(tmp_path, monkeypatch, *, borrowed=False):
     monkeypatch.setattr('cdmw.services.new_item_service.game_is_running', lambda: False)
     service, snapshot, _ = setup_game(tmp_path)
     sources = []
     for name in ('VirtualOne', 'VirtualTwo'):
-        package = from_plan(service.plan(shop_spec(name), snapshot, capture_independent=True), uuid4().hex)
+        choice = replace(shop_spec(name), socket_items=(TEMPLATE,)) if borrowed else shop_spec(name)
+        package = from_plan(service.plan(choice, snapshot, capture_independent=True), uuid4().hex)
         source = tmp_path / f'{name}.cditem'
         source.write_bytes(package_bytes(package))
         sources.append(source)
@@ -74,8 +77,12 @@ def test_virtual_scan_includes_active_archive_items_and_excludes_removed_identit
 
 
 @pytest.mark.parametrize('saved_folder', [False, True])
-def test_virtual_scan_checks_saved_and_prospective_folder_overlaps_and_conflicts(tmp_path, monkeypatch, saved_folder):
-    root, sources, snapshot = applied_virtual_items(tmp_path, monkeypatch)
+@pytest.mark.parametrize('borrowed', [False, True])
+def test_virtual_scan_checks_saved_and_prospective_folder_overlaps_and_conflicts(tmp_path, monkeypatch, saved_folder, borrowed):
+    root, sources, snapshot = applied_virtual_items(tmp_path, monkeypatch, borrowed=borrowed)
+    for binding in load_registry(root)['items'].values():
+        clone = virtual_row(root, binding['values']['iteminfo']['item'])
+        assert (TEMPLATE in clone.socket_items) == borrowed
     folder = tmp_path / 'external'
     def write_changes(key=None):
         files = table_change(snapshot) if key is None else table_change(snapshot, key=key)
@@ -93,8 +100,12 @@ def test_virtual_scan_checks_saved_and_prospective_folder_overlaps_and_conflicts
     write_changes(TEMPLATE)
     before = files_in(tmp_path)
     report = comparison.scan_independent_conflicts(root, folders=selected)
-    assert not report.compatible
-    assert str(folder) in report.text() and str(TEMPLATE) in report.text()
+    assert report.compatible is (not borrowed)
+    if borrowed:
+        assert str(folder) in report.text() and str(TEMPLATE) in report.text()
+        assert any(row.status == 'Conflict' for row in report.findings)
+    else:
+        assert any(row.status == 'Merge available' and str(folder) in row.mods for row in report.findings)
     assert files_in(tmp_path) == before
 
 

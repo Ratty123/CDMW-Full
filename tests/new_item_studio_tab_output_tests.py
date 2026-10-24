@@ -130,7 +130,7 @@ class _TabOutputMixin:
         self.assertEqual(stats.table.item(0, 1).text(), "250")
         self.assertEqual(stats.table.item(0, 0).text(), "20000", "the earlier edit stayed on its column")
         self.assertEqual(stats.table.item(0, 2).text(), "348", "the price column moved right with its values")
-        self.assertIn("Added here: Critical rate", stats.carries.text())
+        self.assertEqual(stats.carries.text(), "Template stats: Attack (DDD). Added: Critical rate (CriticalRate).")
         self.assertEqual(tab.controller.draft.extra_stat_keys, [1000007])
         # placement: swap the Cigar out of the camp store
         placement = self._exercise_item_store_placement(tab)
@@ -177,14 +177,20 @@ class _TabOutputMixin:
         while effects._library_timer.isActive() and not deadline.hasExpired():
             self.app.processEvents(QEventLoop.ProcessEventsFlag.AllEvents, 20)
         stems = [effects.library_model.row(index).stem for index in range(effects.library_model.rowCount())]
-        self.assertEqual(stems, ["", "fx_test_fire"])
+        self.assertFalse(effects._library_timer.isActive())
+        self.assertEqual(stems, [""])
+        self.assertEqual(effects.staged_state.stem, "fx_test_fire")
+        self.assertEqual(tab.controller.draft.effect_stem, "fx_test_fire")
         effects.search.setText("ice")
         effects._refresh_library(force=True)
         deadline = QDeadlineTimer(2000)
         while effects._library_timer.isActive() and not deadline.hasExpired():
             self.app.processEvents(QEventLoop.ProcessEventsFlag.AllEvents, 20)
         stems = [effects.library_model.row(index).stem for index in range(effects.library_model.rowCount())]
-        self.assertEqual(stems, ["", "fx_test_fire", "fx_test_ice"], "filtering keeps the committed selection")
+        self.assertFalse(effects._library_timer.isActive())
+        self.assertEqual(stems, ["", "fx_test_ice"])
+        self.assertEqual(effects.staged_state.stem, "fx_test_fire", "filtering keeps the staged selection")
+        self.assertEqual(tab.controller.draft.effect_stem, "fx_test_fire", "filtering keeps the committed selection")
         self.assertTrue(tab.controller.effect_facts("fx_test_ice").walk_note, "an undecoded effect remains placeable as shipped")
         effects.search.setText("")
         effects.choose_effect("")
