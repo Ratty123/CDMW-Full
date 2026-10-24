@@ -127,8 +127,15 @@ Independent callback/template, lazy-entry and thread-heap source reviews now
 join the initial TLS `+0x90` pointer to the allocator's lazy branch. The nineteen
 callbacks do not locally write it. Candidate initialization delegates the store;
 its null-allocation path still reaches attempt-counter work. A reviewed leaf
-capture locates the dynamic TLS store before an unclosed tail, without live
-readiness, exception, ownership or thread-lifetime proof.
+capture locates the dynamic TLS store. Its reviewed three-instruction tail
+forwards the pointer and a global index to the declared `FlsSetValue` import;
+the caller ignores its result. A reviewed writer passes a callback address to
+the declared `FlsAlloc` import and unconditionally stores the returned DWORD.
+The declared callback delegates cleanup before a normal-return FLS-clear request;
+invocation and cleanup effects remain unproved.
+Key validity, registration/association success, cleanup, readiness and lifetime
+remain unproved. B81's later-thread rematerialization has
+no allocating-OS-thread termination witness; that is the next distinct check.
 
 The separate [owned Cache and Router continuation](cditem-execution-goal.md#owned-cache-and-router-continuation-2026-10-24)
 passes source/linked review and its strict build. It retains one fresh Cache
@@ -218,6 +225,8 @@ the preceding 24-case preparation evidence remains in
 `workspace/reports/cditem-execution/20261021-package-resource-images/`.
 
 ## Completed work
+
+- 2026-10-24 | CDISO-RE-02 FLS source and lifetime boundary | Independent reviews join the post-store `FlsSetValue` import, the key writer's `FlsAlloc` request and the declared callback's cleanup-before-clear order. Successful registration/association, cleanup effects and native record survival after allocating-thread exit remain unproved. B81's later-thread rematerialization has no OS-thread termination witness. Evidence: [allocator and lifetime source checkpoint](cditem-execution-goal.md#ordinary-dll-placement-and-allocator-source-2026-10-24).
 
 - 2026-10-24 | CDISO-RE-02 selected allocation/recovery source qualification | Independent file review verifies 18 pins and all 131 captured instructions across three further entries. The selected general allocation body and base-relative pointer recovery expose remaining context, block/pointer and metadata prerequisites. The second closed provider export retains all 2,239 prior records and 140 unknown revisions, adding two pseudocode records. No native execution or admission is established. Evidence: [source and remaining premises](cditem-execution-goal.md#reader-boundary-platform-qualification-remains-open).
 - 2026-10-24 | CDISO-RE-02 direct-call precursor execution | All 27 owned native cases pass with unchanged input pins and all child processes retired. Independent linked review accepts same-page calls, selected GuardCF targets and TLS unwind wiring. Existing early startup does not establish whole-page exclusion; external executable-code publication remains the next owned check. No game or native-content acceptance changes. Evidence: [owned fixture and installation boundary](cditem-execution-goal.md#owned-direct-call-forwarding-and-installation-boundary-2026-10-24).

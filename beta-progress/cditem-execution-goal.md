@@ -1274,16 +1274,84 @@ to QWORD `+0x90`; a terminal jump to `0x1447F544C` follows. There is no local
 readiness check, ownership validation, lock or rollback. A first short-window
 probe stopped before decoding the second span's six-byte first instruction;
 the exact terminal extent was then captured. No native operation occurred.
-Its complete bounded normal path is verified; the tail's effects remain open.
+Its complete bounded normal path is verified; the separately captured tail
+narrows the next boundary below.
 
 - TLS-store source: `api-source-review/20261024-family0-heap-tls-store-v1/source-capture-result-v1.json`,
   15,604 bytes, SHA-256 `b5e6e43166a220212a1b247ff5f9188ac4b31e0ef11e4fd007866181e0ddfe25`.
 - Independent TLS-store review: `api-source-review/20261024-family0-heap-tls-store-independent-v1/independent-review-v1.json`,
   15,276 bytes, SHA-256 `789153c22b974bc636141cca8bd72dfce21dd46b95cdb8f6455b50effe0bde2b`.
 
+Independent post-store review passes `0x1447F544C..0x1447F545C`: 16 bytes/three
+instructions, with no overlapping runtime row. It copies incoming RCX to RDX,
+loads ECX from global DWORD `0x146A453E8`, then jumps through IAT
+`0x1451EBDA8`. Exact descriptor, ILT, IAT and name bytes identify
+`api-ms-win-core-fibers-l1-1-0.dll!FlsSetValue`; thunk index two is distinct from
+descriptor-table index 42. The initial file value is `0xFFFFFFFF`; neither the
+live index nor resolved import is observed. The earlier TLS store precedes this
+edge, and the retained caller does not test its returned value or roll back TLS.
+
+Microsoft documents [`FlsSetValue`](https://learn.microsoft.com/en-us/windows/win32/api/fibersapi/nf-fibersapi-flssetvalue)
+as requiring an allocated index and returning zero on failure. An optional
+[`FLS callback`](https://learn.microsoft.com/en-us/windows/win32/api/winnt/nc-winnt-pfls_callback_function)
+can run on thread exit, fiber deletion or index release. Those platform contracts
+do not establish this game's successful key allocation/registration, association,
+cleanup body or record lifetime. The separately reviewed writer below establishes
+only the source request and result store.
+
+- Post-store source: `api-source-review/20261024-family0-post-store-tail-v1/source-capture-result-v1.json`,
+  21,734 bytes, SHA-256 `f5c2399a2bbe167dd53701588adf179bbcafd5c87d3d0c7e9be445c92dcfaacd`.
+- Independent post-store review: `api-source-review/20261024-family0-post-store-tail-independent-v1/independent-review-v1.json`,
+  19,415 bytes, SHA-256 `f55f57463998984e26e5b08108c6a8c1eb1fc277b60a65fc464c199f795eeb0d`.
+
+Independent FLS-key review passes `0x1447F546C` and complete row 244346 at
+`0x156752223..0x15675223F`: 33 bytes/seven instructions including the adapter,
+with standard flags-zero unwind. The root passes full RCX=`0x1447F5488` to
+IAT `0x1451EBDA0`, exactly declared as `FlsAlloc`, then stores EAX to the same
+DWORD `0x146A453E8` on every normal return. There is no local success test,
+retry, fallback or failure-specific branch. The callback address is an argument,
+not a witnessed invocation or captured cleanup body. The direct-reference search
+is bounded; actual writer invocation and its external guard remain unproved.
+The earlier helper `0x1447F1008` has a different root, whose relation to this
+writer remains unclosed. The initial `0xFFFFFFFF` is still only file state.
+
+- FLS-key source: `api-source-review/20261024-family0-fls-key-owner-v1/source-capture-result-v1.json`,
+  24,715 bytes, SHA-256 `46163183b58c232a02c9ee73cdc1c52f40e22e2a278649112b981cf76519e936`.
+- Independent FLS-key review: `api-source-review/20261024-family0-fls-key-owner-independent-v1/independent-review-v1.json`,
+  20,068 bytes, SHA-256 `9199e551a9416d51b8607d3a5b927b6612f2c9603bd9da8bc0361d8ce64501e3`.
+
+Independent callback review passes declared entry `0x1447F5488` and complete
+row 244347 at `0x1567524B8..0x1567524D9`: 38 bytes/ten instructions including
+the adapter, with standard flags-zero unwind. Null incoming RCX skips both calls
+and returns. Nonnull RCX reaches `0x1447F0D54` unchanged; only after its normal
+return does the callback load the global index, set full RDX to zero and call
+the exact `FlsSetValue` import. Neither returned value is checked. No direct
+TLS `+0x90` reset appears in this body. The cleanup callee and exceptional paths
+remain unclosed; registration-address equality does not witness invocation,
+successful clearing, cleanup effects or survival of outstanding records.
+
+- FLS-callback source: `api-source-review/20261024-family0-fls-retirement-callback-v1/source-capture-result-v1.json`,
+  23,500 bytes, SHA-256 `f8a6991d1006b7d82c6b5859ae12d77ffccdc36f8d48f37387b2481d329d5cc7`.
+- Independent FLS-callback review: `api-source-review/20261024-family0-fls-retirement-callback-independent-v1/independent-review-v1.json`,
+  19,632 bytes, SHA-256 `34061f82ad617bd388b6cb22ffcf136f1b990bc20665129abbc5c03bf927f3e9`.
+
+B81 retains one Cache across materialization on thread 36652 and later
+rematerialization on thread 416, both selector zero. Its completed-work flag and
+later callback do not include an allocating-thread handle, creation/exit identity
+or signaled termination witness. The next distinct check must join the exact
+owned allocating thread's termination before native inspection, release and
+rematerialization through that same Cache/API. A work-done flag alone is
+insufficient; [`GetThreadTimes`](https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-getthreadtimes)
+does not define the exit-time field before the thread exits. No such new native
+lifetime operation is established by these source captures.
+
+The retained B81 actual review is
+`../20261018-native-review/batch81-early-storage-review/retained-live-review.json`,
+21,415 bytes, SHA-256 `eed9af71c7994253a66427242a4b069f1ae313384cc8868a3bfd42d62e79a2c9`.
+
 Returned-descriptor helper `0x1447F3348`, alternate factory `0x1447F296C`,
-threshold helper `0x1447F4700`, heap bootstrap dependencies, the TLS-store tail
-`0x1447F544C` and thread/heap lifetime,
+threshold helper `0x1447F4700`, heap bootstrap dependencies, FLS registration/
+cleanup outcomes and thread/heap lifetime,
 class/context preparation and the separate
 context queue retain selected source questions. A natural stock cold caller,
 durable Cache/Router activation, coherent publication, actual resource use and

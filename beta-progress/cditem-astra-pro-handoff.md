@@ -315,8 +315,17 @@ trace the initial `+0x90` pointer from the PE TLS template into the allocator's
 sentinel comparison and lazy branch. The nineteen callbacks do not locally
 write that field. Fresh candidate paths request copies and make links before a delegated
 TLS store; a null candidate still reaches attempt-counter work. A reviewed leaf
-capture identifies the dynamic `+0x90` store before an unclosed tail. Live
-readiness, exception behavior, ownership and thread/heap lifetime stay open.
+capture identifies the dynamic `+0x90` store. Its separately reviewed tail
+forwards the pointer and a global DWORD index to the declared `FlsSetValue`
+import, without a caller-side result check. A reviewed key writer passes a
+callback address to the declared `FlsAlloc` import and stores every normal
+returned DWORD without testing success. Live key validity, registration,
+association, cleanup, readiness and thread/heap lifetime stay open. The declared
+callback delegates cleanup before its normal-return FLS-clear request; actual
+invocation and cleanup effects remain unproved. B81 proves later-thread
+rematerialization but has no allocating-thread handle/exit witness. Require
+confirmed OS-thread termination before the next native inspect/release and
+same-Cache rematerialization experiment; a work-done flag does not establish it.
 
 The [owned Cache and Router continuation](cditem-execution-goal.md#owned-cache-and-router-continuation-2026-10-24)
 is now source/linked reviewed and compiled, with a fresh once-configured Cache,

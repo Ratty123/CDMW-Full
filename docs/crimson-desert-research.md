@@ -2023,9 +2023,17 @@ behavior, ownership and ordinary-caller lifetime remain unqualified.
 Independent callback/template, lazy-entry and thread-heap reviews now trace the
 initial `+0x90` template pointer into a separate lazy-allocation path. The
 nineteen callbacks do not locally write that field. A reviewed leaf capture
-locates its dynamic TLS store before an unclosed tail; the null-candidate path
-still reaches attempt-counter work. Readiness, exception behavior, ownership
-and thread/heap lifetime remain unqualified.
+locates its dynamic TLS store. Its separately reviewed tail forwards the pointer
+and a global index to the declared `FlsSetValue` import; the caller ignores its
+result. A reviewed key writer passes a callback address to the declared
+`FlsAlloc` import and stores every normal returned DWORD without testing success.
+The declared callback delegates cleanup before its normal-return FLS-clear
+request; invocation and cleanup effects remain unproved.
+The null-candidate path still reaches attempt-counter work. Live key
+validity, successful registration/association, cleanup and thread/heap lifetime remain
+unqualified. B81's later-thread rematerialization has no allocating-thread
+termination witness. Native inspect/release and same-Cache rematerialization
+after confirmed OS-thread exit remain a distinct lifetime check.
 
 A separate [owned Cache and Router continuation](../beta-progress/cditem-execution-goal.md#owned-cache-and-router-continuation-2026-10-24)
 is source/linked reviewed and compiled. It retains one fresh Cache through
