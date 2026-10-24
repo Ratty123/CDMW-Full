@@ -33,9 +33,6 @@ impl LabApplication {
 
     pub(super) fn track_cdmw_part_hover(&mut self, ui: &egui::Ui, part: u32, response: &egui::Response) {
         self.track_cdmw_name_row(ui, part, None, response);
-        if response.hovered() && response.ctx.input(|input| input.pointer.hover_pos().is_some()) {
-            self.cdmw_hovered_part = Some(part);
-        }
     }
 
     pub(crate) fn track_cdmw_island_name(&mut self, ui: &egui::Ui, part: u32, faces: Vec<u32>, response: &egui::Response) {
@@ -43,6 +40,9 @@ impl LabApplication {
     }
 
     fn track_cdmw_name_row(&mut self, ui: &egui::Ui, part: u32, island_faces: Option<Vec<u32>>, response: &egui::Response) {
+        if response.hovered() && response.ctx.input(|input| input.pointer.hover_pos().is_some()) {
+            self.cdmw_hovered_part = Some(PartHoverTarget { part, island_faces: island_faces.clone() });
+        }
         let row = PartNameRow { part, island_faces, response: response.clone(), clip_rect: ui.clip_rect(),
             scroll_root: ui.stack().iter().find(|entry| entry.kind() == Some(egui::UiKind::ScrollArea)).map(|entry| entry.id) };
         let pending = self.cdmw_part_name_scroll.as_ref()
@@ -168,19 +168,22 @@ impl LabApplication {
     }
 
     pub(crate) fn refresh_cdmw_part_hover_overlay(&mut self) {
-        let part = self.cdmw_hovered_part.filter(|_| self.cdmw_mode() && !self.hair.active()
+        let target = self.cdmw_hovered_part.as_ref().filter(|_| self.cdmw_mode() && !self.hair.active()
             && self.cdmw_jiggle.preview.scene.is_none() && !self.cdmw_morph_comparison_active()
             && self.cdmw_state["replacement"]["comparison"].as_str().is_none_or(|mode| mode == "edit"));
-        let Some((part, mesh)) = part.zip(self.mesh.as_ref()) else {
+        let Some((target, mesh)) = target.zip(self.mesh.as_ref()) else {
             self.invalidate_cdmw_part_hover_overlay();
             return;
         };
         let visible = self.cdmw_visible_submeshes();
-        if self.cdmw_part_hover_overlay.as_ref().is_none_or(|(cached_part, overlay)|
-            *cached_part != part || !overlay.matches(mesh, &visible, PART_HOVER_COLOUR))
+        if self.cdmw_part_hover_overlay.as_ref().is_none_or(|(cached_target, overlay)|
+            cached_target != target || !overlay.matches(mesh, &visible, PART_HOVER_COLOUR))
         {
-            self.cdmw_part_hover_overlay = Some((part,
-                FaceSelectionOverlay::build_for_parts(mesh, visible, PART_HOVER_COLOUR, &[part])));
+            let overlay = match &target.island_faces {
+                Some(faces) => FaceSelectionOverlay::build_for_island(mesh, visible, PART_HOVER_COLOUR, target.part, faces),
+                None => FaceSelectionOverlay::build_for_parts(mesh, visible, PART_HOVER_COLOUR, &[target.part]),
+            };
+            self.cdmw_part_hover_overlay = Some((target.clone(), overlay));
         }
         if let (Some(renderer), Some((_, overlay))) = (&mut self.renderer, &mut self.cdmw_part_hover_overlay)
             && !overlay.uploaded

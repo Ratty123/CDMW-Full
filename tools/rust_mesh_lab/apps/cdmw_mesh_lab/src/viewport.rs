@@ -596,8 +596,24 @@ impl FaceSelectionOverlay {
     pub fn build_for_parts(
         mesh: &WorkingMesh, visible: Option<HashSet<u32>>, colour: [f32; 4], parts: &[u32],
     ) -> Self {
+        Self::build_for_matching_faces(mesh, visible, colour, |part, _| parts.contains(&part))
+    }
+
+    pub fn build_for_island(
+        mesh: &WorkingMesh, visible: Option<HashSet<u32>>, colour: [f32; 4], part: u32, faces: &[u32],
+    ) -> Self {
+        let faces: HashSet<_> = faces.iter().copied().collect();
+        Self::build_for_matching_faces(mesh, visible, colour, |submesh, provenance|
+            submesh == part && matches!(provenance, Provenance::Source { submesh, element }
+                if *submesh == part && faces.contains(element)))
+    }
+
+    fn build_for_matching_faces(
+        mesh: &WorkingMesh, visible: Option<HashSet<u32>>, colour: [f32; 4],
+        includes: impl Fn(u32, &Provenance) -> bool,
+    ) -> Self {
         let positions = mesh.faces()
-            .filter(|(handle, face)| parts.contains(&face.submesh)
+            .filter(|(handle, face)| includes(face.submesh, &face.provenance)
                 && !mesh.viewport_hidden_faces().contains(handle)
                 && visible.as_ref().is_none_or(|visible| visible.contains(&face.submesh)))
             .flat_map(|(_, face)| face.vertices.iter())

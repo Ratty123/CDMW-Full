@@ -5284,6 +5284,7 @@
     "Horizontal guides": "水平ガイド",
     "Horizontal mirror": "水平ミラー",
     "Hover Current for exact values or selection ranges.": "正確な値や選択範囲を見るには、現在の値にカーソルを合わせてください。",
+    "Hover an island name in Mesh islands to highlight only that island in the viewport without changing selection. Move away to clear the tint; hidden geometry stays hidden.": "「メッシュアイランド」でアイランド名にポインターを合わせると、選択を変えずに、そのアイランドだけをビューポートで強調表示します。名前からポインターを外すと強調表示が消えます。非表示のジオメトリは非表示のままです。",
     "How disabled mode, direct NCNN, and chaiNNer behave.": "モード、ダイレクト NCNN、チェインナーの無効化方法",
     "How far each nudge moves it, in metres. 0.020 is a normal adjustment; 0.100 is flagged as risky because it is large enough to push an item through the body.": "各ナッジが移動する距離 (メートル単位)。 0.020 は通常の調整です。 0.100 は、アイテムを体内に押し込むのに十分な大きさであるため、危険であるとフラグが立てられます。",
     "How far each turn moves it. Only used by Rotate and Tilt.": "各ターンでどれだけ移動するか。回転と傾斜でのみ使用されます。",

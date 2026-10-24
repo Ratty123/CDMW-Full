@@ -92,9 +92,10 @@ fn assert_part_name_hover(ui: &mut HeadlessUi, label: &str, part: u32) -> TestRe
     ui.last_actions.clear();
     ui.frame(vec![Event::PointerMoved(name.center())]);
     ui.settle_layout();
-    assert_eq!(ui.application.cdmw_hovered_part, Some(part), "{label}");
+    assert_eq!(ui.application.cdmw_hovered_part.as_ref().map(|target| target.part), Some(part), "{label}");
     let (highlighted, overlay) = ui.application.cdmw_part_hover_overlay.as_ref().ok_or("hover overlay")?;
-    assert_eq!(*highlighted, part);
+    assert_eq!(highlighted.part, part);
+    assert!(highlighted.island_faces.is_none());
     assert_eq!(overlay.positions, expected);
     assert!(!overlay.positions.is_empty());
     let current = ui.application.mesh.as_ref().ok_or("mesh")?;
@@ -155,12 +156,12 @@ fn workflow_part_name_hover_clears_and_respects_visible_geometry() -> TestResult
     let name = ui.reveal("2 · Sleeve")?;
     ui.frame(vec![Event::PointerMoved(name.center())]);
     ui.settle_layout();
-    assert_eq!(ui.application.cdmw_part_hover_overlay.as_ref().map(|(part, _)| *part), Some(1));
+    assert_eq!(ui.application.cdmw_part_hover_overlay.as_ref().map(|(target, _)| target.part), Some(1));
     // Moving straight to another name must replace the cached geometry.
     let other = ui.reveal("3 · Plate")?;
     ui.frame(vec![Event::PointerMoved(other.center())]);
     ui.settle_layout();
-    assert_eq!(ui.application.cdmw_part_hover_overlay.as_ref().map(|(part, _)| *part), Some(2));
+    assert_eq!(ui.application.cdmw_part_hover_overlay.as_ref().map(|(target, _)| target.part), Some(2));
     ui.frame(vec![Event::PointerMoved(ui.application.viewport_rect.ok_or("viewport")?.center())]);
     assert!(ui.application.cdmw_part_hover_overlay.is_none());
     // Hidden Parts and hidden Geometry Layers stay hidden on hover.

@@ -186,6 +186,9 @@ full text on hover. Hover over the tab for selection and seam grouping guidance.
 Viewport hover keeps this tab active and highlights the matching listed island,
 scrolling its name into view without changing the selection. It follows the
 frontmost visible island; hidden islands stay hidden.
+Hovering an island's name temporarily highlights only that island's visible faces
+in the viewport, including obscured surfaces. Leaving the name clears the tint;
+selection, fitting targets and pending edits stay unchanged.
 Coincident UV-seam vertices are grouped at 1e-5 model-unit precision without
 welding or moving the model. Existing **Linked** selection still follows vertex
 indices when that stricter connectivity is wanted.
@@ -2062,7 +2065,8 @@ Matching swatches beside Part names in Morph & Refit, fit warnings and the Parts
 inspector identify each piece while Part colors is enabled.
 Hovering a Part name temporarily highlights its visible geometry in cyan, including
 obscured surfaces, without changing the selection or fitting targets. This also works
-with Part colors off; leaving the name clears the hover tint. Hidden Parts and islands
+with Part colors off. In **Mesh islands**, hovering an island name highlights just
+that island. Leaving the name clears the hover tint. Hidden Parts and islands
 stay hidden, and comparison views keep their own display. Hovering a surface in the
 viewport also opens the Parts list when **Open Parts on hover**, beside **Part
 colors**, is enabled (the default). Turn it off to keep closed panels closed.

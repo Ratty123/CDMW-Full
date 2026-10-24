@@ -5284,6 +5284,7 @@
     "Horizontal guides": "Горизонтальные направляющие",
     "Horizontal mirror": "Горизонтальное зеркало",
     "Hover Current for exact values or selection ranges.": "Ток зависания для точных значений или диапазонов выбора.",
+    "Hover an island name in Mesh islands to highlight only that island in the viewport without changing selection. Move away to clear the tint; hidden geometry stays hidden.": "Наведите указатель на название островка во вкладке «Сетчатые островки», чтобы подсветить только его в окне просмотра, не меняя выделение. Отведите указатель, чтобы убрать подсветку; скрытая геометрия остаётся скрытой.",
     "How disabled mode, direct NCNN, and chaiNNer behave.": "Как отключен режим, прямой Поведение NCNN и ChainNer.",
     "How far each nudge moves it, in metres. 0.020 is a normal adjustment; 0.100 is flagged as risky because it is large enough to push an item through the body.": "Насколько далеко перемещается каждый толчок, в метрах. 0,020 – нормальная регулировка; Значение 0,100 помечается как рискованное, поскольку оно достаточно велико, чтобы протолкнуть предмет сквозь тело.",
     "How far each turn moves it. Only used by Rotate and Tilt.": "Насколько далеко перемещается каждый поворот. Используется только функциями Rotate и Tilt.",

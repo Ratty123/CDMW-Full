@@ -5284,6 +5284,7 @@
     "Horizontal guides": "水平导轨",
     "Horizontal mirror": "卧式镜子",
     "Hover Current for exact values or selection ranges.": "悬停在当前以查看精确数值或选择范围。",
+    "Hover an island name in Mesh islands to highlight only that island in the viewport without changing selection. Move away to clear the tint; hidden geometry stays hidden.": "在“网格岛”中将指针悬停在岛的名称上，即可在视口中仅高亮显示该岛，而不改变选择。移开指针即可清除高亮；隐藏的几何体仍保持隐藏。",
     "How disabled mode, direct NCNN, and chaiNNer behave.": "禁用模式、直接 NCNN 和 chaiNNer 的行为方式。",
     "How far each nudge moves it, in metres. 0.020 is a normal adjustment; 0.100 is flagged as risky because it is large enough to push an item through the body.": "每次轻推可移动多远（以米为单位）。 0.020为正常调整； 0.100 被标记为有风险，因为它足够大，可以将物体推过身体。",
     "How far each turn moves it. Only used by Rotate and Tilt.": "每转一圈将其移动多远。仅用于旋转和倾斜。",

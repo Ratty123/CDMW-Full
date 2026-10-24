@@ -1021,6 +1021,12 @@ pub(super) struct RefitFeedback {
     overlay: Option<FaceSelectionOverlay>,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(super) struct PartHoverTarget {
+    pub part: u32,
+    pub island_faces: Option<Vec<u32>>,
+}
+
 pub(super) struct PartNameRow {
     part: u32,
     island_faces: Option<Vec<u32>>,

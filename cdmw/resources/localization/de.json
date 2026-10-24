@@ -5284,6 +5284,7 @@
     "Horizontal guides": "Horizontale Hilfslinien",
     "Horizontal mirror": "Horizontal spiegeln",
     "Hover Current for exact values or selection ranges.": "Hover Current für genaue Werte oder Auswahlbereiche.",
+    "Hover an island name in Mesh islands to highlight only that island in the viewport without changing selection. Move away to clear the tint; hidden geometry stays hidden.": "Zeigen Sie in Netzinseln auf einen Inselnamen, um nur diese Insel im Ansichtsfenster hervorzuheben, ohne die Auswahl zu ändern. Bewegen Sie den Zeiger weg, um die Markierung zu entfernen; ausgeblendete Geometrie bleibt ausgeblendet.",
     "How disabled mode, direct NCNN, and chaiNNer behave.": "Wie sich der deaktivierte Modus, direktes NCNN und chaiNNer verhalten.",
     "How far each nudge moves it, in metres. 0.020 is a normal adjustment; 0.100 is flagged as risky because it is large enough to push an item through the body.": "Wie weit jeder Stoß es bewegt, in Metern. 0,020 ist eine normale Anpassung; 0,100 wird als riskant gekennzeichnet, da es groß genug ist, um einen Gegenstand durch den Körper zu schieben.",
     "How far each turn moves it. Only used by Rotate and Tilt.": "Wie weit jede Drehung es bewegt. Wird nur von „Drehen“ und „Neigen“ verwendet.",
