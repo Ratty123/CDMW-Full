@@ -123,6 +123,13 @@ store before a list of nineteen callback cells. It supplies no local heap readin
 check or numeric loader TLS index. Ordinary native caller context, exception
 behavior, ownership and lifetime remain open.
 
+Independent callback/template, lazy-entry and thread-heap source reviews now
+join the initial TLS `+0x90` pointer to the allocator's lazy branch. The nineteen
+callbacks do not locally write it. Candidate initialization delegates the store;
+its null-allocation path still reaches attempt-counter work. A reviewed leaf
+capture locates the dynamic TLS store before an unclosed tail, without live
+readiness, exception, ownership or thread-lifetime proof.
+
 The separate [owned Cache and Router continuation](cditem-execution-goal.md#owned-cache-and-router-continuation-2026-10-24)
 passes source/linked review and its strict build. It retains one fresh Cache
 across a versioned local activation API; old Stage guards remain intact. The

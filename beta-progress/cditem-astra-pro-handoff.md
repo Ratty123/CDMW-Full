@@ -310,6 +310,14 @@ nineteen callback cells, without a local `+0x90` heap check. The loader's numeri
 TLS index has no file-backed value; initialization, exception behavior, heap
 ownership and ordinary-caller lifetime remain open.
 
+Subsequent independent callback/template, lazy-entry and thread-heap reviews
+trace the initial `+0x90` pointer from the PE TLS template into the allocator's
+sentinel comparison and lazy branch. The nineteen callbacks do not locally
+write that field. Fresh candidate paths request copies and make links before a delegated
+TLS store; a null candidate still reaches attempt-counter work. A reviewed leaf
+capture identifies the dynamic `+0x90` store before an unclosed tail. Live
+readiness, exception behavior, ownership and thread/heap lifetime stay open.
+
 The [owned Cache and Router continuation](cditem-execution-goal.md#owned-cache-and-router-continuation-2026-10-24)
 is now source/linked reviewed and compiled, with a fresh once-configured Cache,
 dormant stock forwarding and mandatory checking before its publication lock

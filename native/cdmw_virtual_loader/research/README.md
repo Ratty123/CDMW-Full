@@ -398,6 +398,13 @@ nineteen callback cells and has no local heap-pointer check. The numeric loader
 TLS index is unobserved. Completed initialization, exception behavior, heap
 ownership and ordinary-caller lifetime remain unqualified.
 
+Independent callback/template, lazy-entry and thread-heap reviews join the
+initial `+0x90` template pointer to the allocator's lazy branch. The nineteen
+callbacks do not locally write it. A reviewed leaf capture identifies the
+dynamic TLS store before an unclosed tail. Null candidate allocation still reaches
+attempt-counter work; no live readiness, exception, ownership or thread/heap
+lifetime proof follows.
+
 The [owned Cache and Router continuation](../../../beta-progress/cditem-execution-goal.md#owned-cache-and-router-continuation-2026-10-24)
 passes source/linked review and its strict build. A fresh Cache is retained
 through dormant preparation and versioned local activation, with mandatory

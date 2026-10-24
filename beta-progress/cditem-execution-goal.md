@@ -1219,8 +1219,71 @@ ownership, initialization, serialization and lifetime contract.
 - Independent TLS-initializer review: `api-source-review/20261024-family0-tls-initializer-independent-v1/independent-review-v1.json`,
   21,432 bytes, SHA-256 `56698f5131ed08d43220932276e447c640a3c882e3d872d31c326620f2634b3d`.
 
+Independent callback/template review now passes all nineteen direct callback
+bodies: 755 bytes/143 instructions. Eighteen use TLS-vector element zero and
+other field offsets; seventeen tail-delegate to a common entry, while two
+return locally. None locally writes dynamically selected TLS `+0x90`. This is
+not recursive callback-effect closure. Element zero and the dynamic element
+can identify the same block when the loader index is zero; pointer inequality
+between different elements is not proved either.
+
+The PE TLS directory's index address matches `0x146C88C50`. Its first `0xA0`
+file-backed template bytes already contain preferred pointer `+0x90=0x146A43580`
+and byte `+0x98=0`. The relocation directory supplies no coverage; no live TLS
+value or valid heap is inferred. That pointer exactly matches the retained
+allocation service's comparison. Equality calls `0x1447F1968`; an unchanged
+return produces zero, while inequality alone proves no readiness or validity.
+
+- Callback/template source: `api-source-review/20261024-family0-tls-heap-owner-v1/source-capture-result-v1.json`,
+  52,562 bytes, SHA-256 `d9982a39aea211e1523ca2bfdbedad5a4e523e2ef0ea47751ef3f1d8fc342519`.
+- Independent callback/template review: `api-source-review/20261024-family0-tls-heap-owner-independent-v1/independent-review-v1.json`,
+  41,154 bytes, SHA-256 `931832eeae2a100603bb835e1177559069983641ef9ffc4a9bfea776037ce75b`.
+
+Independent lazy-entry review passes `0x1447F1968` through its adapter into
+`0x156736640..0x15673667D`: 66 bytes/16 instructions, with complete row 244330
+and standard flags-zero unwind. It first calls `0x1447F11DC`, ignores the return,
+then selects the current dynamic TLS block and optionally invokes the already
+captured initializer when byte `+0x98` is zero. It returns that retained block's
+QWORD `+0x90`, without local heap validation, ownership acquisition or a lease.
+
+- Lazy-entry source: `api-source-review/20261024-family0-lazy-heap-entry-v1/source-capture-result-v1.json`,
+  26,657 bytes, SHA-256 `874b77b00c3be1bbecc3a47fb0931985dffe1e8cbd12de4b11892a9d274a95b3`.
+- Independent lazy-entry review: `api-source-review/20261024-family0-lazy-heap-entry-independent-v1/independent-review-v1.json`,
+  16,234 bytes, SHA-256 `f9fcf2f29890f737fc0634ab969a1650688b1368f90ac5cf0e34fb4f0f485856`.
+
+Independent thread-heap source review passes `0x1447F11DC` and its adapter:
+427 bytes/92 instructions, complete row 244326. Its local normal paths select a
+global fallback or a fresh candidate. The fresh nonnull branch performs inline
+byte copies or delegates copy calls, and has ten ordinary QWORD stores, including
+raw GS:`0x30` provenance and
+local links, before calling `0x1447F0C84` with the candidate in RCX. Null allocation
+skips those stores and that call but still reaches post-attempt work and an
+atomic counter increment; the counter does not establish successful creation.
+Copied values, allocation/initialization helpers and flags-three language-handler
+semantics remain unqualified. No direct TLS `+0x90` store occurs in this root.
+
+- Thread-heap source: `api-source-review/20261024-family0-thread-heap-init-v1/source-capture-result-v1.json`,
+  47,039 bytes, SHA-256 `f6b6a602c0dc2b63d76588390a3e2195501a51087a580112e2ba66ca560aee74`.
+- Independent thread-heap review: `api-source-review/20261024-family0-thread-heap-init-independent-v1/independent-review-v1.json`,
+  21,424 bytes, SHA-256 `e7e14b03f9d75f8ae1b61f45a2af9e7953e384c633e64ba479e938d63eac767d`.
+
+Independent leaf-source review passes `0x1447F0C84` through a five-byte jump
+and 34-byte leaf span: 39 bytes/seven instructions total. Neither span overlaps
+a PE runtime row. Five MOVs select the current dynamic TLS block and store incoming full RCX
+to QWORD `+0x90`; a terminal jump to `0x1447F544C` follows. There is no local
+readiness check, ownership validation, lock or rollback. A first short-window
+probe stopped before decoding the second span's six-byte first instruction;
+the exact terminal extent was then captured. No native operation occurred.
+Its complete bounded normal path is verified; the tail's effects remain open.
+
+- TLS-store source: `api-source-review/20261024-family0-heap-tls-store-v1/source-capture-result-v1.json`,
+  15,604 bytes, SHA-256 `b5e6e43166a220212a1b247ff5f9188ac4b31e0ef11e4fd007866181e0ddfe25`.
+- Independent TLS-store review: `api-source-review/20261024-family0-heap-tls-store-independent-v1/independent-review-v1.json`,
+  15,276 bytes, SHA-256 `789153c22b974bc636141cca8bd72dfce21dd46b95cdb8f6455b50effe0bde2b`.
+
 Returned-descriptor helper `0x1447F3348`, alternate factory `0x1447F296C`,
-threshold helper `0x1447F4700`, the heap's selected TLS initializer and lifetime,
+threshold helper `0x1447F4700`, heap bootstrap dependencies, the TLS-store tail
+`0x1447F544C` and thread/heap lifetime,
 class/context preparation and the separate
 context queue retain selected source questions. A natural stock cold caller,
 durable Cache/Router activation, coherent publication, actual resource use and

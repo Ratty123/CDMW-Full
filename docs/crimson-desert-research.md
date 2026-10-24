@@ -2020,6 +2020,13 @@ precedes a list of nineteen callback cells, without a local heap-pointer check.
 The numeric loader TLS index is unobserved. Completed readiness, exception
 behavior, ownership and ordinary-caller lifetime remain unqualified.
 
+Independent callback/template, lazy-entry and thread-heap reviews now trace the
+initial `+0x90` template pointer into a separate lazy-allocation path. The
+nineteen callbacks do not locally write that field. A reviewed leaf capture
+locates its dynamic TLS store before an unclosed tail; the null-candidate path
+still reaches attempt-counter work. Readiness, exception behavior, ownership
+and thread/heap lifetime remain unqualified.
+
 A separate [owned Cache and Router continuation](../beta-progress/cditem-execution-goal.md#owned-cache-and-router-continuation-2026-10-24)
 is source/linked reviewed and compiled. It retains one fresh Cache through
 dormant preparation and checked local activation under its own publication lock;

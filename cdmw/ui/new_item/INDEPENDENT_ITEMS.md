@@ -1657,6 +1657,15 @@ store precedes a list of nineteen callback cells, without a local `+0x90` heap
 check. The loader's numeric TLS index is unobserved. This supplies no completed
 native context, exception, ownership or lifetime contract for a fresh Cache.
 
+Independent callback/template, lazy-entry and thread-heap reviews now join the
+initial `+0x90` template pointer to the allocator's lazy branch. The nineteen
+callbacks do not locally initialize that field. A fresh nonnull path requests
+copies and makes ordinary links before a delegated TLS store; null allocation still
+reaches attempt-counter work. A reviewed leaf capture locates the dynamic
+`+0x90` store before an unclosed tail. Slot zero and a dynamic element can share
+the same block; no pointer nonaliasing or completed readiness is inferred.
+Exception behavior, ownership and thread/heap lifetime remain unqualified.
+
 A separate [owned Cache and Router continuation](../../../beta-progress/cditem-execution-goal.md#owned-cache-and-router-continuation-2026-10-24)
 is source/linked reviewed and compiled. It retains one fresh Cache through a
 versioned local activation transaction; it neither adopts old Stage witnesses
