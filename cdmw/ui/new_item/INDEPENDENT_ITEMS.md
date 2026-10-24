@@ -7,6 +7,46 @@ experimental virtual loading. Physical installation remains available through
 **Advanced > Item identities > Install into game archives**. Existing folder exports and
 game overlays remain available.
 
+## Optional DMM V3 export
+
+In **Mod Management > Shared files**, scan archive-installed independent items,
+tick **DMM V3 field JSON (experimental)**, then choose **Export installed items…**.
+The option starts off. Existing exports and Create New Item's manager defaults
+keep their previous formats. **Merge mods** offers the same opt-in when combining
+retained semantic exports.
+
+This route writes `mod.field.json`, `modinfo.json`, instructions and
+`cdmw-source/cdmw-semantic.cditem`. It preserves the original contributor UUIDs,
+content, assigned item/refinement/reward IDs, reservations and source witnesses.
+Select that included `.cditem` file for CDMW import or re-export; the outer DMM
+folder cannot be used as an ordinary loose mod or New Item base. Keep the identity
+profile with saves. Export prepares a separate folder and does not install or
+remove anything.
+
+Supported inputs reuse existing models and icons. Supported ItemInfo changes are
+the cloned identity and text, stack count, tier/level/durability, stats and prices,
+sockets, up to four equipment passive skills, and decoded item settings. Refinement
+clones include both reward lists and the actual item-result payload. All available
+item-language tables are exported with their exact text, composite keys and
+categories. Item-group additions use union; shop additions append stock while
+retaining existing positions. Replacements, deletions, unknown fields, custom
+resources, stock field-operation modules, texture modules, package links and mixed
+foreign contributions refuse. No unsupported part is silently omitted.
+
+The normal compiler, dependency and conflict checks run before export; inputs are
+checked again before atomic publication. Cancellation or changed sources preserve
+the destination. DMM does not enforce CDMW's source hashes at mount. Re-export
+after a game update, use a manager build supporting V3 clone patches and split item
+localization, and inspect its log for skipped/conflicting intents. Enable this
+package in place of its original packages or installed CDMW contribution.
+
+The adapter follows the guide's V3 intent dialect and the public parser schema at
+[`2e3b7a59c49f`](https://github.com/exodiaprivate-eng/dmm-parser/tree/2e3b7a59c49fbcc6c38adf84d8dcd9cc252d3d39).
+Owned-fixture and queued UI tests establish export/source preservation only;
+DMM mounting, appearance, acquisition, refinement in game and save compatibility
+remain unverified. This route still relies on manager-composed shared tables and
+does not establish native independent-item registration.
+
 The advanced item identity list sorts by **Item**, **Game ID** or **Status** when you click a column
 heading; clicking again reverses the order. Game IDs sort numerically. Drag the
 column edges to change widths. Refresh preserves the sort, widths and selected

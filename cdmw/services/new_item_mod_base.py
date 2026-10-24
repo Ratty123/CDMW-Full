@@ -108,6 +108,18 @@ def mod_folder_payloads(
         raise ValueError("This semantic export retains required package intent. "
                          "Import it through CDMW or select it in Merge; "
                          "it cannot be used as an ordinary mod folder or a New Item base.")
+    # Data intents are not loose game payloads. Ignoring them would bypass
+    # dependency/conflict checks and could export a seemingly empty mod.
+    import json
+    for manifest in root.glob('*.field.json'):
+        raise_if_cancelled(stop_event, "New item plan cancelled.")
+        if manifest.is_symlink() or manifest.stat().st_size > 8 * 1024 * 1024:
+            raise ValueError('Invalid or oversized field JSON manifest.')
+        document = json.loads(manifest.read_text(encoding='utf-8-sig'))
+        if isinstance(document, dict) and any(isinstance(target, dict) and 'intents' in target
+                for target in document.get('targets', ())):
+            raise ValueError('DMM field JSON cannot be read as ordinary mod files. '
+                             'For a CDMW export, import cdmw-source/cdmw-semantic.cditem instead.')
     for base in _roots(root):
         for path in base.rglob("*"):
             raise_if_cancelled(stop_event, "New item plan cancelled.")

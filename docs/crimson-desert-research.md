@@ -1501,6 +1501,27 @@ share storage without merging the contributors' lifecycle ownership.
 
 ### 12.3 Export, reimport and manager compatibility
 
+Scoped implementation review, 2026-10-24: an opt-in DMM V3 field-JSON adapter
+now lowers verified existing-model `.cditem` contributions through Shared files
+and semantic Merge exports. It retains each original package, UUID, assigned IDs,
+bindings and source witnesses in the included `cdmw-source/cdmw-semantic.cditem`.
+Existing export formats and defaults are unchanged. The adapter emits complete
+clone patches, owned refinement/reward references, additive shops/groups and every
+available item-language table. It refuses custom resources, unknown changes,
+stock field-operation and texture modules, package links and foreign contributors.
+CDMW dependency checks and final source/cancellation checks remain in force.
+
+The format follows the attached Custom Item Guide 3.0 and the public
+[DMM parser schema at `2e3b7a59c49f`](https://github.com/exodiaprivate-eng/dmm-parser/tree/2e3b7a59c49fbcc6c38adf84d8dcd9cc252d3d39).
+[Owned-fixture tests](../tests/test_dmm_item_export.py) and
+[queued caller tests](../tests/test_dmm_item_export_ui.py) cover output,
+identity/source retention and refused publication. This is source/headless
+evidence, not a DMM mount or game check. DMM does not enforce CDMW's dependency
+hashes while mounting, and can inherit earlier mods' donor edits or skip intents;
+re-export and manager-log review remain necessary. Acquisition, refinement,
+rendering and saves need separate game validation. V3 still composes shared tables;
+it is not proof of native independent definition or resource registration.
+
 Semantic export retains complete supported original packages, baseline/output
 witnesses, typed requirements and identity bindings. Import validates and
 reconstructs the contribution before composing it. Untyped foreign edits,

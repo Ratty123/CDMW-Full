@@ -4,7 +4,7 @@ from cdmw.domain.cancellation import raise_if_cancelled
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
-    QDialog, QDialogButtonBox, QFileDialog, QFormLayout, QHBoxLayout, QLabel,
+    QCheckBox, QDialog, QDialogButtonBox, QFileDialog, QFormLayout, QHBoxLayout, QLabel,
     QGroupBox, QLineEdit, QListWidget, QListWidgetItem, QPlainTextEdit, QProgressBar, QPushButton, QVBoxLayout,
 )
 
@@ -71,6 +71,9 @@ class ModMergeDialog(QDialog):
         output_row.addWidget(self.output_browse)
         form.addRow("Output folder:", output_row)
         output_layout.addLayout(form)
+        self.dmm_v3 = QCheckBox(self.tr('DMM V3 field JSON (experimental)'))
+        self.dmm_v3.setToolTip(self.tr('Export retained independent items using existing models and icons. Unsupported changes refuse. Keep the included .cditem source; DMM mounting and game behaviour remain unverified.'))
+        output_layout.addWidget(self.dmm_v3)
         results = QGroupBox('Compatibility')
         results_layout = QVBoxLayout(results)
         layout.addWidget(results, 1)
@@ -156,7 +159,7 @@ class ModMergeDialog(QDialog):
         )
         available = not self._working and not self.controller.busy
         for widget in (self.folders, self.add_button, self.game_root, self.game_browse,
-                       self.destination, self.output_browse, self.title):
+                       self.destination, self.output_browse, self.title, self.dmm_v3):
             widget.setEnabled(available)
         self.remove_button.setEnabled(available and self.folders.currentRow() >= 0)
         self.scan_button.setEnabled(available and self.folders.count() >= 2 and bool(self.game_root.text().strip()))
@@ -224,7 +227,8 @@ class ModMergeDialog(QDialog):
     def _export(self):
         if self._plan is None or self._plan.conflicts:
             return
-        self._run(mod_merge_export_task(self._plan, self.destination.text().strip(), self.title.text()),
+        self._run(mod_merge_export_task(self._plan, self.destination.text().strip(), self.title.text(),
+                                       dmm_v3=self.dmm_v3.isChecked()),
                   self._exported, "Writing the combined mod...", publishes_result=True)
 
     def _exported(self, result):

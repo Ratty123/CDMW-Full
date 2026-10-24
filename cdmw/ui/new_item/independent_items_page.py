@@ -1,6 +1,6 @@
 """Thin UI for reviewed portable-item operations on the shared worker lane."""
 from PySide6.QtCore import Qt, Signal, QItemSelectionModel
-from PySide6.QtWidgets import QFileDialog, QGroupBox, QHBoxLayout, QHeaderView, QInputDialog, QLabel, QMenu, QMessageBox, QPlainTextEdit, QPushButton, QSplitter, QToolButton, QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QCheckBox, QFileDialog, QGroupBox, QHBoxLayout, QHeaderView, QInputDialog, QLabel, QMenu, QMessageBox, QPlainTextEdit, QPushButton, QSplitter, QToolButton, QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget
 
 from cdmw.domain.new_item.independent import IndependentItemInstallPlan
 from cdmw.ui.new_item.review_model import ReviewTextWriter
@@ -121,6 +121,9 @@ class IndependentItemsPage(QWidget):
         self.comparison.setPlaceholderText("Scan for shared files, required records and unsupported mod data before merging.")
         self._comparison_writer = ReviewTextWriter(self.comparison)
         compatibility_layout.addWidget(self.comparison, 1)
+        self.dmm_v3 = QCheckBox(self.tr('DMM V3 field JSON (experimental)'))
+        self.dmm_v3.setToolTip(self.tr('Export retained independent items using existing models and icons. Unsupported changes refuse. Keep the included .cditem source; DMM mounting and game behaviour remain unverified.'))
+        compatibility_layout.addWidget(self.dmm_v3)
         actions = QHBoxLayout()
         actions.addWidget(self.compose_button)
         actions.addWidget(self.export_merge_button)
@@ -169,6 +172,7 @@ class IndependentItemsPage(QWidget):
                       and not self._comparison.virtual_profile)
         self.compose_button.setEnabled(ready and compatible and not self._comparison.folders and self.mutations is not None)
         self.export_merge_button.setEnabled(ready and compatible)
+        self.dmm_v3.setEnabled(ready)
 
     def set_game_root(self, root):
         root = str(root)
@@ -304,6 +308,7 @@ class IndependentItemsPage(QWidget):
         from cdmw.services.independent_item_compatibility import prepare_independent_mod_merge
         from cdmw.services.mod_merge_service import export_merged_mod
         root, folders, generation = self.package_root, self._comparison.folders, self._generation
+        dmm_v3 = self.dmm_v3.isChecked()
         parent = QFileDialog.getExistingDirectory(self, self.tr("Choose a parent folder for the merged mod"))
         if not parent:
             return
@@ -316,8 +321,8 @@ class IndependentItemsPage(QWidget):
             return
         destination = Path(parent) / title
         def task(log, stop):
-            plan = prepare_independent_mod_merge(root, folders=folders, stop_event=stop, on_log=log)
-            return export_merged_mod(plan, destination, title=title, stop_event=stop, on_log=log)
+            plan = prepare_independent_mod_merge(root, folders=folders, stop_event=stop, on_log=log, dmm_v3=dmm_v3)
+            return export_merged_mod(plan, destination, title=title, stop_event=stop, on_log=log, dmm_v3=dmm_v3)
         def completed(result):
             self._comparison = None
             self._set_status(self.tr("Merged mod written:") + ' ' + str(result.package_root))

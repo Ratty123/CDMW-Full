@@ -325,7 +325,8 @@ def prepare_mod_merge(
     return result
 
 
-def export_merged_mod(plan: ModMergePlan, destination: Path, *, title="Combined mod", on_log=None, stop_event=None):
+def export_merged_mod(plan: ModMergePlan, destination: Path, *, title="Combined mod", on_log=None, stop_event=None,
+                      dmm_v3=False):
     from cdmw.domain.archives.mutation import ArchiveAddRequest
     from cdmw.services.archive_overlay_package_service import export_archive_overlay_package
     from cdmw.services.new_item_service import NewItemExportResult, _publish_package_atomically
@@ -343,6 +344,31 @@ def export_merged_mod(plan: ModMergePlan, destination: Path, *, title="Combined 
     validate()
     title = str(title).strip() or "Combined mod"
     def write(staging):
+        if dmm_v3:
+            if plan.semantic_export is None:
+                raise ValueError('DMM V3 requires retained .cditem contributors. Use Export installed items or merge semantic exports.')
+            from cdmw.services.dmm_item_export import build_field_json, SOURCE_FOLDER
+            from cdmw.core.mod_compatibility import write_semantic_export
+            document = build_field_json(plan.semantic_export, title, stop_event=stop_event)
+            source_files = write_semantic_export(staging / SOURCE_FOLDER, plan.semantic_export, stop_event=stop_event)
+            for name, content in (('mod.field.json', document), ('modinfo.json', document['modinfo'])):
+                raise_if_cancelled(stop_event)
+                (staging / name).write_text(json.dumps(content, ensure_ascii=False, indent=2, allow_nan=False) + '\n', encoding='utf-8')
+            (staging / 'README.txt').write_text(
+                title + '\n\nExperimental DMM V3 field JSON for existing models and icons.\n'
+                'Requires a DMM build supporting V3 clone patches and split item localization.\n'
+                'CDMW verified source dependencies at export. DMM does not enforce these hashes at mount; '
+                're-export after game updates and check the manager log for skipped or conflicting intents.\n'
+                'Manager mounting, in-game appearance and save compatibility are not validated by this export.\n'
+                'Shop additions append stock and keep vanilla positions; shop replacements are unsupported.\n'
+                'Use this package instead of its original packages or installed CDMW contribution.\n'
+                'For CDMW import or re-export, select cdmw-source/cdmw-semantic.cditem. '
+                'It retains the original packages, UUIDs, bindings and dependency witnesses. '
+                'Keep the identity profile with your saves. Do not import this outer folder as a loose mod.\n',
+                encoding='utf-8')
+            return NewItemExportResult(staging, 'DMM', ('mod.field.json',), (),
+                ('mod.field.json', 'modinfo.json', 'README.txt',
+                 *(path.relative_to(staging).as_posix() for path in source_files)))
         if plan.semantic_export is not None:
             from cdmw.core.mod_compatibility import write_semantic_export
             written = write_semantic_export(staging, plan.semantic_export, stop_event=stop_event)

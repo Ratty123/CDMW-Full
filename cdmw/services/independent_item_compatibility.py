@@ -835,7 +835,7 @@ def prepare_semantic_mod_merge(roots, game_root, entries=None, *, read_entry=Non
         resolved.pending, resolved.external, observed=resolved.observed, stop_event=stop_event, on_log=on_log)
 
 
-def scan_independent_conflicts(root, *, folders=(), stop_event=None, on_log=None, _export=False):
+def scan_independent_conflicts(root, *, folders=(), stop_event=None, on_log=None, _export=False, _semantic=False):
     """Compare installed and saved virtual items with mounted and selected mods."""
     from cdmw.services import archive_overlay_manager as overlays
     from cdmw.services.independent_item_install import load_registry, resolve_items
@@ -964,7 +964,7 @@ def scan_independent_conflicts(root, *, folders=(), stop_event=None, on_log=None
         return report
     if not report.compatible:
         raise OverlayConflict(report.text())
-    if export_requirements:
+    if export_requirements or _semantic:
         return _semantic_export_plan(root, folders, layers, snapshot, load_registry(root), {}, external,
                                      observed=observed, stop_event=stop_event, on_log=on_log)
     # Build a portable merged copy through the existing exporter. This is an
@@ -1008,5 +1008,6 @@ def scan_independent_conflicts(root, *, folders=(), stop_event=None, on_log=None
     return plan
 
 
-def prepare_independent_mod_merge(root, *, folders=(), stop_event=None, on_log=None):
-    return scan_independent_conflicts(root, folders=folders, stop_event=stop_event, on_log=on_log, _export=True)
+def prepare_independent_mod_merge(root, *, folders=(), stop_event=None, on_log=None, dmm_v3=False):
+    return scan_independent_conflicts(root, folders=folders, stop_event=stop_event, on_log=on_log,
+                                     _export=True, _semantic=dmm_v3)

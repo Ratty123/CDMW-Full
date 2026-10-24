@@ -13,6 +13,7 @@ def mod_merge_scan_task(folders, game_root):
     return run
 
 
-def mod_merge_export_task(plan, destination, title):
+def mod_merge_export_task(plan, destination, title, *, dmm_v3=False):
     destination, title = Path(destination), str(title)
-    return lambda log, stop: export_merged_mod(plan, destination, title=title, on_log=log, stop_event=stop)
+    return lambda log, stop: export_merged_mod(plan, destination, title=title, on_log=log, stop_event=stop,
+                                             dmm_v3=dmm_v3)

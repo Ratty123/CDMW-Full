@@ -9,6 +9,8 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 ### Added
 
+- Mod Management adds an opt-in, experimental DMM V3 field-JSON export for independent items that reuse existing models and icons. It retains the original `.cditem` sources and IDs, checks dependencies, and refuses unsupported changes. Existing exports and defaults are unchanged; DMM mounting and game behaviour remain unverified.
+
 - Mesh Editor adds Sculpt > Bend: anchor one point and drag another to bend a selected rope or necklace section while retaining its thickness, with Undo/Redo and cancellation.
 
 - Morph & Refit adds independent fitting controls for whole mesh islands, with an embedded selection list showing each island's fit type and whether it uses Custom or inherited Part settings. Islands can inherit their Part settings again.
