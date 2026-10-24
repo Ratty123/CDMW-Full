@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 import re
 import html
+from pathlib import Path
 from urllib.parse import unquote
 
 import pytest
@@ -12,7 +13,7 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from scripts.export_github_wiki import (
     BUILTIN_LANGUAGES, PAGE_TOPICS, WIKI, DocumentParser, _blocks,
     _translate_html, build_pages, page_slug,
-    build_manuals, manual_slug,
+    build_manuals, manual_path, manual_slug,
     _emphasize_controls, _readable_guide, _sentences,
 )
 
@@ -28,14 +29,15 @@ def wiki_manuals(wiki_pages):
 
 
 def test_manuals_have_one_native_named_page_per_language_and_18_guide_entries(wiki_manuals):
-    assert len(wiki_manuals) == 17
+    assert len(wiki_manuals) == 30
     assert set(wiki_manuals) == {
-        *(manual_slug(language.code) + ".md" for language in BUILTIN_LANGUAGES),
+        *(manual_path(language.code) for language in BUILTIN_LANGUAGES),
+        *(Path(manual_path(language.code)).with_name("_Sidebar.md").as_posix() for language in BUILTIN_LANGUAGES),
         "Languages.md", "_Sidebar.md", "_Footer.md",
     }
-    assert "Deutsch.md" in wiki_manuals and "日本語.md" in wiki_manuals
+    assert "de/Deutsch.md" in wiki_manuals and "ja/日本語.md" in wiki_manuals
     for language in BUILTIN_LANGUAGES:
-        body = wiki_manuals[manual_slug(language.code) + ".md"]
+        body = wiki_manuals[manual_path(language.code)]
         guides = re.findall(r'<a id="guide-([^"]+)"></a>', body)
         assert set(guides) == {page.lower() for page in PAGE_TOPICS}
         assert len(guides) == len(PAGE_TOPICS) == 18
@@ -44,7 +46,28 @@ def test_manuals_have_one_native_named_page_per_language_and_18_guide_entries(wi
     assert "<details>" not in wiki_manuals["_Sidebar.md"]
 
 
+def test_each_manual_has_localized_contents_sidebar_and_opens_with_home(wiki_manuals):
+    from scripts.export_github_wiki import load_builtin_catalog, manual_url
+
+    for language in BUILTIN_LANGUAGES:
+        path = manual_path(language.code)
+        body = wiki_manuals[path]
+        sidebar = wiki_manuals[Path(path).with_name("_Sidebar.md").as_posix()]
+        translate = load_builtin_catalog(language.code)["translations"].get
+        assert sidebar.startswith("### " + translate("Contents", "Contents"))
+        assert f"[{translate('Start Here', 'Start Here')}]({manual_url(language.code, 'start-here')})" in sidebar
+        assert f"[{translate('Overview', 'Overview')}]({manual_url(language.code, 'overview')})" in sidebar
+        assert len(re.findall(r"\]\([^\n]+#guide-", sidebar)) == 18
+        assert "/Languages" not in sidebar and "🌐" not in sidebar
+        assert all(url.startswith(manual_url(language.code) + "#") for url in re.findall(r"\]\(([^)]+)\)", sidebar))
+        assert re.search(r"^## (.+)$", body, re.MULTILINE)[1] == translate("Home", "Home")
+        assert body.index("</details>") < body.index('<a id="guide-home"></a>')
+        assert '<a id="start-here"></a>' in body
+        assert f"[{language.display_name}]({manual_url(language.code)})" in wiki_manuals["Languages.md"]
+
+
 def test_manual_links_resolve_to_the_reduced_page_set_and_unique_section_ids(wiki_manuals):
+    public_pages = {Path(name).name: body for name, body in wiki_manuals.items() if Path(name).name != "_Sidebar.md"}
     for filename, body in wiki_manuals.items():
         anchors = re.findall(r'<a id="([^"]+)"></a>', body)
         assert len(anchors) == len(set(anchors)), filename
@@ -52,9 +75,9 @@ def test_manual_links_resolve_to_the_reduced_page_set_and_unique_section_ids(wik
             if target.startswith(WIKI):
                 page, _, anchor = target[len(WIKI):].partition("#")
                 destination = unquote(page) + ".md"
-                assert destination in wiki_manuals, (filename, target)
+                assert destination in public_pages, (filename, target)
                 if anchor:
-                    assert f'<a id="{anchor}"></a>' in wiki_manuals[destination], (filename, target)
+                    assert f'<a id="{anchor}"></a>' in public_pages[destination], (filename, target)
             elif target.startswith("#"):
                 assert target[1:] in anchors, (filename, target)
 
@@ -76,7 +99,7 @@ def test_consolidation_preserves_every_guides_visible_text(wiki_pages, wiki_manu
         return re.sub(r"\s+", "", html.unescape("".join(lines)))
 
     for language in BUILTIN_LANGUAGES:
-        manual = wiki_manuals[manual_slug(language.code) + ".md"]
+        manual = wiki_manuals[manual_path(language.code)]
         sections = dict(re.findall(
             r'<a id="guide-([^"]+)"></a>\n\n## [^\n]+\n\n(.*?)(?=\n\n---\n\n(?:<a id="guide-|CDMW `))',
             manual, re.DOTALL,
@@ -101,7 +124,7 @@ def test_procedures_are_steps_with_separate_limits_and_optional_details(wiki_man
     assert "<summary><strong>Authored cloth profiles</strong></summary>" in body
     assert "##### Do I need to install a DDS converter?" in body
     for language in BUILTIN_LANGUAGES:
-        manual = wiki_manuals[manual_slug(language.code) + ".md"]
+        manual = wiki_manuals[manual_path(language.code)]
         assert manual.count("<details>") == manual.count("</details>")
 
 
@@ -145,7 +168,7 @@ def test_korean_procedures_split_sentences_without_emphasizing_word_fragments(wi
     assert _emphasize_controls("정점 매개변수를 열고 적용을 선택하세요.", "ko") == (
         "**정점 매개변수**를 열고 **적용**을 선택하세요."
     )
-    vertex = wiki_manuals["한국어.md"].split('<a id="mesh_editor-5"></a>', 1)[1].split("</details>", 1)[0]
+    vertex = wiki_manuals["ko/한국어.md"].split('<a id="mesh_editor-5"></a>', 1)[1].split("</details>", 1)[0]
     assert vertex.count("\n1. ") == 2
     assert "지**원**" not in vertex
 
@@ -212,7 +235,7 @@ def test_export_output_stays_in_the_named_folder_and_check_detects_stale_page(tm
     folder = tmp_path / "wiki"
     monkeypatch.setattr("sys.argv", ["export_github_wiki.py", "--output", str(folder)])
     assert main() == 0
-    assert {file.name for file in folder.iterdir()} == set(build_manuals())
+    assert {file.relative_to(folder).as_posix() for file in folder.rglob("*.md")} == set(build_manuals())
     monkeypatch.setattr("sys.argv", ["export_github_wiki.py", "--output", str(folder), "--check"])
     assert main() == 0
     (folder / "Home.md").write_text("stale", encoding="utf-8")
@@ -231,15 +254,18 @@ def test_migration_removes_only_known_legacy_pages_with_explicit_flag(tmp_path, 
     output.mkdir()
     obsolete = output / "Archive-Browser.md"
     obsolete.write_text("old generated guide", encoding="utf-8")
+    old_manual = output / "Deutsch.md"
+    old_manual.write_text("old manual with shared sidebar", encoding="utf-8")
     unrelated = output / "Personal-notes.md"
     unrelated.write_text("keep this", encoding="utf-8")
     arguments = ["export_github_wiki.py", "--source-wiki", str(source), "--output", str(output)]
     monkeypatch.setattr("sys.argv", arguments)
     assert main() == 1
-    assert obsolete.exists() and not (output / "Home.md").exists()
+    assert obsolete.exists() and old_manual.exists() and not (output / "Home.md").exists()
     monkeypatch.setattr("sys.argv", arguments + ["--replace-legacy"])
     assert main() == 0
     assert not obsolete.exists() and unrelated.read_text(encoding="utf-8") == "keep this"
+    assert not old_manual.exists() and (output / "de/Deutsch.md").exists()
     monkeypatch.setattr("sys.argv", arguments + ["--check"])
     assert main() == 0
     obsolete.write_text("unexpected old guide", encoding="utf-8")

@@ -557,6 +557,11 @@ def manual_url(locale: str, anchor: str = "") -> str:
     return WIKI + quote(manual_slug(locale), safe="-") + ("#" + anchor if anchor else "")
 
 
+def manual_path(locale: str) -> str:
+    """Scope translated sidebars by folder without changing public Wiki page names."""
+    return ("" if locale == "en" else locale + "/") + manual_slug(locale) + ".md"
+
+
 def _guide_body(markdown: str) -> str:
     body = markdown.split("\n", 1)[1].strip()
     body = re.sub(r"\A\[⌂ [^\n]+\n\n", "", body, count=1)
@@ -600,19 +605,37 @@ def build_manuals(guides: dict[str, str] | None = None) -> dict[str, str]:
         parts = [
             home.splitlines()[0],
             f"**{language.display_name}** · [🌐 {translate('Language')}]({WIKI}Languages)",
-            '<a id="contents"></a>\n\n## ' + translate("Contents"),
+        ]
+        contents = ['<a id="contents"></a>\n\n<details>\n<summary>' + html.escape(translate("Contents")) + '</summary>']
+        sidebar = [
+            "### " + translate("Contents"),
+            f"**[{translate('Home')}]({manual_url(locale, 'guide-home')})**",
+            "\n".join(f"- [{translate(title)}]({manual_url(locale, anchor)})" for title, anchor in (
+                ("Start Here", "start-here"), ("Overview", "overview"), ("Safety Model", "safety"),
+            )),
         ]
         for group, pages in MANUAL_GROUPS:
-            parts.extend([
+            contents.extend([
                 "**" + translate(group) + "**",
                 "\n".join(f"- [{titles[page]}](#guide-{page.lower()})" for page in pages),
             ])
+            sidebar.extend([
+                "**" + translate(group) + "**",
+                "\n".join(f"- [{titles[page]}]({manual_url(locale, 'guide-' + page.lower())})" for page in pages if page != "Home"),
+            ])
+        contents.append("</details>")
+        parts.append("\n\n".join(contents))
         for page in order:
             body = _guide_body(guides[page_slug(page, locale) + ".md"])
             body = _readable_guide(
                 _guide_body(guides[page + ".md"]), body, locale,
                 mesh=page == "Mesh-Editor", faq=page == "FAQ",
             )
+            if page == "Home":
+                heading = "## " + translate("Start Here") + "\n"
+                if heading not in body:
+                    raise ValueError("Home start section is missing: " + locale)
+                body = body.replace(heading, '<a id="start-here"></a>\n\n' + heading, 1)
             body = re.sub(r"(?m)^(#{1,5}) ", r"#\1 ", body)
             body = re.sub(r"\]\((" + re.escape(WIKI) + r"[^)\n]+)\)", rewrite_link, body)
             parts.extend([
@@ -621,15 +644,14 @@ def build_manuals(guides: dict[str, str] | None = None) -> dict[str, str]:
                 f"[↑ {translate('Contents')}](#contents)",
             ])
         parts.append("---\n\n" + provenance[0])
-        result[manual_slug(locale) + ".md"] = "\n\n".join(parts) + "\n"
+        path = manual_path(locale)
+        result[path] = "\n\n".join(parts) + "\n"
+        result[Path(path).with_name("_Sidebar.md").as_posix()] = "\n\n".join(sidebar) + "\n"
     languages = "\n".join(
-        f"- [{language.display_name}]({manual_url(language.code, 'contents')})"
+        f"- [{language.display_name}]({manual_url(language.code)})"
         for language in BUILTIN_LANGUAGES
     )
     result["Languages.md"] = "# 🌐 Languages\n\n" + languages + "\n"
-    result["_Sidebar.md"] = (
-        f"**[CDMW Full Wiki]({WIKI}Home)**\n\n[🌐 Languages]({WIKI}Languages)\n\n" + languages + "\n"
-    )
     result["_Footer.md"] = guides["_Footer.md"]
     return result
 
@@ -650,7 +672,8 @@ def main() -> int:
     }
     pages = build_manuals(guides)
     output = args.output.resolve()
-    obsolete = sorted(name for name in legacy_names - pages.keys() if (output / name).is_file())
+    old_paths = legacy_names | {manual_slug(language.code) + ".md" for language in BUILTIN_LANGUAGES}
+    obsolete = sorted(name for name in old_paths - pages.keys() if (output / name).is_file())
     if args.check:
         stale = [name for name, body in pages.items() if not (output / name).is_file() or (output / name).read_text(encoding="utf-8") != body]
         if stale or obsolete:
@@ -665,7 +688,9 @@ def main() -> int:
             return 1
         output.mkdir(parents=True, exist_ok=True)
         for name, body in pages.items():
-            (output / name).write_text(body, encoding="utf-8", newline="\n")
+            path = output / name
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(body, encoding="utf-8", newline="\n")
         for name in obsolete:
             (output / name).unlink()
     print(f"{'Checked' if args.check else 'Exported'} {len(pages)} Wiki files across {len(BUILTIN_LANGUAGES)} locales. No publication performed.")

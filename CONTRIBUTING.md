@@ -74,15 +74,18 @@ Keep all 14 built-in interface locales aligned. The in-app documentation source
 and its translation catalogues supply the Wiki guides; export them into a local
 Wiki checkout with `python scripts/export_github_wiki.py --output <wiki-folder>`,
 then use the same command with `--check` to verify freshness. This command does
-not publish. It writes one manual per language with grouped contents, plus the
-language index and shared navigation. Review the generated pages and links before
-an authorized Wiki push. Do not recreate separate guide pages for each locale.
+not publish. It writes one manual per language with localized contents sidebars,
+plus the language index. Manuals open with Home; their in-article contents are
+folded for narrow screens. Translated manuals live in locale folders so GitHub
+uses the matching sidebar; their public page names and URLs stay unchanged.
+Review the generated pages and links before an authorized Wiki push. Do not
+recreate separate guide pages for each locale.
 
 To migrate an already published per-guide Wiki without changing its prose, use
 `--source-wiki <old-checkout> --output <wiki-folder> --replace-legacy`. This preserves
-all guide text and replaces only obsolete generated guide files; keep the old
-checkout or its Git revision for comparison. Earlier per-guide URLs become manual
-URLs with section anchors.
+all guide text and replaces only obsolete generated guide or flat manual files;
+keep the old checkout or its Git revision for comparison. Earlier per-guide URLs
+become manual URLs with section anchors.
 
 ### Confirmed progress
 

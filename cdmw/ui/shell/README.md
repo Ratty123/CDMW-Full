@@ -136,8 +136,9 @@ the shared localization catalog instead of maintaining separate translated
 topic copies.
 
 `scripts/export_github_wiki.py --output <wiki-folder>` renders those same topics
-and catalogues as 14 native-named GitHub Wiki manuals, a language index and shared
-navigation. Each manual has grouped contents, all 18 guides, stable section
+and catalogues as 14 native-named GitHub Wiki manuals, a language index and
+localized contents sidebars. Each manual opens with Home, keeps a folded contents
+menu for narrow screens, and includes all 18 guides, stable section
 anchors and labelled callouts. The exporter never pushes or changes repository
 settings. `--check` compares the local
 pages with their source. Keep generated Wiki pages in their separate checkout,
@@ -146,6 +147,10 @@ and review both documentation surfaces when a user-facing contract changes.
 without regenerating prose. Obsolete generated filenames are removed only with
 that explicit flag; unrelated files are retained. Do not add legacy redirect
 pages, which would repopulate GitHub's global Pages list.
+Translated manuals and their `_Sidebar.md` files share a locale folder so GitHub
+selects the correct contents menu. Public manual URLs still use their native
+page names. The Language link leads to the language index; sidebars list guides
+instead of repeating the language choices.
 The Wiki layout formats procedures as steps, emphasizes existing localized UI
 controls, separates limitations into labelled callouts, and folds optional Mesh
 Editor detail sections. It preserves the original translated sentences and
