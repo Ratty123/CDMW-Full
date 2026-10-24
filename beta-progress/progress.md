@@ -76,10 +76,13 @@ serialization and final-shape Cache/Router activation remain open.
 Read-only source follow-up now verifies 12 bounded entry captures and distinguishes
 the wrapper's family selector from indexed heap TLS. The `0x440` aligned route
 requests `0x44F` bytes; non-owner free has an atomic queue path. Independent
-source review accepts 105 file pins without material capture defects. Allocation
-primitive, aligned-pointer recovery, live initialization and borrowed lifetime
-remain open. The provider is closed with all prior history preserved in 2,239
-records; this source result adds no native/game acceptance.
+source review accepts 105 file pins without material capture defects. A selected
+follow-up now independently verifies 131 instruction records and 18 pins across
+three further entries. It identifies the general allocation body's remaining
+context/block services and base-relative aligned-pointer recovery. Transitive
+services, live initialization, ordinary callers and borrowed lifetime remain
+open. Both providers are closed; the latest export preserves all prior history
+in 2,241 records. These source results add no native/game acceptance.
 
 [Canonical goal and acceptance criteria](cditem-conflict-isolation-plan.md) |
 [Execution](cditem-execution-goal.md) |
@@ -161,6 +164,8 @@ the preceding 24-case preparation evidence remains in
 `workspace/reports/cditem-execution/20261021-package-resource-images/`.
 
 ## Completed work
+
+- 2026-10-24 | CDISO-RE-02 selected allocation/recovery source qualification | Independent file review verifies 18 pins and all 131 captured instructions across three further entries. The selected general allocation body and base-relative pointer recovery expose remaining context, block/pointer and metadata prerequisites. The second closed provider export retains all 2,239 prior records and 140 unknown revisions, adding two pseudocode records. No native execution or admission is established. Evidence: [source and remaining premises](cditem-execution-goal.md#reader-boundary-platform-qualification-remains-open).
 
 - 2026-10-23 | CDISO-RE-02 family-zero heap/helper source qualification | Read-only REA and static PE/unwind/instruction analysis distinguish family selection from indexed heap TLS, identify the selected `0x440` allocation's `0x44F` byte request and prove an atomic non-owner free path exists. Independent source review accepts 105 file pins across 12 bounded entries without material capture defects. The closed provider's 2,239-record export retains all prior records and 140 unknown revisions. Allocation/recovery helpers, live initialization, later callers, queue drain and borrowed lifetime remain open; no native/game/admission result is added. Evidence: [source and remaining premises](cditem-execution-goal.md#reader-boundary-platform-qualification-remains-open).
 

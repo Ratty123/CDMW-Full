@@ -129,6 +129,13 @@ free queue. Independent PE/instruction review accepts 12 bounded entry captures;
 outgoing allocation, aligned-pointer recovery, initialization and lifetime
 dependencies remain explicit. Ordinary cold callers and final Cache/Router
 activation still need their own qualification.
+The selected follow-up independently verifies three further bounded entries:
+the `0x44F` request reaches the general allocation body, and aligned-pointer
+recovery uses a base-relative block remainder with metadata size or a
+service-supplied extended size.
+The actual context, block/pointer services and coherent metadata prerequisites
+remain open. The latest closed export preserves all prior history in 2,241
+records; no native execution or admission follows from these source checks.
 
 1. Join the independently reviewed observed unpublished numeric/name pairs to private metadata/backing and central getter/bulk under a qualified consumer boundary. Native numeric values are WORD ordinals; name values are DWORD numeric keys. Guard known source/clone allocation aliases before adapter-controlled writes or releases; native internal-node freshness remains an explicit premise. The portable publication model's name values and metadata route indexes are not the native ABI. Expiry zero permits eviction; eager residency cannot replace rematerialization, reader/maintenance coverage or lifetime proof.
 2. Join definitions, both native maps and resources in one startup-scoped native contribution, including later derived-state validation and a qualified consumer boundary. Then exercise two independently authored same-donor packages with distinct private assets through acquisition, equip, restart and save reload.

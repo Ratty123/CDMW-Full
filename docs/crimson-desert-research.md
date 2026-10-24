@@ -1695,8 +1695,11 @@ arbitrary later callers, concurrency, natural eviction or final-owner publicatio
 Read-only build-2976 source inspection now verifies bounded heap/helper entries,
 including a distinct indexed TLS context and atomic cross-owner free handling.
 The selected record allocation takes a general aligned path. Independent
-PE/instruction review accepts the captures while allocation/recovery helpers,
-live readiness, queue draining and borrowed-record lifetime remain open.
+PE/instruction review accepts the captures. A selected follow-up independently
+verifies the raw allocation dispatch/general body and base-relative aligned-pointer
+recovery. Their external context and block/pointer services and metadata
+prerequisites remain unclosed, alongside live readiness, queue draining and
+borrowed-record lifetime.
 These source findings do not qualify the durable native route.
 
 A separately authored sword package passes full import,

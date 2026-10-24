@@ -1449,9 +1449,13 @@ owner and has an explicit atomic non-owner queue path. Twelve bounded entries
 pass independent PE/instruction review; their external helpers, queue draining
 and record lifetime remain unqualified. The constructor's global default,
 name decoder's temporary/TLS cleanup and separate WORD/FFFF global-map lookup
-also remain part of the native context contract. Qualify the remaining selected
-allocation/recovery callees and a natural ordinary cold caller before changing
-the final Cache/Router backend.
+also remain part of the native context contract. The selected follow-up now
+independently verifies the raw allocation dispatch/general body and aligned-pointer
+recovery. Recovery uses a service-supplied base and nonzero metadata or extended
+block size; the general body's context, preparation, block and final pointer services remain
+unclosed. These bounded source checks do not establish live readiness or arbitrary
+thread safety. Qualify the remaining selected services and a natural ordinary
+cold caller before changing the final Cache/Router backend.
 The ordinary getter/materializer/constructor/decoder chain uses direct E8 calls,
 outside the qualified loader-vtable observation seam. Primary publication occurs
 after decoding; a passive observer must associate actual constructor/decoder

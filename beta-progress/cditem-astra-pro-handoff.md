@@ -242,10 +242,15 @@ The selected `0x440`/align-16 route requests `0x44F` bytes; non-owner free has
 three actual atomic queue operations. Constructor/string/global-lookup helpers
 also expose transitive initialization and ownership requirements. Unwind roots
 and captured normal paths are not complete allocator closure, and B81 did not
-observe the precise queue branch or drain lifetime. The next source targets are
-`0x1447EFE6C` and aligned-pointer recovery `0x1447F01F0`, followed by a natural
-stock cold-call witness with a qualified direct-call observer. All prior export
-history survives in the closed provider's 2,239-record bundle; the
+observe the precise queue branch or drain lifetime. The selected allocation and
+recovery follow-up now passes independent physical review of 131 instruction
+records across three entries and 18 file pins. The `0x44F` request reaches
+`0x1447F3E38`; its context, preparation and block services remain unclosed.
+`0x1447F01F0` computes base-relative block recovery, requiring coherent nonzero
+metadata size or extended size returned by `0x1447F1E34`. Qualify the selected
+remaining services and a natural stock cold-call witness with a separately
+qualified direct-call observer.
+All prior export history survives in the closed provider's 2,241-record bundle; the
 [execution checkpoint](cditem-execution-goal.md#reader-boundary-platform-qualification-remains-open)
 owns exact receipts, hashes and remaining premises. No game run or native
 admission follows from this source increment.

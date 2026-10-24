@@ -343,8 +343,11 @@ promote the selected callback into general later getter/bulk thread safety.
 The read-only family-zero follow-up now joins 12 bounded entries to PE/unwind
 and independently decoded instruction bytes. It proves a separate indexed TLS
 heap context, the `0x440` aligned route's `0x44F` byte request and an explicit
-atomic non-owner free queue. The selected raw allocation and aligned-pointer
-recovery helpers, live initialization, queue draining and borrowed lifetime
-remain unresolved. Unwind extents do not establish complete logical functions.
+atomic non-owner free queue. A selected follow-up independently verifies 131
+instruction records across the raw dispatch/general allocation and aligned-pointer
+recovery entries. It exposes further context/block/pointer services and requires
+coherent metadata with a nonzero recovery size. Transitive services, live
+initialization, queue draining and borrowed lifetime remain unresolved. Unwind
+extents do not establish complete logical functions.
 Use the [current source evidence](../../../beta-progress/cditem-execution-goal.md#reader-boundary-platform-qualification-remains-open)
 before preparing a direct-call stock cold witness or durable continuation.

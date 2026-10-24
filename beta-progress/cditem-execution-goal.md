@@ -821,10 +821,20 @@ Independent source review accepts 105 file pins and 780 instruction records
 across 12 unique entries, including repeated capture generations, without
 material capture defects. Neither complete allocator closure nor live heap,
 later-caller locking, reader exclusion or lifetime readiness is established.
-The next exact source targets are allocation primitive `0x1447EFE6C` and
-aligned-pointer recovery `0x1447F01F0`; conditional initialization/queue helpers
-remain explicit. Then qualify one natural ordinary stock cold call and its
-serialization before implementing the durable final-shape Cache/Router route.
+The selected allocation/recovery follow-up is now independently byte-reviewed.
+For `0x44F`, dispatcher `0x1447EFE6C` tail-calls `0x1447F3E38` with zero auxiliary
+argument. That root can replace a default context, calls preparation and
+metadata/block services, and retries its block request once after another native
+service. The selected false-clear path calls `0x1447EFDF4` at `0x1447F3F4C`;
+the helpers' locking, initialization and lifetime roles remain unproved.
+Recovery `0x1447F01F0` returns `P - ((P - A) % S)`, using base and conditional
+extended size from `0x1447F1E34`. The ordinary size is DWORD metadata `+0x1C`.
+It has no local zero-divisor guard. This is base-relative block recovery, not
+alignment rounding or a guessed header offset.
+The next selected unclosed edges are `0x1447F1E34`, `0x1447EFDF4` and
+`0x1447F446C`; context/preparation/failure services remain explicit. Qualify one
+natural ordinary stock cold call and its serialization before implementing the
+durable final-shape Cache/Router route.
 These are source addresses, without a new live process grant. The earlier
 backend/thread question remains recorded in:
 `api-source-review/20261023-durable-cache-thread-contract-v1/durable-cache-thread-contract-source-review-v1.json`,
@@ -855,6 +865,29 @@ uncatalogued-entry queries remain retained. File continuity/close-ack receipt:
 `c2371baff9d2e7024515ee8bbaca6e88e9d0dd66436ad5296c80937de54a2a16`.
 This increment uses static tools and read-only provider queries; no target-code
 execution, native build, game process control or installation change occurred.
+
+The selected follow-up captures three entries and 131 instruction records.
+Independent root file review on 2026-10-24 verifies 18 file pins, every captured
+instruction against the unchanged executable, and the two PE/unwind roots.
+Capture: `api-source-review/20261023-family0-allocation-recovery-v1/capture-result-v1.json`,
+49,251 bytes, SHA-256
+`260c17f0a779839677fd78fb60c8587a0bfe092abe8dd8a83cdb7afec3875cca`.
+Independent bounded review:
+`api-source-review/20261024-family0-selected-root-review-v1/independent-file-review-v1.json`,
+8,833 bytes, SHA-256
+`d6d3e65c6cd77604d97e5e86bf06151b240658ba4eda1ed8d4ec9744394be61e`.
+The second provider session is also closed. Its latest export is
+`provider-20261023/primary-cache-20261023/rea-after-family0-allocation-recovery-v1.json`,
+230,766,285 bytes, SHA-256
+`514573b04418b70e64aa9df4ec4b9a12303416fa633b708c5afc33ffb5888793`.
+Independent full-history review preserves all 2,239 earlier records and 140
+unknown revisions; two pseudocode records leave 2,241 records and the same 25
+current unknown IDs. Continuity and close acknowledgement:
+`api-source-review/20261023-family0-allocation-recovery-v1/export-audit-v1/export-continuity-review-v1.json`,
+22,583 bytes, SHA-256
+`e7b382480d7296fc25cd73f295242b861cf02a8675468f66c2fc0e9985b9ef34`.
+These bounded source results establish neither transitive allocator closure nor
+live caller, queue-drain, reader, publication or lifetime readiness.
 
 The ordinary cold-chain seam review additionally joins the three direct E8
 calls at `0x14038AC35`, `0x14038AF14` and `0x14038AF45`. B118/B119's loader-vtable
