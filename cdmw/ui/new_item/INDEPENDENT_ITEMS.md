@@ -1928,8 +1928,19 @@ reader or active watch has executed. These are source prerequisites, with no
 deadline, crash-stop, retirement, engine lifetime or native-admission proof.
 
 File-only review of this host's pinned kernel32/KernelBase export tables finds
-no named `InterlockedCompareExchange64` entry. The Python receiver still needs a
-separately qualified native atomic interface; no live symbol lookup occurred.
+no named `InterlockedCompareExchange64` entry; no live symbol lookup occurred.
+A separate data-only native atomic interface now passes source/build-driver
+review. It owns fresh noninherited mapping/event handles, separates creation
+from arming and acquires published state before reading the start payload.
+The fixed Python binding passes independent review and 100 fake-only binding
+checks, retaining publication history and quarantining uncertain ownership.
+Neither the DLL nor an actual channel has executed; compile/link, linked review
+and owned Windows qualification remain pending.
+
+A source-reviewed three-case owned crash-lease qualifier is also prepared,
+including guardian death with an independently retained target handle and live
+unassigned sentinel. Its actual execution, complete watch/collector integration,
+deadline and stop latency, game Job compatibility and admission remain open.
 
 The diagram describes uncompiled V5 source ordering. Actual external watch,
 channel and crash-lease qualification remain pending:
