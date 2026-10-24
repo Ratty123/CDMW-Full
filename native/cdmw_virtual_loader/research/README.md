@@ -362,8 +362,22 @@ This qualifies only the measured owned fixture. Early UAL startup does not
 exclude younger threads or every executor from a shared code page. V4’s RW
 scratch proof and unconditional detach cleanup cannot qualify code publication:
 possible-mutation uncertainty must retain the exact owned target until
-termination. The next owned test warms callers before attach and joins complete
-page exclusion, remote protection/write/flush, physical readback and forwarding
-after safe detach. Exact pins, preserved build-postcheck failure and proof limits
+termination. Whole-page exclusion, checked executable-code publication and safe
+resumption after already-used callers remain unqualified. Exact pins, preserved
+build-postcheck failure and proof limits
 are in the [owned direct-call checkpoint](../../../beta-progress/cditem-execution-goal.md#owned-direct-call-forwarding-and-installation-boundary-2026-10-24).
 Game reader leases, publication, resources, lifetime and admission remain open.
+
+The separately reviewed ordinary DLL packet now passes one owned non-ASLR
+preferred-base load. Its three uncalled compiled wrapper addresses fit the
+numeric source CALL range; this does not establish runtime CFG enforcement or
+production placement. Effective CFG also requires `/DYNAMICBASE`, disabled by
+this fixture. The original quoted-option postcheck failure remains separate
+from the accepted compile/link proof. Static follow-up independently verifies
+the selected allocator base/size adapter/body and 35 instructions. Subsequent
+block-selection and classifier reviews pass 82 and 31 instructions; file-derived
+`0x44F` arithmetic selects class 25/cell `H+0x668` on the small/default path.
+No live cell is read. Candidate/replenishment helpers, metadata provenance,
+coherent nonzero size, synchronization and lifetime remain unqualified. The
+[placement/source checkpoint](../../../beta-progress/cditem-execution-goal.md#ordinary-dll-placement-and-allocator-source-2026-10-24)
+retains the exact evidence and the stopped, unqualified publication draft.

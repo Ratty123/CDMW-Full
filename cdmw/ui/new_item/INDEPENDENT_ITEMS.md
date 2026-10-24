@@ -1481,6 +1481,21 @@ physical readback before safe resumption; uncertainty after mutation requires
 owned termination while held. See the [exact owned evidence and remaining boundary](../../../beta-progress/cditem-execution-goal.md#owned-direct-call-forwarding-and-installation-boundary-2026-10-24).
 No natural game caller, durable backend, resource use or admission is established.
 
+The separate ordinary compiled-DLL experiment now loads once at its non-ASLR
+preferred base and places all three uncalled wrapper addresses in range of the
+numeric source CALL identities. Independent linked review checks actual
+RX/GuardCF/unwind membership. This proves neither runtime CFG enforcement nor
+production placement: effective CFG requires `/DYNAMICBASE`, disabled by this
+exact fixture. Its quoted-option build postcheck failure is retained beside a
+separate accepted compile/link proof. No code-publication qualification follows.
+Static source follow-up independently verifies the allocator's selected
+base/size adapter and body, with 35 instructions and complete local normal
+control flow. Block-selection and classifier source reviews also pass: the
+selected `0x44F` request derives class 25/cell `H+0x668` on the small/default
+path. That is static arithmetic without a live cell read. Candidate/replenishment
+helpers, metadata provenance, coherent nonzero size, synchronization and lifetime
+remain unqualified. See the [exact placement/source scope](../../../beta-progress/cditem-execution-goal.md#ordinary-dll-placement-and-allocator-source-2026-10-24).
+
 A first external sword package also passes actual full import, four hand/sheath
 attachment checks and exact package/model/texture readback with a persistent
 UUID. Its separate compiler image contains 24 private PAC/PAC_XML/DDS/prefab

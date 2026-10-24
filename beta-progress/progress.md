@@ -91,15 +91,27 @@ concurrent association and terminal installer failures are exercised. Linked
 review accepts the actual call boundaries, GuardCF membership and unwind action.
 Independent actual review passes 90 distinct file pins and all 27 raw logs.
 The existing early UAL phase supplies no whole-page exclusion lease. External
-executable-code publication after already-used callers is the next owned
-discriminator; game routing, resource use, lifetime and admission remain open.
+executable-code publication after already-used callers remains unqualified.
+The separately reviewed ordinary DLL experiment now loads once at its non-ASLR
+preferred base, with all three uncalled wrapper addresses in numeric CALL range.
+It does not establish runtime CFG enforcement or production placement. The
+original quoted-option postcheck failure is retained beside a separate accepted
+compile/link proof. Static follow-up also independently verifies 35 instructions
+for the allocator base/size adapter and body, plus 30 retained caller instructions.
+The subsequent block-service and classifier reviews pass 82 and 31 instructions.
+File-derived arithmetic selects class 25/cell `H+0x668` for the `0x44F` request
+on the small/default path. No live cell or metadata was observed. Candidate and
+replenishment helpers, metadata validity, synchronization and lifetime remain
+the next selected requirements.
+See the [exact placement and source evidence](cditem-execution-goal.md#ordinary-dll-placement-and-allocator-source-2026-10-24).
+Game routing, resource use, lifetime and native admission remain open.
 
 [Canonical goal and acceptance criteria](cditem-conflict-isolation-plan.md) |
 [Execution](cditem-execution-goal.md) |
 [Research handoff](cditem-astra-pro-handoff.md) |
 [Technical architecture](../cdmw/ui/new_item/INDEPENDENT_ITEMS.md#runtime-registration-research)
 
-Execution status updated 2026-10-23; retained research below keeps its original evidence scope. This is an evidence snapshot. Completion remains owned by the
+Execution status updated 2026-10-24; retained research below keeps its original evidence scope. This is an evidence snapshot. Completion remains owned by the
 original `CDISO-*` criteria, with narrowly scoped subtask results recorded below.
 
 | Outcome | Status | Evidence and remaining work |

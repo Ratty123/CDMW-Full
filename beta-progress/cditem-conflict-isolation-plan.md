@@ -143,10 +143,21 @@ and terminal patch-failure handling. Independent linked review accepts the
 three genuine same-page calls, selected GuardCF targets and unwind action.
 Independent actual review also passes, joining all raw logs and runtime layouts.
 The existing early UAL phase does not establish whole-page execution exclusion;
-the next owned discriminator must qualify external executable-code publication
-after already-used callers, preserving failure containment. This is fixture
-evidence only, with no game installation or acceptance change. Exact pins and
-limits are in the [reader-boundary checkpoint](cditem-execution-goal.md#reader-boundary-platform-qualification-remains-open).
+external executable-code publication after already-used callers remains
+unqualified. A separately reviewed ordinary DLL load now selects its non-ASLR
+preferred base and places all three compiled wrapper addresses within the signed
+CALL range of the numeric source seams. The wrappers are not invoked. This does
+not establish runtime CFG enforcement or production placement: Microsoft requires
+`/DYNAMICBASE` for effective CFG, while this exact fixture disables ASLR.
+The original build's quoted-option postcheck failure is preserved separately
+from the accepted compile/link proof. Static follow-up also closes the selected
+allocator base/size arithmetic through 35 physically joined instructions;
+the block-selection and classifier reviews also pass. The selected `0x44F`
+request derives class 25/cell `H+0x668` on the small/default path, without a
+native call or live cell read. Candidate/replenishment helpers, metadata
+validity, nonzero size, synchronization and lifetime remain unqualified. No
+game installation or acceptance changed. Exact pins and limits are
+in the [placement and allocator checkpoint](cditem-execution-goal.md#ordinary-dll-placement-and-allocator-source-2026-10-24).
 
 1. Join the independently reviewed observed unpublished numeric/name pairs to private metadata/backing and central getter/bulk under a qualified consumer boundary. Native numeric values are WORD ordinals; name values are DWORD numeric keys. Guard known source/clone allocation aliases before adapter-controlled writes or releases; native internal-node freshness remains an explicit premise. The portable publication model's name values and metadata route indexes are not the native ABI. Expiry zero permits eviction; eager residency cannot replace rematerialization, reader/maintenance coverage or lifetime proof.
 2. Join definitions, both native maps and resources in one startup-scoped native contribution, including later derived-state validation and a qualified consumer boundary. Then exercise two independently authored same-donor packages with distinct private assets through acquisition, equip, restart and save reload.

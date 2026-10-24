@@ -1,13 +1,15 @@
 # CDMW .cditem Astra / Pro reasoning handoff
 
 - Created: 2026-10-18, Europe/Stockholm.
-- Status: Active execution resumed 2026-10-23. The exact small native payload read is independently verified. Read the current checkpoint first. Separate-image native consumption and actual native integration remain incomplete, `native_admission=false`.
+- Status: Active local continuation, 2026-10-24. The exact small native payload read is independently verified. Read the current checkpoint first. Separate-image native consumption and actual native integration remain incomplete, `native_admission=false`.
 - Execution entry point: [cditem-execution-goal.md](cditem-execution-goal.md).
 - Feature authority and completion state: [cditem-conflict-isolation-plan.md](cditem-conflict-isolation-plan.md).
 - Shared completed work: [progress.md](progress.md).
 
 
 ## Current restart checkpoint, 2026-10-23
+
+Latest local work: [ordinary DLL placement and allocator source, 2026-10-24](cditem-execution-goal.md#ordinary-dll-placement-and-allocator-source-2026-10-24).
 
 The user resumed execution and directly authorized the required resources
 without other-session coordination. The
@@ -269,10 +271,26 @@ passes 90 distinct file pins and all raw logs/runtime layouts. The original buil
 text-postcheck failure remains recorded, with successful compile/link accepted
 by a separate independent postcheck. This is no game caller or lease.
 Existing early UAL startup permits younger threads and does not exclude every
-executor from the shared page. Reuse V4’s owned debugger for a separate warmed
-caller/code-publication test; possible-mutation failure must hold until exact
-owned termination, never detach unconditionally. The [execution checkpoint](cditem-execution-goal.md#owned-direct-call-forwarding-and-installation-boundary-2026-10-24)
-owns exact pins and remaining limits. Game publication and admission stay open.
+executor from the shared page. A separate code-publication draft was stopped
+automatically and remains uncompiled/unfrozen; it was not retried. Possible-mutation
+uncertainty would still require exact owned termination while held.
+The reviewed normal-DLL placement packet now passes one owned non-ASLR load:
+the preferred base is `0x180000000`, and all three uncalled compiled wrappers
+fit the numeric source CALL range. Runtime CFG enforcement and production
+placement remain unestablished; effective CFG requires `/DYNAMICBASE`, which
+this fixture disables. Preserve the original quoted-option postcheck failure
+alongside the separate accepted compile/link proof.
+Static follow-up also independently verifies the 12-byte base/size adapter,
+116-byte body and 35 instructions, plus 30 retained caller instructions.
+Metadata provenance, coherent nonzero size, serialization and lifetime are
+unvalidated caller premises. The subsequent block-service source review passes
+82 instructions, but does not populate the required metadata. Independent
+classifier review also passes 31 instructions: the selected `0x44F` request
+derives class 25/cell `H+0x668` on the small/default path. No live cell is read.
+Candidate `0x1447F4004` and replenishment `0x1447F49EC` are the next selected
+source questions; metadata provenance, initialization and lifetime stay open. The
+[current evidence checkpoint](cditem-execution-goal.md#ordinary-dll-placement-and-allocator-source-2026-10-24)
+owns exact pins and limits. Game publication and admission stay open.
 
 Retained local source-only results under the native-path continuation:
 `run/b115-current-owner-v2/source-check-receipt.json` (41 focused checks;

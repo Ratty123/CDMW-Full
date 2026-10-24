@@ -1839,10 +1839,25 @@ input pins remain unchanged; independent actual review passes all raw logs and
 runtime layouts. These are isolated fixture observations, without
 a natural game call, game thread contract or publication lease. Existing early
 UAL startup does not exclude younger threads or all executors from a shared
-code page. The next owned check must qualify external executable-code changes
-and safe resumption after already-used callers, containing uncertain mutation
+code page. External executable-code changes and safe resumption after
+already-used callers remain unqualified; uncertain mutation must stay contained
 until owned termination. Native routing, resource use and lifecycle remain open;
 see the [exact evidence and limits](../beta-progress/cditem-execution-goal.md#owned-direct-call-forwarding-and-installation-boundary-2026-10-24).
+
+One separate ordinary DLL load now observes its selected non-ASLR preferred
+base and three uncalled compiled wrapper addresses within the numeric source
+CALL range. This is owned placement/arithmetic evidence, without proof of runtime
+CFG enforcement or production placement. Effective CFG requires `/DYNAMICBASE`,
+disabled by this exact experiment. A quoted-option postcheck failure is retained
+beside a separate accepted compile/link proof. Static follow-up also
+independently verifies the selected allocator base/size arithmetic through
+35 physically joined instructions. Further block-selection and classifier
+reviews identify the selected small/default path and derive class 25/cell
+`H+0x668` for the `0x44F` request. These are file-derived results without a live
+cell read. Candidate/replenishment helpers, metadata validity, coherent nonzero
+size, synchronization and lifetime remain unqualified. The
+[placement/source checkpoint](../beta-progress/cditem-execution-goal.md#ordinary-dll-placement-and-allocator-source-2026-10-24)
+records exact receipts and the remaining native prerequisites.
 
 A separately authored sword package passes full import,
 four hand/sheath attachment checks and exact package readback. Its compiler image

@@ -2,7 +2,7 @@
 
 - Plan ID: `CDRUN`
 - Created: 2026-10-18, Europe/Stockholm.
-- Status: Active execution resumed 2026-10-23. The exact small native payload read is independently verified. Separate package-image consumption, actual native registration/resource use, full scenarios and delivery remain incomplete; `native_admission=false`.
+- Status: Active local continuation, 2026-10-24. Exact native payload reads and bounded owned fixture results are retained. Separate package-image consumption, actual native registration/resource use, full scenarios and delivery remain incomplete; `native_admission=false`.
 - Original execution model: the user's selected GPT-6.1 Sol with Max reasoning, retained as historical context.
 - Current reasoning and research entry point: [the maintained handoff](cditem-astra-pro-handoff.md).
 - Project: `D:\CLAUDETEST\CDMW Full`.
@@ -11,6 +11,9 @@
 - Shared completion log: [progress.md](progress.md).
 
 ## Current execution checkpoint
+
+Latest local work: [ordinary DLL placement and allocator source, 2026-10-24](#ordinary-dll-placement-and-allocator-source-2026-10-24).
+The full goal is active; all original acceptance conditions remain in force.
 
 ### Resumed with direct authority, 2026-10-23
 
@@ -956,13 +959,16 @@ The installation source review’s 24 current input pins match:
 The existing V4 debugger experiment proves RW scratch stores, not executable
 code publication. Its unconditional detach cleanup must not carry into a code
 successor: after possible code mutation, uncertain failure must hold the exact
-owned target until termination. The next discriminator reuses that owned
-debugger path, warms the typed callers before attach, excludes every held RIP
-from the complete page, then joins remote protection/write/flush, independent
-physical readback, safe detach and actual forwarding. It cannot assert the
-precursor’s before-first-use premise. Source review of this boundary is
+owned target until termination. The external-code-publication source review
+identifies the required warmed callers, whole-page exclusion, checked publication
+and safe resumption; none is supplied by the scratch result. That source review is
 `api-source-review/20261024-external-code-publication-source-v1/source-review-v1.json`,
 23,222 bytes, SHA-256 `7c7f692067a2449faa51588d0d1e8cdaf64d59f0030007bc7557dd088f806bc7`.
+Its separate nine-file implementation draft was automatically stopped for
+"possible cybersecurity risk", without a detailed reason. It remains uncompiled
+and unfrozen, without a controller/freezer/source packet; it was not retried.
+Recovery receipt: the same directory's `interrupted-draft-receipt-v1.json`,
+3,332 bytes, SHA-256 `3964f4873483c8e58581107960f88e0ff83d7478911f6f448ad497590dc3640c`.
 Game reader exclusion, live allocator context, durable Cache/Router activation,
 resource consumption, lifetime and native admission remain unproved. This
 increment changes no installed binary, supported package workflow or acceptance
@@ -978,6 +984,118 @@ alone do not make publication safe.
 The historical ThinkForge goal is cancelled from the earlier pause and cannot
 resume through its available tool; the active Codex goal and these existing
 Markdown owners retain the full objective without a duplicate goal.
+
+#### Ordinary DLL placement and allocator source, 2026-10-24
+
+The fresh local Codex goal is active under the unchanged CDISO/CDRUN authority.
+The current checkout was `main@5a7b18a348b3`; unrelated work was preserved. The
+retained 27-case run and independent actual-review receipts still match their
+pins and were not replayed. All 45 original acceptance lines remain unchanged.
+
+The frozen `native-trace/owned-wrapper-image-placement-v1` packet was reviewed
+explicitly as a **non-ASLR placement experiment** before its first build. The
+ordinary owned DLL load now selects `0x180000000`, with image size `0x29000`.
+Its actual materialize/construct/decode wrapper RVAs are `0x1780`, `0x1470` and
+`0x1590`; all three signed displacements fit the numeric source CALL identities.
+The descriptor export executes, but the wrappers are unprepared and uncalled.
+The host neither dereferences those game identities nor attaches to a target.
+One child exits normally inside its five-second bound, with Job containment,
+unchanged pins and empty before/after resource censuses.
+
+The compiler/linker completed with zero warnings and errors. The original build
+operation nevertheless remains `FAILED_OR_INCOMPLETE`: its final literal
+postcheck expected `/BASE:0x180000000`, while MSBuild emitted
+`/BASE:"0x180000000"`. A separate independent file/log postcheck accepts the
+actual compile/link output without rebuilding or changing that failure receipt.
+Independent linked review joins all three wrappers to RX image sections,
+GuardCF-table entries and unwind metadata, and checks descriptor/export, imports,
+TLS, relocations and the DLL/host flag difference.
+
+All following paths are relative to the existing native-path continuation:
+
+- Preserved build operation: `native-trace/owned-wrapper-image-build-v1/actual-result.json`,
+  12,060 bytes, SHA-256 `2b466b3a7f3e63814000d5adfc7ec1043c6c0816ad1d4da0823fcde191b0349c`.
+- Scoped independent source review: `api-source-review/20261024-wrapper-placement-cfg-independent-v1/independent-source-review-v1.json`,
+  16,627 bytes, SHA-256 `ccfc3002ab0cde82f069012c9a1db16a53d367dd9800bd5d2cb58e897d0bf167`.
+- Separate build proof: `api-source-review/20261024-wrapper-placement-linked-independent-v1/build-proof.json`,
+  3,799 bytes, SHA-256 `d44d957afb5e419ed4d3e904c0b5f475a1a0d0b44175bc43db4ee393ac73d8bf`.
+- Independent linked review: `api-source-review/20261024-wrapper-placement-linked-independent-v1/independent-linked-review-v1.json`,
+  32,072 bytes, SHA-256 `655e2cfc0bb0addde237ec948802d9efb63ee1a1dabe072f3b3897ffb0ace60d`.
+- Actual single load: `native-trace/owned-wrapper-image-run-v1/actual-result.json`,
+  10,389 bytes, SHA-256 `9a7f66bd4297a7b74ae4c12baaf52577c0333eded3aec845aca31b3474430ef1`.
+- Independent actual review: `api-source-review/20261024-wrapper-placement-actual-independent-v1/independent-actual-review-v1.json`,
+  18,201 bytes, SHA-256 `c7120fc7e2f729fcbfec63b9a5200646484a33e99b37a2a5744776c22cb8f50d`.
+
+Independent actual review passes without material defects, joining 31 distinct
+pins, all six source/twelve input pins, four binary/MAP files, the one raw host
+record and its retired child. No replay or extra native operation was performed.
+
+This establishes one ordinary owned-image placement observation and arithmetic.
+It establishes neither runtime CFG enforcement nor production-compatible
+placement. Microsoft documents that effective `/GUARD:CF` also requires
+[`/DYNAMICBASE`](https://learn.microsoft.com/en-us/cpp/build/reference/guard-enable-guard-checks);
+this exact DLL deliberately disables ASLR. GuardCF metadata and a successful
+preferred-base load do not resolve that requirement. Game address-space
+occupancy, cross-module forwarding, code publication, reader exclusion and
+native item acceptance remain unqualified. The stopped publication draft above
+is preserved without a retry.
+
+Separately, static source follow-up qualifies the selected base/size arithmetic
+used by aligned-pointer recovery. Address `0x1447F1E34` is a 12-byte adapter with
+no covering runtime-function row; it tail-jumps to the separate 116-byte PE root
+`0x1447F1E40..0x1447F1EB4`. Independent review verifies 13 declared file pins,
+35 service and 30 retained caller instructions, row 172267, unwind bytes and
+absence of chain siblings across all 244,444 runtime rows. The subtraction wraps
+to signed64 before truncating division by 80; the stored DWORD size restriction
+belongs to the adapter path. The body derives a base and optional size but does
+not validate metadata provenance, a coherent nonzero size, synchronization or
+lifetime. Complete selected ranges/local control flow are not logical or
+transitive allocator closure; no target instruction was executed.
+
+- Source packet: `api-source-review/20261024-family0-base-size-service-v1/source-capture-result-v1.json`,
+  35,831 bytes, SHA-256 `d2326fed35fe6eb027180aff12792b3fbe3eb2d606cc18f8a6105f8b8b4be106`.
+- Independent source review: `api-source-review/20261024-family0-base-size-independent-v1/independent-review-v1.json`,
+  30,625 bytes, SHA-256 `0b3dd745cd57132cccfc20453fa6df5a2871eec7cb057e41bf55bf5394ec0fed`.
+
+The subsequent block/metadata capture qualifies the selected normal-return
+body at `0x1447F446C..0x1447F459A`: 302 bytes/82 instructions, row 172293,
+eight calls to seven targets and thirteen local jumps. Independent review
+verifies all 13 declared pins and the selected ChainInfo group. Its standard
+24-byte unwind declares an external handler; language payload and exception
+closure remain unqualified. The selected `N=0x44F`, auxiliary-zero request takes
+the small/default route, indexing `H+0x410+24*uint8(classifier AL)`. The retained
+candidate branch calls `0x1447F4004`, checks candidate `+0x10`, then applies
+`BYTE[candidate+0xF] &= 1`, preserving bit zero. The replenishment branch reaches
+`0x1447F49EC` with `R8B=1`; full-width `R8=1` is not established. The body does
+not populate the size/block-count fields. Producer `0x1447F482C` belongs to a
+different captured branch and is not the selected request's next dependency.
+
+- Block/metadata source: `api-source-review/20261024-family0-block-metadata-v1/source-capture-result-v1.json`,
+  62,534 bytes, SHA-256 `cb29bcaf9c6b6adcaab015bcf7c0abab316e1eb4e24bee136482523facdec339`.
+- Independent block/metadata review: `api-source-review/20261024-family0-block-metadata-independent-v1/independent-review-v1.json`,
+  53,914 bytes, SHA-256 `97ad4b2d8dd17224babd8bdf8a0e564cc022c76b0918d1b317bdb2e65b6af5ad`.
+
+The selected classifier `0x1447F3BF4` is now independently reviewed too:
+93 normal code bytes/31 instructions inside a 96-byte bounded window, five
+local jumps, three returns and no explicit memory/table access or helper calls.
+There is no runtime-function coverage. The zero-input BSR fallback is present
+structurally but infeasible from the addressed entry; 29 instructions are
+feasible. File-derived arithmetic gives `0x44F -> U=0x8A -> Y=0x89 -> K=7 ->
+RAX=AL=0x19`, selecting the predecessor's cell offset `H+0x668`. This is no
+native call, live cell read or proof of valid metadata/class population.
+
+- Classifier source: `api-source-review/20261024-family0-size-classifier-v1/source-capture-result-v1.json`,
+  36,729 bytes, SHA-256 `0c257d24c61569b2f5b75c1678f2450225aa6292dc2059215a259b4ebd65ea59`.
+- Independent classifier review: `api-source-review/20261024-family0-size-classifier-independent-v1/independent-review-v1.json`,
+  29,609 bytes, SHA-256 `96cfe3bfa014feae03cf83429b16ba5e961d8298c64fd49530b40755f2cf05d5`.
+
+The selected candidate helper `0x1447F4004` and replenishment helper
+`0x1447F49EC` are the next bounded source questions. Context/preparation/pointer
+services, a natural stock cold caller,
+durable Cache/Router activation, coherent publication, actual resource use and
+the full native two-package/save lifecycle remain open. Production
+`native_admission=false`; no game, installation, packaging or publication run
+was performed in this increment.
 
 ### Paused at user request, 2026-10-22
 
