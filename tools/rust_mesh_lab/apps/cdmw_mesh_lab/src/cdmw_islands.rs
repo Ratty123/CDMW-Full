@@ -253,7 +253,6 @@ impl LabApplication {
 
     pub(super) fn draw_cdmw_islands(&mut self, ui: &mut egui::Ui, actions: &mut Vec<UiAction>) {
         use crate::cdmw_ui::{cdmw_list_cell, cdmw_list_columns, cdmw_list_header};
-        self.draw_cdmw_island_colour_option(ui);
         let parts = self.cdmw_state["mesh_islands"]["parts"].as_array().cloned().unwrap_or_default();
         let editing = self.cdmw_state["replacement"]["comparison"].as_str().is_none_or(|mode| mode == "edit");
         ui.add_enabled_ui(!self.cdmw_busy() && editing, |ui| {

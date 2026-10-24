@@ -19,7 +19,7 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 ### Changed
 
-- Morph & Refit adds Island colors with matching swatches in both island lists, making disconnected pieces easier to identify without changing selection or fitting. An Open Parts on hover toggle keeps closed panels closed when disabled. Hover retains your chosen Parts or Mesh islands tab, highlights and reveals matching names, and highlights an island in the viewport when you hover its name.
+- Mesh Editor keeps Part colors, Island colors and Open Parts on hover in the Parts browser, available outside Morph & Refit. Automatic opening is off by default and retains saved choices. Matching color swatches identify disconnected pieces in both island lists. Hover retains your chosen Parts or Mesh islands tab, highlights and reveals matching names, and highlights an island in the viewport from either island list, including Morph & Refit, without changing selection or fitting.
 - Mesh Editor groups its Finish actions, distinguishes Resume current edit from Start next edit pass, and adds clickable help. Overlay restoration is removed from this page.
 - Create New Item re-enables DMM export for testing with updated DMM versions. In-game item and texture compatibility remains unverified.
 - Settings lists all ignored folders together and lets you remove any default. Archive scans also ignore `dmmsa`, `dmmgen` and `CrimsonFastLoad.backup` by default, while preserving saved custom exclusions.

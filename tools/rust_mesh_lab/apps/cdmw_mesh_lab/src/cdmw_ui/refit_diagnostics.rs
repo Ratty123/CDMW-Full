@@ -21,16 +21,6 @@ fn refit_failure_parts(detail: &str, garments: &[u32]) -> Vec<u32> {
 }
 
 impl LabApplication {
-    pub(super) fn draw_cdmw_part_hover_option(&self, ui: &mut egui::Ui) {
-        let mut enabled = crate::cdmw_layout::auto_open_parts_on_hover(ui.ctx());
-        if ui.checkbox(&mut enabled, crate::localization::tr("Open Parts on hover"))
-            .on_hover_text(crate::localization::tr("Open the Parts list when hovering a visible surface. Turn off to keep closed panels closed."))
-            .changed()
-        {
-            crate::cdmw_layout::set_auto_open_parts_on_hover(ui.ctx(), enabled);
-        }
-    }
-
     pub(super) fn track_cdmw_part_hover(&mut self, ui: &egui::Ui, part: u32, response: &egui::Response) {
         self.track_cdmw_name_row(ui, part, None, response);
     }
