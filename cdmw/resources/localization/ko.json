@@ -1255,6 +1255,7 @@
     "Assigned ({value_0})": "할당됨({value_0})",
     "Assigned body Parts must use exact integer indices.": "Assigned body Parts must use exact integer indices.",
     "Associated preview model: {value_0}": "관련 미리보기 모델: {value_0}",
+    "At full Tightness, waistcloth follows the body's changing contour and flexible belts fit over the cloth. Set daggers and other hard pieces to Rigid component so they follow their fitted support without bending.": "밀착도를 최대로 설정하면 허리 천이 몸의 윤곽을 따르고 유연한 벨트는 그 천 위에 맞춰집니다. 단검 등 단단한 부품을 강체 구성 요소로 설정하면 구부러지지 않고 피팅된 지지면을 따라 움직입니다.",
     "Atlas": "아틀라스",
     "Atlas columns": "아틀라스 열 수",
     "Atlas rows": "아틀라스 행 수",

@@ -14282,6 +14282,16 @@
       ]
     },
     {
+      "key": "At full Tightness, waistcloth follows the body's changing contour and flexible belts fit over the cloth. Set daggers and other hard pieces to Rigid component so they follow their fitted support without bending.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 356,
+          "sink": "python-return:_build_archive_mesh_sections"
+        }
+      ]
+    },
+    {
       "key": "Atlas",
       "origins": [
         {

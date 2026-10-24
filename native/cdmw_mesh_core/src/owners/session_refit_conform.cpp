@@ -372,6 +372,15 @@ void mesh_editor_conform_refit(const MeshRefitRuntime &refit, const std::map<int
     }
     std::map<std::size_t, std::vector<std::size_t>> solid_band_nodes;
     for (const auto& group : band_nodes) if (solid_band_axes.count(group.first)) solid_band_nodes.emplace(group);
+    std::map<std::size_t, Vec3> broad_band_axes;
+    for (const auto& group : band_nodes) {
+        const Vec3 axis = band_axes.at(group.first);
+        const auto& shape = surface_shapes.at(group.first);
+        const Vec3 extent = sub_vec3(shape.maximum, shape.minimum);
+        double width = std::numeric_limits<double>::infinity();
+        for (int c = 0; c < 3; ++c) if (std::abs(axis[c]) < 0.5) width = std::min(width, extent[c]);
+        if (dot_vec3(extent, axis) > width * 0.4) broad_band_axes[group.first] = axis;
+    }
     std::vector<bool> reliable(nodes.size(), false);
     const auto level_bands = [&](std::vector<Vec3>& field) {
         if (band_nodes.empty()) return;
@@ -479,9 +488,48 @@ void mesh_editor_conform_refit(const MeshRefitRuntime &refit, const std::map<int
                                      scale_vec3(garment_direction, (std::sqrt(5.0) - 1.0) *
                                                                        dot_vec3(offset, garment_direction)));
                 };
-                const auto closest = closest_triangle_point_native({}, metric(triangle.corners[0]),
+                auto closest = closest_triangle_point_native({}, metric(triangle.corners[0]),
                                                                     metric(triangle.corners[1]),
                                                                     metric(triangle.corners[2]));
+                const auto broad = broad_band_axes.find(surface_roots[i]);
+                if (broad != broad_band_axes.end()) {
+                    // This wrap retains its height contour. Choose the body
+                    // cross-section at that height, rather than finding a
+                    // nearer hip and subsequently discarding vertical travel.
+                    std::array<double, 3> height{};
+                    for (int c = 0; c < 3; ++c)
+                        height[c] = dot_vec3(sub_vec3(triangle.corners[c], node.point), broad->second);
+                    if (!std::all_of(height.begin(), height.end(), [&](double h) { return std::abs(h) <= tolerance; })) {
+                        std::vector<Vec3> weights, section;
+                        for (int c = 0; c < 3; ++c) {
+                            Vec3 w{};
+                            if (std::abs(height[c]) <= tolerance) { w[c] = 1.0; weights.push_back(w); }
+                            const int next = (c + 1) % 3;
+                            if (height[c] * height[next] < 0.0) {
+                                const double t = height[c] / (height[c] - height[next]);
+                                w = {}; w[c] = 1.0 - t; w[next] = t; weights.push_back(w);
+                            }
+                        }
+                        for (const auto& w : weights) {
+                            Vec3 p{};
+                            for (int c = 0; c < 3; ++c) p = add_vec3(p, scale_vec3(triangle.corners[c], w[c]));
+                            section.push_back(metric(p));
+                        }
+                        closest = ClosestTrianglePointNative{};
+                        for (std::size_t a = 0; a < section.size(); ++a) for (std::size_t b = a; b < section.size(); ++b) {
+                            const Vec3 edge = sub_vec3(section[b], section[a]);
+                            const double length = dot_vec3(edge, edge);
+                            const double t = length > tolerance * tolerance
+                                ? std::clamp(-dot_vec3(section[a], edge) / length, 0.0, 1.0) : 0.0;
+                            const Vec3 point = add_vec3(section[a], scale_vec3(edge, t));
+                            const double distance = dot_vec3(point, point);
+                            if (distance < closest.distance_squared) {
+                                closest.distance_squared = distance;
+                                closest.barycentric = add_vec3(scale_vec3(weights[a], 1.0 - t), scale_vec3(weights[b], t));
+                            }
+                        }
+                    }
+                }
                 Vec3 point{};
                 for (int corner = 0; corner < 3; ++corner)
                     point = add_vec3(point, scale_vec3(triangle.corners[corner], closest.barycentric[corner]));
@@ -514,6 +562,17 @@ void mesh_editor_conform_refit(const MeshRefitRuntime &refit, const std::map<int
         }
         if (!std::isfinite(best) || std::sqrt(best) > refit.driver_diagonal * 0.35)
             continue;
+        const auto broad = broad_band_axes.find(surface_roots[i]);
+        if (broad != broad_band_axes.end()) {
+            const auto& bounds = body.nodes[body.root];
+            Vec3 radial = sub_vec3(node.point, scale_vec3(add_vec3(bounds.minimum, bounds.maximum), 0.5));
+            radial = sub_vec3(radial, scale_vec3(broad->second, dot_vec3(radial, broad->second)));
+            // The inside of a nearby arm faces into a waist wrap. It cannot
+            // support that wrap's outward surface, even when it was closest
+            // at bind time. Carry this sample from the connected cloth instead
+            // of pulling the rim out toward the arm or rebinding elsewhere.
+            if (dot_vec3(radial, target_normal) < -tolerance) continue;
+        }
         reliable[i] = true;
         body_points[i] = target_point;
         body_normals[i] = target_normal;
@@ -680,6 +739,11 @@ void mesh_editor_conform_refit(const MeshRefitRuntime &refit, const std::map<int
         for (const auto i : component) {
             if (nodes[i].unsupported) {
                 screen[i] = nodes[i].area;
+            } else if (nodes[i].boundary && reliable[i] && broad_band_axes.count(surface_roots[i])) {
+                // A reliable cross-section already supplies the rim target.
+                // Extrapolating the neighboring displacement can overshoot
+                // that target and make clearance inflate the neighboring rows.
+                screen[i] = nodes[i].area;
             } else if (nodes[i].boundary && reliable[i]) {
                 Vec3 extended{}, rim_detail{};
                 double weight_sum = 0.0;
@@ -752,6 +816,13 @@ void mesh_editor_conform_refit(const MeshRefitRuntime &refit, const std::map<int
         const auto& surface = item.second;
         const auto& bounds = surface.nodes[surface.root];
         for (std::size_t i = 0; i < nodes.size(); ++i) {
+            const bool rigid = refit.garment_settings.at(part).mode == "rigid_component";
+            const bool source_rigid = std::any_of(nodes[i].vertices.begin(), nodes[i].vertices.end(),
+                [&](const auto& vertex) { return refit.garment_settings.at(vertex.first).mode == "rigid_component"; });
+            // Hard pieces receive a rigid transform from their fitted support
+            // after this solve. Their per-vertex skin targets must not pull a
+            // flexible backing into that piece's incompatible deformation.
+            if (rigid != source_rigid) continue;
             if (!reliable[i] || (surface_roots[i] == item.first.second
                 && std::any_of(nodes[i].vertices.begin(), nodes[i].vertices.end(),
                     [&](const auto& vertex) { return vertex.first == part; }))) continue;
@@ -817,8 +888,13 @@ void mesh_editor_conform_refit(const MeshRefitRuntime &refit, const std::map<int
         }
     }
     std::vector<double> diagonal(nodes.size());
-    for (std::size_t i = 0; i < nodes.size(); ++i)
+    for (std::size_t i = 0; i < nodes.size(); ++i) {
+        // Broad wraps must take up waist slack instead of preserving their
+        // original cylinder. Retain local smoothing, with the measured body
+        // section carrying more weight than displacement regularization.
+        if (broad_band_axes.count(surface_roots[i])) screen[i] *= 4.0;
         if (carried_roots.count(surface_roots[i])) screen[i] = 0.0;
+    }
     std::vector<Vec3> rhs(nodes.size()), displacement(nodes.size()), r(nodes.size()), z(nodes.size()),
         direction(nodes.size());
     for (std::size_t i = 0; i < nodes.size(); ++i) {

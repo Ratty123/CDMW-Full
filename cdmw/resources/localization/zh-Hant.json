@@ -1255,6 +1255,7 @@
     "Assigned ({value_0})": "已分配 ({value_0})",
     "Assigned body Parts must use exact integer indices.": "Assigned body Parts must use exact integer indices.",
     "Associated preview model: {value_0}": "相關預覽型號：{value_0}",
+    "At full Tightness, waistcloth follows the body's changing contour and flexible belts fit over the cloth. Set daggers and other hard pieces to Rigid component so they follow their fitted support without bending.": "緊貼度設為最大時，腰部布料會貼合身體輪廓，柔性腰帶則貼合布料外側。將匕首等硬質部件設為「剛性元件」，讓它們隨已貼合的支撐面移動而不彎曲。",
     "Atlas": "阿特拉斯",
     "Atlas columns": "圖集欄數",
     "Atlas rows": "圖集列數",

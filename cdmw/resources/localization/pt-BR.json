@@ -1255,6 +1255,7 @@
     "Assigned ({value_0})": "Atribuído ({value_0})",
     "Assigned body Parts must use exact integer indices.": "Assigned body Parts must use exact integer indices.",
     "Associated preview model: {value_0}": "Modelo de visualização associado: {value_0}",
+    "At full Tightness, waistcloth follows the body's changing contour and flexible belts fit over the cloth. Set daggers and other hard pieces to Rigid component so they follow their fitted support without bending.": "Com o ajuste máximo, o tecido na cintura acompanha o contorno do corpo e os cintos flexíveis se ajustam sobre ele. Defina adagas e outras peças duras como Componente rígido para que acompanhem a superfície ajustada que as sustenta sem se curvar.",
     "Atlas": "Atlas",
     "Atlas columns": "Colunas do atlas",
     "Atlas rows": "Linhas do atlas",

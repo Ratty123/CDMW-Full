@@ -2094,6 +2094,12 @@ retain their silhouette while clearing local intersections. Use Part, mesh-islan
 or local influence controls when snug and loose cloth share one material.
 Intermediate Tightness checks the requested shape before publishing it, and zero
 Clearance still prevents tightened cloth from passing through the body.
+At full Tightness, broad waistcloth follows the body's changing contour at each
+height instead of retaining one profile across the waist and hips. Flexible belts
+fit over that cloth. Rigid accessories receive their whole-piece placement from
+the fitted support; their separate body targets do not distort the cloth's fit.
+Clearance, authored thickness and folds can still leave space; inspect the result
+before Bake, especially where hard pieces overlap several layers.
 Keep jewellery and hard details, including separate decorative petals, in
 **Rigid component** mode when they should keep their shape while moving. This
 preserves each connected assembly; it does not turn all disconnected pieces in

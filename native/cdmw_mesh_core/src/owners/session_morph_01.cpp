@@ -721,6 +721,9 @@ void mesh_editor_cohere_refit_bands(
                 maximum[c] = std::max(maximum[c], positions[i][c]);
             }
         }
+        const double width = std::min(maximum[first] - minimum[first], maximum[second] - minimum[second]);
+        const double extent = dot_vec3(sub_vec3(maximum, minimum), axis);
+        const bool broad = extent > width * 0.4;
         std::sort(angles.begin(), angles.end());
         double gap = angles.empty() ? circle : angles.front() + circle - angles.back();
         for (std::size_t i = 1; i < angles.size(); ++i) gap = std::max(gap, angles[i] - angles[i - 1]);
@@ -729,12 +732,83 @@ void mesh_editor_cohere_refit_bands(
         // Partial material panels still share the body's common center.
         const double center_offset = std::hypot((minimum[first] + maximum[first]) * 0.5 - center[first],
             (minimum[second] + maximum[second]) * 0.5 - center[second]);
-        const double width = std::min(maximum[first] - minimum[first], maximum[second] - minimum[second]);
         // Ignore small sampling asymmetry: nearly concentric rolled layers
         // need the same center rather than one slightly different per skin.
         if (gap < circle * 0.25 && center_offset > width * 0.05) {
             band_center[first] = (minimum[first] + maximum[first]) * 0.5;
             band_center[second] = (minimum[second] + maximum[second]) * 0.5;
+        }
+        if (broad) {
+            // Smooth a broad wrap in both angle and height. One radial profile
+            // lets a hip contact inflate the waist; independent vertex motion
+            // leaves angular kinks. A bounded grid avoids a quadratic vertex
+            // search on densely tessellated garments. Only displacement changes,
+            // so the rest surface retains its folds and thickness.
+            constexpr int columns = 64, rows = 32;
+            struct Station { double weight=0.0, height=0.0, square=0.0, value=0.0, product=0.0, peak=0.0; };
+            struct Sample { Vec3 radial; double x, y, shift; };
+            std::array<Station, columns*rows> grid{};
+            std::array<double, columns*rows> profile{};
+            std::vector<Sample> samples;
+            const double origin = dot_vec3(minimum, axis);
+            for (const auto i : group.second) {
+                Vec3 radial = sub_vec3(positions[i], band_center);
+                radial = sub_vec3(radial, scale_vec3(axis, dot_vec3(radial, axis)));
+                const double radius = length_vec3(radial);
+                if (radius > 0.0) radial = scale_vec3(radial, 1.0/radius);
+                double angle = std::atan2(radial[second], radial[first]);
+                if (angle < 0.0) angle += circle;
+                const double h = dot_vec3(positions[i], axis) - origin;
+                const double x = angle/circle*columns;
+                const double y = std::clamp(h/extent*(rows-1), 0.0, double(rows-1));
+                const double shift = dot_vec3(field[i], radial);
+                samples.push_back({radial, x, y, shift});
+                const int left = int(x), bottom = std::min(int(y), rows-2);
+                for (int a=0; a<2; ++a) for (int b=0; b<2; ++b) {
+                    auto& station = grid[((left+a)%columns)*rows+bottom+b];
+                    const double w = mass[i]*(a ? x-left : 1.0-x+left)*(b ? y-bottom : 1.0-y+bottom);
+                    if (w <= 0.0) continue;
+                    station.weight += w; station.height += w*h; station.square += w*h*h;
+                    station.value += w*shift; station.product += w*h*shift;
+                    station.peak = std::max(station.peak, shift);
+                }
+            }
+            const double vertical_support = width*0.025;
+            for (int x=0; x<columns; ++x) for (int y=0; y<rows; ++y) {
+                const double h = extent*y/(rows-1);
+                double weight=0.0, height=0.0, square=0.0, value=0.0, product=0.0, peak=0.0;
+                for (int dx=-6; dx<=6; ++dx) for (int yy=std::max(0,y-6); yy<=std::min(rows-1,y+6); ++yy) {
+                    const auto& station = grid[((x+dx+columns)%columns)*rows+yy];
+                    if (station.weight <= 0.0) continue;
+                    const double dy = station.height/station.weight-h;
+                    const double angle = circle*dx/columns;
+                    const double kernel = std::exp(-0.5*(angle*angle/(0.18*0.18)
+                        + dy*dy/(vertical_support*vertical_support)));
+                    weight += kernel*station.weight;
+                    height += kernel*(station.height-h*station.weight);
+                    square += kernel*(station.square-2*h*station.height+h*h*station.weight);
+                    value += kernel*station.value;
+                    product += kernel*(station.product-h*station.value);
+                    peak = std::max(peak, station.peak*kernel);
+                }
+                const double determinant = weight*square-height*height;
+                profile[x*rows+y] = clearance ? peak : weight <= 0.0 ? 0.0
+                    : determinant > weight*weight*extent*extent*1.0e-12
+                        ? (value*square-product*height)/determinant : value/weight;
+            }
+            for (std::size_t j=0; j<samples.size(); ++j) {
+                const auto& sample = samples[j];
+                const auto i = group.second[j];
+                const int left=int(sample.x), bottom=std::min(int(sample.y),rows-2);
+                double shift = 0.0;
+                for (int a=0; a<2; ++a) for (int b=0; b<2; ++b)
+                    shift += profile[((left+a)%columns)*rows+bottom+b]
+                        *(a ? sample.x-left : 1.0-sample.x+left)*(b ? sample.y-bottom : 1.0-sample.y+bottom);
+                if (!smooth_profile) shift = sample.shift;
+                if (clearance) shift = std::max(sample.shift, shift);
+                field[i] = add_vec3(scale_vec3(sample.radial,shift),scale_vec3(axis,dot_vec3(field[i],axis)));
+            }
+            continue;
         }
         std::array<double,count> weight{}, value{}, height{}, height_squared{}, height_value{};
         if (clearance) value.fill(-std::numeric_limits<double>::infinity());

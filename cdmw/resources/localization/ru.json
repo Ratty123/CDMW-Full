@@ -1255,6 +1255,7 @@
     "Assigned ({value_0})": "Назначено ({value_0})",
     "Assigned body Parts must use exact integer indices.": "Assigned body Parts must use exact integer indices.",
     "Associated preview model: {value_0}": "Связанная модель предварительной версии: {value_0}.",
+    "At full Tightness, waistcloth follows the body's changing contour and flexible belts fit over the cloth. Set daggers and other hard pieces to Rigid component so they follow their fitted support without bending.": "При максимальной плотности прилегания ткань на талии следует контурам тела, а гибкие пояса подгоняются поверх неё. Для кинжалов и других твёрдых деталей выберите «Жёсткий компонент», чтобы они следовали за подогнанной опорной поверхностью, не изгибаясь.",
     "Atlas": "Атлас",
     "Atlas columns": "Столбцы атласа",
     "Atlas rows": "Строки атласа",

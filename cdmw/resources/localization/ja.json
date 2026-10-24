@@ -1255,6 +1255,7 @@
     "Assigned ({value_0})": "割り当て済み ({value_0})",
     "Assigned body Parts must use exact integer indices.": "Assigned body Parts must use exact integer indices.",
     "Associated preview model: {value_0}": "関連するプレビュー モデル: {value_0}",
+    "At full Tightness, waistcloth follows the body's changing contour and flexible belts fit over the cloth. Set daggers and other hard pieces to Rigid component so they follow their fitted support without bending.": "密着度を最大にすると、腰の布が体の輪郭に沿い、柔軟なベルトはその布の上にフィットします。短剣などの硬いパーツは「剛体コンポーネント」に設定すると、曲がらずにフィット済みの支持面に追従します。",
     "Atlas": "アトラス",
     "Atlas columns": "アトラスの列数",
     "Atlas rows": "アトラスの行数",

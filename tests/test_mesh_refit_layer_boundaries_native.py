@@ -28,7 +28,12 @@ def _fitted_mesh(mesh, drivers, garments, **settings):
         }})
         _command(session, "morph_set_driver", {"submesh_indices": list(drivers)})
         _command(session, "morph_bind", {"garment_submesh_indices": list(garments)})
-        _fit(session, garments, **settings)
+        if "garment_settings" in settings:
+            _command(session, "morph_configure_refit", {
+                "garment_submesh_indices": list(garments), **settings,
+            })
+        else:
+            _fit(session, garments, **settings)
         fitted = _snapshot(mesh, session)
     finally:
         mesh_native_core.close_native_mesh_editor_session(session)
