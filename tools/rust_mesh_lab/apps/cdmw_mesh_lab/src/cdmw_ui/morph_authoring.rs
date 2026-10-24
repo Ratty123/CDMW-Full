@@ -269,7 +269,7 @@ impl LabApplication {
                             let title = crate::localization::tr(format!("Island {} · {} faces", index+1, faces.len()));
                             let active = selected.contains(&(part, faces.clone()));
                             if ui.add_enabled(visible.as_ref().is_none_or(|visible| visible.contains(&part)),
-                                Button::selectable(active, &title).truncate())
+                                Button::selectable(active, self.cdmw_island_name_atoms(part, &faces, &title)).truncate())
                                 .on_hover_text(&title)
                                 .on_hover_text(crate::localization::tr("Ctrl-click to select several islands. Inherited settings follow the Part."))
                                 .clicked() {

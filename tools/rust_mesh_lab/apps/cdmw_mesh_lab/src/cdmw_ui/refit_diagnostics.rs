@@ -196,16 +196,7 @@ impl LabApplication {
     }
 
     pub(super) fn cdmw_part_name_atoms<'a>(&self, part: u32, label: impl egui::IntoAtoms<'a>) -> egui::Atoms<'a> {
-        let mut atoms = egui::Atoms::new(label);
-        if self.cdmw_part_colours_active() {
-            let [r, g, b, _] = viewport::part_colour(part);
-            let colour = Color32::from(egui::Rgba::from_rgb(r, g, b));
-            // The GUI atlas white pixel gives the badge a solid fill without an extra texture.
-            let white = egui::epaint::WHITE_UV;
-            atoms.push_left(egui::Image::new((egui::TextureId::default(), egui::vec2(10.0, 10.0)))
-                .uv(egui::Rect::from_min_max(white, white)).tint(colour));
-        }
-        atoms
+        cdmw_colour_name_atoms(label, self.cdmw_part_colours_active().then(|| viewport::part_colour(part)))
     }
 
     pub(crate) fn refresh_cdmw_mesh_display(&mut self) {
@@ -216,11 +207,12 @@ impl LabApplication {
                 |visible| mesh.draw_snapshot_for_submeshes(visible),
             )
         });
-        let part_colours = if self.cdmw_part_colours_active() {
+        let part_colours = if self.cdmw_identity_colours_active() {
             self.mesh.as_ref().zip(snapshot.as_ref()).map(|(mesh, snapshot)|
-                viewport::part_colour_snapshot(mesh, visible_submeshes.as_ref(), snapshot))
+                crate::cdmw_islands::identity_colour_snapshot(mesh, visible_submeshes.as_ref(), snapshot,
+                    self.cdmw_island_colours.then_some(&self.cdmw_state["mesh_islands"]["color_faces"])))
         } else { None };
-        self.cdmw_part_colours_applied = self.cdmw_part_colours_active();
+        self.cdmw_part_colours_applied = self.cdmw_identity_colours_active();
         let deformation_reference = snapshot.as_ref().filter(|_| part_colours.is_none()).and_then(|snapshot| {
             deformation_reference_for_snapshot(
                 self.deformation_heatmap_enabled,
@@ -245,17 +237,25 @@ impl LabApplication {
     }
 
     pub(crate) fn cdmw_part_colours_active(&self) -> bool {
+        !self.cdmw_island_colours && self.cdmw_identity_colours_active()
+    }
+
+    pub(crate) fn cdmw_identity_colours_active(&self) -> bool {
         self.cdmw_mode() && self.view_mode == ViewMode::PartId && !self.hair.active()
             && self.cdmw_jiggle.region_colours.is_none() && self.cdmw_jiggle.preview.scene.is_none()
+            && (!self.cdmw_island_colours || (!self.cdmw_morph_comparison_active()
+                && self.cdmw_state["replacement"]["comparison"].as_str().is_none_or(|mode| mode == "edit")))
     }
 
     pub(super) fn set_cdmw_display_mode(&mut self, mode: ViewMode) {
         let was_coloured = self.view_mode == ViewMode::PartId;
+        let was_islands = self.cdmw_island_colours;
         if mode == ViewMode::PartId && !was_coloured {
             self.cdmw_part_colours_previous_mode = self.view_mode;
         }
         self.view_mode = mode;
-        if was_coloured != (mode == ViewMode::PartId) {
+        self.cdmw_island_colours = false;
+        if was_coloured != (mode == ViewMode::PartId) || was_islands {
             self.refresh_cdmw_mesh_display();
         }
     }

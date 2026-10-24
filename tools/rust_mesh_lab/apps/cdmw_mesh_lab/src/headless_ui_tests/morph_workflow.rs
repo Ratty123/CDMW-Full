@@ -646,6 +646,71 @@ fn workflow_viewport_part_hover_scroll_keeps_a_visible_warning_name_in_place() -
 }
 
 #[test]
+fn workflow_island_colour_swatches_cover_refit_island_names() -> TestResult {
+    let mut ui = mixed_refit_ui(&[1])?;
+    let root = tempdir()?;
+    ui.application.cdmw_bridge = Some(CdmwBridge::for_test(root.path().to_path_buf(), "fit-island-swatches", 2, 0));
+    ui.application.cdmw_state["mesh_islands"] = json!({"color_faces":[[0],[0],[0]],
+        "fit_parts":[{"index":1,"name":"Sleeve","islands":[{"faces":[0]}]}]});
+    ui.choose("Editing", "Selected garments · 1", "Selected mesh islands")?;
+    ui.open_refit_detail("Choose mesh islands")?;
+    ui.reveal("Island 1 · 1 faces")?;
+    let colour = crate::cdmw_islands::island_colour(1, 0);
+    assert!(super::island_controls_tests::island_colour_swatch(&ui, "Island 1 · 1 faces", colour).is_none());
+    let selected = ui.application.mesh.as_ref().ok_or("mesh")?.selection.clone();
+    ui.last_actions.clear();
+    ui.click("Island colors")?;
+    ui.reveal("Island 1 · 1 faces")?;
+    assert!(super::island_controls_tests::island_colour_swatch(&ui, "Island 1 · 1 faces", colour).is_some());
+    assert_eq!(ui.application.mesh.as_ref().ok_or("mesh")?.selection, selected);
+    assert!(ui.last_actions.is_empty());
+    assert!(ui.application.cdmw_pending_request.is_none());
+    Ok(())
+}
+
+#[test]
+fn workflow_island_colours_switch_granularity_and_preserve_fit_edits() -> TestResult {
+    let mut ui = mixed_refit_ui(&[1])?;
+    let root = tempdir()?;
+    ui.application.cdmw_bridge = Some(CdmwBridge::for_test(root.path().to_path_buf(), "island-fit-colours", 2, 0));
+    ui.application.cdmw_state["mesh_islands"]["color_faces"] = json!([[0], [0], [0]]);
+    ui.application.cdmw_state["replacement"]["comparison"] = json!("edit");
+    ui.application.view_mode = ViewMode::SolidWire;
+    ui.type_number_in_row("Clearance %", 0.5, "0.75")?;
+    let state = ui.application.cdmw_state.clone();
+    let mesh = ui.application.mesh.as_ref().ok_or("mesh")?.clone();
+    ui.last_actions.clear();
+    ui.click("Island colors")?;
+    assert!(ui.application.cdmw_island_colours_active());
+    assert!(!ui.application.cdmw_part_colours_active());
+    for tab in ["Shape", "Saved", "Setup", "Fit"] {
+        ui.click(tab)?;
+        assert!(ui.application.cdmw_island_colours_active());
+    }
+    ui.click("Part colors")?;
+    assert!(ui.application.cdmw_part_colours_active());
+    assert!(!ui.application.cdmw_island_colours_active());
+    ui.click("Island colors")?;
+    assert!(ui.application.cdmw_island_colours_active());
+    ui.application.cdmw_state["replacement"]["comparison"] = json!("output");
+    assert!(!ui.application.cdmw_island_colours_active());
+    assert_eq!(ui.application.cdmw_render_display_mode(), ViewMode::SolidWire);
+    ui.application.cdmw_state["replacement"]["comparison"] = json!("edit");
+    assert!(ui.application.cdmw_island_colours_active());
+    ui.click("Island colors")?;
+    assert_eq!(ui.application.view_mode, ViewMode::SolidWire);
+    assert_eq!(ui.application.cdmw_state, state);
+    let current = ui.application.mesh.as_ref().ok_or("mesh")?;
+    assert_eq!(current.structural_fingerprint(), mesh.structural_fingerprint());
+    assert_eq!(current.selection, mesh.selection);
+    assert_eq!(ui.application.cdmw_refit_clearance, 0.75);
+    assert!(ui.application.cdmw_refit_settings_dirty.is_dirty());
+    assert!(ui.last_actions.is_empty());
+    assert!(ui.application.cdmw_pending_request.is_none());
+    Ok(())
+}
+
+#[test]
 fn workflow_part_colours_toggle_restores_display_and_preserves_fit_edits() -> TestResult {
     let mut ui = mixed_refit_ui(&[1])?;
     let root = tempdir()?;
