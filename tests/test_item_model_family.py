@@ -154,11 +154,15 @@ class DiscoveryTests(unittest.TestCase):
         icon = "ItemIcon_Prefab_CD_M0001_00_SO_PHM_UB_31035"
         stringinfo = {stringinfo_key(text): text for text in (stem, icon)}
         prefab_path = "character/bin__/prefab/2_mon/armor/cd_m0001_00_so_phm_ub_31035.prefab"
+        upper_hkx = upper.replace("character/model/", "character/bin__/meshphysics/").replace(".pac", ".hkx")
+        lower_hkx = lower.replace("character/model/", "character/bin__/meshphysics/").replace(".pac", ".hkx")
         archive = _Archive(
             {
                 prefab_path: b"prefab",
                 upper: b"upper",
                 lower: b"lower",
+                upper_hkx: b"upper collision",
+                lower_hkx: b"lower collision",
             }
         )
         document = types.SimpleNamespace(
@@ -180,9 +184,30 @@ class DiscoveryTests(unittest.TestCase):
         self.assertEqual(family.parts[0].pac_path, upper, "the established primary path stays compatible")
         self.assertEqual(family.parts[0].pac_paths, (upper, lower))
         self.assertEqual([item.path for item in family.files_for("pac")], [lower, upper])
+        self.assertEqual([item.path for item in family.files_for("hkx")], [lower_hkx, upper_hkx])
+        self.assertTrue(all(item.exists for item in family.files_for("hkx")))
         renamed = {old: new for _role, old, new in family.renamed("cd_m0001_00_so_phm_ub_91037")}
         self.assertIn(lower, renamed, "the secondary body model must be cloned and re-pathed too")
         self.assertEqual(Path(renamed[lower]).stem, "cd_m0001_00_so_phm_lb_91037")
+        self.assertEqual(Path(renamed[lower_hkx]).stem, Path(renamed[lower]).stem)
+        self.assertEqual(Path(renamed[upper_hkx]).stem, Path(renamed[upper]).stem)
+
+    def test_indexed_armour_prefab_resolves_physics_from_its_actual_mesh(self) -> None:
+        for prefab_suffix in ("", "_index02"):
+            with self.subTest(prefab_suffix=prefab_suffix):
+                stem = "cd_phm_00_hand_0008_03" + prefab_suffix
+                record = _record(stem, part="CD_Hand", folder="1_pc/01_phm/armor/11_hand")
+                model = "character/model/1_pc/1_phm/armor/11_hand/cd_phm_00_hand_belt_0008_03.pac"
+                physics = model.replace("character/model/", "character/bin__/meshphysics/").replace(".pac", ".hkx")
+                archive = _Archive({record.prefab_path: build_prefab(model), model: b"mesh", physics: b"collision"})
+                family = discover_item_model_family(
+                    _row(9001, "Gloves", stem),
+                    stringinfo={stringinfo_key(stem): stem},
+                    pappt=PartPrefabTable(records=(record,)),
+                    read_entry=archive.read,
+                    path_exists=archive.exists,
+                )
+                self.assertEqual([(item.path, item.exists) for item in family.files_for("hkx")], [(physics, True)])
 
     def test_fallbacks_and_refusals(self) -> None:
         pac_a = "character/model/6_object/tools/cd_t0000_paper_0002.pac"

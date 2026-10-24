@@ -846,6 +846,28 @@ Independent item packages can copy witnessed convex/compound collision templates
 under stricter unchanged-mesh and dependency rules. Copying a collision HKX alone
 does not transfer cloth motion to a new mesh.
 
+Read-only naming review, 2026-10-24, against CDMW implementation `5a7b18a3` and
+game executable `1.0.0.2976` (SHA-256
+`57da440d72f4db974f25fef047cf84c4dadd999a88cb2a3c5af4c9bd67fde1e7`): the
+selected native HKX path constructor at `0x142C628B0` replaces `character/model`
+with `character/bin__/meshphysics`, removes the extension and appends `.hkx`.
+The inspected routine does not derive a prefab basename or strip `_index` suffixes.
+All 4,859 player-armour PAC paths in the inspected installed numbered groups
+`0000`–`0035` have same-relative-path HKX entries. The 33 inspected armour prefabs
+include seven composed prefabs; one female chest prefab names 16 meshes, with an
+HKX companion for each. Archive-index fingerprints stayed unchanged during review.
+
+The indexed glove prefab `cd_phm_00_hand_0008_03_index02` is a useful counterexample
+to a universal prefab-name rule: it names mesh `cd_phm_00_hand_belt_0008_03`, whose
+HKX exists, while `cd_phm_00_hand_0008_03.hkx` does not. The existing mesh-based
+discovery, variant export and unchanged-physics audit therefore retain their
+current naming rule. [Owned-fixture family checks](../tests/test_item_model_family.py)
+and [variant plan checks](../tests/test_new_item_variant_authoring.py) cover indexed
+prefabs, differing mesh names, multiple companions and imported-physics choices.
+This is archive inspection, static executable analysis and source/fixture evidence;
+the guide's reported GPU hang was not reproduced, and game physics activation and
+movement remain unverified by this review.
+
 Sources: [native HKX scope][hkx], [HKX edit gate][hkx-gate],
 [template physics restrictions][independent-items].
 

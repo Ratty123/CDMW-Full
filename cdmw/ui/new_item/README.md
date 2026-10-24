@@ -2144,6 +2144,11 @@ without other edits, and remains cleared when switching variants and building th
 
 ### Imported model physics
 
+HKX companions follow each resolved PAC's relative path under
+`character/bin__/meshphysics/`, including armour with differently named or indexed
+prefabs. A composed armour prefab can name several meshes, each with its own HKX;
+stripping an `_index02` suffix from the prefab name does not establish that binding.
+
 **Imported model physics:** with **Template cloth / physics** off (the default),
 Build plan removes inherited cloth-guide and jiggle bindings from every PAC LOD,
 clears simulation assignments in every material property variant, and excludes the

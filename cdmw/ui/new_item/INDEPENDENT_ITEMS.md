@@ -750,6 +750,11 @@ game-validation limits even when their package graph is structurally supported.
 
 ### Copying template physics
 
+The source and destination HKX paths follow their actual PAC paths, replacing
+`character/model/` with `character/bin__/meshphysics/` and `.pac` with `.hkx`.
+Prefab names, including `_index02` variants, do not replace that mesh binding.
+Each mesh in a composed armour prefab is checked separately.
+
 Owned physics is deliberately limited to unchanged template geometry. The package
 audit checks the exact source HKX and PAC bytes, including all mesh LODs, weights
 and cloth lanes. It permits render-material edits such as emission while requiring
