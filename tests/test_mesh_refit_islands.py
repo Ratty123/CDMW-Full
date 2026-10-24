@@ -72,15 +72,24 @@ def test_native_enabled_override_of_skipped_part_and_explicit_inheritance():
         assert _snapshot(mesh, session).submeshes[1].vertices == mesh.submeshes[1].vertices
 
 
-def test_nearby_rigid_islands_can_have_independent_fitting_settings():
+@pytest.mark.parametrize("control", ("clearance", "mask"))
+def test_nearby_rigid_islands_can_have_independent_fitting_settings(control):
     mesh = _islands_mesh()
     part = mesh.submeshes[1]
     part.vertices[4:] = [(x-.1999, y, z) for x, y, z in part.vertices[4:]]
     with _bound(mesh) as session:
-        _configure(session, [{"face_indices": [2, 3], "clearance_percent": .2}], mode="rigid_component")
+        if control == "clearance":
+            _configure(session, [{"face_indices": [2, 3], "clearance_percent": .2}], mode="rigid_component")
+        else:
+            _command(session, "morph_configure_refit", {
+                "garment_submesh_indices": [1],
+                "vertex_masks": [{"submesh_index": 1, "vertex_indices": list(range(4)),
+                                  "weights": [1.] * 4}],
+            })
+            _configure(session, [{"face_indices": [2, 3]}], mode="rigid_component")
         points = np.array(_snapshot(mesh, session).submeshes[1].vertices)
         assert points[:4, 2] == pytest.approx(np.sqrt(1.25)*.002)
-        assert points[4:, 2] == pytest.approx(np.sqrt(1.25)*.004)
+        assert points[4:, 2] == pytest.approx(np.sqrt(1.25)*.004 if control == "clearance" else .1)
         for indices in (slice(0, 4), slice(4, 8)):
             before = np.array(part.vertices)[indices]
             after = points[indices]

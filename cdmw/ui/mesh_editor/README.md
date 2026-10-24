@@ -2034,8 +2034,10 @@ can then be overridden independently. **Apply to Selected Islands** changes only
 the fields you edit. **Use Part settings** removes those overrides. Part settings
 remain the defaults for the other islands, and island overrides survive Part edits,
 Undo/Redo, Bake, saved fitting setups and draft reopening. Output Part identities,
-vertices, faces, UVs and skin weights are retained. Independent rigid island
-overrides do not automatically regroup with nearby ornaments.
+vertices, faces, UVs and skin weights are retained. Rigid islands with matching
+settings can keep touching pieces and nearby small caps together within the same
+authored Part. Different settings, assigned body regions or protection masks keep
+those island fits independent; nearby full-size objects are not joined across a gap.
 An enabled Custom island still fits when its Part is set to Skip; inherited
 islands follow that Skip. Use **Use Part settings** on the Custom island to make
 it follow the Part again.
@@ -2112,7 +2114,10 @@ Refitting retains smooth shading across texture and material seams while keeping
 authored hard edges sharp. Normal updates include the neighboring seam when only
 one panel moves, without changing positions, UVs or material assignments. The
 smoothing boundaries survive repeated previews and Undo/Redo; unaffected faces
-retain their existing normals. This does not subdivide coarse mesh silhouettes.
+retain their existing normals. Fitting does not add polygons: coarse silhouettes
+and authored folds can remain angular. Incompatible shapes can still require
+manual mesh edits. Inspect the actual editor preview from every side; alternate
+renderers or extra render-only smoothing are not fitting acceptance evidence.
 
 Keep jewellery and hard details, including separate decorative petals, in
 **Rigid component** mode when they should keep their shape while moving. This

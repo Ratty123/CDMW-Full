@@ -498,6 +498,24 @@ std::set<std::pair<std::size_t, std::size_t>> mesh_editor_refit_assembly_joins(
     const auto attached = mesh_editor_refit_accessory_joins(automatic, indices, roots, tolerance,
         refit.driver_diagonal, refit.automatic_rigid_parts);
     joins.insert(attached.begin(), attached.end());
+    // Identical explicit Rigid choices describe one accessory too. Keep its
+    // nearby caps attached, but never override distinct controls or protection.
+    using RigidControls = std::tuple<int, double, double, double>;
+    std::map<RigidControls, std::map<int, MeshSessionSubmesh>> compatible;
+    for (const auto& part : garments) {
+        const auto source = refit.rigid_island_source_parts.find(part.first);
+        if (source == refit.rigid_island_source_parts.end()
+            || refit.vertex_masks.count(part.first) || refit.garment_regions.count(part.first)) continue;
+        const auto& settings = refit.garment_settings.at(part.first);
+        if (!settings.enabled || settings.mode != "rigid_component") continue;
+        compatible[{source->second, settings.intensity_percent, settings.tightness_percent,
+                    settings.clearance_percent}].insert(part);
+    }
+    for (const auto& group : compatible) {
+        const auto pieces = mesh_editor_refit_accessory_joins(group.second, indices, roots,
+            tolerance, refit.driver_diagonal, refit.rigid_island_source_parts);
+        joins.insert(pieces.begin(), pieces.end());
+    }
     return joins;
 }
 

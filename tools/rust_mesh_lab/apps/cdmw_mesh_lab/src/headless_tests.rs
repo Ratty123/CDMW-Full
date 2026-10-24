@@ -3,6 +3,8 @@ use super::*;
 mod camera_clipping_tests;
 mod history_navigation_tests;
 mod delete_feedback_tests;
+#[cfg(target_os = "windows")]
+mod authoring_capture;
 use cdmw_formats::{MeshDocument, MeshFormat, MeshLod, SourceRange, Submesh, decode_mesh};
 use cdmw_interaction::{OperatorState, ProjectedHandle};
 use sha2::{Digest, Sha256};

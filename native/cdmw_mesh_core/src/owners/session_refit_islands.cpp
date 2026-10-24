@@ -178,6 +178,7 @@ void mesh_editor_apply_island_refit_corrections(
             fit->garment_submesh_indices.insert(id);
             fit->garment_settings[id] = settings;
             fit->garment_settings[id].island_settings.clear();
+            if (settings.mode == "rigid_component") fit->rigid_island_source_parts[id] = item.first;
             const auto automatic = morph.refit->automatic_rigid_islands.find(item.first);
             if (ordinal && (automatic == morph.refit->automatic_rigid_islands.end()
                     || !automatic->second.count(faces))) fit->independent_island_parts.insert(id);

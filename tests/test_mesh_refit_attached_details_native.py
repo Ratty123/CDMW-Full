@@ -74,8 +74,8 @@ def test_a_point_touch_is_not_a_sewn_material_boundary():
         assert _snapshot(mesh, session).submeshes[2].vertices == ornament.vertices
 
 
-@pytest.mark.parametrize("handling", ("auto", "surface", "rigid_component", "removed"),
-                         ids=("default-solid", "explicit-surface", "rigid-dagger", "removed-dagger"))
+@pytest.mark.parametrize("handling", ("auto", "surface", "rigid_component", "rigid_caps", "removed"),
+                         ids=("default-solid", "explicit-surface", "rigid-dagger", "rigid-caps", "removed-dagger"))
 def test_dagger_island_sharing_a_cloth_part_keeps_its_shape_or_is_excluded(handling):
     removed = handling == "removed"
     cloth = _sleeve(radius=.13)
@@ -90,7 +90,8 @@ def test_dagger_island_sharing_a_cloth_part_keeps_its_shape_or_is_excluded(handl
     for i in range(n):
         j = (i + 1) % n
         faces += [(i, j, n + j), (i, n + j, n + i)]
-    if handling == "auto":
+    closed_faces = len(faces)
+    if handling in ("auto", "rigid_caps"):
         # An open decorative cap sits across a small authored gap. It must keep
         # its dimensions and spacing with the closed blade, not seek skin alone.
         offset = len(vertices)
@@ -100,15 +101,19 @@ def test_dagger_island_sharing_a_cloth_part_keeps_its_shape_or_is_excluded(handl
     blade = _part("dagger", vertices, faces, material="cloth", texture="")
     mesh = _mesh(_arm(), _combined_part("cloth and dagger", (cloth, blade)))
     blade_faces = list(range(len(cloth.faces), len(cloth.faces) + len(faces)))
+    overrides = [] if removed or handling == "auto" else [{
+        "face_indices": blade_faces, "mode": handling, "clearance_percent": 0.,
+    }]
+    if handling == "rigid_caps":
+        overrides = [{"face_indices": group, "mode": "rigid_component", "clearance_percent": 0.}
+                     for group in (blade_faces[:closed_faces], blade_faces[closed_faces:])]
     with _bound(mesh) as session:
         if removed:
             _command(session, "morph_bind", {"garment_submesh_indices": [1],
                      "excluded_faces": [{"submesh_index": 1, "face_indices": blade_faces}]})
         _command(session, "morph_configure_refit", {"garment_submesh_indices": [1], "garment_settings": [{
             "submesh_index": 1, "tightness_percent": 100., "clearance_percent": .1,
-            "island_settings": [] if removed or handling == "auto" else [{
-                "face_indices": blade_faces, "mode": handling, "clearance_percent": 0.,
-            }],
+            "island_settings": overrides,
         }]})
         fitted = _snapshot(mesh, session)
         if handling == "auto":

@@ -108,6 +108,8 @@ struct MeshRefitRuntime {
     // This evaluation-only map is never persisted as a user override.
     std::map<int, std::set<std::vector<int>>> automatic_rigid_islands;
     std::map<int, int> automatic_rigid_parts;
+    // Split rigid islands can retain small assembly caps when their controls match.
+    std::map<int, int> rigid_island_source_parts;
     std::set<int> driver_submesh_indices;
     std::set<int> garment_submesh_indices;
     std::map<int, std::vector<Vec3>> driver_baseline_positions;

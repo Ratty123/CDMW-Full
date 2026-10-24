@@ -114767,11 +114767,11 @@
       ]
     },
     {
-      "key": "Refitting preserves smooth shading across texture and material seams without rounding intentional hard edges.",
+      "key": "Refitting preserves smooth shading across texture and material seams without rounding intentional hard edges. It does not add polygons: coarse outlines and authored folds can remain angular. Incompatible shapes may still need manual mesh edits.",
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 360,
+          "line": 361,
           "sink": "python-return:_build_archive_mesh_sections"
         }
       ]
@@ -137538,6 +137538,16 @@
           "path": "cdmw/ui/mesh_editor/workspace_reports.py",
           "line": 261,
           "sink": "append_log"
+        }
+      ]
+    },
+    {
+      "key": "Small caps can stay attached to a larger rigid accessory in the same Part when their island settings match. Different settings, body regions or protection masks keep islands independent.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 361,
+          "sink": "python-return:_build_archive_mesh_sections"
         }
       ]
     },
