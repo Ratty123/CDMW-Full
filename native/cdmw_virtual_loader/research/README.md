@@ -5,7 +5,7 @@
 This maintained C++ experiment joins both item identity maps to one retained
 owner before a newly visible ordinal can be resolved. It is the bounded
 `CDISO-RE-02A` research increment under the
-[canonical independent-content goal](../../../beta-progress/cditem-conflict-isolation-plan.md).
+[independent-content contract](../../../cdmw/ui/new_item/INDEPENDENT_ITEMS.md).
 
 The executable operates on memory it owns. It models numeric/name lookup,
 decoded rows, metadata and completed resource bytes. The production CMake
@@ -189,8 +189,6 @@ resident with matching keys, zero expiry and both maps. Body `owner+0x90` is zer
 both full stock snapshots precede C and phase TLS remains unknown. Reuse these
 observations; a duplicate generic phase probe is unnecessary. They supply no
 all-reader, maintenance or lifetime boundary for central publication.
-Exact source, compiled controls, consumed captures and
-restoration belong to the [current execution checkpoint](../../../beta-progress/cditem-execution-goal.md#resumed-with-direct-authority-2026-10-23).
 The maintained owned-memory experiment itself is unchanged and was not rerun.
 
 The next integration must join actual constructed backing, native metadata and
@@ -297,8 +295,7 @@ the cookie; actual cleanup execution remains unverified. The executed reservatio
 and checked tail stage do not qualify central getter/bulk, private body offsets,
 derived-state acceptance or lifetime. Central in-memory registries are permitted
 by the objective; combined replacement definition/index/mount/archive carriers
-remain prohibited. Exact source/native/caller/capture and next-step pins live in
-the [current execution checkpoint](../../../beta-progress/cditem-execution-goal.md#resumed-with-direct-authority-2026-10-23).
+remain prohibited.
 
 The user's separate Sword test install uses the existing composed physical
 overlay, item 1,990,000 in group 0041, with verified backup/readback and seven
@@ -308,8 +305,7 @@ verified backups, exact readback and independent file review. The user reports
 successful acquisition and supplies screenshots showing the custom sword at
 Tranan and visibly equipped. Sheath duplication and held orientation are accepted
 test limits, with no cosmetic work requested. The Live Edit Add callback timeout
-remains separate; save/reload and independent-native activation are unproved. See
-[the installation boundary](../../../beta-progress/cditem-execution-goal.md#sword-installation-for-the-users-visual-test).
+remains separate; save/reload and independent-native activation are unproved.
 
 The V3 owned-dummy DbgEng platform check now passes: eight complete held threads,
 five snapshots, typed contexts/TIBs/stacks, explicit detach and independently
@@ -327,8 +323,7 @@ naturally disappears, the unchanged strict build and one owned run pass exact
 and explicit detach/resumption, with cleanup in 2.388533 seconds. Root verifies
 all 68 raw files; independent actual review passes 120 closure pins without
 material defects. No game reader
-lease, writer/Router activation, publication or admission is established. See
-[the platform evidence and writer boundary](../../../beta-progress/cditem-execution-goal.md#reader-boundary-platform-qualification-remains-open).
+lease, writer/Router activation, publication or admission is established.
 
 The finite historical-B122 source roster supplies 14 prospective data fields/72
 bytes, but no dormant Router activation ABI or durable Cache continuation. The
@@ -349,8 +344,6 @@ recovery entries. It exposes further context/block/pointer services and requires
 coherent metadata with a nonzero recovery size. Transitive services, live
 initialization, queue draining and borrowed lifetime remain unresolved. Unwind
 extents do not establish complete logical functions.
-Use the [current source evidence](../../../beta-progress/cditem-execution-goal.md#reader-boundary-platform-qualification-remains-open)
-before preparing a direct-call stock cold witness or durable continuation.
 
 The separately compiled direct-call precursor now passes all 27 owned native
 cases on 2026-10-24, including forwarding, original C++ exceptions, TLS binding
@@ -363,9 +356,8 @@ exclude younger threads or every executor from a shared code page. V4’s RW
 scratch proof and unconditional detach cleanup cannot qualify code publication:
 possible-mutation uncertainty must retain the exact owned target until
 termination. Whole-page exclusion, checked executable-code publication and safe
-resumption after already-used callers remain unqualified. Exact pins, preserved
-build-postcheck failure and proof limits
-are in the [owned direct-call checkpoint](../../../beta-progress/cditem-execution-goal.md#owned-direct-call-forwarding-and-installation-boundary-2026-10-24).
+resumption after already-used callers remain unqualified. The preserved
+build-postcheck failure remains part of the proof limits.
 Game reader leases, publication, resources, lifetime and admission remain open.
 
 The separately reviewed ordinary DLL packet now passes one owned non-ASLR
@@ -389,9 +381,7 @@ The 35-instruction descriptor wrapper only routes onward. The normal descriptor
 target also passes 140-instruction review: its block-count store targets scanned
 `D`, without proving identity with returned `M`. Post-call R11 preservation stays
 unresolved. Descriptor/backing provenance, coherent nonzero size and lifetime
-remain unqualified. The
-[placement/source checkpoint](../../../beta-progress/cditem-execution-goal.md#ordinary-dll-placement-and-allocator-source-2026-10-24)
-retains the exact evidence and the stopped, unqualified publication draft.
+remain unqualified. The stopped publication draft remains unqualified.
 
 The bounded TLS-initializer capture places its guard store before a list of
 nineteen callback cells and has no local heap-pointer check. The numeric loader
@@ -413,7 +403,7 @@ rematerialization lacks an allocating-thread termination witness; the next
 distinct lifetime check must establish that boundary before native inspect,
 release and same-Cache rematerialization.
 
-The [owned Cache and Router continuation](../../../beta-progress/cditem-execution-goal.md#owned-cache-and-router-continuation-2026-10-24)
+The owned Cache and Router continuation
 passes source/linked review and its strict build. A fresh Cache is retained
 through dormant preparation and versioned local activation, with mandatory
 final checks before its own publication lock releases. Old Stage/Cache guards

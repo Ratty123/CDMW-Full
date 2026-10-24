@@ -1659,7 +1659,6 @@ paused counters and explicit detach/resumption. Cleanup completes in 2.388533
 seconds; root verifies 68 raw files and independent actual review passes 120
 closure pins without material defects.
 This establishes an owned external-API premise, not game owner-field publication.
-See the [execution evidence](../../../beta-progress/cditem-execution-goal.md#reader-boundary-platform-qualification-remains-open).
 
 The current staged Cache is also a startup backend: cold allocation requires
 the original counts/maps/zero metadata tail, original reservation worker and
@@ -1703,7 +1702,7 @@ The fixture’s truthful before-first-use/exclusive phase does not transfer to
 UAL startup: younger threads and an evidence writer remain possible. A code
 successor needs whole-page exclusion, checked remote protection/write/flush and
 physical readback before safe resumption; uncertainty after mutation requires
-owned termination while held. See the [exact owned evidence and remaining boundary](../../../beta-progress/cditem-execution-goal.md#owned-direct-call-forwarding-and-installation-boundary-2026-10-24).
+owned termination while held.
 No natural game caller, durable backend, resource use or admission is established.
 
 The separate ordinary compiled-DLL experiment now loads once at its non-ASLR
@@ -1729,7 +1728,7 @@ descriptor wrapper only routes onward. The normal descriptor target also passes
 140-instruction review: its block-count store targets scanned `D`, without
 proving identity with returned `M`. Post-call R11 preservation stays unresolved.
 Descriptor/backing provenance, coherent nonzero size and lifetime remain
-unqualified. See the [exact placement/source scope](../../../beta-progress/cditem-execution-goal.md#ordinary-dll-placement-and-allocator-source-2026-10-24).
+unqualified.
 
 The bounded TLS-initializer capture joins 31 instructions. Its `+0x98` guard
 store precedes a list of nineteen callback cells, without a local `+0x90` heap
@@ -1753,7 +1752,7 @@ readiness is inferred. B81's later-thread rematerialization does not witness the
 allocating OS thread's termination. Native post-termination inspect/release and
 same-Cache rematerialization remain a distinct required lifetime experiment.
 
-A separate [owned Cache and Router continuation](../../../beta-progress/cditem-execution-goal.md#owned-cache-and-router-continuation-2026-10-24)
+A separate owned Cache and Router continuation
 is source/linked reviewed and compiled. It retains one fresh Cache through a
 versioned local activation transaction; it neither adopts old Stage witnesses
 nor changes engine guards. Its fifteen owned cases now pass after a preserved
@@ -1834,9 +1833,7 @@ the cookie. Its reserved observer validates that exact shape; the old
 Snapshot/B78 Router contracts still refuse it. B121 separately demonstrates
 checked private staging in those slots. Neither capture establishes cleanup
 execution, final-owner activation or ordinary reader lifetime. Metadata-reserve
-Bool false is a normal no-growth result. The
-[execution checkpoint](../../../beta-progress/cditem-execution-goal.md#resumed-with-direct-authority-2026-10-23)
-owns exact source/capture/restoration pins and the retained failed controls.
+Bool false is a normal no-growth result.
 
 
 ### Proposed startup admission lifecycle

@@ -736,9 +736,7 @@ establish that the socket consumer uses this manager or accepts a new name. No
 private socket copy or donor-guard exception is enabled from generic prefab
 evidence.
 
-See the [conflict-isolation plan](../../../beta-progress/cditem-conflict-isolation-plan.md)
-for executable identities, native boundaries, retained receipts and acceptance
-conditions. Any future positive definition route must expose two separate
+Any future positive definition route must expose two separate
 definition sets without changing original shared tables and inspect actual
 lookup and every required auxiliary registry. File access or parser status alone
 does not satisfy that gate. The controlled item and save requirements remain
@@ -971,8 +969,6 @@ helper retains and restores only the exact four existing CDMW profile/registry/
 runtime/owner files; supported services still perform setup. Neither helper
 establishes gameplay or native item compatibility from copied fixtures.
 
-Gameplay scenarios remain gated by the execution plan's verified live contracts.
+Gameplay scenarios require verified live contracts.
 No CLI switch enables the closed native redirect gate or substitutes the composed
 backend for native independent items.
-The current evidence and remaining work are tracked in
-[`beta-progress/cditem-execution-goal.md`](../../../beta-progress/cditem-execution-goal.md).

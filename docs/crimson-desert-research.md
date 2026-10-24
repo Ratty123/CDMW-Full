@@ -1897,9 +1897,7 @@ maps, failure-stop and lifetime. Complete source review
 explains stock eager materialization and the later auxiliary-state/link checks.
 Expiry zero permits sampled eviction; eager loading cannot replace private
 rematerialization or the later derived-manager validation. Constructor-registered key/
-name adapters are not lifecycle callbacks. See the
-[current execution checkpoint](../beta-progress/cditem-execution-goal.md#resumed-with-direct-authority-2026-10-23)
-for source/capture pins and the bounded restoration result.
+name adapters are not lifecycle callbacks.
 
 The next resource proof joins the two separate package images to an actual
 engine consumer. The actual-compiler fixture images contain distinct 144-byte
@@ -2007,8 +2005,7 @@ a natural game call, game thread contract or publication lease. Existing early
 UAL startup does not exclude younger threads or all executors from a shared
 code page. External executable-code changes and safe resumption after
 already-used callers remain unqualified; uncertain mutation must stay contained
-until owned termination. Native routing, resource use and lifecycle remain open;
-see the [exact evidence and limits](../beta-progress/cditem-execution-goal.md#owned-direct-call-forwarding-and-installation-boundary-2026-10-24).
+until owned termination. Native routing, resource use and lifecycle remain open.
 
 One separate ordinary DLL load now observes its selected non-ASLR preferred
 base and three uncalled compiled wrapper addresses within the numeric source
@@ -2033,9 +2030,7 @@ divisor guard. The descriptor wrapper's 35 reviewed instructions only route
 onward. The normal descriptor target also passes 140-instruction review: its
 block-count store targets scanned `D`, without proving identity with returned
 `M`. Post-call R11 preservation stays unresolved. Descriptor/backing provenance,
-metadata validity, synchronization and lifetime remain unqualified. The
-[placement/source checkpoint](../beta-progress/cditem-execution-goal.md#ordinary-dll-placement-and-allocator-source-2026-10-24)
-records exact receipts and the remaining native prerequisites.
+metadata validity, synchronization and lifetime remain unqualified.
 
 The bounded TLS-initializer capture also joins 31 instructions: its guard store
 precedes a list of nineteen callback cells, without a local heap-pointer check.
@@ -2057,7 +2052,7 @@ unqualified. B81's later-thread rematerialization has no allocating-thread
 termination witness. Native inspect/release and same-Cache rematerialization
 after confirmed OS-thread exit remain a distinct lifetime check.
 
-A separate [owned Cache and Router continuation](../beta-progress/cditem-execution-goal.md#owned-cache-and-router-continuation-2026-10-24)
+A separate owned Cache and Router continuation
 is source/linked reviewed and compiled. It retains one fresh Cache through
 dormant preparation and checked local activation under its own publication lock;
 old Stage guards remain unchanged. All fifteen owned cases now pass after a
