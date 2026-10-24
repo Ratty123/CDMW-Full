@@ -1443,6 +1443,13 @@ inherited counts; unknown or ambiguous links keep their existing approximation.
 Hiding a carrier's own geometry does not stop its children. This does not add
 carrier motion, trigger timing, connected ribbon geometry or runtime route data.
 
+Named motion paths are separate `.spline` resources under
+`miscellaneous/splinedata/`, with 3D control points, tangents and keys in several
+XML layouts. The preview does not currently resolve or sample them. The inspected
+game shaders also consume path transforms, emitter transform history and grouped
+particle spans. File availability does not establish curve baking, playback time
+or trail grouping; those rules remain unimplemented and unverified.
+
 ### Imported item material authority
 
 For an imported item, Effects always derives its placed preview from the live import

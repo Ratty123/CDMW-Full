@@ -1187,14 +1187,39 @@ A windowless CPU replay through the production Rust simulation confirmed that
 the corrected zero-count route no longer supplies child draw instances; this
 is not particle pixel capture or in-game proof.
 
-The follow-up inspected 140 effect definitions and compared native frame
-exports for the route, two standalone ribbon effects and a second carrier
-effect. Both standalone ribbon exports reported zero ribbon points despite
-geometry type 4. This limits CDKit as an oracle for general ribbon behaviour.
-No full ribbon or moving-route implementation qualified: connected trail
-geometry, carrier motion and trigger timing remain open, as do runtime route
-binding and game parity. RGB brightness experiments likewise remain without
-a qualified implementation change.
+The initial ribbon follow-up compared native frame exports for the route, two
+standalone ribbon effects and a second carrier effect. Both standalone ribbon
+exports reported zero ribbon points despite geometry type 4. This limits CDKit
+as an oracle for general ribbon behaviour.
+
+A complete read-only motion-field inventory on 2026-10-24 inspected the installed
+6,447 `.pae` definitions and 560 `.paem` templates. The game executable remains
+1.0.0.2976 (SHA-256 prefix `57da440d72f4`); the preview source still includes the
+`12d89d68` carrier correction. Across 434 emitter declarations with named paths or
+the dynamic flag, 252 name paths without that flag and 182 declare it. These are
+file declarations, not verified active game instances. All 33 distinct referenced
+path files exist under `miscellaneous/splinedata/`. They contain 177 3D control
+points across attribute, nested-element and typed-item XML layouts. Four point
+positions are omitted, requiring constructor defaults. Declared spline names
+match the references after case normalization. Static path data is therefore
+available; the tracking-way sample route is not a substitute for it.
+
+Fresh DXC disassembly from the installed `0017` shader package identifies the
+tracking material's `GPUParticleUpdateCS`, spawn-point update, render-command
+generation and particle vertex entry points. A full tracking-update permutation
+actually reads the path-transform buffer, a four-pose emitter-history buffer and
+its spawn/history counters. This is instruction-level evidence beyond reflected
+field names. The inspected vertex path consumes grouped particle spans and
+segment counts. It does not establish how each real effect populates those
+buffers or selects the active permutation.
+
+No further preview rendering change qualified. Exact 3D spline baking and
+playback clocks, birth/group sequencing, transform-history population and dynamic
+route binding remain open. The historical scalar-spline evaluator does not prove
+the 3D path evaluator. No new CDMW particle pixels, packaged viewport or in-game
+appearance were tested. The 7,083 rechecked payloads and three PAMT hashes were
+unchanged; whole PAZ hashes were not calculated. RGB brightness experiments
+likewise remain without a qualified implementation change.
 
 Sources: [effect reflection reader][effect-binary], [constrained writer][effect-edit],
 [dependency and authoring contracts][independent-items], [binary tests][effect-tests].
