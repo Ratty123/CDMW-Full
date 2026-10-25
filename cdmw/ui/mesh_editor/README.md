@@ -2145,7 +2145,9 @@ fit the driver alone; Fit also falls back to the driver alone, with a diagnostic
 the garments did not come from the archive, the skeletons or nude body cannot be
 resolved, or the garments were authored on the driver itself.
 `tools/refit_reference_harness.py` scores a fit on real PACs (rigid distortion, new
-inside-body vertices, new skin through cloth, new layer crossings, cloth edge strain); it is development
+inside-body vertices, new skin through cloth, new layer crossings, cloth edge strain;
+with `--poses`, also what limb and torso rotations add when both are skinned with
+their own weights, beside the outfit on its authored body); it is development
 evidence, not proof of in-game behaviour.
 
 Turned rims retain their authored width across the edge while their circumference

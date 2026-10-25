@@ -26,6 +26,12 @@ the body the outfit was authored on (``morph_set_reference_body``, the
 Crossings are also split into rigid-against-cloth and cloth-against-cloth, where
 an island counts as rigid if the fit moved it without changing its shape.
 
+``--poses`` (archive mode) also skins the fitted outfit and the driver through a
+few limb and torso rotations, the outfit with its own weights and its bones
+matched to the driver's skeleton by name, and scores what motion adds beside the
+outfit posed the same way on its authored body (``tools/refit_reference_poses.py``).
+Fit to body changes positions only, so this is where weights show.
+
 ``--corpus`` fits every outfit in a list (``tools/refit_reference_corpus.json``:
 11002 plus two outfits per PHM, PHW and monster-PHM slot, picked by path hash)
 onto one driver from a fresh, unmarked setup and tabulates both methods. Judge a
@@ -192,6 +198,46 @@ def _archive_inputs(config: dict, dependencies) -> dict:
                            "substituted_bones": list(reference.substituted_bones) if reference is not None else []}}
 
 
+def _rig(config: dict, dependencies, inputs: dict) -> dict:
+    """Skeletons and bone palettes that pose the body and outfit as the game skins them (``--poses``).
+
+    The outfit's bones follow the driver's skeleton by name (nearest shared
+    ancestor), as in the reference retarget. The authored pairing poses the
+    reference body and the outfit as loaded with the outfit's own skeleton.
+    """
+    from cdmw.core.archive_extraction import read_archive_entry_data
+    from cdmw.modding.mesh_refit_reference import retarget_transforms
+    from cdmw.services.mesh_refit_reference_lookup import _skeleton
+
+    reference = inputs["reference"]
+    if reference is None:
+        raise ValueError(f"posing needs the authored body: {inputs['reason']}")
+    if any(inputs["provenance"]["appearances"].values()):
+        raise ValueError("posing does not yet place joints for character appearances")
+
+    def read(entry):
+        return read_archive_entry_data(entry)[0]
+
+    data, skeletons = {}, {}
+    for name in ("body", "outfit"):
+        entry = dependencies.entry_for_path(config[name])
+        data[name] = read(entry)
+        resolved = _skeleton(SimpleNamespace(entry=entry, source=SimpleNamespace(original_data=data[name])), dependencies, read)
+        skeleton = getattr(resolved, "skeleton", None)
+        if skeleton is None:  # the lookup's reason why not
+            raise ValueError(str(resolved))
+        skeletons[name] = skeleton
+    nude = read(dependencies.entry_for_path(reference.label))
+    outfit_slots = resolve_pac_bone_palette(data["outfit"], skeletons["outfit"])
+    return {"driver": skeletons["body"], "authored": skeletons["outfit"],
+            "body_slots": resolve_pac_bone_palette(data["body"], skeletons["body"]),
+            "outfit_driver_slots": retarget_transforms(outfit_slots, skeletons["outfit"], skeletons["body"])[1],
+            "outfit_slots": outfit_slots,
+            # The same Parts the reference body was built from, so weights line up with its positions.
+            "nude_parts": [part for part in parse_pac(nude, reference.label).submeshes if len(part.vertices) and len(part.faces)],
+            "nude_slots": resolve_pac_bone_palette(nude, skeletons["outfit"])}
+
+
 # ------------------------------------------------------------------ fitting
 def _command(session: str, name: str, payload: dict | None = None, timeout: float = 300.0) -> dict:
     report = mesh_native_core.native_mesh_editor_session_command(name, session, payload or {}, timeout_seconds=timeout)
@@ -336,7 +382,13 @@ def _signed_distance(surface: _Surface, points):
 
 
 def _skin_through(body: _Surface, garment_points, garment_faces, authored=None) -> tuple[int, float]:
-    """Body vertices that came out through their closest garment face: (count, deepest mm).
+    """Body vertices that came out through their closest garment face: (count, deepest mm)."""
+    through, depth = _skin_through_mask(body, garment_points, garment_faces, authored)
+    return int(through.sum()), float(depth[through].max() * 1000) if through.any() else 0.0
+
+
+def _skin_through_mask(body: _Surface, garment_points, garment_faces, authored=None) -> tuple[np.ndarray, np.ndarray]:
+    """Which body vertices came through the garment, and each vertex's distance in front of it.
 
     The vertex is in front of that face, which faces the way the skin does and
     is closer than SKIN_REACH, and the garment point beneath it is inside the
@@ -362,7 +414,7 @@ def _skin_through(body: _Surface, garment_points, garment_faces, authored=None) 
         weights = trimesh.triangles.points_to_barycentric(garment.mesh.triangles[triangle[through]], beneath[through])
         point = np.einsum("ij,ijk->ik", weights, np.asarray(before, float)[corners])
         through[through] = ~(_signed_distance(authored_body, point) < -INSIDE)
-    return int(through.sum()), float(signed[through].max() * 1000) if through.any() else 0.0
+    return through, signed
 
 
 def _joined(parts):
@@ -518,6 +570,51 @@ def analyse(run: dict, config: dict, reference: RefitReferenceBody | None) -> di
     }
 
 
+def analyse_poses(run: dict, rig: dict) -> dict:
+    """What each pose in ``tools.refit_reference_poses`` adds, for the fit on the driver and as authored."""
+    from tools.refit_reference_poses import (
+        POSES,
+        blended_matrices,
+        follow_error,
+        pose_matrices,
+        skin_parts,
+        slot_transforms,
+    )
+
+    count = run["body_count"]
+    pairings = {
+        "fitted": (rig["driver"], run["fitted"].submeshes[:count], rig["body_slots"],
+                   run["fitted"].submeshes[count:], rig["outfit_driver_slots"]),
+        "authored": (rig["authored"], rig["nude_parts"], rig["nude_slots"], run["mesh"].submeshes[count:], rig["outfit_slots"]),
+    }
+    result = {}
+    for label, (skeleton, body_parts, body_slots, garment_parts, garment_slots) in pairings.items():
+        body_rest, body_faces = _joined(body_parts)
+        garment_rest, garment_faces = _joined(garment_parts)
+        rest = _Surface(body_rest, body_faces)
+        inside_rest = _signed_distance(rest, garment_rest) < -INSIDE
+        skin_rest, _ = _skin_through_mask(rest, garment_rest, garment_faces)
+        for name, pose in POSES.items():
+            matrices = pose_matrices(skeleton, pose)
+            body_transforms = slot_transforms(matrices, body_slots)
+            body_posed = skin_parts(body_parts, [np.asarray(p.vertices, float) for p in body_parts], body_transforms)
+            garment_posed = skin_parts(garment_parts, [np.asarray(p.vertices, float) for p in garment_parts],
+                                       slot_transforms(matrices, garment_slots))
+            posed = _Surface(body_posed, body_faces)
+            depth = -_signed_distance(posed, garment_posed)
+            added = (depth > INSIDE) & ~inside_rest
+            skin, _ = _skin_through_mask(posed, garment_posed, garment_faces)
+            follow = follow_error(body_rest, blended_matrices(body_parts, body_transforms), garment_rest, garment_posed)
+            result.setdefault(name, {})[label] = {
+                "added_inside": int(added.sum()),
+                "deepest_added_inside_mm": float(depth[added].max() * 1000) if added.any() else 0.0,
+                "added_skin_through": int((skin & ~skin_rest).sum()),
+                "follow_p95_mm": float(np.percentile(follow, 95) * 1000) if len(follow) else 0.0,
+                "follow_max_mm": float(follow.max() * 1000) if len(follow) else 0.0,
+            }
+    return result
+
+
 # ------------------------------------------------------------------ renders
 _PALETTE = np.array([(230, 25, 75), (60, 180, 75), (255, 225, 25), (0, 130, 200), (245, 130, 48), (145, 30, 180),
                      (70, 240, 240), (240, 50, 230), (210, 245, 60), (250, 190, 212), (0, 128, 128), (220, 190, 255),
@@ -596,11 +693,15 @@ def run_corpus(args) -> int:
         try:
             inputs = _archive_inputs(config, dependencies)
             row["reference"], row["reason"] = inputs["provenance"]["reference"], inputs["reason"]
+            rig = _rig(config, dependencies, inputs) if args.poses else None
             for method in args.method:
                 if method == "reference" and inputs["reference"] is None:
                     continue
-                report = analyse(fit(inputs, config, method), config, inputs["reference"])
+                run = fit(inputs, config, method)
+                report = analyse(run, config, inputs["reference"])
                 summary = report["summary"]
+                if rig is not None:
+                    summary["poses"] = analyse_poses(run, rig)
                 summary["cloth_strain_p95"] = summary["cloth_strain"]["p95"]
                 summary["cloth_strain_max"] = summary["cloth_strain"]["max"]
                 summary["rigid_cloth_crossing_triangles"] = summary["new_crossing_triangles_by_kind"]["rigid-cloth"]
@@ -620,6 +721,12 @@ def run_corpus(args) -> int:
                          f"strain p95 {s['cloth_strain_p95']:.2f}, "
                          f"solid {s['worst_solid_distortion_mm']:.1f} mm, {s['seconds']:.1f} s"))
         print(outfit.rsplit("/", 1)[-1], "|", " | ".join(cells), "|", row.get("error") or row.get("reason") or "", flush=True)
+        for method in args.method:
+            poses = (row["runs"].get(method) or {}).get("poses")
+            for name, pairs in (poses or {}).items():
+                print(f"    {method} {name}: " + " | ".join(
+                    f"{label} inside +{p['added_inside']} ({p['deepest_added_inside_mm']:.1f} mm), skin +{p['added_skin_through']}, "
+                    f"follow p95 {p['follow_p95_mm']:.1f} max {p['follow_max_mm']:.1f} mm" for label, p in pairs.items()), flush=True)
         (args.output / "corpus.json").write_text(json.dumps(results, indent=1), encoding="utf-8")
     totals = {}
     for method in args.method:
@@ -628,6 +735,15 @@ def run_corpus(args) -> int:
                           **{key: float(combine([r[key] for r in rows])) if rows else 0.0
                              for key, combine in _CORPUS_COLUMNS.items()},
                           "median_cloth_strain_p95": float(np.median([r["cloth_strain_p95"] for r in rows])) if rows else 0.0}
+        posed = [r["poses"] for r in rows if "poses" in r]
+        if posed:
+            totals[method]["poses"] = {
+                name: {label: {"added_inside": int(sum(p[name][label]["added_inside"] for p in posed)),
+                               "added_skin_through": int(sum(p[name][label]["added_skin_through"] for p in posed)),
+                               "median_follow_p95_mm": float(np.median([p[name][label]["follow_p95_mm"] for p in posed])),
+                               "worst_follow_max_mm": float(max(p[name][label]["follow_max_mm"] for p in posed))}
+                       for label in posed[0][name]}
+                for name in posed[0]}
     print(json.dumps(totals, indent=1))
     (args.output / "corpus.json").write_text(json.dumps({"driver": args.driver, "outfits": results, "totals": totals},
                                                         indent=1), encoding="utf-8")
@@ -649,9 +765,13 @@ def main(argv=None) -> int:
     parser.add_argument("--corpus", type=Path,
                         help="JSON list of outfit archive paths, each fitted unmarked onto --driver (needs --game-root)")
     parser.add_argument("--driver", default=PRESETS["11002"]["body"], help="Driver body archive path for --corpus")
+    parser.add_argument("--poses", action="store_true",
+                        help="Also pose body and outfit together and score what motion adds (archive mode)")
     args = parser.parse_args(argv)
     if bool(args.assets) == bool(args.game_root):
         parser.error("give exactly one of --assets or --game-root")
+    if args.poses and not args.game_root:
+        parser.error("--poses resolves skeletons from --game-root")
     if args.corpus:
         if not args.game_root:
             parser.error("--corpus reads outfits from --game-root")
@@ -665,8 +785,9 @@ def main(argv=None) -> int:
     _require_dev_dependencies(args.render, bool(args.game_root))
     if not mesh_native_core.native_mesh_core_available():
         raise SystemExit("Build the native mesh core first (native/cdmw_mesh_core, Release).")
-    inputs = (_archive_inputs(config, _archive_index(args.game_root)) if args.game_root
-              else _file_inputs(config, args.assets))
+    dependencies = _archive_index(args.game_root) if args.game_root else None
+    inputs = _archive_inputs(config, dependencies) if dependencies else _file_inputs(config, args.assets)
+    rig = _rig(config, dependencies, inputs) if args.poses else None
     if inputs["reference"] is None and "reference" in args.method:
         raise SystemExit(f"Fit to body would use only the driver: {inputs['reason']}")
     args.output.mkdir(parents=True, exist_ok=True)
@@ -675,11 +796,13 @@ def main(argv=None) -> int:
     for method in args.method:
         run = fit(inputs, fitting, method)
         report = analyse(run, config, inputs["reference"])
+        if rig is not None:
+            report["poses"] = analyse_poses(run, rig)
         reports["runs"][method] = report
         if args.render:
             render_sheet(run["mesh"], run["body_count"], args.output / "before.png")
             render_sheet(run["fitted"], run["body_count"], args.output / f"after_{method}.png")
-        print(json.dumps(report["summary"], indent=1))
+        print(json.dumps({**report["summary"], **({"poses": report["poses"]} if rig is not None else {})}, indent=1))
     (args.output / "report.json").write_text(json.dumps(reports, indent=1), encoding="utf-8")
     return 0
 
