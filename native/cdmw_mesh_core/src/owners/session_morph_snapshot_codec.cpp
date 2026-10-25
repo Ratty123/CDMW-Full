@@ -150,6 +150,10 @@ void mesh_editor_write_snapshot_refit(std::ostream& out, const MeshMorphRuntime&
         << ",\"candidate_triangle_tests\":" << refit.candidate_triangle_tests;
     mesh_editor_write_refit_constraints(out, refit);
     mesh_editor_write_refit_exclusions(out, refit);
+    if (refit.reference_body) {
+        out << ",\"reference_body\":";
+        mesh_editor_write_refit_reference(out, *refit.reference_body);
+    }
     out << '}';
 }
 
@@ -487,6 +491,10 @@ std::shared_ptr<const MeshRefitRuntime> mesh_editor_refit_from_snapshot(
             || !refit->garment_settings.emplace(submesh_index, std::move(settings)).second) {
             throw std::runtime_error("morph runtime snapshot has invalid garment settings");
         }
+    }
+    if (const auto* reference = raw_refit->get("reference_body")) {
+        if (version < 5) throw std::runtime_error("Fit reference bodies require runtime snapshot version 5");
+        refit->reference_body = mesh_editor_refit_reference_from_json(*reference);
     }
     refit->driver_diagonal = mesh_editor_snapshot_number(*raw_refit, "driver_diagonal");
     refit->maximum_distance = mesh_editor_snapshot_number(*raw_refit, "maximum_distance");

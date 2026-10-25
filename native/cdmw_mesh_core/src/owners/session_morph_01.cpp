@@ -4799,6 +4799,11 @@ std::shared_ptr<MeshRefitRuntime> mesh_editor_refit_solid_attachments(
     return result;
 }
 
+std::string mesh_editor_apply_reference_refit(
+    const MeshMorphRuntime&, const std::map<int, MeshSessionSubmesh>&, const std::map<int, std::vector<Vec3>>&,
+    std::map<int, std::vector<Vec3>>&, const std::map<int, std::vector<Vec3>>&);
+void mesh_editor_write_refit_reference_summary(std::ostream&, const MeshEditorSession&);
+
 std::vector<SubmeshMeshEditResult> mesh_editor_recompose_morph(
     MeshEditorSession& session,
     MeshMorphRuntime& next,
@@ -4816,14 +4821,19 @@ std::vector<SubmeshMeshEditResult> mesh_editor_recompose_morph(
         indices.insert(next.refit->garment_submesh_indices.begin(), next.refit->garment_submesh_indices.end());
     }
     const std::map<int, std::vector<Vec3>> residual = mesh_editor_morph_residual_positions(*session.morph, submeshes, indices);
-    MeshMorphRuntime fitting = next;
-    if (next.refit) if (auto attachments = mesh_editor_refit_solid_attachments(*next.refit, submeshes, residual))
-        fitting.refit = std::move(attachments);
-    const bool islands = fitting.refit && (!fitting.refit->excluded_faces.empty()
-        || std::any_of(fitting.refit->garment_settings.begin(), fitting.refit->garment_settings.end(),
-            [](const auto& item) { return !item.second.island_settings.empty(); }));
-    if (islands) mesh_editor_apply_island_refit_corrections(fitting, submeshes, residual, new_layer, post_refit);
-    else mesh_editor_apply_refit_corrections(fitting, submeshes, residual, new_layer, post_refit);
+    if (next.refit && next.refit->reference_body) {
+        // The reference-body transfer owns rigid pieces, islands and exclusions itself.
+        session.reference_refit_report = mesh_editor_apply_reference_refit(next, submeshes, residual, new_layer, post_refit);
+    } else {
+        MeshMorphRuntime fitting = next;
+        if (next.refit) if (auto attachments = mesh_editor_refit_solid_attachments(*next.refit, submeshes, residual))
+            fitting.refit = std::move(attachments);
+        const bool islands = fitting.refit && (!fitting.refit->excluded_faces.empty()
+            || std::any_of(fitting.refit->garment_settings.begin(), fitting.refit->garment_settings.end(),
+                [](const auto& item) { return !item.second.island_settings.empty(); }));
+        if (islands) mesh_editor_apply_island_refit_corrections(fitting, submeshes, residual, new_layer, post_refit);
+        else mesh_editor_apply_refit_corrections(fitting, submeshes, residual, new_layer, post_refit);
+    }
     for (const auto& item : new_layer) indices.insert(item.first);
     std::vector<SubmeshMeshEditResult> results;
     std::map<int, std::vector<Vec3>> before, before_normals;
@@ -5014,6 +5024,7 @@ void mesh_editor_write_morph_state(std::ostream& out, const MeshEditorSession& s
                "\"maximum_distance\":0,\"p95_distance\":0,\"warning_distance\":0,\"distance_warning\":false,"
                "\"driver_triangle_count\":0,\"candidate_triangle_tests\":0,\"garment_settings\":[]";
     }
+    mesh_editor_write_refit_reference_summary(out, session);
     out << "},\"unbaked\":" << (morph.unbaked ? "true" : "false")
         << ",\"topology_blocked\":" << (morph.unbaked ? "true" : "false")
         << ",\"busy\":" << (!morph.active_change_id.empty() ? "true" : "false")

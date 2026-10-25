@@ -38,8 +38,6 @@ constexpr double REFIT_REFERENCE_STRETCH_MAX = 1.04;
 constexpr double REFIT_REFERENCE_STEP = 1.5;
 constexpr std::size_t REFIT_REFERENCE_MAX_VERTICES = 2000000;
 
-std::map<std::string, std::string> g_mesh_refit_reference_reports;
-
 Vec3 refit_reference_cross(const Vec3& a, const Vec3& b) {
     return {a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]};
 }
@@ -977,7 +975,5 @@ void mesh_editor_write_refit_reference_summary(std::ostream& out, const MeshEdit
     out << "{\"label\":";
     write_escaped(out, reference->label);
     out << ",\"vertex_count\":" << reference->source_positions.size() << ",\"face_count\":" << reference->faces.size()
-        << ",\"last_fit\":";
-    const auto report = g_mesh_refit_reference_reports.find(session.native_session_id);
-    out << (report == g_mesh_refit_reference_reports.end() ? std::string("null") : report->second) << '}';
+        << ",\"last_fit\":" << (session.reference_refit_report.empty() ? std::string("null") : session.reference_refit_report) << '}';
 }

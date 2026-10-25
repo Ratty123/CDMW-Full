@@ -213,6 +213,8 @@ struct MeshEditorSession {
     int stroke_revision = 0;
     long long morph_state_revision = 0;
     std::shared_ptr<MeshMorphRuntime> morph = std::make_shared<MeshMorphRuntime>();
+    // Diagnostics from the latest reference-body fit, reported with morph state.
+    std::string reference_refit_report;
 };
 
 struct MeshEditorApplyState;

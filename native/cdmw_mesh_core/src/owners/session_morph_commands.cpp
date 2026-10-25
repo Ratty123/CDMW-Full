@@ -500,6 +500,8 @@ std::string mesh_editor_morph_bind_session_report(
     for (const int index : garments) rebound->garment_settings[index].tightness_initialized = false;
     mesh_editor_read_refit_exclusions(*rebound,root.get("excluded_faces"),submeshes);
     if (next->refit) {
+        // A changed binding still fits garments authored on the same reference body.
+        rebound->reference_body = next->refit->reference_body;
         for (const int index : garments) {
             const auto settings = next->refit->garment_settings.find(index);
             if (settings != next->refit->garment_settings.end()) rebound->garment_settings[index] = settings->second;
@@ -734,6 +736,49 @@ std::string mesh_editor_morph_configure_refit_session_report(
     );
 }
 
+std::string mesh_editor_morph_set_reference_body_session_report(
+    const JsonValue& root,
+    const std::string& session_id,
+    MeshEditorSession& session,
+    const std::chrono::steady_clock::time_point& started
+) {
+    if (!session.morph || !session.morph->refit) throw std::runtime_error("Bind a garment before fitting it to a reference body");
+    const auto* raw = root.get("reference_body");
+    if (!raw) throw std::runtime_error("Fit to reference body requires a reference body or null");
+    const auto& submeshes = mesh_editor_submeshes(session);
+    auto next = mesh_editor_clone_morph_runtime(session);
+    auto next_refit = std::make_shared<MeshRefitRuntime>(*next->refit);
+    next_refit->reference_body = raw->type == JsonValue::Type::Null ? nullptr : mesh_editor_refit_reference_from_json(*raw);
+    if (root.get("garment_settings")) {
+        // Settings and the reference change together, as one undoable Fit.
+        const std::set<int> garments = mesh_editor_valid_submesh_set(
+            root.get("garment_submesh_indices"), submeshes, "garment refit settings");
+        for (const int index : garments)
+            if (!next_refit->garment_submesh_indices.count(index))
+                throw std::runtime_error("garment refit settings require a bound garment part");
+        mesh_editor_configure_refit_batch(root, *next_refit, submeshes, garments, next->neutral_positions);
+    }
+    next->refit = std::move(next_refit);
+    next->change_id = "set-reference-body";
+    MeshEditorHistoryEntry history;
+    history.operation = "morph_set_reference_body";
+    history.morph_before = session.morph;
+    std::map<int, MeshSessionSubmesh> before = mesh_editor_capture_morph_submeshes(session, *next);
+    const std::string delta_output_dir = string_or(root.get("delta_output_dir"), "");
+    std::vector<SubmeshMeshEditResult> results = mesh_editor_recompose_morph(
+        session, *next, "morph_set_reference_body", delta_output_dir, session_id
+    );
+    if (!next->refit->reference_body) session.reference_refit_report.clear();
+    next->state_revision = ++session.morph_state_revision;
+    session.morph = std::move(next);
+    const bool history_published = mesh_editor_publish_morph_history(session, std::move(history), before, "", false);
+    if (!results.empty()) ++session.edit_revision;
+    return mesh_editor_morph_report_json(
+        "morph_set_reference_body", session_id, session, results, mesh_editor_morph_result_indices(results),
+        history_published, delta_output_dir, bool_or(root.get("include_edit_report"), true), started
+    );
+}
+
 std::shared_ptr<const MeshRefitRuntime> mesh_editor_rebased_refit(
     const MeshMorphRuntime& morph,
     const std::map<int, MeshSessionSubmesh>& submeshes,
@@ -741,6 +786,9 @@ std::shared_ptr<const MeshRefitRuntime> mesh_editor_rebased_refit(
 ) {
     if (!morph.refit) return {};
     auto refit = std::make_shared<MeshRefitRuntime>(*morph.refit);
+    // Baked garments already sit on the driver, and Reset returns them to the
+    // authored body. Either way a later recompose must not transfer them again.
+    refit->reference_body.reset();
     for (auto& item : refit->garment_settings) {
         if (!reset_fit) item.second.tightness_initialized = true;
         else if (item.second.tightness_percent > 0.0) item.second.tightness_initialized = false;
