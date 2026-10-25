@@ -1812,7 +1812,7 @@ Joining actual native storage and decoding to a qualified reader boundary is
 still required. Other reference sections retain their existing review scope.
 
 Sources: [native registration investigation][virtual-loader] and the
-[current identity/native architecture contract](../cdmw/ui/new_item/INDEPENDENT_ITEMS.md#runtime-registration-research).
+[current identity/native architecture contract](../native/cdmw_virtual_loader/research/runtime-registration.md).
 
 ### 13.3 Native resource loading: separate from item registration
 
@@ -1843,14 +1843,14 @@ value still hides terminal errors and exposes no transferred count. These are
 source/API conclusions. The later fixed 102-byte game observation is recorded
 below; visible use and general resource retirement remain unproved.
 
-The new offline [private archive path reviewer](../cdmw/ui/new_item/INDEPENDENT_ITEMS.md#private-archive-path-evidence-review)
+The new offline [private archive path reviewer](../native/cdmw_virtual_loader/research/runtime-registration.md#private-archive-path-evidence-review)
 binds independently pinned preparation, the selected private archive and its
 expected payload. It refuses a different archive beneath the same root. Focused
 fixtures and a retained-input check passed on 2026-10-21. The later controlled
 B113 capture now passes exact-path review and a separate actual process/source
 provenance join. That path result did not itself prove byte delivery or resource use.
 
-The maintained [per-package resource image preparation](../cdmw/ui/new_item/INDEPENDENT_ITEMS.md#per-package-resource-image-preparation)
+The maintained [per-package resource image preparation](../native/cdmw_virtual_loader/research/runtime-registration.md#per-package-resource-image-preparation)
 now produces a separate PAPGT/PAMT/PAZ image from each package's actual validated
 compiler contributions. Each included resource is joined to that package's
 ownership and reservations. Shared definitions and integrations remain omitted
@@ -2452,7 +2452,7 @@ one supported lifecycle. Metadata success, prepared archives and related Loadout
 observations remain separate evidence.
 
 Sources: [resource-admission research and recorded receipt limits][virtual-loader]
-and the [independent-content evidence boundary](../cdmw/ui/new_item/INDEPENDENT_ITEMS.md#retained-evidence-and-unresolved-contracts).
+and the [independent-content evidence boundary](../native/cdmw_virtual_loader/research/runtime-registration.md#retained-evidence-and-unresolved-contracts).
 
 ### 13.4 Save lineage and migration
 
