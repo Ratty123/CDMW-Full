@@ -1755,6 +1755,14 @@ is under separate diagnosis, with appearance/equip/save still unproved. The
 [resource and installation boundary](#133-native-resource-loading-separate-from-item-registration)
 distinguishes that overlay from the earlier controlled captures.
 
+Targeted continuation, 2026-10-25: a published launcher-independent profile
+(standalone mode 4) loads without a CDMW session host. After DMM mounted its own
+group, CDMW applied and published a five-sword profile against that mount. A launch
+from DMM came up ready in the game's process with redirected mount-table,
+texture-registry and private archive opens, and the user confirmed all five items
+in game. The profile holds only while DMM's mount is unchanged since publication.
+Save behaviour, removal and composing packages at launch remain untested.
+
 ### 13.2 Native item registration: a rejected shortcut
 
 Read-only analysis identified the ItemInfo owner and startup loading path.

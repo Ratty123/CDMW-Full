@@ -850,6 +850,19 @@ separate and open.
    This does not certify broader runtime coexistence, other item configurations,
    saving with removed items or all asset/behavior updates. Those game checks
    remain separate from the delivered application workflow.
+5. **Launcher-independent profile (standalone mode 4):** on 2026-10-25, with game
+   2.03.02 and UAL 9.7.4, a headless Steam smoke launch (runtime `d8c68cf6`, built
+   at `8fb5569b`) loaded the published profile without a CDMW host. It reported
+   ready, recorded redirected PAPGT and private PAMT opens, closed on request and
+   left all 40 protected index, runtime and bootstrap files unchanged. After DMM
+   mounted its own group, the five-sword profile was applied and published against
+   that mount (generation `99eda530`, runtime `1b15c54d` at `6fb6ae67`). A launch
+   from DMM reported ready in the game's own process, with redirected PAPGT, PATHC
+   and private PAMT/PAZ opens, and the user confirmed all five Wolf Trial swords in
+   game. DMM did not rewrite its mount at that launch; a changed DMM mount makes
+   the profile stale until it is applied and published again. Save/reload, removal
+   and reinstallation under this profile, other mod managers and composition at
+   launch remain unverified.
 
 Source tests, built native binaries, packaged application, visible game behavior
 and save compatibility are separate evidence classes. The diagnostic observations

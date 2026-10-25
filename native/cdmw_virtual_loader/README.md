@@ -189,8 +189,15 @@ installation lease, so CDMW cannot change the installation while the game runs.
 Any mismatch leaves the game unmodded. Each launch writes
 `standalone-status.json` (`ready` or `refused` with the reason) and a bounded
 `trace-standalone.bin`. Other programs in `bin64` that load the bootstrap, such as the
-crash handler that starts with every launch, leave both files alone and stay inert. A mod manager that rebuilds PAPGT or PATHC after CDMW
-applied the profile with different content makes it stale; apply and publish again.
+crash handler that starts with every launch, leave both files alone and stay inert.
+A mod manager that rebuilds PAPGT or PATHC after CDMW applied the profile with
+different content makes it stale; apply and publish again.
+
+Recorded 2026-10-25 on game 2.03.02 with UAL 9.7.4: the headless Steam smoke passed,
+and a launch from DMM loaded a five-sword profile published against DMM's mount. The
+runtime reported ready in the game's process with the expected redirects, and the
+user confirmed all five items in game. Save/reload and removal under a standalone
+profile are untested. The feature map's evidence gates hold the details.
 
 ```powershell
 .\.venv\Scripts\python.exe scripts/cditem_standalone.py --game-root "<game>" update-runtime
