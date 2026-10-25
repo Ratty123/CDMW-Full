@@ -45,6 +45,15 @@ And it reads what the game would read before the composition:
   them, as the game does, so a composition builds on DMM's edits instead of hiding them.
   Directories the list does not name are not mounted.
 
+And it reads `.cditem` packages:
+
+- `ZipArchive`: `zipfile.ZipFile` as `independent_item_package` uses it: the end-record
+  search, prepended data, name sanitizing (cut at NUL, backslashes to slashes), Info-ZIP
+  Unicode path fields, matching local-header names, the overlap check (with zipfile's
+  warn-only case for a shared header offset), CRC-32 and the member size check;
+- `inflate`: raw DEFLATE that accepts and refuses the streams zlib does;
+- `sha256` and `crc32`.
+
 Failures keep Python's kinds: `OverlayConflict` where Python raises `OverlayConflict`, and
 `FormatError` where it raises anything else. `Unsupported` marks input outside the subset
 this port reproduces exactly, so a caller refuses instead of guessing:
@@ -58,7 +67,11 @@ this port reproduces exactly, so a caller refuses instead of guessing:
 - overlay paths that are not UTF-8;
 - archive entries the composer does not read: DDS, partial PAR containers, encrypted
   structured binaries whose plaintext is not text, non-ASCII names under ChaCha20, and a
-  mount list that names a directory twice.
+  mount list that names a directory twice;
+- ZIP64, cp437 member names outside ASCII, bzip2, LZMA and Zstandard members, and a
+  DEFLATE member whose stream runs past its directory size or ends unfinished there
+  (zipfile truncates at that size, so whether zlib would have flagged the rest depends on
+  its internal state).
 
 ## LZ4
 
@@ -75,7 +88,7 @@ Composed payloads and rewritten `.paloc` containers therefore match Python exact
 cmake -S native/cdmw_item_composer -B native/cdmw_item_composer/build -A x64
 cmake --build native/cdmw_item_composer/build --config Release
 ctest --test-dir native/cdmw_item_composer/build -C Release --output-on-failure
-.\.venv\Scripts\python.exe -m pytest tests/test_native_overlay_merge.py tests/test_native_archive_writer.py tests/test_native_archive_reader.py -q
+.\.venv\Scripts\python.exe -m pytest tests/test_native_overlay_merge.py tests/test_native_archive_writer.py tests/test_native_archive_reader.py tests/test_native_package_reader.py -q
 ```
 
 These run every case through both implementations and compare the bytes; they skip when
@@ -88,9 +101,8 @@ virtual loader, which builds with the same static runtime and warning settings.
 
 ## Not yet ported
 
-The package `runtime/` members, reading packages (ZIP and SHA-256), the launch-time
-composition that ties these parts together, and its use in the virtual loader are the
-next steps. `cdmw_archive_core` was not reused for reading: its scan sorts groups instead
+The package `runtime/` members, the launch-time composition that ties these parts
+together, and its use in the virtual loader are the next steps. `cdmw_archive_core` was not reused for reading: its scan sorts groups instead
 of following the mount list, and its decoder skips Python's plaintext validation.
 Packages with field or texture operations (`prepare_fields` / `prepare_textures`) are out
 of scope for v1.

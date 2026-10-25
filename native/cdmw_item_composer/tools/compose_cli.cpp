@@ -12,6 +12,9 @@
 //   cdmw_compose_cli text-check <input>                       prints 1 or 0
 //   cdmw_compose_cli pamt <pamt> <response>
 //   cdmw_compose_cli read-archives <root> <papgt> <response> <path>...
+//   cdmw_compose_cli sha256 <input>                           prints the hex digest
+//   cdmw_compose_cli inflate <input> <output> <limit>
+//   cdmw_compose_cli zip <archive> <response>
 //
 // Merge request:   "CDMWMRG1", then before, after and current, each: u32 count, then per
 //                  file u32 path length, UTF-8 path, u8 present, [u64 size, bytes].
@@ -28,6 +31,10 @@
 // u64 stored size, u64 orig size, u32 flags, u32 PAZ index. read-archives answers u32
 // count, then per path u8 status (0 found, 1 absent, 2 format error, 3 unsupported),
 // u32 + message, and when found u32 + PAMT path, u32 flags, u64 + decoded bytes.
+// zip answers u32 count, then per member u32 + name, u32 + original name, u32 flags,
+// u32 method, u32 CRC, u64 compressed size, u64 size, u32 external attributes, u64 header
+// offset, then u8 read status (0 ok, 2 format error, 3 unsupported), u32 + message and
+// u64 + bytes.
 #include "cdmw_composer/composer.hpp"
 #include "composer_internal.hpp"
 
@@ -198,6 +205,41 @@ Bytes pamt_listing(const Bytes& data, const char* path) {
     });
 }
 
+Bytes zip_listing(const Bytes& data) {
+    return answer([&] {
+        const ZipArchive archive(data);
+        auto out = response(0, "", nullptr);
+        put(out, archive.members().size(), 4);
+        for (const auto& member : archive.members()) {
+            put_bytes(out, text(member.name), 4);
+            put_bytes(out, text(member.orig_name), 4);
+            put(out, member.flags, 4);
+            put(out, member.method, 4);
+            put(out, member.crc, 4);
+            put(out, member.compressed_size, 8);
+            put(out, member.size, 8);
+            put(out, member.external_attr, 4);
+            put(out, member.header_offset, 8);
+            std::uint8_t status = 0;
+            std::string message;
+            Bytes bytes;
+            try {
+                bytes = archive.read(member);
+            } catch (const FormatError& error) {
+                status = 2;
+                message = error.what();
+            } catch (const Unsupported& error) {
+                status = 3;
+                message = error.what();
+            }
+            out.push_back(status);
+            put_bytes(out, text(message), 4);
+            put_bytes(out, bytes, 8);
+        }
+        return out;
+    });
+}
+
 Bytes read_archives(const char* root, const Bytes& papgt, int count, char** paths) {
     return answer([&] {
         const MountedArchives archives(detail::path_of(root), papgt);
@@ -264,6 +306,18 @@ int main(int argc, char** argv) {
             write_file(argv[3], pamt_listing(read_file(argv[2]), argv[2]));
         } else if (command == "read-archives" && argc >= 5) {
             write_file(argv[4], read_archives(argv[2], read_file(argv[3]), argc - 5, argv + 5));
+        } else if (command == "sha256" && argc == 3) {
+            std::cout << sha256_hex(read_file(argv[2])) << '\n';
+        } else if (command == "inflate" && argc == 5) {
+            const auto input = read_file(argv[2]);
+            try {
+                write_file(argv[3], inflate(input.data(), input.size(), std::stoull(argv[4])));
+            } catch (const FormatError& error) {
+                std::cerr << error.what() << '\n';
+                return 3;
+            }
+        } else if (command == "zip" && argc == 4) {
+            write_file(argv[3], zip_listing(read_file(argv[2])));
         } else if (command == "lz4-compress" && argc == 4) {
             const auto input = read_file(argv[2]);
             write_file(argv[3], lz4::compress(input.data(), input.size()));

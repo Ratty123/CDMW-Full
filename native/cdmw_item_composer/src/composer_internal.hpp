@@ -53,6 +53,14 @@ inline bool contains(const Bytes& data, std::string_view needle) {
 // archive_format's try_decode_text_like_archive_data(data) is not None.
 bool text_like(const Bytes& data);
 
+// Raw DEFLATE that stops once `limit` bytes are out. `complete` is false when the
+// stream had more to give, or ended unfinished exactly at the limit.
+struct Inflated {
+    Bytes bytes;
+    bool complete = false;
+};
+Inflated inflate_prefix(const std::uint8_t* data, std::size_t size, std::size_t limit);
+
 // UTF-8 text <-> paths (C++20 spells UTF-8 as char8_t).
 inline std::string utf8_of(const std::filesystem::path& path) {
     const auto text = path.u8string();

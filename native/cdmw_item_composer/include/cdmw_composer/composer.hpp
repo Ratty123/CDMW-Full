@@ -1,6 +1,7 @@
 // Portable port of cdmw/domain/archives/overlay_merge.py and the codecs it uses.
 // No platform APIs: the virtual loader links it, and the CLI tests it against Python.
 #pragma once
+#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <filesystem>
@@ -131,6 +132,35 @@ private:
 // archive_format's normalized game path: forward slashes, no surrounding white space or
 // slashes, ASCII lower case.
 std::string normalize_game_path(const std::string& path);
+
+std::array<std::uint8_t, 32> sha256(const std::uint8_t* data, std::size_t size);
+std::string sha256_hex(const Bytes& data);
+// Raw DEFLATE, refusing what zlib refuses and output past `limit` bytes.
+Bytes inflate(const std::uint8_t* data, std::size_t size, std::size_t limit);
+std::uint32_t crc32(const std::uint8_t* data, std::size_t size);
+
+// One central-directory entry, as zipfile.ZipInfo reads it.
+struct ZipMember {
+    std::string name, orig_name;  // ZipInfo.filename (sanitized) and .orig_filename
+    std::uint16_t flags{}, method{};
+    std::uint32_t crc{}, external_attr{};
+    std::uint64_t compressed_size{}, size{};
+    // Signed, as zipfile's are: a damaged archive's prepended-data adjustment can be negative.
+    std::int64_t header_offset{}, end_offset{};
+};
+// A ZIP archive read as zipfile.ZipFile reads it.
+class ZipArchive {
+public:
+    explicit ZipArchive(Bytes data);
+    const std::vector<ZipMember>& members() const { return members_; }
+    // The member's bytes after zipfile's header, overlap and CRC checks and
+    // independent_item_package's size check.
+    Bytes read(const ZipMember& member) const;
+
+private:
+    Bytes data_;
+    std::vector<ZipMember> members_;
+};
 
 namespace lz4 {
 // One raw LZ4 block that must expand to exactly output_size bytes.
