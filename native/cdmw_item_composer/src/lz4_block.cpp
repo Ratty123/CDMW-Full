@@ -66,49 +66,99 @@ Bytes decompress(const std::uint8_t* data, std::size_t size, std::size_t output_
     return out;
 }
 
+// liblz4 1.9.4's block compressor at acceleration 1, step for step, so blocks match
+// python-lz4's lz4.block.compress byte for byte. python-lz4 compresses every size the way
+// liblz4 does with a 32-bit position table: a 12-bit table indexed by the 5-byte hash, with
+// a 64 KiB distance limit (measured: the 16-bit small-input table never matches it).
 Bytes compress(const std::uint8_t* data, std::size_t size) {
+    if (size == 0) return Bytes{0};
+    if (size > 0x7E000000) throw FormatError("LZ4 input exceeds the block size limit");
+    constexpr std::size_t min_length = match_start_limit + 1;
+    constexpr int skip_trigger = 6;
+    const auto read32 = [&](std::size_t at) { return static_cast<std::uint32_t>(detail::le(data + at, 4)); };
+    const auto hash = [&](std::size_t at) {
+        return static_cast<std::uint32_t>(((detail::le(data + at, 8) << 24) * 889523592379ull) >> (64 - 12));
+    };
+    std::vector<std::uint32_t> table(std::size_t(1) << 12, 0);
+    const auto put = [&](std::uint32_t slot, std::size_t position) { table[slot] = static_cast<std::uint32_t>(position); };
     Bytes out;
     out.reserve(size + size / 255 + 16);
-    const auto emit_length = [&](std::size_t rest) {
-        for (; rest >= 255; rest -= 255) out.push_back(255);
-        out.push_back(static_cast<std::uint8_t>(rest));
+    const auto run = [&](std::size_t length) {
+        for (; length >= 255; length -= 255) out.push_back(255);
+        out.push_back(static_cast<std::uint8_t>(length));
     };
-    const auto emit = [&](std::size_t anchor, std::size_t literals, std::size_t offset, std::size_t length) {
-        const std::size_t code = length ? length - min_match : 0;
-        out.push_back(static_cast<std::uint8_t>((std::min<std::size_t>(literals, 15) << 4) | std::min<std::size_t>(code, 15)));
-        if (literals >= 15) emit_length(literals - 15);
-        out.insert(out.end(), data + anchor, data + anchor + literals);
-        if (!length) return;
-        out.push_back(static_cast<std::uint8_t>(offset));
-        out.push_back(static_cast<std::uint8_t>(offset >> 8));
-        if (code >= 15) emit_length(code - 15);
-    };
-    const auto read32 = [&](std::size_t at) {
-        std::uint32_t value;
-        std::memcpy(&value, data + at, 4);
-        return value;
-    };
-    std::size_t anchor = 0;
-    if (size > match_start_limit) {
-        std::vector<std::size_t> table(1u << 12, SIZE_MAX);
-        const std::size_t last_start = size - match_start_limit, match_end = size - last_literals;
-        for (std::size_t at = 0; at <= last_start;) {
-            const auto sequence = read32(at);
-            auto& slot = table[(sequence * 2654435761u) >> 20];
-            const auto candidate = slot;
-            slot = at;
-            if (candidate == SIZE_MAX || at - candidate > max_offset || read32(candidate) != sequence) {
-                ++at;
-                continue;
+    const std::size_t mflimit_plus_one = size - match_start_limit + 1, match_limit = size - last_literals;
+    std::size_t ip = 0, anchor = 0;
+    if (size >= min_length) {
+        put(hash(0), 0);
+        ip = 1;
+        auto forward_hash = hash(ip);
+        for (;;) {
+            std::size_t match = 0;
+            // Find a match, skipping faster the longer none is found.
+            std::size_t forward = ip;
+            int step = 1, searches = 1 << skip_trigger;
+            bool found = false;
+            for (;;) {
+                const auto slot = forward_hash;
+                const auto current = forward;
+                const std::size_t candidate = table[slot];
+                ip = forward;
+                forward += static_cast<std::size_t>(step);
+                step = searches++ >> skip_trigger;
+                if (forward > mflimit_plus_one) break;
+                match = candidate;
+                forward_hash = hash(forward);
+                put(slot, current);
+                if (candidate + max_offset < current) continue;
+                if (read32(match) == read32(ip)) {
+                    found = true;
+                    break;
+                }
             }
-            std::size_t length = min_match;
-            while (at + length < match_end && data[candidate + length] == data[at + length]) ++length;
-            emit(anchor, at - anchor, at - candidate, length);
-            at += length;
-            anchor = at;
+            if (!found) break;
+            while (ip > anchor && match > 0 && data[ip - 1] == data[match - 1]) {
+                --ip;
+                --match;
+            }
+            auto token = out.size();
+            out.push_back(0);
+            const auto literals = ip - anchor;
+            out[token] = static_cast<std::uint8_t>(std::min<std::size_t>(literals, 15) << 4);
+            if (literals >= 15) run(literals - 15);
+            out.insert(out.end(), data + anchor, data + ip);
+            for (;;) {
+                const auto offset = ip - match;
+                out.push_back(static_cast<std::uint8_t>(offset));
+                out.push_back(static_cast<std::uint8_t>(offset >> 8));
+                std::size_t length = 0;
+                while (ip + min_match + length < match_limit && data[ip + min_match + length] == data[match + min_match + length]) ++length;
+                ip += length + min_match;
+                out[token] = static_cast<std::uint8_t>(out[token] + std::min<std::size_t>(length, 15));
+                if (length >= 15) run(length - 15);
+                anchor = ip;
+                if (ip >= mflimit_plus_one) break;
+                put(hash(ip - 2), ip - 2);
+                // An immediate match continues without literals.
+                const auto slot = hash(ip);
+                const std::size_t candidate = table[slot];
+                put(slot, ip);
+                if (candidate + max_offset >= ip && read32(candidate) == read32(ip)) {
+                    match = candidate;
+                    token = out.size();
+                    out.push_back(0);
+                    continue;
+                }
+                break;
+            }
+            if (ip >= mflimit_plus_one) break;
+            forward_hash = hash(++ip);
         }
     }
-    emit(anchor, size - anchor, 0, 0);
+    const auto literals = size - anchor;
+    out.push_back(static_cast<std::uint8_t>(std::min<std::size_t>(literals, 15) << 4));
+    if (literals >= 15) run(literals - 15);
+    out.insert(out.end(), data + anchor, data + size);
     return out;
 }
 

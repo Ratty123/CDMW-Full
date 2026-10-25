@@ -1,9 +1,8 @@
 """The native item composer reproduces overlay_merge.py byte for byte.
 
 Each case runs merge_overlay_files and native/cdmw_item_composer's CLI on the same
-before/after/current files. Outputs must be identical, except that a rewritten .paloc
-container may hold a different (valid) LZ4 block for the same payload. Failures must
-agree on their kind: conflict or error. The native side may instead answer
+before/after/current files. Outputs must be identical, rewritten .paloc containers and
+their LZ4 blocks included. Failures must agree on their kind: conflict or error. The native side may instead answer
 "unsupported" only where a case says it may: inputs outside the subset it models.
 """
 from dataclasses import replace
@@ -92,20 +91,6 @@ def _python(before, after, current):
         return 'error', f'{type(exc).__name__}: {exc}'
 
 
-def _same_paloc_container(mine, theirs):
-    """Equal containers apart from the LZ4 block: same header fields, same payload."""
-    import lz4.block
-    if not (mine.startswith(b'paloc') and theirs.startswith(b'paloc')):
-        return False
-    if mine[:9] != theirs[:9] or mine[13:512] != theirs[13:512]:
-        return False
-    if struct.unpack_from('<I', mine, 9)[0] != len(mine) - 512:
-        return False
-    size = struct.unpack_from('<I', theirs, 13)[0]
-    decoded = lz4.block.decompress(mine[512:], uncompressed_size=size)
-    return len(decoded) == size and decoded == lz4.block.decompress(theirs[512:], uncompressed_size=size)
-
-
 @pytest.fixture
 def parity(native):
     def check(before, after, current, *, allow_unsupported=False):
@@ -116,9 +101,7 @@ def parity(native):
         if expected[0] == 'ok':
             assert [path for path, _ in actual[1]] == [path for path, _ in expected[1]]
             for (path, mine), (_, theirs) in zip(actual[1], expected[1]):
-                if mine != theirs:
-                    assert path.endswith('.paloc') and mine is not None and theirs is not None \
-                        and _same_paloc_container(mine, theirs), f'{path} differs'
+                assert mine == theirs, f'{path} differs'
         return expected
     return check
 
@@ -672,14 +655,13 @@ def _lz4(tmp_path, command, data, *extra):
 
 
 @pytest.mark.parametrize('seed', range(12))
-def test_native_lz4_blocks_decode_with_python_lz4(tmp_path, seed):
+def test_native_lz4_blocks_are_python_lz4_blocks(tmp_path, seed):
     import lz4.block
     rng = random.Random(seed)
     words = [rng.randbytes(rng.randint(1, 9)) for _ in range(rng.randint(1, 20))]
-    for size in (0, 1, 5, 12, 13, 17, 64, 300, 70_000):
+    for size in (0, 1, 5, 12, 13, 17, 64, 300, 65_546, 65_547, 70_000, 300_000):
         data = b''.join(rng.choice(words) for _ in range(size))[:size] if seed % 3 else rng.randbytes(size)
-        block = _lz4(tmp_path, 'lz4-compress', data)
-        assert lz4.block.decompress(block, uncompressed_size=len(data)) == data
+        assert _lz4(tmp_path, 'lz4-compress', data) == lz4.block.compress(data, store_size=False)
 
 
 @pytest.mark.parametrize('seed', range(40))

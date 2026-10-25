@@ -44,8 +44,10 @@ this port reproduces exactly, so a caller refuses instead of guessing:
 
 `lz4::decompress` accepts the blocks python-lz4 1.9.4's `LZ4_decompress_safe` accepts for
 a full-size decode, including its end-of-block rules and zero-filled offset-0 matches.
-`lz4::compress` writes a valid block but not liblz4's exact bytes, so a rewritten `.paloc`
-container carries the same payload and header fields with a different block.
+`lz4::compress` reproduces `lz4.block.compress(data, store_size=False)` byte for byte:
+python-lz4 compresses every input size the way liblz4 does with a 32-bit position table
+(5-byte hash, 12-bit table, 64 KiB window), never with the 16-bit small-input table.
+Composed payloads and rewritten `.paloc` containers therefore match Python exactly.
 
 ## Build and test
 
