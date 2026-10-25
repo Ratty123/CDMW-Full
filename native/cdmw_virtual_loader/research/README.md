@@ -559,8 +559,10 @@ requires the production V6 source, build, linked and inactive-load proofs in
 both modes, while its owned mode additionally requires a separate native test
 target and evidence profile. Fixture evidence cannot satisfy game mode. The
 completed fixture record must join the actual ACK identities and armed tick
-before the final decision. V5 source approval and actual complete-watch
-qualification are still pending; passing source tests do not activate it.
+before the final decision. V5 has complete independent source approval with
+all deferred actual
+qualifications still mandatory. The 299 passing fake-only checks and source
+approval do not activate the watcher or replace a complete owned-watch run.
 
 The separate owned fixture reuses the real retirement core with OS threads
 and allocations, plus the unchanged Lease/ACK/RCS1 helpers. Its manifest and
@@ -577,15 +579,21 @@ lifetime Job and outer tool/tree proof limits remain explicit. The fixture has
 not been run; linked review and a separately reviewed external guardian operator
 with exact inherited pipe/handle creation remain required.
 
-File-only source/PE/MAP/disassembly preparation also matches the production V6
-inspection/step functions and startup/ACK ordering to its actual built image
-and separate output wrapper. This is preparatory static evidence with no
-execution approval. Exact current-watch linked review, fresh inactive loading,
-actual full-watch operation and controlled game compatibility remain separate
-obligations. No engine/resource/item/save-lifecycle proof or native admission
+The production V6 source/PE/MAP/disassembly linkage now has complete
+independent approval against this exact watcher and its actual build/output
+wrapper. The inspection/step callbacks match the compiled image, ABI, unwind
+and compiled CFG metadata. This remains static evidence; runtime CFG, reader
+exclusion, process retirement and engine behaviour are separate proof levels.
+The inactive-load qualifier now binds those exact approvals, passes 14 final
+isolated source/owner checks and is frozen for independent review. It has not
+loaded the candidate. The external full-watch operator remains an unfrozen
+draft; its isolated checks and prepared launch scope grant no execution proof.
+Fresh inactive loading, component reaffirmations, fixture linked approval,
+the reviewed actual full watch and controlled game compatibility remain
+mandatory. No engine/resource/item/save-lifecycle proof or native admission
 follows from these component results.
 
-Current-caller linked review and fresh same-binary inactive loading, exact
+Fresh same-binary inactive loading, exact
 current-watch component reaffirmations and the actual owned complete-watch
 qualification remain required. Game mode additionally requires reviewed current launch,
 installation and recovery scope. Normal worker completion is required; forced
