@@ -36,6 +36,7 @@ MESH_MORPH_ACTIONS = (
     "morph_set_driver",
     "morph_bind",
     "morph_configure_refit",
+    "morph_set_reference_body",
     "morph_clear_refit",
     "morph_capture_baseline",
     "morph_cancel_baseline",

@@ -848,7 +848,7 @@ class MeshMorphAuthoringMixin:
         data = self._morph_sessions.get(session.session_id)
         if data is None or getattr(data, "authoring_operation", False) or data.profile is None:
             return
-        if command not in {"morph_change", "morph_apply_preset", "morph_configure_refit"}:
+        if command not in {"morph_change", "morph_apply_preset", "morph_configure_refit", "morph_set_reference_body"}:
             return
         definitions = tuple(item for item in data.profile.definitions if item.source_kind == "authored" or item.garment_corrections)
         if not definitions:

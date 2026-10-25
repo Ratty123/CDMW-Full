@@ -9424,7 +9424,11 @@ class RustMeshAuthoringSession:
                 ) if key in args},
             )
         if command == "refit_fit_to_body":
-            return service.fit_refit_to_body(session_id)
+            _require_argument_keys(args, frozenset({"reference_body"}), command)
+            use_reference = args.get("reference_body", True)
+            if type(use_reference) is not bool:
+                raise RustMeshProtocolError("Mesh refit_fit_to_body reference_body must be boolean")
+            return service.fit_refit_to_body(session_id, reference_body=use_reference)
         if command == "refit_restore_shape_apply":
             _require_argument_keys(args, set(), command)
             return service.apply_refit_shape_restore(session_id)
