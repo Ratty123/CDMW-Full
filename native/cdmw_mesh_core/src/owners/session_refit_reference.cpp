@@ -1,0 +1,983 @@
+// Reference-body garment transfer.
+//
+// A binding to the body a garment must fit says nothing about the body it was
+// authored on, so the barycentric fitter cannot tell an authored drape from a
+// misfit. This path is also given the authored body, already retargeted by the
+// caller into the driver's bind space with the garment's skeleton. What
+// remains between that retargeted body and the live driver becomes one smooth
+// spatial field that every garment samples, so stacked layers move almost
+// identically and keep their order. Rigid pieces take the field's best rigid
+// motion. One bounded position-based relaxation then restores authored layer
+// order, driver clearance, cloth edge lengths and rigid shapes together.
+//
+// Distances are tuned in metres for a body whose bounding diagonal is two
+// metres and scale with the driver's diagonal.
+
+constexpr double REFIT_REFERENCE_DIAGONAL = 2.0;
+constexpr double REFIT_REFERENCE_RAY_REACH = 0.08;
+constexpr double REFIT_REFERENCE_RAY_AGREEMENT = 0.3;
+constexpr int REFIT_REFERENCE_FIELD_SMOOTHING = 30;
+constexpr std::size_t REFIT_REFERENCE_FIELD_NEIGHBOURS = 48;
+constexpr double REFIT_REFERENCE_FIELD_WIDTH = 0.012;
+constexpr double REFIT_REFERENCE_FIELD_SPREAD = 0.6;
+constexpr double REFIT_REFERENCE_CONTACT = 0.003;
+constexpr double REFIT_REFERENCE_LAYER_RADIUS = 0.012;
+constexpr double REFIT_REFERENCE_LAYER_MIN_SIDE = 0.0003;
+constexpr std::size_t REFIT_REFERENCE_LAYER_PARTNERS = 4;
+constexpr double REFIT_REFERENCE_LAYER_KEEP = 0.8;
+constexpr double REFIT_REFERENCE_LAYER_CAP = 0.003;
+constexpr double REFIT_REFERENCE_INSIDE = 0.0005;
+constexpr double REFIT_REFERENCE_DEEP_INSIDE = 0.04;
+constexpr double REFIT_REFERENCE_FAR_OUTSIDE = 0.03;
+constexpr int REFIT_REFERENCE_ITERATIONS = 150;
+constexpr double REFIT_REFERENCE_CONSTRAINT_WEIGHT = 10.0;
+constexpr double REFIT_REFERENCE_ANCHOR = 0.02;
+constexpr double REFIT_REFERENCE_RIGID_INVERSE_MASS = 0.25;
+constexpr double REFIT_REFERENCE_STRETCH_MIN = 0.92;
+constexpr double REFIT_REFERENCE_STRETCH_MAX = 1.04;
+constexpr double REFIT_REFERENCE_STEP = 1.5;
+constexpr std::size_t REFIT_REFERENCE_MAX_VERTICES = 2000000;
+
+std::map<std::string, std::string> g_mesh_refit_reference_reports;
+
+Vec3 refit_reference_cross(const Vec3& a, const Vec3& b) {
+    return {a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]};
+}
+
+std::tuple<long long, long long, long long> refit_reference_weld_key(const Vec3& point) {
+    // Same quantization as mesh_editor_refit_islands, so welds never cross islands.
+    return {std::llround(point[0] * 100000.0), std::llround(point[1] * 100000.0), std::llround(point[2] * 100000.0)};
+}
+
+struct RefitReferenceBoundsNode {
+    Vec3 minimum{0.0, 0.0, 0.0};
+    Vec3 maximum{0.0, 0.0, 0.0};
+    std::size_t begin = 0;
+    std::size_t end = 0;
+    int left = -1;
+    int right = -1;
+};
+
+// A static bounding-volume hierarchy over triangles with closest-point, first
+// ray hit and radius queries. Splits are deterministic for equal centroids.
+struct RefitReferenceTriangleIndex {
+    std::vector<std::array<Vec3, 3>> corners;
+    std::vector<int> order;
+    std::vector<RefitReferenceBoundsNode> nodes;
+
+    RefitReferenceTriangleIndex(const std::vector<Vec3>& points, const std::vector<std::array<int, 3>>& faces) {
+        corners.reserve(faces.size());
+        for (const auto& face : faces)
+            corners.push_back({points.at(static_cast<std::size_t>(face[0])), points.at(static_cast<std::size_t>(face[1])),
+                points.at(static_cast<std::size_t>(face[2]))});
+        order.resize(corners.size());
+        std::iota(order.begin(), order.end(), 0);
+        if (!corners.empty()) {
+            nodes.reserve(corners.size() * 2);
+            build(0, corners.size());
+        }
+    }
+
+    Vec3 centroid(int triangle) const {
+        const auto& c = corners[static_cast<std::size_t>(triangle)];
+        return scale_vec3(add_vec3(add_vec3(c[0], c[1]), c[2]), 1.0 / 3.0);
+    }
+
+    int build(std::size_t begin, std::size_t end) {
+        RefitReferenceBoundsNode node;
+        node.begin = begin;
+        node.end = end;
+        node.minimum = node.maximum = corners[static_cast<std::size_t>(order[begin])][0];
+        Vec3 low = centroid(order[begin]), high = low;
+        for (std::size_t i = begin; i < end; ++i) {
+            for (const auto& point : corners[static_cast<std::size_t>(order[i])]) for (int axis = 0; axis < 3; ++axis) {
+                node.minimum[axis] = std::min(node.minimum[axis], point[axis]);
+                node.maximum[axis] = std::max(node.maximum[axis], point[axis]);
+            }
+            const Vec3 center = centroid(order[i]);
+            for (int axis = 0; axis < 3; ++axis) {
+                low[axis] = std::min(low[axis], center[axis]);
+                high[axis] = std::max(high[axis], center[axis]);
+            }
+        }
+        const int index = static_cast<int>(nodes.size());
+        nodes.push_back(node);
+        if (end - begin <= 6) return index;
+        int axis = 0;
+        for (int candidate = 1; candidate < 3; ++candidate)
+            if (high[candidate] - low[candidate] > high[axis] - low[axis]) axis = candidate;
+        const std::size_t middle = begin + (end - begin) / 2;
+        std::nth_element(order.begin() + static_cast<std::ptrdiff_t>(begin), order.begin() + static_cast<std::ptrdiff_t>(middle),
+            order.begin() + static_cast<std::ptrdiff_t>(end), [&](int a, int b) {
+                const double ca = centroid(a)[axis], cb = centroid(b)[axis];
+                return ca != cb ? ca < cb : a < b;
+            });
+        const int left = build(begin, middle);
+        const int right = build(middle, end);
+        nodes[static_cast<std::size_t>(index)].left = left;
+        nodes[static_cast<std::size_t>(index)].right = right;
+        return index;
+    }
+
+    struct Hit {
+        int triangle = -1;
+        Vec3 point{0.0, 0.0, 0.0};
+        std::array<double, 3> barycentric{1.0, 0.0, 0.0};
+        double distance_squared = std::numeric_limits<double>::infinity();
+    };
+
+    Hit closest(const Vec3& point) const {
+        Hit best;
+        if (nodes.empty()) return best;
+        std::vector<int> pending{0};
+        while (!pending.empty()) {
+            const auto& node = nodes[static_cast<std::size_t>(pending.back())];
+            pending.pop_back();
+            if (refit_aabb_distance_squared_native(point, node.minimum, node.maximum) >= best.distance_squared) continue;
+            if (node.left < 0) {
+                for (std::size_t i = node.begin; i < node.end; ++i) {
+                    const int triangle = order[i];
+                    const auto& c = corners[static_cast<std::size_t>(triangle)];
+                    const auto candidate = closest_triangle_point_native(point, c[0], c[1], c[2]);
+                    if (candidate.distance_squared < best.distance_squared
+                        || (candidate.distance_squared == best.distance_squared && triangle < best.triangle)) {
+                        best.triangle = triangle;
+                        best.barycentric = candidate.barycentric;
+                        best.distance_squared = candidate.distance_squared;
+                    }
+                }
+                continue;
+            }
+            const auto& left = nodes[static_cast<std::size_t>(node.left)];
+            const auto& right = nodes[static_cast<std::size_t>(node.right)];
+            const bool left_first = refit_aabb_distance_squared_native(point, left.minimum, left.maximum)
+                <= refit_aabb_distance_squared_native(point, right.minimum, right.maximum);
+            pending.push_back(left_first ? node.right : node.left);
+            pending.push_back(left_first ? node.left : node.right);
+        }
+        if (best.triangle >= 0) {
+            const auto& c = corners[static_cast<std::size_t>(best.triangle)];
+            best.point = add_vec3(add_vec3(scale_vec3(c[0], best.barycentric[0]), scale_vec3(c[1], best.barycentric[1])),
+                scale_vec3(c[2], best.barycentric[2]));
+        }
+        return best;
+    }
+
+    // Nearest hit along origin + t * direction for 0 <= t <= reach.
+    bool first_hit(const Vec3& origin, const Vec3& direction, double reach, int& triangle, double& distance) const {
+        triangle = -1;
+        distance = reach;
+        if (nodes.empty()) return false;
+        std::vector<int> pending{0};
+        while (!pending.empty()) {
+            const auto& node = nodes[static_cast<std::size_t>(pending.back())];
+            pending.pop_back();
+            double near = 0.0, far = distance;
+            bool intersects = true;
+            for (int axis = 0; axis < 3 && intersects; ++axis) {
+                if (std::abs(direction[axis]) <= 1.0e-15) {
+                    if (origin[axis] < node.minimum[axis] || origin[axis] > node.maximum[axis]) intersects = false;
+                    continue;
+                }
+                double first = (node.minimum[axis] - origin[axis]) / direction[axis];
+                double second = (node.maximum[axis] - origin[axis]) / direction[axis];
+                if (first > second) std::swap(first, second);
+                near = std::max(near, first);
+                far = std::min(far, second);
+                if (near > far) intersects = false;
+            }
+            if (!intersects) continue;
+            if (node.left >= 0) {
+                pending.push_back(node.left);
+                pending.push_back(node.right);
+                continue;
+            }
+            for (std::size_t i = node.begin; i < node.end; ++i) {
+                const auto& c = corners[static_cast<std::size_t>(order[i])];
+                const Vec3 edge1 = sub_vec3(c[1], c[0]), edge2 = sub_vec3(c[2], c[0]);
+                const Vec3 p = refit_reference_cross(direction, edge2);
+                const double determinant = dot_vec3(edge1, p);
+                const double scale = length_vec3(edge1) * length_vec3(edge2);
+                if (!(std::abs(determinant) > scale * 1.0e-12)) continue;
+                const Vec3 offset = sub_vec3(origin, c[0]);
+                const double u = dot_vec3(offset, p) / determinant;
+                if (u < -1.0e-9 || u > 1.0 + 1.0e-9) continue;
+                const Vec3 q = refit_reference_cross(offset, edge1);
+                const double v = dot_vec3(direction, q) / determinant;
+                if (v < -1.0e-9 || u + v > 1.0 + 1.0e-9) continue;
+                const double t = dot_vec3(edge2, q) / determinant;
+                if (t < 0.0 || t > distance || (t == distance && triangle >= 0 && order[i] > triangle)) continue;
+                distance = t;
+                triangle = order[i];
+            }
+        }
+        return triangle >= 0;
+    }
+
+    template <typename Visit>
+    void within(const Vec3& point, double radius, Visit&& visit) const {
+        if (nodes.empty()) return;
+        const double limit = radius * radius;
+        std::vector<int> pending{0};
+        while (!pending.empty()) {
+            const auto& node = nodes[static_cast<std::size_t>(pending.back())];
+            pending.pop_back();
+            if (refit_aabb_distance_squared_native(point, node.minimum, node.maximum) > limit) continue;
+            if (node.left >= 0) {
+                pending.push_back(node.right);
+                pending.push_back(node.left);
+                continue;
+            }
+            for (std::size_t i = node.begin; i < node.end; ++i) visit(order[i]);
+        }
+    }
+};
+
+// A static bounding-volume hierarchy over points for nearest-neighbour and
+// radius queries.
+struct RefitReferencePointIndex {
+    std::vector<Vec3> points;
+    std::vector<int> order;
+    std::vector<RefitReferenceBoundsNode> nodes;
+
+    explicit RefitReferencePointIndex(std::vector<Vec3> values) : points(std::move(values)) {
+        order.resize(points.size());
+        std::iota(order.begin(), order.end(), 0);
+        if (!points.empty()) {
+            nodes.reserve(points.size() / 4 + 4);
+            build(0, points.size());
+        }
+    }
+
+    int build(std::size_t begin, std::size_t end) {
+        RefitReferenceBoundsNode node;
+        node.begin = begin;
+        node.end = end;
+        node.minimum = node.maximum = points[static_cast<std::size_t>(order[begin])];
+        for (std::size_t i = begin; i < end; ++i) for (int axis = 0; axis < 3; ++axis) {
+            node.minimum[axis] = std::min(node.minimum[axis], points[static_cast<std::size_t>(order[i])][axis]);
+            node.maximum[axis] = std::max(node.maximum[axis], points[static_cast<std::size_t>(order[i])][axis]);
+        }
+        const int index = static_cast<int>(nodes.size());
+        nodes.push_back(node);
+        if (end - begin <= 8) return index;
+        int axis = 0;
+        for (int candidate = 1; candidate < 3; ++candidate)
+            if (node.maximum[candidate] - node.minimum[candidate] > node.maximum[axis] - node.minimum[axis]) axis = candidate;
+        const std::size_t middle = begin + (end - begin) / 2;
+        std::nth_element(order.begin() + static_cast<std::ptrdiff_t>(begin), order.begin() + static_cast<std::ptrdiff_t>(middle),
+            order.begin() + static_cast<std::ptrdiff_t>(end), [&](int a, int b) {
+                const double pa = points[static_cast<std::size_t>(a)][axis], pb = points[static_cast<std::size_t>(b)][axis];
+                return pa != pb ? pa < pb : a < b;
+            });
+        const int left = build(begin, middle);
+        const int right = build(middle, end);
+        nodes[static_cast<std::size_t>(index)].left = left;
+        nodes[static_cast<std::size_t>(index)].right = right;
+        return index;
+    }
+
+    // The k nearest points as (squared distance, index), nearest first.
+    std::vector<std::pair<double, int>> nearest(const Vec3& point, std::size_t k) const {
+        std::vector<std::pair<double, int>> heap;
+        if (nodes.empty() || k == 0) return heap;
+        heap.reserve(k + 1);
+        std::vector<int> pending{0};
+        while (!pending.empty()) {
+            const auto& node = nodes[static_cast<std::size_t>(pending.back())];
+            pending.pop_back();
+            if (heap.size() == k && refit_aabb_distance_squared_native(point, node.minimum, node.maximum) > heap.front().first)
+                continue;
+            if (node.left >= 0) {
+                const auto& left = nodes[static_cast<std::size_t>(node.left)];
+                const auto& right = nodes[static_cast<std::size_t>(node.right)];
+                const bool left_first = refit_aabb_distance_squared_native(point, left.minimum, left.maximum)
+                    <= refit_aabb_distance_squared_native(point, right.minimum, right.maximum);
+                pending.push_back(left_first ? node.right : node.left);
+                pending.push_back(left_first ? node.left : node.right);
+                continue;
+            }
+            for (std::size_t i = node.begin; i < node.end; ++i) {
+                const int candidate = order[i];
+                const std::pair<double, int> item{distance_squared_vec3(point, points[static_cast<std::size_t>(candidate)]), candidate};
+                if (heap.size() < k) {
+                    heap.push_back(item);
+                    std::push_heap(heap.begin(), heap.end());
+                } else if (item < heap.front()) {
+                    std::pop_heap(heap.begin(), heap.end());
+                    heap.back() = item;
+                    std::push_heap(heap.begin(), heap.end());
+                }
+            }
+        }
+        std::sort_heap(heap.begin(), heap.end());
+        return heap;
+    }
+
+    template <typename Visit>
+    void within(const Vec3& point, double radius, Visit&& visit) const {
+        if (nodes.empty()) return;
+        const double limit = radius * radius;
+        std::vector<int> pending{0};
+        while (!pending.empty()) {
+            const auto& node = nodes[static_cast<std::size_t>(pending.back())];
+            pending.pop_back();
+            if (refit_aabb_distance_squared_native(point, node.minimum, node.maximum) > limit) continue;
+            if (node.left >= 0) {
+                pending.push_back(node.right);
+                pending.push_back(node.left);
+                continue;
+            }
+            for (std::size_t i = node.begin; i < node.end; ++i)
+                if (distance_squared_vec3(point, points[static_cast<std::size_t>(order[i])]) <= limit) visit(order[i]);
+        }
+    }
+};
+
+// A closed-or-open surface that answers signed distances. Inside the closest
+// triangle the side comes from its normal; on its edges and corners from the
+// interpolated vertex normals, which do not flip across a crease.
+struct RefitReferenceSurface {
+    std::vector<std::array<int, 3>> faces;
+    std::vector<Vec3> face_normals;
+    std::vector<Vec3> vertex_normals;
+    RefitReferenceTriangleIndex index;
+
+    RefitReferenceSurface(const std::vector<Vec3>& points, std::vector<std::array<int, 3>> triangles)
+        : faces(std::move(triangles)), index(points, faces) {
+        face_normals.reserve(faces.size());
+        vertex_normals.assign(points.size(), Vec3{0.0, 0.0, 0.0});
+        for (const auto& face : faces) {
+            const Vec3 weighted = face_cross(points[static_cast<std::size_t>(face[0])], points[static_cast<std::size_t>(face[1])],
+                points[static_cast<std::size_t>(face[2])]);
+            face_normals.push_back(normalized_vec3_or_zero(weighted));
+            for (const int corner : face)
+                vertex_normals[static_cast<std::size_t>(corner)] = add_vec3(vertex_normals[static_cast<std::size_t>(corner)], weighted);
+        }
+        for (auto& normal : vertex_normals) normal = normalized_vec3_or_zero(normal);
+    }
+
+    // Signed distance (positive outside) and the outward direction at point.
+    double signed_distance(const Vec3& point, Vec3& outward, int* triangle = nullptr) const {
+        const auto hit = index.closest(point);
+        if (triangle) *triangle = hit.triangle;
+        if (hit.triangle < 0) {
+            outward = {0.0, 0.0, 0.0};
+            return std::numeric_limits<double>::infinity();
+        }
+        const auto& face = faces[static_cast<std::size_t>(hit.triangle)];
+        Vec3 side = face_normals[static_cast<std::size_t>(hit.triangle)];
+        if (std::min({hit.barycentric[0], hit.barycentric[1], hit.barycentric[2]}) <= 1.0e-7) {
+            Vec3 blended{0.0, 0.0, 0.0};
+            for (int corner = 0; corner < 3; ++corner)
+                blended = add_vec3(blended, scale_vec3(vertex_normals[static_cast<std::size_t>(face[corner])], hit.barycentric[corner]));
+            if (dot_vec3(blended, blended) > 1.0e-12) side = normalized_vec3_or_zero(blended);
+        }
+        const Vec3 delta = sub_vec3(point, hit.point);
+        const double distance = std::sqrt(hit.distance_squared);
+        const double sign = dot_vec3(delta, side) >= 0.0 ? 1.0 : -1.0;
+        outward = distance > 1.0e-9 ? scale_vec3(delta, sign / distance) : side;
+        return sign * distance;
+    }
+};
+
+std::vector<Vec3> refit_reference_rigid_pose(const std::vector<Vec3>& rest, const std::vector<Vec3>& current) {
+    Vec3 rest_center{0.0, 0.0, 0.0}, current_center{0.0, 0.0, 0.0};
+    for (std::size_t i = 0; i < rest.size(); ++i) {
+        rest_center = add_vec3(rest_center, rest[i]);
+        current_center = add_vec3(current_center, current[i]);
+    }
+    rest_center = scale_vec3(rest_center, 1.0 / static_cast<double>(rest.size()));
+    current_center = scale_vec3(current_center, 1.0 / static_cast<double>(rest.size()));
+    const auto rotation = refit_component_rotation_native(rest, current, rest_center, current_center);
+    std::vector<Vec3> posed;
+    posed.reserve(rest.size());
+    for (const auto& point : rest)
+        posed.push_back(add_vec3(current_center, refit_rotate_quaternion_native(rotation, sub_vec3(point, rest_center))));
+    return posed;
+}
+
+struct RefitReferenceBodyField {
+    std::unique_ptr<RefitReferencePointIndex> points;
+    std::vector<Vec3> displacement;
+    long long ray_hits = 0;
+    double maximum_displacement = 0.0;
+};
+
+// Displacement that carries each welded reference vertex, as authored, onto the
+// driver surface. The retargeted reference supplies the correspondence: each
+// vertex looks along its normal for a like-facing driver surface, or takes the
+// closest point, and the result is smoothed over the reference surface.
+RefitReferenceBodyField refit_reference_body_field(
+    const MeshRefitReferenceBodyRuntime& reference, const RefitReferenceSurface& driver, double scale
+) {
+    std::map<std::tuple<long long, long long, long long>, int> welded;
+    std::vector<int> weld(reference.source_positions.size());
+    std::vector<Vec3> source, fitted;
+    std::vector<double> counts;
+    for (std::size_t i = 0; i < reference.source_positions.size(); ++i) {
+        const auto inserted = welded.emplace(refit_reference_weld_key(reference.source_positions[i]), static_cast<int>(source.size()));
+        weld[i] = inserted.first->second;
+        if (inserted.second) {
+            source.push_back(reference.source_positions[i]);
+            fitted.push_back(Vec3{0.0, 0.0, 0.0});
+            counts.push_back(0.0);
+        }
+        fitted[static_cast<std::size_t>(weld[i])] = add_vec3(fitted[static_cast<std::size_t>(weld[i])], reference.fitted_positions[i]);
+        counts[static_cast<std::size_t>(weld[i])] += 1.0;
+    }
+    for (std::size_t i = 0; i < fitted.size(); ++i) fitted[i] = scale_vec3(fitted[i], 1.0 / counts[i]);
+    std::vector<Vec3> normals(fitted.size(), Vec3{0.0, 0.0, 0.0});
+    std::vector<std::set<int>> neighbours(fitted.size());
+    for (const auto& face : reference.faces) {
+        const std::array<int, 3> corners{weld[static_cast<std::size_t>(face[0])], weld[static_cast<std::size_t>(face[1])],
+            weld[static_cast<std::size_t>(face[2])]};
+        if (corners[0] == corners[1] || corners[1] == corners[2] || corners[0] == corners[2]) continue;
+        const Vec3 weighted = face_cross(fitted[static_cast<std::size_t>(corners[0])], fitted[static_cast<std::size_t>(corners[1])],
+            fitted[static_cast<std::size_t>(corners[2])]);
+        for (int c = 0; c < 3; ++c) {
+            normals[static_cast<std::size_t>(corners[c])] = add_vec3(normals[static_cast<std::size_t>(corners[c])], weighted);
+            neighbours[static_cast<std::size_t>(corners[c])].insert(corners[(c + 1) % 3]);
+            neighbours[static_cast<std::size_t>(corners[c])].insert(corners[(c + 2) % 3]);
+        }
+    }
+    RefitReferenceBodyField field;
+    std::vector<Vec3> displacement(fitted.size());
+    const double reach = REFIT_REFERENCE_RAY_REACH * scale;
+    for (std::size_t i = 0; i < fitted.size(); ++i) {
+        const auto closest = driver.index.closest(fitted[i]);
+        displacement[i] = closest.triangle < 0 ? Vec3{0.0, 0.0, 0.0} : sub_vec3(closest.point, fitted[i]);
+        double best = std::sqrt(closest.distance_squared);
+        const Vec3 normal = normalized_vec3_or_zero(normals[i]);
+        if (dot_vec3(normal, normal) <= 0.5) continue;
+        for (const double sign : {1.0, -1.0}) {
+            const Vec3 direction = scale_vec3(normal, sign);
+            const Vec3 origin = sub_vec3(fitted[i], scale_vec3(direction, 1.0e-4 * scale));
+            int triangle = -1;
+            double t = 0.0;
+            if (!driver.index.first_hit(origin, direction, reach + 1.0e-4 * scale, triangle, t)) continue;
+            const Vec3 hit = add_vec3(origin, scale_vec3(direction, t));
+            const double distance = length_vec3(sub_vec3(hit, fitted[i]));
+            if (dot_vec3(driver.face_normals[static_cast<std::size_t>(triangle)], normal) <= REFIT_REFERENCE_RAY_AGREEMENT
+                || distance >= best * 2.5 || distance >= reach) continue;
+            displacement[i] = sub_vec3(hit, fitted[i]);
+            best = distance;
+            ++field.ray_hits;
+        }
+    }
+    for (int iteration = 0; iteration < REFIT_REFERENCE_FIELD_SMOOTHING; ++iteration) {
+        std::vector<Vec3> next = displacement;
+        for (std::size_t i = 0; i < displacement.size(); ++i) {
+            if (neighbours[i].empty()) continue;
+            Vec3 average{0.0, 0.0, 0.0};
+            for (const int j : neighbours[i]) average = add_vec3(average, displacement[static_cast<std::size_t>(j)]);
+            average = scale_vec3(average, 1.0 / static_cast<double>(neighbours[i].size()));
+            next[i] = add_vec3(displacement[i], scale_vec3(sub_vec3(average, displacement[i]), 0.5));
+        }
+        displacement = std::move(next);
+    }
+    field.displacement.reserve(source.size());
+    for (std::size_t i = 0; i < source.size(); ++i) {
+        field.displacement.push_back(sub_vec3(add_vec3(fitted[i], displacement[i]), source[i]));
+        field.maximum_displacement = std::max(field.maximum_displacement, length_vec3(field.displacement.back()));
+    }
+    field.points = std::make_unique<RefitReferencePointIndex>(std::move(source));
+    return field;
+}
+
+// Kernel-weighted body motion at a garment point. The kernel widens with the
+// distance to the body, so hanging geometry follows a smoother motion.
+Vec3 refit_reference_field_at(const RefitReferenceBodyField& field, const Vec3& point, double scale) {
+    const auto nearest = field.points->nearest(point, REFIT_REFERENCE_FIELD_NEIGHBOURS);
+    if (nearest.empty()) return {0.0, 0.0, 0.0};
+    const double closest = std::sqrt(nearest.front().first);
+    const double width = REFIT_REFERENCE_FIELD_WIDTH * scale + REFIT_REFERENCE_FIELD_SPREAD * closest;
+    Vec3 sum{0.0, 0.0, 0.0};
+    double total = 0.0;
+    for (const auto& item : nearest) {
+        const double offset = (std::sqrt(item.first) - closest) / width;
+        const double weight = std::exp(-offset * offset);
+        sum = add_vec3(sum, scale_vec3(field.displacement[static_cast<std::size_t>(item.second)], weight));
+        total += weight;
+    }
+    return scale_vec3(sum, 1.0 / total);
+}
+
+struct RefitReferenceIslandNative {
+    bool fitted = false;
+    std::string mode = "surface";
+    double clearance = 0.0;
+    int unit = -1;
+};
+
+struct RefitReferenceParticle {
+    int part = -1;
+    int island = -1;
+    int surface = -1;
+    double clearance = 0.0;
+    int unit = -1;
+};
+
+std::string mesh_editor_apply_reference_refit(
+    const MeshMorphRuntime& morph,
+    const std::map<int, MeshSessionSubmesh>& submeshes,
+    const std::map<int, std::vector<Vec3>>& residual,
+    std::map<int, std::vector<Vec3>>& layer,
+    const std::map<int, std::vector<Vec3>>& post_refit
+) {
+    const auto started = std::chrono::steady_clock::now();
+    const MeshRefitRuntime& refit = *morph.refit;
+    const MeshRefitReferenceBodyRuntime& reference = *refit.reference_body;
+    const double scale = refit.driver_diagonal > 0.0 ? refit.driver_diagonal / REFIT_REFERENCE_DIAGONAL : 1.0;
+    const auto base_layer = layer;
+    const auto visible = [&](int part, std::size_t vertex) {
+        const auto procedural = base_layer.find(part);
+        const Vec3 rest = residual.at(part).at(vertex);
+        return procedural == base_layer.end() || procedural->second.empty() ? rest : add_vec3(rest, procedural->second.at(vertex));
+    };
+
+    std::vector<Vec3> driver_points;
+    std::vector<std::array<int, 3>> driver_faces;
+    for (const int part : refit.driver_submesh_indices) {
+        const auto found = submeshes.find(part);
+        if (found == submeshes.end() || !residual.count(part) || residual.at(part).size() != found->second.vertices.size())
+            throw std::runtime_error("garment refit driver topology changed");
+        const int offset = static_cast<int>(driver_points.size());
+        for (std::size_t v = 0; v < found->second.vertices.size(); ++v) driver_points.push_back(visible(part, v));
+        for (const auto& face : found->second.faces)
+            driver_faces.push_back({face[0] + offset, face[1] + offset, face[2] + offset});
+    }
+    if (driver_faces.empty()) throw std::runtime_error("Fit to reference body requires a driver surface");
+    const RefitReferenceSurface driver(driver_points, std::move(driver_faces));
+
+    // Fitting domains. Disabled or excluded islands neither move nor collide.
+    std::map<int, std::vector<RefitReferenceIslandNative>> islands;
+    std::map<int, std::vector<int>> face_islands;
+    std::map<int, std::vector<int>> particles;
+    std::vector<RefitReferenceParticle> particle_rows;
+    std::vector<Vec3> start;
+    std::map<std::pair<int, int>, int> surfaces;
+    int units = 0;
+    for (const int part : refit.garment_submesh_indices) {
+        const auto found = submeshes.find(part);
+        if (found == submeshes.end() || !residual.count(part) || residual.at(part).size() != found->second.vertices.size())
+            throw std::runtime_error("garment refit target topology changed");
+        MeshRefitGarmentSettingsRuntime settings;
+        const auto configured = refit.garment_settings.find(part);
+        if (configured != refit.garment_settings.end()) settings = configured->second;
+        auto topology = found->second;
+        const auto neutral = morph.neutral_positions.find(part);
+        if (neutral != morph.neutral_positions.end() && neutral->second.size() == topology.vertices.size())
+            topology.vertices = neutral->second;
+        const auto groups = mesh_editor_refit_islands(topology);
+        const auto excluded = refit.excluded_faces.find(part);
+        auto& rows = islands[part];
+        auto& owner = face_islands[part];
+        owner.assign(found->second.faces.size(), -1);
+        int part_unit = -1;
+        for (std::size_t g = 0; g < groups.size(); ++g) {
+            RefitReferenceIslandNative island;
+            bool enabled = settings.enabled;
+            std::string mode = settings.mode;
+            double clearance = settings.clearance_percent;
+            bool inherits = true;
+            for (const auto& item : settings.island_settings) {
+                if (item.face_indices != groups[g]) continue;
+                enabled = item.enabled;
+                mode = item.mode;
+                clearance = item.clearance_percent;
+                inherits = false;
+            }
+            const bool removed = excluded != refit.excluded_faces.end()
+                && (excluded->second.empty() || excluded->second.count(groups[g].front()));
+            island.fitted = enabled && !removed;
+            island.mode = mode;
+            island.clearance = refit.driver_diagonal * clearance / 100.0;
+            if (island.fitted && mode == "rigid" && inherits) {
+                // A rigid Part moves as one piece; a rigid island override moves alone.
+                if (part_unit < 0) part_unit = units++;
+                island.unit = part_unit;
+            } else if (island.fitted && mode != "surface") {
+                island.unit = units++;
+            }
+            for (const int face : groups[g]) owner[static_cast<std::size_t>(face)] = static_cast<int>(g);
+            if (island.fitted) surfaces.emplace(std::make_pair(part, static_cast<int>(g)), static_cast<int>(surfaces.size()));
+            rows.push_back(island);
+        }
+        auto& map = particles[part];
+        map.assign(found->second.vertices.size(), -1);
+        std::map<std::tuple<long long, long long, long long>, int> welded;
+        for (std::size_t f = 0; f < found->second.faces.size(); ++f) {
+            const int island = owner[f];
+            if (island < 0 || !rows[static_cast<std::size_t>(island)].fitted) continue;
+            for (const int vertex : found->second.faces[f]) {
+                if (map[static_cast<std::size_t>(vertex)] >= 0) continue;
+                const Vec3 point = visible(part, static_cast<std::size_t>(vertex));
+                const auto inserted = welded.emplace(refit_reference_weld_key(point), static_cast<int>(start.size()));
+                map[static_cast<std::size_t>(vertex)] = inserted.first->second;
+                if (!inserted.second) continue;
+                const auto& row = rows[static_cast<std::size_t>(island)];
+                particle_rows.push_back({part, island, surfaces.at({part, island}), row.clearance, row.unit});
+                start.push_back(point);
+            }
+        }
+    }
+    const std::size_t count = start.size();
+    std::ostringstream report;
+    report << "{\"method\":\"reference_body\",\"reference_label\":";
+    write_escaped(report, reference.label);
+    if (count == 0) {
+        report << ",\"particles\":0}";
+        return report.str();
+    }
+    if (count > REFIT_REFERENCE_MAX_VERTICES) throw std::runtime_error("Fit to reference body supports at most two million garment vertices");
+
+    // Rigid pieces that touch move together, also across Parts (a scabbard and its tip).
+    std::vector<int> unit_root(static_cast<std::size_t>(units));
+    std::iota(unit_root.begin(), unit_root.end(), 0);
+    const auto root_of = [&](int unit) {
+        while (unit_root[static_cast<std::size_t>(unit)] != unit) {
+            unit_root[static_cast<std::size_t>(unit)] = unit_root[static_cast<std::size_t>(unit_root[static_cast<std::size_t>(unit)])];
+            unit = unit_root[static_cast<std::size_t>(unit)];
+        }
+        return unit;
+    };
+    {
+        std::vector<Vec3> rigid_points;
+        std::vector<int> rigid_particles;
+        for (std::size_t i = 0; i < count; ++i) if (particle_rows[i].unit >= 0) {
+            rigid_points.push_back(start[i]);
+            rigid_particles.push_back(static_cast<int>(i));
+        }
+        const RefitReferencePointIndex rigid_index(rigid_points);
+        for (std::size_t i = 0; i < rigid_particles.size(); ++i) {
+            const int unit = particle_rows[static_cast<std::size_t>(rigid_particles[i])].unit;
+            rigid_index.within(rigid_points[i], REFIT_REFERENCE_CONTACT * scale, [&](int other) {
+                const int a = root_of(unit), b = root_of(particle_rows[static_cast<std::size_t>(rigid_particles[static_cast<std::size_t>(other)])].unit);
+                if (a != b) unit_root[static_cast<std::size_t>(std::max(a, b))] = std::min(a, b);
+            });
+        }
+    }
+    std::map<int, std::vector<int>> grouped;
+    for (std::size_t i = 0; i < count; ++i)
+        if (particle_rows[i].unit >= 0) grouped[root_of(particle_rows[i].unit)].push_back(static_cast<int>(i));
+    std::vector<std::vector<int>> rigid_groups;
+    for (auto& item : grouped) rigid_groups.push_back(std::move(item.second));
+
+    // Transfer through the shared body field, then pose rigid groups.
+    const auto field_started = std::chrono::steady_clock::now();
+    const auto field = refit_reference_body_field(reference, driver, scale);
+    std::vector<Vec3> rest(count);
+    for (std::size_t i = 0; i < count; ++i) rest[i] = add_vec3(start[i], refit_reference_field_at(field, start[i], scale));
+    for (const auto& group : rigid_groups) {
+        std::vector<Vec3> source, moved;
+        for (const int i : group) {
+            source.push_back(start[static_cast<std::size_t>(i)]);
+            moved.push_back(rest[static_cast<std::size_t>(i)]);
+        }
+        const auto posed = refit_reference_rigid_pose(source, moved);
+        for (std::size_t k = 0; k < group.size(); ++k) rest[static_cast<std::size_t>(group[k])] = posed[k];
+    }
+    const double field_ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - field_started).count();
+
+    // Garment edges and triangles in particle space.
+    std::vector<std::array<int, 3>> garment_faces;
+    std::vector<int> garment_face_surface;
+    std::set<std::pair<int, int>> edge_set;
+    for (const auto& part : particles) {
+        const auto& faces = submeshes.at(part.first).faces;
+        for (std::size_t f = 0; f < faces.size(); ++f) {
+            const int island = face_islands.at(part.first)[f];
+            if (island < 0 || !islands.at(part.first)[static_cast<std::size_t>(island)].fitted) continue;
+            const std::array<int, 3> corners{part.second[static_cast<std::size_t>(faces[f][0])],
+                part.second[static_cast<std::size_t>(faces[f][1])], part.second[static_cast<std::size_t>(faces[f][2])]};
+            for (int c = 0; c < 3; ++c) {
+                const int a = corners[c], b = corners[(c + 1) % 3];
+                if (a != b) edge_set.insert(std::minmax(a, b));
+            }
+            if (corners[0] == corners[1] || corners[1] == corners[2] || corners[0] == corners[2]) continue;
+            garment_faces.push_back(corners);
+            garment_face_surface.push_back(surfaces.at({part.first, island}));
+        }
+    }
+    const std::vector<std::pair<int, int>> edges(edge_set.begin(), edge_set.end());
+    std::vector<double> rest_lengths;
+    rest_lengths.reserve(edges.size());
+    for (const auto& edge : edges)
+        rest_lengths.push_back(length_vec3(sub_vec3(rest[static_cast<std::size_t>(edge.second)], rest[static_cast<std::size_t>(edge.first)])));
+
+    // Authored stacking: each particle near another island's surface, clearly
+    // on one side of it, keeps that side after the transfer.
+    struct LayerRow { int particle; std::array<int, 3> triangle; std::array<double, 3> barycentric; double offset; };
+    std::vector<LayerRow> layer_rows;
+    {
+        const RefitReferenceTriangleIndex garment_index(start, garment_faces);
+        const double radius = REFIT_REFERENCE_LAYER_RADIUS * scale;
+        for (std::size_t i = 0; i < count; ++i) {
+            std::map<int, std::pair<double, int>> nearest;
+            std::map<int, std::array<double, 3>> barycentric;
+            garment_index.within(start[i], radius, [&](int triangle) {
+                const int surface = garment_face_surface[static_cast<std::size_t>(triangle)];
+                if (surface == particle_rows[i].surface) return;
+                const auto& c = garment_index.corners[static_cast<std::size_t>(triangle)];
+                const auto hit = closest_triangle_point_native(start[i], c[0], c[1], c[2]);
+                const auto found = nearest.find(surface);
+                if (found != nearest.end() && (found->second.first < hit.distance_squared
+                        || (found->second.first == hit.distance_squared && found->second.second < triangle))) return;
+                nearest[surface] = {hit.distance_squared, triangle};
+                barycentric[surface] = hit.barycentric;
+            });
+            std::vector<std::pair<std::pair<double, int>, int>> ranked;
+            for (const auto& item : nearest) ranked.push_back({item.second, item.first});
+            std::sort(ranked.begin(), ranked.end());
+            if (ranked.size() > REFIT_REFERENCE_LAYER_PARTNERS) ranked.resize(REFIT_REFERENCE_LAYER_PARTNERS);
+            for (const auto& item : ranked) {
+                const double distance = std::sqrt(item.first.first);
+                if (distance > radius) continue;
+                const int triangle = item.first.second;
+                const auto& corners = garment_faces[static_cast<std::size_t>(triangle)];
+                const auto& b = barycentric.at(item.second);
+                const auto& c = garment_index.corners[static_cast<std::size_t>(triangle)];
+                const Vec3 normal = normalized_vec3_or_zero(face_cross(c[0], c[1], c[2]));
+                if (dot_vec3(normal, normal) < 0.5) continue;
+                const Vec3 point = add_vec3(add_vec3(scale_vec3(c[0], b[0]), scale_vec3(c[1], b[1])), scale_vec3(c[2], b[2]));
+                const double offset = dot_vec3(sub_vec3(start[i], point), normal);
+                if (std::abs(offset) < REFIT_REFERENCE_LAYER_MIN_SIDE * scale || std::abs(offset) < 0.5 * distance) continue;
+                layer_rows.push_back({static_cast<int>(i), corners, b, offset});
+            }
+        }
+    }
+
+    // Garment pieces that were already inside the authored body (a mask inside
+    // the head, a lining under the skin) keep that relation.
+    std::vector<char> exempt(count, 0);
+    {
+        std::vector<std::array<int, 3>> faces = reference.faces;
+        const RefitReferenceSurface authored(reference.source_positions, std::move(faces));
+        Vec3 outward;
+        for (std::size_t i = 0; i < count; ++i)
+            exempt[i] = authored.signed_distance(start[i], outward) < -REFIT_REFERENCE_INSIDE * scale;
+    }
+
+    // Position-based relaxation, Jacobi-averaged for order independence.
+    std::vector<double> inverse_mass(count, 1.0);
+    std::vector<std::vector<Vec3>> rigid_rest;
+    for (const auto& group : rigid_groups) {
+        std::vector<Vec3> shape;
+        for (const int i : group) {
+            inverse_mass[static_cast<std::size_t>(i)] = REFIT_REFERENCE_RIGID_INVERSE_MASS;
+            shape.push_back(rest[static_cast<std::size_t>(i)]);
+        }
+        rigid_rest.push_back(std::move(shape));
+    }
+    const double weight = REFIT_REFERENCE_CONSTRAINT_WEIGHT;
+    const double deep = REFIT_REFERENCE_DEEP_INSIDE * scale;
+    const double far_outside = REFIT_REFERENCE_FAR_OUTSIDE * scale;
+    std::vector<Vec3> x = rest, previous = rest, delta(count), outward(count), queried(count);
+    std::vector<double> total(count), distance(count, std::numeric_limits<double>::infinity()), queried_distance(count);
+    std::vector<char> known(count, 0);
+    long long layer_violations = 0, body_violations = 0, body_queries = 0;
+    double deepest = 0.0;
+    const auto relax_started = std::chrono::steady_clock::now();
+    for (int iteration = 0; iteration < REFIT_REFERENCE_ITERATIONS; ++iteration) {
+        std::fill(delta.begin(), delta.end(), Vec3{0.0, 0.0, 0.0});
+        std::fill(total.begin(), total.end(), 0.0);
+        for (std::size_t e = 0; e < edges.size(); ++e) {
+            const auto a = static_cast<std::size_t>(edges[e].first), b = static_cast<std::size_t>(edges[e].second);
+            total[a] += 1.0;
+            total[b] += 1.0;
+            const Vec3 d = sub_vec3(x[b], x[a]);
+            const double length = length_vec3(d);
+            if (length <= 1.0e-12) continue;
+            const double target = std::clamp(length, rest_lengths[e] * REFIT_REFERENCE_STRETCH_MIN,
+                rest_lengths[e] * REFIT_REFERENCE_STRETCH_MAX);
+            if (target == length) continue;
+            const Vec3 correction = scale_vec3(d, (length - target) / length);
+            const double sum = inverse_mass[a] + inverse_mass[b];
+            delta[a] = add_vec3(delta[a], scale_vec3(correction, inverse_mass[a] / sum));
+            delta[b] = sub_vec3(delta[b], scale_vec3(correction, inverse_mass[b] / sum));
+        }
+        layer_violations = 0;
+        for (const auto& row : layer_rows) {
+            const auto& t = row.triangle;
+            const Vec3 a = x[static_cast<std::size_t>(t[0])], b = x[static_cast<std::size_t>(t[1])], c = x[static_cast<std::size_t>(t[2])];
+            const Vec3 normal = normalized_vec3_or_zero(face_cross(a, b, c));
+            if (dot_vec3(normal, normal) < 0.5) continue;
+            const Vec3 anchor = add_vec3(add_vec3(scale_vec3(a, row.barycentric[0]), scale_vec3(b, row.barycentric[1])),
+                scale_vec3(c, row.barycentric[2]));
+            const auto v = static_cast<std::size_t>(row.particle);
+            const double now = dot_vec3(sub_vec3(x[v], anchor), normal);
+            const double want = std::copysign(std::min(std::abs(row.offset) * REFIT_REFERENCE_LAYER_KEEP,
+                REFIT_REFERENCE_LAYER_CAP * scale), row.offset);
+            if (row.offset > 0.0 ? now >= want : now <= want) continue;
+            ++layer_violations;
+            const Vec3 push = scale_vec3(normal, want - now);
+            double sum = inverse_mass[v];
+            for (int k = 0; k < 3; ++k)
+                sum += row.barycentric[k] * row.barycentric[k] * inverse_mass[static_cast<std::size_t>(t[k])];
+            if (sum <= 0.0) sum = 1.0;
+            delta[v] = add_vec3(delta[v], scale_vec3(push, weight * inverse_mass[v] / sum));
+            total[v] += weight;
+            for (int k = 0; k < 3; ++k) {
+                const auto corner = static_cast<std::size_t>(t[k]);
+                delta[corner] = sub_vec3(delta[corner], scale_vec3(push, weight * row.barycentric[k] * inverse_mass[corner] / sum));
+                total[corner] += weight * row.barycentric[k];
+            }
+        }
+        body_violations = 0;
+        deepest = 0.0;
+        for (std::size_t i = 0; i < count; ++i) {
+            if (iteration % 2 == 0) {
+                const double moved = known[i] ? length_vec3(sub_vec3(x[i], queried[i])) : 0.0;
+                if (known[i] && queried_distance[i] > 0.0 && queried_distance[i] - moved > far_outside) {
+                    // Still well clear of the driver: no clearance work is possible here.
+                    distance[i] = queried_distance[i] - moved;
+                } else {
+                    distance[i] = driver.signed_distance(x[i], outward[i]);
+                    queried[i] = x[i];
+                    queried_distance[i] = distance[i];
+                    known[i] = 1;
+                    ++body_queries;
+                }
+            } else {
+                distance[i] += dot_vec3(sub_vec3(x[i], previous[i]), outward[i]);
+            }
+            if (exempt[i]) continue;
+            const double need = particle_rows[i].clearance - distance[i];
+            if (need <= 0.0 || distance[i] <= -deep) continue;
+            ++body_violations;
+            deepest = std::max(deepest, -distance[i]);
+            delta[i] = add_vec3(delta[i], scale_vec3(outward[i], need * weight));
+            total[i] += weight;
+        }
+        previous = x;
+        for (std::size_t i = 0; i < count; ++i) {
+            delta[i] = add_vec3(delta[i], scale_vec3(sub_vec3(rest[i], x[i]), REFIT_REFERENCE_ANCHOR));
+            total[i] += REFIT_REFERENCE_ANCHOR;
+            x[i] = add_vec3(x[i], scale_vec3(delta[i], REFIT_REFERENCE_STEP / std::max(total[i], 1.0)));
+        }
+        for (std::size_t g = 0; g < rigid_groups.size(); ++g) {
+            std::vector<Vec3> current;
+            current.reserve(rigid_groups[g].size());
+            for (const int i : rigid_groups[g]) current.push_back(x[static_cast<std::size_t>(i)]);
+            const auto posed = refit_reference_rigid_pose(rigid_rest[g], current);
+            for (std::size_t k = 0; k < rigid_groups[g].size(); ++k) x[static_cast<std::size_t>(rigid_groups[g][k])] = posed[k];
+        }
+    }
+    const double relax_ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - relax_started).count();
+
+    // Publish the transfer as refit layer displacement, then masks and
+    // post-refit corrections exactly as the bound fitter applies them.
+    const auto masks = mesh_editor_refit_masks(refit, submeshes, residual);
+    for (const auto& part : particles) {
+        auto& target = layer[part.first];
+        if (target.empty()) target = mesh_editor_zero_morph_layer(part.second.size());
+        for (std::size_t v = 0; v < part.second.size(); ++v) {
+            if (part.second[v] < 0) continue;
+            const Vec3 moved = sub_vec3(x[static_cast<std::size_t>(part.second[v])], visible(part.first, v));
+            target[v] = add_vec3(target[v], scale_vec3(moved, mesh_editor_refit_mask_weight(masks, part.first, v)));
+        }
+    }
+    for (const auto& item : post_refit) {
+        if (!refit.garment_submesh_indices.count(item.first)) continue;
+        const auto settings = refit.garment_settings.find(item.first);
+        if (settings != refit.garment_settings.end() && !settings->second.enabled) continue;
+        auto& target = layer[item.first];
+        if (target.empty()) target = mesh_editor_zero_morph_layer(item.second.size());
+        for (std::size_t v = 0; v < target.size(); ++v)
+            target[v] = add_vec3(target[v], scale_vec3(item.second[v], mesh_editor_refit_mask_weight(masks, item.first, v)));
+    }
+    std::size_t largest_group = 0;
+    for (const auto& group : rigid_groups) largest_group = std::max(largest_group, group.size());
+    long long exempt_count = 0;
+    for (const char value : exempt) exempt_count += value ? 1 : 0;
+    report << ",\"particles\":" << count << ",\"rigid_groups\":" << rigid_groups.size()
+           << ",\"largest_rigid_group\":" << largest_group << ",\"layer_constraints\":" << layer_rows.size()
+           << ",\"remaining_layer_violations\":" << layer_violations
+           << ",\"remaining_body_violations\":" << body_violations
+           << ",\"deepest_body_violation\":" << std::setprecision(17) << deepest
+           << ",\"exempt_particles\":" << exempt_count << ",\"reference_ray_hits\":" << field.ray_hits
+           << ",\"maximum_field_displacement\":" << field.maximum_displacement
+           << ",\"iterations\":" << REFIT_REFERENCE_ITERATIONS << ",\"body_queries\":" << body_queries
+           << ",\"field_ms\":" << field_ms << ",\"relax_ms\":" << relax_ms
+           << ",\"total_ms\":" << std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - started).count()
+           << '}';
+    return report.str();
+}
+
+std::shared_ptr<const MeshRefitReferenceBodyRuntime> mesh_editor_refit_reference_from_json(const JsonValue& raw) {
+    if (raw.type != JsonValue::Type::Object) throw std::runtime_error("Fit reference body must be an object");
+    const auto* label = raw.get("label");
+    const auto* source = raw.get("source_positions");
+    const auto* fitted = raw.get("fitted_positions");
+    const auto* faces = raw.get("faces");
+    if ((label && label->type != JsonValue::Type::String) || !source || !fitted || !faces
+        || source->type != JsonValue::Type::Array || fitted->type != JsonValue::Type::Array || faces->type != JsonValue::Type::Array
+        || source->array_value.size() != fitted->array_value.size() || source->array_value.size() % 3 != 0
+        || faces->array_value.size() % 3 != 0 || source->array_value.empty() || faces->array_value.empty()
+        || source->array_value.size() / 3 > REFIT_REFERENCE_MAX_VERTICES)
+        throw std::runtime_error("Fit reference body requires matching flat source and fitted positions and faces");
+    auto reference = std::make_shared<MeshRefitReferenceBodyRuntime>();
+    reference->label = label ? label->string_value : std::string();
+    for (const auto* rows : {source, fitted}) {
+        auto& target = rows == source ? reference->source_positions : reference->fitted_positions;
+        target.reserve(rows->array_value.size() / 3);
+        for (std::size_t i = 0; i < rows->array_value.size(); i += 3) {
+            Vec3 point{};
+            for (int axis = 0; axis < 3; ++axis) {
+                const auto& value = rows->array_value[i + static_cast<std::size_t>(axis)];
+                if (value.type != JsonValue::Type::Number || !std::isfinite(value.number_value))
+                    throw std::runtime_error("Fit reference body positions must be finite numbers");
+                point[axis] = value.number_value;
+            }
+            target.push_back(point);
+        }
+    }
+    reference->faces.reserve(faces->array_value.size() / 3);
+    for (std::size_t i = 0; i < faces->array_value.size(); i += 3) {
+        std::array<int, 3> face{};
+        for (int corner = 0; corner < 3; ++corner) {
+            int index = -1;
+            if (!strict_int_or(&faces->array_value[i + static_cast<std::size_t>(corner)], index) || index < 0
+                || static_cast<std::size_t>(index) >= reference->source_positions.size())
+                throw std::runtime_error("Fit reference body faces must reference its vertices");
+            face[corner] = index;
+        }
+        reference->faces.push_back(face);
+    }
+    return reference;
+}
+
+void mesh_editor_write_refit_reference(std::ostream& out, const MeshRefitReferenceBodyRuntime& reference) {
+    out << "{\"label\":";
+    write_escaped(out, reference.label);
+    out << ",\"source_positions\":[" << std::setprecision(17);
+    for (const auto* rows : {&reference.source_positions, &reference.fitted_positions}) {
+        if (rows == &reference.fitted_positions) out << "],\"fitted_positions\":[";
+        for (std::size_t i = 0; i < rows->size(); ++i) {
+            if (i) out << ',';
+            out << (*rows)[i][0] << ',' << (*rows)[i][1] << ',' << (*rows)[i][2];
+        }
+    }
+    out << "],\"faces\":[";
+    for (std::size_t i = 0; i < reference.faces.size(); ++i) {
+        if (i) out << ',';
+        out << reference.faces[i][0] << ',' << reference.faces[i][1] << ',' << reference.faces[i][2];
+    }
+    out << "]}";
+}
+
+void mesh_editor_write_refit_reference_summary(std::ostream& out, const MeshEditorSession& session) {
+    const auto* reference = session.morph && session.morph->refit ? session.morph->refit->reference_body.get() : nullptr;
+    out << ",\"reference_body\":";
+    if (!reference) {
+        out << "null";
+        return;
+    }
+    out << "{\"label\":";
+    write_escaped(out, reference->label);
+    out << ",\"vertex_count\":" << reference->source_positions.size() << ",\"face_count\":" << reference->faces.size()
+        << ",\"last_fit\":";
+    const auto report = g_mesh_refit_reference_reports.find(session.native_session_id);
+    out << (report == g_mesh_refit_reference_reports.end() ? std::string("null") : report->second) << '}';
+}

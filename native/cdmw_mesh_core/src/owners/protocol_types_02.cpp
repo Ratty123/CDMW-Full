@@ -101,6 +101,16 @@ struct MeshRefitGarmentSettingsRuntime {
     std::vector<MeshRefitIslandSettingsRuntime> island_settings;
 };
 
+// The body a garment was authored on, given in two poses of one topology: as
+// authored, and retargeted by the caller into the driver's bind space. Only the
+// reference-body fitter reads it; it is immutable and shared through history.
+struct MeshRefitReferenceBodyRuntime {
+    std::string label;
+    std::vector<Vec3> source_positions;
+    std::vector<Vec3> fitted_positions;
+    std::vector<std::array<int, 3>> faces;
+};
+
 struct MeshRefitRuntime {
     // Evaluation-only domain boundaries. Persisted overrides own their source faces.
     std::set<int> independent_island_parts;
@@ -129,6 +139,9 @@ struct MeshRefitRuntime {
     bool distance_warning = false;
     long long driver_triangle_count = 0;
     long long candidate_triangle_tests = 0;
+    // Present only after Fit to reference body. Garments are then transferred
+    // from this body onto the driver instead of following their bindings.
+    std::shared_ptr<const MeshRefitReferenceBodyRuntime> reference_body;
 };
 
 struct MeshMorphRuntime {
