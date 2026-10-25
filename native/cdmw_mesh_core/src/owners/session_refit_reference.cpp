@@ -26,6 +26,13 @@ constexpr double REFIT_REFERENCE_LAYER_MIN_SIDE = 0.0003;
 constexpr std::size_t REFIT_REFERENCE_LAYER_PARTNERS = 4;
 constexpr double REFIT_REFERENCE_LAYER_KEEP = 0.8;
 constexpr double REFIT_REFERENCE_LAYER_CAP = 0.003;
+// Layer constraints weigh as much as an edge. Stiffer layers overrode the cloth's
+// edges where stacked strips slid on a differently shaped body and shredded them.
+constexpr double REFIT_REFERENCE_LAYER_WEIGHT = 1.0;
+// Every so many iterations, a layer constraint whose particle has slid this many
+// layer radii away from its partner point moves to the partner surface beneath it.
+constexpr int REFIT_REFERENCE_LAYER_REANCHOR = 15;
+constexpr double REFIT_REFERENCE_LAYER_STALE = 3.0;
 constexpr double REFIT_REFERENCE_INSIDE = 0.0005;
 constexpr double REFIT_REFERENCE_DEEP_INSIDE = 0.04;
 constexpr double REFIT_REFERENCE_FAR_OUTSIDE = 0.03;
@@ -35,7 +42,9 @@ constexpr double REFIT_REFERENCE_ANCHOR = 0.02;
 constexpr double REFIT_REFERENCE_RIGID_INVERSE_MASS = 0.25;
 constexpr double REFIT_REFERENCE_STRETCH_MIN = 0.92;
 constexpr double REFIT_REFERENCE_STRETCH_MAX = 1.04;
-constexpr double REFIT_REFERENCE_STEP = 1.5;
+// A plain Jacobi step. Over-relaxing (1.5) overshot where layer, body and edge
+// constraints disagree, so more iterations made such fits worse, not better.
+constexpr double REFIT_REFERENCE_STEP = 1.0;
 constexpr std::size_t REFIT_REFERENCE_MAX_VERTICES = 2000000;
 
 Vec3 refit_reference_cross(const Vec3& a, const Vec3& b) {
@@ -745,7 +754,7 @@ std::string mesh_editor_apply_reference_refit(
 
     // Authored stacking: each particle near another island's surface, clearly
     // on one side of it, keeps that side after the transfer.
-    struct LayerRow { int particle; std::array<int, 3> triangle; std::array<double, 3> barycentric; double offset; };
+    struct LayerRow { int particle; std::array<int, 3> triangle; std::array<double, 3> barycentric; double offset; int surface; int face; };
     std::vector<LayerRow> layer_rows;
     {
         const RefitReferenceTriangleIndex garment_index(start, garment_faces);
@@ -780,7 +789,7 @@ std::string mesh_editor_apply_reference_refit(
                 const Vec3 point = add_vec3(add_vec3(scale_vec3(c[0], b[0]), scale_vec3(c[1], b[1])), scale_vec3(c[2], b[2]));
                 const double offset = dot_vec3(sub_vec3(start[i], point), normal);
                 if (std::abs(offset) < REFIT_REFERENCE_LAYER_MIN_SIDE * scale || std::abs(offset) < 0.5 * distance) continue;
-                layer_rows.push_back({static_cast<int>(i), corners, b, offset});
+                layer_rows.push_back({static_cast<int>(i), corners, b, offset, item.second, triangle});
             }
         }
     }
@@ -813,10 +822,54 @@ std::string mesh_editor_apply_reference_refit(
     std::vector<Vec3> x = rest, previous = rest, delta(count), outward(count), queried(count);
     std::vector<double> total(count), distance(count, std::numeric_limits<double>::infinity()), queried_distance(count);
     std::vector<char> known(count, 0);
-    long long layer_violations = 0, body_violations = 0, body_queries = 0;
+    long long layer_violations = 0, body_violations = 0, body_queries = 0, reanchored = 0;
     double deepest = 0.0;
+    const double layer_weight = REFIT_REFERENCE_LAYER_WEIGHT;
+    const double stale = REFIT_REFERENCE_LAYER_STALE * REFIT_REFERENCE_LAYER_RADIUS * scale;
+    std::vector<std::vector<int>> surface_faces(surfaces.size());
+    for (std::size_t f = 0; f < garment_faces.size(); ++f)
+        surface_faces[static_cast<std::size_t>(garment_face_surface[f])].push_back(static_cast<int>(f));
+    const auto anchor_of = [&](const LayerRow& row, Vec3& normal) {
+        const auto& t = row.triangle;
+        const Vec3 a = x[static_cast<std::size_t>(t[0])], b = x[static_cast<std::size_t>(t[1])], c = x[static_cast<std::size_t>(t[2])];
+        normal = normalized_vec3_or_zero(face_cross(a, b, c));
+        return add_vec3(add_vec3(scale_vec3(a, row.barycentric[0]), scale_vec3(b, row.barycentric[1])),
+            scale_vec3(c, row.barycentric[2]));
+    };
     const auto relax_started = std::chrono::steady_clock::now();
     for (int iteration = 0; iteration < REFIT_REFERENCE_ITERATIONS; ++iteration) {
+        if (iteration % REFIT_REFERENCE_LAYER_REANCHOR == 0) {
+            // Layers slide over each other where the body changes under them. A
+            // particle that has moved far from its authored partner point is held
+            // to the partner surface beneath it now, on a triangle facing the same
+            // way (a thin band's far side faces the other way, and its side would
+            // be the opposite one).
+            std::vector<std::unique_ptr<RefitReferenceTriangleIndex>> partners(surfaces.size());
+            for (auto& row : layer_rows) {
+                Vec3 normal;
+                const Vec3 relative = sub_vec3(x[static_cast<std::size_t>(row.particle)], anchor_of(row, normal));
+                const Vec3 across = sub_vec3(relative, scale_vec3(normal, dot_vec3(relative, normal)));
+                if (dot_vec3(across, across) <= stale * stale) continue;
+                auto& partner = partners[static_cast<std::size_t>(row.surface)];
+                if (!partner) {
+                    std::vector<std::array<int, 3>> faces;
+                    for (const int f : surface_faces[static_cast<std::size_t>(row.surface)])
+                        faces.push_back(garment_faces[static_cast<std::size_t>(f)]);
+                    partner = std::make_unique<RefitReferenceTriangleIndex>(x, faces);
+                }
+                const auto hit = partner->closest(x[static_cast<std::size_t>(row.particle)]);
+                if (hit.triangle < 0) continue;
+                const int face = surface_faces[static_cast<std::size_t>(row.surface)][static_cast<std::size_t>(hit.triangle)];
+                const auto& c = garment_faces[static_cast<std::size_t>(face)];
+                const Vec3 facing = normalized_vec3_or_zero(face_cross(x[static_cast<std::size_t>(c[0])],
+                    x[static_cast<std::size_t>(c[1])], x[static_cast<std::size_t>(c[2])]));
+                if (dot_vec3(facing, normal) < 0.5) continue;
+                row.face = face;
+                row.triangle = c;
+                row.barycentric = hit.barycentric;
+                ++reanchored;
+            }
+        }
         std::fill(delta.begin(), delta.end(), Vec3{0.0, 0.0, 0.0});
         std::fill(total.begin(), total.end(), 0.0);
         for (std::size_t e = 0; e < edges.size(); ++e) {
@@ -837,11 +890,12 @@ std::string mesh_editor_apply_reference_refit(
         layer_violations = 0;
         for (const auto& row : layer_rows) {
             const auto& t = row.triangle;
-            const Vec3 a = x[static_cast<std::size_t>(t[0])], b = x[static_cast<std::size_t>(t[1])], c = x[static_cast<std::size_t>(t[2])];
-            const Vec3 normal = normalized_vec3_or_zero(face_cross(a, b, c));
+            Vec3 normal;
+            const Vec3 anchor = anchor_of(row, normal);
             if (dot_vec3(normal, normal) < 0.5) continue;
-            const Vec3 anchor = add_vec3(add_vec3(scale_vec3(a, row.barycentric[0]), scale_vec3(b, row.barycentric[1])),
-                scale_vec3(c, row.barycentric[2]));
+            // A partner triangle turned over since the transfer has no trustworthy side.
+            if (dot_vec3(normal, face_cross(rest[static_cast<std::size_t>(t[0])], rest[static_cast<std::size_t>(t[1])],
+                    rest[static_cast<std::size_t>(t[2])])) <= 0.0) continue;
             const auto v = static_cast<std::size_t>(row.particle);
             const double now = dot_vec3(sub_vec3(x[v], anchor), normal);
             const double want = std::copysign(std::min(std::abs(row.offset) * REFIT_REFERENCE_LAYER_KEEP,
@@ -853,12 +907,12 @@ std::string mesh_editor_apply_reference_refit(
             for (int k = 0; k < 3; ++k)
                 sum += row.barycentric[k] * row.barycentric[k] * inverse_mass[static_cast<std::size_t>(t[k])];
             if (sum <= 0.0) sum = 1.0;
-            delta[v] = add_vec3(delta[v], scale_vec3(push, weight * inverse_mass[v] / sum));
-            total[v] += weight;
+            delta[v] = add_vec3(delta[v], scale_vec3(push, layer_weight * inverse_mass[v] / sum));
+            total[v] += layer_weight;
             for (int k = 0; k < 3; ++k) {
                 const auto corner = static_cast<std::size_t>(t[k]);
-                delta[corner] = sub_vec3(delta[corner], scale_vec3(push, weight * row.barycentric[k] * inverse_mass[corner] / sum));
-                total[corner] += weight * row.barycentric[k];
+                delta[corner] = sub_vec3(delta[corner], scale_vec3(push, layer_weight * row.barycentric[k] * inverse_mass[corner] / sum));
+                total[corner] += layer_weight * row.barycentric[k];
             }
         }
         body_violations = 0;
@@ -939,6 +993,7 @@ std::string mesh_editor_apply_reference_refit(
            << ",\"remaining_body_violations\":" << body_violations
            << ",\"deepest_body_violation\":" << std::setprecision(17) << deepest
            << ",\"exempt_particles\":" << exempt_count << ",\"open_driver_edges\":" << driver.open_edges.size()
+           << ",\"reanchored_layer_constraints\":" << reanchored
            << ",\"reference_ray_hits\":" << field.ray_hits
            << ",\"maximum_field_displacement\":" << field.maximum_displacement
            << ",\"iterations\":" << REFIT_REFERENCE_ITERATIONS << ",\"body_queries\":" << body_queries
