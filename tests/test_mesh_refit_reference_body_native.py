@@ -206,6 +206,48 @@ def test_an_unmarked_closed_dagger_on_cloth_fits_rigidly_through_the_reference()
     assert after[:, 0].mean() > before[:, 0].mean() + .01
 
 
+def test_cloth_beside_an_open_body_rim_is_not_pushed_through_it():
+    # A body PAC's head has the face cut out, so a hood in front of it is
+    # closest to the open rim. Here a cap sits 3 mm above the open end of the
+    # arm, its edge 5 mm inside the rim: nothing defines it as inside.
+    rings, segments, height = 4, 32, .503
+    vertices = [(0., height, 0.)] + [(r * math.cos(i * 2. * math.pi / segments), height, r * math.sin(i * 2. * math.pi / segments))
+                                     for r in (.025, .05, .075)[:rings] for i in range(segments)]
+    faces = [(0, 1 + (i + 1) % segments, 1 + i) for i in range(segments)]
+    for ring in range(2):
+        for i in range(segments):
+            a, b = 1 + ring * segments + i, 1 + ring * segments + (i + 1) % segments
+            faces += [(a, b, b + segments), (a, b + segments, a + segments)]
+    cap = _part("cap", vertices, faces, material="cloth", texture="")
+    mesh = _mesh(_arm(DRIVER_RADIUS), cap)
+    driver = np.asarray(mesh.submeshes[0].vertices, float).ravel().tolist()
+    # The authored body is the same arm closed at the top by a fan over its own
+    # rim, so the cap is clearly outside it and is not exempt from clearance.
+    top = len(mesh.submeshes[0].vertices) - 64
+    authored_faces = [tuple(face) for face in mesh.submeshes[0].faces]
+    authored_faces += [(top, top + i + 1, top + i) for i in range(1, 63)]
+    session = _open(mesh)
+    try:
+        _command(session, "morph_upload", {"profile": {
+            "profile_id": "fit", "name": "Fit", "topology_fingerprint": "a" * 64, "definitions": [], "fields": [],
+        }})
+        _command(session, "morph_set_driver", {"submesh_indices": [0]})
+        _command(session, "morph_bind", {"garment_submesh_indices": [1]})
+        # Authored on this very body, so the transfer itself leaves the cap in place.
+        _command(session, "morph_set_reference_body", {
+            "reference_body": {"label": LABEL, "source_positions": driver, "fitted_positions": driver,
+                               "faces": np.asarray(authored_faces).ravel().tolist()},
+            "garment_submesh_indices": [1], "garment_settings": [
+                {"submesh_index": 1, "mode": "surface", "clearance_percent": .1, "tightness_percent": 100.}],
+        })
+        fitted = np.asarray(_snapshot(mesh, session).submeshes[1].vertices)
+        last = _state(session)["refit"]["reference_body"]["last_fit"]
+    finally:
+        mesh_native_core.close_native_mesh_editor_session(session)
+    assert last["open_driver_edges"] == 2 * 64
+    assert np.abs(fitted - np.asarray(vertices)).max() < 5e-4
+
+
 def test_reference_body_requires_a_binding_and_matching_arrays():
     mesh = _outfit()
     session = _open(mesh)

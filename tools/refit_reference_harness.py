@@ -7,7 +7,8 @@ the body the outfit was authored on (``morph_set_reference_body``, the
 
 - worst rigid distortion: Kabsch residual of every island the config marks rigid;
 - new inside-body vertices: garment vertices more than 0.5 mm inside the driver
-  that were not already inside the authored body;
+  that were not already inside the authored body (beside an open rim, such as a
+  head's cut-out face, nothing counts as inside);
 - new layer crossings: triangle pairs between garment islands that intersect
   after the fit but not before (python-fcl);
 - cloth edge strain: ``|length / authored length - 1|`` over flexible islands,
@@ -237,21 +238,73 @@ def fit(inputs: dict, config: dict, method: str) -> dict:
 
 
 # ------------------------------------------------------------------ metrics
-def _surface(parts):
-    import trimesh
+class _Surface:
+    """A body surface with a well-defined inside where it is closed.
 
+    Body PACs are open: the head part has the face cut out. A point whose
+    closest feature is an open edge or corner has no side and counts as
+    outside, as in the native fitter. Elsewhere the side comes from the face
+    normal, the summed normals of an edge's faces, or a corner's
+    angle-weighted pseudonormal, which is exact on closed regions.
+    """
+
+    def __init__(self, vertices, faces):
+        import trimesh
+
+        self.mesh = trimesh.Trimesh(np.asarray(vertices, float), np.asarray(faces), process=False)
+        points, faces = self.mesh.vertices, self.mesh.faces
+        _, welded = np.unique(np.round(points * 1e5).astype(np.int64), axis=0, return_inverse=True)
+        self.welded = welded.ravel()[faces]
+        normals = self.mesh.face_normals
+        self.corner_normals = np.zeros((self.welded.max() + 1, 3))
+        self.edge_normals, uses = {}, {}
+        for c in range(3):
+            first, second = points[faces[:, (c + 1) % 3]] - points[faces[:, c]], points[faces[:, (c + 2) % 3]] - points[faces[:, c]]
+            cosine = np.einsum("ij,ij->i", first, second) / np.maximum(
+                np.linalg.norm(first, axis=1) * np.linalg.norm(second, axis=1), 1e-12)
+            np.add.at(self.corner_normals, self.welded[:, c], normals * np.arccos(np.clip(cosine, -1, 1))[:, None])
+        for face, corners in enumerate(self.welded):
+            for c in range(3):
+                edge = tuple(sorted((corners[c], corners[(c + 1) % 3])))
+                self.edge_normals[edge] = self.edge_normals.get(edge, 0) + normals[face]
+                uses[edge] = uses.get(edge, 0) + 1
+        self.open_edges = {edge for edge, count in uses.items() if count == 1}
+        self.open_corners = {corner for edge in self.open_edges for corner in edge}
+
+
+def _surface(parts):
     vertices = [np.asarray(part.vertices, float) for part in parts]
     offsets = np.cumsum([0] + [len(item) for item in vertices])
-    faces = np.concatenate([np.asarray(part.faces) + offsets[i] for i, part in enumerate(parts)])
-    return trimesh.Trimesh(np.concatenate(vertices), faces, process=False)
+    return _Surface(np.concatenate(vertices), np.concatenate([np.asarray(part.faces) + offsets[i] for i, part in enumerate(parts)]))
 
 
-def _signed_distance(surface, points):
+def _signed_distance(surface: _Surface, points):
+    """Signed distance, positive outside; +inf where the closest feature is an open rim."""
     import trimesh
 
-    closest, distance, triangle = trimesh.proximity.closest_point(surface, points)
-    side = np.sign(np.einsum("ij,ij->i", points - closest, surface.face_normals[triangle]))
-    return distance * np.where(side == 0, 1.0, side)
+    points = np.asarray(points, float)
+    closest, distance, triangle = trimesh.proximity.closest_point(surface.mesh, points)
+    barycentric = trimesh.triangles.points_to_barycentric(surface.mesh.triangles[triangle], closest)
+    zero = barycentric <= 1e-6
+    side = surface.mesh.face_normals[triangle].copy()
+    result = distance.copy()
+    for i in np.where(zero.any(1))[0]:
+        corners = surface.welded[triangle[i]]
+        if zero[i].sum() == 1:
+            kept = corners[~zero[i]]
+            edge = tuple(sorted(kept))
+            if edge in surface.open_edges:
+                result[i] = np.inf
+                continue
+            side[i] = surface.edge_normals[edge]
+        else:
+            corner = corners[int(np.argmax(barycentric[i]))]
+            if corner in surface.open_corners:
+                result[i] = np.inf
+                continue
+            side[i] = surface.corner_normals[corner]
+    sign = np.sign(np.einsum("ij,ij->i", points - closest, side))
+    return np.where(np.isinf(result), result, result * np.where(sign == 0, 1.0, sign))
 
 
 def rigid_residual(before: np.ndarray, after: np.ndarray) -> float:
@@ -291,11 +344,9 @@ def _summary(values) -> dict:
 
 
 def analyse(run: dict, config: dict, reference: RefitReferenceBody) -> dict:
-    import trimesh
-
     body_count, islands = run["body_count"], run["islands"]
     driver = _surface(run["fitted"].submeshes[:body_count])
-    authored = trimesh.Trimesh(np.asarray(reference.source_positions), np.asarray(reference.faces), process=False)
+    authored = _Surface(reference.source_positions, reference.faces)
     tails = {tuple(item) for item in config.get("tails", ())}
     parts, pieces, cloth, tail = [], [], [], []
     rigid_worst = 0.0

@@ -335,10 +335,19 @@ struct RefitReferencePointIndex {
 // A closed-or-open surface that answers signed distances. Inside the closest
 // triangle the side comes from its normal; on its edges and corners from the
 // interpolated vertex normals, which do not flip across a crease.
+//
+// An open rim has no inside. A body PAC's head is a shell with the face cut
+// out (the face is a separate PAC), so a hood in front of the opening finds
+// the rim closest, and the rim's sideways normals would call it inside the
+// head. Points whose closest feature is an open edge or corner therefore get
+// no side: they read as far outside and receive no clearance push.
 struct RefitReferenceSurface {
     std::vector<std::array<int, 3>> faces;
     std::vector<Vec3> face_normals;
     std::vector<Vec3> vertex_normals;
+    std::vector<int> welded;
+    std::set<std::pair<int, int>> open_edges;
+    std::vector<char> open_corners;
     RefitReferenceTriangleIndex index;
 
     RefitReferenceSurface(const std::vector<Vec3>& points, std::vector<std::array<int, 3>> triangles)
@@ -353,13 +362,43 @@ struct RefitReferenceSurface {
                 vertex_normals[static_cast<std::size_t>(corner)] = add_vec3(vertex_normals[static_cast<std::size_t>(corner)], weighted);
         }
         for (auto& normal : vertex_normals) normal = normalized_vec3_or_zero(normal);
+        // Topology by position, so seams between Parts (head and body at the
+        // neck) and UV splits are not mistaken for openings.
+        std::map<std::tuple<long long, long long, long long>, int> ids;
+        welded.reserve(points.size());
+        for (const auto& point : points)
+            welded.push_back(ids.emplace(refit_reference_weld_key(point), static_cast<int>(ids.size())).first->second);
+        std::map<std::pair<int, int>, int> uses;
+        for (const auto& face : faces) for (int c = 0; c < 3; ++c) {
+            const int a = welded[static_cast<std::size_t>(face[c])], b = welded[static_cast<std::size_t>(face[(c + 1) % 3])];
+            if (a != b) ++uses[std::minmax(a, b)];
+        }
+        open_corners.assign(ids.size(), 0);
+        for (const auto& item : uses) if (item.second == 1) {
+            open_edges.insert(item.first);
+            open_corners[static_cast<std::size_t>(item.first.first)] = 1;
+            open_corners[static_cast<std::size_t>(item.first.second)] = 1;
+        }
+    }
+
+    bool open_at(const std::array<int, 3>& face, const std::array<double, 3>& barycentric) const {
+        int zeros = 0, largest = 0;
+        for (int c = 0; c < 3; ++c) {
+            if (barycentric[c] <= 1.0e-7) ++zeros;
+            if (barycentric[c] > barycentric[largest]) largest = c;
+        }
+        if (zeros == 2) return open_corners[static_cast<std::size_t>(welded[static_cast<std::size_t>(face[largest])])] != 0;
+        if (zeros != 1) return false;
+        int a = -1, b = -1;
+        for (int c = 0; c < 3; ++c) if (barycentric[c] > 1.0e-7) (a < 0 ? a : b) = welded[static_cast<std::size_t>(face[c])];
+        return open_edges.count(std::minmax(a, b)) != 0;
     }
 
     // Signed distance (positive outside) and the outward direction at point.
     double signed_distance(const Vec3& point, Vec3& outward, int* triangle = nullptr) const {
         const auto hit = index.closest(point);
         if (triangle) *triangle = hit.triangle;
-        if (hit.triangle < 0) {
+        if (hit.triangle < 0 || open_at(faces[static_cast<std::size_t>(hit.triangle)], hit.barycentric)) {
             outward = {0.0, 0.0, 0.0};
             return std::numeric_limits<double>::infinity();
         }
@@ -833,7 +872,8 @@ std::string mesh_editor_apply_reference_refit(
                 } else {
                     distance[i] = driver.signed_distance(x[i], outward[i]);
                     queried[i] = x[i];
-                    queried_distance[i] = distance[i];
+                    // Beside an open rim the side is unknown: ask again next time.
+                    queried_distance[i] = std::isfinite(distance[i]) ? distance[i] : 0.0;
                     known[i] = 1;
                     ++body_queries;
                 }
@@ -898,7 +938,8 @@ std::string mesh_editor_apply_reference_refit(
            << ",\"remaining_layer_violations\":" << layer_violations
            << ",\"remaining_body_violations\":" << body_violations
            << ",\"deepest_body_violation\":" << std::setprecision(17) << deepest
-           << ",\"exempt_particles\":" << exempt_count << ",\"reference_ray_hits\":" << field.ray_hits
+           << ",\"exempt_particles\":" << exempt_count << ",\"open_driver_edges\":" << driver.open_edges.size()
+           << ",\"reference_ray_hits\":" << field.ray_hits
            << ",\"maximum_field_displacement\":" << field.maximum_displacement
            << ",\"iterations\":" << REFIT_REFERENCE_ITERATIONS << ",\"body_queries\":" << body_queries
            << ",\"field_ms\":" << field_ms << ",\"relax_ms\":" << relax_ms

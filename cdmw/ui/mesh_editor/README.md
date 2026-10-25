@@ -2115,8 +2115,10 @@ one undoable `morph_set_reference_body`. Natively, what remains between the move
 body and the driver becomes one smooth displacement field that every garment samples,
 so stacked layers move together; rigid pieces take the field's best rigid motion
 (touching rigid pieces, also across Parts, move as one assembly) and a bounded
-relaxation restores layer order, clearance, cloth edge lengths and rigid shapes. The
-same small-accessory inference as the bound fitter makes unmarked closed attachments
+relaxation restores layer order, clearance, cloth edge lengths and rigid shapes. An
+open rim has no inside: a body PAC's head has the face cut out, so cloth whose closest
+body feature is an open edge or corner gets no clearance push (it would otherwise be
+pulled through the opening's rim). The same small-accessory inference as the bound fitter makes unmarked closed attachments
 rigid. Disabled Parts, removed islands, masks and post-refit corrections behave as in
 the bound fitter; Tightness and Intensity are not used. The reference survives
 rebinding, is dropped by Reset and Bake, is stored in runtime snapshot version 5 and
