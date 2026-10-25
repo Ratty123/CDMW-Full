@@ -19,6 +19,15 @@ files, as the Python function of the same name does, with the same results:
 - `partprefabtable.pappt` (both record layouts), `meta/0.pathc` and
   `ui/xml/texture/cd_item_icon.xml` merged per record.
 
+It also writes what a composition is installed as:
+
+- `build_overlay_archive(files)`: one archive directory (`0.pamt` and `0.paz`) holding only
+  the given stored payloads, with the folder and name tries, alignment and checksums of
+  `archive_overlay.build_overlay_archive`;
+- `parse_papgt`, `serialize_papgt` and `papgt_with_directory`: the mount list that puts
+  that directory ahead of the shipped ones;
+- `pa_checksum` and `hashlittle`, the lookup3 hashes both formats use.
+
 Failures keep Python's kinds: `OverlayConflict` where Python raises `OverlayConflict`, and
 `FormatError` where it raises anything else. `Unsupported` marks input outside the subset
 this port reproduces exactly, so a caller refuses instead of guessing:
@@ -28,7 +37,8 @@ this port reproduces exactly, so a caller refuses instead of guessing:
   values (Python's case folding and expat's full grammar are not modelled);
 - a localization key made only of non-ASCII characters and ASCII digits, which Python's
   `str.isdigit` might read as a number;
-- repeated `meta/0.pathc` checksums, which Python's tuple sort may refuse.
+- repeated `meta/0.pathc` checksums, which Python's tuple sort may refuse;
+- overlay paths that are not UTF-8.
 
 ## LZ4
 
@@ -43,19 +53,20 @@ container carries the same payload and header fields with a different block.
 cmake -S native/cdmw_item_composer -B native/cdmw_item_composer/build -A x64
 cmake --build native/cdmw_item_composer/build --config Release
 ctest --test-dir native/cdmw_item_composer/build -C Release --output-on-failure
-.\.venv\Scripts\python.exe -m pytest tests/test_native_overlay_merge.py -q
+.\.venv\Scripts\python.exe -m pytest tests/test_native_overlay_merge.py tests/test_native_archive_writer.py -q
 ```
 
-`tests/test_native_overlay_merge.py` runs every case through both implementations and
-compares the bytes. It skips when the CLI is not built. Its `real_game` test composes two
-installs over the shipped tables and needs explicit opt-in (`-m real_game`).
+Both test files run every case through both implementations and compare the bytes; they
+skip when the CLI is not built. The `real_game` test in `test_native_overlay_merge.py`
+composes two installs over the shipped tables and needs explicit opt-in (`-m real_game`).
 
 `tools/compose_cli.cpp` is a test driver only; the library is meant to be linked into the
 virtual loader, which builds with the same static runtime and warning settings.
 
 ## Not yet ported
 
-`papgt_format`, `archive_overlay.build_overlay_archive`, reading the effective current
-files through the PAPGT order, and the package `runtime/` members are the next steps.
+Reading the effective current files through the PAPGT order (with `cdmw_archive_core`'s
+PAMT, PAZ, LZ4 and ChaCha20 readers), producing stored payloads for the overlay, and the
+package `runtime/` members are the next steps.
 Packages with field or texture operations (`prepare_fields` / `prepare_textures`) are out
 of scope for v1.

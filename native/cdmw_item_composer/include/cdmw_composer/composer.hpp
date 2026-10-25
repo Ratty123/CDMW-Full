@@ -56,6 +56,43 @@ private:
 // tables at record level. Throws OverlayConflict, FormatError or Unsupported.
 FileMap merge_overlay_files(const FileMap& before, const FileMap& after, const FileMap& current);
 
+// archive_format.calculate_pa_checksum and hashlittle (Bob Jenkins' lookup3).
+std::uint32_t pa_checksum(const std::uint8_t* data, std::size_t size);
+std::uint32_t hashlittle(const std::uint8_t* data, std::size_t size, std::uint32_t initial);
+
+// papgt_format: the archive directories the game mounts, in the order it reads them.
+inline constexpr std::uint32_t papgt_default_flags = 0x007FFF00;
+struct PapgtDirectory {
+    std::string name;
+    std::uint32_t flags{};
+    std::uint32_t pamt_checksum{};
+    bool operator==(const PapgtDirectory&) const = default;
+};
+std::vector<PapgtDirectory> parse_papgt(const Bytes& data);
+// `header` is the first twelve bytes of the source file (empty for zeros).
+Bytes serialize_papgt(const std::vector<PapgtDirectory>& directories, const Bytes& header);
+// `data` with `name` mounted, first when `first`; a listed directory keeps its place.
+Bytes papgt_with_directory(const Bytes& data, const std::string& name, std::uint32_t pamt_checksum,
+                           std::uint32_t flags = papgt_default_flags, bool first = true);
+
+// archive_overlay.build_overlay_archive: one archive directory holding only these files.
+struct OverlayFile {
+    std::string path;
+    Bytes payload;  // stored bytes, already compressed/encrypted as `flags` says
+    std::uint64_t orig_size{};
+    std::uint64_t flags{};
+};
+struct OverlayEntry {
+    std::string path;
+    std::uint64_t offset{}, stored_size{}, orig_size{};
+};
+struct OverlayArchive {
+    Bytes pamt, paz;
+    std::uint32_t pamt_checksum{};
+    std::vector<OverlayEntry> entries;
+};
+OverlayArchive build_overlay_archive(const std::vector<OverlayFile>& files);
+
 namespace lz4 {
 // One raw LZ4 block that must expand to exactly output_size bytes.
 Bytes decompress(const std::uint8_t* data, std::size_t size, std::size_t output_size);

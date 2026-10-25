@@ -2,14 +2,24 @@
 // overlay_merge.py byte for byte. Not shipped.
 //
 //   cdmw_compose_cli merge <request> <response>
+//   cdmw_compose_cli overlay <request> <response>
+//   cdmw_compose_cli papgt-add <papgt> <response> <name> <checksum> <flags> <first 0|1>
+//   cdmw_compose_cli papgt-roundtrip <papgt> <response>
+//   cdmw_compose_cli checksum <input> <output>
 //   cdmw_compose_cli lz4-compress <input> <output>
 //   cdmw_compose_cli lz4-decompress <input> <output> <size>
 //
-// Request:  "CDMWMRG1", then before, after and current, each: u32 count, then per file
-//           u32 path length, UTF-8 path, u8 present, [u64 size, bytes].
-// Response: "CDMWRES1", u8 status (0 ok, 1 conflict, 2 format error, 3 unsupported,
-//           4 internal error), u32 message length, message, then on success the result
-//           files in order, encoded like a request map.
+// Merge request:   "CDMWMRG1", then before, after and current, each: u32 count, then per
+//                  file u32 path length, UTF-8 path, u8 present, [u64 size, bytes].
+// Overlay request: "CDMWOVL1", u32 count, then per file u32 path length, path, u64 size,
+//                  payload, u64 orig_size, u64 flags.
+// Response:        "CDMWRES1", u8 status (0 ok, 1 conflict, 2 format error, 3 unsupported,
+//                  4 internal error), u32 message length, message, then on success:
+//                  merge: the result files in order, encoded like a request map;
+//                  overlay: u64 + PAMT, u64 + PAZ, u32 PAMT checksum, u32 count, then per
+//                  entry u32 + path, u64 offset, u64 stored size, u64 orig size;
+//                  papgt: u64 + bytes.
+// checksum writes u32 calculate_pa_checksum and u32 hashlittle(data, 0xC5EDE).
 #include "cdmw_composer/composer.hpp"
 
 #include <cstring>
@@ -94,14 +104,10 @@ Bytes response(std::uint8_t status, const std::string& message, const FileMap* f
     return out;
 }
 
-Bytes merge(const Bytes& request) {
-    Cursor in(request);
-    if (in.take(8) != Bytes{'C', 'D', 'M', 'W', 'M', 'R', 'G', '1'}) throw std::runtime_error("not a merge request");
-    const auto before = read_map(in), after = read_map(in), current = read_map(in);
-    if (!in.done()) throw std::runtime_error("trailing request bytes");
+template <class Action>
+Bytes answer(Action action) {
     try {
-        const auto result = merge_overlay_files(before, after, current);
-        return response(0, "", &result);
+        return action();
     } catch (const OverlayConflict& error) {
         return response(1, error.what(), nullptr);
     } catch (const FormatError& error) {
@@ -113,6 +119,57 @@ Bytes merge(const Bytes& request) {
     }
 }
 
+void put_bytes(Bytes& out, const Bytes& data, std::size_t width) {
+    put(out, data.size(), width);
+    out.insert(out.end(), data.begin(), data.end());
+}
+
+Bytes merge(const Bytes& request) {
+    Cursor in(request);
+    if (in.take(8) != Bytes{'C', 'D', 'M', 'W', 'M', 'R', 'G', '1'}) throw std::runtime_error("not a merge request");
+    const auto before = read_map(in), after = read_map(in), current = read_map(in);
+    if (!in.done()) throw std::runtime_error("trailing request bytes");
+    return answer([&] {
+        const auto result = merge_overlay_files(before, after, current);
+        return response(0, "", &result);
+    });
+}
+
+Bytes overlay(const Bytes& request) {
+    Cursor in(request);
+    if (in.take(8) != Bytes{'C', 'D', 'M', 'W', 'O', 'V', 'L', '1'}) throw std::runtime_error("not an overlay request");
+    std::vector<OverlayFile> files(in.number(4));
+    for (auto& file : files) {
+        const auto path = in.take(in.number(4));
+        file.path.assign(path.begin(), path.end());
+        file.payload = in.take(in.number(8));
+        file.orig_size = in.number(8);
+        file.flags = in.number(8);
+    }
+    if (!in.done()) throw std::runtime_error("trailing request bytes");
+    return answer([&] {
+        const auto archive = build_overlay_archive(files);
+        auto out = response(0, "", nullptr);
+        put_bytes(out, archive.pamt, 8);
+        put_bytes(out, archive.paz, 8);
+        put(out, archive.pamt_checksum, 4);
+        put(out, archive.entries.size(), 4);
+        for (const auto& entry : archive.entries) {
+            put_bytes(out, Bytes(entry.path.begin(), entry.path.end()), 4);
+            put(out, entry.offset, 8);
+            put(out, entry.stored_size, 8);
+            put(out, entry.orig_size, 8);
+        }
+        return out;
+    });
+}
+
+Bytes bytes_response(const Bytes& data) {
+    auto out = response(0, "", nullptr);
+    put_bytes(out, data, 8);
+    return out;
+}
+
 }  // namespace
 
 int main(int argc, char** argv) {
@@ -120,6 +177,22 @@ int main(int argc, char** argv) {
         const std::string command = argc > 1 ? argv[1] : "";
         if (command == "merge" && argc == 4) {
             write_file(argv[3], merge(read_file(argv[2])));
+        } else if (command == "overlay" && argc == 4) {
+            write_file(argv[3], overlay(read_file(argv[2])));
+        } else if (command == "papgt-add" && argc == 8) {
+            const auto data = read_file(argv[2]);
+            const std::string name = argv[4], first = argv[7];
+            const auto checksum = static_cast<std::uint32_t>(std::stoul(argv[5])), flags = static_cast<std::uint32_t>(std::stoul(argv[6]));
+            write_file(argv[3], answer([&] { return bytes_response(papgt_with_directory(data, name, checksum, flags, first == "1")); }));
+        } else if (command == "papgt-roundtrip" && argc == 4) {
+            const auto data = read_file(argv[2]);
+            write_file(argv[3], answer([&] { return bytes_response(serialize_papgt(parse_papgt(data), Bytes(data.begin(), data.begin() + std::min<std::size_t>(12, data.size())))); }));
+        } else if (command == "checksum" && argc == 4) {
+            const auto data = read_file(argv[2]);
+            Bytes out;
+            put(out, pa_checksum(data.data(), data.size()), 4);
+            put(out, hashlittle(data.data(), data.size(), 0xC5EDE), 4);
+            write_file(argv[3], out);
         } else if (command == "lz4-compress" && argc == 4) {
             const auto input = read_file(argv[2]);
             write_file(argv[3], lz4::compress(input.data(), input.size()));

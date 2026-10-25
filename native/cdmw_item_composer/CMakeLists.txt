@@ -19,6 +19,9 @@ add_library(cdmw_item_composer STATIC
     src/pathc.cpp
     src/icon_registry.cpp
     src/overlay_merge.cpp
+    src/checksum.cpp
+    src/papgt.cpp
+    src/overlay_archive.cpp
 )
 target_include_directories(cdmw_item_composer PUBLIC include PRIVATE src)
 
