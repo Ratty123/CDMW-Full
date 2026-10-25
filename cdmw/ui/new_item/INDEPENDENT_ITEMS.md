@@ -1942,36 +1942,54 @@ creation. Its 201 fake-only checks cover pipe capacity/ownership, framed status
 and explicit process retirement. A frozen predecessor was refused because
 optimized Python could erase helper assertions; its successor requires isolated,
 nonoptimized interpreters before setup. Timestamp and failure-receipt corrections
-retain the failed first fake run. Both native products remain unqualified;
-no actual channel has executed.
+retain the failed first fake run. Those IPC2 source-stage results remain
+historical; the current IPC3 product and actual-attempt status is recorded below.
 
-The guardian, collector process and acknowledgment publisher now pass
-independent successor source review and 243 focused file-only checks. The
-successor accepts witnessed empty diagnostic logs while refusing empty code and
-JSON. Three actual owned Windows retained-handle cases, six compiled synthetic
-record cases and three actual owned crash-lease cases pass independent actual
-review. The current guardian consumes all three recorded component proofs in a
-separate file-only check; no native case was replayed.
+The retained guardian V2 source passes independent review and 243 focused
+file-only checks, including witnessed empty diagnostic logs while refusing empty
+code and JSON. Its three owned Win32 handle cases, six compiled synthetic wire
+cases and three owned crash-lease cases retain their independent actual reviews.
+Those three component records remain unchanged.
 
-These results establish the scoped Windows API and synthetic record behavior.
-They do not establish the composed watch, engine lifetime, hard timing or outer
-tool/legacy controller handle closure. The complete watch still requires exact
-current caller compile/link and fresh same-binary inert proof, both reviewed
-channel products and the seven-case actual IPC qualification. Game mode also
-requires a successful independently reviewed owned full-watch run with the same
-components and current launch/install/recovery proof. Normal worker exit is
-required for completion; forced cleanup proves retirement only. Engine lifetime,
-coherent publication, resources and saves remain open.
+The current V6 caller now passes strict zero-warning compile/link from a shorter
+source and output location. All 34 native program/CMake/header files match V5
+byte for byte. This actual build resolves the observed path-length failures;
+the existing identity header was never missing. The original long-path failures
+and the intervening guard refusal before compilation remain preserved. The
+fresh output has its own reviewed wrapper and dispatch record; later linked
+review must join both that outer provenance and the inner build proof.
 
-The first caller configuration failed on a 263-character tracker-log path. A
-reviewed shorter output path fixed configuration, then compilation could not
-open an existing identity-map header through a 263-character lexical include.
-Static include inspection finds no missing header; a shorter source location
-must test the path-length explanation. The first channel-owner DLL compiled and linked
-but was refused for conflicting Release assertion flags. Its V2 successor
-passes strict zero-warning compile/link; linked review and actual IPC remain
-outstanding.
-Both native products remain unqualified; no actual channel has executed.
+Both V2 channel products also pass strict zero-warning compile/link and exact
+linked review for the source-reviewed IPC3 qualifier. Its 201 focused fake
+checks pass. The first actual publish case refuses the pipe endpoint/type/read
+mode/instance predicate before starting the producer. The failing endpoint,
+individual comparison and raw returned values were not recorded, so the cause
+is still unknown; no predicate relaxation is justified.
+
+Independent bounded cleanup review confirms the two first input-pipe handles,
+owner DLL/kernel references and the direct case process were released; the
+case process exited 1 and its retained handle closed. The original case and
+outer failure/resource-false flags remain unchanged. This does not certify the
+legacy identity module, lifetime Job, unexposed tool handle or whole process
+tree. No later IPC case ran. A separate pipe-only raw-readback diagnostic is
+being qualified; its first source candidate was refused for exceptional child
+cleanup and final-receipt gaps and has never executed.
+
+The watcher V3 successor binds IPC3 and the V6 build provenance and passes 251
+focused file-only checks, but independent review refuses it: components() still
+references two locals moved into its validation helper. Those checks missed
+the integration path, so V3 must not activate. A small unfrozen successor adds
+direct components() coverage and removes the obsolete references; it has no
+new validation or execution approval yet.
+
+Current-caller linked review and fresh same-binary inactive loading, successful
+seven-case IPC qualification and the actual owned complete-watch qualification
+remain required. Game mode additionally requires reviewed current launch,
+installation and recovery scope. Normal worker completion is required; forced
+cleanup establishes retirement only. No controlled game run occurred. Engine
+lifetime, coherent publication/readers, native resources, item lifecycle and
+saves remain open; native_admission=false and all original acceptance lines
+remain unchanged.
 
 The three-case owned crash-lease qualifier now passes actual Windows review,
 including guardian death with an independently retained target handle and live
