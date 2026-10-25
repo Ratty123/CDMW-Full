@@ -2255,8 +2255,10 @@ reference is explicitly released, and fresh scoped censuses are empty. The
 lifetime Job and outer tool/tree proof limits remain explicit. The fixture now has complete independent linked approval: its six callbacks
 and read-only token match the actual executable. Its entry path uses the
 separate fixture adapter; unused production parser symbols retained in linked
-protocol code are not evidence of game execution. The fixture has not run;
-actual complete-watch qualification remains required.
+protocol code are not evidence of game execution. The fixture has now run in
+the first complete owned attempt described below. Independent physical-byte
+review finds its record internally consistent; this does not establish timely
+Collector qualification or complete-watch success.
 
 The production V6 source/PE/MAP/disassembly linkage now has complete
 independent approval against this exact watcher and its actual build/output
@@ -2283,9 +2285,38 @@ changed source after validation. That source and its refusal remain immutable;
 it was never executed. The successor protects the full creation-to-ownership
 registration boundary and loads only the unique frozen Job source row. It
 preserves the original checks, adds the failure regressions and passes all 62
-focused isolated cases. V2 is frozen for a separate complete independent source
-review, with the same approved fixture, component bytes and owned launch scope.
-Neither operator has run; actual complete-watch qualification remains pending. No engine/resource/item/save
+focused isolated cases. V2 passes complete independent source review with the
+same approved fixture, component bytes and owned launch scope. Its first launch
+is refused before any owned native operation because another build is active.
+That build exits naturally; the separately verified idle orphaned reuse worker
+is stopped under the user's standing authorization. The unchanged fresh attempt
+passes its global guards, prepares both monitoring workers, binds the actual
+fixture/host/guardian identities, publishes the ACK and runs the native fixture.
+
+The first actual complete-watch result is failed and remains immutable. The
+Collector refuses a start record as future. Independent source review identifies
+a stale pre-I/O timestamp race: newly published start bytes may be compared with
+an earlier tick, and completion work may be backdated. The exact failed poll tick
+was not logged. Independent decoding consumes all 7,616 fixture bytes and joins
+the actual manifest, policy, ACK, start, scalar channel, actor births/session and
+seven linked API addresses. The owned record has consistent native worker
+retirement and lifecycle counters, but the Collector qualified no physical
+completion and recorded no qualified completion tick. Both monitoring workers
+exit zero normally, and the guardian's scoped target/worker/control retirement
+checks pass. The outer controller exits one, forcibly stops its host, reports
+unknown ownership and resources false, and retains nine handles without explicit
+closure or API-module release proof. Process exit does not turn this into a
+global resource-return certificate. A repeated pending-stop source defect is a
+qualified secondary explanation; swallowed cleanup diagnostics prevent assigning
+that exact branch to this actual attempt.
+
+Separate source-only successors are being prepared. Collector clocks will be
+sampled after the relevant reads and completion joins, including inside the
+physical start observer. The external operator now joins an already requested
+stop on the same retained child instead of requesting another stop; five focused
+pure checks pass for that pending-stop path. These drafts are not frozen,
+independently approved or executed. The failed full-watch cannot admit game mode;
+a new approved complete owned qualification remains mandatory. No engine/resource/item/save
 lifecycle proof or native admission follows from these prerequisite results.
 
 The actual owned complete-watch qualification remains required before
