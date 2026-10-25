@@ -15,6 +15,13 @@
 //   cdmw_compose_cli sha256 <input>                           prints the hex digest
 //   cdmw_compose_cli inflate <input> <output> <limit>
 //   cdmw_compose_cli zip <archive> <response>
+//   cdmw_compose_cli compose <request> <response> <root> [<group>]
+//   cdmw_compose_cli group-name <root>                         prints the free group name
+//
+// Compose request: "CDMWCMP1", u32 package count, then per package u32 change count and per
+// change u32 + path, u8 present + [u64 + before], u8 present + [u64 + after], u64 flags,
+// u8 meta. It answers u32 + group, u32 composed count, u32 file count and per file u32 +
+// path, u64 + bytes.
 //
 // Merge request:   "CDMWMRG1", then before, after and current, each: u32 count, then per
 //                  file u32 path length, UTF-8 path, u8 present, [u64 size, bytes].
@@ -240,6 +247,43 @@ Bytes zip_listing(const Bytes& data) {
     });
 }
 
+Bytes compose(const Bytes& request, const char* root, const char* group) {
+    Cursor in(request);
+    if (in.take(8) != Bytes{'C', 'D', 'M', 'W', 'C', 'M', 'P', '1'}) throw std::runtime_error("not a compose request");
+    std::vector<PackageChanges> packages(in.number(4));
+    for (auto& changes : packages) {
+        const auto count = in.number(4);
+        for (std::uint64_t i = 0; i < count; ++i) {
+            const auto path = in.take(in.number(4));
+            Change change;
+            if (in.number(1)) change.before = std::make_shared<const Bytes>(in.take(in.number(8)));
+            if (in.number(1)) change.after = std::make_shared<const Bytes>(in.take(in.number(8)));
+            change.flags = in.number(8);
+            change.meta = in.number(1) != 0;
+            changes.emplace_back(std::string(path.begin(), path.end()), std::move(change));
+        }
+    }
+    if (!in.done()) throw std::runtime_error("trailing request bytes");
+    return answer([&] {
+        const auto base = detail::path_of(root);
+        std::string name = group ? group : "";
+        if (name.empty()) {
+            std::ifstream stream(base / "meta" / "0.papgt", std::ios::binary);
+            name = free_group_name(base, Bytes((std::istreambuf_iterator<char>(stream)), std::istreambuf_iterator<char>()));
+        }
+        const auto view = compose_view(base, packages, name);
+        auto out = response(0, "", nullptr);
+        put_bytes(out, text(view.group), 4);
+        put(out, view.composed, 4);
+        put(out, view.files.size(), 4);
+        for (const auto& [path, data] : view.files) {
+            put_bytes(out, text(path), 4);
+            put_bytes(out, data, 8);
+        }
+        return out;
+    });
+}
+
 Bytes read_archives(const char* root, const Bytes& papgt, int count, char** paths) {
     return answer([&] {
         const MountedArchives archives(detail::path_of(root), papgt);
@@ -318,6 +362,11 @@ int main(int argc, char** argv) {
             }
         } else if (command == "zip" && argc == 4) {
             write_file(argv[3], zip_listing(read_file(argv[2])));
+        } else if (command == "compose" && (argc == 5 || argc == 6)) {
+            write_file(argv[3], compose(read_file(argv[2]), argv[4], argc == 6 ? argv[5] : nullptr));
+        } else if (command == "group-name" && argc == 3) {
+            const auto base = detail::path_of(argv[2]);
+            std::cout << free_group_name(base, read_file(detail::utf8_of(base / "meta" / "0.papgt").c_str())) << '\n';
         } else if (command == "lz4-compress" && argc == 4) {
             const auto input = read_file(argv[2]);
             write_file(argv[3], lz4::compress(input.data(), input.size()));

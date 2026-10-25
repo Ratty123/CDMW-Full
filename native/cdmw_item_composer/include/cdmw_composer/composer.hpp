@@ -133,6 +133,31 @@ private:
 // slashes, ASCII lower case.
 std::string normalize_game_path(const std::string& path);
 
+// One owned change of a package: the file before and after the package, as the package
+// recorded it, with the archive flags its stored form takes and whether it is mount
+// metadata (meta/0.pathc) rather than a file of the private group.
+struct Change {
+    Blob before, after;
+    std::uint64_t flags{};
+    bool meta = false;
+};
+using PackageChanges = std::vector<std::pair<std::string, Change>>;
+
+// The files a composition publishes, in prepare_profile's order: meta/0.papgt, then the
+// group's 0.pamt and 0.paz when any file changed, then meta/0.pathc when there is one.
+struct ComposedView {
+    std::string group;
+    std::vector<std::pair<std::string, Bytes>> files;
+    std::size_t composed = 0;  // files in the private group
+};
+// archive_overlay_install.overlay_directory_name for a fresh overlay: the first free
+// four-digit name from 0036 that is neither a folder under `root` nor in the mount list.
+std::string free_group_name(const std::filesystem::path& root, const Bytes& papgt);
+// Merge each package's changes, in order, onto what the game reads today (the mounted
+// archives and meta/0.pathc) and build the private group `group` from the files that
+// changed. Packages with field or texture operations are not composed here.
+ComposedView compose_view(const std::filesystem::path& root, const std::vector<PackageChanges>& packages, const std::string& group);
+
 std::array<std::uint8_t, 32> sha256(const std::uint8_t* data, std::size_t size);
 std::string sha256_hex(const Bytes& data);
 // Raw DEFLATE, refusing what zlib refuses and output past `limit` bytes.

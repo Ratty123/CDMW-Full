@@ -26,6 +26,7 @@ add_library(cdmw_item_composer STATIC
     src/sha256.cpp
     src/inflate.cpp
     src/zip_reader.cpp
+    src/composition.cpp
 )
 target_include_directories(cdmw_item_composer PUBLIC include PRIVATE src)
 

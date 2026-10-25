@@ -45,6 +45,17 @@ And it reads what the game would read before the composition:
   them, as the game does, so a composition builds on DMM's edits instead of hiding them.
   Directories the list does not name are not mounted.
 
+It composes a private view at launch:
+
+- `compose_view(root, packages, group)`: each package's owned changes (`Change`: before,
+  after, archive flags, mount-metadata mark) merge in order onto what the game reads
+  today, through `MountedArchives` and `meta/0.pathc`. The changed files become the
+  private group `group`, mounted first in the published `meta/0.papgt`, beside the
+  composed `meta/0.pathc`: `prepare_profile`'s tail for packages without field or texture
+  operations. The change records will come from the packages' `runtime/` members;
+- `free_group_name`: `overlay_directory_name` for a fresh overlay, the first free
+  four-digit name from 0036 that is neither a folder nor a mount-list entry.
+
 And it reads `.cditem` packages:
 
 - `ZipArchive`: `zipfile.ZipFile` as `independent_item_package` uses it: the end-record
@@ -88,7 +99,7 @@ Composed payloads and rewritten `.paloc` containers therefore match Python exact
 cmake -S native/cdmw_item_composer -B native/cdmw_item_composer/build -A x64
 cmake --build native/cdmw_item_composer/build --config Release
 ctest --test-dir native/cdmw_item_composer/build -C Release --output-on-failure
-.\.venv\Scripts\python.exe -m pytest tests/test_native_overlay_merge.py tests/test_native_archive_writer.py tests/test_native_archive_reader.py tests/test_native_package_reader.py -q
+.\.venv\Scripts\python.exe -m pytest tests/test_native_overlay_merge.py tests/test_native_archive_writer.py tests/test_native_archive_reader.py tests/test_native_package_reader.py tests/test_native_composition.py -q
 ```
 
 These run every case through both implementations and compare the bytes; they skip when
@@ -101,8 +112,9 @@ virtual loader, which builds with the same static runtime and warning settings.
 
 ## Not yet ported
 
-The package `runtime/` members, the launch-time composition that ties these parts
-together, and its use in the virtual loader are the next steps. `cdmw_archive_core` was not reused for reading: its scan sorts groups instead
+The package `runtime/` members (patch 0004's `minimal_changes()` output and the parser
+that turns them into `Change` records), and the composition's use in the virtual loader
+at launch, are the next steps. `cdmw_archive_core` was not reused for reading: its scan sorts groups instead
 of following the mount list, and its decoder skips Python's plaintext validation.
 Packages with field or texture operations (`prepare_fields` / `prepare_textures`) are out
 of scope for v1.
