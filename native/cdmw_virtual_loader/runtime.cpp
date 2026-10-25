@@ -236,10 +236,115 @@ void acknowledge(const Manifest& m, DWORD code) {
     std::array<DWORD, 3> message{ready_magic, GetCurrentProcessId(), code}; DWORD written{};
     require(WriteFile(session_pipe, message.data(), sizeof(message), &written, nullptr) && written == sizeof(message), "Readiness handshake failed");
 }
+bool same_size_and_time(const Handle& file, const CatalogueGuard& guard) {
+    BY_HANDLE_FILE_INFORMATION info{};
+    if (!GetFileInformationByHandle(file.value, &info) || (info.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)) return false;
+    const auto size = (uint64_t(info.nFileSizeHigh) << 32) | info.nFileSizeLow;
+    const auto modified = (uint64_t(info.ftLastWriteTime.dwHighDateTime) << 32) | info.ftLastWriteTime.dwLowDateTime;
+    return size == guard.size && modified == guard.last_write;
+}
+std::string utf8(const fs::path& path) {
+    const auto text = path.u8string();
+    return std::string(reinterpret_cast<const char*>(text.data()), text.size());
+}
+void require_source(bool okay, const char* reason, const fs::path& path) {
+    if (!okay) throw std::runtime_error(std::string(reason) + ": " + utf8(path) + ". Apply changes in CDMW and publish the profile again.");
+}
+// Launcher-independent activation of a profile CDMW published for any launcher.
+// No host checks the sources first, so every guard is checked and pinned here,
+// before a single import is hooked. Any refusal leaves the game unmodded.
+void initialize_standalone(const fs::path& root, const fs::path& path) {
+    const auto started = GetTickCount64();
+    std::wstring generation;
+    try {
+        auto manifest = read_manifest(path);
+        generation = manifest.generation;
+        require(manifest.mode == Mode::standalone, "The launcher profile has the wrong mode");
+        require(normalize(root) == normalize(manifest.root), "The launcher profile belongs to another installation");
+        require(normalize(own_executable()) == normalize(executable(manifest)), "Unexpected game process");
+        require(hash_file(own_executable()) == manifest.executable, "The game executable changed since the profile was published");
+#ifndef CDMW_VIRTUAL_TESTING
+        require(hex(manifest.executable) == game_hash, "Unverified game build");
+#endif
+        using LoaderCallout = BOOLEAN (NTAPI*)();
+        const auto loader_callout = reinterpret_cast<LoaderCallout>(GetProcAddress(GetModuleHandleW(L"ntdll.dll"), "RtlIsThreadWithinLoaderCallout"));
+        const DWORD loader_context = loader_callout ? loader_callout() : MAXDWORD;
+#ifdef CDMW_VIRTUAL_TESTING
+        const bool startup_verified = true; // The synthetic child has no game startup path.
+#else
+        std::array<void*, 64> startup_frames{};
+        const auto frame_count = CaptureStackBackTrace(0, static_cast<DWORD>(startup_frames.size()), startup_frames.data(), nullptr);
+        const bool startup_verified = loader_context == 0 && first_live_thread() &&
+            VerifiedBootstrap(root).accepts_startup(std::span<void* const>(startup_frames.data(), frame_count), GetModuleHandleW(nullptr));
+        if (!startup_verified) {
+            std::ostringstream detail;
+            detail << "Unverified startup path; items were not loaded. Loader callout " << loader_context << ". Stack: ";
+            for (USHORT i = 0; i < frame_count; ++i) detail << address_label(startup_frames[i]) << "; ";
+            throw std::runtime_error(detail.str());
+        }
+#endif
+        for (const auto& guard : manifest.guards) {
+            if (!guard.present) { require_source(!fs::exists(guard.path), "A file appeared after the profile was published", guard.path); continue; }
+            Handle pin(CreateFileW(guard.path.c_str(), GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr));
+            require_source(bool(pin), "Cannot open a profile source", guard.path);
+            require_source(hash_file(guard.path) == guard.sha, "A game, mod or CDMW file changed after the profile was published", guard.path);
+            pins.push_back(std::move(pin));
+        }
+        for (const auto& guard : manifest.catalogue) {
+            if (!guard.present) { require_source(!fs::exists(guard.path), "A file appeared after the profile was published", guard.path); continue; }
+            Handle pin(CreateFileW(guard.path.c_str(), GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr));
+            require_source(bool(pin) && same_size_and_time(pin, guard), "A game or mod archive changed after the profile was published", guard.path);
+            pins.push_back(std::move(pin));
+        }
+        runtime_lane = CreateFileW(manifest.lane.c_str(), GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE,
+                                   nullptr, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
+        require(runtime_lane != INVALID_HANDLE_VALUE, "Cannot retain runtime lease");
+        OVERLAPPED lease{}; lease.Offset = 1;
+        require(LockFileEx(runtime_lane, LOCKFILE_EXCLUSIVE_LOCK | LOCKFILE_FAIL_IMMEDIATELY, 0, 1, 0, &lease), "CDMW is changing this installation; items were not loaded");
+        for (const auto& file : manifest.files) {
+            Handle pin(CreateFileW(file.path.c_str(), GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr));
+            require_source(bool(pin), "Cannot pin a prepared item file", file.path);
+            require_source(hash_file(file.path) == file.sha, "A prepared item file changed", file.path);
+            pins.push_back(std::move(pin));
+            mappings.push_back({normalize(root / file.logical), file.path.wstring()});
+            const fs::path logical(file.logical);
+            if (logical.extension() == L".pamt") directories.push_back({normalize(root / logical.parent_path()), file.path.parent_path().wstring()});
+        }
+        auto log = root / L".cdmw/virtual-loader/trace-standalone.bin";
+        trace_file = CreateFileW(log.c_str(), GENERIC_WRITE, FILE_SHARE_READ, nullptr, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
+        require(trace_file != INVALID_HANDLE_VALUE, "Cannot create bounded trace");
+        HMODULE pinned{};
+        require(GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_PIN,
+                                  reinterpret_cast<LPCWSTR>(&initialize_standalone), &pinned), "Cannot pin runtime module");
+        mode = Mode::standalone;
+        record(0, L"CDMW virtual trace v1 (standalone)", false, 0);
+        record(11, L"InitializeASI loader callout (0 means outside)", false, loader_context);
+        record(12, L"Verified early GetCommandLineW startup path", false, startup_verified ? 1 : 0);
+        hook_imports(root);
+        record(13, L"All approved file import hooks installed", false, 0);
+        Handle writer(CreateThread(nullptr, 0, flush_trace, nullptr, 0, nullptr));
+        require(bool(writer), "Cannot start trace writer");
+        runtime_state.store(1, std::memory_order_release);
+        standalone_status(root, "ready", generation, 0, "", GetTickCount64() - started);
+    } catch (const std::exception& error) {
+        runtime_state.store(2, std::memory_order_release);
+        mode = Mode::trace;
+        for (auto it = patches.rbegin(); it != patches.rend(); ++it) { try { if (*it->slot == it->after) exchange(*it, false); } catch (...) {} }
+        mappings.clear(); directories.clear(); pins.clear();
+        try { standalone_status(root, "refused", generation, ERROR_NOT_SUPPORTED, error.what(), GetTickCount64() - started); } catch (...) {}
+        throw;
+    }
+}
 void initialize() {
     auto root = own_executable().parent_path().parent_path();
     auto path = root / L".cdmw/virtual-loader/session.bin";
-    if (!fs::is_regular_file(path)) return; // Every ordinary launch remains inert.
+    if (!fs::is_regular_file(path)) {
+        // A launch CDMW did not start (Steam, DMM) uses a published standalone
+        // profile when one exists. Every other ordinary launch remains inert.
+        auto standalone = root / L".cdmw/virtual-loader/standalone.bin";
+        if (fs::is_regular_file(standalone)) initialize_standalone(root, standalone);
+        return;
+    }
     auto manifest = read_manifest(path);
     const bool claiming = manifest.pid == 0 && manifest.host_pid && !manifest.launcher.empty();
     if ((!claiming && manifest.pid != GetCurrentProcessId()) || normalize(root) != normalize(manifest.root)) return;

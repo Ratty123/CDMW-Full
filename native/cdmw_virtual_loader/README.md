@@ -174,6 +174,38 @@ the harness. The
 [feature loading map and acceptance gates](../../cdmw/ui/new_item/VIRTUAL_LOADER.md)
 are the authoritative scope and limitations.
 
+## Launcher-independent profiles
+
+Standalone mode 4 lets the runtime load an applied profile when CDMW did not start
+the game, for example from Steam or a mod manager such as DMM. CDMW publishes
+`.cdmw/virtual-loader/standalone.bin` (same `CDVFS3` format, no PIDs, host or
+launcher) only after the runtime setup is current and every source and prepared
+file has been hashed. When no session descriptor exists, the runtime reads that
+profile and, before hooking any import, checks the exact game executable, the
+verified early startup path, every content guard (indexes, sources up to 1 MiB, the
+installed runtime, the bootstrap and CDMW's own state files), size and write time
+for larger carriers, and the prepared snapshot hashes. It then takes the
+installation lease, so CDMW cannot change the installation while the game runs.
+Any mismatch leaves the game unmodded. Each launch writes
+`standalone-status.json` (`ready` or `refused` with the reason) and a bounded
+`trace-standalone.bin`. A mod manager that rebuilds PAPGT or PATHC after CDMW
+applied the profile with different content makes it stale; apply and publish again.
+
+```powershell
+.\.venv\Scripts\python.exe scripts/cditem_standalone.py --game-root "<game>" publish
+.\.venv\Scripts\python.exe scripts/cditem_standalone.py --game-root "<game>" status
+.\.venv\Scripts\python.exe scripts/cditem_standalone.py --game-root "<game>" smoke
+.\.venv\Scripts\python.exe scripts/cditem_standalone.py --game-root "<game>" withdraw
+```
+
+`smoke` launches through Steam, waits for the runtime's report and for redirected
+opens of `meta/0.papgt` and the profile's private group index, closes only the
+process the report names (`WM_CLOSE`, then termination), and confirms PAPGT,
+PATHC, every group PAMT, the runtime and the bootstrap are unchanged. It sends no
+input and captures no screen. Reports go to `workspace/reports/cditem-smoke/`.
+A pass shows the files were served at startup; it does not show the items in a
+shop or inventory.
+
 ## Independent item publication research
 
 The separate [paired-publication experiment](research/README.md) prepares both
