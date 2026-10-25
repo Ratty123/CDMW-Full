@@ -66,6 +66,19 @@ def test_runtime_setup_failure_rolls_back_new_files(tmp_path, monkeypatch):
     assert not (root / runtime.OWNER_PATH).exists()
 
 
+@pytest.mark.parametrize('changed', [False, True])
+def test_runtime_setup_recognises_current_bootstrap_without_weakening_hash_guard(tmp_path, monkeypatch, changed):
+    root, _ = setup_fixture(tmp_path, monkeypatch)
+    current = b'owned current-bootstrap fixture'
+    monkeypatch.setattr(runtime, 'BOOTSTRAP_CURRENT_SHA256', digest(current))
+    (root / 'bin64/winmm.dll').write_bytes(current + (b'changed' if changed else b''))
+    if changed:
+        with pytest.raises(VirtualLoaderError, match='compatible ASI bootstrap'):
+            runtime.prepare_runtime_setup(root)
+    else:
+        assert runtime.prepare_runtime_setup(root).root == root
+
+
 def test_owned_runtime_updates_without_review_and_current_runtime_is_a_noop(tmp_path, monkeypatch):
     root, original = setup_fixture(tmp_path, monkeypatch)
     runtime.apply_runtime_setup(runtime.prepare_runtime_setup(root), confirmed=True)

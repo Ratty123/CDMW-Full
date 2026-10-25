@@ -34,6 +34,18 @@ int wmain(int argc, wchar_t** argv) {
             require(!matches_startup_frames(frames, bootstrap, game), "Reordered startup path accepted");
             std::swap(frames[2], frames[3]); frames[5] = reinterpret_cast<void*>(game + 0x10958a49);
             require(!matches_startup_frames(frames, bootstrap, game), "Unknown game startup caller accepted");
+            std::array<void*, 5> current_frames{
+                reinterpret_cast<void*>(bootstrap + 0x218a1), reinterpret_cast<void*>(bootstrap + 0x30df8),
+                reinterpret_cast<void*>(bootstrap + 0x333b3), reinterpret_cast<void*>(bootstrap + 0x1f918),
+                reinterpret_cast<void*>(game + 0x10958a48)};
+            require(matches_startup_frames(current_frames, bootstrap, game, true), "Current bootstrap startup path refused");
+            require(!matches_startup_frames(current_frames, bootstrap, game), "Current frames accepted for legacy bootstrap");
+            require(!matches_startup_frames(std::span<void* const>(current_frames.data(), 4), bootstrap, game, true), "Truncated current startup path accepted");
+            for (size_t i = 0; i < current_frames.size(); ++i) {
+                auto changed = current_frames;
+                changed[i] = reinterpret_cast<void*>(reinterpret_cast<uintptr_t>(changed[i]) + 1);
+                require(!matches_startup_frames(changed, bootstrap, game, true), "Changed current startup return address accepted");
+            }
             std::cout << "protocol self-test passed\n"; return 0;
         }
         auto root = own_executable().parent_path().parent_path();
@@ -89,11 +101,20 @@ int wmain(int argc, wchar_t** argv) {
             require(VirtualProtect(&__imp_GetProcAddress, sizeof(void*), PAGE_READWRITE, &lookup_protect), "Cannot isolate fixture lookup");
             __imp_GetProcAddress = procedure_lookup;
             VirtualProtect(&__imp_GetProcAddress, sizeof(void*), lookup_protect, &lookup_ignored);
-            require(VerifiedBootstrap(root).accepts("CreateFileA", base + 0x1f260, expected), "Known bootstrap refused");
-            require(!VerifiedBootstrap(root).accepts("CreateFileA", base + 0x1f261, expected), "Wrong bootstrap entry accepted");
+            const bool current_layout = hex(hash_file(root / L"bin64/winmm.dll")) == "fa266e3513d02c08a1b808f28c10538a489eaffaa4b0707f7cc1066e71b5afd7";
+            const auto open = current_layout ? 0x1f330 : 0x1f260;
+            const auto flags = current_layout ? 0xb4bd4 : 0xb2b24;
+            const auto open_import = current_layout ? 0x840f8 : 0x820f8;
+            const auto command = current_layout ? 0x1f8f0 : 0x1f820;
+            const auto command_import = current_layout ? 0x840e0 : 0x820e0;
+            require(VerifiedBootstrap(root).accepts("CreateFileA", base + open, expected), "Known bootstrap refused");
+            require(!VerifiedBootstrap(root).accepts("CreateFileA", base + open + 1, expected), "Wrong bootstrap entry accepted");
             auto game = GetModuleHandleW(nullptr);
-            std::array<void*, 5> startup_frames{base + 0x21785, base + 0x308e8, base + 0x32e13, base + 0x1f848,
-                reinterpret_cast<void*>(reinterpret_cast<uintptr_t>(game) + 0x10958a48)};
+            const auto startup_frames = current_layout ?
+                std::array<void*, 5>{base + 0x218a1, base + 0x30df8, base + 0x333b3, base + 0x1f918,
+                    reinterpret_cast<void*>(reinterpret_cast<uintptr_t>(game) + 0x10958a48)} :
+                std::array<void*, 5>{base + 0x21785, base + 0x308e8, base + 0x32e13, base + 0x1f848,
+                    reinterpret_cast<void*>(reinterpret_cast<uintptr_t>(game) + 0x10958a48)};
             // Synthetic addresses exercise witnesses, not real game timing.
             require(VerifiedBootstrap(root).accepts_startup(startup_frames, game), "Known startup witnesses refused");
             std::array<void*, 32> actual{};
@@ -107,19 +128,23 @@ int wmain(int argc, wchar_t** argv) {
                 require(VirtualProtect(at, size, PAGE_EXECUTE_READWRITE, &protect), "Cannot stage witness test");
                 memset(at, 0, size);
                 const bool accepted = startup ? VerifiedBootstrap(root).accepts_startup(startup_frames, game) :
-                    VerifiedBootstrap(root).accepts("CreateFileA", base + 0x1f260, expected);
+                    VerifiedBootstrap(root).accepts("CreateFileA", base + open, expected);
                 memcpy(at, saved.data(), size);
                 DWORD ignored{}; require(VirtualProtect(at, size, protect, &ignored), "Cannot restore witness test");
                 FlushInstructionCache(GetCurrentProcess(), at, size);
                 require(!accepted, failure);
             };
-            reject_mutation(base + 0x1f260, 1, "Changed forwarding instructions accepted");
-            reject_mutation(base + 0xb2b28, 4, "Unfinished restore phase accepted");
-            reject_mutation(base + 0xb2b24, 4, "Unstarted plugin phase accepted");
-            reject_mutation(base + 0x820f8, sizeof(void*), "Changed forwarding destination accepted");
-            reject_mutation(base + 0x1f820, 1, "Changed startup instructions accepted", true);
-            reject_mutation(base + 0x820e0, sizeof(void*), "Changed startup forwarding destination accepted", true);
-            reject_mutation(base + 0xb2b28, 4, "Unfinished startup restore phase accepted", true);
+            reject_mutation(base + open, 1, "Changed forwarding instructions accepted");
+            reject_mutation(base + flags + 4, 4, "Unfinished restore phase accepted");
+            reject_mutation(base + flags, 4, "Unstarted plugin phase accepted");
+            reject_mutation(base + open_import, sizeof(void*), "Changed forwarding destination accepted");
+            reject_mutation(base + command, 1, "Changed startup instructions accepted", true);
+            reject_mutation(base + command_import, sizeof(void*), "Changed startup forwarding destination accepted", true);
+            reject_mutation(base + flags + 4, 4, "Unfinished startup restore phase accepted", true);
+            std::ofstream verified(root / L".cdmw/virtual-loader/harness-bootstrap-result.txt");
+            verified << "bootstrap and startup witnesses passed";
+            verified.close();
+            require(static_cast<bool>(verified), "Cannot write bootstrap witness result");
         }
         auto path = root / L"meta/0.papgt";
         auto check_read = [&](bool modern, bool overlapped) {
