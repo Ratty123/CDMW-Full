@@ -1,10 +1,11 @@
 """Publish, inspect or smoke-test the launcher-independent CDMW profile.
 
-publish   Let any launcher (Steam, DMM) load the applied profile. Hashes every source once.
-withdraw  Stop launcher-independent loading. The applied profile is kept.
-status    Show the runtime's report and trace from the most recent launch.
-smoke     Launch through Steam, check the runtime's report and trace, close the game,
-          and confirm the installation's index files are unchanged. No input is sent.
+update-runtime  Update CDMW's own installed runtime ASI to this build. Never replaces a foreign file.
+publish         Let any launcher (Steam, DMM) load the applied profile. Hashes every source once.
+withdraw        Stop launcher-independent loading. The applied profile is kept.
+status          Show the runtime's report and trace from the most recent launch.
+smoke           Launch through Steam, check the runtime's report and trace, close the game,
+                and confirm the installation's index files are unchanged. No input is sent.
 """
 import argparse
 from datetime import datetime
@@ -25,6 +26,7 @@ def _parser():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument('--game-root', type=Path, required=True, help='The Crimson Desert installation folder.')
     commands = parser.add_subparsers(dest='command', required=True)
+    commands.add_parser('update-runtime')
     commands.add_parser('publish')
     commands.add_parser('withdraw')
     status = commands.add_parser('status')
@@ -38,6 +40,12 @@ def _parser():
 
 def _run(args):
     root = args.game_root.resolve()
+    if args.command == 'update-runtime':
+        from cdmw.services.virtual_loader_runtime import apply_runtime_setup, prepare_runtime_setup
+        plan = prepare_runtime_setup(root)
+        if plan.previous is not None and not plan.owned:
+            raise VirtualLoaderError('The installed runtime is not owned by CDMW. Set it up from CDMW instead.')
+        return {'runtime_sha256': apply_runtime_setup(plan, confirmed=plan.previous is None)}
     if args.command == 'publish':
         result = standalone.publish_standalone(root, on_progress=lambda done, total, _text: print(
             f'\rChecking sources {done}/{total}', end='', file=sys.stderr, flush=True))

@@ -192,6 +192,7 @@ Any mismatch leaves the game unmodded. Each launch writes
 applied the profile with different content makes it stale; apply and publish again.
 
 ```powershell
+.\.venv\Scripts\python.exe scripts/cditem_standalone.py --game-root "<game>" update-runtime
 .\.venv\Scripts\python.exe scripts/cditem_standalone.py --game-root "<game>" publish
 .\.venv\Scripts\python.exe scripts/cditem_standalone.py --game-root "<game>" status
 .\.venv\Scripts\python.exe scripts/cditem_standalone.py --game-root "<game>" smoke
