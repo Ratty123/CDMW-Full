@@ -2089,9 +2089,9 @@ intersection points on the retained preview.
 can be configured first. The editor displays the upcoming 100% default, allowing
 0% to be chosen explicitly. Explicit Part and mesh-island Tightness choices, including
 0%, remain authoritative on subsequent fits and in saved setups. Modes, intensity,
-masks and allowed body regions are retained. Fit needs no viewport selection, body
-slider, original body or skeleton; inputs must already share the intended alignment
-and pose. Choose 0% Tightness for loose skirts, drapes and hanging trim that should
+masks and allowed body regions are retained. Fit needs no viewport selection or body
+slider; inputs must already share the intended alignment and pose. The original body
+is optional and is found automatically (see the authored body below). Choose 0% Tightness for loose skirts, drapes and hanging trim that should
 retain their silhouette while clearing local intersections. Use Part, mesh-island
 or local influence controls when snug and loose cloth share one material.
 Intermediate Tightness checks the requested shape before publishing it, and zero
@@ -2102,6 +2102,32 @@ fit over that cloth. Rigid accessories receive their whole-piece placement from
 the fitted support; their separate body targets do not distort the cloth's fit.
 Clearance, authored thickness and folds can still leave space; inspect the result
 before Bake, especially where hard pieces overlap several layers.
+
+**Authored body.** When the bound garments come from archive Refit assets that share
+one skeleton, Fit also uses the body they were authored on. `mesh_refit_reference_lookup` resolves the
+garment PAC's skeleton (`resolve_skeleton_for_model`), takes the nude body of that rig
+folder (the same choice as character preview) and resolves the driver's skeleton the
+same way. `mesh_refit_reference` retargets that body with its own skin weights from
+its bind pose into the driver skeleton's (`inv(bind_source) @ bind_target` per bone,
+nearest shared ancestor for a missing bone), posed through each asset's character
+appearance so it matches the viewport. The service sends it with the Fit settings as
+one undoable `morph_set_reference_body`. Natively, what remains between the moved
+body and the driver becomes one smooth displacement field that every garment samples,
+so stacked layers move together; rigid pieces take the field's best rigid motion
+(touching rigid pieces, also across Parts, move as one assembly) and a bounded
+relaxation restores layer order, clearance, cloth edge lengths and rigid shapes. The
+same small-accessory inference as the bound fitter makes unmarked closed attachments
+rigid. Disabled Parts, removed islands, masks and post-refit corrections behave as in
+the bound fitter; Tightness and Intensity are not used. The reference survives
+rebinding, is dropped by Reset and Bake, is stored in runtime snapshot version 5 and
+is reported, with the latest fit's diagnostics, as `morph_state.refit.reference_body`.
+The panel's **Use the authored body** (default on) sends `reference_body: false` to
+fit the driver alone; Fit also falls back to the driver alone, with a diagnostic, when
+the garments did not come from the archive, the skeletons or nude body cannot be
+resolved, or the garments were authored on the driver itself.
+`tools/refit_reference_harness.py` scores a fit on real PACs (rigid distortion, new
+inside-body vertices, new layer crossings, cloth edge strain); it is development
+evidence, not proof of in-game behaviour.
 
 Turned rims retain their authored width across the edge while their circumference
 can contract. Thickness constraints run with body and layer contact checks, including
