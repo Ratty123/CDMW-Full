@@ -633,38 +633,78 @@ global resource-return certificate. A repeated pending-stop source defect is a
 qualified secondary explanation; swallowed cleanup diagnostics prevent assigning
 that exact branch to this actual attempt.
 
-At this snapshot, frozen Watcher V6 has complete independent source approval
-for all 17 authored files and 917 declared inputs. Its final combined pure run
-records 670 passed and one skipped physical-symlink creation branch in 59.99
-seconds; synthetic reparse and hard-link checks remain covered. Both stale-clock
-defects are resolved at source level: the physical start observer samples after
-its reads, and both Collectors take fresh authoritative clock samples after
-reads, decoding, metadata joins and result projection. Constructors receive an
-explicit clock without querying it; live workers supply their own clock. The
-13-key result projection, future/backward/invalid-clock refusals, native protocol
-and deferred launch gates remain unchanged. This source approval does not prove
-actual Windows timing or a successful complete watch.
+Watcher V6 has complete independent source approval for all 17 authored
+files and 917 declared inputs. Its combined pure run records 670 passed and one
+skipped physical-symlink creation branch in 59.99 seconds; synthetic reparse and
+hard-link checks remain covered. The physical start observer samples its clock
+after reads, and both Collectors sample after reads, decoding, metadata joins
+and result projection. Those source repairs preserve the native protocol,
+13-key result projection and deferred launch gates. Source and pure checks do
+not alone prove actual Windows timing or a complete watch.
 
-The nineteen retained component cases now have separate Watch V6 independent
-reaffirmations without replay, and the fresh owned launch scope V2 is independently
-reviewed. The new V7 production linked review joins this exact Watch V6 source
-and approval to the unchanged production V6 source, compiled image, build proof,
-output wrapper and ABI. The owned fixture C++ and compiled binary are unchanged.
-These are component, scope and static linkage proofs; they do not replace the
-current inactive-load or complete owned-watch prerequisites.
+The nineteen retained component cases have separate Watch V6 independent
+reaffirmations without replay, and the fresh owned launch scope V2 is reviewed.
+The V7 production linked review joins this exact Watch V6 source and approval
+to the unchanged production V6 image, source, build/output wrapper and ABI.
+The owned fixture C++ and compiled binary are unchanged. The current component
+bundle V2 joins those prerequisites to the current inactive-load evidence.
 
-The unchanged exact-current-linked-review gate requires a fresh inactive V5
-qualification. Its source is frozen and its 19 final pure checks pass in 0.32
-seconds; complete independent source review is pending. At this snapshot no
-inactive V5 actual or fresh owned complete-watch V2 attempt has started. External
-operator V3 remains unfrozen and unapproved while those prerequisites are joined.
-Six focused pure pending-stop and diagnostic checks pass in 0.11 seconds; the
-final 67-case run has not occurred. This does not establish a closed global
-resource return. The failed first full-watch result and independent refusal
-remain unchanged: its consistent owned fixture subset is not timely Collector
-or complete-watch evidence. A newly approved, successful complete owned
-qualification remains mandatory before game mode. No engine/resource/item/save
-lifecycle proof or native admission follows from these prerequisite results.
+Inactive qualifier V5 now has complete independent source and actual approval
+for this Watch V6 context. Its newly created direct BASE child loads the exact
+production V6 image, observes state zero before and after initialization,
+explicitly unloads it and observes its absence. The retained child handle and
+child/controller query-module references have recorded explicit release; no
+timeout, forced cleanup, partial observation or unknown owner is reported.
+This is inactive evidence only. The sealed external return receipt retains an
+inherited WatchV5 descriptive label; its exact current source/linked pins and
+the separate actual review bind Watch V6. That old receipt is unchanged.
+Lifetime Job return, the outer tool process handle and global process/kernel
+closure remain outside the recorded proof; no engine API or session ran.
+
+External operator V3 is frozen with three authored files and 990 declared
+inputs and has complete independent source approval. It joins an already
+requested stop on the same retained child and keeps diagnostic failures from
+erasing ownership facts. Its first final pure run retains one failed inherited
+V2-path assertion and 66 passing cases. Correcting only that test to check the
+fresh scope and immutable failed predecessor leaves the operational sources
+unchanged; the final run records all 67 cases passing in 0.84 seconds. A separate
+global-guard refusal before Job, child or handle creation remains preserved.
+Those checks and source approval are distinct from the fresh owned actual below.
+
+The second complete owned-watch attempt is failed and independently refused.
+The Collector reports that its decoded result differs from the actual native
+wire, then exits two with a stop attempt and forced cleanup. No Collector FINAL
+or qualified completion tick is recorded, and the guardian exits one. The ACK
+publisher exits zero, while the host requires a forced stop. This is not a
+successful watch or an end-to-end verification of the clock repairs.
+
+Independent decoding consumes the complete 7,616-byte owned record. A separate
+pure reproduction identifies the same representation mismatch: JSON copying
+changes only the decoder's counts tuple into a list, preserving all six values
+but violating strict equality with the reparsed raw record. The strict transport
+correctly refuses that change. The source analogue also exists in the production
+Collector; no production execution was performed. The worker's hidden result,
+status and completion tick were not retained, so the physical counterexample
+does not establish timely acceptance or rule out additional unlogged issues.
+
+The outer operator records all 18 direct handles and its API reference returned
+with known ownership. The inner worker records close all 14 handles, and parent
+control resources return, but the guardian's aggregate resource result remains
+false and Collector retirement required forced cleanup. This separates scoped
+cleanup from qualification; it is not a lifetime Job, outer tool handle or global
+process/kernel closure certificate. Both failed complete-watch attempts and
+their independent refusals remain unchanged.
+
+A separate Watcher V7 and Collectors V2 successor is now frozen with 18 authored
+files and 1,031 declared inputs. The combined pure run records 698 passed and one
+skipped physical-symlink creation branch in 57.94 seconds, including 28 new real
+decoder-to-transport composition cases. The functional repair uses an isolated
+defensive copy for the two decoded outputs, preserving the canonical tuple and
+strict raw/decoded equality. Decoder/transport bytes and native admission gates
+remain unchanged, as do frozen Watcher V6, Collectors V1 and operator V3.
+Complete independent Watcher V7 source review is pending at this snapshot.
+These source and pure results are not a repaired native actual or a successful
+whole-watch qualification; both failed actual verdicts remain unchanged.
 
 The actual owned complete-watch qualification remains required before
 controlled game testing. Game mode additionally requires reviewed current launch,
