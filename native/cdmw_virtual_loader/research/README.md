@@ -695,27 +695,54 @@ cleanup from qualification; it is not a lifetime Job, outer tool handle or globa
 process/kernel closure certificate. Both failed complete-watch attempts and
 their independent refusals remain unchanged.
 
-A separate Watcher V7 and Collectors V2 successor is now frozen with 18 authored
-files and 1,031 declared inputs. The combined pure run records 698 passed and one
-skipped physical-symlink creation branch in 57.94 seconds, including 28 new real
-decoder-to-transport composition cases. The functional repair uses an isolated
-defensive copy for the two decoded outputs, preserving the canonical tuple and
-strict raw/decoded equality. Decoder/transport bytes and native admission gates
-remain unchanged, as do frozen Watcher V6, Collectors V1 and operator V3.
-Complete independent Watcher V7 source review is pending at this snapshot.
-These source and pure results are not a repaired native actual or a successful
-whole-watch qualification; both failed actual verdicts remain unchanged.
+The previously pending Watcher V7 source review and owned complete-watch
+qualification are complete. `retirement-watch-owned-actual-v3` records normal
+completion and return of its declared owned resources. Earlier failed actuals
+remain retained. The game adaptation reuses the qualified native watch and
+transport bodies, ASI and host; unchanged binaries and developer qualification
+were not rebuilt or replayed.
 
-The actual owned complete-watch qualification remains required before
-controlled game testing. Game mode additionally requires reviewed current launch,
-installation and recovery scope. Normal worker completion is required; forced
-cleanup establishes retirement only. No controlled game run occurred. Engine
-lifetime, coherent publication/readers, native resources, item lifecycle and
-saves remain open; native_admission=false and all original acceptance lines
-remain unchanged.
+**Bounded real-game result, 2026-10-25:** Crimson Desert `1.0.0.2976`, PID 40416,
+executed the B80 private Cache/Router retirement route. The physical 7,616-byte
+completed record is accepted with failure reason zero, all 16 phases, 64 step
+events and 72 context events. Both native OS threads have matching process/thread
+identities, successful work and independently observed OS retirement with exit
+code zero. The represented stock-manager snapshot is identical before and after,
+including its 6,816 primary and metadata entries; this is a bounded snapshot,
+not a proof of general publication or reader safety.
 
-The three-case owned crash-lease qualifier now passes actual Windows review,
+The external collector and ACK publisher also exit normally with code zero.
+The complete watch qualifies the physical result and returns its declared owned
+resources without forced worker cleanup or unknown ownership. The ACK is observed
+within the original ten-second launch deadline, and completion is within the
+native and outer deadlines, without rebasing the clock. The watch then requests
+the bounded game stop and proves target retirement; target exit code 1 is retained.
+No visible gameplay or playable independent item was observed.
+
+The original runner receipt remains `FAILED_OR_INCOMPLETE`: recovery refused to
+remove additional FastLoad settings/logs. The temporary ASI, session and staged
+stock generation are removed. Postflight confirms six installed loader/mod
+companions unchanged, 39 complete file hashes unchanged (35 PAMT indexes and four
+metadata files), 193 PAZ metadata fingerprints unchanged, and all 26 saves and
+verified backup copies unchanged. PAZ payloads were not fully hashed. The user
+explicitly chose to keep the current FastLoad runtime data, including later
+runtime logs; original folder/startup-file absence is deliberately not restored.
+That retention decision is recorded separately and does not rewrite the failed
+runner receipt.
+
+The confirming source baseline is `aab11130c90ac1e1180529c135dfaaf3ce4f92ae` plus
+the separately frozen game adapter. The real-game receipt is
+`retirement-game-actual-v5/actual-result.json`, SHA-256
+`e20e0cca21b44860f8620a0436cc09fc51afcdff2464733e5556e20e5d820e41`;
+its preservation assessment records the explicit runtime-data exception.
+This closes the bounded game-experiment milestone. Coherent publication/readers,
+actual resource consumption, independent-item registration and native save
+lifecycle remain open. `native_admission=false`; all 45 original CDISO/CDRUN
+acceptance lines remain unchanged and full feature completion remains unproved.
+
+The separately qualified three-case owned crash lease remains retained,
 including guardian death with an independently retained target handle and live
-unassigned sentinel. Composed-watch execution, deadline and stop latency,
-game Job compatibility and admission remain open.
+unassigned sentinel. The bounded game result above now exercises the composed
+watch; general game Job compatibility, hard real-time Windows guarantees and
+production admission remain unproved.
 `native_admission=false`.
