@@ -46,6 +46,7 @@ experimental-feature notes do not establish equivalent in-game behavior.
 - Mesh Editor Free Edit lets imported meshes choose or change their output folder and avoids clone-related whole-Part deletion failures while retaining Undo/Redo. Remove Duplicates supports skinned meshes in Free Edit and Exact PAC LOD0 output, retaining surviving vertices' deliberately edited weights and safely updating identical stored LODs. Moving vertices before Remove Duplicates no longer causes a false vertex-count rejection at Finish in either output mode. Unrecorded skin changes remain blocked, and Free Edit OBJ output omits rig weights. Other Exact cleanup actions remain restricted. Physics labels identify retained source data and explain that OBJ output does not preserve game physics.
 - Mesh Editor opens successive PAC files from either Archive Browser action without getting stuck waiting for a previous mesh's textures.
 - Switching away from Create New Item while its interface starts no longer causes a false timeout. Returning continues the same workspace.
+- Mesh Editor translates its remaining English labels, tooltips, messages and body-control slider names in German, Spanish, French, Italian, Brazilian Portuguese, Polish, Turkish, Korean and Chinese, and corrects mistranslated 3D terms in all 13 translations, including Bake, Fit, Scale, Free Edit, view directions, garment binding and hair locks. Russian and Japanese still show some English text for now.
 
 ### Docs
 
