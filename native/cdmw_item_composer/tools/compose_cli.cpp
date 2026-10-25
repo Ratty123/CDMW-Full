@@ -8,6 +8,10 @@
 //   cdmw_compose_cli checksum <input> <output>
 //   cdmw_compose_cli lz4-compress <input> <output>
 //   cdmw_compose_cli lz4-decompress <input> <output> <size>
+//   cdmw_compose_cli store <input> <response> <flags> <basename>
+//   cdmw_compose_cli text-check <input>                       prints 1 or 0
+//   cdmw_compose_cli pamt <pamt> <response>
+//   cdmw_compose_cli read-archives <root> <papgt> <response> <path>...
 //
 // Merge request:   "CDMWMRG1", then before, after and current, each: u32 count, then per
 //                  file u32 path length, UTF-8 path, u8 present, [u64 size, bytes].
@@ -20,7 +24,12 @@
 //                  entry u32 + path, u64 offset, u64 stored size, u64 orig size;
 //                  papgt: u64 + bytes.
 // checksum writes u32 calculate_pa_checksum and u32 hashlittle(data, 0xC5EDE).
+// store answers like papgt. pamt answers u32 count, then per entry u32 + path, u64 offset,
+// u64 stored size, u64 orig size, u32 flags, u32 PAZ index. read-archives answers u32
+// count, then per path u8 status (0 found, 1 absent, 2 format error, 3 unsupported),
+// u32 + message, and when found u32 + PAMT path, u32 flags, u64 + decoded bytes.
 #include "cdmw_composer/composer.hpp"
+#include "composer_internal.hpp"
 
 #include <cstring>
 #include <fstream>
@@ -170,6 +179,58 @@ Bytes bytes_response(const Bytes& data) {
     return out;
 }
 
+Bytes text(const std::string& value) { return Bytes(value.begin(), value.end()); }
+
+Bytes pamt_listing(const Bytes& data, const char* path) {
+    return answer([&] {
+        const auto entries = parse_pamt(data, detail::path_of(path));
+        auto out = response(0, "", nullptr);
+        put(out, entries.size(), 4);
+        for (const auto& entry : entries) {
+            put_bytes(out, text(entry.path), 4);
+            put(out, entry.offset, 8);
+            put(out, entry.stored_size, 8);
+            put(out, entry.orig_size, 8);
+            put(out, entry.flags, 4);
+            put(out, entry.paz_index, 4);
+        }
+        return out;
+    });
+}
+
+Bytes read_archives(const char* root, const Bytes& papgt, int count, char** paths) {
+    return answer([&] {
+        const MountedArchives archives(detail::path_of(root), papgt);
+        auto out = response(0, "", nullptr);
+        put(out, static_cast<std::uint64_t>(count), 4);
+        for (int i = 0; i < count; ++i) {
+            const auto* entry = archives.find(paths[i]);
+            std::uint8_t status = entry ? 0 : 1;
+            std::string message;
+            Bytes data;
+            if (entry) {
+                try {
+                    data = read_entry(*entry);
+                } catch (const FormatError& error) {
+                    status = 2;
+                    message = error.what();
+                } catch (const Unsupported& error) {
+                    status = 3;
+                    message = error.what();
+                }
+            }
+            out.push_back(status);
+            put_bytes(out, text(message), 4);
+            if (status == 0) {
+                put_bytes(out, text(detail::utf8_of(entry->pamt_path)), 4);
+                put(out, entry->flags, 4);
+                put_bytes(out, data, 8);
+            }
+        }
+        return out;
+    });
+}
+
 }  // namespace
 
 int main(int argc, char** argv) {
@@ -193,6 +254,16 @@ int main(int argc, char** argv) {
             put(out, pa_checksum(data.data(), data.size()), 4);
             put(out, hashlittle(data.data(), data.size(), 0xC5EDE), 4);
             write_file(argv[3], out);
+        } else if (command == "store" && argc == 6) {
+            const auto data = read_file(argv[2]);
+            const auto flags = std::stoull(argv[4]);
+            write_file(argv[3], answer([&] { return bytes_response(stored_payload(data, flags, argv[5])); }));
+        } else if (command == "text-check" && argc == 3) {
+            std::cout << (detail::text_like(read_file(argv[2])) ? 1 : 0) << '\n';
+        } else if (command == "pamt" && argc == 4) {
+            write_file(argv[3], pamt_listing(read_file(argv[2]), argv[2]));
+        } else if (command == "read-archives" && argc >= 5) {
+            write_file(argv[4], read_archives(argv[2], read_file(argv[3]), argc - 5, argv + 5));
         } else if (command == "lz4-compress" && argc == 4) {
             const auto input = read_file(argv[2]);
             write_file(argv[3], lz4::compress(input.data(), input.size()));

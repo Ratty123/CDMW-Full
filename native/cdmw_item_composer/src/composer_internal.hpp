@@ -39,12 +39,26 @@ inline Bytes slice(const Bytes& data, std::size_t begin, std::size_t end) {
 }
 inline Bytes bytes_of(std::string_view text) { return Bytes(text.begin(), text.end()); }
 inline std::string text_of(const Bytes& data) { return std::string(data.begin(), data.end()); }
+// Byte comparisons: a `char` above 0x7F is negative, so compare as unsigned.
+inline bool same_byte(char text, std::uint8_t byte) { return static_cast<std::uint8_t>(text) == byte; }
 inline bool starts_with(const Bytes& data, std::string_view prefix) {
-    return data.size() >= prefix.size() && std::equal(prefix.begin(), prefix.end(), data.begin());
+    return data.size() >= prefix.size() &&
+           std::equal(prefix.begin(), prefix.end(), data.begin(), [](char a, std::uint8_t b) { return same_byte(a, b); });
 }
 inline bool contains(const Bytes& data, std::string_view needle) {
-    return std::search(data.begin(), data.end(), needle.begin(), needle.end()) != data.end();
+    return std::search(data.begin(), data.end(), needle.begin(), needle.end(),
+                       [](std::uint8_t a, char b) { return same_byte(b, a); }) != data.end();
 }
+
+// archive_format's try_decode_text_like_archive_data(data) is not None.
+bool text_like(const Bytes& data);
+
+// UTF-8 text <-> paths (C++20 spells UTF-8 as char8_t).
+inline std::string utf8_of(const std::filesystem::path& path) {
+    const auto text = path.u8string();
+    return std::string(text.begin(), text.end());
+}
+inline std::filesystem::path path_of(std::string_view text) { return std::filesystem::path(std::u8string(text.begin(), text.end())); }
 
 // Python's strict UTF-8 decoder: well-formed sequences only (no overlongs, surrogates or
 // code points past U+10FFFF).

@@ -24,11 +24,11 @@ std::size_t extended(const std::uint8_t* data, std::size_t size, std::size_t& at
 }
 }  // namespace
 
-// Accepts exactly the blocks liblz4's LZ4_decompress_safe accepts for a full-size decode:
-// a sequence whose literals end within the last twelve output bytes must be the last one
-// and end the input, matches stay inside the output and end before its last five bytes,
-// and offset 0 copies zeros as the reference decoder does.
-Bytes decompress(const std::uint8_t* data, std::size_t size, std::size_t output_size) {
+// Accepts exactly the blocks liblz4's LZ4_decompress_safe accepts into `output_size`
+// bytes of room: a sequence whose literals end within the last twelve bytes of room must
+// be the last one and end the input, matches stay inside the output and end before the
+// last five bytes of room, and offset 0 copies zeros as the reference decoder does.
+Bytes decompress_upto(const std::uint8_t* data, std::size_t size, std::size_t output_size) {
     Bytes out(output_size);
     if (output_size == 0) {
         if (size == 1 && data[0] == 0) return out;
@@ -62,7 +62,13 @@ Bytes decompress(const std::uint8_t* data, std::size_t size, std::size_t output_
         }
         op += length;
     }
-    if (op != output_size) corrupt("it expands to a different size");
+    out.resize(op);
+    return out;
+}
+
+Bytes decompress(const std::uint8_t* data, std::size_t size, std::size_t output_size) {
+    auto out = decompress_upto(data, size, output_size);
+    if (out.size() != output_size) corrupt("it expands to a different size");
     return out;
 }
 

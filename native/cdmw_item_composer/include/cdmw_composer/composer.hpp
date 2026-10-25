@@ -3,6 +3,7 @@
 #pragma once
 #include <cstddef>
 #include <cstdint>
+#include <filesystem>
 #include <memory>
 #include <stdexcept>
 #include <string>
@@ -93,9 +94,49 @@ struct OverlayArchive {
 };
 OverlayArchive build_overlay_archive(const std::vector<OverlayFile>& files);
 
+// archive_patching: the bytes an archive stores for `data` under `flags` (compression type
+// in the low nibble, ChaCha20 keyed by the file name when any higher bit is set).
+Bytes stored_payload(const Bytes& data, std::uint64_t flags, const std::string& basename);
+// archive_format.crypt_chacha20_filename; the same call encrypts and decrypts.
+Bytes crypt_chacha20(const Bytes& data, const std::string& basename);
+
+// archive_format.ArchiveEntry: one file of a mounted archive group.
+struct ArchiveEntry {
+    std::string path;
+    std::filesystem::path pamt_path, paz_path;
+    std::uint64_t offset{}, stored_size{}, orig_size{};
+    std::uint32_t flags{}, paz_index{};
+};
+// archive_format.parse_archive_pamt_bytes, its name-trie and folder-range rules included.
+std::vector<ArchiveEntry> parse_pamt(const Bytes& data, const std::filesystem::path& pamt_path);
+// archive_extraction.read_archive_entry_data: the decoded bytes, decrypting and
+// decompressing as Python does for the tables, string tables and XML a composition reads.
+Bytes read_entry(const ArchiveEntry& entry);
+
+// The archive groups the game mounts, in the order `papgt` lists them (DMM's groups
+// included), each read from `<root>/<group>/0.pamt`. The first group holding a path wins.
+class MountedArchives {
+public:
+    MountedArchives(const std::filesystem::path& root, const Bytes& papgt);
+    // The entry the game reads for `path` (compared as archive_format normalizes it), or null.
+    const ArchiveEntry* find(const std::string& path) const;
+    const std::vector<std::string>& groups() const { return groups_; }
+
+private:
+    std::vector<std::string> groups_;
+    std::vector<ArchiveEntry> entries_;
+    std::unordered_map<std::string, std::size_t> first_;
+};
+
+// archive_format's normalized game path: forward slashes, no surrounding white space or
+// slashes, ASCII lower case.
+std::string normalize_game_path(const std::string& path);
+
 namespace lz4 {
 // One raw LZ4 block that must expand to exactly output_size bytes.
 Bytes decompress(const std::uint8_t* data, std::size_t size, std::size_t output_size);
+// lz4.block.decompress(uncompressed_size=capacity): the block may expand to fewer bytes.
+Bytes decompress_upto(const std::uint8_t* data, std::size_t size, std::size_t capacity);
 // A valid raw LZ4 block. Not byte-identical to liblz4's encoder; decoders agree on its contents.
 Bytes compress(const std::uint8_t* data, std::size_t size);
 }  // namespace lz4

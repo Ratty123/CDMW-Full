@@ -22,11 +22,13 @@ add_library(cdmw_item_composer STATIC
     src/checksum.cpp
     src/papgt.cpp
     src/overlay_archive.cpp
+    src/archive_reader.cpp
 )
 target_include_directories(cdmw_item_composer PUBLIC include PRIVATE src)
 
 add_executable(cdmw_compose_cli tools/compose_cli.cpp)
 target_link_libraries(cdmw_compose_cli PRIVATE cdmw_item_composer)
+target_include_directories(cdmw_compose_cli PRIVATE src)
 
 add_executable(cdmw_item_composer_self_test tests/self_test.cpp)
 target_link_libraries(cdmw_item_composer_self_test PRIVATE cdmw_item_composer)
