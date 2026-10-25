@@ -504,12 +504,28 @@ def test_standalone_profile_refuses_changes_after_publication(tmp_path, change, 
     assert not (root / '.cdmw/virtual-loader/harness-result.txt').exists()
 
 
-def test_production_asi_refuses_a_standalone_profile_for_another_process(tmp_path):
+def test_production_asi_stays_silent_in_another_program(tmp_path):
     from cdmw.services import virtual_loader_standalone as standalone
     root, _generation, _source, _carrier = standalone_fixture(tmp_path, production=True)
-    result = subprocess.run([str(root / 'bin64/cdmw_virtual_loader_harness.exe'), '--blocked'], capture_output=True, timeout=10)
+    result = subprocess.run([str(root / 'bin64/cdmw_virtual_loader_harness.exe'), '--inert'], capture_output=True, timeout=10)
     assert result.returncode == 0, result.stderr.decode(errors='replace')
-    status = standalone.read_standalone_status(root)
-    assert status.state == 'refused' and 'Unexpected game process' in status.detail
+    assert standalone.read_standalone_status(root) is None
     assert not (root / '.cdmw/virtual-loader/harness-result.txt').exists()
     assert not (root / standalone.TRACE_PATH).exists()
+
+
+def test_a_helper_program_in_bin64_leaves_the_game_report_alone(tmp_path):
+    # The game's crash handler starts beside it and loads the same bootstrap and runtime.
+    from cdmw.services import virtual_loader_standalone as standalone
+    root, generation, _source, _carrier = standalone_fixture(tmp_path)
+    game = subprocess.run([str(root / 'bin64/cdmw_virtual_loader_harness.exe')], capture_output=True, timeout=40, cwd=root / 'bin64')
+    assert game.returncode == 0, game.stderr.decode(errors='replace')
+    report, trace = (root / standalone.STATUS_PATH).read_bytes(), (root / standalone.TRACE_PATH).read_bytes()
+    helper = root / 'bin64/crashpad_handler.exe'
+    shutil.copy2(root / 'bin64/cdmw_virtual_loader_harness.exe', helper)
+    result = subprocess.run([str(helper), '--inert'], capture_output=True, timeout=10, cwd=root / 'bin64')
+    assert result.returncode == 0, result.stderr.decode(errors='replace')
+    assert (root / standalone.STATUS_PATH).read_bytes() == report
+    assert (root / standalone.TRACE_PATH).read_bytes() == trace
+    status = standalone.read_standalone_status(root)
+    assert (status.state, status.generation) == ('ready', generation)

@@ -188,7 +188,8 @@ for larger carriers, and the prepared snapshot hashes. It then takes the
 installation lease, so CDMW cannot change the installation while the game runs.
 Any mismatch leaves the game unmodded. Each launch writes
 `standalone-status.json` (`ready` or `refused` with the reason) and a bounded
-`trace-standalone.bin`. A mod manager that rebuilds PAPGT or PATHC after CDMW
+`trace-standalone.bin`. Other programs in `bin64` that load the bootstrap, such as the
+crash handler that starts with every launch, leave both files alone and stay inert. A mod manager that rebuilds PAPGT or PATHC after CDMW
 applied the profile with different content makes it stale; apply and publish again.
 
 ```powershell

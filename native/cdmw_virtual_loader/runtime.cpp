@@ -335,6 +335,18 @@ void initialize_standalone(const fs::path& root, const fs::path& path) {
         throw;
     }
 }
+// The bootstrap also loads into other programs in bin64; the crash handler starts with
+// every launch. They stay inert and silent, so the status report remains the game's.
+bool runs_the_game(const fs::path& root) {
+    try {
+        Manifest expected;
+        expected.mode = Mode::standalone;
+        expected.root = root;
+        return normalize(own_executable()) == normalize(executable(expected));
+    } catch (...) {
+        return true;  // A path this cannot resolve is reported by the full check.
+    }
+}
 void initialize() {
     auto root = own_executable().parent_path().parent_path();
     auto path = root / L".cdmw/virtual-loader/session.bin";
@@ -342,7 +354,7 @@ void initialize() {
         // A launch CDMW did not start (Steam, DMM) uses a published standalone
         // profile when one exists. Every other ordinary launch remains inert.
         auto standalone = root / L".cdmw/virtual-loader/standalone.bin";
-        if (fs::is_regular_file(standalone)) initialize_standalone(root, standalone);
+        if (fs::is_regular_file(standalone) && runs_the_game(root)) initialize_standalone(root, standalone);
         return;
     }
     auto manifest = read_manifest(path);
