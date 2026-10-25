@@ -456,7 +456,9 @@ def standalone_fixture(tmp_path, *, production=False):
 def test_standalone_profile_redirects_without_a_session_host(tmp_path):
     from cdmw.services import virtual_loader_standalone as standalone
     root, generation, _source, _carrier = standalone_fixture(tmp_path)
-    result = subprocess.run([str(root / 'bin64/cdmw_virtual_loader_harness.exe')], capture_output=True, timeout=40)
+    # Launched as a game would be, from bin64: the harness checks relative aliases.
+    result = subprocess.run([str(root / 'bin64/cdmw_virtual_loader_harness.exe')], capture_output=True, timeout=40,
+                            cwd=root / 'bin64')
     assert result.returncode == 0, result.stderr.decode(errors='replace')
     assert (root / '.cdmw/virtual-loader/harness-result.txt').read_text() == 'native IO passed'
     assert (root / 'meta/0.papgt').read_bytes() == b'original'
@@ -464,7 +466,7 @@ def test_standalone_profile_redirects_without_a_session_host(tmp_path):
     assert (status.state, status.detail, status.generation) == ('ready', '', generation)
     rows = standalone.read_standalone_trace(root)
     assert rows[0].operation == 'initialize' and any(r.operation == 'file hooks ready' for r in rows)
-    assert any(r.redirected and r.path.lower().endswith('meta\\0.papgt') for r in rows)
+    assert any(r.redirected and r.path.replace('/', '\\').lower().endswith('meta\\0.papgt') for r in rows)
     assert not list((root / '.cdmw/virtual-loader').glob('session-*.json'))
 
 
