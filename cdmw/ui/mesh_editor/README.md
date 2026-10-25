@@ -2114,7 +2114,10 @@ appearance so it matches the viewport. The service sends it with the Fit setting
 one undoable `morph_set_reference_body`. Natively, what remains between the moved
 body and the driver becomes one smooth displacement field that every garment samples,
 so stacked layers move together; rigid pieces take the field's best rigid motion
-(touching rigid pieces, also across Parts, move as one assembly) and a bounded
+(touching rigid pieces, also across Parts, move as one assembly, unless one rigid
+motion would sink part of it into the body where the body's own motion keeps it
+outside; it then splits into sub-assemblies that join only a small piece onto a
+larger one, so a row of studs along a strap follows a changed chest) and a bounded
 relaxation restores layer order, clearance, cloth edge lengths and rigid shapes. Layer
 constraints weigh as much as cloth edges and use a plain (not over-relaxed) step; a
 constraint whose particle has slid more than three layer radii from its authored

@@ -21,6 +21,13 @@ constexpr std::size_t REFIT_REFERENCE_FIELD_NEIGHBOURS = 48;
 constexpr double REFIT_REFERENCE_FIELD_WIDTH = 0.012;
 constexpr double REFIT_REFERENCE_FIELD_SPREAD = 0.6;
 constexpr double REFIT_REFERENCE_CONTACT = 0.003;
+// Touching rigid pieces form one assembly. An assembly that one rigid motion
+// would sink into the body by more than ASSEMBLY_SINK, where the body's own
+// motion keeps that point outside, splits into sub-assemblies: pieces joined
+// only where the smaller is at most ASSEMBLY of the larger (a tip on its
+// scabbard, a ring on its buckle), not a row of similar studs along a strap.
+constexpr double REFIT_REFERENCE_ASSEMBLY = 0.5;
+constexpr double REFIT_REFERENCE_ASSEMBLY_SINK = 0.002;
 constexpr double REFIT_REFERENCE_LAYER_RADIUS = 0.012;
 constexpr double REFIT_REFERENCE_LAYER_MIN_SIDE = 0.0003;
 constexpr std::size_t REFIT_REFERENCE_LAYER_PARTNERS = 4;
@@ -678,43 +685,99 @@ std::string mesh_editor_apply_reference_refit(
     }
     if (count > REFIT_REFERENCE_MAX_VERTICES) throw std::runtime_error("Fit to reference body supports at most two million garment vertices");
 
-    // Rigid pieces that touch move together, also across Parts (a scabbard and its tip).
-    std::vector<int> unit_root(static_cast<std::size_t>(units));
-    std::iota(unit_root.begin(), unit_root.end(), 0);
-    const auto root_of = [&](int unit) {
-        while (unit_root[static_cast<std::size_t>(unit)] != unit) {
-            unit_root[static_cast<std::size_t>(unit)] = unit_root[static_cast<std::size_t>(unit_root[static_cast<std::size_t>(unit)])];
-            unit = unit_root[static_cast<std::size_t>(unit)];
-        }
-        return unit;
-    };
-    {
-        std::vector<Vec3> rigid_points;
-        std::vector<int> rigid_particles;
-        for (std::size_t i = 0; i < count; ++i) if (particle_rows[i].unit >= 0) {
-            rigid_points.push_back(start[i]);
-            rigid_particles.push_back(static_cast<int>(i));
-        }
-        const RefitReferencePointIndex rigid_index(rigid_points);
-        for (std::size_t i = 0; i < rigid_particles.size(); ++i) {
-            const int unit = particle_rows[static_cast<std::size_t>(rigid_particles[i])].unit;
-            rigid_index.within(rigid_points[i], REFIT_REFERENCE_CONTACT * scale, [&](int other) {
-                const int a = root_of(unit), b = root_of(particle_rows[static_cast<std::size_t>(rigid_particles[static_cast<std::size_t>(other)])].unit);
-                if (a != b) unit_root[static_cast<std::size_t>(std::max(a, b))] = std::min(a, b);
-            });
+    // Rigid pieces that touch move together, also across Parts (a scabbard and
+    // its tip). Two merges are made: every touching pair (whole assemblies), and
+    // only a small piece onto a larger one (sub-assemblies). After the transfer,
+    // an assembly whose best rigid motion strays from the body motion under it
+    // splits into its sub-assemblies, so a row of studs along a strap across a
+    // changed chest neither sinks into the body as one bar nor drags its cloth,
+    // while a ring of beads around a waist that barely changed stays whole.
+    std::vector<Vec3> rigid_points;
+    std::vector<int> rigid_particles;
+    const double far = std::numeric_limits<double>::infinity();
+    std::vector<Vec3> unit_low(static_cast<std::size_t>(units), Vec3{far, far, far});
+    std::vector<Vec3> unit_high(static_cast<std::size_t>(units), Vec3{-far, -far, -far});
+    for (std::size_t i = 0; i < count; ++i) if (particle_rows[i].unit >= 0) {
+        rigid_points.push_back(start[i]);
+        rigid_particles.push_back(static_cast<int>(i));
+        const auto unit = static_cast<std::size_t>(particle_rows[i].unit);
+        for (int axis = 0; axis < 3; ++axis) {
+            unit_low[unit][axis] = std::min(unit_low[unit][axis], start[i][axis]);
+            unit_high[unit][axis] = std::max(unit_high[unit][axis], start[i][axis]);
         }
     }
-    std::map<int, std::vector<int>> grouped;
-    for (std::size_t i = 0; i < count; ++i)
-        if (particle_rows[i].unit >= 0) grouped[root_of(particle_rows[i].unit)].push_back(static_cast<int>(i));
-    std::vector<std::vector<int>> rigid_groups;
-    for (auto& item : grouped) rigid_groups.push_back(std::move(item.second));
+    const RefitReferencePointIndex rigid_index(rigid_points);
+    const auto merge_units = [&](double ratio) {
+        std::vector<int> root(static_cast<std::size_t>(units));
+        std::iota(root.begin(), root.end(), 0);
+        std::vector<Vec3> low = unit_low, high = unit_high;
+        const auto find = [&](int unit) {
+            while (root[static_cast<std::size_t>(unit)] != unit) {
+                root[static_cast<std::size_t>(unit)] = root[static_cast<std::size_t>(root[static_cast<std::size_t>(unit)])];
+                unit = root[static_cast<std::size_t>(unit)];
+            }
+            return unit;
+        };
+        const auto size_of = [&](int unit) {
+            return length_vec3(sub_vec3(high[static_cast<std::size_t>(unit)], low[static_cast<std::size_t>(unit)]));
+        };
+        for (std::size_t k = 0; k < rigid_particles.size(); ++k) {
+            const int unit = particle_rows[static_cast<std::size_t>(rigid_particles[k])].unit;
+            rigid_index.within(rigid_points[k], REFIT_REFERENCE_CONTACT * scale, [&](int other) {
+                const int a = find(unit), b = find(particle_rows[static_cast<std::size_t>(rigid_particles[static_cast<std::size_t>(other)])].unit);
+                if (a == b || std::min(size_of(a), size_of(b)) > ratio * std::max(size_of(a), size_of(b))) return;
+                const int keep = std::min(a, b), gone = std::max(a, b);
+                root[static_cast<std::size_t>(gone)] = keep;
+                for (int axis = 0; axis < 3; ++axis) {
+                    low[static_cast<std::size_t>(keep)][axis] = std::min(low[static_cast<std::size_t>(keep)][axis], low[static_cast<std::size_t>(gone)][axis]);
+                    high[static_cast<std::size_t>(keep)][axis] = std::max(high[static_cast<std::size_t>(keep)][axis], high[static_cast<std::size_t>(gone)][axis]);
+                }
+            });
+        }
+        for (int unit = 0; unit < units; ++unit) root[static_cast<std::size_t>(unit)] = find(unit);
+        return root;
+    };
+    const auto whole_root = merge_units(1.0);
+    const auto small_root = merge_units(REFIT_REFERENCE_ASSEMBLY);
 
     // Transfer through the shared body field, then pose rigid groups.
     const auto field_started = std::chrono::steady_clock::now();
     const auto field = refit_reference_body_field(reference, driver, scale);
     std::vector<Vec3> rest(count);
     for (std::size_t i = 0; i < count; ++i) rest[i] = add_vec3(start[i], refit_reference_field_at(field, start[i], scale));
+    const double sink = REFIT_REFERENCE_ASSEMBLY_SINK * scale;
+    std::map<int, std::vector<int>> assemblies;
+    for (std::size_t i = 0; i < count; ++i)
+        if (particle_rows[i].unit >= 0) assemblies[whole_root[static_cast<std::size_t>(particle_rows[i].unit)]].push_back(static_cast<int>(i));
+    std::vector<std::vector<int>> rigid_groups;
+    long long split_assemblies = 0;
+    for (auto& item : assemblies) {
+        const auto& group = item.second;
+        std::map<int, std::vector<int>> parts_of;
+        for (const int i : group) parts_of[small_root[static_cast<std::size_t>(particle_rows[static_cast<std::size_t>(i)].unit)]].push_back(i);
+        bool split = false;
+        if (parts_of.size() > 1) {
+            std::vector<Vec3> source, moved;
+            for (const int i : group) {
+                source.push_back(start[static_cast<std::size_t>(i)]);
+                moved.push_back(rest[static_cast<std::size_t>(i)]);
+            }
+            const auto posed = refit_reference_rigid_pose(source, moved);
+            for (std::size_t k = 0; k < posed.size() && !split; ++k) {
+                // Floating a little off the body is harmless; sinking into it is not.
+                if (distance_squared_vec3(posed[k], moved[k]) <= sink * sink) continue;
+                Vec3 outward;
+                split = driver.signed_distance(posed[k], outward) < -sink
+                    && driver.signed_distance(moved[k], outward) > -REFIT_REFERENCE_INSIDE * scale;
+            }
+        }
+        if (!split) {
+            rigid_groups.push_back(group);
+            continue;
+        }
+        ++split_assemblies;
+        for (auto& part : parts_of) rigid_groups.push_back(std::move(part.second));
+    }
     for (const auto& group : rigid_groups) {
         std::vector<Vec3> source, moved;
         for (const int i : group) {
@@ -988,7 +1051,8 @@ std::string mesh_editor_apply_reference_refit(
     report << ",\"particles\":" << count << ",\"rigid_groups\":" << rigid_groups.size()
            << ",\"automatic_rigid_parts\":" << refit.automatic_rigid_parts.size()
            << ",\"automatic_rigid_islands\":" << automatic_islands
-           << ",\"largest_rigid_group\":" << largest_group << ",\"layer_constraints\":" << layer_rows.size()
+           << ",\"largest_rigid_group\":" << largest_group << ",\"split_assemblies\":" << split_assemblies
+           << ",\"layer_constraints\":" << layer_rows.size()
            << ",\"remaining_layer_violations\":" << layer_violations
            << ",\"remaining_body_violations\":" << body_violations
            << ",\"deepest_body_violation\":" << std::setprecision(17) << deepest

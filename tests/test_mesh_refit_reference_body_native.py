@@ -248,6 +248,47 @@ def test_cloth_beside_an_open_body_rim_is_not_pushed_through_it():
     assert np.abs(fitted - np.asarray(vertices)).max() < 5e-4
 
 
+def test_an_arc_of_studs_splits_where_one_rigid_motion_would_sink_it_into_a_thicker_limb():
+    # Eight studs 0.5 mm apart around the authored arm touch, so they form one
+    # assembly. The driver arm is thicker: each stud moves outward in its own
+    # direction, which no single rigid motion can do, so the merged arc would stay
+    # inside the limb. It splits, and each stud follows the body on its own.
+    vertices, faces = [], []
+    step = math.radians(20)
+    for k in range(8):
+        centre = math.radians(-70) + k * step
+        offset = len(vertices)
+        vertices += [(r * math.cos(a), y, r * math.sin(a)) for r in (.0605, .0705) for y in (.24, .26)
+                     for a in (centre - step / 2 + .005, centre + step / 2 - .005)]
+        faces += [(offset + a, offset + b, offset + c) for a, b, c in (
+            (0, 1, 3), (0, 3, 2), (4, 6, 7), (4, 7, 5), (0, 4, 5), (0, 5, 1),
+            (2, 3, 7), (2, 7, 6), (0, 2, 6), (0, 6, 4), (1, 5, 7), (1, 7, 3))]
+    studs = _part("studs", vertices, faces, material="metal", texture="")
+    mesh = _mesh(_arm(DRIVER_RADIUS), studs)
+    session = _open(mesh)
+    try:
+        _command(session, "morph_upload", {"profile": {
+            "profile_id": "fit", "name": "Fit", "topology_fingerprint": "a" * 64, "definitions": [], "fields": [],
+        }})
+        _command(session, "morph_set_driver", {"submesh_indices": [0]})
+        _command(session, "morph_bind", {"garment_submesh_indices": [1]})
+        _command(session, "morph_set_reference_body", {
+            "reference_body": _reference(), "garment_submesh_indices": [1], "garment_settings": [
+                {"submesh_index": 1, "mode": "rigid_component", "clearance_percent": .1, "tightness_percent": 100.}],
+        })
+        fitted = np.asarray(_snapshot(mesh, session).submeshes[1].vertices)
+        last = _state(session)["refit"]["reference_body"]["last_fit"]
+    finally:
+        mesh_native_core.close_native_mesh_editor_session(session)
+    assert last["split_assemblies"] == 1 and last["rigid_groups"] == 8
+    assert np.hypot(fitted[:, 0], fitted[:, 2]).min() >= DRIVER_RADIUS
+    before = np.asarray(vertices)
+    for k in range(8):
+        stud_before, stud_after = before[k * 8:(k + 1) * 8], fitted[k * 8:(k + 1) * 8]
+        assert np.abs(np.linalg.norm(stud_before[:, None] - stud_before[None], axis=2)
+                      - np.linalg.norm(stud_after[:, None] - stud_after[None], axis=2)).max() < 1e-7
+
+
 def test_reference_body_requires_a_binding_and_matching_arrays():
     mesh = _outfit()
     session = _open(mesh)
