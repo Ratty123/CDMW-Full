@@ -1,0 +1,110 @@
+[
+ {
+  "category": "monster PHM 9_upperbody (11002 preset)",
+  "outfit": "character/model/2_mon/cd_m0001_00_twofeet/cd_m0001_01_phm/armor_desert/9_upperbody/cd_m0001_00_de_phm_ub_11002.pac"
+ },
+ {
+  "category": "PHM 9_upperbody",
+  "outfit": "character/model/1_pc/1_phm/armor/9_upperbody/cd_phm_00_ub_0054_13.pac"
+ },
+ {
+  "category": "PHM 9_upperbody",
+  "outfit": "character/model/1_pc/1_phm/armor/9_upperbody/cd_phm_00_ub_0082_01.pac"
+ },
+ {
+  "category": "PHM 10_lowerbody",
+  "outfit": "character/model/1_pc/1_phm/armor/10_lowerbody/cd_phm_00_lb_0052.pac"
+ },
+ {
+  "category": "PHM 10_lowerbody",
+  "outfit": "character/model/1_pc/1_phm/armor/10_lowerbody/cd_phm_00_lb_0111.pac"
+ },
+ {
+  "category": "PHM 19_cloak",
+  "outfit": "character/model/1_pc/1_phm/armor/19_cloak/cd_phm_00_cloak_00_0374.pac"
+ },
+ {
+  "category": "PHM 19_cloak",
+  "outfit": "character/model/1_pc/1_phm/armor/19_cloak/cd_phm_00_cloak_0054_08.pac"
+ },
+ {
+  "category": "PHM 15_vest",
+  "outfit": "character/model/1_pc/1_phm/armor/15_vest/cd_phm_00_vest_0027.pac"
+ },
+ {
+  "category": "PHM 15_vest",
+  "outfit": "character/model/1_pc/1_phm/armor/15_vest/cd_phm_00_vest_0146.pac"
+ },
+ {
+  "category": "PHM 16_jacket",
+  "outfit": "character/model/1_pc/1_phm/armor/16_jacket/cd_phm_00_jacket_belt_0107_01.pac"
+ },
+ {
+  "category": "PHM 16_jacket",
+  "outfit": "character/model/1_pc/1_phm/armor/16_jacket/cd_phm_00_jacket_0082.pac"
+ },
+ {
+  "category": "PHW 9_upperbody",
+  "outfit": "character/model/1_pc/2_phw/armor/9_upperbody/cd_phw_01_ub_0123.pac"
+ },
+ {
+  "category": "PHW 9_upperbody",
+  "outfit": "character/model/1_pc/2_phw/armor/9_upperbody/cd_phw_00_ub_00_0205.pac"
+ },
+ {
+  "category": "PHW 10_lowerbody",
+  "outfit": "character/model/1_pc/2_phw/armor/10_lowerbody/cd_phw_01_lb_0090.pac"
+ },
+ {
+  "category": "PHW 10_lowerbody",
+  "outfit": "character/model/1_pc/2_phw/armor/10_lowerbody/cd_phw_00_lb_40_0154.pac"
+ },
+ {
+  "category": "PHW 19_cloak",
+  "outfit": "character/model/1_pc/2_phw/armor/19_cloak/cd_phw_00_cloak_0042.pac"
+ },
+ {
+  "category": "PHW 19_cloak",
+  "outfit": "character/model/1_pc/2_phw/armor/19_cloak/cd_phw_00_cloak_0066.pac"
+ },
+ {
+  "category": "PHW 15_vest",
+  "outfit": "character/model/1_pc/2_phw/armor/15_vest/cd_phw_00_vest_0052.pac"
+ },
+ {
+  "category": "PHW 15_vest",
+  "outfit": "character/model/1_pc/2_phw/armor/15_vest/cd_phw_01_vest_0051.pac"
+ },
+ {
+  "category": "PHW 16_jacket",
+  "outfit": "character/model/1_pc/2_phw/armor/16_jacket/cd_phw_00_jacket_0063.pac"
+ },
+ {
+  "category": "PHW 16_jacket",
+  "outfit": "character/model/1_pc/2_phw/armor/16_jacket/cd_phw_01_jacket_acc_0105_01.pac"
+ },
+ {
+  "category": "monster PHM 9_upperbody",
+  "outfit": "character/model/2_mon/cd_m0001_00_twofeet/cd_m0001_01_phm/armor_south/9_upperbody/cd_m0001_00_so_phm_ub_31090.pac"
+ },
+ {
+  "category": "monster PHM 9_upperbody",
+  "outfit": "character/model/2_mon/cd_m0001_00_twofeet/cd_m0001_01_phm/armor_desert/9_upperbody/cd_m0001_00_de_phm_ub_23002.pac"
+ },
+ {
+  "category": "monster PHM 10_lowerbody",
+  "outfit": "character/model/2_mon/cd_m0001_00_twofeet/cd_m0001_01_phm/armor_desert/10_lowerbody/cd_m0001_00_de_phm_lb_21027.pac"
+ },
+ {
+  "category": "monster PHM 10_lowerbody",
+  "outfit": "character/model/2_mon/cd_m0001_00_twofeet/cd_m0001_01_phm/armor_south/10_lowerbody/cd_m0001_00_so_phm_lb_21122.pac"
+ },
+ {
+  "category": "monster PHM 19_cloak",
+  "outfit": "character/model/2_mon/cd_m0001_00_twofeet/cd_m0001_01_phm/armor_south/19_cloak/cd_m0001_00_so_phm_cloak_34007.pac"
+ },
+ {
+  "category": "monster PHM 19_cloak",
+  "outfit": "character/model/2_mon/cd_m0001_00_twofeet/cd_m0001_01_phm/armor_south/19_cloak/cd_m0001_00_so_phm_cloak_33016.pac"
+ }
+]

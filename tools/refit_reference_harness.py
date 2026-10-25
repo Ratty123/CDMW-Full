@@ -12,7 +12,17 @@ the body the outfit was authored on (``morph_set_reference_body``, the
 - new layer crossings: triangle pairs between garment islands that intersect
   after the fit but not before (python-fcl);
 - cloth edge strain: ``|length / authored length - 1|`` over flexible islands,
-  and over the islands the config names as ``tails``.
+  and over the islands the config names as ``tails``;
+- solid-piece distortion: the same Kabsch residual for every small closed piece
+  the body does not pass through (blades, buckles, plates), marked or not.
+
+Crossings are also split into rigid-against-cloth and cloth-against-cloth, where
+an island counts as rigid if the fit moved it without changing its shape.
+
+``--corpus`` fits every outfit in a list (``tools/refit_reference_corpus.json``:
+11002 plus two outfits per PHM, PHW and monster-PHM slot, picked by path hash)
+onto one driver from a fresh, unmarked setup and tabulates both methods. Judge a
+fitting change on the whole corpus, not on one outfit.
 
 Inputs are decoded files, or archive paths read from a game install. Archive
 mode is read only; it finds the reference body exactly as the editor does
@@ -29,6 +39,8 @@ Examples::
     python tools/refit_reference_harness.py --preset 11002 --assets <decoded folder> --output out
     python tools/refit_reference_harness.py --preset 11002 --game-root "<Crimson Desert>" --output out \\
         --method reference bound
+    python tools/refit_reference_harness.py --game-root "<Crimson Desert>" --corpus tools/refit_reference_corpus.json \\
+        --method bound reference --output out
 """
 
 from __future__ import annotations
@@ -117,28 +129,36 @@ def _file_inputs(config: dict, assets: Path) -> dict:
             "reference": reference, "provenance": {name: str(path(name)) for name in read}}
 
 
-def _archive_inputs(config: dict, game_root: Path) -> dict:
-    """Load both PACs as the editor's archive Refit does and ask its lookup for the reference."""
-    from cdmw.core.archive_extraction import read_archive_entry_data
-    from cdmw.core.archive_mesh_appearance import UnresolvedPacBonePaletteError, apply_archive_mesh_appearance
-    from cdmw.services.mesh_archive_refit import ArchiveRefitAsset, ArchiveRefitContext
-    from cdmw.services.mesh_refit_reference_lookup import find_refit_reference_body
+def _archive_index(game_root: Path):
+    """The members of the editor's ArchiveWorkflowDependencyContext the lookup reads, without Qt."""
     from tools.mesh_harness.real_common import _archive_entry_indexes, _archive_key, _real_archive_all_pamt_entries
 
     entries, _pamts, errors = _real_archive_all_pamt_entries(game_root)
     if not entries:
         raise SystemExit(f"No archive entries under {game_root}: {errors[:1]}")
     by_path, by_basename = _archive_entry_indexes(entries)
-    # The members of the editor's ArchiveWorkflowDependencyContext the lookup reads, without Qt.
-    dependencies = SimpleNamespace(
+    return SimpleNamespace(
         entries_by_normalized_path=by_path, entries_by_basename=by_basename,
         entry_for_path=lambda path: next(iter(by_path.get(_archive_key(path), ())), None),
     )
+
+
+def _archive_inputs(config: dict, dependencies) -> dict:
+    """Load both PACs as the editor's archive Refit does and ask its lookup for the reference.
+
+    ``reference`` is None, with the lookup's ``reason``, when Fit would use the driver alone.
+    """
+    from cdmw.core.archive_extraction import read_archive_entry_data
+    from cdmw.core.archive_mesh_appearance import UnresolvedPacBonePaletteError, apply_archive_mesh_appearance
+    from cdmw.services.mesh_archive_refit import ArchiveRefitAsset, ArchiveRefitContext
+    from cdmw.services.mesh_refit_reference_lookup import find_refit_reference_body
+
+    by_path, by_basename = dependencies.entries_by_normalized_path, dependencies.entries_by_basename
     assets, meshes, appearances, offset = [], {}, {}, 0
     for role, name in (("body", "body"), ("loaded", "outfit")):
         entry = dependencies.entry_for_path(config[name])
         if entry is None:
-            raise SystemExit(f"{config[name]} is not in the game archive.")
+            raise ValueError(f"{config[name]} is not in the game archive.")
         data = read_archive_entry_data(entry)[0]
         mesh = parse_pac(data, entry.path)
         try:
@@ -155,13 +175,12 @@ def _archive_inputs(config: dict, game_root: Path) -> dict:
     body_count = len(meshes["body"].submeshes)
     lookup = find_refit_reference_body(ArchiveRefitContext(tuple(assets)),
                                        tuple(range(body_count, offset)), tuple(range(body_count)))
-    if lookup.reference is None:
-        raise SystemExit(f"Fit to body would use only the driver: {lookup.reason}")
-    return {"body": meshes["body"], "outfit": meshes["outfit"], "reference": lookup.reference,
-            "provenance": {"game_root": str(game_root), "body": config["body"], "outfit": config["outfit"],
-                           "reference": lookup.reference.label,
+    reference = lookup.reference
+    return {"body": meshes["body"], "outfit": meshes["outfit"], "reference": reference, "reason": lookup.reason,
+            "provenance": {"body": config["body"], "outfit": config["outfit"],
+                           "reference": reference.label if reference is not None else None,
                            "appearances": {name: getattr(value, "source", None) for name, value in appearances.items()},
-                           "substituted_bones": list(lookup.reference.substituted_bones)}}
+                           "substituted_bones": list(reference.substituted_bones) if reference is not None else []}}
 
 
 # ------------------------------------------------------------------ fitting
@@ -343,13 +362,36 @@ def _summary(values) -> dict:
     return {"p95": float(np.percentile(values, 95)), "max": float(values.max())} if len(values) else {"p95": 0.0, "max": 0.0}
 
 
-def analyse(run: dict, config: dict, reference: RefitReferenceBody) -> dict:
+def _solid(before: np.ndarray, island_faces: np.ndarray, limit: float, body_low: np.ndarray, body_high: np.ndarray) -> bool:
+    """A small closed piece (blade, buckle, plate): every edge has two faces, no larger than ``limit``.
+
+    A closed band the body passes through (a collar, a belt) is meant to conform,
+    so a piece whose bounds contain the body's centre line is not counted, as in
+    the native band test.
+    """
+    keys = np.unique(np.round(before * 1e5).astype(np.int64), axis=0, return_inverse=True)[1].ravel()[island_faces]
+    edges = np.sort(np.concatenate([keys[:, [0, 1]], keys[:, [1, 2]], keys[:, [2, 0]]]), axis=1)
+    _, uses = np.unique(edges, axis=0, return_counts=True)
+    points = before[np.unique(island_faces)]
+    low, high = points.min(0), points.max(0)
+    up = int(np.argmax(body_high - body_low))
+    centre = (body_low + body_high) / 2
+    band = all(low[axis] <= centre[axis] <= high[axis] for axis in range(3) if axis != up)
+    return bool(np.all(uses == 2)) and float((high - low).max()) <= limit and not band
+
+
+def analyse(run: dict, config: dict, reference: RefitReferenceBody | None) -> dict:
     body_count, islands = run["body_count"], run["islands"]
     driver = _surface(run["fitted"].submeshes[:body_count])
-    authored = _Surface(reference.source_positions, reference.faces)
+    # Without an authored body, "already inside" is judged against the driver as loaded.
+    authored = (_Surface(reference.source_positions, reference.faces) if reference is not None
+                else _surface(run["mesh"].submeshes[:body_count]))
+    driver_points = np.concatenate([np.asarray(p.vertices, float) for p in run["mesh"].submeshes[:body_count]])
+    solid_limit = .25 * float(np.linalg.norm(driver_points.max(0) - driver_points.min(0)))
     tails = {tuple(item) for item in config.get("tails", ())}
     parts, pieces, cloth, tail = [], [], [], []
-    rigid_worst = 0.0
+    rigid_worst = solid_worst = 0.0
+    solid_count = 0
     for part, (before_part, after_part) in enumerate(zip(run["mesh"].submeshes[body_count:], run["fitted"].submeshes[body_count:])):
         before, after = np.asarray(before_part.vertices, float), np.asarray(after_part.vertices, float)
         faces = np.asarray(before_part.faces)
@@ -368,6 +410,12 @@ def analyse(run: dict, config: dict, reference: RefitReferenceBody) -> dict:
             item = {"island": island, "faces": len(group), "rigid": island in rigid,
                     "moved_mm": float(np.linalg.norm(after[vertices].mean(0) - before[vertices].mean(0)) * 1000),
                     "strain": _summary(strain)}
+            residual = rigid_residual(before[vertices], after[vertices])
+            # Moved without changing shape: the fit treated it as rigid (marked or inferred).
+            item["rigid_in_fit"] = residual < 1e-5 and float(np.abs(after[vertices] - before[vertices]).max()) > 5e-4
+            if _solid(before, island_faces, solid_limit, driver_points.min(0), driver_points.max(0)):
+                item["solid_residual_mm"] = residual * 1000
+                solid_worst, solid_count = max(solid_worst, item["solid_residual_mm"]), solid_count + 1
             if island in rigid:
                 item["rigid_residual_mm"] = rigid_residual(before[vertices], after[vertices]) * 1000
                 rigid_worst = max(rigid_worst, item["rigid_residual_mm"])
@@ -389,17 +437,23 @@ def analyse(run: dict, config: dict, reference: RefitReferenceBody) -> dict:
                 continue
             after = _crossings(after_a, after_b)
             if after and after > (before := _crossings(before_a, before_b)):
-                crossings.append({"a": [pa, ia], "b": [pb, ib], "before": before, "after": after})
+                rigid_sides = parts[pa]["islands"][ia]["rigid_in_fit"] + parts[pb]["islands"][ib]["rigid_in_fit"]
+                crossings.append({"a": [pa, ia], "b": [pb, ib], "before": before, "after": after,
+                                  "kind": ("cloth-cloth", "rigid-cloth", "rigid-rigid")[rigid_sides]})
     worst_cloth = sorted(((row["part"], item["island"], item["strain"]["p95"]) for row in parts for item in row["islands"]
                           if not item["rigid"]), key=lambda value: -value[2])[:8]
     return {
         "summary": {
             "method": run["method"], "status": run["status"], "seconds": run["seconds"],
             "worst_rigid_distortion_mm": rigid_worst,
+            # Small closed pieces should never bend, marked or not.
+            "solid_pieces": solid_count, "worst_solid_distortion_mm": solid_worst,
             "new_inside_vertices": sum(row["new_inside_vertices"] for row in parts),
             "deepest_new_inside_mm": max((row["deepest_new_inside_mm"] for row in parts), default=0.0),
             "new_layer_crossing_pairs": len(crossings),
             "new_layer_crossing_triangles": sum(item["after"] - item["before"] for item in crossings),
+            "new_crossing_triangles_by_kind": {kind: sum(item["after"] - item["before"] for item in crossings if item["kind"] == kind)
+                                               for kind in ("cloth-cloth", "rigid-cloth", "rigid-rigid")},
             "cloth_strain": _summary(np.concatenate(cloth)) if cloth else _summary(()),
             "tail_strain": _summary(np.concatenate(tail)) if tail else _summary(()),
         },
@@ -465,6 +519,60 @@ def render_sheet(mesh: ParsedMesh, body_count: int, path: Path, size: int = 500)
     return path
 
 
+# ------------------------------------------------------------------ corpus
+_CORPUS_COLUMNS = {"new_inside_vertices": np.sum, "deepest_new_inside_mm": np.max, "new_layer_crossing_triangles": np.sum,
+                   "rigid_cloth_crossing_triangles": np.sum, "worst_solid_distortion_mm": np.max, "seconds": np.sum}
+
+
+def run_corpus(args) -> int:
+    """Fit every outfit of a corpus unmarked, as a fresh setup, and tabulate both methods side by side."""
+    if not mesh_native_core.native_mesh_core_available():
+        raise SystemExit("Build the native mesh core first (native/cdmw_mesh_core, Release).")
+    outfits = [item if isinstance(item, str) else item["outfit"] for item in json.loads(args.corpus.read_text(encoding="utf-8"))]
+    dependencies = _archive_index(args.game_root)
+    args.output.mkdir(parents=True, exist_ok=True)
+    results = []
+    for outfit in outfits:
+        config = {"body": args.driver, "outfit": outfit, "clearance": 0.1, "tightness": 100.0}
+        row = {"outfit": outfit, "runs": {}}
+        try:
+            inputs = _archive_inputs(config, dependencies)
+            row["reference"], row["reason"] = inputs["provenance"]["reference"], inputs["reason"]
+            for method in args.method:
+                if method == "reference" and inputs["reference"] is None:
+                    continue
+                report = analyse(fit(inputs, config, method), config, inputs["reference"])
+                summary = report["summary"]
+                summary["cloth_strain_p95"] = summary["cloth_strain"]["p95"]
+                summary["cloth_strain_max"] = summary["cloth_strain"]["max"]
+                summary["rigid_cloth_crossing_triangles"] = summary["new_crossing_triangles_by_kind"]["rigid-cloth"]
+                row["runs"][method] = summary
+        except Exception as exc:  # one broken asset must not stop the corpus
+            row["error"] = f"{type(exc).__name__}: {exc}"
+        results.append(row)
+        cells = []
+        for method in args.method:
+            s = row["runs"].get(method)
+            cells.append(f"{method}: " + ("-" if s is None else
+                         f"{s['status']}, inside {s['new_inside_vertices']} ({s['deepest_new_inside_mm']:.1f} mm), "
+                         f"cross {s['new_layer_crossing_triangles']} (rigid-cloth {s['rigid_cloth_crossing_triangles']}), "
+                         f"strain p95 {s['cloth_strain_p95']:.2f}, "
+                         f"solid {s['worst_solid_distortion_mm']:.1f} mm, {s['seconds']:.1f} s"))
+        print(outfit.rsplit("/", 1)[-1], "|", " | ".join(cells), "|", row.get("error") or row.get("reason") or "", flush=True)
+        (args.output / "corpus.json").write_text(json.dumps(results, indent=1), encoding="utf-8")
+    totals = {}
+    for method in args.method:
+        rows = [row["runs"][method] for row in results if method in row["runs"]]
+        totals[method] = {"outfits": len(rows), "refused": sum(r["status"] != "ok" for r in rows),
+                          **{key: float(combine([r[key] for r in rows])) if rows else 0.0
+                             for key, combine in _CORPUS_COLUMNS.items()},
+                          "median_cloth_strain_p95": float(np.median([r["cloth_strain_p95"] for r in rows])) if rows else 0.0}
+    print(json.dumps(totals, indent=1))
+    (args.output / "corpus.json").write_text(json.dumps({"driver": args.driver, "outfits": results, "totals": totals},
+                                                        indent=1), encoding="utf-8")
+    return 0
+
+
 # ------------------------------------------------------------------ command line
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
@@ -477,9 +585,17 @@ def main(argv=None) -> int:
     parser.add_argument("--render", action="store_true", help="Write before/after Part-colour sheets (needs Pillow)")
     parser.add_argument("--unmarked", action="store_true",
                         help="Fit every Part as cloth, as a new setup does, but still score the config's rigid pieces")
+    parser.add_argument("--corpus", type=Path,
+                        help="JSON list of outfit archive paths, each fitted unmarked onto --driver (needs --game-root)")
+    parser.add_argument("--driver", default=PRESETS["11002"]["body"], help="Driver body archive path for --corpus")
     args = parser.parse_args(argv)
     if bool(args.assets) == bool(args.game_root):
         parser.error("give exactly one of --assets or --game-root")
+    if args.corpus:
+        if not args.game_root:
+            parser.error("--corpus reads outfits from --game-root")
+        _require_dev_dependencies(args.render, True)
+        return run_corpus(args)
     config = dict(PRESETS.get(args.preset, {}))
     if args.config:
         config.update(json.loads(args.config.read_text(encoding="utf-8")))
@@ -488,7 +604,10 @@ def main(argv=None) -> int:
     _require_dev_dependencies(args.render, bool(args.game_root))
     if not mesh_native_core.native_mesh_core_available():
         raise SystemExit("Build the native mesh core first (native/cdmw_mesh_core, Release).")
-    inputs = _archive_inputs(config, args.game_root) if args.game_root else _file_inputs(config, args.assets)
+    inputs = (_archive_inputs(config, _archive_index(args.game_root)) if args.game_root
+              else _file_inputs(config, args.assets))
+    if inputs["reference"] is None and "reference" in args.method:
+        raise SystemExit(f"Fit to body would use only the driver: {inputs['reason']}")
     args.output.mkdir(parents=True, exist_ok=True)
     reports = {"provenance": inputs["provenance"], "config": config, "unmarked": args.unmarked, "runs": {}}
     fitting = {key: value for key, value in config.items() if key != "parts"} if args.unmarked else config

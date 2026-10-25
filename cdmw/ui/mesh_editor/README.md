@@ -2115,7 +2115,12 @@ one undoable `morph_set_reference_body`. Natively, what remains between the move
 body and the driver becomes one smooth displacement field that every garment samples,
 so stacked layers move together; rigid pieces take the field's best rigid motion
 (touching rigid pieces, also across Parts, move as one assembly) and a bounded
-relaxation restores layer order, clearance, cloth edge lengths and rigid shapes. An
+relaxation restores layer order, clearance, cloth edge lengths and rigid shapes. Layer
+constraints weigh as much as cloth edges and use a plain (not over-relaxed) step; a
+constraint whose particle has slid more than three layer radii from its authored
+partner point is moved to the partner surface beneath it, on a triangle facing the
+same way, and a partner triangle that has turned over is ignored. Stiffer, fixed
+constraints tore stacked straps and panels on bodies of very different shape. An
 open rim has no inside: a body PAC's head has the face cut out, so cloth whose closest
 body feature is an open edge or corner gets no clearance push (it would otherwise be
 pulled through the opening's rim). The same small-accessory inference as the bound fitter makes unmarked closed attachments
