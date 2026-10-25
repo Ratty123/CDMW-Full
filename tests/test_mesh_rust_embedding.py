@@ -1,18 +1,25 @@
 from __future__ import annotations
 
+import hashlib
 import os
 import json
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
+import pytest
+
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-from PySide6.QtCore import QEvent, QSettings
+from PySide6.QtCore import QEvent, QProcess, QSettings
 from PySide6.QtGui import QFont
 from PySide6.QtWidgets import QApplication, QGroupBox, QPushButton, QScrollArea, QToolButton
 
-from cdmw.services.mesh_rust_contract import RUST_MESH_EDIT_BACKEND, RUST_MESH_RENDERER
+from cdmw.services.mesh_rust_contract import (
+    RUST_MESH_EDIT_BACKEND,
+    RUST_MESH_RENDERER,
+    rust_mesh_editor_file_signature,
+)
 from cdmw.ui.mesh_editor.rust_host import RustMeshEditorHostFrame
 from cdmw.ui.mesh_editor.tab import MeshEditorTab
 
@@ -130,11 +137,73 @@ def test_live_theme_change_is_sent_to_the_ready_embedded_child(tmp_path: Path) -
     assert sent[-1]["payload"]["variant"] == "dark"
 
 
+def _delivered_theme(messages: list[dict[str, object]]) -> dict[str, object]:
+    """Rebuild the theme a helper applies from one update's control lines."""
+
+    from cdmw.ui.mesh_editor.process_io import DOTNET_PROTOCOL_LINE_LIMIT
+    from cdmw.ui.mesh_editor.rust_theme_transport import protocol_line
+
+    *parts, update = messages
+    assert update["event"] == "theme_update"
+    assert all(len(protocol_line(message)) <= DOTNET_PROTOCOL_LINE_LIMIT for message in messages)
+    theme = dict(update["payload"])
+    transfer = update.get("translations_transfer")
+    if transfer is None:
+        assert parts == []
+        return theme
+    assert "translations" not in theme
+    assert [part["event"] for part in parts] == ["theme_translations_part"] * len(parts)
+    assert [part["part_index"] for part in parts] == list(range(len(parts)))
+    identity = ("protocol", "session_id", "request_id", "base_revision", "process_generation")
+    descriptor = {key: transfer[key] for key in ("part_count", "byte_length", "sha256")}
+    for part in parts:
+        assert {key: part[key] for key in identity} == {key: update[key] for key in identity}
+        assert {key: part[key] for key in descriptor} == descriptor
+    data = "".join(part["data"] for part in parts).encode("utf-8")
+    assert descriptor == {
+        "part_count": len(parts),
+        "byte_length": len(data),
+        "sha256": hashlib.sha256(data).hexdigest().upper(),
+    }
+    theme["translations"] = json.loads(data)
+    assert len(theme["translations"]) == transfer["entry_count"]
+    return theme
+
+
+def _expected_native_translations(localizer: object) -> dict[str, object]:
+    from cdmw.ui.localization_catalogs_v2 import native_ui_source_keys
+
+    expected = localizer.translation_snapshot(native_ui_source_keys(), max_bytes=64 << 20)
+    return {key: entry for key, entry in expected.items() if entry != key}
+
+
+def _pad_native_catalog(
+    localizer: object, *, minimum_bytes: int, repeat: int = 1,
+) -> tuple[str, ...]:
+    """Grow the native catalogue past ``minimum_bytes`` in the language's own script."""
+
+    from cdmw.ui.localization_catalogs_v2 import native_ui_source_keys
+
+    sample = " ".join(
+        str(localizer.translate(key))
+        for key in ("Mesh Editor", "Clear Selection", "Create / update guides")
+    ) * repeat
+    keys = list(native_ui_source_keys())
+    size = len(json.dumps(_expected_native_translations(localizer), ensure_ascii=False).encode())
+    index = 0
+    while size < minimum_bytes:
+        key = f"Synthetic native label {index} \"quoted\" \\ {{value_0}}"
+        value = f"{sample} «{index}» \"{sample}\" \\ {{value_0}} {sample}"
+        localizer.translations[key] = value
+        keys.append(key)
+        size += len(json.dumps({key: value}, ensure_ascii=False).encode())
+        index += 1
+    return tuple(keys)
+
+
 def test_native_localization_payload_covers_every_language_and_live_updates(tmp_path: Path) -> None:
     from cdmw.domain.localization import BUILTIN_LANGUAGES
     from cdmw.ui.localization import UiLocalizer
-    from cdmw.ui.localization_catalogs_v2 import native_ui_source_keys
-    from cdmw.ui.mesh_editor.process_io import DOTNET_PROTOCOL_LINE_LIMIT
 
     tab = _tab(tmp_path)
     app = QApplication.instance()
@@ -143,26 +212,225 @@ def test_native_localization_payload_covers_every_language_and_live_updates(tmp_
     app.setProperty("_cdmw_ui_localizer", localizer)
     sent = []
     tab.standalone_rust_ready = True
+    tab.standalone_rust_translation_parts_supported = True
     tab._send_rust_message = lambda payload: sent.append(payload) or True
     try:
         for language in BUILTIN_LANGUAGES:
             localizer.load_language(language.code)
+            first = len(sent)
             tab.set_theme("graphite")
-            message = sent[-1]
-            assert message["event"] == "theme_update"
-            payload = message["payload"]
+            payload = _delivered_theme(sent[first:])
             assert payload["language"] == language.code
-            expected = localizer.translation_snapshot(native_ui_source_keys(), max_bytes=512 * 1024)
-            assert payload["translations"] == {
-                key: entry for key, entry in expected.items() if entry != key
-            }
+            assert payload["translations"] == _expected_native_translations(localizer)
             for key in ("Clear Selection", "Mesh Editor", "Create / update guides"):
                 assert payload["translations"].get(key, key) == localizer.translate(key)
-            assert len(json.dumps(message, ensure_ascii=False).encode("utf-8")) < DOTNET_PROTOCOL_LINE_LIMIT
         # A user-provided English overlay must work in the native editor too.
         localizer.load_language("en")
         localizer.translations["Mesh Editor"] = "Custom mesh tools"
         assert tab._rust_theme_payload()["translations"]["Mesh Editor"] == "Custom mesh tools"
+    finally:
+        app.setProperty("_cdmw_ui_localizer", previous)
+        localizer.shutdown()
+        tab.deleteLater()
+
+
+def test_native_localization_delivers_a_mebibyte_catalog_at_start_and_live(tmp_path: Path) -> None:
+    from cdmw.domain.localization import BUILTIN_LANGUAGES
+    from cdmw.services.mesh_rust_contract import RUST_UI_TRANSLATION_PARTS_CAPABILITY
+    from cdmw.ui.localization import UiLocalizer
+    from cdmw.ui.mesh_editor.rust_theme_transport import rust_theme_digest
+    from tests.test_mesh_rust_editor_selection import _provenanced_resolution
+
+    class _InertProcess(QProcess):
+        def start(self, *_args: object) -> None:
+            return None
+
+    tab = _tab(tmp_path)
+    app = QApplication.instance()
+    previous = app.property("_cdmw_ui_localizer")
+    localizer = UiLocalizer(language_dir=tmp_path / "languages", language_code="en")
+    app.setProperty("_cdmw_ui_localizer", localizer)
+    resolution = _provenanced_resolution(tmp_path / "helper")
+    tab.standalone_rust_executable_path = Path(resolution.resolved_path)
+    tab.standalone_rust_launch_executable_signature = rust_mesh_editor_file_signature(resolution)
+    tab.standalone_native_host_frame.attach_child_window = (  # type: ignore[method-assign]
+        lambda *_args: (True, "")
+    )
+    sent: list[dict[str, object]] = []
+    tab._send_rust_message = lambda payload: sent.append(dict(payload)) or True  # type: ignore[method-assign]
+    try:
+        for language in BUILTIN_LANGUAGES:
+            localizer.load_language(language.code)
+            keys = _pad_native_catalog(localizer, minimum_bytes=1 << 20)
+            with patch("cdmw.ui.localization_catalogs_v2.native_ui_source_keys", return_value=keys):
+                expected = _expected_native_translations(localizer)
+                assert len(json.dumps(expected, ensure_ascii=False).encode()) >= 1 << 20
+                # Session start: the whole catalogue goes into the manifest theme.
+                start_theme = tab._rust_theme_payload()
+                assert start_theme["translations"] == expected
+                tab._reset_rust_protocol_state()
+                with (
+                    patch(
+                        "cdmw.ui.mesh_editor.tab_rust_editor.resolve_rust_mesh_editor",
+                        return_value=resolution,
+                    ),
+                    patch("cdmw.ui.mesh_editor.tab_rust_process.QProcess", _InertProcess),
+                ):
+                    tab._launch_rust_editor_process(
+                        SimpleNamespace(manifest_path=tmp_path / "manifest.json", theme=start_theme)
+                    )
+                assert tab.standalone_rust_theme_digest == rust_theme_digest(start_theme)
+                tab._handle_rust_hello({
+                    "renderer": RUST_MESH_RENDERER,
+                    "edit_backend": RUST_MESH_EDIT_BACKEND,
+                    "capabilities": ["embedded_child_window_v1", RUST_UI_TRANSLATION_PARTS_CAPABILITY],
+                    "child_hwnd": 123,
+                    "embedded_parent_hwnd": 456,
+                })
+                assert tab.standalone_rust_translation_parts_supported is True
+                first = len(sent)
+                tab._handle_rust_ready({})
+                # The helper already holds this theme from its manifest.
+                assert [message["event"] for message in sent[first:]] == []
+
+                # Live update: a theme change resends the whole catalogue in parts.
+                first = len(sent)
+                tab.set_theme("nord")
+                delivered = _delivered_theme(sent[first:])
+                assert len(sent[first:]) > 4
+                assert delivered["theme"] == "nord"
+                assert delivered["language"] == language.code
+                assert delivered["translations"] == expected
+                first = len(sent)
+                tab.set_theme("nord")
+                assert sent[first:] == []
+                tab.theme_key = "graphite"
+            stop = getattr(tab.standalone_rust_process, "deleteLater", None)
+            if callable(stop):
+                stop()
+            tab.standalone_rust_process = None
+    finally:
+        app.setProperty("_cdmw_ui_localizer", previous)
+        localizer.shutdown()
+        tab.deleteLater()
+        QApplication.processEvents()
+
+
+def test_theme_updates_are_contiguous_ordered_and_resent_whole_after_a_failed_line(
+    tmp_path: Path,
+) -> None:
+    from cdmw.ui.localization import UiLocalizer
+
+    tab = _tab(tmp_path)
+    app = QApplication.instance()
+    previous = app.property("_cdmw_ui_localizer")
+    localizer = UiLocalizer(language_dir=tmp_path / "languages", language_code="ja")
+    app.setProperty("_cdmw_ui_localizer", localizer)
+    keys = _pad_native_catalog(localizer, minimum_bytes=600 * 1024)
+    sent: list[dict[str, object]] = []
+    accept = {"lines": 10_000}
+
+    def send(payload: dict[str, object]) -> bool:
+        if accept["lines"] <= 0:
+            return False
+        accept["lines"] -= 1
+        sent.append(dict(payload))
+        return True
+
+    tab._send_rust_message = send  # type: ignore[method-assign]
+    tab.standalone_rust_ready = True
+    tab.standalone_rust_translation_parts_supported = True
+    try:
+        with patch("cdmw.ui.localization_catalogs_v2.native_ui_source_keys", return_value=keys):
+            assert tab._send_rust_theme_update() is True
+            first_update = list(sent)
+            first_request = first_update[-1]["request_id"]
+            assert {message["request_id"] for message in first_update} == {first_request}
+            assert _delivered_theme(first_update)["translations"] == _expected_native_translations(localizer)
+
+            # The process stops accepting lines partway through the next transfer.
+            sent.clear()
+            tab.theme_key = "nord"
+            accept["lines"] = 1
+            assert tab._send_rust_theme_update() is False
+            assert [message["event"] for message in sent] == ["theme_translations_part"]
+            assert tab.standalone_rust_theme_digest == ""
+
+            # Nothing is assumed delivered: the retry is a new, complete transfer.
+            sent.clear()
+            accept["lines"] = 10_000
+            assert tab._send_rust_theme_update() is True
+            assert sent[0]["part_index"] == 0
+            assert sent[-1]["request_id"] > first_request + 1
+            assert _delivered_theme(sent)["theme"] == "nord"
+    finally:
+        app.setProperty("_cdmw_ui_localizer", previous)
+        localizer.shutdown()
+        tab.deleteLater()
+
+
+def test_helper_without_translation_parts_keeps_its_theme_and_names_the_line_limit(
+    tmp_path: Path,
+) -> None:
+    from cdmw.ui.localization import UiLocalizer
+
+    tab = _tab(tmp_path)
+    app = QApplication.instance()
+    previous = app.property("_cdmw_ui_localizer")
+    localizer = UiLocalizer(language_dir=tmp_path / "languages", language_code="ru")
+    app.setProperty("_cdmw_ui_localizer", localizer)
+    keys = _pad_native_catalog(localizer, minimum_bytes=400 * 1024)
+    sent: list[dict[str, object]] = []
+    tab._send_rust_message = lambda payload: sent.append(dict(payload)) or True  # type: ignore[method-assign]
+    tab.standalone_rust_ready = True
+    tab.standalone_rust_theme_digest = "theme-from-the-manifest"
+    try:
+        with patch("cdmw.ui.localization_catalogs_v2.native_ui_source_keys", return_value=keys):
+            assert tab._send_rust_theme_update() is False
+        assert sent == []
+        assert tab.standalone_rust_theme_digest == "theme-from-the-manifest"
+        status = tab.standalone_status_label.text()
+        assert "bytes; limit is" in status
+        # A catalogue that fits one line still reaches an older helper.
+        assert tab._send_rust_theme_update() is True
+        assert [message["event"] for message in sent] == ["theme_update"]
+        assert sent[0]["payload"]["translations"] == _expected_native_translations(localizer)
+    finally:
+        app.setProperty("_cdmw_ui_localizer", previous)
+        localizer.shutdown()
+        tab.deleteLater()
+
+
+def test_translation_parts_are_bounded_by_the_helper_catalog_limit(tmp_path: Path) -> None:
+    from cdmw.services.mesh_rust_contract import RUST_UI_TRANSLATION_MAX_BYTES
+    from cdmw.ui.localization import UiLocalizer
+    from cdmw.ui.mesh_editor.rust_theme_transport import rust_theme_update_messages
+
+    tab = _tab(tmp_path)
+    app = QApplication.instance()
+    previous = app.property("_cdmw_ui_localizer")
+    localizer = UiLocalizer(language_dir=tmp_path / "languages", language_code="zh-Hans")
+    app.setProperty("_cdmw_ui_localizer", localizer)
+    keys = _pad_native_catalog(
+        localizer, minimum_bytes=RUST_UI_TRANSLATION_MAX_BYTES + 65536, repeat=8,
+    )
+    sent: list[dict[str, object]] = []
+    tab._send_rust_message = lambda payload: sent.append(dict(payload)) or True  # type: ignore[method-assign]
+    tab.standalone_rust_ready = True
+    tab.standalone_rust_translation_parts_supported = True
+    try:
+        with patch("cdmw.ui.localization_catalogs_v2.native_ui_source_keys", return_value=keys):
+            assert tab._send_rust_theme_update() is False
+        assert sent == []
+        assert f"limit is {RUST_UI_TRANSLATION_MAX_BYTES:,}" in tab.standalone_status_label.text()
+        # Without translations a theme that cannot fit one line is refused, not split.
+        message = {
+            "event": "theme_update", "protocol": "p", "session_id": "s", "request_id": 1,
+            "base_revision": 0, "process_generation": 1,
+            "payload": {"layout": "x" * (300 * 1024), "translations": {"Undo": "元に戻す"}},
+        }
+        with pytest.raises(ValueError, match="limit is"):
+            rust_theme_update_messages(message, line_limit=256 * 1024, parts_supported=True)
     finally:
         app.setProperty("_cdmw_ui_localizer", previous)
         localizer.shutdown()

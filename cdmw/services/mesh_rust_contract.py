@@ -27,6 +27,11 @@ RUST_HAIR_AUTHORING_CAPABILITY = "hair_authoring_v2"
 RUST_VERTEX_PARAMETERS_CAPABILITY = "vertex_parameters_v1"
 RUST_MESH_DOCUMENT_BINARY_CAPABILITY = "mesh_document_binary_v1"
 RUST_EMPTY_AUTHORING_PARTS_CAPABILITY = "empty_authoring_parts_v1"
+# Optional hello capability: theme translation catalogues larger than one
+# control line arrive as ordered parts. Both sides bound the catalogue alike.
+RUST_UI_TRANSLATION_PARTS_CAPABILITY = "ui_translation_parts_v1"
+RUST_UI_TRANSLATION_MAX_BYTES = 4 * 1024 * 1024
+RUST_UI_TRANSLATION_MAX_ENTRIES = 10_000
 RUST_MESH_REQUIRED_CAPABILITIES = (
     "embedded_child_window_v1",
     "rust_preview_runtime_v1",
@@ -327,6 +332,9 @@ __all__ = [
     "RUST_PREVIEW_PACKAGE",
     "RUST_PREVIEW_PROTOCOL",
     "RUST_PREVIEW_REQUIRED_CAPABILITIES",
+    "RUST_UI_TRANSLATION_MAX_BYTES",
+    "RUST_UI_TRANSLATION_MAX_ENTRIES",
+    "RUST_UI_TRANSLATION_PARTS_CAPABILITY",
     "RustMeshExecutableResolution",
     "resolve_rust_mesh_editor",
     "rust_mesh_editor_candidate_paths",

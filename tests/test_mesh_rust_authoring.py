@@ -193,6 +193,7 @@ class RustMeshAuthoringTests(unittest.TestCase):
         target_entry: ArchiveEntry | None = None,
         texture_entries_by_basename: dict[str, tuple[ArchiveEntry, ...]] | None = None,
         physics_profile_context: object | None = None,
+        theme: dict[str, object] | None = None,
     ) -> tuple[MeshService, RustMeshAuthoringSession]:
         authoritative = MeshService(settings=_Settings(root.parent / "settings.ini"))
         source = _pac_fixture(skinned=skinned_source)
@@ -260,9 +261,33 @@ class RustMeshAuthoringTests(unittest.TestCase):
             controller,
             root,
             process_generation=7,
-            theme={"density": "compact", "scale": 1.25},
+            theme=theme if theme is not None else {"density": "compact", "scale": 1.25},
         )
         return authoritative, session
+
+    def test_initial_manifest_carries_a_mebibyte_translation_catalog_whole(self) -> None:
+        from cdmw.ui.mesh_editor.rust_theme_transport import rust_theme_digest
+
+        translations = {
+            f"Native label {index} \"quoted\" {{value_0}}": "Редактор сетки «{value_0}» " * 8
+            for index in range(6_000)
+        }
+        theme = {"schema": "cdmw_ui_theme_v1", "language": "ru", "translations": translations}
+        self.assertGreater(
+            len(json.dumps(translations, ensure_ascii=False).encode("utf-8")), 1 << 20,
+        )
+        with tempfile.TemporaryDirectory() as temporary:
+            authoritative, session = self._create(Path(temporary) / "session", theme=theme)
+            try:
+                manifest = json.loads(session.manifest_path.read_text(encoding="utf-8"))
+                self.assertEqual(theme, manifest["theme"])
+                # The editor tab seeds its delivered-theme digest from this copy.
+                self.assertEqual(rust_theme_digest(theme), rust_theme_digest(session.theme))
+            finally:
+                session.cancel()
+                authoritative.close_edit_session(
+                    session.authoritative_session_id, force_without_saving=True,
+                )
 
     def test_initial_package_reads_exclusively_owned_shadow_without_another_clone(self) -> None:
         reads = []

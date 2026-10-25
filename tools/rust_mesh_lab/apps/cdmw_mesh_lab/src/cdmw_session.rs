@@ -17,6 +17,7 @@ use std::thread;
 use thiserror::Error;
 
 mod mesh_document_binary;
+mod translation_transfer;
 
 pub const PROTOCOL: &str = "cdmw_rust_mesh_editor_protocol_v1";
 pub const PACKAGE_SCHEMA: &str = "cdmw_rust_mesh_authoring_package_v1";
@@ -512,6 +513,9 @@ impl LoadedCdmwSessionPackage {
             expected_protocol,
             expected_backend,
         )?;
+        if expected_schema == PACKAGE_SCHEMA {
+            translation_transfer::validate_manifest_theme(&manifest.theme)?;
+        }
         check_preview_cancelled(cancelled)?;
         // Channels are integrity-checked authoring provenance. The renderer
         // consumes geometry from the document, so validate the JSON stream
@@ -636,6 +640,7 @@ pub struct CdmwBridge {
     textures: Vec<CdmwTextureResource>,
     last_result_request_id: u64,
     state_snapshot_accepted: bool,
+    translations: translation_transfer::TranslationTransfers,
 }
 
 #[derive(Clone, Debug)]
@@ -701,6 +706,7 @@ impl CdmwBridge {
                 textures,
                 last_result_request_id: 0,
                 state_snapshot_accepted: false,
+                translations: translation_transfer::TranslationTransfers::default(),
             },
             document,
         ))
@@ -861,7 +867,8 @@ impl CdmwBridge {
                 "vertex_parameters_v1",
                 "mesh_document_binary_v1",
                 "empty_authoring_parts_v1",
-                "control_contract_v2"
+                "control_contract_v2",
+                translation_transfer::CAPABILITY
             ]
         }))?;
         self.send_message(json!({
@@ -1155,7 +1162,7 @@ impl CdmwBridge {
         let mut events = Vec::new();
         loop {
             match self.incoming.try_recv() {
-                Ok(Incoming::Message(value)) => events.push(self.decode_host_event(value)),
+                Ok(Incoming::Message(value)) => events.extend(self.decode_host_message(value)),
                 Ok(Incoming::LocalError(message)) => events.push(HostEvent::Fatal(message)),
                 Err(TryRecvError::Empty) => break,
                 Err(TryRecvError::Disconnected) => {
@@ -1321,6 +1328,7 @@ impl CdmwBridge {
             textures: Vec::new(),
             last_result_request_id: 0,
             state_snapshot_accepted: false,
+            translations: translation_transfer::TranslationTransfers::default(),
         }
     }
 
@@ -1421,6 +1429,18 @@ impl CdmwBridge {
         bridge
     }
 
+    /// Translation parts raise no event of their own; the theme update that
+    /// completes their transfer does.
+    fn decode_host_message(&mut self, value: Value) -> Option<HostEvent> {
+        if value.get("event").and_then(Value::as_str) != Some(translation_transfer::PART_EVENT) {
+            return Some(self.decode_host_event(value));
+        }
+        validate_identity(&value, &self.manifest)
+            .and_then(|()| self.translations.accept_part(&value))
+            .err()
+            .map(|error| HostEvent::Fatal(error.to_string()))
+    }
+
     fn decode_host_event(&mut self, mut value: Value) -> HostEvent {
         let result = (|| {
             validate_identity(&value, &self.manifest)?;
@@ -1461,9 +1481,12 @@ impl CdmwBridge {
                 "state_snapshot" => Ok(HostEvent::StateSnapshot(
                     value.get("payload").cloned().unwrap_or(Value::Null),
                 )),
-                "theme_update" => Ok(HostEvent::Theme(
-                    value.get("payload").cloned().unwrap_or(Value::Null),
-                )),
+                "theme_update" => {
+                    self.translations.resolve_update(&mut value)?;
+                    Ok(HostEvent::Theme(
+                        value.get("payload").cloned().unwrap_or(Value::Null),
+                    ))
+                }
                 "vertex_inspect_result" => Ok(HostEvent::VertexInspection {
                     request_id: required_u64(&value, "request_id")?,
                     ok: value.get("ok").and_then(Value::as_bool).unwrap_or(false),
@@ -3617,6 +3640,27 @@ mod tests {
         json!({"path": name, "data_type": mesh_document_binary::DATA_TYPE,
             "content_type": "application/octet-stream", "count": 1,
             "byte_length": bytes.len(), "sha256": sha256_upper(bytes)})
+    }
+
+    #[test]
+    fn native_localization_manifest_theme_is_checked_when_the_package_loads() {
+        let root = tempdir().unwrap();
+        let manifest_path = write_loaded_package_fixture(root.path());
+        let mut manifest: Value = serde_json::from_slice(&fs::read(&manifest_path).unwrap()).unwrap();
+        let translations = (0..6_000)
+            .map(|index| (format!("Label {index}"), json!("Редактор сетки «{value_0}» ".repeat(8))))
+            .collect::<serde_json::Map<_, _>>();
+        manifest["theme"] = json!({"language": "ru", "translations": translations});
+        assert!(serde_json::to_vec(&manifest["theme"]).unwrap().len() > 1 << 20);
+        fs::write(&manifest_path, serde_json::to_vec(&manifest).unwrap()).unwrap();
+        let package = LoadedCdmwSessionPackage::load(&manifest_path).unwrap();
+        assert_eq!(
+            package.manifest().theme["translations"]["Label 7"],
+            manifest["theme"]["translations"]["Label 7"]
+        );
+        manifest["theme"]["translations"]["Label 7"] = json!(7);
+        fs::write(&manifest_path, serde_json::to_vec(&manifest).unwrap()).unwrap();
+        assert!(LoadedCdmwSessionPackage::load(&manifest_path).is_err());
     }
 
     #[test]
