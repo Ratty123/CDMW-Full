@@ -2276,9 +2276,16 @@ outside that recorded proof; no engine API or game session ran.
 The nineteen retained component cases now have exact current-watch independent
 reaffirmations, without replay, and the owned launch scope is independently
 reviewed. The frozen component bundle passes the actual admission validator.
-The external full-watch operator binds those exact prerequisites, passes 37
-final isolated checks and is frozen for complete independent source review.
-Its actual complete-watch run remains pending. No engine/resource/item/save
+The first frozen external operator passes 37 isolated checks but its complete
+independent source review refuses two uncovered failure paths: uncertain pipe
+creation could bypass quarantine, and a fresh Job-helper digest could admit
+changed source after validation. That source and its refusal remain immutable;
+it was never executed. The successor protects the full creation-to-ownership
+registration boundary and loads only the unique frozen Job source row. It
+preserves the original checks, adds the failure regressions and passes all 62
+focused isolated cases. V2 is frozen for a separate complete independent source
+review, with the same approved fixture, component bytes and owned launch scope.
+Neither operator has run; actual complete-watch qualification remains pending. No engine/resource/item/save
 lifecycle proof or native admission follows from these prerequisite results.
 
 The actual owned complete-watch qualification remains required before
