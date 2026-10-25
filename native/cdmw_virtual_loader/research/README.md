@@ -575,27 +575,37 @@ frozen input set after each census. It passes 131 focused checks and its strict
 x64 compile/link completes with zero warnings or errors. All four direct build
 tools retire normally with their retained handles closed, the identity module
 reference is explicitly released, and fresh scoped censuses are empty. The
-lifetime Job and outer tool/tree proof limits remain explicit. The fixture has
-not been run; linked review and a separately reviewed external guardian operator
-with exact inherited pipe/handle creation remain required.
+lifetime Job and outer tool/tree proof limits remain explicit. The fixture now has complete independent linked approval: its six callbacks
+and read-only token match the actual executable. Its entry path uses the
+separate fixture adapter; unused production parser symbols retained in linked
+protocol code are not evidence of game execution. The fixture has not run;
+actual complete-watch qualification remains required.
 
 The production V6 source/PE/MAP/disassembly linkage now has complete
 independent approval against this exact watcher and its actual build/output
 wrapper. The inspection/step callbacks match the compiled image, ABI, unwind
 and compiled CFG metadata. This remains static evidence; runtime CFG, reader
 exclusion, process retirement and engine behaviour are separate proof levels.
-The inactive-load qualifier now binds those exact approvals, passes 14 final
-isolated source/owner checks and is frozen for independent review. It has not
-loaded the candidate. The external full-watch operator remains an unfrozen
-draft; its isolated checks and prepared launch scope grant no execution proof.
-Fresh inactive loading, component reaffirmations, fixture linked approval,
-the reviewed actual full watch and controlled game compatibility remain
-mandatory. No engine/resource/item/save-lifecycle proof or native admission
-follows from these component results.
+A fresh independently reviewed inactive qualification loads the exact V6
+image in a direct BASE test process, observes state zero before and after
+initialization, explicitly unloads it and observes its absence. The child
+retires normally on its retained handle, which is closed; its kernel and the
+controller's identity module references are explicitly released. Fresh scoped
+censuses are empty and no timeout, forced cleanup or unknown owner is recorded.
+Independent actual review confirms this inactive prerequisite only. Lifetime
+Job return, the outer tool handle and universal process/kernel closure remain
+outside that recorded proof; no engine API or game session ran.
 
-Fresh same-binary inactive loading, exact
-current-watch component reaffirmations and the actual owned complete-watch
-qualification remain required. Game mode additionally requires reviewed current launch,
+The nineteen retained component cases now have exact current-watch independent
+reaffirmations, without replay, and the owned launch scope is independently
+reviewed. The frozen component bundle passes the actual admission validator.
+The external full-watch operator binds those exact prerequisites, passes 37
+final isolated checks and is frozen for complete independent source review.
+Its actual complete-watch run remains pending. No engine/resource/item/save
+lifecycle proof or native admission follows from these prerequisite results.
+
+The actual owned complete-watch qualification remains required before
+controlled game testing. Game mode additionally requires reviewed current launch,
 installation and recovery scope. Normal worker completion is required; forced
 cleanup establishes retirement only. No controlled game run occurred. Engine
 lifetime, coherent publication/readers, native resources, item lifecycle and
