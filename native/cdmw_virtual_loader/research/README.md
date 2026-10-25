@@ -551,21 +551,39 @@ This establishes the owned IPC channel only. Legacy outer identity, Job,
 tool-handle and whole-tree limits remain; the failed IPC3 result is not
 relabeled and no game/native-feature admission follows.
 
-Watcher V3 remains refused for obsolete build-local references despite 251
-passing fake-only checks. Its frozen V4 successor fixes that integration
-path, binds IPC4 and exact local-only inherited clients, and passes 266
-focused checks, including direct components() coverage. Complete independent
-review nevertheless refuses V4. Retained-handle, crash-lease and IPC actual
-reviews are not checked against the current watch source, unlike the wire
-and inert gates. The first owned full-watch prerequisite also requires the
-same V6 caller as the game, while that caller only arms after the real-game
-image and verified early-startup guards. An ordinary benign target cannot
-meet that circular requirement. A dormant inert load or synthetic encoder
-does not establish complete physical watcher operation. Both source
-generations remain inactive; a concrete owned-fixture contract and exact
-current-watch review joins must be corrected before qualification. The
-external guardian operator and its explicit pipe/handle-list creation
-proof also remain unimplemented and unqualified.
+Watcher V3 and V4 remain frozen and refused. V3 missed an integration
+reference; V4 omitted exact current-watch component-review joins and coupled
+the first owned full-watch prerequisite to the game-only caller. Frozen V5
+corrects those source contracts and passes 299 focused fake-only checks. It
+requires the production V6 source, build, linked and inactive-load proofs in
+both modes, while its owned mode additionally requires a separate native test
+target and evidence profile. Fixture evidence cannot satisfy game mode. The
+completed fixture record must join the actual ACK identities and armed tick
+before the final decision. V5 source approval and actual complete-watch
+qualification are still pending; passing source tests do not activate it.
+
+The separate owned fixture reuses the real retirement core with OS threads
+and allocations, plus the unchanged Lease/ACK/RCS1 helpers. Its manifest and
+record format explicitly identify fixture evidence and do not imitate game
+installation or engine support. Its first frozen build owner was independently
+refused for checks that did not survive the blocking process census and an
+ordinary Job-service import that did not bind execution to pinned source bytes.
+The reviewed successor loads witnessed sources directly and rechecks the full
+frozen input set after each census. It passes 131 focused checks and its strict
+x64 compile/link completes with zero warnings or errors. All four direct build
+tools retire normally with their retained handles closed, the identity module
+reference is explicitly released, and fresh scoped censuses are empty. The
+lifetime Job and outer tool/tree proof limits remain explicit. The fixture has
+not been run; linked review and a separately reviewed external guardian operator
+with exact inherited pipe/handle creation remain required.
+
+File-only source/PE/MAP/disassembly preparation also matches the production V6
+inspection/step functions and startup/ACK ordering to its actual built image
+and separate output wrapper. This is preparatory static evidence with no
+execution approval. Exact current-watch linked review, fresh inactive loading,
+actual full-watch operation and controlled game compatibility remain separate
+obligations. No engine/resource/item/save-lifecycle proof or native admission
+follows from these component results.
 
 Current-caller linked review and fresh same-binary inactive loading, exact
 current-watch component reaffirmations and the actual owned complete-watch
