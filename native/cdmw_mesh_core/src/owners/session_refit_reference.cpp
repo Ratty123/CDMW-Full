@@ -889,7 +889,11 @@ std::string mesh_editor_apply_reference_refit(
     for (const auto& group : rigid_groups) largest_group = std::max(largest_group, group.size());
     long long exempt_count = 0;
     for (const char value : exempt) exempt_count += value ? 1 : 0;
+    std::size_t automatic_islands = 0;
+    for (const auto& item : refit.automatic_rigid_islands) automatic_islands += item.second.size();
     report << ",\"particles\":" << count << ",\"rigid_groups\":" << rigid_groups.size()
+           << ",\"automatic_rigid_parts\":" << refit.automatic_rigid_parts.size()
+           << ",\"automatic_rigid_islands\":" << automatic_islands
            << ",\"largest_rigid_group\":" << largest_group << ",\"layer_constraints\":" << layer_rows.size()
            << ",\"remaining_layer_violations\":" << layer_violations
            << ",\"remaining_body_violations\":" << body_violations

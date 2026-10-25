@@ -64,8 +64,10 @@ PRESETS = {
         "reference": "character/model/1_pc/1_phm/nude/cd_phm_00_nude_00_0001.pac",
         "source_skeleton": "phm_01.pab",
         "target_skeleton": "phw_01.pab",
+        # Fit to body's defaults for a fresh setup; Tightness also enables the
+        # automatic rigid accessory inference.
         "clearance": 0.1,
-        "tightness": 0.0,
+        "tightness": 100.0,
         "parts": {
             "0": {"rigid_islands": [1, 2, 3, 4, 5]},
             "1": {"mode": "rigid_component"},
@@ -422,6 +424,8 @@ def main(argv=None) -> int:
     parser.add_argument("--method", nargs="+", choices=("reference", "bound"), default=["reference"])
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--render", action="store_true", help="Write before/after Part-colour sheets (needs Pillow)")
+    parser.add_argument("--unmarked", action="store_true",
+                        help="Fit every Part as cloth, as a new setup does, but still score the config's rigid pieces")
     args = parser.parse_args(argv)
     if bool(args.assets) == bool(args.game_root):
         parser.error("give exactly one of --assets or --game-root")
@@ -435,9 +439,10 @@ def main(argv=None) -> int:
         raise SystemExit("Build the native mesh core first (native/cdmw_mesh_core, Release).")
     inputs = _archive_inputs(config, args.game_root) if args.game_root else _file_inputs(config, args.assets)
     args.output.mkdir(parents=True, exist_ok=True)
-    reports = {"provenance": inputs["provenance"], "config": config, "runs": {}}
+    reports = {"provenance": inputs["provenance"], "config": config, "unmarked": args.unmarked, "runs": {}}
+    fitting = {key: value for key, value in config.items() if key != "parts"} if args.unmarked else config
     for method in args.method:
-        run = fit(inputs, config, method)
+        run = fit(inputs, fitting, method)
         report = analyse(run, config, inputs["reference"])
         reports["runs"][method] = report
         if args.render:

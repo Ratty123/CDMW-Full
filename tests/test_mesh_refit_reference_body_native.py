@@ -168,6 +168,44 @@ def test_reference_body_survives_a_version_5_runtime_snapshot():
             mesh_native_core.dispose_native_mesh_editor_morph_runtime_snapshot(descriptor)
 
 
+def test_an_unmarked_closed_dagger_on_cloth_fits_rigidly_through_the_reference():
+    from tests.test_mesh_refit_layer_boundaries_native import _combined_part
+
+    cloth = _refit_tube_part("cloth", .13, 0., (.1, .15, .2, .25, .3, .35, .4), 32)
+    # The closed blade of test_mesh_refit_attached_details_native, sharing its cloth Part.
+    outline = ((.18, 0.), (.25, -.012), (.27, -.025), (.29, -.025), (.29, .025), (.27, .025), (.25, .012))
+    vertices = [(x, y, z) for x in (.131, .138) for y, z in outline]
+    n = len(outline)
+    faces = [(0, i + 1, i) for i in range(1, n - 1)] + [(n, n + i, n + i + 1) for i in range(1, n - 1)]
+    for i in range(n):
+        j = (i + 1) % n
+        faces += [(i, j, n + j), (i, n + j, n + i)]
+    blade = _part("dagger", vertices, faces, material="cloth", texture="")
+    mesh = _mesh(_arm(DRIVER_RADIUS), _combined_part("cloth and dagger", (cloth, blade)))
+    session = _open(mesh)
+    try:
+        _command(session, "morph_upload", {"profile": {
+            "profile_id": "fit", "name": "Fit", "topology_fingerprint": "a" * 64, "definitions": [], "fields": [],
+        }})
+        _command(session, "morph_set_driver", {"submesh_indices": [0]})
+        _command(session, "morph_bind", {"garment_submesh_indices": [1]})
+        _command(session, "morph_set_reference_body", {
+            "reference_body": _reference(), "garment_submesh_indices": [1], "garment_settings": [
+                {"submesh_index": 1, "mode": "surface", "clearance_percent": .1, "tightness_percent": 100.}],
+        })
+        fitted = _snapshot(mesh, session)
+        last = _state(session)["refit"]["reference_body"]["last_fit"]
+    finally:
+        mesh_native_core.close_native_mesh_editor_session(session)
+    assert last["automatic_rigid_islands"] == 1 and last["rigid_groups"] == 1
+    before = np.asarray(vertices)
+    after = np.asarray(fitted.submeshes[1].vertices[len(cloth.vertices):])
+    assert np.max(np.abs(np.linalg.norm(before[:, None] - before[None, :], axis=2)
+                         - np.linalg.norm(after[:, None] - after[None, :], axis=2))) < 1e-7
+    # It still follows the fatter body outward with the cloth around it.
+    assert after[:, 0].mean() > before[:, 0].mean() + .01
+
+
 def test_reference_body_requires_a_binding_and_matching_arrays():
     mesh = _outfit()
     session = _open(mesh)

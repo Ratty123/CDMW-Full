@@ -4821,13 +4821,15 @@ std::vector<SubmeshMeshEditResult> mesh_editor_recompose_morph(
         indices.insert(next.refit->garment_submesh_indices.begin(), next.refit->garment_submesh_indices.end());
     }
     const std::map<int, std::vector<Vec3>> residual = mesh_editor_morph_residual_positions(*session.morph, submeshes, indices);
+    MeshMorphRuntime fitting = next;
+    // Small closed accessories attached to cloth fit rigidly in both fitters;
+    // explicit Part and island choices stay authoritative.
+    if (next.refit) if (auto attachments = mesh_editor_refit_solid_attachments(*next.refit, submeshes, residual))
+        fitting.refit = std::move(attachments);
     if (next.refit && next.refit->reference_body) {
         // The reference-body transfer owns rigid pieces, islands and exclusions itself.
-        session.reference_refit_report = mesh_editor_apply_reference_refit(next, submeshes, residual, new_layer, post_refit);
+        session.reference_refit_report = mesh_editor_apply_reference_refit(fitting, submeshes, residual, new_layer, post_refit);
     } else {
-        MeshMorphRuntime fitting = next;
-        if (next.refit) if (auto attachments = mesh_editor_refit_solid_attachments(*next.refit, submeshes, residual))
-            fitting.refit = std::move(attachments);
         const bool islands = fitting.refit && (!fitting.refit->excluded_faces.empty()
             || std::any_of(fitting.refit->garment_settings.begin(), fitting.refit->garment_settings.end(),
                 [](const auto& item) { return !item.second.island_settings.empty(); }));
