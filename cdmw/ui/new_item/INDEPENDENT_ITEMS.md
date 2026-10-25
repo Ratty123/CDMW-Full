@@ -2083,13 +2083,37 @@ global resource-return certificate. A repeated pending-stop source defect is a
 qualified secondary explanation; swallowed cleanup diagnostics prevent assigning
 that exact branch to this actual attempt.
 
-Separate source-only successors are being prepared. Collector clocks will be
-sampled after the relevant reads and completion joins, including inside the
-physical start observer. The external operator now joins an already requested
-stop on the same retained child instead of requesting another stop; five focused
-pure checks pass for that pending-stop path. These drafts are not frozen,
-independently approved or executed. The failed full-watch cannot admit game mode;
-a new approved complete owned qualification remains mandatory. No engine/resource/item/save
+At this snapshot, frozen Watcher V6 has complete independent source approval
+for all 17 authored files and 917 declared inputs. Its final combined pure run
+records 670 passed and one skipped physical-symlink creation branch in 59.99
+seconds; synthetic reparse and hard-link checks remain covered. Both stale-clock
+defects are resolved at source level: the physical start observer samples after
+its reads, and both Collectors take fresh authoritative clock samples after
+reads, decoding, metadata joins and result projection. Constructors receive an
+explicit clock without querying it; live workers supply their own clock. The
+13-key result projection, future/backward/invalid-clock refusals, native protocol
+and deferred launch gates remain unchanged. This source approval does not prove
+actual Windows timing or a successful complete watch.
+
+The nineteen retained component cases now have separate Watch V6 independent
+reaffirmations without replay, and the fresh owned launch scope V2 is independently
+reviewed. The new V7 production linked review joins this exact Watch V6 source
+and approval to the unchanged production V6 source, compiled image, build proof,
+output wrapper and ABI. The owned fixture C++ and compiled binary are unchanged.
+These are component, scope and static linkage proofs; they do not replace the
+current inactive-load or complete owned-watch prerequisites.
+
+The unchanged exact-current-linked-review gate requires a fresh inactive V5
+qualification. Its source is frozen and its 19 final pure checks pass in 0.32
+seconds; complete independent source review is pending. At this snapshot no
+inactive V5 actual or fresh owned complete-watch V2 attempt has started. External
+operator V3 remains unfrozen and unapproved while those prerequisites are joined.
+Six focused pure pending-stop and diagnostic checks pass in 0.11 seconds; the
+final 67-case run has not occurred. This does not establish a closed global
+resource return. The failed first full-watch result and independent refusal
+remain unchanged: its consistent owned fixture subset is not timely Collector
+or complete-watch evidence. A newly approved, successful complete owned
+qualification remains mandatory before game mode. No engine/resource/item/save
 lifecycle proof or native admission follows from these prerequisite results.
 
 The actual owned complete-watch qualification remains required before
