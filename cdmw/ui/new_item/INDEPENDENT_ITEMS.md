@@ -1943,7 +1943,7 @@ and explicit process retirement. A frozen predecessor was refused because
 optimized Python could erase helper assertions; its successor requires isolated,
 nonoptimized interpreters before setup. Timestamp and failure-receipt corrections
 retain the failed first fake run. Those IPC2 source-stage results remain
-historical; the current IPC3 product and actual-attempt status is recorded below.
+historical; the IPC3 failure and current IPC4 qualification are recorded below.
 
 The retained guardian V2 source passes independent review and 243 focused
 file-only checks, including witnessed empty diagnostic logs while refusing empty
@@ -1989,20 +1989,37 @@ The frozen IPC4 successor requires exactly the observed local-only plus
 endpoint flags and retains all mode, instance, peer, quota and handle
 checks. Its 209 focused fake-only checks pass, including missing local
 protection, wrong endpoints, message mode/type and unknown flag bits. The
-native products are unchanged. Complete independent IPC4 source approval,
-exact product reaffirmations and a fresh seven-case actual qualification
-remain pending; the earlier failed IPC3 result is not relabeled.
+native products are unchanged and their exact linked reaffirmations bind
+the approved complete IPC4 source. All seven fresh owned Windows cases
+now pass independent actual review: publish, claim-pending, regression,
+mutation, malformed record, mapping collision and event collision. All
+seven direct case processes retire with fresh signal/exit-zero and
+explicit retained-handle closure. The five launched producers retire
+normally; collision cases start none. Every scoped case/controller
+resource check passes, with unchanged inputs and empty fresh censuses.
+This establishes the owned IPC channel only. Legacy outer identity, Job,
+tool-handle and whole-tree limits remain; the failed IPC3 result is not
+relabeled and no game/native-feature admission follows.
 
-The watcher V3 successor binds IPC3 and the V6 build provenance and passes 251
-focused file-only checks, but independent review refuses it: components() still
-references two locals moved into its validation helper. Those checks missed
-the integration path, so V3 must not activate. A small unfrozen successor adds
-direct components() coverage and removes the obsolete references; it has no
-new validation or execution approval yet.
+Watcher V3 remains refused for obsolete build-local references despite 251
+passing fake-only checks. Its frozen V4 successor fixes that integration
+path, binds IPC4 and exact local-only inherited clients, and passes 266
+focused checks, including direct components() coverage. Complete independent
+review nevertheless refuses V4. Retained-handle, crash-lease and IPC actual
+reviews are not checked against the current watch source, unlike the wire
+and inert gates. The first owned full-watch prerequisite also requires the
+same V6 caller as the game, while that caller only arms after the real-game
+image and verified early-startup guards. An ordinary benign target cannot
+meet that circular requirement. A dormant inert load or synthetic encoder
+does not establish complete physical watcher operation. Both source
+generations remain inactive; a concrete owned-fixture contract and exact
+current-watch review joins must be corrected before qualification. The
+external guardian operator and its explicit pipe/handle-list creation
+proof also remain unimplemented and unqualified.
 
-Current-caller linked review and fresh same-binary inactive loading, successful
-seven-case IPC qualification and the actual owned complete-watch qualification
-remain required. Game mode additionally requires reviewed current launch,
+Current-caller linked review and fresh same-binary inactive loading, exact
+current-watch component reaffirmations and the actual owned complete-watch
+qualification remain required. Game mode additionally requires reviewed current launch,
 installation and recovery scope. Normal worker completion is required; forced
 cleanup establishes retirement only. No controlled game run occurred. Engine
 lifetime, coherent publication/readers, native resources, item lifecycle and
