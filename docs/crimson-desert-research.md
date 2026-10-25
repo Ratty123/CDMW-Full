@@ -2190,17 +2190,35 @@ Both V2 channel products also pass strict zero-warning compile/link and exact
 linked review for the source-reviewed IPC3 qualifier. Its 201 focused fake
 checks pass. The first actual publish case refuses the pipe endpoint/type/read
 mode/instance predicate before starting the producer. The failing endpoint,
-individual comparison and raw returned values were not recorded, so the cause
-is still unknown; no predicate relaxation is justified.
+individual comparison and raw returned values were not recorded. That failed
+attempt remains unchanged; the separate fresh-pipe diagnosis follows below.
 
 Independent bounded cleanup review confirms the two first input-pipe handles,
 owner DLL/kernel references and the direct case process were released; the
 case process exited 1 and its retained handle closed. The original case and
 outer failure/resource-false flags remain unchanged. This does not certify the
 legacy identity module, lifetime Job, unexposed tool handle or whole process
-tree. No later IPC case ran. A separate pipe-only raw-readback diagnostic is
-being qualified; its first source candidate was refused for exceptional child
-cleanup and final-receipt gaps and has never executed.
+tree. No later IPC3 case ran. The first pipe-only diagnostic source was
+refused for exceptional child cleanup and final-receipt gaps and never ran.
+
+The corrected V2 diagnostic now passes complete independent source and actual
+review. One fresh owned pair reports flags 9 on the server and 8 on the
+client: the local-clients-only bit is returned with the endpoint bit. The
+old exact endpoint-only comparison rejects both of these observed values.
+Read mode remains zero, maximum/current instances one and both quotas 4096;
+peer identity, noninheritance and pipe type also pass. Both pipe handles,
+child kernel reference and parent identity reference have checked release;
+the exact diagnostic child exits zero with its retained handle closed.
+This reproduces the flags mismatch on that new pair; it does not recover
+the original IPC3 endpoint/scalars or qualify a producer/channel/game run.
+
+The frozen IPC4 successor requires exactly the observed local-only plus
+endpoint flags and retains all mode, instance, peer, quota and handle
+checks. Its 209 focused fake-only checks pass, including missing local
+protection, wrong endpoints, message mode/type and unknown flag bits. The
+native products are unchanged. Complete independent IPC4 source approval,
+exact product reaffirmations and a fresh seven-case actual qualification
+remain pending; the earlier failed IPC3 result is not relabeled.
 
 The watcher V3 successor binds IPC3 and the V6 build provenance and passes 251
 focused file-only checks, but independent review refuses it: components() still
