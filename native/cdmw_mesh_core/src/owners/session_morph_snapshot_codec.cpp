@@ -369,8 +369,10 @@ std::shared_ptr<const MeshRefitRuntime> mesh_editor_refit_from_snapshot(
         }
     }
     restore_refit_driver_baselines(raw_refit, submeshes, refit);
-    if (version >= 4) mesh_editor_read_refit_exclusions(*refit,&mesh_editor_snapshot_required_member(
-        *raw_refit,"excluded_faces",JsonValue::Type::Array),submeshes);
+    // Version 4 exists only for exclusions; version 5 (a reference body) may have none.
+    if (version == 4 || (version >= 5 && raw_refit->get("excluded_faces")))
+        mesh_editor_read_refit_exclusions(*refit,&mesh_editor_snapshot_required_member(
+            *raw_refit,"excluded_faces",JsonValue::Type::Array),submeshes);
     else if (raw_refit->get("excluded_faces"))
         throw std::runtime_error("Fitting output exclusions require runtime snapshot version 4");
     refit_read_vertex_masks_native(*refit, raw_refit->get("vertex_masks"), submeshes, refit->garment_submesh_indices);
