@@ -1877,7 +1877,7 @@ A separate source-reviewed native retirement caller v1 passes its strict standal
 build, independent linked review and one exact-PID direct-interpreter inactive
 load. The original virtualenv PID-join failure remains failed. The caller
 includes the read-only context observer, retained Trial and synchronous
-terminal/completed codec; the C++ encoder has not executed. Raw current-thread
+terminal/completed codec; that caller's C++ encoder has not executed. Raw current-thread
 TLS values imply no readiness or first-ever use. A file-only collector v2 passes
 nine new capture-order/refusal checks and source review after its preserved v1
 review refusal. The eight-second file/clock validator and collector still need
@@ -1890,9 +1890,10 @@ preserved v2/v3 refusals. It requires an exact guardian acknowledgment before
 bridge installation and publishes mutable callback permission only after startup
 acknowledgment succeeds. Seventeen pure acknowledgment-codec checks pass. This
 source is uncompiled and supplies no active guardian or deadline/stop proof.
-The retained process handle has source approval and fake-API checks; its owned
-Win32 qualification refused at the unchanged foreign-build preflight before
-any child started. The separate source-reviewed C++ wire fixture is uncompiled.
+The retained process handle passes three owned Win32 cases and independent
+actual review; its earlier foreign-build preflight refusal is preserved.
+The standalone C++ wire fixture passes strict build, linked review and six
+actual synthetic record cases.
 
 Independent static FLS review qualifies owner-gated context retirement, possible
 retention in a 16-slot context cache and delegated backing handling. It establishes
@@ -1917,8 +1918,8 @@ The injected crash-stop lease passes source review and 105 fake-only checks;
 its lazy Win64 adapter separately passes source review and 62 fake ABI/wiring
 checks. The source authenticates one handle with the additional Job-assignment right,
 verifies a new unnamed noninherited kill-on-close Job and retains uncertain
-ownership explicitly. Actual Job calls, guardian death, nested/Steam
-compatibility, sole Job-handle ownership and game-child scope remain unqualified.
+ownership explicitly. Its owned Windows Job and guardian-crash behavior now pass actual review;
+Steam/game compatibility and complete-watch Job ownership remain unqualified.
 
 Caller v5 passes independent source/build-driver review. It opens the matching
 start channel before bridge installation, then commits the same 32-byte start
@@ -1941,31 +1942,44 @@ creation. Its 201 fake-only checks cover pipe capacity/ownership, framed status
 and explicit process retirement. A frozen predecessor was refused because
 optimized Python could erase helper assertions; its successor requires isolated,
 nonoptimized interpreters before setup. Timestamp and failure-receipt corrections
-retain the failed first fake run. Both native products remain uncompiled, and
+retain the failed first fake run. Both native products remain unqualified;
 no actual channel has executed.
 
-The complete guardian, collector process and acknowledgment publisher now pass
-independent source review and 233 fake-only checks. One authenticated retained
-target lease supplies the stop authority. The real watch enters before arming;
-file collection stays in a separate bounded process. The original native start
-controls the deadline, and target/worker retirement and cleanup are explicit.
-Normal worker exit is required for completion; forced cleanup only proves
-retirement. The configured waits provide no hard real-time guarantee.
+The guardian, collector process and acknowledgment publisher now pass
+independent successor source review and 243 focused file-only checks. The
+successor accepts witnessed empty diagnostic logs while refusing empty code and
+JSON. Three actual owned Windows retained-handle cases, six compiled synthetic
+record cases and three actual owned crash-lease cases pass independent actual
+review. The current guardian consumes all three recorded component proofs in a
+separate file-only check; no native case was replayed.
 
-The composed watch has not executed against actual Windows components. Actual
-retained-handle, six-case wire, crash-lease and seven-case IPC qualifications,
-exact V5 compile/link and fresh same-binary inert proof remain mandatory.
-Game mode additionally requires an independently reviewed successful owned
-full-watch run with the same components, plus current launch/install/recovery
-proof. Engine lifetime, coherent publication, resources and saves remain open.
+These results establish the scoped Windows API and synthetic record behavior.
+They do not establish the composed watch, engine lifetime, hard timing or outer
+tool/legacy controller handle closure. The complete watch still requires exact
+current caller compile/link and fresh same-binary inert proof, both reviewed
+channel products and the seven-case actual IPC qualification. Game mode also
+requires a successful independently reviewed owned full-watch run with the same
+components and current launch/install/recovery proof. Normal worker exit is
+required for completion; forced cleanup proves retirement only. Engine lifetime,
+coherent publication, resources and saves remain open.
 
-A source-reviewed three-case owned crash-lease qualifier is also prepared,
+The first caller configuration failed on a 263-character tracker-log path. A
+reviewed shorter output path fixed configuration, then compilation could not
+open an existing identity-map header through a 263-character lexical include.
+Static include inspection finds no missing header; a shorter source location
+must test the path-length explanation. The first channel-owner DLL compiled and linked
+but was refused for conflicting Release assertion flags. Its V2 successor
+passes strict zero-warning compile/link; linked review and actual IPC remain
+outstanding.
+Both native products remain unqualified; no actual channel has executed.
+
+The three-case owned crash-lease qualifier now passes actual Windows review,
 including guardian death with an independently retained target handle and live
-unassigned sentinel. Actual execution of that qualifier and the composed watch,
-deadline and stop latency, game Job compatibility and admission remain open.
+unassigned sentinel. Composed-watch execution, deadline and stop latency,
+game Job compatibility and admission remain open.
 
-The diagram describes uncompiled V5 source ordering. Actual external watch,
-channel and crash-lease qualification remain pending:
+The diagram describes the caller's source ordering. The complete external
+watch and seven-case actual channel qualification remain pending:
 
 ```mermaid
 flowchart TD
@@ -1974,7 +1988,7 @@ flowchart TD
     C --> W["Write and flush the identical start witness"]
     W --> T["Run the same Cache through both OS-thread retirements"]
     T --> E["Synchronously write terminal or completed evidence"]
-    G["Watch source reviewed; Windows qualification pending"] -. "required before bridge installation" .-> S
+    G["Windows components checked; full watch pending"] -. "required before bridge installation" .-> S
 ```
 
 A first external sword package also passes actual full import, four hand/sheath
