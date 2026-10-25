@@ -40,6 +40,12 @@ constexpr double REFIT_REFERENCE_LAYER_WEIGHT = 1.0;
 // layer radii away from its partner point moves to the partner surface beneath it.
 constexpr int REFIT_REFERENCE_LAYER_REANCHOR = 15;
 constexpr double REFIT_REFERENCE_LAYER_STALE = 3.0;
+// A driver vertex this close in front of its closest garment triangle, with
+// normals agreeing this much, has come through the cloth. Rows are found again
+// every SKIN_REFRESH iterations.
+constexpr double REFIT_REFERENCE_SKIN_REACH = 0.02;
+constexpr double REFIT_REFERENCE_SKIN_FACING = 0.5;
+constexpr int REFIT_REFERENCE_SKIN_REFRESH = 10;
 constexpr double REFIT_REFERENCE_INSIDE = 0.0005;
 constexpr double REFIT_REFERENCE_DEEP_INSIDE = 0.04;
 constexpr double REFIT_REFERENCE_FAR_OUTSIDE = 0.03;
@@ -859,10 +865,9 @@ std::string mesh_editor_apply_reference_refit(
 
     // Garment pieces that were already inside the authored body (a mask inside
     // the head, a lining under the skin) keep that relation.
+    const RefitReferenceSurface authored(reference.source_positions, reference.faces);
     std::vector<char> exempt(count, 0);
     {
-        std::vector<std::array<int, 3>> faces = reference.faces;
-        const RefitReferenceSurface authored(reference.source_positions, std::move(faces));
         Vec3 outward;
         for (std::size_t i = 0; i < count; ++i)
             exempt[i] = authored.signed_distance(start[i], outward) < -REFIT_REFERENCE_INSIDE * scale;
@@ -892,6 +897,60 @@ std::string mesh_editor_apply_reference_refit(
     std::vector<std::vector<int>> surface_faces(surfaces.size());
     for (std::size_t f = 0; f < garment_faces.size(); ++f)
         surface_faces[static_cast<std::size_t>(garment_face_surface[f])].push_back(static_cast<int>(f));
+
+    // Skin through cloth. A garment triangle is often coarser than the body
+    // under it, so a breast or knee can come out through a triangle whose
+    // corners all keep their clearance. A driver vertex has come through when
+    // the point of its closest garment triangle beneath it is inside the body;
+    // from then on it pushes that triangle out along its normal to the
+    // clearance. A hand hanging in front of a strap that lies on the hip has
+    // the strap point beneath it outside the body, so it never pushes. Rows
+    // also need the two to face the same way (not a lining) and the closest
+    // point off the garment's open hem, where the body is beside the garment
+    // rather than under it. Many outfits come with their own body through
+    // them (the game presumably hides it), so where that garment point, as
+    // authored, was inside the authored body, the vertex never pushes; nor do
+    // pieces inside the authored body (a mask in the head).
+    std::map<std::pair<int, int>, int> garment_edge_uses;
+    for (const auto& face : garment_faces) for (int c = 0; c < 3; ++c) ++garment_edge_uses[std::minmax(face[c], face[(c + 1) % 3])];
+    std::vector<char> hem_corner(count, 0);
+    for (const auto& item : garment_edge_uses) if (item.second == 1)
+        hem_corner[static_cast<std::size_t>(item.first.first)] = hem_corner[static_cast<std::size_t>(item.first.second)] = 1;
+    const auto on_hem = [&](const std::array<int, 3>& face, const std::array<double, 3>& barycentric) {
+        int zeros = 0, largest = 0;
+        for (int c = 0; c < 3; ++c) {
+            if (barycentric[c] <= 1.0e-7) ++zeros;
+            if (barycentric[c] > barycentric[largest]) largest = c;
+        }
+        if (zeros == 2) return hem_corner[static_cast<std::size_t>(face[largest])] != 0;
+        if (zeros != 1) return false;
+        int a = -1, b = -1;
+        for (int c = 0; c < 3; ++c) if (barycentric[c] > 1.0e-7) (a < 0 ? a : b) = face[c];
+        return garment_edge_uses.at(std::minmax(a, b)) == 1;
+    };
+    std::vector<int> skin_faces;
+    for (std::size_t f = 0; f < garment_faces.size(); ++f) {
+        const auto& corners = garment_faces[f];
+        if (!exempt[static_cast<std::size_t>(corners[0])] && !exempt[static_cast<std::size_t>(corners[1])]
+            && !exempt[static_cast<std::size_t>(corners[2])]) skin_faces.push_back(static_cast<int>(f));
+    }
+    std::vector<int> skin_vertices;
+    {
+        std::vector<char> seen(driver.open_corners.size(), 0);
+        for (std::size_t v = 0; v < driver_points.size(); ++v) {
+            auto& first = seen[static_cast<std::size_t>(driver.welded[v])];
+            if (first || dot_vec3(driver.vertex_normals[v], driver.vertex_normals[v]) < 0.5) continue;
+            first = 1;
+            skin_vertices.push_back(static_cast<int>(v));
+        }
+    }
+    struct SkinRow { int vertex; int face; };
+    std::vector<SkinRow> skin_rows;
+    // Per driver vertex: 0 not through yet, 1 came through, 2 through as authored.
+    std::vector<char> through(driver_points.size(), 0);
+    long long authored_through = 0;
+    long long skin_violations = 0;
+    const double skin_reach = REFIT_REFERENCE_SKIN_REACH * scale;
     const auto anchor_of = [&](const LayerRow& row, Vec3& normal) {
         const auto& t = row.triangle;
         const Vec3 a = x[static_cast<std::size_t>(t[0])], b = x[static_cast<std::size_t>(t[1])], c = x[static_cast<std::size_t>(t[2])];
@@ -931,6 +990,39 @@ std::string mesh_editor_apply_reference_refit(
                 row.triangle = c;
                 row.barycentric = hit.barycentric;
                 ++reanchored;
+            }
+        }
+        if (iteration % REFIT_REFERENCE_SKIN_REFRESH == 0 && !skin_faces.empty()) {
+            skin_rows.clear();
+            std::vector<std::array<int, 3>> faces;
+            faces.reserve(skin_faces.size());
+            for (const int f : skin_faces) faces.push_back(garment_faces[static_cast<std::size_t>(f)]);
+            const RefitReferenceTriangleIndex cloth(x, faces);
+            const auto& bounds = cloth.nodes.front();
+            for (const int v : skin_vertices) {
+                const Vec3& point = driver_points[static_cast<std::size_t>(v)];
+                if (refit_aabb_distance_squared_native(point, bounds.minimum, bounds.maximum) > skin_reach * skin_reach) continue;
+                const auto hit = cloth.closest(point);
+                if (hit.triangle < 0 || hit.distance_squared > skin_reach * skin_reach) continue;
+                const int face = skin_faces[static_cast<std::size_t>(hit.triangle)];
+                const auto& c = garment_faces[static_cast<std::size_t>(face)];
+                if (on_hem(c, hit.barycentric)) continue;
+                const Vec3 normal = normalized_vec3_or_zero(face_cross(x[static_cast<std::size_t>(c[0])],
+                    x[static_cast<std::size_t>(c[1])], x[static_cast<std::size_t>(c[2])]));
+                if (dot_vec3(normal, driver.vertex_normals[static_cast<std::size_t>(v)]) < REFIT_REFERENCE_SKIN_FACING) continue;
+                auto& state = through[static_cast<std::size_t>(v)];
+                if (state == 0) {
+                    // Only skin in front of the triangle can have come through it.
+                    Vec3 side;
+                    if (dot_vec3(sub_vec3(point, hit.point), normal) <= 0.0
+                        || !(driver.signed_distance(hit.point, side) < 0.0)) continue;
+                    Vec3 before{0.0, 0.0, 0.0};
+                    for (int k = 0; k < 3; ++k)
+                        before = add_vec3(before, scale_vec3(start[static_cast<std::size_t>(c[k])], hit.barycentric[k]));
+                    state = authored.signed_distance(before, side) < -REFIT_REFERENCE_INSIDE * scale ? 2 : 1;
+                    if (state == 2) ++authored_through;
+                }
+                if (state == 1) skin_rows.push_back({v, face});
             }
         }
         std::fill(delta.begin(), delta.end(), Vec3{0.0, 0.0, 0.0});
@@ -1005,6 +1097,30 @@ std::string mesh_editor_apply_reference_refit(
             delta[i] = add_vec3(delta[i], scale_vec3(outward[i], need * weight));
             total[i] += weight;
         }
+        skin_violations = 0;
+        for (const auto& row : skin_rows) {
+            const auto& t = garment_faces[static_cast<std::size_t>(row.face)];
+            const Vec3 a = x[static_cast<std::size_t>(t[0])], b = x[static_cast<std::size_t>(t[1])], c = x[static_cast<std::size_t>(t[2])];
+            const Vec3 normal = normalized_vec3_or_zero(face_cross(a, b, c));
+            if (dot_vec3(normal, normal) < 0.5) continue;
+            const Vec3& point = driver_points[static_cast<std::size_t>(row.vertex)];
+            const auto w = closest_triangle_point_native(point, a, b, c).barycentric;
+            const Vec3 under = add_vec3(add_vec3(scale_vec3(a, w[0]), scale_vec3(b, w[1])), scale_vec3(c, w[2]));
+            double clearance = 0.0, sum = 0.0;
+            for (int k = 0; k < 3; ++k) {
+                clearance += w[k] * particle_rows[static_cast<std::size_t>(t[k])].clearance;
+                sum += w[k] * w[k] * inverse_mass[static_cast<std::size_t>(t[k])];
+            }
+            const double need = dot_vec3(sub_vec3(point, under), normal) + clearance;
+            if (need <= 0.0 || sum <= 0.0) continue;
+            ++skin_violations;
+            const Vec3 push = scale_vec3(normal, need * weight / sum);
+            for (int k = 0; k < 3; ++k) {
+                const auto corner = static_cast<std::size_t>(t[k]);
+                delta[corner] = add_vec3(delta[corner], scale_vec3(push, w[k] * inverse_mass[corner]));
+                total[corner] += weight * w[k];
+            }
+        }
         previous = x;
         for (std::size_t i = 0; i < count; ++i) {
             delta[i] = add_vec3(delta[i], scale_vec3(sub_vec3(rest[i], x[i]), REFIT_REFERENCE_ANCHOR));
@@ -1055,6 +1171,8 @@ std::string mesh_editor_apply_reference_refit(
            << ",\"layer_constraints\":" << layer_rows.size()
            << ",\"remaining_layer_violations\":" << layer_violations
            << ",\"remaining_body_violations\":" << body_violations
+           << ",\"skin_constraints\":" << skin_rows.size() << ",\"remaining_skin_violations\":" << skin_violations
+           << ",\"skin_through_as_authored\":" << authored_through
            << ",\"deepest_body_violation\":" << std::setprecision(17) << deepest
            << ",\"exempt_particles\":" << exempt_count << ",\"open_driver_edges\":" << driver.open_edges.size()
            << ",\"reanchored_layer_constraints\":" << reanchored

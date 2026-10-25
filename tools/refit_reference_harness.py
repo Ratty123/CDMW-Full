@@ -9,6 +9,13 @@ the body the outfit was authored on (``morph_set_reference_body``, the
 - new inside-body vertices: garment vertices more than 0.5 mm inside the driver
   that were not already inside the authored body (beside an open rim, such as a
   head's cut-out face, nothing counts as inside);
+- new skin through cloth: driver vertices in front of the garment face closest
+  to them, facing the same way, within 30 mm and not beside an open hem, where
+  the garment point beneath is inside the body (a breast or knee through a
+  coarse triangle whose corners are all clear of it) but was not inside the
+  authored body as authored. Many outfits come with their own body through
+  them, presumably hidden in game; all such vertices and the count for the
+  authored body under the outfit as loaded are reported beside it;
 - new layer crossings: triangle pairs between garment islands that intersect
   after the fit but not before (python-fcl);
 - cloth edge strain: ``|length / authored length - 1|`` over flexible islands,
@@ -66,6 +73,8 @@ from cdmw.modding.mesh_refit_reference import RefitReferenceBody, retarget_refer
 from cdmw.modding.skeleton_parser import parse_pab  # noqa: E402
 
 INSIDE = 0.0005
+SKIN_REACH = 0.03
+SKIN_FACING = 0.5
 
 # 11002 (PHM upper body) onto Damiane (PHW). Rigid islands are marked by hand:
 # daggers, buckles, plates and rope knots. Tails are the hanging cloth strips.
@@ -326,6 +335,42 @@ def _signed_distance(surface: _Surface, points):
     return np.where(np.isinf(result), result, result * np.where(sign == 0, 1.0, sign))
 
 
+def _skin_through(body: _Surface, garment_points, garment_faces, authored=None) -> tuple[int, float]:
+    """Body vertices that came out through their closest garment face: (count, deepest mm).
+
+    The vertex is in front of that face, which faces the way the skin does and
+    is closer than SKIN_REACH, and the garment point beneath it is inside the
+    body (a hand in front of a strap on the hip is not through it). A closest
+    point on the garment's open hem does not count: the body is beside the
+    garment there, not under it. With ``authored`` (the garment's points as
+    authored and the authored body), a vertex whose garment point was already
+    inside the authored body is not counted: the outfit came that way.
+    """
+    import trimesh
+
+    garment = _Surface(garment_points, garment_faces)
+    points = body.mesh.vertices
+    signed = _signed_distance(garment, points)
+    beneath, _, triangle = trimesh.proximity.closest_point(garment.mesh, points)
+    facing = np.einsum("ij,ij->i", garment.mesh.face_normals[triangle], body.mesh.vertex_normals)
+    through = np.isfinite(signed) & (signed > INSIDE) & (signed < SKIN_REACH) & (facing > SKIN_FACING)
+    if through.any():
+        through[through] = _signed_distance(body, beneath[through]) < 0.0
+    if through.any() and authored is not None:
+        before, authored_body = authored
+        corners = garment.mesh.faces[triangle[through]]
+        weights = trimesh.triangles.points_to_barycentric(garment.mesh.triangles[triangle[through]], beneath[through])
+        point = np.einsum("ij,ijk->ik", weights, np.asarray(before, float)[corners])
+        through[through] = ~(_signed_distance(authored_body, point) < -INSIDE)
+    return int(through.sum()), float(signed[through].max() * 1000) if through.any() else 0.0
+
+
+def _joined(parts):
+    points = [np.asarray(part.vertices, float) for part in parts]
+    offsets = np.cumsum([0] + [len(item) for item in points])
+    return np.concatenate(points), np.concatenate([np.asarray(part.faces) + offsets[i] for i, part in enumerate(parts)])
+
+
 def rigid_residual(before: np.ndarray, after: np.ndarray) -> float:
     """Largest distance from the best rigid motion (Kabsch) of ``before`` onto ``after``."""
     a, b = before - before.mean(0), after - after.mean(0)
@@ -442,6 +487,11 @@ def analyse(run: dict, config: dict, reference: RefitReferenceBody | None) -> di
                                   "kind": ("cloth-cloth", "rigid-cloth", "rigid-rigid")[rigid_sides]})
     worst_cloth = sorted(((row["part"], item["island"], item["strain"]["p95"]) for row in parts for item in row["islands"]
                           if not item["rigid"]), key=lambda value: -value[2])[:8]
+    garment_before, garment_faces = _joined(run["mesh"].submeshes[body_count:])
+    garment_after, _ = _joined(run["fitted"].submeshes[body_count:])
+    skin, skin_depth = _skin_through(driver, garment_after, garment_faces, (garment_before, authored))
+    skin_all, _ = _skin_through(driver, garment_after, garment_faces)
+    skin_authored, _ = _skin_through(authored, garment_before, garment_faces)
     return {
         "summary": {
             "method": run["method"], "status": run["status"], "seconds": run["seconds"],
@@ -450,10 +500,16 @@ def analyse(run: dict, config: dict, reference: RefitReferenceBody | None) -> di
             "solid_pieces": solid_count, "worst_solid_distortion_mm": solid_worst,
             "new_inside_vertices": sum(row["new_inside_vertices"] for row in parts),
             "deepest_new_inside_mm": max((row["deepest_new_inside_mm"] for row in parts), default=0.0),
+            # Skin through cloth where the authored body did not come through the same garment point,
+            # beside every such vertex and the count on the authored body under the outfit as loaded.
+            "new_skin_through_vertices": skin, "deepest_new_skin_through_mm": skin_depth,
+            "skin_through_vertices": skin_all, "skin_through_vertices_authored": skin_authored,
             "new_layer_crossing_pairs": len(crossings),
             "new_layer_crossing_triangles": sum(item["after"] - item["before"] for item in crossings),
             "new_crossing_triangles_by_kind": {kind: sum(item["after"] - item["before"] for item in crossings if item["kind"] == kind)
                                                for kind in ("cloth-cloth", "rigid-cloth", "rigid-rigid")},
+            # Pieces that did not touch at all as authored; the rest grew an authored overlap (often a seam).
+            "new_crossing_triangles_on_clean_pairs": sum(item["after"] for item in crossings if item["before"] == 0),
             "cloth_strain": _summary(np.concatenate(cloth)) if cloth else _summary(()),
             "tail_strain": _summary(np.concatenate(tail)) if tail else _summary(()),
         },
@@ -520,7 +576,9 @@ def render_sheet(mesh: ParsedMesh, body_count: int, path: Path, size: int = 500)
 
 
 # ------------------------------------------------------------------ corpus
-_CORPUS_COLUMNS = {"new_inside_vertices": np.sum, "deepest_new_inside_mm": np.max, "new_layer_crossing_triangles": np.sum,
+_CORPUS_COLUMNS = {"new_inside_vertices": np.sum, "deepest_new_inside_mm": np.max, "new_skin_through_vertices": np.sum,
+                   "deepest_new_skin_through_mm": np.max, "skin_through_vertices": np.sum, "new_layer_crossing_triangles": np.sum,
+                   "new_crossing_triangles_on_clean_pairs": np.sum,
                    "rigid_cloth_crossing_triangles": np.sum, "worst_solid_distortion_mm": np.max, "seconds": np.sum}
 
 
@@ -555,7 +613,10 @@ def run_corpus(args) -> int:
             s = row["runs"].get(method)
             cells.append(f"{method}: " + ("-" if s is None else
                          f"{s['status']}, inside {s['new_inside_vertices']} ({s['deepest_new_inside_mm']:.1f} mm), "
-                         f"cross {s['new_layer_crossing_triangles']} (rigid-cloth {s['rigid_cloth_crossing_triangles']}), "
+                         f"new skin {s['new_skin_through_vertices']} ({s['deepest_new_skin_through_mm']:.1f} mm) "
+                         f"of {s['skin_through_vertices']}, "
+                         f"cross {s['new_layer_crossing_triangles']} (rigid-cloth {s['rigid_cloth_crossing_triangles']}, "
+                         f"clean pairs {s['new_crossing_triangles_on_clean_pairs']}), "
                          f"strain p95 {s['cloth_strain_p95']:.2f}, "
                          f"solid {s['worst_solid_distortion_mm']:.1f} mm, {s['seconds']:.1f} s"))
         print(outfit.rsplit("/", 1)[-1], "|", " | ".join(cells), "|", row.get("error") or row.get("reason") or "", flush=True)

@@ -289,6 +289,39 @@ def test_an_arc_of_studs_splits_where_one_rigid_motion_would_sink_it_into_a_thic
                       - np.linalg.norm(stud_after[:, None] - stud_after[None], axis=2)).max() < 1e-7
 
 
+def test_the_body_does_not_come_through_the_faces_of_a_coarse_sleeve():
+    # A hexagonal sleeve clears the authored arm with every face. The transfer
+    # carries its corners out with the thicker driver arm, but each flat face
+    # spans the curve between two corners, so without the skin rows the driver
+    # comes about 2 mm through the middle of every face while each corner keeps
+    # its clearance.
+    sleeve = _refit_tube_part("sleeve", .07, 0., tuple(.1 + i * .05 for i in range(7)), 6)
+    mesh = _mesh(_arm(DRIVER_RADIUS), sleeve)
+    session = _open(mesh)
+    try:
+        _command(session, "morph_upload", {"profile": {
+            "profile_id": "fit", "name": "Fit", "topology_fingerprint": "a" * 64, "definitions": [], "fields": [],
+        }})
+        _command(session, "morph_set_driver", {"submesh_indices": [0]})
+        _command(session, "morph_bind", {"garment_submesh_indices": [1]})
+        _command(session, "morph_set_reference_body", {
+            "reference_body": _reference(), "garment_submesh_indices": [1], "garment_settings": [
+                {"submesh_index": 1, "mode": "surface", "clearance_percent": .1, "tightness_percent": 100.}],
+        })
+        fitted = _snapshot(mesh, session).submeshes[1]
+        last = _state(session)["refit"]["reference_body"]["last_fit"]
+    finally:
+        mesh_native_core.close_native_mesh_editor_session(session)
+    assert last["skin_constraints"] > 0
+    corners = np.asarray(fitted.vertices, float)[np.asarray(fitted.faces)]
+    steps = np.linspace(0., 1., 11)
+    weights = np.array([(u, v, 1. - u - v) for u in steps for v in steps if u + v <= 1. + 1e-9])
+    samples = np.einsum("wk,fkd->fwd", weights, corners).reshape(-1, 3)
+    # Away from the open hems, where the arm is beside the sleeve rather than under it.
+    inner = (samples[:, 1] > .11) & (samples[:, 1] < .39)
+    assert np.hypot(samples[inner, 0], samples[inner, 2]).min() >= DRIVER_RADIUS - 2e-4
+
+
 def test_reference_body_requires_a_binding_and_matching_arrays():
     mesh = _outfit()
     session = _open(mesh)

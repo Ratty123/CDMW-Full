@@ -2126,7 +2126,16 @@ same way, and a partner triangle that has turned over is ignored. Stiffer, fixed
 constraints tore stacked straps and panels on bodies of very different shape. An
 open rim has no inside: a body PAC's head has the face cut out, so cloth whose closest
 body feature is an open edge or corner gets no clearance push (it would otherwise be
-pulled through the opening's rim). The same small-accessory inference as the bound fitter makes unmarked closed attachments
+pulled through the opening's rim). Skin can also come through a garment triangle
+whose corners all keep their clearance (a breast or knee under a coarse panel). A
+driver vertex whose closest garment triangle faces the same way, with the point
+beneath the vertex inside the body, pushes that triangle out to the clearance from
+then on; rows are found again every ten iterations. A closest point on the garment's
+open hem never counts, nor does a hand in front of a strap lying on the hip (the
+strap point is outside the body), nor a place where that garment point, as authored,
+was already inside the authored body: many archive outfits come with their own body
+through them. Pushing every layer at such a point, not only the nearest, scored no
+better on the harness corpus. The same small-accessory inference as the bound fitter makes unmarked closed attachments
 rigid. Disabled Parts, removed islands, masks and post-refit corrections behave as in
 the bound fitter; Tightness and Intensity are not used. The reference survives
 rebinding, is dropped by Reset and Bake, is stored in runtime snapshot version 5 and
@@ -2136,7 +2145,7 @@ fit the driver alone; Fit also falls back to the driver alone, with a diagnostic
 the garments did not come from the archive, the skeletons or nude body cannot be
 resolved, or the garments were authored on the driver itself.
 `tools/refit_reference_harness.py` scores a fit on real PACs (rigid distortion, new
-inside-body vertices, new layer crossings, cloth edge strain); it is development
+inside-body vertices, new skin through cloth, new layer crossings, cloth edge strain); it is development
 evidence, not proof of in-game behaviour.
 
 Turned rims retain their authored width across the edge while their circumference
