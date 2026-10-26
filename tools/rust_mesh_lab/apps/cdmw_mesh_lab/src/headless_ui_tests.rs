@@ -50,11 +50,18 @@ mod precision_controls {
                         });
                     });
                     output.textures_delta.clear();
-                    let rails = output.shapes.iter().filter_map(|shape| match &shape.shape {
+                    let bars = output.shapes.iter().filter_map(|shape| match &shape.shape {
                         egui::Shape::Rect(shape) if shape.rect.width() > 30.0 && shape.rect.height() <= 8.0 => Some(shape),
                         _ => None,
                     }).collect::<Vec<_>>();
+                    // Each rail also carries a shorter fill up to its value.
+                    let full = bars.iter().map(|bar| bar.rect.width()).fold(0.0, f32::max);
+                    let rails = bars.iter().copied().filter(|bar| bar.rect.width() == full).collect::<Vec<_>>();
                     assert_eq!(rails.len(), 3, "one full rail per control");
+                    for fill in bars.iter().filter(|bar| bar.rect.width() < full) {
+                        assert_eq!(fill.rect.left(), rails[0].rect.left(), "fills start at the rail");
+                        assert_ne!(fill.fill, rails[0].fill, "fills stand out from the rail");
+                    }
                     for rail in &rails {
                         assert_eq!(rail.rect.x_range(), rails[0].rect.x_range(), "width {width}, scale {scale}");
                         assert_eq!(rail.fill, rails[0].fill);
@@ -1065,21 +1072,28 @@ fn painted_label_contrast(ui: &HeadlessUi, label: &str) -> Result<f32, Box<dyn s
             (text.galley.job.text == label).then_some(text)
         })
         .ok_or_else(|| format!("missing painted label {label}"))?;
-    let background = ui
-        .rectangle_fills_at(text.visual_bounding_rect().center())
-        .last()
-        .copied()
-        .ok_or("missing button background")?;
+    let fills = ui.rectangle_fills_at(text.visual_bounding_rect().center());
+    if fills.is_empty() {
+        return Err("missing button background".into());
+    }
+    // Disabled controls are faded, so their fills are translucent. Composite the
+    // premultiplied fills in paint order, as the screen does.
+    let bg = fills.iter().fold([0.0_f32; 3], |below, fill| {
+        let alpha = f32::from(fill.a()) / 255.0;
+        let rgb = [fill.r(), fill.g(), fill.b()].map(|v| f32::from(v) / 255.0);
+        std::array::from_fn(|i| rgb[i] + below[i] * (1.0 - alpha))
+    });
     let mut foreground = text
         .override_text_color
         .unwrap_or(text.galley.job.sections[0].format.color);
     if foreground == Color32::PLACEHOLDER {
         foreground = text.fallback_color;
     }
-    let opacity = text.opacity_factor * f32::from(foreground.a()) / 255.0;
-    let bg = [background.r(), background.g(), background.b()].map(|v| f32::from(v) / 255.0);
-    let fg = [foreground.r(), foreground.g(), foreground.b()].map(|v| f32::from(v) / 255.0);
-    let blended = std::array::from_fn(|i| fg[i] * opacity + bg[i] * (1.0 - opacity));
+    // Colour32 is premultiplied: a faded label's RGB already carries its alpha.
+    let alpha = text.opacity_factor * f32::from(foreground.a()) / 255.0;
+    let fg = [foreground.r(), foreground.g(), foreground.b()]
+        .map(|v| f32::from(v) / 255.0 * text.opacity_factor);
+    let blended = std::array::from_fn(|i| fg[i] + bg[i] * (1.0 - alpha));
     let luminance = |values: [f32; 3]| {
         values
             .into_iter()

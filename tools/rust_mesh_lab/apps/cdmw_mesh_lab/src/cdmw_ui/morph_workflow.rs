@@ -55,7 +55,7 @@ impl LabApplication {
         if state.get("available").and_then(Value::as_bool) == Some(false) {
             self.draw_cdmw_part_hover_option(ui);
             ui.colored_label(
-                REFIT_ARMOR_COLOUR,
+                cdmw_readable(ui, REFIT_ARMOR_COLOUR),
                 crate::localization::tr(
                     state_str(&state, "reason").unwrap_or("Morph runtime unavailable"),
                 ),
@@ -111,7 +111,7 @@ impl LabApplication {
         if let Some(failure) = state_str(&state, "failure").filter(|value| !value.trim().is_empty())
         {
             ui.colored_label(
-                Color32::from_rgb(245, 105, 105),
+                cdmw_readable(ui, Color32::from_rgb(245, 105, 105)),
                 crate::localization::tr(failure),
             );
         }
@@ -293,7 +293,7 @@ impl LabApplication {
                 self.draw_cdmw_correction_comparison(ui, actions, &state);
                 ui.add_enabled_ui(!self.cdmw_morph_comparison_active(), |ui| {
                     if state_str(&state, "shape_restore_source").is_some_and(|name| !name.is_empty()) {
-                        ui.colored_label(REFIT_READY_COLOUR, crate::localization::tr("Restore preview"));
+                        ui.colored_label(cdmw_readable(ui, REFIT_READY_COLOUR), crate::localization::tr("Restore preview"));
                         ui.weak(crate::localization::tr(format!("{} vertices",
                             state["shape_restore_vertex_count"].as_u64().unwrap_or(0))))
                             .on_hover_text(crate::localization::tr("Exclusions, materials, UVs, skin and fitting settings are retained. Apply adds one undoable edit."));
@@ -306,7 +306,7 @@ impl LabApplication {
                             }
                         });
                     } else if state_str(&state, "correction_definition_id").is_some_and(|id| !id.is_empty()) {
-                        ui.colored_label(REFIT_READY_COLOUR, crate::localization::tr("Outfit correction"));
+                        ui.colored_label(cdmw_readable(ui, REFIT_READY_COLOUR), crate::localization::tr("Outfit correction"));
                         ui.horizontal_wrapped(|ui| {
                             if ui.button(crate::localization::tr("Save correction")).clicked() {
                                 actions.push(UiAction::CdmwCommand { command: "morph_save_correction", arguments: json!({}), label: "Save outfit correction" });
@@ -316,12 +316,12 @@ impl LabApplication {
                             }
                         });
                     } else if state_bool(&state, "authoring_baseline_ready") {
-                        ui.colored_label(REFIT_READY_COLOUR, crate::localization::tr("Body base captured"));
+                        ui.colored_label(cdmw_readable(ui, REFIT_READY_COLOUR), crate::localization::tr("Body base captured"));
                         self.draw_cdmw_authored_morph_save(ui, actions, &state);
                     } else {
                         let unbaked = state_bool(&state, "unbaked");
                         if unbaked {
-                            ui.colored_label(REFIT_ARMOR_COLOUR, crate::localization::tr("Preview active"));
+                            ui.colored_label(cdmw_readable(ui, REFIT_ARMOR_COLOUR), crate::localization::tr("Preview active"));
                         } else {
                             ui.weak(crate::localization::tr("No pending preview"));
                         }
@@ -395,7 +395,7 @@ impl LabApplication {
             if ui
                 .add_enabled(
                     !profile_id.is_empty(),
-                    Button::new(crate::localization::tr("Delete Profile")),
+                    cdmw_danger_button(ui, crate::localization::tr("Delete Profile")),
                 )
                 .clicked()
             {
@@ -474,7 +474,7 @@ impl LabApplication {
             if ui
                 .add_enabled(
                     !preset_id.is_empty(),
-                    Button::new(crate::localization::tr("Delete Preset")),
+                    cdmw_danger_button(ui, crate::localization::tr("Delete Preset")),
                 )
                 .clicked()
             {
@@ -634,7 +634,7 @@ impl LabApplication {
                         }
                     }
                     if ui
-                        .add_enabled(authoring && !morph_unbaked, Button::new(crate::localization::tr("Delete slider")))
+                        .add_enabled(authoring && !morph_unbaked, cdmw_danger_button(ui, crate::localization::tr("Delete slider")))
                         .on_disabled_hover_text(crate::localization::tr(if !authoring {
                             "This session is read-only"
                         } else {
@@ -688,7 +688,7 @@ impl LabApplication {
         if has_mesh_selection {
             ui.weak(crate::localization::tr("New sliders use the current selection."));
         } else {
-            ui.colored_label(REFIT_ARMOR_COLOUR, crate::localization::tr("Select a Part or region before creating a slider."));
+            ui.colored_label(cdmw_readable(ui, REFIT_ARMOR_COLOUR), crate::localization::tr("Select a Part or region before creating a slider."));
         }
         ui.label(crate::localization::tr("Profile name"));
         ui.add(
@@ -704,7 +704,7 @@ impl LabApplication {
         if editing_definition {
             ui.horizontal_wrapped(|ui| {
                 ui.colored_label(
-                    Color32::from_rgb(105, 205, 135),
+                    cdmw_readable(ui, Color32::from_rgb(105, 205, 135)),
                     crate::localization::tr(format!(
                         "Editing slider · {}",
                         self.cdmw_morph_definition_label

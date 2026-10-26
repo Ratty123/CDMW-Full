@@ -9,6 +9,8 @@ mod morph_outfit_workflows;
 mod morph_workflow;
 mod refit_diagnostics;
 mod delete_guidance;
+#[cfg(test)]
+mod theme_readability;
 
 pub(crate) mod numeric {
     //! Shared precision controls. Increments are per-widget session UI state,
@@ -304,6 +306,15 @@ pub(crate) mod numeric {
                         drag = drag.range(self.range.clone()).clamp_existing_to_range(false);
                     }
                     let old_size = ui.spacing().interact_size;
+                    // Values are drawn as entry fields, like text boxes, so they read
+                    // apart from the action buttons and the increment menu beside them.
+                    let button_widgets = ui.visuals().widgets.clone();
+                    let field = ui.visuals().text_edit_bg_color();
+                    let widgets = &mut ui.visuals_mut().widgets;
+                    for state in [&mut widgets.inactive, &mut widgets.hovered] {
+                        state.weak_bg_fill = field;
+                        state.bg_fill = field;
+                    }
                     let mut response = if let Some(width) = self.compact_width {
                         ui.spacing_mut().interact_size.x = width;
                         let response = if ui.memory(|memory| memory.has_focus(value_id)) {
@@ -353,6 +364,7 @@ pub(crate) mod numeric {
                     } else { ui.add(drag) }.on_hover_text(crate::localization::tr(
                         "Click to type. Scroll or use Up/Down while focused. Choose an increment with ⋮."
                     ));
+                    ui.visuals_mut().widgets = button_widgets;
                     if cancel {
                         next = old;
                         ui.data_mut(|data| data.remove::<String>(value_id));
@@ -386,9 +398,16 @@ pub(crate) mod numeric {
                     // Keep every rail aligned to the panel, independently of
                     // label length, precision, suffixes and increment menus.
                     ui.spacing_mut().slider_width = ui.available_width();
+                    // egui paints the rail in the button fill, which nearly vanishes on
+                    // dark panels. Use the theme's control outline (at least 3:1 against
+                    // the panel) for the rail, and the accent for the part up to the value.
+                    let saved = ui.visuals().clone();
+                    ui.visuals_mut().widgets.inactive.bg_fill = super::cdmw_slider_rail(&saved);
+                    ui.visuals_mut().selection.bg_fill = saved.hyperlink_color;
                     let slider = ui.add(egui::Slider::new(&mut position, self.range.clone())
                         .show_value(false).clamping(SliderClamping::Edits)
-                        .step_by(step).smart_aim(false).trailing_fill(false));
+                        .step_by(step).smart_aim(false).trailing_fill(true));
+                    *ui.visuals_mut() = saved;
                     if slider.changed() { next = position; }
                     response |= slider;
                 }
@@ -1188,17 +1207,44 @@ pub(super) fn cdmw_primary_button<'a>(ui: &egui::Ui, text: String, primary: bool
         return Button::new(text);
     }
     let accent = ui.visuals().hyperlink_color;
-    let [red, green, blue, _] = accent.to_array();
-    let light = u32::from(red) * 299 + u32::from(green) * 587 + u32::from(blue) * 114 >= 128_000;
-    Button::new(RichText::new(text).strong().color(if light { Color32::BLACK } else { Color32::WHITE }))
-        .fill(accent)
+    // Prefer the theme's own text colour for the accent; otherwise the stronger of black and white.
+    let text_colour = ui.ctx().data(|data| data.get_temp::<Color32>(egui::Id::new(CDMW_ACCENT_TEXT)))
+        .unwrap_or(if cdmw_contrast(Color32::BLACK, accent) >= cdmw_contrast(Color32::WHITE, accent) {
+            Color32::BLACK
+        } else {
+            Color32::WHITE
+        });
+    Button::new(RichText::new(text).strong().color(text_colour)).fill(accent)
+}
+
+/// A destructive action (delete, clear), its label in the theme's error colour.
+pub(crate) fn cdmw_danger_button<'a>(ui: &egui::Ui, text: String) -> Button<'a> {
+    Button::new(RichText::new(text).color(cdmw_danger_colour(ui.visuals())))
+}
+
+/// The theme's error colour, moved toward the button text until it reads at 4.5:1 on a button.
+pub(crate) fn cdmw_danger_colour(visuals: &egui::Visuals) -> Color32 {
+    let background = visuals.widgets.inactive.weak_bg_fill;
+    (0..=20)
+        .map(|step| cdmw_mix(visuals.strong_text_color(), visuals.error_fg_color, step as f32 / 20.0))
+        .find(|candidate| cdmw_contrast(*candidate, background) >= 4.5)
+        .unwrap_or(visuals.strong_text_color())
+}
+
+/// The slider rail: the theme's control outline, lifted to at least 3:1 against the panel.
+pub(crate) fn cdmw_slider_rail(visuals: &egui::Visuals) -> Color32 {
+    let outline = visuals.widgets.inactive.bg_stroke.color;
+    (0..=20)
+        .map(|step| cdmw_mix(visuals.strong_text_color(), outline, step as f32 / 20.0))
+        .find(|colour| cdmw_contrast(*colour, visuals.panel_fill) >= 3.0)
+        .unwrap_or(outline)
 }
 
 /// A numbered workflow step: completed steps are ticked, the current step uses the accent.
 fn cdmw_step_heading(ui: &mut egui::Ui, title: &str, done: bool, current: bool) {
     ui.horizontal(|ui| {
         if done {
-            ui.colored_label(REFIT_READY_COLOUR, "✔");
+            ui.colored_label(cdmw_readable(ui, REFIT_READY_COLOUR), "✔");
         }
         let text = RichText::new(crate::localization::tr(title)).strong();
         ui.label(if current { text.color(ui.visuals().hyperlink_color) } else { text });
@@ -1327,6 +1373,67 @@ fn cdmw_screen_grid_visible(context: &egui::Context) -> bool {
 
 fn set_cdmw_screen_grid_visible(context: &egui::Context, visible: bool) {
     context.data_mut(|data| data.insert_temp(cdmw_screen_grid_id(), visible));
+}
+
+// The palette's text colour for the accent, chosen by the host for each theme.
+const CDMW_ACCENT_TEXT: &str = "cdmw_accent_text_colour";
+
+/// WCAG contrast ratio between two opaque colours.
+pub(crate) fn cdmw_contrast(a: Color32, b: Color32) -> f32 {
+    let luminance = |colour: Color32| {
+        let [red, green, blue, _] = colour.to_array();
+        [red, green, blue]
+            .map(|channel| {
+                let value = f32::from(channel) / 255.0;
+                if value <= 0.04045 { value / 12.92 } else { ((value + 0.055) / 1.055).powf(2.4) }
+            })
+            .into_iter()
+            .zip([0.2126, 0.7152, 0.0722])
+            .map(|(value, weight)| value * weight)
+            .sum::<f32>()
+    };
+    let (a, b) = (luminance(a), luminance(b));
+    (a.max(b) + 0.05) / (a.min(b) + 0.05)
+}
+
+/// `amount` of `a` over `b`, as an opaque colour.
+pub(crate) fn cdmw_mix(a: Color32, b: Color32, amount: f32) -> Color32 {
+    let (a, b) = (a.to_array(), b.to_array());
+    let channel = |index: usize| {
+        (f32::from(a[index]) * amount + f32::from(b[index]) * (1.0 - amount)).round() as u8
+    };
+    Color32::from_rgb(channel(0), channel(1), channel(2))
+}
+
+/// A fixed status colour, kept in hue but darkened or lightened until it reads at
+/// 4.5:1 on this theme's panels and windows. Fixed colours were chosen for dark themes.
+pub(crate) fn cdmw_readable(ui: &egui::Ui, colour: Color32) -> Color32 {
+    cdmw_readable_in(ui.visuals(), colour)
+}
+
+pub(crate) fn cdmw_readable_in(visuals: &egui::Visuals, colour: Color32) -> Color32 {
+    let backgrounds = [visuals.panel_fill, visuals.window_fill];
+    let target = if visuals.dark_mode { Color32::WHITE } else { Color32::BLACK };
+    (0..=20)
+        .map(|step| cdmw_mix(target, colour, step as f32 / 20.0))
+        .find(|candidate| backgrounds.iter().all(|background| cdmw_contrast(*candidate, *background) >= 4.5))
+        .unwrap_or(target)
+}
+
+/// A colour legend entry: the true swatch colour beside text in the normal colour.
+/// Measured as one item so wrapping rows move it to the next line as a whole.
+pub(crate) fn cdmw_legend(ui: &mut egui::Ui, colour: Color32, text: impl Into<egui::WidgetText>) -> egui::Response {
+    let galley = text.into().into_galley(ui, Some(egui::TextWrapMode::Extend), f32::INFINITY, egui::TextStyle::Body);
+    let side = galley.size().y * 0.7;
+    let gap = ui.spacing().item_spacing.x * 0.5;
+    let (rect, response) = ui.allocate_exact_size(
+        egui::vec2(side + gap + galley.size().x, galley.size().y), egui::Sense::hover());
+    if ui.is_rect_visible(rect) {
+        let swatch = egui::Rect::from_center_size(egui::pos2(rect.left() + side / 2.0, rect.center().y), egui::vec2(side, side));
+        ui.painter().rect(swatch, 2.0, colour, ui.visuals().widgets.noninteractive.fg_stroke, egui::StrokeKind::Inside);
+        ui.painter().galley(egui::pos2(rect.left() + side + gap, rect.top()), galley, ui.visuals().text_color());
+    }
+    response
 }
 
 fn cdmw_theme_colour(theme: &Value, key: &str, fallback: Color32) -> Color32 {
@@ -1498,9 +1605,30 @@ impl LabApplication {
         visuals.widgets.active.bg_stroke = Stroke::new(1.0, accent);
         visuals.widgets.active.fg_stroke = Stroke::new(1.0, text_strong);
         visuals.widgets.open = visuals.widgets.hovered;
-        // Fill, border, and interaction distinguish disabled controls without
-        // fading their labels below readable contrast in the darker palettes.
-        visuals.disabled_alpha = 0.9;
+        // egui draws a disabled control with its enabled fill and border and only
+        // fades it, so the fade alone must set it apart. Fade each theme as far as
+        // its own disabled button text (as the host app draws it) and never below
+        // 4.5:1, so disabled labels stay readable but no longer look clickable.
+        let disabled_text = cdmw_contrast(
+            cdmw_theme_colour(theme, "button_disabled_text", text_muted),
+            cdmw_theme_colour(theme, "button_disabled", surface),
+        );
+        let target = disabled_text.min(cdmw_contrast(text_strong, button) * 0.6).max(4.5);
+        visuals.disabled_alpha = (35..=90)
+            .map(|percent| percent as f32 / 100.0)
+            .find(|alpha| {
+                let fill = cdmw_mix(button, window, *alpha);
+                cdmw_contrast(cdmw_mix(text_strong, fill, *alpha), fill) >= target
+            })
+            .unwrap_or(0.9);
+        let accent_text = cdmw_theme_colour(theme, "accent_text", Color32::PLACEHOLDER);
+        self.egui_context.data_mut(|data| {
+            if accent_text == Color32::PLACEHOLDER {
+                data.remove::<Color32>(egui::Id::new(CDMW_ACCENT_TEXT));
+            } else {
+                data.insert_temp(egui::Id::new(CDMW_ACCENT_TEXT), accent_text);
+            }
+        });
         style.visuals = visuals;
         self.egui_context.set_style_of(active_theme, style);
         // An explicit preference is required: egui-winit also reports the OS
@@ -1771,7 +1899,7 @@ impl LabApplication {
             "Live" => Color32::from_rgb(245, 190, 75),
             _ => Color32::from_gray(170),
         };
-        ui.colored_label(colour, RichText::new(crate::localization::tr(status_label)).strong());
+        ui.colored_label(cdmw_readable(ui, colour), RichText::new(crate::localization::tr(status_label)).strong());
         ui.separator();
         ui.label(crate::localization::tr(format!(
             "{} vertices · {} edges · {} faces",
@@ -1782,7 +1910,7 @@ impl LabApplication {
             || self.status.to_ascii_lowercase().contains("rejected")
             || self.status.to_ascii_lowercase().contains("error");
         let text = if failed {
-            RichText::new(crate::localization::tr(&self.status)).color(Color32::from_rgb(245, 105, 105))
+            RichText::new(crate::localization::tr(&self.status)).color(cdmw_readable(ui, Color32::from_rgb(245, 105, 105)))
         } else {
             RichText::new(crate::localization::tr(&self.status))
         };
@@ -2507,7 +2635,7 @@ impl LabApplication {
             ui.label(
                 RichText::new(crate::localization::tr(&self.cdmw_textured_mode_reason))
                     .small()
-                    .color(Color32::from_rgb(230, 170, 90)),
+                    .color(cdmw_readable(ui, Color32::from_rgb(230, 170, 90))),
             );
         }
         ui.horizontal_wrapped(|ui| {
@@ -3061,7 +3189,11 @@ impl LabApplication {
                 ("Separate", "separate", free_edit && selected.faces > 0),
             ] {
                 if ui
-                    .add_enabled(availability, Button::new(crate::localization::tr(label)))
+                    .add_enabled(availability, if action == "delete" {
+                        cdmw_danger_button(ui, crate::localization::tr(label))
+                    } else {
+                        Button::new(crate::localization::tr(label))
+                    })
                     .on_disabled_hover_text(crate::localization::tr(if !free_edit && action != "delete" {
                         "This topology action requires Free Edit output"
                     } else {
@@ -3152,7 +3284,7 @@ impl LabApplication {
             ));
         } else if !free_edit {
             ui.colored_label(
-                Color32::from_rgb(245, 190, 75),
+                cdmw_readable(ui, Color32::from_rgb(245, 190, 75)),
                 crate::localization::tr("Cleanup is locked by Exact output. Choose Free Edit under Output to allow topology repair."),
             );
         }
@@ -3518,16 +3650,16 @@ impl LabApplication {
                             && indices.iter().any(|part| !body.contains(part));
                         let colour = if role == "body" { REFIT_BODY_COLOUR } else { REFIT_ARMOR_COLOUR };
                         if body.is_empty() {
-                            ui.colored_label(colour, cdmw_count(shown.len(), "1 Part · not assigned yet", "{} Parts · not assigned yet"));
+                            ui.colored_label(cdmw_readable(ui, colour), cdmw_count(shown.len(), "1 Part · not assigned yet", "{} Parts · not assigned yet"));
                         } else if mixed {
-                            ui.colored_label(colour, crate::localization::tr(format!("{} of {} Parts", shown.len(), indices.len())))
+                            ui.colored_label(cdmw_readable(ui, colour), crate::localization::tr(format!("{} of {} Parts", shown.len(), indices.len())))
                                 .on_hover_text(crate::localization::tr(if role == "body" {
                                     "This file's other Parts are garment candidates."
                                 } else {
                                     "This file's other Parts are the body."
                                 }));
                         } else {
-                            ui.colored_label(colour, cdmw_count(shown.len(), "1 Part", "{} Parts"));
+                            ui.colored_label(cdmw_readable(ui, colour), cdmw_count(shown.len(), "1 Part", "{} Parts"));
                         }
                         if ui.small_button(crate::localization::tr("Select")).clicked() {
                             actions.push(UiAction::SetPartSelection(shown));
@@ -3624,10 +3756,10 @@ impl LabApplication {
         garments: &[u32],
     ) {
         ui.horizontal_wrapped(|ui| {
-            ui.colored_label(REFIT_BODY_COLOUR, cdmw_count(body.len(), "Body · 1 Part", "Body · {} Parts"))
+            ui.colored_label(cdmw_readable(ui, REFIT_BODY_COLOUR), cdmw_count(body.len(), "Body · 1 Part", "Body · {} Parts"))
                 .on_hover_text(self.cdmw_morph_part_names(body));
             ui.colored_label(
-                REFIT_ARMOR_COLOUR,
+                cdmw_readable(ui, REFIT_ARMOR_COLOUR),
                 cdmw_count(garments.len(), "Bound · 1 Part", "Bound · {} Parts"),
             )
             .on_hover_text(crate::localization::tr(format!(
@@ -3645,7 +3777,7 @@ impl LabApplication {
         let morph_unbaked = state_bool(state, "unbaked");
         let step = cdmw_refit_setup_step(&driver_parts, &bound_garments, &selected_parts);
         cdmw_step_heading(ui, "3 · Bind to body", step > 3, step == 3);
-        ui.colored_label(if bound_garments.is_empty() { REFIT_ARMOR_COLOUR } else { REFIT_READY_COLOUR },
+        ui.colored_label(cdmw_readable(ui, if bound_garments.is_empty() { REFIT_ARMOR_COLOUR } else { REFIT_READY_COLOUR }),
             crate::localization::tr(if driver_parts.is_empty() { "Assign a body in step 1 first." }
                 else if bound_garments.is_empty() { "Select garments, then bind." } else { "Ready to fit" }));
         let has_driver = !driver_parts.is_empty();
@@ -3687,7 +3819,7 @@ impl LabApplication {
             cdmw_primary_button(ui, crate::localization::tr("Continue to Fit"), step == 4)).clicked();
         ui.separator();
         if ui
-            .add_enabled(!profile_id.is_empty(), Button::new(crate::localization::tr("Clear Refit")))
+            .add_enabled(!profile_id.is_empty(), cdmw_danger_button(ui, crate::localization::tr("Clear Refit")))
             .on_disabled_hover_text(crate::localization::tr("Activate a Morph profile before clearing Refit"))
             .clicked()
         {
@@ -3752,7 +3884,7 @@ impl LabApplication {
             }
             self.draw_cdmw_refit_feedback(ui, actions, &bound_garments);
             if state_bool(&refit, "distance_warning") {
-                egui::CollapsingHeader::new(RichText::new(crate::localization::tr("Initial binding warning")).color(REFIT_ARMOR_COLOUR))
+                egui::CollapsingHeader::new(RichText::new(crate::localization::tr("Initial binding warning")).color(cdmw_readable(ui, REFIT_ARMOR_COLOUR)))
                     .id_salt("refit-binding-warning").show(ui, |ui| {
                         ui.label(crate::localization::tr("Initial binding: some garment vertices were far from the body. Check alignment and scale."));
                     });
@@ -3967,7 +4099,7 @@ impl LabApplication {
                     });
                 });
                 if self.cdmw_refit_settings_dirty.is_dirty() {
-                    ui.colored_label(REFIT_ARMOR_COLOUR, crate::localization::tr("Changes not applied"));
+                    ui.colored_label(cdmw_readable(ui, REFIT_ARMOR_COLOUR), crate::localization::tr("Changes not applied"));
                 }
                 let values = json!({
                     "enabled": self.cdmw_refit_enabled,
@@ -4334,7 +4466,9 @@ impl LabApplication {
                 for (action, title, label) in [("duplicate", "Duplicate", "Duplicate part"), ("delete", "Delete", "Delete part")] {
                     let reason = self.cdmw_part_action_reason(action);
                     let explain_delete = action == "delete" && !selected.is_empty();
-                    if ui.add_enabled(reason.is_none() || explain_delete, Button::new(crate::localization::tr(title)))
+                    let button = if action == "delete" { cdmw_danger_button(ui, crate::localization::tr(title)) }
+                        else { Button::new(crate::localization::tr(title)) };
+                    if ui.add_enabled(reason.is_none() || explain_delete, button)
                         .on_disabled_hover_text(crate::localization::tr(reason.unwrap_or_default())).clicked() {
                         if action == "delete" {
                             if let Some(action) = self.cdmw_part_delete_action() {
@@ -4659,11 +4793,11 @@ impl LabApplication {
         if !authoring {
             ui.small(crate::localization::tr("Geometry Layers are read-only in this session."));
         } else if archive_refit {
-            ui.colored_label(REFIT_ARMOR_COLOUR, crate::localization::tr("Archive Refit · fixed geometry"))
+            ui.colored_label(cdmw_readable(ui, REFIT_ARMOR_COLOUR), crate::localization::tr("Archive Refit · fixed geometry"))
                 .on_hover_text(crate::localization::tr("Layers organise loaded assets. Adding or removing geometry would prevent saving the original game files."));
         } else if !free_edit {
             ui.colored_label(
-                Color32::from_rgb(245, 190, 75),
+                cdmw_readable(ui, Color32::from_rgb(245, 190, 75)),
                 crate::localization::tr("Adding geometry needs Free Edit: export a new OBJ package to a folder."),
             );
         } else if has_selection {
@@ -4720,7 +4854,7 @@ impl LabApplication {
             if ui.add_enabled(authoring && !active_id.is_empty() && !active_base, Button::new(crate::localization::tr("Down"))).clicked() {
                 actions.push(UiAction::CdmwCommand { command: "layer_move", arguments: json!({"layer_id": active_id, "direction": 1}), label: "Move geometry layer down" });
             }
-            if ui.add_enabled(authoring && free_edit && !active_id.is_empty() && !active_base, Button::new(crate::localization::tr("Delete"))).clicked() {
+            if ui.add_enabled(authoring && free_edit && !active_id.is_empty() && !active_base, cdmw_danger_button(ui, crate::localization::tr("Delete"))).clicked() {
                 actions.push(UiAction::CdmwCommand { command: "layer_delete", arguments: json!({"layer_id": active_id}), label: "Delete geometry layer" });
             }
         });

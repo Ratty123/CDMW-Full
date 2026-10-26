@@ -671,7 +671,7 @@ impl LabApplication {
             "Explicitly select target vertices or Parts first"
         };
         if weight_edit_enabled && has_explicit_weight_target && !target_is_eligible {
-            ui.colored_label(Color32::from_rgb(245, 190, 75), crate::localization::tr(target_reason));
+            ui.colored_label(crate::cdmw_ui::cdmw_readable(ui, Color32::from_rgb(245, 190, 75)), crate::localization::tr(target_reason));
         }
         let can_adjust = weight_edit_enabled
             && target_is_eligible
@@ -748,7 +748,7 @@ impl LabApplication {
         let unnormalized = state_u64(&skeleton, "unnormalized_vertex_count");
         if unnormalized > 0 {
             ui.colored_label(
-                Color32::from_rgb(245, 190, 75),
+                crate::cdmw_ui::cdmw_readable(ui, Color32::from_rgb(245, 190, 75)),
                 crate::localization::tr(format!("{unnormalized} vertices have unnormalized weights")),
             );
         }
@@ -841,7 +841,7 @@ impl LabApplication {
                     let label =
                         format!("SM {submesh} · V {vertex} · {influence_text} · Σ {total:.3}");
                     if row.get("invalid").and_then(Value::as_bool) == Some(true) {
-                        ui.colored_label(Color32::from_rgb(245, 120, 105), crate::localization::tr(label));
+                        ui.colored_label(crate::cdmw_ui::cdmw_readable(ui, Color32::from_rgb(245, 120, 105)), crate::localization::tr(label));
                     } else {
                         ui.small(crate::localization::tr(label));
                     }

@@ -360,7 +360,7 @@ impl LabApplication {
         };
         let response = egui::Frame::group(ui.style()).show(ui, |ui| {
             ui.set_width(ui.available_width());
-            ui.colored_label(REFIT_ARMOR_COLOUR, crate::localization::tr("Fit blocked · preview kept"));
+            ui.colored_label(cdmw_readable(ui, REFIT_ARMOR_COLOUR), crate::localization::tr("Fit blocked · preview kept"));
             if !parts.is_empty() {
                 let selected_parts = self.selected_part_indices();
                 let can_select = !self.cdmw_busy();

@@ -1745,6 +1745,24 @@ theme. The session bar, camera strip, left tools, Parts, Layers, and History are
 split into named compact groups so controls remain scannable at constrained
 sizes.
 
+Control kinds stay visually distinct in every theme, derived from that theme's palette:
+
+- **Disabled** controls fade as far as the theme's own disabled button text (as the
+  host app draws it), never below 4.5:1, so they read as unavailable but stay legible.
+- The **recommended next action** fills with the accent and uses the palette's
+  `accent_text`. **Destructive** actions (Delete, Clear Refit) carry the theme's error
+  colour. **Selected** toggles and tabs use the soft accent.
+- **Values** are drawn as entry fields, like text boxes, apart from the buttons and
+  increment menus beside them. **Sliders** show a rail in the control outline colour
+  (at least 3:1 against the panel) filled with the accent up to the value.
+- Fixed status colours (body, garments, ready, warnings and errors) keep their hue
+  but are darkened or lightened to 4.5:1 on light themes. Colour legends show the
+  true viewport colour as a swatch beside normal text.
+
+`cdmw_ui/theme_readability.rs` checks these rules for every application theme using
+`tests/fixtures/ui-theme-palettes.json`; `tests/test_mesh_rust_embedding.py` fails
+when that copy differs from `cdmw/ui/theme_schemes.py`.
+
 ### Local gestures and history
 
 **Inspector > Action History** lists confirmed actions in order. Click a row to

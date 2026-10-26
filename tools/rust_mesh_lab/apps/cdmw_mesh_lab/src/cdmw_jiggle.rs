@@ -305,10 +305,11 @@ impl LabApplication {
                 }
             }
             ui.horizontal_wrapped(|ui| {
-                ui.colored_label(egui::Color32::from_rgb(15, 80, 220), "Low weight");
-                ui.colored_label(egui::Color32::from_rgb(255, 140, 15), "High weight");
-                ui.colored_label(egui::Color32::GRAY, "Zero weight");
-                ui.colored_label(egui::Color32::from_rgb(195, 90, 240), "Unknown")
+                // Swatches keep the viewport tint; the text stays in the theme's colour.
+                crate::cdmw_ui::cdmw_legend(ui, egui::Color32::from_rgb(15, 80, 220), "Low weight");
+                crate::cdmw_ui::cdmw_legend(ui, egui::Color32::from_rgb(255, 140, 15), "High weight");
+                crate::cdmw_ui::cdmw_legend(ui, egui::Color32::GRAY, "Zero weight");
+                crate::cdmw_ui::cdmw_legend(ui, egui::Color32::from_rgb(195, 90, 240), "Unknown")
                     .on_hover_text("Unknown: no verified PAC LOD0 bytes for this geometry or comparison view.");
             });
         }

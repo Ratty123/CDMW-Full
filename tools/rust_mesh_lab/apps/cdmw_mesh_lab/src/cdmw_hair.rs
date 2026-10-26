@@ -1035,8 +1035,8 @@ impl LabApplication {
                 if self.hair.physics_selected_only && self.hair.selected.is_empty() {
                     ui.weak(crate::localization::tr("Select locks, or turn off Selected locks only to paint visible hair."));
                 }
-                ui.colored_label(Color32::from_rgb(60, 190, 245), crate::localization::tr("Blue: static"));
-                ui.colored_label(Color32::from_rgb(245, 155, 60), crate::localization::tr("Orange: physical"));
+                crate::cdmw_ui::cdmw_legend(ui, Color32::from_rgb(60, 190, 245), crate::localization::tr("Blue: static"));
+                crate::cdmw_ui::cdmw_legend(ui, Color32::from_rgb(245, 155, 60), crate::localization::tr("Orange: physical"));
             }
             if self.hair.tool == Some(HairTool::Guide) {
                 ui.add(crate::cdmw_ui::numeric::slider(&mut self.hair.width, 0.0001..=(span*0.2).clamp(0.001,10.0)).text(crate::localization::tr("Draw width")));
@@ -1075,7 +1075,7 @@ impl LabApplication {
             }
             ui.checkbox(&mut self.hair.symmetry,crate::localization::tr("Symmetry"));
             if self.hair.tool==Some(HairTool::Select) {ui.checkbox(&mut self.hair.select_through,crate::localization::tr("Select through"));}
-            if ui.add_enabled(!self.hair.selected.is_empty(),egui::Button::new(crate::localization::tr("Delete selected hair"))).clicked() {actions.push(UiAction::Hair(HairAction::DeleteGuides));}
+            if ui.add_enabled(!self.hair.selected.is_empty(),crate::cdmw_ui::cdmw_danger_button(ui, crate::localization::tr("Delete selected hair"))).clicked() {actions.push(UiAction::Hair(HairAction::DeleteGuides));}
             if unresolved>0 {
                 ui.weak(crate::localization::tr(format!("{unresolved} original sections have no grooming guides")))
                     .on_hover_text(crate::localization::tr("Unchanged sections can be exported with their original game skinning. Prepare them only for grooming or motion preview."));
@@ -1145,7 +1145,7 @@ impl LabApplication {
                         for slot in slots.iter().filter(|slot| slot["path"].as_str() == Some(textures[self.hair.texture_index].as_str())) {
                             let parameter = slot["parameter"].as_str().filter(|s| !s.is_empty()).unwrap_or("Unspecified slot");
                             ui.label(crate::localization::tr(parameter)).on_hover_text(slot["material"].as_str().unwrap_or(""));
-                            if slot["available"] != true { ui.colored_label(Color32::LIGHT_RED, crate::localization::tr("Missing DDS")); }
+                            if slot["available"] != true { ui.colored_label(crate::cdmw_ui::cdmw_readable(ui, Color32::LIGHT_RED), crate::localization::tr("Missing DDS")); }
                         }
                     }
                     for (title,command) in [("Open in Texture Editor","hair_texture_export"),("Apply edited DDS…","hair_texture")] {

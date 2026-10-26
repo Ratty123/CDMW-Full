@@ -60,7 +60,7 @@ impl LabApplication {
         egui::Panel::top("cdmw-correction-comparison")
             .show(root_ui, |ui| {
                 ui.horizontal_wrapped(|ui| {
-                    ui.colored_label(Color32::from_rgb(245, 190, 75), crate::localization::tr(
+                    ui.colored_label(cdmw_readable(ui, Color32::from_rgb(245, 190, 75)), crate::localization::tr(
                         "Showing the fit without saved corrections. Turn corrections back on to continue editing or finish.",
                     ));
                     if ui.add_enabled(!self.cdmw_busy() && state_bool(&self.cdmw_state, "authoring_enabled"),

@@ -130,6 +130,18 @@ def test_live_theme_change_is_sent_to_the_ready_embedded_child(tmp_path: Path) -
     assert sent[-1]["payload"]["variant"] == "dark"
 
 
+def test_native_theme_palette_fixture_matches_the_application_themes() -> None:
+    # The Rust editor's theme readability test runs on this copy of every palette.
+    from cdmw.ui.theme_schemes import UI_THEME_SCHEMES
+
+    fixture = Path(__file__).resolve().parents[1] / "tools/rust_mesh_lab/apps/cdmw_mesh_lab/tests/fixtures/ui-theme-palettes.json"
+    expected = {
+        key: {name: value for name, value in scheme.items() if name != "label"}
+        for key, scheme in UI_THEME_SCHEMES.items()
+    }
+    assert json.loads(fixture.read_text(encoding="utf-8")) == expected
+
+
 def test_native_localization_payload_covers_every_language_and_live_updates(tmp_path: Path) -> None:
     from cdmw.domain.localization import BUILTIN_LANGUAGES
     from cdmw.ui.localization import UiLocalizer
