@@ -15,7 +15,9 @@ inline constexpr char game_hash[] = "57da440d72f4db974f25fef047cf84c4dadd999a88c
 inline constexpr bool game_redirection_approved = false;
 // Controlled probes require a separate host opt-in and the verified startup
 // path. They do not enable the public release gate above.
-enum class Mode : uint32_t { trace = 0, redirect = 1, harness = 2, controlled_probe = 3 };
+// Standalone activation needs no session host: CDMW publishes a guarded profile
+// that any launcher (Steam, DMM) can start. It requires the verified startup path.
+enum class Mode : uint32_t { trace = 0, redirect = 1, harness = 2, controlled_probe = 3, standalone = 4 };
 struct File { std::wstring logical; fs::path path; Hash sha{}; };
 struct Guard { fs::path path; uint32_t present{}; Hash sha{}; };
 struct CatalogueGuard { fs::path path; uint32_t present{}; uint64_t size{}, last_write{}; };
@@ -54,5 +56,6 @@ fs::path executable(const Manifest&);
 std::wstring pipe_name(const Manifest&);
 inline constexpr DWORD claim_magic = 0x324d4443, grant_magic = 0x32474656, ready_magic = 0x31534656;
 void status(const Manifest&, const char* state, DWORD error = 0, const char* detail = "", int progress = -1);
+void standalone_status(const fs::path& root, const char* state, const std::wstring& generation, DWORD error, const char* detail, uint64_t elapsed_ms);
 void require(bool, const char*);
 }

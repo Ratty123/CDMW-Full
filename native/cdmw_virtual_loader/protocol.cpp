@@ -27,7 +27,7 @@ fs::path own_executable() {
 }
 fs::path executable(const Manifest& m) {
 #ifdef CDMW_VIRTUAL_TESTING
-    if (m.mode == Mode::harness) return m.root / L"bin64/cdmw_virtual_loader_harness.exe";
+    if (m.mode == Mode::harness || m.mode == Mode::standalone) return m.root / L"bin64/cdmw_virtual_loader_harness.exe";
 #endif
     return m.root / L"bin64/CrimsonDesert.exe";
 }
@@ -84,7 +84,10 @@ void validate(const Manifest& m) {
 #ifndef CDMW_VIRTUAL_TESTING
     require(m.mode != Mode::harness, "Test mode is unavailable in the production runtime");
 #endif
-    require(m.mode == Mode::trace || m.mode == Mode::redirect || m.mode == Mode::harness || m.mode == Mode::controlled_probe, "Unknown mode");
+    require(m.mode == Mode::trace || m.mode == Mode::redirect || m.mode == Mode::harness || m.mode == Mode::controlled_probe ||
+            m.mode == Mode::standalone, "Unknown mode");
+    const bool standalone = m.mode == Mode::standalone;
+    require(!standalone || (!m.pid && !m.host_pid && m.launcher.empty()), "A standalone profile cannot name a session host or launcher");
     require(identity(m.token) && identity(m.generation), "Invalid session identity");
     require(m.root.is_absolute() && normalize(m.root) == normalize(m.root.lexically_normal()), "Invalid game root");
     no_links(m.root);
@@ -122,9 +125,11 @@ void validate(const Manifest& m) {
     require(m.catalogue.size() <= 65536, "Too many catalogue guards");
     const auto root = normalize(m.root) + L"\\";
     for (const auto& guard : m.catalogue) {
+        // A standalone profile has no host to hash every carrier before launch;
+        // large sources it was composed from are retained by size and write time.
         require(guard.present <= 1 && guard.path.is_absolute()
-                && normalize(guard.path).starts_with(root)
-                && _wcsicmp(guard.path.extension().c_str(), L".paz") == 0
+                && (standalone || (normalize(guard.path).starts_with(root)
+                                   && _wcsicmp(guard.path.extension().c_str(), L".paz") == 0))
                 && guards.insert(normalize(guard.path)).second,
                 "Invalid catalogue guard");
         no_links(guard.path);
@@ -175,11 +180,25 @@ void write_manifest(const fs::path& path, const Manifest& m) {
       out.flush(); require(bool(out), "Cannot write session manifest"); }
     require(MoveFileExW(temporary.c_str(), path.c_str(), MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH), "Cannot publish session manifest");
 }
+void write_detail(std::ostream& out, const char* detail) {
+    for (auto at = detail; *at; ++at) { if (*at == '\\' || *at == '\"') out << '\\'; if (static_cast<unsigned char>(*at) >= 32) out << *at; }
+}
+void standalone_status(const fs::path& root, const char* state, const std::wstring& generation, DWORD error, const char* detail, uint64_t elapsed_ms) {
+    auto path = root / L".cdmw/virtual-loader/standalone-status.json";
+    auto temp = path; temp += L".tmp";
+    std::string identity;
+    for (auto c : generation) identity += static_cast<char>(c < 128 && iswalnum(c) ? c : '?');
+    { std::ofstream out(temp); out << "{\"state\":\"" << state << "\",\"pid\":" << GetCurrentProcessId()
+          << ",\"generation\":\"" << identity << "\",\"error\":" << error << ",\"elapsed_ms\":" << elapsed_ms << ",\"detail\":\"";
+      write_detail(out, detail);
+      out << "\"}"; out.flush(); }
+    MoveFileExW(temp.c_str(), path.c_str(), MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH);
+}
 void status(const Manifest& m, const char* state, DWORD error, const char* detail, int progress) {
     auto path = m.root / L".cdmw/virtual-loader" / (L"session-" + m.token + L".json");
     auto temp = path; temp += L".tmp";
     { std::ofstream out(temp); out << "{\"state\":\"" << state << "\",\"pid\":" << m.pid << ",\"host_pid\":" << m.host_pid << ",\"error\":" << error << ",\"detail\":\"";
-      for (auto at = detail; *at; ++at) { if (*at == '\\' || *at == '\"') out << '\\'; if (static_cast<unsigned char>(*at) >= 32) out << *at; }
+      write_detail(out, detail);
       out << "\"";
       if (progress >= 0 && progress <= 100) out << ",\"progress\":" << progress;
       out << "}"; out.flush(); }

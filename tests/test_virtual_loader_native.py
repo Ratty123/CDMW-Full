@@ -431,3 +431,101 @@ os._exit(0)
                     kernel.TerminateProcess(handle, 1)
                     kernel.WaitForSingleObject(handle, 5000)
                 kernel.CloseHandle(handle)
+
+
+
+def standalone_fixture(tmp_path, *, production=False):
+    """The synthetic layout with a published launcher profile instead of a session request."""
+    from cdmw.services.virtual_loader_standalone import STANDALONE_PATH, standalone_manifest
+    from cdmw.services.new_item_provenance import _stamp
+    root, _request, _token = fixture(tmp_path)
+    if production:
+        shutil.copy2(BUILD / 'CDMWVirtualLoader.asi', root / 'bin64/CDMWVirtualLoader.asi')
+    (root / 'bin64/winmm.dll').write_bytes(b'fixture bootstrap')
+    source, carrier = tmp_path / 'item.cditem', tmp_path / 'large.paz'
+    source.write_bytes(b'package')
+    carrier.write_bytes(b'archive')
+    generation = next((root / '.cdmw/virtual-loader/generations').iterdir()).name
+    profile = {'generation': generation, 'files': {p: digest(b'virtual') for p in ('meta/0.papgt', '0042/0.pamt', '0042/0.paz')},
+               'sources': [(str(source), hash_file(source))], 'catalogue': [(str(carrier), _stamp(carrier))]}
+    data, _hashed, _catalogue = standalone_manifest(root, profile, executable_sha256=hash_file(root / 'bin64/cdmw_virtual_loader_harness.exe'))
+    (root / STANDALONE_PATH).write_bytes(data)
+    return root, generation, source, carrier
+
+
+def test_standalone_profile_redirects_without_a_session_host(tmp_path):
+    from cdmw.services import virtual_loader_standalone as standalone
+    root, generation, _source, _carrier = standalone_fixture(tmp_path)
+    # Launched as a game would be, from bin64: the harness checks relative aliases.
+    result = subprocess.run([str(root / 'bin64/cdmw_virtual_loader_harness.exe')], capture_output=True, timeout=40,
+                            cwd=root / 'bin64')
+    assert result.returncode == 0, result.stderr.decode(errors='replace')
+    assert (root / '.cdmw/virtual-loader/harness-result.txt').read_text() == 'native IO passed'
+    assert (root / 'meta/0.papgt').read_bytes() == b'original'
+    status = standalone.read_standalone_status(root)
+    assert (status.state, status.detail, status.generation) == ('ready', '', generation)
+    rows = standalone.read_standalone_trace(root)
+    assert rows[0].operation == 'initialize' and any(r.operation == 'file hooks ready' for r in rows)
+    assert any(r.redirected and r.path.replace('/', '\\').lower().endswith('meta\\0.papgt') for r in rows)
+    assert not list((root / '.cdmw/virtual-loader').glob('session-*.json'))
+
+
+@pytest.mark.parametrize(('change', 'expected'), [
+    ('source', 'changed after the profile was published'),
+    ('carrier', 'archive changed after the profile was published'),
+    ('snapshot', 'prepared item file changed'),
+    ('appeared', 'appeared after the profile was published'),
+    ('lane', 'CDMW is changing this installation'),
+])
+def test_standalone_profile_refuses_changes_after_publication(tmp_path, change, expected):
+    from cdmw.services import virtual_loader_standalone as standalone
+    from cdmw.services.installation_lane import installation_lane
+    root, _generation, source, carrier = standalone_fixture(tmp_path)
+    if change == 'source':
+        stamp = source.stat()
+        source.write_bytes(b'pAckage')
+        os.utime(source, ns=(stamp.st_atime_ns, stamp.st_mtime_ns))
+    elif change == 'carrier':
+        carrier.write_bytes(b'archive, larger')
+    elif change == 'snapshot':
+        next((root / '.cdmw/virtual-loader/generations').glob('*/files/0042/0.paz')).write_bytes(b'virtuAl')
+    elif change == 'appeared':
+        (root / '.cdmw/independent-items.json').write_bytes(b'{}')
+    command = [str(root / 'bin64/cdmw_virtual_loader_harness.exe'), '--blocked']
+    if change == 'lane':
+        with installation_lane(root):
+            result = subprocess.run(command, capture_output=True, timeout=40)
+    else:
+        result = subprocess.run(command, capture_output=True, timeout=40)
+    assert result.returncode == 0, result.stderr.decode(errors='replace')
+    status = standalone.read_standalone_status(root)
+    assert status.state == 'refused' and expected in status.detail, status.detail
+    assert (root / 'meta/0.papgt').read_bytes() == b'original'
+    assert not (root / '.cdmw/virtual-loader/harness-result.txt').exists()
+
+
+def test_production_asi_stays_silent_in_another_program(tmp_path):
+    from cdmw.services import virtual_loader_standalone as standalone
+    root, _generation, _source, _carrier = standalone_fixture(tmp_path, production=True)
+    result = subprocess.run([str(root / 'bin64/cdmw_virtual_loader_harness.exe'), '--inert'], capture_output=True, timeout=10)
+    assert result.returncode == 0, result.stderr.decode(errors='replace')
+    assert standalone.read_standalone_status(root) is None
+    assert not (root / '.cdmw/virtual-loader/harness-result.txt').exists()
+    assert not (root / standalone.TRACE_PATH).exists()
+
+
+def test_a_helper_program_in_bin64_leaves_the_game_report_alone(tmp_path):
+    # The game's crash handler starts beside it and loads the same bootstrap and runtime.
+    from cdmw.services import virtual_loader_standalone as standalone
+    root, generation, _source, _carrier = standalone_fixture(tmp_path)
+    game = subprocess.run([str(root / 'bin64/cdmw_virtual_loader_harness.exe')], capture_output=True, timeout=40, cwd=root / 'bin64')
+    assert game.returncode == 0, game.stderr.decode(errors='replace')
+    report, trace = (root / standalone.STATUS_PATH).read_bytes(), (root / standalone.TRACE_PATH).read_bytes()
+    helper = root / 'bin64/crashpad_handler.exe'
+    shutil.copy2(root / 'bin64/cdmw_virtual_loader_harness.exe', helper)
+    result = subprocess.run([str(helper), '--inert'], capture_output=True, timeout=10, cwd=root / 'bin64')
+    assert result.returncode == 0, result.stderr.decode(errors='replace')
+    assert (root / standalone.STATUS_PATH).read_bytes() == report
+    assert (root / standalone.TRACE_PATH).read_bytes() == trace
+    status = standalone.read_standalone_status(root)
+    assert (status.state, status.generation) == ('ready', generation)

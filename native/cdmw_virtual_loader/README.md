@@ -2,7 +2,10 @@
 
 Windows x64, C++20, Windows SDK, CMake and MSVC. No downloaded injection framework
 or third-party hooking library is used. The sources are `protocol.cpp/.hpp`,
-`runtime.cpp`, `bootstrap.cpp/.hpp`, `session.cpp` and the synthetic `harness.cpp`.
+`runtime.cpp`, `bootstrap.cpp/.hpp`, `compose_launch.cpp/.hpp`, `session.cpp` and the
+synthetic `harness.cpp`. The runtime links the portable
+[item composer](../cdmw_item_composer/README.md) library, whose sources are part of
+the provenance.
 
 Run `.\.venv\Scripts\python.exe scripts/build_virtual_loader.py` from the repository
 root. It configures the x64 Release
@@ -173,6 +176,111 @@ Do not poll until an unknown hook disappears or promote game loading based on
 the harness. The
 [feature loading map and acceptance gates](../../cdmw/ui/new_item/VIRTUAL_LOADER.md)
 are the authoritative scope and limitations.
+
+## Launcher-independent profiles
+
+Standalone mode 4 lets the runtime load an applied profile when CDMW did not start
+the game, for example from Steam or a mod manager such as DMM. CDMW publishes
+`.cdmw/virtual-loader/standalone.bin` (same `CDVFS3` format, no PIDs, host or
+launcher) only after the runtime setup is current and every source and prepared
+file has been hashed. When no session descriptor exists, the runtime reads that
+profile and, before hooking any import, checks the exact game executable, the
+verified early startup path, every content guard (indexes, sources up to 1 MiB, the
+installed runtime, the bootstrap and CDMW's own state files), size and write time
+for larger carriers, and the prepared snapshot hashes. It then takes the
+installation lease, so CDMW cannot change the installation while the game runs.
+Any mismatch leaves the game unmodded. Each launch writes
+`standalone-status.json` (`ready` or `refused` with the reason) and a bounded
+`trace-standalone.bin`. Other programs in `bin64` that load the bootstrap, such as the
+crash handler that starts with every launch, leave both files alone and stay inert.
+A mod manager that rebuilds PAPGT or PATHC after CDMW applied the profile with
+different content makes it stale; apply and publish again.
+
+Recorded 2026-10-25 on game 2.03.02 with UAL 9.7.4: the headless Steam smoke passed,
+and a launch from DMM loaded a five-sword profile published against DMM's mount. The
+runtime reported ready in the game's process with the expected redirects, and the
+user confirmed all five items in game. Save/reload and removal under a standalone
+profile are untested. The feature map's evidence gates hold the details.
+
+```powershell
+.\.venv\Scripts\python.exe scripts/cditem_standalone.py --game-root "<game>" update-runtime
+.\.venv\Scripts\python.exe scripts/cditem_standalone.py --game-root "<game>" publish
+.\.venv\Scripts\python.exe scripts/cditem_standalone.py --game-root "<game>" status
+.\.venv\Scripts\python.exe scripts/cditem_standalone.py --game-root "<game>" smoke
+.\.venv\Scripts\python.exe scripts/cditem_standalone.py --game-root "<game>" withdraw
+```
+
+`smoke` launches through Steam, waits for the runtime's report and for redirected
+opens of `meta/0.papgt` and the profile's private group index, closes only the
+process the report names (`WM_CLOSE`, then termination), and confirms PAPGT,
+PATHC, every group PAMT, the runtime and the bootstrap are unchanged. It sends no
+input and captures no screen. Reports go to `workspace/reports/cditem-smoke/`.
+A pass shows the files were served at startup; it does not show the items in a
+shop or inventory.
+
+## Launch-time composition (milestone 2, provisional input)
+
+When `.cdmw/virtual-loader/compose/` holds change sets (`*.cdchanges`), a launch
+CDMW did not start composes them instead of loading a standalone profile; without
+change sets the standalone profile applies as before. A change set holds one
+package's owned changes (each path's file before and after the package, its archive
+flags and whether it is mount metadata) in the provisional `CDMWCHG1` format that
+`cdmw_item_composer` parses. Packages compose in file-name order. The format is a
+stand-in until `.cditem` packages carry their own `runtime/` members; CDMW does not
+write change sets yet, so a test writes them from its own resolve.
+
+The runtime checks the exact game executable and the verified early startup path,
+takes the installation lease, and then merges the change sets onto what the game
+reads today: the groups `meta/0.papgt` lists, DMM's included, and `meta/0.pathc`.
+The changed files become a private group under the first free name from `0036`,
+mounted first, as CDMW's Apply builds it. The result is cached in
+`.cdmw/virtual-loader/compose-cache/<key>/`. The key covers the runtime, the game
+build, the mount list, the group name and each change set's name, size and write
+time. A launch reuses the cache only after it re-verifies every source the
+composition read (hashed up to 1 MiB, size and write time beyond, as a standalone
+profile keeps its carriers) and hashes each output. A changed source composes again
+from the current files, so a DMM remount no longer invalidates the items. All
+sources and outputs are pinned read-only for the session. Conflicting packages,
+unreadable change sets and input outside the composer's exact subset refuse and
+leave the game unmodded. Each launch writes `compose-status.json` (`ready` or
+`refused`, cache `composed` or `reused`, the group, counts, stage times and the
+reason) and `trace-compose.bin`, whose code-14 row names the composition.
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest tests/test_virtual_loader_compose.py -q --basetemp "$env:TEMP\cdmw-virtual-compose"
+```
+
+These harness checks compose two packages over a synthetic install with DMM's group
+mounted and read the mapped files back through the hooks. The files must equal CDMW's
+own composition, and the reuse, reorder, remount, conflict, malformed-input, lease and
+precedence cases are covered. They are synthetic; the in-game record follows below.
+
+The runtime composes on the startup thread alone. On UAL's startup path a new thread
+does not run until `InitializeASI` returns, so a composition that waits for worker
+threads never finishes. Before composing, the report records whether a new thread ran
+within a second (`worker_thread`) and whether the startup thread holds the loader lock
+(`loader_lock`); a `composing` report is written first, so a launch that stops there
+shows where.
+
+Recorded 2026-10-26 on game 2.03.02 with UAL 9.7.4 and DMM's group mounted, using
+headless Steam launches that closed at the title screen:
+
+- The first build composed with worker threads; it wrote no report within 300 s and the
+  game never opened a window, so the check ended it. Protected files were unchanged.
+- Runtime `74336eda`, composing on the startup thread, read five change sets taken from
+  CDMW's resolve of the five applied Wolf Trial packages. It recorded `worker_thread` 0
+  with the loader lock free, composed 170 files in 6.2 s and reported ready 7.75 s into
+  startup. The game opened the composed `meta/0.papgt`, `meta/0.pathc` and the private
+  `0042/0.pamt` and `0.paz` through the hooks, closed on request, and all 40 protected
+  files were unchanged. The cached view is byte-identical to the one CDMW's Apply had
+  published for those packages, which the user had confirmed in game.
+- The next launch reused the cache and was ready in 312 ms, with the same redirects.
+
+Those headless launches did not look at items. Later that morning, with compose mode
+enabled on the user's install, a launch the user started reused the cache (ready in
+328 ms) and opened the composed files through the hooks, and the user found all five
+swords in the inventory of their loaded save. Saving under compose mode and a real DMM
+remount remain untested.
 
 ## Independent item publication research
 

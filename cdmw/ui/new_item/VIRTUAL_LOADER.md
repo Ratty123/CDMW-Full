@@ -850,6 +850,34 @@ separate and open.
    This does not certify broader runtime coexistence, other item configurations,
    saving with removed items or all asset/behavior updates. Those game checks
    remain separate from the delivered application workflow.
+5. **Launcher-independent profile (standalone mode 4):** on 2026-10-25, with game
+   2.03.02 and UAL 9.7.4, a headless Steam smoke launch (runtime `d8c68cf6`, built
+   at `8fb5569b`) loaded the published profile without a CDMW host. It reported
+   ready, recorded redirected PAPGT and private PAMT opens, closed on request and
+   left all 40 protected index, runtime and bootstrap files unchanged. After DMM
+   mounted its own group, the five-sword profile was applied and published against
+   that mount (generation `99eda530`, runtime `1b15c54d` at `6fb6ae67`). A launch
+   from DMM reported ready in the game's own process, with redirected PAPGT, PATHC
+   and private PAMT/PAZ opens, and the user confirmed all five Wolf Trial swords in
+   game. DMM did not rewrite its mount at that launch; a changed DMM mount makes
+   the profile stale until it is applied and published again. Save/reload, removal
+   and reinstallation under this profile, and other mod managers remain unverified.
+   On 2026-10-26 the republished profile passed the headless smoke again with
+   runtime `74336eda`.
+6. **Composition at launch (milestone 2, provisional input):** on 2026-10-26, with
+   the same game, bootstrap and DMM mount, runtime `74336eda` (sources of `22ed9b4a`)
+   composed five change sets written from CDMW's own resolve of the five Wolf Trial
+   packages. Headless Steam launches showed it ready 7.75 s into startup after a
+   6.2 s composition, with the composed PAPGT, PATHC and private PAMT/PAZ opened
+   through the hooks, then 312 ms when reusing the cache. Both closed on request with
+   all 40 protected files unchanged. The cached view is byte-identical to the
+   confirmed `99eda530` view. An earlier build that composed with worker threads
+   never finished on the startup path. Those launches did not inspect items; with
+   compose mode then enabled, the user's own launch reused the cache (328 ms) and the
+   user found all five swords in the inventory of a loaded save. Change sets are not
+   a package format: CDMW does not write them, and packages' own `runtime/` members
+   (patch 0004) are still to come. Saving, a real DMM remount and removal under
+   compose mode remain unverified.
 
 Source tests, built native binaries, packaged application, visible game behavior
 and save compatibility are separate evidence classes. The diagnostic observations
