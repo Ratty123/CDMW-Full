@@ -4,6 +4,7 @@
 #include "compose_launch.hpp"
 #include "cdmw_composer/composer.hpp"
 #include <bcrypt.h>
+#include <winternl.h>
 #include <algorithm>
 #include <chrono>
 #include <fstream>
@@ -244,6 +245,22 @@ void write_file(const fs::path& path, const cc::Bytes& data) {
     if (!out) refuse("Cannot write a composed file", path);
 }
 
+// On the game's startup path a composition using worker threads never finished
+// (2026-10-26), most likely waiting for threads that cannot start before this call returns.
+// The runtime composes on this thread alone and records whether a new thread can run.
+DWORD WINAPI idle_thread(void*) { return 0; }
+int worker_thread_runs() {
+    Handle thread(CreateThread(nullptr, 0, idle_thread, nullptr, 0, nullptr));
+    if (!thread) return -1;
+    return WaitForSingleObject(thread.value, 1000) == WAIT_OBJECT_0 ? 1 : 0;  // a late thread just exits
+}
+int loader_lock_held() {
+    const auto peb = reinterpret_cast<const unsigned char*>(NtCurrentTeb()->ProcessEnvironmentBlock);
+    const auto lock = *reinterpret_cast<const RTL_CRITICAL_SECTION* const*>(peb + 0x110);  // PEB64.LoaderLock
+    if (!lock) return -1;
+    return reinterpret_cast<DWORD_PTR>(lock->OwningThread) == GetCurrentThreadId() ? 1 : 0;
+}
+
 std::string kind_of(const std::exception& error) {
     if (dynamic_cast<const cc::OverlayConflict*>(&error)) return "Packages conflict: ";
     if (dynamic_cast<const cc::Unsupported*>(&error)) return "Unsupported input: ";
@@ -264,7 +281,7 @@ void compose_into(const fs::path& root, const fs::path& cache, const std::vector
                 refuse(std::string("Unreadable change set (") + error.what() + ")", set);
             }
         }
-        view = cc::compose_view(root, packages, launch.group);
+        view = cc::compose_view(root, packages, launch.group, false);
     } catch (const cc::ComposeError& error) {
         throw std::runtime_error(kind_of(error) + error.what());
     }
@@ -356,6 +373,9 @@ ComposedLaunch prepare_composition(const fs::path& root, const Hash& game) {
         }
     }
     fs::create_directories(caches);
+    launch.loader_lock = loader_lock_held();
+    launch.worker_thread = worker_thread_runs();
+    compose_status(root, "composing", launch, 0, "", 0);  // a launch that stops here shows where
     compose_into(root, cache, sets, set_stamps, launch);
     const auto record = read_record(cache / L"record.bin", root);
     require(record.has_value(), "The composition record cannot be read back");
@@ -403,7 +423,7 @@ void compose_status(const fs::path& root, const char* state, const ComposedLaunc
             << "\",\"packages\":" << launch.packages << ",\"composed\":" << launch.composed << ",\"compose_ms\":" << launch.compose_ms
             << ",\"stage_ms\":[";
         for (size_t i = 0; i < launch.stage_ms.size(); ++i) out << (i ? "," : "") << static_cast<uint64_t>(launch.stage_ms[i]);
-        out << "],\"error\":" << error << ",\"elapsed_ms\":" << elapsed_ms << ",\"detail\":\"" << escape(detail) << "\"}";
+        out << "],\"worker_thread\":" << launch.worker_thread << ",\"loader_lock\":" << launch.loader_lock << ",\"error\":" << error << ",\"elapsed_ms\":" << elapsed_ms << ",\"detail\":\"" << escape(detail) << "\"}";
         out.flush();
     }
     MoveFileExW(temp.c_str(), path.c_str(), MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH);

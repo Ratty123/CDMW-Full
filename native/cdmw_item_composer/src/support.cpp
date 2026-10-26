@@ -99,12 +99,12 @@ std::string replace_all(std::string text, std::string_view from, std::string_vie
     return text;
 }
 
-void parallel_for(std::size_t count, const std::function<void(std::size_t)>& work) {
+void parallel_for(std::size_t count, const std::function<void(std::size_t)>& work, bool parallel) {
     std::atomic<std::size_t> next{0};
     const auto run = [&] {
         for (std::size_t index; (index = next.fetch_add(1)) < count;) work(index);
     };
-    const std::size_t workers = std::min<std::size_t>(count, std::clamp<std::size_t>(std::thread::hardware_concurrency(), 1, 8));
+    const std::size_t workers = parallel ? std::min<std::size_t>(count, std::clamp<std::size_t>(std::thread::hardware_concurrency(), 1, 8)) : 1;
     std::vector<std::thread> threads;
     for (std::size_t i = 1; i < workers; ++i) {
         try {

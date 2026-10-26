@@ -125,8 +125,8 @@ Bytes read_entry(const ArchiveEntry& entry);
 class MountedArchives {
 public:
     // With `wanted` (normalized paths), only those paths are indexed; find() then answers
-    // for them alone.
-    MountedArchives(const std::filesystem::path& root, const Bytes& papgt, const std::set<std::string>* wanted = nullptr);
+    // for them alone. `parallel` lets the indexes parse on worker threads.
+    MountedArchives(const std::filesystem::path& root, const Bytes& papgt, const std::set<std::string>* wanted = nullptr, bool parallel = true);
     // The entry the game reads for `path` (compared as archive_format normalizes it), or null.
     const ArchiveEntry* find(const std::string& path) const;
     const std::vector<std::string>& groups() const { return groups_; }
@@ -176,8 +176,11 @@ struct ComposedView {
 std::string free_group_name(const std::filesystem::path& root, const Bytes& papgt);
 // Merge each package's changes, in order, onto what the game reads today (the mounted
 // archives and meta/0.pathc) and build the private group `group` from the files that
-// changed. Packages with field or texture operations are not composed here.
-ComposedView compose_view(const std::filesystem::path& root, const std::vector<PackageChanges>& packages, const std::string& group);
+// changed. Packages with field or texture operations are not composed here. With
+// `parallel`, independent indexes and merge chains run on worker threads; the result
+// and any failure are the same either way.
+ComposedView compose_view(const std::filesystem::path& root, const std::vector<PackageChanges>& packages, const std::string& group,
+                          bool parallel = true);
 
 std::array<std::uint8_t, 32> sha256(const std::uint8_t* data, std::size_t size);
 std::string sha256_hex(const Bytes& data);

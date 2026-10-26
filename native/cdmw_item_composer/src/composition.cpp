@@ -30,7 +30,7 @@ FileMap package_side(const PackageChanges& changes, bool after) {
 // (a table's body and header, or the path alone), so each unit's chain over the packages
 // runs on its own and the results are joined. A failure is the one the sequential order
 // meets first: the earliest package, then that package's earliest path.
-FileMap merged(const std::vector<PackageChanges>& packages, const std::vector<std::string>& paths, const FileMap& underlay) {
+FileMap merged(const std::vector<PackageChanges>& packages, const std::vector<std::string>& paths, const FileMap& underlay, bool parallel) {
     std::vector<std::string> keys;
     std::unordered_map<std::string, std::size_t> unit_of;
     bool separable = true;
@@ -86,7 +86,7 @@ FileMap merged(const std::vector<PackageChanges>& packages, const std::vector<st
                 return;
             }
         }
-    });
+    }, parallel);
     const Unit* first = nullptr;
     for (const auto& unit : units)
         if (unit.error && (!first || std::make_pair(unit.package, unit.position) < std::make_pair(first->package, first->position))) first = &unit;
@@ -125,7 +125,7 @@ std::string free_group_name(const std::filesystem::path& root, const Bytes& papg
     throw FormatError("no free archive directory name is left under the package root");
 }
 
-ComposedView compose_view(const std::filesystem::path& root, const std::vector<PackageChanges>& packages, const std::string& group) {
+ComposedView compose_view(const std::filesystem::path& root, const std::vector<PackageChanges>& packages, const std::string& group, bool parallel) {
     Stopwatch clock;
     ComposedView view;
     const auto mount = read_optional(root / "meta" / "0.papgt");
@@ -143,7 +143,7 @@ ComposedView compose_view(const std::filesystem::path& root, const std::vector<P
         }
     }
     // Only the touched paths are indexed; every mounted index is still read and validated.
-    const MountedArchives archives(root, *mount, &wanted);
+    const MountedArchives archives(root, *mount, &wanted, parallel);
     const auto disk_pathc = read_optional(root / "meta" / "0.pathc");
     view.sources.push_back(root / "meta" / "0.papgt");
     view.sources.insert(view.sources.end(), archives.pamts().begin(), archives.pamts().end());
@@ -163,7 +163,7 @@ ComposedView compose_view(const std::filesystem::path& root, const std::vector<P
         }
     }
     view.stage_ms[1] = clock.lap();
-    FileMap current = merged(packages, paths, underlay);
+    FileMap current = merged(packages, paths, underlay, parallel);
     view.stage_ms[2] = clock.lap();
     std::map<std::string, Bytes> files;  // sorted by path, as prepare_profile builds them
     for (const auto& [path, data] : current.items())

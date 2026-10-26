@@ -432,7 +432,7 @@ Bytes read_entry(const ArchiveEntry& entry) {
     return data;
 }
 
-MountedArchives::MountedArchives(const std::filesystem::path& root, const Bytes& papgt, const std::set<std::string>* wanted) {
+MountedArchives::MountedArchives(const std::filesystem::path& root, const Bytes& papgt, const std::set<std::string>* wanted, bool parallel) {
     if (wanted) wanted_ = *wanted;
     std::function<bool(const std::string&)> keep;
     if (wanted_) keep = [this](const std::string& path) { return wanted_->count(normalize_game_path(path)) != 0; };
@@ -456,7 +456,7 @@ MountedArchives::MountedArchives(const std::filesystem::path& root, const Bytes&
         } catch (...) {
             failures[index] = std::current_exception();
         }
-    });
+    }, parallel);
     for (std::size_t index = 0; index < pamts_.size(); ++index) {
         if (failures[index]) std::rethrow_exception(failures[index]);
         for (auto& entry : parsed[index]) {
