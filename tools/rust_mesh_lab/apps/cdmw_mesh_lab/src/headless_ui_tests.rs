@@ -1522,11 +1522,13 @@ impl HeadlessUi {
             }
         }
         self.scroll_inspector(2_000.0);
-        for _ in 0..24 {
+        // Step by less than the shortest list window (about 110 px with large
+        // text in a small window) so a row cannot be skipped over.
+        for _ in 0..48 {
             if let Some(rectangle) = self.label_rect(label) {
                 return Ok(rectangle);
             }
-            self.scroll_inspector(-120.0);
+            self.scroll_inspector(-60.0);
         }
         Err(format!(
             "inspector control {label:?} is unreachable at {:?}",
@@ -1683,9 +1685,14 @@ impl HeadlessUi {
 
     fn choose(&mut self, label: &str, current: &str, next: &str) -> TestResult {
         let row = self.reveal(label)?;
+        // A control with the same text can share the row's height in the other
+        // sidebar, such as Part colors in Parts beside Viewport's Display.
+        let viewport = self.application.viewport_rect;
+        let same_side = |rectangle: Rect| viewport.is_none_or(|viewport|
+            (rectangle.center().x < viewport.center().x) == (row.center().x < viewport.center().x));
         let selected = self
             .label_rect_where(current, |rectangle| {
-                (rectangle.center().y - row.center().y).abs() < row.height()
+                same_side(rectangle) && (rectangle.center().y - row.center().y).abs() < row.height()
                     || (rectangle.top() >= row.bottom()
                         && rectangle.top() - row.bottom() < row.height()
                             + self.application.egui_context.style_of(self.application.egui_context.theme()).spacing.item_spacing.y

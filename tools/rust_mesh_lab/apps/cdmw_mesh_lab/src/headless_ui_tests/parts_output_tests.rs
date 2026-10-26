@@ -281,7 +281,8 @@ fn parts_panel_uses_available_height_and_keeps_scroll_and_selection_across_tabs(
         let tabs = ui.label_rect("Mesh islands").ok_or("tabs")?;
         let all = ui.label_rect("All").ok_or("selection toolbar")?;
         let before = visible_rows(&ui);
-        assert!(before.len() >= if font > 11.0 { 8 } else { 20 }, "too few rows at {size:?}: {}", before.len());
+        // The color options and Open Parts on hover take two rows above the list.
+        assert!(before.len() >= if font > 11.0 { 6 } else { 18 }, "too few rows at {size:?}: {}", before.len());
         let bottom = before.last().ok_or("rows")?.1.bottom();
         assert!(bottom > ui.application.viewport_rect.ok_or("viewport")?.bottom() - 70.0,
             "list does not use available height: bottom {bottom}, size {size:?}");
