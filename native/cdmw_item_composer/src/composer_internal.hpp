@@ -72,6 +72,16 @@ inline std::string utf8_of(const std::filesystem::path& path) {
 inline std::filesystem::path path_of(std::string_view text) { return std::filesystem::path(std::u8string(text.begin(), text.end())); }
 // A whole file in one read; FormatError when it cannot be opened or read.
 Bytes read_whole_file(const std::filesystem::path& path);
+// work(0) .. work(count - 1) on a few workers, the calling thread included; `work` must
+// not throw. Falls back to fewer workers when threads cannot be started.
+void parallel_for(std::size_t count, const std::function<void(std::size_t)>& work);
+
+// merge_overlay_files, naming in `failing` the path whose merge threw.
+FileMap merge_overlay_files_tracked(const FileMap& before, const FileMap& after, const FileMap& current, std::string* failing);
+// The unit a path merges in: a table's header merges with its body (the unit's name),
+// any other path alone. table_header is the header beside a body.
+std::string merge_unit(const std::string& path);
+std::string table_header(const std::string& body);
 
 // Python's strict UTF-8 decoder: well-formed sequences only (no overlongs, surrogates or
 // code points past U+10FFFF).
@@ -326,7 +336,7 @@ struct PathcEntry {
     std::uint32_t checksum{};
     std::uint64_t header_index{};
     std::uint8_t collision_start{}, collision_end{};
-    Bytes block_infos;
+    std::array<std::uint8_t, 16> block_infos{};
     bool is_direct() const { return header_index != 0xFFFF; }
 };
 struct PathcTable {

@@ -311,7 +311,8 @@ Bytes stored_payload(const Bytes& data, std::uint64_t flags, const std::string& 
     return flags >> 4 ? crypt_chacha20(stored, basename) : stored;
 }
 
-std::vector<ArchiveEntry> parse_pamt(const Bytes& data, const std::filesystem::path& pamt_path) {
+std::vector<ArchiveEntry> parse_pamt(const Bytes& data, const std::filesystem::path& pamt_path,
+                                     const std::function<bool(const std::string&)>& keep) {
     const auto name = utf8_of(pamt_path.filename());
     const auto need = [&](std::uint64_t end, const char* what) {
         if (end > data.size()) throw FormatError(name + " " + what + " is truncated.");
@@ -364,16 +365,19 @@ std::vector<ArchiveEntry> parse_pamt(const Bytes& data, const std::filesystem::p
         while (cursor < ranges.size() && index >= std::get<1>(ranges[cursor])) ++cursor;
         if (cursor < ranges.size() && std::get<0>(ranges[cursor]) <= index && index < std::get<1>(ranges[cursor]))
             directory = std::get<2>(ranges[cursor]);
+        auto path = directory.empty() ? relative : strip(directory + "/" + relative, "/");
+        const std::uint32_t paz_index = u16(data, row + 16);
+        if (paz_index >= paz_count) throw FormatError("Invalid PAZ index " + std::to_string(paz_index) + " for " + utf8_of(pamt_path));
+        if (keep && !keep(path)) continue;
         ArchiveEntry entry;
-        entry.path = directory.empty() ? relative : strip(directory + "/" + relative, "/");
+        entry.path = std::move(path);
         entry.pamt_path = pamt_path;
         entry.offset = u32(data, row + 4);
         entry.stored_size = u32(data, row + 8);
         entry.orig_size = u32(data, row + 12);
-        entry.paz_index = u16(data, row + 16);
+        entry.paz_index = paz_index;
         entry.flags = u16(data, row + 18);
-        if (entry.paz_index >= paz_count) throw FormatError("Invalid PAZ index " + std::to_string(entry.paz_index) + " for " + utf8_of(pamt_path));
-        entry.paz_path = carriers[entry.paz_index];  // a u16 index below paz_count
+        entry.paz_path = carriers[paz_index];  // a u16 index below paz_count
         entries.push_back(std::move(entry));
     }
     return entries;
@@ -428,7 +432,10 @@ Bytes read_entry(const ArchiveEntry& entry) {
     return data;
 }
 
-MountedArchives::MountedArchives(const std::filesystem::path& root, const Bytes& papgt) {
+MountedArchives::MountedArchives(const std::filesystem::path& root, const Bytes& papgt, const std::set<std::string>* wanted) {
+    if (wanted) wanted_ = *wanted;
+    std::function<bool(const std::string&)> keep;
+    if (wanted_) keep = [this](const std::string& path) { return wanted_->count(normalize_game_path(path)) != 0; };
     std::set<std::string> listed;
     for (const auto& directory : parse_papgt(papgt)) {
         if (!listed.insert(ascii_lower(directory.name)).second) throw Unsupported("the mount list names a directory twice");
@@ -437,9 +444,22 @@ MountedArchives::MountedArchives(const std::filesystem::path& root, const Bytes&
     for (const auto& group : groups_) {
         const auto pamt = root / path_of(group) / "0.pamt";
         std::error_code error;
-        if (!std::filesystem::is_regular_file(pamt, error)) continue;
-        pamts_.push_back(pamt);
-        for (auto& entry : parse_pamt(read_whole_file(pamt), pamt)) {
+        if (std::filesystem::is_regular_file(pamt, error)) pamts_.push_back(pamt);
+    }
+    // The indexes parse in parallel and join in mount order; the earliest failure in that
+    // order is the one reported, as a sequential reading would meet it.
+    std::vector<std::vector<ArchiveEntry>> parsed(pamts_.size());
+    std::vector<std::exception_ptr> failures(pamts_.size());
+    parallel_for(pamts_.size(), [&](std::size_t index) {
+        try {
+            parsed[index] = parse_pamt(read_whole_file(pamts_[index]), pamts_[index], keep);
+        } catch (...) {
+            failures[index] = std::current_exception();
+        }
+    });
+    for (std::size_t index = 0; index < pamts_.size(); ++index) {
+        if (failures[index]) std::rethrow_exception(failures[index]);
+        for (auto& entry : parsed[index]) {
             first_.emplace(normalize_game_path(entry.path), entries_.size());
             entries_.push_back(std::move(entry));
         }
@@ -447,7 +467,9 @@ MountedArchives::MountedArchives(const std::filesystem::path& root, const Bytes&
 }
 
 const ArchiveEntry* MountedArchives::find(const std::string& path) const {
-    const auto found = first_.find(normalize_game_path(path));
+    const auto key = normalize_game_path(path);
+    if (wanted_ && !wanted_->count(key)) throw std::logic_error("a path outside the indexed set was looked up: " + path);
+    const auto found = first_.find(key);
     return found == first_.end() ? nullptr : &entries_[found->second];
 }
 

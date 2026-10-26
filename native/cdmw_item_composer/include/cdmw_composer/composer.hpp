@@ -5,7 +5,10 @@
 #include <cstddef>
 #include <cstdint>
 #include <filesystem>
+#include <functional>
 #include <memory>
+#include <optional>
+#include <set>
 #include <stdexcept>
 #include <string>
 #include <unordered_map>
@@ -109,7 +112,10 @@ struct ArchiveEntry {
     std::uint32_t flags{}, paz_index{};
 };
 // archive_format.parse_archive_pamt_bytes, its name-trie and folder-range rules included.
-std::vector<ArchiveEntry> parse_pamt(const Bytes& data, const std::filesystem::path& pamt_path);
+// With `keep`, only the entries whose path it accepts are returned; every entry is still
+// read and validated, so the same archives refuse.
+std::vector<ArchiveEntry> parse_pamt(const Bytes& data, const std::filesystem::path& pamt_path,
+                                     const std::function<bool(const std::string&)>& keep = {});
 // archive_extraction.read_archive_entry_data: the decoded bytes, decrypting and
 // decompressing as Python does for the tables, string tables and XML a composition reads.
 Bytes read_entry(const ArchiveEntry& entry);
@@ -118,7 +124,9 @@ Bytes read_entry(const ArchiveEntry& entry);
 // included), each read from `<root>/<group>/0.pamt`. The first group holding a path wins.
 class MountedArchives {
 public:
-    MountedArchives(const std::filesystem::path& root, const Bytes& papgt);
+    // With `wanted` (normalized paths), only those paths are indexed; find() then answers
+    // for them alone.
+    MountedArchives(const std::filesystem::path& root, const Bytes& papgt, const std::set<std::string>* wanted = nullptr);
     // The entry the game reads for `path` (compared as archive_format normalizes it), or null.
     const ArchiveEntry* find(const std::string& path) const;
     const std::vector<std::string>& groups() const { return groups_; }
@@ -130,6 +138,7 @@ private:
     std::vector<std::filesystem::path> pamts_;
     std::vector<ArchiveEntry> entries_;
     std::unordered_map<std::string, std::size_t> first_;
+    std::optional<std::set<std::string>> wanted_;
 };
 
 // archive_format's normalized game path: forward slashes, no surrounding white space or

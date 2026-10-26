@@ -200,23 +200,29 @@ Bytes merge_pappt(const Bytes& raw_before, const Bytes& raw_after, const Bytes& 
     return encode_pappt(table);
 }
 
+// Points into its table's headers, which outlive the merge.
 struct TextureRecord {
     std::uint32_t checksum{};
-    std::optional<Bytes> header;  // None for collision rows
+    const Bytes* header = nullptr;  // None for collision rows
     std::uint8_t collision_start{}, collision_end{};
-    Bytes block_infos;
-    bool operator==(const TextureRecord&) const = default;
+    std::array<std::uint8_t, 16> block_infos{};
+    bool operator==(const TextureRecord& other) const {
+        return checksum == other.checksum && collision_start == other.collision_start && collision_end == other.collision_end &&
+               block_infos == other.block_infos &&
+               (header == other.header || (header && other.header && *header == *other.header));
+    }
 };
 
 std::vector<TextureRecord> texture_records(const PathcTable& table) {
     std::vector<TextureRecord> records;
+    records.reserve(table.entries.size());
     for (const auto& entry : table.entries) {
-        TextureRecord record{entry.checksum, std::nullopt, entry.collision_start, entry.collision_end, entry.block_infos};
+        TextureRecord record{entry.checksum, nullptr, entry.collision_start, entry.collision_end, entry.block_infos};
         if (entry.is_direct()) {
             if (entry.header_index >= table.headers.size()) throw FormatError("tuple index out of range");
-            record.header = table.headers[static_cast<std::size_t>(entry.header_index)];
+            record.header = &table.headers[static_cast<std::size_t>(entry.header_index)];
         }
-        records.push_back(std::move(record));
+        records.push_back(record);
     }
     return records;
 }
@@ -231,9 +237,10 @@ Bytes merge_pathc(const Bytes& raw_before, const Bytes& raw_after, const Bytes& 
     for (std::size_t i = 1; i < merged.size(); ++i)
         if (merged[i].checksum == merged[i - 1].checksum) throw Unsupported("repeated texture checksums");
     auto table = c;
-    std::map<Bytes, std::size_t> first;
+    std::unordered_map<Bytes, std::size_t, KeyHash> first;
     for (std::size_t i = 0; i < table.headers.size(); ++i) first.emplace(table.headers[i], i);
     table.entries.clear();
+    table.entries.reserve(merged.size());
     for (const auto& record : merged) {
         PathcEntry entry{record.checksum, 0xFFFF, record.collision_start, record.collision_end, record.block_infos};
         if (record.header) {
@@ -281,6 +288,22 @@ Bytes merge_icons(const Bytes& raw_before, const Bytes& raw_after, const Bytes& 
 }  // namespace
 
 FileMap merge_overlay_files(const FileMap& before, const FileMap& after, const FileMap& current) {
+    return detail::merge_overlay_files_tracked(before, after, current, nullptr);
+}
+
+namespace detail {
+
+std::string merge_unit(const std::string& path) {
+    if (ends_with(path, ".staticinfoheader") || ends_with(path, ".pabgh"))
+        return replace_all(replace_all(path, ".staticinfoheader", ".staticinfobody"), ".pabgh", ".pabgb");
+    return path;
+}
+
+std::string table_header(const std::string& body) {
+    return replace_all(replace_all(body, ".staticinfobody", ".staticinfoheader"), ".pabgb", ".pabgh");
+}
+
+FileMap merge_overlay_files_tracked(const FileMap& before, const FileMap& after, const FileMap& current, std::string* failing) {
     FileMap result = current;
     std::vector<std::string> paths;
     std::set<std::string> listed, done;
@@ -289,6 +312,7 @@ FileMap merge_overlay_files(const FileMap& before, const FileMap& after, const F
             if (listed.insert(item.first).second) paths.push_back(item.first);
     for (const auto& path : paths) {
         if (done.count(path)) continue;
+        if (failing) *failing = path;
         const auto b = before.get(path), a = after.get(path), c = current.get(path);
         try {
             result.set(path, merge_blob(b, a, c, path));
@@ -297,12 +321,10 @@ FileMap merge_overlay_files(const FileMap& before, const FileMap& after, const F
             if (!b || !a || !c) throw;
         }
         std::string body;
-        if (ends_with(path, ".staticinfoheader") || ends_with(path, ".pabgh"))
-            body = replace_all(replace_all(path, ".staticinfoheader", ".staticinfobody"), ".pabgh", ".pabgb");
-        else if (ends_with(path, ".staticinfobody") || ends_with(path, ".pabgb"))
-            body = path;
+        if (ends_with(path, ".staticinfoheader") || ends_with(path, ".pabgh") || ends_with(path, ".staticinfobody") || ends_with(path, ".pabgb"))
+            body = merge_unit(path);
         if (!body.empty()) {
-            const auto head = replace_all(replace_all(body, ".staticinfobody", ".staticinfoheader"), ".pabgb", ".pabgh");
+            const auto head = table_header(body);
             for (const auto* files : {&before, &after, &current})
                 if (!files->get(body) || !files->get(head)) throw OverlayConflict("Both table files are required to compose " + body + ".");
             auto [payload, header] = merge_table_pair(before, after, current, body, head);
@@ -325,4 +347,5 @@ FileMap merge_overlay_files(const FileMap& before, const FileMap& after, const F
     return result;
 }
 
+}  // namespace detail
 }  // namespace cdmw::compose

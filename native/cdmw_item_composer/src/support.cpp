@@ -1,5 +1,9 @@
 #include "composer_internal.hpp"
 
+#include <atomic>
+#include <system_error>
+#include <thread>
+
 namespace cdmw::compose {
 
 Blob FileMap::get(const std::string& path) const {
@@ -93,6 +97,24 @@ std::string replace_all(std::string text, std::string_view from, std::string_vie
     if (from.empty()) return text;
     for (std::size_t at = 0; (at = text.find(from, at)) != std::string::npos; at += to.size()) text.replace(at, from.size(), to);
     return text;
+}
+
+void parallel_for(std::size_t count, const std::function<void(std::size_t)>& work) {
+    std::atomic<std::size_t> next{0};
+    const auto run = [&] {
+        for (std::size_t index; (index = next.fetch_add(1)) < count;) work(index);
+    };
+    const std::size_t workers = std::min<std::size_t>(count, std::clamp<std::size_t>(std::thread::hardware_concurrency(), 1, 8));
+    std::vector<std::thread> threads;
+    for (std::size_t i = 1; i < workers; ++i) {
+        try {
+            threads.emplace_back(run);
+        } catch (const std::system_error&) {
+            break;  // the threads already started and this one finish the work
+        }
+    }
+    run();
+    for (auto& thread : threads) thread.join();
 }
 
 }  // namespace cdmw::compose::detail

@@ -30,17 +30,19 @@ PathcTable parse_pathc(const Bytes& data) {
     // Zero-byte headers occupy no bytes, so the size check cannot bound their count.
     if (table.header_size == 0 && headers > 0xFFFF) throw Unsupported("PATHC declares more empty headers than an entry can address");
     std::size_t at = head_size;
+    table.headers.reserve(static_cast<std::size_t>(headers));
     for (std::uint64_t i = 0; i < headers; ++i, at += table.header_size) table.headers.push_back(slice(data, at, at + table.header_size));
     const std::size_t checksums = at;
     at += static_cast<std::size_t>(4 * entries);
+    table.entries.reserve(static_cast<std::size_t>(entries));
     for (std::uint64_t i = 0; i < entries; ++i, at += entry_size) {
         PathcEntry entry;
         entry.checksum = u32(data, static_cast<std::size_t>(checksums + 4 * i));
         entry.header_index = u16(data, at);
         entry.collision_start = data[at + 2];
         entry.collision_end = data[at + 3];
-        entry.block_infos = slice(data, at + 4, at + entry_size);
-        table.entries.push_back(std::move(entry));
+        std::copy_n(data.begin() + static_cast<std::ptrdiff_t>(at + 4), entry.block_infos.size(), entry.block_infos.begin());
+        table.entries.push_back(entry);
     }
     for (std::uint64_t i = 0; i < collisions; ++i, at += collision_size) table.collisions.push_back(slice(data, at, at + collision_size));
     table.filenames = slice(data, at, at + static_cast<std::size_t>(filenames));
@@ -60,13 +62,12 @@ Bytes encode_pathc(const PathcTable& table) {
     for (const auto& header : table.headers) append(out, header);
     for (const auto& entry : table.entries) put_u32(out, entry.checksum);
     for (const auto& entry : table.entries) {
-        if (entry.block_infos.size() != 16) throw FormatError("block infos are 16 bytes");
         // struct.pack('<H') refuses an index past 0xFFFF.
         if (entry.header_index > 0xFFFF) throw FormatError("ushort format requires 0 <= number <= 65535");
         put_u16(out, static_cast<std::uint16_t>(entry.header_index));
         out.push_back(entry.collision_start);
         out.push_back(entry.collision_end);
-        append(out, entry.block_infos);
+        out.insert(out.end(), entry.block_infos.begin(), entry.block_infos.end());  // 16 bytes by type
     }
     for (const auto& row : table.collisions) {
         if (row.size() != collision_size) throw FormatError("collision rows are 24 bytes");
