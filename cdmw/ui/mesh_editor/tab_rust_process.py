@@ -13,6 +13,7 @@ from cdmw.services.mesh_rust_contract import (
     RUST_MESH_EDIT_BACKEND,
     RUST_MESH_EDITOR_PROTOCOL,
     RUST_MESH_RENDERER,
+    RUST_UI_TRANSLATION_PARTS_CAPABILITY,
 )
 from cdmw.ui.mesh_editor.process_io import (
     DOTNET_PROTOCOL_BUFFER_LIMIT,
@@ -24,6 +25,7 @@ from cdmw.ui.mesh_editor.process_io import (
     stop_qprocess_async,
     unregister_owned_qprocess_for_exit,
 )
+from cdmw.ui.mesh_editor.rust_theme_transport import protocol_line, rust_theme_digest
 
 _RUST_PROTOCOL_QUEUE_LIMIT = 128
 _RUST_READY_TIMEOUT_MS = 10_000
@@ -139,6 +141,11 @@ class MeshEditorRustProcessMixin:
         )
         self.standalone_rust_process = process
         self.standalone_rust_gpu_failed = False
+        # Every launch starts from the manifest's theme; ready resends only a change.
+        theme = getattr(session, "theme", None)
+        self.standalone_rust_theme_digest = (
+            rust_theme_digest(theme) if isinstance(theme, Mapping) else ""
+        )
         register_owned_qprocess_for_exit(process)
         self._set_rust_status("Launching the embedded Mesh Editor...")
         process.start()
@@ -394,6 +401,9 @@ class MeshEditorRustProcessMixin:
             )
             return
         self.standalone_native_host_frame._focus_request_supported = "host_focus_v1" in capability_set
+        self.standalone_rust_translation_parts_supported = (
+            RUST_UI_TRANSLATION_PARTS_CAPABILITY in capability_set
+        )
         session = self.standalone_rust_authoring_session
         if session is not None and (
             session.hair_start_mode
@@ -781,9 +791,7 @@ class MeshEditorRustProcessMixin:
         body = message.get("payload")
         if isinstance(body, Mapping) and "payload_file" in body:
             message["payload"] = {"payload_file": body["payload_file"]}
-        data = (json.dumps(message, ensure_ascii=False, separators=(",", ":")) + "\n").encode(
-            "utf-8"
-        )
+        data = protocol_line(message)
         try:
             return int(process.write(data)) == len(data)
         except (RuntimeError, TypeError, ValueError):

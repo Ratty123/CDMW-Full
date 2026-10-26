@@ -18,9 +18,16 @@ from cdmw.services.mesh_rust_contract import (
     RUST_MESH_EDIT_BACKEND,
     RUST_MESH_EDITOR_PROTOCOL,
     RUST_MESH_RENDERER,
+    RUST_UI_TRANSLATION_MAX_BYTES,
+    RUST_UI_TRANSLATION_MAX_ENTRIES,
     resolve_rust_mesh_editor,
     rust_mesh_editor_file_signature,
     validate_rust_mesh_editor_package,
+)
+from cdmw.ui.mesh_editor.rust_theme_transport import (
+    inline_translation_budget,
+    rust_theme_digest,
+    rust_theme_update_messages,
 )
 from cdmw.ui.themes import get_theme
 from cdmw.ui.mesh_editor.process_io import (
@@ -114,6 +121,8 @@ class MeshEditorRustEditorMixin(MeshEditorRustProcessMixin):
         self.standalone_rust_host_request_id = 0
         self.standalone_rust_hello_received = False
         self.standalone_rust_ready = False
+        self.standalone_rust_translation_parts_supported = False
+        self.standalone_rust_theme_digest = ""
         self.standalone_rust_gpu_failed = False
         self.standalone_rust_closing = False
         self.standalone_rust_finish_accepted = False
@@ -440,7 +449,11 @@ class MeshEditorRustEditorMixin(MeshEditorRustProcessMixin):
         self.standalone_rust_material_wait_session_id = ""
         self.standalone_rust_material_wait_controller = None
 
-    def _rust_theme_payload(self) -> dict[str, object]:
+    def _rust_theme_payload(
+        self,
+        *,
+        max_translation_bytes: int = RUST_UI_TRANSLATION_MAX_BYTES,
+    ) -> dict[str, object]:
         from cdmw.services.mesh_editor_layout import load_mesh_layout
         from cdmw.services.active_ui_translation import active_ui_localizer
         from cdmw.ui.localization_catalogs_v2 import native_ui_source_keys
@@ -448,6 +461,17 @@ class MeshEditorRustEditorMixin(MeshEditorRustProcessMixin):
         application = QApplication.instance()
         localizer = active_ui_localizer()
         language = str(getattr(localizer, "language_code", "en"))
+        # Rust already falls back to source text, so identity entries are
+        # omitted. The manifest and translation parts carry the rest whole.
+        translations = (
+            localizer.translation_snapshot(
+                (key for key in native_ui_source_keys()
+                 if localizer.translations.get(key, key) != key),
+                max_keys=RUST_UI_TRANSLATION_MAX_ENTRIES,
+                max_bytes=max_translation_bytes,
+            )
+            if localizer is not None else {}
+        )
         font = application.font() if application is not None else self.font()
         screen = application.primaryScreen() if application is not None else None
         theme_key = str(getattr(self, "theme_key", "graphite") or "graphite")
@@ -469,10 +493,10 @@ class MeshEditorRustEditorMixin(MeshEditorRustProcessMixin):
             )
         except (TypeError, ValueError):
             data_font_point_size = float(DEFAULT_UI_DATA_FONT_SIZE)
-        theme: dict[str, object] = {
+        return {
             "schema": "cdmw_ui_theme_v1",
             "language": language,
-            "translations": {},
+            "translations": translations,
             "layout": load_mesh_layout(self.settings),
             "theme": theme_key,
             "variant": "dark" if window_colour.lightnessF() < 0.5 else "light",
@@ -483,32 +507,47 @@ class MeshEditorRustEditorMixin(MeshEditorRustProcessMixin):
             "density": str(self.settings.value("appearance/ui_density", "compact") or "compact"),
             "scale": float(screen.devicePixelRatio()) if screen is not None else 1.0,
         }
-        if localizer is not None:
-            # The theme also travels as one theme_update control line. Give the
-            # translations what the rest of the theme leaves, keeping 1 KiB for
-            # the message's event and identity fields. Rust already falls back
-            # to source text, so identity entries are omitted.
-            reserved = len(json.dumps(theme, ensure_ascii=False, separators=(",", ":")).encode("utf-8"))
-            theme["translations"] = localizer.translation_snapshot(
-                (key for key in native_ui_source_keys()
-                 if localizer.translations.get(key, key) != key),
-                max_bytes=DOTNET_PROTOCOL_LINE_LIMIT - reserved - 1024,
-            )
-        return theme
 
     def _send_rust_theme_update(self) -> bool:
         """Apply an app appearance change to the already embedded child."""
 
         if not self.standalone_rust_ready:
             return False
-        self.standalone_rust_host_request_id += 1
-        return self._send_rust_message(
-            self._rust_host_message(
-                "theme_update",
-                request_id=self.standalone_rust_host_request_id,
-                extra={"payload": self._rust_theme_payload()},
+        request_id = self.standalone_rust_host_request_id + 1
+        try:
+            theme = self._rust_theme_payload()
+            digest = rust_theme_digest(theme)
+            if digest == self.standalone_rust_theme_digest:
+                return True
+            message = self._rust_host_message(
+                "theme_update", request_id=request_id, extra={"payload": theme},
             )
-        )
+            messages = rust_theme_update_messages(
+                message,
+                line_limit=DOTNET_PROTOCOL_LINE_LIMIT,
+                parts_supported=self.standalone_rust_translation_parts_supported,
+            )
+            if messages is None:
+                # An older helper takes one line only: name the limit it imposes.
+                # Its current theme and language stay in place.
+                self._rust_theme_payload(
+                    max_translation_bytes=inline_translation_budget(
+                        message, line_limit=DOTNET_PROTOCOL_LINE_LIMIT,
+                    ),
+                )
+                return False
+        except ValueError as exc:
+            self._set_rust_status(str(exc), error=True)
+            return False
+        self.standalone_rust_host_request_id = request_id
+        # The helper may hold part of this update now, so only a completed send
+        # makes the theme current; anything less is sent again in full.
+        self.standalone_rust_theme_digest = ""
+        for item in messages:
+            if not self._send_rust_message(item):
+                return False
+        self.standalone_rust_theme_digest = digest
+        return True
 
     def _prime_rust_preview_material_context(self, controller: object) -> int:
         preview_model = getattr(
@@ -584,6 +623,12 @@ class MeshEditorRustEditorMixin(MeshEditorRustProcessMixin):
             )
             self._sync_mesh_editor_backend_controls()
             return
+        try:
+            theme = self._rust_theme_payload()
+        except ValueError as exc:
+            self._set_rust_status(str(exc), error=True)
+            self._sync_mesh_editor_backend_controls()
+            return
         self.standalone_rust_process_generation += 1
         self.standalone_rust_prepare_request_id += 1
         expected_session_id = str(
@@ -626,7 +671,7 @@ class MeshEditorRustEditorMixin(MeshEditorRustProcessMixin):
             controller,
             self.standalone_rust_session_root,
             process_generation=process_generation,
-            theme=self._rust_theme_payload(),
+            theme=theme,
             **self._hair_start_options(),
         )
         thread = QThread(self)
@@ -740,6 +785,8 @@ class MeshEditorRustEditorMixin(MeshEditorRustProcessMixin):
         self.standalone_rust_host_request_id = 0
         self.standalone_rust_hello_received = False
         self.standalone_rust_ready = False
+        self.standalone_rust_translation_parts_supported = False
+        self.standalone_rust_theme_digest = ""
         self.standalone_rust_closing = False
         self.standalone_rust_finish_accepted = False
         self.standalone_rust_failure_reported = False

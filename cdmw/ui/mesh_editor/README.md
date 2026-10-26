@@ -3030,7 +3030,13 @@ a rollback was performed or succeeded.
 
 The surrounding PySide controls and Rust's embedded editor receive the app's active
 localization catalog, including custom translations. Native messages omit entries
-identical to their English source text, which the renderer already uses as a fallback;
-translated entries remain intact within the control-message limit. See the root
+identical to their English source text, which the renderer already uses as a fallback.
+The session manifest carries the remaining catalogue whole, bounded to 4 MiB and
+10,000 entries on both sides. A later language or appearance change that does not fit
+one 256 KiB control line arrives as ordered `theme_translations_part` lines whose
+joined text must match the update's declared length, SHA-256 and entry count; the
+editor applies nothing from an incomplete, interleaved or stale transfer. An editor
+build that does not advertise `ui_translation_parts_v1` keeps its current language
+and the host reports the line limit instead. An unchanged theme is not resent. See the root
 [documentation and languages](../../../README.md#documentation-and-languages)
 reference for the current boundary.
