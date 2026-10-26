@@ -624,6 +624,20 @@ The fixed-layout decoder and a best-effort legacy scan carry different proof.
 A recovered bone-shaped record is not authority to add, remove or rename bones.
 There is no general skeleton restructuring writer.
 
+Reviewed 2026-10-26 (archive inspection): humanoid characters under
+`character/model/2_mon/cd_m0001_00_twofeet/` share bone names with the player rigs,
+so an outfit's bone palette alone ties between `phm_01.pab`, the other player rigs
+and the family's boss PABs, and palette scoring cannot choose. Each character's
+`<character>_nude_*.prefabdata_xml` names its skeleton (`SkeletonName`) and a
+skeleton variation PABC. The inspected humanoid bosses (orcumer, skullknight,
+tarandus warrior, wellsknight, pgm) all name `1_pc/1_phm/phm_01.pab`, as do 77 of the
+family's nude prefabs. A quarter of the family's 93 character folders have no nude
+prefab, among them the rig-named `cd_m0001_02_phw`, `_06_pow` and `_10_pgw`. Shared
+descriptor matching deliberately keeps a nude descriptor away from a differently
+named outfit component (`ub` against `nude`); Fit to body reads the nude prefab only
+to settle a palette tie. Which skeleton the game uses when a different character
+wears such an outfit is not verified.
+
 Sources: [PAB reader][skeleton-parser], [variation reader][skeleton-variations],
 [appearance assembly][appearance], [bind-transform findings][modding-notes].
 
@@ -734,6 +748,25 @@ that general cloth self-collision is solved. Some previously accepted, intersect
 fits now refuse publication. Original PACs and source PAMT/PAZ fingerprints were
 unchanged. This is native-source, authoring, asset and offscreen-renderer evidence;
 packaged, visible-UI and in-game proof remain separate.
+
+Reviewed 2026-10-26: the authored-body Fit was measured per vertex against a
+third-party reference, the Female Armor Fit mod (Nexus 837, v1.0.4): 636 male armor
+PACs hand-reshaped for PHW with unchanged parts, vertices and faces, so every vertex
+has a target. Its meshes stay outside the repository;
+`tools/refit_reference_benchmark.py` reads them from an extracted package and fits
+each original onto the plain PHW nude bind pose. Of 581 worn parts, 563 found an
+authored body; the median per-part error is 6.3 mm against 41.3 mm unfitted, and 4
+parts end further from the target than unfitted. Settling humanoid palette ties
+from nude prefabs (5.3) let 66 previously refused boss and NPC parts use their
+authored body, at 5.1 mm. Choosing the nude body nearest the garment instead picked
+the bulkier PTM rig and fitted up to 23 mm worse. Remaining differences: about half
+the necklaces keep their pendant drop in the modder's version while the rest rise
+with the chest as the Fit does, so no rule matches both; helmets sit about 10 mm
+further back than the modder's on 24 of 26 parts, and adding both base faces to the
+body field made seven worse and six better; 18 parts (mostly helmets and bags) resolve
+no complete skeleton palette. The reference is one modder's interpretation fitted to
+an unknown in-game appearance, not ground truth, and this is native-source and asset
+evidence only.
 
 The exact output policy still applies after fitting. A useful preview does not
 establish absence of clipping during all game animations or compatibility with

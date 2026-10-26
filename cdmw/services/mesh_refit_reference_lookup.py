@@ -2,7 +2,8 @@
 
 Fit to body uses the reference body when the garments came from a game PAC
 whose skeleton has a nude body, and that body is not the driver itself. The
-garment's skeleton comes from ``resolve_skeleton_for_model``, its rig folder
+garment's skeleton comes from ``resolve_skeleton_for_model`` (a bone-palette tie
+between humanoid skeletons is settled by the character's nude prefab), its rig folder
 holds the nude body (the same choice as character preview), and the driver's
 skeleton is resolved the same way. Archive reads go through the dependency
 context retained with the loaded Refit assets, or through ``dependencies``
@@ -16,7 +17,7 @@ it also returns the driver's skin weights for the garments
 
 from __future__ import annotations
 
-from collections import OrderedDict
+from collections import Counter, OrderedDict
 from dataclasses import dataclass, field
 from pathlib import PurePosixPath
 import threading
@@ -131,6 +132,8 @@ def _skeleton(asset, dependencies, read) -> _ResolvedSkeleton | str:
         pac_data=asset.source.original_data,
         read_entry_data=read,
     )
+    if entry is None and str(getattr(report, "confidence", "")).startswith("ambiguous"):
+        entry = _authored_rig(asset, report, dependencies, read)
     if entry is None:
         detail = str(getattr(report, "reason", "") or "").strip()
         return f"no skeleton was found for {name}" + (f" ({detail})" if detail else "")
@@ -138,6 +141,68 @@ def _skeleton(asset, dependencies, read) -> _ResolvedSkeleton | str:
     if skeleton.parser_mode != "fixed" or skeleton.parse_warning or not skeleton.bones:
         return f"the skeleton of {name} could not be read exactly"
     return _ResolvedSkeleton(_normalized(entry.path), skeleton)
+
+
+def character_prefab_folders(model_path: str) -> tuple[str, str]:
+    """The prefab folders of the character a model belongs to and of its family.
+
+    ``character/model/2_mon/<family>/<character>/...`` pairs with
+    ``character/prefab/2_mon/<family>/<character>`` and ``.../<family>``;
+    both are "" for a path too short to name them.
+    """
+    parts = PurePosixPath(_normalized(model_path)).parts
+    if len(parts) < 6 or parts[:2] != ("character", "model"):
+        return "", ""
+    return "/".join(("character", "prefab", *parts[2:5])), "/".join(("character", "prefab", *parts[2:4]))
+
+
+def _named_skeletons(folder, tied, dependencies, read) -> str:
+    """The tied skeleton most nude prefabs under ``folder`` name, or "" without one clear answer."""
+    from cdmw.core.skeleton_resolver import (
+        _descriptor_reference_paths,
+        _prefabdata_xml_refs,
+    )
+
+    named: Counter[str] = Counter()
+    for path in dependencies.entries_by_normalized_path:
+        name = PurePosixPath(_normalized(path)).name
+        if not _normalized(path).startswith(folder + "/") or "_nude_" not in name or not name.endswith(".prefabdata_xml"):
+            continue
+        text = read(dependencies.entry_for_path(path)).decode("utf-8", "ignore")
+        found = set()
+        for attribute, value in _prefabdata_xml_refs(text):
+            if attribute.strip().lower() == "skeletonname":
+                found.update(_normalized(item) for item in _descriptor_reference_paths(attribute, value))
+        named.update(found & tied)
+    ranked = named.most_common(2)
+    return "" if not ranked or (len(ranked) == 2 and ranked[0][1] == ranked[1][1]) else ranked[0][0]
+
+
+def _authored_rig(asset, report, dependencies, read):
+    """Of the skeletons that tie on the bone palette, the one the garment's character is built on.
+
+    Humanoid characters share bone names, so a boss outfit's palette matches the
+    player rigs and its family's boss skeletons equally (the resolver refuses).
+    The character's nude prefab names the skeleton the game builds it on; every
+    humanoid boss outfit checked names ``phm_01.pab``, which also fitted their
+    hand-made female versions best. Characters without one (a quarter of the
+    humanoid family) take a tied player rig their path names (``cd_m0001_02_phw``),
+    else the skeleton most of the family's nude prefabs name. Nearest-body guesses
+    picked the bulkier PTM rig and fitted worse. Without one clear answer the tie
+    stays refused.
+    """
+    top = max((candidate.palette_hits for candidate in report.candidates), default=0)
+    tied = {_normalized(candidate.path) for candidate in report.candidates if top > 0 and candidate.palette_hits == top}
+    character, family = character_prefab_folders(asset.entry.path)
+    if not tied or not character:
+        return None
+    chosen = _named_skeletons(character, tied, dependencies, read)
+    if not chosen:
+        tokens = set(_normalized(asset.entry.path).replace("/", "_").split("_"))
+        player = [path for path in tied if path.startswith("character/model/1_pc/")
+                  and PurePosixPath(path).parent.name.split("_", 1)[-1] in tokens]
+        chosen = player[0] if len(player) == 1 else _named_skeletons(family, tied, dependencies, read)
+    return dependencies.entry_for_path(chosen) if chosen else None
 
 
 def _nude_body_path(skeleton_path: str, dependencies) -> str:

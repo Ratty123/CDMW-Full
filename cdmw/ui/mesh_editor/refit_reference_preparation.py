@@ -23,7 +23,10 @@ from cdmw.domain.archives.catalogue_operations import (
     PrepareEntriesResult,
 )
 from cdmw.services.archive_catalogue_service import ArchiveCatalogueService
-from cdmw.services.mesh_refit_reference_lookup import PreparedRefitReferenceArchive
+from cdmw.services.mesh_refit_reference_lookup import (
+    PreparedRefitReferenceArchive,
+    character_prefab_folders,
+)
 from cdmw.ui.archive_browser.workflow_dependencies import (
     ArchiveWorkflowDependencyContext,
 )
@@ -53,6 +56,23 @@ def _dependency_context(entries) -> ArchiveWorkflowDependencyContext:
         entries[0], tuple(entries), {key: tuple(value) for key, value in paths.items()},
         {key: tuple(value) for key, value in names.items()}, True,
     )
+
+
+# Humanoid skeletons share bone names, so a boss outfit's palette can match the
+# player rigs and its family's boss skeletons alike; the lookup then takes the
+# skeleton the character's (else its family's) nude prefabs name. Those, and every
+# player rig's skeleton and nude body, therefore travel with each Fit (a few MB).
+PLAYER_RIGS = "character/model/1_pc"
+
+
+def _player_skeleton(path: str) -> bool:
+    parts = PurePosixPath(path).parts
+    return path.startswith(PLAYER_RIGS + "/") and path.endswith(".pab") and len(parts) == 5
+
+
+def _nude_prefab(path: str, folders) -> bool:
+    name = PurePosixPath(path).name
+    return "_nude_" in name and name.endswith(".prefabdata_xml") and any(path.startswith(f"{folder}/") for folder in folders)
 
 
 def _rig_folders(context) -> tuple[str, ...]:
@@ -103,9 +123,13 @@ class RefitReferencePreparation(QObject):
             return ticket
         self._ticket, self._key, self._base, self._folders = ticket, key, base, folders
         self._session_id, self._bodies, self._prepared = session.session_id, {}, {}
+        self._prefabs = tuple(sorted({character_prefab_folders(context.selected_entry.path)[1] for context in bounded} - {""}))
+        patterns = (*(f"{folder}/nude/*.pac" for folder in folders),
+                    f"{PLAYER_RIGS}/*/*.pab", f"{PLAYER_RIGS}/*/nude/*.pac",
+                    *(f"{folder}/*_nude_*.prefabdata_xml" for folder in self._prefabs))
         self._submit(lambda generation: self.service.create_query(ArchiveQuery(
-            session.session_id, include_text=";".join(f"{folder}/nude/*.pac" for folder in folders),
-            extensions=(".pac",)), ui_generation=generation))
+            session.session_id, include_text=";".join(patterns), extensions=(".pac", ".pab", ".prefabdata_xml")),
+            ui_generation=generation))
         return ticket
 
     def cancel(self) -> None:
@@ -182,7 +206,14 @@ class RefitReferencePreparation(QObject):
     def _choose_bodies(self, rows) -> None:
         from cdmw.services.effect_character_reference import _body_mesh_paths
 
-        for folder in self._folders:
+        folders = set(self._folders)
+        for row in rows:
+            if _player_skeleton(_normalized(row.path)):
+                self._bodies[row.entry_id] = row
+                folders.add(str(PurePosixPath(_normalized(row.path)).parent))
+            elif _nude_prefab(_normalized(row.path), self._prefabs):
+                self._bodies[row.entry_id] = row
+        for folder in sorted(folders):
             prefix = f"{folder}/nude/"
             candidates = {_normalized(row.path): row for row in rows if _normalized(row.path).startswith(prefix)}
             # The lookup asks the same chooser, so preparing its answer is enough.
@@ -190,7 +221,8 @@ class RefitReferencePreparation(QObject):
                 if path in candidates and "/nude/" in path:
                     self._bodies[candidates[path].entry_id] = candidates[path]
                     break
-        if not self._bodies:
+        chosen = [_normalized(row.path) for row in self._bodies.values()]
+        if not any("/nude/" in path and path.endswith(".pac") for path in chosen):
             self._settle(reason="no nude body was found in the archive for "
                                 + ", ".join(PurePosixPath(folder).name for folder in self._folders))
             return

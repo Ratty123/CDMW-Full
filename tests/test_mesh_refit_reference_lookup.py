@@ -160,6 +160,51 @@ def test_bounded_archive_sets_find_the_authored_body_once_its_nude_folder_is_sup
     assert found.reason == "" and found.reference.label == PHM_NUDE
 
 
+BOSS_OUTFIT = "character/model/2_mon/cd_m0001_00_twofeet/cd_m0001_00_knight/cd_m0001_00_knight_ub_0001.pac"
+PHW_NPC_OUTFIT = "character/model/2_mon/cd_m0001_00_twofeet/cd_m0001_02_phw/armor/cd_m0001_00_phw_ub_0001.pac"
+BOSS_NUDE_PREFAB = "character/prefab/2_mon/cd_m0001_00_twofeet/cd_m0001_00_knight/cd_m0001_00_knight_nude_0001.prefabdata_xml"
+FAMILY_NUDE_PREFAB = "character/prefab/2_mon/cd_m0001_00_twofeet/cd_m0001_00_imp/cd_m0001_00_imp_nude_0001.prefabdata_xml"
+BOSS_PAB = "character/model/2_mon/cd_m0001_00_twofeet/cd_m0001_00_artis/cd_m0001_00_artis.pab"
+
+
+@pytest.mark.parametrize("outfit,prefab,named,body", [
+    (BOSS_OUTFIT, BOSS_NUDE_PREFAB, "1_pc/1_phm/phm_01.pab", PHM_NUDE),
+    # A character without a nude prefab of its own: its family's.
+    (BOSS_OUTFIT, FAMILY_NUDE_PREFAB, "1_pc/1_phm/phm_01.pab", PHM_NUDE),
+    # ... unless its path names a tied player rig (a female NPC folder).
+    (PHW_NPC_OUTFIT, FAMILY_NUDE_PREFAB, "1_pc/1_phm/phm_01.pab", PHW_NUDE),
+    # Not among the tied skeletons, or no nude prefab at all: the tie stays refused.
+    (BOSS_OUTFIT, BOSS_NUDE_PREFAB, "1_pc/3_pgm/pgm_01.pab", None),
+    (BOSS_OUTFIT, None, None, None),
+])
+def test_a_palette_tie_takes_the_skeleton_the_characters_nude_prefab_names(archive, monkeypatch, outfit, prefab, named, body):
+    read, _reads = archive
+    # Humanoid skeletons share bone names: a boss skeleton of the family outscores
+    # the player rigs by path, and the resolver refuses the palette tie.
+    candidates = (SimpleNamespace(path=BOSS_PAB, palette_hits=40, score=342), SimpleNamespace(path=PHW_PAB, palette_hits=40, score=336),
+                  SimpleNamespace(path=PHM_PAB, palette_hits=40, score=336),
+                  SimpleNamespace(path="character/model/1_pc/3_pgm/pgm_01.pab", palette_hits=12, score=300))
+
+    def resolve(entry, **_kwargs):
+        if entry.path == outfit:
+            return None, SimpleNamespace(confidence="ambiguous_palette", reason="tied", candidates=candidates)
+        return SimpleNamespace(path=RIGS[entry.path]), SimpleNamespace(reason="")
+
+    def read_prefab(entry):
+        return f'<Prefab><SkeletonName FileName="{named}"/></Prefab>'.encode() if entry.path == prefab else read(entry)
+
+    monkeypatch.setattr("cdmw.core.skeleton_resolver.resolve_skeleton_for_model", resolve)
+    paths = (outfit, DRIVER, BOSS_PAB, PHM_PAB, PHW_PAB, PHM_NUDE, PHW_NUDE, *((prefab,) if prefab else ()))
+    context = _context(_asset(outfit, (0,), "loaded"), _asset(DRIVER, (1,), "body", _Dependencies(paths)))
+    found = lookup.find_refit_reference_body(context, (0,), (1,), read_entry=read_prefab)
+    if body:
+        assert found.reason == "" and found.reference.label == body
+    else:
+        assert found.reference is None and "no skeleton was found for cd_m0001_00_knight_ub_0001.pac (tied)" in found.reason
+    assert lookup.character_prefab_folders(BOSS_OUTFIT) == (
+        "character/prefab/2_mon/cd_m0001_00_twofeet/cd_m0001_00_knight", "character/prefab/2_mon/cd_m0001_00_twofeet")
+
+
 def test_a_prepared_archive_ticket_stops_waiting_when_cancelled_or_late():
     ticket = lookup.PreparedRefitReferenceArchive()
     late = ticket.wait(timeout_seconds=0.)

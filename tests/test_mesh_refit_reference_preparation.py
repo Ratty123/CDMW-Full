@@ -27,6 +27,9 @@ DRIVER = "character/model/1_pc/2_phw/nude/cd_phw_00_nude_00_0001_damian.pac"
 PHM_PAB = "character/model/1_pc/1_phm/phm_01.pab"
 PHW_PAB = "character/model/1_pc/2_phw/phw_01.pab"
 PHM_NUDE = "character/model/1_pc/1_phm/nude/cd_phm_00_nude_00_0001.pac"
+PTM_PAB = "character/model/1_pc/14_ptm/ptm_01.pab"
+PTM_NUDE = "character/model/1_pc/14_ptm/nude/cd_ptm_00_nude_00_0001.pac"
+NUDE_PREFAB = "character/prefab/2_mon/cd_m0001_00_twofeet/cd_m0001_01_phm/armor_desert/cd_m0001_00_de_phm_nude_11002.prefabdata_xml"
 
 
 class _Service(QObject):
@@ -87,25 +90,33 @@ def _start():
 def test_the_nude_body_of_each_rig_is_listed_prepared_and_merged_for_the_fit():
     service, _prepared, ticket = _start()
     name, query, generation = service.calls[0]
-    assert name == "create_query" and generation == 7 and query.extensions == (".pac",)
-    assert query.include_text == "character/model/1_pc/1_phm/nude/*.pac;character/model/1_pc/2_phw/nude/*.pac"
-    service.result_ready.emit("create_query-1", "create_query", ArchiveQueryHandle("s1", "q", 1, 3))
-    assert service.calls[1][0] == "fetch_page" and service.calls[1][1].page_size == 3
+    assert name == "create_query" and generation == 7 and query.extensions == (".pac", ".pab", ".prefabdata_xml")
+    assert query.include_text == ("character/model/1_pc/1_phm/nude/*.pac;character/model/1_pc/2_phw/nude/*.pac;"
+                                  "character/model/1_pc/*/*.pab;character/model/1_pc/*/nude/*.pac;"
+                                  "character/prefab/1_pc/2_phw/*_nude_*.prefabdata_xml;"
+                                  "character/prefab/2_mon/cd_m0001_00_twofeet/*_nude_*.prefabdata_xml")
+    service.result_ready.emit("create_query-1", "create_query", ArchiveQueryHandle("s1", "q", 1, 6))
+    assert service.calls[1][0] == "fetch_page" and service.calls[1][1].page_size == 6
     rows = (_dto(1, PHM_NUDE), _dto(2, "character/model/1_pc/1_phm/nude/cd_phm_00_nude_00_0001_lod_1.pac"),
-            _dto(3, DRIVER))
-    service.result_ready.emit("fetch_page-2", "fetch_page", ArchivePage("s1", "q", 1, 3, 0, rows))
-    # Each rig's chooser answer is prepared once; lower details are not.
+            _dto(3, DRIVER), _dto(4, PTM_PAB), _dto(5, PTM_NUDE), _dto(6, NUDE_PREFAB))
+    service.result_ready.emit("fetch_page-2", "fetch_page", ArchivePage("s1", "q", 1, 6, 0, rows))
+    # Each rig's chooser answer is prepared once; lower details are not. Every
+    # player rig and the outfit character's nude prefab come too, so a boss
+    # outfit's tied palette can be settled.
     request = service.calls[2][1]
-    assert service.calls[2][0] == "prepare_entries" and sorted(request.entry_ids) == [1, 3]
+    assert service.calls[2][0] == "prepare_entries" and sorted(request.entry_ids) == [1, 3, 4, 5, 6]
     assert not ticket.done.is_set()
     items = tuple(PrepareEntryResult(ArchiveEntryRef("s1", entry_id, row.identity, row.path), f"prepared/{entry_id}", 10, "AB")
-                  for entry_id, row in ((1, rows[0]), (3, rows[2])))
+                  for entry_id, row in ((1, rows[0]), (3, rows[2]), (4, rows[3]), (5, rows[4]), (6, rows[5])))
     # Like the worker: prepared files arrive as batches, then an empty final result.
-    service.batch_ready.emit("prepare_entries-3", "prepare_entries", PrepareEntriesResult("s1", items[:1], 2, 2, 20))
-    service.batch_ready.emit("prepare_entries-3", "prepare_entries", PrepareEntriesResult("s1", items[1:], 2, 2, 20))
+    service.batch_ready.emit("prepare_entries-3", "prepare_entries", PrepareEntriesResult("s1", items[:2], 5, 5, 50))
+    service.batch_ready.emit("prepare_entries-3", "prepare_entries", PrepareEntriesResult("s1", items[2:], 5, 5, 50))
     assert not ticket.done.is_set()
-    service.result_ready.emit("prepare_entries-3", "prepare_entries", PrepareEntriesResult("s1", (), 2, 2, 20))
+    service.result_ready.emit("prepare_entries-3", "prepare_entries", PrepareEntriesResult("s1", (), 5, 5, 50))
     archive = ticket.wait()
+    assert archive.dependencies.entry_for_path(PTM_PAB).prepared_path == Path("prepared/4")
+    assert archive.dependencies.entry_for_path(PTM_NUDE) is not None
+    assert archive.dependencies.entry_for_path(NUDE_PREFAB).prepared_path == Path("prepared/6")
     assert archive.reason == ""
     body = archive.dependencies.entry_for_path(PHM_NUDE)
     assert body.prepared_path == Path("prepared/1")

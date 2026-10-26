@@ -2197,7 +2197,16 @@ before Bake, especially where hard pieces overlap several layers.
 one skeleton, Fit also uses the body they were authored on. `mesh_refit_reference_lookup` resolves the
 garment PAC's skeleton (`resolve_skeleton_for_model`), takes the nude body of that rig
 folder (the same choice as character preview) and resolves the driver's skeleton the
-same way. `mesh_refit_reference` retargets that body with its own skin weights from
+same way. Humanoid skeletons share bone names, so a boss or NPC outfit's palette ties
+between the player rigs and its family's boss skeletons, and the resolver refuses. The
+lookup then reads the character's nude prefabs (`*_nude_*.prefabdata_xml` in the
+prefab folder mirroring `character/model/2_mon/<family>/<character>`) and takes the
+tied skeleton they name; every humanoid boss checked names `phm_01.pab`, which also
+fitted their hand-made female versions best. A quarter of the humanoid family's
+characters have no nude prefab: they take a tied player rig their path names
+(`cd_m0001_02_phw`), else the skeleton most of the family's nude prefabs name. Choosing
+the nude body nearest the garment picked the bulkier PTM rig instead and fitted up to
+23 mm worse, so a tie these do not settle stays refused. `mesh_refit_reference` retargets that body with its own skin weights from
 its bind pose into the driver skeleton's (`inv(bind_source) @ bind_target` per bone,
 nearest shared ancestor for a missing bone), posed through each asset's character
 appearance so it matches the viewport. The service sends it with the Fit settings as
@@ -2267,7 +2276,8 @@ The editor's archive sets are bounded per opened PAC (`ArchivePreviewDependencyS
 they hold each PAC's skeleton candidates but no nude body. Before the Fit the host
 (`refit_reference_preparation`) therefore merges the opened file's and every Refit
 asset's set, lists `<rig>/nude/*.pac` for each character skeleton folder they name in
-one archive-worker query, prepares the body the same chooser picks, and hands the
+one archive-worker query, with every player rig's skeleton and nude body and the nude
+prefabs of each opened PAC's character family, prepares the body the same chooser picks, and hands the
 merged set to the Fit worker as `_reference_archive`, a ticket the worker waits on for
 up to 60 s; full local indexes need none. Without it the lookup could not resolve an
 outfit's skeleton from the body's set, and every app Fit fell back to the driver.
@@ -2281,7 +2291,14 @@ resolved, or the garments were authored on the driver itself.
 inside-body vertices, new skin through cloth, new layer crossings, cloth edge strain;
 with `--poses`, also what limb and torso rotations add when both are skinned with
 their own weights, beside the outfit on its authored body); it is development
-evidence, not proof of in-game behaviour.
+evidence, not proof of in-game behaviour. `tools/refit_reference_benchmark.py` measures
+accuracy instead of damage: given an extracted package of hand-reshaped outfits with
+the same vertices as the game's (the Female Armor Fit mod's `zz_` PACs, kept out of the
+repository), it fits each `cd_` original onto a PHW body and reports per-vertex
+distance to the author's shape per part, slot and body band, beside the unfitted
+original, with the signed gap difference and per-axis bias. Hand-made targets are not
+consistent with each other everywhere (one necklace family's pendants sit 25 mm lower
+than another's), so judge changes on broad medians, not single parts.
 
 Turned rims retain their authored width across the edge while their circumference
 can contract. Thickness constraints run with body and layer contact checks, including
