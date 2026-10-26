@@ -263,6 +263,11 @@ fn fit_to_body_uses_the_authored_body_unless_turned_off_and_names_it() -> TestRe
         json!({"reference_body": false}));
     ui.click("Use the authored body")?;
     assert_eq!(command_arguments(&ui.actions_from_click("Fit all enabled garments")?, "refit_fit_to_body"), json!({}));
+    ui.click("Take weights from the body")?;
+    assert!(!ui.application.cdmw_refit_use_body_weights);
+    assert_eq!(command_arguments(&ui.actions_from_click("Fit all enabled garments")?, "refit_fit_to_body"),
+        json!({"body_weights": false}));
+    ui.click("Take weights from the body")?;
     ui.application.cdmw_state["morph_refit"]["refit"]["reference_body"] = json!({
         "label": "character/model/1_pc/1_phm/nude/cd_phm_00_nude_00_0001.pac",
         "vertex_count": 13162, "face_count": 24014, "last_fit": [],

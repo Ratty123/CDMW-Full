@@ -322,6 +322,145 @@ def test_the_body_does_not_come_through_the_faces_of_a_coarse_sleeve():
     assert np.hypot(samples[inner, 0], samples[inner, 2]).min() >= DRIVER_RADIUS - 2e-4
 
 
+def _weighted_scene():
+    # The arm is weighted to bone 0 below 0.2, bone 1 above 0.3 and blends between.
+    # The sleeve and a stud sitting across the blend start on bone 2.
+    arm = _arm(DRIVER_RADIUS)
+    rows = []
+    for _x, y, _z in arm.vertices:
+        upper = min(max((y - .2) / .1, 0.), 1.)
+        rows.append(((0,), (1.,)) if upper == 0. else ((1,), (1.,)) if upper == 1. else ((0, 1), (1. - upper, upper)))
+    arm.bone_indices, arm.bone_weights = [row[0] for row in rows], [row[1] for row in rows]
+    sleeve = _refit_tube_part("sleeve", .065, 0., (.1, .15, .2, .25, .3, .35, .4), 32)
+    vertices = [(x, y, z) for x in (.0605, .0705) for y in (.2, .3) for z in (-.01, .01)]
+    faces = [(0, 1, 3), (0, 3, 2), (4, 6, 7), (4, 7, 5), (0, 4, 5), (0, 5, 1),
+             (2, 3, 7), (2, 7, 6), (0, 2, 6), (0, 6, 4), (1, 5, 7), (1, 7, 3)]
+    stud = _part("stud", vertices, faces, material="metal", texture="")
+    for part in (sleeve, stud):
+        part.bone_indices, part.bone_weights = [(2,)] * len(part.vertices), [(1.,)] * len(part.vertices)
+    return _mesh(arm, sleeve, stud)
+
+
+def _weight_transfer(mesh, capacity=6):
+    return {"driver_bones": [{"submesh_index": 0, "bones": [0, 1, 2]}],
+            "garments": [{"submesh_index": index, "slots": [0, 1, 2],
+                          "capacities": [capacity] * len(mesh.submeshes[index].vertices)} for index in (1, 2)]}
+
+
+@contextmanager
+def _weighted_fit(mesh, transfer):
+    session = _open(mesh)
+    try:
+        _command(session, "morph_upload", {"profile": {
+            "profile_id": "fit", "name": "Fit", "topology_fingerprint": "a" * 64, "definitions": [], "fields": [],
+        }})
+        _command(session, "morph_set_driver", {"submesh_indices": [0]})
+        _command(session, "morph_bind", {"garment_submesh_indices": [1, 2]})
+        _command(session, "morph_set_reference_body", {
+            "reference_body": _reference(), "garment_submesh_indices": [1, 2], "weight_transfer": transfer,
+            "garment_settings": [
+                {"submesh_index": 1, "mode": "surface", "clearance_percent": .1, "tightness_percent": 100.},
+                {"submesh_index": 2, "mode": "rigid_component", "clearance_percent": .1, "tightness_percent": 100.}],
+        })
+        yield session
+    finally:
+        mesh_native_core.close_native_mesh_editor_session(session)
+
+
+def _rows(part):
+    return [dict(zip(indices, weights)) for indices, weights in zip(part.bone_indices, part.bone_weights)]
+
+
+def test_fit_gives_cloth_near_the_body_its_weights_and_a_rigid_piece_one_set():
+    mesh = _weighted_scene()
+    with _weighted_fit(mesh, _weight_transfer(mesh)) as session:
+        fitted = _snapshot(mesh, session)
+        weights = _state(session)["refit"]["reference_body"]["last_fit"]["weights"]
+    assert weights["changed_parts"] == [1, 2] and weights["dropped_bone_mass"] == 0
+    sleeve = _rows(fitted.submeshes[1])
+    for (_x, y, _z), row in zip(mesh.submeshes[1].vertices, sleeve):
+        assert len(row) <= 6 and sum(row.values()) == pytest.approx(1.)
+        # The body's share follows the arm beneath: bone 0 low, bone 1 high.
+        if y <= .15:
+            assert row.get(0, 0.) > .3 and 1 not in row
+        if y >= .35:
+            assert row.get(1, 0.) > .3 and 0 not in row
+    stud = _rows(fitted.submeshes[2])
+    assert all(row == stud[0] for row in stud) and stud[0].get(2, 0.) < 1.
+    # The driver keeps its own weights.
+    assert fitted.submeshes[0].bone_indices == mesh.submeshes[0].bone_indices
+
+
+def test_weights_undo_with_the_fit_reset_restores_them_and_bake_keeps_them():
+    mesh = _weighted_scene()
+    own = _rows(mesh.submeshes[1])
+    with _weighted_fit(mesh, _weight_transfer(mesh)) as session:
+        fitted = _rows(_snapshot(mesh, session).submeshes[1])
+        assert fitted != own
+        assert mesh_native_core.undo_native_mesh_editor_session(session, timeout_seconds=15.0) is not None
+        assert _rows(_snapshot(mesh, session).submeshes[1]) == own
+        assert mesh_native_core.redo_native_mesh_editor_session(session, timeout_seconds=15.0) is not None
+        assert _rows(_snapshot(mesh, session).submeshes[1]) == fitted
+        _command(session, "morph_reset")
+        assert _rows(_snapshot(mesh, session).submeshes[1]) == own
+    with _weighted_fit(mesh, _weight_transfer(mesh)) as session:
+        _command(session, "morph_set_reference_body", {"reference_body": None})
+        assert _rows(_snapshot(mesh, session).submeshes[1]) == own
+    with _weighted_fit(mesh, _weight_transfer(mesh)) as session:
+        _command(session, "morph_bake")
+        baked = _rows(_snapshot(mesh, session).submeshes[1])
+        assert baked == fitted
+        _command(session, "morph_reset")
+        assert _rows(_snapshot(mesh, session).submeshes[1]) == baked
+
+
+def test_a_restored_snapshot_still_gives_back_the_own_weights_on_reset():
+    mesh = _weighted_scene()
+    own = _rows(mesh.submeshes[1])
+    with _weighted_fit(mesh, _weight_transfer(mesh)) as session:
+        fitted = _snapshot(mesh, session)
+        descriptor = mesh_native_core.create_native_mesh_editor_morph_runtime_snapshot(session)
+    target = _open(fitted)
+    try:
+        assert mesh_native_core.restore_native_mesh_editor_morph_runtime_snapshot(target, descriptor)
+        _command(target, "morph_reset")
+        assert _rows(_snapshot(fitted, target).submeshes[1]) == own
+    finally:
+        mesh_native_core.close_native_mesh_editor_session(target)
+        mesh_native_core.dispose_native_mesh_editor_morph_runtime_snapshot(descriptor)
+
+
+def test_cloth_made_not_to_follow_the_authored_body_keeps_its_weights():
+    mesh = _weighted_scene()
+    authored = len(_arm(AUTHORED_RADIUS).vertices)
+
+    def transfer(sleeve_lift):
+        # One test pose: the authored arm stays put; the sleeve, as authored, lifts by sleeve_lift.
+        table = _weight_transfer(mesh)
+        for row in table["garments"]:
+            count = len(mesh.submeshes[row["submesh_index"]].vertices)
+            row["motion"] = [0., sleeve_lift if row["submesh_index"] == 1 else 0., 0.] * count
+        table["motion_poses"] = 1
+        table["reference_motion"] = [0.] * (3 * authored)
+        return table
+
+    # As authored, the sleeve moved with the arm beneath it: it takes the driver's weights.
+    with _weighted_fit(mesh, transfer(0.)) as session:
+        assert _rows(_snapshot(mesh, session).submeshes[1]) != _rows(mesh.submeshes[1])
+    # A sleeve that left the authored arm 5 cm behind was made not to follow it: it keeps its own.
+    with _weighted_fit(mesh, transfer(.05)) as session:
+        assert _rows(_snapshot(mesh, session).submeshes[1]) == _rows(mesh.submeshes[1])
+
+
+def test_rows_keep_each_vertex_capacity_and_nothing_changes_without_a_table():
+    mesh = _weighted_scene()
+    with _weighted_fit(mesh, _weight_transfer(mesh, capacity=1)) as session:
+        rows = _rows(_snapshot(mesh, session).submeshes[1])
+    assert all(len(row) == 1 and next(iter(row.values())) == pytest.approx(1.) for row in rows)
+    with _weighted_fit(mesh, None) as session:
+        assert _rows(_snapshot(mesh, session).submeshes[1]) == _rows(mesh.submeshes[1])
+
+
 def test_reference_body_requires_a_binding_and_matching_arrays():
     mesh = _outfit()
     session = _open(mesh)

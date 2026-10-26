@@ -4801,7 +4801,8 @@ std::shared_ptr<MeshRefitRuntime> mesh_editor_refit_solid_attachments(
 
 std::string mesh_editor_apply_reference_refit(
     const MeshMorphRuntime&, const std::map<int, MeshSessionSubmesh>&, const std::map<int, std::vector<Vec3>>&,
-    std::map<int, std::vector<Vec3>>&, const std::map<int, std::vector<Vec3>>&);
+    std::map<int, std::vector<Vec3>>&, const std::map<int, std::vector<Vec3>>&, std::map<int, BoneAssignments>*);
+void mesh_editor_apply_refit_weights(MeshMorphRuntime&, std::map<int, MeshSessionSubmesh>&, std::map<int, BoneAssignments>);
 void mesh_editor_write_refit_reference_summary(std::ostream&, const MeshEditorSession&);
 
 std::vector<SubmeshMeshEditResult> mesh_editor_recompose_morph(
@@ -4826,9 +4827,11 @@ std::vector<SubmeshMeshEditResult> mesh_editor_recompose_morph(
     // explicit Part and island choices stay authoritative.
     if (next.refit) if (auto attachments = mesh_editor_refit_solid_attachments(*next.refit, submeshes, residual))
         fitting.refit = std::move(attachments);
+    std::map<int, BoneAssignments> weights;
     if (next.refit && next.refit->reference_body) {
         // The reference-body transfer owns rigid pieces, islands and exclusions itself.
-        session.reference_refit_report = mesh_editor_apply_reference_refit(fitting, submeshes, residual, new_layer, post_refit);
+        session.reference_refit_report = mesh_editor_apply_reference_refit(
+            fitting, submeshes, residual, new_layer, post_refit, &weights);
     } else {
         const bool islands = fitting.refit && (!fitting.refit->excluded_faces.empty()
             || std::any_of(fitting.refit->garment_settings.begin(), fitting.refit->garment_settings.end(),
@@ -4854,6 +4857,9 @@ std::vector<SubmeshMeshEditResult> mesh_editor_recompose_morph(
         next.neutral_positions[index] = residual_item->second;
         next.composed_positions[index] = current->second.vertices;
     }
+    // Skin rows follow the same transaction: written while a Fit takes them
+    // from the body, given back when it no longer does.
+    mesh_editor_apply_refit_weights(next, submeshes, std::move(weights));
     mesh_editor_refresh_morph_normals(submeshes, before, next.neutral_normals);
     for (const auto& part : before) {
         auto result = mesh_editor_morph_sparse_result(part.first, submeshes.at(part.first), part.second,
@@ -4874,6 +4880,9 @@ MeshEditorSubmeshDelta mesh_editor_morph_history_delta(
     delta.normals = mesh_editor_make_channel_delta(before.normals, after.normals);
     delta.tangents = mesh_editor_make_channel_delta(before.tangents, after.tangents);
     delta.tangent_signs = mesh_editor_make_channel_delta(before.tangent_signs, after.tangent_signs);
+    // A Fit that takes weights from the body undoes them with its positions.
+    delta.bone_indices = mesh_editor_make_channel_delta(before.bone_indices, after.bone_indices);
+    delta.bone_weights = mesh_editor_make_channel_delta(before.bone_weights, after.bone_weights);
     return delta;
 }
 

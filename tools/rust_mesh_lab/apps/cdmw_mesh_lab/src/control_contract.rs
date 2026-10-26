@@ -500,6 +500,7 @@ fn runtime_route(key: &str) -> RuntimeRoute {
         "refit.island_apply" | "refit.island_inherit" => (Kind::ShadowCommand, "refit_island_configure"),
         "refit.fit_to_body" => (Kind::ShadowCommand, "refit_fit_to_body"),
         "refit.reference_body" => (Kind::LocalState, "cdmw_refit_use_reference_body"),
+        "refit.body_weights" => (Kind::LocalState, "cdmw_refit_use_body_weights"),
         "refit.restore_shape_apply" => (Kind::ShadowCommand, "refit_restore_shape_apply"),
         "refit.restore_shape_cancel" => (Kind::ShadowCommand, "refit_restore_shape_cancel"),
         "morph.reset" => (Kind::ShadowCommand, "morph_reset"),
@@ -667,6 +668,7 @@ refit.island_apply|morph_refit|executable|bound_garment|false|
 refit.island_inherit|morph_refit|executable|bound_garment|false|
 refit.fit_to_body|morph_refit|executable|bound_garment|false|
 refit.reference_body|morph_refit|executable|bound_garment|false|
+refit.body_weights|morph_refit|executable|bound_garment|false|
 morph.reset|morph_refit|executable|active_profile|false|
 morph.bake|morph_refit|executable|unbaked_change|false|
 display.mode|camera_display|executable|session|false|

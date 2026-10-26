@@ -6,7 +6,9 @@ garment's skeleton comes from ``resolve_skeleton_for_model``, its rig folder
 holds the nude body (the same choice as character preview), and the driver's
 skeleton is resolved the same way. Archive reads go through the dependency
 context retained with the loaded Refit assets. Every refusal comes back as a
-reason so the caller can fit to the driver alone and say why.
+reason so the caller can fit to the driver alone and say why. With a reference
+it also returns the driver's skin weights for the garments
+(:mod:`cdmw.services.mesh_refit_weights`), or why they keep their own.
 """
 
 from __future__ import annotations
@@ -20,12 +22,16 @@ from typing import Callable, Sequence
 from cdmw.modding.mesh_parser import parse_pac, resolve_pac_bone_palette
 from cdmw.modding.mesh_refit_reference import RefitReferenceBody, retarget_reference_body
 from cdmw.modding.skeleton_parser import parse_pab
+from cdmw.services.mesh_refit_weights import RefitWeightTransfer, build_refit_weight_transfer
 
 
 @dataclass(frozen=True)
 class RefitReferenceLookup:
     reference: RefitReferenceBody | None
     reason: str = ""
+    # With a reference: the body's skin weights for the garments, or why they keep their own.
+    weights: RefitWeightTransfer | None = None
+    weights_reason: str = ""
 
 
 @dataclass(frozen=True)
@@ -179,15 +185,18 @@ def _find(garments, driver, dependencies, read) -> RefitReferenceLookup:
     palette = resolve_pac_bone_palette(data, source.skeleton)
     if not palette:
         return RefitReferenceLookup(None, f"the bones of {body_path} do not match {source.path}")
+    nude = parse_pac(data, body_path).submeshes
     try:
         reference = retarget_reference_body(
-            parse_pac(data, body_path).submeshes, palette, source.skeleton, target.skeleton, label=body_path,
+            nude, palette, source.skeleton, target.skeleton, label=body_path,
             source_appearance=_appearance(garments[0], source.skeleton),
             target_appearance=_appearance(driver, target.skeleton),
         )
     except ValueError as exc:
         return RefitReferenceLookup(None, f"{body_path}: {exc}")
-    return RefitReferenceLookup(reference)
+    weights, weights_reason = build_refit_weight_transfer(
+        target.skeleton, source.skeleton, driver, garments, read, reference=(nude, palette))
+    return RefitReferenceLookup(reference, weights=weights, weights_reason=weights_reason)
 
 
 def clear_refit_reference_cache() -> None:

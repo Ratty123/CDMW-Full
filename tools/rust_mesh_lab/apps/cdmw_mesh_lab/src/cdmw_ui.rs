@@ -3559,12 +3559,17 @@ impl LabApplication {
                 Button::new(crate::localization::tr("Fit all enabled garments"))).on_hover_text(
                 crate::localization::tr("Fit a fresh setup at 100% Tightness with at least 0.1% Clearance. Keeps Tightness values you have explicitly chosen, including 0% for loose skirts, drapes and hanging trim. Set modes and protection before fitting. Reset reverts it; Bake keeps it.")
             ).on_disabled_hover_text(crate::localization::tr("Apply pending settings before fitting.")).clicked() {
-                // The host uses the authored body by default; only opting out is sent.
-                let arguments = if self.cdmw_refit_use_reference_body { json!({}) } else { json!({"reference_body": false}) };
+                // The host uses the authored body and its weights by default; only opting out is sent.
+                let mut arguments = json!({});
+                if !self.cdmw_refit_use_reference_body { arguments["reference_body"] = json!(false); }
+                if !self.cdmw_refit_use_body_weights { arguments["body_weights"] = json!(false); }
                 actions.push(UiAction::CdmwCommand { command: "refit_fit_to_body", arguments, label: "Fit to body" });
             }
             ui.checkbox(&mut self.cdmw_refit_use_reference_body, crate::localization::tr("Use the authored body"))
                 .on_hover_text(crate::localization::tr("Fit from the body the outfit was made for, found from its skeleton, so authored drapes, layers and rigid pieces carry over. Turn off to fit to the current body only."));
+            ui.add_enabled(self.cdmw_refit_use_reference_body, egui::Checkbox::new(
+                &mut self.cdmw_refit_use_body_weights, crate::localization::tr("Take weights from the body")))
+                .on_hover_text(crate::localization::tr("Cloth near the skin takes this body's skin weights, so it moves with the body instead of the one it was made for. Turn off to keep the outfit's own weights."));
             if let Some(label) = refit["reference_body"]["label"].as_str() {
                 let name = label.rsplit('/').next().unwrap_or(label);
                 ui.weak(crate::localization::tr(format!("Authored body: {}", name))).on_hover_text(label);

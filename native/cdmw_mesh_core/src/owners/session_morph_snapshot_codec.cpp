@@ -154,6 +154,10 @@ void mesh_editor_write_snapshot_refit(std::ostream& out, const MeshMorphRuntime&
         out << ",\"reference_body\":";
         mesh_editor_write_refit_reference(out, *refit.reference_body);
     }
+    if (refit.weight_transfer) {
+        out << ",\"weight_transfer\":";
+        mesh_editor_write_refit_weight_transfer(out, *refit.weight_transfer);
+    }
     out << '}';
 }
 
@@ -206,6 +210,7 @@ std::string mesh_editor_morph_runtime_snapshot_payload(const MeshEditorSession& 
     mesh_editor_write_morph_index_set(out, morph.driver_submesh_indices);
     out << ",\"refit\":";
     mesh_editor_write_snapshot_refit(out, morph);
+    mesh_editor_write_snapshot_neutral_bones(out, morph);
     out << ",\"unbaked\":" << (morph.unbaked ? "true" : "false")
         << ",\"state_revision\":" << morph.state_revision
         << ",\"change_id\":";
@@ -498,6 +503,10 @@ std::shared_ptr<const MeshRefitRuntime> mesh_editor_refit_from_snapshot(
         if (version < 5) throw std::runtime_error("Fit reference bodies require runtime snapshot version 5");
         refit->reference_body = mesh_editor_refit_reference_from_json(*reference);
     }
+    if (const auto* transfer = raw_refit->get("weight_transfer")) {
+        if (!refit->reference_body) throw std::runtime_error("morph runtime snapshot has weights without a reference body");
+        refit->weight_transfer = mesh_editor_refit_weight_transfer_from_json(*transfer, submeshes, *refit);
+    }
     refit->driver_diagonal = mesh_editor_snapshot_number(*raw_refit, "driver_diagonal");
     refit->maximum_distance = mesh_editor_snapshot_number(*raw_refit, "maximum_distance");
     refit->p95_distance = mesh_editor_snapshot_number(*raw_refit, "p95_distance");
@@ -623,6 +632,7 @@ std::shared_ptr<MeshMorphRuntime> mesh_editor_morph_runtime_from_snapshot(
     runtime->refit = mesh_editor_refit_from_snapshot(
         raw_runtime.get("refit"), submeshes, runtime->driver_submesh_indices, version
     );
+    mesh_editor_read_snapshot_neutral_bones(raw_runtime.get("neutral_bones"), submeshes, *runtime);
     if (runtime->refit) for (const auto& item : runtime->refit->garment_settings) {
         auto topology = submeshes.at(item.first);
         const auto neutral = runtime->neutral_positions.find(item.first);

@@ -502,6 +502,7 @@ std::string mesh_editor_morph_bind_session_report(
     if (next->refit) {
         // A changed binding still fits garments authored on the same reference body.
         rebound->reference_body = next->refit->reference_body;
+        rebound->weight_transfer = next->refit->weight_transfer;
         for (const int index : garments) {
             const auto settings = next->refit->garment_settings.find(index);
             if (settings != next->refit->garment_settings.end()) rebound->garment_settings[index] = settings->second;
@@ -749,6 +750,10 @@ std::string mesh_editor_morph_set_reference_body_session_report(
     auto next = mesh_editor_clone_morph_runtime(session);
     auto next_refit = std::make_shared<MeshRefitRuntime>(*next->refit);
     next_refit->reference_body = raw->type == JsonValue::Type::Null ? nullptr : mesh_editor_refit_reference_from_json(*raw);
+    // Skin weights come from the body only with a reference, and only when asked.
+    const auto* transfer = root.get("weight_transfer");
+    next_refit->weight_transfer = next_refit->reference_body && transfer
+        ? mesh_editor_refit_weight_transfer_from_json(*transfer, submeshes, *next_refit) : nullptr;
     if (root.get("garment_settings")) {
         // Settings and the reference change together, as one undoable Fit.
         const std::set<int> garments = mesh_editor_valid_submesh_set(
@@ -789,6 +794,7 @@ std::shared_ptr<const MeshRefitRuntime> mesh_editor_rebased_refit(
     // Baked garments already sit on the driver, and Reset returns them to the
     // authored body. Either way a later recompose must not transfer them again.
     refit->reference_body.reset();
+    refit->weight_transfer.reset();
     for (auto& item : refit->garment_settings) {
         if (!reset_fit) item.second.tightness_initialized = true;
         else if (item.second.tightness_percent > 0.0) item.second.tightness_initialized = false;
@@ -957,6 +963,8 @@ std::string mesh_editor_morph_reset_or_bake_session_report(
         next->neutral_positions.clear();
         next->composed_positions.clear();
         next->neutral_normals.clear();
+        // Bake keeps the weights a Fit took from the body.
+        next->neutral_bones.clear();
         next->unbaked = false;
         next->refit = mesh_editor_rebased_refit(*next, mesh_editor_submeshes(session), false);
     }

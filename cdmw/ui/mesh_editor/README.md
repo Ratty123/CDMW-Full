@@ -2135,7 +2135,32 @@ open hem never counts, nor does a hand in front of a strap lying on the hip (the
 strap point is outside the body), nor a place where that garment point, as authored,
 was already inside the authored body: many archive outfits come with their own body
 through them. Pushing every layer at such a point, not only the nearest, scored no
-better on the harness corpus. The same small-accessory inference as the bound fitter makes unmarked closed attachments
+better on the harness corpus. With **Take weights from the body** (default on;
+`body_weights: false` opts out) the Fit also sends `weight_transfer`, which
+`cdmw.services.mesh_refit_weights` builds: every driver bone maps to a slot of each
+garment Part's own PAC palette by name, else its nearest named ancestor, so palettes
+never grow. Only Parts the exact PAC writer can store in place take part (exact output
+at LOD 0, unchanged 40-byte `pac_slot_u10x6` records whose rows are valid, and no
+character appearance, where new weights would also move the saved positions);
+the others keep their weights and Fit names them. Natively
+(`session_refit_weights.cpp`), garment vertices within 10 mm of the driver take its
+weights beneath them, fading back to their own by 30 mm (scaled like the other fit
+distances). Each rigid piece, and each small closed island the body does not pass
+through, follows the single strongest bone beneath its point nearest the body, or
+keeps its own weights beyond that distance. Pieces joined into one assembly by the fit
+each take their own: one set for a whole chain of studs could not follow a twisting
+torso, and a blended set still squashed a large piece in a crouch. Cloth made to hang
+free of the skin keeps its own weights: on the authored body, in four moderate test
+turns of its own skeleton (`cdmw.modding.mesh_refit_motion.DESIGN_POSES`), a garment
+point that strays more than 25 mm from the skin beneath it takes less of the body's
+weights, and none past 75 mm (a cape beside the arm). Comparing bone names instead
+read weighting to a parent bone as disagreement and gave back half the gain. Rows keep each record's capacity (six influences, four on
+cloth-simulated records) and drop shares below half a byte step. The pre-Fit rows stay
+in the morph runtime and runtime snapshot: Reset, Clear and a Fit without weights
+restore them, undo restores them with the positions, and Bake keeps the new rows. The
+service records `replace_skin_weights_same_count` (`cdmw_exact_pac_skin_weights_v1`
+with the Part's palette size) for every Part whose rows changed and marks the session
+for read-back, so export carries them. Only LOD 0 rows change. The same small-accessory inference as the bound fitter makes unmarked closed attachments
 rigid. Disabled Parts, removed islands, masks and post-refit corrections behave as in
 the bound fitter; Tightness and Intensity are not used. The reference survives
 rebinding, is dropped by Reset and Bake, is stored in runtime snapshot version 5 and

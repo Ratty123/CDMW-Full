@@ -47,11 +47,12 @@ from cdmw.domain.mesh.authoring_capability import (
 )
 from cdmw.modding.mesh_glb_interchange import import_glb_with_sidecar
 from cdmw.modding.mesh_obj_importer import import_obj
+from cdmw.modding.mesh_pac_skin_contract import (
+    pac_skin_part_layout_matches,
+    pac_skin_row_capacity,
+    pac_skin_rows_safe,
+)
 from cdmw.modding.mesh_parser import (
-    PAC_SKIN_GATE_DISABLED,
-    PAC_SKIN_GATE_MASK,
-    PAC_SKIN_GATE_OFFSET,
-    PAC_SKIN_PALETTE_SLOTS,
     PAC_SKIN_WEIGHT_LAYOUT,
     ParsedMesh,
     resolve_pac_bone_palette,
@@ -6460,87 +6461,33 @@ def _safe_pac_skin_weight_submesh(
     source_rows_cache: dict[int, tuple] | None = None,
     source_key: tuple = (),
 ) -> bool:
-    original_vertices = tuple(getattr(original, "vertices", ()) or ())
-    vertices = tuple(getattr(current, "vertices", ()) or ())
-    if not vertices or len(vertices) != len(original_vertices):
+    if not pac_skin_part_layout_matches(original, current, original_data):
         return False
-    if tuple(getattr(current, "faces", ()) or ()) != tuple(getattr(original, "faces", ()) or ()):
-        return False
-    identity = tuple(range(len(vertices)))
-    if tuple(getattr(original, "source_vertex_map", ()) or ()) != identity:
-        return False
-    if tuple(getattr(current, "source_vertex_map", ()) or ()) != identity:
-        return False
-    if tuple(getattr(current, "source_bone_palette", ()) or ()) != tuple(
-        getattr(original, "source_bone_palette", ()) or ()
-    ):
-        return False
-    if str(getattr(original, "source_skin_weight_layout", "") or "") != PAC_SKIN_WEIGHT_LAYOUT:
-        return False
-    if str(getattr(current, "source_skin_weight_layout", "") or "") != PAC_SKIN_WEIGHT_LAYOUT:
-        return False
-    if int(getattr(original, "source_vertex_stride", 0) or 0) != 40:
-        return False
-    if int(getattr(current, "source_vertex_stride", 0) or 0) != 40:
-        return False
-    original_offsets = tuple(getattr(original, "source_vertex_offsets", ()) or ())
-    current_offsets = tuple(getattr(current, "source_vertex_offsets", ()) or ())
-    if current_offsets != original_offsets or len(original_offsets) != len(vertices):
-        return False
-    try:
-        if any(int(offset) < 0 or int(offset) + 40 > len(original_data) for offset in original_offsets):
-            return False
-    except (TypeError, ValueError, OverflowError):
-        return False
-    row_key = source_key, palette_size, len(vertices)
+    vertex_count = len(tuple(getattr(current, "vertices", ()) or ()))
+    row_key = source_key, palette_size, vertex_count
     cached_rows = source_rows_cache.get(id(original)) if source_rows_cache is not None else None
     if cached_rows is not None and cached_rows[0] == row_key:
         original_rows_safe = cached_rows[1]
     else:
-        original_rows_safe = _safe_pac_skin_rows(original, len(vertices), palette_size, original_data)
+        original_rows_safe = _safe_pac_skin_rows(original, vertex_count, palette_size, original_data)
         if source_rows_cache is not None:
             source_rows_cache[id(original)] = row_key, original_rows_safe
     return original_rows_safe and _safe_pac_skin_rows(
         current,
-        len(vertices),
+        vertex_count,
         palette_size,
         original_data,
     )
 
 
-def _pac_skin_row_capacity(original_data: bytes, offset: int) -> int:
-    gate = original_data[offset + PAC_SKIN_GATE_OFFSET] & PAC_SKIN_GATE_MASK
-    return PAC_SKIN_PALETTE_SLOTS if gate == PAC_SKIN_GATE_DISABLED else 4
+# The exact writer's record contract lives in cdmw.modding.mesh_pac_skin_contract.
+_pac_skin_row_capacity = pac_skin_row_capacity
 
 
 def _safe_pac_skin_rows(
     submesh: object, vertex_count: int, palette_size: int, original_data: bytes,
 ) -> bool:
-    index_rows = tuple(getattr(submesh, "bone_indices", ()) or ())
-    weight_rows = tuple(getattr(submesh, "bone_weights", ()) or ())
-    offsets = tuple(getattr(submesh, "source_vertex_offsets", ()) or ())
-    if not len(index_rows) == len(weight_rows) == len(offsets) == vertex_count:
-        return False
-    for raw_indices, raw_weights, raw_offset in zip(index_rows, weight_rows, offsets):
-        try:
-            indices = tuple(int(value) for value in tuple(raw_indices or ()))
-            weights = tuple(float(value) for value in tuple(raw_weights or ()))
-            offset = int(raw_offset)
-        except (TypeError, ValueError, OverflowError):
-            return False
-        if offset < 0 or offset + 40 > len(original_data):
-            return False
-        if not 1 <= len(indices) == len(weights) <= _pac_skin_row_capacity(original_data, offset):
-            return False
-        if len(set(indices)) != len(indices):
-            return False
-        if any(index < 0 or index > 1023 or index >= palette_size for index in indices):
-            return False
-        if any(not math.isfinite(weight) or weight < 0.0 for weight in weights):
-            return False
-        if not math.isclose(sum(weights), 1.0, rel_tol=1.0e-6, abs_tol=1.0e-6):
-            return False
-    return True
+    return pac_skin_rows_safe(submesh, vertex_count, palette_size, original_data)
 
 
 def _skeleton_state_payload(
@@ -9424,11 +9371,12 @@ class RustMeshAuthoringSession:
                 ) if key in args},
             )
         if command == "refit_fit_to_body":
-            _require_argument_keys(args, frozenset({"reference_body"}), command)
+            _require_argument_keys(args, frozenset({"reference_body", "body_weights"}), command)
             use_reference = args.get("reference_body", True)
-            if type(use_reference) is not bool:
-                raise RustMeshProtocolError("Mesh refit_fit_to_body reference_body must be boolean")
-            return service.fit_refit_to_body(session_id, reference_body=use_reference)
+            use_weights = args.get("body_weights", True)
+            if type(use_reference) is not bool or type(use_weights) is not bool:
+                raise RustMeshProtocolError("Mesh refit_fit_to_body reference_body and body_weights must be boolean")
+            return service.fit_refit_to_body(session_id, reference_body=use_reference, body_weights=use_weights)
         if command == "refit_restore_shape_apply":
             _require_argument_keys(args, set(), command)
             return service.apply_refit_shape_restore(session_id)

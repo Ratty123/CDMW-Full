@@ -46,6 +46,8 @@ constexpr double REFIT_REFERENCE_LAYER_STALE = 3.0;
 constexpr double REFIT_REFERENCE_SKIN_REACH = 0.02;
 constexpr double REFIT_REFERENCE_SKIN_FACING = 0.5;
 constexpr int REFIT_REFERENCE_SKIN_REFRESH = 10;
+// Closed pieces up to this share of the driver's diagonal take one set of weights.
+constexpr double REFIT_REFERENCE_SOLID_SIZE = 0.25;
 constexpr double REFIT_REFERENCE_INSIDE = 0.0005;
 constexpr double REFIT_REFERENCE_DEEP_INSIDE = 0.04;
 constexpr double REFIT_REFERENCE_FAR_OUTSIDE = 0.03;
@@ -577,12 +579,19 @@ struct RefitReferenceParticle {
     int unit = -1;
 };
 
+// Defined in session_refit_weights.cpp.
+std::map<int, BoneAssignments> mesh_editor_refit_transfer_weights(
+    const MeshMorphRuntime&, const std::map<int, MeshSessionSubmesh>&, const RefitReferenceSurface&,
+    const RefitReferenceSurface&, const std::map<int, std::vector<int>>&, const std::vector<Vec3>&,
+    const std::vector<Vec3>&, const std::vector<std::vector<int>>&, const RefitMaskWeightsNative&, double, std::ostream&);
+
 std::string mesh_editor_apply_reference_refit(
     const MeshMorphRuntime& morph,
     const std::map<int, MeshSessionSubmesh>& submeshes,
     const std::map<int, std::vector<Vec3>>& residual,
     std::map<int, std::vector<Vec3>>& layer,
-    const std::map<int, std::vector<Vec3>>& post_refit
+    const std::map<int, std::vector<Vec3>>& post_refit,
+    std::map<int, BoneAssignments>* weights
 ) {
     const auto started = std::chrono::steady_clock::now();
     const MeshRefitRuntime& refit = *morph.refit;
@@ -1157,6 +1166,52 @@ std::string mesh_editor_apply_reference_refit(
         if (target.empty()) target = mesh_editor_zero_morph_layer(item.second.size());
         for (std::size_t v = 0; v < target.size(); ++v)
             target[v] = add_vec3(target[v], scale_vec3(item.second[v], mesh_editor_refit_mask_weight(masks, item.first, v)));
+    }
+    if (weights && refit.weight_transfer) {
+        // Weights go to each rigid piece, not each assembly: a chain of studs
+        // that moves as one in the fit must still bend at its joins in motion.
+        std::vector<std::vector<int>> pieces(static_cast<std::size_t>(units));
+        for (std::size_t i = 0; i < count; ++i)
+            if (particle_rows[i].unit >= 0) pieces[static_cast<std::size_t>(particle_rows[i].unit)].push_back(static_cast<int>(i));
+        pieces.erase(std::remove_if(pieces.begin(), pieces.end(), [](const auto& piece) { return piece.empty(); }), pieces.end());
+        // A small closed piece the fit does not hold rigid (a bead, a clasp)
+        // must not bend either, unless the body passes through it (a collar).
+        Vec3 low = driver_points.front(), high = low;
+        for (const auto& point : driver_points) for (int axis = 0; axis < 3; ++axis) {
+            low[axis] = std::min(low[axis], point[axis]);
+            high[axis] = std::max(high[axis], point[axis]);
+        }
+        int up = 0;
+        for (int axis = 1; axis < 3; ++axis) if (high[axis] - low[axis] > high[up] - low[up]) up = axis;
+        for (const auto& faces : surface_faces) {
+            std::map<std::pair<int, int>, int> uses;
+            std::set<int> members;
+            for (const int f : faces) {
+                const auto& corners = garment_faces[static_cast<std::size_t>(f)];
+                for (int c = 0; c < 3; ++c) {
+                    ++uses[std::minmax(corners[c], corners[(c + 1) % 3])];
+                    members.insert(corners[c]);
+                }
+            }
+            if (members.empty() || std::any_of(members.begin(), members.end(),
+                    [&](int i) { return particle_rows[static_cast<std::size_t>(i)].unit >= 0; })
+                || std::any_of(uses.begin(), uses.end(), [](const auto& edge) { return edge.second != 2; }))
+                continue;
+            Vec3 piece_low = start[static_cast<std::size_t>(*members.begin())], piece_high = piece_low;
+            for (const int i : members) for (int axis = 0; axis < 3; ++axis) {
+                piece_low[axis] = std::min(piece_low[axis], start[static_cast<std::size_t>(i)][axis]);
+                piece_high[axis] = std::max(piece_high[axis], start[static_cast<std::size_t>(i)][axis]);
+            }
+            bool band = true;
+            for (int axis = 0; axis < 3; ++axis) {
+                const double centre = (low[axis] + high[axis]) / 2.0;
+                if (axis != up && (centre < piece_low[axis] || centre > piece_high[axis])) band = false;
+            }
+            if (band || length_vec3(sub_vec3(piece_high, piece_low)) > REFIT_REFERENCE_SOLID_SIZE * refit.driver_diagonal) continue;
+            pieces.emplace_back(members.begin(), members.end());
+        }
+        *weights = mesh_editor_refit_transfer_weights(
+            morph, submeshes, driver, authored, particles, start, x, pieces, masks, scale, report);
     }
     std::size_t largest_group = 0;
     for (const auto& group : rigid_groups) largest_group = std::max(largest_group, group.size());

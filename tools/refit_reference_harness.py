@@ -27,10 +27,11 @@ Crossings are also split into rigid-against-cloth and cloth-against-cloth, where
 an island counts as rigid if the fit moved it without changing its shape.
 
 ``--poses`` (archive mode) also skins the fitted outfit and the driver through a
-few limb and torso rotations, the outfit with its own weights and its bones
-matched to the driver's skeleton by name, and scores what motion adds beside the
-outfit posed the same way on its authored body (``tools/refit_reference_poses.py``).
-Fit to body changes positions only, so this is where weights show.
+few limb and torso rotations, the outfit with its weights and its bones matched
+to the driver's skeleton by name, and scores what motion adds beside the outfit
+posed the same way on its authored body (``tools/refit_reference_poses.py``).
+The reference fit gives cloth near the skin the driver's weights, as Fit to body
+does by default; ``--keep-weights`` fits without that, for comparison.
 
 ``--corpus`` fits every outfit in a list (``tools/refit_reference_corpus.json``:
 11002 plus two outfits per PHM, PHW and monster-PHM slot, picked by path hash)
@@ -185,13 +186,14 @@ def _archive_inputs(config: dict, dependencies) -> dict:
         meshes[name], appearances[name] = (shown if appearance is not None else mesh), appearance
         indices = tuple(range(offset, offset + len(mesh.submeshes)))
         offset += len(mesh.submeshes)
-        assets.append(ArchiveRefitAsset(entry, SimpleNamespace(original_data=data), indices, role,
+        assets.append(ArchiveRefitAsset(entry, SimpleNamespace(original_data=data, mesh=mesh), indices, role,
                                         SimpleNamespace(archive_dependencies=dependencies), neutral_appearance=appearance))
     body_count = len(meshes["body"].submeshes)
     lookup = find_refit_reference_body(ArchiveRefitContext(tuple(assets)),
                                        tuple(range(body_count, offset)), tuple(range(body_count)))
     reference = lookup.reference
     return {"body": meshes["body"], "outfit": meshes["outfit"], "reference": reference, "reason": lookup.reason,
+            "weights": lookup.weights, "weights_reason": lookup.weights_reason,
             "provenance": {"body": config["body"], "outfit": config["outfit"],
                            "reference": reference.label if reference is not None else None,
                            "appearances": {name: getattr(value, "source", None) for name, value in appearances.items()},
@@ -294,7 +296,10 @@ def fit(inputs: dict, config: dict, method: str) -> dict:
         status, error = "ok", None
         try:
             if method == "reference":
-                _command(session, "morph_set_reference_body", {**payload, "reference_body": reference.payload()})
+                request = {**payload, "reference_body": reference.payload()}
+                if inputs.get("weights") is not None and config.get("body_weights", True):
+                    request["weight_transfer"] = inputs["weights"].payload()
+                _command(session, "morph_set_reference_body", request)
             else:
                 _command(session, "morph_configure_refit", payload)
         except RuntimeError as exc:
@@ -582,6 +587,18 @@ def analyse_poses(run: dict, rig: dict) -> dict:
     )
 
     count = run["body_count"]
+    # Small closed pieces (buckles, plates, blades), whose posed bend shows rigid weights.
+    garment_mesh = run["mesh"].submeshes[count:]
+    offsets = np.cumsum([0] + [len(part.vertices) for part in garment_mesh])
+    driver_points = np.concatenate([np.asarray(p.vertices, float) for p in run["mesh"].submeshes[:count]])
+    limit = .25 * float(np.linalg.norm(driver_points.max(0) - driver_points.min(0)))
+    solids = []
+    for part, groups in enumerate(run["islands"]):
+        before, faces = np.asarray(garment_mesh[part].vertices, float), np.asarray(garment_mesh[part].faces)
+        for group in groups:
+            island_faces = faces[list(group)]
+            if _solid(before, island_faces, limit, driver_points.min(0), driver_points.max(0)):
+                solids.append(np.unique(island_faces) + offsets[part])
     pairings = {
         "fitted": (rig["driver"], run["fitted"].submeshes[:count], rig["body_slots"],
                    run["fitted"].submeshes[count:], rig["outfit_driver_slots"]),
@@ -611,6 +628,7 @@ def analyse_poses(run: dict, rig: dict) -> dict:
                 "added_skin_through": int((skin & ~skin_rest).sum()),
                 "follow_p95_mm": float(np.percentile(follow, 95) * 1000) if len(follow) else 0.0,
                 "follow_max_mm": float(follow.max() * 1000) if len(follow) else 0.0,
+                "solid_bend_mm": max((rigid_residual(garment_rest[v], garment_posed[v]) for v in solids), default=0.0) * 1000,
             }
     return result
 
@@ -688,7 +706,8 @@ def run_corpus(args) -> int:
     args.output.mkdir(parents=True, exist_ok=True)
     results = []
     for outfit in outfits:
-        config = {"body": args.driver, "outfit": outfit, "clearance": 0.1, "tightness": 100.0}
+        config = {"body": args.driver, "outfit": outfit, "clearance": 0.1, "tightness": 100.0,
+                  "body_weights": not args.keep_weights}
         row = {"outfit": outfit, "runs": {}}
         try:
             inputs = _archive_inputs(config, dependencies)
@@ -741,7 +760,8 @@ def run_corpus(args) -> int:
                 name: {label: {"added_inside": int(sum(p[name][label]["added_inside"] for p in posed)),
                                "added_skin_through": int(sum(p[name][label]["added_skin_through"] for p in posed)),
                                "median_follow_p95_mm": float(np.median([p[name][label]["follow_p95_mm"] for p in posed])),
-                               "worst_follow_max_mm": float(max(p[name][label]["follow_max_mm"] for p in posed))}
+                               "worst_follow_max_mm": float(max(p[name][label]["follow_max_mm"] for p in posed)),
+                               "worst_solid_bend_mm": float(max(p[name][label].get("solid_bend_mm", 0.0) for p in posed))}
                        for label in posed[0][name]}
                 for name in posed[0]}
     print(json.dumps(totals, indent=1))
@@ -765,6 +785,8 @@ def main(argv=None) -> int:
     parser.add_argument("--corpus", type=Path,
                         help="JSON list of outfit archive paths, each fitted unmarked onto --driver (needs --game-root)")
     parser.add_argument("--driver", default=PRESETS["11002"]["body"], help="Driver body archive path for --corpus")
+    parser.add_argument("--keep-weights", action="store_true",
+                        help="Fit without giving garments the body's skin weights near the skin")
     parser.add_argument("--poses", action="store_true",
                         help="Also pose body and outfit together and score what motion adds (archive mode)")
     args = parser.parse_args(argv)
@@ -782,6 +804,8 @@ def main(argv=None) -> int:
         config.update(json.loads(args.config.read_text(encoding="utf-8")))
     if not config.get("body") or not config.get("outfit"):
         parser.error("choose a --preset or give a --config naming body and outfit")
+    if args.keep_weights:
+        config["body_weights"] = False
     _require_dev_dependencies(args.render, bool(args.game_root))
     if not mesh_native_core.native_mesh_core_available():
         raise SystemExit("Build the native mesh core first (native/cdmw_mesh_core, Release).")

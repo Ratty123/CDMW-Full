@@ -8,20 +8,23 @@ the same outfit posed the same way on the body it was authored for:
 
 - added inside: garment vertices inside the posed body that were outside at rest;
 - added skin through: body vertices that come through the garment only when posed;
+- solid bend: the worst Kabsch residual of a small closed piece, where its weights bend it;
 - follow error: how far cloth within FOLLOW_REACH of the skin ends up from where
   the body vertices around it would carry it (p95 and max), which is where the
   garment's weights disagree with the body's.
 
-Poses rotate main Biped bones about world axes through their rest joints; the
-character faces -z with +y up and its left at +x. Helper bones (twists, subs,
-muscles) follow their parents rigidly, as no game constraint is evaluated.
+Poses rotate main Biped bones about world axes through their rest joints
+(:mod:`cdmw.modding.mesh_refit_motion`, which Fit also uses with its own, more
+moderate poses). Helper bones (twists, subs, muscles) follow their parents
+rigidly, as no game constraint is evaluated.
 """
 
 from __future__ import annotations
 
 import numpy as np
 
-from cdmw.modding.mesh_refit_reference import bind_matrices, skin_retarget
+from cdmw.modding.mesh_refit_motion import pose_matrices, slot_transforms
+from cdmw.modding.mesh_refit_reference import skin_retarget
 
 FOLLOW_REACH = 0.02
 
@@ -35,51 +38,6 @@ POSES = {
                "Bip01 L Calf": ("x", -100.0), "Bip01 R Calf": ("x", -100.0)},
     "twist_bend": {"Bip01 Spine": ("y", 30.0), "Bip01 Spine1": ("x", -20.0)},
 }
-
-
-def _rotation(axis: str, degrees: float) -> np.ndarray:
-    """3x3 for row vectors (``p @ R``), a right-handed turn about a world axis."""
-    angle = np.radians(degrees)
-    c, s = np.cos(angle), np.sin(angle)
-    column = {"x": [[1, 0, 0], [0, c, -s], [0, s, c]], "y": [[c, 0, s], [0, 1, 0], [-s, 0, c]],
-              "z": [[c, -s, 0], [s, c, 0], [0, 0, 1]]}[axis]
-    return np.asarray(column, dtype=np.float64).T
-
-
-def pose_matrices(skeleton: object, pose: dict[str, tuple[str, float]]) -> np.ndarray:
-    """Per-bone 4x4 row-vector transforms from the rest pose into ``pose``."""
-    bones = tuple(skeleton.bones)
-    binds = bind_matrices(skeleton)
-    local = np.tile(np.eye(4), (len(bones), 1, 1))
-    for index, bone in enumerate(bones):
-        if str(bone.name) in pose:
-            axis, degrees = pose[str(bone.name)]
-            rotation = _rotation(axis, degrees)
-            pivot = binds[index][3, :3]
-            local[index][:3, :3] = rotation
-            local[index][3, :3] = pivot - pivot @ rotation
-    posed = np.full((len(bones), 4, 4), np.nan)
-
-    def resolve(index: int) -> np.ndarray:
-        if not np.isnan(posed[index][0, 0]):
-            return posed[index]
-        parent = int(bones[index].parent_index)
-        # A child's own turn applies first, about its rest joint, then its parents'.
-        posed[index] = local[index] @ (resolve(parent) if 0 <= parent < len(bones) and parent != index else np.eye(4))
-        return posed[index]
-
-    for index in range(len(bones)):
-        resolve(index)
-    return posed
-
-
-def slot_transforms(bone_matrices: np.ndarray, slot_bones) -> np.ndarray:
-    """Palette slot transforms; a slot without a bone (-1) stays at rest."""
-    slots = np.asarray(slot_bones, dtype=np.int64).reshape(-1)
-    transforms = np.tile(np.eye(4), (len(slots), 1, 1))
-    valid = (slots >= 0) & (slots < len(bone_matrices))
-    transforms[valid] = bone_matrices[slots[valid]]
-    return transforms
 
 
 def skin_parts(parts, points, transforms) -> np.ndarray:
