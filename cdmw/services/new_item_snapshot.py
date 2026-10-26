@@ -124,6 +124,9 @@ class NewItemSnapshot:
     _payloads: Dict[str, bytes] = field(default_factory=dict, repr=False)
     _index_maps: Optional[Tuple[Mapping[str, Sequence[ArchiveEntry]], Mapping[str, Sequence[ArchiveEntry]]]] = field(default=None, repr=False)
     _effect_binary_paths: Optional[Tuple[str, ...]] = field(default=None, repr=False)
+    #: extension -> entries, when the snapshot was built over an index that has one; see
+    #: :meth:`entry_paths_with_extensions`
+    _entries_by_extension: Optional[Mapping[str, Sequence[ArchiveEntry]]] = field(default=None, repr=False)
     #: Exact bytes parsed before an optional stock-baseline registry rebase.
     pathc_source_digest: str = ''
 
@@ -168,24 +171,46 @@ class NewItemSnapshot:
     def has_entry(self, path: str) -> bool:
         return str(path or "").replace("\\", "/").strip("/").lower() in self.entries
 
+    def entry_paths_with_extensions(self, extensions: Iterable[str]) -> Tuple[str, ...]:
+        """The normalized paths of every entry whose extension is one of `extensions`.
+
+        Over the resident catalogue, `entries` is a view of the mapped index, and walking
+        its keys decodes every path in the game: about two million, 27 s a pass on
+        2026-10-26. Its extension groups hold the same paths for one extension, and the
+        `.pac`, `.pab` and `.xml` groups together list in a twentieth of a second.
+        """
+
+        wanted = tuple(dict.fromkeys(str(value).lower() for value in extensions))
+        by_extension = self._entries_by_extension
+        if not by_extension:
+            return tuple(path for path in self.entries if path.endswith(wanted))
+        sources = self.sources
+        return tuple(dict.fromkeys(
+            str(entry.path).replace("\\", "/").strip("/").lower()
+            for extension in wanted
+            for entry in by_extension.get(extension, ())
+            if sources is None or sources.accepts(entry)
+        ))
+
     def archive_index_maps(self) -> Tuple[Mapping[str, Sequence[ArchiveEntry]], Mapping[str, Sequence[ArchiveEntry]]]:
         """The whole listing the way the archive workflows index it: by normalized path
         and by basename, each to the entries that answer. The texture resolver walks these
         (a weapon's textures sit under `character/texture/`, not beside its mesh), so
         they cover every entry. A snapshot opened from Archive Browser retains its
-        published indexes; direct/headless callers build them once on first use (a second
-        or two over a full install). A race between two fallback builders only builds them
-        twice."""
+        published indexes. Direct/headless callers group the names once on first use and
+        look each entry up only when it is asked for: a request's private view
+        (`_snapshot_view`) copies an entry on lookup, and building the maps from every
+        entry copied all two million of them, 9.4 s per independent-package request on
+        2026-10-26. A race between two fallback builders only builds them twice."""
 
         cached = self._index_maps
         if cached is not None:
             return cached
-        by_path: Dict[str, Tuple[ArchiveEntry, ...]] = {}
-        grouped: Dict[str, List[ArchiveEntry]] = {}
-        for key, entry in self.entries.items():
-            by_path[key] = (entry,)
-            grouped.setdefault(key.rsplit("/", 1)[-1], []).append(entry)
-        maps = (by_path, {name: tuple(items) for name, items in grouped.items()})
+        entries = self.entries
+        paths_by_name: Dict[str, List[str]] = {}
+        for key in entries:
+            paths_by_name.setdefault(key.rsplit("/", 1)[-1], []).append(key)
+        maps = (_PathGroups(entries), _BasenameGroups(entries, paths_by_name))
         self._index_maps = maps
         return maps
 
@@ -352,6 +377,48 @@ class NewItemSnapshot:
                 ranges[key] = (len(ordered), ordered[0], median_value, ordered[-1])
             self._status_ranges = ranges
         return self._status_ranges
+
+
+class _PathGroups(Mapping[str, Sequence[ArchiveEntry]]):
+    """`{path: (entry,)}` over a snapshot's entries, answered on lookup."""
+
+    __slots__ = ("_entries",)
+
+    def __init__(self, entries: Mapping[str, ArchiveEntry]):
+        self._entries = entries
+
+    def __getitem__(self, key: str) -> Tuple[ArchiveEntry, ...]:
+        return (self._entries[key],)
+
+    def __contains__(self, key: object) -> bool:
+        return key in self._entries
+
+    def __iter__(self):
+        return iter(self._entries)
+
+    def __len__(self) -> int:
+        return len(self._entries)
+
+
+class _BasenameGroups(Mapping[str, Sequence[ArchiveEntry]]):
+    """`{basename: entries}` from the grouped names; each entry is looked up on use."""
+
+    __slots__ = ("_entries", "_paths")
+
+    def __init__(self, entries: Mapping[str, ArchiveEntry], paths_by_name: Mapping[str, Sequence[str]]):
+        self._entries, self._paths = entries, paths_by_name
+
+    def __getitem__(self, name: str) -> Tuple[ArchiveEntry, ...]:
+        return tuple(self._entries[path] for path in self._paths[name])
+
+    def __contains__(self, name: object) -> bool:
+        return name in self._paths
+
+    def __iter__(self):
+        return iter(self._paths)
+
+    def __len__(self) -> int:
+        return len(self._paths)
 
 
 def _entry_moved_on_disk(entry: ArchiveEntry) -> str:
@@ -642,6 +709,7 @@ def build_snapshot(
         pathc_source_digest=pathc_source_digest,
         effect_stems=effect_stems,
         _effect_binary_paths=tuple(sorted(effect_paths)),
+        _entries_by_extension=entries_by_extension or None,
         _item_display_names=item_display_names,
         _item_localized_names=item_localized_names,
         _index_maps=(entries_by_normalized_path, entries_by_basename)

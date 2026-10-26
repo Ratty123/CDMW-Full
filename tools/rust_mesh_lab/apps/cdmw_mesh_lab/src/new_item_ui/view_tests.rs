@@ -1882,3 +1882,37 @@ fn crop_dialog_shows_its_actions_at_large_font_size() {
         );
     }
 }
+
+#[test]
+fn label_contents_margins_inset_the_text_from_its_pane_edge() {
+    let mut split = control("split", "split", "", json!({"horizontal":true,"sizes":[650,380]}));
+    let mut panel = control("panel", "column", "", json!({}));
+    panel.children = vec![
+        control("view", "viewport", "", json!({})),
+        control("status", "label", "", json!({"text":"Preparing the placement preview","wrap":true,
+            "margins":[6,3,6,3]})),
+    ];
+    split.children = vec![panel, control("inspector", "label", "", json!({"text":"Inspector"}))];
+    let state = state(split);
+    let context = egui::Context::default();
+    context.set_pixels_per_point(1.5);
+    let mut view = PresentationView::default();
+    apply_theme(&context, &state.theme);
+    let mut shapes = Vec::new();
+    for _ in 0..3 {
+        let mut output = context.run_ui(egui::RawInput {
+            screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(1200.0, 800.0))),
+            ..Default::default()
+        }, |ui| view.draw(ui, &state));
+        output.textures_delta.clear();
+        shapes = output.shapes;
+    }
+    let portal = view.portals[0].rect;
+    let (clip, text) = shapes.iter().find_map(|shape| match &shape.shape {
+        egui::epaint::Shape::Text(text) if text.galley.job.text.starts_with("Preparing") => Some((shape.clip_rect, text)),
+        _ => None,
+    }).unwrap();
+    assert!((text.pos.x - (portal[0] + 6.0)).abs() < 0.5, "text {:?}, viewport {portal:?}", text.pos);
+    assert!(text.pos.x - clip.min.x >= 5.5, "text {:?} clip {clip:?}", text.pos);
+    assert!(text.pos.y >= portal[1] + portal[3] + 2.5, "the top margin is kept: {:?}", text.pos);
+}

@@ -76,7 +76,8 @@ def load_behavior_index(snapshot, *, stop_event=None):
             if identity not in seen[name]: observed[name].append(value); seen[name].add(identity)
             collect_text(value)
     choices['stringinfo'] = tuple(sorted(snapshot.stringinfo_texts.items()))
-    choices['texture'] = tuple((path,path) for path in sorted(snapshot.entries) if path.endswith('.dds'))
+    # The .dds listing, not a sort of every resident entry (79 s on 2026-10-26).
+    choices['texture'] = tuple((path,path) for path in sorted(snapshot.entry_paths_with_extensions(('.dds',))))
     result = BehaviorIndex(choices,observed,tuple(sorted(set(unavailable))),localizations)
     raise_if_cancelled(stop_event)
     snapshot._authoring_indexes['item-behavior'] = result

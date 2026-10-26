@@ -9026,7 +9026,7 @@
         },
         {
           "path": "cdmw/ui/new_item/effect_placement_guided.py",
-          "line": 260,
+          "line": 263,
           "sink": "QLabel"
         },
         {
@@ -9076,7 +9076,7 @@
         },
         {
           "path": "cdmw/ui/new_item/effect_placement_guided.py",
-          "line": 132,
+          "line": 135,
           "sink": "QPushButton"
         }
       ]
@@ -16266,7 +16266,7 @@
         },
         {
           "path": "cdmw/ui/new_item/effect_placement_guided.py",
-          "line": 304,
+          "line": 307,
           "sink": "QLabel"
         }
       ]
@@ -17296,7 +17296,7 @@
         },
         {
           "path": "cdmw/ui/new_item/effect_placement_guided.py",
-          "line": 310,
+          "line": 313,
           "sink": "addItem"
         },
         {
@@ -18586,7 +18586,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_guided.py",
-          "line": 344,
+          "line": 347,
           "sink": "_add_guided_look_row"
         },
         {
@@ -23626,7 +23626,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_guided.py",
-          "line": 263,
+          "line": 266,
           "sink": "addItem"
         },
         {
@@ -24156,7 +24156,7 @@
         },
         {
           "path": "cdmw/ui/new_item/effect_placement_guided.py",
-          "line": 318,
+          "line": 321,
           "sink": "setText"
         },
         {
@@ -27786,7 +27786,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_guided.py",
-          "line": 331,
+          "line": 334,
           "sink": "QPushButton"
         }
       ]
@@ -31321,7 +31321,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_guided.py",
-          "line": 327,
+          "line": 330,
           "sink": "QCheckBox"
         }
       ]
@@ -38141,7 +38141,7 @@
         },
         {
           "path": "cdmw/ui/new_item/effect_placement_guided.py",
-          "line": 309,
+          "line": 312,
           "sink": "addItem"
         }
       ]
@@ -41051,7 +41051,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_guided.py",
-          "line": 221,
+          "line": 224,
           "sink": "QPushButton"
         },
         {
@@ -44946,7 +44946,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_guided.py",
-          "line": 432,
+          "line": 435,
           "sink": "getColor"
         },
         {
@@ -45096,7 +45096,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_package.py",
-          "line": 137,
+          "line": 154,
           "sink": "RunCancelled"
         }
       ]
@@ -46131,7 +46131,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_guided.py",
-          "line": 264,
+          "line": 267,
           "sink": "addItem"
         },
         {
@@ -53696,7 +53696,7 @@
         },
         {
           "path": "cdmw/ui/new_item/effect_placement_guided.py",
-          "line": 298,
+          "line": 301,
           "sink": "setText"
         },
         {
@@ -53961,7 +53961,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_guided.py",
-          "line": 296,
+          "line": 299,
           "sink": "QLabel"
         }
       ]
@@ -56196,7 +56196,7 @@
         },
         {
           "path": "cdmw/ui/new_item/effect_placement_guided.py",
-          "line": 132,
+          "line": 135,
           "sink": "QPushButton"
         },
         {
@@ -68521,7 +68521,7 @@
       "origins": [
         {
           "path": "cdmw/ui/preview/dotnet_host.py",
-          "line": 739,
+          "line": 763,
           "sink": "ValueError"
         }
       ]
@@ -72366,7 +72366,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_guided.py",
-          "line": 344,
+          "line": 347,
           "sink": "_add_guided_look_row"
         }
       ]
@@ -74521,7 +74521,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_package.py",
-          "line": 256,
+          "line": 274,
           "sink": "setText"
         },
         {
@@ -75041,7 +75041,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_guided.py",
-          "line": 212,
+          "line": 215,
           "sink": "tr"
         }
       ]
@@ -86866,7 +86866,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_guided.py",
-          "line": 308,
+          "line": 311,
           "sink": "addItem"
         }
       ]
@@ -87176,32 +87176,32 @@
         },
         {
           "path": "cdmw/services/new_item_snapshot.py",
-          "line": 461,
+          "line": 485,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/new_item_snapshot.py",
-          "line": 520,
+          "line": 544,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/new_item_snapshot.py",
-          "line": 534,
+          "line": 558,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/new_item_snapshot.py",
-          "line": 543,
+          "line": 567,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/new_item_snapshot.py",
-          "line": 562,
+          "line": 586,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/new_item_snapshot.py",
-          "line": 599,
+          "line": 623,
           "sink": "raise_if_cancelled"
         },
         {
@@ -91436,7 +91436,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_guided.py",
-          "line": 217,
+          "line": 220,
           "sink": "QLabel"
         },
         {
@@ -96336,17 +96336,17 @@
         },
         {
           "path": "cdmw/services/effect_character_reference.py",
-          "line": 671,
+          "line": 684,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/effect_character_reference.py",
-          "line": 674,
+          "line": 687,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/effect_character_reference.py",
-          "line": 676,
+          "line": 689,
           "sink": "raise_if_cancelled"
         },
         {
@@ -96941,7 +96941,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_guided.py",
-          "line": 262,
+          "line": 265,
           "sink": "addItem"
         }
       ]
@@ -100901,7 +100901,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_guided.py",
-          "line": 344,
+          "line": 347,
           "sink": "_add_guided_look_row"
         }
       ]
@@ -103301,12 +103301,12 @@
         },
         {
           "path": "cdmw/ui/new_item/effect_placement_guided.py",
-          "line": 169,
+          "line": 172,
           "sink": "tr"
         },
         {
           "path": "cdmw/ui/new_item/effect_placement_guided.py",
-          "line": 173,
+          "line": 176,
           "sink": "setText"
         },
         {
@@ -103856,7 +103856,7 @@
       "origins": [
         {
           "path": "cdmw/services/effect_character_reference.py",
-          "line": 731,
+          "line": 744,
           "sink": "python-return:held_character_from_snapshot"
         }
       ]
@@ -103866,7 +103866,7 @@
       "origins": [
         {
           "path": "cdmw/services/effect_character_reference.py",
-          "line": 725,
+          "line": 738,
           "sink": "python-return:held_character_from_snapshot"
         }
       ]
@@ -103876,7 +103876,7 @@
       "origins": [
         {
           "path": "cdmw/services/effect_character_reference.py",
-          "line": 727,
+          "line": 740,
           "sink": "python-return:held_character_from_snapshot"
         }
       ]
@@ -104601,7 +104601,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_guided.py",
-          "line": 256,
+          "line": 259,
           "sink": "_add_guided_axis_row"
         },
         {
@@ -106607,21 +106607,21 @@
       ]
     },
     {
+      "key": "Preparing the item, the character and the effect for the viewport…",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/effect_placement_package.py",
+          "line": 122,
+          "sink": "python-return:_preparation_message"
+        }
+      ]
+    },
+    {
       "key": "Preparing the new editor scene. Your current scene remains open…",
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/hair_setup_dialog.py",
           "line": 182,
-          "sink": "setText"
-        }
-      ]
-    },
-    {
-      "key": "Preparing the placement preview…",
-      "origins": [
-        {
-          "path": "cdmw/ui/new_item/effect_placement_package.py",
-          "line": 192,
           "sink": "setText"
         }
       ]
@@ -109071,7 +109071,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_guided.py",
-          "line": 189,
+          "line": 192,
           "sink": "setText"
         }
       ]
@@ -109976,7 +109976,7 @@
       "origins": [
         {
           "path": "cdmw/ui/preview/dotnet_host.py",
-          "line": 744,
+          "line": 768,
           "sink": "ValueError"
         }
       ]
@@ -113051,7 +113051,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_snapshot.py",
-          "line": 521,
+          "line": 545,
           "sink": "_log_progress"
         }
       ]
@@ -113061,7 +113061,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_snapshot.py",
-          "line": 544,
+          "line": 568,
           "sink": "_log_progress"
         }
       ]
@@ -113071,7 +113071,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_snapshot.py",
-          "line": 535,
+          "line": 559,
           "sink": "_log_progress"
         }
       ]
@@ -113436,7 +113436,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_snapshot.py",
-          "line": 563,
+          "line": 587,
           "sink": "_log_progress"
         }
       ]
@@ -113566,7 +113566,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_snapshot.py",
-          "line": 611,
+          "line": 635,
           "sink": "_log_progress"
         }
       ]
@@ -122726,7 +122726,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_guided.py",
-          "line": 351,
+          "line": 354,
           "sink": "QPushButton"
         }
       ]
@@ -123861,7 +123861,7 @@
         },
         {
           "path": "cdmw/ui/preview/dotnet_host.py",
-          "line": 195,
+          "line": 207,
           "sink": "QPushButton"
         }
       ]
@@ -123891,7 +123891,7 @@
       "origins": [
         {
           "path": "cdmw/ui/preview/dotnet_host.py",
-          "line": 179,
+          "line": 191,
           "sink": "QPushButton"
         }
       ]
@@ -124026,7 +124026,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_guided.py",
-          "line": 222,
+          "line": 225,
           "sink": "setToolTip"
         }
       ]
@@ -125661,7 +125661,7 @@
         },
         {
           "path": "cdmw/ui/new_item/effect_placement_guided.py",
-          "line": 257,
+          "line": 260,
           "sink": "_add_guided_axis_row"
         },
         {
@@ -127726,7 +127726,7 @@
         },
         {
           "path": "cdmw/ui/new_item/effect_placement_guided.py",
-          "line": 249,
+          "line": 252,
           "sink": "QLabel"
         },
         {
@@ -130881,7 +130881,7 @@
       "origins": [
         {
           "path": "cdmw/ui/preview/dotnet_host.py",
-          "line": 173,
+          "line": 177,
           "sink": "QLabel"
         },
         {
@@ -135441,7 +135441,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_guided.py",
-          "line": 268,
+          "line": 271,
           "sink": "setToolTip"
         }
       ]
@@ -136881,7 +136881,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_guided.py",
-          "line": 293,
+          "line": 296,
           "sink": "setText"
         }
       ]
@@ -136956,7 +136956,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_guided.py",
-          "line": 291,
+          "line": 294,
           "sink": "setText"
         }
       ]
@@ -138096,7 +138096,7 @@
         },
         {
           "path": "cdmw/ui/new_item/effect_placement_guided.py",
-          "line": 132,
+          "line": 135,
           "sink": "QPushButton"
         }
       ]
@@ -139711,7 +139711,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_snapshot.py",
-          "line": 664,
+          "line": 689,
           "sink": "_log_progress"
         }
       ]
@@ -141611,7 +141611,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_guided.py",
-          "line": 344,
+          "line": 347,
           "sink": "_add_guided_look_row"
         }
       ]
@@ -141907,7 +141907,7 @@
       ]
     },
     {
-      "key": "Sprite particles ignore unused mesh references, so missing mesh files do not hide them. Mesh particles retain their geometry. Ribbon trails and moving emitter paths are not fully simulated. Parent-driven particles stay off when their carrier's spawn count is zero.",
+      "key": "Sprite particles ignore unused mesh references, so missing mesh files do not hide them. Mesh particles retain their geometry. Ribbon trails and moving emitter paths are not fully simulated. Parent-driven particles stay off when their carrier's spawn count is zero. Particles with infinite life, such as the flame in Torch 4, stay in the preview where their authored life ends; how the game moves them after that is not decoded.",
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
@@ -148986,7 +148986,7 @@
       "origins": [
         {
           "path": "cdmw/services/effect_character_reference.py",
-          "line": 651,
+          "line": 664,
           "sink": "python-return:character_reference_from_snapshot"
         }
       ]
@@ -149331,12 +149331,12 @@
       "origins": [
         {
           "path": "cdmw/services/effect_character_reference.py",
-          "line": 649,
+          "line": 662,
           "sink": "python-return:character_reference_from_snapshot"
         },
         {
           "path": "cdmw/services/effect_character_reference.py",
-          "line": 722,
+          "line": 735,
           "sink": "python-return:held_character_from_snapshot"
         }
       ]
@@ -150477,6 +150477,16 @@
       ]
     },
     {
+      "key": "The item's model could not be read for the placement preview.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/effect_placement_package.py",
+          "line": 226,
+          "sink": "_show_preparation"
+        }
+      ]
+    },
+    {
       "key": "The item's own price list, per money item; the shop's asking price is this plus the embedded perks' prices, before the level prices above.",
       "origins": [
         {
@@ -151396,8 +151406,8 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_package.py",
-          "line": 298,
-          "sink": "setText"
+          "line": 316,
+          "sink": "_show_preparation"
         }
       ]
     },
@@ -151821,7 +151831,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_package.py",
-          "line": 263,
+          "line": 281,
           "sink": "setText"
         }
       ]
@@ -153076,7 +153086,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_snapshot.py",
-          "line": 617,
+          "line": 641,
           "sink": "_log_progress"
         }
       ]
@@ -155231,7 +155241,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_package.py",
-          "line": 349,
+          "line": 367,
           "sink": "setText"
         }
       ]
@@ -156226,7 +156236,7 @@
         },
         {
           "path": "cdmw/ui/new_item/effect_placement_guided.py",
-          "line": 132,
+          "line": 135,
           "sink": "QPushButton"
         },
         {
@@ -160276,8 +160286,8 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_package.py",
-          "line": 116,
-          "sink": "setText"
+          "line": 123,
+          "sink": "python-return:_preparation_message"
         }
       ]
     },
@@ -172156,7 +172166,7 @@
         },
         {
           "path": "cdmw/ui/new_item/effect_placement_guided.py",
-          "line": 263,
+          "line": 266,
           "sink": "addItem"
         },
         {
@@ -174976,7 +174986,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_guided.py",
-          "line": 264,
+          "line": 267,
           "sink": "addItem"
         },
         {
@@ -182856,7 +182866,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_guided.py",
-          "line": 262,
+          "line": 265,
           "sink": "addItem"
         }
       ]
@@ -183836,7 +183846,7 @@
       "origins": [
         {
           "path": "cdmw/ui/preview/dotnet_host_protocol.py",
-          "line": 367,
+          "line": 378,
           "sink": "emit"
         },
         {
@@ -192766,7 +192776,7 @@
       "origins": [
         {
           "path": "cdmw/ui/preview/dotnet_host.py",
-          "line": 539,
+          "line": 563,
           "sink": "setText"
         }
       ]
@@ -195826,7 +195836,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_package.py",
-          "line": 349,
+          "line": 367,
           "sink": "setText"
         }
       ]

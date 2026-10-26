@@ -298,6 +298,9 @@ class PresentationDocument:
             props.update(text=text, links=links, bold=widget.font().bold(), wrap=widget.wordWrap(),
                          image=self.image(widget.pixmap()), align=int(widget.alignment()),
                          spans=self._format_text(widget.text(), rich_spans) if widget.textFormat() != Qt.PlainText else [])
+            margins = widget.contentsMargins()
+            if not margins.isNull():
+                props["margins"] = [margins.left(), margins.top(), margins.right(), margins.bottom()]
             if node['name'] == 'mod_management_status':
                 props['management_warning'] = bool(widget.property('modManagementWarning'))
         elif isinstance(widget, QProgressBar):

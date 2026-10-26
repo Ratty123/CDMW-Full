@@ -1358,6 +1358,22 @@ and fresh DXC output matched the analysed instructions; the two package PAMTs
 stayed unchanged. The earlier corpus recheck covered 7,083 payloads and three
 PAMTs; whole PAZ hashes were not calculated.
 
+Infinite-life particles after their authored life remain an open question
+(read-only census of the installed resources, 2026-10-26). Of 7,007 PAE/PAEM
+files, `_isInfiniteParticle` is set on 1,585 spawn records: 181 also set
+`_useCureveRepeat`, 416 clear it and 988 omit it. The decoded rules above cover
+curve progress (it clamps without the repeat flags) and retained slots for native
+surface births; neither establishes whether position keeps integrating force once
+the authored life has ended. Torch 4 (`fx_fire_torch_a__torch4`) shows the
+consequence: its flame is 16 sprites with a 0.32 s life, 2.5 m/s² lift and no
+curve repeat, so integrating forever carried it out of the preview within a
+second. Its `fx_seq_fire_tiny_08a_emi_4pack` flipbook is a seamless loop; every
+one of the 32 cells in each channel holds a full flame (5–9% mean coverage, no
+fade-out cell). The preview now holds such particles at their end-of-life
+position. That is a preview choice checked by a CPU replay of the real
+descriptor, not a pixel capture or an in-game observation; how the game keeps a
+torch flame alive is not yet decoded.
+
 Native path preparation, baking and host handoff, reviewed 2026-10-24 against
 CDMW Effects source baseline `0b5fca04` and the same installed 1.0.0.2976
 executable (full SHA-256

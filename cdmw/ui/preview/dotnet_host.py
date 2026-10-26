@@ -16,6 +16,7 @@ from PySide6.QtWidgets import (
     QFrame,
     QHBoxLayout,
     QLabel,
+    QProgressBar,
     QPushButton,
     QVBoxLayout,
     QWidget,
@@ -147,6 +148,9 @@ class RustPreviewHostFrame(DotNetPreviewHostLifecycleMixin, DotNetPreviewHostPro
             },
         }
         self._scene_state: dict[str, object] = {}
+        #: (message, busy) a caller asked to hold over the helper's idle states; see
+        #: `show_preparation_status`
+        self._held_preparation: tuple[str, bool] | None = None
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
@@ -174,6 +178,14 @@ class RustPreviewHostFrame(DotNetPreviewHostLifecycleMixin, DotNetPreviewHostPro
         self._status_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self._status_label.setWordWrap(True)
         status_layout.addWidget(self._status_label)
+        # Indeterminate: the work behind a preparing viewport reports no fraction.
+        self._busy_bar = QProgressBar(self._status_panel)
+        self._busy_bar.setObjectName("DotNetPreviewBusyBar")
+        self._busy_bar.setRange(0, 0)
+        self._busy_bar.setTextVisible(False)
+        self._busy_bar.setFixedWidth(240)
+        self._busy_bar.setVisible(False)
+        status_layout.addWidget(self._busy_bar, alignment=Qt.AlignmentFlag.AlignHCenter)
         retry_row = QHBoxLayout()
         retry_row.addStretch(1)
         self._retry_button = QPushButton("Retry now", self._status_panel)
@@ -277,9 +289,18 @@ class RustPreviewHostFrame(DotNetPreviewHostLifecycleMixin, DotNetPreviewHostPro
             reembed(hwnd)
         self._request_child_geometry_sync(force_frame_refresh=True)
 
-    def show_preparation_status(self, message: str) -> None:
-        """Show caller-side work before a package exists, retaining a resident scene."""
-        self._handle_controller_state('preparing', str(message))
+    def show_preparation_status(self, message: str, *, hold: bool = False, busy: bool = True) -> None:
+        """Show caller-side work before a package exists, retaining a resident scene.
+
+        With ``hold`` the message stays until the caller loads a package or clears
+        the preview. The helper's own idle states ("Select a model…", "ready for a
+        model") describe a viewport with nothing on the way, which reads as broken
+        while the caller is still building what it will show. ``busy=False`` keeps
+        a failure on screen without the activity bar.
+        """
+        message = str(message)
+        self._held_preparation = (message, bool(busy)) if hold else None
+        self._handle_controller_state('preparing' if busy else 'prepared', message)
 
     def load_package(
         self,
@@ -295,6 +316,8 @@ class RustPreviewHostFrame(DotNetPreviewHostLifecycleMixin, DotNetPreviewHostPro
             if isinstance(package_dir, RustPreviewPackage)
             else Path(package_dir)
         )
+        # The helper reports this load's progress from here on.
+        self._held_preparation = None
         self._load_scene_state(package_path)
         loaded = self.controller.load_package(
             package_dir,
@@ -355,6 +378,7 @@ class RustPreviewHostFrame(DotNetPreviewHostLifecycleMixin, DotNetPreviewHostPro
 
     def clear_preview(self, status_file: Optional[Path] = None) -> bool:
         del status_file
+        self._held_preparation = None
         return self.controller.clear_preview()
 
     def view_state_snapshot(self) -> dict[str, object]:

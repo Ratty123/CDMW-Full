@@ -2227,3 +2227,33 @@ def test_preview_host_preserves_zero_degree_renderer_camera(tmp_path: Path) -> N
     assert state["yaw"] == 0.0
     assert state["pitch"] == 0.0
     controller.shutdown()
+
+
+def test_a_held_preparation_message_replaces_idle_states_until_a_package_loads() -> None:
+    controller = _own(DotNetPreviewSessionController(host_hwnd=lambda: 0))
+    host = DotNetPreviewHostFrame(profile="preview", controller=controller)
+    try:
+        preparing = "Preparing the item, the character and the effect for the viewport…"
+        host.show_preparation_status(preparing, hold=True)
+        for state, message in (("empty", "Select a model to open Preview."), ("prewarmed", "Preview is ready for a model.")):
+            controller.state_changed.emit(state, message)
+            assert host._status_label.text() == preparing
+            assert not host._status_panel.isHidden() and not host._busy_bar.isHidden()
+        controller.state_changed.emit("package_error", "The package was rejected.")
+        assert host._status_label.text() == "The package was rejected."
+        host.show_preparation_status("The placement preview could not be built.", hold=True, busy=False)
+        controller.state_changed.emit("empty", "Select a model to open Preview.")
+        assert host._status_label.text() == "The placement preview could not be built."
+        assert not host._status_panel.isHidden() and host._busy_bar.isHidden()
+        with patch.object(controller, "load_package", return_value=True):
+            assert host.load_package(Path("placement-package"))
+        controller.state_changed.emit("preparing", "Preview is loading the selected model…")
+        assert host._status_label.text() == "Preview is loading the selected model…"
+        assert not host._busy_bar.isHidden()
+        # Without hold a caller's message is the old one-shot notice.
+        host.show_preparation_status("Preparing the selected model and textures…")
+        controller.state_changed.emit("empty", "Select a model to open Preview.")
+        assert host._status_label.text() == "Select a model to open Preview."
+        assert host._busy_bar.isHidden()
+    finally:
+        controller.shutdown()

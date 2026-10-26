@@ -10,6 +10,12 @@ from PySide6.QtGui import QImage
 
 from cdmw.ui.preview.dotnet_host_values import _indices, _triple
 
+#: Helper states that say nothing about content a caller is still building, so a held
+#: preparation message (`show_preparation_status(hold=True)`) is shown in their place.
+_HELD_OVER_STATES = frozenset({"empty", "prewarmed", "launching", "connecting", "resuming", "preparing", "ready"})
+#: States with work under way; the status panel shows its activity bar for these.
+_BUSY_STATES = frozenset({"preparing", "launching", "connecting", "resuming"})
+
 
 class DotNetPreviewHostProtocolMixin:
     def _remember_embedded_child_window(self, payload: Mapping[str, object]) -> None:
@@ -165,9 +171,13 @@ class DotNetPreviewHostProtocolMixin:
         self._scene_generation = int(self._scene_state.get("scene_generation", 0) or 0)
 
     def _handle_controller_state(self, state: str, message: str) -> None:
+        held = self._held_preparation
+        if held is not None and state in _HELD_OVER_STATES:
+            message, busy = held
+            state = "preparing" if busy else "prepared"
         self._status_label.setText(str(message))
         has_resident_scene = bool(self.controller.applied_package_path)
-        resident_notice = state == "package_error" or (state == "preparing" and has_resident_scene)
+        resident_notice = state == "package_error" or (state in {"preparing", "prepared"} and has_resident_scene)
         self._resident_banner_label.setText(str(message))
         self._resident_retry_button.setVisible(state == "package_error")
         self._resident_banner.setVisible(resident_notice)
@@ -176,6 +186,7 @@ class DotNetPreviewHostProtocolMixin:
         retrying = state in {"retrying", "error"}
         self._retry_button.setVisible(retrying)
         show_status_panel = state != "ready" and not resident_notice
+        self._busy_bar.setVisible(show_status_panel and state in _BUSY_STATES)
         self._status_panel.setVisible(show_status_panel)
         if show_status_panel:
             self._status_panel.raise_()

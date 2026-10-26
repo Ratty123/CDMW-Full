@@ -497,14 +497,20 @@ pub(crate) fn effect_emitter_particles(
             };
             let acceleration = effect_force(emitter, seed);
             let initial_velocity = effect_range(emitter.get("velocity"), seed + 11.1, Vec3::ZERO);
+            // Without curve repeat an infinite particle's curves stop at the end of
+            // its authored life. Its motion is held there too: nothing decoded
+            // continues the drift, and continuing it carried shipped torch flames
+            // (16 sprites, 0.32 s life, 2.5 m/s^2 lift) out of frame within a second.
+            let held = infinite_life && !repeat_curves && age > life;
             let (local_center, velocity) = limited_particle_kinematics(
                 origin,
                 initial_velocity,
                 acceleration,
                 damping,
-                age,
+                if held { life } else { age },
                 speed_limit,
             );
+            let velocity = if held { Vec3::ZERO } else { velocity };
             let center = model_matrix.transform_point3(local_center);
             let alpha = curve_sample(emitter.get("alpha_over_life"), progress, 1.0).clamp(0.0, 1.0);
             if alpha <= 0.001 {
@@ -1021,6 +1027,21 @@ mod tests {
         assert_eq!(p.len(), 1);
         assert_eq!(p[0].center, [5., 0., 0.]);
         assert_eq!(p[0].colour[3], 1.);
+    }
+    #[test]
+    fn infinite_particles_without_curve_repeat_hold_their_end_of_life_pose() {
+        let mut e = emitter();
+        e["infinite_life"] = json!(true);
+        e["life"] = json!([0.32, 0.32]);
+        e["force"] = json!([[0., 2.5, 0.], [0., 2.5, 0.]]);
+        let rising = draw(&e, 0.2);
+        assert!((rising[0].center[1] - 0.05).abs() < 1.0e-5, "{:?}", rising[0].center);
+        // 2.5 m/s^2 for the 0.32 s life is 0.128 m, and the flame stays there.
+        for time in [0.32, 5., 60.] {
+            let p = draw(&e, time);
+            assert_eq!(p.len(), 1, "t={time}");
+            assert!((p[0].center[1] - 0.128).abs() < 1.0e-5, "t={time}: {:?}", p[0].center);
+        }
     }
 
     #[test]

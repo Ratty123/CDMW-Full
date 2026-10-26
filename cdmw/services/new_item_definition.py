@@ -149,9 +149,10 @@ def resolve_map_icon(snapshot, key, *, stop_event=None):
     if not name or stringinfo_key(name) != key:
         raise RecordError('Map icon has no qualified StringInfo binding.')
     bindings, total, files = [], 0, 0
-    for path in snapshot.entries:
+    # The .xml listing, not every resident entry (36 s a key on 2026-10-26).
+    for path in snapshot.entry_paths_with_extensions(('.xml',)):
         raise_if_cancelled(stop_event)
-        if not path.startswith('ui/xml/texture/') or not path.endswith('.xml'):
+        if not path.startswith('ui/xml/texture/'):
             continue
         files += 1
         if files > 2048:
