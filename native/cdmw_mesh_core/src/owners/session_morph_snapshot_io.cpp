@@ -98,7 +98,7 @@ void mesh_editor_validate_morph_snapshot_document(
 ) {
     if (document.type != JsonValue::Type::Object
         || mesh_editor_snapshot_string(document, "schema") != MESH_EDITOR_MORPH_RUNTIME_SNAPSHOT_SCHEMA
-        || mesh_editor_snapshot_integer(document, "version", 1) > 4
+        || mesh_editor_snapshot_integer(document, "version", 1) > 5
         || mesh_editor_snapshot_string(document, "snapshot_id") != expected_snapshot_id
         || mesh_editor_snapshot_string(document, "source_session_id").empty()) {
         throw std::runtime_error("morph runtime snapshot identity does not match");
@@ -162,7 +162,8 @@ std::string mesh_editor_morph_snapshot_create_session_report(
     std::ostringstream document_stream;
     document_stream << "{\"schema\":";
     write_escaped(document_stream, MESH_EDITOR_MORPH_RUNTIME_SNAPSHOT_SCHEMA);
-    const int snapshot_version = session.morph && session.morph->refit && !session.morph->refit->excluded_faces.empty() ? 4
+    const int snapshot_version = session.morph && session.morph->refit && session.morph->refit->reference_body ? 5
+        : session.morph && session.morph->refit && !session.morph->refit->excluded_faces.empty() ? 4
         : session.morph && session.morph->refit
         && std::any_of(session.morph->refit->garment_settings.begin(),session.morph->refit->garment_settings.end(),
             [](const auto& item) { return !item.second.island_settings.empty(); }) ? 3 : 2;

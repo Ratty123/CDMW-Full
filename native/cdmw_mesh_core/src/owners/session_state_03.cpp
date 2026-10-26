@@ -585,6 +585,13 @@ std::size_t mesh_editor_refit_runtime_bytes(const MeshRefitRuntime& refit) {
     }
     for (const auto& row : refit.excluded_faces)
         retained += sizeof(row) + 3*sizeof(void*) + row.second.size()*(sizeof(int) + 3*sizeof(void*));
+    if (refit.reference_body) {
+        // Shared between history entries; counted with each holder as an upper bound.
+        const auto& reference = *refit.reference_body;
+        retained += sizeof(reference) + reference.label.capacity()
+            + (reference.source_positions.capacity() + reference.fitted_positions.capacity()) * sizeof(Vec3)
+            + reference.faces.capacity() * sizeof(std::array<int, 3>);
+    }
     for (const auto& garment : refit.garment_regions) {
         retained += sizeof(garment) + 3 * sizeof(void*);
         for (const auto& region : garment.second) {

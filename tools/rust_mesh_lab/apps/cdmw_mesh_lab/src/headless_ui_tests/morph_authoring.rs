@@ -253,6 +253,31 @@ fn garment_fit_choices_use_the_single_scoped_editor_and_preserve_skip() -> TestR
 }
 
 #[test]
+fn fit_to_body_uses_the_authored_body_unless_turned_off_and_names_it() -> TestResult {
+    let mut ui = authoring_ui()?;
+    ui.click("Fit")?;
+    assert!(ui.label_rect("Authored body: cd_phm_00_nude_00_0001.pac").is_none());
+    ui.click("Use the authored body")?;
+    assert!(!ui.application.cdmw_refit_use_reference_body);
+    assert_eq!(command_arguments(&ui.actions_from_click("Fit all enabled garments")?, "refit_fit_to_body"),
+        json!({"reference_body": false}));
+    ui.click("Use the authored body")?;
+    assert_eq!(command_arguments(&ui.actions_from_click("Fit all enabled garments")?, "refit_fit_to_body"), json!({}));
+    ui.click("Take weights from the body")?;
+    assert!(!ui.application.cdmw_refit_use_body_weights);
+    assert_eq!(command_arguments(&ui.actions_from_click("Fit all enabled garments")?, "refit_fit_to_body"),
+        json!({"body_weights": false}));
+    ui.click("Take weights from the body")?;
+    ui.application.cdmw_state["morph_refit"]["refit"]["reference_body"] = json!({
+        "label": "character/model/1_pc/1_phm/nude/cd_phm_00_nude_00_0001.pac",
+        "vertex_count": 13162, "face_count": 24014, "last_fit": [],
+    });
+    ui.frame(Vec::new());
+    ui.reveal("Authored body: cd_phm_00_nude_00_0001.pac")?;
+    Ok(())
+}
+
+#[test]
 fn island_fit_controls_inherit_retarget_and_dispatch_only_changed_fields() -> TestResult {
     let mut ui = authoring_ui()?;
     let faces = ui.application.mesh.as_ref().ok_or("mesh")?.faces().filter_map(|(_, face)| {

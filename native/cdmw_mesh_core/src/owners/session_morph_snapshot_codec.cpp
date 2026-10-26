@@ -150,6 +150,14 @@ void mesh_editor_write_snapshot_refit(std::ostream& out, const MeshMorphRuntime&
         << ",\"candidate_triangle_tests\":" << refit.candidate_triangle_tests;
     mesh_editor_write_refit_constraints(out, refit);
     mesh_editor_write_refit_exclusions(out, refit);
+    if (refit.reference_body) {
+        out << ",\"reference_body\":";
+        mesh_editor_write_refit_reference(out, *refit.reference_body);
+    }
+    if (refit.weight_transfer) {
+        out << ",\"weight_transfer\":";
+        mesh_editor_write_refit_weight_transfer(out, *refit.weight_transfer);
+    }
     out << '}';
 }
 
@@ -202,6 +210,7 @@ std::string mesh_editor_morph_runtime_snapshot_payload(const MeshEditorSession& 
     mesh_editor_write_morph_index_set(out, morph.driver_submesh_indices);
     out << ",\"refit\":";
     mesh_editor_write_snapshot_refit(out, morph);
+    mesh_editor_write_snapshot_neutral_bones(out, morph);
     out << ",\"unbaked\":" << (morph.unbaked ? "true" : "false")
         << ",\"state_revision\":" << morph.state_revision
         << ",\"change_id\":";
@@ -365,8 +374,10 @@ std::shared_ptr<const MeshRefitRuntime> mesh_editor_refit_from_snapshot(
         }
     }
     restore_refit_driver_baselines(raw_refit, submeshes, refit);
-    if (version >= 4) mesh_editor_read_refit_exclusions(*refit,&mesh_editor_snapshot_required_member(
-        *raw_refit,"excluded_faces",JsonValue::Type::Array),submeshes);
+    // Version 4 exists only for exclusions; version 5 (a reference body) may have none.
+    if (version == 4 || (version >= 5 && raw_refit->get("excluded_faces")))
+        mesh_editor_read_refit_exclusions(*refit,&mesh_editor_snapshot_required_member(
+            *raw_refit,"excluded_faces",JsonValue::Type::Array),submeshes);
     else if (raw_refit->get("excluded_faces"))
         throw std::runtime_error("Fitting output exclusions require runtime snapshot version 4");
     refit_read_vertex_masks_native(*refit, raw_refit->get("vertex_masks"), submeshes, refit->garment_submesh_indices);
@@ -487,6 +498,14 @@ std::shared_ptr<const MeshRefitRuntime> mesh_editor_refit_from_snapshot(
             || !refit->garment_settings.emplace(submesh_index, std::move(settings)).second) {
             throw std::runtime_error("morph runtime snapshot has invalid garment settings");
         }
+    }
+    if (const auto* reference = raw_refit->get("reference_body")) {
+        if (version < 5) throw std::runtime_error("Fit reference bodies require runtime snapshot version 5");
+        refit->reference_body = mesh_editor_refit_reference_from_json(*reference);
+    }
+    if (const auto* transfer = raw_refit->get("weight_transfer")) {
+        if (!refit->reference_body) throw std::runtime_error("morph runtime snapshot has weights without a reference body");
+        refit->weight_transfer = mesh_editor_refit_weight_transfer_from_json(*transfer, submeshes, *refit);
     }
     refit->driver_diagonal = mesh_editor_snapshot_number(*raw_refit, "driver_diagonal");
     refit->maximum_distance = mesh_editor_snapshot_number(*raw_refit, "maximum_distance");
@@ -613,6 +632,7 @@ std::shared_ptr<MeshMorphRuntime> mesh_editor_morph_runtime_from_snapshot(
     runtime->refit = mesh_editor_refit_from_snapshot(
         raw_runtime.get("refit"), submeshes, runtime->driver_submesh_indices, version
     );
+    mesh_editor_read_snapshot_neutral_bones(raw_runtime.get("neutral_bones"), submeshes, *runtime);
     if (runtime->refit) for (const auto& item : runtime->refit->garment_settings) {
         auto topology = submeshes.at(item.first);
         const auto neutral = runtime->neutral_positions.find(item.first);

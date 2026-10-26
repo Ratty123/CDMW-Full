@@ -23,6 +23,7 @@ from cdmw.domain.mesh import (
     MeshRefitDriverRegion,
     MeshRefitGarmentSettings,
     MeshRefitIslandSettings,
+    MeshRefitReferenceBodySummary,
     build_weighted_morph_selection,
     clamp_morph_value,
     generate_morph_fields,
@@ -30,6 +31,7 @@ from cdmw.domain.mesh import (
     mesh_morph_driver_topology_fingerprint,
     procedural_morph_pivot,
 )
+from cdmw.domain.mesh.authoring_capability import MeshOutputPolicy
 from cdmw.domain.mesh.operations import mesh_edit_operations_from_dicts
 from cdmw.modding.mesh_native_core import (
     _native_preview_delta_output_dir,
@@ -43,7 +45,7 @@ from cdmw.modding.mesh_native_core import (
     open_native_mesh_editor_session,
     restore_native_mesh_editor_morph_runtime_snapshot,
 )
-from cdmw.modding.mesh_parser import ParsedMesh
+from cdmw.modding.mesh_parser import PAC_SKIN_WEIGHT_LAYOUT, ParsedMesh
 from cdmw.services.mesh_morph_profiles import (
     delete_mesh_morph_preset,
     delete_mesh_morph_profile,
@@ -674,6 +676,11 @@ class MeshMorphServiceMixin(MeshMorphLayerMixin, MeshMorphAuthoringMixin, MeshMo
                     "enabled", "intensity_percent", "mode", "clearance_percent", "tightness_percent",
                 ) if key in params},
             )[0]
+        if action == "morph_set_reference_body":
+            reference = params.get("reference_body")
+            if reference is None:
+                return self.clear_refit_reference_body(session.session_id)[0]
+            return self.fit_refit_to_reference_body(session.session_id, reference)[0]
         if action == "morph_clear_refit":
             return self.clear_refit(session.session_id)[0]
         if action == "morph_reset":
@@ -1678,30 +1685,119 @@ class MeshMorphServiceMixin(MeshMorphLayerMixin, MeshMorphAuthoringMixin, MeshMo
             )
             return self._morph_result_and_state_locked(session, "morph_configure_refit", report)
 
-    def fit_refit_to_body(self, session_id: str) -> tuple[MeshEditResult, MeshMorphState]:
-        """Fit enabled garments in one transaction using the resident Part settings."""
+    def fit_refit_to_body(
+        self, session_id: str, *, reference_body: bool = True, body_weights: bool = True,
+    ) -> tuple[MeshEditResult, MeshMorphState]:
+        """Fit enabled garments in one transaction using the resident Part settings.
+
+        With ``reference_body`` the fit also uses the body the garments were
+        authored on, when the session's archive Refit assets name one (see
+        :mod:`cdmw.services.mesh_refit_reference_lookup`). Otherwise it fits to
+        the driver alone and, for archive assets, says why. With
+        ``body_weights`` that fit also gives garment vertices near the body the
+        body's skin weights (:mod:`cdmw.services.mesh_refit_weights`), where the
+        exact PAC writer can store them.
+        """
+        from cdmw.services.mesh_refit_reference_lookup import RefitReferenceLookup, find_refit_reference_body
+
         session = self._session(session_id)
         with session.export_lock:
-            report = self._run_morph_query_locked(session, "morph_state")
-            state = self._morph_state_from_report_locked(session, report, refresh_presets=False)
-            def fit_settings(item):
-                if not item.enabled:
-                    return item
-                return replace(item,
-                    tightness_percent=item.tightness_percent if item.tightness_initialized or item.mode == "rigid" else 100.,
-                    tightness_initialized=True,
-                    clearance_percent=max(0.1, item.clearance_percent))
-            settings = tuple(
-                replace(fit_settings(item), island_settings=tuple(fit_settings(island) for island in item.island_settings))
-                for item in state.refit.garment_settings if item.enabled or any(island.enabled for island in item.island_settings)
-            )
-            if not settings:
-                raise ValueError("Enable and bind a garment before fitting it to the body.")
+            state = self._morph_state_from_report_locked(
+                session, self._run_morph_query_locked(session, "morph_state"), refresh_presets=False)
+            settings = _fit_to_body_settings(state)
+            lookup = RefitReferenceLookup(None)
+            if reference_body:
+                lookup = find_refit_reference_body(
+                    session.archive_refit_context, state.refit.garment_submesh_indices,
+                    state.refit.driver_submesh_indices,
+                )
+            if lookup.reference is not None or (not reference_body and state.refit.reference_body is not None):
+                weights, kept = None, []
+                if lookup.reference is not None and body_weights:
+                    weights, kept = _refit_weights_for_session(session, lookup)
+                return self._fit_reference_body_locked(session, settings, lookup.reference, weights=weights, notes=kept)
             report = self._run_morph_command_locked(
                 session, "morph_configure_refit", _refit_settings_batch_payload(settings, include_masks=False),
                 history_label="Fit to body", record_history=True,
             )
+            if lookup.reason and session.archive_refit_context is not None and state.refit.reference_body is None:
+                report = {**report, "diagnostics": [
+                    *tuple(report.get("diagnostics") or ()), f"Fit to body used only the current body: {lookup.reason}.",
+                ]}
             return self._morph_result_and_state_locked(session, "morph_configure_refit", report)
+
+    def fit_refit_to_reference_body(
+        self, session_id: str, reference: object,
+    ) -> tuple[MeshEditResult, MeshMorphState]:
+        """Fit enabled garments using the body they were authored on, as one undoable Fit.
+
+        ``reference`` is a :class:`~cdmw.modding.mesh_refit_reference.RefitReferenceBody`
+        (or its native payload): the authored body and the same vertices
+        retargeted into the driver's bind pose. ``None`` fits to the driver
+        alone. The Part settings get the same Fit defaults as
+        :meth:`fit_refit_to_body`.
+        """
+        payload = reference.payload() if callable(getattr(reference, "payload", None)) else reference
+        if payload is not None and not isinstance(payload, Mapping):
+            raise ValueError("Fit to body requires a reference body.")
+        session = self._session(session_id)
+        with session.export_lock:
+            state = self._morph_state_from_report_locked(
+                session, self._run_morph_query_locked(session, "morph_state"), refresh_presets=False)
+            return self._fit_reference_body_locked(session, _fit_to_body_settings(state), payload)
+
+    def clear_refit_reference_body(self, session_id: str) -> tuple[MeshEditResult, MeshMorphState]:
+        """Return the fit to the bound fitter, which uses only the driver body."""
+        return self._simple_morph_command(
+            session_id, "morph_set_reference_body", {"reference_body": None}, "Clear reference body", True,
+        )
+
+    def _fit_reference_body_locked(
+        self, session, settings, reference, *, weights=None, notes=(),
+    ) -> tuple[MeshEditResult, MeshMorphState]:
+        payload = reference.payload() if callable(getattr(reference, "payload", None)) else reference
+        request = dict(_refit_settings_batch_payload(settings, include_masks=False))
+        request["reference_body"] = None if payload is None else dict(payload)
+        if payload is not None and weights is not None:
+            request["weight_transfer"] = weights.payload()
+        report = self._run_morph_command_locked(
+            session, "morph_set_reference_body", request, history_label="Fit to body", record_history=True,
+        )
+        if weights is not None:
+            self._record_refit_weights_locked(session, weights)
+        if notes:
+            report = {**report, "diagnostics": [*tuple(report.get("diagnostics") or ()), *notes]}
+        return self._morph_result_and_state_locked(session, "morph_set_reference_body", report)
+
+    def _record_refit_weights_locked(self, session, weights) -> None:
+        """Admit the Fit's new skin rows to the exact PAC writer, Part by Part."""
+        state = self._run_morph_query_locked(session, "morph_state")
+        raw = state.get("morph_state") if isinstance(state.get("morph_state"), Mapping) else state
+        reference = ((raw.get("refit") or {}).get("reference_body") or {}) if isinstance(raw, Mapping) else {}
+        last_fit = reference.get("last_fit") if isinstance(reference, Mapping) else None
+        changed = (last_fit.get("weights") or {}).get("changed_parts") if isinstance(last_fit, Mapping) else None
+        if _indices(changed):
+            # New rows live only in the resident session until it is read back;
+            # a Fit that moved no vertex must still be read back before export.
+            session.native_editor_mesh_dirty = True
+            if not session.native_editor_mesh_dirty_counts:
+                session.native_editor_mesh_dirty_counts = tuple(
+                    (len(part.vertices), len(part.faces)) for part in session.working_mesh.submeshes)
+        operations = list(session.edit_operations)
+        recorded = {(row.operation, row.lod_index, row.submesh_index)
+                    for row in mesh_edit_operations_from_dicts(operations)}
+        for part in sorted(_indices(changed)):
+            if part not in weights.palette_sizes or ("replace_skin_weights_same_count", 0, part) in recorded:
+                continue
+            operations.append({
+                "operation": "replace_skin_weights_same_count", "lod_index": 0, "submesh_index": part,
+                "vertex_count": len(weights.capacities[part]),
+                "source": "resident_native", "created_by": "CDMW Morph & Refit",
+                "metadata": {"contract": "cdmw_exact_pac_skin_weights_v1", "layout": PAC_SKIN_WEIGHT_LAYOUT,
+                             "vertex_stride": 40, "palette_size": weights.palette_sizes[part],
+                             "service_action": "morph_set_reference_body"},
+            })
+        session.edit_operations = tuple(operations)
 
     def refit_diagnostics(
         self,
@@ -2313,6 +2409,7 @@ class MeshMorphServiceMixin(MeshMorphLayerMixin, MeshMorphAuthoringMixin, MeshMo
                 candidate_triangle_tests=int(refit.get("candidate_triangle_tests", 0) or 0),
                 garment_settings=tuple(sorted(garment_settings, key=lambda item: item.submesh_index)),
                 garment_regions=tuple(sorted(garment_regions)),
+                reference_body=_refit_reference_body_from_report(refit.get("reference_body")),
             ),
             unbaked=bool(raw_state.get("unbaked")),
             topology_blocked=bool(raw_state.get("topology_blocked")),
@@ -2330,6 +2427,50 @@ class MeshMorphServiceMixin(MeshMorphLayerMixin, MeshMorphAuthoringMixin, MeshMo
             **self._refit_shape_restore_state_fields_locked(session),
             **self._matching_refit_setup_state_fields_locked(session, data, raw_state),
         )
+
+
+def _fit_to_body_settings(state: MeshMorphState) -> tuple[MeshRefitGarmentSettings, ...]:
+    """Enabled Part settings with Fit's defaults: fresh setups fit at 100% Tightness, 0.1% Clearance at least."""
+    def fit_settings(item):
+        if not item.enabled:
+            return item
+        return replace(item,
+            tightness_percent=item.tightness_percent if item.tightness_initialized or item.mode == "rigid" else 100.,
+            tightness_initialized=True,
+            clearance_percent=max(0.1, item.clearance_percent))
+    settings = tuple(
+        replace(fit_settings(item), island_settings=tuple(fit_settings(island) for island in item.island_settings))
+        for item in state.refit.garment_settings if item.enabled or any(island.enabled for island in item.island_settings)
+    )
+    if not settings:
+        raise ValueError("Enable and bind a garment before fitting it to the body.")
+    return settings
+
+
+def _refit_weights_for_session(session, lookup) -> tuple[object | None, list[str]]:
+    """The lookup's body weights where this session's output can store them, and notes on what keeps its own."""
+    if (str(getattr(session, "output_policy", "") or "") != MeshOutputPolicy.EXACT_GAME_ASSET.value
+            or int(getattr(session, "lod_index", 0) or 0) != 0):
+        return None, ["Fit kept the garments' own skin weights: only exact PAC LOD 0 output can store new ones."]
+    if lookup.weights is None:
+        return None, [f"Fit kept the garments' own skin weights: {lookup.weights_reason}."] if lookup.weights_reason else []
+    kept = tuple(lookup.weights.kept)
+    return lookup.weights, [f"Fit kept the own skin weights of some Parts: {'; '.join(kept)}."] if kept else []
+
+
+def _refit_reference_body_from_report(raw: object) -> MeshRefitReferenceBodySummary | None:
+    if not isinstance(raw, Mapping):
+        return None
+    last_fit = raw.get("last_fit")
+    return MeshRefitReferenceBodySummary(
+        label=str(raw.get("label") or ""),
+        vertex_count=int(raw.get("vertex_count", 0) or 0),
+        face_count=int(raw.get("face_count", 0) or 0),
+        last_fit=tuple(sorted(
+            (str(key), value) for key, value in last_fit.items()
+            if isinstance(value, (str, int, float, bool))
+        )) if isinstance(last_fit, Mapping) else (),
+    )
 
 
 def _indices(values: object) -> tuple[int, ...]:

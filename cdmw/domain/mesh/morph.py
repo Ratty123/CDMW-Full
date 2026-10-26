@@ -393,6 +393,17 @@ class MeshRefitDriverRegion:
 
 
 @dataclass(frozen=True, slots=True)
+class MeshRefitReferenceBodySummary:
+    """The body a fitted garment was authored on, as the native session reports it."""
+
+    label: str = ""
+    vertex_count: int = 0
+    face_count: int = 0
+    # Diagnostics of the latest reference fit as sorted (name, value) pairs.
+    last_fit: tuple[tuple[str, object], ...] = ()
+
+
+@dataclass(frozen=True, slots=True)
 class MeshRefitBindingSummary:
     driver_submesh_indices: tuple[int, ...] = ()
     garment_submesh_indices: tuple[int, ...] = ()
@@ -405,6 +416,7 @@ class MeshRefitBindingSummary:
     candidate_triangle_tests: int = 0
     garment_settings: tuple[MeshRefitGarmentSettings, ...] = ()
     garment_regions: tuple[tuple[int, tuple[MeshRefitDriverRegion, ...]], ...] = ()
+    reference_body: MeshRefitReferenceBodySummary | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -910,6 +922,7 @@ __all__ = [
     "MeshRefitGarmentSettings",
     "MeshRefitIslandSettings",
     "MeshRefitDriverRegion",
+    "MeshRefitReferenceBodySummary",
     "MeshMorphFittingRecipe",
     "build_weighted_morph_selection",
     "clamp_morph_value",

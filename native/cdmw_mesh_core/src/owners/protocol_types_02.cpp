@@ -101,6 +101,34 @@ struct MeshRefitGarmentSettingsRuntime {
     std::vector<MeshRefitIslandSettingsRuntime> island_settings;
 };
 
+// The body a garment was authored on, given in two poses of one topology: as
+// authored, and retargeted by the caller into the driver's bind space. Only the
+// reference-body fitter reads it; it is immutable and shared through history.
+struct MeshRefitReferenceBodyRuntime {
+    std::string label;
+    std::vector<Vec3> source_positions;
+    std::vector<Vec3> fitted_positions;
+    std::vector<std::array<int, 3>> faces;
+};
+
+// Skin weights a Fit to reference body hands from the driver to garment
+// vertices near it. Bones are the driver skeleton's; each garment Part maps
+// them onto slots of its own PAC palette (the caller resolves names and
+// nearest ancestors), so a palette never grows. Capacities are per vertex:
+// six influences, or four on cloth-simulated records.
+struct MeshRefitWeightTransferRuntime {
+    std::map<int, std::vector<int>> driver_bones;   // driver Part: palette slot -> driver bone, or -1
+    std::map<int, std::vector<int>> garment_slots;  // garment Part: driver bone -> palette slot, or -1
+    std::map<int, std::vector<int>> capacities;     // garment Part: vertex -> influence capacity
+    // How far each authored body vertex and each garment vertex move in a few
+    // test poses of the garments' own skeleton, as authored, flattened as
+    // (vertex, pose, axis). Cloth that stays behind the skin beneath it there
+    // was made not to follow that skin.
+    std::size_t motion_poses = 0;
+    std::vector<double> reference_motion;
+    std::map<int, std::vector<double>> garment_motion;
+};
+
 struct MeshRefitRuntime {
     // Evaluation-only domain boundaries. Persisted overrides own their source faces.
     std::set<int> independent_island_parts;
@@ -129,6 +157,11 @@ struct MeshRefitRuntime {
     bool distance_warning = false;
     long long driver_triangle_count = 0;
     long long candidate_triangle_tests = 0;
+    // Present only after Fit to reference body. Garments are then transferred
+    // from this body onto the driver instead of following their bindings.
+    std::shared_ptr<const MeshRefitReferenceBodyRuntime> reference_body;
+    // Present only while that Fit also takes skin weights from the driver.
+    std::shared_ptr<const MeshRefitWeightTransferRuntime> weight_transfer;
 };
 
 struct MeshMorphRuntime {
@@ -143,6 +176,9 @@ struct MeshMorphRuntime {
     // Authored smoothing boundaries must survive a preview that temporarily
     // flattens a hard edge. Share the immutable reference through preview history.
     std::map<int, std::shared_ptr<const std::vector<Vec3>>> neutral_normals;
+    // Garment skin rows from before a weight-transferring Fit, restored when
+    // the transfer ends (Reset, a plain Fit) and dropped by Bake.
+    std::map<int, std::shared_ptr<const BoneAssignments>> neutral_bones;
     std::set<int> driver_submesh_indices;
     std::shared_ptr<const MeshRefitRuntime> refit;
     bool unbaked = false;
@@ -204,6 +240,8 @@ struct MeshEditorSession {
     int stroke_revision = 0;
     long long morph_state_revision = 0;
     std::shared_ptr<MeshMorphRuntime> morph = std::make_shared<MeshMorphRuntime>();
+    // Diagnostics from the latest reference-body fit, reported with morph state.
+    std::string reference_refit_report;
 };
 
 struct MeshEditorApplyState;

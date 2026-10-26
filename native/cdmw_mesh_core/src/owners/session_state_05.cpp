@@ -57,6 +57,9 @@ std::string run_mesh_editor_session(const JsonValue& root) {
     if (command == "morph_configure_refit") {
         return mesh_editor_morph_configure_refit_session_report(root, session_id, session, started);
     }
+    if (command == "morph_set_reference_body") {
+        return mesh_editor_morph_set_reference_body_session_report(root, session_id, session, started);
+    }
     if (command == "morph_restore_shape") {
         return mesh_editor_morph_restore_shape_session_report(root, session_id, session, started);
     }

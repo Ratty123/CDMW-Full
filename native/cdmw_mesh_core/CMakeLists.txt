@@ -50,6 +50,8 @@ set(MESH_CORE_OWNER_SOURCES
     src/owners/session_refit_conform.cpp
     src/owners/session_refit_rigid_pose.cpp
     src/owners/session_refit_islands.cpp
+    src/owners/session_refit_reference.cpp
+    src/owners/session_refit_weights.cpp
     src/owners/session_refit_diagnostics.cpp
     src/owners/session_morph_snapshot_codec.cpp
     src/owners/session_morph_snapshot_io.cpp
