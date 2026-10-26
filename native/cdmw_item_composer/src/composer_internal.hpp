@@ -52,6 +52,8 @@ inline bool contains(const Bytes& data, std::string_view needle) {
 
 // archive_format's try_decode_text_like_archive_data(data) is not None.
 bool text_like(const Bytes& data);
+// archive_format._looks_like_structured_binary_payload(extension, data).
+bool structured_binary(const std::string& extension, const Bytes& data);
 
 // Raw DEFLATE that stops once `limit` bytes are out. `complete` is false when the
 // stream had more to give, or ended unfinished exactly at the limit.

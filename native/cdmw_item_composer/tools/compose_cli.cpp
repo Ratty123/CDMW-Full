@@ -346,6 +346,8 @@ int main(int argc, char** argv) {
             write_file(argv[3], answer([&] { return bytes_response(stored_payload(data, flags, argv[5])); }));
         } else if (command == "text-check" && argc == 3) {
             std::cout << (detail::text_like(read_file(argv[2])) ? 1 : 0) << '\n';
+        } else if (command == "structured-check" && argc == 4) {
+            std::cout << (detail::structured_binary(argv[3], read_file(argv[2])) ? 1 : 0) << '\n';
         } else if (command == "pamt" && argc == 4) {
             write_file(argv[3], pamt_listing(read_file(argv[2]), argv[2]));
         } else if (command == "read-archives" && argc >= 5) {

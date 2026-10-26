@@ -118,6 +118,20 @@ def test_plain_text_check(cli):
         assert cli('text-check', data, response=False).strip() == (b'1' if expected else b'0'), data[:60]
 
 
+def test_structured_binary_check(cli):
+    from cdmw.core.archive_format import _looks_like_structured_binary_payload
+    rng = random.Random(21)
+    words = [b'cd_phm_01_sword', b'character/bin__/prefab', b'ab::cd', b'Plain words here', b'x' * 170, b'abc', b'a1b2c3d4e5f6',
+             b'CD_MainWeapon_Sword_R', b'\x00', b'\x01\x02', b'  padded_name  ', b'1234', b'!!!!????', b'ABCDEFGHIJKL']
+    cases = [b'', b'PAR ', b'PARC', b'RIFF\0\0\0\0WAVE', b'\0\0\0\0TAG0\0\0\0\0SDKV', b'DDS ' + bytes(10)]
+    cases += [b''.join(rng.choice(words) for _ in range(rng.randint(0, 40))) for _ in range(300)]
+    cases += [rng.randbytes(rng.randint(0, 20_000)) for _ in range(20)]
+    for data in cases:
+        for extension in ('.pappt', '.dds'):
+            expected = _looks_like_structured_binary_payload(extension, data)
+            assert cli('structured-check', data, extension, response=False).strip() == (b'1' if expected else b'0'), data[:80]
+
+
 # ---- PAMT parsing ------------------------------------------------------------------------
 
 def _files(rng, count):
@@ -294,11 +308,11 @@ def test_unlisted_directories_are_not_mounted(tmp_path):
 def test_shipped_tables_read_like_python(monkeypatch):
     from tools.placement_studio import corpus
     root = corpus.game_root()
-    paths = ['gamedata/binary__/client/bin/storeinfo.pabgb', 'gamedata/binary__/client/bin/storeinfo.pabgh',
-             'gamedata/binary__/client/bin/itemgroupinfo.pabgb', 'gamedata/binary__/client/bin/itemgroupinfo.pabgh',
-             'gamedata/binary__/client/bin/iteminfo.pabgb', 'gamedata/binary__/client/bin/iteminfo.pabgh',
-             'character/bin__/partprefabtable.pappt', 'ui/xml/texture/cd_item_icon.xml',
-             'gamedata/stringtable/binary__/localizationstring_eng.paloc']
+    tables = 'gamedata/binarystaticinfo__/bin/'
+    paths = [tables + name for stem in ('storeinfo', 'itemgroupinfo', 'iteminfo', 'multichangeinfo', 'dropsetinfo')
+             for name in (stem + '.staticinfobody', stem + '.staticinfoheader')]
+    paths += ['character/bin__/partprefabtable.pappt', 'ui/xml/texture/cd_item_icon.xml']
+    paths += [f'gamedata/stringtable/binary__/{language}/item.paloc' for language in ('eng', 'kor', 'jpn', 'ara')]
     expected = _python_effective(root, paths, monkeypatch)
     actual = _native_effective(CLI, root, root / 'meta' / '0.papgt', paths)
     for path, mine, theirs in zip(paths, actual, expected):

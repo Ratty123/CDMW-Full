@@ -567,7 +567,7 @@ def test_shipped_tables_compose_like_python(parity):
         base[body], base[head], layout[stem + '_paths'] = pair.payload, pair.header, (body, head)
     for _package, entry in corpus._iter_archive_entries(root):
         path = corpus.normalize_game_path(entry.path)
-        if (path in (PAPPT, ICONS) or path.endswith('localizationstring_eng.paloc')) and path not in base:
+        if (path in (PAPPT, ICONS) or path.endswith('/eng/item.paloc')) and path not in base:
             base[path] = bytes(read_archive_entry_data(entry)[0])
     base[PATHC] = (root / 'meta/0.pathc').read_bytes()
     paloc = next(path for path in base if path.endswith('.paloc'))

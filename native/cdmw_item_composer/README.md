@@ -37,8 +37,11 @@ And it reads what the game would read before the composition:
   resolver caches included) and folder-range assignment;
 - `read_entry`: `read_archive_entry_data` for the tables, string tables and XML a
   composition touches, decrypting first, then validating the plaintext as Python does
-  (paloc by parsing, everything else by its exact plain-text check, with XML that is
-  flagged encrypted but stored plain kept as is), then decompressing;
+  (paloc by parsing, everything else by its exact plain-text and structured-binary
+  checks, with XML that is flagged encrypted but stored plain kept as is), then
+  decompressing. In game 2.03.02 the part-prefab table and the icon registry are stored
+  ChaCha20 and LZ4, the static-info tables LZ4 only, and item names sit in the
+  per-language `gamedata/stringtable/binary__/<language>/item.paloc`;
 - `MountedArchives`: the groups `meta/0.papgt` lists, in its order, read from
   `<root>/<group>/0.pamt`; the first group holding a path wins. Unlike CDMW's archive
   catalogue, which skips DMM's `dmmsa` and `dmmgen` folders by default, this includes
@@ -76,9 +79,8 @@ this port reproduces exactly, so a caller refuses instead of guessing:
   `str.isdigit` might read as a number;
 - repeated `meta/0.pathc` checksums, which Python's tuple sort may refuse;
 - overlay paths that are not UTF-8;
-- archive entries the composer does not read: DDS, partial PAR containers, encrypted
-  structured binaries whose plaintext is not text, non-ASCII names under ChaCha20, and a
-  mount list that names a directory twice;
+- archive entries the composer does not read: DDS, partial PAR containers, non-ASCII
+  names under ChaCha20, and a mount list that names a directory twice;
 - ZIP64, cp437 member names outside ASCII, bzip2, LZMA and Zstandard members, and a
   DEFLATE member whose stream runs past its directory size or ends unfinished there
   (zipfile truncates at that size, so whether zlib would have flagged the rest depends on
@@ -103,9 +105,11 @@ ctest --test-dir native/cdmw_item_composer/build -C Release --output-on-failure
 ```
 
 These run every case through both implementations and compare the bytes; they skip when
-the CLI is not built. Their `real_game` tests compose two installs over the shipped tables
-and read the shipped tables through the mount list; both need explicit opt-in
-(`-m real_game`).
+the CLI is not built. Their three `real_game` tests read the shipped tables through the
+mount list, merge two installs over them, and compose two packages over the installed
+game; they need explicit opt-in (`-m real_game`) and only read the game folder. On
+2026-10-26 all three passed on game 2.03.02 with DMM's group mounted, the composition
+publishing 11 files (9.3 MB) in one Python and one native pass of 10.4 s together.
 
 `tools/compose_cli.cpp` is a test driver only; the library is meant to be linked into the
 virtual loader, which builds with the same static runtime and warning settings.

@@ -211,6 +211,41 @@ bool text_like(const Bytes& data) {
     return controls <= std::max<std::size_t>(2, visible / 20);
 }
 
+// archive_format._looks_like_structured_binary_payload: known binary magic, or at least
+// three of extract_binary_strings(data, sample_limit=16384, max_strings=10).
+bool structured_binary(const std::string& extension, const Bytes& data) {
+    if (extension == ".dds" && starts_with(data, "DDS ")) return true;
+    if (starts_with(data, "PAR ") || starts_with(data, "PARC")) return true;
+    if (data.size() >= 16 && std::equal(data.begin() + 4, data.begin() + 8, "TAG0") && std::equal(data.begin() + 12, data.begin() + 16, "SDKV")) return true;
+    if (starts_with(data, "RIFF") && data.size() >= 12 && std::equal(data.begin() + 8, data.begin() + 12, "WAVE")) return true;
+    const std::size_t sample = std::min<std::size_t>(data.size(), 16384);
+    std::set<std::string> seen;
+    std::size_t found = 0;
+    for (std::size_t at = 0; at < sample && found < 10;) {
+        // re.finditer(rb"[\x20-\x7E]{4,}"): maximal printable runs of four or more.
+        if (data[at] < 0x20 || data[at] > 0x7E) { ++at; continue; }
+        std::size_t end = at;
+        while (end < sample && data[end] >= 0x20 && data[end] <= 0x7E) ++end;
+        const std::string run(data.begin() + static_cast<std::ptrdiff_t>(at), data.begin() + static_cast<std::ptrdiff_t>(end));
+        at = end;
+        if (run.size() < 4) continue;
+        auto text = strip(run, " ");
+        const auto letters = static_cast<std::size_t>(std::count_if(text.begin(), text.end(), [](char c) { return (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z'); }));
+        if (text.size() < 4 || seen.count(text) || letters == 0) continue;
+        const auto allowed = static_cast<std::size_t>(std::count_if(text.begin(), text.end(), [](char c) {
+            return (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || std::string_view(" _./:-[](){}").find(c) != std::string_view::npos;
+        }));
+        if (allowed * 20 < text.size() * 17) continue;  // allowed / len < 0.85, exactly
+        if (text.size() < 12 && letters < 4) continue;
+        if (text.find('_') == std::string::npos && text.find('/') == std::string::npos && text.find("::") == std::string::npos &&
+            text.find(' ') == std::string::npos && text.size() < 12) continue;
+        if (text.size() > 160) text = text.substr(0, 157) + "...";
+        seen.insert(text);
+        ++found;
+    }
+    return found >= 3;
+}
+
 }  // namespace detail
 
 std::string normalize_game_path(const std::string& path) {
@@ -355,8 +390,7 @@ Bytes read_entry(const ArchiveEntry& entry) {
                     view = &decoded;
                 }
                 if (text_like(*view)) return true;
-                if (structured_extensions.count(extension)) throw Unsupported("the structured-binary decryption check is not ported");
-                return false;
+                return structured_extensions.count(extension) != 0 && structured_binary(extension, *view);
             };
             if (plausible(candidate)) data = std::move(candidate);
             else if (!(xml_like_extensions.count(extension) && plausible(data)))  // a flag that names no cipher

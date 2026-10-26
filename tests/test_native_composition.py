@@ -28,13 +28,14 @@ PATHC = 'meta/0.pathc'
 FLAGS = {STORE[0]: 0x02, STORE[1]: 0x00, GROUP[0]: 0x02, GROUP[1]: 0x00, PALOC: 0x30, PAPPT: 0x02, ICONS: 0x32}
 
 
-def _effective(root, monkeypatch):
+def _effective(root, monkeypatch, *, entries=None):
+    """What the game reads for a path: the first mounted entry, DMM's groups included."""
     from cdmw.core import archive_accelerator
     from cdmw.core.archive_extraction import read_archive_entry_data
     from cdmw.core.archive_format import parse_archive_pamt
     from cdmw.core.archive_scan_cache import discover_pamt_files
     monkeypatch.setattr(archive_accelerator, 'read_archive_entry_data_native', lambda *a, **k: None)
-    first = {}
+    first = {} if entries is None else entries
     for pamt in discover_pamt_files(root, use_default_ignored_folders=False):
         for entry in parse_archive_pamt(pamt):
             first.setdefault(entry.path.replace('\\', '/').strip().strip('/').lower(), entry)
@@ -207,6 +208,63 @@ def test_a_package_with_no_effect_publishes_only_the_mount_list(tmp_path, monkey
                  for path in (*STORE, PATHC)}
     actual = _compare(root, [unchanged], read)
     assert [path for path, _ in actual[1][2]] == ['meta/0.papgt', PATHC] and actual[1][1] == 0
+
+
+@pytest.mark.real_game
+def test_shipped_install_composes_like_python(monkeypatch):
+    """Two packages over the installed game, read-only: native and Python views agree."""
+    import time
+    from cdmw.core.item_icon_registry import add_icon_texture, parse_icon_registry
+    from cdmw.core.itemgroupinfo_table import add_group_members, apply_item_group_row, parse_item_group_table
+    from cdmw.core.paloc_format import LocalizationEntry, add_localization_entries, encode_paloc, parse_paloc
+    from cdmw.core.pappt_format import encode_pappt, insert_part_prefabs, parse_pappt
+    from cdmw.core.pathc_format import encode_pathc, parse_pathc, register_dds
+    from cdmw.core.storeinfo_table import apply_store_row, insert_stock_entry, parse_store_table, store_index
+    from cdmw.core.structured_binary_editor import parse_pabgh_table
+    from tests.test_native_overlay_merge import _append_row
+    from tests.test_pathc_format import ICON_HEADER, dds_payload
+    from tools.new_item_corpus import read_table
+    from tools.placement_studio import corpus
+
+    root = corpus.game_root()
+    entries = {}
+    read = _effective(root, monkeypatch, entries=entries)
+    tables, layout = {}, {}
+    for stem in ('storeinfo', 'itemgroupinfo', 'iteminfo'):
+        pair = read_table(stem)
+        tables[stem] = tuple(corpus.normalize_game_path(entry.path) for entry in (pair.payload_entry, pair.header_entry))
+        layout[stem] = pair.descriptor['layout']
+    paloc = 'gamedata/stringtable/binary__/eng/item.paloc'  # item names in the current per-language layout
+    shared = (*tables['storeinfo'], *tables['itemgroupinfo'], *tables['iteminfo'], paloc, PAPPT, ICONS, PATHC)
+    before = {path: read(path) for path in shared}
+    assert all(value is not None for value in before.values())
+
+    def package(item, stem):
+        after = dict(before)
+        body, head = tables['storeinfo']
+        rows = store_index(parse_store_table(before[body], before[head], layout=layout['storeinfo']))
+        after[body], after[head] = apply_store_row(before[body], before[head], insert_stock_entry(rows['Store_Camp_Equipment'], item))
+        body, head = tables['itemgroupinfo']
+        group = parse_item_group_table(before[body], before[head])[0]
+        after[body], after[head] = apply_item_group_row(before[body], before[head], add_group_members(group, [item]))
+        body, head = tables['iteminfo']
+        donor = parse_pabgh_table(before[head], payload=before[body]).rows[0].key
+        after[body], after[head] = _append_row(before[body], before[head], donor, item)
+        after[paloc] = encode_paloc(add_localization_entries(parse_paloc(before[paloc]), [LocalizationEntry(7, str((item << 32) | 0x70), f'Item {item}')]))
+        prefabs = parse_pappt(before[PAPPT])
+        after[PAPPT] = encode_pappt(insert_part_prefabs(prefabs, [prefabs.records[0].cloned(stem)]))
+        after[PATHC] = encode_pathc(register_dds(parse_pathc(before[PATHC]), f'ui/texture/icon/{stem}.dds', dds_payload(ICON_HEADER), tag=15))
+        after[ICONS] = add_icon_texture(before[ICONS], stem, like=parse_icon_registry(before[ICONS]).textures[0].name)
+        changes = {path: {'before': before[path], 'after': after[path], 'flags': entries[path].flags if path in entries else 0,
+                          'meta': path.startswith('meta/')} for path in shared}
+        changes[f'character/model/{stem}.pac'] = {'before': None, 'after': f'{stem} mesh'.encode() * 500, 'flags': 0x02, 'meta': False}
+        return changes
+
+    alpha, beta = package(1990001, 'cdmw_parity_alpha'), package(1990002, 'cdmw_parity_beta')
+    started = time.perf_counter()
+    actual = _compare(root, [alpha, beta], read, group=overlay_directory_name(root))
+    print(f'shipped composition parity: {actual[1][1]} composed files, {sum(len(data) for _, data in actual[1][2]):,} published bytes, '
+          f'{time.perf_counter() - started:.1f} s for one Python and one native composition')
 
 
 def test_the_free_group_name_matches_cdmws_choice(tmp_path):
