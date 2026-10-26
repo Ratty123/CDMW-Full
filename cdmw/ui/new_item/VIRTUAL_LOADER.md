@@ -878,7 +878,10 @@ separate and open.
    a package format: CDMW does not write them, and packages' own `runtime/` members
    (patch 0004) are still to come. When DMM later rewrote its mount, the next launch
    composed again from the new mount files and the user confirmed the swords were
-   still there. Saving and removal under compose mode remain unverified.
+   still there. After a Steam-verified reinstall without DMM, a plain Steam launch
+   (runtime `9da2ea45`, beside the CrimsonFastLoad and Crimson Live Edit ASIs) composed
+   onto the vanilla mount in 7.15 s and the user found all five swords in a loaded
+   save. Saving and removal under compose mode remain unverified.
 
 Source tests, built native binaries, packaged application, visible game behavior
 and save compatibility are separate evidence classes. The diagnostic observations

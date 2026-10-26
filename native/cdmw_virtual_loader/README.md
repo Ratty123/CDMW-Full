@@ -287,7 +287,12 @@ swords in the inventory of their loaded save. When DMM later rewrote its mount (
 that day), the next launch composed again from the new mount files and the user
 confirmed the swords were still there; the cache also held compositions for two other
 mount states DMM had that day, about 190 MB each, which that runtime did not yet remove.
-Saving under compose mode remains untested.
+After a Steam-verified reinstall without DMM, with only the UAL bootstrap, runtime
+`9da2ea45` and the same five change sets added (beside the CrimsonFastLoad and Crimson
+Live Edit ASIs), a plain Steam launch composed onto the vanilla mount in 7.15 s (ready at
+8.7 s, private group `0041`). The game opened the composed files through the hooks, and
+the user found all five swords in a loaded save. Saving under compose mode remains
+untested.
 
 ## Independent item publication research
 
