@@ -930,7 +930,7 @@ The portable executable exposes the same development commands after
 command; do not combine it with GUI or other application modes. For example:
 
 ```powershell
-.\CrimsonDesertModWorkbench-0.11.0-alpha.24-windows-portable.exe --cditem-device-tests --output "D:\evidence\readiness.json" --game-root "C:\games\Steam\steamapps\common\Crimson Desert" inspect
+.\CrimsonDesertModWorkbench-0.11.0-alpha.25-windows-portable.exe --cditem-device-tests --output "D:\evidence\readiness.json" --game-root "C:\games\Steam\steamapps\common\Crimson Desert" inspect
 ```
 
 The windowed executable requires a new absolute `--output` JSON path in an
