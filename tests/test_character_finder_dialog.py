@@ -559,9 +559,10 @@ def test_archive_controls_wire_finder_in_classic_and_compact_layouts(monkeypatch
     from cdmw.ui.archive_browser.controls_panel import ArchiveControlsPanelMixin
     from cdmw.ui.archive_browser.asset_catalog_dialog import ArchiveAssetCatalogDialogMixin
     from cdmw.ui.archive_browser.command_strip import build_archive_command_strip
+    from cdmw.ui.archive_browser.edited_results import ArchiveEditedResultsMixin
     from cdmw.constants import DEFAULT_UI_THEME
 
-    class Window(ArchiveControlsPanelMixin, ArchiveAssetCatalogDialogMixin, QWidget):
+    class Window(ArchiveControlsPanelMixin, ArchiveAssetCatalogDialogMixin, ArchiveEditedResultsMixin, QWidget):
         def _build_archive_location_controls(self): pass
         def _open_archive_extension_picker(self): pass
         def _canonicalize_archive_extension_filter_control(self): pass
