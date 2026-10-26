@@ -315,6 +315,55 @@ void compose_into(const fs::path& root, const fs::path& cache, const std::vector
     if (!MoveFileExW(staging.c_str(), cache.c_str(), 0)) refuse("Cannot publish the composition", cache);
 }
 
+// A name this runtime gives a cache folder: the 32-digit key, or the key with the
+// staging or retired suffix an interrupted composition leaves.
+bool cache_name(const std::wstring& name) {
+    if (name.size() < 32 || !std::all_of(name.begin(), name.begin() + 32, [](wchar_t c) { return (c >= L'0' && c <= L'9') || (c >= L'a' && c <= L'f'); }))
+        return false;
+    if (name.size() == 32) return true;
+    for (const std::wstring suffix : {L".partial-", L".stale-"}) {
+        const auto digits = 32 + suffix.size();
+        if (name.size() > digits && name.compare(32, suffix.size(), suffix) == 0 &&
+            std::all_of(name.begin() + static_cast<std::ptrdiff_t>(digits), name.end(), [](wchar_t c) { return c >= L'0' && c <= L'9'; }))
+            return true;
+    }
+    return false;
+}
+// Removes a folder bottom-up. Any link inside stops it before that link is touched, so
+// a link planted in the cache can never turn the removal elsewhere; a file in use stops
+// it too, and the next launch tries again.
+bool remove_tree(const fs::path& folder) {
+    std::vector<fs::path> children;
+    std::error_code error;
+    for (const auto& entry : fs::directory_iterator(folder, error)) children.push_back(entry.path());
+    if (error) return false;
+    for (const auto& child : children) {
+        const auto attributes = GetFileAttributesW(child.c_str());
+        if (attributes == INVALID_FILE_ATTRIBUTES || (attributes & FILE_ATTRIBUTE_REPARSE_POINT)) return false;
+        if ((attributes & FILE_ATTRIBUTE_DIRECTORY) ? !remove_tree(child) : !DeleteFileW(child.c_str())) return false;
+    }
+    return RemoveDirectoryW(folder.c_str()) != FALSE;
+}
+// Compositions an earlier mount or change set left behind, beside the one in use. Only
+// folders with this runtime's names are considered and linked folders are skipped;
+// everything else in the cache folder stays.
+size_t prune_caches(const fs::path& caches, const std::string& keep) {
+    const auto current = wide(keep);
+    std::vector<fs::path> folders;
+    std::error_code error;
+    for (const auto& entry : fs::directory_iterator(caches, error)) {
+        const auto name = entry.path().filename().wstring();
+        if (name != current && cache_name(name)) folders.push_back(entry.path());
+    }
+    size_t pruned = 0;
+    for (const auto& folder : folders) {
+        const auto attributes = GetFileAttributesW(folder.c_str());
+        if (attributes == INVALID_FILE_ATTRIBUTES || !(attributes & FILE_ATTRIBUTE_DIRECTORY) || (attributes & FILE_ATTRIBUTE_REPARSE_POINT)) continue;
+        if (remove_tree(folder)) ++pruned;
+    }
+    return pruned;
+}
+
 }  // namespace
 
 bool composition_requested(const fs::path& root) {
@@ -366,6 +415,7 @@ ComposedLaunch prepare_composition(const fs::path& root, const Hash& game) {
         try {
             adopt(cache, *record, launch);
             launch.reused = true;
+            launch.pruned = prune_caches(caches, launch.key);
             return launch;
         } catch (const std::exception&) {
             launch.pins.clear();
@@ -384,6 +434,7 @@ ComposedLaunch prepare_composition(const fs::path& root, const Hash& game) {
     adopt(cache, *record, launch);
     launch.stage_ms = stages;
     launch.compose_ms = compose_ms;
+    launch.pruned = prune_caches(caches, launch.key);
     return launch;
 }
 
@@ -423,7 +474,8 @@ void compose_status(const fs::path& root, const char* state, const ComposedLaunc
             << "\",\"packages\":" << launch.packages << ",\"composed\":" << launch.composed << ",\"compose_ms\":" << launch.compose_ms
             << ",\"stage_ms\":[";
         for (size_t i = 0; i < launch.stage_ms.size(); ++i) out << (i ? "," : "") << static_cast<uint64_t>(launch.stage_ms[i]);
-        out << "],\"worker_thread\":" << launch.worker_thread << ",\"loader_lock\":" << launch.loader_lock << ",\"error\":" << error << ",\"elapsed_ms\":" << elapsed_ms << ",\"detail\":\"" << escape(detail) << "\"}";
+        out << "],\"worker_thread\":" << launch.worker_thread << ",\"loader_lock\":" << launch.loader_lock
+            << ",\"pruned\":" << launch.pruned << ",\"error\":" << error << ",\"elapsed_ms\":" << elapsed_ms << ",\"detail\":\"" << escape(detail) << "\"}";
         out.flush();
     }
     MoveFileExW(temp.c_str(), path.c_str(), MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH);

@@ -22,6 +22,7 @@ struct ComposedLaunch {
     // Startup diagnostics taken before composing (-1 not taken): whether a new thread ran
     // within a second, and whether this thread holds the loader lock.
     int worker_thread = -1, loader_lock = -1;
+    std::size_t pruned = 0;  // earlier compositions removed once this one was in place
 };
 // Composes, or reuses the cache built from the same inputs, and pins everything the
 // mapped files were built from. Throws with the reason on any refusal.
