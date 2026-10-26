@@ -1419,6 +1419,15 @@ source leases last through worker teardown. The preview thread is fully construc
 before it is attached to the resident widget, so child observers cannot resolve an
 incomplete Qt thread wrapper.
 
+Until a package loads, the workspace holds its preparation message in the viewport
+itself (`show_preparation_status(..., hold=True)`), with an activity bar, over the
+host's idle "Select a model to open Preview." text; a failed build stays there without
+the bar. The status line under the viewport is kept for notes and shares the camera
+hint's inset. The reference character and the item's socket frame are found through
+`NewItemSnapshot.entry_paths_with_extensions`, which answers from the resident
+catalogue's extension groups: walking `entries` decodes every archive path, about a
+minute per cold build on the shipped game.
+
 ### Layers and emitters
 
 A single inspector has **Placement**, **Look**, **Layers**, **Emitters** and **Saved**
@@ -1512,7 +1521,11 @@ removed parent curves are not restored by preview or recipe compilation.
 The emitter inspector exposes infinite particle life and repeated lifetime curves
 independently of emitter looping. Infinite particles without an authored opacity curve
 stay visible in the preview instead of receiving an artificial fade-out, including the
-flame in **Torch 1 · Fire BG A**. Authored opacity curves still apply.
+flame in **Torch 1 · Fire BG A**. Authored opacity curves still apply. Without curve
+repeat, an infinite particle also holds its position at the end of its authored life:
+Torch 4's flame (16 sprites, 0.32 s life, 2.5 m/s² lift) otherwise left the frame
+within a second. The game's motion rule after that point is not decoded, so this is a
+preview choice, not game evidence.
 Scalar brightness, including a declared omitted unit
 default on an unpreset emitter, is editable through the checked writer. Export resolves
 effect namespaces from the active game registries and keeps that suffix on edited

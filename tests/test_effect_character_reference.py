@@ -628,6 +628,32 @@ class SnapshotSeamTests(unittest.TestCase):
         self.assertIs(expected, reference)
         self.assertEqual("", said)
 
+    def test_character_lookup_asks_for_its_extensions_instead_of_walking_every_entry(self) -> None:
+        from types import SimpleNamespace
+        from unittest.mock import patch
+        from cdmw.services.effect_character_reference import _snapshot_paths, character_reference_from_snapshot
+
+        class _Entries(dict):
+            # The resident catalogue's view decodes every mapped path on a walk.
+            def keys(self):
+                raise AssertionError("every entry was walked")
+
+            __iter__ = keys
+
+        asked = []
+        rig = "character/model/1_pc/1_phm/phm_01.pab"
+        snapshot = SimpleNamespace(
+            entries=_Entries(), payload=lambda _path: b"",
+            entry_paths_with_extensions=lambda extensions: asked.append(tuple(extensions)) or (rig,),
+            has_entry=lambda path: path == HELD_PREFAB,
+        )
+        with patch("cdmw.services.effect_character_reference.build_character_reference", return_value=None) as build:
+            character_reference_from_snapshot(snapshot)
+        self.assertEqual(asked, [(".pac", ".pab", ".xml")])
+        self.assertEqual(tuple(build.call_args.args[0]), (rig,))
+        # The held frame reads socket files, plus the item's own prefabs that exist.
+        self.assertEqual(_snapshot_paths(snapshot, (".xml",), also=(HELD_PREFAB, "missing.prefab")), (rig, HELD_PREFAB))
+
     def test_a_snapshot_that_will_not_read_is_reported_rather_than_raised(self) -> None:
         from cdmw.services.effect_character_reference import character_reference_from_snapshot
 

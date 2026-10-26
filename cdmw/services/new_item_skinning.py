@@ -139,12 +139,21 @@ def _body_surface(mesh, body_palette, target_palette, *, report=None):
     return donor
 
 
+def _rig_body_paths(snapshot, rig_folder):
+    """The rig's verified body PACs, chosen from the `.pac` listing alone.
+
+    `_body_mesh_paths` keeps only PACs. Walking every entry of the resident catalogue
+    to find them decoded about two million paths: 35 s a call on 2026-10-26.
+    """
+    from cdmw.services.effect_character_reference import _body_mesh_paths, _snapshot_paths
+    prefix = str(rig_folder).casefold() + "/nude/"
+    return _body_mesh_paths((path for path in _snapshot_paths(snapshot, (".pac",)) if path.startswith(prefix)), {},
+                            rig_model=rig_folder.name)
+
+
 def verified_body_surface(snapshot, skeleton, target_palette):
     """The same provenance-backed body as preview, with quantified palette filtering."""
-    from cdmw.services.effect_character_reference import _body_mesh_paths
-    rig_folder = PurePosixPath(skeleton.path).parent
-    prefix = str(rig_folder).casefold() + "/nude/"
-    paths = _body_mesh_paths((path for path in snapshot.entries if path.startswith(prefix)), {}, rig_model=rig_folder.name)
+    paths = _rig_body_paths(snapshot, PurePosixPath(skeleton.path).parent)
     if not paths:
         raise ValueError("No verified character body is available for this target skeleton.")
     body_path = paths[0]
@@ -162,7 +171,6 @@ def rebind_armour_from_body(snapshot, target_path, files, *, stop_event=None):
     Only the in-memory imported PAC changes; the character rig and body stay intact.
     """
     from cdmw.modding.mesh_importer import _build_pac_full_rebuild
-    from cdmw.services.effect_character_reference import _body_mesh_paths
 
     raise_if_cancelled(stop_event, "Armour weight transfer cancelled.")
     by_path, by_basename = snapshot.archive_index_maps()
@@ -179,9 +187,7 @@ def rebind_armour_from_body(snapshot, target_path, files, *, stop_event=None):
     target_palette = resolve_pac_bone_palette(target_data, skeleton)
     if skeleton.parser_mode != "fixed" or skeleton.parse_warning or not target_palette:
         raise ValueError(failure)
-    rig_folder = PurePosixPath(entry.path).parent
-    prefix = str(rig_folder).casefold() + "/nude/"
-    paths = _body_mesh_paths((path for path in snapshot.entries if path.startswith(prefix)), {}, rig_model=rig_folder.name)
+    paths = _rig_body_paths(snapshot, PurePosixPath(entry.path).parent)
     if not paths:
         raise ValueError(failure)
     body_path = paths[0]

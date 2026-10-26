@@ -1,3 +1,4 @@
+from collections.abc import Mapping
 from copy import deepcopy
 from dataclasses import replace
 import struct
@@ -327,3 +328,39 @@ def test_inherited_secondary_description_is_preserved_and_checked_independently(
     body = plan.loose_files[pair.payload_entry.path]; header = plan.loose_files[pair.header_entry.path]
     raw = next(body[start:end] for row,start,end in parse_pabgh_table(header,payload=body).row_spans(len(body)) if row.row_id==plan.spec.item_key)
     assert read_item_layout(raw).data('_itemDesc2') == read_item_layout(snapshot.rows[TEMPLATE].raw).data('_itemDesc2')
+
+
+class UnwalkedEntries(Mapping):
+    """A snapshot listing that answers lookups but refuses to be walked."""
+
+    def __init__(self, entries):
+        self._entries = entries
+
+    def __getitem__(self, key):
+        return self._entries[key]
+
+    def __contains__(self, key):
+        return key in self._entries
+
+    def __len__(self):
+        return len(self._entries)
+
+    def __iter__(self):
+        raise AssertionError('walked every entry')
+
+
+def unwalked(snapshot, entries):
+    """The snapshot with an extension index, as Archive Browser publishes one, and fresh caches."""
+    by_extension = {}
+    for entry in entries:
+        by_extension.setdefault(entry.extension, []).append(entry)
+    return replace(snapshot, entries=UnwalkedEntries(snapshot.entries), _entries_by_extension=by_extension,
+                   _authoring_indexes={})
+
+
+def test_map_icon_lists_registries_by_extension_without_walking_every_entry(tmp_path, definition_game):
+    from cdmw.services.new_item_definition import resolve_map_icon
+    _, snapshot, entries = setup_game(tmp_path)
+    expected = resolve_map_icon(snapshot, stringinfo_key(MAP_NAME))
+    assert expected == (MAP_NAME, MAP_DDS, (MAP_XML,))
+    assert resolve_map_icon(unwalked(snapshot, entries), stringinfo_key(MAP_NAME)) == expected

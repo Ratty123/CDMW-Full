@@ -620,6 +620,19 @@ def hold_the_item(
     )
 
 
+def _snapshot_paths(snapshot, extensions: Tuple[str, ...], *, also: Sequence[str] = ()) -> Iterable[str]:
+    """The snapshot's paths with these extensions, plus those of `also` it holds,
+    without walking every entry.
+
+    Snapshot-shaped callers without the extension lookup keep the full listing.
+    """
+
+    select = getattr(snapshot, "entry_paths_with_extensions", None)
+    if not callable(select):
+        return snapshot.entries.keys()
+    return (*select(extensions), *(path for path in also if snapshot.has_entry(path)))
+
+
 def character_reference_from_snapshot(
     snapshot, *, model_folder: str = "", rig_model: str = "", stop_event=None
 ) -> Tuple[Optional[CharacterReference], str]:
@@ -638,7 +651,7 @@ def character_reference_from_snapshot(
             else character_rig_model(model_folder)
         )
         reference = build_character_reference(
-            snapshot.entries.keys(),
+            _snapshot_paths(snapshot, (".pac", ".pab", ".xml")),
             snapshot.payload,
             rig_model=selected_rig,
             stop_event=stop_event,
@@ -710,7 +723,7 @@ def held_character_from_snapshot(
         if routed_reference.socket != body_socket:
             requested_child_socket = _CHILD_SOCKET
         child, child_socket, held_from, sockets = item_child_frame(
-            snapshot.entries.keys(), checked_read,
+            _snapshot_paths(snapshot, (".xml",), also=prefab_paths), checked_read,
             prefab_paths=prefab_paths, model_folder=model_folder, child_socket=requested_child_socket,
         )
         held = hold_the_item(

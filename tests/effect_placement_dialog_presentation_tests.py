@@ -296,6 +296,36 @@ class _DialogPresentationMixin:
         self.assertIsNotNone(buttons)
         self.assertEqual(buttons.button(QDialogButtonBox.StandardButton.Ok).text(), "Apply")
 
+    def test_the_viewport_itself_says_the_placement_preview_is_being_prepared(self) -> None:
+        """Until a package loads, the resident host shows its own idle text, "Select a
+        model to open Preview.", which read as if nothing were on the way."""
+
+        class _PreparingHost(_Host):
+            def __init__(self, parent=None) -> None:
+                super().__init__(parent)
+                self.preparations = []
+
+            def show_preparation_status(self, message, *, hold=False, busy=True) -> None:
+                self.preparations.append((message, hold, busy))
+
+        workspace = EffectPlacementWorkspace(
+            item_mesh=_blade(), box_min=(-1.0, -1.0, -1.0), box_max=(1.0, 1.0, 1.0), host_factory=_PreparingHost,
+        )
+        self.addCleanup(self._shutdown_workspace, workspace)
+        self.assertEqual(workspace.status.contentsMargins().left(), 6, "aligned with the viewport's camera hint")
+        with patch("cdmw.ui.new_item.effect_placement_dialog.build_effect_placement_package",
+                   side_effect=ValueError("no room")):
+            workspace._start_package()
+            self.assertEqual(workspace.host.preparations[-1],
+                             ("Preparing the item, the character and the effect for the viewport…", True, True))
+            self.assertEqual(workspace.status.text(), "", "the line under the viewport is kept for notes")
+            self._settle(lambda: workspace._thread is None)
+        message, hold, busy = workspace.host.preparations[-1]
+        self.assertIn("could not be built", message)
+        self.assertIn("no room", message)
+        self.assertEqual((hold, busy), (True, False), "a failure stays on screen without the activity bar")
+        self.assertEqual(workspace.status.text(), message)
+
     def test_a_reach_far_larger_than_the_item_starts_hidden(self) -> None:
         dialog = self._dialog()
         self.assertFalse(dialog.show_reach.isChecked())

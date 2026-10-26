@@ -121,6 +121,9 @@ class EffectPlacementGuidedMixin:
         elif self.viewport_missing is not None:
             layout.addWidget(self.viewport_missing, 1)
         self.status.setObjectName("effect_workspace_status")
+        # The viewport's camera hint insets its text by these; the status line
+        # under it keeps the same edge rather than starting on the pane's border.
+        self.status.setContentsMargins(6, 3, 6, 3)
         layout.addWidget(self.status)
         return viewport
 

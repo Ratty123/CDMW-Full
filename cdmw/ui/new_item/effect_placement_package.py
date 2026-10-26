@@ -113,9 +113,26 @@ class EffectPlacementPackageMixin:
             if self._worker is not None:
                 self._worker.stop()
             self._thread.requestInterruption()
-            self.status.setText("Updating the placement preview…")
+            self._show_preparation(self._preparation_message())
             return
         self._launch_package(request)
+
+    def _preparation_message(self) -> str:
+        if self._preview is None:
+            return "Preparing the item, the character and the effect for the viewport…"
+        return "Updating the placement preview…"
+
+    def _show_preparation(self, message: str, *, busy: bool = True) -> None:
+        """Say in the viewport itself what the package lane is doing.
+
+        Until a package is loaded the resident host otherwise shows its own idle text,
+        "Select a model to open Preview.", which reads as if nothing were coming. A
+        failure keeps the line under the viewport as well, where notes are read.
+        """
+        preparing = getattr(self.host, "show_preparation_status", None)
+        if callable(preparing):
+            preparing(message, hold=True, busy=busy)
+        self.status.setText("" if callable(preparing) and busy else message)
 
     def _launch_package(self, request: tuple) -> None:
         if self._closed or int(request[0]) != self._package_generation:
@@ -189,7 +206,7 @@ class EffectPlacementPackageMixin:
         thread.finished.connect(worker.deleteLater)
         thread.finished.connect(self._build_finished, Qt.ConnectionType.QueuedConnection)
         thread.started.connect(worker.run)
-        self.status.setText("Preparing the placement preview…")
+        self._show_preparation(self._preparation_message())
         thread.start()
 
     def _package_ready(self, result: object) -> None:
@@ -206,6 +223,7 @@ class EffectPlacementPackageMixin:
             result, sockets = result
         if result is None and not self._closed and int(generation) == self._package_generation:
             self._content_failed = True
+            self._show_preparation("The item's model could not be read for the placement preview.", busy=False)
             self.item_mesh_ready.emit(None, "")
             return
         if not isinstance(result, EffectPlacementPreview):
@@ -295,7 +313,7 @@ class EffectPlacementPackageMixin:
     def _package_failed(self, message: object) -> None:
         if not self._closed and self._active_package_generation == self._package_generation:
             self._content_failed = True
-            self.status.setText(f"The placement preview could not be built: {message}")
+            self._show_preparation(f"The placement preview could not be built: {message}", busy=False)
 
     def _build_finished(self) -> None:
         thread, worker = self._thread, self._worker

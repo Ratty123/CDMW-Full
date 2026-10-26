@@ -1354,6 +1354,19 @@ impl PresentationView {
     }
 
     fn label(&mut self, ui: &mut Ui, node: &Node) -> egui::Response {
+        let margins = label_margins(node);
+        if margins == egui::Margin::ZERO {
+            return self.label_content(ui, node);
+        }
+        // Qt contents margins: a status line under a native viewport keeps the
+        // viewport hint's inset instead of starting on the pane's clip edge.
+        egui::Frame::NONE
+            .inner_margin(margins)
+            .show(ui, |ui| self.label_content(ui, node))
+            .inner
+    }
+
+    fn label_content(&mut self, ui: &mut Ui, node: &Node) -> egui::Response {
         if let Some(texture) = self.textures.get(node.text("image")) {
             ui.add(
                 egui::Image::new(texture)
@@ -1922,12 +1935,23 @@ fn minimum_width(ui: &Ui, node: &Node) -> f32 {
     }
 }
 
+/// A label's Qt contents margins (left, top, right, bottom), when it has any.
+fn label_margins(node: &Node) -> egui::Margin {
+    let values = node.array("margins");
+    let side = |index: usize| {
+        values.get(index).and_then(Value::as_f64).unwrap_or(0.0).clamp(0.0, 48.0) as i8
+    };
+    egui::Margin { left: side(0), top: side(1), right: side(2), bottom: side(3) }
+}
+
 fn estimate_height(ui: &Ui, node: &Node, width: f32) -> f32 {
     match node.kind.as_str() {
         "label" => {
             if node.text("text").is_empty() { return 0.0; }
+            let margins = label_margins(node);
             ui.painter().layout(node.text("text").to_owned(), TextStyle::Body.resolve(ui.style()),
-                ui.visuals().text_color(), width.max(1.0)).size().y
+                ui.visuals().text_color(), (width - margins.sum().x).max(1.0)).size().y
+                + margins.sum().y
         }
         "steps" => {
             if width < 900.0 {

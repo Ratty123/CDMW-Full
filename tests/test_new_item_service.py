@@ -389,6 +389,39 @@ class SnapshotTests(_PackageCase):
         self.assertEqual(snapshot.model_stems, self.snapshot.model_stems)
         self.assertEqual(snapshot.effect_stems, self.snapshot.effect_stems)
 
+    def test_index_maps_of_a_request_view_copy_only_the_entries_looked_up(self) -> None:
+        from cdmw.services.new_item_service import _snapshot_view
+
+        eager_path: dict[str, tuple] = {}
+        eager_names: dict[str, list] = {}
+        keys_by_name: dict[str, set] = {}
+        for key, entry in self.snapshot.entries.items():
+            eager_path[key] = (entry,)
+            eager_names.setdefault(key.rsplit("/", 1)[-1], []).append(entry)
+            keys_by_name.setdefault(key.rsplit("/", 1)[-1], set()).add(key)
+        by_path, by_basename = self.snapshot.archive_index_maps()
+        self.assertEqual(list(by_path), list(eager_path))
+        self.assertEqual(dict(by_path), eager_path)
+        self.assertEqual({name: list(entries) for name, entries in by_basename.items()}, eager_names)
+        self.assertIs(self.snapshot.archive_index_maps()[0], by_path, "built once per snapshot")
+
+        view = _snapshot_view(self.snapshot)
+        view_path, view_basename = view.archive_index_maps()
+        self.assertEqual(view.entries._issued, {}, "building the maps copied every entry")
+        key = next(iter(eager_path))
+        (entry,) = view_path[key]
+        self.assertIs(entry, view.entries[key])
+        self.assertIsNot(entry, self.snapshot.entries[key])
+        self.assertEqual(entry, self.snapshot.entries[key])
+        self.assertIn(key, view_path)
+        self.assertNotIn("no/such/path.pac", view_path)
+        self.assertEqual(view_path.get("no/such/path.pac", ()), ())
+        self.assertEqual(set(view.entries._issued), {key})
+        name = key.rsplit("/", 1)[-1]
+        self.assertEqual(list(view_basename[name]), eager_names[name])
+        self.assertIs(view_basename[name][0], entry)
+        self.assertEqual(set(view.entries._issued), keys_by_name[name])
+
     def test_snapshot_reads_static_status_and_equipment_tables(self) -> None:
         for stems in (("statusinfo",), ("equiptypeinfo",), ("statusinfo", "equiptypeinfo")):
             with self.subTest(stems=stems):

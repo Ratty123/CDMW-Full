@@ -156,3 +156,12 @@ def test_behavior_module_admission_remains_closed_and_required(tmp_path,behavior
         elif change=='future': module['version']=meta['requires']['item.behavior']=2
         else: del meta['requires']['item.behavior']
         with pytest.raises(IndependentItemError): read_v2(meta,package.blobs)
+
+
+def test_texture_choices_list_dds_by_extension_without_walking_every_entry(tmp_path,behavior_game):
+    from tests.test_independent_item_definition import unwalked
+    _,snapshot,entries=setup_game(tmp_path)
+    expected=load_behavior_index(snapshot).choices['texture']
+    assert expected and ('ui/texture/left.dds','ui/texture/left.dds') in expected
+    assert expected==tuple(sorted(expected)) and all(path.endswith('.dds') for path,_ in expected)
+    assert load_behavior_index(unwalked(snapshot,entries)).choices['texture']==expected

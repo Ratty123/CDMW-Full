@@ -326,6 +326,43 @@ def test_snapshot_uses_shared_metadata_without_listing_or_decoding_unrelated_ent
     assert by_name["image_1.dds"][0] == by_path["unrelated/textures/image_1.dds"][0]
 
 
+def test_snapshot_lists_paths_by_extension_without_walking_every_entry(catalogue):
+    root, _entries, source = catalogue
+    snapshot = snapshot_task((), service=NewItemService(), read_entry=_read,
+                             package_root=root, resident_source=source)(lambda _: None, threading.Event())
+    expected = sorted(path for path in snapshot.entries if path.endswith((".pac", ".paa")))
+    with patch.object(type(snapshot.entries), "__iter__", side_effect=AssertionError("walked every entry")):
+        listed = snapshot.entry_paths_with_extensions((".pac", ".PAA"))
+    assert sorted(listed) == expected
+    assert "character/model/1_pc/1_phm/armor/15_vest/fixture.pac" in listed
+    assert "character/motion/1_pc/1_phm/idle.paa" in listed
+    # Without an extension index the snapshot filters its own listing.
+    plain = replace(snapshot, entries={path: snapshot.entries[path] for path in expected}, _entries_by_extension=None)
+    assert sorted(plain.entry_paths_with_extensions((".pac",))) == [path for path in expected if path.endswith(".pac")]
+
+
+def test_rig_body_lookup_lists_pac_paths_without_walking_every_entry(tmp_path):
+    from pathlib import PurePosixPath
+    from cdmw.services.new_item_skinning import _rig_body_paths
+
+    root = tmp_path / "packages"
+    body = "character/model/1_pc/1_phm/nude/cd_phm_00_nude_00_0001.pac"
+    other = "character/model/1_pc/2_phw/nude/cd_phw_00_nude_00_0001.pac"
+    files = synthetic_files()
+    files.update({body: b"synthetic body", other: b"another rig's body",
+                  "character/model/1_pc/1_phm/nude/cd_phm_00_nude_00_0001.pac_xml": b"<sidecar/>"})
+    entries = tuple(sorted(parse_archive_pamt(build_package(root, files)), key=lambda entry: entry.path.encode().lower()))
+    source = write_resident_index(root, entries, tmp_path / "generation")
+    snapshot = snapshot_task((), service=NewItemService(), read_entry=_read,
+                             package_root=root, resident_source=source)(lambda _: None, threading.Event())
+    rig = PurePosixPath("character/model/1_pc/1_phm")
+    with patch.object(type(snapshot.entries), "__iter__", side_effect=AssertionError("walked every entry")):
+        assert _rig_body_paths(snapshot, rig) == [body]
+    # A snapshot without an extension index still filters its own listing.
+    plain = replace(snapshot, entries={path: snapshot.entries[path] for path in (body, other)}, _entries_by_extension=None)
+    assert _rig_body_paths(plain, rig) == [body]
+
+
 @pytest.mark.parametrize('name', ['0036', 'dmmgen', 'dmmsa'])
 def test_new_item_snapshot_skips_deleted_mod_mounts(catalogue, tmp_path, name):
     from cdmw.core.papgt_format import papgt_with_directory
