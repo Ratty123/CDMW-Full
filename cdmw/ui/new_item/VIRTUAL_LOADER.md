@@ -872,10 +872,12 @@ separate and open.
    through the hooks, then 312 ms when reusing the cache. Both closed on request with
    all 40 protected files unchanged. The cached view is byte-identical to the
    confirmed `99eda530` view. An earlier build that composed with worker threads
-   never finished on the startup path. Items were not inspected in game for these
-   launches. Change sets are not a package format: CDMW does not write them, and
-   packages' own `runtime/` members (patch 0004) are still to come. Save/reload, a
-   real DMM remount and removal under compose mode remain unverified.
+   never finished on the startup path. Those launches did not inspect items; with
+   compose mode then enabled, the user's own launch reused the cache (328 ms) and the
+   user found all five swords in the inventory of a loaded save. Change sets are not
+   a package format: CDMW does not write them, and packages' own `runtime/` members
+   (patch 0004) are still to come. Saving, a real DMM remount and removal under
+   compose mode remain unverified.
 
 Source tests, built native binaries, packaged application, visible game behavior
 and save compatibility are separate evidence classes. The diagnostic observations

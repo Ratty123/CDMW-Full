@@ -276,9 +276,11 @@ headless Steam launches that closed at the title screen:
   published for those packages, which the user had confirmed in game.
 - The next launch reused the cache and was ready in 312 ms, with the same redirects.
 
-Items were not looked at in game for these launches; byte identity with the confirmed
-view is the evidence. Save/reload under compose mode and DMM remounts in the real game
-remain untested.
+Those headless launches did not look at items. Later that morning, with compose mode
+enabled on the user's install, a launch the user started reused the cache (ready in
+328 ms) and opened the composed files through the hooks, and the user found all five
+swords in the inventory of their loaded save. Saving under compose mode and a real DMM
+remount remain untested.
 
 ## Independent item publication research
 
