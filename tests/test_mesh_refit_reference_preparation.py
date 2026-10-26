@@ -31,6 +31,7 @@ PHM_NUDE = "character/model/1_pc/1_phm/nude/cd_phm_00_nude_00_0001.pac"
 
 class _Service(QObject):
     result_ready = Signal(str, str, object)
+    batch_ready = Signal(str, str, object)
     request_failed = Signal(str, object)
     request_cancelled = Signal(str)
     session_published = Signal(object)
@@ -99,7 +100,11 @@ def test_the_nude_body_of_each_rig_is_listed_prepared_and_merged_for_the_fit():
     assert not ticket.done.is_set()
     items = tuple(PrepareEntryResult(ArchiveEntryRef("s1", entry_id, row.identity, row.path), f"prepared/{entry_id}", 10, "AB")
                   for entry_id, row in ((1, rows[0]), (3, rows[2])))
-    service.result_ready.emit("prepare_entries-3", "prepare_entries", PrepareEntriesResult("s1", items, 2, 2, 20))
+    # Like the worker: prepared files arrive as batches, then an empty final result.
+    service.batch_ready.emit("prepare_entries-3", "prepare_entries", PrepareEntriesResult("s1", items[:1], 2, 2, 20))
+    service.batch_ready.emit("prepare_entries-3", "prepare_entries", PrepareEntriesResult("s1", items[1:], 2, 2, 20))
+    assert not ticket.done.is_set()
+    service.result_ready.emit("prepare_entries-3", "prepare_entries", PrepareEntriesResult("s1", (), 2, 2, 20))
     archive = ticket.wait()
     assert archive.reason == ""
     body = archive.dependencies.entry_for_path(PHM_NUDE)
@@ -127,6 +132,11 @@ def test_failures_finish_the_ticket_with_a_reason_instead_of_holding_the_fit():
     service, _prepared, ticket = _start()
     service.result_ready.emit("create_query-1", "create_query", ArchiveQueryHandle("s1", "q", 1, 0))
     assert "no nude body was found in the archive for 1_phm, 2_phw" in ticket.wait().reason
+    service, _prepared, ticket = _start()
+    service.result_ready.emit("create_query-1", "create_query", ArchiveQueryHandle("s1", "q", 1, 1))
+    service.result_ready.emit("fetch_page-2", "fetch_page", ArchivePage("s1", "q", 1, 1, 0, (_dto(1, PHM_NUDE),)))
+    service.result_ready.emit("prepare_entries-3", "prepare_entries", PrepareEntriesResult("s1", (), 1, 0, 0))
+    assert ticket.wait().reason == "the archive worker did not prepare the authored bodies"
     service, _prepared, ticket = _start()
     service.session_published.emit(object())
     assert ticket.wait().reason == "the archive catalogue changed during the Fit"

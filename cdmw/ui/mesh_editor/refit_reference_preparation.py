@@ -71,6 +71,7 @@ class RefitReferencePreparation(QObject):
         super().__init__(parent)
         self.service = service
         service.result_ready.connect(self._result)
+        service.batch_ready.connect(self._batch)
         service.request_failed.connect(self._failed)
         service.request_cancelled.connect(self._cancelled)
         service.session_published.connect(self._session_changed)
@@ -101,7 +102,7 @@ class RefitReferencePreparation(QObject):
             ticket.settle(self._cache[key])
             return ticket
         self._ticket, self._key, self._base, self._folders = ticket, key, base, folders
-        self._session_id, self._bodies = session.session_id, {}
+        self._session_id, self._bodies, self._prepared = session.session_id, {}, {}
         self._submit(lambda generation: self.service.create_query(ArchiveQuery(
             session.session_id, include_text=";".join(f"{folder}/nude/*.pac" for folder in folders),
             extensions=(".pac",)), ui_generation=generation))
@@ -148,6 +149,17 @@ class RefitReferencePreparation(QObject):
             self._request = None
             self._settle(reason="the archive request for the authored bodies was cancelled")
 
+    def _batch(self, request, _operation, payload) -> None:
+        # The worker streams prepared files in batches and ends with an empty result.
+        if request == self._request and self._ticket is not None and isinstance(payload, PrepareEntriesResult):
+            self._collect(payload)
+
+    def _collect(self, result: PrepareEntriesResult) -> None:
+        sessions = {self._session_id, *(dto.session_id for dto in self._bodies.values())}
+        for item in result.items:
+            if result.session_id in sessions and item.entry.entry_id in self._bodies:
+                self._prepared.setdefault(item.entry.entry_id, item)
+
     def _result(self, request, _operation, payload) -> None:
         if request != self._request or self._ticket is None:
             return
@@ -186,8 +198,9 @@ class RefitReferencePreparation(QObject):
             PrepareEntriesRequest(self._session_id, tuple(self._bodies)), ui_generation=generation))
 
     def _publish(self, result: PrepareEntriesResult) -> None:
-        prepared = {item.entry.entry_id: item for item in result.items}
-        if result.session_id != self._session_id or set(prepared) != set(self._bodies):
+        self._collect(result)
+        prepared = self._prepared
+        if set(prepared) != set(self._bodies):
             self._settle(reason="the archive worker did not prepare the authored bodies")
             return
         entries = list(self._base.entries)
