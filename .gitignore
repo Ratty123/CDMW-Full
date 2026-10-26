@@ -4,6 +4,8 @@
 # anything the app builds from, so they stay local.
 .agents/
 .codex/
+/.claude/
+/CLAUDE.md
 
 .pytest_cache/
 .pytest-tmp/
