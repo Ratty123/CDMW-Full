@@ -279,8 +279,11 @@ headless Steam launches that closed at the title screen:
 Those headless launches did not look at items. Later that morning, with compose mode
 enabled on the user's install, a launch the user started reused the cache (ready in
 328 ms) and opened the composed files through the hooks, and the user found all five
-swords in the inventory of their loaded save. Saving under compose mode and a real DMM
-remount remain untested.
+swords in the inventory of their loaded save. When DMM later rewrote its mount (15:59
+that day), the next launch composed again from the new mount files and the user
+confirmed the swords were still there; the cache also held compositions for two other
+mount states DMM had that day. Saving under compose mode remains untested, and the
+runtime does not yet remove cache entries an older mount left behind (about 190 MB each).
 
 ## Independent item publication research
 

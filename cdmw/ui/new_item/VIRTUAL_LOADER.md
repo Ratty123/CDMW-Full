@@ -876,8 +876,9 @@ separate and open.
    compose mode then enabled, the user's own launch reused the cache (328 ms) and the
    user found all five swords in the inventory of a loaded save. Change sets are not
    a package format: CDMW does not write them, and packages' own `runtime/` members
-   (patch 0004) are still to come. Saving, a real DMM remount and removal under
-   compose mode remain unverified.
+   (patch 0004) are still to come. When DMM later rewrote its mount, the next launch
+   composed again from the new mount files and the user confirmed the swords were
+   still there. Saving and removal under compose mode remain unverified.
 
 Source tests, built native binaries, packaged application, visible game behavior
 and save compatibility are separate evidence classes. The diagnostic observations

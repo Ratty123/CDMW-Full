@@ -2043,8 +2043,9 @@ files through the hooks. On UAL's startup path a new thread does not run before 
 runtime's initialization returns, so the composition runs on the startup thread; a
 build that waited for worker threads never finished. With compose mode then enabled,
 the user found all five swords in the inventory of a loaded save. The change-set input
-is provisional until packages carry their own `runtime/` members. Saving and a real DMM
-remount under composition remain untested.
+is provisional until packages carry their own `runtime/` members. After a real DMM
+remount the next launch composed again and the user confirmed the swords; saving under
+composition remains untested.
 
 ### 13.2 Native item registration: a rejected shortcut
 
