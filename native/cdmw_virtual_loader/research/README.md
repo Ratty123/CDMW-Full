@@ -19,7 +19,7 @@ Source owners:
   experimental storage, common preparation, validation, publication and lifetime.
 - [paired_item_publication_fixture.cpp](paired_item_publication_fixture.cpp)
   owns executable refusal, visibility, reentry and cleanup checks.
-- [Independent items](../../../cdmw/ui/new_item/INDEPENDENT_ITEMS.md#runtime-registration-research)
+- [Runtime registration research](runtime-registration.md)
   owns the broader identity/backend contract and evidence boundaries.
 
 ## Why a joined operation is needed
@@ -193,7 +193,7 @@ The maintained owned-memory experiment itself is unchanged and was not rerun.
 
 The next integration must join actual constructed backing, native metadata and
 decoder routing to the same publication discipline. The current
-[concrete I/O source contract](../../../cdmw/ui/new_item/INDEPENDENT_ITEMS.md#native-io-continuation-after-image-preparation)
+[concrete I/O source contract](runtime-registration.md#native-io-continuation-after-image-preparation)
 now qualifies the bounded normal-return small-read premise. AL success still
 hides terminal errors and actual count; general retirement remains unproved.
 Native two-item acquisition, equip, restart,

@@ -2,7 +2,7 @@
 
 This offline tool uses the B112 wire contract. It does not load native code,
 open a game process, verify capture provenance, or grant runtime admission.
-The sealed research producers remain unchanged. See INDEPENDENT_ITEMS.md.
+The sealed research producers remain unchanged. See native/cdmw_virtual_loader/research/runtime-registration.md.
 """
 import argparse
 import hashlib
