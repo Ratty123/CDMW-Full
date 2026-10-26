@@ -55,6 +55,7 @@ experimental-feature notes do not establish equivalent in-game behavior.
 - Mesh Editor opens successive PAC files from either Archive Browser action without getting stuck waiting for a previous mesh's textures.
 - Switching away from Create New Item while its interface starts no longer causes a false timeout. Returning continues the same workspace.
 - Disabled highlighted buttons, such as Texture Editor's export actions, now look disabled instead of active.
+- Mesh Editor translates its remaining English labels, tooltips, messages and body-control slider names in German, Spanish, French, Italian, Brazilian Portuguese, Polish, Turkish, Korean and Chinese, and corrects mistranslated 3D terms in all 13 translations, including Bake, Fit, Scale, Free Edit, view directions, garment binding and hair locks. Russian and Japanese still show some English text for now.
 
 ### Docs
 
