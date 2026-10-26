@@ -2783,7 +2783,9 @@ into its placement/build workflow.
 Normal tools include service-routed recalc, tangent generation, flip, sharpen/soften,
 weighted normals, and source-normal copy commands; cleanup tools include remove doubles,
 delete loose vertices, compact orphans, winding repair, and hole fill. Widgets only emit
-descriptors. **Remove Doubles** supports **Exact Game Asset** for PAC LOD0. Native
+descriptors. **Remove Doubles** welds only coincident vertices whose UVs also match, so
+UV seams stay split, and every survivor keeps its own normal. It supports **Exact Game
+Asset** for PAC LOD0. Native
 cleanup retains original-relative vertex and face lineage through Undo/Redo and
 reopening. The exact writer retains each survivor's original skin and cloth record,
 with deliberate weight edits limited to the proven skin lanes. Edit weights in

@@ -1,3 +1,35 @@
+// Faces the caller actually selected, never ones derived from a selected edge
+// or vertex, for tools whose edge and face forms do different things.
+std::set<int> explicit_selected_faces_from_topology_json(const JsonValue& item, std::size_t face_count) {
+    std::set<int> selected_faces;
+    if (bool_or(item.get("selected_all_faces"), false)) {
+        for (std::size_t face_index = 0; face_index < face_count; ++face_index) {
+            selected_faces.insert(static_cast<int>(face_index));
+        }
+        return selected_faces;
+    }
+    const MeshSessionSubmesh* stored_submesh = mesh_session_submesh_for_item(item);
+    const std::vector<int> input_face_offsets = stored_submesh != nullptr
+        ? stored_submesh->input_face_offsets
+        : std::vector<int>();
+    for (const int index : int_vector_from_binary_or_json(
+             item, "selected_faces_binary", "selected_faces", "selected_face_start", "selected_face_count")) {
+        if (index >= 0) {
+            selected_faces.insert(index);
+        }
+    }
+    if (!selected_faces.empty()) {
+        return compact_face_offsets_from_selection_values(selected_faces, input_face_offsets, face_count);
+    }
+    if (const MeshEditorSelection* selection = mesh_editor_selection_for_item(item)) {
+        const auto found = selection->faces.find(int_or(item.get("index"), -1));
+        if (found != selection->faces.end()) {
+            return compact_face_offsets_from_selection_values(found->second, input_face_offsets, face_count);
+        }
+    }
+    return selected_faces;
+}
+
 std::set<int> selected_faces_from_topology_json(
     const JsonValue& item,
     const std::vector<std::array<int, 3>>& faces,

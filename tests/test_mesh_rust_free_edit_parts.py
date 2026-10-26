@@ -75,6 +75,32 @@ def test_whole_part_delete_needs_no_disposable_clone_and_keeps_native_history(fr
     assert shadow._session(host.shadow_session_id).original_data == source
 
 
+_SOURCE_DESCRIPTOR_FIELDS = (
+    "source_index_offset", "source_index_count", "source_descriptor_offset",
+    "source_vertex_stride", "source_lod_count", "source_bbox_min", "source_bbox_extent",
+)
+
+
+def _source_descriptors(host):
+    mesh = host.shadow_service.working_mesh(host.shadow_session_id, clone=False)
+    return [(part.name, tuple(getattr(part, field) for field in _SOURCE_DESCRIPTOR_FIELDS)) for part in mesh.submeshes]
+
+
+def test_part_delete_undo_and_redo_keep_each_parts_source_descriptor(free_edit_parts):
+    # The descriptor follows its Part through native history. Re-reading it by
+    # list position after Undo gave target0 the descriptor of target1, and
+    # target1 none, which unmatched its physics and profile rows.
+    _, _, host = free_edit_parts
+    original = _source_descriptors(host)
+    assert original[0][1] != original[1][1]
+    delete_part(host)
+    assert _source_descriptors(host) == [original[1]]
+    command(host, "undo")
+    assert _source_descriptors(host) == original
+    command(host, "redo")
+    assert _source_descriptors(host) == [original[1]]
+
+
 def test_whole_part_capacity_rejection_keeps_geometry_revision_and_redo(free_edit_parts, monkeypatch):
     _, _, host = free_edit_parts
     delete_part(host)

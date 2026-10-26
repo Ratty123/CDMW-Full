@@ -693,6 +693,55 @@ void mesh_editor_restore_submeshes(
     }
 }
 
+// The host addresses Parts by list position, and deleting a Part shifts every
+// later Part down by one. Keys here follow the same shift; erasing alone left a
+// gap, so the next command for "Part 1" reached the old Part 1, not the new one.
+void mesh_editor_erase_submesh_keys_shifting(
+    std::map<int, MeshSessionSubmesh>& submeshes,
+    const std::set<int>& keys
+) {
+    for (auto erased = keys.rbegin(); erased != keys.rend(); ++erased) {
+        submeshes.erase(*erased);
+        std::map<int, MeshSessionSubmesh> shifted;
+        for (auto& entry : submeshes) {
+            shifted.emplace(entry.first > *erased ? entry.first - 1 : entry.first, std::move(entry.second));
+        }
+        submeshes = std::move(shifted);
+    }
+}
+
+// Inverse of mesh_editor_erase_submesh_keys_shifting: keys are positions in the
+// numbering before the erase, so ascending insertion restores that numbering.
+void mesh_editor_insert_submesh_keys_shifting(
+    std::map<int, MeshSessionSubmesh>& submeshes,
+    const std::map<int, MeshSessionSubmesh>& inserted
+) {
+    for (const auto& item : inserted) {
+        std::map<int, MeshSessionSubmesh> shifted;
+        for (auto& entry : submeshes) {
+            shifted.emplace(entry.first >= item.first ? entry.first + 1 : entry.first, std::move(entry.second));
+        }
+        shifted.emplace(item.first, item.second);
+        submeshes = std::move(shifted);
+    }
+}
+
+// An appended Part (Separate, Duplicate, Paste, a material split) is new
+// geometry: it keeps its parent's stride, bounds and LOD count but owns no
+// source section, as the host's reset_source_descriptors does.
+void mesh_editor_reset_appended_source_descriptor(JsonValue& extra_attrs) {
+    if (extra_attrs.type != JsonValue::Type::Object) {
+        return;
+    }
+    const auto found = extra_attrs.object_value.find(MESH_EDITOR_SOURCE_DESCRIPTOR_ATTR);
+    if (found == extra_attrs.object_value.end() || found->second.type != JsonValue::Type::Object) {
+        return;
+    }
+    found->second.object_value["source_index_offset"] = mesh_editor_json_number(-1.0);
+    found->second.object_value["source_index_count"] = mesh_editor_json_number(0.0);
+    found->second.object_value["source_descriptor_offset"] = mesh_editor_json_number(-1.0);
+}
+
 int mesh_editor_next_submesh_index(const MeshEditorSession& session) {
     int next_index = 0;
     for (const auto& entry : mesh_editor_submeshes(session)) {
@@ -842,11 +891,20 @@ void mesh_editor_apply_material_assign(MeshSessionSubmesh& submesh, const JsonVa
 }
 
 void mesh_editor_apply_material_copy(MeshSessionSubmesh& target, const MeshSessionSubmesh& source, int source_index) {
+    // The material is copied; which source section the target Part came from is not.
+    const JsonValue* own_descriptor = target.extra_attrs.get(MESH_EDITOR_SOURCE_DESCRIPTOR_ATTR);
+    const bool had_descriptor = own_descriptor != nullptr;
+    const JsonValue kept_descriptor = had_descriptor ? *own_descriptor : JsonValue{};
     target.material = source.material;
     target.texture = source.texture;
     target.extra_attrs = mesh_editor_extra_attrs_object(source);
     if (target.extra_attrs.type != JsonValue::Type::Object) {
         target.extra_attrs = mesh_editor_json_object();
+    }
+    if (had_descriptor) {
+        target.extra_attrs.object_value[MESH_EDITOR_SOURCE_DESCRIPTOR_ATTR] = kept_descriptor;
+    } else {
+        target.extra_attrs.object_value.erase(MESH_EDITOR_SOURCE_DESCRIPTOR_ATTR);
     }
     JsonValue source_index_value;
     source_index_value.type = JsonValue::Type::Number;

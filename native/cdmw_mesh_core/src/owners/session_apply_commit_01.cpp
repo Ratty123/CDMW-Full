@@ -103,16 +103,19 @@ MeshEditorSelection mesh_editor_remap_subdivide_selection(
 
 void mesh_editor_delete_apply_parts(
     std::map<int, MeshSessionSubmesh>& native_session,
-    const MeshEditorApplyState& state
+    MeshEditorApplyState& state
 ) {
     if (!state.delete_parts_operation) {
         return;
     }
+    std::set<int> deleted;
     for (const SubmeshMeshEditResult& result : state.results) {
         if (result.index >= 0) {
-            native_session.erase(result.index);
+            deleted.insert(result.index);
         }
     }
+    mesh_editor_erase_submesh_keys_shifting(native_session, deleted);
+    state.history.deleted_part_keys = std::move(deleted);
 }
 
 void mesh_editor_append_apply_submeshes(
@@ -154,6 +157,7 @@ void mesh_editor_append_apply_submeshes(
             result.extra_attrs = source->second.extra_attrs;
             result.material_metadata_changed = true;
         }
+        mesh_editor_reset_appended_source_descriptor(result.extra_attrs);
         native_session[appended_index] = mesh_editor_submesh_from_result(result);
     }
 }

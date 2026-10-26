@@ -102,3 +102,7 @@ _TRANSIENT_NATIVE_SUBMESH_ATTRS = frozenset(
     }
 )
 _NATIVE_MESH_SESSION_TOKEN_ATTR = "_cdmw_native_mesh_session_token"
+# A Part's PAC source descriptor rides in its native extra_attrs, so it follows
+# the Part through Delete Part, Undo and Redo instead of being re-read from the
+# host list by a position that those edits have shifted.
+NATIVE_SOURCE_DESCRIPTOR_ATTR = "_cdmw_source_descriptor"

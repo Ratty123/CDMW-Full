@@ -159,6 +159,10 @@ struct MeshEditorHistoryEntry {
     std::map<int, MeshSessionSubmesh> before;
     std::map<int, MeshEditorSubmeshDelta> deltas;
     std::set<int> absent_before;
+    // Delete Part keys, numbered as before the delete. Their removal shifted
+    // every later key down, so history re-inserts and re-erases with the same
+    // shift instead of filling or punching a gap.
+    std::set<int> deleted_part_keys;
     std::map<int, int> append_source_indices;
     std::string operation;
     std::string stroke_id;
@@ -224,6 +228,10 @@ constexpr std::size_t MESH_EDITOR_HISTORY_MAX_BYTES = 256ULL * 1024ULL * 1024ULL
 // bodies use every one, so blending down to four here would throw away weights the file can
 // carry. Mirrors PAC_SKIN_INFLUENCES on the Python side.
 constexpr std::size_t MESH_MAX_SKIN_INFLUENCES = 6;
+
+// The host's PAC source descriptor for a Part, carried opaquely in extra_attrs
+// (NATIVE_SOURCE_DESCRIPTOR_ATTR on the Python side).
+constexpr const char* MESH_EDITOR_SOURCE_DESCRIPTOR_ATTR = "_cdmw_source_descriptor";
 
 std::map<int, MeshSessionSubmesh>& mesh_editor_submeshes(MeshEditorSession& session) {
     const auto found = g_mesh_sessions.find(session.native_session_id);

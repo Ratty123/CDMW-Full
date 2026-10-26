@@ -25,16 +25,33 @@ struct CleanupTopology {
     int duplicate_faces = 0;
 };
 
+// Two corners of a UV seam share a position but not a UV. Welding them would
+// leave one side sampling the other side's texture, so a seam is not a double.
+constexpr double CLEANUP_UV_MATCH_TOLERANCE = 1e-5;
+
+bool cleanup_uvs_match(const std::vector<Vec2>& uvs, int left, int right) {
+    if (uvs.empty()) {
+        return true;
+    }
+    const Vec2& a = uvs[static_cast<std::size_t>(left)];
+    const Vec2& b = uvs[static_cast<std::size_t>(right)];
+    return std::abs(a[0] - b[0]) <= CLEANUP_UV_MATCH_TOLERANCE
+        && std::abs(a[1] - b[1]) <= CLEANUP_UV_MATCH_TOLERANCE;
+}
+
 CleanupTopology build_cleanup_topology(
     std::vector<Vec3> vertices,
     const std::vector<std::array<int, 3>>& faces,
     const std::vector<int>& source_face_indices,
     const std::set<int>& selected,
-    double threshold_squared
+    double threshold_squared,
+    const std::vector<Vec2>& uvs
 ) {
     if (source_face_indices.size() != faces.size()) {
         throw std::runtime_error("cleanup source face lineage does not match its triangles");
     }
+    const std::vector<Vec2> no_uvs;
+    const std::vector<Vec2>& matched_uvs = uvs.size() == vertices.size() ? uvs : no_uvs;
     std::vector<int> remap(vertices.size(), 0);
     for (std::size_t i = 0; i < remap.size(); ++i) remap[i] = static_cast<int>(i);
     int merged_vertices = 0;
@@ -45,7 +62,8 @@ CleanupTopology build_cleanup_topology(
             if (candidate <= keeper || remap[static_cast<std::size_t>(candidate)] != candidate) continue;
             if (distance_squared_vec3(
                     vertices[static_cast<std::size_t>(keeper)],
-                    vertices[static_cast<std::size_t>(candidate)]) <= threshold_squared) {
+                    vertices[static_cast<std::size_t>(candidate)]) <= threshold_squared
+                && cleanup_uvs_match(matched_uvs, keeper, candidate)) {
                 cluster.push_back(candidate);
             }
         }
@@ -102,6 +120,17 @@ CleanupTopology build_cleanup_topology(
     };
 }
 
+// Every surviving vertex keeps its own normal, the welded keeper included.
+// Recomputing the whole Part flattened every custom and hard normal in it, even
+// on vertices nobody selected; and an exact PAC keeps the keeper's protected
+// normal bits, so a blended normal there could not be written back as shown.
+std::vector<Vec3> cleanup_normals(const JsonValue& item, const CleanupTopology& cleaned) {
+    std::vector<Vec3> result = remap_vec3_by_index_map(
+        mesh_normals_from_item(item), cleaned.index_map, cleaned.vertices.size()
+    );
+    return result.empty() ? compute_smooth_normals(cleaned.vertices, cleaned.faces) : result;
+}
+
 std::vector<SubmeshCleanupResult> run_cleanup(const JsonValue& root, bool update_session = true) {
     const JsonValue* submeshes = root.get("submeshes");
     if (submeshes == nullptr || submeshes->type != JsonValue::Type::Array) {
@@ -144,7 +173,7 @@ std::vector<SubmeshCleanupResult> run_cleanup(const JsonValue& root, bool update
 
         CleanupTopology cleaned = build_cleanup_topology(
             std::move(vertices), faces, mesh_source_face_indices_from_item(item, faces.size()),
-            selected, threshold_squared);
+            selected, threshold_squared, mesh_uvs_from_item(item));
         const int removed_vertices = static_cast<int>(cleaned.index_map.size()) - static_cast<int>(cleaned.vertices.size());
         const int removed_faces = static_cast<int>(faces.size()) - static_cast<int>(cleaned.faces.size());
         if (cleaned.merged_vertices <= 0 && removed_vertices <= 0 && removed_faces <= 0) {
@@ -164,13 +193,13 @@ std::vector<SubmeshCleanupResult> run_cleanup(const JsonValue& root, bool update
         result.bone_weights_path = bone_weights_path;
         result.source_vertex_map_path = source_vertex_map_path;
         result.source_vertex_offsets_path = source_vertex_offsets_path;
+        if (!result.normals_path.empty()) {
+            result.normals = cleanup_normals(item, cleaned);
+        }
         result.vertices = std::move(cleaned.vertices);
         result.faces = std::move(cleaned.faces);
         result.index_map = std::move(cleaned.index_map);
         result.source_face_indices = std::move(cleaned.source_face_indices);
-        if (!result.normals_path.empty()) {
-            result.normals = compute_smooth_normals(result.vertices, result.faces);
-        }
         if (!result.uvs_path.empty()) {
             result.uvs = remap_vec2_by_index_map(mesh_uvs_from_item(item), result.index_map, result.vertices.size());
         }

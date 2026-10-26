@@ -52,6 +52,39 @@ void mesh_editor_apply_topology_history(
     MeshEditorHistoryReportState& state
 ) {
     std::map<int, MeshSessionSubmesh>& submeshes = mesh_editor_submeshes(session);
+    if (!entry.deleted_part_keys.empty()) {
+        // `before` keeps the deleted Parts across Undo and Redo; only their
+        // presence flips, with the same key shift the delete applied.
+        if (state.command == "undo") {
+            for (const auto& restored : entry.before) {
+                state.affected_indices.insert(restored.first);
+                SubmeshMeshEditResult appended = mesh_editor_history_report_result(
+                    restored.first,
+                    MeshSessionSubmesh{},
+                    restored.second,
+                    state.command,
+                    true,
+                    state.delta_output_dir,
+                    state.session_id
+                );
+                appended.append_submesh = true;
+                appended.source_index = restored.first;
+                appended.name_suffix = " restored";
+                state.results.push_back(std::move(appended));
+            }
+            mesh_editor_insert_submesh_keys_shifting(submeshes, entry.before);
+        } else {
+            for (const int key : entry.deleted_part_keys) {
+                state.affected_indices.insert(key);
+                const auto current = submeshes.find(key);
+                if (current != submeshes.end()) {
+                    entry.before[key] = current->second;
+                }
+            }
+            mesh_editor_erase_submesh_keys_shifting(submeshes, entry.deleted_part_keys);
+        }
+        return;
+    }
     std::map<int, MeshSessionSubmesh> restored_submeshes = std::move(entry.before);
     std::set<int> absent_submeshes = std::move(entry.absent_before);
     std::map<int, MeshSessionSubmesh> reverse_submeshes;

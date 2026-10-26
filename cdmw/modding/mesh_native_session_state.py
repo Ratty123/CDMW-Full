@@ -25,6 +25,7 @@ from cdmw.modding.mesh_native_core_constants import (
     NATIVE_MESH_CORE_BACKEND_ID,
     NATIVE_MESH_CORE_BINARY_NAME,
     NATIVE_MESH_HISTORY_VERTEX_DELTA_ATTR,
+    NATIVE_SOURCE_DESCRIPTOR_ATTR,
     Vec2,
     Vec3,
     _NATIVE_MATERIAL_REPORT_ATTRS,
@@ -36,6 +37,7 @@ from cdmw.modding.mesh_native_core_constants import (
 from cdmw.modding.mesh_parser import ParsedMesh, SubMesh
 from cdmw.domain.mesh.topology import SubmeshTopologyProvenance, validate_topology_provenance
 from cdmw.modding.mesh_native_binary_io import _write_int_binary_payload
+from cdmw.modding.mesh_vertex_extras import VERTEX_EXTRAS_ORIGINS_ATTR, has_vertex_extras, vertex_extras_origins
 from cdmw.models import RunCancelled
 
 
@@ -54,6 +56,7 @@ _put_source_vertex_map_payload = _proxy("_put_source_vertex_map_payload")
 _put_source_vertex_offsets_payload = _proxy("_put_source_vertex_offsets_payload")
 _run_native_mesh_core_service_job = _proxy("_run_native_mesh_core_service_job")
 _snapshot_metadata_value = _proxy("_snapshot_metadata_value")
+_source_descriptor_metadata = _proxy("_source_descriptor_metadata")
 _write_bone_binary_payloads = _proxy("_write_bone_binary_payloads")
 _write_f64_binary_payload = _proxy("_write_f64_binary_payload")
 _write_face_binary_payload_with_source_indices = _proxy("_write_face_binary_payload_with_source_indices")
@@ -200,6 +203,10 @@ def _native_mesh_session_store_item(submesh: SubMesh, submesh_index: int, prefix
         for attr_name in _EXTRA_SUBMESH_ATTRS
         if hasattr(submesh, attr_name)
     }
+    extra_attrs[NATIVE_SOURCE_DESCRIPTOR_ATTR] = _source_descriptor_metadata(submesh)
+    extras_origins = vertex_extras_origins(submesh) if has_vertex_extras(submesh) else None
+    if extras_origins is not None:
+        extra_attrs[VERTEX_EXTRAS_ORIGINS_ATTR] = extras_origins
     # Native history must retain the source-addressed masks even when the
     # current Python Part has no vertices from which to recover them.
     masks = shader_masks_by_source_offset(submesh)

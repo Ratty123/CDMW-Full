@@ -10,6 +10,22 @@ Vec3 vertex_set_center(const std::vector<Vec3>& vertices, const std::set<int>& i
     return scale_vec3(center, 1.0 / static_cast<double>(indices.size()));
 }
 
+// Corners split for a UV seam or hard normal share a position but not an index.
+// Tools that must treat such a seam as joined key their vertices by these ids.
+std::vector<int> coincident_position_ids(const std::vector<Vec3>& vertices) {
+    std::map<std::array<long long, 3>, int> ids;
+    std::vector<int> result(vertices.size(), 0);
+    for (std::size_t index = 0; index < vertices.size(); ++index) {
+        const std::array<long long, 3> key{
+            std::llround(vertices[index][0] * 1e7),
+            std::llround(vertices[index][1] * 1e7),
+            std::llround(vertices[index][2] * 1e7),
+        };
+        result[index] = ids.emplace(key, static_cast<int>(ids.size())).first->second;
+    }
+    return result;
+}
+
 SubmeshMeshEditResult extrude_selected_faces(
     SubmeshMeshEditResult result,
     const std::vector<std::array<int, 3>>& original_faces,
@@ -17,12 +33,14 @@ SubmeshMeshEditResult extrude_selected_faces(
     const std::set<int>& selected_faces,
     const Vec3& offset
 ) {
-    std::map<int, int> extruded_vertices;
+    // Edges are counted by position, so a seam inside the selection is not read
+    // as its border; that raised a pair of walls along the seam.
+    const std::vector<int> position_ids = coincident_position_ids(result.vertices);
     std::map<std::array<int, 2>, int> edge_counts;
-    std::map<std::array<int, 2>, std::array<int, 2>> edge_order;
-    std::vector<std::array<int, 2>> edge_order_keys;
+    std::vector<std::array<int, 2>> border_order;
     std::vector<std::array<int, 3>> selected_face_values;
     std::vector<int> selected_source_faces;
+    std::set<int> selected_vertices;
     for (const int face_index : selected_faces) {
         if (face_index < 0 || static_cast<std::size_t>(face_index) >= original_faces.size()) {
             continue;
@@ -30,70 +48,93 @@ SubmeshMeshEditResult extrude_selected_faces(
         const std::array<int, 3>& face = original_faces[static_cast<std::size_t>(face_index)];
         selected_face_values.push_back(face);
         selected_source_faces.push_back(source_faces[static_cast<std::size_t>(face_index)]);
-        for (const int vertex_index : face) {
-            if (extruded_vertices.find(vertex_index) != extruded_vertices.end()) {
-                continue;
-            }
-            const int new_index = static_cast<int>(result.vertices.size());
-            result.vertices.push_back(add_vec3(result.vertices[static_cast<std::size_t>(vertex_index)], offset));
-            result.copy_vertex_indices.push_back(vertex_index);
-            result.changed_vertices.push_back(new_index);
-            extruded_vertices[vertex_index] = new_index;
-            ++result.added_vertices;
-        }
-        const std::array<int, 2> oriented_edges[3] = {
-            std::array<int, 2>{face[0], face[1]},
-            std::array<int, 2>{face[1], face[2]},
-            std::array<int, 2>{face[2], face[0]},
-        };
-        for (const auto& oriented : oriented_edges) {
-            const std::array<int, 2> key = edge_key(oriented[0], oriented[1]);
-            if (edge_counts.find(key) == edge_counts.end()) {
-                edge_order_keys.push_back(key);
-                edge_order[key] = oriented;
-            }
-            ++edge_counts[key];
+        for (int corner = 0; corner < 3; ++corner) {
+            selected_vertices.insert(face[corner]);
+            const int a = face[corner];
+            const int b = face[(corner + 1) % 3];
+            ++edge_counts[edge_key(position_ids[static_cast<std::size_t>(a)], position_ids[static_cast<std::size_t>(b)])];
+            border_order.push_back({a, b});
         }
     }
-    if (extruded_vertices.empty() || selected_face_values.empty()) {
+    if (selected_face_values.empty()) {
         result.vertices.clear();
         result.copy_vertex_indices.clear();
         return result;
     }
+    const auto on_border = [&](int a, int b) {
+        return edge_counts[edge_key(position_ids[static_cast<std::size_t>(a)], position_ids[static_cast<std::size_t>(b)])] == 1;
+    };
 
-    result.faces = original_faces;
-    result.source_face_indices = source_faces;
+    // A vertex on the border, or one an unselected face still uses, is copied
+    // for the cap; every other selected vertex simply moves with it.
+    std::set<int> copied;
+    for (const auto& edge : border_order) {
+        if (on_border(edge[0], edge[1])) {
+            copied.insert(edge[0]);
+            copied.insert(edge[1]);
+        }
+    }
+    for (std::size_t face_index = 0; face_index < original_faces.size(); ++face_index) {
+        if (selected_faces.find(static_cast<int>(face_index)) == selected_faces.end()) {
+            for (const int vertex_index : original_faces[face_index]) {
+                if (selected_vertices.find(vertex_index) != selected_vertices.end()) {
+                    copied.insert(vertex_index);
+                }
+            }
+        }
+    }
+    std::map<int, int> cap_vertex;
+    for (const int vertex_index : selected_vertices) {
+        if (copied.find(vertex_index) == copied.end()) {
+            result.vertices[static_cast<std::size_t>(vertex_index)] =
+                add_vec3(result.vertices[static_cast<std::size_t>(vertex_index)], offset);
+            result.changed_vertices.push_back(vertex_index);
+            cap_vertex[vertex_index] = vertex_index;
+            continue;
+        }
+        const int new_index = static_cast<int>(result.vertices.size());
+        result.vertices.push_back(add_vec3(result.vertices[static_cast<std::size_t>(vertex_index)], offset));
+        result.copy_vertex_indices.push_back(vertex_index);
+        result.changed_vertices.push_back(new_index);
+        cap_vertex[vertex_index] = new_index;
+        ++result.added_vertices;
+    }
+
+    // The selected faces become the cap. Keeping them as well left a base
+    // inside the extrusion and three faces on every border edge.
+    result.faces.clear();
+    result.source_face_indices.clear();
+    for (std::size_t face_index = 0; face_index < original_faces.size(); ++face_index) {
+        if (selected_faces.find(static_cast<int>(face_index)) == selected_faces.end()) {
+            result.faces.push_back(original_faces[face_index]);
+            result.source_face_indices.push_back(source_faces[face_index]);
+        }
+    }
     for (std::size_t selected_index = 0; selected_index < selected_face_values.size(); ++selected_index) {
         const auto& face = selected_face_values[selected_index];
-        result.faces.push_back({
-            extruded_vertices[face[0]],
-            extruded_vertices[face[1]],
-            extruded_vertices[face[2]],
-        });
-        result.source_face_indices.push_back(
-            selected_index < selected_source_faces.size()
-                ? selected_source_faces[selected_index]
-                : static_cast<int>(selected_index)
-        );
+        result.faces.push_back({cap_vertex[face[0]], cap_vertex[face[1]], cap_vertex[face[2]]});
+        result.source_face_indices.push_back(selected_source_faces[selected_index]);
         ++result.added_faces;
     }
     int next_generated_source_face = next_generated_source_face_index(source_faces);
-    for (const auto& edge : edge_order_keys) {
-        if (edge_counts[edge] != 1) {
+    for (const auto& edge : border_order) {
+        if (!on_border(edge[0], edge[1])) {
             continue;
         }
-        const std::array<int, 2>& oriented = edge_order[edge];
-        const int a = oriented[0];
-        const int b = oriented[1];
-        const int na = extruded_vertices[a];
-        const int nb = extruded_vertices[b];
+        // a -> b runs as the selected face ran it, the opposite of the neighbour
+        // across the border, so each wall winds with the surface it joins.
+        const int a = edge[0];
+        const int b = edge[1];
+        const int na = cap_vertex[a];
+        const int nb = cap_vertex[b];
         result.faces.push_back({a, b, nb});
         result.source_face_indices.push_back(next_generated_source_face++);
         result.faces.push_back({a, nb, na});
         result.source_face_indices.push_back(next_generated_source_face++);
         result.added_faces += 2;
     }
-    result.topology_changed = result.added_vertices > 0 && result.added_faces > 0;
+    // A closed selection has no border and copies nothing; its cap still moved.
+    result.topology_changed = result.added_faces > 0;
     if (!result.topology_changed) {
         result.vertices.clear();
         result.faces.clear();
@@ -127,14 +168,19 @@ SubmeshMeshEditResult run_extrude_edit_for_submesh(const JsonValue& item, const 
         result.copy_vertex_indices.push_back(static_cast<int>(vertex_index));
     }
 
-    std::set<int> selected_faces = selected_faces_from_topology_json(item, original_faces, result.vertices.size());
+    // Faces only when faces are what was selected: deriving them from an edge
+    // selection made "Extrude Edges" extrude the triangles beside each edge.
+    std::set<std::array<int, 2>> selected_edges = selected_edges_from_binary_or_json(item, result.vertices.size());
+    std::set<int> selected_faces = explicit_selected_faces_from_topology_json(item, original_faces.size());
+    if (selected_faces.empty() && selected_edges.empty()) {
+        selected_faces = selected_faces_from_topology_json(item, original_faces, result.vertices.size());
+    }
     if (!selected_faces.empty()) {
         return extrude_selected_faces(
             std::move(result), original_faces, source_faces, selected_faces, offset
         );
     }
 
-    std::set<std::array<int, 2>> selected_edges = selected_edges_from_binary_or_json(item, result.vertices.size());
     if (!original_faces.empty() && !selected_edges.empty()) {
         const std::set<std::array<int, 2>> existing_edges = face_edge_set(original_faces);
         std::set<std::array<int, 2>> kept_edges;
@@ -151,13 +197,23 @@ SubmeshMeshEditResult run_extrude_edit_for_submesh(const JsonValue& item, const 
         return result;
     }
 
+    // Each edge as the first face using it runs it. The new strip runs it the
+    // other way, so it winds with that face instead of by vertex numbering.
+    std::map<std::array<int, 2>, std::array<int, 2>> face_direction;
+    for (const auto& face : original_faces) {
+        for (int corner = 0; corner < 3; ++corner) {
+            face_direction.emplace(edge_key(face[corner], face[(corner + 1) % 3]),
+                std::array<int, 2>{face[corner], face[(corner + 1) % 3]});
+        }
+    }
     std::map<int, int> extruded_vertices;
     result.faces = original_faces;
     result.source_face_indices = source_faces;
     int next_generated_source_face = next_generated_source_face_index(source_faces);
     for (const auto& edge : selected_edges) {
-        const int a = edge[0];
-        const int b = edge[1];
+        const auto direction = face_direction.find(edge);
+        const int a = direction != face_direction.end() ? direction->second[1] : edge[0];
+        const int b = direction != face_direction.end() ? direction->second[0] : edge[1];
         if (extruded_vertices.find(a) == extruded_vertices.end()) {
             const int new_index = static_cast<int>(result.vertices.size());
             result.vertices.push_back(add_vec3(result.vertices[static_cast<std::size_t>(a)], offset));
@@ -509,45 +565,81 @@ SubmeshMeshEditResult run_edge_split_edit_for_submesh(const JsonValue& item) {
     result.faces.reserve(original_faces.size());
     result.source_face_indices.reserve(original_faces.size());
     if (!selected_edges.empty()) {
-        std::set<std::array<int, 2>> seen_edges;
+        // Each end of a selected edge gets one copy per wedge: the run of faces
+        // around it that stay joined across unselected edges. Copying both ends
+        // for the second face instead detached that face along its other two
+        // edges too, so the split spread past the selection.
+        std::map<int, std::vector<int>> faces_around;
         for (std::size_t face_index = 0; face_index < original_faces.size(); ++face_index) {
-            const std::array<int, 3>& original_face = original_faces[face_index];
-            std::array<int, 3> face = original_face;
-            std::map<int, int> replacements;
-            const std::array<int, 2> edges[3] = {
-                edge_key(original_face[0], original_face[1]),
-                edge_key(original_face[1], original_face[2]),
-                edge_key(original_face[2], original_face[0]),
+            for (const int vertex_index : original_faces[face_index]) {
+                faces_around[vertex_index].push_back(static_cast<int>(face_index));
+            }
+        }
+        std::set<int> split_ends;
+        for (const auto& edge : selected_edges) {
+            split_ends.insert(edge[0]);
+            split_ends.insert(edge[1]);
+        }
+        std::vector<std::array<int, 3>> faces = original_faces;
+        for (const int vertex_index : split_ends) {
+            const auto around = faces_around.find(vertex_index);
+            if (around == faces_around.end()) {
+                continue;
+            }
+            std::map<int, int> parent;
+            for (const int face_index : around->second) {
+                parent[face_index] = face_index;
+            }
+            const auto root = [&](int face_index) {
+                while (parent[face_index] != face_index) {
+                    parent[face_index] = parent[parent[face_index]];
+                    face_index = parent[face_index];
+                }
+                return face_index;
             };
-            for (const auto& edge : edges) {
-                if (selected_edges.find(edge) == selected_edges.end()) {
-                    continue;
-                }
-                if (seen_edges.find(edge) == seen_edges.end()) {
-                    seen_edges.insert(edge);
-                    continue;
-                }
-                for (const int vertex_index : edge) {
-                    if (replacements.find(vertex_index) != replacements.end()) {
-                        continue;
-                    }
-                    const int new_index = static_cast<int>(result.vertices.size());
-                    result.vertices.push_back(result.vertices[static_cast<std::size_t>(vertex_index)]);
-                    result.copy_vertex_indices.push_back(vertex_index);
-                    result.changed_vertices.push_back(new_index);
-                    replacements[vertex_index] = new_index;
-                    ++result.added_vertices;
-                }
-            }
-            if (!replacements.empty()) {
-                for (int& vertex_index : face) {
-                    const auto found = replacements.find(vertex_index);
-                    if (found != replacements.end()) {
-                        vertex_index = found->second;
+            std::map<int, std::vector<int>> faces_by_neighbour;
+            for (const int face_index : around->second) {
+                for (const int other : original_faces[static_cast<std::size_t>(face_index)]) {
+                    if (other != vertex_index) {
+                        faces_by_neighbour[other].push_back(face_index);
                     }
                 }
             }
-            result.faces.push_back(face);
+            for (const auto& joined : faces_by_neighbour) {
+                if (selected_edges.find(edge_key(vertex_index, joined.first)) != selected_edges.end()) {
+                    continue;
+                }
+                for (const int face_index : joined.second) {
+                    parent[root(face_index)] = root(joined.second.front());
+                }
+            }
+            std::map<int, std::vector<int>> wedges;
+            for (const int face_index : around->second) {
+                wedges[root(face_index)].push_back(face_index);
+            }
+            // The wedge holding the lowest face keeps the original vertex.
+            std::vector<std::vector<int>> ordered;
+            for (auto& wedge : wedges) {
+                ordered.push_back(std::move(wedge.second));
+            }
+            std::sort(ordered.begin(), ordered.end());
+            for (std::size_t wedge_index = 1; wedge_index < ordered.size(); ++wedge_index) {
+                const int new_index = static_cast<int>(result.vertices.size());
+                result.vertices.push_back(result.vertices[static_cast<std::size_t>(vertex_index)]);
+                result.copy_vertex_indices.push_back(vertex_index);
+                result.changed_vertices.push_back(new_index);
+                ++result.added_vertices;
+                for (const int face_index : ordered[wedge_index]) {
+                    for (int corner = 0; corner < 3; ++corner) {
+                        if (original_faces[static_cast<std::size_t>(face_index)][corner] == vertex_index) {
+                            faces[static_cast<std::size_t>(face_index)][corner] = new_index;
+                        }
+                    }
+                }
+            }
+        }
+        for (std::size_t face_index = 0; face_index < faces.size(); ++face_index) {
+            result.faces.push_back(faces[face_index]);
             result.source_face_indices.push_back(
                 face_index < source_faces.size()
                     ? source_faces[face_index]

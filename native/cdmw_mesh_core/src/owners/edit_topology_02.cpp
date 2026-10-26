@@ -758,79 +758,94 @@ SubmeshMeshEditResult run_dissolve_edit_for_submesh(const JsonValue& item) {
 
     const std::set<std::array<int, 2>> selected_edges = selected_edges_from_binary_or_json(item, vertices.size());
     if (!selected_edges.empty()) {
+        // An edge selection rotates each interior edge to the other diagonal of
+        // its two triangles. A border, non-manifold or concave edge stays as it
+        // is; falling back to deleting the faces beside it tore a hole instead.
+        std::vector<std::array<int, 3>> rotated = faces;
         std::map<std::array<int, 2>, std::vector<int>> edge_faces;
-        for (std::size_t face_index = 0; face_index < faces.size(); ++face_index) {
-            const auto& face = faces[face_index];
-            edge_faces[edge_key(face[0], face[1])].push_back(static_cast<int>(face_index));
-            edge_faces[edge_key(face[1], face[2])].push_back(static_cast<int>(face_index));
-            edge_faces[edge_key(face[2], face[0])].push_back(static_cast<int>(face_index));
+        const auto link = [&](int face_index, bool add) {
+            const auto& face = rotated[static_cast<std::size_t>(face_index)];
+            for (int corner = 0; corner < 3; ++corner) {
+                std::vector<int>& users = edge_faces[edge_key(face[corner], face[(corner + 1) % 3])];
+                if (add) {
+                    users.push_back(face_index);
+                } else {
+                    users.erase(std::remove(users.begin(), users.end(), face_index), users.end());
+                }
+            }
+        };
+        for (std::size_t face_index = 0; face_index < rotated.size(); ++face_index) {
+            link(static_cast<int>(face_index), true);
         }
-
-        bool internal_edges = true;
+        bool rotated_any = false;
         for (const auto& edge : selected_edges) {
-            if (edge_faces[edge].size() != 2) {
-                internal_edges = false;
-                break;
+            const auto users = edge_faces.find(edge);
+            if (users == edge_faces.end() || users->second.size() != 2) {
+                continue;
             }
+            const int first = users->second[0];
+            const int second = users->second[1];
+            const std::array<int, 3> first_face = rotated[static_cast<std::size_t>(first)];
+            const std::array<int, 3> second_face = rotated[static_cast<std::size_t>(second)];
+            // a -> b is the edge as the first face runs it, which fixes the
+            // winding of both replacements whatever the vertex numbering.
+            int a = -1;
+            int b = -1;
+            int first_opposite = -1;
+            for (int corner = 0; corner < 3; ++corner) {
+                if (edge_key(first_face[corner], first_face[(corner + 1) % 3]) == edge) {
+                    a = first_face[corner];
+                    b = first_face[(corner + 1) % 3];
+                    first_opposite = first_face[(corner + 2) % 3];
+                }
+            }
+            int second_opposite = -1;
+            for (const int index : second_face) {
+                if (index != edge[0] && index != edge[1]) {
+                    second_opposite = index;
+                }
+            }
+            if (a < 0 || first_opposite < 0 || second_opposite < 0 || first_opposite == second_opposite) {
+                continue;
+            }
+            const auto existing = edge_faces.find(edge_key(first_opposite, second_opposite));
+            if (existing != edge_faces.end() && !existing->second.empty()) {
+                continue;
+            }
+            const std::array<int, 3> first_new{first_opposite, a, second_opposite};
+            const std::array<int, 3> second_new{second_opposite, b, first_opposite};
+            const auto normal = [&](const std::array<int, 3>& face) {
+                return face_normal(
+                    vertices[static_cast<std::size_t>(face[0])],
+                    vertices[static_cast<std::size_t>(face[1])],
+                    vertices[static_cast<std::size_t>(face[2])]
+                );
+            };
+            const Vec3 old_normal = normal(first_face);
+            const Vec3 old_second = normal(second_face);
+            const Vec3 facing{old_normal[0] + old_second[0], old_normal[1] + old_second[1], old_normal[2] + old_second[2]};
+            // On a concave quad the other diagonal runs outside it and folds a triangle over.
+            if (dot_vec3(normal(first_new), facing) <= 0.0 || dot_vec3(normal(second_new), facing) <= 0.0) {
+                continue;
+            }
+            link(first, false);
+            link(second, false);
+            rotated[static_cast<std::size_t>(first)] = first_new;
+            rotated[static_cast<std::size_t>(second)] = second_new;
+            link(first, true);
+            link(second, true);
+            rotated_any = true;
         }
-
-        std::map<int, std::array<int, 3>> replacements;
-        std::set<int> used_faces;
-        if (internal_edges) {
-            for (const auto& edge : selected_edges) {
-                const std::vector<int>& face_indices = edge_faces[edge];
-                if (used_faces.find(face_indices[0]) != used_faces.end()
-                    || used_faces.find(face_indices[1]) != used_faces.end()) {
-                    replacements.clear();
-                    internal_edges = false;
-                    break;
-                }
-                const int left = edge[0];
-                const int right = edge[1];
-                const std::array<int, 3>& first_face = faces[static_cast<std::size_t>(face_indices[0])];
-                const std::array<int, 3>& second_face = faces[static_cast<std::size_t>(face_indices[1])];
-                int first_opposite = -1;
-                int second_opposite = -1;
-                for (const int index : first_face) {
-                    if (index != left && index != right) {
-                        first_opposite = index;
-                        break;
-                    }
-                }
-                for (const int index : second_face) {
-                    if (index != left && index != right) {
-                        second_opposite = index;
-                        break;
-                    }
-                }
-                if (first_opposite < 0 || second_opposite < 0 || first_opposite == second_opposite) {
-                    replacements.clear();
-                    internal_edges = false;
-                    break;
-                }
-                const int lower = std::min(face_indices[0], face_indices[1]);
-                const int upper = std::max(face_indices[0], face_indices[1]);
-                replacements[lower] = {first_opposite, left, second_opposite};
-                replacements[upper] = {first_opposite, second_opposite, right};
-                used_faces.insert(face_indices[0]);
-                used_faces.insert(face_indices[1]);
-            }
-        }
-
-        if (internal_edges && !replacements.empty()) {
-            result.vertices = vertices;
-            result.faces.reserve(faces.size());
-            result.source_face_indices.reserve(faces.size());
-            for (std::size_t face_index = 0; face_index < faces.size(); ++face_index) {
-                const auto found = replacements.find(static_cast<int>(face_index));
-                result.faces.push_back(found != replacements.end() ? found->second : faces[face_index]);
-                result.source_face_indices.push_back(source_faces[face_index]);
-            }
-            result.copy_vertex_indices = identity_indices(result.vertices.size());
-            result.index_map = identity_indices(result.vertices.size());
-            result.topology_changed = true;
+        if (!rotated_any) {
             return result;
         }
+        result.vertices = vertices;
+        result.faces = std::move(rotated);
+        result.source_face_indices = source_faces;
+        result.copy_vertex_indices = identity_indices(result.vertices.size());
+        result.index_map = identity_indices(result.vertices.size());
+        result.topology_changed = true;
+        return result;
     }
 
     const std::set<int> selected_faces = selected_faces_from_topology_json(item, faces, vertices.size());

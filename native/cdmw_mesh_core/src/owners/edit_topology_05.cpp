@@ -395,14 +395,37 @@ void smooth_subdivide_vertices(
         1,
         std::min(12, int_or(edit.get("smooth_iterations"), int_or(edit.get("iterations"), 2)))
     );
-    std::vector<Vec3> relax = result.vertices;
-    const std::vector<std::set<int>> adjacency = build_vertex_adjacency(result.vertices.size(), result.faces);
+    // Relax points, not vertex indices. Seam twins share a point; relaxed apart
+    // by their own one-sided neighbourhoods, they tore the seam open.
+    const std::vector<int> point_of = coincident_position_ids(result.vertices);
+    int point_count = 0;
+    for (const int point : point_of) {
+        point_count = std::max(point_count, point + 1);
+    }
+    std::vector<Vec3> relax(static_cast<std::size_t>(point_count), Vec3{0.0, 0.0, 0.0});
+    for (std::size_t index = 0; index < point_of.size(); ++index) {
+        relax[static_cast<std::size_t>(point_of[index])] = result.vertices[index];
+    }
+    std::vector<std::set<int>> adjacency(static_cast<std::size_t>(point_count));
+    for (const auto& face : result.faces) {
+        for (int corner = 0; corner < 3; ++corner) {
+            const int first = point_of[static_cast<std::size_t>(face[corner])];
+            const int second = point_of[static_cast<std::size_t>(face[(corner + 1) % 3])];
+            if (first != second) {
+                adjacency[static_cast<std::size_t>(first)].insert(second);
+                adjacency[static_cast<std::size_t>(second)].insert(first);
+            }
+        }
+    }
+    std::set<int> moving;
+    for (const int index : changed) {
+        if (index >= 0 && static_cast<std::size_t>(index) < point_of.size()) {
+            moving.insert(point_of[static_cast<std::size_t>(index)]);
+        }
+    }
     for (int iteration = 0; iteration < iterations; ++iteration) {
         std::vector<Vec3> next = relax;
-        for (const int index : changed) {
-            if (index < 0 || static_cast<std::size_t>(index) >= adjacency.size()) {
-                continue;
-            }
+        for (const int index : moving) {
             const std::set<int>& neighbors = adjacency[static_cast<std::size_t>(index)];
             if (neighbors.empty()) {
                 continue;
@@ -428,7 +451,11 @@ void smooth_subdivide_vertices(
         }
         relax = std::move(next);
     }
-    result.vertices = std::move(relax);
+    for (std::size_t index = 0; index < point_of.size(); ++index) {
+        if (moving.find(point_of[index]) != moving.end()) {
+            result.vertices[index] = relax[static_cast<std::size_t>(point_of[index])];
+        }
+    }
 }
 
 SubmeshMeshEditResult run_subdivide_edit_for_submesh(const JsonValue& item, const JsonValue& edit, bool refine) {
@@ -503,6 +530,30 @@ SubmeshMeshEditResult run_subdivide_edit_for_submesh(const JsonValue& item, cons
         changed.insert(face[0]);
         changed.insert(face[1]);
         changed.insert(face[2]);
+    }
+    // The same edge seen across a UV or hard-normal seam has its own corner
+    // indices, so the stitch above missed it: the face over the seam kept the
+    // whole edge against the new midpoint and cracked once that midpoint moved.
+    {
+        const std::vector<int> point_of = coincident_position_ids(result.vertices);
+        std::set<std::array<int, 2>> split_points;
+        for (const auto& split : edge_midpoints) {
+            split_points.insert(edge_key(
+                point_of[static_cast<std::size_t>(split.first[0])],
+                point_of[static_cast<std::size_t>(split.first[1])]
+            ));
+        }
+        for (const auto& face : original_faces) {
+            for (int corner = 0; corner < 3; ++corner) {
+                const int a = face[corner];
+                const int b = face[(corner + 1) % 3];
+                if (midpoint_for(a, b) < 0
+                    && split_points.find(edge_key(point_of[static_cast<std::size_t>(a)], point_of[static_cast<std::size_t>(b)]))
+                        != split_points.end()) {
+                    midpoint_index(a, b);
+                }
+            }
+        }
     }
 
     // Exact output size, neighbour stitching included, checked before any face

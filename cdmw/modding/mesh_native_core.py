@@ -270,6 +270,7 @@ from cdmw.modding.mesh_native_snapshot_codec import (
     _mesh_snapshot_metadata as _mesh_snapshot_metadata,
     _submesh_snapshot_metadata as _submesh_snapshot_metadata,
     _snapshot_metadata_value as _snapshot_metadata_value,
+    _source_descriptor_metadata as _source_descriptor_metadata,
     _native_submesh_snapshot_item as _native_submesh_snapshot_item,
     _copy_snapshot_descriptor as _copy_snapshot_descriptor,
     _copy_snapshot_i32_range as _copy_snapshot_i32_range,

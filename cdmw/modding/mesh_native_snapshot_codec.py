@@ -25,6 +25,7 @@ from cdmw.modding.mesh_native_core_constants import (
     NATIVE_MESH_CORE_BACKEND_ID,
     NATIVE_MESH_CORE_BINARY_NAME,
     NATIVE_MESH_HISTORY_VERTEX_DELTA_ATTR,
+    NATIVE_SOURCE_DESCRIPTOR_ATTR,
     Vec2,
     Vec3,
     _NATIVE_MATERIAL_REPORT_ATTRS,
@@ -45,6 +46,12 @@ from cdmw.domain.mesh.topology import (
 from cdmw.domain.model_preview_materials import PreviewMaterialParameterInput, PreviewMaterialTextureInput
 from cdmw.modding.mesh_parser import ParsedMesh, SubMesh
 from cdmw.modding.mesh_skinning import SOURCE_VERTEX_MAP_TOPOLOGY
+from cdmw.modding.mesh_vertex_extras import (
+    VERTEX_EXTRAS_ORIGINS_ATTR,
+    has_vertex_extras,
+    realign_vertex_extras,
+    vertex_extras_origins,
+)
 from cdmw.models import RunCancelled
 
 
@@ -115,11 +122,21 @@ def _mesh_snapshot_metadata(mesh: ParsedMesh) -> dict[str, object]:
         "bbox_max": _vec3(getattr(mesh, "bbox_max", (0.0, 0.0, 0.0)), fallback=0.0),
     }
 
-def _submesh_snapshot_metadata(submesh: object) -> dict[str, object]:
-    metadata: dict[str, object] = {
-        "name": str(getattr(submesh, "name", "") or ""),
-        "material": str(getattr(submesh, "material", "") or ""),
-        "texture": str(getattr(submesh, "texture", "") or ""),
+_SOURCE_DESCRIPTOR_FIELDS = frozenset(
+    {
+        "source_index_offset",
+        "source_index_count",
+        "source_vertex_stride",
+        "source_descriptor_offset",
+        "source_bbox_min",
+        "source_bbox_extent",
+        "source_lod_count",
+    }
+)
+
+
+def _source_descriptor_metadata(submesh: object) -> dict[str, object]:
+    return {
         "source_index_offset": int(
             -1
             if getattr(submesh, "source_index_offset", None) is None
@@ -136,7 +153,17 @@ def _submesh_snapshot_metadata(submesh: object) -> dict[str, object]:
         "source_bbox_extent": _vec3(getattr(submesh, "source_bbox_extent", (0.0, 0.0, 0.0)), fallback=0.0),
         "source_lod_count": int(getattr(submesh, "source_lod_count", 0) or 0),
     }
-    extra_attrs: dict[str, object] = {}
+
+
+def _submesh_snapshot_metadata(submesh: object) -> dict[str, object]:
+    descriptor = _source_descriptor_metadata(submesh)
+    metadata: dict[str, object] = {
+        "name": str(getattr(submesh, "name", "") or ""),
+        "material": str(getattr(submesh, "material", "") or ""),
+        "texture": str(getattr(submesh, "texture", "") or ""),
+        **descriptor,
+    }
+    extra_attrs: dict[str, object] = {NATIVE_SOURCE_DESCRIPTOR_ATTR: dict(descriptor)}
     for attr_name in _EXTRA_SUBMESH_ATTRS:
         if attr_name in _TRANSIENT_NATIVE_SUBMESH_ATTRS:
             continue
@@ -146,8 +173,10 @@ def _submesh_snapshot_metadata(submesh: object) -> dict[str, object]:
     if masks:
         metadata["shader_masks_by_source_offset"] = {str(offset): value for offset, value in masks.items()}
         extra_attrs["shader_masks_by_source_offset"] = metadata["shader_masks_by_source_offset"]
-    if extra_attrs:
-        metadata["extra_attrs"] = extra_attrs
+    extras_origins = vertex_extras_origins(submesh) if has_vertex_extras(submesh) else None
+    if extras_origins is not None:
+        extra_attrs[VERTEX_EXTRAS_ORIGINS_ATTR] = extras_origins
+    metadata["extra_attrs"] = extra_attrs
     return metadata
 
 def _snapshot_metadata_value(value: object) -> object:
@@ -326,6 +355,16 @@ def _copy_snapshot_i32_stride_range(target: dict[str, object], source: Mapping[s
 
 def _submesh_from_native_snapshot_item(item: Mapping[str, object]) -> SubMesh | None:
     metadata = item.get("metadata") if isinstance(item.get("metadata"), Mapping) else {}
+    raw_extra_attrs = metadata.get("extra_attrs")
+    carried_descriptor = (
+        raw_extra_attrs.get(NATIVE_SOURCE_DESCRIPTOR_ATTR) if isinstance(raw_extra_attrs, Mapping) else None
+    )
+    if isinstance(carried_descriptor, Mapping):
+        # The Part's own descriptor outranks the one read by list position.
+        metadata = {
+            **metadata,
+            **{key: value for key, value in carried_descriptor.items() if key in _SOURCE_DESCRIPTOR_FIELDS},
+        }
     vertex_count = _index(item.get("vertex_count"))
     face_count = _index(item.get("face_count"))
     if vertex_count is None or face_count is None or vertex_count < 0 or face_count < 0:
@@ -419,7 +458,13 @@ def _submesh_from_native_snapshot_item(item: Mapping[str, object]) -> SubMesh | 
     if isinstance(extra_attrs, Mapping):
         for raw_name, value in extra_attrs.items():
             attr_name = str(raw_name or "").strip()
-            if attr_name and attr_name != "shader_masks_by_source_offset" and attr_name not in _TRANSIENT_NATIVE_SUBMESH_ATTRS:
+            if (
+                attr_name
+                and attr_name not in {
+                    "shader_masks_by_source_offset", NATIVE_SOURCE_DESCRIPTOR_ATTR, VERTEX_EXTRAS_ORIGINS_ATTR,
+                }
+                and attr_name not in _TRANSIENT_NATIVE_SUBMESH_ATTRS
+            ):
                 setattr(submesh, attr_name, _restored_snapshot_metadata_value(attr_name, value))
     provenance = _topology_provenance_from_native_snapshot_item(
         item, vertex_count=vertex_count, face_count=face_count
@@ -435,6 +480,12 @@ def _submesh_from_native_snapshot_item(item: Mapping[str, object]) -> SubMesh | 
         ):
             provenance = restored
     submesh.topology_provenance = provenance
+    if has_vertex_extras(submesh):
+        realign_vertex_extras(
+            submesh,
+            extra_attrs.get(VERTEX_EXTRAS_ORIGINS_ATTR) if isinstance(extra_attrs, Mapping) else None,
+            provenance,
+        )
     if provenance is not None:
         # With a contract in hand the legacy map is its view, not a separate
         # claim: the single original index for a direct vertex, -1 where the
