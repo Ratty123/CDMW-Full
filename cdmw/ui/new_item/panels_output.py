@@ -13,7 +13,6 @@ from PySide6.QtWidgets import (
     QFileDialog,
     QGroupBox,
     QHeaderView,
-    QHBoxLayout,
     QLabel,
     QLineEdit,
     QMessageBox,
@@ -147,11 +146,7 @@ class OutputPanel(QGroupBox):
     install_overlay_requested = Signal()
 
     def _build_plan_review(self, content):
-        heading = QHBoxLayout()
-        heading.addWidget(QLabel("Review the plan"))
-        heading.addStretch(1)
-        heading.addWidget(self.build_button)
-        content.addLayout(heading)
+        content.addWidget(QLabel("Review the plan"))
         self.review_tabs = QTabWidget()
         self.file_changes = QTreeView()
         self._file_model = FileChangeModel(["File", "Change"], self.file_changes)
@@ -167,7 +162,7 @@ class OutputPanel(QGroupBox):
         self.summary = QPlainTextEdit()
         self._summary_writer = ReviewTextWriter(self.summary)
         self.summary.setReadOnly(True)
-        self.summary.setPlaceholderText("The plan's summary, warnings and touched files appear here.")
+        self.summary.setPlaceholderText("Build the plan to see its summary, warnings and the files it changes. Nothing is written until you choose the write or install button.")
         self.summary.setMinimumHeight(_COMPACT_SUMMARY_HEIGHT)
         self.review_tabs.addTab(self.summary, "Details and warnings")
         content.addWidget(self.review_tabs, 1)
@@ -217,7 +212,10 @@ class OutputPanel(QGroupBox):
         self.build_button.setToolTip("Validate the draft, allocate its key and stem, and compose every table change and file. Nothing is written yet.")
         self.build_button.clicked.connect(self._build)
         self.plan_state = NoteLabel("Plan not built.", WARN)
-        self.plan_state.setToolTip("Every change on the other steps clears the plan, so build it last.")
+        self.plan_state.setToolTip(
+            "Changes to the item, or to the mod it builds on, clear the plan. "
+            "The output folder, mod manager, mod name and overlay folder number keep it."
+        )
 
         self.sidebar = QGroupBox("Destination")
         self.sidebar.setMinimumWidth(320)
@@ -256,6 +254,27 @@ class OutputPanel(QGroupBox):
         export = QVBoxLayout(self.folder_controls)
         export.setContentsMargins(0, 0, 0, 0)
         export.setSpacing(6)
+        # What the plan builds on comes first; it changes what the folder below means.
+        self.add_to_mod = QCheckBox("Add to existing mod")
+        self.add_to_mod.setToolTip(
+            "Select an existing mod folder to add this item while keeping its current items. "
+            "Leave unticked to create a separate mod in a new folder."
+        )
+        self.add_to_mod.toggled.connect(lambda _checked: self._mod_base_changed())
+        export.addWidget(self.add_to_mod)
+        self.include_mounted = QCheckBox("Include mounted items in a new mod")
+        self.include_mounted.setToolTip(
+            "Copies all mounted overlay archives into a new package, including their other changes. "
+            "Keep the originals mounted while building, then review the plan before exporting."
+        )
+        self.include_mounted.toggled.connect(self._mounted_base_changed)
+        export.addWidget(self.include_mounted)
+        self.mounted_review = NoteLabel("", WARN)
+        export.addWidget(self.mounted_review)
+        self.mod_base_note = QLabel("")
+        self.mod_base_note.setWordWrap(True)
+        self.mod_base_note.setVisible(False)
+        export.addWidget(self.mod_base_note)
         export.addWidget(QLabel("Mod manager"))
         self.manager = QComboBox()
         self.manager.addItems(MANAGERS)
@@ -307,33 +326,13 @@ class OutputPanel(QGroupBox):
         self.update_package_button.clicked.connect(lambda: self._write_independent(update=True))
         independent_layout.addWidget(self.update_package_button)
         write_layout.addWidget(self.independent_controls)
-        # Plan on the chosen package's tables so both items share one complete package.
-        self.add_to_mod = QCheckBox("Add to existing mod")
-        self.add_to_mod.setToolTip(
-            "Select an existing mod folder to add this item while keeping its current items. "
-            "Leave unticked to create a separate mod in a new folder."
-        )
-        self.add_to_mod.toggled.connect(lambda _checked: self._mod_base_changed())
-        write_layout.addWidget(self.add_to_mod)
-        self.include_mounted = QCheckBox("Include mounted items in a new mod")
-        self.include_mounted.setToolTip(
-            "Copies all mounted overlay archives into a new package, including their other changes. "
-            "Keep the originals mounted while building, then review the plan before exporting."
-        )
-        self.include_mounted.toggled.connect(self._mounted_base_changed)
-        self.mounted_review = NoteLabel("", WARN)
-        self.mod_base_note = QLabel("")
-        self.mod_base_note.setWordWrap(True)
-        self.mod_base_note.setVisible(False)
-        write_layout.addWidget(self.mod_base_note)
+        # A blocked export and its remedy stay above the choices they refer to.
         self.export_problem = NoteLabel("", BLOCK)
         write_layout.insertWidget(0, self.export_problem)
         self.choose_mod_base_button = QPushButton("Choose mod to extend...")
         self.choose_mod_base_button.clicked.connect(self._choose_mod_to_extend)
         self.choose_mod_base_button.hide()
-        write_layout.insertWidget(1, self.include_mounted)
-        write_layout.insertWidget(2, self.choose_mod_base_button)
-        write_layout.insertWidget(3, self.mounted_review)
+        write_layout.insertWidget(1, self.choose_mod_base_button)
         self.export_root.textChanged.connect(lambda _text: self._mod_base_changed())
         self.mod_name.textChanged.connect(lambda _text: self._update_destination())
         self.overlay_controls = QWidget()
@@ -404,21 +403,25 @@ class OutputPanel(QGroupBox):
         self.workspace_splitter.setStretchFactor(1, 1)
         self.workspace_splitter.setStretchFactor(2, 0)
         self.workspace_splitter.setSizes((460, 460, 320))
+        # Status, Build plan and the write action read top to bottom in the order
+        # they are used. Destination details are applied when writing, so changing
+        # them keeps a built plan; only what the plan builds on clears it.
         self.actions = QWidget()
         actions = QVBoxLayout(self.actions)
         actions.setContentsMargins(0, 0, 0, 0)
+        actions.addWidget(self.build_button)
         actions.addWidget(self.export_button)
         actions.addWidget(self.install_overlay_button)
         sidebar_layout.addWidget(self.actions)
+        self._stale_reason = self._pending_stale_reason = self._plan_blocked = ""
+        self._plan_was_shown = False
         self.output_mode.currentIndexChanged.connect(self._output_mode_changed)
-        self.manager.currentIndexChanged.connect(controller.invalidate_plan)
-        self.overlay_directory.textChanged.connect(controller.invalidate_plan)
         self._output_mode_changed()
 
         controller.log_message.connect(self.append_log)
         controller.plan_ready.connect(self._show_plan)
         controller.plan_failed.connect(self._plan_failed)
-        controller.plan_invalidated.connect(self._show_plan)
+        controller.plan_invalidated.connect(self._plan_invalidated)
         controller.export_finished.connect(self._export_finished)
         controller.install_finished.connect(self._install_finished)
         controller.install_failed.connect(self._install_failed)
@@ -431,7 +434,8 @@ class OutputPanel(QGroupBox):
     def eventFilter(self, watched, event) -> bool:
         if watched is self.sidebar_scroll.widget() and event.type() == QEvent.Type.LayoutRequest:
             # Honor translated labels and font scaling without a horizontal scroll.
-            width = watched.minimumSizeHint().width() + self.sidebar_scroll.verticalScrollBar().sizeHint().width()
+            width = (watched.minimumSizeHint().width() + self.sidebar_scroll.verticalScrollBar().sizeHint().width()
+                     + 2 * self.sidebar_scroll.frameWidth())
             if self.sidebar_scroll.minimumWidth() != width:
                 self.sidebar_scroll.setMinimumWidth(width)
         return super().eventFilter(watched, event)
@@ -442,7 +446,11 @@ class OutputPanel(QGroupBox):
         folder = self.output_mode.currentData() == "folder"
         independent = self.output_mode.currentData() == "independent"
         overlay = self.output_mode.currentData() == "overlay"
-        self._controller.independent_mode = independent
+        reason = ""
+        if self._controller.independent_mode != independent:
+            # Item packages are planned without the mounted game identities.
+            self._controller.independent_mode = independent
+            reason = self.tr("Item packages and game installs are planned differently.")
         self.folder_mode_button.setChecked(folder)
         self.overlay_mode_button.setChecked(overlay)
         self.independent_mode_button.setChecked(independent)
@@ -453,7 +461,7 @@ class OutputPanel(QGroupBox):
         self.export_button.setText(self.tr("Write item package") + " (.cditem)" if independent else self.tr("Write mod folder"))
         self.export_button.setToolTip(self.tr("Write a portable .cditem file for installation through CDMW.") if independent else self.tr("Create the mod folder shown above, with an optional ZIP copy."))
         self.install_overlay_button.setVisible(overlay)
-        self._mod_base_changed()
+        self._mod_base_changed(reason)
 
     def _write_independent(self, *, update=False):
         if not self._controller.has_current_plan:
@@ -469,12 +477,14 @@ class OutputPanel(QGroupBox):
 
     def _build(self) -> None:
         self.summary.setPlainText("Building the plan...")
-        self.plan_state.set_note("Building...", None)
-        if not self._controller.start_plan():
-            self.plan_state.set_note("The plan could not start; see the message above.", BLOCK)
+        self._plan_blocked = ""
+        if not self._controller.start_plan() and not self._plan_blocked:
+            self.plan_state.set_note("The plan could not start; see the activity log.", BLOCK)
             return
+        # Starting clears the previous plan; show building, ready or blocked instead.
+        self._refresh_export_state()
 
-    def _mod_base_changed(self) -> None:
+    def _mod_base_changed(self, reason: str = "") -> None:
         """Only use the selected folder as a base when the user asks to extend it."""
         folder_mode = self.output_mode.currentData() == "folder"
         self.add_to_mod.setVisible(folder_mode)
@@ -484,10 +494,21 @@ class OutputPanel(QGroupBox):
             self.include_mounted.setChecked(False)
             self.include_mounted.blockSignals(False)
         self.mod_base_note.setVisible(folder_mode)
-        self._controller.include_mounted_items = folder_mode and self.include_mounted.isChecked()
-        self._controller.invalidate_plan()
-        self._controller.set_mod_base(self._package_root() if folder_mode and self.add_to_mod.isChecked() else None)
+        mounted = folder_mode and self.include_mounted.isChecked()
+        base = self._package_root() if folder_mode and self.add_to_mod.isChecked() else None
+        base = base if base is not None and base.is_dir() else None
+        if mounted != self._controller.include_mounted_items or base != self._controller.mod_base_folder:
+            self._controller.include_mounted_items = mounted
+            self._controller.set_mod_base(base)
+            reason = reason or self.tr("The plan builds on a different mod now.")
+        if reason:
+            # The last invalidation names why; set_mod_base's own carries none.
+            self._pending_stale_reason = reason
+            self._controller.invalidate_plan()
         self._update_destination()
+        # The folder, manager and overlay number are only used when writing; a
+        # built plan stays ready and its review follows the selected output.
+        self._show_plan(self._controller.plan if self._controller.has_current_plan else None)
 
     def _mounted_base_changed(self, checked: bool) -> None:
         if checked:
@@ -576,7 +597,9 @@ class OutputPanel(QGroupBox):
         self.update_package_button.setEnabled(self._controller.has_current_plan and not self._controller.busy)
         if problem:
             self.plan_state.set_note("Export blocked", BLOCK)
-        elif self._controller.has_current_plan:
+        elif not self._controller.has_current_plan:
+            self._plan_note()
+        else:
             plan = self._controller.plan
             warnings = len(plan.warnings)
             self.plan_state.set_note(
@@ -623,6 +646,25 @@ class OutputPanel(QGroupBox):
                 self._export_error = str(message)
                 self._refresh_export_state()
 
+    def _plan_note(self) -> None:
+        """Say what the plan needs next, beside the buttons that do it."""
+        if self._controller.busy and self._controller._lane == "plan":
+            self.plan_state.set_note(self.tr("Building the plan..."), EDIT)
+        elif self._plan_blocked:
+            self.plan_state.set_note(f"Blocked: {self._plan_blocked}", BLOCK)
+        elif self._plan_was_shown:
+            reason = self._stale_reason or self.tr("Something on an earlier step changed.")
+            self.plan_state.set_note(
+                self.tr("Plan out of date. {value_0} Build it again before writing.").format(value_0=reason), WARN)
+        else:
+            self.plan_state.set_note(
+                self.tr("Next: build the plan. Nothing is written until you choose the button below it."), WARN)
+
+    def _plan_invalidated(self) -> None:
+        self._stale_reason, self._pending_stale_reason = self._pending_stale_reason, ""
+        self._plan_blocked = ""
+        self._show_plan(None)
+
     def _show_plan(self, plan: Optional[NewItemPlan] = None) -> None:
         self.mod_name.setPlaceholderText(self._controller.draft.display_names.get("eng", "") or self.tr("Mod name"))
         self._update_destination()
@@ -631,6 +673,9 @@ class OutputPanel(QGroupBox):
         if not self._controller.busy:
             self.busy_state.set_note("", None)
         enabled = plan is not None
+        if enabled:
+            self._plan_was_shown = True
+            self._stale_reason = self._plan_blocked = ""
         self.build_button.setProperty("newItemPrimary", not enabled)
         self.build_button.style().unpolish(self.build_button)
         self.build_button.style().polish(self.build_button)
@@ -646,7 +691,6 @@ class OutputPanel(QGroupBox):
         if plan is None:
             self.build_button.setText(self.tr("Build plan"))
             self._summary_writer.set_text("")
-            self.plan_state.set_note("Plan not built.", WARN)
             return
         self.build_button.setText(self.tr("Rebuild plan"))
         from cdmw.services.new_item_review import plan_review_content
@@ -673,7 +717,8 @@ class OutputPanel(QGroupBox):
         self.summary.setPlainText("\n".join(lines))
         self.review_tabs.setCurrentWidget(self.summary)
         self.append_log("\n".join(lines))
-        self.plan_state.set_note(f"Blocked: {message}", BLOCK)
+        self._plan_blocked = str(message)
+        self._plan_note()
 
     def _export_finished(self, result: object) -> None:
         from cdmw.domain.new_item.independent import IndependentItemExport

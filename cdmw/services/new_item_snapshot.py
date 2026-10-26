@@ -493,7 +493,7 @@ def build_snapshot(
         try:
             from cdmw.services.archive_verification_process import verify_resident_catalogue
 
-            verify_resident_catalogue(resident_catalogue, provenance, stop_event=stop_event)
+            verify_resident_catalogue(resident_catalogue, provenance, stop_event=stop_event, on_log=on_log)
         except ValueError as exc:
             raise StaleNewItemSource(str(exc)) from exc
         entries = resident_catalogue

@@ -111,6 +111,26 @@ def test_extension_row_cache_has_a_shared_budget(catalogue, tmp_path, monkeypatc
     assert sum(len(group[1]) for group in index._extensions.values() if group[1] is not None) <= 100
 
 
+def test_batched_extension_scan_matches_the_row_decoder_for_awkward_names(catalogue, tmp_path, monkeypatch):
+    monkeypatch.setattr('cdmw.core.archive_resident_index._EXTENSION_BATCH_ROWS', 7)
+    root, entries, _source = catalogue
+    names = [
+        'a.PAC', 'b', '.hidden', 'dir.v2/readme', 'dir.v2\\NAME.Dds', 'x' * 40, 'x' * 40 + '.TXT',
+        'folder/' + 'y' * 30, 'folder/archive.tar.GZ', 'folder/trailing.pac/', 'Model\\\\upper.PAM',
+        'gamedata/table.StaticInfoHeader', 'gamedata/' + 'z' * 20 + '.staticinfobody', 'model/Äsword.pac',
+        'model/A.Σ', 'model/Ksword.PAC', 'model/name.päc', 'model/end.', 'dots..pac',
+    ]
+    rows = [replace(entries[0], path=name, offset=index) for index, name in enumerate(names)]
+    index = write_resident_index(root, rows, tmp_path / 'awkward-extensions', sort_records=False).open()
+    expected = {}
+    for row in range(len(index)):
+        expected.setdefault(index._extension(row), []).append(row)
+    index._prepare_extensions()
+    assert list(index._extensions) == list(expected)
+    assert {key: (count, list(rows)) for key, (count, rows) in index._extensions.items()} == {
+        key: (len(rows), rows) for key, rows in expected.items()}
+
+
 @pytest.mark.parametrize('derived_state', ['missing', 'truncated', 'stale'])
 def test_basename_queries_stream_without_valid_derived_data_then_adopt_publication(catalogue, monkeypatch, derived_state):
     _root, entries, source = catalogue

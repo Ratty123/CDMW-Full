@@ -133,9 +133,17 @@ class NewItemTaskControllerMixin:
         if not self.busy and not self._shutdown_requested:
             self._snapshot_error = ""
         started = self._run("snapshot", task, done, failed)
-        if started and preload_gate is not None and self._thread is not None and self._thread.isRunning():
+        if (started and preload_gate is not None and not preload_gate.promoted
+                and self._thread is not None and self._thread.isRunning()):
             self._thread.setPriority(QThread.LowPriority)
         return started
+
+    def promote_snapshot(self) -> None:
+        """Give an automatic read normal priority once Create New Item is waiting on it."""
+
+        thread = self._thread
+        if self._lane == "snapshot" and thread is not None and thread.isRunning():
+            thread.setPriority(QThread.NormalPriority)
 
     # ------------------------------------------------------------------ issued identities
 

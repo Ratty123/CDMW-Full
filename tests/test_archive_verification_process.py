@@ -58,6 +58,70 @@ def test_snapshot_uses_real_child_and_reuses_verified_tables(catalogue, monkeypa
     assert actual.has_entry("unrelated/textures/image_1.dds")
 
 
+@pytest.mark.parametrize("change", ["none", "index", "version", "catalogue"])
+def test_recorded_comparison_skips_the_child_only_for_the_same_bytes(tmp_path, monkeypatch, change):
+    from cdmw.core.archive_format import parse_archive_pamt
+
+    pamt, _original_bytes, changed = index_fixture(tmp_path)
+    source = write_resident_index(pamt.parent.parent, parse_archive_pamt(pamt), tmp_path / "generation")
+    first = SourceTracker(None)
+    owner.verify_resident_catalogue(source.open(), first)
+    assert owner._witness_path(source.open()).is_file()
+    runs = []
+    original = owner.run_process_with_cancellation
+    monkeypatch.setattr(owner, "run_process_with_cancellation", lambda *a, **kw: runs.append(True) or original(*a, **kw))
+    if change == "index":
+        replace_index(pamt, changed, True)
+    elif change == "version":
+        monkeypatch.setattr(owner, "APP_VERSION", "another build")
+    elif change == "catalogue":
+        record = json.loads(owner._witness_path(source.open()).read_text(encoding="utf-8"))
+        record["catalogue_digest"] = "0" * 64
+        owner._witness_path(source.open()).write_text(json.dumps(record), encoding="utf-8")
+    second = SourceTracker(None)
+    if change == "index":
+        # The witnessed digest no longer matches, so the full comparison runs and refuses.
+        with pytest.raises(StaleNewItemSource):
+            owner.verify_resident_catalogue(source.open(), second)
+        assert runs == [True] and not second.capture().indexes
+        return
+    owner.verify_resident_catalogue(source.open(), second)
+    assert runs == ([] if change == "none" else [True])
+    assert second.capture().indexes == first.capture().indexes
+
+
+@pytest.mark.parametrize("gate_state", [None, "run", "foreground"])
+def test_requested_reads_keep_the_child_at_normal_priority(catalogue, monkeypatch, gate_state):
+    _, _, source = catalogue
+    stop = threading.Event()
+    if gate_state is not None:
+        stop = NewItemPreloadGate().bind(stop)
+        if gate_state == "foreground":
+            stop.promote()
+    spawned = []
+    original = owner.run_process_with_cancellation
+    monkeypatch.setattr(owner, "run_process_with_cancellation",
+                        lambda *a, **kw: spawned.append(kw["background"]) or original(*a, **kw))
+    owner.verify_resident_catalogue(source.open(), SourceTracker(None), stop_event=stop)
+    assert spawned == [gate_state == "run"]
+
+
+def test_child_leaves_background_priority_once_promoted(tmp_path, monkeypatch):
+    raised = []
+    monkeypatch.setattr(owner, "_leave_background_priority", lambda: raised.append(True))
+    control = tmp_path / "control"
+    worker = owner._WorkerControl(control)
+    control.write_text("run", encoding="utf-8")
+    assert not worker.is_set() and not raised
+    control.write_text("foreground", encoding="utf-8")
+    worker._next_poll = 0.0
+    assert not worker.is_set() and not worker.is_set()
+    assert raised == [True]
+    control.write_text("cancel", encoding="utf-8")
+    worker._next_poll = 0.0
+    assert worker.is_set()
+
+
 @pytest.mark.parametrize("change", ["offset", "flags", "path", "duplicate", "missing"])
 def test_child_keeps_exact_coordinate_and_inventory_checks(catalogue, tmp_path, change):
     root, entries, _ = catalogue

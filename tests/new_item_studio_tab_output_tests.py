@@ -218,8 +218,8 @@ class _TabOutputMixin:
         # export through the panel
         out = self.root / "export"
         tab.output_panel.export_root.setText(str(out))
-        self.assertIsNone(tab.controller.plan, "a changed destination requires a fresh plan")
-        tab.output_panel.build_button.click()
+        self.assertIs(tab.controller.plan, plan, "the output folder is applied when writing; the plan stays ready")
+        self.assertTrue(tab.output_panel.export_button.isEnabled())
         with patch("cdmw.ui.new_item.panels_output.QMessageBox.information", return_value=None):
             tab.output_panel.export_button.click()
         from cdmw.services.new_item_mod_base import mod_folder_payloads
@@ -1002,7 +1002,10 @@ class _TabOutputMixin:
         self.assertIs(panel.workspace_splitter.widget(1), panel.activity)
         self.assertIs(panel.workspace_splitter.widget(2), panel.sidebar)
         self.assertTrue(left.isAncestorOf(panel.review_tabs))
-        self.assertTrue(left.isAncestorOf(panel.build_button))
+        # Build plan sits with the write action, under the plan status, in the order they are used.
+        self.assertTrue(panel.actions.isAncestorOf(panel.build_button))
+        actions = panel.actions.layout()
+        self.assertLess(actions.indexOf(panel.build_button), actions.indexOf(panel.export_button))
         self.assertFalse(left.isAncestorOf(panel.log))
         self.assertTrue(panel.activity.isAncestorOf(panel.log))
         for control in (panel.mode_buttons, panel.manager, panel.export_root, panel.plan_state, panel.actions):
@@ -1020,19 +1023,35 @@ class _TabOutputMixin:
         self.assertTrue(panel.folder_mode_button.isChecked())
         self.assertFalse(panel.overlay_mode_button.isChecked())
         tab.identity_panel.display_name.setText("Layout review item")
+        self.assertIn("Next: build the plan", panel.plan_state.plain_text())
         panel.build_button.click()
-        self.assertIsNotNone(tab.controller.plan)
+        plan = tab.controller.plan
+        self.assertIsNotNone(plan)
         self.assertGreater(panel.file_changes.model().rowCount(), 0)
         self.assertFalse(panel.build_button.property("newItemPrimary"))
+        folder_rows = panel.file_changes.model().rowCount()
         panel.overlay_mode_button.click()
         self.assertEqual(panel.output_mode.currentData(), "overlay")
         self.assertTrue(panel.overlay_mode_button.isChecked())
         self.assertFalse(panel.folder_mode_button.isChecked())
-        self.assertIsNone(tab.controller.plan)
+        # The same plan installs as an overlay; its review gains the overlay metadata.
+        self.assertIs(tab.controller.plan, plan)
+        self.assertTrue(tab.controller.has_current_plan)
+        self.assertGreaterEqual(panel.file_changes.model().rowCount(), folder_rows)
         self.assertFalse(panel.export_button.isVisibleTo(tab))
         self.assertTrue(panel.install_overlay_button.isVisibleTo(tab))
-        self.assertFalse(panel.install_overlay_button.isEnabled())
+        self.assertTrue(panel.install_overlay_button.isEnabled())
+        self.assertFalse(panel.build_button.property("newItemPrimary"))
+        panel.overlay_directory.setText("0100")
+        self.assertTrue(tab.controller.has_current_plan)
+        panel.independent_mode_button.click()
+        self.assertIsNone(tab.controller.plan)
+        self.assertIn("Plan out of date", panel.plan_state.plain_text())
+        self.assertIn("planned differently", panel.plan_state.plain_text())
         self.assertTrue(panel.build_button.property("newItemPrimary"))
+        self.assertFalse(panel.export_button.isEnabled())
+        panel.overlay_mode_button.click()
+        self.assertFalse(panel.install_overlay_button.isEnabled())
         self.assertTrue(panel.log.isVisibleTo(panel))
         tab.controller.status_message.emit("Could not write the output.", True)
         self.assertTrue(panel.log.isVisibleTo(panel))
@@ -1060,13 +1079,24 @@ class _TabOutputMixin:
         tab.prefill_template(TEMPLATE)
         tab.identity_panel.display_name.setText("Destination test")
         controller, panel = tab.controller, tab.output_panel
+        existing = self.root / "existing_mod"
+        existing.mkdir()
         ready_plan = controller.service.plan(controller.current_spec(), controller.snapshot)
+
+        def add_to_existing():
+            panel.export_root.setText(str(existing))
+            panel.add_to_mod.setChecked(True)
+
+        # What the plan builds on rejects a plan still being built.
         changes = (
-            lambda: panel.export_root.setText(str(self.root / "new_mod")),
-            lambda: panel.output_mode.setCurrentIndex(panel.output_mode.findData("overlay")),
-            lambda: panel.overlay_directory.setText("0100"),
+            add_to_existing,
+            lambda: panel.include_mounted.setChecked(True),
+            lambda: panel.output_mode.setCurrentIndex(panel.output_mode.findData("independent")),
         )
         for change in changes:
+            panel.output_mode.setCurrentIndex(panel.output_mode.findData("folder"))
+            panel.add_to_mod.setChecked(False)
+            panel.include_mounted.setChecked(False)
             with patch.object(controller, "_run", return_value=True) as dispatch:
                 self.assertTrue(controller.start_plan())
             complete = dispatch.call_args.args[2]
@@ -1076,3 +1106,26 @@ class _TabOutputMixin:
             self.assertNotIn(ready_plan.spec.item_key, controller.issued_keys)
             self.assertFalse(panel.export_button.isEnabled())
             self.assertFalse(panel.install_overlay_button.isEnabled())
+
+    def test_write_time_destination_details_keep_an_in_flight_plan(self) -> None:
+        tab = self._tab()
+        tab.prefill_template(TEMPLATE)
+        tab.identity_panel.display_name.setText("Destination test")
+        controller, panel = tab.controller, tab.output_panel
+        changes = (
+            lambda: panel.export_root.setText(str(self.root / "new_mod")),
+            lambda: panel.manager.setCurrentIndex((panel.manager.currentIndex() + 1) % panel.manager.count()),
+            lambda: panel.mod_name.setText("Renamed mod"),
+            lambda: panel.output_mode.setCurrentIndex(panel.output_mode.findData("overlay")),
+            lambda: panel.overlay_directory.setText("0100"),
+        )
+        for change in changes:
+            ready_plan = controller.service.plan(controller.current_spec(), controller.snapshot)
+            with patch.object(controller, "_run", return_value=True) as dispatch:
+                self.assertTrue(controller.start_plan())
+            complete = dispatch.call_args.args[2]
+            change()
+            complete(ready_plan)
+            self.assertIs(controller.plan, ready_plan)
+            self.assertTrue(controller.has_current_plan)
+            self.assertIn("Ready", panel.plan_state.plain_text())

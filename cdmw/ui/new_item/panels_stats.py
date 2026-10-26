@@ -16,6 +16,7 @@ from PySide6.QtWidgets import (
     QLineEdit,
     QPushButton,
     QScrollArea,
+    QSizePolicy,
     QSpinBox,
     QSplitter,
     QTableWidget,
@@ -291,7 +292,15 @@ class StatsPanel(QGroupBox):
         self.max_stack.setMaxLength(64)
         self.max_stack.setToolTip("How many fit in one inventory slot (1–18,446,744,073,709,551,615). Large counts require item.inventory version 1. Blank inherits the template.")
         self.max_stack.editingFinished.connect(self._stack_changed)
-        stack_form.addRow("Max stack:", self.max_stack)
+        # A count, sized like the numeric fields below rather than spanning the page.
+        # The filler takes the spare width in both the Qt and the Rust layout.
+        self.max_stack.setSizePolicy(QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Fixed)
+        stack_field = QWidget()
+        stack_row = QHBoxLayout(stack_field)
+        stack_row.setContentsMargins(0, 0, 0, 0)
+        stack_row.addWidget(self.max_stack)
+        stack_row.addWidget(QWidget(), 1)
+        stack_form.addRow("Max stack:", stack_field)
         self.property_controls = {}
         for name, label, maximum in (("item_tier", "Tier:", 255),
                                       ("required_level", "Required level:", 0xffffffff),

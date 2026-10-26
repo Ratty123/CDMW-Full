@@ -33,11 +33,17 @@ class NewItemPreloadGate:
         self._yield_at = time.perf_counter() + 0.004
         return self
 
+    @property
+    def promoted(self):
+        return self._foreground.is_set()
+
     def process_state(self):
         """Nonblocking control for an owned child, including cancellation while paused."""
         if self._stop is not None and self._stop.is_set():
             return "cancel"
-        return "pause" if self._paused.is_set() and not self._foreground.is_set() else "run"
+        if self._foreground.is_set():
+            return "foreground"
+        return "pause" if self._paused.is_set() else "run"
 
     def is_set(self):
         stop = self._stop

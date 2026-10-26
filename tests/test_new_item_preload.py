@@ -118,7 +118,9 @@ def test_only_the_new_item_consumer_promotes_its_preload(tmp_path, monkeypatch, 
     app = QApplication.instance() or QApplication([])
     gate = NewItemPreloadGate().bind(threading.Event())
     gate.pause()
-    controller = SimpleNamespace(persist_issued_identities=lambda: None)
+    promotions = []
+    controller = SimpleNamespace(persist_issued_identities=lambda: None,
+                                 promote_snapshot=lambda: promotions.append(True))
 
     class Tab(QWidget):
         status_message_requested = Signal(str, bool)
@@ -143,7 +145,8 @@ def test_only_the_new_item_consumer_promotes_its_preload(tmp_path, monkeypatch, 
     shell.shell = shell
     tab = getattr(ShellToolTabsMixin, f"_create_{tool}_tab")(shell)
     assert tab.objectName() == tool
-    assert gate.process_state() == ("run" if promoted else "pause")
+    assert gate.process_state() == ("foreground" if promoted else "pause")
+    assert promotions == ([True] if promoted else [])
     if tab.workflow is not None:
         tab.workflow.deleteLater()
     tab.deleteLater()

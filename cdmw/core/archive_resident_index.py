@@ -36,6 +36,8 @@ _CACHED_GROUP_ROWS = 1024
 _EXTENSION_CACHE_SIZE = 128
 _CACHED_EXTENSION_ROWS = 65536
 _EXTENSION_ROW_BUDGET = 131072
+_EXTENSION_WINDOW = 16
+_EXTENSION_BATCH_ROWS = 65536
 _DOTNET_EPOCH_TICKS = 621355968000000000
 _CACHE: OrderedDict[tuple[str, str, tuple[str, ...], bool], ResidentArchiveIndex] = OrderedDict()
 _CACHE_LOCK = threading.Lock()
@@ -294,11 +296,21 @@ class ResidentArchiveIndex(Sequence[ArchiveEntry]):
         self.validate_sources(stop_event)
         # Retain only compact row numbers, then visit each fixed record once
         # during comparison instead of scanning the full catalogue per PAMT.
+        # A few hundred archive files own millions of rows, so their Path values
+        # are built once here; a fresh Path per row costs most of the comparison.
+        spans = {}
+
+        def source_path(offset, length):
+            path = spans.get((offset, length))
+            if path is None:
+                path = spans[(offset, length)] = self._source_path(offset, length)
+            return path
+
         rows_by_index = {}
         for row in self._scan_rows(stop_event):
             record = self._records + row * _RECORD.size
-            owner = self._source_path(_OFFSET.unpack_from(self._mapping, record + 8)[0],
-                                      _LENGTH.unpack_from(self._mapping, record + 52)[0])
+            owner = source_path(_OFFSET.unpack_from(self._mapping, record + 8)[0],
+                                _LENGTH.unpack_from(self._mapping, record + 52)[0])
             if owner not in rows_by_index:
                 rows_by_index[owner] = array("Q")
             rows_by_index[owner].append(row)
@@ -307,10 +319,14 @@ class ResidentArchiveIndex(Sequence[ArchiveEntry]):
             if pamt.suffix.lower() != ".pamt":
                 continue
             expected = Counter()
+            parsed_paz = {}
             for index, entry in enumerate(parse_index(pamt)):
                 if index % 1024 == 0:
                     raise_if_cancelled(stop_event, "Archive catalogue validation cancelled.")
-                expected[(str(entry.path).replace("\\", "/").strip("/"), Path(entry.paz_file),
+                paz_file = parsed_paz.get(entry.paz_file)
+                if paz_file is None:
+                    paz_file = parsed_paz[entry.paz_file] = Path(entry.paz_file)
+                expected[(str(entry.path).replace("\\", "/").strip("/"), paz_file,
                           entry.offset, entry.comp_size, entry.orig_size, entry.flags, entry.paz_index)] += 1
             parsed_count += sum(expected.values())
             for index, row in enumerate(rows_by_index.pop(pamt, ())):
@@ -319,7 +335,7 @@ class ResidentArchiveIndex(Sequence[ArchiveEntry]):
                 fields = _RECORD.unpack_from(self._mapping, self._records + row * _RECORD.size)
                 path, _owner, paz, offset, stored, original, path_size, _owner_size, paz_size, flags, paz_index, *_ = fields
                 key = (self._bytes(path, path_size).decode("utf-8").replace("\\", "/").strip("/"),
-                       self._source_path(paz, paz_size), offset, stored, original, flags, paz_index)
+                       source_path(paz, paz_size), offset, stored, original, flags, paz_index)
                 if not expected.get(key):
                     raise ValueError(f"Source index no longer matches its resident catalogue: {pamt}. Refresh the archives.")
                 expected[key] -= 1
@@ -440,6 +456,72 @@ class ResidentArchiveIndex(Sequence[ArchiveEntry]):
             return basename[dot:].decode("utf-8").lower()
         return "." + basename.decode("utf-8").lower().rsplit(".", 1)[-1]
 
+    def _extension_ids(self, stop_event):
+        """Every row's `_extension`, as ids into a name list, read in mapped batches.
+
+        The last bytes of each path decide most rows at once. A row the window
+        cannot decide (no separator or dot in it, a trailing separator, or any
+        non-ASCII byte) uses `_extension` itself, so casing rules stay identical.
+        """
+        import numpy as np
+
+        width, size = _EXTENSION_WINDOW, self._strings_size
+        layout = np.dtype({"names": ["offset", "length"], "formats": ["<u8", "<u4"],
+                           "offsets": [0, 48], "itemsize": _RECORD.size})
+        records = np.frombuffer(self._mapping, dtype=layout, count=self._count, offset=self._records)
+        pool = np.frombuffer(self._mapping, dtype=np.uint8, count=size, offset=self._strings) if size else None
+        columns = np.arange(width, dtype=np.int64)
+        rank = np.arange(1, width + 1, dtype=np.uint8)
+        void = np.dtype((np.void, width))
+        names, name_ids, first_rows = [], {}, []
+        ids = np.empty(self._count, dtype=np.int32)
+
+        def name_id(name, row):
+            found = name_ids.get(name)
+            if found is None:
+                found = name_ids[name] = len(names)
+                names.append(name)
+                first_rows.append(row)
+            elif row < first_rows[found]:
+                first_rows[found] = row
+            return found
+
+        for start in range(0, self._count, _EXTENSION_BATCH_ROWS):
+            raise_if_cancelled(stop_event, "Archive catalogue loading cancelled.")
+            if start:
+                time.sleep(.001)  # Let queued Qt input run between batches.
+            batch = records[start:start + _EXTENSION_BATCH_ROWS]
+            offsets, lengths = batch["offset"], batch["length"].astype(np.uint64)
+            if np.any(offsets > size) or np.any(lengths > size - np.minimum(offsets, size)):
+                raise ValueError("Archive catalogue string is out of bounds.")
+            lengths = lengths.astype(np.int64)
+            if pool is None:
+                window = np.zeros((len(batch), width), dtype=np.uint8)
+            else:
+                ends = offsets.astype(np.int64) + lengths
+                window = pool[np.maximum(ends[:, None] - width + columns, 0)]
+            inside = width - np.minimum(lengths, width)  # first column of this path
+            last_separator = np.maximum(
+                (((window == 47) | (window == 92)) * rank).max(1).astype(np.int64) - 1, inside - 1)
+            last_dot = ((window == 46) * rank).max(1).astype(np.int64) - 1
+            last_wide = ((window >= 128) * rank).max(1).astype(np.int64) - 1
+            undecided = (((last_separator < 0) & (last_dot < 0) & (lengths > width))
+                         | ((lengths > 0) & (last_separator == width - 1)) | (last_wide >= inside))
+            last_dot = np.where(last_dot > last_separator, last_dot, width)
+            letters = ((window >= 65) & (window <= 90)).astype(np.uint8) << 5
+            keys = np.where(columns >= last_dot[:, None], window + letters, 0)
+            decided = np.flatnonzero(~undecided)
+            local, first, inverse = np.unique(np.ascontiguousarray(keys[decided]).view(void).ravel(),
+                                              return_index=True, return_inverse=True)
+            mapping = np.array([name_id(key.tobytes().lstrip(b"\0").decode("ascii"), start + int(decided[index]))
+                                for key, index in zip(local, first)], dtype=np.int32)
+            batch_ids = np.empty(len(batch), dtype=np.int32)
+            batch_ids[decided] = mapping[inverse.ravel()]
+            for offset in np.flatnonzero(undecided).tolist():
+                batch_ids[offset] = name_id(self._extension(start + offset), start + offset)
+            ids[start:start + len(batch)] = batch_ids
+        return names, ids, first_rows
+
     def _prepare_extensions(self, stop_event=None):
         stop_event = _stop_token(stop_event)
         while not self._extension_lock.acquire(timeout=.05):
@@ -448,25 +530,36 @@ class ResidentArchiveIndex(Sequence[ArchiveEntry]):
             raise_if_cancelled(stop_event, "Archive catalogue loading cancelled.")
             if self._extensions is not None:
                 return
-            groups, overflow, retained_rows = {}, False, 0
-            for row in self._scan_rows(stop_event):
-                extension = self._extension(row)
-                group = groups.get(extension)
-                if group is None:
-                    if len(groups) == _EXTENSION_CACHE_SIZE or len(extension) > 4096:
-                        overflow = True
-                        continue
-                    group = groups[extension] = [0, array("Q")]
-                group[0] += 1
-                if group[1] is not None:
-                    if group[0] > _CACHED_EXTENSION_ROWS or retained_rows >= _EXTENSION_ROW_BUDGET:
-                        retained_rows -= len(group[1])
-                        group[1] = None
-                    else:
-                        group[1].append(row)
-                        retained_rows += 1
+            import numpy as np
+
+            names, ids, first_rows = self._extension_ids(stop_event)
+            counts = np.bincount(ids, minlength=len(names))
+            groups, overflow = {}, False
+            for name_id in sorted(range(len(names)), key=first_rows.__getitem__):
+                # Keys keep the order a row-by-row scan meets them in.
+                if len(groups) == _EXTENSION_CACHE_SIZE or len(names[name_id]) > 4096:
+                    overflow = True
+                    continue
+                groups[names[name_id]] = [int(counts[name_id]), name_id]
+            # Retain the smallest groups within the shared row budget; the rest stream.
+            retained, retained_rows = [], 0
+            for group in sorted(groups.values(), key=lambda group: group[0]):
+                if group[0] <= _CACHED_EXTENSION_ROWS and retained_rows + group[0] <= _EXTENSION_ROW_BUDGET:
+                    retained.append(group)
+                    retained_rows += group[0]
+            selected = np.flatnonzero(np.isin(ids, [group[1] for group in retained]))
+            selected = selected[np.argsort(ids[selected], kind="stable")]
+            position, rows_by_id = 0, {}
+            for group in sorted(retained, key=lambda group: group[1]):
+                rows = array("Q")
+                rows.frombytes(selected[position:position + group[0]].astype(np.uint64).tobytes())
+                rows_by_id[group[1]] = rows
+                position += group[0]
+            for group in groups.values():
+                group[1] = rows_by_id.get(group[1])
             # Publish only a complete scan; a cancelled worker leaves no partial
             # extension groups for another consumer of this shared generation.
+            raise_if_cancelled(stop_event, "Archive catalogue loading cancelled.")
             self._extension_overflow = overflow
             self._extensions = groups
         finally:

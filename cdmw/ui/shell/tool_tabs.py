@@ -539,10 +539,12 @@ class ShellToolTabsMixin:
         from cdmw.ui.new_item.rust_ui_tab import RustNewItemStudioTab
         from cdmw.ui.new_item.tab import NewItemStudioTab
 
+        controller = self._shared_new_item_controller()
         preload_gate = getattr(self, "_new_item_preload_gate", None)
         if preload_gate is not None:
             preload_gate.promote()
-        workflow = NewItemStudioTab(window=self, controller=self._shared_new_item_controller())
+            controller.promote_snapshot()
+        workflow = NewItemStudioTab(window=self, controller=controller)
         tab = RustNewItemStudioTab(window=self, workflow=workflow)
         workspace = getattr(self, "compact_workspace", None)
         if workspace is not None:

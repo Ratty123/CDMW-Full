@@ -276,6 +276,24 @@ using them. Changed sources, failed helpers and cancelled reads publish no snaps
 The private `--archive-verification-worker` bootstrap route bypasses GUI startup;
 the existing process runner owns cancellation and reaps the child before cleanup.
 
+A completed comparison is recorded as `new-item-verification.json` beside the
+catalogue generation: the catalogue digest, the source identity, the application
+version and every parsed index's SHA-256. A later read with the same mapped bytes
+re-hashes each index and adopts the record only when every digest still matches;
+any mismatch, a different build or an unreadable record repeats the full comparison.
+On the shipped game (2,052,577 entries) that turns a 26-29 s comparison into about
+0.5 s, measured from source on 2026-10-26 with the game running. The first read
+after the archives change still runs the comparison; its status says so.
+
+The child starts below normal priority only for an unpromoted startup preload.
+Opening Create New Item, reading from the tab and other requested reads run it at
+normal priority, and promotion raises an already running child and worker thread.
+File-type groups are built from the mapped path bytes in batches; a row whose last
+16 bytes cannot decide its extension (no separator or dot in that window, a trailing
+separator or non-ASCII bytes) uses the per-row decoder, so groups and casing match
+the row-by-row scan. Retained row lists favour the smallest groups within the
+existing shared budget; larger groups still stream.
+
 Opening the shared catalogue does not duplicate every archive path in Python. File-type
 scans yield in small batches so input stays responsive after the archive list appears.
 Opening the tab reuses the loaded tables or the read already in
@@ -1190,7 +1208,8 @@ settings in a right sidebar.
 ## Output review and Mod Management
 
 The sidebar groups **Mod folder**, **Game overlay** and **Independent item package
-(Experimental) · .cditem**, destination, plan status and the selected output action. Its
+(Experimental) · .cditem**, destination, plan status, **Build plan** and the selected
+output action. Its
 settings scroll independently while the plan status and output actions stay visible.
 
 The experimental output writes a separate `.cditem` file for installation through
@@ -1211,9 +1230,16 @@ metadata; the item's names and internal identity are unchanged.
 
 ### Destination and plan review
 
-Choose the destination and existing-mod base first, build the plan, then review its
-file changes and full details. Destination, manager, overlay number and base changes
-clear the plan, including an in-flight result. **Utilities > Mod Management**
+Choose the output type and existing-mod base first, build the plan, then review its
+file changes and full details. **Add to existing mod** and **Include mounted items in
+a new mod** sit at the top of the Mod folder settings because they change what the
+folder field means. Only plan inputs clear the plan, including an in-flight result:
+the existing-mod base, mounted-item inclusion and switching to or from the
+independent package. The output folder of a new mod, manager, mod name and overlay
+folder number are applied when writing, so changing them keeps a built plan and its
+allocated identity; switching between Mod folder and Game overlay refreshes the
+review for the same plan. When a plan is cleared, the plan status says it is out of
+date and why, instead of reverting to "not built". **Utilities > Mod Management**
 contains Merge mods, game-update checks, Installed overlays and Archive recovery.
 These tools no longer sit in Output and need no item draft; opening them or
 expanding recovery controls never performs a write.
@@ -1244,8 +1270,9 @@ Check game updates or Start fresh instead.
 ### Output layout and logs
 
 Output has three adjustable columns: **File changes / Details and warnings**,
-**Activity log**, and **Destination**. **Build plan** stays beside the review
-heading. Review text and activity scroll inside their panes without making the
+**Activity log**, and **Destination**. **Build plan** sits under the plan status,
+directly above the write or install action, so the sidebar reads in the order it is
+used. Review text and activity scroll inside their panes without making the
 page taller. The log is always visible and returns to the latest event when a
 message arrives, including writes through the controller and beyond a full text page.
 Output and Current Tool Log use independent text layouts, keeping the final line
