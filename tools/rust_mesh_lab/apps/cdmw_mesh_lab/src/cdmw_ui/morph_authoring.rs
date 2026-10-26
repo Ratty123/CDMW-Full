@@ -272,11 +272,12 @@ impl LabApplication {
                             ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), |ui| {
                                 let title = crate::localization::tr(format!("Island {} · {} faces", index+1, faces.len()));
                                 let active = selected.contains(&(part, faces.clone()));
-                                if ui.add_enabled(visible.as_ref().is_none_or(|visible| visible.contains(&part)),
-                                    Button::selectable(active, &title).truncate())
+                                let response = ui.add_enabled(visible.as_ref().is_none_or(|visible| visible.contains(&part)),
+                                    Button::selectable(active, self.cdmw_island_name_atoms(part, &faces, &title)).truncate())
                                     .on_hover_text(&title)
-                                    .on_hover_text(crate::localization::tr("Ctrl-click to select several islands. Inherited settings follow the Part."))
-                                    .clicked() {
+                                    .on_hover_text(crate::localization::tr("Ctrl-click to select several islands. Inherited settings follow the Part."));
+                                self.track_cdmw_island_name(ui, part, faces.clone(), &response);
+                                if response.clicked() {
                                     let target = (part, faces);
                                     let mut next = if ui.input(|input| input.modifiers.command || input.modifiers.ctrl) {
                                         selected.clone()

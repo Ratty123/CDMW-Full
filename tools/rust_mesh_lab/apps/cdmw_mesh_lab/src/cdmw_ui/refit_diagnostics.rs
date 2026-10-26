@@ -21,24 +21,25 @@ fn refit_failure_parts(detail: &str, garments: &[u32]) -> Vec<u32> {
 }
 
 impl LabApplication {
-    pub(super) fn draw_cdmw_part_hover_option(&self, ui: &mut egui::Ui) {
-        let mut enabled = crate::cdmw_layout::auto_open_parts_on_hover(ui.ctx());
-        if ui.checkbox(&mut enabled, crate::localization::tr("Open Parts on hover"))
-            .on_hover_text(crate::localization::tr("Open the Parts list when hovering a visible surface. Turn off to keep closed panels closed."))
-            .changed()
-        {
-            crate::cdmw_layout::set_auto_open_parts_on_hover(ui.ctx(), enabled);
-        }
+    pub(super) fn track_cdmw_part_hover(&mut self, ui: &egui::Ui, part: u32, response: &egui::Response) {
+        self.track_cdmw_name_row(ui, part, None, response);
     }
 
-    pub(super) fn track_cdmw_part_hover(&mut self, ui: &egui::Ui, part: u32, response: &egui::Response) {
-        let row = PartNameRow { part, response: response.clone(), clip_rect: ui.clip_rect(),
+    pub(crate) fn track_cdmw_island_name(&mut self, ui: &egui::Ui, part: u32, faces: Vec<u32>, response: &egui::Response) {
+        self.track_cdmw_name_row(ui, part, Some(faces), response);
+    }
+
+    fn track_cdmw_name_row(&mut self, ui: &egui::Ui, part: u32, island_faces: Option<Vec<u32>>, response: &egui::Response) {
+        if response.hovered() && response.ctx.input(|input| input.pointer.hover_pos().is_some()) {
+            self.cdmw_hovered_part = Some(PartHoverTarget { part, island_faces: island_faces.clone() });
+        }
+        let row = PartNameRow { part, island_faces, response: response.clone(), clip_rect: ui.clip_rect(),
             scroll_root: ui.stack().iter().find(|entry| entry.kind() == Some(egui::UiKind::ScrollArea)).map(|entry| entry.id) };
         let pending = self.cdmw_part_name_scroll.as_ref()
             .filter(|scroll| scroll.part == part && scroll.targets.contains(&response.id))
             .map(|scroll| scroll.viewport_layer);
         if let Some(layer) = pending {
-            if self.cdmw_part_scroll_is_current(&response.ctx, part, layer) {
+            if self.cdmw_part_scroll_is_current(&response.ctx, part, layer, row.island_faces.as_deref()) {
                 self.cdmw_part_name_scroll.as_mut().unwrap().targets.remove(&response.id);
                 if !row.fully_visible() {
                     // Run inside the row's scroll area, so another pane cannot
@@ -51,9 +52,6 @@ impl LabApplication {
             }
         }
         self.cdmw_part_name_rows.push(row);
-        if response.hovered() && response.ctx.input(|input| input.pointer.hover_pos().is_some()) {
-            self.cdmw_hovered_part = Some(part);
-        }
     }
 
     fn cdmw_viewport_part_hover_allowed(&self, context: &egui::Context) -> bool {
@@ -62,7 +60,7 @@ impl LabApplication {
             && !context.input(|input| input.pointer.any_down()) && !context.any_popup_open()
     }
 
-    fn cdmw_part_scroll_is_current(&self, context: &egui::Context, part: u32, layer: egui::LayerId) -> bool {
+    fn cdmw_part_scroll_is_current(&self, context: &egui::Context, part: u32, layer: egui::LayerId, island_faces: Option<&[u32]>) -> bool {
         let Some(point) = context.pointer_hover_pos().filter(|_| self.cdmw_viewport_part_hover_allowed(context)) else { return false; };
         let Some(rectangle) = self.viewport_rect.filter(|rect| rect.contains(point)) else { return false; };
         if context.layer_id_at(point) != Some(layer) { return false; }
@@ -71,19 +69,35 @@ impl LabApplication {
             let current = visible.as_ref().map_or_else(
                 || projection.matches(mesh, &self.camera, rectangle, self.viewport_revision),
                 |parts| projection.matches_for_submeshes(mesh, &self.camera, rectangle, self.viewport_revision, parts));
-            current && projection.part_at(Vec2::new(point.x, point.y)) == Some(part)
+            if !current { return false; }
+            let point = Vec2::new(point.x, point.y);
+            match island_faces {
+                None => projection.part_at(point) == Some(part),
+                Some(faces) => projection.face_at(point).is_some_and(|(hit_part, handle)|
+                    hit_part == part && mesh.face(handle).is_some_and(|face|
+                        matches!(face.provenance, Provenance::Source { submesh, element }
+                            if submesh == part && faces.contains(&element)))),
+            }
         })
     }
 
-    fn queue_cdmw_part_name_scroll(&mut self, part: u32, layer: egui::LayerId) {
+    fn queue_cdmw_part_name_scroll(&mut self, part: u32, source_face: Option<u32>, layer: egui::LayerId) {
+        let island = self.cdmw_part_name_rows.iter().find(|row|
+            row.island_faces.is_some() && row.matches(part, source_face)).map(|row| row.response.id);
         if self.cdmw_part_name_scroll.as_ref().is_some_and(|scroll|
-            scroll.part == part && scroll.viewport_revision == self.viewport_revision)
+            scroll.part == part && scroll.island == island && scroll.viewport_revision == self.viewport_revision)
         { return; }
+        // Prefer the exact island in each open list. A visible parent Part
+        // heading must not keep its matching island offscreen.
+        let island_roots: HashSet<_> = self.cdmw_part_name_rows.iter()
+            .filter(|row| row.island_faces.is_some() && row.matches(part, source_face) && row.clip_rect.is_positive())
+            .filter_map(|row| row.scroll_root).collect();
         // One name per scroll area: keep an already visible match, otherwise
         // reveal the closest match when the same Part occurs in several sections.
         let mut roots = HashMap::<egui::Id, (bool, f32, egui::Id)>::new();
-        for row in self.cdmw_part_name_rows.iter().filter(|row| row.part == part && row.clip_rect.is_positive()) {
+        for row in self.cdmw_part_name_rows.iter().filter(|row| row.matches(part, source_face) && row.clip_rect.is_positive()) {
             let Some(root) = row.scroll_root else { continue; };
+            if row.island_faces.is_none() && island_roots.contains(&root) { continue; }
             let distance = (row.response.rect.top() - row.clip_rect.bottom())
                 .max(row.clip_rect.top() - row.response.rect.bottom()).max(0.0);
             roots.entry(root).and_modify(|entry| {
@@ -93,7 +107,7 @@ impl LabApplication {
         }
         let targets: HashSet<_> = roots.values().filter(|entry| !entry.0).map(|entry| entry.2).collect();
         if !targets.is_empty() { self.egui_context.request_repaint(); }
-        self.cdmw_part_name_scroll = Some(PartNameScroll { part, targets, viewport_layer: layer,
+        self.cdmw_part_name_scroll = Some(PartNameScroll { part, island, targets, viewport_layer: layer,
             viewport_revision: self.viewport_revision });
     }
 
@@ -109,31 +123,32 @@ impl LabApplication {
             return;
         };
         if !self.ensure_projection(rectangle) { self.cdmw_part_name_scroll = None; return; }
-        let part = self.projection.as_ref().and_then(|projection| projection.part_at(Vec2::new(point.x, point.y)));
-        self.cdmw_viewport_hovered_part = part;
-        let Some(part) = part else { self.cdmw_part_name_scroll = None; return; };
+        let hit = self.projection.as_ref().and_then(|projection| projection.face_at(Vec2::new(point.x, point.y)));
+        self.cdmw_viewport_hovered_part = hit.map(|(part, _)| part);
+        let Some((part, handle)) = hit else { self.cdmw_part_name_scroll = None; return; };
+        let source_face = self.mesh.as_ref().and_then(|mesh| mesh.face(handle)).and_then(|face| match face.provenance {
+            Provenance::Source { submesh, element } if submesh == part => Some(element),
+            _ => None,
+        });
         let panel_id = egui::Id::new("cdmw_parts_panel_open");
-        let tab_id = egui::Id::new("cdmw_parts_panel_islands");
         let parts_closed = !cdmw_sidebar_visible(ui.ctx(), CDMW_INSPECTOR_SIDEBAR)
-            || ui.ctx().data_mut(|data| !data.get_temp::<bool>(panel_id).unwrap_or(false)
-                || data.get_temp::<bool>(tab_id).unwrap_or(false));
+            || ui.ctx().data_mut(|data| !data.get_temp::<bool>(panel_id).unwrap_or(false));
         if parts_closed && crate::cdmw_layout::auto_open_parts_on_hover(ui.ctx()) {
             set_cdmw_sidebar_expanded(ui.ctx(), CDMW_INSPECTOR_SIDEBAR, true);
             ui.ctx().data_mut(|data| {
                 data.insert_temp(panel_id, true);
-                data.insert_temp(tab_id, false);
             });
             // The Inspector is drawn before the viewport. Plan scrolling once
             // its newly opened Parts rows exist on the next frame.
             self.cdmw_part_name_scroll = None;
         } else {
-            self.queue_cdmw_part_name_scroll(part, response.layer_id);
+            self.queue_cdmw_part_name_scroll(part, source_face, response.layer_id);
         }
         let [r, g, b, _] = PART_HOVER_COLOUR;
         let colour = Color32::from(egui::Rgba::from_rgb(r, g, b));
         // Paint an identification cue on this frame's clipped name rows. Their
         // checkbox/button state and the retained viewport selection stay intact.
-        for row in self.cdmw_part_name_rows.iter().filter(|row| row.part == part && row.response.interact_rect.is_positive()) {
+        for row in self.cdmw_part_name_rows.iter().filter(|row| row.matches(part, source_face) && row.response.interact_rect.is_positive()) {
             let rect = row.response.interact_rect;
             ui.ctx().layer_painter(row.response.layer_id).with_clip_rect(rect).rect_stroke(
                 rect.shrink(0.5), 3.0, Stroke::new(2.0, colour), egui::StrokeKind::Inside);
@@ -149,19 +164,22 @@ impl LabApplication {
     }
 
     pub(crate) fn refresh_cdmw_part_hover_overlay(&mut self) {
-        let part = self.cdmw_hovered_part.filter(|_| self.cdmw_mode() && !self.hair.active()
+        let target = self.cdmw_hovered_part.as_ref().filter(|_| self.cdmw_mode() && !self.hair.active()
             && self.cdmw_jiggle.preview.scene.is_none() && !self.cdmw_morph_comparison_active()
             && self.cdmw_state["replacement"]["comparison"].as_str().is_none_or(|mode| mode == "edit"));
-        let Some((part, mesh)) = part.zip(self.mesh.as_ref()) else {
+        let Some((target, mesh)) = target.zip(self.mesh.as_ref()) else {
             self.invalidate_cdmw_part_hover_overlay();
             return;
         };
         let visible = self.cdmw_visible_submeshes();
-        if self.cdmw_part_hover_overlay.as_ref().is_none_or(|(cached_part, overlay)|
-            *cached_part != part || !overlay.matches(mesh, &visible, PART_HOVER_COLOUR))
+        if self.cdmw_part_hover_overlay.as_ref().is_none_or(|(cached_target, overlay)|
+            cached_target != target || !overlay.matches(mesh, &visible, PART_HOVER_COLOUR))
         {
-            self.cdmw_part_hover_overlay = Some((part,
-                FaceSelectionOverlay::build_for_parts(mesh, visible, PART_HOVER_COLOUR, &[part])));
+            let overlay = match &target.island_faces {
+                Some(faces) => FaceSelectionOverlay::build_for_island(mesh, visible, PART_HOVER_COLOUR, target.part, faces),
+                None => FaceSelectionOverlay::build_for_parts(mesh, visible, PART_HOVER_COLOUR, &[target.part]),
+            };
+            self.cdmw_part_hover_overlay = Some((target.clone(), overlay));
         }
         if let (Some(renderer), Some((_, overlay))) = (&mut self.renderer, &mut self.cdmw_part_hover_overlay)
             && !overlay.uploaded
@@ -174,16 +192,7 @@ impl LabApplication {
     }
 
     pub(super) fn cdmw_part_name_atoms<'a>(&self, part: u32, label: impl egui::IntoAtoms<'a>) -> egui::Atoms<'a> {
-        let mut atoms = egui::Atoms::new(label);
-        if self.cdmw_part_colours_active() {
-            let [r, g, b, _] = viewport::part_colour(part);
-            let colour = Color32::from(egui::Rgba::from_rgb(r, g, b));
-            // The GUI atlas white pixel gives the badge a solid fill without an extra texture.
-            let white = egui::epaint::WHITE_UV;
-            atoms.push_left(egui::Image::new((egui::TextureId::default(), egui::vec2(10.0, 10.0)))
-                .uv(egui::Rect::from_min_max(white, white)).tint(colour));
-        }
-        atoms
+        cdmw_colour_name_atoms(label, self.cdmw_part_colours_active().then(|| viewport::part_colour(part)))
     }
 
     pub(crate) fn refresh_cdmw_mesh_display(&mut self) {
@@ -194,11 +203,12 @@ impl LabApplication {
                 |visible| mesh.draw_snapshot_for_submeshes(visible),
             )
         });
-        let part_colours = if self.cdmw_part_colours_active() {
+        let part_colours = if self.cdmw_identity_colours_active() {
             self.mesh.as_ref().zip(snapshot.as_ref()).map(|(mesh, snapshot)|
-                viewport::part_colour_snapshot(mesh, visible_submeshes.as_ref(), snapshot))
+                crate::cdmw_islands::identity_colour_snapshot(mesh, visible_submeshes.as_ref(), snapshot,
+                    self.cdmw_island_colours.then_some(&self.cdmw_state["mesh_islands"]["color_faces"])))
         } else { None };
-        self.cdmw_part_colours_applied = self.cdmw_part_colours_active();
+        self.cdmw_part_colours_applied = self.cdmw_identity_colours_active();
         let deformation_reference = snapshot.as_ref().filter(|_| part_colours.is_none()).and_then(|snapshot| {
             deformation_reference_for_snapshot(
                 self.deformation_heatmap_enabled,
@@ -223,17 +233,25 @@ impl LabApplication {
     }
 
     pub(crate) fn cdmw_part_colours_active(&self) -> bool {
+        !self.cdmw_island_colours && self.cdmw_identity_colours_active()
+    }
+
+    pub(crate) fn cdmw_identity_colours_active(&self) -> bool {
         self.cdmw_mode() && self.view_mode == ViewMode::PartId && !self.hair.active()
             && self.cdmw_jiggle.region_colours.is_none() && self.cdmw_jiggle.preview.scene.is_none()
+            && (!self.cdmw_island_colours || (!self.cdmw_morph_comparison_active()
+                && self.cdmw_state["replacement"]["comparison"].as_str().is_none_or(|mode| mode == "edit")))
     }
 
     pub(super) fn set_cdmw_display_mode(&mut self, mode: ViewMode) {
         let was_coloured = self.view_mode == ViewMode::PartId;
+        let was_islands = self.cdmw_island_colours;
         if mode == ViewMode::PartId && !was_coloured {
             self.cdmw_part_colours_previous_mode = self.view_mode;
         }
         self.view_mode = mode;
-        if was_coloured != (mode == ViewMode::PartId) {
+        self.cdmw_island_colours = false;
+        if was_coloured != (mode == ViewMode::PartId) || was_islands {
             self.refresh_cdmw_mesh_display();
         }
     }

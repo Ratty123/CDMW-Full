@@ -9,6 +9,7 @@ import unittest
 from unittest.mock import patch
 
 from cdmw.domain.mesh import MeshEditSelection
+from cdmw.domain.cancellation import RunCancelled
 from cdmw.domain.mesh import skeleton as skinning
 from cdmw.modding.skeleton_parser import Bone, Skeleton
 from cdmw.services import mesh_island_authoring, mesh_rust_authoring, mesh_rust_rig
@@ -126,6 +127,7 @@ class RustMeshDerivedStateTests(unittest.TestCase):
         with patch.object(mesh_island_authoring, "mesh_islands", wraps=mesh_island_authoring.mesh_islands) as discover:
             first = mesh_island_authoring.island_ui_state(authoring, replacement)
             self.assertEqual(1, len(first["parts"][0]["islands"]))
+            self.assertEqual([(0, 0)], first["color_faces"])
             session.revision += 1
             authoring.state_cache.transition(session, before_revision=0, change="none")
             mesh_island_authoring.island_ui_state(authoring, replacement)
@@ -140,6 +142,7 @@ class RustMeshDerivedStateTests(unittest.TestCase):
             moved = mesh_island_authoring.island_ui_state(authoring, replacement)
             self.assertEqual(2, discover.call_count)
             self.assertEqual(2, len(moved["parts"][0]["islands"]))
+            self.assertEqual([(0, 1)], moved["color_faces"])
             # Active fitting addresses neutral islands, even if a live preview
             # separates a material seam. Leaving fitting restores live discovery.
             neutral = SimpleNamespace(submeshes=[SimpleNamespace(vertices=[
@@ -149,6 +152,7 @@ class RustMeshDerivedStateTests(unittest.TestCase):
             authoring.shadow_service._morph_sessions["owned"] = SimpleNamespace(topology_mesh=neutral)
             fitting = mesh_island_authoring.island_ui_state(authoring, replacement)
             self.assertEqual(1, len(fitting["parts"][0]["islands"]))
+            self.assertEqual([(0, 0)], fitting["color_faces"])
             authoring.shadow_service._morph_sessions["owned"].state = SimpleNamespace(
                 refit=SimpleNamespace(garment_submesh_indices=(0,)))
             session.selection = MeshEditSelection()
@@ -159,6 +163,52 @@ class RustMeshDerivedStateTests(unittest.TestCase):
             session.selection = MeshEditSelection(source_indices=(0,))
             authoring.shadow_service._morph_sessions.clear()
             self.assertEqual(2, len(mesh_island_authoring.island_ui_state(authoring, replacement)["parts"][0]["islands"]))
+
+    def test_island_colors_cover_unselected_parts_reuse_cache_and_cancel(self):
+        vertices = [(0., 0., 0.), (1., 0., 0.), (0., 1., 0.)]
+        listed = SimpleNamespace(name="Listed", vertices=vertices, faces=[(0, 1, 2)])
+        other = SimpleNamespace(name="Other", vertices=vertices + vertices + [(x + 5., y, z) for x, y, z in vertices],
+                                faces=[(0, 1, 2), (3, 4, 5), (6, 7, 8)])
+        mesh = SimpleNamespace(submeshes=[listed, other], lod_levels=[])
+        session = SimpleNamespace(session_id="owned", working_mesh=mesh, revision=0, mesh_format="pac",
+            selection=MeshEditSelection(source_indices=(0,)), replacement_state=None, hair_state=None,
+            output_policy="fixed", base_mesh=mesh, base_mesh_is_original_parse=True)
+        service = SimpleNamespace(_session=lambda _: session, _morph_sessions={})
+        authoring = SimpleNamespace(shadow_service=service, authoritative_service=service, authoritative_session_id="owned",
+            shadow_session_id="owned", state_cache=RustMeshStateCache(), mesh_island_cache={},
+            mesh_island_focus=(), _cancel_event=threading.Event())
+        replacement = {"reason": "", "parts": [{"id": str(i), "index": i} for i in range(2)]}
+        with patch.object(mesh_island_authoring, "mesh_islands", wraps=mesh_island_authoring.mesh_islands) as discover:
+            first = mesh_island_authoring.island_ui_state(authoring, replacement)
+            self.assertEqual([0], [row["index"] for row in first["parts"]])
+            self.assertEqual([(0,), (0, 0, 2)], first["color_faces"])
+            session.selection = MeshEditSelection(source_indices=(1,))
+            second = mesh_island_authoring.island_ui_state(authoring, replacement)
+            self.assertEqual([1], [row["index"] for row in second["parts"]])
+            self.assertEqual(first["color_faces"], second["color_faces"])
+            self.assertEqual(2, discover.call_count)
+            # A newly appended, unbound Part may be outside the neutral fit mesh.
+            service._morph_sessions["owned"] = SimpleNamespace(topology_mesh=SimpleNamespace(submeshes=[listed]))
+            self.assertEqual(first["color_faces"], mesh_island_authoring.island_ui_state(authoring, replacement)["color_faces"])
+            cached = dict(authoring.mesh_island_cache)
+            authoring._cancel_event.set()
+            with self.assertRaises(RunCancelled):
+                mesh_island_authoring.island_ui_state(authoring, replacement)
+            self.assertEqual(cached, authoring.mesh_island_cache)
+            self.assertEqual((1,), session.selection.source_indices)
+        authoring._cancel_event.clear()
+        authoring.mesh_island_cache.clear()
+        discover_islands = mesh_island_authoring.mesh_islands
+
+        def cancel_after_discovery(part, *, stop_event):
+            groups = discover_islands(part, stop_event=stop_event)
+            stop_event.set()
+            return groups
+
+        with patch.object(mesh_island_authoring, "mesh_islands", side_effect=cancel_after_discovery):
+            with self.assertRaises(RunCancelled):
+                mesh_island_authoring.island_ui_state(authoring, replacement)
+        self.assertEqual({}, authoring.mesh_island_cache, "cancelled roots must not enter the published cache")
 
     def test_preflight_and_publication_share_exact_prepared_binary(self):
         with tempfile.TemporaryDirectory() as temporary:

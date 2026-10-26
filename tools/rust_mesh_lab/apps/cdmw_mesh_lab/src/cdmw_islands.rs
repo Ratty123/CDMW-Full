@@ -1,8 +1,41 @@
 //! Island selection and visibility. Output inclusion remains a host transaction.
 use super::*;
-use cdmw_mesh::FaceHandle;
+use cdmw_mesh::{DrawSnapshot, FaceHandle};
 use egui::{Button, ScrollArea};
 use std::hash::{Hash, Hasher};
+
+pub(super) fn island_colour(part: u32, first_face: u32) -> [f32; 4] {
+    viewport::part_colour(part.wrapping_mul(0x9e37_79b9).wrapping_add(first_face))
+}
+
+pub(super) fn identity_colour_snapshot(
+    mesh: &WorkingMesh, visible: Option<&HashSet<u32>>, snapshot: &DrawSnapshot,
+    island_faces: Option<&Value>,
+) -> Vec<[f32; 4]> {
+    let Some(islands) = island_faces else {
+        return viewport::part_colour_snapshot(mesh, visible, snapshot);
+    };
+    let elements = visible.map(|parts| mesh.element_handles_for_submeshes(parts));
+    let mut colours = vec![[0.0; 4]; snapshot.positions.len()];
+    let mut palette = HashMap::new();
+    for ((_, face), triangle) in mesh.faces().filter(|(handle, _)|
+        elements.as_ref().is_none_or(|elements| elements.faces.contains(handle)))
+        .zip(snapshot.indices.chunks_exact(3))
+    {
+        let root = match face.provenance {
+            Provenance::Source { submesh, element } if submesh == face.submesh =>
+                islands[submesh as usize][element as usize].as_u64().and_then(|root| u32::try_from(root).ok()),
+            _ => None,
+        };
+        // Unmapped local geometry has no authoritative island name yet.
+        let colour = root.map_or([0.55, 0.55, 0.55, 0.88], |root|
+            *palette.entry((face.submesh, root)).or_insert_with(|| island_colour(face.submesh, root)));
+        for index in triangle {
+            colours[*index as usize] = colour;
+        }
+    }
+    colours
+}
 
 #[derive(Clone)]
 pub(super) struct HiddenIsland {
@@ -12,6 +45,50 @@ pub(super) struct HiddenIsland {
 }
 
 impl LabApplication {
+    pub(crate) fn cdmw_island_name_atoms<'a>(
+        &self, part: u32, faces: &[u32], label: impl egui::IntoAtoms<'a>,
+    ) -> egui::Atoms<'a> {
+        let colour = faces.first().filter(|_| self.cdmw_island_colours_active())
+            .map(|root| island_colour(part, *root));
+        crate::cdmw_ui::cdmw_colour_name_atoms(label, colour)
+    }
+
+    pub(crate) fn cdmw_island_colours_active(&self) -> bool {
+        self.cdmw_island_colours && self.cdmw_identity_colours_active()
+    }
+
+    pub(crate) fn cdmw_render_display_mode(&self) -> ViewMode {
+        if self.view_mode == ViewMode::PartId && self.cdmw_island_colours && !self.cdmw_island_colours_active() {
+            self.cdmw_part_colours_previous_mode
+        } else {
+            self.view_mode
+        }
+    }
+
+    pub(super) fn set_cdmw_island_colours(&mut self, enabled: bool) {
+        if enabled {
+            if self.view_mode != ViewMode::PartId {
+                self.cdmw_part_colours_previous_mode = self.view_mode;
+            }
+            self.view_mode = ViewMode::PartId;
+        } else {
+            self.view_mode = self.cdmw_part_colours_previous_mode;
+        }
+        self.cdmw_island_colours = enabled;
+        self.refresh_cdmw_mesh_display();
+    }
+
+    pub(crate) fn draw_cdmw_island_colour_option(&mut self, ui: &mut egui::Ui) {
+        let mut enabled = self.view_mode == ViewMode::PartId && self.cdmw_island_colours;
+        let available = self.cdmw_state["mesh_islands"]["color_faces"].is_array();
+        if ui.add_enabled(available || enabled, egui::Checkbox::new(&mut enabled, crate::localization::tr("Island colors")))
+            .on_hover_text(crate::localization::tr("Give each Mesh Island a different color with matching list swatches. Edit view only; fitting and exports stay unchanged."))
+            .changed()
+        {
+            self.set_cdmw_island_colours(enabled);
+        }
+    }
+
     pub(super) fn selected_refit_islands(&self, bound: &[u32]) -> Vec<(u32, Vec<u32>)> {
         let selected: HashSet<_> = self.mesh.as_ref().into_iter().flat_map(|mesh|
             mesh.selection.faces.iter().filter_map(|handle| match mesh.face(*handle)?.provenance {
@@ -209,13 +286,17 @@ impl LabApplication {
                             let faces = island_faces(island);
                             let mut shown = !self.cdmw_hidden_islands.iter().any(|hidden| hidden.part == part && hidden.faces == faces);
                             let selected = !faces.is_empty() && faces.iter().all(|face| selected_faces.contains(face));
+                            let mut name_response = None;
                             ui.push_id(index, |ui| ui.horizontal(|ui| {
                                 let title = crate::localization::tr(format!("Island {} · {} faces", index + 1, faces.len()));
                                 cdmw_list_cell(ui, widths[0], |ui| {
-                                    if ui.add_enabled_ui(shown, |ui| {
+                                    let response = ui.add_enabled_ui(shown, |ui| {
                                         ui.add_sized([ui.available_width(), ui.spacing().interact_size.y],
-                                            Button::selectable(selected, (&title, egui::Atom::grow())).truncate())
-                                    }).inner.on_hover_text(&title).clicked() {
+                                            Button::selectable(selected, self.cdmw_island_name_atoms(
+                                                part, &faces, (&title, egui::Atom::grow()))).truncate())
+                                    }).inner;
+                                    name_response = Some(response.clone());
+                                    if response.on_hover_text(&title).clicked() {
                                         actions.push(UiAction::SelectIsland { part, faces: faces.clone() });
                                     }
                                 });
@@ -247,6 +328,9 @@ impl LabApplication {
                                     });
                                 });
                             }));
+                            if let Some(response) = name_response {
+                                self.track_cdmw_island_name(ui, part, faces, &response);
+                            }
                         }
                     });
                 }

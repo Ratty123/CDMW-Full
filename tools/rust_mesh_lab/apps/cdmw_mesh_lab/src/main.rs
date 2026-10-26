@@ -2144,6 +2144,7 @@ struct LabApplication {
     deformation_heatmap_applied: bool,
     cdmw_part_colours_applied: bool,
     cdmw_part_colours_previous_mode: ViewMode,
+    cdmw_island_colours: bool,
     deformation_reference: Option<PersistentDeformationReference>,
     overlay_wire_colour: Color32,
     overlay_vertex_colour: Color32,
@@ -2218,8 +2219,8 @@ struct LabApplication {
     cdmw_refit_settings_dirty: cdmw_ui::RefitSettingsEdits,
     cdmw_refit_diagnostics: Option<Value>,
     cdmw_refit_feedback: Option<cdmw_ui::RefitFeedback>,
-    cdmw_hovered_part: Option<u32>,
-    cdmw_part_hover_overlay: Option<(u32, FaceSelectionOverlay)>,
+    cdmw_hovered_part: Option<cdmw_ui::PartHoverTarget>,
+    cdmw_part_hover_overlay: Option<(cdmw_ui::PartHoverTarget, FaceSelectionOverlay)>,
     cdmw_viewport_hovered_part: Option<u32>,
     cdmw_part_name_rows: Vec<cdmw_ui::PartNameRow>,
     cdmw_part_name_scroll: Option<cdmw_ui::PartNameScroll>,
@@ -2332,6 +2333,7 @@ impl LabApplication {
             deformation_heatmap_applied: true,
             cdmw_part_colours_applied: false,
             cdmw_part_colours_previous_mode: ViewMode::TexturedSolid,
+            cdmw_island_colours: false,
             deformation_reference: None,
             overlay_wire_colour: Color32::from_rgb(105, 125, 155),
             overlay_vertex_colour: Color32::from_gray(205),
@@ -3137,7 +3139,9 @@ impl LabApplication {
         } else {
             self.apply_cdmw_selection_state(
                 previous_visibility != self.cdmw_visible_submeshes()
-                    || previous_state.get("selection") != self.cdmw_state.get("selection"),
+                    || previous_state.get("selection") != self.cdmw_state.get("selection")
+                    || (self.cdmw_island_colours && previous_state["mesh_islands"]["color_faces"]
+                        != self.cdmw_state["mesh_islands"]["color_faces"]),
             );
             Ok(())
         };
@@ -3723,6 +3727,7 @@ impl LabApplication {
         let mut material_factor_count = 0_usize;
         let mut bound_material_count = 0_usize;
         let mut gpu_errors = Vec::new();
+        let identity_colours_active = self.cdmw_identity_colours_active();
         if let Some(renderer) = &mut self.renderer {
             if !reuse_materials {
                 renderer.reset_texture();
@@ -3783,8 +3788,9 @@ impl LabApplication {
                 Err(error) => gpu_errors.push(error.to_string()),
             }
             let snapshot = mesh.draw_snapshot();
-            let part_colours = (self.cdmw_bridge.is_some() && self.view_mode == ViewMode::PartId)
-                .then(|| viewport::part_colour_snapshot(&mesh, None, &snapshot));
+            let part_colours = identity_colours_active
+                .then(|| cdmw_islands::identity_colour_snapshot(&mesh, None, &snapshot,
+                    self.cdmw_island_colours.then_some(&self.cdmw_state["mesh_islands"]["color_faces"])));
             let deformation_reference = if part_colours.is_none() { deformation_reference_for_snapshot(
                 self.deformation_heatmap_enabled,
                 self.deformation_reference.as_mut(),
@@ -6669,8 +6675,9 @@ impl LabApplication {
                 || mesh.draw_snapshot(),
                 |visible| mesh.draw_snapshot_for_submeshes(visible),
             );
-            let part_colours = self.cdmw_part_colours_active().then(||
-                viewport::part_colour_snapshot(mesh, visible_submeshes.as_ref(), &snapshot));
+            let part_colours = self.cdmw_identity_colours_active().then(||
+                cdmw_islands::identity_colour_snapshot(mesh, visible_submeshes.as_ref(), &snapshot,
+                    self.cdmw_island_colours.then_some(&self.cdmw_state["mesh_islands"]["color_faces"])));
             let deformation_reference = if part_colours.is_none() { deformation_reference_for_snapshot(
                 self.deformation_heatmap_enabled,
                 self.deformation_reference.as_mut(),
@@ -6748,7 +6755,7 @@ impl LabApplication {
         if self.deformation_heatmap_applied != self.deformation_heatmap_enabled {
             self.deformation_heatmap_applied = self.deformation_heatmap_enabled;
             self.publish_mesh_snapshot();
-        } else if self.cdmw_part_colours_applied != self.cdmw_part_colours_active() {
+        } else if self.cdmw_part_colours_applied != self.cdmw_identity_colours_active() {
             self.refresh_cdmw_mesh_display();
         }
         self.render_jiggle();
@@ -6759,7 +6766,7 @@ impl LabApplication {
         let view_mode = if self.cdmw_jiggle.region_colours.is_some() {
             ViewMode::Solid
         } else {
-            self.view_mode
+            self.cdmw_render_display_mode()
         };
         let show_normals = self.show_normals;
         let show_bounds = self.show_bounds;

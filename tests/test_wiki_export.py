@@ -311,10 +311,15 @@ def test_in_app_browser_renders_the_expanded_guides_in_each_locale(tmp_path, lan
             )
             assert localizer.translate(source_paragraph) in body
             if topic == "mesh_editor":
-                hover_guide = "Open Parts on hover, beside Part colors in Morph & Refit, opens the Parts list when you hover a visible surface. Turn it off to keep closed panels closed; open lists still highlight and reveal matching names. Selection and pending fitting edits stay unchanged."
-                translated = localizer.translate(hover_guide)
-                assert translated in body
-                assert translated in wiki_pages[page_slug("Mesh-Editor", language.code) + ".md"]
+                for hover_guide in (
+                    "Open Parts to find Part colors and Island colors above either list. These options also appear under Viewport > Display and work outside Morph & Refit. Matching swatches identify parts and islands; turn the active color option off to return to the normal display.",
+                    "Island colors applies in Edit view and keeps selection, pending fitting edits, textures and exports unchanged. New local geometry stays gray until its island data updates.",
+                    "Open Parts on hover is below the color options in Parts and is off by default. Enable it to open the list when hovering a visible surface; saved choices are retained. Open lists still highlight and reveal matching names while keeping the chosen Parts or Mesh islands tab. Selection and pending fitting edits stay unchanged.",
+                    "Hover an island name in Mesh islands or Morph & Refit > Choose mesh islands to highlight only that island in the viewport. Hover a visible island in the viewport to highlight and reveal its name in the open lists. Move away to clear the highlight. Selection and pending fitting edits stay unchanged; hidden geometry stays hidden.",
+                ):
+                    translated = localizer.translate(hover_guide)
+                    assert translated in body
+                    assert translated in wiki_pages[page_slug("Mesh-Editor", language.code) + ".md"]
                 output_guide = "Output, beside Finish Edit Mesh and at the top of Tools, shows the route Finish follows. Open it to switch between Exact and Free Edit, choose a Free Edit package folder, or open a package in CDMW."
                 translated = localizer.translate(output_guide)
                 assert translated != output_guide or language.code == "en"

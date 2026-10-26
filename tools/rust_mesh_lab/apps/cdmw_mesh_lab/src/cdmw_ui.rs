@@ -486,7 +486,7 @@ pub(super) mod layout {
 
     pub(crate) fn auto_open_parts_on_hover(context: &Context) -> bool {
         context.data_mut(|data| data.get_temp::<Layout>(state_id()).unwrap_or_default()
-            .values["auto_open_parts_on_hover"].as_bool().unwrap_or(true))
+            .values["auto_open_parts_on_hover"].as_bool().unwrap_or(false))
     }
 
     pub(crate) fn set_auto_open_parts_on_hover(context: &Context, enabled: bool) {
@@ -614,11 +614,11 @@ pub(super) mod layout {
         }
 
         #[test]
-        fn auto_open_parts_on_hover_round_trips_and_defaults_to_enabled() {
+        fn auto_open_parts_on_hover_round_trips_and_defaults_to_disabled() {
             let context = Context::default();
-            assert!(auto_open_parts_on_hover(&context));
+            assert!(!auto_open_parts_on_hover(&context));
             restore(&context, &json!({"auto_open_parts_on_hover": "false"}));
-            assert!(auto_open_parts_on_hover(&context));
+            assert!(!auto_open_parts_on_hover(&context));
             restore(&context, &json!({PANELS[0]: 310.0, "floating": {"Viewport": [120.0, 180.0]}}));
             for enabled in [false, true] {
                 set_auto_open_parts_on_hover(&context, enabled);
@@ -650,9 +650,10 @@ pub(super) mod layout {
     }
 }
 
-const CDMW_VIEW_MODES: [(ViewMode, &str); 8] = [
+const CDMW_VIEW_MODES: [(ViewMode, &str); 9] = [
     (ViewMode::TexturedSolid, "Solid (Textured)"),
     (ViewMode::PartId, "Part colors"),
+    (ViewMode::PartId, "Island colors"),
     (ViewMode::Solid, "Faces (No Textures)"),
     (ViewMode::SolidWire, "Faces + Wire"),
     (ViewMode::Wireframe, "Wire"),
@@ -1057,14 +1058,36 @@ pub(super) struct RefitFeedback {
     overlay: Option<FaceSelectionOverlay>,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(super) struct PartHoverTarget {
+    pub part: u32,
+    pub island_faces: Option<Vec<u32>>,
+}
+
+pub(super) fn cdmw_colour_name_atoms<'a>(label: impl egui::IntoAtoms<'a>, colour: Option<[f32; 4]>) -> egui::Atoms<'a> {
+    let mut atoms = egui::Atoms::new(label);
+    if let Some([r, g, b, _]) = colour {
+        let white = egui::epaint::WHITE_UV;
+        atoms.push_left(egui::Image::new((egui::TextureId::default(), egui::vec2(10.0, 10.0)))
+            .uv(egui::Rect::from_min_max(white, white)).tint(Color32::from(egui::Rgba::from_rgb(r, g, b))));
+    }
+    atoms
+}
+
 pub(super) struct PartNameRow {
     part: u32,
+    island_faces: Option<Vec<u32>>,
     response: egui::Response,
     clip_rect: egui::Rect,
     scroll_root: Option<egui::Id>,
 }
 
 impl PartNameRow {
+    fn matches(&self, part: u32, source_face: Option<u32>) -> bool {
+        self.part == part && self.island_faces.as_ref().is_none_or(|faces|
+            source_face.is_some_and(|face| faces.contains(&face)))
+    }
+
     fn fully_visible(&self) -> bool {
         self.clip_rect.is_positive() && self.response.rect.intersect(self.clip_rect).height() + 0.5
             >= self.response.rect.height().min(self.clip_rect.height())
@@ -1073,6 +1096,7 @@ impl PartNameRow {
 
 pub(super) struct PartNameScroll {
     part: u32,
+    island: Option<egui::Id>,
     targets: HashSet<egui::Id>,
     viewport_layer: egui::LayerId,
     viewport_revision: u64,
@@ -1350,7 +1374,10 @@ pub(super) fn set_cdmw_sidebar_expanded(context: &egui::Context, id: &str, expan
     context.request_repaint();
 }
 
-fn cdmw_view_mode_label(mode: ViewMode) -> &'static str {
+fn cdmw_view_mode_label(mode: ViewMode, islands: bool) -> &'static str {
+    if mode == ViewMode::PartId && islands {
+        return "Island colors";
+    }
     if mode == ViewMode::UvChecker {
         return "UV Checker";
     }
@@ -2616,16 +2643,20 @@ impl LabApplication {
         ComboBox::from_id_salt("Display")
             .width(ui.available_width())
             .truncate()
-            .selected_text(crate::localization::tr(cdmw_view_mode_label(self.view_mode)))
+            .selected_text(crate::localization::tr(cdmw_view_mode_label(self.view_mode, self.cdmw_island_colours)))
             .show_ui(ui, |ui| {
                 for (mode, label) in CDMW_VIEW_MODES {
+                    let islands = label == "Island colors";
                     let enabled =
-                        mode != ViewMode::TexturedSolid || self.cdmw_textured_mode_available;
+                        (mode != ViewMode::TexturedSolid || self.cdmw_textured_mode_available)
+                            && (!islands || self.cdmw_state["mesh_islands"]["color_faces"].is_array());
                     let response = ui
-                        .add_enabled(enabled, Button::new(crate::localization::tr(label)).selected(self.view_mode == mode))
+                        .add_enabled(enabled, Button::new(crate::localization::tr(label)).selected(self.view_mode == mode
+                            && (mode != ViewMode::PartId || self.cdmw_island_colours == islands)))
                         .on_disabled_hover_text(crate::localization::tr(&self.cdmw_textured_mode_reason));
                     if response.clicked() {
-                        self.set_cdmw_display_mode(mode);
+                        if islands { self.set_cdmw_island_colours(true); }
+                        else { self.set_cdmw_display_mode(mode); }
                     }
                 }
             })
@@ -4201,6 +4232,24 @@ impl LabApplication {
                                 crate::localization::tr("Coincident seam vertices are grouped without welding the model.")));
                     });
                     ui.ctx().data_mut(|data| data.insert_temp(tab_id, islands));
+                    ui.horizontal_wrapped(|ui| {
+                        let mut part_colours = self.view_mode == ViewMode::PartId && !self.cdmw_island_colours;
+                        if ui.checkbox(&mut part_colours, crate::localization::tr("Part colors"))
+                            .on_hover_text(crate::localization::tr("Give each Part a different color to see overlaps. Display only; fitting and exports stay unchanged."))
+                            .changed()
+                        {
+                            self.set_cdmw_display_mode(if part_colours { ViewMode::PartId }
+                                else { self.cdmw_part_colours_previous_mode });
+                        }
+                        self.draw_cdmw_island_colour_option(ui);
+                    });
+                    let mut automatic = crate::cdmw_layout::auto_open_parts_on_hover(ui.ctx());
+                    if ui.checkbox(&mut automatic, crate::localization::tr("Open Parts on hover"))
+                        .on_hover_text(crate::localization::tr("Open the Parts list when hovering a visible surface. Turn off to keep closed panels closed."))
+                        .changed()
+                    {
+                        crate::cdmw_layout::set_auto_open_parts_on_hover(ui.ctx(), automatic);
+                    }
                     ui.separator();
                     ui.add_enabled_ui(!busy, |ui| {
                         if islands { self.draw_cdmw_islands(ui, actions); }
@@ -4915,7 +4964,7 @@ impl LabApplication {
                 egui::Align2::LEFT_TOP,
                 crate::localization::tr(format!(
                     "wgpu · D3D12 · {mode} · {}",
-                    cdmw_view_mode_label(self.view_mode)
+                    cdmw_view_mode_label(self.view_mode, self.cdmw_island_colours)
                 )),
                 egui::TextStyle::Monospace.resolve(ui.style()),
                 Color32::from_gray(190),
@@ -5188,6 +5237,7 @@ mod tests {
             [
                 "Solid (Textured)",
                 "Part colors",
+                "Island colors",
                 "Faces (No Textures)",
                 "Faces + Wire",
                 "Wire",

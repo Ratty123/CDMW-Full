@@ -413,6 +413,18 @@ def island_host(tmp_path, monkeypatch, request):
     service.close_edit_session(host.authoritative_session_id, force_without_saving=True)
 
 
+def test_island_color_metadata_matches_list_and_roundtrips(island_host):
+    _, _, _, host, _, _ = island_host
+    state = json.loads(json.dumps(host.state_payload()))
+    mesh = host.shadow_service._session(host.shadow_session_id).working_mesh
+    colors = state['mesh_islands']['color_faces']
+    assert len(colors) == len(mesh.submeshes)
+    for row in state['mesh_islands']['parts']:
+        assert len(colors[row['index']]) == len(mesh.submeshes[row['index']].faces)
+        for island in row['islands']:
+            assert all(colors[row['index']][face] == min(island['faces']) for face in island['faces'])
+
+
 @pytest.mark.parametrize('island_host', [1, 6], indirect=True, ids=['single-island', 'last-island'])
 def test_last_island_uses_whole_part_output_and_can_be_restored(island_host):
     from cdmw.services.mesh_replacement_import import initial_replacement_state, mesh_with_part_ids

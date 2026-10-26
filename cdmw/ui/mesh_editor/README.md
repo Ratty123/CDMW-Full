@@ -167,6 +167,10 @@ Use **Back to Inspector** for **Translucency (experimental)**, **Glow (experimen
 **Shader experiments**, **Geometry Layers** and **Action History**. Part selection
 is retained when navigating between these tools.
 
+**Part colors** and **Island colors** sit above both lists and work outside
+Morph & Refit. **Open Parts on hover** is below them and is off by default;
+an existing saved choice is retained.
+
 Parts use compact single-line rows with aligned **View** and **Include** columns.
 **View** only affects the viewport; **Include** controls exported output. Physics
 badges occupy a separate column. Long names and badges truncate; hover for the
@@ -183,9 +187,29 @@ The island list is separate from the Parts list and groups islands by their sour
 part. Each compact row contains its selectable name, **Isolate**, **View** and
 **Include**. **Show all islands** stays above the list. Long names retain their
 full text on hover. Hover over the tab for selection and seam grouping guidance.
+Viewport hover keeps this tab active and highlights the matching listed island,
+scrolling its name into view without changing the selection. It follows the
+frontmost visible island; hidden islands stay hidden.
+Hovering an island's name temporarily highlights only that island's visible faces
+in the viewport, including obscured surfaces. Leaving the name clears the tint;
+selection, fitting targets and pending edits stay unchanged.
+Enable **Island colors** beside **Part colors** at the top of the Parts browser,
+or under **Viewport → Display**. These options are available outside Morph & Refit.
+Each island has a stable shaded color, with a matching swatch beside its name here
+and in **Choose mesh islands**. Switching
+between Part and Island colors keeps selection and fitting edits; turning off the
+active color option returns to the previous normal display. Hidden islands keep
+their color when shown again. Colors apply in Edit view; comparison views keep
+their own display. New local geometry stays gray until its island data updates.
 Coincident UV-seam vertices are grouped at 1e-5 model-unit precision without
 welding or moving the model. Existing **Linked** selection still follows vertex
 indices when that stricter connectivity is wanted.
+
+`mesh_islands.color_faces` carries one source-face root ID per triangle for every
+Part, including unselected Parts. The existing cancellable worker discovers and
+caches these seam-aware groups; the renderer and both island lists use the same
+identities. Active fitting uses neutral groups so a live preview cannot merge or
+split their colors. This derived display state does not change output inclusion.
 
 - **View** hides only that island in the viewport and picking. **Isolate** shows
   only that island within its part; **Show all islands** restores viewport masks.
@@ -1895,8 +1919,8 @@ matching the other tool groups. Click its header to open or close the settings;
 closing returns to Orbit navigation. Viewport, the tool groups, Parts,
 Geometry Layers and Action History start collapsed. Morph & Refit opens directly to
 **Setup**, with **Fit**, **Shape** and **Saved** tabs. Arrows between Setup, Fit and
-Shape show their order; Saved stands apart. **Part colors** and **Open Parts on hover**
-share one row below the tabs. The selected tab, nested page
+Shape show their order; Saved stands apart. **Part colors**, **Island colors** and
+**Open Parts on hover** are in the Parts browser. The selected tab, nested page
 and drafts stay available when returning from another tool or moving between expanded,
 pinned and floating settings. Closing panels preserves geometry and selection.
 
@@ -2095,27 +2119,38 @@ update retains the pending edits. Apply pending settings before **Fit all enable
 garments**; fitting stays disabled while edits are pending.
 Tightness requires Surface or Rigid component mode on every chosen garment.
 
-**Part colors**, above the Morph & Refit tabs' content, gives each Part a stable,
+**Part colors**, at the top of the Parts browser, gives each Part a stable,
 distinct shaded viewport color to make overlaps easier to inspect. It also appears
 under **Viewport → Display**. Colors follow Part identity, including new Parts that
 share a material; hiding other pieces does not reassign their colors. Turning the
-Morph & Refit toggle off restores the previous display mode. This changes only the
+color toggle off restores the previous display mode. This changes only the
 viewport; fitting, selection, pending edits, textures and exports remain intact.
+**Island colors**, beside it, colors disconnected islands within each Part and
+adds matching swatches in both island lists. The color modes are mutually
+exclusive and return to the previous normal display when turned off.
 Matching swatches beside Part names in Morph & Refit, fit warnings and the Parts
 inspector identify each piece while Part colors is enabled.
 Hovering a Part name temporarily highlights its visible geometry in cyan, including
 obscured surfaces, without changing the selection or fitting targets. This also works
-with Part colors off; leaving the name clears the hover tint. Hidden Parts and islands
+with Part colors off. In **Mesh islands** and Morph & Refit's **Choose mesh islands**,
+hovering an island name highlights just that island. Leaving the name clears the
+hover tint. Hidden Parts and islands
 stay hidden, and comparison views keep their own display. Hovering a surface in the
-viewport also opens the Parts list when **Open Parts on hover**, beside **Part
-colors**, is enabled (the default). Turn it off to keep closed panels closed.
+viewport also opens the Parts list when **Open Parts on hover**, below the color
+options in the Parts browser, is enabled. It is off by default, so closed panels
+stay closed. Existing saved choices are retained.
 The choice is saved with the editor layout when remembering panel sizes is enabled.
-With automatic opening enabled, Inspector expands or switches from Mesh islands
-when needed. Hover outlines matching Part names in cyan and scrolls them into
+With automatic opening enabled, Inspector expands when needed and keeps your
+chosen Parts or Mesh islands tab. Hover outlines matching Part or island names in cyan and scrolls them into
 view in open lists. It moves only enough to reveal a name and keeps an already visible
 match in place, including fit warnings. It uses the frontmost visible surface,
 keeps selection and fitting edits, and clears over empty space or during drags.
 Leaving the viewport cancels pending scrolling; other closed sections stay closed.
+In Morph & Refit's open **Choose mesh islands** list, viewport hover reveals and
+highlights the exact island name, including when another island in the same Part
+was hovered previously. The parent Part heading does not prevent an offscreen
+island name from scrolling into view. Moving away or hovering a different island
+cancels stale scrolling; selection, fitting targets and pending edits stay intact.
 
 If fitting is refused, Fit shows the affected garment names, a short reason and a
 targeted next step. Overlaps suggest more Clearance (0.1% when starting at zero) or

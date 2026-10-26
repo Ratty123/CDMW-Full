@@ -6,7 +6,7 @@ use cdmw_interaction::{
     SculptTool, SelectionDomain, SelectionOperation, SelectionQuery, SelectionQueryStats,
     SelectionShape, query_selection, query_selection_with_stats, selection_after_operation,
 };
-use cdmw_mesh::{DrawSnapshot, History, MeshError, Provenance, Selection, VertexHandle, WorkingMesh};
+use cdmw_mesh::{DrawSnapshot, FaceHandle, History, MeshError, Provenance, Selection, VertexHandle, WorkingMesh};
 use egui::Rect;
 use glam::{Vec2, Vec3};
 use std::collections::{BTreeMap, HashMap, HashSet, VecDeque};
@@ -596,8 +596,24 @@ impl FaceSelectionOverlay {
     pub fn build_for_parts(
         mesh: &WorkingMesh, visible: Option<HashSet<u32>>, colour: [f32; 4], parts: &[u32],
     ) -> Self {
+        Self::build_for_matching_faces(mesh, visible, colour, |part, _| parts.contains(&part))
+    }
+
+    pub fn build_for_island(
+        mesh: &WorkingMesh, visible: Option<HashSet<u32>>, colour: [f32; 4], part: u32, faces: &[u32],
+    ) -> Self {
+        let faces: HashSet<_> = faces.iter().copied().collect();
+        Self::build_for_matching_faces(mesh, visible, colour, |submesh, provenance|
+            submesh == part && matches!(provenance, Provenance::Source { submesh, element }
+                if *submesh == part && faces.contains(element)))
+    }
+
+    fn build_for_matching_faces(
+        mesh: &WorkingMesh, visible: Option<HashSet<u32>>, colour: [f32; 4],
+        includes: impl Fn(u32, &Provenance) -> bool,
+    ) -> Self {
         let positions = mesh.faces()
-            .filter(|(handle, face)| parts.contains(&face.submesh)
+            .filter(|(handle, face)| includes(face.submesh, &face.provenance)
                 && !mesh.viewport_hidden_faces().contains(handle)
                 && visible.as_ref().is_none_or(|visible| visible.contains(&face.submesh)))
             .flat_map(|(_, face)| face.vertices.iter())
@@ -669,7 +685,7 @@ pub struct ViewportProjection {
     pub interaction: InteractionSnapshot,
     pub vertices: HashMap<VertexHandle, ProjectedVertex>,
     visible_submeshes: Option<Vec<u32>>,
-    triangle_parts: Vec<u32>,
+    triangle_faces: Vec<(u32, FaceHandle)>,
 }
 
 impl ViewportProjection {
@@ -737,7 +753,7 @@ impl ViewportProjection {
                 .as_ref()
                 .map_or_else(|| mesh.faces().count(), |items| items.faces.len()),
         );
-        let mut triangle_parts = Vec::with_capacity(depth_triangles.capacity());
+        let mut triangle_faces = Vec::with_capacity(depth_triangles.capacity());
         elements.extend(mesh.vertices().filter_map(|(handle, _)| {
             vertices.get(&handle).map(|projected| ProjectedElement {
                 handle: ProjectedHandle::Vertex(handle),
@@ -784,7 +800,7 @@ impl ViewportProjection {
                     positions: [points[0].screen, points[1].screen, points[2].screen],
                     depths: [points[0].depth, points[1].depth, points[2].depth],
                 });
-                triangle_parts.push(face.submesh);
+                triangle_faces.push((face.submesh, handle));
                 elements.push(ProjectedElement {
                     handle: ProjectedHandle::Face(handle),
                     position: (points[0].screen + points[1].screen + points[2].screen) / 3.0,
@@ -805,7 +821,7 @@ impl ViewportProjection {
                 depth_triangles,
             ),
             vertices,
-            triangle_parts,
+            triangle_faces,
             visible_submeshes: visible_submeshes.map(|submeshes| {
                 let mut ordered = submeshes.iter().copied().collect::<Vec<_>>();
                 ordered.sort_unstable();
@@ -816,7 +832,12 @@ impl ViewportProjection {
 
     #[must_use]
     pub fn part_at(&self, point: Vec2) -> Option<u32> {
-        self.interaction.nearest_triangle(point).and_then(|index| self.triangle_parts.get(index).copied())
+        self.face_at(point).map(|(part, _)| part)
+    }
+
+    #[must_use]
+    pub fn face_at(&self, point: Vec2) -> Option<(u32, FaceHandle)> {
+        self.interaction.nearest_triangle(point).and_then(|index| self.triangle_faces.get(index).copied())
     }
 
     #[must_use]
