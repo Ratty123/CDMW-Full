@@ -151,10 +151,13 @@ def _control_pattern(locale: str):
 
 
 def _emphasize_controls(text: str, locale: str) -> str:
-    return "".join(
+    emphasized = "".join(
         part if index % 2 else _control_pattern(locale).sub(lambda match: "**" + match[0] + "**", part)
         for index, part in enumerate(_INLINE_MARKUP.split(text))
     )
+    # Without spaces between words (Chinese, Japanese), names can match back to back.
+    # GitHub cannot pair "**A****B**" and shows the asterisks, so join them as "**AB**".
+    return re.sub(r"(?<=[^\s*])\*\*\*\*(?=[^\s*])", "", emphasized)
 
 
 def _sentence_kind(source: str) -> str:

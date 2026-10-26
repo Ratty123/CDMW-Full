@@ -173,6 +173,14 @@ def test_korean_procedures_split_sentences_without_emphasizing_word_fragments(wi
     assert "지**원**" not in vertex
 
 
+def test_adjacent_cjk_controls_share_one_emphasis(wiki_manuals):
+    # Two control names with no space between them must not render literal asterisks.
+    assert _emphasize_controls("出力設定を確認します。", "ja") == "**出力設定**を確認します。"
+    assert _emphasize_controls("请确认**输出**设置。", "zh-Hans").count("****") == 0
+    for name in ("ja/日本語.md", "zh-Hans/简体中文.md", "zh-Hant/繁體中文.md", "ko/한국어.md"):
+        assert "****" not in wiki_manuals[name], name
+
+
 def test_manual_migration_requires_every_source_guide(wiki_pages):
     incomplete = dict(wiki_pages)
     del incomplete["Mesh-Editor-ja.md"]
