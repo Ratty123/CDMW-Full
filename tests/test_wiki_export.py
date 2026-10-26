@@ -14,7 +14,7 @@ from scripts.export_github_wiki import (
     BUILTIN_LANGUAGES, PAGE_TOPICS, WIKI, DocumentParser, _blocks,
     _translate_html, build_pages, page_slug,
     build_manuals, manual_path, manual_slug,
-    _emphasize_controls, _readable_guide, _sentences,
+    _emphasize_controls, _is_instruction, _readable_guide, _sentences,
 )
 
 
@@ -171,6 +171,17 @@ def test_korean_procedures_split_sentences_without_emphasizing_word_fragments(wi
     vertex = wiki_manuals["ko/한국어.md"].split('<a id="mesh_editor-5"></a>', 1)[1].split("</details>", 1)[0]
     assert vertex.count("\n1. ") == 2
     assert "지**원**" not in vertex
+
+
+def test_fit_and_parts_controls_are_emphasized_whole_and_described_controls_are_not_steps():
+    assert _emphasize_controls("A line under Fit all enabled garments says why.", "en") == (
+        "A line under **Fit all enabled garments** says why.")
+    assert _emphasize_controls("Turn off Use the authored body and Take weights from the body.", "en") == (
+        "Turn off **Use the authored body** and **Take weights from the body**.")
+    assert _emphasize_controls("Move away to clear the highlight. Use Move.", "en") == (
+        "Move away to clear the highlight. Use **Move**.")
+    assert not _is_instruction("Open Parts on hover is below the color options in Parts and is off by default.")
+    assert _is_instruction("Open Parts to find Part colors and Island colors above either list.")
 
 
 def test_adjacent_cjk_controls_share_one_emphasis(wiki_manuals):

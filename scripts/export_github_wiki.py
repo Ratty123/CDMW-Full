@@ -97,6 +97,13 @@ _CONTROLS = (
     "Archive Locations", "Open Folder", "Auto-Match", "Reload Folder", "Review & Export",
     "Move", "Rotate", "Scale", "Uniform scale", "Template", "Identity", "Distribution", "Output",
     "Glow", "Translucency", "Shader experiments", "Parts", "Part colors", "Report a Problem",
+    "Island colors", "Open Parts on hover", "Fit all enabled garments", "Use the authored body",
+    "Take weights from the body", "Pull to skin",
+)
+# A sentence that opens with a control's name and describes it is not a step.
+_CONTROL_SUBJECT = re.compile(
+    r"^(?:" + "|".join(re.escape(name) for name in sorted(_CONTROLS, key=len, reverse=True))
+    + r") (?:is|are|appears|stays)\b"
 )
 _INLINE_MARKUP = re.compile(r"(`[^`\n]+`|\[[^\]\n]+\]\([^)\n]+\)|\*\*[^*\n]+\*\*)")
 _ADVANCED_MESH_SECTIONS = frozenset({
@@ -146,7 +153,9 @@ def _control_pattern(locale: str):
             suffix = r"(?=\W|$|(?:에서는|으로|에서|은|는|이|가|을|를|와|과|로|에|도|만)(?=\W|$))"
             patterns.append(r"(?<!\w)" + re.escape(name) + suffix)
         else:
-            patterns.append(re.escape(name) if cjk else r"(?<!\w)" + re.escape(name) + r"(?!\w)")
+            # "Move away" is the pointer, not the Move tool.
+            exception = r"(?! away\b)" if name == "Move" else ""
+            patterns.append(re.escape(name) if cjk else r"(?<!\w)" + re.escape(name) + r"(?!\w)" + exception)
     return re.compile("|".join(patterns))
 
 
@@ -169,6 +178,8 @@ def _sentence_kind(source: str) -> str:
 
 
 def _is_instruction(source: str) -> bool:
+    if _CONTROL_SUBJECT.match(source):
+        return False
     if re.match(r"^[A-Z][A-Za-z &/().+-]*? (?:shows|writes|clears|restores|keeps|opens|loads|includes|requires|retains|starts|accepts|provides|supports?|remains|permits|controls|offers|previews|selects?)\b", source):
         return False
     return bool(re.match(r"(?:Use|Open|Choose|Select|Start|Import|Move|Compare|Browse|Review|Read|Load|Inspect|Enter|Follow|Keep|Run|Set|Add|Clear|Reset|Bake|Export|Apply|Turn|Under|For an existing|For external|To verify|When fitting)\b", source))
