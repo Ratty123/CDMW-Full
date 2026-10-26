@@ -15,17 +15,21 @@ from PySide6.QtWidgets import (
 
 from cdmw.domain.library.models import is_importable_model_path
 from cdmw.services.model_library_service import ModelLibraryService
-from cdmw.ui.layout_utils import responsive_sidebar_bounds
 from cdmw.ui.model_library.actions import ModelLibraryActionsMixin
 from cdmw.ui.model_library.catalogue import ModelLibraryCatalogueMixin
 from cdmw.ui.model_library.commands import ModelLibraryCommandsMixin
 from cdmw.ui.model_library.controller import ModelLibraryResultsMixin
 from cdmw.ui.model_library.local_rows import ModelLibraryLocalRowsMixin
 from cdmw.ui.model_library.panels import (
-    finish_model_library_layout,
+    SOURCES_LANE_MAX_WIDTH,
+    SOURCES_LANE_MIN_WIDTH,
+    build_command_strip,
     build_controls_panel,
+    build_filters_strip,
     build_preview_panel,
     build_results_panel,
+    build_task_row,
+    finish_model_library_layout,
 )
 from cdmw.ui.model_library.preview import ModelLibraryInlinePreviewMixin
 from cdmw.ui.model_library.selection import ModelLibrarySelectionMixin
@@ -103,6 +107,7 @@ class ModelLibraryTab(
         self._icon_output_request_id = 0
         self._icon_output_active = False
         self._task_status_active = False
+        self._catalogue_index_available = False
         self._result_sort_column = int(self.settings.value("model_library/result_sort_column", 1) or 1)
         self._result_sort_order = (
             Qt.SortOrder.DescendingOrder
@@ -154,14 +159,17 @@ class ModelLibraryTab(
         self._updating_column_filters = False
 
         root_layout = QVBoxLayout(self)
-        root_layout.setContentsMargins(10, 10, 10, 10)
-        root_layout.setSpacing(8)
+        root_layout.setContentsMargins(6, 6, 6, 6)
+        root_layout.setSpacing(6)
+        root_layout.addWidget(build_command_strip(self))
+        root_layout.addWidget(build_filters_strip(self))
 
         splitter = QSplitter(Qt.Orientation.Horizontal)
         splitter.setObjectName("ModelLibraryWorkspaceSplitter")
         splitter.setChildrenCollapsible(False)
         splitter.setHandleWidth(8)
         root_layout.addWidget(splitter, stretch=1)
+        root_layout.addWidget(build_task_row(self))
 
         controls_panel = build_controls_panel(self)
         results_panel = build_results_panel(self)
@@ -181,17 +189,16 @@ class ModelLibraryTab(
         self._model_library_results_panel = results_panel
         self._model_library_preview_panel = preview_panel
 
-        controls_min, controls_pref, controls_max = responsive_sidebar_bounds(self, role="wide")
-        controls_panel.setMinimumWidth(256)
-        controls_panel.setMaximumWidth(300)
+        controls_panel.setMinimumWidth(SOURCES_LANE_MIN_WIDTH)
+        controls_panel.setMaximumWidth(SOURCES_LANE_MAX_WIDTH)
         results_panel.setMinimumWidth(300)
         preview_panel.setMinimumWidth(280)
         splitter.setStretchFactor(0, 0)
         splitter.setStretchFactor(1, 1)
         splitter.setSizes([280, 900])
-        content_splitter.setStretchFactor(0, 1)
-        content_splitter.setStretchFactor(1, 1)
-        content_splitter.setSizes([460, 440])
+        content_splitter.setStretchFactor(0, 3)
+        content_splitter.setStretchFactor(1, 2)
+        content_splitter.setSizes([540, 360])
 
         finish_model_library_layout(self)
         self._load_settings()
@@ -201,13 +208,6 @@ class ModelLibraryTab(
         self._update_selection_state()
         if not initial_results_loaded:
             self._set_status("Choose Mirror Catalogue or Local Library. Use Refresh to reload the active view.")
-
-
-
-
-
-    def _model_library_button_label(self, standard: str, compact: str) -> str:
-        return compact
 
     def _model_import_path_request(
         self,

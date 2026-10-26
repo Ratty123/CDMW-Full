@@ -1,14 +1,23 @@
-"""Panel construction for the Model Library tab."""
+"""Panel construction for the Model Library tab.
+
+The tab is a command strip (view, search, filters) above three panes: the
+Sources lane, the results table, and the selection pane. The Sources lane
+shows only the active view's source: mirror catalogue settings or local
+folders. Filters and the Sources lane collapse and remember their state.
+"""
 
 from __future__ import annotations
 
-from PySide6.QtCore import Qt
+from typing import Optional
+
+from PySide6.QtCore import QEvent, QSize, Qt
+from PySide6.QtGui import QFont, QFontMetrics
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QButtonGroup,
     QCheckBox,
     QComboBox,
-    QFormLayout,
+    QFrame,
     QGridLayout,
     QGroupBox,
     QHBoxLayout,
@@ -31,126 +40,228 @@ from PySide6.QtWidgets import (
 from cdmw.domain.library.models import DEFAULT_MODEL_MIRROR_URL
 from cdmw.models import ModelPreviewRenderSettings, clamp_model_preview_render_settings
 from cdmw.ui.model_library.settings import MODEL_LIBRARY_FILTER_COLUMNS
+from cdmw.ui.wrapping_layout import WrappingLayout
+
+SOURCES_LANE_MIN_WIDTH = 256
+SOURCES_LANE_MAX_WIDTH = 300
 
 
-def build_controls_panel(tab: object) -> QWidget:
-    panel = tab._model_library_controls_content = QWidget()
-    panel.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Minimum)
-    layout = tab._model_library_controls_layout = QVBoxLayout(panel)
+class _ElidedLabel(QLabel):
+    """One-line hint that elides rather than widening its pane.
+
+    ``text()`` keeps the full message for translation and callers; the tooltip
+    shows it when the visible copy is cut short.
+    """
+
+    def __init__(self, text: str = "", parent: Optional[QWidget] = None) -> None:
+        self._full_text = ""
+        super().__init__(parent)
+        self.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Fixed)
+        self.setMinimumWidth(0)
+        self.setText(text)
+
+    def text(self) -> str:
+        return self._full_text
+
+    def setText(self, text: str) -> None:  # noqa: N802 - Qt override
+        self._full_text = str(text or "")
+        self.setToolTip(self._full_text)
+        self._render_text()
+
+    def _render_text(self) -> None:
+        width = max(0, self.contentsRect().width())
+        super().setText(self.fontMetrics().elidedText(self._full_text, Qt.TextElideMode.ElideRight, width))
+
+    def resizeEvent(self, event) -> None:  # noqa: N802 - Qt override
+        super().resizeEvent(event)
+        self._render_text()
+
+    def changeEvent(self, event) -> None:  # noqa: N802 - Qt override
+        super().changeEvent(event)
+        if event.type() in (QEvent.Type.FontChange, QEvent.Type.StyleChange):
+            self._render_text()
+
+
+class ModelLibraryColumnFilterRow(QWidget):
+    """Column filter boxes placed directly above the columns they filter."""
+
+    def __init__(self, tree: QTreeWidget, edits: dict[int, QLineEdit], parent: Optional[QWidget] = None) -> None:
+        super().__init__(parent)
+        self.setObjectName("ModelLibraryColumnFilterRow")
+        self.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Fixed)
+        self.setMinimumWidth(0)
+        self._tree = tree
+        self._edits = dict(edits)
+        for edit in self._edits.values():
+            edit.setParent(self)
+        self._update_height()
+        header = tree.header()
+        header.sectionResized.connect(self._sync_geometry)
+        header.sectionMoved.connect(self._sync_geometry)
+        header.geometriesChanged.connect(self._sync_geometry)
+        tree.horizontalScrollBar().valueChanged.connect(self._sync_geometry)
+
+    def _update_height(self) -> None:
+        heights = [edit.sizeHint().height() for edit in self._edits.values()]
+        self.setFixedHeight(max(heights, default=24))
+
+    def _sync_geometry(self, *_args: object) -> None:
+        header = self._tree.header()
+        left = self._tree.viewport().geometry().left()
+        for column, edit in self._edits.items():
+            if header.isSectionHidden(column):
+                edit.hide()
+                continue
+            x = left + header.sectionViewportPosition(column)
+            width = header.sectionSize(column)
+            edit.setGeometry(x + 1, 0, max(0, width - 2), self.height())
+            edit.show()
+
+    def resizeEvent(self, event) -> None:  # noqa: N802 - Qt override
+        super().resizeEvent(event)
+        self._sync_geometry()
+
+    def showEvent(self, event) -> None:  # noqa: N802 - Qt override
+        super().showEvent(event)
+        self._sync_geometry()
+
+    def changeEvent(self, event) -> None:  # noqa: N802 - Qt override
+        super().changeEvent(event)
+        if event.type() in (QEvent.Type.FontChange, QEvent.Type.StyleChange):
+            self._update_height()
+            self._sync_geometry()
+
+
+class _ViewButton(QPushButton):
+    """Checkable view switch sized for the bold text the theme gives it when checked."""
+
+    def __init__(self, text: str) -> None:
+        super().__init__()
+        self.setCheckable(True)
+        self.setText(text)
+
+    def _bold_extra_width(self) -> int:
+        text = self.text().replace("&&", "\0").replace("&", "").replace("\0", "&")
+        bold = QFont(self.font())
+        bold.setWeight(QFont.Weight.DemiBold)
+        return max(0, QFontMetrics(bold).horizontalAdvance(text) - self.fontMetrics().horizontalAdvance(text))
+
+    def sizeHint(self) -> QSize:  # noqa: N802 - Qt override
+        hint = super().sizeHint()
+        return QSize(hint.width() + self._bold_extra_width(), hint.height())
+
+    def minimumSizeHint(self) -> QSize:  # noqa: N802 - Qt override
+        hint = super().minimumSizeHint()
+        return QSize(hint.width() + self._bold_extra_width(), hint.height())
+
+
+def _fixed_button(text: str, *, tooltip: str = "", view_switch: bool = False) -> QPushButton:
+    # Pass the text straight to a known widget so the localization manifest
+    # generator infers this helper as a text sink.
+    button = _ViewButton(text) if view_switch else QPushButton(text)
+    button.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
+    if tooltip:
+        button.setToolTip(tooltip)
+    return button
+
+
+def _field_label(text: str) -> QLabel:
+    label = QLabel(text)
+    label.setObjectName("HintLabel")
+    return label
+
+
+def build_command_strip(tab: object) -> QWidget:
+    """View switch, search, and the toggles for the Sources lane and filters."""
+
+    strip = tab._model_library_command_strip = QFrame()
+    strip.setObjectName("ModelLibraryCommandStrip")
+    strip.setFrameShape(QFrame.Shape.NoFrame)
+    strip.setProperty("compactStructural", True)
+    layout = QHBoxLayout(strip)
     layout.setContentsMargins(0, 0, 0, 0)
-    layout.setSpacing(8)
+    layout.setSpacing(6)
 
     tab._updating_results_query = False
-    local_group = QGroupBox("Local Folders")
-    tab.local_group = local_group
-    local_layout = tab._model_library_local_layout = QVBoxLayout(local_group)
-    local_layout.setContentsMargins(8, 8, 8, 8)
-    local_layout.setSpacing(6)
-    path_row = tab._model_library_local_path_row = QHBoxLayout()
-    tab.local_path_edit = QLineEdit()
-    tab.local_path_edit.setPlaceholderText("Folder containing local models")
-    tab.browse_local_button = QPushButton("Browse")
-    path_row.addWidget(tab.local_path_edit, stretch=1)
-    path_row.addWidget(tab.browse_local_button)
-    local_layout.addLayout(path_row)
-    local_buttons = tab._model_library_local_buttons = QGridLayout()
-    tab.add_local_root_button = QPushButton("Add Folder")
-    tab.remove_local_root_button = QPushButton("Remove")
-    tab.scan_local_button = QPushButton("Show Local Models")
-    tab.open_local_root_button = QPushButton("Open Folder")
-    local_buttons.addWidget(tab.add_local_root_button, 0, 0)
-    local_buttons.addWidget(tab.remove_local_root_button, 0, 1)
-    local_buttons.addWidget(tab.scan_local_button, 1, 0)
-    local_buttons.addWidget(tab.open_local_root_button, 1, 1)
-    local_layout.addLayout(local_buttons)
-    tab.roots_tree = QTreeWidget()
-    tab.roots_tree.setColumnCount(1)
-    tab.roots_tree.setHeaderLabels(["Folders"])
-    tab.roots_tree.setRootIsDecorated(False)
-    tab.roots_tree.setUniformRowHeights(True)
-    tab.roots_tree.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
-    tab.roots_tree.setMaximumHeight(120)
-    local_layout.addWidget(tab.roots_tree)
-    tab.roots_tree.currentItemChanged.connect(lambda _current, _previous: tab._update_selection_state())
-    layout.addWidget(local_group)
+    # The panel toggles are plain buttons so that only the view switch reads as
+    # a selected segment; the panels themselves show whether they are open.
+    tab.sources_toggle_button = _fixed_button(
+        "Sources",
+        tooltip="Show or hide mirror catalogue settings and local model folders.",
+    )
+    tab.mirror_results_view_button = _fixed_button("Mirror", tooltip="Mirror Catalogue", view_switch=True)
+    tab.local_results_view_button = _fixed_button("Local", tooltip="Local Library", view_switch=True)
+    tab.results_view_button_group = QButtonGroup(tab)
+    tab.results_view_button_group.setExclusive(True)
+    tab.results_view_button_group.addButton(tab.mirror_results_view_button)
+    tab.results_view_button_group.addButton(tab.local_results_view_button)
 
-    mirror_group = QGroupBox("Mirror Index Source")
-    tab.mirror_group = mirror_group
-    mirror_layout = tab._model_library_mirror_layout = QVBoxLayout(mirror_group)
-    mirror_layout.setContentsMargins(8, 8, 8, 8)
-    mirror_layout.setSpacing(6)
-    mirror_form = tab._model_library_mirror_form = QFormLayout()
-    mirror_form.setContentsMargins(0, 0, 0, 0)
-    mirror_form.setHorizontalSpacing(8)
-    mirror_form.setVerticalSpacing(6)
-    tab.mirror_url_edit = QLineEdit()
-    tab.mirror_url_edit.setPlaceholderText(DEFAULT_MODEL_MIRROR_URL)
-    mirror_form.addRow("Mirror URL", tab.mirror_url_edit)
-    catalogue_dir_row = tab._model_library_catalogue_dir_row = QHBoxLayout()
-    tab.catalogue_dir_edit = QLineEdit()
-    tab.catalogue_dir_edit.setPlaceholderText("Local catalogue folder")
-    tab.browse_catalogue_dir_button = QPushButton("Browse")
-    catalogue_dir_row.addWidget(tab.catalogue_dir_edit, stretch=1)
-    catalogue_dir_row.addWidget(tab.browse_catalogue_dir_button)
-    mirror_form.addRow("Catalogue", catalogue_dir_row)
-    tab.max_shards_spin = QSpinBox()
-    tab.max_shards_spin.setRange(0, 100_000)
-    tab.max_shards_spin.setSpecialValueText("All")
-    tab.max_shards_spin.setValue(int(tab.settings.value("model_library/max_shards", 1000) or 1000))
-    tab.max_shards_spin.setKeyboardTracking(False)
-    mirror_form.addRow("Index pages", tab.max_shards_spin)
-    tab.result_limit_spin = QSpinBox()
-    tab.result_limit_spin.setRange(1, 5000)
-    tab.result_limit_spin.setValue(int(tab.settings.value("model_library/result_limit", 100) or 100))
-    tab.result_limit_spin.setKeyboardTracking(False)
-    mirror_form.addRow("Results", tab.result_limit_spin)
-    preferred_files_layout = tab._model_library_preferred_files_layout = QGridLayout()
-    preferred_files_layout.setContentsMargins(0, 0, 0, 0)
-    preferred_files_layout.setHorizontalSpacing(8)
-    preferred_files_layout.setVerticalSpacing(4)
-    tab.preferred_format_checks: dict[str, QCheckBox] = {}
-    preferred_file_options = (
-        ("gltf", "glTF ZIP"),
-        ("glb", "GLB"),
-        ("source", "Original source ZIP (OBJ/FBX/etc.)"),
-        ("extra", "Extra ZIP"),
-    )
-    selected_preferred_files = set(tab._settings_string_list("model_library/preferred_formats_json", default=("gltf",)))
-    if not selected_preferred_files:
-        selected_preferred_files = {"gltf"}
-    for option_index, (format_key, label) in enumerate(preferred_file_options):
-        checkbox = QCheckBox(label)
-        checkbox.setChecked(format_key in selected_preferred_files)
-        checkbox.toggled.connect(lambda _checked=False: tab._save_preferred_format_settings())
-        tab.preferred_format_checks[format_key] = checkbox
-        preferred_files_layout.addWidget(checkbox, option_index // 2, option_index % 2)
-    mirror_form.addRow("Preferred files", preferred_files_layout)
-    mirror_layout.addLayout(mirror_form)
-    build_buttons = tab._model_library_build_buttons = QGridLayout()
-    tab.build_index_button = QPushButton("Build Search Index")
-    tab.cancel_task_button = QPushButton("Cancel")
-    tab.cancel_task_button.setEnabled(False)
-    build_buttons.addWidget(tab.build_index_button, 0, 0)
-    build_buttons.addWidget(tab.cancel_task_button, 0, 1)
-    mirror_layout.addLayout(build_buttons)
-    tab.index_current_search_checkbox = QCheckBox("Build index from current search/filter only")
-    tab.index_current_search_checkbox.setChecked(bool(tab.settings.value("model_library/index_current_search", False, type=bool)))
-    tab.index_current_search_checkbox.setToolTip(
-        "Rebuilds the local metadata database with only records matching the Search, License, Creator, Exclude creators, and Format fields. "
-        "Catalogue pages still need to be read, but cached shard files are reused."
-    )
-    mirror_layout.addWidget(tab.index_current_search_checkbox)
-    tab.task_status_label = QLabel("Mirror catalogue is idle.")
-    tab.task_status_label.setObjectName("HintLabel")
-    tab.task_status_label.setWordWrap(True)
-    mirror_layout.addWidget(tab.task_status_label)
     tab.search_edit = QLineEdit()
     tab.search_edit.setPlaceholderText("Search by name, tag, creator, or UID")
     tab.search_edit.setText(str(tab.settings.value("model_library/search_query", "sword") or "sword"))
-    filter_form = tab._model_library_filter_form = QFormLayout()
-    filter_form.setContentsMargins(0, 0, 0, 0)
-    filter_form.setHorizontalSpacing(8)
-    filter_form.setVerticalSpacing(6)
+    tab.search_edit.setMinimumWidth(120)
+    tab.search_edit.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+    tab.results_filter_field_combo = QComboBox()
+    tab.results_filter_field_combo.addItem("All fields", "all")
+    tab.results_filter_field_combo.addItem("Name", "name")
+    tab.results_filter_field_combo.addItem("Creator", "creator")
+    tab.results_filter_field_combo.addItem("License", "license")
+    tab.results_filter_field_combo.addItem("Format", "format")
+    tab.results_filter_field_combo.addItem("Path / URL", "path")
+    tab.results_filter_field_combo.addItem("UID", "uid")
+    tab.results_filter_field_combo.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
+    tab.apply_results_query_button = _fixed_button("Search")
+    tab.clear_results_query_button = _fixed_button("Clear")
+    tab.filters_toggle_button = _fixed_button(
+        "Filters",
+        tooltip="Show or hide catalogue and column filters.",
+    )
+    tab.refresh_results_view_button = _fixed_button("Reload", tooltip="Refresh")
+
+    layout.addWidget(tab.sources_toggle_button)
+    layout.addSpacing(6)
+    layout.addWidget(tab.mirror_results_view_button)
+    layout.addWidget(tab.local_results_view_button)
+    layout.addSpacing(6)
+    layout.addWidget(tab.search_edit, stretch=1)
+    layout.addWidget(tab.results_filter_field_combo)
+    layout.addWidget(tab.apply_results_query_button)
+    layout.addWidget(tab.clear_results_query_button)
+    layout.addSpacing(6)
+    layout.addWidget(tab.filters_toggle_button)
+    layout.addWidget(tab.refresh_results_view_button)
+
+    tab.sources_toggle_button.clicked.connect(
+        lambda _checked=False: tab._set_sources_panel_visible(tab._model_library_controls_panel.isHidden())
+    )
+    tab.filters_toggle_button.clicked.connect(lambda _checked=False: tab._set_filters_visible(tab.filters_strip.isHidden()))
+    tab.mirror_results_view_button.clicked.connect(lambda _checked=False: tab.show_mirror_catalogue_view())
+    tab.local_results_view_button.clicked.connect(lambda _checked=False: tab.show_local_library_view())
+    tab.refresh_results_view_button.clicked.connect(lambda _checked=False: tab.refresh_active_results_view())
+    tab.apply_results_query_button.clicked.connect(tab._apply_active_results_query)
+    tab.clear_results_query_button.clicked.connect(tab._clear_active_results_query)
+    tab.search_edit.returnPressed.connect(tab._apply_active_results_query)
+    tab.search_edit.textChanged.connect(tab._handle_results_query_changed)
+    tab.results_filter_field_combo.currentIndexChanged.connect(lambda _index=0: tab._handle_results_filter_field_changed())
+    return strip
+
+
+def build_filters_strip(tab: object) -> QWidget:
+    """Catalogue filters (mirror) or texture filter (local), plus Clear filters."""
+
+    strip = tab.filters_strip = QFrame()
+    strip.setObjectName("ModelLibraryFiltersStrip")
+    strip.setFrameShape(QFrame.Shape.NoFrame)
+    strip.setProperty("compactStructural", True)
+    layout = QHBoxLayout(strip)
+    layout.setContentsMargins(0, 0, 0, 0)
+    layout.setSpacing(12)
+
+    mirror_fields = tab._mirror_filter_fields = QWidget()
+    mirror_grid = QGridLayout(mirror_fields)
+    mirror_grid.setContentsMargins(0, 0, 0, 0)
+    mirror_grid.setHorizontalSpacing(6)
+    mirror_grid.setVerticalSpacing(4)
     tab.license_filter_edit = QLineEdit()
     tab.license_filter_edit.setPlaceholderText("CC0, Attribution, NonCommercial")
     tab.creator_filter_edit = QLineEdit()
@@ -162,90 +273,176 @@ def build_controls_panel(tab: object) -> QWidget:
     tab.format_filter_combo.addItem("glTF ZIP", "gltf")
     tab.format_filter_combo.addItem("GLB", "glb")
     tab.format_filter_combo.addItem("Original source", "source")
-    filter_form.addRow("License", tab.license_filter_edit)
-    filter_form.addRow("Creator", tab.creator_filter_edit)
-    filter_form.addRow("Exclude creators", tab.creator_exclude_edit)
-    filter_form.addRow("Format", tab.format_filter_combo)
-    mirror_layout.addLayout(filter_form)
     tab.hide_downloaded_checkbox = QCheckBox("Hide downloaded")
     tab.hide_downloaded_checkbox.setChecked(bool(tab.settings.value("model_library/hide_downloaded", False, type=bool)))
-    mirror_layout.addWidget(tab.hide_downloaded_checkbox)
-    search_buttons = tab._model_library_search_buttons = QGridLayout()
-    tab.search_mirror_button = QPushButton("Search Mirror")
-    tab.show_indexed_button = QPushButton("Popular")
-    search_buttons.addWidget(tab.search_mirror_button, 0, 0)
-    search_buttons.addWidget(tab.show_indexed_button, 0, 1)
-    mirror_layout.addLayout(search_buttons)
+    mirror_grid.addWidget(QLabel("License"), 0, 0)
+    mirror_grid.addWidget(tab.license_filter_edit, 0, 1)
+    mirror_grid.addWidget(QLabel("Creator"), 0, 2)
+    mirror_grid.addWidget(tab.creator_filter_edit, 0, 3)
+    mirror_grid.addWidget(QLabel("Format"), 0, 4)
+    mirror_grid.addWidget(tab.format_filter_combo, 0, 5)
+    mirror_grid.addWidget(QLabel("Exclude creators"), 1, 0)
+    mirror_grid.addWidget(tab.creator_exclude_edit, 1, 1, 1, 3)
+    mirror_grid.addWidget(tab.hide_downloaded_checkbox, 1, 4, 1, 2)
+    mirror_grid.setColumnStretch(1, 1)
+    mirror_grid.setColumnStretch(3, 1)
+
+    local_fields = tab._local_filter_fields = QWidget()
+    local_row = QHBoxLayout(local_fields)
+    local_row.setContentsMargins(0, 0, 0, 0)
+    local_row.setSpacing(6)
+    tab.local_texture_filter_label = QLabel("Textures")
+    tab.local_texture_filter_combo = QComboBox()
+    tab.local_texture_filter_combo.addItem("All", "all")
+    tab.local_texture_filter_combo.addItem("Has textures", "has")
+    tab.local_texture_filter_combo.addItem("No textures found", "missing")
+    local_row.addWidget(tab.local_texture_filter_label)
+    local_row.addWidget(tab.local_texture_filter_combo)
+    local_row.addStretch(1)
+
+    tab.clear_filters_button = _fixed_button("Clear filters")
+    layout.addWidget(mirror_fields, stretch=1)
+    layout.addWidget(local_fields, stretch=1)
+    layout.addWidget(tab.clear_filters_button, alignment=Qt.AlignmentFlag.AlignTop)
+
+    for edit in (tab.license_filter_edit, tab.creator_filter_edit, tab.creator_exclude_edit):
+        edit.returnPressed.connect(tab._apply_active_results_query)
+        edit.textChanged.connect(lambda _text="": tab._update_filters_button())
+    tab.format_filter_combo.currentIndexChanged.connect(lambda _index=0: tab._update_filters_button())
+    tab.hide_downloaded_checkbox.toggled.connect(tab._handle_hide_downloaded_toggled)
+    tab.local_texture_filter_combo.currentIndexChanged.connect(lambda _index=0: tab._handle_local_texture_filter_changed())
+    tab.clear_filters_button.clicked.connect(lambda _checked=False: tab._clear_all_filters())
+    return strip
+
+
+def build_controls_panel(tab: object) -> QWidget:
+    """The Sources lane: mirror catalogue settings or local folders."""
+
+    panel = tab._model_library_controls_content = QWidget()
+    panel.setMinimumWidth(0)
+    panel.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Minimum)
+    layout = tab._model_library_controls_layout = QVBoxLayout(panel)
+    layout.setContentsMargins(0, 0, 4, 0)
+    layout.setSpacing(8)
+
+    mirror_group = tab.mirror_group = QGroupBox("Mirror Catalogue")
+    mirror_layout = QVBoxLayout(mirror_group)
+    mirror_layout.setContentsMargins(0, 4, 0, 0)
+    mirror_layout.setSpacing(4)
+    tab.mirror_url_edit = QLineEdit()
+    tab.mirror_url_edit.setPlaceholderText(DEFAULT_MODEL_MIRROR_URL)
+    mirror_layout.addWidget(_field_label("Mirror URL"))
+    mirror_layout.addWidget(tab.mirror_url_edit)
+    tab.catalogue_dir_edit = QLineEdit()
+    tab.catalogue_dir_edit.setPlaceholderText("Local catalogue folder")
+    tab.browse_catalogue_dir_button = _fixed_button("Browse")
+    catalogue_row = QHBoxLayout()
+    catalogue_row.setSpacing(4)
+    catalogue_row.addWidget(tab.catalogue_dir_edit, stretch=1)
+    catalogue_row.addWidget(tab.browse_catalogue_dir_button)
+    mirror_layout.addWidget(_field_label("Catalogue"))
+    mirror_layout.addLayout(catalogue_row)
+
+    tab.max_shards_spin = QSpinBox()
+    tab.max_shards_spin.setRange(0, 100_000)
+    tab.max_shards_spin.setSpecialValueText("All")
+    tab.max_shards_spin.setValue(int(tab.settings.value("model_library/max_shards", 1000) or 1000))
+    tab.max_shards_spin.setKeyboardTracking(False)
+    tab.result_limit_spin = QSpinBox()
+    tab.result_limit_spin.setRange(1, 5000)
+    tab.result_limit_spin.setValue(int(tab.settings.value("model_library/result_limit", 100) or 100))
+    tab.result_limit_spin.setKeyboardTracking(False)
+    limits_grid = QGridLayout()
+    limits_grid.setHorizontalSpacing(6)
+    limits_grid.setVerticalSpacing(2)
+    limits_grid.addWidget(_field_label("Index pages"), 0, 0)
+    limits_grid.addWidget(_field_label("Results"), 0, 1)
+    limits_grid.addWidget(tab.max_shards_spin, 1, 0)
+    limits_grid.addWidget(tab.result_limit_spin, 1, 1)
+    mirror_layout.addLayout(limits_grid)
+
+    tab.preferred_format_checks: dict[str, QCheckBox] = {}
+    preferred_file_options = (
+        ("gltf", "glTF ZIP", ""),
+        ("glb", "GLB", ""),
+        ("source", "Source ZIP", "Original source ZIP (OBJ/FBX/etc.)"),
+        ("extra", "Extra ZIP", ""),
+    )
+    selected_preferred_files = set(tab._settings_string_list("model_library/preferred_formats_json", default=("gltf",)))
+    if not selected_preferred_files:
+        selected_preferred_files = {"gltf"}
+    preferred_grid = QGridLayout()
+    preferred_grid.setHorizontalSpacing(8)
+    preferred_grid.setVerticalSpacing(2)
+    for option_index, (format_key, label, tooltip) in enumerate(preferred_file_options):
+        checkbox = QCheckBox(label)
+        if tooltip:
+            checkbox.setToolTip(tooltip)
+        checkbox.setChecked(format_key in selected_preferred_files)
+        checkbox.toggled.connect(lambda _checked=False: tab._save_preferred_format_settings())
+        tab.preferred_format_checks[format_key] = checkbox
+        preferred_grid.addWidget(checkbox, option_index // 2, option_index % 2)
+    mirror_layout.addWidget(_field_label("Preferred files"))
+    mirror_layout.addLayout(preferred_grid)
+
+    tab.build_index_button = QPushButton("Build Search Index")
+    tab.index_current_search_checkbox = QCheckBox("Current only")
+    tab.index_current_search_checkbox.setChecked(bool(tab.settings.value("model_library/index_current_search", False, type=bool)))
+    tab.index_current_search_checkbox.setToolTip(
+        "Rebuilds the local metadata database with only records matching the Search, License, Creator, Exclude creators, and Format fields. "
+        "Catalogue pages still need to be read, but cached shard files are reused."
+    )
+    mirror_layout.addSpacing(4)
+    mirror_layout.addWidget(tab.build_index_button)
+    mirror_layout.addWidget(tab.index_current_search_checkbox)
     tab.catalogue_status_label = QLabel("")
     tab.catalogue_status_label.setObjectName("HintLabel")
     tab.catalogue_status_label.setWordWrap(True)
+    tab.catalogue_status_label.setMinimumWidth(0)
+    tab.catalogue_status_label.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
     mirror_layout.addWidget(tab.catalogue_status_label)
     layout.addWidget(mirror_group)
 
-    actions_group = tab.actions_group = QGroupBox("Actions")
-    actions_layout = tab._model_library_actions_layout = QGridLayout(actions_group)
-    actions_layout.setContentsMargins(8, 8, 8, 8)
-    actions_layout.setSpacing(6)
-    tab.preview_button = QPushButton("Preview")
-    tab.use_in_new_item_studio_button = QPushButton("Use in Create New Item")
-    tab.use_in_new_item_studio_button.setToolTip("Open this resolved model in Create New Item's model step.")
-    tab.download_button = QPushButton("Download Checked")
-    tab.generate_icon_button = QPushButton("Generate Icon")
-    tab.more_actions_button = QPushButton("More Actions")
-    tab.more_actions_menu = QMenu(tab.more_actions_button)
-    tab.download_import_button = tab.more_actions_menu.addAction("Download + Create New Item")
-    tab.delete_local_button = tab.more_actions_menu.addAction("Delete Local")
-    tab.delete_no_texture_downloads_button = tab.more_actions_menu.addAction("Delete No-Texture Downloads")
-    tab.open_file_url_button = tab.more_actions_menu.addAction("Open File URL")
-    tab.open_location_button = tab.more_actions_menu.addAction("Open Location")
-    tab.open_page_button = tab.more_actions_menu.addAction("Open Page")
-    tab.more_actions_button.setMenu(tab.more_actions_menu)
-    actions_layout.addWidget(tab.preview_button, 0, 0)
-    actions_layout.addWidget(tab.use_in_new_item_studio_button, 0, 1)
-    actions_layout.addWidget(tab.download_button, 1, 0)
-    actions_layout.addWidget(tab.generate_icon_button, 1, 1)
-    actions_layout.addWidget(tab.more_actions_button, 2, 0, 1, 2)
-    tab.auto_preview_checkbox = QCheckBox("Auto preview local selection")
-    tab.auto_preview_checkbox.setToolTip(
-        "Automatically previews local selections in the Model Library preview panel."
-    )
-    tab.auto_preview_checkbox.setChecked(bool(tab.settings.value("model_library/auto_preview", True, type=bool)))
-    actions_layout.addWidget(tab.auto_preview_checkbox, 3, 0, 1, 2)
-    layout.addWidget(actions_group)
+    local_group = tab.local_group = QGroupBox("Local Folders")
+    local_layout = QVBoxLayout(local_group)
+    local_layout.setContentsMargins(0, 4, 0, 0)
+    local_layout.setSpacing(4)
+    tab.local_path_edit = QLineEdit()
+    tab.local_path_edit.setPlaceholderText("Folder containing local models")
+    tab.browse_local_button = _fixed_button("Browse")
+    path_row = QHBoxLayout()
+    path_row.setSpacing(4)
+    path_row.addWidget(tab.local_path_edit, stretch=1)
+    path_row.addWidget(tab.browse_local_button)
+    local_layout.addLayout(path_row)
+    tab.add_local_root_button = QPushButton("Add Folder")
+    local_layout.addWidget(tab.add_local_root_button)
+    tab.roots_tree = QTreeWidget()
+    tab.roots_tree.setColumnCount(1)
+    tab.roots_tree.setHeaderLabels(["Folders"])
+    tab.roots_tree.setRootIsDecorated(False)
+    tab.roots_tree.setUniformRowHeights(True)
+    tab.roots_tree.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
+    tab.roots_tree.setMinimumHeight(120)
+    local_layout.addWidget(tab.roots_tree, stretch=1)
+    tab.open_local_root_button = QPushButton("Open Folder")
+    tab.remove_local_root_button = QPushButton("Remove")
+    root_buttons = QWidget()
+    root_buttons_layout = WrappingLayout(root_buttons, columns=2)
+    root_buttons_layout.setSpacing(4)
+    root_buttons_layout.addWidget(tab.open_local_root_button)
+    root_buttons_layout.addWidget(tab.remove_local_root_button)
+    local_layout.addWidget(root_buttons)
+    layout.addWidget(local_group)
+    layout.addStretch(1)
 
-    selection_group = tab.selection_group = QGroupBox("Selection")
-    selection_group.setObjectName("ModelLibrarySelectionGroup")
-    selection_group.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-    selection_layout = QVBoxLayout(selection_group)
-    selection_layout.setContentsMargins(8, 8, 8, 8)
-    selection_layout.setSpacing(6)
-    tab.details_edit = QLineEdit()
-    tab.details_edit.setReadOnly(True)
-    tab.details_edit.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
-    selection_layout.addWidget(tab.details_edit)
-    tab.details_text = QPlainTextEdit()
-    tab.details_text.setObjectName("ModelLibraryDetailsText")
-    tab.details_text.setReadOnly(True)
-    tab.details_text.setLineWrapMode(QPlainTextEdit.LineWrapMode.WidgetWidth)
-    tab.details_text.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-    tab.details_text.setMinimumHeight(180)
-    tab.details_text.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-    selection_layout.addWidget(tab.details_text, stretch=1)
-    layout.addWidget(selection_group, stretch=1)
-
+    tab.roots_tree.currentItemChanged.connect(lambda _current, _previous: tab._update_selection_state())
     tab.browse_local_button.clicked.connect(tab.browse_local_folder)
     tab.add_local_root_button.clicked.connect(tab.add_local_root)
     tab.remove_local_root_button.clicked.connect(tab.remove_selected_local_root)
-    tab.scan_local_button.clicked.connect(tab.scan_local_roots)
     tab.open_local_root_button.clicked.connect(tab.open_selected_local_root)
     tab.browse_catalogue_dir_button.clicked.connect(tab.browse_catalogue_dir)
     tab.build_index_button.clicked.connect(tab.build_mirror_index)
-    tab.cancel_task_button.clicked.connect(tab.cancel_current_task)
-    tab.search_mirror_button.clicked.connect(tab.search_mirror)
-    tab.show_indexed_button.clicked.connect(lambda _checked=False: tab.search_mirror(query_override=""))
-    tab.search_edit.returnPressed.connect(tab._apply_active_results_query)
-    tab.search_edit.textChanged.connect(tab._handle_results_query_changed)
-    tab.hide_downloaded_checkbox.toggled.connect(tab._handle_hide_downloaded_toggled)
     tab.index_current_search_checkbox.toggled.connect(
         lambda value: tab.settings.setValue("model_library/index_current_search", bool(value))
     )
@@ -254,254 +451,22 @@ def build_controls_panel(tab: object) -> QWidget:
     tab.mirror_url_edit.editingFinished.connect(tab._save_mirror_settings)
     tab.mirror_url_edit.textChanged.connect(lambda _value: tab._update_selection_state())
     tab.catalogue_dir_edit.editingFinished.connect(tab._save_mirror_settings)
-    tab.preview_button.clicked.connect(tab.preview_selected_model_here)
-    tab.auto_preview_checkbox.toggled.connect(tab._handle_auto_preview_toggled)
-    tab.use_in_new_item_studio_button.clicked.connect(tab.use_selected_model_in_new_item_studio)
-    tab.download_button.clicked.connect(lambda _checked=False: tab.download_selected_models())
-    tab.download_import_button.triggered.connect(lambda _checked=False: tab.download_selected_model(import_after=True))
-    tab.generate_icon_button.clicked.connect(tab.generate_icon_from_preview)
-    tab.open_file_url_button.triggered.connect(tab.open_selected_file_url)
-    tab.open_location_button.triggered.connect(tab.open_selected_location)
-    tab.open_page_button.triggered.connect(tab.open_selected_page)
-    tab.delete_local_button.triggered.connect(tab.delete_selected_local_models)
-    tab.delete_no_texture_downloads_button.triggered.connect(tab.delete_no_texture_downloads)
 
     scroll = tab._model_library_controls_scroll = QScrollArea()
     scroll.setObjectName("ModelLibraryControlsScroll")
     scroll.setWidgetResizable(True)
     scroll.setFrameShape(QScrollArea.Shape.NoFrame)
-    scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+    scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
     scroll.setWidget(panel)
     return scroll
-
-
-def _build_model_library_controls(tab: object) -> None:
-    tab._model_library_controls_layout.setSpacing(4)
-    tab._model_library_controls_layout.addStretch(1)
-    tab._model_library_controls_content.setMinimumWidth(0)
-    tab._model_library_controls_content.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Minimum)
-    tab._model_library_controls_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-    for form in (tab._model_library_mirror_form, tab._model_library_filter_form):
-        form.setRowWrapPolicy(form.RowWrapPolicy.WrapAllRows)
-        form.setHorizontalSpacing(4)
-        form.setVerticalSpacing(3)
-
-    preferred_labels = {"gltf": "glTF ZIP", "glb": "GLB", "source": "Source ZIP", "extra": "Extra ZIP"}
-    for row, (format_key, checkbox) in enumerate(tab.preferred_format_checks.items()):
-        original = checkbox.text()
-        checkbox.setText(preferred_labels[format_key])
-        checkbox.setToolTip(original)
-        tab._model_library_preferred_files_layout.addWidget(checkbox, row, 0)
-
-    compact_button_labels = (
-        (tab.scan_local_button, "Show Models"), (tab.build_index_button, "Build Index"),
-        (tab.use_in_new_item_studio_button, "Create Item"), (tab.download_button, "Download"),
-        (tab.more_actions_button, "More"), (tab.mirror_results_view_button, "Mirror"),
-        (tab.local_results_view_button, "Local"), (tab.refresh_results_view_button, "Reload"),
-        (tab.apply_results_query_button, "Find"), (tab.select_all_button, "All"),
-        (tab.select_none_button, "None"),
-    )
-    for button, label in compact_button_labels:
-        original = button.text()
-        button.setText(label)
-        if not button.toolTip():
-            button.setToolTip(original)
-
-    tab.index_current_search_checkbox.setToolTip(
-        tab.index_current_search_checkbox.toolTip() or tab.index_current_search_checkbox.text()
-    )
-    tab.index_current_search_checkbox.setText("Current only")
-    tab.auto_preview_checkbox.setToolTip(
-        tab.auto_preview_checkbox.toolTip() or tab.auto_preview_checkbox.text()
-    )
-    tab.auto_preview_checkbox.setText("Auto-preview")
-
-
-def _build_model_library_button_grids(tab: object) -> None:
-    tab._model_library_local_path_row.removeWidget(tab.browse_local_button)
-    local_buttons = (
-        tab.browse_local_button, tab.add_local_root_button, tab.remove_local_root_button,
-        tab.scan_local_button, tab.open_local_root_button,
-    )
-    for row, button in enumerate(local_buttons):
-        tab._model_library_local_buttons.addWidget(button, row, 0)
-
-    actions = (
-        tab.preview_button, tab.use_in_new_item_studio_button, tab.download_button,
-        tab.generate_icon_button, tab.more_actions_button, tab.auto_preview_checkbox,
-    )
-    for row, control in enumerate(actions):
-        tab._model_library_actions_layout.addWidget(control, row, 0)
-
-    tab._model_library_catalogue_dir_row.removeWidget(tab.browse_catalogue_dir_button)
-    build_buttons = (tab.browse_catalogue_dir_button, tab.build_index_button, tab.cancel_task_button)
-    for row, button in enumerate(build_buttons):
-        tab._model_library_build_buttons.addWidget(button, row, 0)
-    tab._model_library_search_buttons.addWidget(tab.search_mirror_button, 0, 0)
-    tab._model_library_search_buttons.addWidget(tab.show_indexed_button, 1, 0)
-
-
-def _build_model_library_sections(tab: object) -> None:
-    tab.roots_tree.setMaximumHeight(84)
-    tab.details_text.setMinimumHeight(96)
-    for label in (tab.task_status_label, tab.catalogue_status_label):
-        label.setMinimumWidth(0)
-        label.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
-    for checkbox in (tab.index_current_search_checkbox, tab.auto_preview_checkbox):
-        checkbox.setMinimumWidth(0)
-        checkbox.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Fixed)
-
-    tab.selection_group.setTitle("Details")
-    tab.actions_group.setTitle("")
-    tab.preview_group.setTitle("")
-    groups = (
-        tab.local_group, tab.mirror_group, tab.actions_group, tab.selection_group, tab.preview_group,
-    )
-    for group in groups:
-        group.setProperty("compactFlatSection", True)
-        group.setFlat(True)
-        group_layout = group.layout()
-        if group_layout is not None:
-            group_layout.setContentsMargins(4, 4, 4, 4)
-            group_layout.setSpacing(4)
-    for group in (tab.local_group, tab.mirror_group, tab.actions_group):
-        group.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Maximum)
-    tab.actions_group.setProperty("compactUntitledSection", True)
-    tab.preview_group.setProperty("compactUntitledSection", True)
-
-    tab._model_library_controls_layout.removeWidget(tab.selection_group)
-    tab._model_library_preview_layout.addWidget(tab.selection_group)
-    tab._model_library_preview_layout.setStretch(0, 1)
-    tab._model_library_preview_layout.setStretch(1, 0)
-
-
-def finish_model_library_layout(tab: object) -> None:
-    """Complete the native tool layout during construction in either shell."""
-
-    root_layout = tab.layout()
-    if root_layout is not None:
-        root_layout.setContentsMargins(6, 6, 6, 6)
-        root_layout.setSpacing(6)
-    _build_model_library_controls(tab)
-    _build_model_library_button_grids(tab)
-    _build_model_library_sections(tab)
-    tab.setStyleSheet(
-        tab.styleSheet()
-        + "\nQGroupBox[compactFlatSection=\"true\"] {"
-        " border: 0; border-radius: 0; margin-top: 14px; padding-top: 2px;"
-        " background: transparent; }"
-        " QGroupBox[compactFlatSection=\"true\"]::title { left: 0; padding: 0 2px; }"
-        " QGroupBox[compactUntitledSection=\"true\"] { margin-top: 0; padding-top: 0; }"
-    )
-
-
 
 
 def build_results_panel(tab: object) -> QWidget:
     panel = QWidget()
     layout = QVBoxLayout(panel)
     layout.setContentsMargins(0, 0, 0, 0)
-    layout.setSpacing(6)
-    view_row = QHBoxLayout()
-    view_row.setContentsMargins(0, 0, 0, 0)
-    view_row.setSpacing(6)
-    tab.mirror_results_view_button = QPushButton("Mirror Catalogue")
-    tab.local_results_view_button = QPushButton("Local Library")
-    tab.refresh_results_view_button = QPushButton("Refresh")
-    tab.mirror_results_view_button.setCheckable(True)
-    tab.local_results_view_button.setCheckable(True)
-    for button in (tab.mirror_results_view_button, tab.local_results_view_button):
-        button.setMinimumWidth(button.sizeHint().width() + 12)
-        button.setSizePolicy(QSizePolicy.Minimum, QSizePolicy.Fixed)
-    tab.results_view_button_group = QButtonGroup(tab)
-    tab.results_view_button_group.setExclusive(True)
-    tab.results_view_button_group.addButton(tab.mirror_results_view_button)
-    tab.results_view_button_group.addButton(tab.local_results_view_button)
-    view_row.addWidget(tab.mirror_results_view_button)
-    view_row.addWidget(tab.local_results_view_button)
-    view_row.addWidget(tab.refresh_results_view_button)
-    view_row.addStretch(1)
-    layout.addLayout(view_row)
-    filter_layout = QVBoxLayout()
-    filter_layout.setContentsMargins(0, 0, 0, 0)
-    filter_layout.setSpacing(4)
-    filter_options_row = QHBoxLayout()
-    filter_options_row.setContentsMargins(0, 0, 0, 0)
-    filter_options_row.setSpacing(6)
-    tab.results_search_label = QLabel("Mirror search")
-    tab.results_filter_field_combo = QComboBox()
-    tab.results_filter_field_combo.addItem("All fields", "all")
-    tab.results_filter_field_combo.addItem("Name", "name")
-    tab.results_filter_field_combo.addItem("Creator", "creator")
-    tab.results_filter_field_combo.addItem("License", "license")
-    tab.results_filter_field_combo.addItem("Format", "format")
-    tab.results_filter_field_combo.addItem("Path / URL", "path")
-    tab.results_filter_field_combo.addItem("UID", "uid")
-    tab.local_texture_filter_label = QLabel("Textures")
-    tab.local_texture_filter_combo = QComboBox()
-    tab.local_texture_filter_combo.addItem("All", "all")
-    tab.local_texture_filter_combo.addItem("Has textures", "has")
-    tab.local_texture_filter_combo.addItem("No textures found", "missing")
-    tab.apply_results_query_button = QPushButton("Search")
-    tab.clear_results_query_button = QPushButton("Clear")
-    filter_options_row.addWidget(tab.results_search_label)
-    filter_options_row.addWidget(tab.results_filter_field_combo)
-    filter_options_row.addWidget(tab.local_texture_filter_label)
-    filter_options_row.addWidget(tab.local_texture_filter_combo)
-    filter_options_row.addStretch(1)
-    filter_layout.addLayout(filter_options_row)
-    filter_search_row = QHBoxLayout()
-    filter_search_row.setContentsMargins(0, 0, 0, 0)
-    filter_search_row.setSpacing(6)
-    filter_search_row.addWidget(tab.search_edit, stretch=1)
-    filter_search_row.addWidget(tab.apply_results_query_button)
-    filter_search_row.addWidget(tab.clear_results_query_button)
-    filter_layout.addLayout(filter_search_row)
-    layout.addLayout(filter_layout)
-    column_filter_row = QHBoxLayout()
-    column_filter_row.setContentsMargins(0, 0, 0, 0)
-    column_filter_row.setSpacing(4)
-    tab.results_column_filter_edits: dict[int, QLineEdit] = {}
-    column_filter_row.addWidget(QLabel("Columns"))
-    for column, label in MODEL_LIBRARY_FILTER_COLUMNS:
-        edit = QLineEdit()
-        edit.setPlaceholderText(label)
-        edit.setClearButtonEnabled(True)
-        edit.setMinimumWidth(70)
-        edit.setMaximumWidth(160 if column in {1, 7, 8, 9} else 110)
-        tab.results_column_filter_edits[column] = edit
-        column_filter_row.addWidget(edit, stretch=1 if column in {1, 9} else 0)
-    column_filter_panel = QWidget()
-    column_filter_panel.setLayout(column_filter_row)
-    column_filter_scroll = QScrollArea()
-    column_filter_scroll.setWidgetResizable(False)
-    column_filter_scroll.setFrameShape(QScrollArea.Shape.NoFrame)
-    column_filter_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-    column_filter_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
-    column_filter_scroll.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
-    column_filter_scroll.setMinimumHeight(34)
-    column_filter_scroll.setWidget(column_filter_panel)
-    layout.addWidget(column_filter_scroll)
-    tab.results_view_label = QLabel("")
-    tab.results_view_label.setObjectName("HintLabel")
-    tab.results_view_label.setWordWrap(True)
-    layout.addWidget(tab.results_view_label)
-    tab.empty_results_label = QLabel("")
-    tab.empty_results_label.setObjectName("HintLabel")
-    tab.empty_results_label.setWordWrap(True)
-    tab.empty_results_label.setVisible(False)
-    layout.addWidget(tab.empty_results_label)
-    tab.active_task_label = QLabel("")
-    tab.active_task_label.setObjectName("HintLabel")
-    tab.active_task_label.setWordWrap(True)
-    tab.active_task_label.setVisible(False)
-    layout.addWidget(tab.active_task_label)
-    tab.active_task_progress = QProgressBar()
-    tab.active_task_progress.setRange(0, 0)
-    tab.active_task_progress.setTextVisible(True)
-    tab.active_task_progress.setFormat("Working...")
-    tab.active_task_progress.setVisible(False)
-    layout.addWidget(tab.active_task_progress)
+    layout.setSpacing(4)
+
     tab.results_tree = QTreeWidget()
     tab.results_tree.setColumnCount(10)
     tab.results_tree.setHeaderLabels(["", "Name", "Source", "Local", "Textures", "Format", "Size", "License", "Creator", "Location"])
@@ -513,65 +478,79 @@ def build_results_panel(tab: object) -> QWidget:
     tab.results_tree.setSortingEnabled(False)
     tab.results_tree.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
     tab.results_tree.setHorizontalScrollMode(QAbstractItemView.ScrollMode.ScrollPerPixel)
-    tab.results_tree.header().setStretchLastSection(False)
-    tab.results_tree.header().setSectionsClickable(True)
-    tab.results_tree.header().setSortIndicatorShown(True)
-    tab.results_tree.header().setSortIndicator(tab._result_sort_column, tab._result_sort_order)
-    tab.results_tree.header().setMinimumSectionSize(34)
-    tab.results_tree.header().setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
-    tab.results_tree.header().setSectionResizeMode(0, QHeaderView.ResizeMode.Fixed)
-    tab.results_tree.header().resizeSection(0, 34)
-    tab.results_tree.header().resizeSection(1, 260)
-    tab.results_tree.header().resizeSection(2, 95)
-    tab.results_tree.header().resizeSection(3, 110)
-    tab.results_tree.header().resizeSection(4, 105)
-    tab.results_tree.header().resizeSection(5, 90)
-    tab.results_tree.header().resizeSection(6, 90)
-    tab.results_tree.header().resizeSection(7, 150)
-    tab.results_tree.header().resizeSection(8, 150)
-    tab.results_tree.header().resizeSection(9, 280)
+    header = tab.results_tree.header()
+    header.setStretchLastSection(False)
+    header.setSectionsClickable(True)
+    header.setSortIndicatorShown(True)
+    header.setSortIndicator(tab._result_sort_column, tab._result_sort_order)
+    header.setMinimumSectionSize(34)
+    header.setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
+    header.setSectionResizeMode(0, QHeaderView.ResizeMode.Fixed)
+    for column, width in enumerate((34, 260, 95, 110, 105, 90, 90, 150, 150, 280)):
+        header.resizeSection(column, width)
+
+    tab.results_column_filter_edits: dict[int, QLineEdit] = {}
+    for column, label in MODEL_LIBRARY_FILTER_COLUMNS:
+        edit = QLineEdit()
+        edit.setPlaceholderText(label)
+        edit.setClearButtonEnabled(True)
+        tab.results_column_filter_edits[column] = edit
+    tab.column_filter_row = ModelLibraryColumnFilterRow(tab.results_tree, tab.results_column_filter_edits)
+
+    tab.empty_results_label = QLabel("")
+    tab.empty_results_label.setObjectName("HintLabel")
+    tab.empty_results_label.setWordWrap(True)
+    tab.empty_results_label.setVisible(False)
+    layout.addWidget(tab.column_filter_row)
+    layout.addWidget(tab.empty_results_label)
     layout.addWidget(tab.results_tree, stretch=1)
-    selection_row = QHBoxLayout()
-    selection_row.setContentsMargins(0, 0, 0, 0)
-    selection_row.setSpacing(6)
-    tab.select_all_button = QPushButton("Select All")
-    tab.select_none_button = QPushButton("Select None")
-    selection_row.addWidget(tab.select_all_button)
-    selection_row.addWidget(tab.select_none_button)
-    selection_row.addStretch(1)
-    layout.addLayout(selection_row)
-    tab.results_status_label = QLabel("")
-    tab.results_status_label.setObjectName("HintLabel")
-    tab.results_status_label.setWordWrap(True)
-    layout.addWidget(tab.results_status_label)
+
+    # Checked-row actions; the result counts live in the task row below.
+    footer = QWidget()
+    footer_layout = WrappingLayout(footer)
+    footer_layout.setSpacing(6)
+    tab.select_all_button = _fixed_button("All", tooltip="Select All")
+    tab.select_none_button = _fixed_button("None", tooltip="Select None")
+    tab.download_button = _fixed_button("Download Checked")
+    footer_layout.addWidget(tab.select_all_button)
+    footer_layout.addWidget(tab.select_none_button)
+    footer_layout.addWidget(tab.download_button)
+    layout.addWidget(footer)
+
     tab.results_tree.currentItemChanged.connect(tab._handle_results_current_item_changed)
     tab.results_tree.itemChanged.connect(tab._handle_result_item_changed)
     tab.results_tree.itemDoubleClicked.connect(lambda _item, _column: tab.use_selected_model_in_new_item_studio())
     tab.results_tree.customContextMenuRequested.connect(tab._show_results_context_menu)
-    tab.results_tree.header().sectionClicked.connect(tab._handle_results_header_clicked)
+    header.sectionClicked.connect(tab._handle_results_header_clicked)
     tab.select_all_button.clicked.connect(lambda _checked=False: tab._set_all_result_checks(True))
     tab.select_none_button.clicked.connect(lambda _checked=False: tab._set_all_result_checks(False))
-    tab.mirror_results_view_button.clicked.connect(lambda _checked=False: tab.show_mirror_catalogue_view())
-    tab.local_results_view_button.clicked.connect(lambda _checked=False: tab.show_local_library_view())
-    tab.refresh_results_view_button.clicked.connect(lambda _checked=False: tab.refresh_active_results_view())
-    tab.apply_results_query_button.clicked.connect(tab._apply_active_results_query)
-    tab.clear_results_query_button.clicked.connect(tab._clear_active_results_query)
-    tab.results_filter_field_combo.currentIndexChanged.connect(lambda _index=0: tab._handle_results_filter_field_changed())
-    tab.local_texture_filter_combo.currentIndexChanged.connect(lambda _index=0: tab._handle_local_texture_filter_changed())
+    tab.download_button.clicked.connect(lambda _checked=False: tab.download_selected_models())
     for edit in tab.results_column_filter_edits.values():
         edit.textChanged.connect(lambda _text="", editor=edit: tab._handle_column_filter_changed(editor))
     return panel
 
 
 def build_preview_panel(tab: object) -> QWidget:
+    """The selection pane: name, preview, actions, and details."""
+
     panel = QWidget()
     layout = tab._model_library_preview_layout = QVBoxLayout(panel)
     layout.setContentsMargins(0, 0, 0, 0)
     layout.setSpacing(6)
-    preview_group = tab.preview_group = QGroupBox("Model Preview")
+
+    tab.details_edit = QLineEdit()
+    tab.details_edit.setObjectName("ModelLibrarySelectionTitle")
+    tab.details_edit.setReadOnly(True)
+    tab.details_edit.setFrame(False)
+    tab.details_edit.setPlaceholderText("Select a local file or mirror result.")
+    tab.details_edit.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+    layout.addWidget(tab.details_edit)
+
+    preview_group = tab.preview_group = QGroupBox()
+    preview_group.setProperty("compactStructural", True)
     preview_layout = QVBoxLayout(preview_group)
-    preview_layout.setContentsMargins(8, 8, 8, 8)
-    preview_layout.setSpacing(6)
+    preview_layout.setContentsMargins(0, 0, 0, 0)
+    preview_layout.setSpacing(4)
     # The inline preview is drawn by the resident Rust Preview host, so these are
     # preparation settings only: no preview widget owns them.
     inline_render_settings = ModelPreviewRenderSettings()
@@ -594,49 +573,157 @@ def build_preview_panel(tab: object) -> QWidget:
     )
     tab.inline_preview_placeholder.setObjectName("HintLabel")
     tab.inline_preview_placeholder.setAlignment(Qt.AlignCenter)
-    tab.inline_preview_placeholder.setMinimumHeight(280)
+    tab.inline_preview_placeholder.setWordWrap(True)
+    tab.inline_preview_placeholder.setMinimumHeight(180)
     tab.inline_preview_stack.addWidget(tab.inline_preview_placeholder)
     tab.inline_preview_stack.setCurrentWidget(tab.inline_preview_placeholder)
     preview_layout.addWidget(tab.inline_preview_stack, stretch=1)
-    orientation_controls_layout = QHBoxLayout()
-    orientation_controls_layout.setContentsMargins(0, 0, 0, 0)
-    orientation_controls_layout.setSpacing(8)
+
+    preview_controls = QHBoxLayout()
+    preview_controls.setContentsMargins(0, 0, 0, 0)
+    preview_controls.setSpacing(8)
+    tab.auto_preview_checkbox = QCheckBox("Auto-preview")
+    tab.auto_preview_checkbox.setToolTip(
+        "Automatically previews local selections in the Model Library preview panel."
+    )
+    tab.auto_preview_checkbox.setChecked(bool(tab.settings.value("model_library/auto_preview", True, type=bool)))
     tab.inline_preview_flip_v_checkbox = QCheckBox("Flip V")
     tab.inline_preview_flip_v_checkbox.setToolTip(
         "Temporarily invert the texture V direction for the current Model Library preview only."
     )
-    tab.inline_preview_reset_orientation_button = QPushButton("Reset")
+    tab.inline_preview_reset_orientation_button = _fixed_button("Reset")
     tab.inline_preview_reset_orientation_button.setToolTip("Clear temporary Model Library texture orientation overrides.")
     tab.inline_preview_flip_v_checkbox.setEnabled(False)
     tab.inline_preview_reset_orientation_button.setEnabled(False)
-    orientation_controls_layout.addWidget(tab.inline_preview_flip_v_checkbox)
-    orientation_controls_layout.addWidget(tab.inline_preview_reset_orientation_button)
-    orientation_controls_layout.addStretch(1)
-    preview_layout.addLayout(orientation_controls_layout)
-    tab.inline_preview_status_label = QLabel(
+    preview_controls.addWidget(tab.auto_preview_checkbox)
+    preview_controls.addStretch(1)
+    preview_controls.addWidget(tab.inline_preview_flip_v_checkbox)
+    preview_controls.addWidget(tab.inline_preview_reset_orientation_button)
+    preview_layout.addLayout(preview_controls)
+    tab.inline_preview_status_label = _ElidedLabel(
         "Local preview resolves glTF/GLB/OBJ/DAE textures into the shared Preview renderer."
     )
     tab.inline_preview_status_label.setObjectName("HintLabel")
-    tab.inline_preview_status_label.setWordWrap(False)
-    tab.inline_preview_status_label.setMinimumHeight(24)
-    tab.inline_preview_status_label.setMaximumHeight(32)
-    tab.inline_preview_status_label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
     preview_layout.addWidget(tab.inline_preview_status_label)
-    tab.inline_preview_flip_v_checkbox.toggled.connect(tab._handle_inline_preview_flip_v_toggled)
-    tab.inline_preview_reset_orientation_button.clicked.connect(tab._handle_inline_preview_orientation_reset_clicked)
-    layout.addWidget(preview_group, stretch=1)
+    layout.addWidget(preview_group, stretch=3)
+
+    tab.use_in_new_item_studio_button = QPushButton("Use in Create New Item")
+    tab.use_in_new_item_studio_button.setObjectName("EditorPrimaryButton")
+    tab.use_in_new_item_studio_button.setToolTip("Open this resolved model in Create New Item's model step.")
+    tab.preview_button = QPushButton("Preview")
+    tab.generate_icon_button = QPushButton("Generate Icon")
+    tab.more_actions_button = QPushButton("More")
+    tab.more_actions_button.setToolTip("More Actions")
+    tab.more_actions_menu = QMenu(tab.more_actions_button)
+    tab.download_import_button = tab.more_actions_menu.addAction("Download + Create New Item")
+    tab.open_file_url_button = tab.more_actions_menu.addAction("Open File URL")
+    tab.open_location_button = tab.more_actions_menu.addAction("Open Location")
+    tab.open_page_button = tab.more_actions_menu.addAction("Open Page")
+    tab.more_actions_menu.addSeparator()
+    tab.delete_local_button = tab.more_actions_menu.addAction("Delete Local")
+    tab.delete_no_texture_downloads_button = tab.more_actions_menu.addAction("Delete No-Texture Downloads")
+    tab.more_actions_button.setMenu(tab.more_actions_menu)
+    layout.addWidget(tab.use_in_new_item_studio_button)
+    secondary_actions = QWidget()
+    secondary_layout = WrappingLayout(secondary_actions, columns=3)
+    secondary_layout.setSpacing(4)
+    secondary_layout.addWidget(tab.preview_button)
+    secondary_layout.addWidget(tab.generate_icon_button)
+    secondary_layout.addWidget(tab.more_actions_button)
+    layout.addWidget(secondary_actions)
+
+    selection_group = tab.selection_group = QGroupBox("Details")
+    selection_group.setObjectName("ModelLibrarySelectionGroup")
+    selection_layout = QVBoxLayout(selection_group)
+    selection_layout.setContentsMargins(0, 4, 0, 0)
+    selection_layout.setSpacing(4)
+    tab.details_text = QPlainTextEdit()
+    tab.details_text.setObjectName("ModelLibraryDetailsText")
+    tab.details_text.setReadOnly(True)
+    tab.details_text.setLineWrapMode(QPlainTextEdit.LineWrapMode.WidgetWidth)
+    tab.details_text.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+    tab.details_text.setMinimumHeight(96)
+    tab.details_text.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+    selection_layout.addWidget(tab.details_text, stretch=1)
+    layout.addWidget(selection_group, stretch=2)
+
     tab.status_label = QLabel("")
     tab.status_label.setObjectName("HintLabel")
     tab.status_label.setWordWrap(True)
     tab.status_label.setVisible(False)
     layout.addWidget(tab.status_label)
+
+    tab.inline_preview_flip_v_checkbox.toggled.connect(tab._handle_inline_preview_flip_v_toggled)
+    tab.inline_preview_reset_orientation_button.clicked.connect(tab._handle_inline_preview_orientation_reset_clicked)
+    tab.auto_preview_checkbox.toggled.connect(tab._handle_auto_preview_toggled)
+    tab.preview_button.clicked.connect(tab.preview_selected_model_here)
+    tab.use_in_new_item_studio_button.clicked.connect(tab.use_selected_model_in_new_item_studio)
+    tab.generate_icon_button.clicked.connect(tab.generate_icon_from_preview)
+    tab.download_import_button.triggered.connect(lambda _checked=False: tab.download_selected_model(import_after=True))
+    tab.open_file_url_button.triggered.connect(tab.open_selected_file_url)
+    tab.open_location_button.triggered.connect(tab.open_selected_location)
+    tab.open_page_button.triggered.connect(tab.open_selected_page)
+    tab.delete_local_button.triggered.connect(tab.delete_selected_local_models)
+    tab.delete_no_texture_downloads_button.triggered.connect(tab.delete_no_texture_downloads)
     return panel
 
 
+def build_task_row(tab: object) -> QWidget:
+    """Latest status, with progress and Cancel while a task runs."""
+
+    row = tab.task_row = QFrame()
+    row.setObjectName("ModelLibraryTaskRow")
+    row.setFrameShape(QFrame.Shape.NoFrame)
+    row.setProperty("compactStructural", True)
+    layout = QHBoxLayout(row)
+    layout.setContentsMargins(0, 0, 0, 0)
+    layout.setSpacing(6)
+    tab.active_task_progress = QProgressBar()
+    tab.active_task_progress.setRange(0, 0)
+    tab.active_task_progress.setTextVisible(True)
+    tab.active_task_progress.setFormat("Working...")
+    tab.active_task_progress.setFixedWidth(160)
+    tab.active_task_progress.setVisible(False)
+    tab.active_task_label = _ElidedLabel("")
+    tab.active_task_label.setObjectName("HintLabel")
+    tab.results_status_label = QLabel("")
+    tab.results_status_label.setObjectName("HintLabel")
+    tab.cancel_task_button = _fixed_button("Cancel")
+    tab.cancel_task_button.setEnabled(False)
+    tab.cancel_task_button.setVisible(False)
+    layout.addWidget(tab.active_task_progress)
+    layout.addWidget(tab.active_task_label, stretch=1)
+    layout.addWidget(tab.results_status_label)
+    layout.addWidget(tab.cancel_task_button)
+    tab.cancel_task_button.clicked.connect(tab.cancel_current_task)
+    return row
+
+
+def finish_model_library_layout(tab: object) -> None:
+    """Apply tool-local styling and the remembered Sources/Filters state."""
+
+    tab.setStyleSheet(
+        tab.styleSheet()
+        + "\nQLineEdit#ModelLibrarySelectionTitle {"
+        " background: transparent; border: none; padding: 0; font-weight: 600; }"
+    )
+    tab._set_sources_panel_visible(
+        bool(tab.settings.value("model_library/sources_visible", True, type=bool)), persist=False
+    )
+    tab._set_filters_visible(
+        bool(tab.settings.value("model_library/filters_visible", False, type=bool)), persist=False
+    )
+
+
 __all__ = [
-    "finish_model_library_layout",
+    "SOURCES_LANE_MAX_WIDTH",
+    "SOURCES_LANE_MIN_WIDTH",
+    "ModelLibraryColumnFilterRow",
+    "build_command_strip",
     "build_controls_panel",
+    "build_filters_strip",
     "build_preview_panel",
     "build_results_panel",
-    "retune_build_model_library_geometry",
+    "build_task_row",
+    "finish_model_library_layout",
 ]

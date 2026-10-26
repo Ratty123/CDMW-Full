@@ -108,13 +108,22 @@ class ModelLibraryResultsMixin:
                     )
                 elif total_count <= 0:
                     query = self.applied_results_query()
-                    message = f"No mirror results found for \"{query}\"." if query else "No mirror results loaded. Search the mirror catalogue or show popular models."
+                    if not getattr(self, "_catalogue_index_available", False):
+                        message = "No mirror results loaded. Build the search index under Sources, then search the mirror catalogue."
+                    elif query:
+                        message = f"No mirror results found for \"{query}\"."
+                    else:
+                        message = "No mirror results loaded. Search the mirror catalogue, or clear the search to show popular models."
+                else:
+                    message = "No results match the current filters."
             else:
                 query = str(self.search_edit.text() if hasattr(self, "search_edit") else "").strip()
                 if total_count > 0 and query:
                     message = f"No local models match \"{query}\". Clear the local filter or choose another field."
+                elif total_count > 0:
+                    message = "No results match the current filters."
                 else:
-                    message = "No local models are loaded. Add a folder, then show local models."
+                    message = "No local models are loaded. Add a model folder under Sources."
         self.empty_results_label.setText(message)
         self.empty_results_label.setVisible(bool(message))
 

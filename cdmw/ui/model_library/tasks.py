@@ -67,10 +67,8 @@ class ModelLibraryTaskMixin:
         self._task_worker = worker
         self._task_ui_bridge = bridge
         self.cancel_task_button.setEnabled(self._stop_event is not None)
+        self.cancel_task_button.setVisible(True)
         self.build_index_button.setEnabled(False)
-        self.scan_local_button.setEnabled(False)
-        self.search_mirror_button.setEnabled(False)
-        self.show_indexed_button.setEnabled(False)
         self.mirror_results_view_button.setEnabled(False)
         self.local_results_view_button.setEnabled(False)
         self.refresh_results_view_button.setEnabled(False)
@@ -85,10 +83,6 @@ class ModelLibraryTaskMixin:
         lower_status = status.lower()
         if "building" in lower_status or "index" in lower_status:
             self.build_index_button.setText("Building...")
-        if "search" in lower_status:
-            self.search_mirror_button.setText("Searching...")
-        if "scanning" in lower_status:
-            self.scan_local_button.setText("Scanning...")
         if "download" in lower_status:
             self.download_button.setText("Downloading...")
         thread.start()
@@ -136,32 +130,17 @@ class ModelLibraryTaskMixin:
         ):
             self._populating_results = False
         self._task_status_active = False
-        if hasattr(self, "task_status_label"):
-            current_task_status = self.task_status_label.text()
-            if current_task_status.startswith("Working: "):
-                self.task_status_label.setText(f"Status: {current_task_status[len('Working: '):]}")
         if hasattr(self, "active_task_label"):
             current_active_status = self.active_task_label.text()
             if current_active_status.startswith("Working: "):
                 self.active_task_label.setText(f"Status: {current_active_status[len('Working: '):]}")
         self.cancel_task_button.setEnabled(False)
-        self.build_index_button.setText(
-            self._model_library_button_label("Build Search Index", "Build Index")
-        )
-        self.scan_local_button.setText(
-            self._model_library_button_label("Show Local Models", "Show Models")
-        )
-        self.search_mirror_button.setText("Search Mirror")
-        self.show_indexed_button.setText("Popular")
-        self.download_button.setText(
-            self._model_library_button_label("Download Checked", "Download")
-        )
+        self.cancel_task_button.setVisible(False)
+        self.build_index_button.setText("Build Search Index")
+        self.download_button.setText("Download Checked")
         if hasattr(self, "active_task_progress"):
             self.active_task_progress.setVisible(False)
         self.build_index_button.setEnabled(True)
-        self.scan_local_button.setEnabled(True)
-        self.search_mirror_button.setEnabled(True)
-        self.show_indexed_button.setEnabled(True)
         self.mirror_results_view_button.setEnabled(True)
         self.local_results_view_button.setEnabled(True)
         self.refresh_results_view_button.setEnabled(True)
@@ -175,12 +154,7 @@ class ModelLibraryTaskMixin:
 
     def _set_status(self, message: str, *, error: bool = False) -> None:
         self.status_label.setText(message)
-        if hasattr(self, "task_status_label"):
-            prefix = "Working: " if self._task_status_active else ("Error: " if error else "Status: ")
-            self.task_status_label.setText(f"{prefix}{message}")
         self._update_active_task_progress(message, error=error)
-        if self._task_status_active and hasattr(self, "results_status_label"):
-            self.results_status_label.setText(f"Working: {message}")
         self.status_message_requested.emit(message, error)
 
     def _update_active_task_progress(self, message: str, *, error: bool = False) -> None:
@@ -191,7 +165,6 @@ class ModelLibraryTaskMixin:
             return
         if self._task_status_active:
             self.active_task_label.setText(f"Working: {text}")
-            self.active_task_label.setVisible(True)
             self.active_task_progress.setVisible(True)
             match = re.search(r"(\d[\d,]*)\s*/\s*(\d[\d,]*)", text)
             if match:
@@ -206,7 +179,6 @@ class ModelLibraryTaskMixin:
             return
         prefix = "Error: " if error else "Status: "
         self.active_task_label.setText(f"{prefix}{text}")
-        self.active_task_label.setVisible(True)
         self.active_task_progress.setVisible(False)
 
 

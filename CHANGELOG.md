@@ -25,6 +25,7 @@ experimental-feature notes do not establish equivalent in-game behavior.
 - Mesh Editor groups its Finish actions, distinguishes Resume current edit from Start next edit pass, and adds clickable help. Overlay restoration is removed from this page.
 - Create New Item re-enables DMM export for testing with updated DMM versions. In-game item and texture compatibility remains unverified.
 - Settings lists all ignored folders together and lets you remove any default. Archive scans also ignore `dmmsa`, `dmmgen` and `CrimsonFastLoad.backup` by default, while preserving saved custom exclusions.
+- Model Library has a simpler layout: one bar for Mirror/Local, search and Reload; a Sources panel that shows only the mirror catalogue settings or the local folders for the current view; and a Filters strip with column filters placed over their columns. Both panels can be hidden and stay as you left them, and Filters shows how many filters are active while hidden. Preview, Use in Create New Item and the other model actions sit beside the preview, Download Checked sits under the results, and progress, Cancel and result counts share one status line. Empty results now say whether to build the search index, add a folder or relax the filters.
 
 ### Fixed
 
@@ -46,6 +47,7 @@ experimental-feature notes do not establish equivalent in-game behavior.
 - Mesh Editor Free Edit lets imported meshes choose or change their output folder and avoids clone-related whole-Part deletion failures while retaining Undo/Redo. Remove Duplicates supports skinned meshes in Free Edit and Exact PAC LOD0 output, retaining surviving vertices' deliberately edited weights and safely updating identical stored LODs. Moving vertices before Remove Duplicates no longer causes a false vertex-count rejection at Finish in either output mode. Unrecorded skin changes remain blocked, and Free Edit OBJ output omits rig weights. Other Exact cleanup actions remain restricted. Physics labels identify retained source data and explain that OBJ output does not preserve game physics.
 - Mesh Editor opens successive PAC files from either Archive Browser action without getting stuck waiting for a previous mesh's textures.
 - Switching away from Create New Item while its interface starts no longer causes a false timeout. Returning continues the same workspace.
+- Disabled highlighted buttons, such as Texture Editor's export actions, now look disabled instead of active.
 
 ### Docs
 

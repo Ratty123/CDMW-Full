@@ -663,7 +663,8 @@ def _app_controls_stylesheet(theme: Dict[str, str], metrics: Dict[str, int]) -> 
         background: {theme["accent_soft"]};
         border-color: {theme["accent"]};
     }}
-    QPushButton:disabled {{
+    QPushButton:disabled,
+    QPushButton#EditorPrimaryButton:disabled {{
         color: {theme["button_disabled_text"]};
         background: {theme["button_disabled"]};
         border-color: {theme["border"]};

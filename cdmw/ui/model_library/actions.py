@@ -231,6 +231,7 @@ class ModelLibraryActionsMixin:
             self.settings.setValue("model_library/search_query", query)
         db_path = self.catalogue_db_path()
         if not db_path.is_file():
+            self._catalogue_index_available = False
             self.mirror_results = []
             self._populate_results([])
             self._set_status("Build the mirror search index before searching.", error=True)
@@ -287,7 +288,6 @@ class ModelLibraryActionsMixin:
                 label = f"{label} with filters: {', '.join(filters)}"
             hidden = int(getattr(self, "_last_hidden_downloaded_count", 0) or 0)
             suffix = f" {hidden:,} downloaded result(s) hidden." if hidden else ""
-            self._update_results_view_label()
             self._set_status(
                 f"Showing Mirror Catalogue: {len(result.visible_indices):,}/{len(result.all_rows):,} result(s) for {label}.{suffix}"
             )

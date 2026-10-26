@@ -137,6 +137,7 @@ class AboutDocumentationEnglishMixin:
                 "html": """
                 <p><b>Model Library</b> keeps reusable model discovery separate from archive inspection. Scan configured locations, inspect the available preview and metadata, then choose <b>Use in Create New Item</b> to carry the resolved model into the guided authoring workflow.</p>
                 <ul>
+                  <li><b>Mirror</b> and <b>Local</b> switch between the mirror catalogue and your own model folders. <b>Sources</b> shows the current view's catalogue settings or folders, and <b>Filters</b> adds license, creator, format and per-column filters. Either panel can be hidden.</li>
                   <li>Use filters and preview before selecting a source; the library does not silently overwrite a shipped asset.</li>
                   <li>Models that require a download or import are resolved before Create New Item opens its Model step.</li>
                   <li>Placement, material review, output planning, and any archive-changing decision remain in Create New Item.</li>

@@ -32,6 +32,7 @@ class ModelLibraryResultsViewMixin:
 
     def _handle_hide_downloaded_toggled(self, checked: bool) -> None:
         self.settings.setValue("model_library/hide_downloaded", bool(checked))
+        self._update_filters_button()
         if self._active_results_view == "mirror":
             self._populate_results(self.mirror_results)
             hidden = int(getattr(self, "_last_hidden_downloaded_count", 0) or 0)
@@ -46,38 +47,35 @@ class ModelLibraryResultsViewMixin:
     def _handle_results_query_changed(self, text: str) -> None:
         if self._updating_results_query:
             return
-        # Typing records the query and refreshes the label, but never searches.
-        # Re-filtering the local table on every keystroke made a long query
-        # unusable; the search runs on Enter or the Search button, through
-        # _apply_active_results_query, which is what the mirror view already did.
+        # Typing records the query but never searches. Re-filtering the local
+        # table on every keystroke made a long query unusable; the search runs
+        # on Enter or the Search button, through _apply_active_results_query,
+        # which is what the mirror view already did.
         if self._active_results_view == "local":
             self.settings.setValue("model_library/local_search_query", str(text))
-            self._update_results_view_label()
             return
         self.settings.setValue("model_library/search_query", str(text))
-        self._update_results_view_label()
 
     def _handle_results_filter_field_changed(self) -> None:
         key = "model_library/local_search_field" if self._active_results_view == "local" else "model_library/search_field"
         self.settings.setValue(key, str(self.results_filter_field_combo.currentData() or "all"))
         if self._active_results_view == "local":
             self._schedule_results_filter()
-            self._update_results_view_label()
 
     def _handle_local_texture_filter_changed(self) -> None:
         if not hasattr(self, "local_texture_filter_combo"):
             return
         self.settings.setValue("model_library/local_texture_filter", str(self.local_texture_filter_combo.currentData() or "all"))
+        self._update_filters_button()
         if self._active_results_view == "local":
             self._schedule_results_filter()
-            self._update_results_view_label()
 
     def _handle_column_filter_changed(self, _editor: QLineEdit) -> None:
         if self._updating_column_filters:
             return
         self._save_column_filters_for_active_view()
+        self._update_filters_button()
         self._schedule_results_filter()
-        self._update_results_view_label()
 
     def _schedule_results_filter(self) -> None:
         self._results_filter_timer.start()
@@ -128,7 +126,6 @@ class ModelLibraryResultsViewMixin:
         if self._active_results_view == "local":
             self.settings.setValue("model_library/local_search_query", self.search_edit.text().strip())
             self._populate_results(self.local_models)
-            self._update_results_view_label()
             self._set_status(
                 f"Showing Local Library: {self._pending_results_visible_count:,}/{len(self.local_models):,} matching model file(s)."
             )
@@ -140,7 +137,6 @@ class ModelLibraryResultsViewMixin:
         if self._active_results_view == "local":
             self.settings.setValue("model_library/local_search_query", "")
             self._populate_results(self.local_models)
-            self._update_results_view_label()
             return
         self.settings.setValue("model_library/search_query", "")
         self.search_mirror(query_override="")
@@ -216,62 +212,120 @@ class ModelLibraryResultsViewMixin:
             else:
                 self.settings.setValue("model_library/search_query", self.search_edit.text().strip())
         self._active_results_view = "local" if str(view).strip().lower() == "local" else "mirror"
+        local_view = self._active_results_view == "local"
         if hasattr(self, "mirror_results_view_button"):
-            self.mirror_results_view_button.setChecked(self._active_results_view == "mirror")
-            self.local_results_view_button.setChecked(self._active_results_view == "local")
+            self.mirror_results_view_button.setChecked(not local_view)
+            self.local_results_view_button.setChecked(local_view)
         if hasattr(self, "mirror_group"):
-            self.mirror_group.setVisible(self._active_results_view == "mirror")
-        if hasattr(self, "results_search_label"):
-            if self._active_results_view == "local":
-                self.results_search_label.setText("Filter local")
-                self.apply_results_query_button.setText("Apply")
+            # The Sources lane and the filter strip show only what the active view uses.
+            self.mirror_group.setVisible(not local_view)
+            self.local_group.setVisible(local_view)
+            self._mirror_filter_fields.setVisible(not local_view)
+            self._local_filter_fields.setVisible(local_view)
+            self.download_button.setVisible(not local_view)
+        if hasattr(self, "search_edit"):
+            self.results_filter_field_combo.setVisible(local_view)
+            if local_view:
                 self.search_edit.setPlaceholderText("Filter local models by name, creator, license, format, path, or source")
-                self.results_filter_field_combo.setEnabled(True)
                 self._set_results_filter_field(str(self.settings.value("model_library/local_search_field", "all") or "all"))
                 self._set_local_texture_filter(str(self.settings.value("model_library/local_texture_filter", "all") or "all"))
                 self._set_results_query_text(str(self.settings.value("model_library/local_search_query", "") or ""))
             else:
-                self.results_search_label.setText("Search mirror")
-                self.apply_results_query_button.setText(
-                    self._model_library_button_label("Search", "Find")
-                )
                 self.search_edit.setPlaceholderText("Search mirror by name, tag, creator, or UID")
-                self.results_filter_field_combo.setEnabled(False)
                 self._set_results_filter_field("all")
                 self._set_results_query_text(str(self.settings.value("model_library/search_query", self.search_edit.text()) or ""))
-            local_view = self._active_results_view == "local"
-            self.local_texture_filter_label.setVisible(local_view)
-            self.local_texture_filter_combo.setVisible(local_view)
             self._load_column_filters_for_active_view()
         if persist:
             self.settings.setValue("model_library/results_view", self._active_results_view)
-        self._update_results_view_label()
+        self._update_filters_button()
 
-    def _update_results_view_label(self) -> None:
-        if not hasattr(self, "results_view_label"):
+    def _set_sources_panel_visible(self, visible: bool, *, persist: bool = True) -> None:
+        panel = getattr(self, "_model_library_controls_panel", None)
+        if panel is None:
             return
+        visible = bool(visible)
+        if panel.isHidden() == visible:
+            panel.setVisible(visible)
+            if visible:
+                splitter = self._model_library_splitter
+                total = sum(splitter.sizes())
+                lane = max(panel.minimumWidth(), min(panel.maximumWidth(), 280))
+                splitter.setSizes([lane, max(0, total - lane)])
+        if persist:
+            self.settings.setValue("model_library/sources_visible", visible)
+
+    def _set_filters_visible(self, visible: bool, *, persist: bool = True) -> None:
+        if not hasattr(self, "filters_strip"):
+            return
+        visible = bool(visible)
+        self.filters_strip.setVisible(visible)
+        self.column_filter_row.setVisible(visible)
+        if persist:
+            self.settings.setValue("model_library/filters_visible", visible)
+
+    def _active_filter_count(self) -> int:
+        count = len(self._active_column_filters())
         if self._active_results_view == "local":
-            roots = len(getattr(self, "local_roots", ()) or ())
-            query = str(self.search_edit.text() if hasattr(self, "search_edit") else "").strip()
-            field = str(
-                self.results_filter_field_combo.currentText()
-                if hasattr(self, "results_filter_field_combo")
-                else "All fields"
-            )
-            filter_text = f" Filter: {query} ({field})." if query else ""
-            texture_filter = str(
-                self.local_texture_filter_combo.currentText()
-                if hasattr(self, "local_texture_filter_combo") and self.local_texture_filter_combo.currentData() != "all"
-                else ""
-            )
-            texture_text = f" Textures: {texture_filter}." if texture_filter else ""
-            self.results_view_label.setText(
-                f"Local Library | {roots:,} folder(s), including downloaded mirror models when available.{filter_text}{texture_text}"
-            )
+            if hasattr(self, "local_texture_filter_combo") and str(self.local_texture_filter_combo.currentData() or "all") != "all":
+                count += 1
+            return count
+        if not hasattr(self, "license_filter_edit"):
+            return count
+        count += sum(
+            1
+            for edit in (self.license_filter_edit, self.creator_filter_edit, self.creator_exclude_edit)
+            if edit.text().strip()
+        )
+        if str(self.format_filter_combo.currentData() or ""):
+            count += 1
+        if self.hide_downloaded_checkbox.isChecked():
+            count += 1
+        return count
+
+    def _update_filters_button(self) -> None:
+        """Keep active filters visible on the toggle while the strip is collapsed."""
+
+        if not hasattr(self, "filters_toggle_button"):
             return
-        query = str(self.search_edit.text() if hasattr(self, "search_edit") else "").strip()
-        query_text = f" Search: {query}" if query else " Search: popular models"
-        self.results_view_label.setText(f"Mirror Catalogue | Indexed metadata results from the mirror catalogue.{query_text}")
+        count = self._active_filter_count()
+        self.filters_toggle_button.setText(f"Filters ({count})" if count else "Filters")
+        if hasattr(self, "clear_filters_button"):
+            self.clear_filters_button.setEnabled(bool(count))
+
+    def _clear_all_filters(self) -> None:
+        local_view = self._active_results_view == "local"
+        self._updating_column_filters = True
+        try:
+            for edit in self.results_column_filter_edits.values():
+                edit.clear()
+        finally:
+            self._updating_column_filters = False
+        self._save_column_filters_for_active_view()
+        catalogue_filters_changed = False
+        if local_view:
+            self.local_texture_filter_combo.blockSignals(True)
+            self._set_local_texture_filter("all")
+            self.local_texture_filter_combo.blockSignals(False)
+            self.settings.setValue("model_library/local_texture_filter", "all")
+        else:
+            mirror_edits = (self.license_filter_edit, self.creator_filter_edit, self.creator_exclude_edit)
+            catalogue_filters_changed = any(edit.text().strip() for edit in mirror_edits) or bool(
+                str(self.format_filter_combo.currentData() or "")
+            )
+            for edit in mirror_edits:
+                edit.clear()
+            self.format_filter_combo.setCurrentIndex(0)
+            self.hide_downloaded_checkbox.blockSignals(True)
+            self.hide_downloaded_checkbox.setChecked(False)
+            self.hide_downloaded_checkbox.blockSignals(False)
+            self.settings.setValue("model_library/hide_downloaded", False)
+        self._update_filters_button()
+        # Catalogue filters narrow the mirror query itself, so only a new
+        # search can widen it again; the other filters re-filter loaded rows.
+        if catalogue_filters_changed:
+            self.search_mirror()
+        else:
+            self._populate_results(self.local_models if local_view else self.mirror_results)
 
     def _load_initial_results_view(self) -> bool:
         self._populate_results([])

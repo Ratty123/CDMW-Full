@@ -101,15 +101,23 @@ Leaving the tab pauses row application and automatic preview requests. Returning
 resumes pending rows with their checked models and selection intact; explicit
 downloads, imports and other started tasks continue in their existing workers.
 
-## Compact Workspace and task state
+## Layout and task state
 
-Compact Workspace rearranges these same widgets without creating a second
-Model Library implementation. Its controls lane is bounded to 256-300 px and
-does not horizontally scroll at the supported compact sizes, even after another
-tool changes the process-wide UI font; the compact content ignores its former
-wide minimum-size hint and wraps into the bounded viewport. Results keep the
-remaining width, while details sit beside the resident preview. Classic Workspace
-retains the original arrangement.
+`panels.py` builds one layout for both shells: a command strip (Sources toggle,
+Mirror/Local, search, Filters, Reload), a collapsible filter strip, then the
+Sources lane, the results table and the selection pane, with a task row
+(progress, latest status, result counts, Cancel) at the bottom.
+
+- The Sources lane is bounded to 256-300 px, never scrolls horizontally, and
+  shows only the active view's source: mirror catalogue settings or local folders.
+- Column filters are positioned over their header sections and follow resizing
+  and horizontal scrolling. Filters shows the active filter count while hidden.
+- Sources and Filters visibility persist in `model_library/sources_visible` and
+  `model_library/filters_visible`.
+- Button groups in the narrow panes use `WrappingLayout`, so large fonts and long
+  translations wrap instead of clipping.
+- The empty-results message uses the catalogue status the tab already computed;
+  the controller performs no filesystem checks.
 
 ## Deletion and preview icon workers
 

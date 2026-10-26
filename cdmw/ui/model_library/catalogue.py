@@ -90,6 +90,7 @@ class ModelLibraryCatalogueMixin:
 
     def _update_catalogue_status(self) -> None:
         stats = self.model_library_service.catalogue_status(self.catalogue_db_path())
+        self._catalogue_index_available = int(stats.get("models", 0) or 0) > 0
         self.catalogue_status_label.setText(
             f"Indexed metadata: {stats['models']:,} model(s), {stats['shards']:,} catalogue page(s). Downloads are stored under {self.catalogue_dir() / 'downloads'} after you enter the mirror URL."
         )

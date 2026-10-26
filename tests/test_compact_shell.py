@@ -221,9 +221,9 @@ def test_compact_model_library_uses_a_scroll_safe_control_lane_and_adjacent_deta
             assert 256 <= tab._model_library_splitter.sizes()[0] <= 300
             assert tab.selection_group.parentWidget() is tab._model_library_preview_panel
             tab._update_selection_state()
-            assert tab.download_button.text() == "Download"
+            assert tab.download_button.text() == "Download Checked"
             tab._set_active_results_view("mirror", persist=False)
-            assert tab.apply_results_query_button.text() == "Find"
+            assert tab.apply_results_query_button.text() == "Search"
             visible_buttons = [
                 button
                 for button in tab.findChildren(QPushButton)

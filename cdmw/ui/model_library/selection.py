@@ -36,13 +36,10 @@ class ModelLibrarySelectionMixin:
         self.preview_button.setEnabled(can_preview_here)
         self.generate_icon_button.setEnabled(can_preview_here)
         self.download_button.setEnabled(batch_mirror_count > 0 and mirror_url_ready)
-        standard_download_label = (
+        self.download_button.setText(
             "Download Checked"
             if batch_mirror_count <= 1
             else f"Download Checked ({batch_mirror_count})"
-        )
-        self.download_button.setText(
-            self._model_library_button_label(standard_download_label, "Download")
         )
         self.download_import_button.setEnabled(is_mirror and mirror_url_ready)
         self.open_file_url_button.setEnabled(is_mirror)
@@ -83,7 +80,7 @@ class ModelLibrarySelectionMixin:
     def _show_details(self, payload: Optional[dict[str, object]]) -> None:
         if not payload:
             self.details_edit.clear()
-            self.details_text.setPlainText("Select a local file or mirror result.")
+            self.details_text.clear()
             return
         name = str(payload.get("name", "") or "Untitled model")
         self.details_edit.setText(name)
