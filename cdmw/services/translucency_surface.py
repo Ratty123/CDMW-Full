@@ -5,7 +5,8 @@ import struct
 from pathlib import Path, PurePosixPath
 from tempfile import TemporaryDirectory
 
-from cdmw.core.pac_xml_standard_material import find_material_wrappers, rewrite_translucency
+from cdmw.core.material_shader_controls import edit_material_variants
+from cdmw.core.pac_xml_standard_material import PacXmlMaterialError, find_material_wrappers, rewrite_translucency
 from cdmw.domain.cancellation import raise_if_cancelled
 from cdmw.domain.mesh.translucency import translucency_surface_values
 
@@ -16,27 +17,44 @@ def apply_translucency_surface(text, settings, surfaces, model_path, read_textur
     surfaces = {name: value for name, value in surfaces.items() if value is not None}
     if not surfaces:
         return rewrite_translucency(text, settings), {}
-    if surfaces.keys() - {name.casefold() for name in settings}:
+    settings = {name.casefold(): values for name, values in settings.items()}
+    if surfaces.keys() - settings.keys():
         raise ValueError("Surface overrides require translucency on the same part.")
-    paths, files = {}, {}
+    files, found = {}, set()
     stem = str(PurePosixPath(model_path.replace("\\", "/").replace("/model/", "/texture/", 1)
                             .replace("/modelproperty/", "/texture/", 1)).with_suffix(""))
-    for row in find_material_wrappers(text):
-        name = row.submesh_name.casefold()
-        if name not in surfaces:
-            continue
-        raise_if_cancelled(stop_event)
-        source = row.textures.get("_materialTexture", "")
-        payload = read_texture(source) if source else None
-        if source and payload is None:
-            raise ValueError(f"{row.submesh_name}: cannot edit the surface; missing material texture {source}.")
-        identity = hashlib.sha256(name.encode() + repr(surfaces[name]).encode() + (payload or b"")).hexdigest()[:16]
-        path = f"{stem}_cdmw_surface_{identity}.dds"
-        files[path] = _encode_surface(payload, surfaces[name], part_name=row.submesh_name, stop_event=stop_event)
-        paths[name] = path
-    if surfaces.keys() - paths.keys():
-        raise ValueError("Translucent surface material bindings were not found: " + ", ".join(sorted(surfaces.keys() - paths.keys())))
-    return rewrite_translucency(text, settings, material_paths=paths), files
+
+    def edit(fragment):
+        # Variants repeat part names with their own maps; each derives its own override.
+        rows = find_material_wrappers(fragment)
+        paths = {}
+        for row in rows:
+            name = row.submesh_name.casefold()
+            if name not in surfaces:
+                continue
+            if name in paths:
+                raise ValueError(f"Ambiguous translucent surface binding: {row.submesh_name}")
+            raise_if_cancelled(stop_event)
+            source = row.textures.get("_materialTexture", "")
+            payload = read_texture(source) if source else None
+            if source and payload is None:
+                raise ValueError(f"{row.submesh_name}: cannot edit the surface; missing material texture {source}.")
+            identity = hashlib.sha256(name.encode() + repr(surfaces[name]).encode() + (payload or b"")).hexdigest()[:16]
+            path = f"{stem}_cdmw_surface_{identity}.dds"
+            if path not in files:
+                files[path] = _encode_surface(payload, surfaces[name], part_name=row.submesh_name, stop_event=stop_event)
+            paths[name] = path
+        present = {row.submesh_name.casefold() for row in rows}
+        found.update(present)
+        return rewrite_translucency(fragment, {name: values for name, values in settings.items() if name in present},
+                                    material_paths=paths), None
+
+    text, _ = edit_material_variants(text, edit)
+    if surfaces.keys() - found:
+        raise ValueError("Translucent surface material bindings were not found: " + ", ".join(sorted(surfaces.keys() - found)))
+    if settings.keys() - found:
+        raise PacXmlMaterialError("Translucency material bindings were not found: " + ", ".join(sorted(settings.keys() - found)))
+    return text, files
 
 
 def _encode_surface(payload, values, *, part_name, stop_event, regions=((0.0, 0.0, 1.0, 1.0),)):
@@ -56,7 +74,8 @@ def _encode_surface(payload, values, *, part_name, stop_event, regions=((0.0, 0.
             with Image.open(decoded) as image:
                 rgba = image.convert("RGBA")
         else:
-            # The game's missing _materialTexture defaults to black.
+            # A missing _materialTexture reads as zero roughness and metallic in game.
+            # R follows shipped `_sp` maps; the translucent shader samples only G and B.
             rgba = Image.new("RGBA", (4, 4), (255, 0, 0, 255))
         channels = list(rgba.split())
         for index, value in zip((1, 2), values):

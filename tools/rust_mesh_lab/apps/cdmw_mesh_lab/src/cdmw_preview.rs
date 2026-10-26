@@ -324,6 +324,8 @@ struct EffectClock {
     speed: f32,
     seek_serial: u64,
     last_tick: Instant,
+    /// Replay period for an effect that plays once; zero runs continuously.
+    loop_seconds: f32,
 }
 
 impl EffectClock {
@@ -333,6 +335,7 @@ impl EffectClock {
             speed: 1.0,
             seek_serial: 0,
             last_tick: Instant::now(),
+            loop_seconds: 0.0,
         }
     }
 
@@ -345,7 +348,12 @@ impl EffectClock {
             // fast-forward through an unbounded amount of simulation.
             self.elapsed += delta.clamp(0.0, 0.1) * self.speed;
         }
-        self.elapsed
+        if self.loop_seconds > 0.0 {
+            // Keep the stored clock monotonic; only the sampled time replays.
+            self.elapsed % self.loop_seconds
+        } else {
+            self.elapsed
+        }
     }
 
     fn reset(&mut self) {
@@ -1360,6 +1368,12 @@ impl PreviewApplication {
             .filter(|v| v.is_finite())
             .unwrap_or(1.0)
             .clamp(0.05, 4.0) as f32;
+        self.effect_clock.loop_seconds = display
+            .and_then(|v| v.get("effect_loop_seconds"))
+            .and_then(Value::as_f64)
+            .filter(|v| v.is_finite())
+            .unwrap_or(0.0)
+            .clamp(0.0, 3600.0) as f32;
         let serial = display
             .and_then(|v| v.get("effect_seek_serial"))
             .and_then(Value::as_u64)
@@ -4090,6 +4104,17 @@ mod tests {
         let resumed = clock.sample(false);
         assert!(resumed > held);
         assert!(resumed - held < 0.05);
+    }
+
+    #[test]
+    fn a_looping_effect_clock_replays_while_the_stored_time_keeps_running() {
+        let mut clock = EffectClock::new();
+        clock.loop_seconds = 2.0;
+        clock.elapsed = 4.5;
+        assert!((clock.sample(true) - 0.5).abs() < 1.0e-5);
+        assert_eq!(clock.elapsed, 4.5);
+        clock.loop_seconds = 0.0;
+        assert_eq!(clock.sample(true), 4.5);
     }
 
     #[test]

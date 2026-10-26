@@ -20,6 +20,7 @@ class TranslucencyEditor(QGroupBox):
         self._settings = {}
         self._surfaces = {}
         self._masks = {}
+        self._authored = {}
         layout = QVBoxLayout(self)
         layout.setContentsMargins(8, 6, 8, 6)
         self.details = QWidget(self)
@@ -128,7 +129,7 @@ class TranslucencyEditor(QGroupBox):
         self.setToolTip(
             "Approximate viewport preview; game refraction and lighting may differ. "
             "Uses Plain PBR materials. Experimental translucency changes only explicitly selected parts. "
-            "Glow maps and colours are kept; brightness and tint may differ in game."
+            "Glow maps are kept, but the game does not draw glow on translucent parts."
         )
         layout.addWidget(self.details)
         self.parts.itemChanged.connect(self._part_checked)
@@ -138,7 +139,7 @@ class TranslucencyEditor(QGroupBox):
         self.toggled.connect(self._emit_choice)
         self.details.setVisible(False)
 
-    def refresh(self, parts, choice):
+    def refresh(self, parts, choice, *, authored=None):
         current = self.parts.currentItem()
         current_name = current.data(Qt.ItemDataRole.UserRole) if current else None
         self._loading = True
@@ -147,6 +148,8 @@ class TranslucencyEditor(QGroupBox):
             self._settings = {name.casefold(): choice.values_for(name) for name in choice.parts} if choice else {}
             self._surfaces = {name.casefold(): choice.surface_for(name) for name in choice.parts} if choice else {}
             self._masks = {name.casefold(): mask for name, mask in choice.masks} if choice else {}
+            # Already-translucent source parts start from their own values, not a preset.
+            self._authored = {str(name).casefold(): tuple(pair) for name, pair in (authored or {}).items()}
             chosen = {name.casefold() for name in choice.parts} if choice else set()
             for name, label in parts:
                 item = QListWidgetItem(label)
@@ -175,7 +178,8 @@ class TranslucencyEditor(QGroupBox):
         item = self.parts.currentItem()
         self.controls.setEnabled(item is not None and item.checkState() == Qt.CheckState.Checked)
         self.restore_mask.setEnabled(item is not None and str(item.data(Qt.ItemDataRole.UserRole)).casefold() in self._masks)
-        values = self._settings.get(str(item.data(Qt.ItemDataRole.UserRole)).casefold(), (0.1, 0.3)) if item else (0.1, 0.3)
+        values = self._settings.get(str(item.data(Qt.ItemDataRole.UserRole)).casefold(),
+                                    self._starting_pair(item.data(Qt.ItemDataRole.UserRole))) if item else (0.1, 0.3)
         self._loading = True
         try:
             self.thickness.setValue(values[0])
@@ -193,11 +197,15 @@ class TranslucencyEditor(QGroupBox):
         finally:
             self._loading = False
 
+    def _starting_pair(self, name):
+        return self._authored.get(str(name).casefold(), (0.1, 0.3))
+
     def _part_checked(self, item):
         if self._loading:
             return
         if item.checkState() == Qt.CheckState.Checked:
-            self._settings.setdefault(str(item.data(Qt.ItemDataRole.UserRole)).casefold(), (0.1, 0.3))
+            name = str(item.data(Qt.ItemDataRole.UserRole))
+            self._settings.setdefault(name.casefold(), self._starting_pair(name))
             self.parts.setCurrentItem(item)
         self._show_current()
         self._emit_choice()
@@ -214,7 +222,8 @@ class TranslucencyEditor(QGroupBox):
                     item.setCheckState(state)
                     changed = True
                 if checked:
-                    self._settings.setdefault(str(item.data(Qt.ItemDataRole.UserRole)).casefold(), (0.1, 0.3))
+                    name = str(item.data(Qt.ItemDataRole.UserRole))
+                    self._settings.setdefault(name.casefold(), self._starting_pair(name))
         self._show_current()
         if changed:
             self._emit_choice()
@@ -271,7 +280,7 @@ class TranslucencyEditor(QGroupBox):
             if self.parts.item(index).checkState() == Qt.CheckState.Checked
         )
         self.changed.emit(
-            TranslucencyChoice.from_settings({name: self._settings.get(name.casefold(), (0.1, 0.3)) for name in parts},
+            TranslucencyChoice.from_settings({name: self._settings.get(name.casefold(), self._starting_pair(name)) for name in parts},
                                             {name: self._surfaces.get(name.casefold()) for name in parts},
                                             {name: self._masks.get(name.casefold()) for name in parts})
             if self.isChecked() and parts else None

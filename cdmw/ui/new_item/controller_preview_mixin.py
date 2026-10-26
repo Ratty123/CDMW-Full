@@ -681,6 +681,27 @@ class NewItemPreviewControllerMixin:
                 options[name] = shader, supported
         return options
 
+    def material_authored_translucency(self):
+        """Absorption already authored on SkinnedMeshTranslucent parts, by folded part name."""
+        values = {}
+        if self.model_import is not None:
+            from cdmw.domain.mesh.translucency import authored_translucency
+            from cdmw.services.new_item_materials import appearance_preview_part_names
+            mesh = getattr(getattr(self.model_import, "scene", None), "mesh", None)
+            for part in tuple(getattr(mesh, "submeshes", ()) or ()):
+                pair = authored_translucency(part)
+                if pair is not None:
+                    for name in appearance_preview_part_names(part):
+                        values.setdefault(name.casefold(), pair)
+            return values
+        identity = self.current_variant_identity()
+        selected = identity[1].casefold() if identity else None
+        for path, parts in self._template_translucency.items():
+            if selected is None or path == selected:
+                for name, pair in parts.items():
+                    values.setdefault(name, pair)
+        return values
+
     def material_parts(self) -> Tuple[Tuple[str, str], ...]:
         """Current imported materials or the template's worker-prepared bindings."""
 

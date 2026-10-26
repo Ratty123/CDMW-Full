@@ -29,6 +29,7 @@ shipped swords), so the material a submesh draws with is this file's alone.
 
 from __future__ import annotations
 
+import math
 import re
 from dataclasses import dataclass, field
 from typing import Dict, Mapping, Optional, Tuple
@@ -165,6 +166,25 @@ def find_material_wrappers(text: str) -> Tuple[MaterialWrapper, ...]:
             indent=material.group("indent"),
         ))
     return tuple(out)
+
+
+def authored_translucency_values(text: str) -> Dict[str, Tuple[float, float]]:
+    """Thickness and extinction of authored translucent wrappers, keyed by folded part name.
+
+    Absent rows read the game's declared defaults (0.02, 0.3); unusable values are skipped.
+    """
+
+    values: Dict[str, Tuple[float, float]] = {}
+    for wrapper in find_material_wrappers(text):
+        if wrapper.shader != TRANSLUCENT_SHADER:
+            continue
+        try:
+            pair = (float(wrapper.value("_thickness") or 0.02), float(wrapper.value("_extinctionCoefficient") or 0.3))
+        except ValueError:
+            continue
+        if all(math.isfinite(value) and 0 <= value <= 1 for value in pair):
+            values.setdefault(wrapper.submesh_name.casefold(), pair)
+    return values
 
 
 def _newline_of(text: str) -> str:
@@ -383,6 +403,7 @@ __all__ = [
     "PacXmlMaterialError",
     "PlainMaterial",
     "RewriteResult",
+    "authored_translucency_values",
     "find_material_wrappers",
     "plain_material_xml",
     "rewrite_materials",

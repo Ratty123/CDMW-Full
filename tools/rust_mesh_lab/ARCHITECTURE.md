@@ -357,14 +357,17 @@ because both meshes have revision 1.
 Camera-only and overlay changes update uniforms or draw choices without rebuilding
 geometry.
 
-Experimental translucency sorts material triangles behind-to-front. Its absorption
-calculation retains RGB background transmission, while surface reflection and emission
-remain separate from the opaque diffuse response. An optional dual-source blend pipeline
-composes surface light plus transmitted destination colour in one draw per existing
-sorted batch, including overlapping glass and ordinary alpha-blended layers. Devices
-without dual-source blending keep a scalar transmission approximation with independent
-surface light. No source textures are changed, and refraction distortion, scene lighting
-and game parity remain outside this preview contract.
+Experimental translucency follows the game's single-layer translucency G-buffer.
+Ordinary alpha-blended layers draw back-to-front first. Glass then writes a depth-only
+pre-pass and composites with an equal-depth test, so only the nearest translucent
+surface per pixel absorbs; both passes use one shader module so their depths match.
+Absorption retains RGB background transmission. Surface reflection stays separate from
+the opaque diffuse response, and light scattered inside the glass adds the base colour
+weighted by one minus transmission. Glass draws no emission, matching the game's
+translucent shaders. An optional dual-source blend pipeline composes surface light plus
+transmitted destination colour in one draw; devices without it keep a scalar
+transmission approximation. No source textures are changed, and refraction distortion,
+scene lighting and game parity remain outside this preview contract.
 
 ### Solid and material rendering
 

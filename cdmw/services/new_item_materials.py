@@ -920,8 +920,8 @@ def route_plain_pbr(
             base = coloured_base
         if absorption is not None and emissive:
             warnings.append(
-                f"{source_name}: translucent emission keeps the emissive map, colour and strength. "
-                "The glass shader may ignore these emission inputs; check glow brightness in game."
+                f"{source_name}: translucent emission keeps the emissive map, colour and strength, "
+                "but the game's translucent shader does not draw glow."
             )
         replacements[wrapper.submesh_name] = PlainMaterial(
             base=base, normal=normal, material=material,

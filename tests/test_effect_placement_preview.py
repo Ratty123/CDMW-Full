@@ -390,6 +390,53 @@ class EffectPreviewInPackageTests(unittest.TestCase):
         self.assertEqual(describe_effect_preview(None), "")
 
 
+class ReplayTests(unittest.TestCase):
+    def test_only_an_effect_that_finishes_gets_a_replay_period(self) -> None:
+        from dataclasses import replace
+
+        from cdmw.services.effect_preview_model import REPLAY_PAUSE_SECONDS, replay_seconds
+
+        preview = _fire_preview()
+        self.assertEqual(replay_seconds(preview), 0.0, "a looping fire keeps running by itself")
+        once = [replace(emitter, loop=False, infinite_life=False, spawn_time=0.5, loop_count=1,
+                        start_delay=(0.0, 0.25), life=(0.5, 1.0), simulation_speed=2.0)
+                for emitter in preview.emitters]
+        # (0.25 delay + 0.5 s spawning twice + 1.0 s life) at double speed, then the rest
+        self.assertAlmostEqual(replay_seconds(replace(preview, emitters=tuple(once))), 1.125 + REPLAY_PAUSE_SECONDS)
+        held = (replace(once[0], infinite_life=True), *once[1:])
+        self.assertEqual(replay_seconds(replace(preview, emitters=held)), 0.0, "an infinite particle never finishes")
+        self.assertEqual(replay_seconds(None), 0.0)
+
+    def test_the_loop_control_sends_the_shown_effects_period(self) -> None:
+        from PySide6.QtWidgets import QApplication, QPushButton, QWidget
+
+        from cdmw.ui.new_item.effect_playback import EffectPlaybackControls
+
+        QApplication.instance() or QApplication([])
+
+        class _Host:
+            def __init__(self) -> None:
+                self.sent = []
+
+            def set_effect_preview_controls(self, **values) -> bool:
+                self.sent.append(values)
+                return True
+
+        placement = QWidget()
+        self.addCleanup(placement.deleteLater)
+        placement.host = _Host()
+        placement.pause_button = QPushButton(placement)
+        controls = EffectPlaybackControls(placement)
+        self.assertTrue(controls.loop.isChecked(), "one-shot effects replay by default")
+        controls.set_replay_seconds(2.5)
+        self.assertEqual(placement.host.sent[-1], {"loop_seconds": 2.5})
+        controls.loop.setChecked(False)
+        self.assertEqual(placement.host.sent[-1], {"loop_seconds": 0.0})
+        controls.loop.setChecked(True)
+        controls.set_replay_seconds(0)
+        self.assertEqual(placement.host.sent[-1], {"loop_seconds": 0.0}, "a continuous effect is not restarted")
+
+
 class TextureNamingTests(unittest.TestCase):
     """Whether an item draws with its own textures in the effect viewport turns on this,
     and it read only the field a `.pac` family uses. An imported model binds its files

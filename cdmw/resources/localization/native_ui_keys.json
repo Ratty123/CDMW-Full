@@ -1017,7 +1017,7 @@
   "Hide selected parts",
   "High weight",
   "Higher roughness softens highlights; lower metallic reduces metallic reflections. Some game reflections may remain.",
-  "Higher values absorb more light. Glow maps and colours are kept. Game refraction and glow brightness may differ from the preview.",
+  "Higher values absorb more light. The game does not draw glow on translucent parts. Game refraction may differ from the preview.",
   "Higher values absorb more light. Thin glass can use 0.02; the game stores thickness in 256 steps. Unchecked: retain the authored value.",
   "Higher values make glass less see-through. World objects support 0–10; equipment supports 0–1. This is absorption, not an opacity percentage.",
   "Highlight in viewport",

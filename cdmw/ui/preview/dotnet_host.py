@@ -744,12 +744,15 @@ class RustPreviewHostFrame(DotNetPreviewHostLifecycleMixin, DotNetPreviewHostPro
         self._presentation_state["display"] = display
         return self._remember_presentation_state({"display": {"effect_particles_paused": bool(paused)}})
 
-    def set_effect_preview_controls(self, *, speed=None, time_seconds=None, seed=None, quality=None, solo_layer=None, solo_emitter=None, active_layer=None, surface_target=None) -> bool:
-        """Preview-only playback and inspection; no package or camera replacement."""
+    def set_effect_preview_controls(self, *, speed=None, time_seconds=None, seed=None, quality=None, solo_layer=None, solo_emitter=None, active_layer=None, surface_target=None, loop_seconds=None) -> bool:
+        """Preview-only playback and inspection; no package or camera replacement.
+
+        ``loop_seconds`` replays the clock with that period; 0 runs it continuously."""
         import math
         patch = {}
         for key, value, low, high in (
             ("effect_playback_speed", speed, 0.05, 4.0),
+            ("effect_loop_seconds", loop_seconds, 0.0, 3600.0),
             ("effect_preview_seed", seed, 0, 9999),
             ("effect_particle_budget", quality, 64, 2048),
             ("effect_solo_layer", solo_layer, -1, 15),
@@ -761,7 +764,7 @@ class RustPreviewHostFrame(DotNetPreviewHostLifecycleMixin, DotNetPreviewHostPro
                 number = float(value)
                 if not math.isfinite(number) or not low <= number <= high:
                     raise ValueError(f"Invalid {key}.")
-                patch[key] = number if key == "effect_playback_speed" else int(number)
+                patch[key] = number if key in {"effect_playback_speed", "effect_loop_seconds"} else int(number)
         if time_seconds is not None:
             seconds = float(time_seconds)
             if not math.isfinite(seconds) or not 0 <= seconds <= 3600:

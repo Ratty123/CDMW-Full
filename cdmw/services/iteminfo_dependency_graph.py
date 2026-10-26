@@ -14,6 +14,7 @@ from cdmw.core.iteminfo_inventory import read_item_inventory
 from cdmw.core.iteminfo_settings import read_item_settings
 from cdmw.core.new_item_record import RecordError
 from cdmw.domain.cancellation import raise_if_cancelled
+from cdmw.domain.new_item.effect_authoring import split_effect_reference
 from cdmw.domain.new_item.item_definition import SEAL_TARGETS
 
 
@@ -173,7 +174,7 @@ def validate_item_graph(raw, snapshot, *, stop_event=None):
                 *(preset_path(kind,name) for kind,name in preset_names_of(document))))
         else: unresolved.add(f'Borrowed resource outgoing references remain unverified: {path}')
         for child in children:
-            if child.endswith('.effect') and '/' not in child: child='effect/binary__/releasebin/'+child.split('.')[0]+'.pae'
+            if child.endswith('.effect') and '/' not in child: child='effect/binary__/releasebin/'+split_effect_reference(child)[0]+'.pae'
             if child: todo.append(child)
     result=ItemDependencyGraph(frozenset(visited),tuple(sorted(checked)),tuple(sorted(unresolved)))
     raise_if_cancelled(stop_event)

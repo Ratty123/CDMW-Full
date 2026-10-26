@@ -85,3 +85,43 @@ def test_export_surface_is_private_keeps_other_inputs_and_matches_channels(route
         for point in ((1, 1), (6, 1)):
             pixel = image.getpixel(point)
             assert abs(pixel[1] - 230) <= 2 and pixel[2] <= 2
+
+
+def test_surface_override_derives_each_model_variant_from_its_own_map():
+    def dds(colour):
+        stream = BytesIO()
+        Image.new("RGBA", (8, 8), colour).save(stream, format="DDS")
+        return stream.getvalue()
+
+    maps = {f"character/texture/variant_{index}_sp.dds": dds((255, green, 0, 255))
+            for index, green in ((0, 20), (1, 240))}
+    text = "<ModelPropertyList>" + "".join(
+        f'<ModelProperty Index="{index}"><SkinnedMeshMaterialWrapper _subMeshName="Blade">'
+        + plain_material_xml(PlainMaterial(base="character/texture/base.dds", material=path))
+        + "</SkinnedMeshMaterialWrapper></ModelProperty>" for index, path in enumerate(maps)) + "</ModelPropertyList>"
+    output, files = apply_translucency_surface(text, {"Blade": (.1, .3)}, {"Blade": (None, 1.0)},
+                                              "character/model/surface_test.pac", maps.get)
+    rows = find_material_wrappers(output)
+    paths = [row.textures["_materialTexture"] for row in rows]
+    assert [row.shader for row in rows] == ["SkinnedMeshTranslucent"] * 2
+    assert len(set(paths)) == 2 and set(paths) == set(files)
+    greens = [Image.open(BytesIO(files[path])).getpixel((1, 1))[1] for path in paths]
+    assert greens[0] < 40 and greens[1] > 220
+    with pytest.raises(ValueError, match="not found"):
+        apply_translucency_surface(text, {"Blade": (.1, .3), "Gem": (.1, .3)}, {"Blade": (None, 1.0)},
+                                   "character/model/surface_test.pac", maps.get)
+
+
+def test_authored_translucency_values_read_game_defaults_and_skip_other_shaders():
+    from cdmw.core.pac_xml_standard_material import authored_translucency_values
+
+    def wrapper(name, material):
+        return (f'<SkinnedMeshMaterialWrapper _subMeshName="{name}">' + plain_material_xml(material)
+                + "</SkinnedMeshMaterialWrapper>")
+
+    glass = PlainMaterial(base="character/texture/base.dds", translucency=(0.05, 0.75))
+    text = "<root>" + wrapper("Saliva", glass) + wrapper("Blade", PlainMaterial(base="character/texture/base.dds"))
+    bare = plain_material_xml(PlainMaterial(base="character/texture/base.dds")).replace(
+        '"SkinnedMeshStandard"', '"SkinnedMeshTranslucent"')
+    text += '<SkinnedMeshMaterialWrapper _subMeshName="Default">' + bare + "</SkinnedMeshMaterialWrapper></root>"
+    assert authored_translucency_values(text) == {"saliva": (0.05, 0.75), "default": (0.02, 0.3)}

@@ -707,7 +707,8 @@ class ModelPanel(ModelPanelPreviewMixin, QGroupBox):
         self.translucency_editor.changed.connect(self._translucency_changed)
         self.translucency_editor.paint_requested.connect(lambda part: self._paint_transparency(part, "translucency"))
         self.translucency_editor.restore_mask_requested.connect(lambda part: self._restore_transparency_mask(part, "translucency"))
-        self.translucency_editor.refresh(self._controller.material_parts(), self._controller.draft.translucency)
+        self.translucency_editor.refresh(self._controller.material_parts(), self._controller.draft.translucency,
+                                         authored=self._controller.material_authored_translucency())
         model_layout.addWidget(self.translucency_editor)
         from cdmw.ui.new_item.surface_editor import SurfaceEditor
         self.surface_editor = SurfaceEditor(self)
@@ -1015,7 +1016,8 @@ class ModelPanel(ModelPanelPreviewMixin, QGroupBox):
         self.glow_intensity.blockSignals(False)
         self._set_glow_swatch()
         parts = self._controller.material_parts()
-        self.translucency_editor.refresh(parts, self._controller.draft.translucency)
+        self.translucency_editor.refresh(parts, self._controller.draft.translucency,
+                                         authored=self._controller.material_authored_translucency())
         source = self._controller.model_import
         mesh = getattr(getattr(source, "scene", None), "mesh", None)
         self.surface_editor.refresh(parts, self._controller.draft.surface_settings,
@@ -1068,7 +1070,7 @@ class ModelPanel(ModelPanelPreviewMixin, QGroupBox):
             else:
                 message = (
                     f"Warning: Glow and Translucency overlap on: {parts}. "
-                    "Static glow is supported, but in-game brightness is unverified and may ignore Strength. "
+                    "The game does not draw glow on translucent parts, so these parts will not glow in game. "
                     "Animated and RGB glow cannot be used on the same part."
                 )
         self.material_warning.set_note(message, tone)

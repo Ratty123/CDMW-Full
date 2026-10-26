@@ -7,6 +7,24 @@ from typing import Optional, Tuple
 
 Vec3 = Tuple[float, float, float]
 
+#: What an effect name map registers a stem as: `<stem>.<kind>.effect`.
+EFFECT_REFERENCE_KINDS = ("level", "action", "sequencer", "gimmick", "system")
+
+
+def split_effect_reference(reference: str) -> Tuple[str, str]:
+    """(stem, suffix) of `<stem>.<kind>.effect`, `<stem>.pae` or a bare stem.
+
+    Shipped stems can carry a dot of their own (`fx_fire_common_b__fire0.5m`), so the
+    suffix is recognised at the end; splitting at the first dot named a missing file.
+    """
+
+    text = str(reference or "").strip()
+    lowered = text.lower()
+    for ending in (*(f".{kind}.effect" for kind in EFFECT_REFERENCE_KINDS), ".pae"):
+        if lowered.endswith(ending):
+            return text[: -len(ending)], text[-len(ending) + 1:]
+    return text, ""
+
 # Only named, decoded fields are exposed. Values are absolute; None means inherit.
 EMITTER_FIELDS = (
     ("_opacity", "Opacity", 0.0, 1.0, 1.0),

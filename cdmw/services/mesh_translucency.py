@@ -71,9 +71,13 @@ def translucency_ui_state(authoring, replacement):
     elif session.hair_state is not None:
         reason = "Finish the hair workflow before changing the material shader."
     bindings = {part.part_id: part for part in session.replacement_state.parts} if session.replacement_state else {}
+    from cdmw.domain.mesh.translucency import authored_translucency
+    submeshes = tuple(getattr(session.working_mesh, "submeshes", ()) or ())
     return {"available": not reason, "reason": reason, "parts": [
         {**part, "translucency": bindings[part["id"]].translucency if part["id"] in bindings else None,
-         "translucency_surface": bindings[part["id"]].translucency_surface if part["id"] in bindings else None}
+         "translucency_surface": bindings[part["id"]].translucency_surface if part["id"] in bindings else None,
+         # The panel starts from an already-translucent source instead of a preset.
+         "authored_translucency": authored_translucency(submeshes[part["index"]]) if part["index"] < len(submeshes) else None}
         for part in replacement["parts"]
     ]}
 

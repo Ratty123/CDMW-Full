@@ -2257,3 +2257,17 @@ def test_a_held_preparation_message_replaces_idle_states_until_a_package_loads()
         assert host._busy_bar.isHidden()
     finally:
         controller.shutdown()
+
+
+def test_effect_loop_period_is_a_bounded_preview_only_setting() -> None:
+    controller = _own(DotNetPreviewSessionController(host_hwnd=lambda: 0))
+    host = DotNetPreviewHostFrame(profile="preview", controller=controller)
+    try:
+        host.set_effect_preview_controls(loop_seconds=2.25)
+        assert host._presentation_state["display"]["effect_loop_seconds"] == 2.25
+        host.set_effect_preview_controls(loop_seconds=0)
+        assert host._presentation_state["display"]["effect_loop_seconds"] == 0.0
+        with pytest.raises(ValueError):
+            host.set_effect_preview_controls(loop_seconds=-1)
+    finally:
+        controller.shutdown()

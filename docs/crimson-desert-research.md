@@ -262,6 +262,35 @@ translucent islands produced a reported game symptom consistent with an
 ordering problem. A specific aliasing hazard or active failing permutation has
 not been proven by that investigation.
 
+Ordinary translucency was read from the installed render-pass definitions and
+compiled shaders on 2026-10-26: 12 `PSMainTranslucent`, 16 `RenderRefractionsPS`
+and 6 `PSMainShadowTranslucent` variants. The evidence is static; no game run
+confirms it.
+
+- **One layer.** `SkinnedMeshTranslucent` and static `Translucent` write depth
+  into a translucency G-buffer, without blending or culling. A full-screen pass
+  then composites only the nearest translucent surface per pixel over the opaque
+  scene. Glass behind glass, or behind the front of the same closed part, is not
+  seen through it. Coplanar overlaps compete for the pixel, which is an expected
+  source of flicker for these shaders. Whether the EyeCover report shares that
+  cause is unproven.
+- **Absorption.** The extinction per channel is `alpha × _extinctionCoefficient ÷
+  base colour`, over a path of `_thickness ÷ |N·V|`. Thickness is stored in 256
+  steps.
+- **Scattering.** Light scattered inside the glass uses the base colour as
+  albedo, adding roughly `colour × (1 − transmission)` of scene light. Dense,
+  light-coloured glass therefore turns milky rather than dark.
+- **Alpha.** Base alpha only scales absorption. The only discard is the
+  engine's dithered fade.
+- **Unread inputs.** No shader that binds the translucent parameter block reads
+  its declared glow map or colour. `_refractiveIndex` matters only in the hidden
+  depth-thickness mode.
+- **Shadows.** `_extinctionTint` affects only the separate, multiply-blended
+  shadow pass.
+- **Shipped use.** Seven shipped sidecars use the skinned shader: monster saliva
+  and one helm. Their thickness ranges from 0.01 to 0.13 and their extinction
+  from 0.106 to 0.75.
+
 Disabling conservative rasterization did not resolve the reported overlap.
 It is not a general transparency-ordering control. Practical workarounds include
 avoiding overlap, excluding selected islands or using a different compatible
@@ -1370,9 +1399,28 @@ curve repeat, so integrating forever carried it out of the preview within a
 second. Its `fx_seq_fire_tiny_08a_emi_4pack` flipbook is a seamless loop; every
 one of the 32 cells in each channel holds a full flame (5–9% mean coverage, no
 fade-out cell). The preview now holds such particles at their end-of-life
-position. That is a preview choice checked by a CPU replay of the real
-descriptor, not a pixel capture or an in-game observation; how the game keeps a
-torch flame alive is not yet decoded.
+position and keeps cycling their flipbook once per life. Both are preview
+choices checked by a CPU replay of the real descriptor, not a pixel capture or
+an in-game observation; how the game keeps a torch flame alive is not yet
+decoded. The same flame emitter is authored as a ribbon: `_geometryType` 4,
+render preset `child_fire_tiny_08a_ribbon_uber_loop`, the 0x40 connection bit in
+`_gpuParticleRenderingFlags` (3584066), and a precomputed
+`_particleAverageDistance` of 0.0565 m along Y between its 16 particles. That
+spacing suggests a tall connected strip in game, which the preview, drawing type
+4 as sprites, does not reproduce.
+
+A replay sweep of 6,435 decodable effects (26,548 emitters) through the
+production Rust simulation, 2026-10-26, separated preview gaps from authored
+behaviour. 11,426 emitters play once and finish, which a preview replay now
+covers. Of the continuous emitters that draw without a chosen surface or mesh
+geometry, 4,812 stayed visible; 73 of those that faded had an authored particle
+cap thinned over expired bursts, now counted only over live ones. The remaining
+faders are mostly infinite decals whose authored opacity ends at zero, and
+looping collision bursts with no spawn interval. 296 continuous emitters
+travel several metres, mostly vector-field particles that the preview moves in
+straight lines. Eleven effect stems contain a dot (for example
+`fx_fire_common_b__fire0.5m`) and were unreadable until the reference suffix was
+read from its end.
 
 Native path preparation, baking and host handoff, reviewed 2026-10-24 against
 CDMW Effects source baseline `0b5fca04` and the same installed 1.0.0.2976

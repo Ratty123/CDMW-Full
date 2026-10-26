@@ -59,9 +59,11 @@ generally makes glass less see-through. Static Translucent absorption ignores ba
 alpha; equipment absorption uses it, except that Plain PBR export makes glTF OPAQUE
 alpha solid. Shadow colour strength controls supported shadow passes, not visible-surface
 tint. It is exported but has no visible preview effect. The viewport approximates
-colour-dependent absorption; refraction, coloured shadows and in-game activation remain
-unverified. No refractive-index control is exposed because the inspected static main
-shader variants do not use it.
+colour-dependent absorption and the milky light scattered inside dense glass, and shows
+only the nearest glass surface, as the game does. Refraction, coloured shadows and
+in-game activation remain unverified. No refractive-index control is exposed because the
+inspected static main shader variants do not use it. Neither glass shader reads glow
+inputs, so retained glow maps do not glow in game.
 
 ## Transparent surface blending
 

@@ -463,8 +463,9 @@ not resolve, launch, hash, or read a Vortice executable or report.
 The authoring Parts panel also exposes **Translucency (experimental)** for original
 PAC parts and imported replacements. Apply/Restore send selected stable part IDs
 to the host, which validates the material sidecar, preserves undo and drafts,
-and publishes absorption changes using existing texture resources. Emissive glow
-remains visible; game refraction and emissive brightness are not parity claims.
+and publishes absorption changes using existing texture resources. Parts that are
+already translucent start from their authored values. Glass shows only its nearest
+layer and no glow, as in game; game refraction and lighting are not parity claims.
 
 The integrated Hair section creates cards from scalp guides or binds explicitly
 grouped existing hair. Rust owns grooming, background generation and transient
