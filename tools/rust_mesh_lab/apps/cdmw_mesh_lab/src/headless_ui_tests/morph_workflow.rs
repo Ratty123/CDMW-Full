@@ -1573,3 +1573,17 @@ fn restore_fitting_shape_actions_stay_visible_for_a_large_selection() -> TestRes
     assert!(ui.actions_from_click("Finish Edit Mesh")?.is_empty());
     Ok(())
 }
+
+#[test]
+fn workflow_refit_pull_to_skin_is_a_part_setting_beside_tightness() -> TestResult {
+    let mut ui = mixed_refit_ui(&[1])?;
+    ui.application.cdmw_state["morph_refit"]["refit"]["garment_settings"][0]["skin_pull_percent"] = json!(20.0);
+    ui.application.cdmw_state["morph_refit"]["state_revision"] = json!(2);
+    ui.frame(Vec::new());
+    assert_eq!(ui.application.cdmw_refit_skin_pull, 20.0);
+    ui.type_number_in_row("Pull to skin %", 20.0, "60")?;
+    assert_eq!(refit_arguments(&ui.actions_from_click("Apply to Selected Garments")?), json!({
+        "submesh_indices": [1], "skin_pull_percent": 60.0,
+    }));
+    Ok(())
+}

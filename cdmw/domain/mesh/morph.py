@@ -307,6 +307,8 @@ class MeshRefitGarmentSettings:
     tightness_percent: float = 0.0
     island_settings: tuple[MeshRefitIslandSettings, ...] = ()
     tightness_initialized: bool = True
+    # Authored-body fits only: the share of the outfit's own gap to the skin to close.
+    skin_pull_percent: float = 0.0
 
     def __post_init__(self) -> None:
         if type(self.tightness_initialized) is not bool:
@@ -316,6 +318,7 @@ class MeshRefitGarmentSettings:
         mode = str(self.mode or "surface").strip().lower()
         clearance = float(self.clearance_percent)
         tightness = float(self.tightness_percent)
+        pull = float(self.skin_pull_percent)
         if submesh_index < 0:
             raise ValueError("Refit garment submesh index must be non-negative.")
         if not math.isfinite(intensity) or not 0.0 <= intensity <= 200.0:
@@ -326,12 +329,15 @@ class MeshRefitGarmentSettings:
             raise ValueError("Refit clearance must be between 0 and 5 percent of driver size.")
         if not math.isfinite(tightness) or not 0.0 <= tightness <= 100.0:
             raise ValueError("Refit tightness must be between 0 and 100 percent.")
+        if not math.isfinite(pull) or not 0.0 <= pull <= 100.0:
+            raise ValueError("Refit Pull to skin must be between 0 and 100 percent.")
         object.__setattr__(self, "submesh_index", submesh_index)
         object.__setattr__(self, "enabled", bool(self.enabled))
         object.__setattr__(self, "intensity_percent", intensity)
         object.__setattr__(self, "mode", mode)
         object.__setattr__(self, "clearance_percent", clearance)
         object.__setattr__(self, "tightness_percent", tightness)
+        object.__setattr__(self, "skin_pull_percent", pull)
         islands = tuple(self.island_settings)
         faces: set[int] = set()
         for island in islands:
@@ -361,10 +367,11 @@ class MeshRefitIslandSettings:
     clearance_percent: float = 0.0
     tightness_percent: float = 0.0
     tightness_initialized: bool = True
+    skin_pull_percent: float = 0.0
 
     def __post_init__(self) -> None:
         if type(self.enabled) is not bool or type(self.tightness_initialized) is not bool or any(isinstance(getattr(self, name), bool) for name in
-                ("intensity_percent", "clearance_percent", "tightness_percent")):
+                ("intensity_percent", "clearance_percent", "tightness_percent", "skin_pull_percent")):
             raise ValueError("Island fitting requires a boolean enabled value and numeric settings.")
         indices = tuple(_strict_mesh_index(item, "Refit island face") for item in self.face_indices)
         if not indices or len(set(indices)) != len(indices):
@@ -372,9 +379,10 @@ class MeshRefitIslandSettings:
         normalized = MeshRefitGarmentSettings(
             0, enabled=self.enabled, intensity_percent=self.intensity_percent, mode=self.mode,
             clearance_percent=self.clearance_percent, tightness_percent=self.tightness_percent,
+            skin_pull_percent=self.skin_pull_percent,
         )
         object.__setattr__(self, "face_indices", tuple(sorted(indices)))
-        for key in ("enabled", "intensity_percent", "mode", "clearance_percent", "tightness_percent"):
+        for key in ("enabled", "intensity_percent", "mode", "clearance_percent", "tightness_percent", "skin_pull_percent"):
             object.__setattr__(self, key, getattr(normalized, key))
 
 

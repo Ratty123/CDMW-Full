@@ -1046,8 +1046,8 @@ const REFIT_BODY_COLOUR: Color32 = Color32::from_rgb(100, 190, 245);
 const REFIT_ARMOR_COLOUR: Color32 = Color32::from_rgb(240, 190, 95);
 const REFIT_READY_COLOUR: Color32 = Color32::from_rgb(110, 210, 160);
 
-const REFIT_SETTING_KEYS: [&str; 5] = [
-    "enabled", "mode", "intensity_percent", "tightness_percent", "clearance_percent",
+const REFIT_SETTING_KEYS: [&str; 6] = [
+    "enabled", "mode", "intensity_percent", "tightness_percent", "clearance_percent", "skin_pull_percent",
 ];
 
 pub(super) struct RefitFeedback {
@@ -1155,6 +1155,7 @@ fn refit_setting_values(setting: Option<&Value>) -> Value {
         "intensity_percent": setting.and_then(|row| row.get("intensity_percent")).and_then(Value::as_f64).unwrap_or(100.0),
         "tightness_percent": tightness,
         "clearance_percent": setting.and_then(|row| row.get("clearance_percent")).and_then(Value::as_f64).unwrap_or(0.0),
+        "skin_pull_percent": setting.and_then(|row| row.get("skin_pull_percent")).and_then(Value::as_f64).unwrap_or(0.0),
     })
 }
 
@@ -1212,6 +1213,7 @@ fn refit_mixed_numeric_choice(
             let label = match key {
                 "intensity_percent" => "Use displayed following",
                 "tightness_percent" => "Use displayed tightness",
+                "skin_pull_percent" => "Use displayed pull",
                 _ => "Use displayed clearance",
             };
             if ui.add_enabled(enabled, Button::new(crate::localization::tr(label)).small())
@@ -4034,6 +4036,12 @@ impl LabApplication {
                             .and_then(Value::as_f64)
                             .unwrap_or(0.0) as f32;
                     }
+                    if !self.cdmw_refit_settings_dirty.fields.contains("skin_pull_percent") {
+                        self.cdmw_refit_skin_pull = setting
+                            .and_then(|value| value.get("skin_pull_percent"))
+                            .and_then(Value::as_f64)
+                            .unwrap_or(0.0) as f32;
+                    }
                     self.cdmw_refit_hydration_key = hydration_key;
                 }
             }
@@ -4133,6 +4141,20 @@ impl LabApplication {
                     }
                     refit_mixed_numeric_choice(ui, "clearance_percent", mixed_fields.contains("clearance_percent"), true, &mut self.cdmw_refit_settings_dirty);
                 });
+                // Only the authored-body fit reads it; the bound fitter has Tightness.
+                let pull_enabled = self.cdmw_refit_use_reference_body;
+                ui.push_id("refit-skin-pull", |ui| {
+                    if ui.add_enabled(
+                        pull_enabled,
+                        crate::cdmw_ui::numeric::slider(&mut self.cdmw_refit_skin_pull, 0.0..=100.0)
+                            .text(crate::localization::tr("Pull to skin %")),
+                    ).on_hover_text(crate::localization::tr("With the authored body, closes this share of the outfit's own gap to the skin, down to Clearance. Layers on top move in with it. Cloth hanging well clear of the body keeps its drape. 0% keeps the outfit as made."))
+                        .on_disabled_hover_text(crate::localization::tr("Pull to skin needs Use the authored body."))
+                        .changed() {
+                        self.cdmw_refit_settings_dirty.mark("skin_pull_percent");
+                    }
+                    refit_mixed_numeric_choice(ui, "skin_pull_percent", mixed_fields.contains("skin_pull_percent"), pull_enabled, &mut self.cdmw_refit_settings_dirty);
+                });
                 let following = if mixed_fields.contains("intensity_percent")
                     && !self.cdmw_refit_settings_dirty.fields.contains("intensity_percent") {
                     crate::localization::tr("Mixed")
@@ -4158,6 +4180,7 @@ impl LabApplication {
                     "mode": self.cdmw_refit_mode,
                     "clearance_percent": self.cdmw_refit_clearance,
                     "tightness_percent": self.cdmw_refit_tightness,
+                    "skin_pull_percent": self.cdmw_refit_skin_pull,
                 });
                 if scope == 2 {
                     let can_apply = !islands.is_empty() && self.cdmw_refit_settings_dirty.is_dirty();

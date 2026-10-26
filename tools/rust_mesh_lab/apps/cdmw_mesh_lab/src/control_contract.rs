@@ -495,6 +495,7 @@ fn runtime_route(key: &str) -> RuntimeRoute {
         "refit.intensity" => (Kind::LocalState, "cdmw_refit_intensity"),
         "refit.clearance" => (Kind::LocalState, "cdmw_refit_clearance"),
         "refit.tightness" => (Kind::LocalState, "cdmw_refit_tightness"),
+        "refit.skin_pull" => (Kind::LocalState, "cdmw_refit_skin_pull"),
         "refit.apply" => (Kind::ShadowCommand, "refit_configure"),
         "refit.apply_all" => (Kind::ShadowCommand, "refit_configure"),
         "refit.island_apply" | "refit.island_inherit" => (Kind::ShadowCommand, "refit_island_configure"),
@@ -662,6 +663,7 @@ refit.mode|morph_refit|executable|bound_garment|false|
 refit.intensity|morph_refit|executable|bound_garment|false|
 refit.clearance|morph_refit|executable|bound_garment|false|
 refit.tightness|morph_refit|executable|bound_garment|false|
+refit.skin_pull|morph_refit|executable|bound_garment|false|
 refit.apply|morph_refit|executable|bound_garment|false|
 refit.apply_all|morph_refit|executable|bound_garment|false|
 refit.island_apply|morph_refit|executable|bound_garment|false|

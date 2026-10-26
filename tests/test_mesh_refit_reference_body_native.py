@@ -168,6 +168,83 @@ def test_reference_body_survives_a_version_5_runtime_snapshot():
             mesh_native_core.dispose_native_mesh_editor_morph_runtime_snapshot(descriptor)
 
 
+
+def _pulled(session, pull, parts=(1, 2, 3)):
+    settings = [{**row, "skin_pull_percent": pull} for row in _settings() if row["submesh_index"] in parts]
+    _command(session, "morph_set_reference_body", {
+        "reference_body": _reference(), "garment_submesh_indices": list(parts), "garment_settings": settings,
+    })
+    return _state(session)["refit"]["reference_body"]["last_fit"]
+
+
+def test_pull_to_skin_closes_the_authored_gap_and_layers_move_in_together():
+    mesh = _outfit()
+    results = {}
+    for pull in (0., 100.):
+        with _bound(mesh) as session:
+            last = _pulled(session, pull)
+            fitted = _snapshot(mesh, session)
+            sleeve, outer = np.median(_radii(fitted.submeshes[1])), np.median(_radii(fitted.submeshes[2]))
+            results[pull] = (sleeve - DRIVER_RADIUS, outer - sleeve, last["pulled_to_skin"], fitted)
+    # 0% keeps the outfit's own 5 mm; 100% closes it down to the clearance, and
+    # the outer layer comes in with the sleeve, keeping its spacing above it.
+    assert results[0.][0] == pytest.approx(.005, abs=1.5e-3) and results[0.][2] == 0
+    assert results[100.][0] < .0015 and results[100.][2] > 0
+    assert results[100.][1] == pytest.approx(results[0.][1], abs=1e-3)
+    _assert_rigid(mesh, results[100.][3])
+    assert np.median(_radii(results[100.][3].submeshes[1])) >= DRIVER_RADIUS
+
+
+def _assert_rigid(mesh, fitted):
+    before, after = np.asarray(mesh.submeshes[3].vertices), np.asarray(fitted.submeshes[3].vertices)
+    for a in range(len(before)):
+        for b in range(a):
+            assert np.linalg.norm(after[a] - after[b]) == pytest.approx(np.linalg.norm(before[a] - before[b]), abs=1e-6)
+
+
+def test_pull_to_skin_leaves_cloth_hanging_well_clear_of_the_body():
+    # A loose band 6 cm off the arm: beyond the pull's reach, so it keeps its drape.
+    loose = _refit_tube_part("loose", AUTHORED_RADIUS + .06, 0., (.15, .2, .25, .3, .35), 32)
+    mesh = _mesh(_arm(DRIVER_RADIUS), loose)
+    fitted = {}
+    for pull in (0., 100.):
+        session = _open(mesh)
+        try:
+            _command(session, "morph_upload", {"profile": {
+                "profile_id": "fit", "name": "Fit", "topology_fingerprint": "a" * 64, "definitions": [], "fields": [],
+            }})
+            _command(session, "morph_set_driver", {"submesh_indices": [0]})
+            _command(session, "morph_bind", {"garment_submesh_indices": [1]})
+            _command(session, "morph_set_reference_body", {
+                "reference_body": _reference(), "garment_submesh_indices": [1],
+                "garment_settings": [{"submesh_index": 1, "mode": "surface", "clearance_percent": .1,
+                                      "skin_pull_percent": pull}],
+            })
+            fitted[pull] = np.asarray(_snapshot(mesh, session).submeshes[1].vertices, float)
+        finally:
+            mesh_native_core.close_native_mesh_editor_session(session)
+    np.testing.assert_allclose(fitted[100.], fitted[0.], atol=1e-9)
+
+
+def test_pull_to_skin_is_kept_per_part_and_island_and_survives_a_snapshot():
+    mesh = _outfit()
+    with _bound(mesh) as session:
+        _pulled(session, 40.)
+        rows = {row["submesh_index"]: row for row in _state(session)["refit"]["garment_settings"]}
+        assert rows[1]["skin_pull_percent"] == 40.
+        descriptor = mesh_native_core.create_native_mesh_editor_morph_runtime_snapshot(session)
+        target = _open(_snapshot(mesh, session))
+        try:
+            assert mesh_native_core.restore_native_mesh_editor_morph_runtime_snapshot(target, descriptor)
+            restored = {row["submesh_index"]: row for row in _state(target)["refit"]["garment_settings"]}
+            assert restored[2]["skin_pull_percent"] == 40.
+        finally:
+            mesh_native_core.close_native_mesh_editor_session(target)
+            mesh_native_core.dispose_native_mesh_editor_morph_runtime_snapshot(descriptor)
+        with pytest.raises(AssertionError):
+            _command(session, "morph_configure_refit", {"garment_submesh_indices": [1], "skin_pull_percent": 101.})
+
+
 def test_an_unmarked_closed_dagger_on_cloth_fits_rigidly_through_the_reference():
     from tests.test_mesh_refit_layer_boundaries_native import _combined_part
 

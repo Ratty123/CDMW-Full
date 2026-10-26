@@ -561,10 +561,10 @@ MeshRefitGarmentSettingsRuntime mesh_editor_refit_settings_from_json(
     bool strict_types
 ) {
     if (strict_types) {
-        for (const auto* key : {"intensity_percent", "clearance_percent", "tightness_percent"}) {
+        for (const auto* key : {"intensity_percent", "clearance_percent", "tightness_percent", "skin_pull_percent"}) {
             const auto* value = raw.get(key);
             if (value && value->type != JsonValue::Type::Number)
-                throw std::runtime_error("garment refit settings require numeric intensity, clearance and tightness");
+                throw std::runtime_error("garment refit settings require numeric intensity, clearance, tightness and skin pull");
         }
         const auto* enabled = raw.get("enabled");
         const auto* initialized = raw.get("tightness_initialized");
@@ -584,6 +584,11 @@ MeshRefitGarmentSettingsRuntime mesh_editor_refit_settings_from_json(
     if (!std::isfinite(settings.tightness_percent)
         || settings.tightness_percent < 0.0 || settings.tightness_percent > 100.0) {
         throw std::runtime_error("garment refit tightness must be between 0 and 100 percent");
+    }
+    settings.skin_pull_percent = number_or(raw.get("skin_pull_percent"), settings.skin_pull_percent);
+    if (!std::isfinite(settings.skin_pull_percent)
+        || settings.skin_pull_percent < 0.0 || settings.skin_pull_percent > 100.0) {
+        throw std::runtime_error("garment refit skin pull must be between 0 and 100 percent");
     }
     if (!std::isfinite(settings.intensity_percent)
         || settings.intensity_percent < 0.0 || settings.intensity_percent > 200.0) {
@@ -614,6 +619,7 @@ MeshRefitGarmentSettingsRuntime mesh_editor_refit_settings_from_json(
             target.intensity_percent = values.intensity_percent; target.clearance_percent = values.clearance_percent;
             target.tightness_percent = values.tightness_percent;
             target.tightness_initialized = values.tightness_initialized;
+            target.skin_pull_percent = values.skin_pull_percent;
             for (const auto& face : faces->array_value) {
                 int index = -1;
                 if (!strict_int_or(&face,index) || index < 0 || !seen.insert(index).second)
@@ -648,7 +654,8 @@ void mesh_editor_configure_refit_batch(
         if (!strict_int_or(&item, index) || !garments.count(index))
             throw std::runtime_error("garment refit batch contains an invalid garment index");
     }
-    for (const auto* key : {"enabled", "intensity_percent", "mode", "clearance_percent", "tightness_percent", "vertex_masks"}) {
+    for (const auto* key : {"enabled", "intensity_percent", "mode", "clearance_percent", "tightness_percent",
+            "skin_pull_percent", "vertex_masks"}) {
         if (root.get(key)) throw std::runtime_error("garment refit batch cannot mix per-part and shared settings");
     }
     std::set<int> seen;
@@ -712,6 +719,7 @@ std::string mesh_editor_morph_configure_refit_session_report(
             // Older clients omit tightness. Preserve the authoritative per-Part value.
             defaults.tightness_percent = next_refit->garment_settings[index].tightness_percent;
             defaults.tightness_initialized = next_refit->garment_settings[index].tightness_initialized;
+            defaults.skin_pull_percent = next_refit->garment_settings[index].skin_pull_percent;
             defaults.island_settings = next_refit->garment_settings[index].island_settings;
             next_refit->garment_settings[index] = mesh_editor_refit_settings_from_json(root, defaults, true);
         }

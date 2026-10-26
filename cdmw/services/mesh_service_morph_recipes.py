@@ -72,13 +72,15 @@ def fitting_recipe_payload(recipe: MeshMorphFittingRecipe, *, streaming: bool = 
                 "clearance_percent": item.clearance_percent,
                 "tightness_percent": item.tightness_percent,
                 "tightness_initialized": item.tightness_initialized,
+                "skin_pull_percent": item.skin_pull_percent,
                 "vertex_mask": None if item.vertex_mask is None else [
                     {"vertex_index": index, "weight": weight} for index, weight in item.vertex_mask
                 ],
                 **({"island_settings": [
                     {"face_indices": list(island.face_indices), **{
                         key: getattr(island, key) for key in
-                        ("enabled", "intensity_percent", "mode", "clearance_percent", "tightness_percent", "tightness_initialized")
+                        ("enabled", "intensity_percent", "mode", "clearance_percent", "tightness_percent", "tightness_initialized",
+                         "skin_pull_percent")
                     }} for island in item.island_settings
                 ]} if item.island_settings else {}),
             }
@@ -127,13 +129,16 @@ def fitting_recipe_from_payload(payload: Mapping[str, object]) -> MeshMorphFitti
             clearance_percent=float(item.get("clearance_percent", 0.0)),
             tightness_percent=float(item["tightness_percent"]) if payload["format"] != "cdmw.mesh_refit_recipe.v1" else 0.0,
             tightness_initialized=item.get("tightness_initialized", True),
+            # Setups saved before Pull to skin existed keep the outfit's own gap.
+            skin_pull_percent=float(item.get("skin_pull_percent", 0.0)),
             vertex_mask=mask,
         )
         settings.append(replace(parent,
             island_settings=tuple(MeshRefitIslandSettings(
                 face_indices=tuple(island.get("face_indices") or ()),
                 **{key: island.get(key, getattr(parent, key)) for key in
-                   ("enabled", "intensity_percent", "mode", "clearance_percent", "tightness_percent", "tightness_initialized")},
+                   ("enabled", "intensity_percent", "mode", "clearance_percent", "tightness_percent", "tightness_initialized",
+                    "skin_pull_percent")},
             ) for island in _objects(item.get("island_settings", []), "island settings")),
         ))
     garment_regions = tuple(

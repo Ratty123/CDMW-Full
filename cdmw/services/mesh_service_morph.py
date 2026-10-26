@@ -673,7 +673,7 @@ class MeshMorphServiceMixin(MeshMorphLayerMixin, MeshMorphAuthoringMixin, MeshMo
                 session.session_id,
                 tuple(indices or ()),  # type: ignore[arg-type]
                 **{key: params[key] for key in (
-                    "enabled", "intensity_percent", "mode", "clearance_percent", "tightness_percent",
+                    "enabled", "intensity_percent", "mode", "clearance_percent", "tightness_percent", "skin_pull_percent",
                 ) if key in params},
             )[0]
         if action == "morph_set_reference_body":
@@ -1590,6 +1590,7 @@ class MeshMorphServiceMixin(MeshMorphLayerMixin, MeshMorphAuthoringMixin, MeshMo
         mode: object = _REFIT_SETTING_UNSET,
         clearance_percent: object = _REFIT_SETTING_UNSET,
         tightness_percent: object = None,
+        skin_pull_percent: object = _REFIT_SETTING_UNSET,
     ) -> tuple[MeshEditResult, MeshMorphState]:
         """Apply only supplied fields to each Part's resident settings, atomically."""
         garment_indices = _indices(garment_submesh_indices)
@@ -1608,6 +1609,8 @@ class MeshMorphServiceMixin(MeshMorphLayerMixin, MeshMorphAuthoringMixin, MeshMo
         if tightness_percent is not None:
             changes["tightness_percent"] = float(tightness_percent)
             changes["tightness_initialized"] = True
+        if skin_pull_percent is not _REFIT_SETTING_UNSET:
+            changes["skin_pull_percent"] = float(skin_pull_percent)
         if not changes:
             raise ValueError("Change at least one Refit setting before applying.")
         session = self._session(session_id)
@@ -1635,7 +1638,7 @@ class MeshMorphServiceMixin(MeshMorphLayerMixin, MeshMorphAuthoringMixin, MeshMo
         inherit: bool = False, **changes: object,
     ) -> tuple[MeshEditResult, MeshMorphState]:
         """Override whole selected islands, retaining every other Part and island."""
-        fields = {"enabled", "intensity_percent", "mode", "clearance_percent", "tightness_percent"}
+        fields = {"enabled", "intensity_percent", "mode", "clearance_percent", "tightness_percent", "skin_pull_percent"}
         if set(changes) - fields or (inherit and changes) or (not inherit and not changes):
             raise ValueError("Change fitting settings or restore Part settings for the selected islands.")
         if "tightness_percent" in changes:
@@ -2368,11 +2371,13 @@ class MeshMorphServiceMixin(MeshMorphLayerMixin, MeshMorphAuthoringMixin, MeshMo
                 clearance_percent=float(item.get("clearance_percent", 0.0)),
                 tightness_percent=float(item.get("tightness_percent", 0.0)),
                 tightness_initialized=item.get("tightness_initialized", True),
+                skin_pull_percent=float(item.get("skin_pull_percent", 0.0)),
                 vertex_mask=vertex_masks.get(int(item.get("submesh_index", -1))),
                 island_settings=tuple(MeshRefitIslandSettings(
                     face_indices=tuple(island["face_indices"]),
                     **{key: island[key] for key in ("enabled", "intensity_percent", "mode", "clearance_percent", "tightness_percent")},
                     tightness_initialized=island.get("tightness_initialized", True),
+                    skin_pull_percent=float(island.get("skin_pull_percent", 0.0)),
                 ) for island in item.get("island_settings", ())),
             )
             for item in tuple(refit.get("garment_settings") or ())

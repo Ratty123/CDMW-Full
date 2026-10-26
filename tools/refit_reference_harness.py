@@ -80,6 +80,8 @@ from cdmw.modding.mesh_refit_reference import RefitReferenceBody, retarget_refer
 from cdmw.modding.skeleton_parser import parse_pab  # noqa: E402
 
 INSIDE = 0.0005
+# Garment points this close to the skin count for the near-skin gap.
+NEAR_SKIN = 0.09
 SKIN_REACH = 0.03
 SKIN_FACING = 0.5
 
@@ -267,11 +269,13 @@ def _settings(outfit: ParsedMesh, islands, body_count: int, config: dict) -> lis
         row = {"submesh_index": body_count + part, "mode": row_config.get("mode", config.get("default_mode", "surface")),
                "tightness_percent": float(row_config.get("tightness", config.get("tightness", 100.0))),
                "clearance_percent": float(row_config.get("clearance", config.get("clearance", 0.1))),
+               "skin_pull_percent": float(row_config.get("skin_pull", config.get("skin_pull", 0.0))),
                "enabled": not row_config.get("skip", False)}
         if row_config.get("rigid_islands"):
             row["island_settings"] = [{"face_indices": list(groups[index]), "mode": "rigid_component",
                                        "tightness_percent": row["tightness_percent"],
-                                       "clearance_percent": row["clearance_percent"]}
+                                       "clearance_percent": row["clearance_percent"],
+                                       "skin_pull_percent": row["skin_pull_percent"]}
                                       for index in row_config["rigid_islands"]]
         rows.append(row)
     return rows
@@ -549,6 +553,9 @@ def analyse(run: dict, config: dict, reference: RefitReferenceBody | None) -> di
     skin, skin_depth = _skin_through(driver, garment_after, garment_faces, (garment_before, authored))
     skin_all, _ = _skin_through(driver, garment_after, garment_faces)
     skin_authored, _ = _skin_through(authored, garment_before, garment_faces)
+    # How far cloth near the body stands off it (garment points within NEAR_SKIN of the skin).
+    standoff = _signed_distance(driver, garment_after)
+    near = standoff[(standoff > 0.0) & (standoff < NEAR_SKIN)]
     return {
         "summary": {
             "method": run["method"], "status": run["status"], "seconds": run["seconds"],
@@ -569,6 +576,7 @@ def analyse(run: dict, config: dict, reference: RefitReferenceBody | None) -> di
             "new_crossing_triangles_on_clean_pairs": sum(item["after"] for item in crossings if item["before"] == 0),
             "cloth_strain": _summary(np.concatenate(cloth)) if cloth else _summary(()),
             "tail_strain": _summary(np.concatenate(tail)) if tail else _summary(()),
+            "near_skin_gap_mm": float(np.median(near) * 1000) if len(near) else 0.0,
         },
         "worst_cloth_islands_p95": [{"part": part, "island": island, "p95": value} for part, island, value in worst_cloth],
         "new_layer_crossings": crossings, "parts": parts, "error": run["error"], "last_fit": run["last_fit"],
@@ -694,7 +702,8 @@ def render_sheet(mesh: ParsedMesh, body_count: int, path: Path, size: int = 500)
 _CORPUS_COLUMNS = {"new_inside_vertices": np.sum, "deepest_new_inside_mm": np.max, "new_skin_through_vertices": np.sum,
                    "deepest_new_skin_through_mm": np.max, "skin_through_vertices": np.sum, "new_layer_crossing_triangles": np.sum,
                    "new_crossing_triangles_on_clean_pairs": np.sum,
-                   "rigid_cloth_crossing_triangles": np.sum, "worst_solid_distortion_mm": np.max, "seconds": np.sum}
+                   "rigid_cloth_crossing_triangles": np.sum, "worst_solid_distortion_mm": np.max,
+                   "near_skin_gap_mm": np.median, "seconds": np.sum}
 
 
 def run_corpus(args) -> int:
@@ -707,7 +716,7 @@ def run_corpus(args) -> int:
     results = []
     for outfit in outfits:
         config = {"body": args.driver, "outfit": outfit, "clearance": 0.1, "tightness": 100.0,
-                  "body_weights": not args.keep_weights}
+                  "body_weights": not args.keep_weights, "skin_pull": args.skin_pull}
         row = {"outfit": outfit, "runs": {}}
         try:
             inputs = _archive_inputs(config, dependencies)
@@ -787,6 +796,8 @@ def main(argv=None) -> int:
     parser.add_argument("--driver", default=PRESETS["11002"]["body"], help="Driver body archive path for --corpus")
     parser.add_argument("--keep-weights", action="store_true",
                         help="Fit without giving garments the body's skin weights near the skin")
+    parser.add_argument("--skin-pull", type=float, default=0.0,
+                        help="Pull to skin percent for every Part of a reference fit (default 0, as Fit starts)")
     parser.add_argument("--poses", action="store_true",
                         help="Also pose body and outfit together and score what motion adds (archive mode)")
     args = parser.parse_args(argv)
@@ -806,6 +817,8 @@ def main(argv=None) -> int:
         parser.error("choose a --preset or give a --config naming body and outfit")
     if args.keep_weights:
         config["body_weights"] = False
+    if args.skin_pull:
+        config["skin_pull"] = args.skin_pull
     _require_dev_dependencies(args.render, bool(args.game_root))
     if not mesh_native_core.native_mesh_core_available():
         raise SystemExit("Build the native mesh core first (native/cdmw_mesh_core, Release).")

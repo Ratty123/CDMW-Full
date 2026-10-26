@@ -2252,7 +2252,15 @@ service records `replace_skin_weights_same_count` (`cdmw_exact_pac_skin_weights_
 with the Part's palette size) for every Part whose rows changed and marks the session
 for read-back, so export carries them. Only LOD 0 rows change. The same small-accessory inference as the bound fitter makes unmarked closed attachments
 rigid. Disabled Parts, removed islands, masks and post-refit corrections behave as in
-the bound fitter; Tightness and Intensity are not used. The reference survives
+the bound fitter; Tightness and Intensity are not used. **Pull to skin**
+(`skin_pull_percent`, per Part and island like Tightness, default 0) closes that share
+of the outfit's own gap to the skin: after the transfer, each garment point moves in
+along the body normal by the gap under the innermost garment over the same skin
+(within 20 mm, averaged once), down to its Clearance, so a stack of layers moves together
+and keeps its spacing. Where that innermost gap is 60 to 90 mm the pull fades out, so
+cloth hanging clear of the body keeps its drape; pieces inside the authored body are
+left alone, and rigid pieces take the best rigid motion of their pulled points. The
+last fit reports `pulled_to_skin`. The reference survives
 rebinding, is dropped by Reset and Bake, is stored in runtime snapshot version 5 and
 is reported, with the latest fit's diagnostics, as `morph_state.refit.reference_body`.
 The editor's archive sets are bounded per opened PAC (`ArchivePreviewDependencySet`):

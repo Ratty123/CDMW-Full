@@ -137,7 +137,8 @@ void mesh_editor_write_snapshot_refit(std::ostream& out, const MeshMorphRuntime&
         write_escaped(out, item.second.mode);
         out << ",\"clearance_percent\":" << item.second.clearance_percent
             << ",\"tightness_percent\":" << item.second.tightness_percent
-            << ",\"tightness_initialized\":" << (item.second.tightness_initialized ? "true" : "false");
+            << ",\"tightness_initialized\":" << (item.second.tightness_initialized ? "true" : "false")
+            << ",\"skin_pull_percent\":" << item.second.skin_pull_percent;
         mesh_editor_write_refit_island_settings(out,item.second);
         out << '}';
     }

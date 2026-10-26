@@ -350,3 +350,39 @@ def test_failed_fit_through_background_protocol_keeps_preview_and_settings(resid
         assert len(shadow._session(sid).undo_stack) == count
     finally:
         editor.cancel()
+
+
+def test_pull_to_skin_is_a_part_setting_kept_beside_the_others(resident):
+    from cdmw.domain.mesh.morph import MeshRefitGarmentSettings
+
+    service, open_session = resident
+    mesh = _mesh(_arm(), _sleeve(), _sleeve(radius=.11))
+    session = open_session(mesh)
+    owner = service._session(session)
+    profile = MeshMorphProfile(profile_id="fit", name="Fit", topology_fingerprint=mesh_morph_driver_topology_fingerprint(mesh, ()))
+    service._activate_morph_profile_locked(owner, profile)
+    assert service.set_refit_driver(session, (0,))[0].ok
+    assert service.bind_refit(session, (1, 2))[0].ok
+    assert service.configure_refit(session, (1,), tightness_percent=25.)[0].ok
+    assert service.configure_refit(session, (1,), skin_pull_percent=55.)[0].ok
+    rows = {item.submesh_index: item for item in service.cached_morph_state_from_runtime(session).refit.garment_settings}
+    assert rows[1].skin_pull_percent == 55. and rows[1].tightness_percent == 25.
+    assert rows[2].skin_pull_percent == 0.
+    with pytest.raises(ValueError, match="Pull to skin"):
+        MeshRefitGarmentSettings(1, skin_pull_percent=101.)
+
+
+def test_recipe_keeps_pull_to_skin_and_older_setups_read_as_zero(tmp_path):
+    service = _service(tmp_path)
+    state = service.data.state
+    service.data.state = replace(state, refit=replace(state.refit, garment_settings=tuple(
+        replace(item, skin_pull_percent=30.) for item in state.refit.garment_settings)))
+    _, state = service.save_refit_setup("mock", "Pulled")
+    _, path = _saved_path(service, state)
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    recipe = fitting_recipe_from_payload(payload)
+    assert all(item.skin_pull_percent == 30. for item in recipe.garment_settings)
+    assert fitting_recipe_payload(recipe) == payload
+    for row in payload["garment_settings"]:
+        row.pop("skin_pull_percent")
+    assert all(item.skin_pull_percent == 0. for item in fitting_recipe_from_payload(payload).garment_settings)

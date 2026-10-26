@@ -9368,14 +9368,14 @@ class RustMeshAuthoringSession:
                 session_id,
                 tuple(args.get("submesh_indices", ()) or ()),
                 **{key: args[key] for key in (
-                    "enabled", "intensity_percent", "mode", "clearance_percent", "tightness_percent",
+                    "enabled", "intensity_percent", "mode", "clearance_percent", "tightness_percent", "skin_pull_percent",
                 ) if key in args},
             )
         if command == "refit_island_configure":
             return service.configure_refit_islands(
                 session_id, tuple(args.get("islands", ()) or ()), inherit=args.get("inherit", False),
                 **{key: args[key] for key in (
-                    "enabled", "intensity_percent", "mode", "clearance_percent", "tightness_percent",
+                    "enabled", "intensity_percent", "mode", "clearance_percent", "tightness_percent", "skin_pull_percent",
                 ) if key in args},
             )
         if command == "refit_fit_to_body":

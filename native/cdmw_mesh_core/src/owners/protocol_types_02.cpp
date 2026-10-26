@@ -89,6 +89,7 @@ struct MeshRefitIslandSettingsRuntime {
     double clearance_percent = 0.0;
     double tightness_percent = 0.0;
     bool tightness_initialized = true;
+    double skin_pull_percent = 0.0;
 };
 
 struct MeshRefitGarmentSettingsRuntime {
@@ -98,6 +99,8 @@ struct MeshRefitGarmentSettingsRuntime {
     double clearance_percent = 0.0;
     double tightness_percent = 0.0;
     bool tightness_initialized = true;
+    // Authored-body fits only: how much of the outfit's own gap to the skin to close.
+    double skin_pull_percent = 0.0;
     std::vector<MeshRefitIslandSettingsRuntime> island_settings;
 };
 

@@ -61,6 +61,16 @@ constexpr double REFIT_REFERENCE_STRETCH_MAX = 1.04;
 // constraints disagree, so more iterations made such fits worse, not better.
 constexpr double REFIT_REFERENCE_STEP = 1.0;
 constexpr std::size_t REFIT_REFERENCE_MAX_VERTICES = 2000000;
+// Skin pull closes part of the outfit's own gap to the skin. A point's gap is the
+// innermost garment over the same skin within PULL_REACH, so stacked layers move
+// together; cloth whose innermost layer hangs more than PULL_FULL off the body
+// takes less of the pull, and none past PULL_NONE (a sash tail, a cape).
+constexpr double REFIT_REFERENCE_PULL_REACH = 0.02;
+constexpr double REFIT_REFERENCE_PULL_FULL = 0.06;
+constexpr double REFIT_REFERENCE_PULL_NONE = 0.09;
+// The pull is spread like the body field (Gaussian width), so neighbouring
+// layers and touching pieces move alike instead of crossing.
+constexpr double REFIT_REFERENCE_PULL_SPREAD = 0.015;
 
 Vec3 refit_reference_cross(const Vec3& a, const Vec3& b) {
     return {a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]};
@@ -568,6 +578,7 @@ struct RefitReferenceIslandNative {
     bool fitted = false;
     std::string mode = "surface";
     double clearance = 0.0;
+    double pull = 0.0;
     int unit = -1;
 };
 
@@ -577,6 +588,7 @@ struct RefitReferenceParticle {
     int surface = -1;
     double clearance = 0.0;
     int unit = -1;
+    double pull = 0.0;
 };
 
 // Defined in session_refit_weights.cpp.
@@ -648,12 +660,14 @@ std::string mesh_editor_apply_reference_refit(
             bool enabled = settings.enabled;
             std::string mode = settings.mode;
             double clearance = settings.clearance_percent;
+            double pull = settings.skin_pull_percent;
             bool inherits = true;
             for (const auto& item : settings.island_settings) {
                 if (item.face_indices != groups[g]) continue;
                 enabled = item.enabled;
                 mode = item.mode;
                 clearance = item.clearance_percent;
+                pull = item.skin_pull_percent;
                 inherits = false;
             }
             const bool removed = excluded != refit.excluded_faces.end()
@@ -661,6 +675,7 @@ std::string mesh_editor_apply_reference_refit(
             island.fitted = enabled && !removed;
             island.mode = mode;
             island.clearance = refit.driver_diagonal * clearance / 100.0;
+            island.pull = pull / 100.0;
             if (island.fitted && mode == "rigid" && inherits) {
                 // A rigid Part moves as one piece; a rigid island override moves alone.
                 if (part_unit < 0) part_unit = units++;
@@ -685,7 +700,7 @@ std::string mesh_editor_apply_reference_refit(
                 map[static_cast<std::size_t>(vertex)] = inserted.first->second;
                 if (!inserted.second) continue;
                 const auto& row = rows[static_cast<std::size_t>(island)];
-                particle_rows.push_back({part, island, surfaces.at({part, island}), row.clearance, row.unit});
+                particle_rows.push_back({part, island, surfaces.at({part, island}), row.clearance, row.unit, row.pull});
                 start.push_back(point);
             }
         }
@@ -760,6 +775,7 @@ std::string mesh_editor_apply_reference_refit(
     const auto field = refit_reference_body_field(reference, driver, scale);
     std::vector<Vec3> rest(count);
     for (std::size_t i = 0; i < count; ++i) rest[i] = add_vec3(start[i], refit_reference_field_at(field, start[i], scale));
+    const RefitReferenceSurface authored(reference.source_positions, reference.faces);
     const double sink = REFIT_REFERENCE_ASSEMBLY_SINK * scale;
     std::map<int, std::vector<int>> assemblies;
     for (std::size_t i = 0; i < count; ++i)
@@ -825,6 +841,165 @@ std::string mesh_editor_apply_reference_refit(
         }
     }
     const std::vector<std::pair<int, int>> edges(edge_set.begin(), edge_set.end());
+    std::vector<std::vector<int>> surface_faces(surfaces.size());
+    for (std::size_t f = 0; f < garment_faces.size(); ++f)
+        surface_faces[static_cast<std::size_t>(garment_face_surface[f])].push_back(static_cast<int>(f));
+    // A small closed piece the fit does not hold rigid (a bead, a clasp) must not
+    // bend, unless the body passes through it (a collar).
+    const auto small_closed_pieces = [&](const std::vector<std::vector<int>>& face_groups) {
+        std::vector<std::vector<int>> found;
+        Vec3 low = driver_points.front(), high = low;
+        for (const auto& point : driver_points) for (int axis = 0; axis < 3; ++axis) {
+            low[axis] = std::min(low[axis], point[axis]);
+            high[axis] = std::max(high[axis], point[axis]);
+        }
+        int up = 0;
+        for (int axis = 1; axis < 3; ++axis) if (high[axis] - low[axis] > high[up] - low[up]) up = axis;
+        for (const auto& faces : face_groups) {
+            std::map<std::pair<int, int>, int> uses;
+            std::set<int> members;
+            for (const int f : faces) {
+                const auto& corners = garment_faces[static_cast<std::size_t>(f)];
+                for (int c = 0; c < 3; ++c) {
+                    ++uses[std::minmax(corners[c], corners[(c + 1) % 3])];
+                    members.insert(corners[c]);
+                }
+            }
+            if (members.empty() || std::any_of(members.begin(), members.end(),
+                    [&](int i) { return particle_rows[static_cast<std::size_t>(i)].unit >= 0; })
+                || std::any_of(uses.begin(), uses.end(), [](const auto& edge) { return edge.second != 2; }))
+                continue;
+            Vec3 piece_low = start[static_cast<std::size_t>(*members.begin())], piece_high = piece_low;
+            for (const int i : members) for (int axis = 0; axis < 3; ++axis) {
+                piece_low[axis] = std::min(piece_low[axis], start[static_cast<std::size_t>(i)][axis]);
+                piece_high[axis] = std::max(piece_high[axis], start[static_cast<std::size_t>(i)][axis]);
+            }
+            bool band = true;
+            for (int axis = 0; axis < 3; ++axis) {
+                const double centre = (low[axis] + high[axis]) / 2.0;
+                if (axis != up && (centre < piece_low[axis] || centre > piece_high[axis])) band = false;
+            }
+            if (band || length_vec3(sub_vec3(piece_high, piece_low)) > REFIT_REFERENCE_SOLID_SIZE * refit.driver_diagonal) continue;
+            found.emplace_back(members.begin(), members.end());
+        }
+        return found;
+    };
+
+    // Skin pull, authored-body fits only: close the chosen share of the outfit's
+    // own gap to the skin. A point's gap is the one under the innermost garment
+    // over the same skin, so a stack of layers keeps its spacing; the result is
+    // spread like the body field, and each rigid group and small closed piece
+    // moves by its average, keeping its shape. Pieces that were inside the
+    // authored body (a mask, a lining) neither move nor count.
+    long long pulled = 0;
+    if (std::any_of(particle_rows.begin(), particle_rows.end(), [](const auto& row) { return row.pull > 0.0; })) {
+        std::vector<double> gap(count, std::numeric_limits<double>::infinity());
+        std::vector<Vec3> inward(count, Vec3{0.0, 0.0, 0.0}), skin(count, Vec3{0.0, 0.0, 0.0});
+        std::vector<int> valid;
+        for (std::size_t i = 0; i < count; ++i) {
+            Vec3 outward;
+            if (authored.signed_distance(start[i], outward) < -REFIT_REFERENCE_INSIDE * scale) continue;
+            const double distance = driver.signed_distance(rest[i], outward);
+            if (!std::isfinite(distance) || dot_vec3(outward, outward) < 0.5) continue;
+            gap[i] = distance;
+            inward[i] = scale_vec3(outward, -1.0);
+            skin[i] = sub_vec3(rest[i], scale_vec3(outward, distance));
+            valid.push_back(static_cast<int>(i));
+        }
+        std::vector<Vec3> skin_points;
+        for (const int i : valid) skin_points.push_back(skin[static_cast<std::size_t>(i)]);
+        const RefitReferencePointIndex skin_index(skin_points);
+        const double reach = REFIT_REFERENCE_PULL_REACH * scale;
+        std::vector<double> innermost(count, std::numeric_limits<double>::infinity());
+        for (const int i : valid) skin_index.within(skin[static_cast<std::size_t>(i)], reach, [&](int k) {
+            innermost[static_cast<std::size_t>(i)] = std::min(innermost[static_cast<std::size_t>(i)],
+                gap[static_cast<std::size_t>(valid[static_cast<std::size_t>(k)])]);
+        });
+        const double full = REFIT_REFERENCE_PULL_FULL * scale, none = REFIT_REFERENCE_PULL_NONE * scale;
+        std::vector<Vec3> raw(count, Vec3{0.0, 0.0, 0.0});
+        std::vector<int> members;
+        for (const int i : valid) {
+            const auto& row = particle_rows[static_cast<std::size_t>(i)];
+            if (row.pull <= 0.0) continue;
+            members.push_back(i);
+            double under = 0.0;
+            int samples = 0;
+            skin_index.within(skin[static_cast<std::size_t>(i)], reach, [&](int k) {
+                under += innermost[static_cast<std::size_t>(valid[static_cast<std::size_t>(k)])];
+                ++samples;
+            });
+            under = samples ? under / samples : innermost[static_cast<std::size_t>(i)];
+            if (!(under > row.clearance)) continue;
+            const double share = row.pull * std::clamp((none - under) / (none - full), 0.0, 1.0);
+            raw[static_cast<std::size_t>(i)] = scale_vec3(inward[static_cast<std::size_t>(i)], share * (under - row.clearance));
+        }
+        std::vector<Vec3> member_points;
+        for (const int i : members) member_points.push_back(rest[static_cast<std::size_t>(i)]);
+        const RefitReferencePointIndex member_index(member_points);
+        const double spread = REFIT_REFERENCE_PULL_SPREAD * scale;
+        std::vector<Vec3> shift(count, Vec3{0.0, 0.0, 0.0});
+        for (const int i : members) {
+            Vec3 sum{0.0, 0.0, 0.0};
+            double weight = 0.0;
+            member_index.within(rest[static_cast<std::size_t>(i)], 2.5 * spread, [&](int k) {
+                const int j = members[static_cast<std::size_t>(k)];
+                const double w = std::exp(-distance_squared_vec3(rest[static_cast<std::size_t>(i)], rest[static_cast<std::size_t>(j)])
+                    / (2.0 * spread * spread));
+                sum = add_vec3(sum, scale_vec3(raw[static_cast<std::size_t>(j)], w));
+                weight += w;
+            });
+            if (weight <= 0.0) continue;
+            // Spreading must not carry a point past its own skin.
+            Vec3 spread_shift = scale_vec3(sum, 1.0 / weight);
+            const double allowed = std::max(0.0, gap[static_cast<std::size_t>(i)] - particle_rows[static_cast<std::size_t>(i)].clearance);
+            const double length = length_vec3(spread_shift);
+            if (length > allowed) spread_shift = length > 0.0 ? scale_vec3(spread_shift, allowed / length) : spread_shift;
+            shift[static_cast<std::size_t>(i)] = spread_shift;
+        }
+        // A rigid group moves by its smallest shift, so no end sinks into the
+        // cloth under it. A small closed piece (also one inside a larger island,
+        // a bead on a cord) moves by its average and is then held rigid like a
+        // rigid group, or the layers under it would bend it as they come in.
+        const auto translate = [&](const std::vector<int>& group) {
+            Vec3 least = shift[static_cast<std::size_t>(group.front())];
+            for (const int i : group)
+                if (dot_vec3(shift[static_cast<std::size_t>(i)], shift[static_cast<std::size_t>(i)]) < dot_vec3(least, least))
+                    least = shift[static_cast<std::size_t>(i)];
+            for (const int i : group) shift[static_cast<std::size_t>(i)] = least;
+        };
+        for (const auto& group : rigid_groups) translate(group);
+        std::vector<int> root(count);
+        std::iota(root.begin(), root.end(), 0);
+        const auto find = [&](int i) {
+            while (root[static_cast<std::size_t>(i)] != i) i = root[static_cast<std::size_t>(i)] = root[static_cast<std::size_t>(root[static_cast<std::size_t>(i)])];
+            return i;
+        };
+        for (const auto& face : garment_faces)
+            for (int c = 1; c < 3; ++c) root[static_cast<std::size_t>(find(face[c]))] = find(face[0]);
+        std::map<int, std::vector<int>> components;
+        for (std::size_t f = 0; f < garment_faces.size(); ++f) components[find(garment_faces[f][0])].push_back(static_cast<int>(f));
+        std::vector<std::vector<int>> component_faces;
+        for (auto& item : components) component_faces.push_back(std::move(item.second));
+        // Islands first (a bead welded to its cord), then whole components.
+        auto closed = small_closed_pieces(surface_faces);
+        for (auto& piece : small_closed_pieces(component_faces)) closed.push_back(std::move(piece));
+        std::set<int> held;
+        for (const auto& group : rigid_groups) held.insert(group.begin(), group.end());
+        for (const auto& piece : closed) {
+            if (std::any_of(piece.begin(), piece.end(), [&](int i) { return held.count(i) != 0; })) continue;
+            Vec3 mean{0.0, 0.0, 0.0};
+            for (const int i : piece) mean = add_vec3(mean, shift[static_cast<std::size_t>(i)]);
+            mean = scale_vec3(mean, 1.0 / static_cast<double>(piece.size()));
+            for (const int i : piece) shift[static_cast<std::size_t>(i)] = mean;
+            held.insert(piece.begin(), piece.end());
+            rigid_groups.push_back(piece);
+        }
+        for (std::size_t i = 0; i < count; ++i) {
+            if (dot_vec3(shift[i], shift[i]) <= 1.0e-12) continue;
+            rest[i] = add_vec3(rest[i], shift[i]);
+            ++pulled;
+        }
+    }
     std::vector<double> rest_lengths;
     rest_lengths.reserve(edges.size());
     for (const auto& edge : edges)
@@ -874,7 +1049,6 @@ std::string mesh_editor_apply_reference_refit(
 
     // Garment pieces that were already inside the authored body (a mask inside
     // the head, a lining under the skin) keep that relation.
-    const RefitReferenceSurface authored(reference.source_positions, reference.faces);
     std::vector<char> exempt(count, 0);
     {
         Vec3 outward;
@@ -903,9 +1077,6 @@ std::string mesh_editor_apply_reference_refit(
     double deepest = 0.0;
     const double layer_weight = REFIT_REFERENCE_LAYER_WEIGHT;
     const double stale = REFIT_REFERENCE_LAYER_STALE * REFIT_REFERENCE_LAYER_RADIUS * scale;
-    std::vector<std::vector<int>> surface_faces(surfaces.size());
-    for (std::size_t f = 0; f < garment_faces.size(); ++f)
-        surface_faces[static_cast<std::size_t>(garment_face_surface[f])].push_back(static_cast<int>(f));
 
     // Skin through cloth. A garment triangle is often coarser than the body
     // under it, so a breast or knee can come out through a triangle whose
@@ -1174,42 +1345,7 @@ std::string mesh_editor_apply_reference_refit(
         for (std::size_t i = 0; i < count; ++i)
             if (particle_rows[i].unit >= 0) pieces[static_cast<std::size_t>(particle_rows[i].unit)].push_back(static_cast<int>(i));
         pieces.erase(std::remove_if(pieces.begin(), pieces.end(), [](const auto& piece) { return piece.empty(); }), pieces.end());
-        // A small closed piece the fit does not hold rigid (a bead, a clasp)
-        // must not bend either, unless the body passes through it (a collar).
-        Vec3 low = driver_points.front(), high = low;
-        for (const auto& point : driver_points) for (int axis = 0; axis < 3; ++axis) {
-            low[axis] = std::min(low[axis], point[axis]);
-            high[axis] = std::max(high[axis], point[axis]);
-        }
-        int up = 0;
-        for (int axis = 1; axis < 3; ++axis) if (high[axis] - low[axis] > high[up] - low[up]) up = axis;
-        for (const auto& faces : surface_faces) {
-            std::map<std::pair<int, int>, int> uses;
-            std::set<int> members;
-            for (const int f : faces) {
-                const auto& corners = garment_faces[static_cast<std::size_t>(f)];
-                for (int c = 0; c < 3; ++c) {
-                    ++uses[std::minmax(corners[c], corners[(c + 1) % 3])];
-                    members.insert(corners[c]);
-                }
-            }
-            if (members.empty() || std::any_of(members.begin(), members.end(),
-                    [&](int i) { return particle_rows[static_cast<std::size_t>(i)].unit >= 0; })
-                || std::any_of(uses.begin(), uses.end(), [](const auto& edge) { return edge.second != 2; }))
-                continue;
-            Vec3 piece_low = start[static_cast<std::size_t>(*members.begin())], piece_high = piece_low;
-            for (const int i : members) for (int axis = 0; axis < 3; ++axis) {
-                piece_low[axis] = std::min(piece_low[axis], start[static_cast<std::size_t>(i)][axis]);
-                piece_high[axis] = std::max(piece_high[axis], start[static_cast<std::size_t>(i)][axis]);
-            }
-            bool band = true;
-            for (int axis = 0; axis < 3; ++axis) {
-                const double centre = (low[axis] + high[axis]) / 2.0;
-                if (axis != up && (centre < piece_low[axis] || centre > piece_high[axis])) band = false;
-            }
-            if (band || length_vec3(sub_vec3(piece_high, piece_low)) > REFIT_REFERENCE_SOLID_SIZE * refit.driver_diagonal) continue;
-            pieces.emplace_back(members.begin(), members.end());
-        }
+        for (auto& piece : small_closed_pieces(surface_faces)) pieces.push_back(std::move(piece));
         *weights = mesh_editor_refit_transfer_weights(
             morph, submeshes, driver, authored, particles, start, x, pieces, masks, scale, report);
     }
@@ -1228,6 +1364,7 @@ std::string mesh_editor_apply_reference_refit(
            << ",\"remaining_body_violations\":" << body_violations
            << ",\"skin_constraints\":" << skin_rows.size() << ",\"remaining_skin_violations\":" << skin_violations
            << ",\"skin_through_as_authored\":" << authored_through
+           << ",\"pulled_to_skin\":" << pulled
            << ",\"deepest_body_violation\":" << std::setprecision(17) << deepest
            << ",\"exempt_particles\":" << exempt_count << ",\"open_driver_edges\":" << driver.open_edges.size()
            << ",\"reanchored_layer_constraints\":" << reanchored

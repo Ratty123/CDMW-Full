@@ -4792,6 +4792,7 @@ std::shared_ptr<MeshRefitRuntime> mesh_editor_refit_solid_attachments(
             island.intensity_percent = settings.intensity_percent;
             island.clearance_percent = settings.clearance_percent;
             island.tightness_percent = settings.tightness_percent;
+            island.skin_pull_percent = settings.skin_pull_percent;
             result->automatic_rigid_islands[part.first].insert(island.face_indices);
             settings.island_settings.push_back(std::move(island));
         }
@@ -4957,7 +4958,8 @@ void mesh_editor_write_refit_settings(std::ostream& out, const MeshRefitRuntime&
         write_escaped(out, settings.mode);
         out << ",\"clearance_percent\":" << std::setprecision(17) << settings.clearance_percent
             << ",\"tightness_percent\":" << settings.tightness_percent
-            << ",\"tightness_initialized\":" << (settings.tightness_initialized ? "true" : "false");
+            << ",\"tightness_initialized\":" << (settings.tightness_initialized ? "true" : "false")
+            << ",\"skin_pull_percent\":" << settings.skin_pull_percent;
         mesh_editor_write_refit_island_settings(out, settings);
         out << '}';
     }
