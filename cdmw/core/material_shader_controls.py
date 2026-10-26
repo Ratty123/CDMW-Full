@@ -29,6 +29,26 @@ def material_variant_blocks(text):
     return tuple(re.finditer(r'<ModelProperty\b[^>]*>.*?</ModelProperty>', text, re.S))
 
 
+def edit_material_variants(text, edit):
+    """Run ``edit(fragment) -> (fragment, result)`` once per variant, in file order.
+
+    Part names repeat across variants, so name-keyed edits must never see two
+    variants at once. Text without variant blocks is edited as one fragment.
+    """
+    variants = material_variant_blocks(text)
+    if not variants:
+        text, result = edit(text)
+        return text, (result,)
+    results = []
+    for match in reversed(variants):
+        block = match.group()
+        start, end = block.find('>') + 1, len(block) - len('</ModelProperty>')
+        fragment, result = edit(block[start:end])
+        text = text[:match.start()] + block[:start] + fragment + block[end:] + text[match.end():]
+        results.append(result)
+    return text, tuple(reversed(results))
+
+
 def control_material_variants(text, *, static=False):
     variants = () if static else material_variant_blocks(text)
     return tuple(control_material_sources(block.group()) for block in variants) if variants else (control_material_sources(text, static=static),)

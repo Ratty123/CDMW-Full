@@ -13,7 +13,7 @@ from cdmw.services.effect_placement_preview import (
     EffectPlacementPreview,
     mesh_names_textures,
 )
-from cdmw.services.effect_preview_model import EffectPreview
+from cdmw.services.effect_preview_model import EffectPreview, replay_seconds
 from cdmw.ui.new_item.effect_placement_constants import REACH_HIDDEN_ABOVE
 from cdmw.ui.new_item.effect_placement_dialog_support import (
     PlacementFrame,
@@ -250,6 +250,9 @@ class EffectPlacementPackageMixin:
         if self._closed or int(generation) != self._package_generation:
             self._remove_owned_package(result)
             return
+        playback = getattr(self, "playback_controls", None)
+        if playback is not None:
+            playback.set_replay_seconds(replay_seconds(presented_preview if isinstance(presented_preview, EffectPreview) else None))
         self._box = (tuple(float(value) for value in result.box_min), tuple(float(value) for value in result.box_max))
         self._box_size = tuple(high - low for low, high in zip(*self._box))
         low, high = self._item_bounds()

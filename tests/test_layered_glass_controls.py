@@ -223,3 +223,41 @@ def test_mesh_preview_publishes_exported_glass_maps_and_keeps_unselected_binding
         expected = hashlib.sha256(output[blade.textures[parameter]]).hexdigest().upper()
         assert any(row["role"] == role and row["file"].get("sha256") == expected and row["material_indices_by_lod"] == [[0]]
                    for row in payload["textures"]), (role, expected, payload["textures"])
+
+
+@pytest.mark.parametrize("route", ["mesh", "template"])
+def test_translucency_bakes_each_model_variant_from_its_own_layers(route):
+    from cdmw.core.material_shader_controls import control_material_variants
+    from cdmw.domain.new_item.translucency import TranslucencyChoice
+    from cdmw.services.mesh_translucency import build_translucency_files
+
+    def baseless(tint):
+        files = layered_source(tint=tint)
+        text = files.side_files[XML].decode()
+        blade = find_material_wrappers(text)[0]
+        block = text[blade.start:blade.end].replace(texture("_baseColorTexture", "character/texture/glass_base.dds"), "")
+        base = '<MaterialParameterTexture StringItemID="_baseColorTexture" ItemID="2" _name="_baseColorTexture" Index="0">'
+        start = block.index(base)
+        block = block[:start] + block[block.index("</MaterialParameterTexture>", start) + len("</MaterialParameterTexture>"):]
+        return text[:blade.start] + block + text[blade.end:], files
+
+    first, files = baseless("#ff8040ff")
+    second, _ = baseless("#4080ffff")
+    assert "_baseColorTexture" not in find_material_wrappers(first)[0].textures
+    before = ('<ModelPropertyList><ModelProperty Index="0">' + first + '</ModelProperty>'
+              '<ModelProperty Index="1">' + second + '</ModelProperty></ModelPropertyList>')
+    files = replace(files, side_files={**files.side_files, XML: before.encode()})
+    if route == "mesh":
+        mesh, state = mesh_state(files)
+        state = replace(state, parts=(replace(state.parts[0], shader_controls=None, translucency=(.1, .3)), state.parts[1]))
+        output = {file.path: file.data for file in build_translucency_files(state, mesh, ())}
+    else:
+        snapshot = SimpleNamespace(payload=lambda path: files.pac_data if path == PAC else files.side_files[path],
+                                   has_entry=files.side_files.__contains__)
+        output = prepare_template_model(snapshot, (PAC,), translucency=TranslucencyChoice(("blade",), .1, .3)).side_files
+    variants = control_material_variants(output[XML].decode())
+    assert all(variant["blade"][0] == "SkinnedMeshTranslucent" for variant in variants)
+    paths = [variant["blade"][2]["_baseColorTexture"] for variant in variants]
+    assert len(set(paths)) == 2
+    pixels = [Image.open(BytesIO(output[path])).convert("RGB").getpixel((1, 1)) for path in paths]
+    assert pixels[0][0] > pixels[0][2] and pixels[1][2] > pixels[1][0]

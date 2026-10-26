@@ -6,6 +6,7 @@ from cdmw.core.effect_binary import EffectBinaryError, decode_effect_binary
 from cdmw.core.effect_edit import EffectEditReport, apply_effect_look, emitter_layout_of, emitter_paths_of, preset_names_of, preset_path, rename_effect_strings, rename_string_values, same_length_stem
 from cdmw.core.prefab_binary_edit import PrefabEditError
 from cdmw.core.prefab_component_graft import encode_transform, graft_prefab_component
+from cdmw.domain.new_item.effect_authoring import split_effect_reference
 from cdmw.services.new_item_snapshot import EFFECT_DIR, EFFECT_DONOR_PATH, EFFECT_DONOR_PREFAB
 from cdmw.services.new_item_effect_targets import inspect_effect_targets
 
@@ -56,7 +57,7 @@ class EffectPlanningMixin:
         if look.is_default:
             record["look"] = None
             return layer.reference
-        stem, suffix = str(layer.reference).split(".", 1)
+        stem, suffix = split_effect_reference(layer.reference)
         effect_path = _effect_file(stem)
         if not self.snapshot.has_entry(effect_path):
             raise NewItemPlanError(f"the archives have no {effect_path}, so its look cannot be edited")
@@ -136,7 +137,7 @@ class EffectPlanningMixin:
             new_path = preset_path(kind, new_name)
             self.add(self.snapshot.entry(path), new_path, edited, f"preset clone: {new_path}")
             written.append(new_path)
-        reference = f"{new_stem}.{suffix}"
+        reference = f"{new_stem}.{suffix}" if suffix else new_stem
         record["path"] = reference
         record["look"] = {
             "source": str(layer.reference), "color": list(look.color) if look.color else None,

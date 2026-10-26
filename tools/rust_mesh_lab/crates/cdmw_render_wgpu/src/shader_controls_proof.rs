@@ -77,6 +77,11 @@ pub(super) fn verify(
     glass[0] = 9.0; glass[4] = 0.2; glass[5] = 1.0;
     cases.push(("glass equipment solid alpha", glass, [1.0; 3], 0.0));
     cases.push(("glass equipment zero alpha", glass, [1.0; 3], 0.0));
+    glass[4] = 1.0;
+    cases.push(("glass equipment dense", glass, [1.0; 3], 0.0));
+    cases.push(("glass equipment dense glow", glass, [1.0; 3], 0.0));
+    glass[5] = 0.0;
+    cases.push(("glass equipment clear", glass, [1.0; 3], 0.0));
     let mut samples = BTreeMap::new();
     for (name, controls, vertex_mask, time) in cases {
         let mut active_mask = mask.clone();
@@ -102,9 +107,11 @@ pub(super) fn verify(
         };
         let mesh = GpuMeshBuffers::upload(device, &snapshot)?;
         let eye_cover = controls[0] == 7.0;
+        let glow = name.ends_with("glow");
         let factors = MaterialPreviewFactors { shader_controls: Some(controls), roughness: Some(0.4), specular: Some(0.5),
             // Conversion from glass/cutout must still use EyeCover coverage.
             translucency: eye_cover.then_some([0.8, 0.8]), alpha_cutoff: eye_cover.then_some(0.9),
+            emissive_color: glow.then_some([1.0; 3]), emissive_intensity: glow.then_some(4.0),
             ..Default::default() };
         let binding = make_binding(&active_mask, &active_base, factors)?;
         if eye_cover && (!binding.alpha_blend || binding.translucent) {
@@ -128,6 +135,10 @@ pub(super) fn verify(
         || !close("glass object solid alpha", "glass object shadow tint")
         || close("glass object solid alpha", "glass object clear")
         || close("glass equipment solid alpha", "glass equipment zero alpha")
+        // Dense glass scatters its base colour (red here) over a black background;
+        // the game's translucent shaders never draw glow.
+        || samples["glass equipment dense"][2] <= samples["glass equipment clear"][2].saturating_add(8)
+        || !close("glass equipment dense", "glass equipment dense glow")
         || close("wing cut", "wing visible") || !close("wing inverse", "wing visible")
         || !close("wing cut", "torn length") || !close("wing cut", "torn cross")
         || !close("torn white", "torn unknown") || close("torn white", "torn length")

@@ -285,7 +285,9 @@ PAC parts and imported replacements in an eligible item session at LOD0. There
 is no New Item requirement. **Restore material**, Undo and Redo recover the
 previous material; Finish and saved drafts retain the choices. Restoring an
 imported part keeps its imported materials. Drafts with captured dependencies
-can be edited without the archive mounted.
+can be edited without the archive mounted. A part whose source material is already
+`SkinnedMeshTranslucent` starts from its authored thickness and extinction instead
+of a preset.
 
 **Source surface** retains authored roughness and metallic textures. **Low-shine
 translucent** sets roughness to 0.9 and metallic to 0, keeping absorption unchanged.
@@ -295,8 +297,8 @@ softens highlights; lower metallic reduces metallic reflections. These controls
 match Create New Item and are retained through Undo/Redo, Finish and saved drafts
 (replacement draft version 10 when a surface override is present).
 
-The viewport reuses its prepared textures for absorption and surface changes and keeps
-emission. Export changes the selected PAC XML material to `SkinnedMeshTranslucent` with
+The viewport reuses its prepared textures for absorption and surface changes. Export
+changes the selected PAC XML material to `SkinnedMeshTranslucent` with
 the two absorption parameters. Explicit surface overrides export a private
 `_materialTexture` DDS with roughness in green and metallic in blue, preserving unedited
 channels and complete mipmaps. Other parameters, colour, normal and glow paths stay
@@ -306,8 +308,10 @@ unchanged.
 Layered materials without a usable base map use New Item's shared texture preparation,
 baking colour and surface maps up to 2048px. Baked dye colours become fixed; missing
 declared textures or unusable colour inputs stop the edit before it is committed.
-Prepared maps are reused for absorption adjustments. Shared wrappers require the same
-settings on all their parts; missing sidecars and unmatched wrappers report an error
+Prepared maps are reused for absorption adjustments. Each model variant bakes from its
+own textures; a part name repeated within one variant is reported as ambiguous. Shared
+wrappers require the same settings on all their parts; missing sidecars and unmatched
+wrappers report an error
 before applying. Free Edit meshes without the original PAC binding are outside this
 export route. Authored `SkinnedMeshTranslucent` sidecars also supply absorption on
 reopening.
@@ -315,10 +319,14 @@ reopening.
 Existing renderer packages rebuild once to pick up this interpretation; source DDS
 caches remain reusable.
 
-This is an experimental approximation: the viewport does not reproduce game
-refraction or coloured background transmission. The shipped translucent shader
-declares emissive map and colour inputs; it may ignore the separate glow strength.
-Verify appearance and brightness in game.
+This is an experimental approximation of the game's translucency. As in game, only
+the nearest translucent surface shows the scene behind it: glass behind glass, and the
+back of a closed glass part, stay hidden. Overlapping glass at the same depth looks
+darker in the preview; in game it can flicker. Light scattered inside the glass takes
+its base colour, so dense, light-coloured glass turns milky. Refraction distortion and
+game lighting are not reproduced. The game's translucent shaders never read their
+declared glow inputs: export keeps glow paths, but the part does not glow in game, and
+the viewport does not draw it. Verify appearance in game.
 Some game reflections may remain even at high roughness and zero metallic. There
 is no verified independent reflection-strength control for this path; its declared
 refractive-index parameter is ignored in the normal non-depth-thickness path, so

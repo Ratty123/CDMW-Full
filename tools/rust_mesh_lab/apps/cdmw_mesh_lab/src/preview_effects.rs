@@ -429,25 +429,31 @@ pub(crate) fn effect_emitter_particles(
     let mut instances = Vec::new();
     let mut mesh_instances = Vec::new();
     let mut emitted = 0usize;
-    let candidates = burst
-        .saturating_mul(burst_history.min(newest_burst.saturating_add(1).max(0) as usize))
-        .max(1);
-    let keep_fraction = (maximum as f32 / candidates as f32).min(1.0);
-    'bursts: for history in (0..burst_history).rev() {
+    let live_burst = |history: usize| -> Option<(i64, f32)> {
         let burst_index = newest_burst - history as i64;
         if burst_index < 0 {
-            continue;
+            return None;
         }
         let birth = burst_index as f32 * interval;
         if !looping
             && ((spawn_time <= 0.0 && burst_index > 0) || (spawn_time > 0.0 && birth > spawn_time))
         {
-            continue;
+            return None;
         }
         let age = simulation_time - birth;
-        if age < 0.0 || (!infinite_life && age > longest_life + particle_delay_span) {
+        (age >= 0.0 && (infinite_life || age <= longest_life + particle_delay_span))
+            .then_some((burst_index, age))
+    };
+    // Thin over the bursts still alive. Counting expired ones too halved a
+    // one-particle pool (1.5 s life every 1.6 s) and blinked it off for seconds.
+    let candidates = burst
+        .saturating_mul((0..burst_history).filter(|history| live_burst(*history).is_some()).count())
+        .max(1);
+    let keep_fraction = (maximum as f64 / candidates as f64).min(1.0);
+    'bursts: for history in (0..burst_history).rev() {
+        let Some((burst_index, age)) = live_burst(history) else {
             continue;
-        }
+        };
         let minimum_burst = emitter
             .get("burst_min")
             .and_then(Value::as_u64)
@@ -471,7 +477,11 @@ pub(crate) fn effect_emitter_particles(
                 break 'bursts;
             }
             let birth_samples = native_surface_birth.then(|| BirthSamples::new(emitter, slot, native_seed));
-            if !surface_spawn && seed_unit(seed + 43.7) >= keep_fraction {
+            // Every 1/keep_fraction-th spawn, not a random subset: kept ages stay evenly
+            // spread, and a pool smaller than its live spawns shows exactly its size
+            // (alternate bursts for a 10 s life every 5 s) instead of sometimes none.
+            let order = burst_index as f64 * burst as f64 + particle as f64;
+            if !surface_spawn && ((order + 1.0) * keep_fraction).floor() <= (order * keep_fraction).floor() {
                 continue;
             }
             let life = (life_low + (life_high - life_low)
@@ -539,9 +549,13 @@ pub(crate) fn effect_emitter_particles(
             }
             let radius = size.max_element();
             let colour = effect_billboard_colour(emitter, progress, alpha, brightness);
-            let uv_rect = effect_sequence_uv(emitter, progress);
+            // A held particle keeps playing its flipbook once per authored life. Its
+            // frame rule is not decoded; shipped looping sequences such as the torch
+            // flame have no fade-out cell, so a frozen last frame read as a still image.
+            let sequence_progress = if held { (age / life).fract() } else { progress };
+            let uv_rect = effect_sequence_uv(emitter, sequence_progress);
             let cells = (uv_rect[2] * uv_rect[3]).recip();
-            let frame_blend = (progress.clamp(0.0, 0.999_999) * cells).fract();
+            let frame_blend = (sequence_progress.clamp(0.0, 0.999_999) * cells).fract();
             let texture_channel =
                 if emitter.get("texture_channels").and_then(Value::as_u64) == Some(4) {
                     (seed_unit(seed + 37.1) * 4.0).floor().min(3.0) as i32
@@ -1029,6 +1043,31 @@ mod tests {
         assert_eq!(p[0].colour[3], 1.);
     }
     #[test]
+    fn a_small_particle_pool_stays_visible_while_its_particles_live() {
+        let mut e = emitter();
+        e["loop"] = json!(true);
+        e["max_particles"] = json!(1);
+        // one particle every 1.6 s living 1.5 s: never two at once, so never thinned
+        e["bursts_per_second"] = json!(1. / 1.6);
+        e["life"] = json!([1.5, 1.5]);
+        for step in 0..60 {
+            let time = 5.0 + step as f32 * 0.25;
+            let phase = time % 1.6;
+            if (0.05..1.45).contains(&phase) {
+                assert_eq!(draw(&e, time).len(), 1, "t={time}");
+            } else if (1.52..1.58).contains(&phase) {
+                assert!(draw(&e, time).is_empty(), "t={time}");
+            }
+        }
+        // a 10 s life every 5 s in a pool of one: always exactly one, from alternate bursts
+        e["bursts_per_second"] = json!(0.2);
+        e["life"] = json!([10., 10.]);
+        for step in 0..80 {
+            let time = 10.25 + step as f32 * 0.5;
+            assert_eq!(draw(&e, time).len(), 1, "t={time}");
+        }
+    }
+    #[test]
     fn infinite_particles_without_curve_repeat_hold_their_end_of_life_pose() {
         let mut e = emitter();
         e["infinite_life"] = json!(true);
@@ -1042,6 +1081,12 @@ mod tests {
             assert_eq!(p.len(), 1, "t={time}");
             assert!((p[0].center[1] - 0.128).abs() < 1.0e-5, "t={time}: {:?}", p[0].center);
         }
+        // while its flipbook keeps playing once per life instead of stopping on a frame
+        e["sequence"] = json!([4, 1]);
+        let frames: Vec<f32> = [5.0, 5.08, 5.16, 5.24].iter().map(|time| draw(&e, *time)[0].uv_rect[0]).collect();
+        assert_eq!(frames.len(), 4);
+        assert!(frames.windows(2).any(|pair| pair[0] != pair[1]), "{frames:?}");
+        assert_eq!(draw(&e, 5.0)[0].uv_rect, draw(&e, 5.0 + 0.32 * 3.0)[0].uv_rect);
     }
 
     #[test]

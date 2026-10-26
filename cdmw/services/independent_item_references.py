@@ -8,6 +8,7 @@ import struct
 from dataclasses import dataclass
 from hashlib import sha256
 
+from cdmw.domain.new_item.effect_authoring import split_effect_reference
 from cdmw.domain.new_item.independent import IndependentItemError
 
 
@@ -142,7 +143,7 @@ def audit_references(plan, snapshot, *, stop_event=None):
         if not path:
             return
         if path.endswith('.effect') and '/' not in path:
-            path = 'effect/binary__/releasebin/' + path.split('.')[0] + '.pae'
+            path = 'effect/binary__/releasebin/' + split_effect_reference(path)[0] + '.pae'
         path = virtual_path(path)
         # Record even an already visited edge. A shared dependency may be both
         # an authoring input and reachable from the compiled contribution.

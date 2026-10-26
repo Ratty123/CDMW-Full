@@ -146,7 +146,7 @@ class Placement:
     stock_index: Optional[int] = None
 
 
-from cdmw.domain.new_item.effect_authoring import EffectLook, EffectLayer
+from cdmw.domain.new_item.effect_authoring import EffectLook, EffectLayer, split_effect_reference
 from cdmw.domain.new_item.translucency import TranslucencyChoice
 from cdmw.domain.new_item.body_visibility import BodyVisibilityChoice
 from cdmw.domain.mesh.emission import GlowAnimation, RgbGlow
@@ -273,8 +273,9 @@ class NewItemSpec:
             return tuple(layer for layer in self.effect_layers if layer.enabled and layer.stem)
         if self.effect is None:
             return ()
-        parts = str(self.effect).split('.')
-        return (EffectLayer(parts[0], scale=self.effect_scale, offset=self.effect_offset, rotation=self.effect_rotation_degrees, look=self.effect_look, kind=parts[1] if len(parts) > 1 else 'level'),)
+        stem, suffix = split_effect_reference(self.effect)
+        kind = suffix[: -len('.effect')] if suffix.endswith('.effect') else 'level'
+        return (EffectLayer(stem, scale=self.effect_scale, offset=self.effect_offset, rotation=self.effect_rotation_degrees, look=self.effect_look, kind=kind),)
 
     @property
     def needs_new_model_files(self) -> bool:

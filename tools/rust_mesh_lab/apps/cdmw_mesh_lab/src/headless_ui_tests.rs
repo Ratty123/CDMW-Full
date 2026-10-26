@@ -8748,6 +8748,28 @@ fn translucency_controls_send_selected_parts_and_restore_without_changing_geomet
 }
 
 #[test]
+fn translucency_controls_start_from_authored_source_values() -> TestResult {
+    let mut ui = HeadlessUi::new_integrated_cdmw_for_controls(
+        two_part_application()?, egui::vec2(1440.0, 1100.0));
+    ui.application.cdmw_state["translucency"] = json!({
+        "available": true, "parts": [
+            {"index": 0, "id": "a", "translucency": null, "authored_translucency": [0.125, 0.75]},
+            {"index": 1, "id": "b", "translucency": null, "authored_translucency": null}
+        ]
+    });
+    ui.settle_layout();
+    ui.click("0: Part A")?;
+    ui.click("Translucency (experimental)")?;
+    ui.settle_layout();
+    let actions = ui.actions_from_click("Apply translucency")?;
+    assert!(actions.iter().any(|action| matches!(action,
+        UiAction::CdmwCommand { command: "replacement_translucency", arguments, .. }
+        if arguments == &json!({"part_ids": ["a"], "translucency": [0.125, 0.75], "translucency_surface": null})
+    )));
+    Ok(())
+}
+
+#[test]
 fn emission_controls_send_selected_parts_and_restore() -> TestResult {
     let mut ui = HeadlessUi::new_integrated_cdmw_for_controls(two_part_application()?, egui::vec2(1440.0, 1600.0));
     let before = ui.application.mesh.as_ref().unwrap().draw_snapshot();

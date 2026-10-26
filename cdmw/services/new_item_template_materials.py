@@ -72,14 +72,26 @@ def bake_equipment_glass(text, choices, model_path, read_texture, *, on_log=None
 
 def bake_template_translucency(snapshot, text, model_path, settings, *, on_log=None, on_progress=None, stop_event=None):
     from cdmw.core.archive_model_texture_semantics import _is_placeholder_model_texture
+    from cdmw.core.material_shader_controls import edit_material_variants
     from cdmw.core.pac_xml_standard_material import find_material_wrappers
 
-    selected = [row for row in find_material_wrappers(text)
-                if row.submesh_name.casefold() in settings and (
-                    not row.textures.get("_baseColorTexture")
-                    or _is_placeholder_model_texture(row.textures["_baseColorTexture"]))]
-    return _bake_template_materials(snapshot, text, model_path, selected, settings, purpose="translucency",
-        on_log=on_log, on_progress=on_progress, stop_event=stop_event)
+    def bake(fragment):
+        selected = [row for row in find_material_wrappers(fragment)
+                    if row.submesh_name.casefold() in settings and (
+                        not row.textures.get("_baseColorTexture")
+                        or _is_placeholder_model_texture(row.textures["_baseColorTexture"]))]
+        counts = Counter(row.submesh_name.casefold() for row in selected)
+        for row in selected:
+            if counts[row.submesh_name.casefold()] > 1:
+                raise NewItemPlanError(f"Ambiguous layered material binding: {row.submesh_name}")
+        fragment, textures, notes = _bake_template_materials(snapshot, fragment, model_path, selected, settings,
+            purpose="translucency", on_log=on_log, on_progress=on_progress, stop_event=stop_event)
+        return fragment, (textures, notes)
+
+    # Each variant bakes from its own bindings; one name must not take another variant's maps.
+    text, results = edit_material_variants(text, bake)
+    textures = {path: data for files, _ in results for path, data in files.items()}
+    return text, textures, tuple(dict.fromkeys(note for _, notes in results for note in notes))
 
 
 def bake_template_skin_glow(snapshot, text, model_path, settings, *, on_log=None, on_progress=None, stop_event=None):

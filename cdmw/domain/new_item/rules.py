@@ -53,7 +53,8 @@ MAX_SHIPPED_SOCKET_SLOTS = 5
 _INTERNAL_NAME_RE = re.compile(r"^[A-Za-z][A-Za-z0-9_]{0,63}$")
 _STEM_RE = re.compile(r"^[a-z0-9][a-z0-9_]{0,63}$")
 _LOC_KEY_RE = re.compile(r"^[A-Za-z0-9_]{1,64}$")
-_EFFECT_RE = re.compile(r"^[A-Za-z0-9_\-]{1,128}\.(level|action|gimmick|system|sequencer)\.effect$")
+# Shipped stems can hold a dot of their own (`fx_fire_common_b__fire0.5m`).
+_EFFECT_RE = re.compile(r"^[A-Za-z0-9_\-][A-Za-z0-9_.\-]{0,127}\.(level|action|gimmick|system|sequencer)\.effect$")
 _U32_MAX = 0xFFFFFFFF
 _I32_MIN, _I32_MAX = -0x80000000, 0x7FFFFFFF
 

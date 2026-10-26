@@ -911,7 +911,9 @@ materials with one update. Both actions retain individual absorption and surface
 settings.
 
 Highlight a checked part to edit its own settings without changing the other checked
-parts. **Absorption preset** offers Clear, Light, Medium and Dense absorption; the
+parts. A part whose template or prebuilt material is already `SkinnedMeshTranslucent`
+starts from its authored thickness and extinction; other parts start at Light absorption.
+**Absorption preset** offers Clear, Light, Medium and Dense absorption; the
 Clear-to-Dense slider adjusts the exported parameters together, with finer adjustment
 near clear glass. **Advanced** exposes **Thickness** and **Extinction** from 0 to 1.
 Defaults are 0.1 and 0.3 respectively; increasing either generally reduces transmission.
@@ -961,7 +963,8 @@ glass preview. Returning to Effects after changing appearance refreshes its resi
 item materials. The refresh cancels obsolete preparation while retaining staged effects
 and the camera; price and other unrelated draft changes do not rebuild the preview. For
 templates without a usable base-colour map, Build plan bakes only the selected parts
-into Plain PBR textures before applying translucency.
+into Plain PBR textures before applying translucency. Each model variant bakes from its
+own textures, and explicit surface maps derive from each variant's own material map.
 
 This uses declared material inputs across item types, including cloth and fur on
 helmets, armour and shields, without a separate shader-name restriction. Direct
@@ -984,19 +987,22 @@ prebuilt import and dye-preview routes. The viewport applies absorption to the
 background separately from reflection and glow, without painting the opaque diffuse
 texture over the glass. On adapters with dual-source blending it preserves RGB
 transmission through sorted, overlapping layers; other adapters use a mean-transmission
-approximation. Refraction distortion, game lighting and shadow behaviour remain
-approximate. These presets describe absorption strength, not opacity percentages.
+approximation. As in game, only the nearest translucent surface absorbs: glass behind
+glass, and the back of a closed glass part, are hidden, and overlapping glass at the same
+depth looks darker (in game it can flicker). Light scattered inside the glass takes its
+base colour, so Medium and Dense absorption on light colours look milky rather than dark.
+Refraction distortion, game lighting and shadow behaviour remain approximate. These presets
+describe absorption strength, not opacity percentages.
 
 The glass shader can change apparent brightness and tint compared with an opaque
 material; exact colour parity remains unverified. Verify the result in-game. Glow and
-translucency can share a part: the shipped translucent parameter group declares an
-emissive map and colour. Export retains those inputs and the authored strength, but the
-translucent shader may ignore the separate strength parameter, so brightness needs
-in-game verification. A mixed opaque/translucent atlas must be separated or all its
+translucency can share a part, but the game's translucent shaders never read the declared
+emissive map or colour, so the part does not glow in game. Export retains those inputs;
+the preview does not draw them. A mixed opaque/translucent atlas must be separated or all its
 materials selected, and missing material selections block export.
 
 When Glow and Translucency select the same part, a warning below the scrolling inspector
-names the overlapping parts. Static glow shows the brightness caveat; animated or RGB
+names the overlapping parts. Static glow says the part will not glow in game; animated or RGB
 glow shows an unsupported-combination warning with instructions to disable those modes
 or deselect the shared parts. The warning updates immediately and follows restored
 variant choices.
@@ -1524,8 +1530,19 @@ stay visible in the preview instead of receiving an artificial fade-out, includi
 flame in **Torch 1 · Fire BG A**. Authored opacity curves still apply. Without curve
 repeat, an infinite particle also holds its position at the end of its authored life:
 Torch 4's flame (16 sprites, 0.32 s life, 2.5 m/s² lift) otherwise left the frame
-within a second. The game's motion rule after that point is not decoded, so this is a
-preview choice, not game evidence.
+within a second. Its flipbook keeps cycling once per authored life, since shipped
+looping sequences have no fade-out frame. The game's rules after that point are not
+decoded, so both are preview choices, not game evidence; that flame is authored as a
+ribbon (geometry type 4), which the preview draws as sprites.
+
+Playback's **Loop** (on by default) sends the viewer a replay period for effects that
+play once: `replay_seconds` is the longest start delay, spawning time over every
+repeat and life, at each emitter's simulation speed, plus a 0.5 s rest. An effect with
+a looping emitter or an infinite-life particle gets 0 and runs continuously. An
+emitter's authored particle cap thins only the particles still alive, by spawn order
+rather than at random, so a one- or two-particle pool stays visible. Effect stems may
+contain a dot (`fx_fire_common_b__fire0.5m`); `split_effect_reference` reads the
+`.<kind>.effect` or `.pae` suffix from the end.
 Scalar brightness, including a declared omitted unit
 default on an unpreset emitter, is editable through the checked writer. Export resolves
 effect namespaces from the active game registries and keeps that suffix on edited

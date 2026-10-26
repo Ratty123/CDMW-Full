@@ -116,6 +116,7 @@ class NewItemTaskControllerMixin:
                 self._template_request = None
                 self._template_parts = {}
                 self._template_shader_options = {}
+                self._template_translucency = {}
                 self.snapshot = result
                 self._snapshot_error = ""
                 self.invalidate_plan()

@@ -210,6 +210,29 @@ class TabTests(_TabAuthoringMixin, _TabOutputMixin, _TabLifecycleMixin, unittest
         finally:
             tab.controller.model_import = None
 
+    def test_translucency_starts_from_authored_source_values(self) -> None:
+        from PySide6.QtCore import Qt
+
+        tab = self._tab()
+        tab.prefill_template(TEMPLATE)
+        tab.show_step(2)
+        panel = tab.model_panel
+        editor = panel.translucency_editor
+        tab.controller._template_translucency = {"character/model/a.pac": {"blade": (0.125, 0.75)},
+                                                 "character/model/b.pac": {"blade": (0.5, 0.5)}}
+        with patch.object(tab.controller, "current_variant_identity", return_value=("family", "character/model/a.pac")):
+            self.assertEqual(tab.controller.material_authored_translucency(), {"blade": (0.125, 0.75)})
+        with patch.object(tab.controller, "material_parts", return_value=(("Blade", "Blade"), ("Grip", "Grip"))), \
+             patch.object(tab.controller, "material_authored_translucency", return_value={"blade": (0.125, 0.75)}):
+            panel.refresh_glow_parts()
+            editor.setChecked(True)
+            editor.parts.item(0).setCheckState(Qt.CheckState.Checked)
+            self.assertEqual(tab.controller.draft.translucency.values_for("Blade"), (0.125, 0.75))
+            self.assertEqual((editor.thickness.value(), editor.extinction.value()), (0.125, 0.75))
+            editor.parts.item(1).setCheckState(Qt.CheckState.Checked)
+            self.assertEqual(tab.controller.draft.translucency.values_for("Grip"), (0.1, 0.3))
+            self.assertEqual(tab.controller.draft.translucency.values_for("Blade"), (0.125, 0.75))
+
     def test_glow_translucency_warning_tracks_shared_parts_animation_and_restored_choices(self) -> None:
         from PySide6.QtCore import Qt
         from cdmw.domain.mesh.emission import GlowAnimation
@@ -233,14 +256,14 @@ class TabTests(_TabAuthoringMixin, _TabOutputMixin, _TabLifecycleMixin, unittest
             self.assertFalse(panel.material_warning.isHidden())
             self.assertIn("Blade edge", panel.material_warning.text())
             self.assertNotIn("Leather grip", panel.material_warning.text())
-            self.assertIn("Static glow is supported", panel.material_warning.text())
+            self.assertIn("will not glow in game", panel.material_warning.text())
             self.assertFalse(panel.model_icon_content.isAncestorOf(panel.material_warning), "warning stays outside the scroll area")
             panel.glow_animation.spins["pulse_minimum"].setValue(.5)
-            self.assertIn("Static glow is supported", panel.material_warning.text())
+            self.assertIn("will not glow in game", panel.material_warning.text())
             panel.glow_animation.spins["pulse_frequency"].setValue(1)
             self.assertIn("cannot be exported", panel.material_warning.text())
             panel.glow_animation.spins["pulse_frequency"].setValue(0)
-            self.assertIn("Static glow is supported", panel.material_warning.text())
+            self.assertIn("will not glow in game", panel.material_warning.text())
             panel.glow_animation.rgb_box.setChecked(True)
             self.assertIn("cannot be exported", panel.material_warning.text())
             panel.glow_box.setChecked(False)

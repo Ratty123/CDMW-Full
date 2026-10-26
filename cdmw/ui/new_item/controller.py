@@ -152,6 +152,7 @@ class NewItemStudioController(
         self._template_models: Dict[tuple, object] = {}
         self._template_parts = {}
         self._template_shader_options = {}
+        self._template_translucency = {}
         self._template_request = None
         self._template_selection_lane = TemplateSelectionLane(synchronous=self._synchronous, parent=self)
         self._template_selection_lane.completed.connect(self._template_prepared)

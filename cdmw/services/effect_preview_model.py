@@ -937,6 +937,7 @@ def preview_effect_from_snapshot(
 
     from cdmw.core.effect_binary import decode_effect_binary
     from cdmw.core.effect_edit import apply_effect_look, emitter_layout_of, preset_names_of, preset_path
+    from cdmw.domain.new_item.effect_authoring import split_effect_reference
     from cdmw.services.new_item_snapshot import EFFECT_DIR
 
     def check_cancelled() -> None:
@@ -944,7 +945,7 @@ def preview_effect_from_snapshot(
             raise RunCancelled
 
     check_cancelled()
-    stem = str(effect_reference).split(".", 1)[0]
+    stem = split_effect_reference(effect_reference)[0]
     effect_path = "".join((EFFECT_DIR, stem, ".pae"))
     if not snapshot.has_entry(effect_path):
         raise KeyError(f"the archives have no {effect_path}")
@@ -1035,6 +1036,28 @@ def preview_effect_from_snapshot(
     from cdmw.services.effect_preview_geometry import load_particle_geometry
 
     return load_particle_geometry(preview, snapshot, parser, check_cancelled)
+
+
+#: The rest after a one-shot effect finishes before the preview plays it again.
+REPLAY_PAUSE_SECONDS = 0.5
+
+
+def replay_seconds(preview: Optional[EffectPreview]) -> float:
+    """One play of a one-shot effect plus a short rest, for the viewer's Loop playback;
+    0 when an emitter loops or keeps an infinite-life particle, since that effect never
+    finishes. Follows the viewer's own timing: start delay, spawning time over every
+    repeat, the longest life, all at the emitter's simulation speed."""
+
+    if preview is None or not preview.emitters:
+        return 0.0
+    longest = 0.0
+    for emitter in preview.emitters:
+        if emitter.loop or emitter.infinite_life:
+            return 0.0
+        spawning = emitter.spawn_time * (max(0, emitter.loop_count) + 1) if emitter.spawn_time > 0 else 0.0
+        span = max(emitter.start_delay) + spawning + max(emitter.life)
+        longest = max(longest, span / max(0.01, emitter.simulation_speed))
+    return min(3600.0, longest + REPLAY_PAUSE_SECONDS) if longest > 0 else 0.0
 
 
 def effect_preview_json(preview: EffectPreview) -> str:

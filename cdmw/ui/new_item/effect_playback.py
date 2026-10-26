@@ -1,5 +1,5 @@
 """Compact controls for the resident effect simulation."""
-from PySide6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QDoubleSpinBox, QSpinBox, QComboBox, QLabel, QSizePolicy
+from PySide6.QtWidgets import QCheckBox, QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QDoubleSpinBox, QSpinBox, QComboBox, QLabel, QSizePolicy
 
 
 class EffectPlaybackControls(QWidget):
@@ -14,6 +14,12 @@ class EffectPlaybackControls(QWidget):
         restart = QPushButton('Restart')
         restart.setToolTip('Replay the effect from the beginning.')
         restart.clicked.connect(self.restart)
+        self.loop = QCheckBox('Loop')
+        self.loop.setChecked(True)
+        self.loop.setToolTip('Replay an effect that plays once after it finishes. Continuous effects keep running either way.')
+        self.loop.toggled.connect(lambda _checked: self._send_loop())
+        #: one play of the shown effect plus a short rest; 0 for a continuous effect
+        self._replay_seconds = 0.0
         self.speed = QDoubleSpinBox()
         self.speed.setRange(0.05, 4.0)
         self.speed.setValue(1.0)
@@ -48,7 +54,7 @@ class EffectPlaybackControls(QWidget):
             self.surface.addItem(title, target)
         self.surface.setToolTip('Preview surface for attached particles. A missing surface produces no particles. This selection does not change the exported game target binding.')
         self.surface.currentIndexChanged.connect(lambda _: self.send(surface_target=self.surface.currentData()))
-        self._controls = (restart, self.speed, seek, self.seed, self.quality, self.surface)
+        self._controls = (restart, self.loop, self.speed, seek, self.seed, self.quality, self.surface)
         self._columns = 0
         for control in self._controls:
             control.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Fixed)
@@ -85,6 +91,14 @@ class EffectPlaybackControls(QWidget):
         setter = getattr(host, 'set_effect_preview_controls', None)
         if callable(setter):
             setter(**values)
+
+    def set_replay_seconds(self, seconds):
+        """The shown effect's length for Loop; 0 when it keeps running by itself."""
+        self._replay_seconds = max(0.0, float(seconds or 0.0))
+        self._send_loop()
+
+    def _send_loop(self):
+        self.send(loop_seconds=self._replay_seconds if self.loop.isChecked() else 0.0)
 
     def restart(self):
         self.time.setValue(0)

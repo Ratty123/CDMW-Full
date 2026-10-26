@@ -5164,8 +5164,11 @@ impl LabApplication {
                 let key = egui::Id::new(("translucency_values", ids.iter().map(Value::to_string).collect::<Vec<_>>(),
                                         rows.iter().map(|row| (row["translucency"].to_string(), row["translucency_surface"].to_string())).collect::<Vec<_>>()));
                 let mut values = ui.ctx().data_mut(|data| data.get_temp::<[f32; 2]>(key)).unwrap_or_else(|| {
-                    [saved.and_then(|v| v[0].as_f64()).unwrap_or(0.1) as f32,
-                     saved.and_then(|v| v[1].as_f64()).unwrap_or(0.3) as f32]
+                    // An already-translucent source starts from its own values, not a preset.
+                    let start = saved.filter(|v| v.is_array())
+                        .or_else(|| rows.first().map(|row| &row["authored_translucency"]).filter(|v| v.is_array()));
+                    [start.and_then(|v| v[0].as_f64()).unwrap_or(0.1) as f32,
+                     start.and_then(|v| v[1].as_f64()).unwrap_or(0.3) as f32]
                 });
                 let surface_key = key.with("surface");
                 let mut surface = ui.ctx().data_mut(|data| data.get_temp::<[Option<f32>; 2]>(surface_key))
@@ -5220,7 +5223,7 @@ impl LabApplication {
                             ui.add(crate::cdmw_ui::numeric::slider(value, 0.0..=1.0)
                                 .text(crate::localization::tr(name)).fixed_decimals(3));
                         }
-                    }).header_response.on_hover_text(crate::localization::tr("Higher values absorb more light. Glow maps and colours are kept. Game refraction and glow brightness may differ from the preview."));
+                    }).header_response.on_hover_text(crate::localization::tr("Higher values absorb more light. The game does not draw glow on translucent parts. Game refraction may differ from the preview."));
                     ui.horizontal_wrapped(|ui| {
                         if ui.button(crate::localization::tr("Apply translucency")).clicked() {
                             actions.push(UiAction::CdmwCommand {

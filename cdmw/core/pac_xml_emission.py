@@ -39,7 +39,7 @@ def validate_emission_shader(wrapper, *, animated=False):
     if animated and wrapper.shader == "SkinnedMeshTranslucent":
         raise PacXmlMaterialError(
             f"{wrapper.submesh_name}: animated or RGB glow cannot share a part with translucency. "
-            "Use static glow or remove translucency from this part.")
+            "Remove Glow or Translucency from this part; the game does not draw glow on translucent parts.")
     allowed = {"SkinnedMeshStandard", "SkinnedMeshStandard_Ver2",
                "SkinnedMeshEmissive", "SkinnedMeshEmissive_Ver2"}
     if not animated:

@@ -225,6 +225,21 @@ class ValidateAgainstContextTests(unittest.TestCase):
         self.assertNotIn("effect.unknown", _codes(validate_against_context(_spec(effect="fx_zzz.level.effect"), _context())), "no stem list: nothing to refuse against")
         self.assertIn("template.no_owned_stems", _codes(validate_against_context(_spec(model_source=ModelSource.TEMPLATE, effect="fx_a.level.effect"), _context(template=_template(owned_stems=())))))
 
+    def test_shipped_effect_stems_may_hold_a_dot(self) -> None:
+        from cdmw.domain.new_item.effect_authoring import split_effect_reference
+
+        dotted = "fx_fire_common_b__fire0.5m"
+        self.assertEqual(split_effect_reference(f"{dotted}.level.effect"), (dotted, "level.effect"))
+        self.assertEqual(split_effect_reference(f"{dotted}.Action.effect"), (dotted, "Action.effect"))
+        self.assertEqual(split_effect_reference(f"{dotted}.pae"), (dotted, "pae"))
+        self.assertEqual(split_effect_reference(dotted), (dotted, ""))
+        spec = _spec(effect=f"{dotted}.gimmick.effect")
+        self.assertEqual([c for c in _codes(validate_spec(spec)) if c.startswith("effect")], [])
+        layer, = spec.active_effect_layers
+        self.assertEqual((layer.stem, layer.kind, layer.reference), (dotted, "gimmick", f"{dotted}.gimmick.effect"))
+        self.assertNotIn("effect.unknown", _codes(validate_against_context(spec, _context(effect_stems=frozenset({dotted})))))
+        self.assertIn("effect.shape", _codes(validate_spec(_spec(effect=".level.effect"))))
+
     def test_socket_items(self) -> None:
         # shape rules need no context
         self.assertIn("sockets.range", _codes(validate_spec(_spec(socket_items=(0,)))))
