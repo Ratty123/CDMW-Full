@@ -3925,6 +3925,13 @@ impl LabApplication {
             if let Some(label) = refit["reference_body"]["label"].as_str() {
                 let name = label.rsplit('/').next().unwrap_or(label);
                 ui.weak(crate::localization::tr(format!("Authored body: {}", name))).on_hover_text(label);
+            } else if let Some(reason) = self.cdmw_state.get("refit_reference_reason").and_then(Value::as_str)
+                .filter(|reason| !reason.is_empty() && self.cdmw_refit_use_reference_body)
+            {
+                // A Fit that quietly used only the current body looked like a poor authored-body fit.
+                ui.colored_label(cdmw_readable(ui, REFIT_ARMOR_COLOUR),
+                    crate::localization::tr(format!("Authored body not used: {}", reason)))
+                    .on_hover_text(crate::localization::tr("This Fit used only the current body, so the outfit's authored drapes, layers and rigid pieces were not carried over."));
             }
             self.draw_cdmw_refit_feedback(ui, actions, &bound_garments);
             if state_bool(&refit, "distance_warning") {

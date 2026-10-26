@@ -5,7 +5,10 @@ whose skeleton has a nude body, and that body is not the driver itself. The
 garment's skeleton comes from ``resolve_skeleton_for_model``, its rig folder
 holds the nude body (the same choice as character preview), and the driver's
 skeleton is resolved the same way. Archive reads go through the dependency
-context retained with the loaded Refit assets. Every refusal comes back as a
+context retained with the loaded Refit assets, or through ``dependencies``
+when the caller supplies one: the editor's archive sets are bounded per opened
+PAC and hold no nude bodies, so it prepares a merged set with them first
+(:class:`PreparedRefitReferenceArchive`). Every refusal comes back as a
 reason so the caller can fit to the driver alone and say why. With a reference
 it also returns the driver's skin weights for the garments
 (:mod:`cdmw.services.mesh_refit_weights`), or why they keep their own.
@@ -14,9 +17,10 @@ it also returns the driver's skin weights for the garments
 from __future__ import annotations
 
 from collections import OrderedDict
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import PurePosixPath
 import threading
+import time
 from typing import Callable, Sequence
 
 from cdmw.modding.mesh_parser import parse_pac, resolve_pac_bone_palette
@@ -32,6 +36,43 @@ class RefitReferenceLookup:
     # With a reference: the body's skin weights for the garments, or why they keep their own.
     weights: RefitWeightTransfer | None = None
     weights_reason: str = ""
+
+
+@dataclass(frozen=True)
+class RefitReferenceArchive:
+    """The archive files a Fit reads, or why they could not be prepared.
+
+    ``dependencies`` None with no ``reason`` means the Refit assets' own
+    dependency contexts already index the whole archive.
+    """
+
+    dependencies: object | None = None
+    reason: str = ""
+
+
+@dataclass
+class PreparedRefitReferenceArchive:
+    """Filled on the GUI thread; only the Fit worker waits for it."""
+
+    done: threading.Event = field(default_factory=threading.Event)
+    archive: RefitReferenceArchive = RefitReferenceArchive()
+
+    def settle(self, dependencies: object | None = None, reason: str = "") -> None:
+        if not self.done.is_set():
+            self.archive = RefitReferenceArchive(dependencies, reason)
+            self.done.set()
+
+    def wait(
+        self, check_cancelled: Callable[[], None] | None = None, *, timeout_seconds: float = 60.0,
+    ) -> RefitReferenceArchive:
+        # A lost archive reply must not hold the Fit; it then fits to the current body.
+        deadline = time.monotonic() + timeout_seconds
+        while not self.done.wait(0.05):
+            if check_cancelled is not None:
+                check_cancelled()
+            if time.monotonic() >= deadline:
+                return RefitReferenceArchive(reason="the archive worker did not list the authored bodies in time")
+        return self.archive
 
 
 @dataclass(frozen=True)
@@ -127,6 +168,7 @@ def find_refit_reference_body(
     driver_indices: Sequence[int],
     *,
     read_entry: Callable[[object], bytes] | None = None,
+    dependencies: object | None = None,
 ) -> RefitReferenceLookup:
     """The retargeted body the bound garments were authored on, or why there is none."""
     from cdmw.services.mesh_archive_refit import ArchiveRefitContext
@@ -139,10 +181,12 @@ def find_refit_reference_body(
         return RefitReferenceLookup(None, "the body and garments must each come from loaded game PACs")
     if drivers[0] in garments:
         return RefitReferenceLookup(None, "the body and garments come from the same PAC")
-    dependencies = _dependencies(context)
+    if dependencies is None:
+        dependencies = _dependencies(context)
     if dependencies is None:
         return RefitReferenceLookup(None, "the game archive index is not available")
-    key = (context.context_id, tuple(_normalized(asset.entry.path) for asset in garments),
+    # A refusal from a smaller archive set must not outlive it.
+    key = (context.context_id, id(dependencies), tuple(_normalized(asset.entry.path) for asset in garments),
            _normalized(drivers[0].entry.path), tuple(garment_indices), tuple(driver_indices))
     with _CACHE_LOCK:
         if key in _CACHE:
@@ -204,4 +248,7 @@ def clear_refit_reference_cache() -> None:
         _CACHE.clear()
 
 
-__all__ = ["RefitReferenceLookup", "clear_refit_reference_cache", "find_refit_reference_body"]
+__all__ = [
+    "PreparedRefitReferenceArchive", "RefitReferenceArchive", "RefitReferenceLookup",
+    "clear_refit_reference_cache", "find_refit_reference_body",
+]

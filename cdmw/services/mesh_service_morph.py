@@ -1687,16 +1687,19 @@ class MeshMorphServiceMixin(MeshMorphLayerMixin, MeshMorphAuthoringMixin, MeshMo
 
     def fit_refit_to_body(
         self, session_id: str, *, reference_body: bool = True, body_weights: bool = True,
+        reference_archive=None,
     ) -> tuple[MeshEditResult, MeshMorphState]:
         """Fit enabled garments in one transaction using the resident Part settings.
 
         With ``reference_body`` the fit also uses the body the garments were
         authored on, when the session's archive Refit assets name one (see
         :mod:`cdmw.services.mesh_refit_reference_lookup`). Otherwise it fits to
-        the driver alone and, for archive assets, says why. With
-        ``body_weights`` that fit also gives garment vertices near the body the
-        body's skin weights (:mod:`cdmw.services.mesh_refit_weights`), where the
-        exact PAC writer can store them.
+        the driver alone, says why, and keeps that reason on the session for the
+        Fit tab. ``reference_archive`` (a ``RefitReferenceArchive``) supplies the
+        archive files the lookup reads when the assets' own sets are bounded.
+        With ``body_weights`` that fit also gives garment vertices near the body
+        the body's skin weights (:mod:`cdmw.services.mesh_refit_weights`), where
+        the exact PAC writer can store them.
         """
         from cdmw.services.mesh_refit_reference_lookup import RefitReferenceLookup, find_refit_reference_body
 
@@ -1706,11 +1709,16 @@ class MeshMorphServiceMixin(MeshMorphLayerMixin, MeshMorphAuthoringMixin, MeshMo
                 session, self._run_morph_query_locked(session, "morph_state"), refresh_presets=False)
             settings = _fit_to_body_settings(state)
             lookup = RefitReferenceLookup(None)
-            if reference_body:
+            archive = reference_archive
+            if reference_body and archive is not None and archive.dependencies is None and archive.reason:
+                lookup = RefitReferenceLookup(None, archive.reason)
+            elif reference_body:
                 lookup = find_refit_reference_body(
                     session.archive_refit_context, state.refit.garment_submesh_indices,
                     state.refit.driver_submesh_indices,
+                    dependencies=None if archive is None else archive.dependencies,
                 )
+            session.refit_reference_reason = lookup.reason if lookup.reference is None else ""
             if lookup.reference is not None or (not reference_body and state.refit.reference_body is not None):
                 weights, kept = None, []
                 if lookup.reference is not None and body_weights:

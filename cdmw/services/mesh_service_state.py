@@ -221,6 +221,8 @@ class _MeshEditSession:
     working_mesh: ParsedMesh
     original_data: bytes = b""
     archive_refit_context: object | None = None
+    # Why the last Fit to body used only the current body; empty after an authored-body Fit.
+    refit_reference_reason: str = ""
     replacement_state: MeshReplacementState | None = None
     hair_state: HairAuthoringState | None = None
     mesh_asset_parse_confidence: str = ""

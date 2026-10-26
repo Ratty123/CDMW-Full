@@ -543,6 +543,9 @@ class MeshEditorRustProcessMixin:
             ):
                 QTimer.singleShot(0, self._start_next_rust_protocol_worker)
                 return
+        if event.get("command") == "refit_fit_to_body":
+            from cdmw.ui.mesh_editor.refit_reference_preparation import prepare_refit_fit_event
+            event = prepare_refit_fit_event(self, session, event)
         if event.get("command") == "cloth_collision_input" and dict(event.get("arguments") or {}).get("source") == "archive":
             from cdmw.ui.mesh_editor.cloth_collision_flow import prepare_cloth_collision_event
             self._archive_refit_picker_active = True

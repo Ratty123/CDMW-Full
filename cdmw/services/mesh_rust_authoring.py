@@ -8287,6 +8287,7 @@ class RustMeshAuthoringSession:
                 self.shadow_service.geometry_layer_state(self.shadow_session_id)
             ),
             "morph_refit": morph_payload,
+            "refit_reference_reason": shadow_session.refit_reference_reason,
             "loaded_mesh": Path(str(self.shadow_service._session(self.shadow_session_id).working_mesh.path)).name,
             "archive_refit_assets": [
                 {"path": asset.entry.path, "role": asset.role, "part_indices": list(asset.part_indices)}
@@ -8792,6 +8793,13 @@ class RustMeshAuthoringSession:
     def _execute_shadow_command(self, command, args, stop_event, before_revision, before_signature):
         if command != "refit_diagnostics" and command.startswith(("morph_", "refit_")):
             self._ensure_morph_authoring_resolved(command)
+        if command == "refit_fit_to_body" and "_reference_archive" in args:
+            from cdmw.services.mesh_refit_reference_lookup import PreparedRefitReferenceArchive
+
+            # The GUI lists the authored bodies through the archive worker; wait here, not there.
+            prepared = args["_reference_archive"]
+            if isinstance(prepared, PreparedRefitReferenceArchive):
+                args = {**args, "_reference_archive": prepared.wait(lambda: self._raise_if_cancelled(stop_event))}
         if command == "refit_diagnostics":
             result = self._run_morph_command(command, args)
         elif command == "cloth_collision_input":
@@ -9371,12 +9379,19 @@ class RustMeshAuthoringSession:
                 ) if key in args},
             )
         if command == "refit_fit_to_body":
-            _require_argument_keys(args, frozenset({"reference_body", "body_weights"}), command)
+            from cdmw.services.mesh_refit_reference_lookup import RefitReferenceArchive
+
+            _require_argument_keys(args, frozenset({"reference_body", "body_weights", "_reference_archive"}), command)
             use_reference = args.get("reference_body", True)
             use_weights = args.get("body_weights", True)
             if type(use_reference) is not bool or type(use_weights) is not bool:
                 raise RustMeshProtocolError("Mesh refit_fit_to_body reference_body and body_weights must be boolean")
-            return service.fit_refit_to_body(session_id, reference_body=use_reference, body_weights=use_weights)
+            # Only the host supplies archive files; JSON cannot produce this type.
+            archive = args.get("_reference_archive")
+            if archive is not None and not isinstance(archive, RefitReferenceArchive):
+                raise RustMeshProtocolError("Mesh refit_fit_to_body received an invalid archive context")
+            return service.fit_refit_to_body(
+                session_id, reference_body=use_reference, body_weights=use_weights, reference_archive=archive)
         if command == "refit_restore_shape_apply":
             _require_argument_keys(args, set(), command)
             return service.apply_refit_shape_restore(session_id)

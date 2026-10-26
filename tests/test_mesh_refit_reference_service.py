@@ -70,12 +70,33 @@ def test_fit_to_body_without_a_findable_authored_body_fits_the_driver_and_says_w
     assert state.refit.reference_body is None
     assert any("Fit to body used only the current body: the game archive index is not available" in item
                for item in result.diagnostics)
+    # The Fit tab keeps saying so; a quiet fallback looked like a poor authored-body fit.
+    assert editor.state_payload()["refit_reference_reason"] == "the game archive index is not available"
+
+
+def test_fit_to_body_reads_the_archive_files_the_host_prepared(editor, monkeypatch):
+    seen = []
+    reference = _reference(editor)
+    monkeypatch.setattr(lookup, "find_refit_reference_body", lambda *_args, dependencies=None, **_kwargs: (
+        seen.append(dependencies), lookup.RefitReferenceLookup(reference))[1])
+    missing = lookup.PreparedRefitReferenceArchive()
+    missing.settle(reason="no nude body was found in the archive for 1_phm")
+    result = _rig_command(editor, 4, "refit_fit_to_body", {"_reference_archive": missing})
+    # Without the files there is nothing to look up; the Fit says why instead.
+    assert seen == [] and result["state"]["morph_refit"]["refit"]["reference_body"] is None
+    assert result["state"]["refit_reference_reason"] == "no nude body was found in the archive for 1_phm"
+    prepared = lookup.PreparedRefitReferenceArchive()
+    prepared.settle("merged archive set")
+    result = _rig_command(editor, 5, "refit_fit_to_body", {"_reference_archive": prepared})
+    assert seen == ["merged archive set"]
+    assert result["state"]["morph_refit"]["refit"]["reference_body"]["label"] == LABEL
+    assert result["state"]["refit_reference_reason"] == ""
 
 
 def test_fit_to_body_rejects_unknown_arguments(editor):
     from cdmw.services.mesh_rust_authoring import RustMeshProtocolError
 
-    for arguments in ({"reference_body": "yes"}, {"surprise": True}):
+    for arguments in ({"reference_body": "yes"}, {"surprise": True}, {"_reference_archive": {"dependencies": None}}):
         with pytest.raises(RustMeshProtocolError):
             _rig_command(editor, 8, "refit_fit_to_body", arguments)
 

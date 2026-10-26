@@ -2247,9 +2247,19 @@ rigid. Disabled Parts, removed islands, masks and post-refit corrections behave 
 the bound fitter; Tightness and Intensity are not used. The reference survives
 rebinding, is dropped by Reset and Bake, is stored in runtime snapshot version 5 and
 is reported, with the latest fit's diagnostics, as `morph_state.refit.reference_body`.
+The editor's archive sets are bounded per opened PAC (`ArchivePreviewDependencySet`):
+they hold each PAC's skeleton candidates but no nude body. Before the Fit the host
+(`refit_reference_preparation`) therefore merges the opened file's and every Refit
+asset's set, lists `<rig>/nude/*.pac` for each character skeleton folder they name in
+one archive-worker query, prepares the body the same chooser picks, and hands the
+merged set to the Fit worker as `_reference_archive`, a ticket the worker waits on for
+up to 60 s; full local indexes need none. Without it the lookup could not resolve an
+outfit's skeleton from the body's set, and every app Fit fell back to the driver.
 The panel's **Use the authored body** (default on) sends `reference_body: false` to
-fit the driver alone; Fit also falls back to the driver alone, with a diagnostic, when
-the garments did not come from the archive, the skeletons or nude body cannot be
+fit the driver alone; Fit also falls back to the driver alone, with a diagnostic and
+an **Authored body not used: …** line under the Fit button
+(`state.refit_reference_reason`), when the garments did not come from the archive,
+the archive files cannot be listed or prepared, the skeletons or nude body cannot be
 resolved, or the garments were authored on the driver itself.
 `tools/refit_reference_harness.py` scores a fit on real PACs (rigid distortion, new
 inside-body vertices, new skin through cloth, new layer crossings, cloth edge strain;

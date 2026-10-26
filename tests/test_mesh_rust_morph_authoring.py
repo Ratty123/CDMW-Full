@@ -132,11 +132,12 @@ _DEFINITION = {
 @pytest.mark.parametrize(
     ("command", "arguments", "method", "positional", "keywords"),
     [
-        ("refit_fit_to_body", {}, "fit_refit_to_body", (), {"reference_body": True, "body_weights": True}),
+        ("refit_fit_to_body", {}, "fit_refit_to_body", (),
+         {"reference_body": True, "body_weights": True, "reference_archive": None}),
         ("refit_fit_to_body", {"reference_body": False}, "fit_refit_to_body", (),
-         {"reference_body": False, "body_weights": True}),
+         {"reference_body": False, "body_weights": True, "reference_archive": None}),
         ("refit_fit_to_body", {"body_weights": False}, "fit_refit_to_body", (),
-         {"reference_body": True, "body_weights": False}),
+         {"reference_body": True, "body_weights": False, "reference_archive": None}),
         ("refit_island_configure", {"islands": [{"submesh_index": 2, "face_indices": [0, 1]}], "enabled": False},
          "configure_refit_islands", (({"submesh_index": 2, "face_indices": [0, 1]},),), {"inherit": False, "enabled": False}),
         ("morph_capture_baseline", {"submesh_indices": [2, 0]},

@@ -268,12 +268,21 @@ fn fit_to_body_uses_the_authored_body_unless_turned_off_and_names_it() -> TestRe
     assert_eq!(command_arguments(&ui.actions_from_click("Fit all enabled garments")?, "refit_fit_to_body"),
         json!({"body_weights": false}));
     ui.click("Take weights from the body")?;
+    // A Fit that fell back to the current body says why until the authored body is used.
+    let reason = "Authored body not used: no skeleton was found for cd_m0001_00_de_phm_ub_11002.pac";
+    ui.application.cdmw_state["refit_reference_reason"] = json!("no skeleton was found for cd_m0001_00_de_phm_ub_11002.pac");
+    ui.frame(Vec::new());
+    ui.reveal(reason)?;
+    ui.click("Use the authored body")?;
+    assert!(ui.label_rect(reason).is_none(), "turning the authored body off hides its reason");
+    ui.click("Use the authored body")?;
     ui.application.cdmw_state["morph_refit"]["refit"]["reference_body"] = json!({
         "label": "character/model/1_pc/1_phm/nude/cd_phm_00_nude_00_0001.pac",
         "vertex_count": 13162, "face_count": 24014, "last_fit": [],
     });
     ui.frame(Vec::new());
     ui.reveal("Authored body: cd_phm_00_nude_00_0001.pac")?;
+    assert!(ui.label_rect(reason).is_none(), "the authored body replaces the stale reason");
     Ok(())
 }
 

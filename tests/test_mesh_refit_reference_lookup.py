@@ -140,3 +140,36 @@ def test_fit_to_the_driver_alone_says_why(archive, case, reason):
     finally:
         RIGS[OUTFIT] = PHM_PAB
     assert found.reference is None and reason in found.reason
+
+
+def test_bounded_archive_sets_find_the_authored_body_once_its_nude_folder_is_supplied(archive, monkeypatch):
+    read, _reads = archive
+
+    def resolve(entry, *, archive_entries_by_normalized_path, **_kwargs):
+        rig = RIGS.get(entry.path)
+        found = rig in archive_entries_by_normalized_path
+        return (SimpleNamespace(path=rig) if found else None), SimpleNamespace(reason="not in this set")
+
+    monkeypatch.setattr("cdmw.core.skeleton_resolver.resolve_skeleton_for_model", resolve)
+    # The editor's sets are bounded per opened PAC: each names its own skeleton, none a nude body.
+    context = _context(_asset(OUTFIT, (0,), "loaded"), _asset(DRIVER, (1,), "body", _Dependencies((DRIVER, PHW_PAB))))
+    alone = lookup.find_refit_reference_body(context, (0,), (1,), read_entry=read)
+    assert alone.reference is None and "no skeleton was found" in alone.reason
+    prepared = _Dependencies((OUTFIT, PHM_PAB, DRIVER, PHW_PAB, PHM_NUDE))
+    found = lookup.find_refit_reference_body(context, (0,), (1,), read_entry=read, dependencies=prepared)
+    assert found.reason == "" and found.reference.label == PHM_NUDE
+
+
+def test_a_prepared_archive_ticket_stops_waiting_when_cancelled_or_late():
+    ticket = lookup.PreparedRefitReferenceArchive()
+    late = ticket.wait(timeout_seconds=0.)
+    assert late.dependencies is None and "in time" in late.reason
+
+    def cancelled():
+        raise RuntimeError("cancelled")
+
+    with pytest.raises(RuntimeError, match="cancelled"):
+        ticket.wait(cancelled)
+    ticket.settle("set", "")
+    ticket.settle(None, "ignored once finished")
+    assert ticket.wait() == lookup.RefitReferenceArchive("set", "")
