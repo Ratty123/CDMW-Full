@@ -310,6 +310,16 @@ def test_in_app_browser_renders_the_expanded_guides_in_each_locale(tmp_path, lan
                 "Start with a template from the same equipment family. Keep its original model for a first test, set a name, choose one supported shop route, then build a separate package. This checks identity and distribution before you add imported geometry, materials or effects."
             )
             assert localizer.translate(source_paragraph) in body
+            if topic == "mesh_editor":
+                hover_guide = "Open Parts on hover, beside Part colors in Morph & Refit, opens the Parts list when you hover a visible surface. Turn it off to keep closed panels closed; open lists still highlight and reveal matching names. Selection and pending fitting edits stay unchanged."
+                translated = localizer.translate(hover_guide)
+                assert translated in body
+                assert translated in wiki_pages[page_slug("Mesh-Editor", language.code) + ".md"]
+                output_guide = "Output, beside Finish Edit Mesh and at the top of Tools, shows the route Finish follows. Open it to switch between Exact and Free Edit, choose a Free Edit package folder, or open a package in CDMW."
+                translated = localizer.translate(output_guide)
+                assert translated != output_guide or language.code == "en"
+                assert translated in body
+                assert translated in wiki_pages[page_slug("Mesh-Editor", language.code) + ".md"]
             if topic == "new_item_studio":
                 definition_guide = "Extended item definition groups text and knowledge, linked items and bundles, flags, equipment and sharpness, presentation, and world/economy fields. Load definition references, select a field and check Override selected field. Edit Value; select lists to add entries or select rows to remove them. Uncheck to inherit; an overridden empty list clears. Secondary descriptions need a source item with an existing secondary description; language overrides fall back to English or source text. These settings require item.definition version 1 and preserve earlier packages. Missing or ambiguous references refuse. Raw selectors, money identifiers, routing, respawn units and game/save effects remain unverified."
                 translated = localizer.translate(definition_guide)

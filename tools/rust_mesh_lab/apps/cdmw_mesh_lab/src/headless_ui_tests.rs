@@ -1271,7 +1271,7 @@ impl HeadlessUi {
     // and persistence tests use new_integrated_cdmw to exercise closed defaults.
     fn new_integrated_cdmw_for_controls(application: LabApplication, size: egui::Vec2) -> Self {
         let mut ui = Self::new_integrated_cdmw(application, size);
-        for label in ["Viewport", "Transform", "Sculpt", "Mesh Data"] {
+        for label in ["Viewport", "Output", "Transform", "Sculpt", "Mesh Data"] {
             ui.click_tool_button(label).expect("open tool section");
         }
         for label in ["Geometry Layers", "Action History", "Parts"] {
@@ -5468,7 +5468,7 @@ fn integrated_refit_selects_loaded_garments_before_they_are_bound() -> TestResul
     ui.click("Setup")?;
     assert!(ui.label_rect("Use loaded mesh as body").is_none());
     assert!(
-        ui.reveal("MIXED")
+        ui.reveal("1 of 2 Parts")
             .is_ok()
     );
     ui.click("Setup")?;
@@ -5529,7 +5529,7 @@ fn integrated_refit_unassigned_body_does_not_select_every_part_or_show_inert_set
     ui.click("Select garments")?;
     assert_eq!(ui.application.selected_part_indices(), selection);
     assert!(ui.label_rect("Refit enabled").is_none());
-    ui.reveal("Assign a body in Setup.")?;
+    ui.reveal("Assign a body in step 1 first.")?;
     ui.click("Setup")?;
     ui.click("Use loaded parts")?;
     let garments_header = ui.reveal("2 · Garments")?;
@@ -5703,7 +5703,11 @@ fn integrated_morph_slider_definition_stays_inside_each_panel() -> TestResult {
             "Mirror",
             "Add Slider",
         ] {
-            let text = ui.reveal(label)?;
+            let text = if presentation == "floating" {
+                ui.reveal_in_tool_window("Morph & Refit", label)?
+            } else {
+                ui.reveal(label)?
+            };
             let right = if presentation == "floating" {
                 ui.tool_window_rect("Morph & Refit")?.right()
             } else {
@@ -5730,7 +5734,7 @@ fn integrated_morph_slider_definition_stays_inside_each_panel() -> TestResult {
                 }
             }
         }
-        ui.click("volume")?;
+        ui.click("Volume")?;
         let menu = ui.label_rect("Volume").ok_or("open Rule menu")?.center();
         ui.frame(vec![Event::PointerMoved(menu), wheel_event(-250.0)]);
         ui.settle_layout();
@@ -5792,8 +5796,8 @@ fn integrated_morph_refit_controls_all_dispatch_typed_host_commands() -> TestRes
         .insert(0);
     ui.click("Morph & Refit")?;
     ui.click("Fit")?;
-    ui.reveal("Body · 1 Parts")?;
-    ui.reveal("Bound · 1 Parts")?;
+    ui.reveal("Body · 1 Part")?;
+    ui.reveal("Bound · 1 Part")?;
     ui.open_morph_sliders()?;
     ui.reveal("Waist Width")?;
 

@@ -368,7 +368,16 @@ Click a tool icon to select it and open its settings. Several floating tool
 panels can stay open together, including while you edit in the viewport. Drag a
 panel by its header to place it anywhere within the editor's content area; its
 position is remembered when you close and reopen it. Hover an icon for its name.
-**Viewport** has its own icon for display settings.
+**Viewport** has its own icon for display settings, and **Output** has its own icon
+for the output route. The icons are grouped as in the expanded rail.
+
+**Output** follows **Viewport** at the top of the expanded rail and holds **Exact** /
+**Free Edit**, the route status, the Free Edit package folder, **Export Free Edit
+Package** and **Open Package in CDMW...**. It stays available in a read-only session,
+where choosing a route is the next step. A button beside **Finish Edit Mesh**, such as
+**Output: Exact**, always shows the current route; clicking it opens Output in the
+rail, or as a floating panel when the rail is collapsed. Hair Tools has no tool rail
+and hides the button. Viewport keeps display settings only.
 
 Clicking an already-open tool's icon activates that tool and brings its panel
 forward. Clicking again while that tool and panel are current closes just that
@@ -1656,7 +1665,7 @@ folder before proven non-exact topology tools appear. MeshInfo and unknown forma
 remain read-only for selection, inspection, comparison, and safe export. The Python host
 and resident forms reject the same unavailable command before mutation.
 
-In **Viewport > Output**, active Free Edit sessions show **Choose output folder...**
+In **Output**, active Free Edit sessions show **Choose output folder...**
 until a destination is configured, then **Change output folder...** with the chosen
 path. This also works for imported meshes opened from Create New Item, which already
 start in Free Edit. The picker chooses the parent of a new package folder; existing
@@ -1867,11 +1876,20 @@ do not pose it or paint weights with a brush.
 matching the other tool groups. Click its header to open or close the settings;
 closing returns to Orbit navigation. Viewport, the tool groups, Parts,
 Geometry Layers and Action History start collapsed. Morph & Refit opens directly to
-**Setup**, with **Fit**, **Shape** and **Saved** tabs. The selected tab, nested page
+**Setup**, with **Fit**, **Shape** and **Saved** tabs. Arrows between Setup, Fit and
+Shape show their order; Saved stands apart. **Part colors** and **Open Parts on hover**
+share one row below the tabs. The selected tab, nested page
 and drafts stay available when returning from another tool or moving between expanded,
 pinned and floating settings. Closing panels preserves geometry and selection.
 
-**Setup** follows **1 · Body**, **2 · Garments**, and **3 · Bind to body**.
+Each page fills its recommended next action with the theme accent, and only while that
+action is enabled. The same emphasis marks **Bake** while a preview is active, a pending
+**Apply**, a ready **Add Slider** and, once there are edits, **Finish Edit Mesh**.
+
+**Setup** follows **1 · Body**, **2 · Garments**, and **3 · Bind to body**. Completed
+steps show a tick and the current step uses the accent colour. Without a body, step 1
+explains its two routes and highlights **Load body...**; the next actions are then
+**Select garments**, **Bind selected garments** and **Continue to Fit**.
 Load and selection actions sit with their role. **Use loaded parts** retains per-asset
 body assignment and **Set body from selection**; **Choose Parts** retains the named
 Part checkboxes and **Open Selection tool**, without an inner scrollbar. Long names
@@ -1880,8 +1898,9 @@ garment set; **Continue to Fit** becomes available once garments are bound. **Cl
 Refit** remains separate from preview Reset and Bake.
 
 **Fit** starts with **Fit all enabled garments**, whose scope is independent of the
-settings selection. **Review parts** opens the compact **Choose garments** list;
-rows show each Part's mode or **Skip**. Click a name to highlight that Part and edit
+settings selection. It is highlighted unless settings await Apply or a preview awaits
+Bake. **Review parts** opens the compact **Choose garments** list;
+rows show each Part's name on the left and its mode or **Skip** on the right. Click a name to highlight that Part and edit
 its settings; Ctrl-click selects several. **Adjust garments** has one **Editing**
 scope and one Apply action, targeting either selected garments or all bound garments.
 Choosing a garment switches the editor to the selected scope. Clearing a selected
@@ -1894,7 +1913,8 @@ body over sliding it toward a narrower waist. Rolled and tilted openings retain
 their contour. Deliberate tightening and protected areas keep their existing
 controls, and unresolved contact or strain still refuses the fit.
 
-**Restore fitting shape…** previews positions from an explicitly chosen matching
+**Restore fitting shape…**, at the end of Fit after **Check current fit**, previews
+positions from an explicitly chosen matching
 unbaked PAC when an earlier Bake or saved fit has damaged the garment's shape.
 Select the garment Parts or whole mesh islands first, then Bake or Reset any
 current preview and apply pending fitting settings. The source must match the
@@ -1913,14 +1933,17 @@ and **Check current fit** open directly from their headings. Region and influenc
 headings show existing restrictions and masks even when closed. Optional sections
 retain their open state while using the tool. **Create body slider** is in Shape.
 **Shape** offers **Body**, **Sides** and **Sliders** pages for coordinated controls,
-paired adjustments and manual values. **+ Create** opens **Procedural** or **Sculpted**
-creation; **Edit slider** opens its procedural fields directly. Sculpted creation
+paired adjustments and manual values. When **Create body controls** is unavailable,
+Body states why. **+ Create** opens **Procedural** or **Sculpted**
+creation; **Edit slider** opens its procedural fields directly. Procedural creation
+warns in amber until a Part or region is selected, and Rule, Falloff and Mirror show
+their labels rather than stored values. Sculpted creation
 captures a neutral body and the edited target shape. Each slider can also own a
 separate outfit correction. **Saved** separates **Profiles**, **Presets** and
 **Fitting setups**, including existing import, export and matching-setup actions.
 
 **Reset** and **Bake** remain below the scrolling content in every tab and panel
-presentation. A pending sculpted slider replaces them with **Save slider** and
+presentation; an active preview is labelled in amber. A pending sculpted slider replaces them with **Save slider** and
 **Discard base**; an outfit correction shows **Save correction** and **Cancel**.
 Restoring a fitting shape shows **Apply** and **Cancel** in the same strip, with
 the source and selection details in the scrolling area.
@@ -1937,8 +1960,11 @@ Scrolling a panel cannot carry camera zoom into a later viewport click.
 
 #### Asset roles and catalogue browsers
 
-**Setup** lists loaded assets under their body or garment role, with Part counts
-and full paths on hover. **Set as body**, inside **Use loaded parts**, assigns only
+**Setup** lists loaded assets under their body or garment role: the file name (full
+path on hover), then how many of its Parts belong to that step, such as **1 Part**,
+**1 of 2 Parts** when one file holds both body and garment Parts, or **2 Parts · not
+assigned yet** before a body is chosen. Morph & Refit counts use the singular for one
+Part or garment. **Set as body**, inside **Use loaded parts**, assigns only
 that asset's Parts as the driver. **Load body...** and **Load garments...** open the
 loaded game archive catalogue with search,
 paging, and source previews. Choosing a body assigns its Parts as the driver; choosing
@@ -2063,8 +2089,11 @@ Hovering a Part name temporarily highlights its visible geometry in cyan, includ
 obscured surfaces, without changing the selection or fitting targets. This also works
 with Part colors off; leaving the name clears the hover tint. Hidden Parts and islands
 stay hidden, and comparison views keep their own display. Hovering a surface in the
-viewport also opens the Parts list, expanding Inspector or switching from Mesh
-islands when needed. It outlines matching Part names in cyan and scrolls them into
+viewport also opens the Parts list when **Open Parts on hover**, beside **Part
+colors**, is enabled (the default). Turn it off to keep closed panels closed.
+The choice is saved with the editor layout when remembering panel sizes is enabled.
+With automatic opening enabled, Inspector expands or switches from Mesh islands
+when needed. Hover outlines matching Part names in cyan and scrolls them into
 view in open lists. It moves only enough to reveal a name and keeps an already visible
 match in place, including fit warnings. It uses the frontmost visible surface,
 keeps selection and fitting edits, and clears over empty space or during drags.

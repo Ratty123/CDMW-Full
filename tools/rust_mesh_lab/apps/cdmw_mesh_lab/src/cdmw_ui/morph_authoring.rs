@@ -101,7 +101,7 @@ impl LabApplication {
             .and_then(Value::as_array).into_iter().flatten()
             .filter(|row| state_bool(row, "has_vertex_mask")).count();
         let summary = if masked == 0 { crate::localization::tr("No mask") }
-            else { crate::localization::tr(format!("{} masked Parts", masked)) };
+            else { cdmw_count(masked, "1 masked Part", "{} masked Parts") };
         let title = format!("{} · {summary}", crate::localization::tr("Local influence"));
         cdmw_section(ui, "refit-local-influence", &title, None, |ui| {
             if selected_garments.is_empty() {
@@ -112,7 +112,7 @@ impl LabApplication {
                     }
                 });
             } else {
-                ui.weak(crate::localization::tr(format!("{} garment Parts selected", selected_garments.len())));
+                ui.weak(cdmw_count(selected_garments.len(), "1 garment Part selected", "{} garment Parts selected"));
             }
             if ui.button(crate::localization::tr("Open Selection tool")).clicked() {
                 self.cancel_active_gesture("Open garment influence selection");
@@ -189,35 +189,38 @@ impl LabApplication {
                     let label = if !enabled { "Skip" } else { match mode {
                         "rigid_component" => "Rigid component", "rigid" => "Offset follow", _ => "Flexible",
                     }};
-                    // Reserve the summary first so even long names leave it visible.
+                    // Reserve the summary first so even long names leave it visible;
+                    // the name then starts at the left of the remaining space.
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                         ui.weak(crate::localization::tr(label));
-                        let name = self.cdmw_morph_part_names(&[*part]);
-                        let active = selected.contains(part);
-                        let row = ui.add_enabled(
-                            visible.as_ref().is_none_or(|visible| visible.contains(part)),
-                            Button::selectable(active, self.cdmw_part_name_atoms(*part, &name)).truncate(),
-                        );
-                        self.track_cdmw_part_hover(ui, *part, &row);
-                        if row
-                            .on_hover_text(&name)
-                            .on_hover_text(crate::localization::tr("Click to highlight this garment and edit its strength. Ctrl-click to select several."))
-                            .on_disabled_hover_text(crate::localization::tr("Show this Part in the Parts inspector before selecting it"))
-                            .clicked()
-                        {
-                            let mut next = if ui.input(|input| input.modifiers.command || input.modifiers.ctrl) {
-                                selected.clone()
-                            } else {
-                                Vec::new()
-                            };
-                            if next.contains(part) {
-                                next.retain(|candidate| candidate != part);
-                            } else {
-                                next.push(*part);
+                        ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), |ui| {
+                            let name = self.cdmw_morph_part_names(&[*part]);
+                            let active = selected.contains(part);
+                            let row = ui.add_enabled(
+                                visible.as_ref().is_none_or(|visible| visible.contains(part)),
+                                Button::selectable(active, self.cdmw_part_name_atoms(*part, &name)).truncate(),
+                            );
+                            self.track_cdmw_part_hover(ui, *part, &row);
+                            if row
+                                .on_hover_text(&name)
+                                .on_hover_text(crate::localization::tr("Click to highlight this garment and edit its strength. Ctrl-click to select several."))
+                                .on_disabled_hover_text(crate::localization::tr("Show this Part in the Parts inspector before selecting it"))
+                                .clicked()
+                            {
+                                let mut next = if ui.input(|input| input.modifiers.command || input.modifiers.ctrl) {
+                                    selected.clone()
+                                } else {
+                                    Vec::new()
+                                };
+                                if next.contains(part) {
+                                    next.retain(|candidate| candidate != part);
+                                } else {
+                                    next.push(*part);
+                                }
+                                next.sort_unstable();
+                                actions.push(UiAction::SetPartSelection(next));
                             }
-                            next.sort_unstable();
-                            actions.push(UiAction::SetPartSelection(next));
-                        }
+                        });
                     });
                 });
             });
@@ -266,20 +269,22 @@ impl LabApplication {
                         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                             ui.weak(crate::localization::tr(if override_setting.is_some() { "Custom" } else { "Inherited" }));
                             ui.weak(crate::localization::tr(label));
-                            let title = crate::localization::tr(format!("Island {} · {} faces", index+1, faces.len()));
-                            let active = selected.contains(&(part, faces.clone()));
-                            if ui.add_enabled(visible.as_ref().is_none_or(|visible| visible.contains(&part)),
-                                Button::selectable(active, &title).truncate())
-                                .on_hover_text(&title)
-                                .on_hover_text(crate::localization::tr("Ctrl-click to select several islands. Inherited settings follow the Part."))
-                                .clicked() {
-                                let target = (part, faces);
-                                let mut next = if ui.input(|input| input.modifiers.command || input.modifiers.ctrl) {
-                                    selected.clone()
-                                } else { Vec::new() };
-                                if active { next.retain(|candidate| candidate != &target); } else { next.push(target); }
-                                actions.push(UiAction::SelectIslands(next));
-                            }
+                            ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), |ui| {
+                                let title = crate::localization::tr(format!("Island {} · {} faces", index+1, faces.len()));
+                                let active = selected.contains(&(part, faces.clone()));
+                                if ui.add_enabled(visible.as_ref().is_none_or(|visible| visible.contains(&part)),
+                                    Button::selectable(active, &title).truncate())
+                                    .on_hover_text(&title)
+                                    .on_hover_text(crate::localization::tr("Ctrl-click to select several islands. Inherited settings follow the Part."))
+                                    .clicked() {
+                                    let target = (part, faces);
+                                    let mut next = if ui.input(|input| input.modifiers.command || input.modifiers.ctrl) {
+                                        selected.clone()
+                                    } else { Vec::new() };
+                                    if active { next.retain(|candidate| candidate != &target); } else { next.push(target); }
+                                    actions.push(UiAction::SelectIslands(next));
+                                }
+                            });
                         });
                     }));
                 }
@@ -297,7 +302,7 @@ impl LabApplication {
         let restricted = refit.get("garment_regions").and_then(Value::as_array).into_iter().flatten()
             .filter(|pair| pair.get(1).and_then(Value::as_array).is_some_and(|regions| !regions.is_empty())).count();
         let summary = if restricted == 0 { crate::localization::tr("Whole body") }
-            else { crate::localization::tr(format!("{} restricted Parts", restricted)) };
+            else { cdmw_count(restricted, "1 restricted Part", "{} restricted Parts") };
         let title = format!("{} · {summary}", crate::localization::tr("Body region"));
         cdmw_section(ui, "refit-body-region", &title, None, |ui| {
             ui.weak(crate::localization::tr("Choose target garments, then select the body faces they may follow."));
@@ -319,7 +324,7 @@ impl LabApplication {
                     else { self.cdmw_refit_region_targets.retain(|candidate| candidate != part); }
                 }
             }
-            ui.weak(crate::localization::tr(format!("{} target garments", self.cdmw_refit_region_targets.len())));
+            ui.weak(cdmw_count(self.cdmw_refit_region_targets.len(), "1 target garment", "{} target garments"));
             ui.horizontal_wrapped(|ui| {
                 let body = value_u32_list(state, "driver_submesh_indices");
                 if ui.add_enabled(!body.is_empty(), Button::new(crate::localization::tr("Select body"))).clicked() {

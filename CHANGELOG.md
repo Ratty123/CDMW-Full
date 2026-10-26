@@ -22,6 +22,9 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 ### Changed
 
+- Mesh Editor moves Exact / Free Edit and the Free Edit package controls out of Viewport into their own Output section, with an icon in the collapsed tool rail. A button beside Finish Edit Mesh, such as "Output: Exact", always shows the current route and opens Output. The collapsed rail's tool groups are separated correctly again.
+- Morph & Refit adds an Open Parts on hover toggle. Turning it off keeps closed panels closed while open lists continue highlighting and revealing matching names.
+- Morph & Refit is easier to follow: Setup ticks completed steps and highlights the next action, the tabs show their order, and Bake, a pending Apply and Finish Edit Mesh stand out when they are the next step. Fit lists garment names on the left and keeps Restore fitting shape at the end, Shape explains when body controls are unavailable, and several status labels that appeared in English are now translated. Loaded files describe their role in plain words (for example "1 of 2 Parts" or "not assigned yet") instead of MIXED or UNASSIGNED tags, and counts read "1 Part" rather than "1 Parts".
 - Mesh Editor groups its Finish actions, distinguishes Resume current edit from Start next edit pass, and adds clickable help. Overlay restoration is removed from this page.
 - Create New Item re-enables DMM export for testing with updated DMM versions. In-game item and texture compatibility remains unverified.
 - Settings lists all ignored folders together and lets you remove any default. Archive scans also ignore `dmmsa`, `dmmgen` and `CrimsonFastLoad.backup` by default, while preserving saved custom exclusions.

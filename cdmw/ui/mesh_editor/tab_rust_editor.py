@@ -448,16 +448,6 @@ class MeshEditorRustEditorMixin(MeshEditorRustProcessMixin):
         application = QApplication.instance()
         localizer = active_ui_localizer()
         language = str(getattr(localizer, "language_code", "en"))
-        # Rust already falls back to source text. Keep every translated value
-        # while omitting identity entries from the bounded control message.
-        translations = (
-            localizer.translation_snapshot(
-                (key for key in native_ui_source_keys()
-                 if localizer.translations.get(key, key) != key),
-                max_bytes=DOTNET_PROTOCOL_LINE_LIMIT - 16384,
-            )
-            if localizer is not None else {}
-        )
         font = application.font() if application is not None else self.font()
         screen = application.primaryScreen() if application is not None else None
         theme_key = str(getattr(self, "theme_key", "graphite") or "graphite")
@@ -479,10 +469,10 @@ class MeshEditorRustEditorMixin(MeshEditorRustProcessMixin):
             )
         except (TypeError, ValueError):
             data_font_point_size = float(DEFAULT_UI_DATA_FONT_SIZE)
-        return {
+        theme: dict[str, object] = {
             "schema": "cdmw_ui_theme_v1",
             "language": language,
-            "translations": translations,
+            "translations": {},
             "layout": load_mesh_layout(self.settings),
             "theme": theme_key,
             "variant": "dark" if window_colour.lightnessF() < 0.5 else "light",
@@ -493,6 +483,18 @@ class MeshEditorRustEditorMixin(MeshEditorRustProcessMixin):
             "density": str(self.settings.value("appearance/ui_density", "compact") or "compact"),
             "scale": float(screen.devicePixelRatio()) if screen is not None else 1.0,
         }
+        if localizer is not None:
+            # The theme also travels as one theme_update control line. Give the
+            # translations what the rest of the theme leaves, keeping 1 KiB for
+            # the message's event and identity fields. Rust already falls back
+            # to source text, so identity entries are omitted.
+            reserved = len(json.dumps(theme, ensure_ascii=False, separators=(",", ":")).encode("utf-8"))
+            theme["translations"] = localizer.translation_snapshot(
+                (key for key in native_ui_source_keys()
+                 if localizer.translations.get(key, key) != key),
+                max_bytes=DOTNET_PROTOCOL_LINE_LIMIT - reserved - 1024,
+            )
+        return theme
 
     def _send_rust_theme_update(self) -> bool:
         """Apply an app appearance change to the already embedded child."""

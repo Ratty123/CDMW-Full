@@ -413,7 +413,7 @@ pub(crate) mod numeric {
 }
 
 pub(super) mod layout {
-    //! Presentation-only geometry. The host persists it in its existing user cfg.
+    //! Presentation-only layout and preferences, persisted in the existing user cfg.
 
     use egui::{Context, Id, Pos2, Rect, containers::panel::PanelState};
     use serde_json::{Value, json};
@@ -451,6 +451,9 @@ pub(super) mod layout {
         if value["floating"].is_object() {
             values["floating"] = value["floating"].clone();
         }
+        if let Some(enabled) = value["auto_open_parts_on_hover"].as_bool() {
+            values["auto_open_parts_on_hover"] = json!(enabled);
+        }
         context.data_mut(|data| {
             data.insert_temp(
                 state_id(),
@@ -459,6 +462,20 @@ pub(super) mod layout {
                     dirty: false,
                 },
             )
+        });
+    }
+
+    pub(crate) fn auto_open_parts_on_hover(context: &Context) -> bool {
+        context.data_mut(|data| data.get_temp::<Layout>(state_id()).unwrap_or_default()
+            .values["auto_open_parts_on_hover"].as_bool().unwrap_or(true))
+    }
+
+    pub(crate) fn set_auto_open_parts_on_hover(context: &Context, enabled: bool) {
+        context.data_mut(|data| {
+            let mut layout = data.get_temp::<Layout>(state_id()).unwrap_or_default();
+            layout.values["auto_open_parts_on_hover"] = json!(enabled);
+            layout.dirty = true;
+            data.insert_temp(state_id(), layout);
         });
     }
 
@@ -578,6 +595,25 @@ pub(super) mod layout {
         }
 
         #[test]
+        fn auto_open_parts_on_hover_round_trips_and_defaults_to_enabled() {
+            let context = Context::default();
+            assert!(auto_open_parts_on_hover(&context));
+            restore(&context, &json!({"auto_open_parts_on_hover": "false"}));
+            assert!(auto_open_parts_on_hover(&context));
+            restore(&context, &json!({PANELS[0]: 310.0, "floating": {"Viewport": [120.0, 180.0]}}));
+            for enabled in [false, true] {
+                set_auto_open_parts_on_hover(&context, enabled);
+                let saved = changed(&context).expect("preference change must be saved");
+                assert_eq!(saved[PANELS[0]], json!(310.0));
+                assert_eq!(saved["floating"]["Viewport"], json!([120.0, 180.0]));
+                let reopened = Context::default();
+                restore(&reopened, &saved);
+                assert_eq!(auto_open_parts_on_hover(&reopened), enabled);
+                assert!(changed(&reopened).is_none());
+            }
+        }
+
+        #[test]
         fn persistent_layout_keeps_floating_positions_and_ignores_invalid_widths() {
             let context = Context::default();
             restore(&context, &json!({PANELS[0]: -30.0, PANELS[1]: "wrong"}));
@@ -609,6 +645,7 @@ const CDMW_VIEW_MODES: [(ViewMode, &str); 8] = [
 const CDMW_WIDE_CHROME_MIN_WIDTH: f32 = 1_280.0;
 pub(super) const CDMW_TOOLS_SIDEBAR: &str = "cdmw_tools_sidebar_visible";
 pub(super) const CDMW_INSPECTOR_SIDEBAR: &str = "cdmw_inspector_sidebar_visible";
+const CDMW_REVEAL_OUTPUT: &str = "cdmw_reveal_output_section";
 const CDMW_RAIL_TOOLS: [(CdmwRailPage, &str, Option<ViewportTool>); 17] = [
     (CdmwRailPage::Select, "Select", Some(ViewportTool::Select)),
     (CdmwRailPage::Move, "Move", Some(ViewportTool::Move)),
@@ -632,10 +669,19 @@ const CDMW_RAIL_TOOLS: [(CdmwRailPage, &str, Option<ViewportTool>); 17] = [
     (CdmwRailPage::Jiggle, "Jiggle", None),
     (CdmwRailPage::MorphRefit, "Morph & Refit", None),
 ];
+// The first tool of each rail group: Selection, Transform, Sculpt, Mesh Data, Morph & Refit.
+const CDMW_RAIL_GROUP_STARTS: [CdmwRailPage; 5] = [
+    CdmwRailPage::Select,
+    CdmwRailPage::Move,
+    CdmwRailPage::Grab,
+    CdmwRailPage::VertexParameters,
+    CdmwRailPage::MorphRefit,
+];
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum CdmwSidebarPage {
     Viewport,
+    Output,
     Tool(CdmwRailPage),
 }
 
@@ -650,6 +696,7 @@ impl CdmwSidebarPage {
     fn label(self) -> &'static str {
         match self {
             Self::Viewport => "Viewport",
+            Self::Output => "Output",
             Self::Tool(page) => CDMW_RAIL_TOOLS
                 .iter()
                 .find(|(candidate, _, _)| *candidate == page)
@@ -788,6 +835,12 @@ fn cdmw_sidebar_button(
                 square([-1.0, -0.8], [1.0, 0.6]);
                 line([-0.6, 1.0], [0.6, 1.0]);
                 line([0.0, 0.6], [0.0, 1.0]);
+            }
+            CdmwSidebarIcon::Page(CdmwSidebarPage::Output) => {
+                // A tray with an outgoing arrow.
+                path(&[[-1.0, 0.1], [-1.0, 0.9], [1.0, 0.9], [1.0, 0.1]]);
+                line([0.0, 0.45], [0.0, -0.95]);
+                path(&[[-0.45, -0.5], [0.0, -0.95], [0.45, -0.5]]);
             }
             CdmwSidebarIcon::Page(CdmwSidebarPage::Tool(page)) => match page {
                 CdmwRailPage::Select => path(&[
@@ -1084,9 +1137,10 @@ fn refit_apply_button(
     values: &Value,
     edits: &RefitSettingsEdits,
 ) -> egui::Response {
+    let enabled = !targets.is_empty() && edits.is_dirty();
     let response = ui.add_enabled(
-        !targets.is_empty() && edits.is_dirty(),
-        Button::new(crate::localization::tr(label)),
+        enabled,
+        cdmw_primary_button(ui, crate::localization::tr(label), enabled),
     ).on_disabled_hover_text(crate::localization::tr(if targets.is_empty() {
         "Select one or more bound garment Parts first"
     } else {
@@ -1124,6 +1178,49 @@ fn refit_mixed_numeric_choice(
                 edits.mark(key);
             }
         });
+    }
+}
+
+/// The recommended next action of a workflow, filled with the theme accent.
+/// Callers pass `primary` only while the button itself is enabled.
+pub(super) fn cdmw_primary_button<'a>(ui: &egui::Ui, text: String, primary: bool) -> Button<'a> {
+    if !primary || !ui.is_enabled() {
+        return Button::new(text);
+    }
+    let accent = ui.visuals().hyperlink_color;
+    let [red, green, blue, _] = accent.to_array();
+    let light = u32::from(red) * 299 + u32::from(green) * 587 + u32::from(blue) * 114 >= 128_000;
+    Button::new(RichText::new(text).strong().color(if light { Color32::BLACK } else { Color32::WHITE }))
+        .fill(accent)
+}
+
+/// A numbered workflow step: completed steps are ticked, the current step uses the accent.
+fn cdmw_step_heading(ui: &mut egui::Ui, title: &str, done: bool, current: bool) {
+    ui.horizontal(|ui| {
+        if done {
+            ui.colored_label(REFIT_READY_COLOUR, "✔");
+        }
+        let text = RichText::new(crate::localization::tr(title)).strong();
+        ui.label(if current { text.color(ui.visuals().hyperlink_color) } else { text });
+    });
+}
+
+/// A translated count: `one` for exactly one, otherwise `other` with its `{}` filled in.
+/// Translations phrase plurals generically; the singular needs its own key.
+fn cdmw_count(count: usize, one: &str, other: &str) -> String {
+    crate::localization::tr(if count == 1 { one.to_owned() } else { other.replacen("{}", &count.to_string(), 1) })
+}
+
+/// The first unfinished Setup step: 1 body, 2 garments, 3 bind, 4 ready to fit.
+fn cdmw_refit_setup_step(body: &[u32], bound: &[u32], selected: &[u32]) -> u8 {
+    if body.is_empty() {
+        1
+    } else if !bound.is_empty() {
+        4
+    } else if selected.is_empty() || selected.iter().any(|part| body.contains(part)) {
+        2
+    } else {
+        3
     }
 }
 
@@ -1522,6 +1619,10 @@ impl LabApplication {
                                 authoring,
                                 policy_reason,
                             );
+                            // Hair Tools has no tool rail to open Output in.
+                            if !self.hair.active() {
+                                self.draw_cdmw_output_chip(ui);
+                            }
                         },
                     );
                 });
@@ -1622,19 +1723,22 @@ impl LabApplication {
         authoring: bool,
         policy_reason: &str,
     ) {
+        let enabled = (!busy || self.hair.active())
+            && !self.hair.pending_finish
+            && authoring
+            && !self.cdmw_morph_comparison_active()
+            && state_str(&self.cdmw_state["morph_refit"], "shape_restore_source").unwrap_or("").is_empty()
+            && self.cdmw_host_connected;
+        // Once there are edits to keep, Finish is the next step.
+        let primary = enabled && state_u64(&self.cdmw_state, "undo_count") > 0;
         if ui
             .add_enabled(
-                (!busy || self.hair.active())
-                    && !self.hair.pending_finish
-                    && authoring
-                    && !self.cdmw_morph_comparison_active()
-                    && state_str(&self.cdmw_state["morph_refit"], "shape_restore_source").unwrap_or("").is_empty()
-                    && self.cdmw_host_connected,
-                Button::new(crate::localization::tr(if self.hair.pending_finish {
+                enabled,
+                cdmw_primary_button(ui, crate::localization::tr(if self.hair.pending_finish {
                     "Saving hair before Finish…"
                 } else {
                     "Finish Edit Mesh"
-                })),
+                }), primary),
             )
             .on_disabled_hover_text(crate::localization::tr(if busy {
                 "Finish waits until the pending shadow transaction completes"
@@ -1781,31 +1885,37 @@ impl LabApplication {
                 ScrollArea::vertical()
                     .id_salt("cdmw-icon-scroll")
                     .show(ui, |ui| {
-                        for (index, page) in std::iter::once(CdmwSidebarPage::Viewport)
+                        for page in [CdmwSidebarPage::Viewport, CdmwSidebarPage::Output]
+                            .into_iter()
                             .chain(
                                 CDMW_RAIL_TOOLS
                                     .iter()
                                     .map(|(page, _, _)| CdmwSidebarPage::Tool(*page)),
                             )
-                            .enumerate()
                         {
-                            if matches!(index, 1 | 2 | 5 | 9 | 16) {
+                            // Separate the session pages and each tool group, as in the expanded rail.
+                            if let CdmwSidebarPage::Tool(tool) = page
+                                && CDMW_RAIL_GROUP_STARTS.contains(&tool)
+                            {
                                 ui.separator();
                             }
+                            // Output stays available in a read-only session: it is where
+                            // an authoring route is chosen.
                             let requires_authoring = !matches!(
                                 page,
                                 CdmwSidebarPage::Viewport
+                                    | CdmwSidebarPage::Output
                                     | CdmwSidebarPage::Tool(
                                         CdmwRailPage::Select | CdmwRailPage::VertexParameters
                                     )
                             );
                             let enabled = !busy && (!requires_authoring || authoring)
                                 && (!self.cdmw_morph_comparison_active() || matches!(page,
-                                    CdmwSidebarPage::Viewport | CdmwSidebarPage::Tool(
+                                    CdmwSidebarPage::Viewport | CdmwSidebarPage::Output | CdmwSidebarPage::Tool(
                                         CdmwRailPage::Select | CdmwRailPage::MorphRefit)));
                             let settings = CdmwSidebarSettings::load(ui.ctx());
                             let selected = match page {
-                                CdmwSidebarPage::Viewport => settings.open.contains(&page),
+                                CdmwSidebarPage::Viewport | CdmwSidebarPage::Output => settings.open.contains(&page),
                                 CdmwSidebarPage::Tool(tool) => self.cdmw_rail_page == Some(tool),
                             };
                             let response = ui
@@ -2062,6 +2172,7 @@ impl LabApplication {
             && (matches!(
                 page,
                 CdmwSidebarPage::Viewport
+                    | CdmwSidebarPage::Output
                     | CdmwSidebarPage::Tool(
                         CdmwRailPage::Select
                             | CdmwRailPage::VertexParameters
@@ -2069,7 +2180,7 @@ impl LabApplication {
                     )
             ) || state_bool(&self.cdmw_state, "authoring_enabled"))
             && (!self.cdmw_morph_comparison_active() || matches!(page,
-                CdmwSidebarPage::Viewport | CdmwSidebarPage::Tool(
+                CdmwSidebarPage::Viewport | CdmwSidebarPage::Output | CdmwSidebarPage::Tool(
                     CdmwRailPage::Select | CdmwRailPage::MorphRefit)));
         // Explicit IDs keep collapsing sections and edit fields alive when their
         // settings move between the expanded rail, floating area and dock.
@@ -2079,6 +2190,7 @@ impl LabApplication {
                 ui.spacing_mut().combo_width = (ui.available_width() * 0.45).clamp(64.0, 112.0);
                 ui.add_enabled_ui(enabled, |ui| match page {
                     CdmwSidebarPage::Viewport => self.draw_cdmw_viewport_section(ui, actions),
+                    CdmwSidebarPage::Output => self.draw_cdmw_output_section(ui, actions),
                     CdmwSidebarPage::Tool(page) => match page {
                         CdmwRailPage::Select => self.draw_cdmw_selection_page(ui, actions),
                         CdmwRailPage::Move | CdmwRailPage::Rotate | CdmwRailPage::Scale => {
@@ -2153,6 +2265,26 @@ impl LabApplication {
                                             actions,
                                         )
                                     });
+                            });
+                            ui.push_id("cdmw-output-root", |ui| {
+                                // The Output chip beside Finish asks for this section once.
+                                let reveal = ui.ctx().data_mut(|data| {
+                                    data.remove_temp::<bool>(egui::Id::new(CDMW_REVEAL_OUTPUT))
+                                }).unwrap_or(false);
+                                let section = crate::localization::collapsing("Output")
+                                    .id_salt("cdmw-output")
+                                    .default_open(false)
+                                    .open(reveal.then_some(true))
+                                    .show_unindented(ui, |ui| {
+                                        self.draw_cdmw_sidebar_page(
+                                            ui,
+                                            CdmwSidebarPage::Output,
+                                            actions,
+                                        )
+                                    });
+                                if reveal {
+                                    section.header_response.scroll_to_me(Some(egui::Align::Min));
+                                }
                             });
                         });
                         ui.separator();
@@ -2459,6 +2591,13 @@ impl LabApplication {
                 }
             },
         );
+    }
+
+    fn draw_cdmw_output_section(&mut self, ui: &mut egui::Ui, actions: &mut Vec<UiAction>) {
+        ui.add_enabled_ui(!self.cdmw_morph_comparison_active(), |ui| {
+            self.draw_cdmw_output_policy(ui, actions, false);
+        });
+        ui.separator();
         if ui
             .add_enabled(
                 state_bool(&self.cdmw_state, "authoring_enabled") && !self.cdmw_morph_comparison_active(),
@@ -2471,20 +2610,59 @@ impl LabApplication {
         {
             actions.push(UiAction::ChooseCdmwImportPackage);
         }
-        ui.separator();
-        ui.add_enabled_ui(!self.cdmw_morph_comparison_active(), |ui| {
-            self.draw_cdmw_output_policy(ui, actions);
-        });
     }
 
-    fn draw_cdmw_output_policy(&mut self, ui: &mut egui::Ui, actions: &mut Vec<UiAction>) {
+    /// The current output route as a short mode name and a one-line status.
+    fn cdmw_output_summary(&self) -> (&'static str, &'static str) {
+        let policy = state_str(&self.cdmw_state, "output_policy").unwrap_or("exact_game_asset");
+        let ready = state_bool(&self.cdmw_state, "output_destination_ready");
+        if self.cdmw_has_archive_refit() {
+            return ("Archive Refit", "Archive Refit · original game files");
+        }
+        match policy {
+            "replacement_game_asset" => ("Replacement", "Replacement · prepared game-asset output"),
+            "exact_game_asset" => ("Exact", "Protected game-asset output"),
+            "free_edit_rebuild" if ready => ("Free Edit", "Free Edit package folder ready"),
+            "free_edit_rebuild" => ("Free Edit", "Choose a writable package folder"),
+            _ => ("Read-only", "Read-only until an authoring output is selected"),
+        }
+    }
+
+    // Beside Finish, so the route that Finish follows is always visible.
+    fn draw_cdmw_output_chip(&self, ui: &mut egui::Ui) {
+        let (mode, status) = self.cdmw_output_summary();
+        let text = format!("{}: {}", crate::localization::tr("Output"), crate::localization::tr(mode));
+        if ui
+            .button(text)
+            .on_hover_text(format!(
+                "{}\n{}",
+                crate::localization::tr(status),
+                crate::localization::tr("Click to choose how Finish saves this mesh.")
+            ))
+            .clicked()
+        {
+            let context = ui.ctx();
+            if cdmw_sidebar_visible(context, CDMW_TOOLS_SIDEBAR) {
+                context.data_mut(|data| data.insert_temp(egui::Id::new(CDMW_REVEAL_OUTPUT), true));
+            } else {
+                let mut settings = CdmwSidebarSettings::load(context);
+                settings.show(CdmwSidebarPage::Output, context);
+                settings.store(context);
+            }
+            context.request_repaint();
+        }
+    }
+
+    // `heading` titles the controls where no Output header already does.
+    fn draw_cdmw_output_policy(&mut self, ui: &mut egui::Ui, actions: &mut Vec<UiAction>, heading: bool) {
         let policy = state_str(&self.cdmw_state, "output_policy").unwrap_or("exact_game_asset");
         let exact = policy == "exact_game_asset";
         let free_edit = policy == "free_edit_rebuild";
         let replacement = policy == "replacement_game_asset";
-        let read_only = !exact && !free_edit && !replacement;
         let archive_refit = self.cdmw_has_archive_refit();
-        ui.label(RichText::new(crate::localization::tr("Output")).strong());
+        if heading {
+            ui.label(RichText::new(crate::localization::tr("Output")).strong());
+        }
         ui.horizontal(|ui| {
             if ui.add_enabled(!replacement, Button::new(crate::localization::tr("Exact")).selected(exact)).clicked() && !exact {
                 actions.push(UiAction::CdmwCommand {
@@ -2505,19 +2683,7 @@ impl LabApplication {
         });
         let ready = state_bool(&self.cdmw_state, "output_destination_ready");
         let reason = state_str(&self.cdmw_state, "output_policy_reason").unwrap_or("");
-        ui.label(crate::localization::tr(if archive_refit {
-            "Archive Refit · original game files"
-        } else if replacement {
-            "Replacement · prepared game-asset output"
-        } else if exact {
-            "Protected game-asset output"
-        } else if free_edit && ready {
-            "Free Edit package folder ready"
-        } else if read_only {
-            "Read-only until an authoring output is selected"
-        } else {
-            "Choose a writable package folder"
-        }));
+        ui.label(crate::localization::tr(self.cdmw_output_summary().1));
         if !reason.is_empty() {
             ui.small(crate::localization::tr(reason));
         }
@@ -3306,26 +3472,33 @@ impl LabApplication {
             }));
         }
         let bound = value_u32_list(state.get("refit").unwrap_or(&Value::Null), "garment_submesh_indices");
+        let step = cdmw_refit_setup_step(&body, &bound, &self.selected_part_indices());
         let garments = if body.is_empty() { Vec::new() } else if bound.is_empty() {
             self.document.as_ref().and_then(|doc| doc.lods.get(self.active_lod_index))
                 .map(|lod| (0..lod.submeshes.len() as u32)
                     .filter(|part| !body.contains(part)).collect::<Vec<_>>()).unwrap_or_default()
         } else { bound };
-        for (role, title, load, select, assigned) in [
-            ("body", "1 · Body", "Load body...", "Select body", body.as_slice()),
-            ("armor", "2 · Garments", "Load garments...", "Select garments", garments.as_slice()),
+        for (number, role, title, load, select, assigned) in [
+            (1, "body", "1 · Body", "Load body...", "Select body", body.as_slice()),
+            (2, "armor", "2 · Garments", "Load garments...", "Select garments", garments.as_slice()),
         ] {
             if role == "armor" { ui.separator(); }
-            ui.strong(crate::localization::tr(title));
+            cdmw_step_heading(ui, title, step > number, step == number);
+            if step == 1 && number == 1 {
+                ui.weak(crate::localization::tr("Load the body that garments should follow, or choose a loaded mesh under Use loaded parts."));
+            }
             ui.horizontal_wrapped(|ui| {
-                if ui.add_enabled(blocked.is_empty(), Button::new(crate::localization::tr(load)))
+                // The current step highlights Load until there is something to select.
+                let load_primary = step == number && blocked.is_empty() && assigned.is_empty();
+                if ui.add_enabled(blocked.is_empty(), cdmw_primary_button(ui, crate::localization::tr(load), load_primary))
                     .on_hover_text(crate::localization::tr(if role == "body" {
                         "Choose any archive mesh and assign it as the body that drives shape changes."
                     } else {
                         "Choose armor or clothing to follow the body. If needed, the current mesh is assigned as the body."
                     })).on_disabled_hover_text(crate::localization::tr(blocked)).clicked()
                 { actions.push(UiAction::ChooseCdmwRefitMesh { role }); }
-                if ui.add_enabled(!assigned.is_empty(), Button::new(crate::localization::tr(select)))
+                if ui.add_enabled(!assigned.is_empty(), cdmw_primary_button(ui, crate::localization::tr(select),
+                    step == number && !assigned.is_empty()))
                     .on_hover_text(crate::localization::tr("Select the loaded Parts for editing. This does not load another file.")).clicked()
                 { actions.push(UiAction::SetPartSelection(assigned.to_vec())); }
             });
@@ -3337,18 +3510,29 @@ impl LabApplication {
                 if shown.is_empty() { continue; }
                 let path = state_str(asset, "path").unwrap_or("");
                 ui.push_id(("refit-asset", role, asset_index), |ui| {
+                    ui.add(egui::Label::new(path.rsplit(['/', '\\']).next().unwrap_or(path)).truncate())
+                        .on_hover_text(path);
                     ui.horizontal_wrapped(|ui| {
+                        // The step heading names the role; the row says how much of the file it covers.
                         let mixed = indices.iter().any(|part| body.contains(part))
                             && indices.iter().any(|part| !body.contains(part));
-                        ui.colored_label(if role == "body" { REFIT_BODY_COLOUR } else { REFIT_ARMOR_COLOUR },
-                            crate::localization::tr(if mixed { "MIXED" } else if role == "body" { "BODY" } else if body.is_empty() { "UNASSIGNED" } else { "ARMOR" }));
-                        ui.weak(crate::localization::tr(format!("{} Parts", shown.len())));
+                        let colour = if role == "body" { REFIT_BODY_COLOUR } else { REFIT_ARMOR_COLOUR };
+                        if body.is_empty() {
+                            ui.colored_label(colour, cdmw_count(shown.len(), "1 Part · not assigned yet", "{} Parts · not assigned yet"));
+                        } else if mixed {
+                            ui.colored_label(colour, crate::localization::tr(format!("{} of {} Parts", shown.len(), indices.len())))
+                                .on_hover_text(crate::localization::tr(if role == "body" {
+                                    "This file's other Parts are garment candidates."
+                                } else {
+                                    "This file's other Parts are the body."
+                                }));
+                        } else {
+                            ui.colored_label(colour, cdmw_count(shown.len(), "1 Part", "{} Parts"));
+                        }
                         if ui.small_button(crate::localization::tr("Select")).clicked() {
                             actions.push(UiAction::SetPartSelection(shown));
                         }
                     });
-                    ui.add(egui::Label::new(path.rsplit(['/', '\\']).next().unwrap_or(path)).truncate())
-                        .on_hover_text(path);
                 });
             }
             if role == "body" {
@@ -3383,7 +3567,7 @@ impl LabApplication {
         if !blocked.is_empty() { ui.weak(crate::localization::tr(blocked)); }
         let selected = self.selected_part_indices();
         cdmw_section(ui, "morph-part-picker", "Choose Parts", None, |ui| {
-            ui.weak(crate::localization::tr(format!("{} Parts selected", selected.len())));
+            ui.weak(cdmw_count(selected.len(), "1 Part selected", "{} Parts selected"));
             if ui.button(crate::localization::tr("Open Selection tool")).clicked() {
                 self.cancel_active_gesture("Open selection for Morph & Refit");
                 self.open_cdmw_tool_settings(ui.ctx(), CdmwRailPage::Select);
@@ -3440,11 +3624,11 @@ impl LabApplication {
         garments: &[u32],
     ) {
         ui.horizontal_wrapped(|ui| {
-            ui.colored_label(REFIT_BODY_COLOUR, crate::localization::tr(format!("Body · {} Parts", body.len())))
+            ui.colored_label(REFIT_BODY_COLOUR, cdmw_count(body.len(), "Body · 1 Part", "Body · {} Parts"))
                 .on_hover_text(self.cdmw_morph_part_names(body));
             ui.colored_label(
                 REFIT_ARMOR_COLOUR,
-                crate::localization::tr(format!("Bound · {} Parts", garments.len())),
+                cdmw_count(garments.len(), "Bound · 1 Part", "Bound · {} Parts"),
             )
             .on_hover_text(crate::localization::tr(format!(
                 "Garments: {}",
@@ -3459,21 +3643,23 @@ impl LabApplication {
         let driver_parts = value_u32_list(state, "driver_submesh_indices");
         let bound_garments = value_u32_list(state.get("refit").unwrap_or(&Value::Null), "garment_submesh_indices");
         let morph_unbaked = state_bool(state, "unbaked");
-        ui.strong(crate::localization::tr("3 · Bind to body"));
+        let step = cdmw_refit_setup_step(&driver_parts, &bound_garments, &selected_parts);
+        cdmw_step_heading(ui, "3 · Bind to body", step > 3, step == 3);
         ui.colored_label(if bound_garments.is_empty() { REFIT_ARMOR_COLOUR } else { REFIT_READY_COLOUR },
-            crate::localization::tr(if driver_parts.is_empty() { "Assign a body in Setup." }
+            crate::localization::tr(if driver_parts.is_empty() { "Assign a body in step 1 first." }
                 else if bound_garments.is_empty() { "Select garments, then bind." } else { "Ready to fit" }));
         let has_driver = !driver_parts.is_empty();
+        let can_bind = !profile_id.is_empty()
+            && !morph_unbaked
+            && has_driver
+            && !selected_parts.is_empty()
+            && selected_parts
+                .iter()
+                .all(|index| !driver_parts.contains(index));
         if ui
             .add_enabled(
-                !profile_id.is_empty()
-                    && !morph_unbaked
-                    && has_driver
-                    && !selected_parts.is_empty()
-                    && selected_parts
-                        .iter()
-                        .all(|index| !driver_parts.contains(index)),
-                Button::new(crate::localization::tr("Bind selected garments")),
+                can_bind,
+                cdmw_primary_button(ui, crate::localization::tr("Bind selected garments"), can_bind && step == 3),
             )
             .on_disabled_hover_text(crate::localization::tr(if profile_id.is_empty() {
                 "Activate a Morph profile before binding garments"
@@ -3498,7 +3684,7 @@ impl LabApplication {
             });
         }
         let continue_to_fit = ui.add_enabled(!bound_garments.is_empty(),
-            Button::new(crate::localization::tr("Continue to Fit"))).clicked();
+            cdmw_primary_button(ui, crate::localization::tr("Continue to Fit"), step == 4)).clicked();
         ui.separator();
         if ui
             .add_enabled(!profile_id.is_empty(), Button::new(crate::localization::tr("Clear Refit")))
@@ -3552,11 +3738,14 @@ impl LabApplication {
             }).count();
             let mut review_parts = false;
             ui.horizontal_wrapped(|ui| {
-                ui.weak(crate::localization::tr(format!("{} enabled / {} garments", enabled_count, bound_garments.len())));
+                ui.weak(crate::localization::tr(if bound_garments.len() == 1 { format!("{} enabled / 1 garment", enabled_count) }
+                    else { format!("{} enabled / {} garments", enabled_count, bound_garments.len()) }));
                 review_parts = ui.button(crate::localization::tr("Review parts")).clicked();
             });
-            if ui.add_enabled(!self.cdmw_refit_settings_dirty.is_dirty(),
-                Button::new(crate::localization::tr("Fit all enabled garments"))).on_hover_text(
+            let can_fit = !self.cdmw_refit_settings_dirty.is_dirty();
+            // While a preview is active, Bake in the footer is the next step instead.
+            if ui.add_enabled(can_fit, cdmw_primary_button(ui, crate::localization::tr("Fit all enabled garments"),
+                can_fit && !state_bool(state, "unbaked"))).on_hover_text(
                 crate::localization::tr("Fit a fresh setup at 100% Tightness with at least 0.1% Clearance. Keeps Tightness values you have explicitly chosen, including 0% for loose skirts, drapes and hanging trim. Set modes and protection before fitting. Reset reverts it; Bake keeps it.")
             ).on_disabled_hover_text(crate::localization::tr("Apply pending settings before fitting.")).clicked() {
                 actions.push(UiAction::CdmwCommand { command: "refit_fit_to_body", arguments: json!({}), label: "Fit to body" });
@@ -3788,8 +3977,9 @@ impl LabApplication {
                     "tightness_percent": self.cdmw_refit_tightness,
                 });
                 if scope == 2 {
-                    if ui.add_enabled(!islands.is_empty() && self.cdmw_refit_settings_dirty.is_dirty(),
-                        Button::new(crate::localization::tr("Apply to Selected Islands"))).clicked() {
+                    let can_apply = !islands.is_empty() && self.cdmw_refit_settings_dirty.is_dirty();
+                    if ui.add_enabled(can_apply,
+                        cdmw_primary_button(ui, crate::localization::tr("Apply to Selected Islands"), can_apply)).clicked() {
                         let mut arguments = self.cdmw_refit_settings_dirty.arguments(&[], &values);
                         arguments.as_object_mut().unwrap().remove("submesh_indices");
                         arguments["islands"] = json!(island_arguments);
@@ -3810,6 +4000,12 @@ impl LabApplication {
             });
             ui.separator();
             if scope != 2 { self.draw_cdmw_refit_body_region(ui, actions, state, part_targets); }
+            self.draw_cdmw_refit_follow_controls(ui, actions, state);
+            cdmw_section(ui, "refit-current-diagnostics", "Check current fit", None, |ui| {
+                self.draw_cdmw_refit_diagnostics(ui, actions, state, part_targets);
+            });
+            // Recovery for an earlier damaged fit, kept apart from the everyday controls.
+            ui.separator();
             if ui.add_enabled(!state_bool(state, "unbaked") && !self.cdmw_refit_settings_dirty.is_dirty()
                 && if scope == 2 { !islands.is_empty() } else { !selected_bound_garments.is_empty() },
                 Button::new(crate::localization::tr("Restore fitting shape…")))
@@ -3820,10 +4016,6 @@ impl LabApplication {
                     islands: if scope == 2 { islands.clone() } else { Vec::new() },
                 });
             }
-            self.draw_cdmw_refit_follow_controls(ui, actions, state);
-            cdmw_section(ui, "refit-current-diagnostics", "Check current fit", None, |ui| {
-                self.draw_cdmw_refit_diagnostics(ui, actions, state, part_targets);
-            });
         });
         go_to_setup
     }
@@ -4168,7 +4360,7 @@ impl LabApplication {
                 ui.small(crate::localization::tr("Updating parts…"));
             } else if state_str(&self.cdmw_state, "output_policy") != Some("free_edit_rebuild") {
                 ui.add_enabled_ui(!busy, |ui| ui.menu_button(crate::localization::tr("Enable part edits…"), |ui| {
-                    self.draw_cdmw_output_policy(ui, actions)
+                    self.draw_cdmw_output_policy(ui, actions, true)
                 })).inner
                 .response
                 .on_hover_text(crate::localization::tr("Duplicate and Delete require Free Edit output"));

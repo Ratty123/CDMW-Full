@@ -457,6 +457,7 @@ class AboutDocumentationEnglishMixin:
                   <li>Choose Open in Mesh Editor for a supported PAC, PAM, or PAMLOD. Imported geometry uses the available Free Edit route.</li>
                   <li>Use selection, transforms, brushes, topology, cleanup, normals, UVs, layers, and Morph &amp; Refit where enabled. Each disabled control explains its limit.</li>
                   <li>Exact Game Asset preserves protected source records. Free Edit permits supported geometry changes for a new validated output.</li>
+                  <li>Output, beside Finish Edit Mesh and at the top of Tools, shows the route Finish follows. Open it to switch between Exact and Free Edit, choose a Free Edit package folder, or open a package in CDMW.</li>
                   <li>Edits and Undo/Redo stay in an isolated session until Finish Edit Mesh validates and publishes the result. Run validation again before exporting the changed revision.</li>
                 </ul>
                 <p>Use Orbit to navigate without editing: right-drag orbits, middle-drag pans, and the wheel zooms. Fit frames the whole mesh; Frame Selected frames the selection. Solid (Textured) needs resolved materials. Solid + Wire, X-Ray, Normals, Bounds, and Bones provide inspection views.</p>
@@ -484,6 +485,7 @@ class AboutDocumentationEnglishMixin:
                 <h4>Rig &amp; Weights</h4>
                 <p>Rig &amp; Weights is temporarily hidden from the tool rail. Its implementation is retained.</p>
                 <h4>Morph &amp; Refit</h4>
+                <p>Open Parts on hover, beside Part colors in Morph &amp; Refit, opens the Parts list when you hover a visible surface. Turn it off to keep closed panels closed; open lists still highlight and reveal matching names. Selection and pending fitting edits stay unchanged.</p>
                 <p>For an existing item, start with Modify Original. Load or assign the body driver, load the garments, select their parts and bind them. Inspect the fit at cuffs, underarms, belts and thin trim. Reset discards a preview; Bake keeps it. Refit changes geometry, not the skeleton or animation.</p>
                 <p>Fit all enabled garments starts fresh setups at 100% Tightness and retains explicit Part and mesh-island choices. Cloth layers stay separate; recognized solid accessories and attached bows keep their shape. Use Rigid component for unrecognized hard details. Material names alone do not determine stiffness. Excluded surfaces do not affect fitting. Reset discards the preview; Bake keeps it.</p>
                 <p>At full Tightness, waistcloth follows the body's changing contour and flexible belts fit over the cloth. Set daggers and other hard pieces to Rigid component so they follow their fitted support without bending.</p>

@@ -1855,7 +1855,7 @@ the source's textured preview, and invalidates any placement build made from the
 previous geometry.
 
 Imported OBJ/GLB sources can open before an output folder has been selected. In
-**Viewport > Output**, choose **Choose output folder...** before editing or finishing;
+Mesh Editor's **Output** section, choose **Choose output folder...** before editing or finishing;
 **Change output folder...** remains available afterward. The destination is validated
 without creating output. **Finish** returns the accepted geometry to New Item;
 **Export Free Edit Package** separately writes an OBJ package.

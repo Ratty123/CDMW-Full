@@ -34,6 +34,17 @@ impl HeadlessUi {
         Ok(())
     }
 
+    /// `reveal` scrolls the docked rail and Inspector; a floating tool window scrolls itself.
+    pub(super) fn reveal_in_tool_window(&mut self, window: &str, label: &str) -> Result<Rect, Box<dyn std::error::Error>> {
+        for _ in 0..16 {
+            if let Some(rect) = self.label_rect(label) {
+                return Ok(rect);
+            }
+            self.scroll_tool_window(window, -120.0)?;
+        }
+        self.reveal(label)
+    }
+
     pub(super) fn open_morph_shape(&mut self, tab: &str) -> TestResult {
         self.click("Shape")?;
         if self.label_rect("Back to sliders").is_some() {
@@ -435,7 +446,11 @@ fn workflow_viewport_part_hover_scroll_cancels_stale_targets_and_yields_to_manua
     let root = tempdir()?;
     ui.application.cdmw_bridge = Some(CdmwBridge::for_test(root.path().to_path_buf(), "hover-scroll", 2, 0));
     ui.reveal("2 · Sleeve")?;
+    // Keep the whole row clear of the rail's bottom edge: a row cut off there is
+    // revealed on hover, which is correct but not the case under test.
+    ui.scroll_tool_rail(-80.0);
     ui.reveal("1: Sleeve")?;
+    ui.settle_layout();
     let first = viewport_part_point(&ui, 1)?;
     let last = viewport_part_point(&ui, 59)?;
     assert!(ui.label_rect("60 · Piece 59").is_none());
@@ -528,6 +543,73 @@ fn workflow_viewport_part_hover_opens_closed_parts_and_keeps_selection_and_fit_e
         ui.settle_layout();
         assert!(ui.label_rect("Back to Inspector").is_none(), "closing from the Inspector must remain possible");
     }
+    Ok(())
+}
+
+#[test]
+fn workflow_viewport_part_hover_toggle_preserves_closed_panels_and_open_list_feedback() -> TestResult {
+    for closed in ["Inspector", "Collapsed", "Mesh islands"] {
+        let mut ui = long_part_hover_ui()?;
+        let root = tempdir()?;
+        ui.application.cdmw_bridge = Some(CdmwBridge::for_test(root.path().to_path_buf(), "hover-toggle", 2, 0));
+        assert!(crate::cdmw_layout::auto_open_parts_on_hover(&ui.application.egui_context));
+        assert!(ui.actions_from_click("Open Parts on hover")?.is_empty());
+        assert!(!crate::cdmw_layout::auto_open_parts_on_hover(&ui.application.egui_context));
+        if closed == "Mesh islands" {
+            ui.click("Mesh islands")?;
+        } else {
+            ui.click("Back to Inspector")?;
+            if closed == "Collapsed" {
+                let collapse = ui.sidebar_button("Collapse Inspector").ok_or("collapse")?;
+                ui.click_at(collapse.rect.center());
+                ui.settle_layout();
+            }
+        }
+        let state = ui.application.cdmw_state.clone();
+        let mesh = ui.application.mesh.as_ref().ok_or("mesh")?.clone();
+        let viewport = ui.application.viewport_rect;
+        ui.last_actions.clear();
+        ui.frame(vec![Event::PointerMoved(viewport_part_point(&ui, 59)?)]);
+        ui.settle_layout();
+        assert_eq!(ui.application.viewport_rect, viewport, "disabled hover must not expand a sidebar");
+        assert!(part_name_has_viewport_outline(&ui, "60 · Piece 59"), "open fitting lists must still reveal and identify Parts");
+        assert!(ui.label_rect("59: Piece 59").is_none());
+        if closed == "Mesh islands" {
+            assert!(ui.application.egui_context.data_mut(|data| data
+                .get_temp::<bool>(egui::Id::new("cdmw_parts_panel_islands")).unwrap_or(false)));
+        } else {
+            assert!(ui.label_rect("Back to Inspector").is_none());
+        }
+        if closed == "Collapsed" { assert!(ui.sidebar_button("Expand Inspector").is_some()); }
+        ui.click("Open Parts on hover")?;
+        ui.frame(vec![Event::PointerMoved(viewport_part_point(&ui, 59)?)]);
+        ui.frame(Vec::new());
+        ui.frame(vec![Event::PointerMoved(viewport_part_point(&ui, 59)?)]);
+        ui.settle_layout();
+        assert!(part_name_has_viewport_outline(&ui, "59: Piece 59"), "re-enabling must restore automatic opening");
+        assert_eq!(ui.application.cdmw_state, state);
+        let current = ui.application.mesh.as_ref().ok_or("mesh")?;
+        assert_eq!(current.selection, mesh.selection);
+        assert_eq!(current.selection_revision, mesh.selection_revision);
+        assert_eq!(current.structural_fingerprint(), mesh.structural_fingerprint());
+        assert_eq!(ui.application.cdmw_refit_clearance, 0.75);
+        assert!(ui.application.cdmw_refit_settings_dirty.is_dirty());
+        assert!(ui.last_actions.is_empty());
+        assert!(ui.application.cdmw_pending_request.is_none());
+    }
+    Ok(())
+}
+
+#[test]
+fn workflow_part_hover_toggle_remains_available_without_a_morph_runtime() -> TestResult {
+    let mut ui = mixed_refit_ui(&[2])?;
+    ui.application.cdmw_state["morph_refit"]["available"] = json!(false);
+    ui.frame(Vec::new());
+    assert!(ui.label_rect("Open Parts on hover").is_some());
+    assert!(ui.actions_from_click("Open Parts on hover")?.is_empty());
+    assert!(!crate::cdmw_layout::auto_open_parts_on_hover(&ui.application.egui_context));
+    assert_eq!(ui.application.selected_part_indices(), vec![2]);
+    assert!(ui.application.cdmw_pending_request.is_none());
     Ok(())
 }
 
@@ -1119,8 +1201,8 @@ fn workflow_compact_sections_keep_order_captured_targets_and_active_summaries() 
     ui.application.cdmw_state["morph_refit"]["refit"]["garment_settings"][1]["has_vertex_mask"] = json!(true);
     ui.frame(Vec::new());
     ui.open_refit_detail("Body region")?;
-    ui.reveal("Body region · 1 restricted Parts")?;
-    ui.reveal("Local influence · 1 masked Parts")?;
+    ui.reveal("Body region · 1 restricted Part")?;
+    ui.reveal("Local influence · 1 masked Part")?;
     assert!(ui.label_rect("Use selected body region").is_none());
     assert!(ui.label_rect("Selected influence").is_none());
     ui.click("Setup")?;
@@ -1146,9 +1228,15 @@ fn workflow_compact_fit_long_names_and_scope_stay_inside_narrow_panels() -> Test
         ui.settle_layout();
         let setup = ui.reveal("Setup")?;
         ui.click_where("Fit", |rect| (rect.center().y - setup.center().y).abs() < setup.height())?;
-        ui.click("Review parts")?;
-        if presentation == "floating" { ui.scroll_tool_window("Morph & Refit", -200.0)?; }
-        else { ui.scroll_tool_rail(-200.0); }
+        if presentation == "floating" {
+            let review = ui.reveal_in_tool_window("Morph & Refit", "Review parts")?;
+            ui.click_at(review.center());
+            ui.settle_layout();
+            ui.scroll_tool_window("Morph & Refit", -200.0)?;
+        } else {
+            ui.click("Review parts")?;
+            ui.scroll_tool_rail(-200.0);
+        }
         let right = if presentation == "floating" { ui.tool_window_rect("Morph & Refit")?.right() }
             else { ui.application.viewport_rect.ok_or("viewport")?.left() };
         for clipped in &ui.output.shapes {

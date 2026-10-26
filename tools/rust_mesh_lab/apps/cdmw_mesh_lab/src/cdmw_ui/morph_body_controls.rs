@@ -16,16 +16,19 @@ impl LabApplication {
         let values = pair_number_list(state, "macro_values");
         ui.push_id("morph-body-controls", |ui| {
             if macros.is_empty() {
+                let unavailable = "Assign a supported body and reset or bake its preview before creating body controls.";
+                let ready = authoring && !pending && !state_bool(state, "unbaked")
+                    && state_bool(state, "body_controls_available");
                 if let Some(reason) = state_str(state, "body_controls_reason").filter(|reason| !reason.trim().is_empty()) {
                     ui.weak(crate::localization::tr(reason));
+                } else if !ready {
+                    // Say why the page's only action is unavailable without requiring a hover.
+                    ui.weak(crate::localization::tr(unavailable));
                 }
                 if ui.add_enabled(
-                    authoring && !pending && !state_bool(state, "unbaked")
-                        && state_bool(state, "body_controls_available"),
-                    Button::new(crate::localization::tr("Create body controls")),
-                ).on_disabled_hover_text(crate::localization::tr(
-                    "Assign a supported body and reset or bake its preview before creating body controls.",
-                )).clicked() {
+                    ready,
+                    cdmw_primary_button(ui, crate::localization::tr("Create body controls"), ready),
+                ).on_disabled_hover_text(crate::localization::tr(unavailable)).clicked() {
                     actions.push(UiAction::CdmwCommand {
                         command: "morph_generate_body_controls",
                         arguments: json!({}),

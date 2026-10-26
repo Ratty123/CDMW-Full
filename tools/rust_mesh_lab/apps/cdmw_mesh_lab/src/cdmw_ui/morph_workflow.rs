@@ -24,6 +24,18 @@ enum SavedTab {
     FittingSetups,
 }
 
+const MORPH_RULES: [(&str, &str); 7] = [
+    ("volume", "Volume"),
+    ("scale", "Scale"),
+    ("move", "Move"),
+    ("flatten", "Flatten"),
+    ("taper", "Taper"),
+    ("twist", "Twist"),
+    ("radius", "Radius"),
+];
+const MORPH_FALLOFFS: [(&str, &str); 3] = [("constant", "Constant"), ("linear", "Linear"), ("smooth", "Smooth")];
+const MORPH_MIRRORS: [(&str, &str); 4] = [("off", "Off"), ("x", "X"), ("y", "Y"), ("z", "Z")];
+
 #[derive(Clone, Copy, Default)]
 struct MorphWorkflow {
     tab: MorphTab,
@@ -41,6 +53,7 @@ impl LabApplication {
             .cloned()
             .unwrap_or(Value::Null);
         if state.get("available").and_then(Value::as_bool) == Some(false) {
+            self.draw_cdmw_part_hover_option(ui);
             ui.colored_label(
                 REFIT_ARMOR_COLOUR,
                 crate::localization::tr(
@@ -64,23 +77,36 @@ impl LabApplication {
             .data_mut(|data| data.get_temp::<MorphWorkflow>(id))
             .unwrap_or_default();
         ui.horizontal_wrapped(|ui| {
+            // Setup, Fit and Shape are worked through in order. The arrows sit
+            // tight against the tabs so they add little width to the row.
+            let spacing = ui.spacing().item_spacing.x;
             for (tab, label) in [
                 (MorphTab::Setup, "Setup"),
                 (MorphTab::Fit, "Fit"),
                 (MorphTab::Shape, "Shape"),
                 (MorphTab::Saved, "Saved"),
             ] {
+                // The spacing in effect when an item is added is the gap after it.
+                let arrow_follows = matches!(tab, MorphTab::Setup | MorphTab::Fit);
+                ui.spacing_mut().item_spacing.x = if arrow_follows { 2.0 } else { spacing };
                 ui.selectable_value(&mut workflow.tab, tab, crate::localization::tr(label));
+                if arrow_follows {
+                    ui.weak("›");
+                }
             }
+            ui.spacing_mut().item_spacing.x = spacing;
         });
-        let mut part_colours = self.view_mode == ViewMode::PartId;
-        if ui.checkbox(&mut part_colours, crate::localization::tr("Part colors"))
-            .on_hover_text(crate::localization::tr("Give each Part a different color to see overlaps. Display only; fitting and exports stay unchanged."))
-            .changed()
-        {
-            self.set_cdmw_display_mode(if part_colours { ViewMode::PartId }
-                else { self.cdmw_part_colours_previous_mode });
-        }
+        ui.horizontal_wrapped(|ui| {
+            let mut part_colours = self.view_mode == ViewMode::PartId;
+            if ui.checkbox(&mut part_colours, crate::localization::tr("Part colors"))
+                .on_hover_text(crate::localization::tr("Give each Part a different color to see overlaps. Display only; fitting and exports stay unchanged."))
+                .changed()
+            {
+                self.set_cdmw_display_mode(if part_colours { ViewMode::PartId }
+                    else { self.cdmw_part_colours_previous_mode });
+            }
+            self.draw_cdmw_part_hover_option(ui);
+        });
         ui.separator();
         if let Some(failure) = state_str(&state, "failure").filter(|value| !value.trim().is_empty())
         {
@@ -96,6 +122,7 @@ impl LabApplication {
             for row in state["shape_restore_scope"].as_array().into_iter().flatten() {
                 if let (Some(part), Some(name), Some(islands)) = (row[0].as_u64(), row[1].as_str(), row[2].as_u64()) {
                     ui.label(crate::localization::tr(if islands == 0 { format!("Part {part}: {name}") }
+                        else if islands == 1 { format!("Part {part}: {name} · 1 selected island") }
                         else { format!("Part {part}: {name} · {islands} selected islands") }));
                 }
             }
@@ -292,13 +319,18 @@ impl LabApplication {
                         ui.colored_label(REFIT_READY_COLOUR, crate::localization::tr("Body base captured"));
                         self.draw_cdmw_authored_morph_save(ui, actions, &state);
                     } else {
-                        ui.weak(crate::localization::tr(if state_bool(&state, "unbaked") { "Preview active" } else { "No pending preview" }));
+                        let unbaked = state_bool(&state, "unbaked");
+                        if unbaked {
+                            ui.colored_label(REFIT_ARMOR_COLOUR, crate::localization::tr("Preview active"));
+                        } else {
+                            ui.weak(crate::localization::tr("No pending preview"));
+                        }
                         ui.horizontal_wrapped(|ui| {
                             if ui.add_enabled(!state_str(&state, "profile_id").unwrap_or("").is_empty(), Button::new(crate::localization::tr("Reset")))
                                 .on_hover_text(crate::localization::tr("Clear the preview and return to the saved base.")).clicked() {
                                 actions.push(UiAction::CdmwCommand { command: "morph_reset", arguments: json!({}), label: "Reset morph" });
                             }
-                            if ui.add_enabled(state_bool(&state, "unbaked"), Button::new(crate::localization::tr("Bake")))
+                            if ui.add_enabled(unbaked, cdmw_primary_button(ui, crate::localization::tr("Bake"), unbaked))
                                 .on_hover_text(crate::localization::tr("Keep the current geometry as the new base.")).clicked() {
                                 actions.push(UiAction::CdmwCommand { command: "morph_bake", arguments: json!({}), label: "Bake morph" });
                             }
@@ -653,11 +685,11 @@ impl LabApplication {
         let morph_unbaked = state_bool(state, "unbaked");
         let has_mesh_selection =
             self.selected_counts().total() > 0 || !self.selected_part_indices().is_empty();
-        ui.small(crate::localization::tr(if has_mesh_selection {
-            "New sliders use the current selection."
+        if has_mesh_selection {
+            ui.weak(crate::localization::tr("New sliders use the current selection."));
         } else {
-            "Select a Part or region before creating a slider."
-        }));
+            ui.colored_label(REFIT_ARMOR_COLOUR, crate::localization::tr("Select a Part or region before creating a slider."));
+        }
         ui.label(crate::localization::tr("Profile name"));
         ui.add(
             egui::TextEdit::singleline(&mut self.cdmw_morph_profile_name)
@@ -696,21 +728,16 @@ impl LabApplication {
             });
         }
         let replace_edit_scope = editing_definition && self.cdmw_morph_replace_selection_on_edit;
+        // Stored rule values stay lowercase; show their labels instead.
+        let shown = |options: &[(&str, &str)], value: &str| crate::localization::tr(
+            options.iter().find(|(id, _)| *id == value).map_or(value, |(_, label)| *label));
         ui.push_id("morph-definition", |ui| {
             ui.label(crate::localization::tr("Rule"));
             ComboBox::from_id_salt("morph-rule")
                 .width(ui.available_width())
-                .selected_text(crate::localization::tr(&self.cdmw_morph_rule))
+                .selected_text(shown(&MORPH_RULES, &self.cdmw_morph_rule))
                 .show_ui(ui, |ui| {
-                    for (value, label) in [
-                        ("volume", "Volume"),
-                        ("scale", "Scale"),
-                        ("move", "Move"),
-                        ("flatten", "Flatten"),
-                        ("taper", "Taper"),
-                        ("twist", "Twist"),
-                        ("radius", "Radius"),
-                    ] {
+                    for (value, label) in MORPH_RULES {
                         ui.selectable_value(
                             &mut self.cdmw_morph_rule,
                             value.to_owned(),
@@ -754,26 +781,26 @@ impl LabApplication {
                 ui.label(crate::localization::tr("Falloff"));
                 ComboBox::from_id_salt("morph-falloff")
                     .width(ui.available_width())
-                    .selected_text(crate::localization::tr(&self.cdmw_morph_falloff))
+                    .selected_text(shown(&MORPH_FALLOFFS, &self.cdmw_morph_falloff))
                     .show_ui(ui, |ui| {
-                        for falloff in ["constant", "linear", "smooth"] {
+                        for (falloff, label) in MORPH_FALLOFFS {
                             ui.selectable_value(
                                 &mut self.cdmw_morph_falloff,
                                 falloff.to_owned(),
-                                crate::localization::tr(falloff),
+                                crate::localization::tr(label),
                             );
                         }
                     });
                 ui.label(crate::localization::tr("Mirror"));
                 ComboBox::from_id_salt("morph-mirror")
                     .width(ui.available_width())
-                    .selected_text(crate::localization::tr(&self.cdmw_morph_mirror_mode))
+                    .selected_text(shown(&MORPH_MIRRORS, &self.cdmw_morph_mirror_mode))
                     .show_ui(ui, |ui| {
-                        for mirror in ["off", "x", "y", "z"] {
+                        for (mirror, label) in MORPH_MIRRORS {
                             ui.selectable_value(
                                 &mut self.cdmw_morph_mirror_mode,
                                 mirror.to_owned(),
-                                crate::localization::tr(mirror),
+                                crate::localization::tr(label),
                             );
                         }
                     });
@@ -795,7 +822,7 @@ impl LabApplication {
         if ui
             .add_enabled(
                 create_ready,
-                Button::new(crate::localization::tr(create_label)),
+                cdmw_primary_button(ui, crate::localization::tr(create_label), create_ready),
             )
             .on_disabled_hover_text(crate::localization::tr(if !authoring {
                 "This session is read-only"
