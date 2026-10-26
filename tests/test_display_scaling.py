@@ -489,6 +489,25 @@ def test_restarted_native_drag_and_hidden_window_do_not_run_stale_fits(app, fit_
     assert not state.policy._window_timer.isActive()
 
 
+def test_a_stale_window_handle_wrapper_waits_for_the_real_handle(app, fit_policy):
+    from PySide6.QtWidgets import QWidgetItem
+
+    class Window(QWidget):
+        # PySide can hand back a stale wrapper of another type for a reused address.
+        stale = True
+
+        def windowHandle(self):
+            return QWidgetItem(self) if self.stale else super().windowHandle()
+
+    state = fit_policy
+    window = state.make_window(Window)
+    state.policy.schedule_window_fit(window)
+    assert window not in state.policy._connected
+    window.stale = False
+    state.policy.schedule_window_fit(window)
+    assert window in state.policy._connected
+
+
 def test_shell_and_display_requests_have_one_fit_owner(app, fit_policy):
     from cdmw.ui.shell.responsiveness_controller import ResponsivenessControllerMixin
 

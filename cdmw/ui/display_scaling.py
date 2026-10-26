@@ -12,7 +12,7 @@ import weakref
 from time import monotonic
 
 from PySide6.QtCore import QEvent, QObject, QRect, QSize, Qt, QTimer
-from PySide6.QtGui import QRegion
+from PySide6.QtGui import QRegion, QWindow
 from PySide6.QtWidgets import (
     QAbstractButton, QAbstractSpinBox, QApplication, QComboBox, QFrame,
     QLabel, QLayout, QLineEdit, QMainWindow, QPushButton, QScrollArea, QSizePolicy,
@@ -233,7 +233,9 @@ class DisplayScalingPolicy(QObject):
         if not isValid(window) or not _normal_window(window):
             return
         handle = window.windowHandle()
-        if handle is not None and window not in self._connected:
+        # While a large window is built, PySide can return a stale wrapper of another
+        # type (a QWidgetItem) for a reused address; connect on a later event instead.
+        if isinstance(handle, QWindow) and window not in self._connected:
             handle.screenChanged.connect(self._window_screen_changed)
             self._connected.add(window)
         self._windows[window] = (
