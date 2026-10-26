@@ -255,9 +255,10 @@ def test_native_create_process_failure_cancels_pending_connection(tmp_path):
 @pytest.mark.skipif(not os.environ.get('CDMW_TEST_ASI_BOOTSTRAP'), reason='Requires an explicitly selected verified ASI bootstrap')
 @pytest.mark.parametrize('changed_binary', [False, True])
 def test_verified_asi_bootstrap_handoff(tmp_path, changed_binary):
-    from cdmw.services.virtual_loader_runtime import BOOTSTRAP_SHA256
+    from cdmw.services.virtual_loader_runtime import BOOTSTRAP_SHA256, BOOTSTRAP_CURRENT_SHA256
     bootstrap = Path(os.environ['CDMW_TEST_ASI_BOOTSTRAP'])
-    assert hash_file(bootstrap) == BOOTSTRAP_SHA256
+    assert hash_file(bootstrap) in (BOOTSTRAP_SHA256, BOOTSTRAP_CURRENT_SHA256)
+    current_bootstrap = hash_file(bootstrap) == BOOTSTRAP_CURRENT_SHA256
     root, request, token = fixture(tmp_path)
     shutil.copy2(bootstrap, root / 'bin64/winmm.dll')
     if changed_binary:
@@ -268,15 +269,23 @@ def test_verified_asi_bootstrap_handoff(tmp_path, changed_binary):
     report = root / f'.cdmw/virtual-loader/session-{token}.json'
     detail = report.read_text() if report.exists() else result.stderr.decode(errors='replace')
     if changed_binary:
-        assert result.returncode != 0 and 'Coexistence is unverified' in detail
+        assert result.returncode != 0
+        # UAL 9.7.4 does not install the same deferred IAT hooks in this
+        # synthetic host. Its exact-build verifier still refuses the changed
+        # copy before the fixture can claim any bootstrap or native-I/O proof.
+        refusal = 'Known bootstrap refused' if current_bootstrap else 'Coexistence is unverified'
+        assert refusal in detail + result.stderr.decode(errors='replace')
         assert not (root / '.cdmw/virtual-loader/harness-result.txt').exists()
+        assert not (root / '.cdmw/virtual-loader/harness-bootstrap-result.txt').exists()
         return
     assert result.returncode == 0, detail
     assert (root / '.cdmw/virtual-loader/harness-result.txt').read_text() == 'native IO passed'
     assert (root / 'meta/0.papgt').read_bytes() == b'original'
+    assert (root / '.cdmw/virtual-loader/harness-bootstrap-result.txt').read_text() == 'bootstrap and startup witnesses passed'
     from scripts.probe_virtual_loader import inspect_trace
     rows = inspect_trace(root / f'.cdmw/virtual-loader/trace-{token}.bin')['events']
-    assert any(row['operation'] == 'verified bootstrap forwarding' and row['last_error'] > 0 for row in rows)
+    if not current_bootstrap:
+        assert any(row['operation'] == 'verified bootstrap forwarding' and row['last_error'] > 0 for row in rows)
     assert any(row['operation'] == 'loader callout context' and row['last_error'] == 0 for row in rows)
 
 

@@ -19,6 +19,7 @@ from cdmw.services.application_shutdown_service import archive_write_scope
 
 GAME_SHA256 = '57da440d72f4db974f25fef047cf84c4dadd999a88cb2a3c5af4c9bd67fde1e7'
 BOOTSTRAP_SHA256 = '810111a7f6a6cef892877c9f7c4582ccde2d621d119891f700c5309c370508bf'
+BOOTSTRAP_CURRENT_SHA256 = 'fa266e3513d02c08a1b808f28c10538a489eaffaa4b0707f7cc1066e71b5afd7'
 GAME_REDIRECTION_APPROVED = False  # General redirect mode stays closed; reviewed experiments use mode 3.
 RUNTIME_PATH = 'bin64/CDMWVirtualLoader.asi'
 OWNER_PATH = '.cdmw/virtual-loader/runtime-owner.json'
@@ -595,7 +596,7 @@ def prepare_runtime_setup(root, *, stop_event=None):
         raise VirtualLoaderError('This executable build is not supported by the diagnostic runtime.')
     # Bootstrap behavior must be observed during the controlled diagnostic run;
     # do not install or reconfigure another loader to manufacture readiness.
-    if not target(root, 'bin64/winmm.dll').is_file() or hash_file(target(root, 'bin64/winmm.dll'), stop_event) != BOOTSTRAP_SHA256:
+    if not target(root, 'bin64/winmm.dll').is_file() or hash_file(target(root, 'bin64/winmm.dll'), stop_event) not in (BOOTSTRAP_SHA256, BOOTSTRAP_CURRENT_SHA256):
         raise VirtualLoaderError('The existing compatible ASI bootstrap is required. Its installation is separate.')
     folder, evidence = native_bundle(stop_event=stop_event)
     previous = read_optional(target(root, RUNTIME_PATH))
