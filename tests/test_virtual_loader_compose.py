@@ -86,6 +86,46 @@ def test_a_new_package_order_composes_again(tmp_path, monkeypatch):
     assert files == dict(expected)
 
 
+def test_older_compositions_are_removed_and_nothing_else(tmp_path, monkeypatch):
+    import _winapi
+    root = _game(tmp_path)
+    read = _effective(root, monkeypatch)
+    alpha, beta = _package(read, 1990001, 'alpha'), _package(read, 1990002, 'beta')
+    _install_runtime(root)
+    _drop(root, [alpha, beta])
+    first, _ = _launch(root, *LOGICAL)
+    assert first['pruned'] == 0
+    caches = root / '.cdmw/virtual-loader/compose-cache'
+    # An interrupted composition's staging folder goes; anything not named like a cache
+    # stays, and links are never followed or removed.
+    leftover = caches / (first['key'] + '.partial-4242') / 'files'
+    leftover.mkdir(parents=True)
+    (leftover / 'x.bin').write_bytes(b'x')
+    (caches / 'keep-me').mkdir()
+    (caches / 'notes.txt').write_text('mine')
+    outside = tmp_path / 'outside'
+    outside.mkdir()
+    (outside / 'precious.bin').write_bytes(b'precious')
+    linked, planted = caches / ('f' * 32), caches / ('e' * 32)
+    _winapi.CreateJunction(str(outside), str(linked))
+    (planted / 'files').mkdir(parents=True)
+    _winapi.CreateJunction(str(outside), str(planted / 'files' / 'link'))
+    try:
+        _drop(root, [beta, alpha])
+        expected, _composed = python_compose(root, [beta, alpha], '0037', read)
+        second, files = _launch(root, *LOGICAL)
+        assert (second['state'], second['cache'], second['pruned']) == ('ready', 'composed', 2), second
+        assert files == dict(expected)
+        assert sorted(p.name for p in caches.iterdir()) == sorted([second['key'], 'keep-me', 'notes.txt', 'f' * 32, 'e' * 32])
+        assert (outside / 'precious.bin').read_bytes() == b'precious'
+        assert (planted / 'files' / 'link' / 'precious.bin').exists()
+        third, _ = _launch(root, *LOGICAL)
+        assert (third['cache'], third['pruned']) == ('reused', 0)
+    finally:
+        os.rmdir(planted / 'files' / 'link')
+        os.rmdir(linked)
+
+
 def test_a_changed_mount_composes_again_from_the_new_tables(tmp_path, monkeypatch):
     from cdmw.core.archive_overlay import OverlayFile, build_overlay_archive
     from cdmw.core.itemgroupinfo_table import add_group_members, apply_item_group_row, parse_item_group_table

@@ -239,12 +239,16 @@ build, the mount list, the group name and each change set's name, size and write
 time. A launch reuses the cache only after it re-verifies every source the
 composition read (hashed up to 1 MiB, size and write time beyond, as a standalone
 profile keeps its carriers) and hashes each output. A changed source composes again
-from the current files, so a DMM remount no longer invalidates the items. All
+from the current files, so a DMM remount no longer invalidates the items. Once the
+composition in use is verified, the runtime removes the cache folders an earlier mount
+or change set left behind, and any staging folder an interrupted composition left. Only
+folders named like its own are touched; a linked folder is skipped, a link found inside
+one stops its removal, and a file still in use is left for a later launch. All
 sources and outputs are pinned read-only for the session. Conflicting packages,
 unreadable change sets and input outside the composer's exact subset refuse and
 leave the game unmodded. Each launch writes `compose-status.json` (`ready` or
-`refused`, cache `composed` or `reused`, the group, counts, stage times and the
-reason) and `trace-compose.bin`, whose code-14 row names the composition.
+`refused`, cache `composed` or `reused`, the group, counts, stage times, the earlier
+compositions removed and the reason) and `trace-compose.bin`, whose code-14 row names the composition.
 
 ```powershell
 .\.venv\Scripts\python.exe -m pytest tests/test_virtual_loader_compose.py -q --basetemp "$env:TEMP\cdmw-virtual-compose"
@@ -282,8 +286,8 @@ enabled on the user's install, a launch the user started reused the cache (ready
 swords in the inventory of their loaded save. When DMM later rewrote its mount (15:59
 that day), the next launch composed again from the new mount files and the user
 confirmed the swords were still there; the cache also held compositions for two other
-mount states DMM had that day. Saving under compose mode remains untested, and the
-runtime does not yet remove cache entries an older mount left behind (about 190 MB each).
+mount states DMM had that day, about 190 MB each, which that runtime did not yet remove.
+Saving under compose mode remains untested.
 
 ## Independent item publication research
 
