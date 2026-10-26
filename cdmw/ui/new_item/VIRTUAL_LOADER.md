@@ -861,8 +861,21 @@ separate and open.
    and private PAMT/PAZ opens, and the user confirmed all five Wolf Trial swords in
    game. DMM did not rewrite its mount at that launch; a changed DMM mount makes
    the profile stale until it is applied and published again. Save/reload, removal
-   and reinstallation under this profile, other mod managers and composition at
-   launch remain unverified.
+   and reinstallation under this profile, and other mod managers remain unverified.
+   On 2026-10-26 the republished profile passed the headless smoke again with
+   runtime `74336eda`.
+6. **Composition at launch (milestone 2, provisional input):** on 2026-10-26, with
+   the same game, bootstrap and DMM mount, runtime `74336eda` (sources of `22ed9b4a`)
+   composed five change sets written from CDMW's own resolve of the five Wolf Trial
+   packages. Headless Steam launches showed it ready 7.75 s into startup after a
+   6.2 s composition, with the composed PAPGT, PATHC and private PAMT/PAZ opened
+   through the hooks, then 312 ms when reusing the cache. Both closed on request with
+   all 40 protected files unchanged. The cached view is byte-identical to the
+   confirmed `99eda530` view. An earlier build that composed with worker threads
+   never finished on the startup path. Items were not inspected in game for these
+   launches. Change sets are not a package format: CDMW does not write them, and
+   packages' own `runtime/` members (patch 0004) are still to come. Save/reload, a
+   real DMM remount and removal under compose mode remain unverified.
 
 Source tests, built native binaries, packaged application, visible game behavior
 and save compatibility are separate evidence classes. The diagnostic observations

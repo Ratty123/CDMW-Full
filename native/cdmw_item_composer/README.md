@@ -55,9 +55,16 @@ It composes a private view at launch:
   today, through `MountedArchives` and `meta/0.pathc`. The changed files become the
   private group `group`, mounted first in the published `meta/0.papgt`, beside the
   composed `meta/0.pathc`: `prepare_profile`'s tail for packages without field or texture
-  operations. The change records will come from the packages' `runtime/` members;
+  operations. The view also lists every file it was built from (the mount list, each
+  listed group's `0.pamt`, `meta/0.pathc` and each `.paz` an underlay entry came from)
+  for a cache key, and its stage times;
 - `free_group_name`: `overlay_directory_name` for a fresh overlay, the first free
-  four-digit name from 0036 that is neither a folder nor a mount-list entry.
+  four-digit name from 0036 that is neither a folder nor a mount-list entry;
+- `parse_change_set`: one package's changes from a `CDMWCHG1` change set file, the
+  provisional launch-time input until packages carry `runtime/` members: u32 change
+  count, then per change u32 + UTF-8 path, u8 + (u64 + bytes) before, u8 + (u64 +
+  bytes) after, u64 flags and u8 mount-metadata mark. A truncated, repeated, trailing
+  or out-of-range record is a `FormatError`.
 
 And it reads `.cditem` packages:
 
@@ -111,14 +118,32 @@ game; they need explicit opt-in (`-m real_game`) and only read the game folder. 
 2026-10-26 all three passed on game 2.03.02 with DMM's group mounted, the composition
 publishing 11 files (9.3 MB) in one Python and one native pass of 10.4 s together.
 
-`tools/compose_cli.cpp` is a test driver only; the library is meant to be linked into the
-virtual loader, which builds with the same static runtime and warning settings.
+`tools/compose_cli.cpp` is a test driver only. The virtual loader links the library
+(its CMake adds this directory for the library target alone) with the same static
+runtime and warning settings, and composes at launch; see its README.
+
+On 2026-10-26 the five applied Wolf Trial packages (no field or texture operations)
+were taken from CDMW's own resolve, written as five change sets and composed with
+`compose-sets` over game 2.03.02 with DMM's group mounted. The result was
+byte-identical to the view CDMW's Apply had published for them: `meta/0.papgt`, the
+170-file group `0042` (193 MB `0.paz`) and `meta/0.pathc`. CDMW's Python takes about
+107 s for that profile (80 s of it resolving the packages). The native composition
+takes 3.9 to 4.5 s end to end, reading the 546 MB of change sets included: about
+0.8 s reads and validates the 36 mounted PAMTs (65 MB) in parallel while indexing
+only the touched paths, and 2.0 to 2.3 s merges each file's chain over the five
+packages in parallel, `meta/0.pathc` being the longest. A failure is still reported
+as the sequential order meets it first. `compose_view(..., parallel = false)` does
+the same work on the calling thread (about 6.2 s here); the virtual loader composes
+that way, because on the game's startup path worker threads do not run until its
+initialization returns. The change sets hold full before/after
+tables, 109 MB per package; patch 0004's reduced records would shrink them and the
+merge's before/after side, but not the current-side parse.
 
 ## Not yet ported
 
-The package `runtime/` members (patch 0004's `minimal_changes()` output and the parser
-that turns them into `Change` records), and the composition's use in the virtual loader
-at launch, are the next steps. `cdmw_archive_core` was not reused for reading: its scan sorts groups instead
+The package `runtime/` members (patch 0004's `minimal_changes()` output and a parser
+that turns them into `Change` records) replace the provisional change sets.
+`cdmw_archive_core` was not reused for reading: its scan sorts groups instead
 of following the mount list, and its decoder skips Python's plaintext validation.
 Packages with field or texture operations (`prepare_fields` / `prepare_textures`) are out
 of scope for v1.

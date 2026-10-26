@@ -1761,7 +1761,19 @@ group, CDMW applied and published a five-sword profile against that mount. A lau
 from DMM came up ready in the game's process with redirected mount-table,
 texture-registry and private archive opens, and the user confirmed all five items
 in game. The profile holds only while DMM's mount is unchanged since publication.
-Save behaviour, removal and composing packages at launch remain untested.
+Save behaviour and removal remain untested.
+
+Targeted continuation, 2026-10-26: the runtime can compose packages itself at launch.
+A portable C++ port of CDMW's record merge, its codecs and the archive reader and
+writer reproduces CDMW's composition byte for byte in parity tests and on the
+installed game. Five change sets written from CDMW's resolve of the five Wolf Trial
+packages composed at game startup to a view byte-identical to the confirmed one: 6.2 s
+on a cache miss, 312 ms when reusing the verified cache. The game opened the composed
+files through the hooks. On UAL's startup path a new thread does not run before the
+runtime's initialization returns, so the composition runs on the startup thread; a
+build that waited for worker threads never finished. Items were not inspected in game
+for these launches. The change-set input is provisional until packages carry their own
+`runtime/` members. Save/reload and a real DMM remount under composition remain untested.
 
 ### 13.2 Native item registration: a rejected shortcut
 
