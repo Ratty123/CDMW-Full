@@ -1,6 +1,7 @@
 // Process-lifetime, exact-file VFS. DllMain never installs hooks or performs I/O.
 #include "protocol.hpp"
 #include "bootstrap.hpp"
+#include "compose_launch.hpp"
 #include <atomic>
 #include <cstring>
 #include <mutex>
@@ -250,6 +251,29 @@ std::string utf8(const fs::path& path) {
 void require_source(bool okay, const char* reason, const fs::path& path) {
     if (!okay) throw std::runtime_error(std::string(reason) + ": " + utf8(path) + ". Apply changes in CDMW and publish the profile again.");
 }
+// The early GetCommandLineW startup path through the verified bootstrap, outside the
+// loader lock and on the first live thread; refuses otherwise. Returns the loader callout.
+DWORD require_verified_startup([[maybe_unused]] const fs::path& root) {
+    using LoaderCallout = BOOLEAN (NTAPI*)();
+    const auto loader_callout = reinterpret_cast<LoaderCallout>(GetProcAddress(GetModuleHandleW(L"ntdll.dll"), "RtlIsThreadWithinLoaderCallout"));
+    const DWORD loader_context = loader_callout ? loader_callout() : MAXDWORD;
+#ifndef CDMW_VIRTUAL_TESTING  // The synthetic child has no game startup path.
+    std::array<void*, 64> startup_frames{};
+    const auto frame_count = CaptureStackBackTrace(0, static_cast<DWORD>(startup_frames.size()), startup_frames.data(), nullptr);
+    const bool startup_verified = loader_context == 0 && first_live_thread() &&
+        VerifiedBootstrap(root).accepts_startup(std::span<void* const>(startup_frames.data(), frame_count), GetModuleHandleW(nullptr));
+    if (!startup_verified) {
+        std::ostringstream detail;
+        detail << "Unverified startup path; items were not loaded. Loader callout " << loader_context << ". Stack: ";
+        for (USHORT i = 0; i < frame_count; ++i) detail << address_label(startup_frames[i]) << "; ";
+        throw std::runtime_error(detail.str());
+    }
+#endif
+    return loader_context;
+}
+void undo_hooks() {
+    for (auto it = patches.rbegin(); it != patches.rend(); ++it) { try { if (*it->slot == it->after) exchange(*it, false); } catch (...) {} }
+}
 // Launcher-independent activation of a profile CDMW published for any launcher.
 // No host checks the sources first, so every guard is checked and pinned here,
 // before a single import is hooked. Any refusal leaves the game unmodded.
@@ -266,23 +290,8 @@ void initialize_standalone(const fs::path& root, const fs::path& path) {
 #ifndef CDMW_VIRTUAL_TESTING
         require(hex(manifest.executable) == game_hash, "Unverified game build");
 #endif
-        using LoaderCallout = BOOLEAN (NTAPI*)();
-        const auto loader_callout = reinterpret_cast<LoaderCallout>(GetProcAddress(GetModuleHandleW(L"ntdll.dll"), "RtlIsThreadWithinLoaderCallout"));
-        const DWORD loader_context = loader_callout ? loader_callout() : MAXDWORD;
-#ifdef CDMW_VIRTUAL_TESTING
-        const bool startup_verified = true; // The synthetic child has no game startup path.
-#else
-        std::array<void*, 64> startup_frames{};
-        const auto frame_count = CaptureStackBackTrace(0, static_cast<DWORD>(startup_frames.size()), startup_frames.data(), nullptr);
-        const bool startup_verified = loader_context == 0 && first_live_thread() &&
-            VerifiedBootstrap(root).accepts_startup(std::span<void* const>(startup_frames.data(), frame_count), GetModuleHandleW(nullptr));
-        if (!startup_verified) {
-            std::ostringstream detail;
-            detail << "Unverified startup path; items were not loaded. Loader callout " << loader_context << ". Stack: ";
-            for (USHORT i = 0; i < frame_count; ++i) detail << address_label(startup_frames[i]) << "; ";
-            throw std::runtime_error(detail.str());
-        }
-#endif
+        const DWORD loader_context = require_verified_startup(root);
+        const bool startup_verified = true;
         for (const auto& guard : manifest.guards) {
             if (!guard.present) { require_source(!fs::exists(guard.path), "A file appeared after the profile was published", guard.path); continue; }
             Handle pin(CreateFileW(guard.path.c_str(), GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr));
@@ -335,6 +344,63 @@ void initialize_standalone(const fs::path& root, const fs::path& path) {
         throw;
     }
 }
+// Milestone 2: the packages' change sets compose at launch, without CDMW's Apply step.
+// The same guards as a standalone profile apply, and the installation lease is held
+// before composing, so CDMW cannot change the installation underneath the composition.
+void initialize_compose(const fs::path& root) {
+    const auto started = GetTickCount64();
+    ComposedLaunch launch;
+    try {
+        Manifest expected;
+        expected.mode = Mode::standalone;
+        expected.root = root;
+        require(normalize(own_executable()) == normalize(executable(expected)), "Unexpected game process");
+        const auto game = hash_file(own_executable());
+#ifndef CDMW_VIRTUAL_TESTING
+        require(hex(game) == game_hash, "Unverified game build");
+#endif
+        const DWORD loader_context = require_verified_startup(root);
+        const auto lane = installation_lane(root);
+        runtime_lane = CreateFileW(lane.c_str(), GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE,
+                                   nullptr, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
+        require(runtime_lane != INVALID_HANDLE_VALUE, "Cannot retain runtime lease");
+        OVERLAPPED lease{}; lease.Offset = 1;
+        require(LockFileEx(runtime_lane, LOCKFILE_EXCLUSIVE_LOCK | LOCKFILE_FAIL_IMMEDIATELY, 0, 1, 0, &lease), "CDMW is changing this installation; items were not loaded");
+        launch = prepare_composition(root, game);
+        for (auto& pin : launch.pins) pins.push_back(std::move(pin));
+        launch.pins.clear();
+        for (const auto& file : launch.files) {
+            mappings.push_back({normalize(root / file.logical), file.path.wstring()});
+            const fs::path logical(file.logical);
+            if (logical.extension() == L".pamt") directories.push_back({normalize(root / logical.parent_path()), file.path.parent_path().wstring()});
+        }
+        auto log = root / L".cdmw/virtual-loader/trace-compose.bin";
+        trace_file = CreateFileW(log.c_str(), GENERIC_WRITE, FILE_SHARE_READ, nullptr, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
+        require(trace_file != INVALID_HANDLE_VALUE, "Cannot create bounded trace");
+        HMODULE pinned{};
+        require(GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_PIN,
+                                  reinterpret_cast<LPCWSTR>(&initialize_compose), &pinned), "Cannot pin runtime module");
+        mode = Mode::standalone;  // the same exact-file redirection
+        record(0, L"CDMW virtual trace v1 (compose)", false, 0);
+        record(11, L"InitializeASI loader callout (0 means outside)", false, loader_context);
+        record(12, L"Verified early GetCommandLineW startup path", false, 1);
+        const auto summary = std::wstring(launch.reused ? L"Reused composition " : L"Composed ") + std::wstring(launch.key.begin(), launch.key.end());
+        record(14, summary.c_str(), false, static_cast<DWORD>(launch.composed));
+        hook_imports(root);
+        record(13, L"All approved file import hooks installed", false, 0);
+        Handle writer(CreateThread(nullptr, 0, flush_trace, nullptr, 0, nullptr));
+        require(bool(writer), "Cannot start trace writer");
+        runtime_state.store(1, std::memory_order_release);
+        compose_status(root, "ready", launch, 0, "", GetTickCount64() - started);
+    } catch (const std::exception& error) {
+        runtime_state.store(2, std::memory_order_release);
+        mode = Mode::trace;
+        undo_hooks();
+        mappings.clear(); directories.clear(); pins.clear(); launch.files.clear();
+        try { compose_status(root, "refused", launch, ERROR_NOT_SUPPORTED, error.what(), GetTickCount64() - started); } catch (...) {}
+        throw;
+    }
+}
 // The bootstrap also loads into other programs in bin64; the crash handler starts with
 // every launch. They stay inert and silent, so the status report remains the game's.
 bool runs_the_game(const fs::path& root) {
@@ -351,10 +417,15 @@ void initialize() {
     auto root = own_executable().parent_path().parent_path();
     auto path = root / L".cdmw/virtual-loader/session.bin";
     if (!fs::is_regular_file(path)) {
-        // A launch CDMW did not start (Steam, DMM) uses a published standalone
-        // profile when one exists. Every other ordinary launch remains inert.
+        // A launch CDMW did not start (Steam, DMM) composes the change sets in the compose
+        // folder when it holds any, and otherwise uses a published standalone profile
+        // when one exists. Every other ordinary launch remains inert.
         auto standalone = root / L".cdmw/virtual-loader/standalone.bin";
-        if (fs::is_regular_file(standalone) && runs_the_game(root)) initialize_standalone(root, standalone);
+        if (composition_requested(root)) {
+            if (runs_the_game(root)) initialize_compose(root);
+        } else if (fs::is_regular_file(standalone) && runs_the_game(root)) {
+            initialize_standalone(root, standalone);
+        }
         return;
     }
     auto manifest = read_manifest(path);

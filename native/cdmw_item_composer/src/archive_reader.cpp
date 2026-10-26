@@ -112,9 +112,9 @@ public:
         std::vector<std::pair<std::uint32_t, std::string>> parts;
         std::uint32_t current = offset;
         std::string base;
-        std::set<std::uint32_t> seen;
         while (current != no_parent) {
-            if (!seen.insert(current).second) break;
+            // Every offset visited before this one was pushed to parts, so a revisit is a cycle.
+            if (std::any_of(parts.begin(), parts.end(), [&](const auto& part) { return part.first == current; })) break;
             if (const auto cached = cache_.find(current); cached != cache_.end()) {
                 base = cached->second;
                 break;
@@ -124,7 +124,10 @@ public:
             const auto parent = u32(block_, at);
             const std::size_t length = block_[at + 4];
             if (at + 5 + length > block_.size()) break;
-            parts.emplace_back(current, encode_utf8(decode_replace(block_.data() + at + 5, length)));
+            const auto* text = block_.data() + at + 5;
+            // Replacement decoding leaves well-formed UTF-8 as it is.
+            parts.emplace_back(current, valid_utf8(text, length) ? std::string(reinterpret_cast<const char*>(text), length)
+                                                                 : encode_utf8(decode_replace(text, length)));
             current = parent;
             if (parts.size() > 255) break;
         }
@@ -169,6 +172,17 @@ Bytes read_raw(const ArchiveEntry& entry) {
 }  // namespace
 
 namespace detail {
+
+Bytes read_whole_file(const std::filesystem::path& path) {
+    std::ifstream stream(path, std::ios::binary | std::ios::ate);
+    if (!stream) throw FormatError("could not open " + utf8_of(path));
+    const auto size = static_cast<std::uint64_t>(stream.tellg());
+    Bytes data(static_cast<std::size_t>(size));
+    stream.seekg(0);
+    if (size) stream.read(reinterpret_cast<char*>(data.data()), static_cast<std::streamsize>(size));
+    if (static_cast<std::uint64_t>(stream.gcount()) != size) throw FormatError("short read from " + utf8_of(path));
+    return data;
+}
 
 // archive_format's try_decode_text_like_archive_data(data) is not None.
 bool text_like(const Bytes& data) {
@@ -338,7 +352,10 @@ std::vector<ArchiveEntry> parse_pamt(const Bytes& data, const std::filesystem::p
     }
     std::sort(ranges.begin(), ranges.end());
     const auto folder = pamt_path.parent_path();
+    std::vector<std::filesystem::path> carriers(static_cast<std::size_t>(std::min<std::uint64_t>(paz_count, 0x10000)));
+    for (std::size_t index = 0; index < carriers.size(); ++index) carriers[index] = folder / path_of(std::to_string(index) + ".paz");
     std::vector<ArchiveEntry> entries;
+    entries.reserve(static_cast<std::size_t>(file_count));
     std::size_t cursor = 0;
     for (std::size_t index = 0; index < file_count; ++index) {
         const auto row = files_at + index * 20;
@@ -356,7 +373,7 @@ std::vector<ArchiveEntry> parse_pamt(const Bytes& data, const std::filesystem::p
         entry.paz_index = u16(data, row + 16);
         entry.flags = u16(data, row + 18);
         if (entry.paz_index >= paz_count) throw FormatError("Invalid PAZ index " + std::to_string(entry.paz_index) + " for " + utf8_of(pamt_path));
-        entry.paz_path = folder / path_of(std::to_string(entry.paz_index) + ".paz");
+        entry.paz_path = carriers[entry.paz_index];  // a u16 index below paz_count
         entries.push_back(std::move(entry));
     }
     return entries;
@@ -421,9 +438,8 @@ MountedArchives::MountedArchives(const std::filesystem::path& root, const Bytes&
         const auto pamt = root / path_of(group) / "0.pamt";
         std::error_code error;
         if (!std::filesystem::is_regular_file(pamt, error)) continue;
-        std::ifstream stream(pamt, std::ios::binary);
-        const Bytes data((std::istreambuf_iterator<char>(stream)), std::istreambuf_iterator<char>());
-        for (auto& entry : parse_pamt(data, pamt)) {
+        pamts_.push_back(pamt);
+        for (auto& entry : parse_pamt(read_whole_file(pamt), pamt)) {
             first_.emplace(normalize_game_path(entry.path), entries_.size());
             entries_.push_back(std::move(entry));
         }

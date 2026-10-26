@@ -4,8 +4,7 @@
 // first, beside the composed texture registry.
 #include "composer_internal.hpp"
 
-#include <fstream>
-#include <iterator>
+#include <chrono>
 
 namespace cdmw::compose {
 using namespace detail;
@@ -16,12 +15,23 @@ constexpr int first_overlay_number = 36;  // archive_overlay_install.OVERLAY_DIR
 Blob read_optional(const std::filesystem::path& path) {
     std::error_code error;
     if (!std::filesystem::is_regular_file(path, error)) return nullptr;
-    std::ifstream stream(path, std::ios::binary);
-    if (!stream) throw FormatError("could not open " + utf8_of(path));
-    return std::make_shared<const Bytes>((std::istreambuf_iterator<char>(stream)), std::istreambuf_iterator<char>());
+    return std::make_shared<const Bytes>(read_whole_file(path));
 }
 
 bool same(const Blob& x, const Blob& y) { return x == y || (x && y && *x == *y); }
+
+class Stopwatch {
+public:
+    double lap() {
+        const auto now = std::chrono::steady_clock::now();
+        const std::chrono::duration<double, std::milli> elapsed = now - last_;
+        last_ = now;
+        return elapsed.count();
+    }
+
+private:
+    std::chrono::steady_clock::time_point last_ = std::chrono::steady_clock::now();
+};
 
 }  // namespace
 
@@ -39,10 +49,15 @@ std::string free_group_name(const std::filesystem::path& root, const Bytes& papg
 }
 
 ComposedView compose_view(const std::filesystem::path& root, const std::vector<PackageChanges>& packages, const std::string& group) {
+    Stopwatch clock;
+    ComposedView view;
     const auto mount = read_optional(root / "meta" / "0.papgt");
     if (!mount) throw FormatError("the game has no mount list");
     const MountedArchives archives(root, *mount);
     const auto disk_pathc = read_optional(root / "meta" / "0.pathc");
+    view.sources.push_back(root / "meta" / "0.papgt");
+    view.sources.insert(view.sources.end(), archives.pamts().begin(), archives.pamts().end());
+    if (disk_pathc) view.sources.push_back(root / "meta" / "0.pathc");
     // Every path any package touches, in first-seen order; the last flags and any meta mark win.
     std::vector<std::string> paths;
     std::map<std::string, std::uint64_t> flags;
@@ -54,17 +69,21 @@ ComposedView compose_view(const std::filesystem::path& root, const std::vector<P
             if (change.meta) meta.insert(path);
         }
     }
+    view.stage_ms[0] = clock.lap();
     // What the game reads today.
     FileMap underlay;
+    std::set<std::filesystem::path> carriers;
     for (const auto& path : paths) {
         if (path == "meta/0.pathc") {
             underlay.set(path, disk_pathc);
         } else if (const auto* entry = archives.find(path)) {
             underlay.set(path, std::make_shared<const Bytes>(read_entry(*entry)));
+            if (carriers.insert(entry->paz_path).second) view.sources.push_back(entry->paz_path);
         } else {
             underlay.set(path, nullptr);
         }
     }
+    view.stage_ms[1] = clock.lap();
     FileMap current = underlay;
     for (const auto& changes : packages) {
         FileMap before, after;
@@ -74,20 +93,21 @@ ComposedView compose_view(const std::filesystem::path& root, const std::vector<P
         }
         current = merge_overlay_files(before, after, current);
     }
+    view.stage_ms[2] = clock.lap();
     std::map<std::string, Bytes> files;  // sorted by path, as prepare_profile builds them
     for (const auto& [path, data] : current.items())
         if (!meta.count(path) && data && !same(data, underlay.get(path))) files.emplace(path, *data);
-    ComposedView view;
     view.group = group;
     view.composed = files.size();
     view.files.emplace_back("meta/0.papgt", *mount);
-    if (!files.empty()) {
-        std::vector<OverlayFile> entries;
-        for (const auto& [path, raw] : files) {
-            const auto file_flags = flags.count(path) ? flags.at(path) : 0;
-            const auto slash = path.rfind('/');
-            entries.push_back({path, stored_payload(raw, file_flags, slash == std::string::npos ? path : path.substr(slash + 1)), raw.size(), file_flags});
-        }
+    std::vector<OverlayFile> entries;
+    for (const auto& [path, raw] : files) {
+        const auto file_flags = flags.count(path) ? flags.at(path) : 0;
+        const auto slash = path.rfind('/');
+        entries.push_back({path, stored_payload(raw, file_flags, slash == std::string::npos ? path : path.substr(slash + 1)), raw.size(), file_flags});
+    }
+    view.stage_ms[3] = clock.lap();
+    if (!entries.empty()) {
         const auto archive = build_overlay_archive(entries);
         view.files.front().second = papgt_with_directory(*mount, group, archive.pamt_checksum, papgt_default_flags, true);
         view.files.emplace_back(group + "/0.pamt", archive.pamt);
@@ -95,6 +115,7 @@ ComposedView compose_view(const std::filesystem::path& root, const std::vector<P
     }
     const auto pathc = current.contains("meta/0.pathc") ? current.get("meta/0.pathc") : disk_pathc;
     if (pathc) view.files.emplace_back("meta/0.pathc", *pathc);
+    view.stage_ms[4] = clock.lap();
     return view;
 }
 

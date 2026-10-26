@@ -4,6 +4,8 @@
 // group memberships and registry records; their containers are rebuilt after merging.
 #include "composer_internal.hpp"
 
+#include <unordered_set>
+
 namespace cdmw::compose {
 using namespace detail;
 namespace {
@@ -122,7 +124,9 @@ Table read_table(const Bytes& body, const Bytes& header) {
     const auto spans = row_spans(directory, body.size());
     if (spans.size() != directory.rows.size() || (!spans.empty() && spans.front().start != 0))
         throw OverlayConflict("Incomplete table row directory.");
-    std::set<Bytes> keys;
+    std::unordered_set<Bytes, KeyHash> keys;
+    keys.reserve(spans.size());
+    table.records.reserve(spans.size());
     for (const auto& span : spans) {
         table.records.emplace_back(span.row->key, slice(body, span.start, span.end));
         keys.insert(span.row->key);
@@ -148,14 +152,15 @@ std::pair<Bytes, Bytes> merge_table_pair(const FileMap& before, const FileMap& a
             if (!raw) return std::nullopt;
             return Record{key, std::move(*raw)};
         });
-    std::map<Bytes, std::uint64_t> offsets;
+    std::unordered_map<Bytes, std::uint64_t, KeyHash> offsets;
+    offsets.reserve(rows.size());
     Bytes payload;
     for (const auto& [key, raw] : rows) {
         offsets[key] = payload.size();
         append(payload, raw);
     }
     std::vector<const Bytes*> ordered;
-    std::set<Bytes> seen;
+    std::unordered_set<Bytes, KeyHash> seen;
     for (const auto* table : {&c, &a})
         for (const auto& row : table->directory.rows)
             if (seen.insert(row.key).second && offsets.count(row.key)) ordered.push_back(&row.key);

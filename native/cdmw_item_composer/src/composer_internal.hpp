@@ -5,6 +5,7 @@
 
 #include <algorithm>
 #include <array>
+#include <functional>
 #include <map>
 #include <optional>
 #include <set>
@@ -69,6 +70,8 @@ inline std::string utf8_of(const std::filesystem::path& path) {
     return std::string(text.begin(), text.end());
 }
 inline std::filesystem::path path_of(std::string_view text) { return std::filesystem::path(std::u8string(text.begin(), text.end())); }
+// A whole file in one read; FormatError when it cannot be opened or read.
+Bytes read_whole_file(const std::filesystem::path& path);
 
 // Python's strict UTF-8 decoder: well-formed sequences only (no overlongs, surrogates or
 // code points past U+10FFFF).
@@ -111,43 +114,90 @@ inline std::string describe_key(const Bytes& key) { return text_of(key); }
 inline std::string describe_key(const std::string& key) { return key; }
 inline std::string describe_key(std::uint64_t key) { return std::to_string(key); }
 
+struct KeyHash {
+    std::size_t operator()(const Bytes& key) const noexcept {
+        return std::hash<std::string_view>{}(std::string_view(reinterpret_cast<const char*>(key.data()), key.size()));
+    }
+    std::size_t operator()(const std::string& key) const noexcept { return std::hash<std::string>{}(key); }
+    std::size_t operator()(std::uint64_t key) const noexcept { return std::hash<std::uint64_t>{}(key); }
+};
+
 // _records: three-way merge of a keyed collection. Repeated keys pair by occurrence, and the
 // result follows current's order, then after's additions, then before's.
+//
+// A record whose three sides _value settles without a conflict takes that result directly;
+// `merge` is called only for the others, so it must agree with merge_optional wherever
+// merge_optional does not conflict. The location text is built only for those calls.
 template <class T, class KeyFn, class MergeFn>
 std::vector<T> merge_records(const std::vector<T>& before, const std::vector<T>& after, const std::vector<T>& current,
                              KeyFn key, const std::string& where, MergeFn merge) {
     using Key = std::decay_t<decltype(key(std::declval<const T&>()))>;
-    using Identity = std::pair<Key, std::size_t>;
+    struct Slot {
+        std::size_t start = 0, count = 0;
+    };
+    // Each key's rows sit together in `grouped`, in table order: occurrence n is start + n.
     struct Indexed {
-        std::vector<Identity> order;
-        std::map<Identity, const T*> rows;
+        std::unordered_map<Key, Slot, KeyHash> slots;
+        std::vector<std::size_t> grouped, occurrence;
+        std::vector<const Key*> keys;
     };
     const auto index = [&](const std::vector<T>& rows) {
-        Indexed result;
-        std::map<Key, std::size_t> counts;
+        Indexed table;
+        table.slots.reserve(rows.size());
+        table.keys.reserve(rows.size());
+        table.occurrence.reserve(rows.size());
+        std::vector<Slot*> slots;
+        slots.reserve(rows.size());
         for (const auto& row : rows) {
-            Identity identity{key(row), 0};
-            identity.second = counts[identity.first]++;
-            result.rows.emplace(identity, &row);
-            result.order.push_back(std::move(identity));
+            auto& [stored, slot] = *table.slots.try_emplace(key(row)).first;
+            table.occurrence.push_back(slot.count++);
+            table.keys.push_back(&stored);
+            slots.push_back(&slot);
         }
-        return result;
+        std::size_t start = 0;
+        for (auto& [stored, slot] : table.slots) {
+            slot.start = start;
+            start += slot.count;
+        }
+        table.grouped.resize(rows.size());
+        for (std::size_t row = 0; row < rows.size(); ++row) table.grouped[slots[row]->start + table.occurrence[row]] = row;
+        return table;
     };
     const auto b = index(before), a = index(after), c = index(current);
-    const auto find = [](const Indexed& table, const Identity& identity) -> const T* {
-        const auto found = table.rows.find(identity);
-        return found == table.rows.end() ? nullptr : found->second;
+    const auto count = [](const Indexed& table, const Key& wanted) -> std::size_t {
+        const auto found = table.slots.find(wanted);
+        return found == table.slots.end() ? 0 : found->second.count;
     };
-    std::set<Identity> seen;
+    const auto find = [](const Indexed& table, const std::vector<T>& rows, const Key& wanted, std::size_t occurrence) -> const T* {
+        const auto found = table.slots.find(wanted);
+        if (found == table.slots.end() || occurrence >= found->second.count) return nullptr;
+        return &rows[table.grouped[found->second.start + occurrence]];
+    };
+    const auto equal = [](const T* x, const T* y) { return x == y || (x && y && *x == *y); };
     std::vector<T> result;
-    for (const auto* order : {&c.order, &a.order, &b.order}) {
-        for (const auto& identity : *order) {
-            if (!seen.insert(identity).second) continue;
-            auto value = merge(find(b, identity), find(a, identity), find(c, identity),
-                               where + " [" + describe_key(identity.first) + "]");
-            if (value) result.push_back(std::move(*value));
+    result.reserve(current.size() + after.size());
+    // An identity is seen once an earlier side holds that occurrence of its key.
+    const auto visit = [&](const std::vector<T>& rows, const Indexed& table, std::size_t side) {
+        for (std::size_t row = 0; row < rows.size(); ++row) {
+            const Key& identity = *table.keys[row];
+            const auto occurrence = table.occurrence[row];
+            if (side >= 1 && occurrence < count(c, identity)) continue;
+            if (side == 2 && occurrence < count(a, identity)) continue;
+            const T* old = find(b, before, identity, occurrence);
+            const T* incoming = find(a, after, identity, occurrence);
+            const T* present = find(c, current, identity, occurrence);
+            if (equal(old, incoming) || equal(present, incoming)) {
+                if (present) result.push_back(*present);
+            } else if (equal(present, old)) {
+                if (incoming) result.push_back(*incoming);
+            } else if (auto value = merge(old, incoming, present, where + " [" + describe_key(identity) + "]")) {
+                result.push_back(std::move(*value));
+            }
         }
-    }
+    };
+    visit(current, c, 0);
+    visit(after, a, 1);
+    visit(before, b, 2);
     return result;
 }
 

@@ -36,6 +36,10 @@ def main():
     source_hashes = {p.name: sha(p) for p in sources}
     for relative in ('../../scripts/build_virtual_loader.py', '../../cdmw/constants.py', '../../cdmw/build_metadata.py'):
         source_hashes[relative] = sha(SOURCE / relative)
+    # The runtime links the item composer's library sources.
+    composer = SOURCE.parent / 'cdmw_item_composer'
+    for path in sorted([composer / 'CMakeLists.txt', *composer.glob('include/**/*.hpp'), *composer.glob('src/*.[ch]pp')]):
+        source_hashes['../' + path.relative_to(SOURCE.parent).as_posix()] = sha(path)
     revision = subprocess.run(['git', 'rev-parse', 'HEAD'], cwd=ROOT, check=True, capture_output=True, text=True).stdout.strip()
     result = {'format': 'cdmw_virtual_runtime_v1', 'revision': revision,
               'sources': source_hashes,

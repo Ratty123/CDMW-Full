@@ -44,7 +44,8 @@ std::optional<PabghTable> parse_directory(const Bytes& header, const Bytes& payl
         if (!usable || rows.empty()) continue;
         if (rows.front().offset != 0 || rows.back().offset >= payload.size()) continue;
         const bool inline_keys = std::all_of(rows.begin(), rows.end(), [&](const PabghRow& row) {
-            return slice(payload, row.offset, std::size_t(row.offset) + key_width) == row.key;
+            return std::size_t(row.offset) + key_width <= payload.size() &&
+                   std::equal(row.key.begin(), row.key.end(), payload.begin() + row.offset);
         });
         if (!inline_keys) continue;
         PabghTable table;

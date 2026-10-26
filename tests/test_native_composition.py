@@ -36,7 +36,8 @@ def _effective(root, monkeypatch, *, entries=None):
     from cdmw.core.archive_scan_cache import discover_pamt_files
     monkeypatch.setattr(archive_accelerator, 'read_archive_entry_data_native', lambda *a, **k: None)
     first = {} if entries is None else entries
-    for pamt in discover_pamt_files(root, use_default_ignored_folders=False):
+    # DMM's groups count; CDMW's own state (a runtime's composition cache) is never mounted.
+    for pamt in discover_pamt_files(root, ignored_folders=('.cdmw',), use_default_ignored_folders=False):
         for entry in parse_archive_pamt(pamt):
             first.setdefault(entry.path.replace('\\', '/').strip().strip('/').lower(), entry)
 
@@ -77,6 +78,18 @@ def python_compose(root, packages, group, read):
     if pathc is not None:
         output[PATHC] = pathc
     return list(output.items()), len(files)
+
+
+def change_set(changes):
+    """One package's changes as a provisional change set file ("CDMWCHG1")."""
+    out = bytearray(b'CDMWCHG1' + struct.pack('<I', len(changes)))
+    for path, change in changes.items():
+        raw = path.encode()
+        out += struct.pack('<I', len(raw)) + raw
+        for value in (change['before'], change['after']):
+            out += b'\0' if value is None else b'\1' + struct.pack('<Q', len(value)) + value
+        out += struct.pack('<QB', change['flags'], int(change['meta']))
+    return bytes(out)
 
 
 def native_compose(root, packages, group=None):
@@ -192,6 +205,49 @@ def test_two_packages_compose_onto_dmms_tables(tmp_path, monkeypatch):
     assert {777, 1990001, 1990002} <= set(next(row for row in composed if row.key == 17010).members)  # DMM's edit kept
     _compare(root, [beta, alpha], read)
     _compare(root, [alpha], read)
+
+
+def _compose_sets(tmp_path, root, sets, group='0037'):
+    paths = []
+    for index, data in enumerate(sets):
+        paths.append(tmp_path / f'{index:02}.cdchanges')
+        paths[-1].write_bytes(data)
+    target = tmp_path / 'sets-response.bin'
+    subprocess.run([str(CLI), 'compose-sets', str(target), str(root), group, *map(str, paths)], check=True, capture_output=True, timeout=300)
+    reply = Reader(target.read_bytes())
+    if reply.status != 'ok':
+        return reply.status, reply.message
+    name, composed = reply.take(4).decode(), reply.number(4)
+    return 'ok', (name, composed, [(reply.take(4).decode(), reply.take(8)) for _ in range(reply.number(4))])
+
+
+def test_change_sets_compose_as_the_request_does(tmp_path, monkeypatch):
+    root = _game(tmp_path)
+    read = _effective(root, monkeypatch)
+    alpha, beta = _package(read, 1990001, 'alpha'), _package(read, 1990002, 'beta')
+    assert _compose_sets(tmp_path, root, [change_set(alpha), change_set(beta)]) == native_compose(root, [alpha, beta], '0037')
+
+
+@pytest.mark.parametrize(('damage', 'message'), [
+    (lambda data: data[:-1], 'truncated'),
+    (lambda data: data + b'\0', 'trailing bytes'),
+    (lambda data: b'CDMWCHG2' + data[8:], 'not a change set'),
+    (lambda data: data[:-1] + b'\2', 'invalid metadata mark'),
+])
+def test_malformed_change_sets_are_refused(tmp_path, monkeypatch, damage, message):
+    root = _game(tmp_path)
+    read = _effective(root, monkeypatch)
+    status, detail = _compose_sets(tmp_path, root, [damage(change_set(_package(read, 1990001, 'alpha')))])
+    assert status == 'error' and message in detail, detail
+
+
+def test_a_change_set_cannot_name_a_path_twice(tmp_path):
+    root = _game(tmp_path)
+    one = {'before': None, 'after': b'x', 'flags': 0, 'meta': False}
+    record = change_set({'a.bin': one})[12:]
+    data = b'CDMWCHG1' + struct.pack('<I', 2) + record + record
+    status, detail = _compose_sets(tmp_path, root, [data])
+    assert status == 'error' and 'twice' in detail, detail
 
 
 def test_composition_refuses_two_edits_of_one_record(tmp_path, monkeypatch):

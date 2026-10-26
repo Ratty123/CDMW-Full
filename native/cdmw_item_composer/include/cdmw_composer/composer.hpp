@@ -122,9 +122,12 @@ public:
     // The entry the game reads for `path` (compared as archive_format normalizes it), or null.
     const ArchiveEntry* find(const std::string& path) const;
     const std::vector<std::string>& groups() const { return groups_; }
+    // The 0.pamt files read, in mount order (a listed group without one is skipped).
+    const std::vector<std::filesystem::path>& pamts() const { return pamts_; }
 
 private:
     std::vector<std::string> groups_;
+    std::vector<std::filesystem::path> pamts_;
     std::vector<ArchiveEntry> entries_;
     std::unordered_map<std::string, std::size_t> first_;
 };
@@ -142,6 +145,10 @@ struct Change {
     bool meta = false;
 };
 using PackageChanges = std::vector<std::pair<std::string, Change>>;
+// One package's changes read from a change set file ("CDMWCHG1"), the provisional input of
+// the launch-time composition until packages carry runtime/ members. FormatError on any
+// malformed, repeated or trailing record.
+PackageChanges parse_change_set(const Bytes& data);
 
 // The files a composition publishes, in prepare_profile's order: meta/0.papgt, then the
 // group's 0.pamt and 0.paz when any file changed, then meta/0.pathc when there is one.
@@ -149,6 +156,11 @@ struct ComposedView {
     std::string group;
     std::vector<std::pair<std::string, Bytes>> files;
     std::size_t composed = 0;  // files in the private group
+    // Every file the view was built from, for a cache key: the mount list, each listed
+    // group's 0.pamt, meta/0.pathc when present and each .paz an underlay entry came from.
+    std::vector<std::filesystem::path> sources;
+    // Wall time per stage in milliseconds: mount, underlay, merge, store, archive.
+    std::array<double, 5> stage_ms{};
 };
 // archive_overlay_install.overlay_directory_name for a fresh overlay: the first free
 // four-digit name from 0036 that is neither a folder under `root` nor in the mount list.

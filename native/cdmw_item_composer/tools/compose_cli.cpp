@@ -16,12 +16,14 @@
 //   cdmw_compose_cli inflate <input> <output> <limit>
 //   cdmw_compose_cli zip <archive> <response>
 //   cdmw_compose_cli compose <request> <response> <root> [<group>]
+//   cdmw_compose_cli compose-sets <response> <root> <group or -> <change set>...
 //   cdmw_compose_cli group-name <root>                         prints the free group name
 //
 // Compose request: "CDMWCMP1", u32 package count, then per package u32 change count and per
 // change u32 + path, u8 present + [u64 + before], u8 present + [u64 + after], u64 flags,
 // u8 meta. It answers u32 + group, u32 composed count, u32 file count and per file u32 +
-// path, u64 + bytes.
+// path, u64 + bytes. compose-sets reads each package from a change set file instead and
+// answers the same way.
 //
 // Merge request:   "CDMWMRG1", then before, after and current, each: u32 count, then per
 //                  file u32 path length, UTF-8 path, u8 present, [u64 size, bytes].
@@ -55,9 +57,11 @@ using namespace cdmw::compose;
 namespace {
 
 Bytes read_file(const char* path) {
-    std::ifstream in(path, std::ios::binary);
-    if (!in) throw std::runtime_error(std::string("cannot read ") + path);
-    return Bytes(std::istreambuf_iterator<char>(in), std::istreambuf_iterator<char>());
+    try {
+        return detail::read_whole_file(detail::path_of(path));
+    } catch (const FormatError&) {
+        throw std::runtime_error(std::string("cannot read ") + path);
+    }
 }
 
 void write_file(const char* path, const Bytes& data) {
@@ -247,6 +251,29 @@ Bytes zip_listing(const Bytes& data) {
     });
 }
 
+Bytes composed(const std::vector<PackageChanges>& packages, const char* root, const char* group) {
+    return answer([&] {
+        const auto base = detail::path_of(root);
+        std::string name = group ? group : "";
+        if (name.empty()) {
+            std::ifstream stream(base / "meta" / "0.papgt", std::ios::binary);
+            name = free_group_name(base, Bytes((std::istreambuf_iterator<char>(stream)), std::istreambuf_iterator<char>()));
+        }
+        const auto view = compose_view(base, packages, name);
+        std::cerr << "stages ms: mount " << view.stage_ms[0] << ", underlay " << view.stage_ms[1] << ", merge " << view.stage_ms[2]
+                  << ", store " << view.stage_ms[3] << ", archive " << view.stage_ms[4] << "; sources " << view.sources.size() << "\n";
+        auto out = response(0, "", nullptr);
+        put_bytes(out, text(view.group), 4);
+        put(out, view.composed, 4);
+        put(out, view.files.size(), 4);
+        for (const auto& [path, data] : view.files) {
+            put_bytes(out, text(path), 4);
+            put_bytes(out, data, 8);
+        }
+        return out;
+    });
+}
+
 Bytes compose(const Bytes& request, const char* root, const char* group) {
     Cursor in(request);
     if (in.take(8) != Bytes{'C', 'D', 'M', 'W', 'C', 'M', 'P', '1'}) throw std::runtime_error("not a compose request");
@@ -264,24 +291,18 @@ Bytes compose(const Bytes& request, const char* root, const char* group) {
         }
     }
     if (!in.done()) throw std::runtime_error("trailing request bytes");
-    return answer([&] {
-        const auto base = detail::path_of(root);
-        std::string name = group ? group : "";
-        if (name.empty()) {
-            std::ifstream stream(base / "meta" / "0.papgt", std::ios::binary);
-            name = free_group_name(base, Bytes((std::istreambuf_iterator<char>(stream)), std::istreambuf_iterator<char>()));
-        }
-        const auto view = compose_view(base, packages, name);
-        auto out = response(0, "", nullptr);
-        put_bytes(out, text(view.group), 4);
-        put(out, view.composed, 4);
-        put(out, view.files.size(), 4);
-        for (const auto& [path, data] : view.files) {
-            put_bytes(out, text(path), 4);
-            put_bytes(out, data, 8);
-        }
-        return out;
-    });
+    return composed(packages, root, group);
+}
+
+// The same composition from change set files; a malformed set answers as a format error.
+Bytes compose_sets(const char* root, const char* group, int count, char** sets) {
+    std::vector<PackageChanges> packages;
+    try {
+        for (int i = 0; i < count; ++i) packages.push_back(parse_change_set(read_file(sets[i])));
+    } catch (const FormatError& error) {
+        return response(2, error.what(), nullptr);
+    }
+    return composed(packages, root, group);
 }
 
 Bytes read_archives(const char* root, const Bytes& papgt, int count, char** paths) {
@@ -366,6 +387,8 @@ int main(int argc, char** argv) {
             write_file(argv[3], zip_listing(read_file(argv[2])));
         } else if (command == "compose" && (argc == 5 || argc == 6)) {
             write_file(argv[3], compose(read_file(argv[2]), argv[4], argc == 6 ? argv[5] : nullptr));
+        } else if (command == "compose-sets" && argc >= 5) {
+            write_file(argv[2], compose_sets(argv[3], std::strcmp(argv[4], "-") ? argv[4] : nullptr, argc - 5, argv + 5));
         } else if (command == "group-name" && argc == 3) {
             const auto base = detail::path_of(argv[2]);
             std::cout << free_group_name(base, read_file(detail::utf8_of(base / "meta" / "0.papgt").c_str())) << '\n';

@@ -27,8 +27,20 @@ add_library(cdmw_item_composer STATIC
     src/inflate.cpp
     src/zip_reader.cpp
     src/composition.cpp
+    src/change_set.cpp
 )
 target_include_directories(cdmw_item_composer PUBLIC include PRIVATE src)
+if(MSVC)
+    target_compile_options(cdmw_item_composer PRIVATE /W4 /WX /permissive- /EHsc /utf-8 /guard:cf)
+else()
+    target_compile_options(cdmw_item_composer PRIVATE -Wall -Wextra -Wpedantic -Werror)
+endif()
+
+# The virtual loader adds this directory for the library alone; its test driver and
+# self-test build only here.
+if(NOT PROJECT_IS_TOP_LEVEL)
+    return()
+endif()
 
 add_executable(cdmw_compose_cli tools/compose_cli.cpp)
 target_link_libraries(cdmw_compose_cli PRIVATE cdmw_item_composer)
@@ -38,7 +50,7 @@ add_executable(cdmw_item_composer_self_test tests/self_test.cpp)
 target_link_libraries(cdmw_item_composer_self_test PRIVATE cdmw_item_composer)
 target_include_directories(cdmw_item_composer_self_test PRIVATE src)
 
-foreach(target cdmw_item_composer cdmw_compose_cli cdmw_item_composer_self_test)
+foreach(target cdmw_compose_cli cdmw_item_composer_self_test)
     if(MSVC)
         target_compile_options(${target} PRIVATE /W4 /WX /permissive- /EHsc /utf-8 /guard:cf)
     else()

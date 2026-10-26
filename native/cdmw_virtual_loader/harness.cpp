@@ -84,6 +84,27 @@ int wmain(int argc, wchar_t** argv) {
         if (argc == 2 && !wcscmp(argv[1], L"--inert")) { require(state() == 0, "Ordinary launch activated runtime"); return 0; }
         if (argc == 2 && !wcscmp(argv[1], L"--blocked")) { require(state() == 2, "Test activation was not refused"); return 0; }
         require(state() == 1, "Runtime did not become ready");
+        if (argc >= 3 && !wcscmp(argv[1], L"--copy-out")) {
+            // Read each logical game file as the game would, through the hooks, and keep
+            // a copy (slashes become underscores) for the test to compare.
+            const auto out = root / L".cdmw/virtual-loader/harness-out";
+            fs::create_directories(out);
+            for (int i = 2; i < argc; ++i) {
+                Handle file(CreateFileW((root / argv[i]).c_str(), GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING, 0, nullptr));
+                require(bool(file), "Mapped open failed");
+                LARGE_INTEGER size{};
+                require(GetFileSizeEx(file.value, &size) && size.QuadPart < (1ll << 31), "Mapped size failed");
+                std::vector<char> data(static_cast<size_t>(size.QuadPart));
+                DWORD count{};
+                require(data.empty() || (ReadFile(file.value, data.data(), static_cast<DWORD>(data.size()), &count, nullptr) && count == data.size()), "Mapped read failed");
+                std::wstring name = argv[i];
+                for (auto& c : name) if (c == L'/' || c == L'\\') c = L'_';
+                std::ofstream copy(out / name, std::ios::binary);
+                copy.write(data.data(), static_cast<std::streamsize>(data.size()));
+                require(static_cast<bool>(copy), "Cannot keep a mapped copy");
+            }
+            return 0;
+        }
         if (fs::exists(root / L".cdmw/virtual-loader/harness-bootstrap.flag")) {
             auto base = reinterpret_cast<unsigned char*>(GetModuleHandleW(L"winmm.dll"));
             const auto kernel = GetModuleHandleW(L"kernel32.dll");
