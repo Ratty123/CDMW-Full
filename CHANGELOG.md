@@ -18,6 +18,7 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 ### Fixed
 
+- Create New Item's Move, Rotate and Scale handles now move the template's own model on Model & Placement when you keep the template instead of importing a model. The preview reloads once when you open that step. Template and Identity show the item without handles, since nothing can be placed there.
 - CDMW's window keeps up better while background work runs, such as opening a mesh in Mesh Editor or loading a body or garments for Morph & Refit: clicks and redraws on Windows wait far less behind that work.
 - Build Mod after a Morph & Refit fit no longer packages the body the outfit was fitted to, which overrode other body mods even when the body was unchanged. The mod now contains only the outfit, also after Start next edit pass, and Install as Overlay leaves the body out too. To ship changes you made to the body as well, turn on Include the body in the Build Mod window; it is off by default.
 - Morph & Refit's Fit keeps a tightened belt over a skirt left at 0% Tightness. The belt previously sank through the loose skirt toward the skin; it now stays outside the skirt where it covers it and still tightens around the waist above it. Small trim resting on the skirt, such as a hanging rope end, now stays on it instead of crumpling through it.

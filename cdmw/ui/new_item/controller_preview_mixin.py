@@ -140,9 +140,12 @@ def _template_progressive_source(
     glow=None,
     translucency=None,
     shader_controls=(), snapshot=None,
+    placement_scene=False,
 ):
     geometry_token = ("template-scene", token, bool(include_character))
-    if not include_character and glow is None and translucency is None and not shader_controls:
+    # The plain template package is read-only in the viewport; the gizmo moves only the
+    # editable role of a placement scene, so Model & Placement asks for one.
+    if not placement_scene and not include_character and glow is None and translucency is None and not shader_controls:
         from functools import partial
 
         return token, _progressive_preview_source(
@@ -284,14 +287,16 @@ class NewItemPreviewControllerMixin:
             merged = placement_reference_mesh(merged, parsed)
         return merged
 
-    def item_preview_source(self, *, include_character: bool = False):
+    def item_preview_source(self, *, include_character: bool = False, editable_template: bool = False):
         """What the Model and icon step's viewport shows, textured the way the Model
         Library and the Builder show it: a `(token, build)` pair, or None when there
         is nothing to show. The builders run off the UI thread and return preview data,
         a placement scene, or a ready native package path when the frame supplies its
         Preview Core context. `token` names the source, so a view already showing it is
         left alone. ``include_character`` adds the selected template's non-editable body
-        in the template's own item frame; it never changes the model or build output."""
+        in the template's own item frame; it never changes the model or build output.
+        ``editable_template`` shows the template's own model as a placement scene, so
+        the gizmo can move it about the item origin the template transform uses."""
 
         include_character = bool(include_character)
         variant_binding = self._active_variant or ()
@@ -397,6 +402,7 @@ class NewItemPreviewControllerMixin:
             glow_choice(self.draft),
             self.draft.translucency,
             self.draft.shader_controls, self.snapshot,
+            placement_scene=bool(editable_template),
         )
 
     def _template_geometry_build(self):

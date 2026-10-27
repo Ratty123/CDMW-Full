@@ -915,6 +915,21 @@ class ModelPanel(ModelPanelPreviewMixin, QGroupBox):
             if parent is not None and parent.layout() is not None:
                 parent.layout().removeWidget(self.preview)
             self.preview_layout.insertWidget(0, self.preview, 1)
+        self.set_preview_editable(True)
+
+    def set_preview_editable(self, editable: bool) -> None:
+        """Model & Placement moves the item with the gizmo; the steps that borrow the
+        viewport only show it, so their copy has no handles. Frame stays for both."""
+
+        editable = bool(editable)
+        for button in self.gizmo_buttons.values():
+            button.setVisible(editable)
+        self.preview.gizmo_visible.setVisible(editable)
+        if editable == self.preview.placement_editable:
+            return
+        self.preview.set_placement_editable(editable)
+        # Only Model & Placement shows the template's own model as a placement scene.
+        self.refresh_preview()
 
     def _model_source_changed(self, keep: bool) -> None:
         draft = self._controller.draft

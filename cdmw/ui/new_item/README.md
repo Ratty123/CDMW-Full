@@ -644,9 +644,10 @@ Only selecting a different template frames automatically.
 
 Switching tabs, variants, character references, display modes, imports, materials or
 effects keeps the live camera, including gestures made while a package is loading. Frame
-and the camera view controls remain explicit ways to reposition it. Template, Identity
-and Model share a **Show gizmo** checkbox next to the viewport; Effects and its
-placement dialog expose the same preference. It updates open New Item views and survives
+and the camera view controls remain explicit ways to reposition it. Template and
+Identity only show the item: the shared viewport has no transform handles there and
+ignores gizmo drags. Model & Placement has a **Show gizmo** checkbox next to the
+viewport; Effects and its placement dialog expose the same preference. It updates open New Item views and survives
 application restarts. Hiding the transform handles leaves the upper-right orientation
 control available.
 
@@ -1741,8 +1742,8 @@ The Model & Placement step puts a tall resident preview beside one resizable ins
 **Move**, **Rotate**, **Scale**, **Frame** and **Show gizmo** sit directly above the
 viewport in a compact toolbar that wraps when space is limited. Select Rotate to drag
 the model's rotation rings; Move and Scale select the corresponding handles. The toolbar
-travels with the shared preview into Template and Identity, keeps the selected tool, and
-stays accessible while using Appearance, Dyes or Icon. Gizmo edits update the Placement
+travels with the shared preview into Template and Identity with only **Frame** shown,
+keeps the selected tool, and stays accessible while using Appearance, Dyes or Icon. Gizmo edits update the Placement
 values; selecting a tool keeps the camera and placement unchanged.
 
 Each placement number includes its X, Y or Z axis. Scale labels identify X as width,
@@ -1856,7 +1857,12 @@ grid and gizmo (`PlacementScene`).
 
 Both the geometry-first and canonical-material stages declare a placement scene: Overlay
 keeps the game's template fixed as a wire guide while the imported, textured model is
-the only editable role. Side by side and Template only expose the full reference
+the only editable role. Keeping the template model makes the template's own mesh the
+editable role on Model & Placement (`item_preview_source(editable_template=True)`), with
+no reference and the manual placement anchored at the item origin, as the template
+transform is built. Template and Identity keep the faster read-only template package,
+so opening Model & Placement loads the placement scene once; its geometry stage reuses
+the loaded package. Side by side and Template only expose the full reference
 presentation, and changing among the four view modes immediately frames the roles that
 are now visible. The grid stays anchored to the scene frame and faces the template's
 broad plane; the opening camera looks straight at that plane, so the template reads flat

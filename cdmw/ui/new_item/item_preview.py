@@ -635,6 +635,9 @@ class ItemPreviewFrame(QWidget):
         self._last_pushed_placement: Optional[ModelPlacement] = None
         self._gizmo_tool = "move"
         self._gizmo_enabled = True
+        #: whether the step showing this frame may move the model; a step that only
+        #: borrows the viewport to show the item keeps the gizmo off whatever the scene
+        self._placement_editable = True
         self._view_mode = "overlay"
         self._grid_visible = True
         self._placement_grid_normal_axis = "y"
@@ -873,8 +876,25 @@ class ItemPreviewFrame(QWidget):
         self._gizmo_enabled = bool(enabled)
         if self.is_ready and self.host is not None and self._placement is not None:
             self.host.set_alignment_state(
-                enabled=self._gizmo_enabled and self.gizmo_visible.isChecked(), centered=True,
+                enabled=self._gizmo_enabled and self._placement_editable and self.gizmo_visible.isChecked(),
+                centered=True,
             )
+
+    @property
+    def placement_editable(self) -> bool:
+        return self._placement_editable
+
+    def set_placement_editable(self, editable: bool) -> None:
+        """Let the gizmo move the model (Model & Placement), or only show the item (the
+        template list and Identity borrow this viewport). The scene is left as it is."""
+
+        editable = bool(editable)
+        if editable == self._placement_editable:
+            return
+        self._placement_editable = editable
+        if not editable:
+            self._placement_base = None
+        self.set_gizmo_enabled(self._gizmo_enabled)
 
     def set_view_mode(self, mode: str) -> None:
         """One of PLACEMENT_VIEW_MODES: overlay, side_by_side, replacement_only, original_only."""
@@ -934,7 +954,7 @@ class ItemPreviewFrame(QWidget):
             self._last_pushed_placement = placement
 
     def _drag_started(self) -> None:
-        if self._placement is not None:
+        if self._placement is not None and self._placement_editable:
             self._placement_base = self._placement
 
     def _drag_delta(self, tool: str, delta: tuple, finished: bool) -> None:
@@ -946,7 +966,7 @@ class ItemPreviewFrame(QWidget):
         once, and the helper takes it as the next authoritative frame."""
 
         base = self._placement_base if self._placement_base is not None else self._placement
-        if base is None:
+        if base is None or not self._placement_editable:
             return
         if tool == "move":
             new = base.with_values(offset=tuple(base.offset[i] + float(delta[i]) for i in range(3)))

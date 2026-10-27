@@ -58,15 +58,18 @@ class ModelPanelPreviewMixin:
             self.preview.show(build, token=token, framing_key=self._controller.draft.template_key)
             return
         show_character = self.show_character.isChecked()
-        source = self._controller.item_preview_source(include_character=show_character)
+        imported = self._controller.model_import
+        template_model = imported is None and self._controller.model_result is None
+        source = self._controller.item_preview_source(
+            include_character=show_character,
+            editable_template=template_model and self.preview.placement_editable,
+        )
         if source is None:
             self.preview.show(None)
             self.capture_inline_button.setEnabled(False)
             self._preview_mesh_token = None
             return
         token, build = source
-        imported = self._controller.model_import
-        template_model = imported is None and self._controller.model_result is None
         if imported is not None or show_character or template_model:
             if token != self._preview_mesh_token:
                 self.capture_inline_button.setEnabled(False)

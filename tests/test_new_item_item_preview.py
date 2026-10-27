@@ -125,6 +125,47 @@ class ItemPreviewFrameTests(unittest.TestCase):
 
         return FakeHost
 
+    def test_a_borrowed_view_hides_the_gizmo_and_ignores_drags(self) -> None:
+        from cdmw.ui.new_item.item_preview import ItemPreviewFrame
+        from cdmw.ui.new_item.model_import import ModelPlacement
+
+        workspace = tempfile.TemporaryDirectory(prefix="cdmw-item-preview-editable-")
+        self.addCleanup(workspace.cleanup)
+        root = Path(workspace.name)
+        frame = ItemPreviewFrame(output_root=root / "output", host_factory=self._fake_host_class())
+        frame.gizmo_visible.blockSignals(True)
+        frame.gizmo_visible.setChecked(True)
+        frame.gizmo_visible.blockSignals(False)
+        moved = []
+        frame.placement_changed.connect(lambda placement, finished: moved.append((placement, finished)))
+        self.assertTrue(frame._ensure_host())
+        host = frame.host
+        with patch.object(ItemPreviewFrame, "_start_package", lambda *_args, **_kwargs: None):
+            frame.show_placement(object(), token="scene", placement=ModelPlacement())
+        # outside the preview workspace, so the frame never tries to delete it
+        frame._package_ready(root / "elsewhere" / "package_scene", token="scene", is_placement=True)
+        host.controller.state_changed.emit("ready", "")
+        self.assertTrue(frame.showing_placement)
+
+        def gizmo_shown() -> bool:
+            states = [kwargs for name, _args, kwargs in host.calls if name == "set_alignment_state"]
+            return bool(states[-1]["enabled"])
+
+        self.assertTrue(gizmo_shown())
+        frame.set_placement_editable(False)
+        self.assertFalse(gizmo_shown())
+        host.alignment_drag_started.emit()
+        host.alignment_drag_finished.emit(1.0, 0.0, 0.0)
+        self.assertEqual(moved, [], "a drag on a view that only shows the item moves nothing")
+        self.assertEqual(frame.placement, ModelPlacement())
+
+        frame.set_placement_editable(True)
+        self.assertTrue(gizmo_shown())
+        host.alignment_drag_started.emit()
+        host.alignment_drag_finished.emit(1.0, 0.0, 0.0)
+        self.assertEqual(moved, [(ModelPlacement(offset=(1.0, 0.0, 0.0)), True)])
+        self.assertEqual(frame.placement.offset, (1.0, 0.0, 0.0))
+
 
 if __name__ == "__main__":
     unittest.main()

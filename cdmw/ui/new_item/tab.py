@@ -528,6 +528,7 @@ class NewItemStudioTab(QWidget):
             render_settings=self._preview_render_settings, cache_mode=self._preview_cache_mode,
         )
         self.model_panel.preview.status_changed.connect(self._log_preview_status)
+        self.model_panel.set_preview_editable(False)
         self.template_panel.mount_preview(self.model_panel.preview)
         yield
         self.output_panel = OutputPanel(controller, self, settings=getattr(getattr(self._window, "shell", None), "settings", None))
@@ -716,8 +717,10 @@ class NewItemStudioTab(QWidget):
         self._ensure_step_panel(row)
         self._current_step = row
         if row == 0:
+            self.model_panel.set_preview_editable(False)
             self.template_panel.mount_preview(self.model_panel.preview)
         elif row == 1:
+            self.model_panel.set_preview_editable(False)
             self.identity_panel.mount_preview(self.model_panel.preview)
         elif row == 2:
             self.model_panel.mount_preview()

@@ -758,16 +758,25 @@ class TabTests(_TabAuthoringMixin, _TabOutputMixin, _TabLifecycleMixin, unittest
             resident_host = preview.host
             self.assertIs(preview.parentWidget(), tab.template_panel.preview_holder)
             self.assertEqual(len(started), 1)
+            template_token = preview._pending[0]
+            self.assertFalse(preview.placement_editable, "the template list only shows the item")
             tab.show_step(1)
             self.app.processEvents()
             self.assertIs(preview.parentWidget(), tab.identity_panel.preview_holder)
             self.assertIs(preview.host, resident_host)
             self.assertEqual(len(started), 1)
+            self.assertEqual(preview._pending[0], template_token, "Identity reuses the template's package")
+            self.assertFalse(preview.placement_editable)
             tab.show_step(2)
             self.app.processEvents()
             self.assertIs(preview.parentWidget(), tab.model_panel.preview_group)
             self.assertIs(preview.host, resident_host, "the native-host owner survives the page move")
-            self.assertEqual(len(started), 1, "moving the resident viewport must not rebuild its package")
+            self.assertTrue(preview.placement_editable)
+            self.assertNotEqual(
+                preview._pending[0], template_token,
+                "Model & Placement asks for the template as a placement scene the gizmo can move",
+            )
+            self.assertEqual(preview._pending[0][:len(template_token)], template_token)
         preview._thread = None
         tab.close()
         tab.deleteLater()
@@ -1288,6 +1297,92 @@ class TabTests(_TabAuthoringMixin, _TabOutputMixin, _TabLifecycleMixin, unittest
         tab.close()
         tab.deleteLater()
 
+    def test_editable_template_preview_is_a_placement_scene_of_the_template_model(self) -> None:
+        """The plain template package is read-only in the viewport; Model & Placement
+        asks for the template's own model in the editable role so the gizmo moves it."""
+
+        from cdmw.modding.mesh_parser import ParsedMesh, SubMesh
+        from cdmw.ui.new_item.item_preview import PlacementScene, ProgressivePreviewSource
+        from cdmw.ui.new_item.model_import import ModelPlacement
+
+        tab = self._tab()
+        tab.prefill_template(TEMPLATE)
+        item = ParsedMesh(
+            path="item.pac",
+            format="pac",
+            submeshes=[SubMesh(
+                name="item",
+                vertices=[(0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (0.0, 1.0, 0.0)],
+                faces=[(0, 1, 2)],
+            )],
+        )
+        with patch.object(
+            tab.controller,
+            "_template_geometry_build",
+            return_value=(("geometry",), lambda _stop: item),
+        ), patch.object(
+            tab.controller,
+            "_template_preview_build",
+            return_value=(("template",), lambda _stop: item),
+        ):
+            plain_token, plain = tab.controller.item_preview_source()
+            token, source = tab.controller.item_preview_source(editable_template=True)
+            plain_geometry = plain.geometry(threading.Event())
+            scene = source.geometry(threading.Event())
+            material_scene = source.materials(threading.Event())
+
+        self.assertEqual(plain_token, ("template",))
+        self.assertIs(plain_geometry, item, "browsing keeps the fast read-only template route")
+        self.assertEqual(token[0], "template")
+        self.assertNotEqual(token, plain_token)
+        self.assertIsInstance(source, ProgressivePreviewSource)
+        for built in (scene, material_scene):
+            self.assertIsInstance(built, PlacementScene)
+            self.assertIs(built.model, item, "the template's own model is the editable role")
+            self.assertIsNone(built.template)
+            self.assertIsNone(built.character)
+            self.assertEqual(built.placement, ModelPlacement())
+            self.assertIsNone(
+                built.model_origin,
+                "manual placement anchors at the item origin, as the template transform does",
+            )
+        tab.close()
+        tab.deleteLater()
+
+    def test_only_model_and_placement_shows_the_gizmo_controls(self) -> None:
+        tab = self._tab()
+        tab.prefill_template(TEMPLATE)
+        panel = tab.model_panel
+        requested = []
+
+        def record(*, include_character=False, editable_template=False):
+            requested.append(editable_template)
+            return None
+
+        def gizmo_controls_hidden() -> list[bool]:
+            return [button.isHidden() for button in panel.gizmo_buttons.values()] + [
+                panel.preview.gizmo_visible.isHidden(),
+            ]
+
+        self.assertFalse(panel.preview.placement_editable)
+        self.assertEqual(gizmo_controls_hidden(), [True] * 4)
+        self.assertFalse(panel.frame_view_button.isHidden(), "Frame still helps a read-only view")
+        with patch.object(tab.controller, "item_preview_source", side_effect=record), \
+                patch.object(panel, "isVisible", return_value=True):
+            tab.show_step(2)
+            self.assertTrue(panel.preview.placement_editable)
+            self.assertEqual(gizmo_controls_hidden(), [False] * 4)
+            self.assertEqual(requested[-1:], [True])
+            tab.show_step(1)
+            self.assertFalse(panel.preview.placement_editable)
+            self.assertEqual(gizmo_controls_hidden(), [True] * 4)
+            self.assertEqual(requested[-1:], [False])
+            tab.show_step(0)
+            self.assertFalse(panel.preview.placement_editable)
+            self.assertEqual(gizmo_controls_hidden(), [True] * 4)
+        tab.close()
+        tab.deleteLater()
+
     def test_model_preview_character_control_is_template_gated_and_routes_the_toggle(self) -> None:
         tab = self._tab()
         tab.prefill_template(TEMPLATE)
@@ -1302,7 +1397,7 @@ class TabTests(_TabAuthoringMixin, _TabOutputMixin, _TabLifecycleMixin, unittest
         with patch.object(
             tab.controller,
             "item_preview_source",
-            side_effect=lambda *, include_character=False: routed.append(include_character),
+            side_effect=lambda *, include_character=False, editable_template=False: routed.append(include_character),
         ), patch.object(panel, "isVisible", return_value=True):
             panel.show_character.setChecked(True)
 
