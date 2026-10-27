@@ -660,9 +660,17 @@ def test_queued_prepared_hair_scene_has_one_owner_and_releases_obsolete_result(t
     from cdmw.ui.mesh_editor.tab_session_runtime import MeshEditorSessionMixin
     from cdmw.ui.mesh_editor import tab_session_runtime
     monkeypatch.setattr(tab_session_runtime, "_tab", SimpleNamespace(ArchiveEntry=ArchiveEntry))
-    disposed, opened = [], []
+    disposed, opened, scheduled = [], [], []
     class Queue(MeshEditorSessionMixin):
         _discard_archive_session_result = staticmethod(disposed.append)
+        # A queued open resumes from a timer once no previous session is stopping.
+        archive_session_load_thread = None
+        standalone_file_load_thread = None
+        standalone_rust_terminal_close_pending = False
+        def __init__(self):
+            self.archive_session_open_retry_timer = SimpleNamespace(
+                stop=lambda: None, start=lambda delay=0: scheduled.append(delay))
+        def _rust_editor_task_active(self): return False
         def open_archive_session(self, entry, **kwargs): opened.append(kwargs["prepared_result"])
     queue = Queue()
     entry = ArchiveEntry("hair.pac", tmp_path / "0.pamt", tmp_path / "0.paz", 0, 4, 4, 0, 0)
@@ -671,6 +679,7 @@ def test_queued_prepared_hair_scene_has_one_owner_and_releases_obsolete_result(t
         material_package_path=None, material_package_lease=None, material_context_verified_for_rust=False,
         material_source_identity=None, archive_dependencies=None)
     queue._queue_archive_session_open(entry, prepared_result=prepared, **kwargs)
+    assert scheduled == [0]
     if ending == "replace":
         queue._queue_archive_session_open(entry, prepared_result=replacement, **kwargs)
         assert disposed == [prepared]
