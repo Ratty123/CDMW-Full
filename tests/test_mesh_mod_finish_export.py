@@ -115,6 +115,7 @@ def test_finish_then_build_exports_cloth_edit_for_every_manager(
         assert dialog.manager.count() == 5
         assert not dialog.build_button.isEnabled()
         assert not dialog.create_zip.isChecked() and not dialog.open_folder.isChecked()
+        assert dialog.include_body.isHidden()  # Only a Fit session has a body to offer.
         index = next(i for i in range(dialog.manager.count()) if dialog.manager.itemData(i)[0] == choice)
         dialog.manager.setCurrentIndex(index)
         dialog.mod_name.setText("  Stiff Canta Cloak  ")

@@ -2243,6 +2243,16 @@ slider; inputs must already share the intended alignment and pose. The original 
 is optional and is found automatically (see the authored body below). Choose 0% Tightness for loose skirts, drapes and hanging trim that should
 retain their silhouette while clearing local intersections. Use Part, mesh-island
 or local influence controls when snug and loose cloth share one material.
+A garment left at 0% still backs the tightened layers over it. A belt over a loose
+skirt keeps clear of the skirt where it covers it and tightens around the body above
+it, and small trim resting on the skirt, such as a hanging rope end, stays on it
+instead of sinking through it to the skin. Natively the layers the solve leaves in
+place become fixed support surfaces: each tightened sample over one gets a floor at
+that layer's height plus the stacked layer gaps, samples the smoothed field carries
+below their floor are held on it along the body normal and solved again, and a waist
+band ignores no such layer even when the pair has no global order. Only a nested
+layer or a carried ornament is linked to the support; anything else follows its own
+moving layers, so one fixed overlap does not hold every piece attached to it.
 Intermediate Tightness checks the requested shape before publishing it, and zero
 Clearance still prevents tightened cloth from passing through the body.
 At full Tightness, broad waistcloth follows the body's changing contour at each
@@ -2780,8 +2790,17 @@ edits and asks for a folder containing a new OBJ package. Finish the archive ref
 and open a separate mesh to use that route.
 
 **Finish Edit Mesh** keeps edits to both body and armor. **Build Mod** rebuilds
-each asset through its own exact game-format writer and packages every original
-archive path together. Hiding an asset changes the view without omitting its
+each asset through its own exact game-format writer and packages the original
+archive paths together, except the body the Fit follows: a body chosen with
+**Load body...**, or a loaded file whose Parts are all the body driver. A file that
+also holds bound garment Parts is always written. Shipping an unchanged body would
+override every other mod that changes it, so the Build Mod window names the body
+under **Include the body**, off by default; turn it on to ship body edits too.
+Install as Overlay has no such choice and always leaves the body out. Add to
+Archive Browser and Start next edit pass mark the body as a Fit body result
+(`BODY_RESULT_NOTE`), so a later pass's Build Mod treats it the same way, and the
+package's `mesh-editor-session.json` lists what was left out under
+`omitted_body_assets`. Hiding an asset changes the view without omitting its
 output. Native fitting records its position/normal edits, and splitting the combined
 session remaps admitted edit operations to each source file's own Part indices.
 Earlier channel edits remain valid through Fit, Bake and Finish; unrelated

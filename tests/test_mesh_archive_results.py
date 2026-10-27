@@ -19,7 +19,9 @@ from PySide6.QtWidgets import QApplication, QPushButton, QWidget
 from cdmw.models import ArchiveEntry, RunCancelled
 from cdmw.modding.mesh_parser import parse_pac
 from cdmw.services.archive_read_service import read_archive_entry_data
-from cdmw.services.mesh_archive_results import ADDED_RESULT_NOTE, EDITED_RESULT_NOTE, MeshArchiveResult, prepare_mesh_archive_result
+from cdmw.services.mesh_archive_results import (
+    ADDED_RESULT_NOTE, BODY_RESULT_NOTE, EDITED_RESULT_NOTE, RESULT_NOTES, MeshArchiveResult, prepare_mesh_archive_result,
+)
 from cdmw.ui.archive_browser.edited_results import ArchiveEditedResultsMixin
 from cdmw.ui.archive_browser.workflow_dependencies import ArchiveWorkflowDependencyContext, archive_workflow_dependency_context
 from cdmw.ui.mesh_editor.shell_bridge import MeshEditorShellBridgeMixin
@@ -301,21 +303,29 @@ def test_combined_refit_keeps_each_asset_and_dependency_context(tmp_path, monkey
         assert {entry.path for entry in result.assets} == {primary.path, armor.path}
         assert [parse_pac(read_archive_entry_data(entry)[0], entry.path).submeshes[0].vertices[0][0]
                 for entry in result.assets] == pytest.approx([0.4, 0.7], abs=2e-5)
-        # Editing the armor alone in a second pass must still package the fitted body.
+        # The primary is the Fit body here; the next pass carries it as one.
+        assert [entry.prepared_note for entry in result.assets] == [BODY_RESULT_NOTE, EDITED_RESULT_NOTE]
+        # Editing the armor alone in a second pass leaves the fitted body out
+        # unless Include the body asks for it, and then packages its edit.
         from cdmw.services.mesh_service import MeshService
         next_service = MeshService()
         mesh = next_service.load_mesh_bytes(read_archive_entry_data(result.assets[1])[0], armor.path, run_roundtrip=True)
         next_view = next_service.open_edit_session(mesh, mode="edit")
         try:
-            worker = MeshDirectOutputWorker(2, next_service, next_view.session_id, result.assets[1],
-                kind="loose_mod", output_path=tmp_path / "final-mod", manager_profile="dmm",
-                inherited_archive_outputs=tuple(item for item in result.entries if item.prepared_note == EDITED_RESULT_NOTE))
-            errors = []
-            worker.error.connect(lambda _id, message: errors.append(message))
-            worker.run()
-            assert not errors
-            for asset in result.assets:
-                assert (tmp_path / "final-mod" / asset.path).read_bytes() == read_archive_entry_data(asset)[0]
+            for include_body in (False, True):
+                output = tmp_path / f"final-mod-{include_body}"
+                worker = MeshDirectOutputWorker(2, next_service, next_view.session_id, result.assets[1],
+                    kind="loose_mod", output_path=output, manager_profile="dmm", include_refit_body=include_body,
+                    inherited_archive_outputs=tuple(item for item in result.entries if item.prepared_note in RESULT_NOTES))
+                errors = []
+                worker.error.connect(lambda _id, message: errors.append(message))
+                worker.run()
+                assert not errors
+                assert (output / armor.path).read_bytes() == read_archive_entry_data(result.assets[1])[0]
+                if include_body:
+                    assert (output / primary.path).read_bytes() == read_archive_entry_data(result.assets[0])[0]
+                else:
+                    assert not (output / primary.path).exists()
         finally:
             next_service.close_edit_session(next_view.session_id, force_without_saving=True)
     finally:

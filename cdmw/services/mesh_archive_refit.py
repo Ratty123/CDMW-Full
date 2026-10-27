@@ -128,6 +128,24 @@ def append_archive_refit(current, primary_entry, incoming, entry, role, preview_
     )), indices
 
 
+def archive_refit_body_assets(context, morph_state=None):
+    """Return the assets that only supply the body Fit follows.
+
+    A body chosen with Load body, or a file whose Parts are all the Fit driver,
+    is a reference for an outfit mod rather than part of it. A file that also
+    holds bound garment Parts is never one.
+    """
+    if not isinstance(context, ArchiveRefitContext):
+        return ()
+    drivers = set(getattr(morph_state, "driver_submesh_indices", ()) or ())
+    garments = set(getattr(getattr(morph_state, "refit", None), "garment_submesh_indices", ()) or ())
+    return tuple(
+        asset for asset in context.assets
+        if not garments.intersection(asset.part_indices)
+        and (asset.role == "body" or (drivers and drivers.issuperset(asset.part_indices)))
+    )
+
+
 def archive_refit_snapshots(snapshot):
     return _archive_refit_snapshots(snapshot, clone_geometry=True)
 

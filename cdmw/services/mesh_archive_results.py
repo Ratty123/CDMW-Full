@@ -19,6 +19,10 @@ MAX_RESULT_ENTRIES = 8192
 MAX_RESULT_BYTES = 1024 * 1024 * 1024
 EDITED_RESULT_NOTE = "Mesh Editor edited result"
 ADDED_RESULT_NOTE = "Mesh Editor added result"
+# The body a Fit followed. Later passes carry it like an edited result, but
+# Build Mod leaves it out unless Include the body is chosen.
+BODY_RESULT_NOTE = "Mesh Editor Fit body result"
+RESULT_NOTES = (EDITED_RESULT_NOTE, ADDED_RESULT_NOTE, BODY_RESULT_NOTE)
 
 
 @dataclass(frozen=True, slots=True)
@@ -109,10 +113,13 @@ def prepare_mesh_archive_result(service, snapshot, entry, dependency_sources, ou
     """
     if snapshot.hair_state is not None or snapshot.texture_resources or snapshot.material_generation:
         raise ValueError("Finish texture, material or hairstyle authoring through Build Mod before adding an archive result.")
-    from cdmw.services.mesh_archive_refit import archive_refit_snapshots
+    from cdmw.services.mesh_archive_refit import archive_refit_body_assets, archive_refit_snapshots
 
     components = (archive_refit_snapshots(snapshot) if snapshot.archive_refit_context is not None
                   else ((entry, snapshot),))
+    body = {asset.entry.identity for asset in archive_refit_body_assets(
+        snapshot.archive_refit_context, service.cached_morph_state(snapshot.session_id))
+    } if snapshot.archive_refit_context is not None else set()
     if components[0][0].identity != entry.identity:
         raise ValueError("The edited result belongs to a different archive source.")
     sources = dict(dependency_sources)
@@ -187,8 +194,9 @@ def prepare_mesh_archive_result(service, snapshot, entry, dependency_sources, ou
             prepared.append(replace(candidate, prepared_path=final / name,
                 prepared_sha256=hashlib.sha256(data).hexdigest(), prepared_size=len(data),
                 content_analysis_json_path=None, content_analysis_text_path=None, content_analysis_version="",
-                prepared_note=(ADDED_RESULT_NOTE if identity in added else EDITED_RESULT_NOTE) if output is not None
-                else (candidate.prepared_note if candidate.prepared_note in (EDITED_RESULT_NOTE, ADDED_RESULT_NOTE)
+                prepared_note=(ADDED_RESULT_NOTE if identity in added else BODY_RESULT_NOTE if identity in body
+                               else EDITED_RESULT_NOTE) if output is not None
+                else (candidate.prepared_note if candidate.prepared_note in RESULT_NOTES
                       else "Mesh Editor source dependency")))
         session = service._session(snapshot.session_id)
         with session.export_lock:

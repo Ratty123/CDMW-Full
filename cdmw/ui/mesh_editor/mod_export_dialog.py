@@ -33,6 +33,7 @@ class MeshModExportDialog(QDialog):
         output_parent: str,
         output_choice: str,
         manager_profile: str,
+        body_files: tuple[str, ...] = (),
     ) -> None:
         super().__init__(parent)
         self.setWindowTitle("Build Mod")
@@ -73,6 +74,18 @@ class MeshModExportDialog(QDialog):
         form.addRow("Author", self.author)
         form.addRow("Description", self.description)
         layout.addLayout(form)
+        # Off by default: the body a Fit follows is a reference, and shipping
+        # it would override every other mod that changes that body.
+        self.include_body = QCheckBox("Include the body", self)
+        self.include_body_hint = QLabel(self.tr(
+            "When off, the mod leaves out {files}, so other body mods keep working. "
+            "Turn this on only to ship changes you made to the body."
+        ).format(files=", ".join(body_files)), self)
+        self.include_body_hint.setWordWrap(True)
+        layout.addWidget(self.include_body)
+        layout.addWidget(self.include_body_hint)
+        self.include_body.setVisible(bool(body_files))
+        self.include_body_hint.setVisible(bool(body_files))
         self.create_zip = QCheckBox("Create ZIP beside the mod folder", self)
         self.open_folder = QCheckBox("Open folder after creation", self)
         layout.addWidget(self.create_zip)

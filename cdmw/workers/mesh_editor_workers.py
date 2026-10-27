@@ -748,6 +748,7 @@ class MeshDirectOutputWorker(QObject):
         archive_material_sources: tuple = (),
         inherited_archive_outputs: tuple = (),
         saved_work_root: Path | str | None = None,
+        include_refit_body: bool = False,
     ) -> None:
         super().__init__()
         self.request_id = int(request_id)
@@ -770,6 +771,7 @@ class MeshDirectOutputWorker(QObject):
         self.archive_dependency_sources = archive_dependency_sources
         self.archive_material_sources = archive_material_sources
         self.inherited_archive_outputs = inherited_archive_outputs
+        self.include_refit_body = bool(include_refit_body)
         self.saved_work_root = (
             Path(saved_work_root)
             if saved_work_root is not None and self.kind in {"loose_mod", "overlay_package"}
@@ -818,6 +820,7 @@ class MeshDirectOutputWorker(QObject):
                 raise RuntimeError(
                     "Mesh-only outputs cannot contain texture or material authoring changes"
                 )
+            from cdmw.services.mesh_archive_results import BODY_RESULT_NOTE
             if getattr(snapshot, "archive_refit_context", None) is None:
                 components = ((self.entry, snapshot),)
             else:
@@ -825,12 +828,23 @@ class MeshDirectOutputWorker(QObject):
                 components = archive_refit_snapshots(snapshot)
                 if components[0][0].identity != self.entry.identity:
                     raise RuntimeError("Archive Refit output target no longer matches the loaded source")
+            body = self._fit_body_flags(snapshot, components)
+            omitted_paths = [entry.path for (entry, _component), omit in zip(components, body) if omit]
             requests = []
             additions = []
             reports = []
-            for entry, component in components:
+            written = []
+            report = None
+            for index, (entry, component) in enumerate(components):
                 _raise_export_cancelled(self.stop_event)
+                if body[index] and index:
+                    continue
+                # The target's rebuild report describes the output, written or not.
                 rebuilt, component_report = self.service.rebuild_result_from_snapshot(component)
+                if not index:
+                    report = component_report
+                if body[index]:
+                    continue
                 if getattr(component, "replacement_state", None) is not None:
                     from cdmw.services.mesh_replacement_import import archive_entry, archive_location
                     state = component.replacement_state
@@ -860,6 +874,7 @@ class MeshDirectOutputWorker(QObject):
                             additions.append(ArchiveAddRequest(Path(entry.pamt_path), file.path, file.data))
                 requests.append(ArchivePatchRequest(entry, rebuilt.data))
                 reports.append(component_report)
+                written.append((entry, component))
             if self.inherited_archive_outputs:
                 from cdmw.services.mesh_archive_results import ADDED_RESULT_NOTE
                 from cdmw.services.archive_read_service import read_archive_entry_data
@@ -874,8 +889,14 @@ class MeshDirectOutputWorker(QObject):
                         additions.append(ArchiveAddRequest.from_template(request.entry, request.entry.path, request.payload_data))
                 included = {normalize(request.entry.path) for request in requests}
                 included.update(normalize(request.path) for request in additions)
+                # An earlier pass's copy of a body left out of this mod stays out too.
+                included.update(normalize(path) for path in omitted_paths)
                 for inherited in self.inherited_archive_outputs:
                     if normalize(inherited.path) in included:
+                        continue
+                    if inherited.prepared_note == BODY_RESULT_NOTE and not self.include_refit_body:
+                        omitted_paths.append(inherited.path)
+                        included.add(normalize(inherited.path))
                         continue
                     _raise_export_cancelled(self.stop_event)
                     data = read_archive_entry_data(inherited, stop_event=self.stop_event)[0]
@@ -884,17 +905,20 @@ class MeshDirectOutputWorker(QObject):
                     else:
                         requests.append(ArchivePatchRequest(inherited, data))
                     included.add(normalize(inherited.path))
-            report = reports[0]
+            if not requests and not additions:
+                raise ValueError("Only the body is left to write. Turn on Include the body to build it.")
             if self.stop_event.is_set():
                 raise RunCancelled("Mesh output cancelled")
             metadata = self._metadata(snapshot, report)
-            if len(components) > 1:
+            if len(written) > 1 or omitted_paths:
                 payload = json.loads(metadata)
                 payload["assets"] = [
                     {"path": entry.path, "source_sha256": component.mesh_asset_source_hash,
                      "rebuild_report": asdict(component_report) if is_dataclass(component_report) else component_report}
-                    for (entry, component), component_report in zip(components, reports, strict=True)
+                    for (entry, component), component_report in zip(written, reports, strict=True)
                 ]
+                if omitted_paths:
+                    payload["omitted_body_assets"] = list(omitted_paths)
                 metadata = (json.dumps(payload, indent=2, default=str) + "\n").encode("utf-8")
             if self.kind == "loose_mod":
                 result = self._write_loose_mod(tuple(requests), metadata, report, additions=tuple(additions)) if additions else self._write_loose_mod(tuple(requests), metadata, report)
@@ -931,6 +955,24 @@ class MeshDirectOutputWorker(QObject):
                 replacement_baselines.cleanup()
             self.archive_material_sources = ()
             self.finished.emit()
+
+    def _fit_body_flags(self, snapshot: MeshExportSnapshot, components: tuple) -> tuple[bool, ...]:
+        """Mark the components that are the body a Fit follows.
+
+        That body is a reference: shipping it would override every other mod
+        that changes it, so it stays out unless Include the body was chosen.
+        """
+        from cdmw.services.mesh_archive_refit import archive_refit_body_assets
+        from cdmw.services.mesh_archive_results import BODY_RESULT_NOTE
+
+        if self.include_refit_body:
+            return (False,) * len(components)
+        context = getattr(snapshot, "archive_refit_context", None)
+        if context is None:
+            return (getattr(self.entry, "prepared_note", "") == BODY_RESULT_NOTE,)
+        body = {asset.entry.identity for asset in archive_refit_body_assets(
+            context, self.service.cached_morph_state(self.session_id))}
+        return tuple(entry.identity in body for entry, _component in components)
 
     def _register_saved_work(self, snapshot: MeshExportSnapshot, result: MeshDirectOutputResult) -> MeshDirectOutputResult:
         """Keep the built mod and its editing state for Continue Earlier Work.

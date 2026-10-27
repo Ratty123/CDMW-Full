@@ -84,7 +84,8 @@ def _edit_both(session):
     session.apply_candidate(request)
 
 
-def test_archive_refit_finish_and_build_mod_preserve_both_original_files(tmp_path):
+@pytest.mark.parametrize("include_body", [False, True])
+def test_archive_refit_finish_and_build_mod_preserve_both_original_files(tmp_path, include_body):
     source, authority, session, primary, armor, loaded = _load_pair(tmp_path)
     try:
         assert loaded["state"]["output_policy"] == "exact_game_asset"
@@ -99,28 +100,129 @@ def test_archive_refit_finish_and_build_mod_preserve_both_original_files(tmp_pat
         errors, completed = [], []
         worker = MeshDirectOutputWorker(
             1, authority, "authoritative-rust-exact", primary, kind="loose_mod",
-            output_path=tmp_path / "mod", manager_profile="dmm",
+            output_path=tmp_path / "mod", manager_profile="dmm", include_refit_body=include_body,
         )
         worker.error.connect(lambda _id, message: errors.append(message))
         worker.completed.connect(lambda _id, result: completed.append(result))
         worker.run()
         assert not errors
-        assert completed
-        body_bytes = (tmp_path / "mod" / primary.path).read_bytes()
+        assert completed and completed[0].rebuild_report is not None
         armor_bytes = (tmp_path / "mod" / armor.path).read_bytes()
-        assert parse_pac(body_bytes, primary.path).submeshes[0].vertices[0][0] == pytest.approx(0.4, abs=2e-5)
         assert parse_pac(armor_bytes, armor.path).submeshes[-1].vertices[0][0] == pytest.approx(0.7, abs=2e-5)
         assert primary.paz_file.read_bytes() == source
         assert primary.pamt_path.read_bytes() == b"owned archive index"
         from cdmw.core.mod_export_history import mod_metadata_path
         metadata = json.loads(mod_metadata_path(tmp_path / "mod", "mesh-editor-session.json").read_text())
-        assert {asset["path"] for asset in metadata["assets"]} == {primary.path, armor.path}
+        if include_body:
+            body_bytes = (tmp_path / "mod" / primary.path).read_bytes()
+            assert parse_pac(body_bytes, primary.path).submeshes[0].vertices[0][0] == pytest.approx(0.4, abs=2e-5)
+            assert {asset["path"] for asset in metadata["assets"]} == {primary.path, armor.path}
+        else:
+            # The opened mesh is the Fit body here; an outfit mod leaves it out.
+            assert not (tmp_path / "mod" / primary.path).exists()
+            assert [asset["path"] for asset in metadata["assets"]] == [armor.path]
+            assert metadata["omitted_body_assets"] == [primary.path]
         assert authority.undo("authoritative-rust-exact").ok
         assert authority._session("authoritative-rust-exact").archive_refit_context is None
         assert authority.redo("authoritative-rust-exact").ok
         assert len(archive_refit_snapshots(authority.capture_export_snapshot("authoritative-rust-exact"))) == 2
     finally:
         session.cancel()
+        authority.close_edit_session("authoritative-rust-exact", force_without_saving=True)
+
+
+def test_fit_body_assets_follow_the_load_role_and_the_driver():
+    from types import SimpleNamespace
+    from cdmw.services.mesh_archive_refit import ArchiveRefitAsset, ArchiveRefitContext, archive_refit_body_assets
+
+    outfit = ArchiveRefitAsset(SimpleNamespace(path="outfit.pac"), None, (0, 1), "loaded")
+    body = ArchiveRefitAsset(SimpleNamespace(path="body.pac"), None, (2,), "body")
+    context = ArchiveRefitContext((outfit, body))
+
+    def state(drivers, garments=()):
+        return SimpleNamespace(driver_submesh_indices=drivers,
+                               refit=SimpleNamespace(garment_submesh_indices=garments))
+
+    assert archive_refit_body_assets(None) == ()
+    assert archive_refit_body_assets(context) == (body,)
+    assert archive_refit_body_assets(context, state((2,), (0, 1))) == (body,)
+    # A body opened first is a body because every Part of it drives the Fit.
+    assert archive_refit_body_assets(context, state((0, 1, 2))) == (outfit, body)
+    assert archive_refit_body_assets(context, state((0,), (1,))) == (body,)
+    # A file with bound garment Parts belongs in the mod, whatever its role.
+    assert archive_refit_body_assets(context, state((0, 1), (2,))) == (outfit,)
+
+
+@pytest.mark.parametrize("include_body", [False, True])
+def test_build_mod_leaves_out_a_loaded_fit_body_unless_included(tmp_path, include_body):
+    source, authority, editor, outfit, body, _loaded = _load_pair(tmp_path, assign_body=False, role="body")
+    try:
+        _rig_command(editor, 3, "refit_bind", {"submesh_indices": [0]})
+        _rig_command(editor, 4, "refit_fit_to_body", {})
+        _rig_command(editor, 5, "morph_bake", {})
+        editor.finish(_request(editor, "finish_request", 6))
+        errors, completed = [], []
+        worker = MeshDirectOutputWorker(
+            1, authority, editor.authoritative_session_id, outfit, kind="loose_mod",
+            output_path=tmp_path / "mod", manager_profile="dmm", include_refit_body=include_body,
+        )
+        worker.error.connect(lambda _id, message: errors.append(message))
+        worker.completed.connect(lambda _id, result: completed.append(result))
+        worker.run()
+        assert not errors and completed
+        assert (tmp_path / "mod" / outfit.path).read_bytes() != source
+        # The untouched body would only override other body mods.
+        assert (tmp_path / "mod" / body.path).is_file() == include_body
+        if include_body:
+            assert (tmp_path / "mod" / body.path).read_bytes() == source
+    finally:
+        editor.cancel()
+        authority.close_edit_session("authoritative-rust-exact", force_without_saving=True)
+
+
+@pytest.mark.parametrize("include_body", [False, True])
+def test_build_mod_dialog_offers_the_fit_body_unticked(tmp_path, monkeypatch, include_body):
+    import os
+
+    os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+    from types import SimpleNamespace
+    from PySide6.QtCore import QSettings
+    from PySide6.QtWidgets import QApplication
+    from cdmw.ui.mesh_editor.mod_export_dialog import MeshModExportDialog
+    from cdmw.ui.mesh_editor.tab import MeshEditorTab
+
+    app = QApplication.instance() or QApplication([])
+    _source, authority, editor, outfit, body, _loaded = _load_pair(tmp_path, assign_body=False, role="body")
+    tab = MeshEditorTab(settings=QSettings(str(tmp_path / "settings.ini"), QSettings.IniFormat))
+    try:
+        _rig_command(editor, 3, "refit_bind", {"submesh_indices": [0]})
+        editor.finish(_request(editor, "finish_request", 4))
+        tab.standalone_controller = SimpleNamespace(
+            mesh_service=authority, active_session_id=editor.authoritative_session_id)
+        for name, value in (("_mesh_output_target", lambda: outfit), ("_current_target_entry", lambda: outfit),
+                            ("_standalone_export_validation_ok", lambda: True),
+                            ("_standalone_action_worker_active", lambda: False)):
+            monkeypatch.setattr(tab, name, value)
+        captured, shown = [], []
+        monkeypatch.setattr(tab, "_start_mesh_direct_output_worker", lambda *args, **kwargs: captured.append(kwargs))
+
+        def choose(dialog):
+            assert isinstance(dialog, MeshModExportDialog)
+            shown.append((dialog.include_body.isHidden(), dialog.include_body.isChecked(),
+                          body.basename in dialog.include_body_hint.text(), dialog.mod_name.text()))
+            dialog.include_body.setChecked(include_body)
+            dialog.output_parent.setText(str(tmp_path / "exports"))
+            return dialog.DialogCode.Accepted
+
+        monkeypatch.setattr(MeshModExportDialog, "exec", choose)
+        tab._start_mesh_mod_build_requested()
+        assert shown == [(False, False, True, "owned-rust-exact Mesh Mod")]
+        assert len(captured) == 1 and captured[0]["include_refit_body"] is include_body
+    finally:
+        tab.standalone_controller = None
+        tab.deleteLater()
+        app.processEvents()
+        editor.cancel()
         authority.close_edit_session("authoritative-rust-exact", force_without_saving=True)
 
 

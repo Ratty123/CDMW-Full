@@ -6,13 +6,13 @@ from collections import ChainMap
 from collections.abc import Mapping, Sequence
 
 from cdmw.models import ArchiveEntry
-from cdmw.services.mesh_archive_results import ADDED_RESULT_NOTE, EDITED_RESULT_NOTE
+from cdmw.services.mesh_archive_results import RESULT_NOTES
 from cdmw.services.mesh_saved_work_service import MeshDraftRequest
 from cdmw.ui.archive_browser.workflow_dependencies import (
     ArchiveWorkflowDependencyContext,
 )
 
-_EDITED_NOTES = (EDITED_RESULT_NOTE, ADDED_RESULT_NOTE)
+_EDITED_NOTES = RESULT_NOTES
 
 
 def edited_companions(

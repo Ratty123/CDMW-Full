@@ -127,14 +127,16 @@ class MeshEditorDirectOutputMixin:
                 output = find_available_output_path(Path(parent) / (hair.payload["template"]["target_stem"] + "-hair-mod"))
                 self._start_mesh_direct_output_worker("overlay_package", entry, output_path=output, manager_profile="dmm")
             return
-        stem = Path(str(entry.basename or "mesh")).stem or "mesh"
+        bodies, named = self._mesh_mod_body_entries(controller, entry)
+        stem = Path(str(named.basename or "mesh")).stem or "mesh"
         dialog = MeshModExportDialog(
             self,
             title=f"{stem} Mesh Mod",
-            description=f"Mesh Editor replacement for {entry.path}.",
+            description=f"Mesh Editor replacement for {named.path}.",
             output_parent=str(self.settings.value("mesh_editor/last_mod_output_dir", "") or ""),
             output_choice=str(self.settings.value("mesh_editor/last_mod_output_choice", "") or ""),
             manager_profile=str(self.settings.value("mesh_editor/last_mod_manager_profile", "dmm") or "dmm"),
+            body_files=tuple(item.basename for item in bodies),
         )
         try:
             if dialog.exec() != dialog.DialogCode.Accepted:
@@ -144,6 +146,7 @@ class MeshEditorDirectOutputMixin:
             output_path = dialog.output_path()
             create_zip = dialog.create_zip.isChecked()
             open_folder = dialog.open_folder.isChecked()
+            include_body = dialog.include_body.isChecked()
         finally:
             dialog.deleteLater()
         current_target = self._current_target_entry()
@@ -174,7 +177,35 @@ class MeshEditorDirectOutputMixin:
             create_zip=create_zip,
             open_folder=open_folder,
             saved_work_root=self.mesh_editor_draft_root,
+            include_refit_body=include_body,
         )
+
+    def _mesh_mod_body_entries(self, controller, entry) -> tuple[tuple, object]:
+        """Return the body files Build Mod leaves out by default, and the file to name the mod after.
+
+        They are the body a Fit in this session follows, or one an earlier
+        pass's Fit followed and this pass carries forward.
+        """
+        from cdmw.services.mesh_archive_refit import archive_refit_body_assets
+        from cdmw.services.mesh_archive_results import BODY_RESULT_NOTE
+
+        service, session_id = controller.mesh_service, controller.active_session_id
+        session = service._session(session_id)
+        with session.export_lock:
+            context = session.archive_refit_context
+        assets = tuple(getattr(context, "assets", ()))
+        if context is None:
+            bodies = [entry] if getattr(entry, "prepared_note", "") == BODY_RESULT_NOTE else []
+        else:
+            bodies = [asset.entry for asset in archive_refit_body_assets(context, service.cached_morph_state(session_id))]
+        loaded = {asset.entry.identity for asset in assets} | {entry.identity}
+        dependencies = getattr(self, "archive_session_dependencies", None)
+        bodies.extend(candidate for candidate in getattr(dependencies, "entries", ())
+                      if candidate.prepared_note == BODY_RESULT_NOTE and candidate.identity not in loaded)
+        body_identities = {item.identity for item in bodies}
+        named = entry if entry.identity not in body_identities else next(
+            (asset.entry for asset in assets if asset.entry.identity not in body_identities), entry)
+        return tuple(bodies), named
 
     def _start_mesh_overlay_prepare_requested(self) -> None:
         entry = self._mesh_output_target()
@@ -212,6 +243,7 @@ class MeshEditorDirectOutputMixin:
         archive_material_sources: tuple = (),
         continue_editing: bool = False,
         saved_work_root: Path | None = None,
+        include_refit_body: bool = False,
     ) -> bool:
         controller = self.standalone_controller
         if controller is None or not controller.active_session_id:
@@ -224,10 +256,10 @@ class MeshEditorDirectOutputMixin:
         extra = {"archive_dependency_sources": archive_dependency_sources,
                  "archive_material_sources": archive_material_sources} if kind == "archive_result" else {}
         if kind != "archive_result":
-            from cdmw.services.mesh_archive_results import ADDED_RESULT_NOTE, EDITED_RESULT_NOTE
+            from cdmw.services.mesh_archive_results import RESULT_NOTES
             dependencies = getattr(self, "archive_session_dependencies", None)
             inherited = tuple(replace(candidate) for candidate in getattr(dependencies, "entries", ())
-                              if candidate.prepared_note in (EDITED_RESULT_NOTE, ADDED_RESULT_NOTE))
+                              if candidate.prepared_note in RESULT_NOTES)
             if inherited:
                 extra["inherited_archive_outputs"] = inherited
         worker = _tab.MeshDirectOutputWorker(
@@ -243,6 +275,7 @@ class MeshEditorDirectOutputMixin:
             expected_mesh_revision=self.standalone_export_validation_revision,
             texture_updates_waiter=self._wait_for_dotnet_export_updates,
             saved_work_root=saved_work_root,
+            include_refit_body=include_refit_body,
             **extra,
         )
         thread = QThread(self)
