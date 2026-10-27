@@ -247,6 +247,9 @@ class MeshEditorTabShellMixin(
         ):
             if widget is not None and widget.font().toString() != applied_font.toString():
                 widget.setFont(applied_font)
+        sync_draft_choice = getattr(self, "_sync_draft_choice_fonts", None)
+        if callable(sync_draft_choice):
+            sync_draft_choice(applied_font)
         if hasattr(self.action_bar, "sync_ui_font"):
             self.action_bar.sync_ui_font(applied_font, dense_font)
         if hasattr(self.standalone_workspace, "sync_ui_font"):

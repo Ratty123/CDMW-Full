@@ -8,13 +8,14 @@ import time
 from collections.abc import Callable, Sequence
 from pathlib import Path
 
-from PySide6.QtCore import QObject, Qt, QUrl, Signal
+from PySide6.QtCore import QEvent, QObject, Qt, QTimer, QUrl, Signal
 from PySide6.QtGui import QDesktopServices
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QComboBox,
     QFileDialog,
     QFormLayout,
+    QFrame,
     QGroupBox,
     QHBoxLayout,
     QHeaderView,
@@ -26,7 +27,9 @@ from PySide6.QtWidgets import (
     QMessageBox,
     QPlainTextEdit,
     QPushButton,
+    QScrollArea,
     QSplitter,
+    QStyledItemDelegate,
     QTableWidget,
     QTableWidgetItem,
     QVBoxLayout,
@@ -56,12 +59,16 @@ from cdmw.services.mesh_saved_work_service import (
     saved_work_status,
     update_saved_work_details,
 )
+from cdmw.ui.mesh_editor.elided_label import ElidedLabel
 from cdmw.ui.mesh_editor.saved_work_sources import normalized_archive_path
 
 ALL_WORK = "\x00all"
 NO_PROJECT = ""
 _ROW_KEY_ROLE = Qt.ItemDataRole.UserRole
 _SORT_ROLE = Qt.ItemDataRole.UserRole + 1
+# Columns that share the table's width by these weights and shorten to fit;
+# the date keeps its own width.
+_FLEX_COLUMNS = {1: 4, 2: 3, 3: 2, 4: 1, 5: 3, 6: 2}
 
 
 def saved_work_status_text(code: str) -> str:
@@ -102,6 +109,14 @@ class _SortItem(QTableWidgetItem):
         return mine < theirs
 
 
+class _MiddleElideDelegate(QStyledItemDelegate):
+    """Shortens a game path in the middle, so its file name stays visible."""
+
+    def initStyleOption(self, option, index) -> None:
+        super().initStyleOption(option, index)
+        option.textElideMode = Qt.TextElideMode.ElideMiddle
+
+
 class _Relay(QObject):
     done = Signal(int, object, object, str)
 
@@ -134,6 +149,7 @@ class SavedWorkPage(QWidget):
         self._selected_project = ALL_WORK
         self._project_keys: list[str] = [ALL_WORK, NO_PROJECT]
         self._detail_key = ""
+        self._splitter_sized = False
         self._relay = _Relay(self)
         self._relay.done.connect(self._handle_background_done)
 
@@ -170,7 +186,7 @@ class SavedWorkPage(QWidget):
         toolbar.addWidget(self.refresh_button)
         layout.addLayout(toolbar)
 
-        splitter = QSplitter(Qt.Orientation.Horizontal, self)
+        self.splitter = splitter = QSplitter(Qt.Orientation.Horizontal, self)
         splitter.setChildrenCollapsible(False)
         layout.addWidget(splitter, 1)
         splitter.addWidget(self._build_projects_panel(splitter))
@@ -179,7 +195,7 @@ class SavedWorkPage(QWidget):
         splitter.setStretchFactor(0, 0)
         splitter.setStretchFactor(1, 1)
         splitter.setStretchFactor(2, 0)
-        splitter.setSizes([210, 760, 320])
+        self._sync_font_metrics()
 
         self.add_folder_button.clicked.connect(self._add_mod_folder)
         self.refresh_button.clicked.connect(self.refresh)
@@ -197,6 +213,9 @@ class SavedWorkPage(QWidget):
         self.project_list = QListWidget(panel)
         self.project_list.setObjectName("SavedWorkProjects")
         self.project_list.setProperty("_i18n_translate_items", True)
+        # A long project name is shortened; its tooltip holds the whole name.
+        self.project_list.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.project_list.setTextElideMode(Qt.TextElideMode.ElideRight)
         self.project_list.currentItemChanged.connect(self._project_selected)
         layout.addWidget(self.project_list, 1)
         self.new_project_button = QPushButton("New Project...", panel)
@@ -230,7 +249,13 @@ class SavedWorkPage(QWidget):
         self.table.verticalHeader().setVisible(False)
         header = self.table.horizontalHeader()
         header.setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
-        header.setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
+        for column in _FLEX_COLUMNS:
+            header.setSectionResizeMode(column, QHeaderView.ResizeMode.Interactive)
+        header.setStretchLastSection(False)
+        header.setTextElideMode(Qt.TextElideMode.ElideRight)
+        self.table.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.table.setItemDelegateForColumn(2, _MiddleElideDelegate(self.table))
+        self.table.viewport().installEventFilter(self)
         self.table.setSortingEnabled(True)
         self.table.sortByColumn(0, Qt.SortOrder.DescendingOrder)
         self.table.itemSelectionChanged.connect(self._selection_changed)
@@ -243,7 +268,14 @@ class SavedWorkPage(QWidget):
         return panel
 
     def _build_details_panel(self, parent: QWidget) -> QWidget:
-        panel = QGroupBox("Details", parent)
+        # Scrolls rather than squeezing its rows at large font sizes.
+        scroll = QScrollArea(parent)
+        scroll.setObjectName("SavedWorkDetailsScroll")
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.Shape.NoFrame)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.details_scroll = scroll
+        panel = QGroupBox("Details", scroll)
         panel.setObjectName("SavedWorkDetails")
         layout = QVBoxLayout(panel)
         form = QFormLayout()
@@ -254,7 +286,6 @@ class SavedWorkPage(QWidget):
         self.notes_edit = QPlainTextEdit(panel)
         self.notes_edit.setObjectName("SavedWorkNotes")
         self.notes_edit.setPlaceholderText("Notes for yourself, such as what this version changes")
-        self.notes_edit.setMaximumHeight(120)
         form.addRow("Name in list", self.name_edit)
         form.addRow("Project", self.project_combo)
         form.addRow("Your notes", self.notes_edit)
@@ -264,14 +295,13 @@ class SavedWorkPage(QWidget):
         self.save_details_button.setToolTip("Save the name, project and notes. Folders keep their names.")
         layout.addWidget(self.save_details_button)
         facts = QFormLayout()
-        self.game_file_value = QLabel("", panel)
+        # Paths shorten in the middle; their tooltips hold the whole path.
+        self.game_file_value = ElidedLabel(panel, mode=Qt.TextElideMode.ElideMiddle)
         self.kind_value = QLabel("", panel)
         self.edit_pass_value = QLabel("", panel)
         self.status_value = QLabel("", panel)
-        self.folder_value = QLabel("", panel)
-        for label in (self.game_file_value, self.folder_value):
-            label.setWordWrap(True)
-            label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+        self.status_value.setWordWrap(True)
+        self.folder_value = ElidedLabel(panel, mode=Qt.TextElideMode.ElideMiddle)
         facts.addRow("Game file", self.game_file_value)
         facts.addRow("Draft or mod", self.kind_value)
         facts.addRow("Edit pass", self.edit_pass_value)
@@ -280,7 +310,8 @@ class SavedWorkPage(QWidget):
         layout.addLayout(facts)
         layout.addStretch(1)
         self.continue_button = QPushButton("Continue Editing", panel)
-        self.continue_button.setObjectName("SavedWorkContinue")
+        # The theme's primary action.
+        self.continue_button.setObjectName("EditorPrimaryButton")
         self.open_folder_button = QPushButton("Open Folder", panel)
         self.open_folder_button.setObjectName("SavedWorkOpenFolder")
         self.duplicate_button = QPushButton("Duplicate...", panel)
@@ -300,7 +331,11 @@ class SavedWorkPage(QWidget):
         self.duplicate_button.clicked.connect(self._duplicate_selected)
         self.move_button.clicked.connect(self._move_selected)
         self.delete_button.clicked.connect(self._delete_selected)
-        return panel
+        scroll.setWidget(panel)
+        self.details_panel = panel
+        # Translation can widen the labels after this; re-measure when it does.
+        panel.installEventFilter(self)
+        return scroll
 
     # ------------------------------------------------------------ loading
 
@@ -317,9 +352,56 @@ class SavedWorkPage(QWidget):
     def status_code(self, row: SavedWorkRow) -> str:
         return self._statuses.get(_row_key(row), STATUS_CHECKING)
 
-    def showEvent(self, event) -> None:  # noqa: N802
+    def showEvent(self, event) -> None:
         super().showEvent(event)
+        # Translated labels may be wider than the English ones measured at construction.
+        self._sync_font_metrics()
+        if not self._splitter_sized and self.width() > 0:
+            # The first layout follows the font; later drags are the user's.
+            self._splitter_sized = True
+            char = max(1, self.fontMetrics().averageCharWidth())
+            projects = char * 20
+            details = max(char * 38, self.details_scroll.minimumWidth())
+            self.splitter.setSizes([projects, max(char * 40, self.width() - projects - details), details])
         self.refresh()
+
+    def changeEvent(self, event) -> None:
+        super().changeEvent(event)
+        if event.type() == QEvent.Type.FontChange:
+            self._sync_font_metrics()
+            QTimer.singleShot(0, self, self._fit_columns)
+
+    def eventFilter(self, watched: QObject, event: QEvent) -> bool:
+        if event.type() == QEvent.Type.Resize and watched is self.table.viewport():
+            self._fit_columns()
+        elif event.type() == QEvent.Type.LayoutRequest and watched is self.details_panel:
+            self._sync_details_width()
+        return super().eventFilter(watched, event)
+
+    def _fit_columns(self) -> None:
+        """Share the table's width so every column shows, at any font size."""
+
+        header = self.table.horizontalHeader()
+        fixed = sum(header.sectionSize(column) for column in range(self.table.columnCount())
+                    if column not in _FLEX_COLUMNS)
+        room = max(0, self.table.viewport().width() - fixed)
+        total = sum(_FLEX_COLUMNS.values())
+        minimum = header.minimumSectionSize()
+        for column, weight in _FLEX_COLUMNS.items():
+            header.resizeSection(column, max(minimum, room * weight // total))
+
+    def _sync_font_metrics(self) -> None:
+        # About five lines of notes, at any font size.
+        metrics = self.notes_edit.fontMetrics()
+        self.notes_edit.setMaximumHeight(metrics.lineSpacing() * 5 + 12)
+        self._sync_details_width()
+
+    def _sync_details_width(self) -> None:
+        # The details never get narrower than their fields; they scroll down instead.
+        scrollbar = self.details_scroll.verticalScrollBar().sizeHint().width()
+        width = self.details_panel.minimumSizeHint().width() + scrollbar
+        if self.details_scroll.minimumWidth() != width:
+            self.details_scroll.setMinimumWidth(width)
 
     def _run(self, task: Callable[[], object], on_done: Callable[[int, object, str], None]) -> None:
         """Run file work off the UI thread; ``on_done`` gets the token, result and error."""
@@ -442,7 +524,9 @@ class SavedWorkPage(QWidget):
         self.project_list.addItem(QListWidgetItem(f"All work ({len(self._rows)})"))
         self.project_list.addItem(QListWidgetItem(f"No project ({counts.get(NO_PROJECT, 0)})"))
         for project in self._projects:
-            self.project_list.addItem(QListWidgetItem(f"{project.name} ({counts.get(project.project_id, 0)})"))
+            item = QListWidgetItem(f"{project.name} ({counts.get(project.project_id, 0)})")
+            item.setToolTip(project.name)
+            self.project_list.addItem(item)
         if self._selected_project in self._project_keys:
             self.project_list.setCurrentRow(self._project_keys.index(self._selected_project))
         self.project_list.blockSignals(False)
@@ -544,9 +628,11 @@ class SavedWorkPage(QWidget):
                 item.setData(_SORT_ROLE, key)
                 item.setData(_ROW_KEY_ROLE, _row_key(row))
                 self.table.setItem(index, column, item)
-            if row.notes:
-                cells[1][0].setToolTip(row.notes)
-            cells[2][0].setToolTip(row.source_package)
+            cells[1][0].setToolTip(f"{row.display_name}\n\n{row.notes}" if row.notes else row.display_name)
+            cells[2][0].setToolTip(
+                f"{row.source_archive_path}\n{row.source_package}" if row.source_package else row.source_archive_path
+            )
+            cells[5][0].setToolTip(cells[5][0].text())
         self.table.setSortingEnabled(True)
         self.table.clearSelection()
         # selectRow would replace the selection in extended mode; add each row.
@@ -556,6 +642,8 @@ class SavedWorkPage(QWidget):
             if self.table.item(index, 0).data(_ROW_KEY_ROLE) in selected_keys:
                 model.select(self.table.model().index(index, 0), flags)
         self.table.blockSignals(False)
+        # The date column sizes to its contents after this pass.
+        QTimer.singleShot(0, self, self._fit_columns)
         if self._rows and not rows:
             self.empty_label.setText("No saved work matches this project or filter.")
         elif not self._rows:
@@ -603,6 +691,8 @@ class SavedWorkPage(QWidget):
         if key != self._detail_key:
             self._detail_key = key
             self.name_edit.setText(row.display_name if row is not None else "")
+            # Show a long name from its start.
+            self.name_edit.setCursorPosition(0)
             self.notes_edit.setPlainText(row.notes if row is not None else "")
             index = self.project_combo.findData(row.project_id if row is not None and
                                                 self._project_name(row.project_id) else NO_PROJECT)

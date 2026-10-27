@@ -845,9 +845,47 @@ def test_explicit_opens_load_with_the_drafts_listed_and_the_top_bar_keeps_its_or
         # The full name stays available to translation and the tooltip.
         assert tab.draft_name_label.text() == f"Draft: {long_name.strip()}"
         assert tab.draft_name_label.toolTip() == tab.draft_name_label.text()
-        assert tab.draft_name_label.sizeHint().width() <= tab.draft_name_label.MAX_WIDTH
+        label_metrics = tab.draft_name_label.fontMetrics()
+        assert tab.draft_name_label.sizeHint().width() <= label_metrics.averageCharWidth() * tab.draft_name_label.MAX_CHARS
     finally:
         tab.mesh_editor_draft_manifest_path = None
+        tab.deleteLater()
+        app.processEvents()
+
+
+def test_draft_question_and_page_follow_the_ui_font_size(game, tmp_path):
+    from PySide6.QtCore import QSettings
+    from PySide6.QtGui import QFont
+
+    from cdmw.ui.mesh_editor.saved_work_page import SavedWorkPage
+    from cdmw.ui.mesh_editor.tab import MeshEditorTab
+
+    app = QApplication.instance() or QApplication([])
+    tab = MeshEditorTab(settings=QSettings(str(tmp_path / "ui.ini"), QSettings.IniFormat))
+    page = SavedWorkPage(draft_root=tmp_path / "drafts")
+    try:
+        small, large = QFont(tab.font()), QFont(tab.font())
+        small.setPointSize(9)
+        large.setPointSize(15)
+        tab.sync_ui_font(small)
+        small_title = tab.draft_choice_title.font().pointSizeF()
+        tab.sync_ui_font(large)
+        # The question's title stays two points above the UI font after a runtime change.
+        assert tab.draft_choice_title.font().pointSizeF() == pytest.approx(17.0)
+        assert small_title == pytest.approx(11.0) and tab.draft_choice_title.font().bold()
+        assert tab.draft_resume_button.objectName() == "EditorPrimaryButton"
+
+        page.setFont(small)
+        app.processEvents()
+        small_notes = page.notes_edit.maximumHeight()
+        page.setFont(large)
+        app.processEvents()
+        # Notes keep about five lines, and the details never shrink below their fields.
+        assert page.notes_edit.maximumHeight() > small_notes
+        assert page.details_scroll.minimumWidth() >= page.details_panel.minimumSizeHint().width()
+        assert page.continue_button.objectName() == "EditorPrimaryButton"
+    finally:
+        page.deleteLater()
         tab.deleteLater()
         app.processEvents()
 

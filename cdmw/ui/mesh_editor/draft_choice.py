@@ -11,7 +11,8 @@ from __future__ import annotations
 
 import time
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import QEvent, Qt
+from PySide6.QtGui import QFont
 from PySide6.QtWidgets import (
     QFrame,
     QHBoxLayout,
@@ -27,6 +28,25 @@ from cdmw.services.mesh_saved_work_service import draft_lineage, read_draft_mani
 from cdmw.ui.mesh_editor.saved_work_launch import default_session_draft_request
 
 
+class _DraftChoiceCard(QFrame):
+    """Caps its width at a readable line length that grows with the font.
+
+    The cap never cuts into the buttons, however long their translations are.
+    """
+
+    def _cap_width(self) -> None:
+        layout = self.layout()
+        needed = layout.minimumSize().width() if layout is not None else 0
+        cap = max(needed, self.fontMetrics().averageCharWidth() * 88)
+        if self.maximumWidth() != cap:
+            self.setMaximumWidth(cap)
+
+    def event(self, event) -> bool:
+        if event.type() in (QEvent.Type.Show, QEvent.Type.LayoutRequest, QEvent.Type.FontChange):
+            self._cap_width()
+        return super().event(event)
+
+
 class MeshEditorDraftChoiceMixin:
     def _build_draft_choice_page(self) -> QWidget:
         page = QFrame(self)
@@ -36,18 +56,14 @@ class MeshEditorDraftChoiceMixin:
         outer.addStretch(1)
         row = QHBoxLayout()
         row.addStretch(1)
-        card = QFrame(page)
+        card = _DraftChoiceCard(page)
         card.setObjectName("MeshEditorDraftChoiceCard")
-        card.setMaximumWidth(620)
         card.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Maximum)
         layout = QVBoxLayout(card)
         layout.setContentsMargins(20, 18, 20, 18)
         layout.setSpacing(10)
         self.draft_choice_title = QLabel("Continue where you left off?", card)
         self.draft_choice_title.setObjectName("EmptyStateTitle")
-        font = self.draft_choice_title.font()
-        font.setPointSizeF(font.pointSizeF() + 2)
-        self.draft_choice_title.setFont(font)
         self.draft_choice_label = QLabel("", card)
         self.draft_choice_label.setObjectName("EmptyStateDetail")
         self.draft_choice_label.setWordWrap(True)
@@ -57,10 +73,8 @@ class MeshEditorDraftChoiceMixin:
         buttons = QHBoxLayout()
         buttons.setSpacing(8)
         self.draft_resume_button = QPushButton("Resume", card)
-        self.draft_resume_button.setObjectName("MeshEditorDraftResumeButton")
-        font = self.draft_resume_button.font()
-        font.setBold(True)
-        self.draft_resume_button.setFont(font)
+        # The theme's primary action.
+        self.draft_resume_button.setObjectName("EditorPrimaryButton")
         self.draft_start_fresh_button = QPushButton("Start Fresh", card)
         self.draft_start_fresh_button.setObjectName("MeshEditorDraftStartFreshButton")
         self.draft_choose_button = QPushButton("Choose a Draft...", card)
@@ -83,7 +97,19 @@ class MeshEditorDraftChoiceMixin:
         outer.addStretch(2)
         self.draft_choice_page = page
         self.mesh_editor_matching_drafts: tuple[object, ...] = ()
+        self._sync_draft_choice_fonts(self.font())
         return page
+
+    def _sync_draft_choice_fonts(self, font: QFont) -> None:
+        """The question's title is two points above the UI font, and follows it."""
+
+        title = QFont(font)
+        if title.pointSizeF() > 0:
+            title.setPointSizeF(title.pointSizeF() + 2)
+        elif title.pixelSize() > 0:
+            title.setPixelSize(title.pixelSize() + 3)
+        title.setBold(True)
+        self.draft_choice_title.setFont(title)
 
     def _draft_choice_showing(self) -> bool:
         page = getattr(self, "draft_choice_page", None)

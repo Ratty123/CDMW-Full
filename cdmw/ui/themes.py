@@ -301,6 +301,14 @@ def _app_shell_stylesheet(theme: Dict[str, str], metrics: Dict[str, int]) -> str
         background: {theme["button_disabled"]};
         border-color: {theme["border"]};
     }}
+    QFrame#MeshEditorEntryBar QPushButton,
+    QFrame#MeshEditorDraftChoiceCard QPushButton {{
+        border-radius: 4px;
+        padding: {metrics["button_pad_y"]}px {metrics["button_pad_x"]}px;
+    }}
+    QPushButton#MeshEditorHairMenu {{
+        font-weight: 600;
+    }}
     """
 
 
