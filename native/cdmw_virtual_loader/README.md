@@ -294,6 +294,48 @@ Live Edit ASIs), a plain Steam launch composed onto the vanilla mount in 7.15 s 
 the user found all five swords in a loaded save. Saving under compose mode remains
 untested.
 
+## Coexistence with CDAL
+
+[CDAL](https://github.com/cdal-dev/CDAL) is the shared address library and hook manager
+that Crimson FastLoad, Crimson Live Edit and BSX plugins use. It and this runtime hook
+different things, so they do not meet:
+
+- This runtime replaces eight file imports in the game executable's own import table
+  (`CreateFileW`, `CreateFileA`, `CreateFile2`, `GetFileAttributesW`/`A`/`ExW`,
+  `FindFirstFileW`, `FindFirstFileExW`) from `InitializeASI`. It refuses, leaving the game
+  unmodded, if any of those slots already points somewhere other than the system function
+  or the verified UAL wrapper.
+- CDAL places inline hooks, mid hooks and byte patches on game functions. The only CDAL
+  hooks outside the executable on 2.03.02 are FastLoad's, in `MFPlat.dll` and
+  `amd_fidelityfx_loader_dx12.dll` (`ffxConfigure`). None is in `kernel32` or an import
+  table, and CDAL's signatures hash instructions, which the import patches do not change.
+
+UAL loads the ASIs in name order, so `BSX.asi` and its `cdal.dll` start before
+`CDMWVirtualLoader.asi`, and FastLoad and Live Edit after it. BSX creates its thread in
+`DllMain`, after the startup thread, so the runtime's first-live-thread check still passes.
+
+Checked on 2026-10-27 with game build 1.0.0.2976, runtime `9da2ea45`, `cdal.dll` 0.3.0,
+FastLoad and the Live Edit pack:
+
+- Without BSX, from logs of an earlier launch that evening: ready in 328 ms (cache reused, five packages), 124 CDAL hooks installed,
+  no conflicts or foreign hooks in `CDAL/hooks.log`.
+- With BSX 0.1.0 (from `CDAL-BSX-v0.3.0`, no plugins), launched from Steam: load order BSX, `cdal.dll`, this
+  runtime, FastLoad, Live Edit; ready in 344 ms; BSX started CDAL from `InitializeASI` and
+  loaded 0 of 0 plugins; 124 CDAL hooks, no conflicts; the game opened the composed
+  `meta/0.papgt`, `meta/0.pathc` and `0041/0.pamt`/`0.paz` through the hooks, and the user
+  found the five swords working in a loaded save.
+
+Not covered: a BSX plugin that subscribes to events, and saving.
+
+**Routing these hooks through CDAL is not planned.** CDAL has no import-table hook kind;
+an inline hook on `KernelBase!CreateFileW` would also redirect every other module's file
+opens, which this exact-file VFS deliberately does not do; the hooks must be in place on
+UAL's startup thread before the game opens an archive, before CDAL's own initialisation
+would normally run; and the runtime has to work for players who have no `cdal.dll`. If
+CDAL later adds an import-slot kind that chains callers, the runtime could register
+through it when `cdal.dll` is present and keep its direct path otherwise, so other mods
+that need the same imports could share them instead of being refused.
+
 ## Independent item publication research
 
 The separate [paired-publication experiment](research/README.md) prepares both
