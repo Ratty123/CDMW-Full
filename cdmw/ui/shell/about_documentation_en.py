@@ -509,9 +509,12 @@ class AboutDocumentationEnglishMixin:
                 <h4>Saved drafts and built mods</h4>
                 <p>A mesh opened from Archive Browser saves a draft each time you choose Finish Edit Mesh, so you can close CDMW and continue later. Changes still open in the editor are saved when you finish them. Build Mod also keeps the editing state with the mod.</p>
                 <ul>
-                  <li>Choose Continue Earlier Work... in Mesh Editor, or right-click a mesh in Archive Browser and choose Continue Earlier Work..., to open Saved Drafts and Built Mods.</li>
+                  <li>Open Drafts &amp; Mods from the tool list. Continue Earlier Work..., in Mesh Editor or on a mesh's right-click menu in Archive Browser, opens it as well.</li>
                   <li>Each row shows when it was saved, its name, the game file, whether it is a draft or a built mod, its edit pass, and whether it matches the current game files.</li>
                   <li>Select a row and choose Continue Editing. CDMW selects the game file in Archive Browser, then restores removed parts, the Morph &amp; Refit setup and the fitted shape.</li>
+                  <li>Choose Name Draft... in Mesh Editor to name the open draft and choose its project. In Drafts &amp; Mods, change a name, project or your notes under Details, then choose Save Changes.</li>
+                  <li>Choose New Project... to group related work, then Move to Project... to put the selected drafts and mods in it. Deleting a project keeps its drafts and mods.</li>
+                  <li>Choose Duplicate... to copy a draft and try a variation without changing the original.</li>
                   <li>Choose Delete... to remove a draft. For a built mod, Remove from List... keeps the mod folder; use Open Folder to delete its files yourself.</li>
                   <li>Choose Add Mod Folder... for a mod built by an earlier version or by someone else. Continue Editing opens its finished mesh as a new edit pass, with the game's own materials, skeleton and textures.</li>
                 </ul>

@@ -7,8 +7,9 @@ later edit pass can be resumed after the in-session result has gone.
 
 Built mods are listed in one index beside the drafts. A mod built from a
 session with a draft keeps a frozen copy of that draft, so continuing it
-restores the state it was built from. This module never writes to game
-archives and never deletes a mod folder.
+restores the state it was built from. Drafts and built mods can carry a
+name, notes and a user project from ``projects.json``. This module never
+writes to game archives and never deletes a mod folder.
 """
 
 from __future__ import annotations
@@ -38,12 +39,19 @@ PROJECT_RELATIVE_PATH = "mesh_layers/mesh_layer_project.json"
 BASELINE_DIRNAME = "baseline"
 BUILT_MODS_INDEX_NAME = "built_mods.json"
 BUILT_MODS_INDEX_FORMAT = "cdmw_mesh_editor_built_mods_v1"
+PROJECTS_INDEX_NAME = "projects.json"
+PROJECTS_INDEX_FORMAT = "cdmw_mesh_editor_projects_v1"
+MAX_NAME_LENGTH = 120
+MAX_NOTES_LENGTH = 4000
 KIND_DRAFT = "draft"
 KIND_BUILT_MOD = "built_mod"
 MAX_LISTED_ROWS = 2000
 MAX_BASELINE_BYTES = 1024 * 1024 * 1024
 _MESH_SUFFIXES = (".pac", ".pam", ".pamlod")
-_INDEX_LOCK = threading.Lock()
+# Serializes every read-modify-write of saved-work JSON, including the
+# autosave's manifest update, so a rename cannot be lost to a concurrent save.
+SAVED_WORK_LOCK = threading.RLock()
+_INDEX_LOCK = SAVED_WORK_LOCK
 
 STATUS_CHECKING = "checking"
 STATUS_MATCHES = "matches"
@@ -64,6 +72,7 @@ class MeshDraftRequest:
     resume_manifest_path: Path | None = None
     seed_project_path: Path | None = None
     baseline_entries: tuple[ArchiveEntry, ...] = ()
+    project_id: str = ""
 
 
 @dataclass(frozen=True, slots=True)
@@ -92,10 +101,31 @@ class SavedWorkRow:
     game_source_sha256: str
     has_draft: bool
     mod_root: Path | None = None
+    project_id: str = ""
+    notes: str = ""
 
     @property
     def is_built_mod(self) -> bool:
         return self.kind == KIND_BUILT_MOD
+
+
+@dataclass(frozen=True, slots=True)
+class SavedWorkProject:
+    """A user's own grouping of drafts and built mods."""
+
+    project_id: str
+    name: str
+    created_at: float = 0.0
+
+
+def clean_name(value: object) -> str:
+    """One line of text, as a name shown in the list."""
+
+    return " ".join(str(value or "").split())[:MAX_NAME_LENGTH]
+
+
+def clean_notes(value: object) -> str:
+    return str(value or "").replace("\r\n", "\n").strip()[:MAX_NOTES_LENGTH]
 
 
 def _clean_sha(value: object) -> str:
@@ -214,6 +244,8 @@ def plan_session_draft(
         "edit_pass": max(1, int(request.edit_pass or 1)),
         "editable_obj": "",
         "mesh_layer_project": PROJECT_RELATIVE_PATH,
+        "project_id": str(request.project_id or ""),
+        "notes": "",
         "created_at": created,
         "updated_at": created,
     }
@@ -264,16 +296,17 @@ def ensure_session_draft_workspace(
             raise ValueError(f"An edited source file changed while saving the draft: {entry.path}")
         files.append({**entry_record(entry), "file": target.relative_to(workspace).as_posix(),
                       "sha256": digest, "size": size, "note": entry.prepared_note})
-    manifest = dict(plan.manifest)
-    manifest["baseline"] = {
-        "mesh": mesh_file.relative_to(workspace).as_posix(),
-        "mesh_sha256": manifest["source_asset_sha256"],
-        "mesh_size": len(data),
-        "files": files,
-    }
-    manifest["updated_at"] = time.time()
     raise_if_cancelled(stop_event, "Mesh layer autosave cancelled.")
-    atomic_write_text(manifest_path, json.dumps(manifest, indent=2, sort_keys=True))
+    with SAVED_WORK_LOCK:
+        manifest = dict(plan.manifest)
+        manifest["baseline"] = {
+            "mesh": mesh_file.relative_to(workspace).as_posix(),
+            "mesh_sha256": manifest["source_asset_sha256"],
+            "mesh_size": len(data),
+            "files": files,
+        }
+        manifest["updated_at"] = time.time()
+        atomic_write_text(manifest_path, json.dumps(manifest, indent=2, sort_keys=True))
     return manifest_path
 
 
@@ -293,7 +326,34 @@ def draft_lineage(manifest: Mapping[str, object] | None) -> dict[str, object]:
         "display_name": str(manifest.get("display_name") or ""),
         "edit_pass": max(1, _positive_int(manifest.get("edit_pass"), 1)),
         "game_source_sha256": _clean_sha(manifest.get("game_source_sha256")),
+        "project_id": str(manifest.get("project_id") or ""),
     }
+
+
+def name_session_draft(
+    manifest_path: Path | str | None,
+    plan: MeshDraftPlan | None,
+    *,
+    name: str,
+    project_id: str | None = None,
+) -> None:
+    """Name the draft an open session writes, before or after its first save."""
+
+    cleaned = clean_name(name)
+    if not cleaned:
+        raise ValueError("Enter a name.")
+    updates: dict[str, object] = {"display_name": cleaned}
+    if project_id is not None:
+        updates["project_id"] = str(project_id)
+    with SAVED_WORK_LOCK:
+        manifest = read_draft_manifest(manifest_path) if manifest_path is not None else None
+        if manifest is not None:
+            atomic_write_text(Path(manifest_path), json.dumps({**dict(manifest), **updates}, indent=2, sort_keys=True))
+            return
+        if plan is None:
+            raise ValueError("This mesh has no draft yet.")
+        # The planned manifest is written by the session's first save.
+        plan.manifest.update(updates)
 
 
 def draft_baseline_entries(
@@ -376,6 +436,8 @@ def _draft_row(workspace: Path) -> SavedWorkRow | None:
         source_sha256=source_hash,
         game_source_sha256=_clean_sha(manifest.get("game_source_sha256")),
         has_draft=True,
+        project_id=str(manifest.get("project_id") or ""),
+        notes=str(manifest.get("notes") or ""),
     )
 
 
@@ -423,6 +485,8 @@ def _built_mod_row(draft_root: Path, record: Mapping[str, object]) -> SavedWorkR
         game_source_sha256=_clean_sha(record.get("game_source_sha256")),
         has_draft=manifest_path is not None,
         mod_root=mod_root,
+        project_id=str(record.get("project_id") or ""),
+        notes=str(record.get("notes") or ""),
     )
 
 
@@ -466,31 +530,168 @@ def saved_work_status(row: SavedWorkRow, *, found: bool, current_sha256: str = "
     return STATUS_MATCHES if current and current == row.source_sha256 else STATUS_ORIGINAL_UNKNOWN
 
 
-def rename_saved_work(draft_root: Path | str, row: SavedWorkRow, new_name: str) -> None:
-    """Change the name shown in the list. Folders keep their names."""
+def update_saved_work_details(
+    draft_root: Path | str,
+    row: SavedWorkRow,
+    *,
+    name: str | None = None,
+    notes: str | None = None,
+    project_id: str | None = None,
+) -> None:
+    """Change a row's name, notes or project. Folders keep their names."""
 
-    name = " ".join(str(new_name or "").split())[:120]
-    if not name:
-        raise ValueError("Enter a name.")
+    updates: dict[str, object] = {}
+    if name is not None:
+        updates["display_name"] = clean_name(name)
+        if not updates["display_name"]:
+            raise ValueError("Enter a name.")
+    if notes is not None:
+        updates["notes"] = clean_notes(notes)
+    if project_id is not None:
+        updates["project_id"] = str(project_id)
+    if not updates:
+        return
     root = Path(draft_root).expanduser().resolve()
-    if row.is_built_mod:
-        with _INDEX_LOCK:
+    with SAVED_WORK_LOCK:
+        if row.is_built_mod:
             records = _read_index(root)
             for record in records:
                 if str(record.get("id") or "") == row.row_id:
-                    record["display_name"] = name
+                    record.update(updates)
                     break
             else:
                 raise ValueError("This built mod is no longer in the list.")
             _write_index(root, records)
-        return
-    manifest_path = Path(row.manifest_path or "")
-    if not _inside(root, manifest_path.parent):
+            return
+        manifest_path = Path(row.manifest_path or "")
+        if not _inside(root, manifest_path.parent):
+            raise ValueError("This draft is not in CDMW's draft folder.")
+        manifest = read_draft_manifest(manifest_path)
+        if manifest is None:
+            raise ValueError("This draft can no longer be read.")
+        atomic_write_text(manifest_path, json.dumps({**dict(manifest), **updates}, indent=2, sort_keys=True))
+
+
+def rename_saved_work(draft_root: Path | str, row: SavedWorkRow, new_name: str) -> None:
+    """Change the name shown in the list. Folders keep their names."""
+
+    update_saved_work_details(draft_root, row, name=new_name)
+
+
+def assign_project(draft_root: Path | str, rows: Sequence[SavedWorkRow], project_id: str) -> None:
+    """Put drafts and built mods into a project, or into none with ``""``."""
+
+    project = str(project_id or "")
+    if project and project not in {item.project_id for item in list_projects(draft_root)}:
+        raise ValueError("This project no longer exists.")
+    for row in rows:
+        update_saved_work_details(draft_root, row, project_id=project)
+
+
+def projects_index_path(draft_root: Path | str) -> Path:
+    return Path(draft_root).expanduser().resolve() / PROJECTS_INDEX_NAME
+
+
+def _read_projects(draft_root: Path | str) -> list[dict[str, object]]:
+    payload = _read_json(projects_index_path(draft_root))
+    if payload is None or payload.get("format") != PROJECTS_INDEX_FORMAT:
+        return []
+    return [dict(item) for item in payload.get("projects") or ()
+            if isinstance(item, Mapping) and str(item.get("id") or "")]
+
+
+def _write_projects(draft_root: Path | str, records: Sequence[Mapping[str, object]]) -> None:
+    path = projects_index_path(draft_root)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    atomic_write_text(path, json.dumps({"format": PROJECTS_INDEX_FORMAT, "projects": list(records)},
+                                       indent=2, sort_keys=True))
+
+
+def list_projects(draft_root: Path | str) -> tuple[SavedWorkProject, ...]:
+    projects = [SavedWorkProject(str(item["id"]), clean_name(item.get("name")) or "Project",
+                                 _float(item.get("created_at"), 0.0))
+                for item in _read_projects(draft_root)]
+    return tuple(sorted(projects, key=lambda project: project.name.casefold()))
+
+
+def _require_unique_project_name(records: Sequence[Mapping[str, object]], name: str, skip: str = "") -> None:
+    if any(str(item.get("id")) != skip and clean_name(item.get("name")).casefold() == name.casefold()
+           for item in records):
+        raise ValueError("A project with this name already exists.")
+
+
+def create_project(draft_root: Path | str, name: str) -> SavedWorkProject:
+    cleaned = clean_name(name)
+    if not cleaned:
+        raise ValueError("Enter a name.")
+    with SAVED_WORK_LOCK:
+        records = _read_projects(draft_root)
+        _require_unique_project_name(records, cleaned)
+        project = SavedWorkProject(uuid4().hex, cleaned, time.time())
+        records.append({"id": project.project_id, "name": project.name, "created_at": project.created_at})
+        _write_projects(draft_root, records)
+    return project
+
+
+def rename_project(draft_root: Path | str, project_id: str, name: str) -> None:
+    cleaned = clean_name(name)
+    if not cleaned:
+        raise ValueError("Enter a name.")
+    with SAVED_WORK_LOCK:
+        records = _read_projects(draft_root)
+        _require_unique_project_name(records, cleaned, skip=str(project_id))
+        for record in records:
+            if str(record.get("id")) == str(project_id):
+                record["name"] = cleaned
+                break
+        else:
+            raise ValueError("This project no longer exists.")
+        _write_projects(draft_root, records)
+
+
+def delete_project(draft_root: Path | str, project_id: str) -> None:
+    """Remove a project. Its drafts and built mods stay, with no project."""
+
+    project = str(project_id or "")
+    root = Path(draft_root).expanduser().resolve()
+    with SAVED_WORK_LOCK:
+        records = _read_projects(root)
+        kept = [record for record in records if str(record.get("id")) != project]
+        if len(kept) == len(records):
+            raise ValueError("This project no longer exists.")
+        for row in list_saved_work(root):
+            if row.project_id == project:
+                update_saved_work_details(root, row, project_id="")
+        _write_projects(root, kept)
+
+
+def duplicate_saved_draft(draft_root: Path | str, row: SavedWorkRow, name: str) -> Path:
+    """Copy a draft into a new one with its own name, to try a variation."""
+
+    if row.is_built_mod or row.manifest_path is None:
+        raise ValueError("Only drafts can be duplicated.")
+    cleaned = clean_name(name)
+    if not cleaned:
+        raise ValueError("Enter a name.")
+    root = Path(draft_root).expanduser().resolve()
+    source = Path(row.manifest_path).resolve().parent
+    if not _inside(root, source):
         raise ValueError("This draft is not in CDMW's draft folder.")
-    manifest = read_draft_manifest(manifest_path)
+    manifest = read_draft_manifest(source / WORKSPACE_MANIFEST_NAME)
     if manifest is None:
         raise ValueError("This draft can no longer be read.")
-    atomic_write_text(manifest_path, json.dumps({**dict(manifest), "display_name": name}, indent=2, sort_keys=True))
+    stamp = time.strftime("%Y%m%d-%H%M%S")
+    target = root / f"{_slug(cleaned)}-{stamp}-{uuid4().hex[:6]}"
+    try:
+        _copy_draft(source, target, None)
+        now = time.time()
+        atomic_write_text(target / WORKSPACE_MANIFEST_NAME, json.dumps({
+            **dict(manifest), "display_name": cleaned, "created_at": now, "updated_at": now,
+            "mesh_layer_project": PROJECT_RELATIVE_PATH}, indent=2, sort_keys=True))
+    except BaseException:
+        shutil.rmtree(target, ignore_errors=True)
+        raise
+    return target / WORKSPACE_MANIFEST_NAME
 
 
 def _remove_owned_draft(root: Path, workspace: Path) -> None:
@@ -602,6 +803,8 @@ def register_built_mod(
             _clean_sha(source_sha256) if lineage["edit_pass"] == 1 else ""),
         "edit_pass": lineage["edit_pass"],
         "draft_dir": draft_dir,
+        "project_id": str(lineage.get("project_id") or ""),
+        "notes": "",
     }
     with _INDEX_LOCK:
         records = _read_index(root)
@@ -631,7 +834,7 @@ def _guess_archive_path(relative: PurePosixPath) -> str:
     return "/".join(parts)
 
 
-def add_built_mod_folder(draft_root: Path | str, mod_root: Path | str) -> dict[str, object]:
+def add_built_mod_folder(draft_root: Path | str, mod_root: Path | str, *, project_id: str = "") -> dict[str, object]:
     """List a mod folder made before saved drafts existed, or by someone else."""
 
     from cdmw.core.mod_export_history import mod_metadata_path
@@ -667,6 +870,8 @@ def add_built_mod_folder(draft_root: Path | str, mod_root: Path | str) -> dict[s
         "game_source_sha256": "",
         "edit_pass": 0,
         "draft_dir": "",
+        "project_id": str(project_id or ""),
+        "notes": "",
     }
     with _INDEX_LOCK:
         records = _read_index(root)
@@ -775,7 +980,7 @@ def prepare_saved_work_launch(
                            prepared_size=len(data), prepared_note=edited_note, content_analysis_json_path=None,
                            content_analysis_text_path=None, content_analysis_version="")
         request = MeshDraftRequest(edit_pass=max(1, row.edit_pass) + 1, display_name=row.display_name,
-                                   game_source_sha256=row.game_source_sha256)
+                                   game_source_sha256=row.game_source_sha256, project_id=row.project_id)
         return SavedWorkLaunch(row, selected, (selected,), None, request, game_updated)
     manifest = read_draft_manifest(row.manifest_path or "")
     if manifest is None:
@@ -787,7 +992,7 @@ def prepare_saved_work_launch(
     if not row.is_built_mod and lineage["edit_pass"] == 1 and current == row.source_sha256:
         request = MeshDraftRequest(edit_pass=1, display_name=row.display_name,
                                    game_source_sha256=lineage["game_source_sha256"],
-                                   resume_manifest_path=row.manifest_path)
+                                   resume_manifest_path=row.manifest_path, project_id=row.project_id)
         return SavedWorkLaunch(row, live_entry, (), row.manifest_path, request, game_updated)
     if not isinstance(manifest.get("baseline"), Mapping):
         raise ValueError(
@@ -798,11 +1003,12 @@ def prepare_saved_work_launch(
         # Continue in a new draft, so the mod's own saved state stays as built.
         request = MeshDraftRequest(edit_pass=lineage["edit_pass"], display_name=row.display_name,
                                    game_source_sha256=lineage["game_source_sha256"],
-                                   seed_project_path=project.resolve(), baseline_entries=companions)
+                                   seed_project_path=project.resolve(), baseline_entries=companions,
+                                   project_id=row.project_id)
         return SavedWorkLaunch(row, selected, (selected, *companions), None, request, game_updated)
     request = MeshDraftRequest(edit_pass=lineage["edit_pass"], display_name=row.display_name,
                                game_source_sha256=lineage["game_source_sha256"],
-                               resume_manifest_path=row.manifest_path)
+                               resume_manifest_path=row.manifest_path, project_id=row.project_id)
     return SavedWorkLaunch(row, selected, (selected, *companions), row.manifest_path, request, game_updated)
 
 
@@ -812,6 +1018,9 @@ __all__ = [
     "DRAFT_ORIGIN",
     "KIND_BUILT_MOD",
     "KIND_DRAFT",
+    "MeshDraftPlan",
+    "MeshDraftRequest",
+    "SAVED_WORK_LOCK",
     "STATUS_CHECKING",
     "STATUS_GAME_NOT_LOADED",
     "STATUS_GAME_UPDATED",
@@ -819,26 +1028,35 @@ __all__ = [
     "STATUS_MOD_MISSING",
     "STATUS_ORIGINAL_UNKNOWN",
     "STATUS_SOURCE_MISSING",
-    "MeshDraftPlan",
-    "MeshDraftRequest",
     "SavedWorkLaunch",
+    "SavedWorkProject",
     "SavedWorkRow",
     "add_built_mod_folder",
+    "assign_project",
+    "clean_name",
+    "clean_notes",
+    "create_project",
     "default_display_name",
+    "delete_project",
     "delete_saved_draft",
     "draft_baseline_entries",
     "draft_lineage",
+    "duplicate_saved_draft",
     "ensure_session_draft_workspace",
     "entry_from_record",
     "entry_record",
+    "list_projects",
     "list_saved_work",
+    "name_session_draft",
     "plan_session_draft",
     "prepare_saved_work_launch",
     "read_built_mod_mesh",
     "read_draft_manifest",
     "register_built_mod",
     "remove_built_mod_from_list",
+    "rename_project",
     "rename_saved_work",
     "save_built_mod_mesh_copy",
     "saved_work_status",
+    "update_saved_work_details",
 ]

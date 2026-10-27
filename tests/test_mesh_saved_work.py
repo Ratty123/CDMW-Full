@@ -14,7 +14,7 @@ import pytest
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-from PySide6.QtCore import QObject
+from PySide6.QtCore import QObject, Qt
 from PySide6.QtWidgets import QApplication, QMessageBox
 
 from cdmw.modding.mesh_parser import parse_pac
@@ -455,9 +455,33 @@ def _wait(app, condition, timeout: float = 10.0) -> None:
     raise AssertionError("condition not reached")
 
 
-def test_saved_work_window_lists_rows_and_runs_its_actions(game, tmp_path, monkeypatch):
-    from cdmw.ui.mesh_editor import saved_work_dialog
-    from cdmw.ui.mesh_editor.saved_work_dialog import MeshSavedWorkDialog
+def _page_row_texts(page, columns=range(1, 7)):
+    table = page.table
+    return [[table.item(row, column).text() for column in columns] for row in range(table.rowCount())]
+
+
+def _select_named(app, page, name):
+    table = page.table
+    table.clearSelection()
+    index = next(row for row in range(table.rowCount()) if table.item(row, 1).text() == name)
+    table.selectRow(index)
+    app.processEvents()
+    return page._selected_row()
+
+
+def _select_project(app, page, label_prefix):
+    for index in range(page.project_list.count()):
+        item = page.project_list.item(index)
+        if item.text().startswith(label_prefix):
+            page.project_list.setCurrentItem(item)
+            app.processEvents()
+            return
+    raise AssertionError(f"no project entry {label_prefix!r}")
+
+
+def test_drafts_and_mods_page_lists_rows_and_runs_its_actions(game, tmp_path, monkeypatch):
+    from cdmw.ui.mesh_editor import saved_work_page
+    from cdmw.ui.mesh_editor.saved_work_page import SavedWorkPage
 
     app = QApplication.instance() or QApplication([])
     older = _draft_on_disk(game.drafts, game.entry, game.source, "Older fit", now=100.0)
@@ -467,78 +491,208 @@ def test_saved_work_window_lists_rows_and_runs_its_actions(game, tmp_path, monke
     register_built_mod(game.drafts, mod_root=mod_root, entry=game.entry,
                        source_sha256=hashlib.sha256(game.source).hexdigest(), draft_manifest_path=older)
     opened_urls, continued = [], []
-    monkeypatch.setattr(saved_work_dialog.QDesktopServices, "openUrl", lambda url: opened_urls.append(url))
-    dialog = MeshSavedWorkDialog(
-        None, draft_root=game.drafts,
+    monkeypatch.setattr(saved_work_page.QDesktopServices, "openUrl", lambda url: opened_urls.append(url))
+    monkeypatch.setattr(saved_work_page.QMessageBox, "question", lambda *_a, **_k: QMessageBox.StandardButton.Yes)
+    warnings = []
+    monkeypatch.setattr(saved_work_page.QMessageBox, "warning", lambda *args, **_k: warnings.append(args[2]))
+    page = SavedWorkPage(
+        draft_root=game.drafts,
         source_resolver=_Resolver({_PAC_PATH.casefold(): game.entry}),
         active_draft_manifest=lambda: newer,
     )
-    dialog.continue_requested.connect(continued.append)
+    page.continue_requested.connect(continued.append)
     try:
-        dialog.refresh()
-        _wait(app, lambda: len(dialog.rows()) == 3 and all(dialog.status_code(row) != "checking"
-                                                            for row in dialog.rows()))
-        table = dialog.table
-        assert [table.horizontalHeaderItem(column).text() for column in range(6)] == [
-            "Saved on", "File name", "Game file", "Draft or mod", "Edit pass", "Status"]
-        texts = [[table.item(row, column).text() for column in range(1, 6)] for row in range(3)]
-        assert ["Newer fit", _PAC_PATH, "Saved draft", "1", "Matches the current game files"] in texts
-        assert ["Older fit", _PAC_PATH, "Saved draft", "1", "Matches the current game files"] in texts
-        assert ["kept-mod", _PAC_PATH, "Built mod", "1", "Matches the current game files"] in texts
-
-        def select(name):
-            index = next(row for row in range(table.rowCount()) if table.item(row, 1).text() == name)
-            table.selectRow(index)
-            app.processEvents()
-            return dialog.rows()[index]
+        page.refresh()
+        _wait(app, lambda: len(page.rows()) == 3 and all(page.status_code(row) != "checking" for row in page.rows()))
+        table = page.table
+        assert [table.horizontalHeaderItem(column).text() for column in range(7)] == [
+            "Saved on", "File name", "Game file", "Draft or mod", "Edit pass", "Status", "Project"]
+        texts = _page_row_texts(page)
+        assert ["Newer fit", _PAC_PATH, "Saved draft", "1", "Matches the current game files", ""] in texts
+        assert ["kept-mod", _PAC_PATH, "Built mod", "1", "Matches the current game files", ""] in texts
+        assert [page.project_list.item(index).text() for index in range(page.project_list.count())] == [
+            "All work (3)", "No project (3)"]
 
         # The draft open in Mesh Editor cannot be deleted from here.
-        select("Newer fit")
-        assert not dialog.delete_button.isEnabled()
-        dialog.continue_button.click()
+        _select_named(app, page, "Newer fit")
+        assert not page.delete_button.isEnabled()
+        assert page.status_value.text() == "Matches the current game files"
+        page.continue_button.click()
         assert [row.display_name for row in continued] == ["Newer fit"]
-        dialog.open_folder_button.click()
+        page.open_folder_button.click()
         assert opened_urls[-1].toLocalFile().replace("\\", "/").rstrip("/") == newer.parent.as_posix()
 
-        monkeypatch.setattr(saved_work_dialog.QInputDialog, "getText", lambda *_a, **_k: ("Fitted cuirass", True))
-        select("Older fit")
-        dialog.rename_button.click()
-        _wait(app, lambda: any(row.display_name == "Fitted cuirass" for row in dialog.rows()))
-        assert read_draft_manifest(older)["display_name"] == "Fitted cuirass"
+        # Name and notes are edited in the details panel.
+        _select_named(app, page, "Older fit")
+        page.name_edit.setText("Fitted cuirass")
+        page.notes_edit.setPlainText("Female body, belt kept rigid")
+        page.save_details_button.click()
+        _wait(app, lambda: any(row.display_name == "Fitted cuirass" for row in page.rows()))
+        saved = read_draft_manifest(older)
+        assert (saved["display_name"], saved["notes"]) == ("Fitted cuirass", "Female body, belt kept rigid")
+        page.filter_edit.setText("belt kept")
+        assert [row.display_name for row in page.rows()] == ["Fitted cuirass"]
+        page.filter_edit.setText("")
 
-        monkeypatch.setattr(saved_work_dialog.QMessageBox, "question",
-                            lambda *_a, **_k: QMessageBox.StandardButton.Yes)
-        select("kept-mod")
-        assert dialog.delete_button.text() == "Remove from List..."
-        dialog.delete_button.click()
-        _wait(app, lambda: len(dialog.rows()) == 2)
+        # Projects group drafts and mods; moving several at once is one step.
+        monkeypatch.setattr(saved_work_page.QInputDialog, "getText", lambda *_a, **_k: ("Female armour", True))
+        page.new_project_button.click()
+        _wait(app, lambda: len(page.projects()) == 1)
+        project = page.projects()[0]
+        _select_project(app, page, "All work")
+        table.clearSelection()
+        for name in ("Fitted cuirass", "kept-mod"):
+            index = next(row for row in range(table.rowCount()) if table.item(row, 1).text() == name)
+            table.selectionModel().select(table.model().index(index, 0),
+                                          table.selectionModel().SelectionFlag.Select
+                                          | table.selectionModel().SelectionFlag.Rows)
+        app.processEvents()
+        monkeypatch.setattr(saved_work_page.QInputDialog, "getItem", lambda *_a, **_k: ("Female armour", True))
+        page.move_button.click()
+        _wait(app, lambda: warnings or sum(row.project_id == project.project_id for row in page._rows) == 2)
+        assert not warnings
+        _select_project(app, page, "Female armour")
+        assert sorted(row.display_name for row in page.rows()) == ["Fitted cuirass", "kept-mod"]
+        assert all(text[5] == "Female armour" for text in _page_row_texts(page))
+        _select_project(app, page, "No project")
+        assert [row.display_name for row in page.rows()] == ["Newer fit"]
+
+        monkeypatch.setattr(saved_work_page.QInputDialog, "getText", lambda *_a, **_k: ("Armour refits", True))
+        _select_project(app, page, "Female armour")
+        page.rename_project_button.click()
+        _wait(app, lambda: page.projects() and page.projects()[0].name == "Armour refits")
+
+        # Duplicate makes an independent draft in the same project.
+        monkeypatch.setattr(saved_work_page.QInputDialog, "getText", lambda *_a, **_k: ("Cuirass, longer skirt", True))
+        _select_named(app, page, "Fitted cuirass")
+        page.duplicate_button.click()
+        _wait(app, lambda: any(row.display_name == "Cuirass, longer skirt" for row in page._rows))
+        copy = next(row for row in page._rows if row.display_name == "Cuirass, longer skirt")
+        assert copy.project_id == project.project_id and copy.manifest_path != older
+        assert (copy.folder / "mesh_layers" / "mesh_layer_project.json").is_file()
+
+        # Deleting a project keeps its work.
+        _select_project(app, page, "Armour refits")
+        page.delete_project_button.click()
+        _wait(app, lambda: not page.projects() and len(page._rows) == 4)
+        assert all(not row.project_id for row in page._rows)
+
+        _select_project(app, page, "All work")
+        _select_named(app, page, "kept-mod")
+        assert page.delete_button.text() == "Remove from List..."
+        page.delete_button.click()
+        _wait(app, lambda: len(page._rows) == 3)
         assert mod_root.is_dir()
         assert not any(path.name.startswith("built-") for path in game.drafts.iterdir())
 
-        select("Fitted cuirass")
-        assert dialog.delete_button.text() == "Delete..." and dialog.delete_button.isEnabled()
-        dialog.delete_button.click()
-        _wait(app, lambda: len(dialog.rows()) == 1)
+        _select_named(app, page, "Fitted cuirass")
+        assert page.delete_button.text() == "Delete..." and page.delete_button.isEnabled()
+        page.delete_button.click()
+        _wait(app, lambda: len(page._rows) == 2)
         assert not older.parent.exists() and newer.is_file()
     finally:
-        dialog.close()
-        dialog.deleteLater()
+        page.deleteLater()
         app.processEvents()
 
 
-def test_saved_work_window_says_when_the_game_is_not_loaded(game, tmp_path):
-    from cdmw.ui.mesh_editor.saved_work_dialog import MeshSavedWorkDialog
+def test_drafts_and_mods_page_says_when_the_game_is_not_loaded(game, tmp_path):
+    from cdmw.ui.mesh_editor.saved_work_page import SavedWorkPage
 
     app = QApplication.instance() or QApplication([])
     _draft_on_disk(game.drafts, game.entry, game.source, "Fit", now=100.0)
-    dialog = MeshSavedWorkDialog(None, draft_root=game.drafts, source_resolver=_Resolver(None))
+    page = SavedWorkPage(draft_root=game.drafts, source_resolver=_Resolver(None))
     try:
-        dialog.refresh()
-        _wait(app, lambda: len(dialog.rows()) == 1 and dialog.status_code(dialog.rows()[0]) != "checking")
-        assert dialog.table.item(0, 5).text() == "Load the game in Archive Browser to check"
+        page.refresh()
+        _wait(app, lambda: len(page.rows()) == 1 and page.status_code(page.rows()[0]) != "checking")
+        assert page.table.item(0, 5).text() == "Load the game in Archive Browser to check"
     finally:
-        dialog.close()
-        dialog.deleteLater()
+        page.deleteLater()
+        app.processEvents()
+
+
+def test_projects_refuse_duplicate_names_and_unknown_targets(game, tmp_path):
+    from cdmw.services.mesh_saved_work_service import (
+        assign_project, create_project, list_projects, rename_project,
+    )
+
+    manifest = _draft_on_disk(game.drafts, game.entry, game.source, "Fit", now=100.0)
+    first = create_project(game.drafts, "Boss outfits")
+    second = create_project(game.drafts, "Weapons")
+    with pytest.raises(ValueError, match="already exists"):
+        create_project(game.drafts, "  boss   OUTFITS ")
+    with pytest.raises(ValueError, match="already exists"):
+        rename_project(game.drafts, second.project_id, "Boss outfits")
+    with pytest.raises(ValueError, match="no longer exists"):
+        assign_project(game.drafts, list_saved_work(game.drafts), "missing")
+    assign_project(game.drafts, list_saved_work(game.drafts), first.project_id)
+    assert read_draft_manifest(manifest)["project_id"] == first.project_id
+    assert [project.name for project in list_projects(game.drafts)] == ["Boss outfits", "Weapons"]
+
+
+def test_naming_the_open_draft_survives_its_first_save_and_reaches_the_next_pass(game, tmp_path):
+    from cdmw.services.mesh_saved_work_service import create_project, name_session_draft
+
+    project = create_project(game.drafts, "Female armour")
+    loaded = _load(game.entry, game.context, game.drafts, draft_request=MeshDraftRequest())
+    plan = loaded.service._session(loaded.view.session_id).mesh_draft_plan
+    manifest = loaded.draft_manifest_path
+    # Named before anything is saved: the planned draft carries the name.
+    name_session_draft(manifest, plan, name="Cuirass for Damiane", project_id=project.project_id)
+    x = _first_x(loaded)
+    _finish_move(loaded, tmp_path / "rust-first", x + 0.25)
+    _wait_for_autosave(loaded)
+    saved = read_draft_manifest(manifest)
+    assert (saved["display_name"], saved["project_id"]) == ("Cuirass for Damiane", project.project_id)
+    # Renamed after the draft exists; a later save keeps the new name.
+    name_session_draft(manifest, plan, name="Cuirass v2")
+    _finish_move(loaded, tmp_path / "rust-second", x + 0.5)
+    _wait_for_autosave(loaded)
+    saved = read_draft_manifest(manifest)
+    assert (saved["display_name"], saved["project_id"]) == ("Cuirass v2", project.project_id)
+    snapshot = loaded.service.capture_export_snapshot(loaded.view.session_id)
+    result = prepare_mesh_archive_result(loaded.service, snapshot, game.entry,
+                                         ((game.entry.identity, game.context.entries),), tmp_path / "results")
+    from cdmw.services.mesh_saved_work_service import draft_lineage
+    request = next_pass_draft_request(draft_lineage(saved), result)
+    _close(loaded)
+    assert (request.display_name, request.project_id, request.edit_pass) == ("Cuirass v2", project.project_id, 2)
+
+
+def test_name_draft_dialog_names_the_open_draft_from_mesh_editor(game, tmp_path, monkeypatch):
+    from PySide6.QtCore import QSettings
+    from PySide6.QtWidgets import QDialog
+
+    from cdmw.services.mesh_saved_work_service import create_project
+    from cdmw.ui.mesh_editor import saved_work_naming
+    from cdmw.ui.mesh_editor.tab import MeshEditorTab
+
+    app = QApplication.instance() or QApplication([])
+    tab = MeshEditorTab(settings=QSettings(str(tmp_path / "ui.ini"), QSettings.IniFormat))
+    project = create_project(tab.mesh_editor_draft_root, "Female armour")
+    loaded = _load(game.entry, game.context, tab.mesh_editor_draft_root, draft_request=MeshDraftRequest())
+    try:
+        tab.standalone_controller = SimpleNamespace(mesh_service=loaded.service, active_session_id=loaded.view.session_id)
+        tab.mesh_editor_draft_manifest_path = loaded.draft_manifest_path
+        tab.mesh_editor_draft_lineage = dict(loaded.draft_lineage)
+        saved_work_naming.refresh_draft_name_controls(tab)
+        assert not tab.draft_name_button.isHidden()
+
+        def exec_dialog(dialog):
+            assert dialog.project_combo.itemText(1) == "Female armour"
+            dialog.name_edit.setText("Belted cuirass")
+            dialog.project_combo.setCurrentIndex(1)
+            return QDialog.DialogCode.Accepted
+
+        monkeypatch.setattr(saved_work_naming.NameDraftDialog, "exec", exec_dialog)
+        tab.draft_name_button.click()
+        plan = loaded.service._session(loaded.view.session_id).mesh_draft_plan
+        assert (plan.manifest["display_name"], plan.manifest["project_id"]) == ("Belted cuirass", project.project_id)
+        assert tab.draft_name_label.text() == "Draft: Belted cuirass"
+        assert tab.mesh_editor_draft_lineage["project_id"] == project.project_id
+    finally:
+        tab.standalone_controller = None
+        loaded.service.close_edit_session(loaded.view.session_id, force_without_saving=True)
+        tab.deleteLater()
         app.processEvents()
 
 
@@ -710,12 +864,12 @@ def test_archive_context_menu_opens_saved_work_for_the_selected_file(tmp_path, m
         window.close()
 
 
-def test_mesh_editor_button_opens_the_saved_work_window_in_the_real_shell(tmp_path):
+def test_mesh_editor_button_opens_drafts_and_mods_in_the_real_shell(tmp_path):
     from cdmw.app.events import AppEventBus
     from cdmw.services.service_container import ServiceContainer
     from cdmw.services.settings_service import create_settings
     from cdmw.ui.main_window import MainWindow
-    from cdmw.ui.mesh_editor.saved_work_dialog import MeshSavedWorkDialog
+    from cdmw.ui.mesh_editor.saved_work_page import SavedWorkPage
     from cdmw.ui.shell.app_context import AppContext
 
     app = QApplication.instance() or QApplication([])
@@ -726,19 +880,24 @@ def test_mesh_editor_button_opens_the_saved_work_window_in_the_real_shell(tmp_pa
     # No game folder is configured; keep the startup prompts from blocking.
     window.show_first_run_guide_on_launch = False
     window._prompt_for_archive_package_root_if_missing = lambda **_kwargs: True
+    # Lazy tool pages are built once they are visible.
+    window.setAttribute(Qt.WidgetAttribute.WA_DontShowOnScreen, True)
+    window.show()
     try:
+        assert window.tab_registry.titles["saved_work"] == "Drafts & Mods"
         tab = window.mesh_editor_tab.ensure_widget()
         tab.saved_work_button.click()
-        dialog = window._mesh_saved_work_dialog
-        assert isinstance(dialog, MeshSavedWorkDialog) and dialog.isVisible()
-        assert dialog.draft_root == tab.mesh_editor_draft_root
-        _wait(app, lambda: "No saved work yet" in dialog.empty_label.text())
+        _wait(app, lambda: window.saved_work_tab.widget_if_created() is not None)
+        page = window.saved_work_tab.widget_if_created()
+        assert isinstance(page, SavedWorkPage)
+        assert window._current_navigation_widget() is window.saved_work_tab
+        assert page.draft_root == tab.mesh_editor_draft_root
+        _wait(app, lambda: "No saved work yet" in page.empty_label.text())
+        window._open_mesh_editor_saved_work(_PAC_PATH)
+        assert page.filter_edit.text() == _PAC_PATH
         tab.draft_choose_button.click()
-        assert window._mesh_saved_work_dialog is dialog and dialog.filter_edit.text() == ""
+        assert page.filter_edit.text() == ""
     finally:
-        dialog = getattr(window, "_mesh_saved_work_dialog", None)
-        if dialog is not None:
-            dialog.close()
         window._finalize_close()
         window.deleteLater()
         app.processEvents()

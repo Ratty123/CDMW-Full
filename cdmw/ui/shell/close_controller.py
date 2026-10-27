@@ -21,6 +21,7 @@ WORKER_TAB_NAMES = (
     "research_tab",
     "replace_assistant_tab",
     "mesh_editor_tab",
+    "saved_work_tab",
     "texture_editor_tab",
     "item_icons_tab",
     "model_library_tab",

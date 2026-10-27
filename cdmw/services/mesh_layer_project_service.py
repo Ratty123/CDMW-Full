@@ -530,6 +530,24 @@ def _update_modify_original_manifest(
     source_asset_sha256: str,
     promote_persistent_draft: bool,
 ) -> None:
+    from cdmw.services.mesh_saved_work_service import SAVED_WORK_LOCK
+
+    with SAVED_WORK_LOCK:
+        _write_modify_original_manifest_update(
+            manifest_path,
+            project_path=project_path,
+            source_asset_sha256=source_asset_sha256,
+            promote_persistent_draft=promote_persistent_draft,
+        )
+
+
+def _write_modify_original_manifest_update(
+    manifest_path: Path,
+    *,
+    project_path: Path,
+    source_asset_sha256: str,
+    promote_persistent_draft: bool,
+) -> None:
     target = Path(manifest_path).expanduser().resolve()
     if not target.is_file():
         return

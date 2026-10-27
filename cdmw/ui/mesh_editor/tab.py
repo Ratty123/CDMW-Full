@@ -181,7 +181,7 @@ class MeshEditorTab(MeshEditorCharacterContextMixin, MeshEditorTabShellMixin, Me
     open_archive_session_requested = Signal(object)
     open_archive_target_requested = Signal(object)
     archive_result_ready = Signal(object)
-    # Open Saved Drafts and Built Mods, filtered to a game file path when set.
+    # Open the Drafts & Mods page, filtered to a game file path when set.
     saved_work_requested = Signal(str)
     replace_from_archive_requested = Signal(object)
     mesh_action_requested = Signal(object)
@@ -289,6 +289,17 @@ class MeshEditorTab(MeshEditorCharacterContextMixin, MeshEditorTabShellMixin, Me
         )
         self.saved_work_button.clicked.connect(lambda _checked=False: self.saved_work_requested.emit(""))
         entry_bar.layout().insertWidget(0, self.saved_work_button)
+        from cdmw.ui.mesh_editor.saved_work_naming import name_current_draft
+        self.draft_name_button = QPushButton("Name Draft...", entry_bar)
+        self.draft_name_button.setObjectName("MeshEditorNameDraftButton")
+        self.draft_name_button.setToolTip("Name this mesh's draft and choose its project in Drafts & Mods.")
+        self.draft_name_button.clicked.connect(lambda _checked=False: name_current_draft(self))
+        self.draft_name_label = QLabel("", entry_bar)
+        self.draft_name_label.setObjectName("MeshEditorDraftNameLabel")
+        entry_bar.layout().insertWidget(1, self.draft_name_button)
+        entry_bar.layout().insertWidget(2, self.draft_name_label)
+        self.draft_name_button.setVisible(False)
+        self.draft_name_label.setVisible(False)
         root.insertWidget(0, entry_bar)
         self.embedded_builder_host = QFrame(self)
         self.embedded_builder_host.setObjectName("MeshEditorEmbeddedBuilderHost")

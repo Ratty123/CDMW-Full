@@ -21,6 +21,7 @@ COMPACT_TOOL_SPECS = (
     CompactToolSpec("model_library", "Model Library", "Assets", "model"),
     CompactToolSpec("item_icons", "Item Icons", "Assets", "image"),
     CompactToolSpec("mesh_editor", "Mesh Editor", "Authoring", "mesh"),
+    CompactToolSpec("saved_work", "Drafts & Mods", "Authoring", "layers"),
     CompactToolSpec("placement_studio", "Placement & Animations", "Authoring", "person"),
     CompactToolSpec("textures", "Textures", "Authoring", "brush"),
     CompactToolSpec("mod_management", "Mod Management", "Utilities", "package"),

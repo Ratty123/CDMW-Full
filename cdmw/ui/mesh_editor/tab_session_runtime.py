@@ -11,6 +11,7 @@ from PySide6.QtCore import QThread, QTimer, Qt
 from cdmw.services.mesh_saved_work_service import MeshDraftRequest, draft_lineage, read_draft_manifest
 from cdmw.ui.archive_browser.workflow_dependencies import ArchiveWorkflowDependencyContext
 from cdmw.ui.mesh_editor.saved_work_launch import default_session_draft_request
+from cdmw.ui.mesh_editor.saved_work_naming import refresh_draft_name_controls
 from cdmw.ui.mesh_editor.tab_compat import facade_globals as _tab
 
 from cdmw.ui.mesh_editor.tab_archive_material_context import (
@@ -399,6 +400,7 @@ class MeshEditorSessionMixin(MeshEditorArchiveMaterialContextMixin):
         self.mesh_editor_matching_drafts = tuple(result.matching_drafts)
         self.mesh_editor_draft_manifest_path = result.draft_manifest_path
         self.mesh_editor_draft_lineage = dict(result.draft_lineage or {})
+        refresh_draft_name_controls(self)
         if result.resumed_manifest_path is not None:
             self.draft_banner.setVisible(False)
             self.status_message_requested.emit(
@@ -781,6 +783,7 @@ class MeshEditorSessionMixin(MeshEditorArchiveMaterialContextMixin):
         self.mesh_editor_matching_drafts = ()
         self.mesh_editor_draft_manifest_path = None
         self.mesh_editor_draft_lineage = {}
+        refresh_draft_name_controls(self)
         self.standalone_archive_material_preview_model = None
         self.archive_physics_profile_context = None
         self.archive_material_context_companion_entry = None

@@ -716,7 +716,7 @@ class MeshDirectOutputResult:
     install_result: object | None = None
     zip_path: Path | None = None
     archive_result: object | None = None
-    # The Saved Drafts and Built Mods record for a built mod, or why it failed.
+    # The Drafts & Mods record for a built mod, or why it failed.
     saved_work_record: Mapping[str, object] | None = None
     saved_work_error: str = ""
 
