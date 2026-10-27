@@ -288,10 +288,15 @@ class MeshGeometryLayerServiceTests(unittest.TestCase):
                 )
             self.assertEqual(before, project_path.read_bytes())
 
-    def test_hidden_copied_layer_is_excluded_from_export_but_remains_saved(self) -> None:
+    def test_hidden_copied_layer_is_excluded_from_free_edit_export_but_remains_saved(self) -> None:
         service = MeshService()
         session_id = f"layer-visible-{uuid4().hex}"
         service.open_edit_session(_layer_mesh(), session_id=session_id, mode="edit")
+        temporary = tempfile.TemporaryDirectory(prefix="cdmw-layer-hidden-")
+        self.addCleanup(temporary.cleanup)
+        service.configure_output_policy(
+            session_id, "free_edit_rebuild", output_destination=Path(temporary.name) / "free-edit",
+        )
         service.apply_command(
             session_id,
             MeshEditCommand(
@@ -308,6 +313,73 @@ class MeshGeometryLayerServiceTests(unittest.TestCase):
         self.assertEqual(2, service.session_view(session_id).submesh_count)
         exported = service.capture_export_snapshot(session_id)
         self.assertEqual(1, len(exported.mesh.submeshes))
+
+    def test_selection_spans_visible_layers_and_activation_keeps_it(self) -> None:
+        service = MeshService()
+        session_id = f"layer-selection-{uuid4().hex}"
+        service.open_edit_session(_layer_mesh(), session_id=session_id, mode="edit")
+        base_face = MeshEditSelection.from_maps(faces_by_submesh={0: (0,)})
+        service.apply_command(session_id, MeshEditCommand("select", selection=base_face, params={"operation": "replace"}))
+        service.copy_selection(session_id, target="face")
+        service.paste_selection(session_id)
+        self.assertEqual("selection-copy-1", service.geometry_layer_state(session_id)["active_layer_id"])
+
+        both = MeshEditSelection.from_maps(faces_by_submesh={0: (0,), 1: (0,)})
+        service.apply_command(session_id, MeshEditCommand("select", selection=both, params={"operation": "replace"}))
+        self.assertEqual({0: {0}, 1: {0}}, service.session_view(session_id).selection.face_map())
+
+        service.activate_geometry_layer(session_id, "base")
+        self.assertEqual({0: {0}, 1: {0}}, service.session_view(session_id).selection.face_map())
+
+    def test_hiding_a_layer_removes_only_its_parts_from_selection(self) -> None:
+        service = MeshService()
+        session_id = f"layer-hide-selection-{uuid4().hex}"
+        service.open_edit_session(_layer_mesh(), session_id=session_id, mode="edit")
+        base_face = MeshEditSelection.from_maps(faces_by_submesh={0: (0,)})
+        service.apply_command(session_id, MeshEditCommand("select", selection=base_face, params={"operation": "replace"}))
+        service.copy_selection(session_id, target="face")
+        service.paste_selection(session_id)
+        both = MeshEditSelection.from_maps(faces_by_submesh={0: (0,), 1: (0,)})
+        service.apply_command(session_id, MeshEditCommand("select", selection=both, params={"operation": "replace"}))
+
+        state = service.set_geometry_layer_visibility(session_id, "selection-copy-1", False)
+        self.assertEqual("base", state["active_layer_id"])
+        self.assertEqual({0: {0}}, service.session_view(session_id).selection.face_map())
+
+        hidden_face = MeshEditSelection.from_maps(faces_by_submesh={1: (0,)})
+        service.apply_command(session_id, MeshEditCommand("select", selection=hidden_face, params={"operation": "replace"}))
+        self.assertTrue(service.session_view(session_id).selection.is_empty())
+
+    def test_exact_output_refuses_added_parts_that_are_not_game_record_copies(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="cdmw-layer-exact-") as temp_dir:
+            service = MeshService()
+            session_id = f"layer-exact-{uuid4().hex}"
+            service.open_edit_session(_layer_mesh(), session_id=session_id, mode="edit")
+            service.configure_output_policy(
+                session_id,
+                "free_edit_rebuild",
+                output_destination=Path(temp_dir) / "free-edit",
+            )
+            service.apply_command(
+                session_id,
+                MeshEditCommand(
+                    "select",
+                    selection=MeshEditSelection.from_maps(faces_by_submesh={0: (0,)}),
+                    params={"operation": "replace"},
+                ),
+            )
+            service.copy_selection(session_id, target="face")
+            service.paste_selection(session_id)
+            service.set_geometry_layer_visibility(session_id, "selection-copy-1", False)
+
+            # This synthetic mesh has no PAC vertex records for the copy to fold onto.
+            with self.assertRaisesRegex(ValueError, "Exact output cannot write it"):
+                service.configure_output_policy(session_id, "exact_game_asset")
+            self.assertEqual("free_edit_rebuild", service.session_view(session_id).output_policy)
+
+            service.undo(session_id)
+            view = service.configure_output_policy(session_id, "exact_game_asset")
+            self.assertEqual("exact_game_asset", view.output_policy)
 
     def test_geometry_undo_keeps_layer_name_visibility_order_and_activation(self) -> None:
         service = MeshService()

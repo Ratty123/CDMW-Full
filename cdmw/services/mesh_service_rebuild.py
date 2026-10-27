@@ -12,7 +12,9 @@ from pathlib import Path
 
 from cdmw.core.atomic_file import atomic_copy_file, atomic_write_bytes
 from cdmw.domain.mesh import MeshExportValidationReport, MeshTextureEditTarget
+from cdmw.domain.mesh.authoring_capability import MeshOutputPolicy
 from cdmw.modding.mesh_importer import MeshRebuildReport
+from cdmw.modding.mesh_pac_paste_fold import exact_output_with_folded_copies, with_paste_fold_refusal
 from cdmw.models import RunCancelled
 from cdmw.services.mesh_service_state import (
     MeshExportSnapshot,
@@ -395,7 +397,10 @@ class MeshRebuildServiceMixin:
             if int(session.revision) != captured_revision:
                 raise RuntimeError("mesh export session changed during snapshot capture")
             visible_submeshes = set(_service_call("_visible_geometry_layer_indices", session))
-            if session.archive_refit_context is None and session.replacement_state is None and session.geometry_layers and len(visible_submeshes) < len(mesh.submeshes):
+            # Free Edit leaves hidden layers out of its package. Exact output, like
+            # Include, ignores viewport hiding and writes every pasted copy.
+            if (session.output_policy == MeshOutputPolicy.FREE_EDIT.value and session.geometry_layers
+                    and len(visible_submeshes) < len(mesh.submeshes)):
                 mesh.submeshes = [
                     submesh
                     for submesh_index, submesh in enumerate(mesh.submeshes)
@@ -565,9 +570,13 @@ class MeshRebuildServiceMixin:
             raise RuntimeError("native mesh editor session export failed; Python mesh state is stale")
         if skeleton_bone_count is None:
             skeleton_bone_count = _service_call("_session_validation_skeleton_bone_count", session)
-        return _service_call("validate_mesh_export",
-            session.working_mesh,
-            original_mesh=original_mesh if original_mesh is not None else session.base_mesh,
+        original_mesh = original_mesh if original_mesh is not None else session.base_mesh
+        mesh, edit_operations, refusal = exact_output_with_folded_copies(
+            original_mesh, session.working_mesh, session.edit_operations,
+        )
+        return with_paste_fold_refusal(_service_call("validate_mesh_export",
+            mesh,
+            original_mesh=original_mesh,
             original_data=session.original_data,
             available_textures=available_textures,
             skeleton_bone_count=skeleton_bone_count,
@@ -577,9 +586,9 @@ class MeshRebuildServiceMixin:
             no_op_byte_identical=_service_call("_session_roundtrip_byte_identical", session),
             no_op_unexpected_differences=_service_call("_session_roundtrip_unexpected_differences", session),
             sidecar_warnings=session.sidecar_warnings,
-            edit_operations=session.edit_operations,
+            edit_operations=edit_operations,
             requires_edit_operations=session.requires_edit_operations,
-        )
+        ), refusal)
 
     def validate_export_snapshot(
         self,
@@ -608,9 +617,12 @@ class MeshRebuildServiceMixin:
             from cdmw.services.mesh_archive_refit import validate_archive_refit
             return validate_archive_refit(self, snapshot)
         no_op = snapshot.no_op_roundtrip_report if isinstance(snapshot.no_op_roundtrip_report, Mapping) else {}
-        return _service_call(
+        mesh, edit_operations, refusal = exact_output_with_folded_copies(
+            snapshot.base_mesh, snapshot.mesh, snapshot.edit_operations,
+        )
+        return with_paste_fold_refusal(_service_call(
             "validate_mesh_export",
-            snapshot.mesh,
+            mesh,
             original_mesh=snapshot.base_mesh,
             original_data=snapshot.original_data,
             available_textures=available_textures,
@@ -625,9 +637,9 @@ class MeshRebuildServiceMixin:
             no_op_byte_identical=(bool(no_op.get("byte_identical")) if "byte_identical" in no_op else None),
             no_op_unexpected_differences=int(no_op.get("unexpected_differences", 0) or 0),
             sidecar_warnings=snapshot.sidecar_warnings,
-            edit_operations=snapshot.edit_operations,
+            edit_operations=edit_operations,
             requires_edit_operations=snapshot.requires_edit_operations,
-        )
+        ), refusal)
 
     @staticmethod
     def export_snapshot_report(
@@ -758,6 +770,11 @@ class MeshRebuildServiceMixin:
             raise RuntimeError("Use Build Mod to save all body and armor archive assets together")
         if not snapshot.original_data:
             raise RuntimeError("mesh rebuild report requires original source bytes")
+        folded_mesh, folded_operations, _refusal = exact_output_with_folded_copies(
+            snapshot.base_mesh, snapshot.mesh, snapshot.edit_operations,
+        )
+        if folded_mesh is not snapshot.mesh:
+            snapshot = replace(snapshot, mesh=folded_mesh, edit_operations=folded_operations)
         validation = self.validate_export_snapshot(
             snapshot,
             available_textures=available_textures,

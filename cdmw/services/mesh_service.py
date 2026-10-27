@@ -100,6 +100,7 @@ from cdmw.modding.mesh_native_core import (
 from cdmw.modding.mesh_asset import mesh_asset_from_parsed_mesh
 from cdmw.modding.mesh_importer import MeshRebuildReport, apply_operation_channels_to_original, rebuild_mesh_with_report
 from cdmw.modding.mesh_obj_importer import validate_obj_sidecar_source_identity
+from cdmw.modding.mesh_pac_paste_fold import PastedPartFoldBlocked, fold_pasted_parts
 from cdmw.modding.mesh_parser import ParsedMesh, is_mesh_file, parse_mesh
 from cdmw.modding.mesh_roundtrip import roundtrip_mesh_bytes
 from cdmw.models import RunCancelled
@@ -292,15 +293,6 @@ from cdmw.services.mesh_service_native_clone import (
 )
 
 
-def _active_geometry_layer_indices(session: _MeshEditSession) -> tuple[int, ...]:
-    if session.archive_refit_context is not None:
-        return _visible_geometry_layer_indices(session)
-    for layer in session.geometry_layers:
-        if layer.layer_id == session.active_geometry_layer_id:
-            return layer.submesh_indices
-    return session.geometry_layers[0].submesh_indices if session.geometry_layers else ()
-
-
 def _visible_geometry_layer_indices(session: _MeshEditSession) -> tuple[int, ...]:
     visible: set[int] = set()
     for layer in session.geometry_layers:
@@ -391,12 +383,26 @@ def _project_non_negative_int(value: object, *, field: str) -> int:
     return parsed
 
 
-def _selection_params_for_active_geometry_layer(
+def _selection_without_submeshes(
+    selection: MeshEditSelection,
+    removed: set[int],
+) -> MeshEditSelection:
+    return MeshEditSelection(
+        vertices_by_submesh=tuple(item for item in selection.vertices_by_submesh if item[0] not in removed),
+        edges_by_submesh=tuple(item for item in selection.edges_by_submesh if item[0] not in removed),
+        faces_by_submesh=tuple(item for item in selection.faces_by_submesh if item[0] not in removed),
+        source_indices=tuple(index for index in selection.source_indices if index not in removed),
+    )
+
+
+def _selection_params_for_visible_geometry_layers(
     session: _MeshEditSession,
     params: Mapping[str, object],
 ) -> dict[str, object]:
+    # Selection spans every visible layer; the active layer only receives layer
+    # actions and new Parts. Morph & Refit and Rig select Parts in any layer.
     result = dict(params)
-    allowed = _active_geometry_layer_indices(session)
+    allowed = _visible_geometry_layer_indices(session)
     result["allowed_submesh_indices"] = allowed
     raw_screen = result.get("_native_screen_selection_payload")
     if not isinstance(raw_screen, Mapping):
@@ -922,7 +928,6 @@ class _MeshServiceSessionLayerCore(
                 raise KeyError(f"Unknown Mesh Editor layer: {requested}")
             if session.active_geometry_layer_id != requested:
                 session.active_geometry_layer_id = requested
-                self._clear_geometry_layer_selection_locked(session)
                 session.geometry_layer_revision += 1
                 self._schedule_mesh_layer_autosave(session)
             return _geometry_layer_state_payload(session)
@@ -963,6 +968,7 @@ class _MeshServiceSessionLayerCore(
             updated: list[_MeshGeometryLayer] = []
             changed = False
             found = False
+            hidden_indices: tuple[int, ...] = ()
             for layer in session.geometry_layers:
                 if layer.layer_id != requested:
                     updated.append(layer)
@@ -972,13 +978,18 @@ class _MeshServiceSessionLayerCore(
                     raise ValueError("Base mesh is always visible")
                 replacement = replace(layer, visible=bool(visible))
                 changed = replacement != layer
+                hidden_indices = layer.submesh_indices
                 updated.append(replacement)
             if not found:
                 raise KeyError(f"Unknown Mesh Editor layer: {requested}")
             session.geometry_layers = tuple(updated)
-            if changed and not visible and session.active_geometry_layer_id == requested:
-                session.active_geometry_layer_id = "base"
-                self._clear_geometry_layer_selection_locked(session)
+            if changed and not visible:
+                if session.active_geometry_layer_id == requested:
+                    session.active_geometry_layer_id = "base"
+                self._replace_geometry_layer_selection_locked(
+                    session,
+                    _selection_without_submeshes(session.selection, set(hidden_indices)),
+                )
             if changed:
                 session.geometry_layer_revision += 1
                 self._schedule_mesh_layer_autosave(session)
@@ -1059,8 +1070,14 @@ class _MeshServiceSessionLayerCore(
             self._schedule_mesh_layer_autosave(session)
             return result
 
-    def _clear_geometry_layer_selection_locked(self, session: _MeshEditSession) -> None:
-        session.selection = MeshEditSelection()
+    def _replace_geometry_layer_selection_locked(
+        self,
+        session: _MeshEditSession,
+        selection: MeshEditSelection,
+    ) -> None:
+        if selection == session.selection:
+            return
+        session.selection = selection
         session.selection_stroke_id = ""
         session.selection_stroke_sequence = -1
         session.selection_stroke_start = None
@@ -1402,6 +1419,29 @@ class MeshService(MeshUvServiceMixin, _MeshServiceSessionLayerCore):
                 raise ValueError("Undo the replacement operations before switching output policy.")
             if requested is MeshOutputPolicy.REPLACEMENT_GAME_ASSET and session.replacement_state is None:
                 raise ValueError("Import a replacement or change part inclusion before choosing replacement output.")
+            part_count = len(
+                session.native_editor_mesh_dirty_counts
+                if session.native_editor_mesh_dirty and session.native_editor_mesh_dirty_counts
+                else session.working_mesh.submeshes
+            )
+            if (
+                requested is MeshOutputPolicy.EXACT_GAME_ASSET
+                and session.output_policy != requested.value
+                and part_count != len(session.base_mesh.submeshes)
+            ):
+                # The exact writer keeps the source Part list; only pasted copies it
+                # can fold back into their game Parts may stay.
+                if part_count < len(session.base_mesh.submeshes):
+                    raise ValueError(
+                        "Exact output keeps the source file's Parts. Delete the added geometry layers "
+                        "or undo the Part changes before choosing Exact."
+                    )
+                if session.native_editor_mesh_dirty and not _sync_native_editor_session_to_working_mesh(session):
+                    raise RuntimeError("native mesh editor session export failed; Python mesh state is stale")
+                try:
+                    fold_pasted_parts(session.base_mesh, session.working_mesh)
+                except PastedPartFoldBlocked as exc:
+                    raise ValueError(str(exc)) from exc
             destination = ""
             destination_ready = False
             if requested is MeshOutputPolicy.FREE_EDIT:
@@ -1663,7 +1703,7 @@ class MeshService(MeshUvServiceMixin, _MeshServiceSessionLayerCore):
         command: MeshEditCommand,
         selection: MeshEditSelection | None,
     ) -> MeshEditResult:
-        params = _selection_params_for_active_geometry_layer(session, command.params or {})
+        params = _selection_params_for_visible_geometry_layers(session, command.params or {})
         metrics: dict[str, float] = {}
         operation = params.get("operation", params.get("selection_operation", "replace"))
         stop_event = _stop_event_from_params(params)

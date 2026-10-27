@@ -4859,6 +4859,22 @@ impl LabApplication {
             .cloned()
             .unwrap_or_default();
         let authoring = state_bool(&self.cdmw_state, "authoring_enabled");
+        let archive_refit = self.cdmw_has_archive_refit();
+        let free_edit = state_str(&self.cdmw_state, "output_policy") == Some("free_edit_rebuild");
+        // The host decides whether Copy, Paste and Delete have a writer: Free Edit
+        // with a folder, or Exact PAC output, which folds copies into their Parts.
+        let paste_available = state_bool(&layer_state, "paste_available");
+        // Rename starts from the newly active layer's name rather than a stale entry.
+        if self.cdmw_layer_name_for != active_id {
+            self.cdmw_layer_name_for.clone_from(&active_id);
+            if let Some(name) = layers
+                .iter()
+                .find(|layer| state_str(layer, "layer_id") == Some(active_id.as_str()) && !state_bool(layer, "base"))
+                .and_then(|layer| state_str(layer, "name"))
+            {
+                self.cdmw_layer_name = name.to_owned();
+            }
+        }
         for layer in &layers {
             let id = state_str(layer, "layer_id").unwrap_or("");
             let name = state_str(layer, "name").map(str::to_owned)
@@ -4899,7 +4915,7 @@ impl LabApplication {
                         label: "Activate geometry layer",
                     });
                 }
-                if ui
+                let mut visibility = ui
                     .add_enabled(
                         authoring && !base,
                         Button::new(crate::localization::tr(visibility_label)),
@@ -4908,9 +4924,18 @@ impl LabApplication {
                         "Base mesh is always visible"
                     } else {
                         "Geometry layer visibility cannot change in a read-only session"
-                    }))
-                    .clicked()
-                {
+                    }));
+                // Free Edit omits hidden layers; Exact output, like Archive Refit, writes them.
+                if free_edit {
+                    visibility = visibility.on_hover_text(crate::localization::tr(
+                        "Hidden layers stay in the draft but are left out of the Free Edit package.",
+                    ));
+                } else if !archive_refit {
+                    visibility = visibility.on_hover_text(crate::localization::tr(
+                        "Hiding changes the view only; Exact output still writes this layer. Delete the layer to leave it out.",
+                    ));
+                }
+                if visibility.clicked() {
                     actions.push(UiAction::CdmwCommand {
                         command: "layer_visibility",
                         arguments: json!({"layer_id": id, "visible": !visible}),
@@ -4927,8 +4952,13 @@ impl LabApplication {
             .iter()
             .find(|layer| state_str(layer, "layer_id") == Some(active_id.as_str()));
         let active_base = active.is_some_and(|layer| state_bool(layer, "base"));
-        let free_edit = state_str(&self.cdmw_state, "output_policy") == Some("free_edit_rebuild");
-        let archive_refit = self.cdmw_has_archive_refit();
+        let layer_geometry = authoring && !archive_refit && paste_available;
+        // Why Copy, Paste and Delete are unavailable when the host has no writer.
+        let no_writer = |exact: &'static str| if free_edit {
+            "Choose an output folder under Output before adding or removing geometry."
+        } else {
+            exact
+        };
         let selected_elements = self.mesh.as_ref().map_or(0, |mesh| {
             mesh.selection.vertices.len() + mesh.selection.edges.len() + mesh.selection.faces.len()
         });
@@ -4939,10 +4969,10 @@ impl LabApplication {
         } else if archive_refit {
             ui.colored_label(cdmw_readable(ui, REFIT_ARMOR_COLOUR), crate::localization::tr("Archive Refit · fixed geometry"))
                 .on_hover_text(crate::localization::tr("Layers organise loaded assets. Adding or removing geometry would prevent saving the original game files."));
-        } else if !free_edit {
+        } else if !paste_available {
             ui.colored_label(
                 cdmw_readable(ui, Color32::from_rgb(245, 190, 75)),
-                crate::localization::tr("Adding geometry needs Free Edit: export a new OBJ package to a folder."),
+                crate::localization::tr(no_writer("Adding geometry needs Free Edit: export a new OBJ package to a folder.")),
             );
         } else if has_selection {
             ui.small(crate::localization::tr(format!(
@@ -4951,18 +4981,23 @@ impl LabApplication {
         } else {
             ui.small(crate::localization::tr("Select mesh elements in the viewport or click one or more Parts above."));
         }
+        if layer_geometry && !free_edit {
+            ui.small(crate::localization::tr(
+                "Pasted copies are written into the game Part they came from, at full detail only.",
+            ));
+        }
         ui.horizontal_wrapped(|ui| {
             if ui
                 .add_enabled(
-                    authoring && free_edit && has_selection,
+                    layer_geometry && has_selection,
                     Button::new(crate::localization::tr("Copy Selection")),
                 )
                 .on_disabled_hover_text(crate::localization::tr(if !authoring {
                     "Geometry Layers are read-only in this session"
                 } else if archive_refit {
                     "Archive Refit preserves original geometry. Open a separate mesh for Free Edit."
-                } else if !free_edit {
-                    "Choose Free Edit under Output before copying geometry"
+                } else if !paste_available {
+                    no_writer("Choose Free Edit under Output before copying geometry")
                 } else {
                     "Select mesh elements or Parts to copy"
                 }))
@@ -4973,15 +5008,15 @@ impl LabApplication {
             }
             if ui
                 .add_enabled(
-                    authoring && free_edit && state_bool(&layer_state, "clipboard_ready"),
+                    layer_geometry && state_bool(&layer_state, "clipboard_ready"),
                     Button::new(crate::localization::tr("Paste New Layer")),
                 )
                 .on_disabled_hover_text(crate::localization::tr(if !authoring {
                     "Geometry Layers are read-only in this session"
                 } else if archive_refit {
                     "Archive Refit preserves original geometry. Open a separate mesh for Free Edit."
-                } else if !free_edit {
-                    "Choose Free Edit under Output before creating a geometry layer"
+                } else if !paste_available {
+                    no_writer("Choose Free Edit under Output before creating a geometry layer")
                 } else {
                     "Copy a mesh-element or Part selection first"
                 }))
@@ -4992,13 +5027,27 @@ impl LabApplication {
             if ui.add_enabled(authoring && !active_id.is_empty() && !active_base && !self.cdmw_layer_name.trim().is_empty(), Button::new(crate::localization::tr("Rename"))).on_disabled_hover_text(crate::localization::tr("Enter a non-empty name for the active non-base layer")).clicked() {
                 actions.push(UiAction::CdmwCommand { command: "layer_rename", arguments: json!({"layer_id": active_id, "name": self.cdmw_layer_name.trim()}), label: "Rename geometry layer" });
             }
-            if ui.add_enabled(authoring && !active_id.is_empty() && !active_base, Button::new(crate::localization::tr("Up"))).clicked() {
+            let move_reason = crate::localization::tr(if authoring {
+                "Base mesh cannot be reordered"
+            } else {
+                "Geometry Layers are read-only in this session"
+            });
+            if ui.add_enabled(authoring && !active_id.is_empty() && !active_base, Button::new(crate::localization::tr("Up"))).on_disabled_hover_text(move_reason.as_str()).clicked() {
                 actions.push(UiAction::CdmwCommand { command: "layer_move", arguments: json!({"layer_id": active_id, "direction": -1}), label: "Move geometry layer up" });
             }
-            if ui.add_enabled(authoring && !active_id.is_empty() && !active_base, Button::new(crate::localization::tr("Down"))).clicked() {
+            if ui.add_enabled(authoring && !active_id.is_empty() && !active_base, Button::new(crate::localization::tr("Down"))).on_disabled_hover_text(move_reason.as_str()).clicked() {
                 actions.push(UiAction::CdmwCommand { command: "layer_move", arguments: json!({"layer_id": active_id, "direction": 1}), label: "Move geometry layer down" });
             }
-            if ui.add_enabled(authoring && free_edit && !active_id.is_empty() && !active_base, cdmw_danger_button(ui, crate::localization::tr("Delete"))).clicked() {
+            let delete_reason = crate::localization::tr(if !authoring {
+                "Geometry Layers are read-only in this session"
+            } else if active_base {
+                "Base mesh cannot be deleted"
+            } else if archive_refit {
+                "Archive Refit preserves original geometry. Open a separate mesh for Free Edit."
+            } else {
+                no_writer("Choose Free Edit under Output before deleting a geometry layer")
+            });
+            if ui.add_enabled(layer_geometry && !active_id.is_empty() && !active_base, cdmw_danger_button(ui, crate::localization::tr("Delete"))).on_disabled_hover_text(delete_reason.as_str()).clicked() {
                 actions.push(UiAction::CdmwCommand { command: "layer_delete", arguments: json!({"layer_id": active_id}), label: "Delete geometry layer" });
             }
         });

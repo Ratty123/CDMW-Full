@@ -3782,7 +3782,7 @@ fn integrated_inspector_long_layer_names_keep_button_edges_clickable() -> TestRe
         ui.application.cdmw_state["output_policy"] = json!("free_edit_rebuild");
         ui.application.cdmw_layer_name = "Renamed layer".into();
         ui.application.cdmw_state["geometry_layers"] = json!({
-            "active_layer_id":"copy", "clipboard_ready":true,
+            "active_layer_id":"copy", "clipboard_ready":true, "paste_available":true,
             "layers":[
                 {"layer_id":"base","name":"Base","submesh_indices":[0],"visible":true,"base":true},
                 {"layer_id":"copy","name":name,"submesh_indices":[1],"visible":true,"base":false}
@@ -4080,6 +4080,10 @@ fn integrated_exact_cleanup_and_layer_locks_show_actionable_reasons_then_enable_
 
     ui.application.cdmw_state["output_policy"] = json!("free_edit_rebuild");
     ui.frame(Vec::new());
+    // A Free Edit session without its folder still has no writer.
+    ui.reveal("Choose an output folder under Output before adding or removing geometry.")?;
+    ui.application.cdmw_state["geometry_layers"]["paste_available"] = json!(true);
+    ui.frame(Vec::new());
     ui.reveal("Ready to copy · 0 selected element(s) · 1 selected Part(s)")?;
     assert!(has_host_command(
         &ui.actions_from_click("Copy Selection")?,
@@ -4096,6 +4100,71 @@ fn integrated_exact_cleanup_and_layer_locks_show_actionable_reasons_then_enable_
 }
 
 #[test]
+fn integrated_exact_layers_paste_into_game_parts_when_the_host_has_a_writer() -> TestResult {
+    let mut ui = HeadlessUi::new_integrated_cdmw_for_controls(
+        triangle_application()?,
+        egui::vec2(1_440.0, 980.0),
+    );
+    ui.click("Back to Inspector")?;
+    ui.application.cdmw_state["output_policy"] = json!("exact_game_asset");
+    ui.application.cdmw_state["geometry_layers"] = json!({
+        "active_layer_id": "copy",
+        "clipboard_ready": true,
+        "paste_available": true,
+        "layers": [
+            {"layer_id": "base", "name": "Base", "submesh_indices": [0], "visible": true, "base": true},
+            {"layer_id": "copy", "name": "Copy", "submesh_indices": [], "visible": true, "base": false}
+        ]
+    });
+    ui.frame(Vec::new());
+    ui.reveal("Pasted copies are written into the game Part they came from, at full detail only.")?;
+    let viewport = ui.application.viewport_rect.ok_or("viewport")?;
+    for (label, command) in [("Paste New Layer", "layer_paste"), ("Delete", "layer_delete")] {
+        ui.last_actions.clear();
+        ui.click_where(label, |rectangle| rectangle.center().x > viewport.right())?;
+        assert!(has_host_command(&ui.last_actions, command), "{label}: {:?}", ui.last_actions);
+    }
+
+    // PAM, higher LODs and Archive Refit have no exact route for new geometry.
+    ui.application.cdmw_state["geometry_layers"]["paste_available"] = json!(false);
+    ui.frame(Vec::new());
+    ui.reveal("Adding geometry needs Free Edit: export a new OBJ package to a folder.")?;
+    ui.last_actions.clear();
+    ui.click_where("Paste New Layer", |rectangle| rectangle.center().x > viewport.right())?;
+    assert!(ui.last_actions.is_empty(), "{:?}", ui.last_actions);
+    Ok(())
+}
+
+#[test]
+fn integrated_geometry_layer_name_follows_the_active_layer() -> TestResult {
+    let mut ui = HeadlessUi::new_integrated_cdmw_for_controls(
+        triangle_application()?,
+        egui::vec2(1_440.0, 980.0),
+    );
+    ui.click("Back to Inspector")?;
+    ui.application.cdmw_state["geometry_layers"] = json!({
+        "active_layer_id": "detail",
+        "layers": [
+            {"layer_id": "base", "name": "Base", "submesh_indices": [0], "visible": true, "base": true},
+            {"layer_id": "detail", "name": "Detail", "submesh_indices": [], "visible": true, "base": false},
+            {"layer_id": "detail-2", "name": "Detail Two", "submesh_indices": [], "visible": true, "base": false}
+        ]
+    });
+    ui.frame(Vec::new());
+    assert_eq!("Detail", ui.application.cdmw_layer_name);
+
+    // Typing a new name survives redraws of the same active layer.
+    ui.application.cdmw_layer_name = "Draft name".into();
+    ui.frame(Vec::new());
+    assert_eq!("Draft name", ui.application.cdmw_layer_name);
+
+    ui.application.cdmw_state["geometry_layers"]["active_layer_id"] = json!("detail-2");
+    ui.frame(Vec::new());
+    assert_eq!("Detail Two", ui.application.cdmw_layer_name);
+    Ok(())
+}
+
+#[test]
 fn integrated_geometry_layer_controls_dispatch_and_invalid_empty_copy_or_rename_stay_disabled()
 -> TestResult {
     let mut ui = HeadlessUi::new_integrated_cdmw_for_controls(
@@ -4108,12 +4177,16 @@ fn integrated_geometry_layer_controls_dispatch_and_invalid_empty_copy_or_rename_
         "revision": 4,
         "active_layer_id": "detail",
         "clipboard_ready": true,
+        "paste_available": true,
         "layers": [
             {"layer_id": "base", "name": "Base", "submesh_indices": [0], "visible": true, "base": true},
             {"layer_id": "detail", "name": "Detail", "submesh_indices": [0], "visible": true, "base": false},
             {"layer_id": "detail-2", "name": "Detail Two", "submesh_indices": [], "visible": true, "base": false}
         ]
     });
+    ui.frame(Vec::new());
+    // The name field starts as "Detail"; keep the row label the only match.
+    ui.application.cdmw_layer_name = "Renamed detail".into();
     ui.frame(Vec::new());
     let viewport = ui.application.viewport_rect.ok_or("viewport")?;
 

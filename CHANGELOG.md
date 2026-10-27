@@ -7,6 +7,14 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 ## [Unreleased]
 
+### Added
+
+- Mesh Editor's Geometry Layers now work in Exact output for PAC game files, without exporting a Free Edit OBJ package to a folder. Copy Selection and Paste New Layer are available as soon as the file opens, and Finish Edit Mesh and Build Mod write each pasted copy into the game Part it was copied from, keeping that Part's weights and cloth data exactly. The copy appears at full detail only; the game's lower-detail versions stay unchanged. A copy must stay inside its Part's original bounds and keep the source's weights and material; otherwise Mesh Editor names the copy and the reason, and Free Edit remains the route for it. In Exact output, hiding a layer changes the view only; delete the layer to leave its copy out. PAM and PAMLOD files and Archive Refit still need Free Edit for new geometry.
+
+### Fixed
+
+- Mesh Editor's Geometry Layers no longer ignore clicks outside the active layer. After Paste New Layer you can select the base mesh, or any other visible layer, in the viewport and the Parts list again, and choosing a layer keeps your selection. Hiding a layer removes only its Parts from the selection, and its button now says what hiding does to the output. Switching back to Exact output after removing Parts, or with added geometry Exact cannot write, is refused with a reason instead of failing at Finish Edit Mesh. The layer name field starts from the active layer's name, and Delete, Up and Down say why they are unavailable.
+
 ## [0.11.0-alpha.26] - 2026-10-27
 
 ### Added

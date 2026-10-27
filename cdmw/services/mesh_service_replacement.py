@@ -12,6 +12,7 @@ from cdmw.services.mesh_morph_file_data import ProfileFileData
 from cdmw.domain.mesh import MeshObjectTransformState
 from cdmw.domain.mesh.authoring_capability import MeshOutputPolicy, output_policy_state
 from cdmw.domain.mesh.replacement import MeshReplacementState
+from cdmw.modding.mesh_pac_paste_fold import exact_output_with_folded_copies, with_paste_fold_refusal
 from cdmw.modding.mesh_parser import ParsedMesh
 from cdmw.services.mesh_service_state import (
     MeshPreparedWorkingMeshReplacement,
@@ -256,6 +257,11 @@ class MeshWorkingReplacementServiceMixin:
             else None
         )
         if refit_context is None:
+            refusal = ""
+            if validation_policy.policy is not MeshOutputPolicy.FREE_EDIT:
+                working_mesh, edit_operations, refusal = exact_output_with_folded_copies(
+                    session.base_mesh, working_mesh, edit_operations,
+                )
             validation_report = _service_call(
                 "validate_mesh_export",
                 working_mesh,
@@ -280,6 +286,7 @@ class MeshWorkingReplacementServiceMixin:
                 ),
                 exact_output=(validation_policy.policy is not MeshOutputPolicy.FREE_EDIT),
             )
+            validation_report = with_paste_fold_refusal(validation_report, refusal)
         else:
             from cdmw.services.mesh_archive_refit import (
                 archive_refit_candidate_snapshot, validate_archive_refit,

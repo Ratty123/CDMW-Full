@@ -465,6 +465,49 @@ def output_policy_state(
     )
 
 
+#: Geometry Layer actions the exact PAC LOD0 writer can publish: at output each
+#: pasted copy folds into the game Part whose records it copies. Only the Rust
+#: editor's Layers panel offers this route; the action bar keeps them blocked.
+EXACT_LAYER_FOLD_ACTIONS = frozenset({"copy", "paste", "layer_delete"})
+
+_LAYER_FOLD_PAC_ONLY = AuthoringCapability(
+    AuthoringSupport.BLOCKED,
+    "Pasted layers can be written into PAC game files only",
+    "Exact output folds each pasted copy into its game Part with the PAC LOD0 topology writer.",
+)
+
+
+def geometry_layer_authoring_capability(
+    action_key: object,
+    *,
+    mesh_format: object = "pac",
+    lod_index: int = PROVEN_AUTHORING_LOD,
+    output_policy: MeshOutputPolicy | str = MeshOutputPolicy.EXACT_GAME_ASSET,
+    free_edit_destination_ready: bool = False,
+) -> AuthoringCapability | None:
+    """Like :func:`action_authoring_capability`, with Exact layer folding."""
+
+    key = str(action_key or "").strip().lower()
+    try:
+        policy = MeshOutputPolicy(str(getattr(output_policy, "value", output_policy) or ""))
+    except ValueError:
+        policy = MeshOutputPolicy.READ_ONLY
+    if policy is MeshOutputPolicy.EXACT_GAME_ASSET and key in EXACT_LAYER_FOLD_ACTIONS:
+        geometry = geometry_authoring_capability(mesh_format, lod_index=lod_index)
+        if not geometry.authorable:
+            return geometry
+        if normalize_mesh_format(mesh_format) != "pac":
+            return _LAYER_FOLD_PAC_ONLY
+        return AuthoringCapability(AuthoringSupport.EXACT)
+    return action_authoring_capability(
+        key,
+        mesh_format=mesh_format,
+        lod_index=lod_index,
+        output_policy=policy,
+        free_edit_destination_ready=free_edit_destination_ready,
+    )
+
+
 def capability_matrix(mesh_format: object, *, lod_index: int = PROVEN_AUTHORING_LOD) -> dict[str, object]:
     """One structure a capability panel can render at session start."""
 
@@ -495,6 +538,7 @@ def capability_matrix(mesh_format: object, *, lod_index: int = PROVEN_AUTHORING_
 __all__ = [
     "AUTHORABLE_MESH_FORMATS",
     "AUTHORABLE_SUPPORT",
+    "EXACT_LAYER_FOLD_ACTIONS",
     "FREE_EDIT_PROVEN_ACTIONS",
     "FREE_EDIT_WORKING_MESH_FORMATS",
     "PROVEN_AUTHORING_LOD",
@@ -506,6 +550,7 @@ __all__ = [
     "action_authoring_capability",
     "capability_matrix",
     "geometry_authoring_capability",
+    "geometry_layer_authoring_capability",
     "normalize_mesh_format",
     "output_policy_state",
     "topology_authoring_capability",

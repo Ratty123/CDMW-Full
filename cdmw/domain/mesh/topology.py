@@ -35,6 +35,9 @@ TOPOLOGY_OPERATION_DELETE_FACES = "delete_faces_topology"
 TOPOLOGY_OPERATION_LOOP_CUT = "loop_cut_topology"
 TOPOLOGY_OPERATION_SUBDIVIDE_MIDPOINT = "subdivide_midpoint_topology"
 TOPOLOGY_OPERATION_REMOVE_DOUBLES = "remove_doubles_topology"
+#: Pasted Geometry Layer copies folded back into the Part they were copied from.
+#: Recorded at output only; no native action produces it.
+TOPOLOGY_OPERATION_PASTE_COPIES = "paste_copies_topology"
 
 #: The only topology-changing operations v1 can rebuild exactly.
 TOPOLOGY_REBUILDABLE_OPERATIONS = (
@@ -42,6 +45,7 @@ TOPOLOGY_REBUILDABLE_OPERATIONS = (
     TOPOLOGY_OPERATION_LOOP_CUT,
     TOPOLOGY_OPERATION_SUBDIVIDE_MIDPOINT,
     TOPOLOGY_OPERATION_REMOVE_DOUBLES,
+    TOPOLOGY_OPERATION_PASTE_COPIES,
 )
 
 #: Native editor action -> stable contract operation name.
@@ -627,6 +631,7 @@ __all__ = [
     "TOPOLOGY_OPERATION_DELETE_FACES",
     "TOPOLOGY_OPERATION_LOOP_CUT",
     "TOPOLOGY_OPERATION_NOT_REBUILDABLE",
+    "TOPOLOGY_OPERATION_PASTE_COPIES",
     "TOPOLOGY_OPERATION_SUBDIVIDE_MIDPOINT",
     "TOPOLOGY_OPERATION_REMOVE_DOUBLES",
     "TOPOLOGY_PAC_INDEX_LIMIT_EXCEEDED",

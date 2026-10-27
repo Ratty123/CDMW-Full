@@ -458,6 +458,7 @@ class AboutDocumentationEnglishMixin:
                   <li>Choose Open in Mesh Editor for a supported PAC, PAM, or PAMLOD. Imported geometry uses the available Free Edit route.</li>
                   <li>Use selection, transforms, brushes, topology, cleanup, normals, UVs, layers, and Morph &amp; Refit where enabled. Each disabled control explains its limit.</li>
                   <li>Exact Game Asset preserves protected source records. Free Edit permits supported geometry changes for a new validated output.</li>
+                  <li>Geometry Layers also work in Exact for PAC files: Copy Selection and Paste New Layer, and Finish writes each copy into the game Part it came from, at full detail only. A copy must stay inside that Part's bounds; PAM, PAMLOD and Archive Refit need Free Edit for new geometry.</li>
                   <li>Output, beside Finish Edit Mesh and at the top of Tools, shows the route Finish follows. Open it to switch between Exact and Free Edit, choose a Free Edit package folder, or open a package in CDMW.</li>
                   <li>Edits and Undo/Redo stay in an isolated session until Finish Edit Mesh validates and publishes the result. Run validation again before exporting the changed revision.</li>
                 </ul>

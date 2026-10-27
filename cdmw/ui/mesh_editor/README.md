@@ -1970,8 +1970,28 @@ enabled/mode/intensity/clearance values before applying a change; profile creati
 exposes its rule, axis, amount, feather, falloff, and mirror inputs instead of creating
 a hard-coded deformation.
 
-Geometry Layer Copy/Paste names the required selection and Free Edit policy, and layer
-visibility removes hidden Parts from both rendering and picking. Cleanup and other
+Geometry Layer Copy/Paste names the required selection and output route, and layer
+visibility removes hidden Parts from both rendering and picking. Selection spans every
+visible layer, as it does for Archive Refit assets; the active layer receives Rename,
+Up/Down, Delete and new Parts, and activating a layer keeps the selection. Hiding a layer
+drops only its Parts from the selection.
+
+Copy, Paste New Layer and layer Delete work in **Free Edit** with an output folder and
+in **Exact** output of a PAC at LOD0; the host refuses them elsewhere before anything
+changes. Free Edit leaves hidden layers out of its package. Exact output keeps the
+source file's Part list, so at validation and output each pasted Part is folded into the
+game Part whose vertex records it copies (`cdmw/modding/mesh_pac_paste_fold.py`): every
+copied vertex reuses its source record, so skin, cloth and protected bytes are exact and
+only position, UV and normal are authored, and every copied face must match a face of
+that Part. The fold is recorded as a `paste_copies_topology` operation and written by the
+exact LOD0 topology writer, so the copy appears only at LOD0; lower LODs stay unchanged.
+Hiding a layer in Exact changes the view only, as for **Include**; delete the layer to
+leave its copy out. A copy is refused, with its name and reason, when it spans two game
+Parts, has edited weights or another material, has faces that are not copies, holds
+vertices without a game record (Loop Cut, Subdivide), or extends outside its game Part's
+stored bounds, which the exact writer never widens. Returning to Exact from Free Edit is
+allowed only while every added Part folds and no source Part was removed. Archive Refit
+and the PAM/PAMLOD formats keep the Free Edit requirement. Cleanup and other
 topology-changing tools remain visibly locked by Exact output with a direct instruction
 to choose Free Edit. Bevel/chamfer, UV1 and a 2D UV workspace, true weight paint, posed
 skeleton deformation, normal-direction or edge extrusion, sculpt symmetry, and full
@@ -2821,9 +2841,10 @@ if that original base has changed.
 
 Archive Refit keeps the original game-file topology, so its Geometry Layers
 organise loaded assets but cannot add or remove geometry. Free Edit is disabled
-before any folder picker opens. For a separate mesh, Free Edit permits structural
-edits and asks for a folder containing a new OBJ package. Finish the archive refit
-and open a separate mesh to use that route.
+before any folder picker opens. For a separate PAC, Exact output accepts pasted
+Geometry Layers by folding each copy into its game Part, and Free Edit permits other
+structural edits and asks for a folder containing a new OBJ package. Finish the
+archive refit and open a separate mesh to use either route.
 
 **Finish Edit Mesh** keeps edits to both body and armor. **Build Mod** rebuilds
 each asset through its own exact game-format writer and packages the original

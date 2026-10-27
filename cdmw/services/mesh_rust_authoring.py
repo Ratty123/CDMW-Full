@@ -44,6 +44,7 @@ from cdmw.domain.mesh.morph import MeshMorphDefinition, MeshRefitDriverRegion, M
 from cdmw.domain.mesh.authoring_capability import (
     MeshOutputPolicy,
     action_authoring_capability,
+    geometry_layer_authoring_capability,
 )
 from cdmw.modding.mesh_glb_interchange import import_glb_with_sidecar
 from cdmw.modding.mesh_obj_importer import import_obj
@@ -7702,6 +7703,16 @@ class RustMeshAuthoringSession:
                 force_without_saving=True,
             )
 
+    def _geometry_layer_capability(self, action: str):
+        view = self.shadow_service.session_view(self.shadow_session_id)
+        return geometry_layer_authoring_capability(
+            action,
+            mesh_format=view.mesh_format,
+            lod_index=view.lod_index,
+            output_policy=view.output_policy,
+            free_edit_destination_ready=view.output_destination_ready,
+        )
+
     def _require_mesh_action_policy(
         self,
         action: str,
@@ -8272,6 +8283,13 @@ class RustMeshAuthoringSession:
             raise RustMeshProtocolError(
                 "Mesh Morph state exceeds the 16 MiB inline protocol limit"
             )
+        layer_paste = geometry_layer_authoring_capability(
+            "paste",
+            mesh_format=view.mesh_format,
+            lod_index=view.lod_index,
+            output_policy=view.output_policy,
+            free_edit_destination_ready=view.output_destination_ready,
+        )
         state: dict[str, object] = {
             "vertex_parameters": {"capability": RUST_VERTEX_PARAMETERS_CAPABILITY, "max_page_size": 128},
             "morph_preset_directory": str(
@@ -8301,9 +8319,11 @@ class RustMeshAuthoringSession:
             "output_policy_reason": view.output_policy_reason,
             "selection_revision": view.selection_revision,
             "topology_generation": view.topology_generation,
-            "geometry_layers": _json_safe(
-                self.shadow_service.geometry_layer_state(self.shadow_session_id)
-            ),
+            "geometry_layers": {
+                **_json_safe(self.shadow_service.geometry_layer_state(self.shadow_session_id)),
+                "paste_available": layer_paste.authorable,
+                "paste_reason": layer_paste.reason,
+            },
             "morph_refit": morph_payload,
             "refit_reference_reason": shadow_session.refit_reference_reason,
             "loaded_mesh": Path(str(self.shadow_service._session(self.shadow_session_id).working_mesh.path)).name,
@@ -9060,6 +9080,13 @@ class RustMeshAuthoringSession:
             "topology", "layer_delete", "layer_paste", "import_editable_package", "refit_load_mesh",
         }:
             raise RustMeshValidationError("Archive Refit preserves each source Part and topology; finish this refit before changing topology")
+        layer_action = {"layer_copy": "copy", "layer_paste": "paste", "layer_delete": "layer_delete"}.get(command)
+        if layer_action is not None:
+            # The panel disables these where no writer can publish them; refuse
+            # before any mutation too.
+            capability = self._geometry_layer_capability(layer_action)
+            if capability is not None and not capability.authorable:
+                raise RustMeshValidationError(capability.reason or f"Edit Mesh cannot run {command}.")
         with shadow_session.export_lock:
             self.state_cache.observe(shadow_session)
             before_revision = int(shadow_session.revision)
