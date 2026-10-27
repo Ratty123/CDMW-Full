@@ -16,6 +16,10 @@ experimental-feature notes do not establish equivalent in-game behavior.
 - Morph & Refit names the next steps once a fit is baked: Finish Edit Mesh at the top right, then Build Mod on the page that opens (or Finish alone for a Free Edit package). Bake is no longer the apparent end of the workflow.
 - Mesh Editor's Translucency, Glow and Shader experiments sections explain how to choose parts: open Parts, select them, then choose Back to Inspector. The Parts page replaces the Inspector, so these sections are hidden while it is open.
 
+### Fixed
+
+- CDMW's window keeps up better while background work runs, such as opening a mesh in Mesh Editor or loading a body or garments for Morph & Refit: clicks and redraws on Windows wait far less behind that work.
+
 ### Docs
 
 - Help > Documentation and the Wiki manuals describe what follows Bake in Morph & Refit, and the Material experiments steps now use the Parts page and Back to Inspector instead of the former collapsible Parts section.

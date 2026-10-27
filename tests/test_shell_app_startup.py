@@ -249,13 +249,16 @@ class ShellAppStartupTests(unittest.TestCase):
     def test_prepare_shell_application_configures_qapplication(self) -> None:
         app = QApplication.instance() or QApplication([])
 
-        with patch("cdmw.ui.shell.app_startup.create_settings", wraps=create_settings) as create_call:
+        with patch("cdmw.ui.shell.app_startup.create_settings", wraps=create_settings) as create_call, patch(
+            "cdmw.ui.shell.app_startup.request_fine_timer_resolution"
+        ) as timer_call:
             startup = prepare_shell_application(app)
             context = AppContext.from_settings(startup.settings)
 
         self.assertIsInstance(startup, ShellApplicationStartup)
         self.assertIs(context.settings, startup.settings)
         create_call.assert_called_once_with()
+        timer_call.assert_called_once_with()
         self.assertIn(startup.theme_key, UI_THEME_SCHEMES)
         self.assertTrue(app.organizationName())
         self.assertTrue(app.applicationName())
