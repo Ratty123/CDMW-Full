@@ -30,6 +30,7 @@ from cdmw.ui.shell.navigation_controller import NavigationControllerMixin
 from cdmw.ui.shell.dashboard_controller import DashboardControllerMixin
 from cdmw.ui.shell.model_library_bridge import ModelLibraryShellBridgeMixin
 from cdmw.ui.mesh_editor.shell_bridge import MeshEditorShellBridgeMixin
+from cdmw.ui.mesh_editor.saved_work_bridge import MeshEditorSavedWorkBridgeMixin
 
 
 class WorkbenchWindow(
@@ -59,6 +60,7 @@ class WorkbenchWindow(
     DashboardControllerMixin,
     ModelLibraryShellBridgeMixin,
     MeshEditorShellBridgeMixin,
+    MeshEditorSavedWorkBridgeMixin,
     QMainWindow,
 ):
     @property

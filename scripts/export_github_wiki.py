@@ -98,7 +98,9 @@ _CONTROLS = (
     "Move", "Rotate", "Scale", "Uniform scale", "Template", "Identity", "Distribution", "Output",
     "Glow", "Translucency", "Shader experiments", "Parts", "Part colors", "Report a Problem",
     "Island colors", "Open Parts on hover", "Fit all enabled garments", "Use the authored body",
-    "Take weights from the body", "Pull to skin", "Back to Inspector",
+    "Take weights from the body", "Pull to skin", "Back to Inspector", "Continue Earlier Work...",
+    "Saved Drafts and Built Mods", "Continue Editing", "Delete...", "Remove from List...",
+    "Add Mod Folder...", "Choose a Draft...",
 )
 # A sentence that opens with a control's name and describes it is not a step.
 _CONTROL_SUBJECT = re.compile(

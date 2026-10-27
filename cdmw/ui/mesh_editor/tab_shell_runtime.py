@@ -53,6 +53,11 @@ class MeshEditorTabShellRuntimeMixin:
         self.archive_session_open_retry_timer.setSingleShot(True)
         self.archive_session_open_retry_timer.timeout.connect(self._resume_queued_archive_session_open)
         self.archive_session_retry_request: dict[str, object] | None = None
+        # Saved-draft state of the open archive session: how the pending load
+        # should save, the draft it writes, and what a next pass inherits.
+        self.archive_session_draft_request: object | None = None
+        self.mesh_editor_draft_manifest_path: Path | None = None
+        self.mesh_editor_draft_lineage: dict[str, object] = {}
         self.standalone_archive_material_preview_model: object | None = None
         self.archive_material_context_companion_entry: _tab.ArchiveEntry | None = None
         self.archive_material_context_package_path = ""

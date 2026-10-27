@@ -7,6 +7,10 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 ## [Unreleased]
 
+### Added
+
+- Mesh Editor saves your work so you can close CDMW and continue later. A mesh opened from Archive Browser saves a draft each time you choose Finish Edit Mesh, including later edit passes, removed parts and the Morph & Refit setup; Build Mod also keeps the editing state with the mod. Continue Earlier Work..., in Mesh Editor and on a mesh's right-click menu in Archive Browser, opens Saved Drafts and Built Mods: each row shows when it was saved, its name, game file, kind, edit pass and whether it still matches the current game files, with Continue Editing, Open Folder, Rename and Delete. Built mods are only removed from the list; their folders are kept. Add Mod Folder... lists a mod built earlier or by someone else, which reopens its finished mesh as a new edit pass with the game's own materials, skeleton and textures. Opening a game file that has drafts offers to resume one or start fresh. Changes still open in the editor are saved when you finish them, Undo/Redo history is not saved, and hairstyle builds are not listed.
+
 ### Changed
 
 - Morph & Refit names the next steps once a fit is baked: Finish Edit Mesh at the top right, then Build Mod on the page that opens (or Finish alone for a Free Edit package). Bake is no longer the apparent end of the workflow.

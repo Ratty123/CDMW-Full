@@ -490,7 +490,7 @@ class AboutDocumentationEnglishMixin:
                 <h4>Rig &amp; Weights</h4>
                 <p>Rig &amp; Weights is temporarily hidden from the tool rail. Its implementation is retained.</p>
                 <h4>Morph &amp; Refit</h4>
-                <p>For an existing item, start with Modify Original. Load or assign the body driver, load the garments, select their parts and bind them. Inspect the fit at cuffs, underarms, belts and thin trim. Reset discards a preview; Bake keeps it. Refit changes geometry, not the skeleton or animation.</p>
+                <p>For an existing item, start with Open in Mesh Editor. Load or assign the body driver, load the garments, select their parts and bind them. Inspect the fit at cuffs, underarms, belts and thin trim. Reset discards a preview; Bake keeps it. Refit changes geometry, not the skeleton or animation.</p>
                 <p>Bake is the last step in Morph &amp; Refit, not the export. After Bake, the panel names the next steps: choose Finish Edit Mesh at the top right, then Build Mod on the page that opens. With Free Edit output, Finish saves the package instead.</p>
                 <p>Fit all enabled garments starts fresh setups at 100% Tightness and retains explicit Part and mesh-island choices. Cloth layers stay separate; recognized solid accessories and attached bows keep their shape. Use Rigid component for unrecognized hard details. Material names alone do not determine stiffness. Excluded surfaces do not affect fitting. Reset discards the preview; Bake keeps it.</p>
                 <p>For garments loaded from the game archive, Fit also uses the body they were made for, found from their skeleton. It moves that body onto the current one and carries the difference to every layer together, so loose drapes, layer order and rigid pieces are kept. The panel names the body it used. Turn off Use the authored body to fit to the current body only. While the authored body is used, Tightness does not change how closely cloth follows the body.</p>
@@ -504,10 +504,19 @@ class AboutDocumentationEnglishMixin:
                 <p>Large fits and body-slider changes can take up to 90 seconds. Inspect cuffs, underarms, belts and thin trim before baking; complex folds can still need manual adjustment. Undo a poor bake or reload the original meshes before fitting again.</p>
                 <p>When fitting and removing parts, a reliable sequence is fit, inspect, Bake, Finish Edit Mesh, then Start next edit pass. Exclude unwanted parts in that next pass and build the mod. Unsupported topology remains unsupported after reopening. Body and garment outputs retain their separate original archive paths.</p>
                 <h4>Finish Edit Mesh</h4>
-                <p>Finish accepts one validated revision into CDMW. It does not write a mod folder, install an overlay or guarantee that a recoverable draft was saved. Build Mod can reuse that validation until another edit changes the revision. Free Edit uses its own export package route.</p>
+                <p>Finish accepts one validated revision into CDMW. It does not write a mod folder or install an overlay. For a mesh opened from Archive Browser, it also saves a draft you can continue after restarting CDMW. Build Mod can reuse that validation until another edit changes the revision. Free Edit uses its own export package route.</p>
                 <p>Resume current edit continues the accepted working session with the original source as reference. Start next edit pass rebuilds the accepted game bytes as a new baseline. Add to Archive Browser prepares Edited results for the current app session; those entries do not survive restarting CDMW.</p>
-                <h4>Drafts</h4>
-                <p>Draft recovery needs an associated project and matching source data. Keep the project descriptor, workspace manifest and saved generations together. A source mismatch refuses recovery. A recovered older generation is not proof that the latest edit or exported package was recovered.</p>
+                <h4>Saved drafts and built mods</h4>
+                <p>A mesh opened from Archive Browser saves a draft each time you choose Finish Edit Mesh, so you can close CDMW and continue later. Changes still open in the editor are saved when you finish them. Build Mod also keeps the editing state with the mod.</p>
+                <ul>
+                  <li>Choose Continue Earlier Work... in Mesh Editor, or right-click a mesh in Archive Browser and choose Continue Earlier Work..., to open Saved Drafts and Built Mods.</li>
+                  <li>Each row shows when it was saved, its name, the game file, whether it is a draft or a built mod, its edit pass, and whether it matches the current game files.</li>
+                  <li>Select a row and choose Continue Editing. CDMW selects the game file in Archive Browser, then restores removed parts, the Morph &amp; Refit setup and the fitted shape.</li>
+                  <li>Choose Delete... to remove a draft. For a built mod, Remove from List... keeps the mod folder; use Open Folder to delete its files yourself.</li>
+                  <li>Choose Add Mod Folder... for a mod built by an earlier version or by someone else. Continue Editing opens its finished mesh as a new edit pass, with the game's own materials, skeleton and textures.</li>
+                </ul>
+                <p>Opening a game file that already has drafts shows a banner. Choose Resume for the newest draft, Start Fresh to edit the game file, or Choose a Draft... to pick another. Your drafts are kept either way.</p>
+                <p>If the game has changed the file since the work was saved, CDMW asks before continuing from its saved copy of the earlier file. Undo/Redo history is not saved. A recovered older save may not include the newest edit.</p>
                 <h4>Export Mesh File</h4>
                 <p>For external editing, keep the exported GLB, FBX or OBJ with its CDMW companions. Exact return needs stable vertex and joint identity; topology-changing modifiers can invalidate it. In Blender, preserve _CDMW_VERTEX_ID attributes for GLB or the CDMW_VERTEX_ID UV layer for FBX, export the intended meshes and armature, and include all bone influences. Follow the editable exchange guide for format-specific settings.</p>
                 <h4>Build Mod</h4>

@@ -110,24 +110,77 @@ Choose the reopening route by what you need to recover or verify:
 | **Resume current edit** after Finish | The accepted mesh in the existing `MeshService` session. | Keeps the original source reference and accepted state; the reopened editor starts a new per-action history. It does not read a package from disk. |
 | **Start next edit pass** | Validated rebuilt game bytes and retained source dependencies. | Makes the edited bytes the next baseline and clears the previous pass's edit state. This is an in-app continuation, not restart recovery. |
 | **Add to Archive Browser**, then open **Edited results** | Prepared entries with source identity, rebuilt-byte hashes and dependency context. | Results survive closing the editor, but remain local to the current CDMW app session. |
-| Resume a matching saved draft | The source-bound workspace and newest valid saved generation, or its previous valid generation. | Recovers authoring state, not the last exported mod. Source-fingerprint mismatch refuses recovery without deleting the draft. |
+| **Continue Earlier Work...**, then a draft | The draft's newest valid saved generation, or its previous valid generation, over the game file or the draft's saved copy of its source. | Survives restarting CDMW. Recovers authoring state, not the last exported mod. A draft only matches the exact source it was saved from. |
+| **Continue Earlier Work...**, then a built mod | The editing state Build Mod saved with the mod, or the mod's finished mesh when none was saved. | With saved state, continues in a new draft and leaves the mod's own state as built. Without it, the finished mesh starts a new edit pass. |
 | Open the exported mesh/package payload | The file at the completed output path, with its required companions. | Establishes output readback only when those exact bytes and dependencies are used. Opening the original archive entry does not establish this. |
 | Preview an installed overlay | The currently mounted overlay and its metadata. | Checks installed content, which can differ from both the live edit and an uninstalled export. |
 
-For an existing game mesh, start from the exact archive entry through **Modify
-Original**. Retain its archive path and source hash: the same filename can occur
+For an existing game mesh, start from the exact archive entry through **Open in
+Mesh Editor**. Retain its archive path and source hash: the same filename can occur
 in stock archives, prepared edited results and mounted overlays. `ArchiveEntry.identity`
 identifies the source location; `prepared_sha256` identifies prepared bytes when
 present. Neither a filename nor a session revision alone identifies a portable result.
 
 **Finish Edit Mesh** accepts one validated revision into CDMW. Its successful
 validation remains usable by **Build Mod** until a later edit invalidates it.
-Finish does not write the mod folder, install an overlay, or by itself prove that
-a recoverable draft was saved. Draft autosave applies only to sessions with an
-associated project path; it records mesh/layer revisions separately from output
-validation. If saving fails on close, retry saving or explicitly choose to close
-without saving. Keep the workspace manifest, project descriptor and generation
-files together; copying only `mesh_layer_project.json` is insufficient.
+Finish does not write the mod folder or install an overlay. In a session opened
+from Archive Browser, each change accepted into the session, normally each Finish,
+schedules a draft save; the session view reports a pending or failed save
+separately from output validation. Edits still open in the editor are not in the
+draft until Finish accepts them. If saving fails on close, retry saving or
+explicitly choose to close without saving. Keep the workspace manifest, project
+descriptor and generation files together; copying only `mesh_layer_project.json`
+is insufficient.
+
+### Saved drafts and built mods
+
+**Continue Earlier Work...** opens **Saved Drafts and Built Mods** from the Mesh
+Editor toolbar, from the resume banner's **Choose a Draft...**, or from Archive
+Browser's right-click menu on a mesh, where the list starts filtered to that file.
+Each row shows when it was saved, its name, the game file it came from, its kind
+(**Saved draft**, **Built mod** or **Built mod (no draft)**), its edit pass and a status
+checked against the current game files:
+
+- **Matches the current game files**: the game file is the one the work started from.
+- **Game updated since this was made**: continuing uses the copy saved with the work
+  and asks first, because a mod built from it replaces the updated game file.
+- **Source file not found**, **Mod folder not found**, or **Original game version
+  unknown** for a mod listed by hand whose history CDMW cannot see.
+
+The actions are **Continue Editing**, **Open Folder**, **Rename...** and
+**Delete...** for a draft, which asks first. A built mod offers **Remove from
+List...** instead: the mod folder and its files are never deleted from this list,
+and **Open Folder** is the way to delete them by hand. Rename changes only the name
+shown in the list. The draft open in Mesh Editor cannot be deleted. **Add Mod
+Folder...** lists a mod built before saved drafts existed, or by someone else; its
+game path comes from CDMW's local export record, or from the mesh file's place in
+the folder.
+
+Opening a game file that already has drafts shows a banner: **Resume** the newest,
+**Start Fresh** from the file, or **Choose a Draft...**. Starting fresh leaves every
+draft in place.
+
+Storage and ownership:
+
+- A draft is a folder under the workspace's `modify_original_sessions` with a
+  `cdmw_modify_original_workspace_v1` manifest (`draft_origin` is
+  `mesh_editor_session`), its layer project, and a `baseline/` copy of the mesh it
+  started from plus any edited or added companion files of a later edit pass. The
+  folder is created by the first save, so opening and closing a file leaves nothing.
+- Each save keeps the current and previous generation; older generations are removed.
+- **Start next edit pass** starts a new draft with the next pass number, the same name
+  and the original game file's fingerprint, so it can be resumed after the in-session
+  edited result is gone.
+- **Build Mod** saves the session's draft at the built revision, freezes a copy
+  (`built_mod_draft` mode, never offered by the resume banner), and records the mod in
+  `built_mods.json` beside the drafts. Continuing that mod restores removed parts, the
+  Morph & Refit setup and the fitted shape into a new draft. Undo history is not saved.
+- A built mod without saved state opens its finished mesh, read from a loose file or a
+  DMM archive group, as a new edit pass. Materials, skeleton and textures still come
+  from the game's own files. A mod with several meshes reopens the one it records.
+- Continuing first selects the game file in Archive Browser so its dependencies are
+  prepared, then overlays the saved copies by archive identity. Archive reads stay
+  read-only, and preparation runs off the UI thread. Hairstyle builds are not listed.
 
 Choose the output appropriate to the session. Archive-bound sessions can **Build
 Mod** with all generated companions. **Export Mesh File** is a separate rebuilt
@@ -156,6 +209,8 @@ The owning code is [Finish publication](tab_rust_process.py),
 [output orchestration](tab_direct_output.py),
 [draft persistence](../../services/mesh_layer_project_service.py),
 [source-bound draft discovery](../../services/modify_original_workspace_service.py),
+[saved drafts and built mods](../../services/mesh_saved_work_service.py),
+the [list window](saved_work_dialog.py) and its [shell routes](saved_work_bridge.py),
 and [edited-result preparation](../../services/mesh_archive_results.py).
 
 ## Parts and appearance
@@ -3073,7 +3128,7 @@ stay with the model while geometry and UVs change.
 
 ### Validation and export
 
-For an existing item, use **Modify Original**. When fitting and removing Parts,
+For an existing item, use **Open in Mesh Editor**. When fitting and removing Parts,
 complete **Morph & Refit** first, inspect and **Bake** the fit, then **Finish Edit
 Mesh > Start next edit pass**. In the next pass, exclude unwanted Parts
 with the **Include** controls, then finish and **Build Mod**. **Add to Archive Browser**

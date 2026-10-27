@@ -6623,11 +6623,14 @@ def _detach_shadow_layer_project(mesh: ParsedMesh, root: Path) -> None:
     del root  # The shadow intentionally has no project or autosave location.
     for attribute in (
         "_cdmw_mesh_layer_project_path",
+        "_cdmw_mesh_layer_seed_project_path",
         "_cdmw_modify_original_workspace_manifest_path",
         "_cdmw_modify_original_workspace_dir",
     ):
         if hasattr(mesh, attribute):
             setattr(mesh, attribute, "")
+    if hasattr(mesh, "_cdmw_mesh_draft_plan"):
+        setattr(mesh, "_cdmw_mesh_draft_plan", None)
 
 
 def _geometry_layer_seed(session: object) -> dict[str, object]:

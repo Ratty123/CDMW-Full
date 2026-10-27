@@ -716,6 +716,9 @@ class MeshDirectOutputResult:
     install_result: object | None = None
     zip_path: Path | None = None
     archive_result: object | None = None
+    # The Saved Drafts and Built Mods record for a built mod, or why it failed.
+    saved_work_record: Mapping[str, object] | None = None
+    saved_work_error: str = ""
 
 
 class MeshDirectOutputWorker(QObject):
@@ -744,6 +747,7 @@ class MeshDirectOutputWorker(QObject):
         archive_dependency_sources: tuple = (),
         archive_material_sources: tuple = (),
         inherited_archive_outputs: tuple = (),
+        saved_work_root: Path | str | None = None,
     ) -> None:
         super().__init__()
         self.request_id = int(request_id)
@@ -766,6 +770,11 @@ class MeshDirectOutputWorker(QObject):
         self.archive_dependency_sources = archive_dependency_sources
         self.archive_material_sources = archive_material_sources
         self.inherited_archive_outputs = inherited_archive_outputs
+        self.saved_work_root = (
+            Path(saved_work_root)
+            if saved_work_root is not None and self.kind in {"loose_mod", "overlay_package"}
+            else None
+        )
         self.stop_event = threading.Event()
 
     def stop(self) -> None:
@@ -907,6 +916,7 @@ class MeshDirectOutputWorker(QObject):
                 )
             else:
                 raise ValueError(f"Unsupported Mesh Editor output kind: {self.kind}")
+            result = self._register_saved_work(snapshot, result)
             self.progress_changed.emit(self.request_id, 100, "Mesh-only output is ready.")
             self.completed.emit(self.request_id, result)
         except RunCancelled:
@@ -921,6 +931,38 @@ class MeshDirectOutputWorker(QObject):
                 replacement_baselines.cleanup()
             self.archive_material_sources = ()
             self.finished.emit()
+
+    def _register_saved_work(self, snapshot: MeshExportSnapshot, result: MeshDirectOutputResult) -> MeshDirectOutputResult:
+        """Keep the built mod and its editing state for Continue Earlier Work.
+
+        The mod is already published, so a failure here is reported beside it
+        and is never turned into a failed or cancelled build.
+        """
+
+        if self.saved_work_root is None or result.output_path is None:
+            return result
+        from cdmw.services.mesh_saved_work_service import register_built_mod
+
+        try:
+            # Hold the session's export lock while the draft is copied, so a
+            # pending autosave cannot replace its generations mid-copy.
+            with self.service._session(self.session_id).export_lock:
+                draft = self.service.save_mesh_draft_for_revision(
+                    self.session_id, expected_mesh_revision=snapshot.mesh_revision,
+                )
+                record = register_built_mod(
+                    self.saved_work_root,
+                    mod_root=result.output_path,
+                    entry=self.entry,
+                    source_sha256=snapshot.mesh_asset_source_hash,
+                    draft_manifest_path=draft,
+                    zip_path=result.zip_path,
+                    manager_profile=result.manager_profile,
+                    kind=self.kind,
+                )
+        except Exception as exc:
+            return replace(result, saved_work_error=f"{type(exc).__name__}: {exc}")
+        return replace(result, saved_work_record=record)
 
     def _metadata(self, snapshot: MeshExportSnapshot, report: object) -> bytes:
         payload = {

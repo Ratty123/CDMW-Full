@@ -640,27 +640,34 @@ class MeshEditorShellBridgeMixin:
             pass
         return True
 
+    def _mesh_editor_open_blocked(self) -> bool:
+        """Report a Mesh Editor that cannot start before any archive work begins."""
+        tab = getattr(self, "mesh_editor_tab", None)
+        preflight = getattr(tab, "_rust_open_preflight_reason", None)
+        if not callable(preflight):
+            return False
+        try:
+            preflight_reason = str(preflight() or "").strip()
+        except RuntimeError as exc:
+            preflight_reason = str(exc or "Mesh Editor preflight failed").strip()
+        if not preflight_reason:
+            return False
+        sync_controls = getattr(tab, "_sync_mesh_editor_backend_controls", None)
+        if callable(sync_controls):
+            sync_controls()
+        self._activate_tool_widget(tab)
+        self.set_status_message(
+            f"Mesh Editor cannot open: {preflight_reason}.",
+            error=True,
+        )
+        return True
+
     def _launch_archive_mesh_editor_for_entry(self, entry: ArchiveEntry) -> None:
         if not isinstance(entry, ArchiveEntry) or entry.extension not in ARCHIVE_MESH_EXTENSIONS:
             self.set_status_message("Select a supported archive mesh before opening Mesh Editor.", error=True)
             return
-        tab = getattr(self, "mesh_editor_tab", None)
-        preflight = getattr(tab, "_rust_open_preflight_reason", None)
-        if callable(preflight):
-            try:
-                preflight_reason = str(preflight() or "").strip()
-            except RuntimeError as exc:
-                preflight_reason = str(exc or "Mesh Editor preflight failed").strip()
-            if preflight_reason:
-                sync_controls = getattr(tab, "_sync_mesh_editor_backend_controls", None)
-                if callable(sync_controls):
-                    sync_controls()
-                self._activate_tool_widget(tab)
-                self.set_status_message(
-                    f"Mesh Editor cannot open: {preflight_reason}.",
-                    error=True,
-                )
-                return
+        if self._mesh_editor_open_blocked():
+            return
         edited_resolver = getattr(self.archive, "edited_result_context", None)
         edited_context = edited_resolver(entry) if callable(edited_resolver) else None
         if edited_context is not None:
@@ -690,6 +697,15 @@ class MeshEditorShellBridgeMixin:
                 self.set_status_message(str(exc), error=True)
                 return
             entry = archive_dependencies.selected_entry
+        self._open_archive_mesh_editor_with_dependencies(entry, archive_dependencies)
+
+    def _open_archive_mesh_editor_with_dependencies(
+        self,
+        entry: ArchiveEntry,
+        archive_dependencies: object | None,
+        **session_options: object,
+    ) -> None:
+        """Open ``entry`` with the Archive Browser's matching materials, if any."""
         if not self._prepare_mesh_editor_archive_launch(entry):
             return
         current_preview = getattr(self.archive, "current_archive_preview_result", None)
@@ -749,6 +765,7 @@ class MeshEditorShellBridgeMixin:
             material_context_verified_for_rust=material_context_verified_for_rust,
             material_source_identity=material_source_identity,
             archive_dependencies=archive_dependencies,
+            **session_options,
         )
         self._activate_tool_widget(self.mesh_editor_tab)
         self.set_status_message(f"Opening {entry.basename} directly in Mesh Editor.")

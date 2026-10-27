@@ -238,6 +238,7 @@ class ShellToolTabsMixin:
             )
         tab.open_archive_session_requested.connect(self._launch_archive_mesh_editor_for_entry)
         tab.archive_result_ready.connect(self.archive.add_mesh_editor_result)
+        tab.saved_work_requested.connect(self._open_mesh_editor_saved_work)
         tab.open_archive_target_requested.connect(self._mesh_editor_show_archive_target_requested)
         tab.replace_from_archive_requested.connect(self._mesh_editor_replace_from_archive_requested)
         tab.mesh_action_requested.connect(self._mesh_editor_action_requested)

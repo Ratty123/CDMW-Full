@@ -53,7 +53,9 @@ class ModifyOriginalWorkspacePreparationRequest:
 class ModifyOriginalDraft:
     manifest_path: Path
     workspace_dir: Path
-    editable_obj: Path
+    # None for a draft saved by a Mesh Editor archive session, which restores
+    # over the archive mesh instead of an exported OBJ clone.
+    editable_obj: Path | None
     mesh_layer_project_path: Path
     source_asset_sha256: str
     workspace_mode: str
@@ -124,12 +126,15 @@ def _read_modify_original_draft(manifest_path: Path) -> ModifyOriginalDraft | No
             return None
         return resolved
 
-    editable_obj = workspace_path("editable_obj")
+    session_draft = str(payload.get("draft_origin") or "") == "mesh_editor_session"
+    editable_obj = None if session_draft else workspace_path("editable_obj")
     layer_project = workspace_path(
         "mesh_layer_project",
         workspace / "mesh_layers" / "mesh_layer_project.json",
     )
-    if editable_obj is None or layer_project is None or not editable_obj.is_file() or not layer_project.is_file():
+    if layer_project is None or not layer_project.is_file():
+        return None
+    if not session_draft and (editable_obj is None or not editable_obj.is_file()):
         return None
     source_hash = str(payload.get("source_asset_sha256") or "").strip().lower()
     if len(source_hash) != 64:
@@ -168,7 +173,7 @@ def _resume_modify_original_workspace(
     )
     if resume_manifest is not None:
         draft = _read_modify_original_draft(resume_manifest)
-        if draft is None or draft.source_asset_sha256 != source_asset_sha256:
+        if draft is None or draft.source_asset_sha256 != source_asset_sha256 or draft.editable_obj is None:
             raise ValueError("Modify Original draft is unavailable or belongs to a different source asset")
         workspace_dir = draft.workspace_dir
         obj_path = draft.editable_obj

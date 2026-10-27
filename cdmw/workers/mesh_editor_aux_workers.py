@@ -23,6 +23,12 @@ from cdmw.services.modify_original_workspace_service import (
     ModifyOriginalDraft,
     discover_modify_original_drafts,
 )
+from cdmw.services.mesh_saved_work_service import (
+    MeshDraftRequest,
+    draft_lineage,
+    plan_session_draft,
+    read_draft_manifest,
+)
 from cdmw.services.archive_read_service import read_archive_entry_data
 from cdmw.services.archive_preview_service import build_archive_preview_result
 from cdmw.services.mesh_dotnet_material_state import (
@@ -56,6 +62,9 @@ class MeshArchiveSessionLoadResult:
     source_sha256: str
     matching_drafts: tuple[ModifyOriginalDraft, ...] = ()
     resumed_manifest_path: Path | None = None
+    # The saved draft this session writes to, and what a next pass inherits.
+    draft_manifest_path: Path | None = None
+    draft_lineage: Mapping[str, object] | None = None
     source_skeleton: object | None = None
     skeleton_source_path: str = ""
     skeleton_resolution_reason: str = ""
@@ -96,6 +105,7 @@ class MeshArchiveSessionLoadWorker(QObject):
         resume_manifest_path: Path | str | None = None,
         archive_entries_by_normalized_path: Mapping[str, Sequence[ArchiveEntry]] | None = None,
         archive_entries_by_basename: Mapping[str, Sequence[ArchiveEntry]] | None = None,
+        draft_request: MeshDraftRequest | None = None,
     ) -> None:
         super().__init__()
         self.request_id = int(request_id)
@@ -103,6 +113,9 @@ class MeshArchiveSessionLoadWorker(QObject):
         self.session_id = str(session_id or "")
         self.mode = str(mode or "edit")
         self.draft_root = Path(draft_root).expanduser() if draft_root is not None else None
+        self.draft_request = draft_request
+        if resume_manifest_path is None and draft_request is not None:
+            resume_manifest_path = draft_request.resume_manifest_path
         self.resume_manifest_path = (
             Path(resume_manifest_path).expanduser().resolve()
             if resume_manifest_path is not None
@@ -138,6 +151,8 @@ class MeshArchiveSessionLoadWorker(QObject):
                 else ()
             )
             resumed_manifest_path: Path | None = None
+            draft_manifest_path: Path | None = None
+            lineage: Mapping[str, object] | None = None
             if self.resume_manifest_path is not None:
                 draft = next(
                     (item for item in drafts if item.manifest_path == self.resume_manifest_path),
@@ -149,6 +164,20 @@ class MeshArchiveSessionLoadWorker(QObject):
                 setattr(mesh, "_cdmw_mesh_layer_project_path", str(draft.mesh_layer_project_path))
                 setattr(mesh, "_cdmw_modify_original_workspace_mode", draft.workspace_mode)
                 resumed_manifest_path = draft.manifest_path
+                draft_manifest_path = draft.manifest_path
+                lineage = draft_lineage(read_draft_manifest(draft.manifest_path))
+            elif self.draft_root is not None and self.draft_request is not None and len(source_sha256) == 64:
+                plan = plan_session_draft(
+                    self.draft_root, self.entry, source_sha256=source_sha256, request=self.draft_request,
+                )
+                setattr(mesh, "_cdmw_modify_original_workspace_manifest_path", str(plan.manifest_path))
+                setattr(mesh, "_cdmw_mesh_layer_project_path", str(plan.project_path))
+                setattr(mesh, "_cdmw_modify_original_workspace_mode", plan.manifest["workspace_mode"])
+                setattr(mesh, "_cdmw_mesh_draft_plan", plan)
+                if self.draft_request.seed_project_path is not None:
+                    setattr(mesh, "_cdmw_mesh_layer_seed_project_path", str(self.draft_request.seed_project_path))
+                draft_manifest_path = plan.manifest_path
+                lineage = draft_lineage(plan.manifest)
             if self.stop_event.is_set():
                 return
             view = service.open_edit_session(
@@ -278,6 +307,8 @@ class MeshArchiveSessionLoadWorker(QObject):
                         source_sha256=source_sha256,
                         matching_drafts=drafts,
                         resumed_manifest_path=resumed_manifest_path,
+                        draft_manifest_path=draft_manifest_path,
+                        draft_lineage=lineage,
                         source_skeleton=source_skeleton,
                         skeleton_source_path=skeleton_source_path,
                         skeleton_resolution_reason=skeleton_resolution_reason,

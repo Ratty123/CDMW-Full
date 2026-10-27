@@ -173,6 +173,7 @@ class MeshEditorDirectOutputMixin:
             package_info=package_info,
             create_zip=create_zip,
             open_folder=open_folder,
+            saved_work_root=self.mesh_editor_draft_root,
         )
 
     def _start_mesh_overlay_prepare_requested(self) -> None:
@@ -210,6 +211,7 @@ class MeshEditorDirectOutputMixin:
         archive_dependency_sources: tuple = (),
         archive_material_sources: tuple = (),
         continue_editing: bool = False,
+        saved_work_root: Path | None = None,
     ) -> bool:
         controller = self.standalone_controller
         if controller is None or not controller.active_session_id:
@@ -240,6 +242,7 @@ class MeshEditorDirectOutputMixin:
             create_zip=create_zip,
             expected_mesh_revision=self.standalone_export_validation_revision,
             texture_updates_waiter=self._wait_for_dotnet_export_updates,
+            saved_work_root=saved_work_root,
             **extra,
         )
         thread = QThread(self)
@@ -356,6 +359,14 @@ class MeshEditorDirectOutputMixin:
             f"Mesh Editor {result.kind.replace('_', ' ')} output ready: {output}",
             False,
         )
+        if result.saved_work_record is not None:
+            self.status_message_requested.emit(
+                "The mod and its editing state are saved. Continue Earlier Work reopens them.", False,
+            )
+        elif result.saved_work_error:
+            self.status_message_requested.emit(
+                f"The mod was built, but its editing state was not saved: {result.saved_work_error}", True,
+            )
         if result.zip_path is not None:
             self.status_message_requested.emit(f"ZIP written to {result.zip_path}", False)
         if open_folder and result.output_path is not None:
@@ -379,7 +390,10 @@ class MeshEditorDirectOutputMixin:
             QTimer.singleShot(10, self, lambda: self._continue_from_prepared_archive_result(request_id, prepared))
             return
         from cdmw.ui.archive_browser.workflow_dependencies import archive_result_dependency_context
+        from cdmw.ui.mesh_editor.saved_work_launch import next_pass_draft_request
         dependencies = archive_result_dependency_context(prepared)
+        # Computed before the open, which closes this session and its lineage.
+        draft_request = next_pass_draft_request(self.mesh_editor_draft_lineage, prepared)
         material_context = {}
         saved_materials = dependencies.material_context_for(dependencies.selected_entry)
         if saved_materials is not None:
@@ -389,7 +403,8 @@ class MeshEditorDirectOutputMixin:
                 self.status_message_requested.emit(str(exc), True)
                 return
         self.open_archive_session(
-            dependencies.selected_entry, archive_dependencies=dependencies, **material_context,
+            dependencies.selected_entry, archive_dependencies=dependencies,
+            draft_request=draft_request, **material_context,
         )
 
     def _start_mesh_overlay_apply(self, preparation: object, mutation_service: object) -> None:

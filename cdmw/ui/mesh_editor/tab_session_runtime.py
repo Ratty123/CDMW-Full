@@ -2,12 +2,15 @@ from __future__ import annotations
 
 import copy
 import json
+import time
 from pathlib import Path
 from typing import Mapping, Sequence
 
 from PySide6.QtCore import QThread, QTimer, Qt
 
+from cdmw.services.mesh_saved_work_service import MeshDraftRequest, draft_lineage, read_draft_manifest
 from cdmw.ui.archive_browser.workflow_dependencies import ArchiveWorkflowDependencyContext
+from cdmw.ui.mesh_editor.saved_work_launch import default_session_draft_request
 from cdmw.ui.mesh_editor.tab_compat import facade_globals as _tab
 
 from cdmw.ui.mesh_editor.tab_archive_material_context import (
@@ -62,6 +65,7 @@ class MeshEditorSessionMixin(MeshEditorArchiveMaterialContextMixin):
         material_source_identity: object | None,
         archive_dependencies: ArchiveWorkflowDependencyContext | None,
         prepared_result: object | None = None,
+        draft_request: MeshDraftRequest | None = None,
     ) -> None:
         self.archive_session_open_retry_timer.stop()
         previous = getattr(self, "archive_session_open_pending", None)
@@ -95,6 +99,7 @@ class MeshEditorSessionMixin(MeshEditorArchiveMaterialContextMixin):
             "material_source_identity": material_source_identity,
             "archive_dependencies": archive_dependencies,
             "prepared_result": prepared_result,
+            "draft_request": draft_request,
         }
         self.archive_session_open_retry_timer.start(0)
 
@@ -143,6 +148,7 @@ class MeshEditorSessionMixin(MeshEditorArchiveMaterialContextMixin):
         material_source_identity: object | None = None,
         archive_dependencies: ArchiveWorkflowDependencyContext | None = None,
         prepared_result: object | None = None,
+        draft_request: MeshDraftRequest | None = None,
     ) -> int | None:
         """Open an archive mesh directly in the resident authoring workspace."""
         if not isinstance(entry, _tab.ArchiveEntry):
@@ -195,6 +201,7 @@ class MeshEditorSessionMixin(MeshEditorArchiveMaterialContextMixin):
                 material_source_identity=material_source_identity,
                 archive_dependencies=archive_dependencies,
                 prepared_result=prepared_result,
+                draft_request=draft_request,
             )
             self.status_message_requested.emit(
                 "Mesh Editor will open the requested mesh after the previous session has stopped safely.",
@@ -206,12 +213,16 @@ class MeshEditorSessionMixin(MeshEditorArchiveMaterialContextMixin):
         request_id = self.archive_session_load_request_id
         entry_snapshot = copy.deepcopy(entry)
         resume_path = Path(resume_manifest_path) if resume_manifest_path is not None else None
+        if draft_request is None:
+            draft_request = default_session_draft_request(entry, archive_dependencies)
+        self.archive_session_draft_request = draft_request
         self.archive_session_retry_request = {
             "entry": entry_snapshot,
             "resume_manifest_path": resume_path,
             "archive_dependencies": archive_dependencies,
             "material_companion_entry": copy.deepcopy(material_companion_entry),
             "material_package_path": material_package_path,
+            "draft_request": draft_request,
         }
         self.archive_session_load_entry = entry
         self.archive_session_dependencies = archive_dependencies
@@ -333,6 +344,7 @@ class MeshEditorSessionMixin(MeshEditorArchiveMaterialContextMixin):
             resume_manifest_path=resume_manifest_path,
             archive_entries_by_normalized_path=archive_path_index,
             archive_entries_by_basename=archive_basename_index,
+            draft_request=self.archive_session_draft_request,
         )
         thread = QThread(self)
         worker.moveToThread(thread)
@@ -385,6 +397,8 @@ class MeshEditorSessionMixin(MeshEditorArchiveMaterialContextMixin):
         ):
             self._start_archive_material_context_resolution(entry)
         self.mesh_editor_matching_drafts = tuple(result.matching_drafts)
+        self.mesh_editor_draft_manifest_path = result.draft_manifest_path
+        self.mesh_editor_draft_lineage = dict(result.draft_lineage or {})
         if result.resumed_manifest_path is not None:
             self.draft_banner.setVisible(False)
             self.status_message_requested.emit(
@@ -393,10 +407,12 @@ class MeshEditorSessionMixin(MeshEditorArchiveMaterialContextMixin):
             )
         elif result.matching_drafts:
             newest = result.matching_drafts[0]
+            newest_name = str(draft_lineage(read_draft_manifest(newest.manifest_path)).get("display_name") or "")
+            saved = time.strftime("%Y-%m-%d %H:%M", time.localtime(newest.updated_at))
             self.draft_banner_label.setText(
-                f"{len(result.matching_drafts)} saved draft(s) match this exact source. "
-                f"Resume the newest draft, or keep this fresh session; prior drafts are not deleted. "
-                f"Newest: {newest.workspace_dir.name}"
+                f"{entry.basename} has {len(result.matching_drafts)} saved draft(s). "
+                f"The newest, {newest_name or newest.workspace_dir.name}, was saved {saved}. "
+                "Resume it, or start fresh from this file. Your saved drafts are kept either way."
             )
             self.draft_banner.setVisible(True)
         self.current_request = _tab.MeshEditorSessionRequest(target_entry=entry, mode="edit")
@@ -446,6 +462,10 @@ class MeshEditorSessionMixin(MeshEditorArchiveMaterialContextMixin):
 
     def _dismiss_archive_draft_banner(self, _checked: bool = False) -> None:
         self.draft_banner.setVisible(False)
+
+    def _choose_archive_draft(self, _checked: bool = False) -> None:
+        entry = self.current_archive_selection
+        self.saved_work_requested.emit(entry.path if isinstance(entry, _tab.ArchiveEntry) else "")
 
     def _handle_archive_session_load_error(self, request_id: int, message: str) -> None:
         if int(request_id) != int(self.archive_session_load_request_id):
@@ -759,6 +779,8 @@ class MeshEditorSessionMixin(MeshEditorArchiveMaterialContextMixin):
             close_ui_state()
         self.draft_banner.setVisible(False)
         self.mesh_editor_matching_drafts = ()
+        self.mesh_editor_draft_manifest_path = None
+        self.mesh_editor_draft_lineage = {}
         self.standalone_archive_material_preview_model = None
         self.archive_physics_profile_context = None
         self.archive_material_context_companion_entry = None

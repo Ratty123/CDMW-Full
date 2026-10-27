@@ -263,6 +263,9 @@ class _MeshEditSession:
     mesh_layer_project_path: Path | None = None
     mesh_layer_workspace_manifest_path: Path | None = None
     mesh_layer_workspace_mode: str = ""
+    # A planned saved-draft folder that the first save creates, with copies
+    # of the session's source mesh (see mesh_saved_work_service).
+    mesh_draft_plan: object | None = None
     mesh_layer_autosave_timer: threading.Timer | None = field(default=None, repr=False)
     mesh_layer_autosave_thread: threading.Thread | None = field(default=None, repr=False)
     mesh_layer_autosave_stop_event: threading.Event | None = field(default=None, repr=False)

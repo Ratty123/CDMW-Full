@@ -683,10 +683,17 @@ class _MeshServiceSessionLayerCore(
             workspace_manifest_path,
             discovered_project,
         ) = _mesh_session_source_context(mesh, original_data)
+        draft_plan = getattr(mesh, "_cdmw_mesh_draft_plan", None)
+        seed_text = str(getattr(mesh, "_cdmw_mesh_layer_seed_project_path", "") or "").strip()
         if not load_layer_project:
             project_path = None
             workspace_manifest_path = None
             discovered_project = {}
+            draft_plan = None
+            seed_text = ""
+        # A seed project is restored, but saving continues into the session's
+        # own project, so the draft it came from keeps its state.
+        load_project_path = Path(seed_text).expanduser().resolve() if seed_text else project_path
         mesh_format, lod_index, initial_output_policy = _mesh_session_output_context(mesh)
         if adopt_owned_mesh:
             if load_layer_project:
@@ -705,10 +712,10 @@ class _MeshServiceSessionLayerCore(
         else:
             working_mesh, base_mesh = _clone_mesh_pair_for_session_open(mesh)
         loaded_layer_project: Mapping[str, object] | None = None
-        if project_path is not None and project_path.is_file():
+        if load_project_path is not None and load_project_path.is_file():
             loaded_layer_project = load_mesh_layer_project(
                 working_mesh,
-                project_path,
+                load_project_path,
                 expected_source_asset_sha256=source_asset_hash,
             )
             if loaded_layer_project is not None:
@@ -765,6 +772,11 @@ class _MeshServiceSessionLayerCore(
             loaded_layer_project,
             len(working_mesh.submeshes),
         )
+        if project_path is not None and draft_plan is not None:
+            session.mesh_draft_plan = draft_plan
+            # An untouched session has nothing to save; its first accepted
+            # edit creates the draft folder.
+            session.mesh_layer_autosave_saved_key = (session.revision, session.geometry_layer_revision)
         if loaded_layer_project is not None:
             if "edit_operations" in loaded_layer_project:
                 session.edit_operations = tuple(loaded_layer_project["edit_operations"])
@@ -1183,6 +1195,9 @@ class _MeshServiceSessionLayerCore(
         self._require_no_pending_refit_shape_restore_locked(session)
         if session.mesh_layer_project_path is None:
             return
+        if session.mesh_draft_plan is not None:
+            from cdmw.services.mesh_saved_work_service import ensure_session_draft_workspace
+            ensure_session_draft_workspace(session.mesh_draft_plan, session.original_data, stop_event=stop_event)
         if (session.replacement_state is not None or session.edit_operations) and not session.native_editor_session_ready:
             if session.native_editor_mesh_dirty:
                 raise RuntimeError("Replacement draft cannot save stale resident geometry.")
@@ -1233,6 +1248,32 @@ class _MeshServiceSessionLayerCore(
         with session.export_lock:
             session.mesh_layer_autosave_requested_key = (session.revision, session.geometry_layer_revision)
             self._save_mesh_layer_project_locked(session)
+
+    def save_mesh_draft_for_revision(
+        self,
+        session_id: str,
+        *,
+        expected_mesh_revision: int,
+        stop_event: threading.Event | None = None,
+    ) -> Path | None:
+        """Save the session's draft now if it still holds ``expected_mesh_revision``.
+
+        Returns the draft manifest, or None when the session has no draft or
+        has moved on. Callers run this off the UI thread.
+        """
+
+        session = self._session(session_id)
+        with session.export_lock:
+            if (session.closed or session.mesh_layer_project_path is None
+                    or session.mesh_layer_workspace_manifest_path is None
+                    or int(session.revision) != int(expected_mesh_revision)):
+                return None
+            current_key = (session.revision, session.geometry_layer_revision)
+            if current_key != session.mesh_layer_autosave_saved_key or not session.mesh_layer_project_path.is_file():
+                session.mesh_layer_autosave_requested_key = current_key
+                self._save_mesh_layer_project_locked(session, stop_event=stop_event)
+            manifest = session.mesh_layer_workspace_manifest_path
+            return manifest if manifest.is_file() else None
 
 
 @dataclass(slots=True)

@@ -313,10 +313,10 @@ def test_in_app_browser_renders_the_expanded_guides_in_each_locale(tmp_path, lan
             dialog.select_section(topic)
             localizer.apply(dialog)
             body = dialog.browser.toPlainText()
-            source = "Drafts" if topic == "mesh_editor" else "Distribution"
+            source = "Saved drafts and built mods" if topic == "mesh_editor" else "Distribution"
             assert localizer.translate(source) in body
             source_paragraph = (
-                "Draft recovery needs an associated project and matching source data. Keep the project descriptor, workspace manifest and saved generations together. A source mismatch refuses recovery. A recovered older generation is not proof that the latest edit or exported package was recovered."
+                "If the game has changed the file since the work was saved, CDMW asks before continuing from its saved copy of the earlier file. Undo/Redo history is not saved. A recovered older save may not include the newest edit."
                 if topic == "mesh_editor" else
                 "Start with a template from the same equipment family. Keep its original model for a first test, set a name, choose one supported shop route, then build a separate package. This checks identity and distribution before you add imported geometry, materials or effects."
             )

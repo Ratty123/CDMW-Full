@@ -5,6 +5,7 @@ from __future__ import annotations
 import copy
 import hashlib
 import json
+import shutil
 import threading
 import time
 from collections.abc import Mapping, Sequence
@@ -312,6 +313,7 @@ def save_mesh_layer_project(
         descriptor["format"] = MESH_MORPH_PROJECT_FORMAT
     raise_if_cancelled(stop, "Mesh layer autosave cancelled.")
     atomic_write_text(target, json.dumps(descriptor, indent=2, sort_keys=True))
+    _prune_superseded_generations(project_root, previous_generation)
     if workspace_manifest_path is not None:
         _update_modify_original_manifest(
             workspace_manifest_path,
@@ -495,6 +497,29 @@ def _binary_descriptors(value: object):
             yield from _binary_descriptors(child)
 
 
+def _generation_time(name: str) -> int | None:
+    parts = str(name or "").split("-")
+    if len(parts) != 3 or parts[0] != "generation":
+        return None
+    try:
+        return int(parts[1])
+    except ValueError:
+        return None
+
+
+def _prune_superseded_generations(project_root: Path, previous_generation: str) -> None:
+    """Remove generations older than the recovery fallback; restore never reads them."""
+
+    cutoff = _generation_time(previous_generation)
+    if cutoff is None:
+        return
+    for candidate in tuple(project_root.iterdir()):
+        stamp = _generation_time(candidate.name)
+        if stamp is None or stamp >= cutoff or not candidate.is_dir() or candidate.is_symlink():
+            continue
+        shutil.rmtree(candidate, ignore_errors=True)
+
+
 def _update_modify_original_manifest(
     manifest_path: Path,
     *,
@@ -509,7 +534,13 @@ def _update_modify_original_manifest(
     if not isinstance(payload, Mapping) or payload.get("format") != "cdmw_modify_original_workspace_v1":
         return
     updated = dict(payload)
-    updated["mesh_layer_project"] = str(project_path)
+    # A relative project keeps the draft valid if the workspace folder moves.
+    project = Path(project_path).resolve()
+    updated["mesh_layer_project"] = (
+        project.relative_to(target.parent).as_posix()
+        if target.parent in project.parents
+        else str(project)
+    )
     updated["source_asset_sha256"] = source_asset_sha256
     updated["updated_at"] = time.time()
     if promote_persistent_draft and str(updated.get("workspace_mode") or "") == "internal_app_session":

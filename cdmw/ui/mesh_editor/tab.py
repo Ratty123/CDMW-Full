@@ -181,6 +181,8 @@ class MeshEditorTab(MeshEditorCharacterContextMixin, MeshEditorTabShellMixin, Me
     open_archive_session_requested = Signal(object)
     open_archive_target_requested = Signal(object)
     archive_result_ready = Signal(object)
+    # Open Saved Drafts and Built Mods, filtered to a game file path when set.
+    saved_work_requested = Signal(str)
     replace_from_archive_requested = Signal(object)
     mesh_action_requested = Signal(object)
 
@@ -258,10 +260,14 @@ class MeshEditorTab(MeshEditorCharacterContextMixin, MeshEditorTabShellMixin, Me
         draft_layout.addWidget(self.draft_banner_label, 1)
         self.draft_resume_button = QPushButton("Resume", self.draft_banner)
         self.draft_start_fresh_button = QPushButton("Start Fresh", self.draft_banner)
+        self.draft_choose_button = QPushButton("Choose a Draft...", self.draft_banner)
+        self.draft_choose_button.setObjectName("MeshEditorDraftChooseButton")
         draft_layout.addWidget(self.draft_resume_button)
         draft_layout.addWidget(self.draft_start_fresh_button)
+        draft_layout.addWidget(self.draft_choose_button)
         self.draft_resume_button.clicked.connect(self._resume_latest_archive_draft)
         self.draft_start_fresh_button.clicked.connect(self._dismiss_archive_draft_banner)
+        self.draft_choose_button.clicked.connect(self._choose_archive_draft)
         self.draft_banner.setVisible(False)
         self.mesh_editor_matching_drafts: tuple[object, ...] = ()
         root.addWidget(self.draft_banner)
@@ -273,9 +279,17 @@ class MeshEditorTab(MeshEditorCharacterContextMixin, MeshEditorTabShellMixin, Me
         self.workspace_stack.setObjectName("MeshEditorWorkspaceStack")
         self.standalone_workspace = self._build_standalone_workspace()
         from cdmw.ui.mesh_editor.hair_flow import build_hair_entry_bar
-        root.insertWidget(0, build_hair_entry_bar(
+        entry_bar = build_hair_entry_bar(
             self, close_button=self.standalone_workspace.close_session_button,
-        ))
+        )
+        self.saved_work_button = QPushButton("Continue Earlier Work...", entry_bar)
+        self.saved_work_button.setObjectName("MeshEditorSavedWorkButton")
+        self.saved_work_button.setToolTip(
+            "Open your saved drafts and built mods, and continue editing one of them."
+        )
+        self.saved_work_button.clicked.connect(lambda _checked=False: self.saved_work_requested.emit(""))
+        entry_bar.layout().insertWidget(0, self.saved_work_button)
+        root.insertWidget(0, entry_bar)
         self.embedded_builder_host = QFrame(self)
         self.embedded_builder_host.setObjectName("MeshEditorEmbeddedBuilderHost")
         self.embedded_builder_host.setFrameShape(QFrame.Shape.NoFrame)

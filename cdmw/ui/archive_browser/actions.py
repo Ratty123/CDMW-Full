@@ -392,6 +392,7 @@ class ArchiveBrowserActionMixin:
 
         menu = QMenu(self)
         open_mesh_editor_action = None
+        continue_work_action = None
         if hasattr(menu, "setToolTipsVisible"):
             menu.setToolTipsVisible(True)
 
@@ -477,6 +478,8 @@ class ArchiveBrowserActionMixin:
             )
             _add_menu_section("mesh", "Mesh Edit")
             open_mesh_editor_action = menu.addAction(menu_icons["mesh"], "Open in Mesh Editor")
+            continue_work_action = menu.addAction(menu_icons["mesh"], "Continue Earlier Work...")
+            continue_work_action.setToolTip("Show your saved drafts and built mods made from this file.")
 
         if entry.extension in {".meshinfo", ".motionblending", ".paa", ".paa_metabin", ".pae", ".paem", ".papr", ".paseq", ".paseqc", ".paschedule", ".paschedulepath", ".pastage", ".prefab", ".pappt", ".pamhc", ".seqmt"}:
             _add_menu_section("data", "Structured Data")
@@ -524,6 +527,9 @@ class ArchiveBrowserActionMixin:
         chosen_action = menu.exec(self.archive_tree.viewport().mapToGlobal(position))
         if open_mesh_editor_action is not None and chosen_action is open_mesh_editor_action:
             self._queue_archive_mesh_editor_context_launch(entry)
+        elif continue_work_action is not None and chosen_action is continue_work_action:
+            # Open the list after the native context-menu loop has unwound.
+            QTimer.singleShot(0, lambda path=entry.path: self.shell._open_mesh_editor_saved_work(path))
 
     def _preview_current_archive_entry(self) -> None:
         entry = self._current_archive_action_entry("Preview")
