@@ -3691,3 +3691,35 @@ fn hair_prepared_sections_keep_root_and_rigid_correction_controls() {
     click(&mut app, "Set root / group selected sections");
     assert_eq!(app.hair.tool, Some(HairTool::Root));
 }
+
+fn press_hair_shortcut(app: &mut LabApplication, key: egui::Key, modifiers: egui::Modifiers) -> Vec<UiAction> {
+    let context = app.egui_context.clone();
+    let mut actions = Vec::new();
+    let event = egui::Event::Key { key, physical_key: None, pressed: true, repeat: false, modifiers };
+    let mut output = context.run_ui(egui::RawInput { events: vec![event], ..Default::default() }, |_| {
+        app.dispatch_cdmw_shortcuts(&context, &mut actions);
+    });
+    output.textures_delta.clear();
+    actions
+}
+
+#[test]
+fn hair_shortcuts_choose_tools_undo_and_delete_through_the_keymap() {
+    use crate::shortcuts::{Binding, ShortcutAction};
+    let (mut app, _rect, _point) = drawn_brush_app();
+    assert!(app.hair.active());
+    app.cdmw_state["authoring_enabled"] = json!(true);
+    app.cdmw_state["undo_count"] = json!(1);
+    app.shortcut_keymap.assign(ShortcutAction::HairComb, 0, Binding::parse("K").unwrap());
+    press_hair_shortcut(&mut app, egui::Key::K, egui::Modifiers::NONE);
+    assert_eq!(app.hair.tool, Some(HairTool::Comb));
+    // Mesh tool keys are not live in the hair editor.
+    press_hair_shortcut(&mut app, egui::Key::G, egui::Modifiers::NONE);
+    assert_eq!(app.hair.tool, Some(HairTool::Comb));
+    let ctrl = egui::Modifiers { ctrl: true, command: true, ..Default::default() };
+    let actions = press_hair_shortcut(&mut app, egui::Key::Z, ctrl);
+    assert!(actions.iter().any(|action| matches!(action, UiAction::Undo)), "{actions:?}");
+    app.hair.selected = app.hair.state.as_ref().unwrap().locks.iter().map(|lock| lock.id as usize).collect();
+    let actions = press_hair_shortcut(&mut app, egui::Key::Delete, egui::Modifiers::NONE);
+    assert!(actions.iter().any(|action| matches!(action, UiAction::Hair(HairAction::DeleteGuides))), "{actions:?}");
+}

@@ -37,6 +37,7 @@ mod preview_geometry;
 #[cfg(all(test, target_os = "windows"))]
 mod preview_gpu_tests;
 mod preview_loader;
+mod shortcuts;
 mod viewport;
 
 use anyhow::{Context, Result, bail};
@@ -2183,6 +2184,16 @@ struct LabApplication {
     raw_primary_captured: bool,
     raw_orbit_captured: bool,
     raw_pan_captured: bool,
+    shortcut_keymap: shortcuts::Keymap,
+    shortcut_editor: shortcuts::EditorState,
+    /// True while the Mesh Editor UI draws; the lab UI keeps its fixed keys.
+    shortcuts_live: bool,
+    /// Modifiers held now, and when the primary button went down. A slow frame can
+    /// run after Shift is released, so a selection gesture reads the press-time set.
+    raw_modifiers: egui::Modifiers,
+    primary_press_modifiers: egui::Modifiers,
+    /// Numpad presses this frame, under the egui key each one produced.
+    shortcut_numpad_presses: Vec<(egui::Key, shortcuts::NumpadKey)>,
     cdmw_bridge: Option<CdmwBridge>,
     cdmw_state: Value,
     vertex_inspector: cdmw_vertex_inspector::VertexInspector,
@@ -2375,6 +2386,12 @@ impl LabApplication {
             raw_primary_captured: false,
             raw_orbit_captured: false,
             raw_pan_captured: false,
+            shortcut_keymap: shortcuts::Keymap::default(),
+            shortcut_editor: shortcuts::EditorState::default(),
+            shortcuts_live: false,
+            raw_modifiers: egui::Modifiers::NONE,
+            primary_press_modifiers: egui::Modifiers::NONE,
+            shortcut_numpad_presses: Vec::new(),
             cdmw_bridge: None,
             cdmw_state: Value::Null,
             vertex_inspector: cdmw_vertex_inspector::VertexInspector::default(),
@@ -2840,6 +2857,9 @@ impl LabApplication {
             }
             HostEvent::Theme(theme) => {
                 self.apply_cdmw_theme_payload(&theme);
+                if let Some(shortcuts) = theme.get("shortcuts") {
+                    self.apply_shortcut_overrides(Some(shortcuts));
+                }
             }
             HostEvent::RendererRetry => {
                 if self.renderer.is_none() {
@@ -3882,6 +3902,7 @@ impl LabApplication {
 
     fn draw_ui(&mut self, root_ui: &mut egui::Ui) -> Vec<UiAction> {
         let _language = crate::localization::enter(&self.egui_context);
+        self.shortcuts_live = false;
         if self.cdmw_mode() {
             return self.draw_cdmw_ui(root_ui);
         }
@@ -5565,6 +5586,17 @@ impl LabApplication {
 
     fn capture_viewport_pointer_event(&mut self, event: &WindowEvent, scale_factor: f64) -> bool {
         match event {
+            WindowEvent::ModifiersChanged(modifiers) => {
+                let state = modifiers.state();
+                self.raw_modifiers = egui::Modifiers {
+                    alt: state.alt_key(),
+                    ctrl: state.control_key(),
+                    shift: state.shift_key(),
+                    mac_cmd: false,
+                    command: state.control_key(),
+                };
+                false
+            }
             WindowEvent::CursorMoved { position, .. } => {
                 let scale = scale_factor.max(1.0e-6) as f32;
                 let next = Vec2::new(position.x as f32 / scale, position.y as f32 / scale);
@@ -5616,6 +5648,7 @@ impl LabApplication {
                 match (state, button) {
                     (ElementState::Pressed, MouseButton::Left) if inside => {
                         self.raw_primary_captured = true;
+                        self.primary_press_modifiers = self.raw_modifiers;
                         self.pointer_events
                             .push(ViewportPointerEvent::PrimaryPressed(point));
                         true
@@ -5741,7 +5774,9 @@ impl LabApplication {
                 self.projection = None;
                 self.status = "Camera zoom".to_owned();
             }
-            if ui.input(|input| input.key_pressed(egui::Key::F))
+            // The Mesh Editor routes F through its rebindable keymap instead.
+            if !self.shortcuts_live
+                && ui.input(|input| input.key_pressed(egui::Key::F))
                 && let Some(mesh) = &self.mesh
             {
                 if mesh.selected_vertex_scope().is_empty() {
@@ -5788,6 +5823,7 @@ impl LabApplication {
                 return;
             }
             let started = Instant::now();
+            let operation = self.held_selection_operation();
             let Some(mesh) = &mut self.mesh else {
                 return;
             };
@@ -5795,7 +5831,7 @@ impl LabApplication {
                 mesh,
                 self.selection_tool,
                 self.selection_domain,
-                self.selection_operation,
+                operation,
                 self.selection_visible_only,
                 point,
                 self.brush_radius,
@@ -5811,10 +5847,17 @@ impl LabApplication {
             match result {
                 Ok(()) => {
                     self.selection_gesture = Some(gesture);
-                    self.status = format!(
-                        "{} selection preview · release to commit · Esc cancels",
-                        self.selection_tool.label()
-                    );
+                    self.status = if operation == self.selection_operation {
+                        format!(
+                            "{} selection preview · release to commit · Esc cancels",
+                            self.selection_tool.label()
+                        )
+                    } else {
+                        format!(
+                            "{} selection preview ({operation:?} while held) · release to commit · Esc cancels",
+                            self.selection_tool.label()
+                        )
+                    };
                 }
                 Err(error) => self.status = format!("Selection failed: {error}"),
             }
@@ -7246,6 +7289,7 @@ impl ApplicationHandler for LabApplication {
         if self.capture_viewport_pointer_event(&event, window.scale_factor()) {
             window.request_redraw();
         }
+        self.capture_shortcut_numpad_event(&event);
         match event {
             WindowEvent::CloseRequested => {
                 if let Some(bridge) = &mut self.cdmw_bridge

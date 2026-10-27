@@ -450,7 +450,7 @@ class AboutDocumentationEnglishMixin:
                 "id": "mesh_editor",
                 "title": "Mesh Editor",
                 "summary": "Permanent standalone viewport, resident native interaction, capability-gated LOD0 authoring, review, and safe mesh output.",
-                "keywords": "mesh editor viewport standalone workspace no-session guidance select move grab smooth inflate pinch undo redo resident native interaction solid textured authoring exact game asset free edit replace from archive pam pamlod pac object transform overlay export sidecar app xml pac xml glow translucency shader vertex parameters skin weights cloth physics profile",
+                "keywords": "mesh editor viewport standalone workspace no-session guidance select move grab smooth inflate pinch undo redo resident native interaction solid textured authoring exact game asset free edit replace from archive pam pamlod pac object transform overlay export sidecar app xml pac xml glow translucency shader vertex parameters skin weights cloth physics profile keyboard shortcuts hotkeys keys",
                 "html": """
 <p><b>Mesh Editor</b> opens supported archive or local meshes in the embedded Rust/D3D12 editor. A missing or incompatible helper blocks editing and offers Retry.</p>
                 <h4>Open and author a mesh</h4>
@@ -528,6 +528,17 @@ class AboutDocumentationEnglishMixin:
                 </ul>
                 <p>Use Textures for texture editing; Hair Appearance also has a dedicated DDS editing handoff. Use Create New Item for a new equipment identity and Placement &amp; Animations for equipment placement.</p>
                 <p>Mesh Editor follows the selected interface language. Tool availability still depends on the source format, selected LOD and output route.</p>
+                <h4>Keyboard shortcuts</h4>
+                <p>Click the viewport first so the editor receives keys. Shortcuts wait while you type in a text field, and a key does nothing where its button is unavailable.</p>
+                <ul>
+                  <li>Tools: Q Select, G Move, R Rotate, S Scale, Shift+G Grab, Shift+S Smooth, I Inflate, P Pinch, Shift+W Bend.</li>
+                  <li>Selection: 1, 2 and 3 choose Vertex, Edge and Face. B chooses Rectangle and C chooses Brush. A selects all, Alt+A clears, Ctrl+I inverts and L selects linked elements. Ctrl with numpad plus or minus grows or shrinks the selection. Shift+Z switches between Visible and X-Ray.</li>
+                  <li>Hold Shift while selecting to add; a Shift-click toggles one element. Hold Ctrl to subtract. The Operation setting stays as it is.</li>
+                  <li>View: F or numpad period frames the selection and Home fits the mesh. Numpad 1, 3 and 7 show the front, right and top; add Ctrl for the back, left and bottom.</li>
+                  <li>History: Ctrl+Z undoes; Ctrl+Shift+Z or Ctrl+Y redoes. Delete removes the selection, or the selected hair in Hair Tools.</li>
+                  <li>Escape cancels a gesture, then closes the front floating panel, then returns to Orbit.</li>
+                </ul>
+                <p>To change a key, choose Keyboard Shortcuts... in Viewport or in Hair Tools. Click a shortcut and press the new keys; Escape cancels and Backspace removes it. A key already in use moves to the new command. Reset All restores the defaults. Pages, the other selection shapes, Operation choices and hair tools start without keys. Changes are kept for later sessions.</p>
                 """,
             },
         ]

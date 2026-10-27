@@ -10,6 +10,7 @@ experimental-feature notes do not establish equivalent in-game behavior.
 ### Added
 
 - Mesh Editor saves your work so you can close CDMW and continue later. A mesh opened from Archive Browser saves a draft each time you choose Finish Edit Mesh, including later edit passes, removed parts and the Morph & Refit setup; Build Mod also keeps the editing state with the mod. Continue Earlier Work..., in Mesh Editor and on a mesh's right-click menu in Archive Browser, opens Saved Drafts and Built Mods: each row shows when it was saved, its name, game file, kind, edit pass and whether it still matches the current game files, with Continue Editing, Open Folder, Rename and Delete. Built mods are only removed from the list; their folders are kept. Add Mod Folder... lists a mod built earlier or by someone else, which reopens its finished mesh as a new edit pass with the game's own materials, skeleton and textures. Opening a game file that has drafts offers to resume one or start fresh. Changes still open in the editor are saved when you finish them, Undo/Redo history is not saved, and hairstyle builds are not listed.
+- Mesh Editor has keyboard shortcuts for its tools, selection, views and history, with Blender-style defaults: Q, G, R and S for Select, Move, Rotate and Scale, 1/2/3 for vertex, edge and face selection, numpad views, F to frame and Ctrl+Z / Ctrl+Shift+Z to undo and redo. Hold Shift while selecting to add (a Shift-click toggles one element) and Ctrl to subtract, without changing the Operation setting. Keyboard Shortcuts... in Viewport and in Hair Tools rebinds or clears any key, gives the rail pages and hair tools keys of their own, and keeps your changes for later sessions. Escape now also returns to Orbit once nothing else is open.
 
 ### Changed
 
@@ -23,6 +24,7 @@ experimental-feature notes do not establish equivalent in-game behavior.
 ### Docs
 
 - Help > Documentation and the Wiki manuals describe what follows Bake in Morph & Refit, and the Material experiments steps now use the Parts page and Back to Inspector instead of the former collapsible Parts section.
+- Help > Documentation and the Wiki manuals list the Mesh Editor keyboard shortcuts and how to change them.
 
 ## [0.11.0-alpha.25] - 2026-10-26
 

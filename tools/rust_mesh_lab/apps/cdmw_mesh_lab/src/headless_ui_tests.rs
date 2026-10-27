@@ -20,6 +20,7 @@ mod free_edit_destination;
 mod island_controls_tests;
 mod parts_output_tests;
 mod history_controls_tests;
+mod keyboard_shortcuts;
 mod free_edit_replacement_tests;
 mod morph_authoring;
 mod morph_body_controls;
@@ -1299,6 +1300,11 @@ impl HeadlessUi {
     fn frame(&mut self, events: Vec<Event>) {
         for event in &events {
             let window_event = match event {
+                // The window loop records raw modifier changes in arrival order.
+                Event::ModifiersChanged(modifiers) => {
+                    self.application.raw_modifiers = *modifiers;
+                    None
+                }
                 Event::PointerMoved(position) => Some(WindowEvent::CursorMoved {
                     device_id: DeviceId::dummy(),
                     position: winit::dpi::PhysicalPosition::new(

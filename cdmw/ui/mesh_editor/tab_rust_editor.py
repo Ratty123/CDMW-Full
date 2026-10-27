@@ -455,6 +455,7 @@ class MeshEditorRustEditorMixin(MeshEditorRustProcessMixin):
         max_translation_bytes: int = RUST_UI_TRANSLATION_MAX_BYTES,
     ) -> dict[str, object]:
         from cdmw.services.mesh_editor_layout import load_mesh_layout
+        from cdmw.services.mesh_editor_shortcuts import load_mesh_shortcuts
         from cdmw.services.active_ui_translation import active_ui_localizer
         from cdmw.ui.localization_catalogs_v2 import native_ui_source_keys
 
@@ -498,6 +499,8 @@ class MeshEditorRustEditorMixin(MeshEditorRustProcessMixin):
             "language": language,
             "translations": translations,
             "layout": load_mesh_layout(self.settings),
+            # Its presence tells the editor this host saves shortcuts_changed.
+            "shortcuts": load_mesh_shortcuts(self.settings),
             "theme": theme_key,
             "variant": "dark" if window_colour.lightnessF() < 0.5 else "light",
             "palette": palette,

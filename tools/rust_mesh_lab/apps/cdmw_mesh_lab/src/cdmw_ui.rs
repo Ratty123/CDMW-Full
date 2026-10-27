@@ -9,6 +9,7 @@ mod morph_outfit_workflows;
 mod morph_workflow;
 mod refit_diagnostics;
 mod delete_guidance;
+mod keyboard;
 #[cfg(test)]
 mod theme_readability;
 
@@ -777,6 +778,18 @@ fn cdmw_sidebar_button(
     selected: bool,
     minimum_size: f32,
 ) -> egui::Response {
+    cdmw_sidebar_button_with_tooltip(ui, label, crate::localization::tr(label), icon, selected, minimum_size)
+}
+
+/// `tooltip` adds a shortcut hint; `label` stays the widget's stable name.
+fn cdmw_sidebar_button_with_tooltip(
+    ui: &mut egui::Ui,
+    label: &str,
+    tooltip: String,
+    icon: CdmwSidebarIcon,
+    selected: bool,
+    minimum_size: f32,
+) -> egui::Response {
     let side = ui.spacing().interact_size.y.max(minimum_size);
     let (_, rect) = ui.allocate_space(egui::vec2(side, side));
     let response = ui.interact(
@@ -1040,7 +1053,7 @@ fn cdmw_sidebar_button(
             },
         }
     }
-    response.on_hover_text(crate::localization::tr(label))
+    response.on_hover_text(tooltip)
 }
 const REFIT_BODY_COLOUR: Color32 = Color32::from_rgb(100, 190, 245);
 const REFIT_ARMOR_COLOUR: Color32 = Color32::from_rgb(240, 190, 95);
@@ -1502,12 +1515,14 @@ fn cdmw_theme_is_dark(theme: &Value, window: Color32) -> bool {
 }
 
 impl LabApplication {
-    pub(super) fn apply_cdmw_theme(&self) {
+    pub(super) fn apply_cdmw_theme(&mut self) {
         let Some(bridge) = &self.cdmw_bridge else {
             return;
         };
         self.apply_cdmw_theme_payload(&bridge.manifest().theme);
         crate::cdmw_layout::restore(&self.egui_context, &bridge.manifest().theme["layout"]);
+        let shortcuts = bridge.manifest().theme.get("shortcuts").cloned();
+        self.apply_shortcut_overrides(shortcuts.as_ref());
     }
 
     pub(super) fn apply_cdmw_theme_payload(&self, theme: &Value) {
@@ -1670,8 +1685,17 @@ impl LabApplication {
         self.cdmw_hovered_part = None;
         self.cdmw_viewport_hovered_part = None;
         self.cdmw_part_name_rows.clear();
+        self.shortcuts_live = true;
+        let escape_free = self.selection_gesture.is_none()
+            && self.edit_gesture.is_none()
+            && !self.egui_context.text_edit_focused()
+            && !egui::Popup::is_any_open(&self.egui_context)
+            && !self.cdmw_delete_guidance_open()
+            && self.shortcut_editor.capture.is_none();
         let mut actions = Vec::new();
         self.draw_cdmw_delete_guidance(root_ui.ctx(), &mut actions);
+        self.dispatch_cdmw_shortcuts(&root_ui.ctx().clone(), &mut actions);
+        self.draw_cdmw_shortcut_editor(&root_ui.ctx().clone());
         self.draw_cdmw_session_bar(root_ui, &mut actions);
         self.draw_cdmw_correction_comparison_banner(root_ui, &mut actions);
         self.draw_cdmw_bottom_bar(root_ui, &mut actions);
@@ -1711,7 +1735,7 @@ impl LabApplication {
             self.draw_cdmw_compact_settings(root_ui, &mut actions);
         }
         self.draw_cdmw_viewport(root_ui);
-        self.cdmw_delete_shortcut(&mut actions);
+        self.escape_to_orbit(&root_ui.ctx().clone(), escape_free, &mut actions);
         let vertex_parameters_visible = !self.hair.active()
             && if tools_expanded {
                 self.cdmw_rail_page == Some(CdmwRailPage::VertexParameters)
@@ -1805,9 +1829,13 @@ impl LabApplication {
         undo_count: u64,
         redo_count: u64,
     ) {
+        use crate::shortcuts::ShortcutAction as Shortcut;
+        let hinted = |response: egui::Response, action| match self.shortcut_tooltip(action) {
+            Some(hint) => response.on_hover_text(hint),
+            None => response,
+        };
         ui.label(RichText::new(crate::localization::tr("Selection")).strong());
-        if ui
-            .add_enabled(!busy, Button::new(crate::localization::tr("Clear Selection")))
+        if hinted(ui.add_enabled(!busy, Button::new(crate::localization::tr("Clear Selection"))), Shortcut::ClearSelection)
             .on_disabled_hover_text(crate::localization::tr("Wait for the current shadow operation"))
             .clicked()
         {
@@ -1818,8 +1846,7 @@ impl LabApplication {
             SelectionDomain::Edge => UiAction::SelectAllEdges,
             SelectionDomain::Face => UiAction::SelectAllFaces,
         };
-        if ui
-            .add_enabled(!busy, Button::new(crate::localization::tr("Select All")))
+        if hinted(ui.add_enabled(!busy, Button::new(crate::localization::tr("Select All"))), Shortcut::SelectAll)
             .on_disabled_hover_text(crate::localization::tr("Wait for the current shadow operation"))
             .clicked()
         {
@@ -1832,8 +1859,7 @@ impl LabApplication {
         } else {
             selected.total() > 0
         };
-        if ui
-            .add_enabled(!busy && has_selection, Button::new(crate::localization::tr("Invert")))
+        if hinted(ui.add_enabled(!busy && has_selection, Button::new(crate::localization::tr("Invert"))), Shortcut::InvertSelection)
             .on_disabled_hover_text(crate::localization::tr(if busy {
                 "Wait for the current shadow operation"
             } else {
@@ -1845,8 +1871,7 @@ impl LabApplication {
         }
         ui.separator();
         ui.label(RichText::new(crate::localization::tr("History")).strong());
-        if ui
-            .add_enabled(!busy && authoring && undo_count > 0, Button::new(crate::localization::tr("Undo")))
+        if hinted(ui.add_enabled(!busy && authoring && undo_count > 0, Button::new(crate::localization::tr("Undo"))), Shortcut::Undo)
             .on_disabled_hover_text(crate::localization::tr(if busy {
                 "Wait for the current shadow operation"
             } else {
@@ -1856,8 +1881,7 @@ impl LabApplication {
         {
             actions.push(UiAction::Undo);
         }
-        if ui
-            .add_enabled(!busy && authoring && redo_count > 0, Button::new(crate::localization::tr("Redo")))
+        if hinted(ui.add_enabled(!busy && authoring && redo_count > 0, Button::new(crate::localization::tr("Redo"))), Shortcut::Redo)
             .on_disabled_hover_text(crate::localization::tr(if busy {
                 "Wait for the current shadow operation"
             } else {
@@ -1970,41 +1994,48 @@ impl LabApplication {
             })
             .show(root_ui, |ui| {
                 ui.horizontal(|ui| {
+                    use crate::shortcuts::ShortcutAction as Shortcut;
+                    let hinted = |response: egui::Response, action| match self.shortcut_tooltip(action) {
+                        Some(hint) => response.on_hover_text(hint),
+                        None => response,
+                    };
                     ui.label(RichText::new(crate::localization::tr("Navigation")).strong());
-                    if ui
-                        .add(Button::new(crate::localization::tr("Orbit")).selected(self.cdmw_orbit_mode))
-                        .on_hover_text(
-                            crate::localization::tr("Neutral navigation mode; edit gestures are inactive. RMB orbits, MMB pans, and the wheel zooms."),
-                        )
-                        .clicked()
+                    if hinted(
+                        ui.add(Button::new(crate::localization::tr("Orbit")).selected(self.cdmw_orbit_mode))
+                            .on_hover_text(
+                                crate::localization::tr("Neutral navigation mode; edit gestures are inactive. RMB orbits, MMB pans, and the wheel zooms."),
+                            ),
+                        Shortcut::Orbit,
+                    )
+                    .clicked()
                     {
                         actions.push(UiAction::OrbitMode);
                     }
-                    if ui.button(crate::localization::tr("Fit")).clicked() {
+                    if hinted(ui.button(crate::localization::tr("Fit")), Shortcut::FrameAll).clicked() {
                         actions.push(UiAction::FrameAll);
                     }
-                    if ui.button(crate::localization::tr("Frame Selected")).clicked() {
+                    if hinted(ui.button(crate::localization::tr("Frame Selected")), Shortcut::FrameSelected).clicked() {
                         actions.push(UiAction::FrameSelected);
                     }
                     ui.separator();
                     ui.label(RichText::new(crate::localization::tr("Views")).strong());
-                    for (label, view) in [
-                        ("Front", StandardView::Front),
-                        ("Back", StandardView::Back),
-                        ("Top", StandardView::Top),
-                        ("Left", StandardView::Left),
-                        ("Right", StandardView::Right),
-                        ("Bottom", StandardView::Bottom),
+                    for (label, view, shortcut) in [
+                        ("Front", StandardView::Front, Shortcut::ViewFront),
+                        ("Back", StandardView::Back, Shortcut::ViewBack),
+                        ("Top", StandardView::Top, Shortcut::ViewTop),
+                        ("Left", StandardView::Left, Shortcut::ViewLeft),
+                        ("Right", StandardView::Right, Shortcut::ViewRight),
+                        ("Bottom", StandardView::Bottom, Shortcut::ViewBottom),
                     ] {
-                        if ui.small_button(crate::localization::tr(label)).clicked() {
+                        if hinted(ui.small_button(crate::localization::tr(label)), shortcut).clicked() {
                             actions.push(UiAction::StandardView(view));
                         }
                     }
                     ui.separator();
-                    if ui.small_button(crate::localization::tr("Yaw -15°")).clicked() {
+                    if hinted(ui.small_button(crate::localization::tr("Yaw -15°")), Shortcut::YawMinus15).clicked() {
                         actions.push(UiAction::OrbitYaw(-15.0));
                     }
-                    if ui.small_button(crate::localization::tr("Yaw +15°")).clicked() {
+                    if hinted(ui.small_button(crate::localization::tr("Yaw +15°")), Shortcut::YawPlus15).clicked() {
                         actions.push(UiAction::OrbitYaw(15.0));
                     }
                     if wide {
@@ -2075,11 +2106,17 @@ impl LabApplication {
                                 CdmwSidebarPage::Viewport | CdmwSidebarPage::Output => settings.open.contains(&page),
                                 CdmwSidebarPage::Tool(tool) => self.cdmw_rail_page == Some(tool),
                             };
+                            let tooltip = self.shortcut_named(page.label(), match page {
+                                CdmwSidebarPage::Viewport => Some(crate::shortcuts::ShortcutAction::PageViewport),
+                                CdmwSidebarPage::Output => Some(crate::shortcuts::ShortcutAction::PageOutput),
+                                CdmwSidebarPage::Tool(tool) => keyboard::rail_page_action(tool),
+                            });
                             let response = ui
                                 .add_enabled_ui(enabled, |ui| {
-                                    cdmw_sidebar_button(
+                                    cdmw_sidebar_button_with_tooltip(
                                         ui,
                                         page.label(),
+                                        tooltip,
                                         CdmwSidebarIcon::Page(page),
                                         selected,
                                         32.0,
@@ -2412,9 +2449,14 @@ impl LabApplication {
                     .show(ui, |ui| {
                         ui.add_enabled_ui(!busy, |ui| {
                             ui.push_id("cdmw-viewport-root", |ui| {
-                                crate::localization::collapsing("Viewport")
+                                // The Viewport shortcut asks for this section once.
+                                let reveal = ui.ctx().data_mut(|data| {
+                                    data.remove_temp::<bool>(egui::Id::new(keyboard::CDMW_REVEAL_VIEWPORT))
+                                }).unwrap_or(false);
+                                let section = crate::localization::collapsing("Viewport")
                                     .id_salt("cdmw-viewport")
                                     .default_open(false)
+                                    .open(reveal.then_some(true))
                                     .show_unindented(ui, |ui| {
                                         self.draw_cdmw_sidebar_page(
                                             ui,
@@ -2422,6 +2464,9 @@ impl LabApplication {
                                             actions,
                                         )
                                     });
+                                if reveal {
+                                    section.header_response.scroll_to_me(Some(egui::Align::Min));
+                                }
                             });
                             ui.push_id("cdmw-output-root", |ui| {
                                 // The Output chip beside Finish asks for this section once.
@@ -2605,12 +2650,15 @@ impl LabApplication {
             page,
             CdmwRailPage::Select | CdmwRailPage::VertexParameters | CdmwRailPage::RigWeights
         );
-        if ui
-            .add_enabled(
-                !busy && (!requires_authoring || authoring)
-                    && (!self.cdmw_morph_comparison_active() || page == CdmwRailPage::Select),
-                Button::new(crate::localization::tr(label)).selected(active).wrap(),
-            )
+        let mut response = ui.add_enabled(
+            !busy && (!requires_authoring || authoring)
+                && (!self.cdmw_morph_comparison_active() || page == CdmwRailPage::Select),
+            Button::new(crate::localization::tr(label)).selected(active).wrap(),
+        );
+        if let Some(hint) = keyboard::rail_page_action(page).and_then(|action| self.shortcut_tooltip(action)) {
+            response = response.on_hover_text(hint);
+        }
+        if response
             .on_disabled_hover_text(crate::localization::tr(if busy {
                 "Wait for the current shadow operation"
             } else if self.cdmw_morph_comparison_active() {
@@ -2752,6 +2800,10 @@ impl LabApplication {
                 }
             },
         );
+        ui.separator();
+        if ui.button(crate::localization::tr("Keyboard Shortcuts...")).clicked() {
+            self.shortcut_editor.open = true;
+        }
     }
 
     fn draw_cdmw_output_section(&mut self, ui: &mut egui::Ui, actions: &mut Vec<UiAction>) {

@@ -290,9 +290,7 @@ impl LabApplication {
             self.cancel_hair_stroke();
             return true;
         }
-        if !ui.ctx().egui_wants_keyboard_input() && ui.input(|i| i.key_pressed(egui::Key::Delete)) {
-            self.run_hair_action(HairAction::DeleteGuides);
-        }
+        // Delete is the rebindable hair.delete_guides shortcut.
         let pointer = ui
             .input(|i| i.pointer.hover_pos())
             .map(|p| Vec2::new(p.x, p.y));
