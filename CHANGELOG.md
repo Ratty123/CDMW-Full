@@ -7,14 +7,6 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 ## [Unreleased]
 
-### Added
-
-- Mesh Editor's Geometry Layers now work in Exact output for PAC game files, without exporting a Free Edit OBJ package to a folder. Copy Selection and Paste New Layer are available as soon as the file opens, and Finish Edit Mesh and Build Mod write each pasted copy into the game Part it was copied from, keeping that Part's weights and cloth data exactly. The copy appears at full detail only; the game's lower-detail versions stay unchanged. A copy must stay inside its Part's original bounds and keep the source's weights and material; otherwise Mesh Editor names the copy and the reason, and Free Edit remains the route for it. In Exact output, hiding a layer changes the view only; delete the layer to leave its copy out. PAM and PAMLOD files and Archive Refit still need Free Edit for new geometry.
-
-### Fixed
-
-- Mesh Editor's Geometry Layers no longer ignore clicks outside the active layer. After Paste New Layer you can select the base mesh, or any other visible layer, in the viewport and the Parts list again, and choosing a layer keeps your selection. Hiding a layer removes only its Parts from the selection, and its button now says what hiding does to the output. Switching back to Exact output after removing Parts, or with added geometry Exact cannot write, is refused with a reason instead of failing at Finish Edit Mesh. The layer name field starts from the active layer's name, and Delete, Up and Down say why they are unavailable.
-
 ## [0.11.0-alpha.26] - 2026-10-27
 
 ### Added
@@ -22,6 +14,7 @@ experimental-feature notes do not establish equivalent in-game behavior.
 - Mesh Editor saves your work so you can close CDMW and continue later. A mesh opened from Archive Browser saves a draft each time you choose Finish Edit Mesh, including later edit passes, removed parts, View ticks in the Parts list and the Morph & Refit setup; Build Mod also keeps the editing state with the mod.
 - Drafts & Mods, a new page beside Mesh Editor, lists your drafts and built mods with when each was saved, its name, game file, kind, edit pass, project and whether it still matches the current game files. Continue Editing picks up where you left off. Name drafts there or with Name Draft... in Mesh Editor, add notes, group work into your own projects with New Project... and Move to Project..., and Duplicate a draft to try a variation. Built mods are only removed from the list; their folders are kept. Add Mod Folder... lists a mod built earlier or by someone else, which reopens its finished mesh as a new edit pass with the game's own materials, skeleton and textures. Continue Earlier Work..., in Mesh Editor and on a mesh's right-click menu in Archive Browser, opens the page. Opening a game file that has drafts asks first, before anything loads, whether to resume one or start fresh. Changes still open in the editor are saved when you finish them, Undo/Redo history is not saved, and hairstyle builds are not listed.
 - Mesh Editor has keyboard shortcuts for its tools, selection, views and history, with Blender-style defaults: Q, G, R and S for Select, Move, Rotate and Scale, 1/2/3 for vertex, edge and face selection, numpad views, F to frame and Ctrl+Z / Ctrl+Shift+Z to undo and redo. Hold Shift while selecting to add (a Shift-click toggles one element) and Ctrl to subtract, without changing the Operation setting. Keyboard Shortcuts... in Viewport and in Hair Tools rebinds or clears any key, gives the rail pages and hair tools keys of their own, and keeps your changes for later sessions. Escape now also returns to Orbit once nothing else is open.
+- Mesh Editor's Geometry Layers now work in Exact output for PAC game files, without exporting a Free Edit OBJ package to a folder. Copy Selection and Paste New Layer are available as soon as the file opens, and Finish Edit Mesh and Build Mod write each pasted copy into the game Part it was copied from, keeping that Part's weights and cloth data exactly. The copy appears at full detail only; the game's lower-detail versions stay unchanged. A copy must stay inside its Part's original bounds and keep the source's weights and material; otherwise Mesh Editor names the copy and the reason, and Free Edit remains the route for it. In Exact output, hiding a layer changes the view only; delete the layer to leave its copy out. PAM and PAMLOD files and Archive Refit still need Free Edit for new geometry.
 
 ### Changed
 
@@ -35,11 +28,13 @@ experimental-feature notes do not establish equivalent in-game behavior.
 - CDMW's window keeps up better while background work runs, such as opening a mesh in Mesh Editor or loading a body or garments for Morph & Refit: clicks and redraws on Windows wait far less behind that work.
 - Build Mod after a Morph & Refit fit no longer packages the body the outfit was fitted to, which overrode other body mods even when the body was unchanged. The mod now contains only the outfit, also after Start next edit pass, and Install as Overlay leaves the body out too. To ship changes you made to the body as well, turn on Include the body in the Build Mod window; it is off by default.
 - Morph & Refit's Fit keeps a tightened belt over a skirt left at 0% Tightness. The belt previously sank through the loose skirt toward the skin; it now stays outside the skirt where it covers it and still tightens around the waist above it. Small trim resting on the skirt, such as a hanging rope end, now stays on it instead of crumpling through it.
+- Mesh Editor's Geometry Layers no longer ignore clicks outside the active layer. After Paste New Layer you can select the base mesh, or any other visible layer, in the viewport and the Parts list again, and choosing a layer keeps your selection. Hiding a layer removes only its Parts from the selection, and its button now says what hiding does to the output. Switching back to Exact output after removing Parts, or with added geometry Exact cannot write, is refused with a reason instead of failing at Finish Edit Mesh. The layer name field starts from the active layer's name, and Delete, Up and Down say why they are unavailable.
 
 ### Docs
 
 - Help > Documentation and the Wiki manuals describe what follows Bake in Morph & Refit, and the Material experiments steps now use the Parts page and Back to Inspector instead of the former collapsible Parts section.
 - Help > Documentation and the Wiki manuals list the Mesh Editor keyboard shortcuts and how to change them.
+- Help > Documentation and the Wiki manuals explain that Geometry Layers also work in Exact output for PAC files, and what that route keeps and refuses.
 
 ## [0.11.0-alpha.25] - 2026-10-26
 
