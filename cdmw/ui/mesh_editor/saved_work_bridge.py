@@ -1,4 +1,4 @@
-"""Shell routes for Saved Drafts and Built Mods: list, find the source, continue."""
+"""Shell routes for the Drafts & Mods page: open it, find the source, continue."""
 
 from __future__ import annotations
 
@@ -32,7 +32,7 @@ SOURCE_POLL_TIMEOUT_SECONDS = 90.0
 
 
 class MeshEditorSavedWorkBridgeMixin:
-    """Open Saved Drafts and Built Mods and continue a row in Mesh Editor."""
+    """Open the Drafts & Mods page and continue a row in Mesh Editor."""
 
     def _mesh_saved_work_root(self) -> Path:
         # The same rule as MeshEditorTab.mesh_editor_draft_root, which saves them.
@@ -53,25 +53,21 @@ class MeshEditorSavedWorkBridgeMixin:
         return getattr(tab, "mesh_editor_draft_manifest_path", None) if tab is not None else None
 
     def _open_mesh_editor_saved_work(self, path_filter: str = "") -> None:
-        from cdmw.ui.mesh_editor.saved_work_dialog import MeshSavedWorkDialog
+        """Show Drafts & Mods, filtered to one game file when given."""
 
-        dialog = getattr(self, "_mesh_saved_work_dialog", None)
-        if dialog is None:
-            # The list resolves its own game files; continuing uses its own
-            # resolver so a status check cannot cancel a pending continue.
-            dialog = MeshSavedWorkDialog(
-                self,
-                draft_root=self._mesh_saved_work_root(),
-                source_resolver=SavedWorkSourceResolver(self.archive, self),
-                active_draft_manifest=self._mesh_saved_work_active_draft,
-            )
-            dialog.continue_requested.connect(self._continue_mesh_saved_work)
-            self._mesh_saved_work_dialog = dialog
-        dialog.set_path_filter(str(path_filter or ""))
-        dialog.refresh()
-        dialog.show()
-        dialog.raise_()
-        dialog.activateWindow()
+        container = self.saved_work_tab
+        text = str(path_filter or "")
+
+        def show(page) -> None:
+            page.set_path_filter(text)
+            page.refresh()
+
+        self._activate_tool_widget(container)
+        when_created = getattr(container, "when_created", None)
+        if callable(when_created):
+            when_created(show)
+        else:
+            show(container)
 
     def _continue_mesh_saved_work(self, row: object) -> None:
         if not isinstance(row, SavedWorkRow):

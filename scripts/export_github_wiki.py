@@ -99,8 +99,9 @@ _CONTROLS = (
     "Glow", "Translucency", "Shader experiments", "Parts", "Part colors", "Report a Problem",
     "Island colors", "Open Parts on hover", "Fit all enabled garments", "Use the authored body",
     "Take weights from the body", "Pull to skin", "Back to Inspector", "Continue Earlier Work...",
-    "Saved Drafts and Built Mods", "Continue Editing", "Delete...", "Remove from List...",
-    "Add Mod Folder...", "Choose a Draft...", "Include the body",
+    "Drafts & Mods", "Continue Editing", "Delete...", "Remove from List...",
+    "Add Mod Folder...", "Choose a Draft...", "Name Draft...", "New Project...", "Move to Project...",
+    "Duplicate...", "Save Changes", "Include the body",
 )
 # A sentence that opens with a control's name and describes it is not a step.
 _CONTROL_SUBJECT = re.compile(
@@ -466,6 +467,7 @@ def build_pages() -> dict[str, str]:
                     topic = spec.key if spec.key in TOPIC_PAGE else {
                         "new_item_studio": "new_item_studio", "item_icons": "icon_creator",
                         "textures": "workflow_overview", "translation_studio": "translation_studio",
+                        "saved_work": "mesh_editor",
                     }.get(spec.key, spec.key)
                     target = TOPIC_PAGE[topic]
                     rows.append(f"| [{translate(spec.label)}]({page_url(target, locale)}) | {translate(spec.category)} > {translate(spec.label)} |")

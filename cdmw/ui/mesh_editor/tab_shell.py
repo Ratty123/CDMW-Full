@@ -247,6 +247,9 @@ class MeshEditorTabShellMixin(
         ):
             if widget is not None and widget.font().toString() != applied_font.toString():
                 widget.setFont(applied_font)
+        sync_draft_choice = getattr(self, "_sync_draft_choice_fonts", None)
+        if callable(sync_draft_choice):
+            sync_draft_choice(applied_font)
         if hasattr(self.action_bar, "sync_ui_font"):
             self.action_bar.sync_ui_font(applied_font, dense_font)
         if hasattr(self.standalone_workspace, "sync_ui_font"):
@@ -959,6 +962,10 @@ class MeshEditorTabShellMixin(
 
     def _close_standalone_session_requested(self) -> None:
         if not self.has_active_standalone_session():
+            # Close also cancels the question asked before a draft loads.
+            choice_showing = getattr(self, "_draft_choice_showing", None)
+            if callable(choice_showing) and choice_showing():
+                self.show_empty_state()
             return
         if int(getattr(self, "current_undo_count", 0) or 0) > 0:
             confirmed = _tab.QMessageBox.question(

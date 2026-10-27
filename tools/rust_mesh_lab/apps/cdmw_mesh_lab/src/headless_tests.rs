@@ -2713,3 +2713,31 @@ fn offscreen_d3d12_captures_the_exact_cdmw_material_package_without_a_window() -
     assert!(paths.part_id.is_file());
     Ok(())
 }
+
+
+#[test]
+fn view_ticks_reopen_from_cdmw_state_and_return_with_finish() -> TestResult {
+    let root = tempdir()?;
+    let mut document = decode_mesh(&cdmw_formats::synthetic::triangle_pam("body.dds"), MeshFormat::Pam)?;
+    let mut second = document.lods[0].submeshes[0].clone();
+    second.name = "Part B".to_owned();
+    for position in &mut second.positions {
+        position[0] += 3.0;
+    }
+    document.lods[0].submeshes.push(second);
+    let mut bridge = CdmwBridge::for_test(root.path().to_path_buf(), "view-ticks", 1, 0);
+    // Part 7 does not exist in this mesh and must be ignored.
+    bridge.set_state_for_test(json!({"viewport": {"hidden_parts": [1, 7]}}));
+    let messages = bridge.capture_messages_for_test();
+    let mut application = LabApplication::new_cdmw(bridge, document, None)?;
+    assert_eq!(application.cdmw_hidden_parts, HashSet::from([1]));
+    assert_eq!(application.cdmw_visible_submeshes(), Some(HashSet::from([0])));
+
+    application.submit_cdmw_finish();
+    // Messages reach the receiver through a forwarding thread.
+    let finish = std::iter::from_fn(|| messages.recv_timeout(std::time::Duration::from_secs(5)).ok())
+        .find(|message| message["event"] == "finish_request")
+        .ok_or_else(|| format!("no finish request was sent: {}", application.status))?;
+    assert_eq!(finish["viewport_hidden_parts"], json!([1]));
+    Ok(())
+}

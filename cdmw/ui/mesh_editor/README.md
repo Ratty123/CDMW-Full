@@ -134,12 +134,25 @@ is insufficient.
 
 ### Saved drafts and built mods
 
-**Continue Earlier Work...** opens **Saved Drafts and Built Mods** from the Mesh
-Editor toolbar, from the resume banner's **Choose a Draft...**, or from Archive
-Browser's right-click menu on a mesh, where the list starts filtered to that file.
-Each row shows when it was saved, its name, the game file it came from, its kind
-(**Saved draft**, **Built mod** or **Built mod (no draft)**), its edit pass and a status
-checked against the current game files:
+**Drafts & Mods** is its own page in the Authoring tools, after Mesh Editor
+(`saved_work` in the tool registry; [page](saved_work_page.py)). **Continue Earlier
+Work...** in the Mesh Editor top bar, **Choose a Draft...** in the question asked when a
+file with drafts opens, and Archive Browser's right-click menu on a mesh open it, the
+last two filtered to that file.
+
+The page has three parts:
+
+- **Projects** on the left: **All work**, **No project** and the user's own projects,
+  each with a count. **New Project...**, **Rename Project...** and **Delete Project...**
+  manage them; deleting a project keeps its drafts and mods, which move to No project.
+- The work table: when each row was saved, its name, the game file it came from, its
+  kind (**Saved draft**, **Built mod** or **Built mod (no draft)**), its edit pass, its
+  status and its project. Columns sort, and the filter matches names, game files and notes.
+  Several rows can be selected for **Move to Project...**.
+- **Details** for the selected row: **Name in list**, **Project** and **Your notes** with
+  **Save Changes**, the game file, kind, edit pass, status and folder, and the actions.
+
+The status is checked against the current game files:
 
 - **Matches the current game files**: the game file is the one the work started from.
 - **Game updated since this was made**: continuing uses the copy saved with the work
@@ -147,18 +160,30 @@ checked against the current game files:
 - **Source file not found**, **Mod folder not found**, or **Original game version
   unknown** for a mod listed by hand whose history CDMW cannot see.
 
-The actions are **Continue Editing**, **Open Folder**, **Rename...** and
-**Delete...** for a draft, which asks first. A built mod offers **Remove from
-List...** instead: the mod folder and its files are never deleted from this list,
-and **Open Folder** is the way to delete them by hand. Rename changes only the name
-shown in the list. The draft open in Mesh Editor cannot be deleted. **Add Mod
-Folder...** lists a mod built before saved drafts existed, or by someone else; its
-game path comes from CDMW's local export record, or from the mesh file's place in
-the folder.
+The actions are **Continue Editing**, **Open Folder**, **Duplicate...** (drafts only:
+an independent copy with its own name, in the same project) and **Delete...** for a
+draft, which asks first. A built mod offers **Remove from List...** instead: the mod
+folder and its files are never deleted from this list, and **Open Folder** is the way
+to delete them by hand. Names and projects change only how the list shows the work;
+folders keep their names. The draft open in Mesh Editor cannot be deleted. **Add Mod
+Folder...** lists a mod built before saved drafts existed, or by someone else, in the
+selected project; its game path comes from CDMW's local export record, or from the
+mesh file's place in the folder.
 
-Opening a game file that already has drafts shows a banner: **Resume** the newest,
-**Start Fresh** from the file, or **Choose a Draft...**. Starting fresh leaves every
-draft in place.
+**Name Draft...** beside Continue Earlier Work... names the draft of the open mesh and
+chooses its project, with **New Project...** in the same dialog. It works before the
+first save too: the planned draft carries the name. Later edit passes, continued built
+mods and built mods inherit the draft's name and project.
+
+Opening a game file that already has drafts asks first, before anything loads
+([question](draft_choice.py)): **Resume** the newest, **Start Fresh** from the file,
+**Choose a Draft...** in Drafts & Mods, or **Cancel**. Each answer loads the mesh once,
+and starting fresh leaves every draft in place. Continue Editing, a next edit pass and
+a retry name what they open, so they never ask.
+
+The top bar shows the open draft's name on the left with **Name Draft...**, and
+**Continue Earlier Work...**, Hair Tools and Close on the right. A long name is shortened
+to fit; its tooltip holds the whole name.
 
 Storage and ownership:
 
@@ -168,13 +193,21 @@ Storage and ownership:
   started from plus any edited or added companion files of a later edit pass. The
   folder is created by the first save, so opening and closing a file leaves nothing.
 - Each save keeps the current and previous generation; older generations are removed.
+- Names, notes and the project id live in each draft manifest and built-mod record;
+  projects are listed in `projects.json` beside the drafts. Every read-modify-write of
+  these files, including the autosave's manifest update, holds one lock, so a rename
+  is never lost to a concurrent save.
 - **Start next edit pass** starts a new draft with the next pass number, the same name
   and the original game file's fingerprint, so it can be resumed after the in-session
   edited result is gone.
 - **Build Mod** saves the session's draft at the built revision, freezes a copy
-  (`built_mod_draft` mode, never offered by the resume banner), and records the mod in
+  (`built_mod_draft` mode, never offered when a file opens), and records the mod in
   `built_mods.json` beside the drafts. Continuing that mod restores removed parts, the
   Morph & Refit setup and the fitted shape into a new draft. Undo history is not saved.
+- The Parts list's **View** ticks travel with Finish (`viewport_hidden_parts` in the
+  `finish_request`), are saved in the draft generation, and come back in the editor
+  state's `viewport.hidden_parts` when it reopens, so a reopened draft or mod hides the
+  same parts. They stay viewport-only and never change what is exported.
 - A built mod without saved state opens its finished mesh, read from a loose file or a
   DMM archive group, as a new edit pass. Materials, skeleton and textures still come
   from the game's own files. A mod with several meshes reopens the one it records.
@@ -210,7 +243,8 @@ The owning code is [Finish publication](tab_rust_process.py),
 [draft persistence](../../services/mesh_layer_project_service.py),
 [source-bound draft discovery](../../services/modify_original_workspace_service.py),
 [saved drafts and built mods](../../services/mesh_saved_work_service.py),
-the [list window](saved_work_dialog.py) and its [shell routes](saved_work_bridge.py),
+the [Drafts & Mods page](saved_work_page.py), [Name Draft](saved_work_naming.py)
+and the [shell routes](saved_work_bridge.py),
 and [edited-result preparation](../../services/mesh_archive_results.py).
 
 ## Parts and appearance
@@ -1665,9 +1699,10 @@ and ghost overlay views.
 `MeshEditorTab.open_archive_session()` is the normal entry point. A correlated,
 cancellable `MeshArchiveSessionLoadWorker` reads and round-trip-validates the
 exact archive bytes, creates the authoritative `MeshService` edit session, and
-publishes only the current completion. Matching source-hash drafts open against
-the current source and produce the non-modal Resume/Start Fresh banner; starting
-fresh never deletes a draft. `MeshEditorTab.open_session()` remains a compatibility
+publishes only the current completion. An open that names no draft looks for
+drafts by the SHA-256 of the raw archive bytes first; when it finds some, the worker
+stops before parsing and emits `drafts_found`, and the tab's answer starts one new
+load. Starting fresh never deletes a draft. `MeshEditorTab.open_session()` remains a compatibility
 wrapper over this direct contract.
 
 Archive PAC sessions resolve the same head-specific PABC neutral appearance as Archive

@@ -56,6 +56,8 @@ class MeshEditorTabShellRuntimeMixin:
         # Saved-draft state of the open archive session: how the pending load
         # should save, the draft it writes, and what a next pass inherits.
         self.archive_session_draft_request: object | None = None
+        # Whether the pending load stops to ask which draft to continue.
+        self.archive_session_offers_drafts = False
         self.mesh_editor_draft_manifest_path: Path | None = None
         self.mesh_editor_draft_lineage: dict[str, object] = {}
         self.standalone_archive_material_preview_model: object | None = None

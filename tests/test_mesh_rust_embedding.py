@@ -389,7 +389,9 @@ def test_helper_without_translation_parts_keeps_its_theme_and_names_the_line_lim
     tab = _tab(tmp_path)
     app = QApplication.instance()
     previous = app.property("_cdmw_ui_localizer")
-    localizer = UiLocalizer(language_dir=tmp_path / "languages", language_code="ru")
+    # The full Russian and Japanese native catalogues no longer fit one line and
+    # need translation parts; Traditional Chinese still does.
+    localizer = UiLocalizer(language_dir=tmp_path / "languages", language_code="zh-Hant")
     app.setProperty("_cdmw_ui_localizer", localizer)
     keys = _pad_native_catalog(localizer, minimum_bytes=400 * 1024)
     sent: list[dict[str, object]] = []

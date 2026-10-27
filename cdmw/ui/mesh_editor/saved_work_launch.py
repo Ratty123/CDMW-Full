@@ -53,6 +53,7 @@ def next_pass_draft_request(lineage: Mapping[str, object], prepared: object) -> 
         edit_pass=max(1, int(lineage.get("edit_pass") or 1)) + 1,
         display_name=str(lineage.get("display_name") or ""),
         game_source_sha256=str(lineage.get("game_source_sha256") or ""),
+        project_id=str(lineage.get("project_id") or ""),
         baseline_entries=tuple(
             candidate for candidate in entries
             if candidate.prepared_note in _EDITED_NOTES and candidate.prepared_path is not None

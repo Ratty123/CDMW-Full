@@ -250,6 +250,23 @@ class ShellToolTabsMixin:
         )
         return tab
 
+    def _create_saved_work_tab(self) -> QWidget:
+        from cdmw.ui.mesh_editor.saved_work_page import SavedWorkPage
+        from cdmw.ui.mesh_editor.saved_work_sources import SavedWorkSourceResolver
+
+        # The page resolves its own game files; continuing uses the bridge's
+        # resolver so a status check cannot cancel a pending continue.
+        page = SavedWorkPage(
+            draft_root=self._mesh_saved_work_root(),
+            source_resolver=SavedWorkSourceResolver(self.archive, self),
+            active_draft_manifest=self._mesh_saved_work_active_draft,
+        )
+        page.continue_requested.connect(self._continue_mesh_saved_work)
+        page.status_message_requested.connect(
+            lambda message, is_error: self.set_status_message(message, error=is_error, tool_key="saved_work")
+        )
+        return page
+
     def _create_model_library_tab(self) -> QWidget:
         from cdmw.ui.model_library import ModelLibraryTab
 
@@ -705,6 +722,9 @@ class ShellToolTabsMixin:
             "mesh_editor",
             self._create_mesh_editor_tab,
         )
+        self.saved_work_tab = self._add_lazy_shell_tool(
+            "Drafts & Mods", "saved_work", self._create_saved_work_tab
+        )
         self.model_library_tab = self._add_lazy_shell_tool(
             "Model Library", "model_library", self._create_model_library_tab
         )
@@ -764,6 +784,7 @@ class ShellToolTabsMixin:
         self._register_detachable_tool("textures", self.textures, "Textures")
         self._register_detachable_tool("archive_browser", self.archive_browser_tab, "Archive Browser")
         self._register_detachable_tool("mesh_editor", self.mesh_editor_tab, "Mesh Editor")
+        self._register_detachable_tool("saved_work", self.saved_work_tab, "Drafts & Mods")
         self._register_detachable_tool("model_library", self.model_library_tab, "Model Library")
         self._register_detachable_tool("research", self.research_tab, "Texture Research")
         self._register_detachable_tool("text_search", self.text_search_tab, "Text Search")

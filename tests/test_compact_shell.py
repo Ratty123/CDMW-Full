@@ -177,7 +177,7 @@ def test_shell_setting_normalization_and_shared_theme(tmp_path: Path) -> None:
 
 
 def test_compact_registry_has_one_textures_workspace() -> None:
-    assert len(COMPACT_TOOL_SPECS) == 12
+    assert len(COMPACT_TOOL_SPECS) == 13
     assert len({spec.key for spec in COMPACT_TOOL_SPECS}) == len(COMPACT_TOOL_SPECS)
     assert [(spec.category, spec.label) for spec in COMPACT_TOOL_SPECS] == [
         ("Assets", "Browse Archives"),
@@ -185,6 +185,7 @@ def test_compact_registry_has_one_textures_workspace() -> None:
         ("Assets", "Model Library"),
         ("Assets", "Item Icons"),
         ("Authoring", "Mesh Editor"),
+        ("Authoring", "Drafts & Mods"),
         ("Authoring", "Placement & Animations"),
         ("Authoring", "Textures"),
         ("Utilities", "Mod Management"),

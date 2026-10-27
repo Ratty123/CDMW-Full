@@ -1142,7 +1142,9 @@ impl CdmwBridge {
         Ok(request_id)
     }
 
-    pub fn submit_finish(&mut self) -> Result<u64, SessionError> {
+    /// `hidden_parts` are the Parts hidden with View; CDMW keeps them with the
+    /// accepted mesh and its draft and returns them when the editor reopens.
+    pub fn submit_finish(&mut self, hidden_parts: &[u32]) -> Result<u64, SessionError> {
         let request_id = self.take_request_id();
         self.send_message(json!({
             "event": "finish_request",
@@ -1150,7 +1152,8 @@ impl CdmwBridge {
             "session_id": self.manifest.session_id,
             "request_id": request_id,
             "base_revision": self.shadow_revision,
-            "process_generation": self.manifest.process_generation
+            "process_generation": self.manifest.process_generation,
+            "viewport_hidden_parts": hidden_parts
         }))?;
         Ok(request_id)
     }
@@ -1340,6 +1343,27 @@ impl CdmwBridge {
             state_snapshot_accepted: false,
             translations: translation_transfer::TranslationTransfers::default(),
         }
+    }
+
+    #[cfg(test)]
+    pub(crate) fn set_state_for_test(&mut self, state: Value) {
+        self.manifest.state = state;
+    }
+
+    /// Route this bridge's outgoing JSON messages to the returned receiver.
+    #[cfg(test)]
+    pub(crate) fn capture_messages_for_test(&mut self) -> Receiver<Value> {
+        let (outbound, outbound_rx) = bounded(OUTBOUND_QUEUE_BOUND);
+        let (messages, received) = bounded(OUTBOUND_QUEUE_BOUND);
+        self.outbound = outbound;
+        drop(thread::spawn(move || {
+            while let Ok(item) = outbound_rx.recv() {
+                if let Outbound::Message(value) = item {
+                    let _ = messages.send(value);
+                }
+            }
+        }));
+        received
     }
 
     #[cfg(test)]
