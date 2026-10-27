@@ -932,6 +932,15 @@ def _app_feedback_stylesheet(theme: Dict[str, str]) -> str:
         color: {theme["text_muted"]};
         padding: 8px;
     }}
+    QFrame#MeshEditorDraftChoiceCard {{
+        background: {theme["surface"]};
+        border: 1px solid {theme["border_strong"]};
+        border-radius: 6px;
+    }}
+    QFrame#MeshEditorDraftChoiceCard QLabel {{
+        background: transparent;
+        border: none;
+    }}
     """
 
 

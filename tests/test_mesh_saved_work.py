@@ -736,6 +736,122 @@ def test_tab_plans_a_draft_for_each_open_and_passes_its_lineage_to_the_next_pass
         app.processEvents()
 
 
+def test_opening_a_file_with_drafts_asks_before_loading_and_each_answer_loads_once(game, tmp_path):
+    from unittest.mock import patch
+
+    from PySide6.QtCore import QSettings
+
+    from cdmw.ui.mesh_editor.tab import MeshEditorTab
+
+    app = QApplication.instance() or QApplication([])
+    tab = MeshEditorTab(settings=QSettings(str(tmp_path / "ui.ini"), QSettings.IniFormat))
+    manifest = _draft_on_disk(tab.mesh_editor_draft_root, game.entry, game.source, "Cuirass fit", now=time.time())
+    try:
+        # A plain open finds the draft from the file's bytes and asks before it parses anything.
+        with patch("cdmw.workers.mesh_editor_aux_workers.MeshService", side_effect=AssertionError("loaded")):
+            request_id = tab.open_archive_session(game.entry, archive_dependencies=game.context)
+            assert tab.archive_session_offers_drafts is True
+            _wait(app, lambda: tab._draft_choice_showing() and tab.archive_session_load_thread is None)
+        assert tab.archive_session_load_request_id == request_id
+        assert [draft.manifest_path for draft in tab.mesh_editor_matching_drafts] == [manifest]
+        assert "Cuirass fit" in tab.draft_choice_label.text()
+        assert tab.standalone_controller is None
+        offered = tab.mesh_editor_matching_drafts
+
+        with patch.object(tab, "_start_archive_session_load_worker") as start:
+            tab.draft_resume_button.click()
+            assert start.call_args.kwargs["resume_manifest_path"] == manifest
+            assert tab.archive_session_offers_drafts is False
+            assert tab.workspace_stack.currentWidget() is tab.standalone_workspace
+
+            tab._handle_archive_session_drafts_found(tab.archive_session_load_request_id, offered)
+            start.reset_mock()
+            tab.draft_start_fresh_button.click()
+            # Start Fresh names a new draft, so its load does not ask again.
+            assert start.call_args.kwargs["resume_manifest_path"] is None
+            assert tab.archive_session_offers_drafts is False
+            assert tab.archive_session_draft_request == MeshDraftRequest(edit_pass=1)
+
+            # A stale answer from an earlier open is ignored.
+            tab._handle_archive_session_drafts_found(tab.archive_session_load_request_id - 1, offered)
+            assert not tab._draft_choice_showing()
+
+            tab._handle_archive_session_drafts_found(tab.archive_session_load_request_id, offered)
+            requested = []
+            tab.saved_work_requested.connect(requested.append)
+            tab.draft_choose_button.click()
+            assert requested == [game.entry.path] and tab._draft_choice_showing()
+
+            # Continue Editing and a next pass name what to open, so they never ask.
+            tab.open_archive_session(game.entry, archive_dependencies=game.context, resume_manifest_path=manifest)
+            assert tab.archive_session_offers_drafts is False and not tab._draft_choice_showing()
+            tab.open_archive_session(game.entry, archive_dependencies=game.context,
+                                     draft_request=MeshDraftRequest(edit_pass=2))
+            assert tab.archive_session_offers_drafts is False
+
+            tab.open_archive_session(game.entry, archive_dependencies=game.context)
+            tab._handle_archive_session_drafts_found(tab.archive_session_load_request_id, offered)
+            tab.draft_choice_cancel_button.click()
+            assert not tab._draft_choice_showing() and not tab.empty_state.isHidden()
+    finally:
+        tab.close_standalone_session()
+        tab.deleteLater()
+        app.processEvents()
+
+
+def test_explicit_opens_load_with_the_drafts_listed_and_the_top_bar_keeps_its_order(game, tmp_path):
+    from PySide6.QtCore import QSettings
+
+    from cdmw.ui.mesh_editor.saved_work_naming import refresh_draft_name_controls
+    from cdmw.ui.mesh_editor.tab import MeshEditorTab
+
+    first = _load(game.entry, game.context, game.drafts, draft_request=MeshDraftRequest())
+    _finish_move(first, tmp_path / "rust", _first_x(first) + 0.25)
+    _wait_for_autosave(first)
+    _close(first)
+    manifest = first.draft_manifest_path
+    found = []
+    worker = MeshArchiveSessionLoadWorker(
+        1, game.entry, draft_root=game.drafts, offer_drafts=True, resume_manifest_path=manifest,
+        archive_entries_by_normalized_path=game.context.entries_by_normalized_path,
+        archive_entries_by_basename=game.context.entries_by_basename,
+    )
+    worker.drafts_found.connect(lambda _id, items: found.append(items))
+    loaded = []
+    worker.loaded.connect(lambda _id, result: loaded.append(result))
+    worker.run()
+    try:
+        # Resuming a named draft never stops to ask, even when asking is allowed.
+        assert found == [] and loaded[0].resumed_manifest_path == manifest
+    finally:
+        loaded[0].service.close_edit_session(loaded[0].view.session_id, force_without_saving=True)
+
+    app = QApplication.instance() or QApplication([])
+    tab = MeshEditorTab(settings=QSettings(str(tmp_path / "ui.ini"), QSettings.IniFormat))
+    try:
+        layout = tab.saved_work_button.parentWidget().layout()
+        order = [layout.itemAt(index).widget() for index in range(layout.count())]
+        assert [order.index(widget) for widget in (
+            tab.draft_name_label, tab.draft_name_button, tab.hair_entry_status,
+            tab.saved_work_button, tab.hair_entry_button,
+        )] == sorted(order.index(widget) for widget in (
+            tab.draft_name_label, tab.draft_name_button, tab.hair_entry_status,
+            tab.saved_work_button, tab.hair_entry_button,
+        ))
+        long_name = "cd_m0001_00_de_phm_ub_11002 Mesh Mod-dmm-archive " * 4
+        tab.mesh_editor_draft_manifest_path = manifest
+        tab.mesh_editor_draft_lineage = {"display_name": long_name.strip()}
+        refresh_draft_name_controls(tab)
+        # The full name stays available to translation and the tooltip.
+        assert tab.draft_name_label.text() == f"Draft: {long_name.strip()}"
+        assert tab.draft_name_label.toolTip() == tab.draft_name_label.text()
+        assert tab.draft_name_label.sizeHint().width() <= tab.draft_name_label.MAX_WIDTH
+    finally:
+        tab.mesh_editor_draft_manifest_path = None
+        tab.deleteLater()
+        app.processEvents()
+
+
 class _Shell(MeshEditorSavedWorkBridgeMixin, QObject):
     """The shell surface the saved-work routes use, without a main window."""
 

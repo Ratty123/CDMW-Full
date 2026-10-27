@@ -8,7 +8,6 @@ from PySide6.QtCore import QSettings, Signal, Qt
 from PySide6.QtWidgets import (
     QFrame,
     QHBoxLayout,
-    QLabel,
     QPushButton,
     QSizePolicy,
     QSplitter,
@@ -251,27 +250,6 @@ class MeshEditorTab(MeshEditorCharacterContextMixin, MeshEditorTabShellMixin, Me
         self.character_context_toolbar.setVisible(character_context_service is not None)
         root.addWidget(self.character_context_toolbar)
 
-        self.draft_banner = QFrame(self)
-        self.draft_banner.setObjectName("MeshEditorDraftRecoveryBanner")
-        draft_layout = QHBoxLayout(self.draft_banner)
-        draft_layout.setContentsMargins(8, 5, 8, 5)
-        self.draft_banner_label = QLabel("", self.draft_banner)
-        self.draft_banner_label.setWordWrap(True)
-        draft_layout.addWidget(self.draft_banner_label, 1)
-        self.draft_resume_button = QPushButton("Resume", self.draft_banner)
-        self.draft_start_fresh_button = QPushButton("Start Fresh", self.draft_banner)
-        self.draft_choose_button = QPushButton("Choose a Draft...", self.draft_banner)
-        self.draft_choose_button.setObjectName("MeshEditorDraftChooseButton")
-        draft_layout.addWidget(self.draft_resume_button)
-        draft_layout.addWidget(self.draft_start_fresh_button)
-        draft_layout.addWidget(self.draft_choose_button)
-        self.draft_resume_button.clicked.connect(self._resume_latest_archive_draft)
-        self.draft_start_fresh_button.clicked.connect(self._dismiss_archive_draft_banner)
-        self.draft_choose_button.clicked.connect(self._choose_archive_draft)
-        self.draft_banner.setVisible(False)
-        self.mesh_editor_matching_drafts: tuple[object, ...] = ()
-        root.addWidget(self.draft_banner)
-
         self.empty_state = self._build_empty_state()
         root.addWidget(self.empty_state)
 
@@ -282,22 +260,28 @@ class MeshEditorTab(MeshEditorCharacterContextMixin, MeshEditorTabShellMixin, Me
         entry_bar = build_hair_entry_bar(
             self, close_button=self.standalone_workspace.close_session_button,
         )
+        from cdmw.ui.mesh_editor.saved_work_naming import (
+            DraftNameLabel,
+            name_current_draft,
+        )
+
+        # The open draft on the left, the actions that leave it on the right.
+        entry_layout = entry_bar.layout()
+        self.draft_name_label = DraftNameLabel(entry_bar)
+        self.draft_name_label.setObjectName("HintLabel")
+        self.draft_name_button = QPushButton("Name Draft...", entry_bar)
+        self.draft_name_button.setObjectName("MeshEditorNameDraftButton")
+        self.draft_name_button.setToolTip("Name this mesh's draft and choose its project in Drafts & Mods.")
+        self.draft_name_button.clicked.connect(lambda _checked=False: name_current_draft(self))
+        entry_layout.insertWidget(0, self.draft_name_label, 0)
+        entry_layout.insertWidget(1, self.draft_name_button)
         self.saved_work_button = QPushButton("Continue Earlier Work...", entry_bar)
         self.saved_work_button.setObjectName("MeshEditorSavedWorkButton")
         self.saved_work_button.setToolTip(
             "Open your saved drafts and built mods, and continue editing one of them."
         )
         self.saved_work_button.clicked.connect(lambda _checked=False: self.saved_work_requested.emit(""))
-        entry_bar.layout().insertWidget(0, self.saved_work_button)
-        from cdmw.ui.mesh_editor.saved_work_naming import name_current_draft
-        self.draft_name_button = QPushButton("Name Draft...", entry_bar)
-        self.draft_name_button.setObjectName("MeshEditorNameDraftButton")
-        self.draft_name_button.setToolTip("Name this mesh's draft and choose its project in Drafts & Mods.")
-        self.draft_name_button.clicked.connect(lambda _checked=False: name_current_draft(self))
-        self.draft_name_label = QLabel("", entry_bar)
-        self.draft_name_label.setObjectName("MeshEditorDraftNameLabel")
-        entry_bar.layout().insertWidget(1, self.draft_name_button)
-        entry_bar.layout().insertWidget(2, self.draft_name_label)
+        entry_layout.insertWidget(entry_layout.indexOf(self.hair_entry_button), self.saved_work_button)
         self.draft_name_button.setVisible(False)
         self.draft_name_label.setVisible(False)
         root.insertWidget(0, entry_bar)
@@ -311,6 +295,7 @@ class MeshEditorTab(MeshEditorCharacterContextMixin, MeshEditorTabShellMixin, Me
 
         self.workspace_stack.addWidget(self.standalone_workspace)
         self.workspace_stack.addWidget(self.embedded_builder_host)
+        self.workspace_stack.addWidget(self._build_draft_choice_page())
         self.workspace_stack.setCurrentWidget(self.standalone_workspace)
         self.character_context_splitter = QSplitter(Qt.Orientation.Horizontal, self)
         self.character_context_splitter.setChildrenCollapsible(True)

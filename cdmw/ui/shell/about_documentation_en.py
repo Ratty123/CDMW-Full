@@ -518,7 +518,7 @@ class AboutDocumentationEnglishMixin:
                   <li>Choose Delete... to remove a draft. For a built mod, Remove from List... keeps the mod folder; use Open Folder to delete its files yourself.</li>
                   <li>Choose Add Mod Folder... for a mod built by an earlier version or by someone else. Continue Editing opens its finished mesh as a new edit pass, with the game's own materials, skeleton and textures.</li>
                 </ul>
-                <p>Opening a game file that already has drafts shows a banner. Choose Resume for the newest draft, Start Fresh to edit the game file, or Choose a Draft... to pick another. Your drafts are kept either way.</p>
+                <p>Opening a game file that already has drafts asks first, before anything loads. Choose Resume for the newest draft, Start Fresh to edit the game file, or Choose a Draft... to pick another. Your drafts are kept either way.</p>
                 <p>If the game has changed the file since the work was saved, CDMW asks before continuing from its saved copy of the earlier file. Undo/Redo history is not saved. A recovered older save may not include the newest edit.</p>
                 <h4>Export Mesh File</h4>
                 <p>For external editing, keep the exported GLB, FBX or OBJ with its CDMW companions. Exact return needs stable vertex and joint identity; topology-changing modifiers can invalidate it. In Blender, preserve _CDMW_VERTEX_ID attributes for GLB or the CDMW_VERTEX_ID UV layer for FBX, export the intended meshes and armature, and include all bone influences. Follow the editable exchange guide for format-specific settings.</p>

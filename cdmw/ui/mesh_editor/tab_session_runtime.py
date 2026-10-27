@@ -2,14 +2,14 @@ from __future__ import annotations
 
 import copy
 import json
-import time
 from pathlib import Path
 from typing import Mapping, Sequence
 
 from PySide6.QtCore import QThread, QTimer, Qt
 
-from cdmw.services.mesh_saved_work_service import MeshDraftRequest, draft_lineage, read_draft_manifest
+from cdmw.services.mesh_saved_work_service import MeshDraftRequest
 from cdmw.ui.archive_browser.workflow_dependencies import ArchiveWorkflowDependencyContext
+from cdmw.ui.mesh_editor.draft_choice import MeshEditorDraftChoiceMixin
 from cdmw.ui.mesh_editor.saved_work_launch import default_session_draft_request
 from cdmw.ui.mesh_editor.saved_work_naming import refresh_draft_name_controls
 from cdmw.ui.mesh_editor.tab_compat import facade_globals as _tab
@@ -28,7 +28,7 @@ from cdmw.ui.mesh_editor.tab_archive_material_context import (
 # archive can take a minute, and the textured-view watchdog extends past both.
 
 
-class MeshEditorSessionMixin(MeshEditorArchiveMaterialContextMixin):
+class MeshEditorSessionMixin(MeshEditorDraftChoiceMixin, MeshEditorArchiveMaterialContextMixin):
     def _discard_queued_archive_session_open(
         self,
         *,
@@ -209,11 +209,14 @@ class MeshEditorSessionMixin(MeshEditorArchiveMaterialContextMixin):
                 False,
             )
             return None
-        self.draft_banner.setVisible(False)
         self.archive_session_load_request_id += 1
         request_id = self.archive_session_load_request_id
         entry_snapshot = copy.deepcopy(entry)
         resume_path = Path(resume_manifest_path) if resume_manifest_path is not None else None
+        # Only an open that names no draft asks which one to continue.
+        self.archive_session_offers_drafts = bool(
+            draft_request is None and resume_path is None and prepared_result is None
+        )
         if draft_request is None:
             draft_request = default_session_draft_request(entry, archive_dependencies)
         self.archive_session_draft_request = draft_request
@@ -346,11 +349,13 @@ class MeshEditorSessionMixin(MeshEditorArchiveMaterialContextMixin):
             archive_entries_by_normalized_path=archive_path_index,
             archive_entries_by_basename=archive_basename_index,
             draft_request=self.archive_session_draft_request,
+            offer_drafts=bool(getattr(self, "archive_session_offers_drafts", False)),
         )
         thread = QThread(self)
         worker.moveToThread(thread)
         thread.started.connect(worker.run)
         worker.loaded.connect(self._handle_archive_session_loaded)
+        worker.drafts_found.connect(self._handle_archive_session_drafts_found)
         worker.error.connect(self._handle_archive_session_load_error)
         worker.finished.connect(
             lambda target_worker=worker: self._finish_direct_session_worker_thread(target_worker),
@@ -397,26 +402,14 @@ class MeshEditorSessionMixin(MeshEditorArchiveMaterialContextMixin):
             self.standalone_archive_material_preview_model
         ):
             self._start_archive_material_context_resolution(entry)
-        self.mesh_editor_matching_drafts = tuple(result.matching_drafts)
         self.mesh_editor_draft_manifest_path = result.draft_manifest_path
         self.mesh_editor_draft_lineage = dict(result.draft_lineage or {})
         refresh_draft_name_controls(self)
         if result.resumed_manifest_path is not None:
-            self.draft_banner.setVisible(False)
             self.status_message_requested.emit(
                 f"Mesh Editor resumed draft for {entry.basename}.",
                 False,
             )
-        elif result.matching_drafts:
-            newest = result.matching_drafts[0]
-            newest_name = str(draft_lineage(read_draft_manifest(newest.manifest_path)).get("display_name") or "")
-            saved = time.strftime("%Y-%m-%d %H:%M", time.localtime(newest.updated_at))
-            self.draft_banner_label.setText(
-                f"{entry.basename} has {len(result.matching_drafts)} saved draft(s). "
-                f"The newest, {newest_name or newest.workspace_dir.name}, was saved {saved}. "
-                "Resume it, or start fresh from this file. Your saved drafts are kept either way."
-            )
-            self.draft_banner.setVisible(True)
         self.current_request = _tab.MeshEditorSessionRequest(target_entry=entry, mode="edit")
         self._update_restore_overlay_button()
         self._sync_state()
@@ -439,35 +432,6 @@ class MeshEditorSessionMixin(MeshEditorArchiveMaterialContextMixin):
             )
         except (AttributeError, KeyError, RuntimeError, TypeError, ValueError):
             pass
-
-    def _resume_latest_archive_draft(self, _checked: bool = False) -> None:
-        entry = self.current_archive_selection
-        drafts = tuple(self.mesh_editor_matching_drafts)
-        if not isinstance(entry, _tab.ArchiveEntry) or not drafts:
-            self.draft_banner.setVisible(False)
-            return
-        manifest_path = getattr(drafts[0], "manifest_path", None)
-        if manifest_path is None:
-            self.draft_banner.setVisible(False)
-            return
-        self.open_archive_session(
-            entry,
-            resume_manifest_path=manifest_path,
-            material_preview_model=self.standalone_archive_material_preview_model,
-            material_companion_entry=self.archive_material_context_companion_entry,
-            material_package_path=self.archive_material_context_package_path,
-            material_package_lease=self.archive_material_context_package_lease,
-            material_context_verified_for_rust=self.archive_material_context_verified_for_rust,
-            material_source_identity=self.archive_material_context_source_identity,
-            archive_dependencies=self.archive_session_dependencies,
-        )
-
-    def _dismiss_archive_draft_banner(self, _checked: bool = False) -> None:
-        self.draft_banner.setVisible(False)
-
-    def _choose_archive_draft(self, _checked: bool = False) -> None:
-        entry = self.current_archive_selection
-        self.saved_work_requested.emit(entry.path if isinstance(entry, _tab.ArchiveEntry) else "")
 
     def _handle_archive_session_load_error(self, request_id: int, message: str) -> None:
         if int(request_id) != int(self.archive_session_load_request_id):
@@ -779,8 +743,7 @@ class MeshEditorSessionMixin(MeshEditorArchiveMaterialContextMixin):
         close_ui_state = getattr(self, "_close_mesh_editor_ui_state", None)
         if callable(close_ui_state):
             close_ui_state()
-        self.draft_banner.setVisible(False)
-        self.mesh_editor_matching_drafts = ()
+        self._leave_draft_choice()
         self.mesh_editor_draft_manifest_path = None
         self.mesh_editor_draft_lineage = {}
         refresh_draft_name_controls(self)

@@ -20,12 +20,14 @@ def build_hair_entry_bar(tab, *, close_button=None):
     button.setFont(font)
     button.setToolTip("Create or edit Kliff, Damiane, and Oongka hairstyles")
     button.clicked.connect(lambda: start_hair_workflow(tab))
+    tab.hair_entry_button = button
+    tab.hair_entry_status = QLabel("", bar)
+    tab.hair_entry_status.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Preferred)
+    # Status fills the middle; the bar's actions sit on the right.
+    layout.addWidget(tab.hair_entry_status, 1)
     layout.addWidget(button)
     if close_button is not None:
         layout.addWidget(close_button)
-    tab.hair_entry_status = QLabel("", bar)
-    tab.hair_entry_status.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Preferred)
-    layout.addWidget(tab.hair_entry_status, 1)
     return bar
 
 

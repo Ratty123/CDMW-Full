@@ -959,6 +959,10 @@ class MeshEditorTabShellMixin(
 
     def _close_standalone_session_requested(self) -> None:
         if not self.has_active_standalone_session():
+            # Close also cancels the question asked before a draft loads.
+            choice_showing = getattr(self, "_draft_choice_showing", None)
+            if callable(choice_showing) and choice_showing():
+                self.show_empty_state()
             return
         if int(getattr(self, "current_undo_count", 0) or 0) > 0:
             confirmed = _tab.QMessageBox.question(

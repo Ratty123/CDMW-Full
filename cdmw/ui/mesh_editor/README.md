@@ -136,8 +136,9 @@ is insufficient.
 
 **Drafts & Mods** is its own page in the Authoring tools, after Mesh Editor
 (`saved_work` in the tool registry; [page](saved_work_page.py)). **Continue Earlier
-Work...** in the Mesh Editor toolbar, the resume banner's **Choose a Draft...** and
-Archive Browser's right-click menu on a mesh open it, the last two filtered to that file.
+Work...** in the Mesh Editor top bar, **Choose a Draft...** in the question asked when a
+file with drafts opens, and Archive Browser's right-click menu on a mesh open it, the
+last two filtered to that file.
 
 The page has three parts:
 
@@ -174,9 +175,15 @@ chooses its project, with **New Project...** in the same dialog. It works before
 first save too: the planned draft carries the name. Later edit passes, continued built
 mods and built mods inherit the draft's name and project.
 
-Opening a game file that already has drafts shows a banner: **Resume** the newest,
-**Start Fresh** from the file, or **Choose a Draft...**. Starting fresh leaves every
-draft in place.
+Opening a game file that already has drafts asks first, before anything loads
+([question](draft_choice.py)): **Resume** the newest, **Start Fresh** from the file,
+**Choose a Draft...** in Drafts & Mods, or **Cancel**. Each answer loads the mesh once,
+and starting fresh leaves every draft in place. Continue Editing, a next edit pass and
+a retry name what they open, so they never ask.
+
+The top bar shows the open draft's name on the left with **Name Draft...**, and
+**Continue Earlier Work...**, Hair Tools and Close on the right. A long name is shortened
+to fit; its tooltip holds the whole name.
 
 Storage and ownership:
 
@@ -194,7 +201,7 @@ Storage and ownership:
   and the original game file's fingerprint, so it can be resumed after the in-session
   edited result is gone.
 - **Build Mod** saves the session's draft at the built revision, freezes a copy
-  (`built_mod_draft` mode, never offered by the resume banner), and records the mod in
+  (`built_mod_draft` mode, never offered when a file opens), and records the mod in
   `built_mods.json` beside the drafts. Continuing that mod restores removed parts, the
   Morph & Refit setup and the fitted shape into a new draft. Undo history is not saved.
 - The Parts list's **View** ticks travel with Finish (`viewport_hidden_parts` in the
@@ -1691,9 +1698,10 @@ and ghost overlay views.
 `MeshEditorTab.open_archive_session()` is the normal entry point. A correlated,
 cancellable `MeshArchiveSessionLoadWorker` reads and round-trip-validates the
 exact archive bytes, creates the authoritative `MeshService` edit session, and
-publishes only the current completion. Matching source-hash drafts open against
-the current source and produce the non-modal Resume/Start Fresh banner; starting
-fresh never deletes a draft. `MeshEditorTab.open_session()` remains a compatibility
+publishes only the current completion. An open that names no draft looks for
+drafts by the SHA-256 of the raw archive bytes first; when it finds some, the worker
+stops before parsing and emits `drafts_found`, and the tab's answer starts one new
+load. Starting fresh never deletes a draft. `MeshEditorTab.open_session()` remains a compatibility
 wrapper over this direct contract.
 
 Archive PAC sessions resolve the same head-specific PABC neutral appearance as Archive

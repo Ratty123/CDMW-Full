@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 
+from PySide6.QtCore import QEvent, QSize, Qt
 from PySide6.QtWidgets import (
     QComboBox,
     QDialog,
@@ -15,6 +16,7 @@ from PySide6.QtWidgets import (
     QLineEdit,
     QMessageBox,
     QPushButton,
+    QSizePolicy,
     QVBoxLayout,
     QWidget,
 )
@@ -96,6 +98,52 @@ class NameDraftDialog(QDialog):
         self.accept()
 
 
+class DraftNameLabel(QLabel):
+    """The open draft's name in Mesh Editor's top bar, shortened to fit.
+
+    text() keeps the full text for translation and the tooltip.
+    """
+
+    MAX_WIDTH = 420
+
+    def __init__(self, parent: QWidget | None = None) -> None:
+        self._full_text = ""
+        super().__init__(parent)
+        self.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Preferred)
+        self.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+
+    def text(self) -> str:
+        return self._full_text
+
+    def setText(self, text: str) -> None:
+        self._full_text = str(text or "")
+        self.setToolTip(self._full_text)
+        self._render_text()
+        self.updateGeometry()
+
+    def sizeHint(self) -> QSize:
+        hint = super().sizeHint()
+        margins = self.contentsMargins()
+        width = self.fontMetrics().horizontalAdvance(self._full_text) + margins.left() + margins.right() + 2
+        return QSize(min(width, self.MAX_WIDTH), hint.height())
+
+    def minimumSizeHint(self) -> QSize:
+        return QSize(min(self.sizeHint().width(), 80), super().minimumSizeHint().height())
+
+    def _render_text(self) -> None:
+        width = max(0, self.contentsRect().width())
+        super().setText(self.fontMetrics().elidedText(self._full_text, Qt.TextElideMode.ElideRight, width))
+
+    def resizeEvent(self, event) -> None:
+        super().resizeEvent(event)
+        self._render_text()
+
+    def changeEvent(self, event) -> None:
+        super().changeEvent(event)
+        if event.type() in (QEvent.Type.FontChange, QEvent.Type.StyleChange):
+            self._render_text()
+
+
 def refresh_draft_name_controls(tab: object) -> None:
     """Show the open draft's name beside Name Draft..., or hide both."""
 
@@ -149,4 +197,4 @@ def name_current_draft(tab: object) -> bool:
     return True
 
 
-__all__ = ["NameDraftDialog", "name_current_draft", "refresh_draft_name_controls"]
+__all__ = ["DraftNameLabel", "NameDraftDialog", "name_current_draft", "refresh_draft_name_controls"]

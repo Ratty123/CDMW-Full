@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import shutil
 import threading
@@ -91,6 +92,8 @@ class MeshArchiveSessionLoadWorker(QObject):
     """Open one exact archive mesh as a resident authoring session off-thread."""
 
     loaded = Signal(int, object)
+    # The game file's saved drafts, found before loading when offer_drafts is set.
+    drafts_found = Signal(int, object)
     error = Signal(int, str)
     finished = Signal()
 
@@ -106,6 +109,7 @@ class MeshArchiveSessionLoadWorker(QObject):
         archive_entries_by_normalized_path: Mapping[str, Sequence[ArchiveEntry]] | None = None,
         archive_entries_by_basename: Mapping[str, Sequence[ArchiveEntry]] | None = None,
         draft_request: MeshDraftRequest | None = None,
+        offer_drafts: bool = False,
     ) -> None:
         super().__init__()
         self.request_id = int(request_id)
@@ -114,6 +118,7 @@ class MeshArchiveSessionLoadWorker(QObject):
         self.mode = str(mode or "edit")
         self.draft_root = Path(draft_root).expanduser() if draft_root is not None else None
         self.draft_request = draft_request
+        self.offer_drafts = bool(offer_drafts)
         if resume_manifest_path is None and draft_request is not None:
             resume_manifest_path = draft_request.resume_manifest_path
         self.resume_manifest_path = (
@@ -142,14 +147,20 @@ class MeshArchiveSessionLoadWorker(QObject):
             )
             if self.stop_event.is_set():
                 return
+            # Drafts are keyed by the SHA-256 of the game file's bytes, the same
+            # hash the parsed mesh records, so they can be found before parsing.
+            drafts = (
+                discover_modify_original_drafts(self.draft_root, hashlib.sha256(payload).hexdigest())
+                if self.draft_root is not None and payload
+                else ()
+            )
+            if self.offer_drafts and drafts and self.resume_manifest_path is None:
+                # Ask which draft to open first, so the choice never costs a second load.
+                self.drafts_found.emit(self.request_id, drafts)
+                return
             service = MeshService()
             mesh = service.load_mesh_bytes(payload, self.entry.path, run_roundtrip=True)
             source_sha256 = str(getattr(mesh, "_cdmw_mesh_asset_source_hash", "") or "")
-            drafts = (
-                discover_modify_original_drafts(self.draft_root, source_sha256)
-                if self.draft_root is not None
-                else ()
-            )
             resumed_manifest_path: Path | None = None
             draft_manifest_path: Path | None = None
             lineage: Mapping[str, object] | None = None
