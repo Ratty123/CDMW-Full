@@ -323,6 +323,16 @@ impl LabApplication {
                                 actions.push(UiAction::CdmwCommand { command: "morph_bake", arguments: json!({}), label: "Bake morph" });
                             }
                         });
+                        // Bake is the last step in this panel, not the export.
+                        if !unbaked && state_u64(&self.cdmw_state, "undo_count") > 0 {
+                            let free_edit = !self.cdmw_has_archive_refit()
+                                && state_str(&self.cdmw_state, "output_policy") == Some("free_edit_rebuild");
+                            ui.small(crate::localization::tr(if free_edit {
+                                "Next, choose Finish Edit Mesh at the top right to save the Free Edit package."
+                            } else {
+                                "Next, choose Finish Edit Mesh at the top right, then Build Mod on the page that opens."
+                            }));
+                        }
                     }
                 });
             });

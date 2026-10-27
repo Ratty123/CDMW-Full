@@ -313,3 +313,28 @@ fn parts_panel_uses_available_height_and_keeps_scroll_and_selection_across_tabs(
     }
     Ok(())
 }
+
+#[test]
+fn material_sections_explain_the_parts_round_trip_and_apply_after_returning() -> TestResult {
+    const HINT: &str = "Open Parts above, select one or more, then choose Back to Inspector.";
+    let mut ui = HeadlessUi::new_integrated_cdmw_for_controls(
+        two_part_application()?, egui::vec2(1440.0, 1100.0));
+    ui.application.cdmw_state["translucency"] = json!({"available": true, "parts": [
+        {"index": 0, "id": "a", "translucency": null},
+        {"index": 1, "id": "b", "translucency": null}
+    ]});
+    ui.settle_layout();
+    ui.click("Translucency (experimental)")?;
+    ui.reveal(HINT)?;
+    assert!(ui.actions_from_click("Apply translucency")?.is_empty());
+    // Parts replaces the Inspector, so the material controls are hidden while choosing.
+    ui.click("1: Part B")?;
+    assert!(ui.label_rect(HINT).is_none() && ui.label_rect("Apply translucency").is_none());
+    ui.click("Back to Inspector")?;
+    assert!(ui.label_rect(HINT).is_none(), "the hint stays after a part was selected");
+    let actions = ui.actions_from_click("Apply translucency")?;
+    assert!(actions.iter().any(|action| matches!(action,
+        UiAction::CdmwCommand { command: "replacement_translucency", arguments, .. }
+        if arguments["part_ids"] == json!(["b"]))));
+    Ok(())
+}

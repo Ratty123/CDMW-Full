@@ -38,7 +38,7 @@ impl LabApplication {
             });
             let available = state["available"].as_bool().unwrap_or(false);
             if !available { ui.small(crate::localization::tr(state["reason"].as_str().unwrap_or("Glow editing is unavailable."))); }
-            if ids.is_empty() { ui.small(crate::localization::tr("Select one or more Parts above.")); }
+            if ids.is_empty() { ui.small(crate::localization::tr("Open Parts above, select one or more, then choose Back to Inspector.")); }
             let editing = self.cdmw_state["authoring_enabled"].as_bool().unwrap_or(false)
                 && self.cdmw_state["replacement"]["comparison"].as_str().unwrap_or("edit") == "edit";
             ui.add_enabled_ui(available && !ids.is_empty() && !self.cdmw_busy() && editing, |ui| {

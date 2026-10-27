@@ -164,8 +164,9 @@ Click **Parts** in the Inspector to open a resizable panel using the full editor
 height, with separate **Parts** and **Mesh islands** tabs. Each tab has one
 scrolling area; switching tabs or reopening the panel retains its scroll position.
 Use **Back to Inspector** for **Translucency (experimental)**, **Glow (experimental)**,
-**Shader experiments**, **Geometry Layers** and **Action History**. Part selection
-is retained when navigating between these tools.
+**Shader experiments**, **Geometry Layers** and **Action History**; the panel replaces
+the Inspector, so they are hidden while it is open, and the material sections'
+empty-selection hint says so. Part selection is retained when navigating between these tools.
 
 **Part colors** and **Island colors** sit above both lists and work outside
 Morph & Refit. **Open Parts on hover** is below them and is off by default;
@@ -1993,7 +1994,10 @@ separate outfit correction. **Saved** separates **Profiles**, **Presets** and
 **Fitting setups**, including existing import, export and matching-setup actions.
 
 **Reset** and **Bake** remain below the scrolling content in every tab and panel
-presentation; an active preview is labelled in amber. A pending sculpted slider replaces them with **Save slider** and
+presentation; an active preview is labelled in amber. Once nothing is pending and the
+session has edits to keep, the strip names the next steps: **Finish Edit Mesh** at the
+top right, then **Build Mod** on the accepted page, or Finish alone for a Free Edit
+package. A pending sculpted slider replaces them with **Save slider** and
 **Discard base**; an outfit correction shows **Save correction** and **Cancel**.
 Restoring a fitting shape shows **Apply** and **Cancel** in the same strip, with
 the source and selection details in the scrolling area.

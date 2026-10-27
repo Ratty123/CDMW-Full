@@ -5177,7 +5177,7 @@ impl LabApplication {
                 if !available {
                     ui.small(crate::localization::tr(state["reason"].as_str().unwrap_or("Translucency is unavailable for this mesh.")));
                 } else if ids.is_empty() {
-                    ui.small(crate::localization::tr("Select one or more Parts above."));
+                    ui.small(crate::localization::tr("Open Parts above, select one or more, then choose Back to Inspector."));
                 }
                 let saved = rows.first().map(|row| &row["translucency"]);
                 let saved_surface = rows.first().map(|row| &row["translucency_surface"]);

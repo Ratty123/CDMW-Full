@@ -1427,6 +1427,36 @@ fn workflow_pending_slider_can_be_reopened_and_footer_observes_authoring_policy(
 }
 
 #[test]
+fn workflow_footer_names_finish_and_build_mod_once_the_fit_is_baked() -> TestResult {
+    const BUILD: &str = "Next, choose Finish Edit Mesh at the top right, then Build Mod on the page that opens.";
+    const FREE_EDIT: &str = "Next, choose Finish Edit Mesh at the top right to save the Free Edit package.";
+    let mut ui = super::morph_authoring::authoring_ui()?;
+    ui.click("Continue to Fit")?;
+    ui.application.cdmw_state["undo_count"] = json!(1);
+    ui.application.cdmw_state["morph_refit"]["unbaked"] = json!(true);
+    ui.settle_layout();
+    assert!(ui.label_rect(BUILD).is_none(), "an unbaked preview must be baked before finishing");
+    ui.application.cdmw_state["morph_refit"]["unbaked"] = json!(false);
+    ui.settle_layout();
+    let hint = ui.label_rect(BUILD).ok_or("baked fit does not name Finish and Build Mod")?;
+    let finish = ui.label_rect("Finish Edit Mesh").ok_or("Finish Edit Mesh")?;
+    assert!(finish.top() < hint.top() && finish.left() > ui.size.x / 2.0, "Finish must be at the top right");
+    assert!(ui.label_rect(FREE_EDIT).is_none());
+    ui.application.cdmw_state["output_policy"] = json!("free_edit_rebuild");
+    ui.settle_layout();
+    ui.label_rect(FREE_EDIT).ok_or("Free Edit finish hint")?;
+    assert!(ui.label_rect(BUILD).is_none());
+    // An archive Refit always rebuilds the original files, whatever the policy says.
+    ui.application.cdmw_state["archive_refit_assets"] = json!([{"path": "body.pac", "part_indices": [0]}]);
+    ui.settle_layout();
+    ui.label_rect(BUILD).ok_or("archive Refit hint")?;
+    ui.application.cdmw_state["undo_count"] = json!(0);
+    ui.settle_layout();
+    assert!(ui.label_rect(BUILD).is_none() && ui.label_rect(FREE_EDIT).is_none(), "nothing to keep yet");
+    Ok(())
+}
+
+#[test]
 fn workflow_compact_sections_keep_order_captured_targets_and_active_summaries() -> TestResult {
     let mut ui = super::morph_authoring::authoring_ui()?;
     let body = ui.reveal("1 · Body")?;

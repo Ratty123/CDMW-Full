@@ -33,7 +33,7 @@ impl LabApplication {
             });
             let available = state["available"].as_bool().unwrap_or(false);
             if !available { ui.small(crate::localization::tr(state["reason"].as_str().unwrap_or("Shader controls are unavailable."))); }
-            if ids.is_empty() { ui.small(crate::localization::tr("Select one or more Parts above.")); }
+            if ids.is_empty() { ui.small(crate::localization::tr("Open Parts above, select one or more, then choose Back to Inspector.")); }
             if rows.iter().any(|row| row["shader_controls"] != saved) {
                 ui.small(crate::localization::tr("Selected parts have different shader settings. Applying replaces their explicit overrides."));
             }
