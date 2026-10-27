@@ -15,6 +15,7 @@ experimental-feature notes do not establish equivalent in-game behavior.
 ### Changed
 
 - Morph & Refit names the next steps once a fit is baked: Finish Edit Mesh at the top right, then Build Mod on the page that opens (or Finish alone for a Free Edit package). Bake is no longer the apparent end of the workflow.
+- Every built-in language now translates the roughly 1,000 to 1,700 messages, labels and Mesh Editor controls per language that still appeared in English; product names, file formats and technical identifiers stay as they are. Words translated in the wrong sense are corrected throughout (for example a texture "grouper" fish, a frying pan for Pan, a building window for the Window menu, an electrical outlet for a socket), each language now uses one term for each concept such as mesh parts, sockets, rigs, packages and the tool names, German consistently addresses you formally, and German and Spanish words regain their umlauts and accents. Russian and Japanese now translate the Mesh Editor controls that still showed English.
 - Mesh Editor's Translucency, Glow and Shader experiments sections explain how to choose parts: open Parts, select them, then choose Back to Inspector. The Parts page replaces the Inspector, so these sections are hidden while it is open.
 
 ### Fixed
