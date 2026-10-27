@@ -999,6 +999,9 @@ impl LabApplication {
             self.hair.style_name,
             self.hair.selected.len()
         )));
+        if ui.small_button(crate::localization::tr("Keyboard Shortcuts...")).clicked() {
+            self.shortcut_editor.open = true;
+        }
         ui.add_enabled_ui(ready,|ui| {
             ui.horizontal_wrapped(|ui| {
                 for (tool,name) in [(HairTool::Select,"Select"),(HairTool::Move,"Move"),(HairTool::Guide,"Draw"),

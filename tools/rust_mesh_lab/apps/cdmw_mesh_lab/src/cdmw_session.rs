@@ -1104,6 +1104,16 @@ impl CdmwBridge {
         }))
     }
 
+    /// Shortcut overrides of the defaults; the host saves them for later sessions.
+    pub fn publish_shortcuts(&self, shortcuts: Value) -> Result<(), SessionError> {
+        self.send_message(json!({
+            "event": "shortcuts_changed", "protocol": PROTOCOL,
+            "session_id": self.manifest.session_id,
+            "process_generation": self.manifest.process_generation,
+            "shortcuts": shortcuts
+        }))
+    }
+
     pub fn submit_command(&mut self, command: &str, arguments: Value) -> Result<u64, SessionError> {
         let request_id = self.take_request_id();
         self.send_message(json!({

@@ -66,17 +66,13 @@ impl LabApplication {
         })
     }
 
-    pub(super) fn cdmw_delete_shortcut(&mut self, actions: &mut Vec<UiAction>) {
-        let context = &self.egui_context;
-        if self.hair.active()
-            || context.egui_wants_keyboard_input()
-            || egui::Popup::is_any_open(context)
-            || context.data_mut(|data| data.get_temp::<String>(guidance_id()).is_some())
-            || !context
-                .input_mut(|input| input.consume_key(egui::Modifiers::NONE, egui::Key::Delete))
-        {
-            return;
-        }
+    pub(super) fn cdmw_delete_guidance_open(&self) -> bool {
+        self.egui_context
+            .data_mut(|data| data.get_temp::<String>(guidance_id()).is_some())
+    }
+
+    /// The Delete shortcut; the keyboard dispatcher has already checked focus and popups.
+    pub(super) fn cdmw_delete_selection(&mut self, actions: &mut Vec<UiAction>) {
         if self.cdmw_busy() {
             self.show_cdmw_delete_guidance("Wait for the current operation before deleting.");
         } else if !state_bool(&self.cdmw_state, "authoring_enabled") {

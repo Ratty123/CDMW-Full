@@ -472,7 +472,8 @@ forward. Clicking again while that tool and panel are current closes just that
 panel. Each panel also has its own close button. Closing or moving settings keeps
 the selected tool active; focusing another panel does not change the tool.
 Escape closes the front floating panel after any focused control or active
-gesture has handled cancellation. **Orbit** exits the active tool.
+gesture has handled cancellation; with nothing left to close it returns to Orbit.
+**Orbit** exits the active tool.
 
 The pin button docks that panel beside the rail and reserves viewport space. One panel
 can be docked at a time; pinning another returns the previous one to a floating window.
@@ -633,8 +634,8 @@ create a game physics rig or change skeletal weights. Original sections need gro
 roots before painting. Appearance controls width and generated follower cards. Symmetry
 uses explicit pairs created while drawing. Escape cancels a stroke;
 
-Ctrl-Z/Ctrl-Y undo or redo one completed action. Alt-drag orbits, Shift-drag pans, and
-the wheel zooms.
+Ctrl-Z/Ctrl-Y undo or redo one completed action; these, Delete and the hair tools are
+rebindable shortcuts. Alt-drag orbits, Shift-drag pans, and the wheel zooms.
 
 ### Existing hair and source preservation
 
@@ -3021,6 +3022,34 @@ not invoke them.
 
 `controller.py` owns the feature-side edit-session bridge over `MeshService` and
 converts edit results into native preview update payloads.
+
+### Keyboard shortcuts
+
+The Rust editor owns its keymap. `src/shortcuts.rs` holds the action IDs (control-contract
+keys where one exists), Blender-style defaults, chord parsing and the override merge;
+`src/cdmw_ui/keyboard.rs` dispatches keys, words tooltips and draws **Keyboard
+Shortcuts...** (Viewport page and Hair Tools). A shortcut does what clicking its control
+does and is refused with that control's disabled reason. Keys wait while a text field has
+focus, a popup or the delete guidance is open, or a gesture runs; Escape cancels the
+gesture, then closes the front floating panel, then returns to Orbit.
+
+Defaults: Q/G/R/S Select/Move/Rotate/Scale, Shift+G Grab, Shift+S Smooth, I Inflate,
+P Pinch, Shift+W Bend; 1/2/3 Vertex/Edge/Face, B Rectangle, C Brush, A all, Alt+A clear,
+Ctrl+I invert, L linked, Ctrl+numpad plus/minus grow/shrink, Shift+Z Visible/X-Ray
+(Blender's Alt+Z is a global hotkey of the AMD and NVIDIA overlays);
+F or numpad period frame, Home fit, numpad 1/3/7 (Ctrl for the opposite) views; Ctrl+Z
+undo, Ctrl+Shift+Z or Ctrl+Y redo; Delete deletes. Pages, Click/Lasso, Operation choices,
+yaw steps and hair tools start unbound. Held Shift/Ctrl override the Operation choice
+for one gesture (Shift-click toggles); both modifiers are rebindable. They are read from
+the raw window events at the moment of the press, because on a dense mesh the frame that
+handles the click can run after the user has already let go of Shift.
+
+egui reports numpad digits as top-row digits, so the window loop records each numpad
+press beside the egui key it produced and the dispatcher pairs them. The host stores only
+overrides under `mesh_editor/shortcuts/v1` (`cdmw/services/mesh_editor_shortcuts.py`),
+sends them as `theme.shortcuts`, and saves the `shortcuts_changed` event. Its presence in
+the theme is what tells the editor the host can save; unknown IDs survive a round trip.
+Unlike the panel layout, shortcuts ignore the layout-memory preference.
 
 ### Command palette and tool actions
 

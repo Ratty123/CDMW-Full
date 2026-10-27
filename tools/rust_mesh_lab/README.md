@@ -922,7 +922,9 @@ backup/rollback flow. Source PAMT/PAZ files remain unchanged.
 - Hold **RMB** and drag to orbit.
 - Hold **MMB** and drag to pan.
 - Use the **mouse wheel** to zoom.
-- Press **F** to frame the selection, or the complete mesh when nothing is selected.
+- Press **F** (or numpad period) to frame the selection, or the complete mesh when nothing
+  is selected. In the CDMW Mesh Editor every key is a rebindable shortcut; see
+  `cdmw/ui/mesh_editor/README.md#keyboard-shortcuts` for the defaults.
 - Use **Frame All**, **Frame Selected**, or Front/Back/Left/Right/Top/Bottom for exact camera placement.
 - Use **Editable LOD** to inspect and edit another proven LOD without losing the
   previous LOD's changes. Switching keeps the camera and cancels any unfinished gesture
@@ -954,7 +956,8 @@ backup/rollback flow. Source PAMT/PAZ files remain unchanged.
   not also modify the back side.
 - Select Move, Rotate, or Scale and drag the visible axis/ring/center gizmo. Select
   Grab, Smooth, Inflate, or Pinch and drag over eligible vertices.
-- Press **Esc** to cancel an active selection or edit gesture.
+- Press **Esc** to cancel an active selection or edit gesture. In the Mesh Editor, Shift
+  while selecting adds (a click toggles) and Ctrl subtracts, whatever the Operation choice.
 - The inspector reports the last and rolling 256-sample p95 CPU selection/edit time.
   Selection also reports how many indexed candidates were inspected out of the complete
   projected element count; these are CPU callback measurements, not frame time or GPU
