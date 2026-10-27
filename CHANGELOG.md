@@ -7,6 +7,8 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 ## [Unreleased]
 
+## [0.11.0-alpha.26] - 2026-10-27
+
 ### Added
 
 - Mesh Editor saves your work so you can close CDMW and continue later. A mesh opened from Archive Browser saves a draft each time you choose Finish Edit Mesh, including later edit passes, removed parts, View ticks in the Parts list and the Morph & Refit setup; Build Mod also keeps the editing state with the mod.
