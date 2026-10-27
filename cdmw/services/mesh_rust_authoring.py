@@ -6619,6 +6619,19 @@ def _validation_blockers(report: object) -> tuple[str, ...]:
     )
 
 
+def _finish_viewport_hidden_parts(request: Mapping[str, object]) -> tuple[int, ...] | None:
+    """Parts the editor hid with View, or None from a helper that does not report them."""
+
+    raw = request.get("viewport_hidden_parts")
+    if raw is None:
+        return None
+    if not isinstance(raw, list) or len(raw) > 65536:
+        raise RustMeshProtocolError("Finish named invalid hidden parts")
+    if any(isinstance(item, bool) or not isinstance(item, int) or item < 0 for item in raw):
+        raise RustMeshProtocolError("Finish named invalid hidden parts")
+    return tuple(sorted(set(raw)))
+
+
 def _detach_shadow_layer_project(mesh: ParsedMesh, root: Path) -> None:
     del root  # The shadow intentionally has no project or autosave location.
     for attribute in (
@@ -7294,6 +7307,7 @@ class RustMeshAuthoringSession:
     replacement_comparison: str = "edit"
     mesh_island_cache: dict = field(default_factory=dict, repr=False)
     mesh_island_focus: tuple[int, ...] = ()
+    viewport_hidden_parts: tuple[int, ...] = ()
     state_cache: RustMeshStateCache = field(default_factory=RustMeshStateCache, repr=False)
     closed: bool = False
     _cancel_event: threading.Event = field(default_factory=threading.Event, repr=False)
@@ -7465,6 +7479,7 @@ class RustMeshAuthoringSession:
                 neutral_source_mesh=neutral_source_mesh,
                 morph_profile_base_fingerprint=morph_profile_base_fingerprint,
                 acknowledged_morph_profile_fingerprint=morph_profile_base_fingerprint,
+                viewport_hidden_parts=tuple(authoritative_session.viewport_hidden_parts),
             )
             if authoritative_morph_root is not None:
                 (authoritative_morph_root.parent / "mesh_presets").mkdir(parents=True, exist_ok=True)
@@ -8298,6 +8313,8 @@ class RustMeshAuthoringSession:
             ],
             "renderer": RUST_MESH_RENDERER,
             "edit_backend": RUST_MESH_EDIT_BACKEND,
+            # The editor seeds its Parts list View ticks from this when it opens.
+            "viewport": {"hidden_parts": list(self.viewport_hidden_parts)},
         }
         if self.neutral_appearance is not None:
             state["loaded_mesh"] += " (neutral appearance)"
@@ -9897,6 +9914,7 @@ class RustMeshAuthoringSession:
         self._require_acknowledged_profile_tree()
         self._require_authoring_enabled("finish this session")
         self._ensure_morph_authoring_resolved()
+        hidden_parts = _finish_viewport_hidden_parts(request)
         (
             authoritative_session, prepared, geometry_layers, active_geometry_layer_id,
             geometry_layer_copy_counter, object_transform, output_policy, output_destination,
@@ -9973,6 +9991,8 @@ class RustMeshAuthoringSession:
                             ),
                             require_reversible_history=True,
                         )
+                        if hidden_parts is not None:
+                            self._accept_viewport_hidden_parts(authoritative_session, hidden_parts)
                     except Exception:
                         if morph_publication is not None:
                             try:
@@ -10009,6 +10029,18 @@ class RustMeshAuthoringSession:
         # neither the Rust reply nor an old UI report is export authority.
         self.accepted_export_validation = (committed.revision, prepared.validation_report)
         return result
+
+    def _accept_viewport_hidden_parts(self, session: object, hidden_parts: tuple[int, ...]) -> None:
+        """Keep the editor's View ticks with the accepted mesh and its draft."""
+
+        count = len(session.working_mesh.submeshes)
+        accepted = tuple(index for index in hidden_parts if index < count)
+        if accepted == session.viewport_hidden_parts:
+            return
+        session.viewport_hidden_parts = accepted
+        self.viewport_hidden_parts = accepted
+        # A View-only change does not move the mesh revision, so save it here.
+        self.authoritative_service._schedule_mesh_layer_autosave(session)
 
     def cancel(self) -> None:
         if self.closed:

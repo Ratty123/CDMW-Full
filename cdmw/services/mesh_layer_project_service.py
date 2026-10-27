@@ -130,6 +130,7 @@ def save_mesh_layer_project(
     edit_operations: Sequence[object] = (),
     requires_edit_operations: bool = False,
     morph_payload: Mapping[str, object] | None = None,
+    viewport_hidden_parts: Sequence[int] = (),
 ) -> dict[str, object]:
     """Write one complete generation, then atomically point the project at it."""
 
@@ -257,6 +258,8 @@ def save_mesh_layer_project(
         "snapshot": persisted_snapshot,
         "archive_refit": save_archive_refit_context(archive_refit_context, project_root, stop),
     }
+    if viewport_hidden_parts:
+        generation_payload["viewport"] = {"hidden_parts": sorted({int(index) for index in viewport_hidden_parts})}
     if edit_operations or requires_edit_operations:
         from cdmw.domain.mesh.operations import mesh_edit_operations_from_dicts, mesh_edit_operations_to_dicts
         generation_payload["edit_operations"] = mesh_edit_operations_to_dicts(mesh_edit_operations_from_dicts(edit_operations))

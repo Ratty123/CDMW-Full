@@ -597,6 +597,15 @@ def _mesh_session_output_context(mesh: ParsedMesh) -> tuple[str, int, object]:
     return mesh_format, lod_index, output_policy_state(mesh_format, lod_index=lod_index)
 
 
+def _loaded_viewport_hidden_parts(loaded: Mapping[str, object], submesh_count: int) -> tuple[int, ...]:
+    viewport = loaded.get("viewport")
+    raw = viewport.get("hidden_parts") if isinstance(viewport, Mapping) else ()
+    if not isinstance(raw, list):
+        return ()
+    return tuple(sorted({item for item in raw if isinstance(item, int) and not isinstance(item, bool)
+                         and 0 <= item < submesh_count}))
+
+
 def _apply_loaded_mesh_layer_project(
     session: _MeshEditSession,
     loaded: Mapping[str, object] | None,
@@ -778,6 +787,9 @@ class _MeshServiceSessionLayerCore(
             # edit creates the draft folder.
             session.mesh_layer_autosave_saved_key = (session.revision, session.geometry_layer_revision)
         if loaded_layer_project is not None:
+            session.viewport_hidden_parts = _loaded_viewport_hidden_parts(
+                loaded_layer_project, len(working_mesh.submeshes),
+            )
             if "edit_operations" in loaded_layer_project:
                 session.edit_operations = tuple(loaded_layer_project["edit_operations"])
                 session.requires_edit_operations = bool(loaded_layer_project.get("requires_edit_operations", False))
@@ -1236,6 +1248,7 @@ class _MeshServiceSessionLayerCore(
             edit_operations=session.edit_operations,
             requires_edit_operations=session.requires_edit_operations,
             morph_payload=morph_payload,
+            viewport_hidden_parts=session.viewport_hidden_parts,
         )
         session.mesh_layer_loaded_generation = str(descriptor.get("current_generation") or "")
         session.mesh_layer_autosave_saved_key = (session.revision, session.geometry_layer_revision)
@@ -1269,7 +1282,9 @@ class _MeshServiceSessionLayerCore(
                     or int(session.revision) != int(expected_mesh_revision)):
                 return None
             current_key = (session.revision, session.geometry_layer_revision)
-            if current_key != session.mesh_layer_autosave_saved_key or not session.mesh_layer_project_path.is_file():
+            timer = session.mesh_layer_autosave_timer
+            if (current_key != session.mesh_layer_autosave_saved_key or not session.mesh_layer_project_path.is_file()
+                    or (timer is not None and timer.is_alive())):
                 session.mesh_layer_autosave_requested_key = current_key
                 self._save_mesh_layer_project_locked(session, stop_event=stop_event)
             manifest = session.mesh_layer_workspace_manifest_path

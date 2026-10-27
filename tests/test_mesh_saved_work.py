@@ -304,7 +304,7 @@ def test_built_mod_without_a_draft_reopens_its_finished_mesh_as_a_new_pass(game,
         reopened.service.close_edit_session(reopened.view.session_id, force_without_saving=True)
 
 
-def test_resumed_draft_restores_removed_parts_and_the_fitting_setup(tmp_path):
+def test_resumed_draft_restores_removed_parts_view_ticks_and_the_fitting_setup(tmp_path):
     from tests.test_mesh_refit_live_exclusions import _included_parts_pac
     from tests.test_mesh_rust_authoring_exact_output import _rig_command
     from tests.test_mesh_rust_replacement import command
@@ -326,9 +326,13 @@ def test_resumed_draft_restores_removed_parts_and_the_fitting_setup(tmp_path):
     _rig_command(host, 1, "refit_set_driver", {"submesh_indices": [0]})
     _rig_command(host, 2, "refit_bind", {"submesh_indices": [1, 2]})
     _rig_command(host, 3, "refit_fit_to_body", {})
-    host.finish(_request(host, "finish_request", 4))
+    finish = _request(host, "finish_request", 4)
+    # The editor reports the part hidden with View alongside its Include change.
+    finish["viewport_hidden_parts"] = [2]
+    host.finish(finish)
     _wait_for_autosave(loaded)
     service, sid = loaded.service, loaded.view.session_id
+    assert service._session(sid).viewport_hidden_parts == (2,)
     included = {part.part_id: part.included for part in service._session(sid).replacement_state.parts}
     fitted = service.working_mesh(sid, clone=True)
     refit = service.cached_morph_state_from_runtime(sid).refit
@@ -347,8 +351,35 @@ def test_resumed_draft_restores_removed_parts_and_the_fitting_setup(tmp_path):
         assert restored.garment_submesh_indices == refit.garment_submesh_indices
         working = resumed.service.working_mesh(resumed.view.session_id, clone=True)
         assert [part.vertices for part in working.submeshes] == [part.vertices for part in fitted.submeshes]
+        assert session.viewport_hidden_parts == (2,)
+        # The reopened editor starts with the same View ticks, and a View-only
+        # Finish is saved even though the mesh itself did not change.
+        reopened = RustMeshAuthoringSession.create(
+            SimpleNamespace(mesh_service=resumed.service, active_session_id=resumed.view.session_id),
+            tmp_path / "rust-reopened", process_generation=12,
+        )
+        assert reopened.state_payload(include_document=False)["viewport"] == {"hidden_parts": [2]}
+        view_only = _request(reopened, "finish_request", 1)
+        view_only["viewport_hidden_parts"] = [0, 2]
+        reopened.finish(view_only)
+        _wait_for_autosave(resumed)
     finally:
         resumed.service.close_edit_session(resumed.view.session_id, force_without_saving=True)
+    again = _load(launch.selected_entry, context, drafts, draft_request=launch.draft_request)
+    try:
+        assert again.service._session(again.view.session_id).viewport_hidden_parts == (0, 2)
+    finally:
+        again.service.close_edit_session(again.view.session_id, force_without_saving=True)
+
+
+@pytest.mark.parametrize("hidden", [[-1], ["1"], [True], "1", [1.5]])
+def test_finish_refuses_malformed_hidden_parts(hidden):
+    from cdmw.services.mesh_rust_authoring import RustMeshProtocolError, _finish_viewport_hidden_parts
+
+    with pytest.raises(RustMeshProtocolError):
+        _finish_viewport_hidden_parts({"viewport_hidden_parts": hidden})
+    assert _finish_viewport_hidden_parts({}) is None
+    assert _finish_viewport_hidden_parts({"viewport_hidden_parts": [3, 1, 3]}) == (1, 3)
 
 
 def _row(**changes):

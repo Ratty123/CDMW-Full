@@ -266,6 +266,9 @@ class _MeshEditSession:
     # A planned saved-draft folder that the first save creates, with copies
     # of the session's source mesh (see mesh_saved_work_service).
     mesh_draft_plan: object | None = None
+    # Parts hidden with View in the editor's Parts list. Viewport only; the
+    # editor reports them at Finish and receives them again when it reopens.
+    viewport_hidden_parts: tuple[int, ...] = ()
     mesh_layer_autosave_timer: threading.Timer | None = field(default=None, repr=False)
     mesh_layer_autosave_thread: threading.Thread | None = field(default=None, repr=False)
     mesh_layer_autosave_stop_event: threading.Event | None = field(default=None, repr=False)

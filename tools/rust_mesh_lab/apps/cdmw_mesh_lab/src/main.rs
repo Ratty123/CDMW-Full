@@ -2515,7 +2515,26 @@ impl LabApplication {
             "CDMW shadow session loaded · Orbit mode · {output_policy} · base {authoritative_base_revision} · shadow {initial_shadow_revision} · edits are isolated until Finish Edit Mesh"
         );
         application.apply_cdmw_selection_state(true);
+        application.restore_cdmw_hidden_parts();
         Ok(application)
+    }
+
+    /// Start with the View ticks this mesh had when it was last finished.
+    fn restore_cdmw_hidden_parts(&mut self) {
+        let Some(parts) = self.mesh.as_ref().map(WorkingMesh::submesh_indices) else {
+            return;
+        };
+        let hidden: Vec<u32> = self.cdmw_state["viewport"]["hidden_parts"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .filter_map(Value::as_u64)
+            .filter_map(|index| u32::try_from(index).ok())
+            .filter(|index| parts.contains(index))
+            .collect();
+        if !hidden.is_empty() {
+            self.set_cdmw_part_visibility(hidden, false);
+        }
     }
 
     fn cdmw_mode(&self) -> bool {
@@ -2792,10 +2811,12 @@ impl LabApplication {
                 "Finish Edit Mesh is waiting for the current edit or hair generation; wait or cancel generation".to_owned();
             return;
         }
+        let mut hidden_parts: Vec<u32> = self.cdmw_hidden_parts.iter().copied().collect();
+        hidden_parts.sort_unstable();
         let Some(bridge) = &mut self.cdmw_bridge else {
             return;
         };
-        match bridge.submit_finish() {
+        match bridge.submit_finish(&hidden_parts) {
             Ok(request_id) => {
                 self.cdmw_pending_request = Some(CdmwPendingRequest {
                     request_id,

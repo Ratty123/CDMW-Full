@@ -175,6 +175,10 @@ Storage and ownership:
   (`built_mod_draft` mode, never offered by the resume banner), and records the mod in
   `built_mods.json` beside the drafts. Continuing that mod restores removed parts, the
   Morph & Refit setup and the fitted shape into a new draft. Undo history is not saved.
+- The Parts list's **View** ticks travel with Finish (`viewport_hidden_parts` in the
+  `finish_request`), are saved in the draft generation, and come back in the editor
+  state's `viewport.hidden_parts` when it reopens, so a reopened draft or mod hides the
+  same parts. They stay viewport-only and never change what is exported.
 - A built mod without saved state opens its finished mesh, read from a loose file or a
   DMM archive group, as a new edit pass. Materials, skeleton and textures still come
   from the game's own files. A mod with several meshes reopens the one it records.
