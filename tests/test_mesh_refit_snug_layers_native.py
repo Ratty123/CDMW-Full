@@ -89,6 +89,56 @@ def test_broad_wrap_does_not_bulge_toward_nearby_inward_facing_arms():
     assert np.max(np.abs(radial_bend)) < .001
 
 
+def _loose_skirt_fit(scale, up, *parts):
+    """A 0% Tightness skirt on the curved waist, with tightened layers over it."""
+    body, heights, radii = _curved_waist()
+    skirt_rows = tuple(np.round(np.linspace(.6, 1.06, 9), 4))
+    skirt = _refit_tube_part("loose skirt", .16, 0., skirt_rows, 32)
+    source = _mesh(body, skirt, *parts)
+    for part in source.submeshes:
+        part.vertices = [tuple(scale * p[(axis + 1 - up) % 3] for axis in range(3)) for p in part.vertices]
+    settings = [{"submesh_index": p, "tightness_percent": 0. if p == 1 else 100., "clearance_percent": .1,
+                 "mode": "surface"} for p in range(1, len(parts) + 2)]
+    fitted = _fitted_mesh(source, (0,), tuple(range(1, len(parts) + 2)), garment_settings=settings)
+    normalized = [np.asarray(part.vertices)[:, [(axis + up - 1) % 3 for axis in range(3)]] / scale
+                  for part in fitted.submeshes]
+    skirt_after = normalized[1].reshape(len(skirt_rows), 32, 3)
+    # The skirt keeps its silhouette, so the layers over it must stay outside it.
+    assert np.hypot(skirt_after[:, :, 0], skirt_after[:, :, 2]) == pytest.approx(.16, abs=5e-4)
+    return fitted, normalized, heights, radii
+
+
+@pytest.mark.parametrize("scale,up", ((1., 1), (.1, 0), (10., 2)))
+def test_tightened_belt_stays_over_a_loose_skirt_and_fits_the_waist_above_it(scale, up):
+    rows = (.94, .98, 1.02, 1.06, 1.1, 1.15, 1.2)
+    fitted, normalized, heights, radii = _loose_skirt_fit(
+        scale, up, _refit_tube_part("belt", .165, 0., rows, 32))
+    belt = normalized[2].reshape(len(rows), 32, 3)
+    radius = np.hypot(belt[:, :, 0], belt[:, :, 2])
+    # The lower rows lie over the skirt and keep clear of it. A belt that seeks
+    # the skin there passes through the skirt, which is left in place.
+    assert radius[:4].min() > .1603, radius[:4].min(axis=1)
+    # Above the skirt the belt still takes up its slack around the waist.
+    gaps = radius[4:] - np.interp(belt[4:, :, 1], heights, radii)
+    assert gaps.min() > 0. and gaps[:2].max() < .02, gaps.max(axis=1)
+    _assert_no_surface_crossings(fitted.submeshes[1], fitted.submeshes[2])
+
+
+@pytest.mark.parametrize("scale,up", ((1., 1), (.1, 0), (10., 2)))
+def test_tightened_trim_resting_on_a_loose_skirt_stays_on_it(scale, up):
+    angles, rows = np.linspace(-.25, .25, 5), (.72, .76, .8, .84)
+    vertices = [(.164 * np.cos(a), y, .164 * np.sin(a)) for y in rows for a in angles]
+    faces = []
+    for r in range(len(rows) - 1):
+        for c in range(len(angles) - 1):
+            a, b = r * len(angles) + c, r * len(angles) + c + 1
+            faces += [(a, a + len(angles), b + len(angles)), (a, b + len(angles), b)]
+    tag = _part("tag", vertices, faces, material="tag", texture="")
+    _fitted, normalized, _heights, _radii = _loose_skirt_fit(scale, up, tag)
+    # Trim follows the cloth it lies on rather than seeking the skin through it.
+    assert np.hypot(normalized[2][:, 0], normalized[2][:, 2]) == pytest.approx(.164, abs=5e-4)
+
+
 @pytest.mark.parametrize("scale,up", ((1., 1), (.1, 0), (10., 2)))
 @pytest.mark.parametrize("closed", (False, True), ids=("turned-open-rim", "solid-wall"))
 @pytest.mark.parametrize("layout", ("whole", "material-seam", "pinned-return"))

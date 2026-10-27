@@ -410,7 +410,42 @@ void mesh_editor_conform_refit(const MeshRefitRuntime &refit, const std::map<int
     std::map<int, std::vector<Vec3>> garment_positions;
     for (const auto &item : garments)
         garment_positions[item.first] = item.second.vertices;
+    // Enabled garments this solve leaves in place (0% Tightness) keep their
+    // followed shape, but they still back the tightened layers that cover them:
+    // a belt over a loose skirt takes up its slack down to the skirt, not
+    // through it to the skin.
+    std::map<int, MeshSessionSubmesh> supports;
+    std::map<int, std::vector<std::size_t>> support_indices;
+    std::map<int, std::vector<Vec3>> support_positions;
+    std::set<int> support_set;
+    std::size_t support_count = 0;
+    for (const auto &item : refit.garment_settings) {
+        if (!item.second.enabled || item.second.mode == "rigid" || garment_set.count(item.first))
+            continue;
+        const auto followed = layer.find(item.first);
+        auto &support = supports[item.first];
+        support.faces = submeshes.at(item.first).faces;
+        for (std::size_t vertex = 0; vertex < residual.at(item.first).size(); ++vertex) {
+            Vec3 point = residual.at(item.first)[vertex];
+            if (followed != layer.end() && vertex < followed->second.size())
+                point = add_vec3(point, followed->second[vertex]);
+            support.vertices.push_back(point);
+            support_indices[item.first].push_back(support_count++);
+        }
+        support_positions[item.first] = support.vertices;
+        support_set.insert(item.first);
+    }
+    const auto support_roots = mesh_editor_refit_surface_roots(supports, support_indices, support_count);
+    const auto support_surfaces = mesh_editor_refit_surface_indices(supports, support_indices, support_roots);
+    const auto support_spatial = build_refit_spatial_index_native(supports, support_set);
+    auto layered_garments = garments;
+    for (const auto &item : supports)
+        layered_garments.emplace(item);
     using LayerKey = std::pair<int, std::size_t>;
+    const auto layer_surface = [&](const LayerKey& key) -> const RefitSpatialIndexNative& {
+        const auto found = garment_surfaces.find(key);
+        return found != garment_surfaces.end() ? found->second : support_surfaces.at(key);
+    };
     std::map<std::pair<LayerKey, LayerKey>, int> layer_orders;
     const auto ordered_layer = [&](std::size_t source, const LayerKey& target) {
         auto first = garment_surfaces.end();
@@ -423,12 +458,13 @@ void mesh_editor_conform_refit(const MeshRefitRuntime &refit, const std::map<int
         const auto key = std::make_pair(keys.first, keys.second);
         auto found = layer_orders.find(key);
         if (found == layer_orders.end()) found = layer_orders.emplace(key,
-            mesh_editor_refit_layer_order(garment_surfaces.at(key.first), garment_surfaces.at(key.second),
-                garments, body, driver_visible, refit.driver_diagonal * 0.06, tolerance)).first;
+            mesh_editor_refit_layer_order(layer_surface(key.first), layer_surface(key.second),
+                layered_garments, body, driver_visible, refit.driver_diagonal * 0.06, tolerance)).first;
         return found->second != 0;
     };
     std::vector<std::size_t> visited(body.triangles.size(), 0);
     std::vector<Vec3> body_points(nodes.size()), body_normals(nodes.size());
+    std::vector<double> support_floors(nodes.size(), -1.0);
     for (std::size_t i = 0; i < nodes.size(); ++i) {
         auto &node = nodes[i];
         // PAC island exclusions retain vertex records after their triangles
@@ -592,6 +628,31 @@ void mesh_editor_conform_refit(const MeshRefitRuntime &refit, const std::map<int
         const bool band = band_nodes.count(surface_roots[i]) != 0;
         const bool solid_band = solid_band_nodes.count(surface_roots[i]) != 0;
         double wall_depth = 0.0;
+        const auto add_inner_layer = [&](const MeshRefitVertexBindingRuntime& hit,
+                                         const std::map<int, std::vector<Vec3>>& positions, const LayerKey& key) {
+            if (dot_vec3(refit_binding_face_normal_native(hit, positions), target_normal) < 0.5)
+                return;
+            const Vec3 point = mesh_editor_refit_driver_point(hit, positions);
+            const double h = dot_vec3(sub_vec3(point, target_point), target_normal);
+            if (h >= height)
+                return;
+            // Penetration does not erase a layer. A larger body may already
+            // contain both shells; retain their relative spacing as they exit.
+            long long tests = 0;
+            const auto inner_body = closest_refit_binding_native(point, body, tests);
+            if (dot_vec3(refit_binding_face_normal_native(inner_body, driver_visible), target_normal) < 0.5)
+                return;
+            if (distance_squared_vec3(mesh_editor_refit_driver_point(inner_body, driver_visible),
+                                      target_point) > std::pow(refit.driver_diagonal * 0.05, 2.0))
+                return;
+            const bool ordered = ordered_layer(i, key);
+            const auto found = inner_layers.find(key);
+            if (found == inner_layers.end()) inner_layers.emplace(key, std::make_pair(h, ordered));
+            else {
+                found->second.first = std::min(found->second.first, h);
+                found->second.second &= ordered;
+            }
+        };
         if (garment_spatial.root >= 0) {
             for (const auto &hit : refit_surface_line_hits_native(node.point, target_normal,
                                                                   refit.driver_diagonal * 0.06, garment_spatial)) {
@@ -602,32 +663,15 @@ void mesh_editor_conform_refit(const MeshRefitRuntime &refit, const std::map<int
                         mesh_editor_refit_driver_point(hit, garment_positions), target_point), target_normal));
                     continue;
                 }
-                if (dot_vec3(refit_binding_face_normal_native(hit, garment_positions), target_normal) < 0.5)
-                    continue;
-                const Vec3 point = mesh_editor_refit_driver_point(hit, garment_positions);
-                const double h = dot_vec3(sub_vec3(point, target_point), target_normal);
-                if (h >= height)
-                    continue;
-                // Penetration does not erase a layer. A larger body may already
-                // contain both shells; retain their relative spacing as they exit.
-                long long tests = 0;
-                const auto inner_body = closest_refit_binding_native(point, body, tests);
-                if (dot_vec3(refit_binding_face_normal_native(inner_body, driver_visible), target_normal) < 0.5)
-                    continue;
-                if (distance_squared_vec3(mesh_editor_refit_driver_point(inner_body, driver_visible),
-                                          target_point) > std::pow(refit.driver_diagonal * 0.05, 2.0))
-                    continue;
-                const auto key = std::make_pair(hit.driver_submesh_index,
-                    surface_roots[indices.at(hit.driver_submesh_index)[hit.driver_vertices[0]]]);
-                const bool ordered = ordered_layer(i, key);
-                const auto found = inner_layers.find(key);
-                if (found == inner_layers.end()) inner_layers.emplace(key, std::make_pair(h, ordered));
-                else {
-                    found->second.first = std::min(found->second.first, h);
-                    found->second.second &= ordered;
-                }
+                add_inner_layer(hit, garment_positions, std::make_pair(hit.driver_submesh_index,
+                    surface_roots[indices.at(hit.driver_submesh_index)[hit.driver_vertices[0]]]));
             }
         }
+        if (support_spatial.root >= 0)
+            for (const auto &hit : refit_surface_line_hits_native(node.point, target_normal,
+                                                                  refit.driver_diagonal * 0.06, support_spatial))
+                add_inner_layer(hit, support_positions, std::make_pair(hit.driver_submesh_index,
+                    support_roots[support_indices.at(hit.driver_submesh_index)[hit.driver_vertices[0]]]));
         std::vector<std::tuple<double, int, bool>> ordered_layers;
         for (const auto& inner : inner_layers)
             ordered_layers.emplace_back(inner.second.first, inner.first.first, inner.second.second);
@@ -635,12 +679,14 @@ void mesh_editor_conform_refit(const MeshRefitRuntime &refit, const std::map<int
         bool flexible = std::all_of(node.vertices.begin(), node.vertices.end(), [&](const auto& vertex) {
             return refit.garment_settings.at(vertex.first).mode == "surface";
         });
-        double standoff = 0.0, previous_height = height, previous_clearance = clearance;
+        double standoff = 0.0, previous_height = height, previous_clearance = clearance, support_floor = 0.0;
         for (const auto& inner : ordered_layers) {
             const auto& settings = refit.garment_settings.at(std::get<1>(inner));
             // Nearby rope knots do not define a waist band's backing surface.
-            // Keep its ordered wrap and the band's own wall depth instead.
-            if (band && settings.mode == "surface" && !std::get<2>(inner)) continue;
+            // Keep its ordered wrap and the band's own wall depth instead. A
+            // layer left in place still does: the band cannot pass through it.
+            const bool support = support_set.count(std::get<1>(inner)) != 0;
+            if (band && settings.mode == "surface" && !std::get<2>(inner) && !support) continue;
             const double inner_clearance = settings.clearance_percent * refit.driver_diagonal / 100.0;
             const double gap = std::max(0.0, previous_height - std::get<0>(inner));
             const bool inner_flexible = settings.mode == "surface";
@@ -649,11 +695,17 @@ void mesh_editor_conform_refit(const MeshRefitRuntime &refit, const std::map<int
             previous_height = std::get<0>(inner);
             previous_clearance = inner_clearance;
             flexible = inner_flexible;
+            // A layer left in place keeps its height above the body, so the
+            // layers over it stack from there rather than from the skin.
+            if (support)
+                support_floor = std::max(support_floor, std::get<0>(inner) + standoff);
         }
         // Reserve a small contact band for interpolation over curved body faces.
         // Clearance is a minimum; the final contact solve checks the actual gap.
-        node.target =
-            sub_vec3(add_vec3(target_point, scale_vec3(target_normal, clearance * 2.0 + standoff + wall_depth)), node.point);
+        node.target = sub_vec3(add_vec3(target_point, scale_vec3(target_normal,
+            std::max(clearance * 2.0 + standoff, support_floor) + wall_depth)), node.point);
+        if (support_floor > 0.0)
+            support_floors[i] = support_floor + wall_depth;
     }
     // A protruding waist vertex can initially bind to a nearby arm. Reject an
     // isolated target only when it both jumps far beyond its cloth neighborhood
@@ -800,6 +852,15 @@ void mesh_editor_conform_refit(const MeshRefitRuntime &refit, const std::map<int
     for (const auto& node : nodes) band_targets.push_back(node.target);
     level_bands(band_targets);
     for (std::size_t i = 0; i < nodes.size(); ++i) nodes[i].target = band_targets[i];
+    // Rim extrapolation and band levelling must not carry a target back below
+    // a layer left in place.
+    for (std::size_t i = 0; i < nodes.size(); ++i) {
+        if (support_floors[i] < 0.0) continue;
+        const double reached = dot_vec3(sub_vec3(add_vec3(nodes[i].point, nodes[i].target), body_points[i]),
+                                        body_normals[i]);
+        if (reached < support_floors[i])
+            nodes[i].target = add_vec3(nodes[i].target, scale_vec3(body_normals[i], support_floors[i] - reached));
+    }
     // Overlapping surface islands share a local displacement field, including
     // islands stored in one Part. A belt or folded panel follows the cloth underneath instead of independently
     // seeking the skin. Barycentric links preserve details even when the two
@@ -812,79 +873,122 @@ void mesh_editor_conform_refit(const MeshRefitRuntime &refit, const std::map<int
     };
     std::vector<LayerLink> layer_links;
     std::set<std::size_t> carried_roots;
-    for (const auto& item : garment_surfaces) {
-        const int part = item.first.first;
-        const auto& surface = item.second;
+    // A layer left in place does not move. A tightened piece over it settles
+    // onto it in an established order, and otherwise stays with it, as it
+    // would follow the cloth underneath, instead of seeking the skin through it.
+    const auto link_layer = [&](std::size_t i, const LayerKey& key, const RefitSpatialIndexNative& surface,
+                                const std::map<int, std::vector<Vec3>>& positions, double area, bool fixed) {
+        const int part = key.first;
         const auto& bounds = surface.nodes[surface.root];
-        for (std::size_t i = 0; i < nodes.size(); ++i) {
-            const bool rigid = refit.garment_settings.at(part).mode == "rigid_component";
-            const bool source_rigid = std::any_of(nodes[i].vertices.begin(), nodes[i].vertices.end(),
-                [&](const auto& vertex) { return refit.garment_settings.at(vertex.first).mode == "rigid_component"; });
-            // Hard pieces receive a rigid transform from their fitted support
-            // after this solve. Their per-vertex skin targets must not pull a
-            // flexible backing into that piece's incompatible deformation.
-            if (rigid != source_rigid) continue;
-            if (!reliable[i] || surface_roots[i] == item.first.second) continue;
-            if (refit_aabb_distance_squared_native(nodes[i].point, bounds.minimum, bounds.maximum)
-                > std::pow(refit.driver_diagonal * 0.03, 2.0)) continue;
-            long long tests = 0;
-            const auto nearest = closest_refit_binding_native(nodes[i].point, surface, tests);
-            if (nearest.distance > refit.driver_diagonal * 0.03) continue;
-            const Vec3 point = mesh_editor_refit_driver_point(nearest, garment_positions);
-            const Vec3 normal = refit_binding_face_normal_native(nearest, garment_positions);
-            const double height = dot_vec3(sub_vec3(nodes[i].point, point), normal);
-            if (std::abs(height) < nearest.distance * 0.15) continue;
-            // Nearby edges of sloping cloth need not overlap. A connection that
-            // runs mostly along the body tethers a waist opening to a different
-            // height on the taper. Measure against the body, not the fold normal.
-            const double body_height = dot_vec3(sub_vec3(nodes[i].point, point), body_normals[i]);
-            if (body_height * body_height < nearest.distance * nearest.distance * 0.5) continue;
-            const auto anchor = closest_refit_binding_native(point, body, tests);
-            if (dot_vec3(refit_binding_face_normal_native(anchor, driver_visible), body_normals[i]) < 0.5
-                || distance_squared_vec3(mesh_editor_refit_driver_point(anchor, driver_visible), body_points[i])
-                    > std::pow(refit.driver_diagonal * 0.05, 2.0)) continue;
-            LayerLink link{{i, 0, 0, 0}, {1.0, 0.0, 0.0, 0.0}, nodes[i].area * 16.0};
-            bool invalid = false;
-            for (int c = 0; c < 3; ++c) {
-                link.nodes[c + 1] = indices.at(part)[nearest.driver_vertices[c]];
-                link.weights[c + 1] = -nearest.barycentric[c];
-                // A discarded body target cannot support another layer either;
-                // otherwise a sleeve can pull that waist vertex back to the arm.
-                invalid |= link.nodes[c + 1] == i
-                    || (nearest.barycentric[c] > 1.0e-7 && !reliable[link.nodes[c + 1]]);
-            }
-            if (!invalid) {
-                bool flexible = refit.garment_settings.at(part).mode == "surface";
-                double clearance = refit.garment_settings.at(part).clearance_percent * refit.driver_diagonal / 100.0;
-                for (const auto& vertex : nodes[i].vertices) {
-                    const auto& settings = refit.garment_settings.at(vertex.first);
-                    flexible &= settings.mode == "surface";
-                    clearance = std::max(clearance, settings.clearance_percent * refit.driver_diagonal / 100.0);
-                }
-                if (flexible && ordered_layer(i, item.first)) {
-                    const double gap = mesh_editor_refit_layer_gap(std::abs(height), clearance, 1.0, tolerance);
-                    link.target = scale_vec3(normal, std::copysign(gap, height) - height);
-                } else if (flexible && surface_area[item.first.second] >= surface_area[surface_roots[i]] * 2.0) {
-                    // A local ornament follows its supporting surface. Giving
-                    // it a second skin target first flattens the relief and
-                    // makes the subsequent contact solve fight its attachment.
-                    const auto source = garment_surfaces.find({nodes[i].vertices.front().first, surface_roots[i]});
-                    if (source != garment_surfaces.end()) {
-                        const auto& source_bounds = surface_shapes.at(surface_roots[i]);
-                        bool local = true;
-                        for (int axis = 0; axis < 3; ++axis) {
-                            const double extent = bounds.maximum[axis] - bounds.minimum[axis];
-                            local &= source_bounds.maximum[axis] - source_bounds.minimum[axis]
-                                <= std::max(extent * 1.25, extent + refit.driver_diagonal * 0.02);
-                        }
-                        const Vec3 extent = sub_vec3(source_bounds.maximum, source_bounds.minimum);
-                        if (local || (source_bounds.closed && *std::max_element(extent.begin(), extent.end())
-                                <= refit.driver_diagonal * 0.25)) carried_roots.insert(surface_roots[i]);
-                    }
-                }
-                layer_links.push_back(link);
+        const bool rigid = refit.garment_settings.at(part).mode == "rigid_component";
+        const bool source_rigid = std::any_of(nodes[i].vertices.begin(), nodes[i].vertices.end(),
+            [&](const auto& vertex) { return refit.garment_settings.at(vertex.first).mode == "rigid_component"; });
+        // Hard pieces receive a rigid transform from their fitted support
+        // after this solve. Their per-vertex skin targets must not pull a
+        // flexible backing into that piece's incompatible deformation.
+        if (rigid != source_rigid) return;
+        if (!reliable[i] || (!fixed && surface_roots[i] == key.second)) return;
+        if (refit_aabb_distance_squared_native(nodes[i].point, bounds.minimum, bounds.maximum)
+            > std::pow(refit.driver_diagonal * 0.03, 2.0)) return;
+        long long tests = 0;
+        const auto nearest = closest_refit_binding_native(nodes[i].point, surface, tests);
+        if (nearest.distance > refit.driver_diagonal * 0.03) return;
+        const Vec3 point = mesh_editor_refit_driver_point(nearest, positions);
+        const Vec3 normal = refit_binding_face_normal_native(nearest, positions);
+        const double height = dot_vec3(sub_vec3(nodes[i].point, point), normal);
+        if (std::abs(height) < nearest.distance * 0.15) return;
+        // Nearby edges of sloping cloth need not overlap. A connection that
+        // runs mostly along the body tethers a waist opening to a different
+        // height on the taper. Measure against the body, not the fold normal.
+        const double body_height = dot_vec3(sub_vec3(nodes[i].point, point), body_normals[i]);
+        if (body_height * body_height < nearest.distance * nearest.distance * 0.5) return;
+        // Only an inner support holds a layer; tightening moves away from an outer one.
+        if (fixed && body_height <= 0.0) return;
+        // A support holds only what lies directly on it: beneath this piece
+        // along the body normal, with no tightened layer in between to carry
+        // it instead, stacked over the support's floor.
+        if (fixed) {
+            const Vec3 down = scale_vec3(body_normals[i], -1.0);
+            const auto beneath = refit_surface_line_hits_native(nodes[i].point, down, refit.driver_diagonal * 0.03, surface);
+            if (std::none_of(beneath.begin(), beneath.end(), [&](const auto& hit) {
+                    return dot_vec3(sub_vec3(nodes[i].point, mesh_editor_refit_driver_point(hit, positions)),
+                                    body_normals[i]) > tolerance;
+                })) return;
+            for (const auto& hit : refit_surface_line_hits_native(nodes[i].point, down, body_height, garment_spatial)) {
+                if (surface_roots[indices.at(hit.driver_submesh_index)[hit.driver_vertices[0]]] == surface_roots[i])
+                    continue;
+                const double depth = dot_vec3(sub_vec3(nodes[i].point,
+                    mesh_editor_refit_driver_point(hit, garment_positions)), body_normals[i]);
+                if (depth > tolerance && depth < body_height - tolerance) return;
             }
         }
+        const auto anchor = closest_refit_binding_native(point, body, tests);
+        if (dot_vec3(refit_binding_face_normal_native(anchor, driver_visible), body_normals[i]) < 0.5
+            || distance_squared_vec3(mesh_editor_refit_driver_point(anchor, driver_visible), body_points[i])
+                > std::pow(refit.driver_diagonal * 0.05, 2.0)) return;
+        LayerLink link{{i, 0, 0, 0}, {1.0, 0.0, 0.0, 0.0}, nodes[i].area * 16.0};
+        bool invalid = false;
+        for (int c = 0; c < 3 && !fixed; ++c) {
+            link.nodes[c + 1] = indices.at(part)[nearest.driver_vertices[c]];
+            link.weights[c + 1] = -nearest.barycentric[c];
+            // A discarded body target cannot support another layer either;
+            // otherwise a sleeve can pull that waist vertex back to the arm.
+            invalid |= link.nodes[c + 1] == i
+                || (nearest.barycentric[c] > 1.0e-7 && !reliable[link.nodes[c + 1]]);
+        }
+        if (!invalid) {
+            bool flexible = refit.garment_settings.at(part).mode == "surface";
+            double clearance = refit.garment_settings.at(part).clearance_percent * refit.driver_diagonal / 100.0;
+            for (const auto& vertex : nodes[i].vertices) {
+                const auto& settings = refit.garment_settings.at(vertex.first);
+                flexible &= settings.mode == "surface";
+                clearance = std::max(clearance, settings.clearance_percent * refit.driver_diagonal / 100.0);
+            }
+            bool held = false;
+            if (flexible && ordered_layer(i, key)) {
+                const double gap = mesh_editor_refit_layer_gap(std::abs(height), clearance, 1.0, tolerance);
+                link.target = scale_vec3(normal, std::copysign(gap, height) - height);
+                held = true;
+            } else if (flexible && area >= surface_area[surface_roots[i]] * 2.0
+                       && !(fixed && band_nodes.count(surface_roots[i]))) {
+                // A local ornament follows its supporting surface. Giving
+                // it a second skin target first flattens the relief and
+                // makes the subsequent contact solve fight its attachment.
+                // A waist band over a layer left in place still tightens
+                // where it is free; its floor keeps it outside that layer.
+                const auto source = garment_surfaces.find({nodes[i].vertices.front().first, surface_roots[i]});
+                if (source != garment_surfaces.end()) {
+                    const auto& source_bounds = surface_shapes.at(surface_roots[i]);
+                    bool local = true;
+                    for (int axis = 0; axis < 3; ++axis) {
+                        const double extent = bounds.maximum[axis] - bounds.minimum[axis];
+                        local &= source_bounds.maximum[axis] - source_bounds.minimum[axis]
+                            <= std::max(extent * 1.25, extent + refit.driver_diagonal * 0.02);
+                    }
+                    const Vec3 extent = sub_vec3(source_bounds.maximum, source_bounds.minimum);
+                    if (local || (source_bounds.closed && *std::max_element(extent.begin(), extent.end())
+                            <= refit.driver_diagonal * 0.25)) {
+                        carried_roots.insert(surface_roots[i]);
+                        held = true;
+                    }
+                }
+            }
+            // Otherwise a layer left in place is only a floor. Holding every
+            // overlap in place would also hold whatever follows those pieces.
+            if (fixed && !held) return;
+            layer_links.push_back(link);
+        }
+    };
+    for (const auto& item : garment_surfaces)
+        for (std::size_t i = 0; i < nodes.size(); ++i)
+            link_layer(i, item.first, item.second, garment_positions, surface_area[item.first.second], false);
+    for (const auto& item : support_surfaces) {
+        double area = 0.0;
+        for (const auto& face : item.second.triangles)
+            area += 0.5 * length_vec3(cross_vec3(sub_vec3(face.corners[1], face.corners[0]),
+                                                 sub_vec3(face.corners[2], face.corners[0])));
+        for (std::size_t i = 0; i < nodes.size(); ++i)
+            link_layer(i, item.first, item.second, support_positions, area, true);
     }
     std::vector<double> diagonal(nodes.size());
     for (std::size_t i = 0; i < nodes.size(); ++i) {
@@ -913,6 +1017,8 @@ void mesh_editor_conform_refit(const MeshRefitRuntime &refit, const std::map<int
             diagonal[link.nodes[c]] += link.strength * link.weights[c] * link.weights[c];
             rhs[link.nodes[c]] = add_vec3(rhs[link.nodes[c]], scale_vec3(link.target, link.strength * link.weights[c]));
         }
+    const auto base_diagonal = diagonal;
+    const auto base_rhs = rhs;
     const auto multiply = [&](const std::vector<Vec3> &values) {
         std::vector<Vec3> result(nodes.size());
         for (std::size_t i = 0; i < nodes.size(); ++i)
@@ -939,38 +1045,75 @@ void mesh_editor_conform_refit(const MeshRefitRuntime &refit, const std::map<int
             result += dot_vec3(a[i], b[i]);
         return result;
     };
-    r = rhs;
-    for (std::size_t i = 0; i < nodes.size(); ++i) {
-        if (diagonal[i] <= 0.0)
-            fail(nodes[i].vertices.front().first, "contains an unconstrained vertex");
-        direction[i] = z[i] = scale_vec3(r[i], 1.0 / diagonal[i]);
-    }
-    const double norm = inner(rhs, rhs);
-    double rz = inner(r, z);
-    bool converged = norm <= 1.0e-30;
-    for (int iteration = 0; iteration < 512 && !converged; ++iteration) {
-        const auto ad = multiply(direction);
-        const double denominator = inner(direction, ad);
-        if (!std::isfinite(denominator) || denominator <= 0.0)
-            break;
-        const double alpha = rz / denominator;
+    // A layer left in place is a floor, not a preference: smoothing must bend
+    // the tightened cloth around it instead of pulling samples through it.
+    // Hold only the samples that finish below their floor, where the field put
+    // them but lifted onto the floor along the body normal, then solve again
+    // from that field. The field keeps their motion along the surface.
+    std::vector<char> held(nodes.size(), 0);
+    std::vector<Vec3> holds(nodes.size());
+    for (int round = 0;; ++round) {
         for (std::size_t i = 0; i < nodes.size(); ++i) {
-            displacement[i] = add_vec3(displacement[i], scale_vec3(direction[i], alpha));
-            r[i] = sub_vec3(r[i], scale_vec3(ad[i], alpha));
+            diagonal[i] = base_diagonal[i];
+            rhs[i] = base_rhs[i];
+            if (!held[i]) continue;
+            const double weight = base_diagonal[i] * 1024.0;
+            diagonal[i] += weight;
+            rhs[i] = add_vec3(rhs[i], scale_vec3(holds[i], weight));
         }
-        converged = inner(r, r) <= norm * 1.0e-12;
-        if (converged)
-            break;
-        for (std::size_t i = 0; i < nodes.size(); ++i)
-            z[i] = scale_vec3(r[i], 1.0 / diagonal[i]);
-        const double next = inner(r, z), beta = next / rz;
-        for (std::size_t i = 0; i < nodes.size(); ++i)
-            direction[i] = add_vec3(z[i], scale_vec3(direction[i], beta));
-        rz = next;
+        r = rhs;
+        const auto start = multiply(displacement);
+        for (std::size_t i = 0; i < nodes.size(); ++i) {
+            if (diagonal[i] <= 0.0)
+                fail(nodes[i].vertices.front().first, "contains an unconstrained vertex");
+            r[i] = sub_vec3(r[i], start[i]);
+            direction[i] = z[i] = scale_vec3(r[i], 1.0 / diagonal[i]);
+        }
+        const double norm = inner(rhs, rhs);
+        double rz = inner(r, z);
+        bool converged = norm <= 1.0e-30 || inner(r, r) <= norm * 1.0e-12;
+        for (int iteration = 0; iteration < 512 && !converged; ++iteration) {
+            const auto ad = multiply(direction);
+            const double denominator = inner(direction, ad);
+            if (!std::isfinite(denominator) || denominator <= 0.0)
+                break;
+            const double alpha = rz / denominator;
+            for (std::size_t i = 0; i < nodes.size(); ++i) {
+                displacement[i] = add_vec3(displacement[i], scale_vec3(direction[i], alpha));
+                r[i] = sub_vec3(r[i], scale_vec3(ad[i], alpha));
+            }
+            converged = inner(r, r) <= norm * 1.0e-12;
+            if (converged)
+                break;
+            for (std::size_t i = 0; i < nodes.size(); ++i)
+                z[i] = scale_vec3(r[i], 1.0 / diagonal[i]);
+            const double next = inner(r, z), beta = next / rz;
+            for (std::size_t i = 0; i < nodes.size(); ++i)
+                direction[i] = add_vec3(z[i], scale_vec3(direction[i], beta));
+            rz = next;
+        }
+        if (!converged)
+            fail(nodes.front().vertices.front().first, "fitting did not converge; previous preview retained");
+        bool added = false;
+        for (std::size_t i = 0; round < 8 && i < nodes.size(); ++i) {
+            if (support_floors[i] < 0.0 || nodes[i].mobility <= 0.0) continue;
+            const double reached = dot_vec3(sub_vec3(add_vec3(nodes[i].point, displacement[i]), body_points[i]),
+                                            body_normals[i]);
+            if (reached >= support_floors[i] - refit.driver_diagonal * 1.0e-4) continue;
+            holds[i] = add_vec3(displacement[i], scale_vec3(body_normals[i], support_floors[i] - reached));
+            held[i] = added = true;
+        }
+        if (!added) break;
     }
-    if (!converged)
-        fail(nodes.front().vertices.front().first, "fitting did not converge; previous preview retained");
     level_bands(displacement);
+    // Levelling the band again must not lower a held sample below its floor.
+    for (std::size_t i = 0; i < nodes.size(); ++i) {
+        if (support_floors[i] < 0.0 || nodes[i].mobility <= 0.0) continue;
+        const double reached = dot_vec3(sub_vec3(add_vec3(nodes[i].point, displacement[i]), body_points[i]),
+                                        body_normals[i]);
+        if (reached < support_floors[i])
+            displacement[i] = add_vec3(displacement[i], scale_vec3(body_normals[i], support_floors[i] - reached));
+    }
     // Constrain the actual requested pose. A valid full-strength fit can pass
     // through a folded or inverted triangle at an intermediate percentage.
     for (std::size_t i = 0; i < nodes.size(); ++i)
