@@ -7,6 +7,8 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 ## [Unreleased]
 
+## [0.11.0-alpha.27] - 2026-10-28
+
 ### Added
 
 - Body & Face Finder's Export FBX... exports the selected models as FBX files, each with the face shape the selected appearance gives it, and remembers the output folder for the next export.
