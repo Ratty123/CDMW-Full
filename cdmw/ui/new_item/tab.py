@@ -691,6 +691,23 @@ class NewItemStudioTab(QWidget):
     def _has_staged_effect_changes(self):
         return self._perks_panel is not None and self._perks_panel.has_staged_effect_changes()
 
+    def _size_to_current_page(self, row: int) -> None:
+        """Let only the open step set the workspace's minimum width.
+
+        A stacked widget takes the widest minimum of every page, so the Output step's
+        destination column made every other step wider than the window. Hidden pages
+        ignore their width hint; the open page keeps its own policy.
+        """
+        for index in range(self.pages.count()):
+            page = self.pages.widget(index)
+            own = page.property("cdmw_step_width_policy")
+            if own is None:
+                own = page.sizePolicy().horizontalPolicy().value
+                page.setProperty("cdmw_step_width_policy", own)
+            policy = page.sizePolicy()
+            policy.setHorizontalPolicy(QSizePolicy.Policy(own) if index == row else QSizePolicy.Policy.Ignored)
+            page.setSizePolicy(policy)
+
     def _show_step(self, row: int) -> None:
         if self._syncing_step or not 0 <= int(row) < self.pages.count():
             return
@@ -726,6 +743,7 @@ class NewItemStudioTab(QWidget):
         elif row == 2:
             self.model_panel.mount_preview()
         self.pages.setCurrentIndex(row)
+        self._size_to_current_page(row)
         self.back_button.setEnabled(row > 0)
         self.continue_button.setVisible(row != 6)
         self.continue_button.setEnabled(
