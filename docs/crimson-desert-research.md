@@ -620,6 +620,97 @@ body bones it never authored. Restoring neutral geometry and reversing
 interchange coordinates must retain the relevant source transforms and each
 mesh's own palette.
 
+Reviewed 2026-10-28 (archive inspection of the installed build, executable
+SHA-256 prefix `57da440d`): a face's runtime shape is its head's skeleton
+variation. Each customization file (`.paccd_xml`) holds `DecorationParam`
+values (colour, tattoo, makeup), `MeshParam` choices that index
+`customizationmeta/meshparam_example_*.xml`, and a `Bone` block. A mesh-list
+`MeshSet` names its `.pabc` with `UseSkeletonVariation="True"`; for Kliff's
+default head the prefab names the same file. All 461 shipped `.pabc` files
+parse (239 under `head/`, all version `0x34`).
+
+A head's `HeadPrefabData` names its `SkeletonVariationName` and a
+`MorphTargetSet` (`FacialBlendShapeSet`, beside the emotion and facial
+animation sets). The PAMT targets are 52 or 53 ARKit-style expression shapes
+(`eyeBlinkLeft`, `jawOpen`, ...), not identity shapes. Of 350 head prefabs
+with a `.pabc`, 142 are not named after a `.pac`: they reuse another head's
+mesh, and 124 of them with a different `.pabc` than the mesh's own prefab
+(Kliff's alternate heads, and goblin and dwarf heads built on human meshes).
+Over all 287 head PACs, CDMW's export appearance step applied a `.pabc` to
+216, moving vertices by a median 1.2 cm and at most 13.4 cm on heads about
+19 cm tall; 29 resolve no `.pabc`, and 42 (goblin, orc, dwarf and some
+monster heads) stop because several skeletons score equally. Archive export
+uses the `.pac`'s own prefab, so the 124 reused-mesh shapes are reachable
+only through Character Finder's appearance preview.
+
+The game also defines bone sliders: `boneparam_example.xml` has 183 (129
+translate, rotate or scale Head bones; the rest are body and hair) and
+`bonecontrol_example.xml` has 309 weighted controls. `BoneData` index is the
+slider index times three plus the axis. Only 42 of the 1,413 shipped
+customization files fill `Bone`, and all 42 carry the same values: every
+translate axis 125, every scale axis 99, rotations 255. Khione95's Character
+Creator plugin edits only the mesh choices and 250 decoration values, and
+re-swaps the head so the game applies its skeleton variation.
+
+Saves (`%LOCALAPPDATA%\Pearl Abyss\CD\save\<id>\slotN\save.save`) are a
+128-byte `SAVE` header (version 2, uncompressed size at `0x12`, payload size
+at `0x16`, a 16-byte ChaCha20 nonce at `0x1A`, an HMAC-SHA256 at `0x2A`)
+over a ChaCha20-encrypted lz4 block. The key derivation published in
+NattKh's MPL-2.0 save editor decrypted three local slots with matching HMACs
+(read-only, in memory). Each holds `CustomizationSaveData` with `_meshData`
+and `_decorationData`, matching the 16 mesh and 250 decoration values above,
+and `_customizationAppearanceIndexKey` and `_nudeAppearanceIndexKey`; no
+bone-slider field name appears. The decompressed stream opens with a schema of
+99 classes; `CustomizationSaveData` is `_meshData` (uint8 array),
+`_decorationData` (uint8 array) and `_version`. The player's top-level block is
+a field mask, 16 mesh bytes, 250 decoration bytes and the version (287 bytes).
+In the three local slots every mesh byte is `0xFF` (the slot default) and one
+decoration value is set; no other block with that layout occurs, so a
+mercenary's nested `_customizationSaveData` is either absent there or laid out
+differently.
+
+Character Creator 9.1.16 does not write its look into the save: a test save
+made after changing Kliff's look still stores every mesh byte as `0xFF`, and
+the plugin's log shows it rebuilding Kliff from its own files on each load
+("Kliff mesh 1: 255 -> 99"). Its `bin64\CharacterCreator` folder holds the
+look as plain text: `profile[_damiane|_oongka].txt` (`mesh <slot> <option>`,
+`decoration <index> <value>`), `identity*.txt` (gender, race, height %,
+movement) and `menu.txt`, whose `mesh <slot> <Kliff option> <race> <shown>
+<icon> <prefab> <Damiane option> <Oongka option>` rows turn an option into a
+game prefab (Kliff's head option 99 is `cd_phw_00_head_00_0111`). The editor's
+on-screen numbering ("Head 15") is not the stored option. Its F6/F7/F8 editors
+change appearance only; the played character stays Kliff. The owner observed
+in game that Damiane's profile does not reach the real Damiane once she is
+switched in with Crimson Live Edit, although the log shows the plugin writing
+a separate Damiane controller; only Kliff's profile is confirmed to match the
+played character. Open: which side drops the Damiane look, a save whose
+look was changed at a Barber Shop, mercenary customization blocks, the
+meaning of 125, 99 and 255, and a visible comparison against the game.
+
+Reviewed 2026-10-28 (archive inspection, source): orc, dwarf and goblin heads
+tie the human and several creature rigs on every palette bone. Every prefab
+descriptor in a `character/prefab/1_pc/<NN>_<family>` folder names one rig
+(`phm_01.pab` for the men's families, `phw_01.pab` for the women's), and
+settling the tie with that answer let all 42 previously refused heads take
+their `.pabc`, moving vertices by a median 4 cm. Export can now take the
+appearance component's own prefab, so Kliff's alternate, young and old heads
+apply `cd_phm_macduff_head_0008.pabc`, `cd_phm_macduff_young_head_0001.pabc`
+and the like instead of the shared mesh's default. These are export-summary
+and geometry checks, not an in-game comparison.
+
+Reviewed 2026-10-28 (plugin files and log, archive export; Character Creator
+9.1.16): `menu.txt` also has `base <gender> <race> <customization> <body>
+<scale> <head> <head scale> <hair>` rows. The log shows the plugin building
+Kliff from the identity's base row first (female human: Damiane's body and
+`cd_phw_00_head_00_0111`, body scale 0.94 times the +12% height = 1.0528) and
+then applying the profile's slots. Slot 5 rows repeat the head list and the
+plugin keeps it matched to the head; what it changes is unknown, so export
+reports it without using it. Body & Face Finder's Kliff export resolved the
+owner's look to body, head, hair and beard prefabs through the archive worker.
+The head applied its own `cd_phw_00_head_00_0111.pabc` (209 of 210 records)
+and `phw_damian.pamt`; the two eye PACs and the hair's `uptail` PAC resolve no
+skeleton and are skipped. Not compared in game.
+
 The fixed-layout decoder and a best-effort legacy scan carry different proof.
 A recovered bone-shaped record is not authority to add, remove or rename bones.
 There is no general skeleton restructuring writer.

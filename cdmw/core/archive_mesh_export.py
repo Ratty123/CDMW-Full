@@ -335,6 +335,7 @@ def _appearance_fbx_mesh(
     path_index: Optional[Mapping[str, Sequence[ArchiveEntry]]],
     basename_index: Optional[Mapping[str, Sequence[ArchiveEntry]]],
     stop_event: object = None,
+    authored_descriptor: ArchiveEntry | None = None,
 ) -> tuple[ParsedMesh, Tuple[str, ...]]:
     if entry.extension != ".pac" or not bone_palette:
         return parsed_mesh, ()
@@ -350,6 +351,7 @@ def _appearance_fbx_mesh(
         skeleton=skeleton,
         bone_palette=bone_palette,
         stop_event=stop_event,
+        authored_descriptor=authored_descriptor,
     )
 
 
@@ -386,8 +388,14 @@ def export_archive_mesh(
     asset_family_graph: object = None,
     build_preview_context: bool = True,
     on_log: Optional[Callable[[str], None]] = None, stop_event: object = None,
+    authored_descriptor: ArchiveEntry | None = None,
 ) -> MeshExportResult:
-    """Publish a complete export; OBJ keeps source coordinates unless appearance is requested."""
+    """Publish a complete export; OBJ keeps source coordinates unless appearance is requested.
+
+    ``authored_descriptor`` is the prefab descriptor a character appearance binds
+    to this PAC. Its skeleton variation and morph set replace the PAC's own, so a
+    head that reuses another head's mesh exports with its own face shape.
+    """
     raise_if_cancelled(stop_event)
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -404,6 +412,7 @@ def export_archive_mesh(
             asset_family_graph=asset_family_graph,
             build_preview_context=build_preview_context,
             on_log=on_log, stop_event=stop_event,
+            authored_descriptor=authored_descriptor,
         )
         raise_if_cancelled(stop_event)
         publication = {path: output_dir / path.relative_to(staging) for path in result.output_paths}
@@ -652,6 +661,7 @@ def _export_archive_mesh_staged(
     asset_family_graph: object = None,
     build_preview_context: bool = True,
     on_log: Optional[Callable[[str], None]] = None, stop_event: object = None,
+    authored_descriptor: ArchiveEntry | None = None,
 ) -> MeshExportResult:
     export_kind = export_format.strip().lower()
     if export_kind not in {"obj", "fbx"}:
@@ -711,6 +721,7 @@ def _export_archive_mesh_staged(
                     archive_entries_by_normalized_path=archive_entries_by_normalized_path or {},
                     archive_entries_by_basename=archive_entries_by_basename or {},
                     stop_event=stop_event,
+                    authored_descriptor=authored_descriptor,
                 )
             except UnresolvedPacBonePaletteError:
                 appearance_notes = ("OBJ retains source coordinates because the PAC bone palette is unresolved; neutral appearance is unavailable.",)
@@ -779,6 +790,7 @@ def _export_archive_mesh_staged(
                 archive_entries_by_normalized_path,
                 archive_entries_by_basename,
                 stop_event,
+                authored_descriptor,
             )
             appearance_notes += fbx_appearance_notes
             manifest_mesh = export_mesh
@@ -807,6 +819,8 @@ def _export_archive_mesh_staged(
         build_preview_context and export_kind == "obj", obj_appearance_baked, on_log,
     )
 
+    if authored_descriptor is not None:
+        appearance_notes = (f"Appearance prefab: {authored_descriptor.path}", *appearance_notes)
     summary_lines = _archive_export_summary(
         entry, export_mesh, export_kind, copied_related_count, appearance_notes, obj_appearance_baked,
         skeleton_entry, skeleton, skeleton_resolve_report, skeleton_resolution_warning,

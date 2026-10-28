@@ -6,10 +6,10 @@ from html import escape
 from collections import OrderedDict
 from dataclasses import replace
 from pathlib import Path
-from PySide6.QtCore import QEvent, QProcess, QSize, QTimer, Qt
+from PySide6.QtCore import QEvent, QProcess, QSize, QThread, QTimer, Qt
 from PySide6.QtGui import QIcon, QPixmap
 from PySide6.QtWidgets import (
-    QApplication, QCheckBox, QComboBox, QDialog, QHBoxLayout, QLabel, QLineEdit,
+    QApplication, QCheckBox, QComboBox, QDialog, QFileDialog, QHBoxLayout, QLabel, QLineEdit,
     QListView, QListWidget, QListWidgetItem, QMessageBox, QProgressBar, QPushButton,
     QSplitter, QTabBar, QTabWidget, QTextBrowser, QVBoxLayout, QWidget,
 )
@@ -19,7 +19,9 @@ from cdmw.domain.archives.character_catalogue import (
     CharacterCatalogDetailRequest, CharacterCatalogDetailResult,
     CharacterCatalogScopeRequest, CharacterCatalogScopeResult,
 )
-from cdmw.domain.character_finder import CHARACTER_FINDER_CACHED_PAGES, CHARACTER_FINDER_LOOKAHEAD_PAGES
+from cdmw.domain.character_finder import (
+    CHARACTER_FINDER_CACHED_PAGES, CHARACTER_FINDER_LOOKAHEAD_PAGES, character_preview_detail,
+)
 from cdmw.ui.character_finder.preview_controller import CharacterFinderPreviewController
 from cdmw.ui.character_finder.thumbnail_delegate import CharacterThumbnailDelegate, THUMBNAIL_ACTIVITY_ROLE
 from cdmw.ui.preview.rust_host import RustPreviewHostFrame
@@ -32,6 +34,7 @@ SOURCE_LABELS = {"humanoid": "Humanoids", "1_pc": "Player families", "2_mon": "C
                  "6_object": "Objects", "7_montower": "Towers", "unknown": "Unknown"}
 STATUS_LABELS = {"base_appearance": "Base appearance", "textures_unavailable": "Textures unavailable",
                  "unresolved_model": "Unresolved model"}
+LOOK_PART_LABELS = {0: "Body", 1: "Head", 2: "Hair", 3: "Beard"}
 RESOLUTION_LABELS = {"resolved": "Resolved", "inferred": "Inferred", "ambiguous": "Ambiguous", "unresolved": "Unresolved"}
 PREVIEW_STAGES = {
     "queued": "Queued", "reading_details": "Reading model details…", "checking_cache": "Checking preview cache…",
@@ -71,6 +74,14 @@ class CharacterFinderDialog(QDialog):
         self._pending_package = None
         self._hair_preparation = None
         self._hair_handoff = None
+        self._export_preparation = None
+        self._export_pending = None
+        self._export_token = 0
+        self._export_thread = None
+        self._export_worker = None
+        self._look_preparation = None
+        self._look_export = None
+        self._creator_folder = self._find_creator_folder()
         self._shown_key = ""
         self._underwear_parts = ()
         self._thumbs = OrderedDict()
@@ -150,6 +161,12 @@ class CharacterFinderDialog(QDialog):
         clear = QPushButton("Clear filters")
         clear.clicked.connect(self._clear_filters)
         row.addWidget(clear)
+        self._kliff_look = QPushButton("Kliff's Character Creator look…")
+        self._kliff_look.setToolTip("Export the look Khione95's Character Creator gives Kliff, one FBX per part with "
+                                    "the face shape its game prefab gives it. The mod's files are only read.")
+        self._kliff_look.setEnabled(False)
+        self._kliff_look.clicked.connect(self._start_kliff_look)
+        row.addWidget(self._kliff_look)
         layout.addLayout(row)
         filters = QHBoxLayout()
         self._filters = {}
@@ -259,11 +276,14 @@ class CharacterFinderDialog(QDialog):
         self._related.clicked.connect(lambda: self._scope(True))
         self._copy = QPushButton("Copy path")
         self._copy.clicked.connect(self._copy_path)
+        self._export = QPushButton("Export FBX…")
+        self._export.setToolTip("Export the selected models as FBX with the face shape this appearance gives them.")
+        self._export.clicked.connect(self._start_export)
         self._create_hair = QPushButton("Create Hair")
         self._create_hair.clicked.connect(lambda: self._start_hair("generated"))
         self._edit_hair = QPushButton("Edit Hair")
         self._edit_hair.clicked.connect(lambda: self._start_hair("existing"))
-        for button in (self._exact, self._related, self._copy, self._create_hair, self._edit_hair):
+        for button in (self._exact, self._related, self._copy, self._export, self._create_hair, self._edit_hair):
             button.setEnabled(False)
             actions.addWidget(button)
         right_layout.addLayout(actions)
@@ -637,6 +657,179 @@ class CharacterFinderDialog(QDialog):
         if self._details is not None:
             QApplication.clipboard().setText(self._details.row.path)
 
+    def _export_busy(self):
+        return self._export_pending is not None or self._export_thread is not None
+
+    def _export_default_dir(self):
+        default = ""
+        if self._settings is not None:
+            default = str(self._settings.value("ui/character_finder/export_dir", "") or "")
+        if not default:
+            settings_path = getattr(getattr(self._window, "shell", None), "settings_file_path", None)
+            default = str(Path(settings_path).parent / "character_export") if settings_path else ""
+        return default
+
+    def _begin_export(self, key, output_dir):
+        if self._settings is not None:
+            self._settings.setValue("ui/character_finder/export_dir", output_dir)
+        if self._export_preparation is None:
+            from cdmw.ui.character_finder.preview_preparation import CharacterPreviewPreparation
+            self._export_preparation = CharacterPreviewPreparation(self._service, self)
+            self._export_preparation.ready.connect(self._export_prepared)
+            self._export_preparation.failed.connect(self._export_failed)
+        self._export_token += 1
+        self._export_pending = (key, Path(output_dir))
+        self._buttons()
+
+    def _start_export(self):
+        if self._closing or self._invalid or self._details is None or self._export_busy():
+            return
+        detail = self._details
+        output_dir = QFileDialog.getExistingDirectory(self, "Export FBX", self._export_default_dir())
+        if not output_dir or self._closing or self._details is not detail:
+            return
+        self._look_export = None
+        self._begin_export(detail.row.key, output_dir)
+        self._status.setText("Preparing files for export…")
+        self._export_preparation.start(character_preview_detail(detail), self._export_token)
+
+    def _find_creator_folder(self):
+        from cdmw.ui.character_finder.creator_look import character_creator_folder
+        edit = getattr(getattr(self._window, "archive", None), "archive_package_root_edit", None)
+        try:
+            return character_creator_folder(edit.text() if edit is not None else "")
+        except OSError:
+            return None
+
+    def _start_kliff_look(self):
+        if self._closing or self._invalid or self._creator_folder is None or self._export_busy():
+            return
+        from cdmw.domain.character_creator import (
+            SUPPORTED_CHARACTER_CREATOR_VERSIONS, CharacterCreatorError, UnsupportedCharacterCreatorVersion,
+        )
+        from cdmw.ui.character_finder.creator_look import read_kliff_look
+        try:
+            look = read_kliff_look(self._creator_folder)
+        except UnsupportedCharacterCreatorVersion as error:
+            supported = ", ".join(SUPPORTED_CHARACTER_CREATOR_VERSIONS)
+            QMessageBox.warning(self, "Kliff's Character Creator look",
+                f"Character Creator {error.version or '?'} is not supported yet. CDMW reads the files of version "
+                f"{supported}; a newer version may number its menus differently.")
+            return
+        except CharacterCreatorError as error:
+            QMessageBox.warning(self, "Kliff's Character Creator look", str(error))
+            return
+        output_dir = QFileDialog.getExistingDirectory(self, "Export Kliff's Character Creator look",
+                                                      self._export_default_dir())
+        if not output_dir or self._closing or self._export_busy():
+            return
+        if self._look_preparation is None:
+            from cdmw.ui.character_finder.creator_look import KliffLookPreparation
+            self._look_preparation = KliffLookPreparation(self._service, self)
+            self._look_preparation.ready.connect(self._kliff_look_resolved)
+            self._look_preparation.failed.connect(self._export_failed)
+            self._look_preparation.progress.connect(self._kliff_look_progress)
+        from cdmw.domain.character_creator import KLIFF_LOOK_KEY
+        self._begin_export(KLIFF_LOOK_KEY, output_dir)
+        self._look_export = (look, ())
+        self._status.setText("Reading Kliff's Character Creator look…")
+        self._look_preparation.start(self._session_id, look, self._export_token)
+
+    def _kliff_look_progress(self, token, stage):
+        if not self._closing and token == self._export_token:
+            self._status.setText(stage)
+
+    def _kliff_look_resolved(self, token, detail, notes):
+        if self._closing or token != self._export_token or self._look_export is None:
+            return
+        self._look_export = (self._look_export[0], tuple(notes))
+        self._status.setText("Preparing files for export…")
+        self._export_preparation.start(detail, token)
+
+    def _export_prepared(self, token, inputs):
+        if token != self._export_token:
+            return
+        pending, self._export_pending = self._export_pending, None
+        if pending is None or self._closing:
+            self._buttons()
+            return
+        if not inputs.dependencies_complete:
+            self._export_failed(token, "Export needs the selection's complete file set; its details are bounded.")
+            return
+        from cdmw.workers.character_finder_export_worker import CharacterFinderExportWorker
+        worker = CharacterFinderExportWorker(token, inputs, pending[1])
+        thread = QThread(self)
+        self._export_thread, self._export_worker = thread, worker
+        worker.moveToThread(thread)
+        thread.started.connect(worker.run)
+        worker.completed.connect(self._export_completed)
+        worker.failed.connect(self._export_failed)
+        worker.progress.connect(self._export_progress)
+        worker.finished.connect(thread.quit)
+        worker.finished.connect(worker.deleteLater)
+        thread.finished.connect(self._export_thread_finished)
+        self._status.setText("Exporting FBX…")
+        thread.start()
+
+    def _export_progress(self, token, completed, total):
+        if not self._closing and token == self._export_token and total:
+            self._status.setText(f"Exporting FBX… {completed} of {total} models")
+
+    def _export_completed(self, token, result):
+        if self._closing or token != self._export_token:
+            return
+        if self._look_export is not None:
+            look, notes = self._look_export
+            self._look_export = None
+            self._kliff_look_completed(look, notes, result)
+            return
+        lines = []
+        for model in result.models:
+            lines.append(f"<b>{escape(Path(model.path).name)}</b>")
+            lines.extend(escape(note) for note in model.notes)
+        total = len(result.models)
+        self._status.setText(f"Exported {result.exported_count} of {total} models to {result.output_dir}")
+        QMessageBox.information(self, "Export FBX",
+            f"<p>Exported {result.exported_count} of {total} models to {escape(result.output_dir)}.</p>"
+            + "<p>" + "<br>".join(lines) + "</p>")
+
+    def _kliff_look_completed(self, look, notes, result):
+        from cdmw.ui.character_finder.creator_look import look_report_lines
+        total = len(result.models)
+        self._status.setText(f"Exported {result.exported_count} of {total} models of Kliff's look to {result.output_dir}")
+        parts = []
+        for part in look.parts:
+            models = [model for model in result.models if model.component == part.prefab]
+            if not models:
+                continue
+            lines = [f"<b>{escape(LOOK_PART_LABELS[part.slot])}</b>: {escape(part.prefab)}"]
+            for model in models:
+                name = escape(Path(model.path).name)
+                lines.append(f"FBX written for {name}" if model.exported else f"No FBX written for {name}")
+                lines.extend(escape(note) for note in model.notes)
+            parts.append("<p>" + "<br>".join(lines) + "</p>")
+        report = "<br>".join(escape(line) for line in (*look_report_lines(look), *notes))
+        QMessageBox.information(self, "Kliff's Character Creator look",
+            f"<p>Exported {result.exported_count} of {total} models to {escape(result.output_dir)}.</p>"
+            + "".join(parts) + f"<p>{report}</p>")
+
+    def _export_failed(self, token, message):
+        if token != self._export_token:
+            return
+        self._export_pending = None
+        self._look_export = None
+        if not self._closing:
+            self._status.setText(f"Export failed: {message}")
+            self._buttons()
+
+    def _export_thread_finished(self):
+        thread = self._export_thread
+        self._export_thread, self._export_worker = None, None
+        if thread is not None:
+            thread.deleteLater()
+        if not self._closing:
+            self._buttons()
+
     def _hair_model(self):
         from cdmw.domain.hair_characters import HAIR_CHARACTERS
         if self._details is None:
@@ -860,6 +1053,9 @@ class CharacterFinderDialog(QDialog):
         self._next_button.setEnabled(not busy and not self._invalid and self._page_start + 72 < self._total)
         for button in (self._exact, self._related, self._copy):
             button.setEnabled(self._details is not None and not busy and not self._invalid)
+        self._export.setEnabled(self._details is not None and bool(self._details.models) and not busy
+                                and not self._invalid and not self._export_busy())
+        self._kliff_look.setEnabled(self._creator_folder is not None and not self._invalid and not self._export_busy())
         for button in (self._create_hair, self._edit_hair):
             from cdmw.domain.hair_characters import character_for_appearance
             compatible = self._hair_model() is not None or (self._details is not None and character_for_appearance(self._details.appearance_path) is not None)
@@ -888,6 +1084,8 @@ class CharacterFinderDialog(QDialog):
 
     def iter_shutdown_workers(self):
         yield from self._preview.iter_shutdown_workers()
+        if self._export_thread is not None:
+            yield "character_finder_export", self._export_thread, self._export_worker
 
     def request_shutdown(self):
         self.close()
@@ -906,6 +1104,14 @@ class CharacterFinderDialog(QDialog):
         if self._hair_preparation is not None:
             self._hair_preparation.cancel()
         self._hair_handoff = None
+        if self._export_preparation is not None:
+            self._export_preparation.cancel()
+        if self._look_preparation is not None:
+            self._look_preparation.cancel()
+        self._export_pending = None
+        self._look_export = None
+        if self._export_worker is not None:
+            self._export_worker.stop()
         self._host.controller.shutdown()
         for signal, slot in ((self._service.result_ready, self._result), (self._service.request_failed, self._failed),
                              (self._service.progress, self._progress), (self._service.session_published, self._session_changed),
@@ -922,7 +1128,7 @@ class CharacterFinderDialog(QDialog):
         super().closeEvent(event)
 
     def _release(self):
-        if not self._closing or self._preview.busy:
+        if not self._closing or self._preview.busy or self._export_thread is not None:
             return
         if any(p.state() != QProcess.ProcessState.NotRunning for p in self.findChildren(QProcess)):
             return

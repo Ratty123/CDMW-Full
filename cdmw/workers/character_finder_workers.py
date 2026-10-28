@@ -17,7 +17,8 @@ from PySide6.QtCore import QObject, Qt, Signal, Slot
 from PySide6.QtGui import QImage
 
 from cdmw.domain.character_finder import (
-    CharacterPreviewInputs, CharacterRenderResult, character_preview_detail, character_underwear_submesh_indices,
+    CharacterPreviewInputs, CharacterRenderResult, authored_component_descriptor, character_preview_detail,
+    character_underwear_submesh_indices,
 )
 from cdmw.domain.character_context import NativePreviewContextComponent
 from cdmw.models import ModelPreviewRenderSettings, RunCancelled
@@ -369,15 +370,7 @@ class CharacterFinderRenderWorker(QObject):
         return package, status, tuple(notes)
 
     def _authored_descriptor(self, component):
-        if component is None:
-            return None
-        name = Path(component.name.replace("\\", "/")).stem.casefold()
-        descriptors = [entry for entry_id in component.context_entry_ids
-            if (entry := self.inputs.entries_by_id.get(entry_id)) is not None
-            and Path(entry.path).name.casefold() in {name + ".prefabdata_xml", name + ".prefabdata.xml"}]
-        if len(descriptors) > 1:
-            raise ValueError(f"More than one authored appearance descriptor was resolved for {component.name}.")
-        return descriptors[0] if descriptors else None
+        return authored_component_descriptor(component, self.inputs.entries_by_id)
 
     def _capture(self, package, key: str) -> Path:
         resolution = resolve_rust_mesh_editor()

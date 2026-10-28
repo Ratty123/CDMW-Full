@@ -1,5 +1,6 @@
 """Immutable input and output boundaries for character preview jobs."""
 from dataclasses import dataclass, replace
+from pathlib import Path
 import re
 from .archives.character_catalogue import CharacterCatalogDetailResult
 from cdmw.models import ArchiveEntry
@@ -18,6 +19,24 @@ def character_underwear_submesh_indices(parts) -> tuple[int, ...]:
         if tokens.intersection({"uw", "underwear", "underpants"}) and type(index) is int and index >= 0:
             indices.add(index)
     return tuple(sorted(indices))
+
+
+def authored_component_descriptor(component, entries_by_id) -> ArchiveEntry | None:
+    """The prefab descriptor an appearance component names, or None when it names none.
+
+    A component can bind a differently named prefab (and its face shape) to a
+    shared PAC, so preview and export both take the descriptor of the
+    component's own prefab rather than the one named after the PAC.
+    """
+    if component is None:
+        return None
+    name = Path(component.name.replace("\\", "/")).stem.casefold()
+    descriptors = [entry for entry_id in component.context_entry_ids
+        if (entry := entries_by_id.get(entry_id)) is not None
+        and Path(entry.path).name.casefold() in {name + ".prefabdata_xml", name + ".prefabdata.xml"}]
+    if len(descriptors) > 1:
+        raise ValueError(f"More than one authored appearance descriptor was resolved for {component.name}.")
+    return descriptors[0] if descriptors else None
 
 
 def character_preview_detail(detail: CharacterCatalogDetailResult) -> CharacterCatalogDetailResult:

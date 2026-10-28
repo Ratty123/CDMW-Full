@@ -655,3 +655,205 @@ def test_finder_cards_and_filters_translate_without_changing_ids(finder, tmp_pat
     localizer.load_language("en")
     localizer.apply_registered_roots()
     localizer.shutdown()
+
+
+class ExportPreparation(QObject):
+    ready = Signal(int, object)
+    failed = Signal(int, str)
+    progress = Signal(int, str, int, int)
+    instances = []
+
+    def __init__(self, service, parent=None):
+        super().__init__(parent)
+        self.started = []
+        self.cancelled = 0
+        ExportPreparation.instances.append(self)
+
+    def start(self, detail, token): self.started.append((detail, token))
+    def cancel(self): self.cancelled += 1
+
+
+def _export_selection(finder, monkeypatch, tmp_path):
+    from cdmw.domain.archives.character_catalogue import CharacterCatalogComponent
+    from cdmw.models import ArchiveEntry
+    dialog, service, _ = finder
+    ExportPreparation.instances.clear()
+    monkeypatch.setattr("cdmw.ui.character_finder.preview_preparation.CharacterPreviewPreparation", ExportPreparation)
+    monkeypatch.setattr(feature.QFileDialog, "getExistingDirectory", lambda *_args: str(tmp_path / "out"))
+    # Kliff's alternate head: the default head's PAC bound through its own prefab.
+    head = ArchiveEntry("character/model/1_pc/1_phm/head/head/cd_phm_00_head_00_0001_macduff.pac", Path("0.pamt"), Path("0.paz"), 0, 1, 1, 0, 0)
+    prefab = ArchiveEntry("character/prefab/1_pc/01_phm/head/head/cd_phm_00_head_00_0008_macduff.prefabdata_xml", Path("0.pamt"), Path("0.paz"), 1, 1, 1, 0, 0)
+    selected = row(1, role="head", key="appearance:1", view="appearances")
+    component = CharacterCatalogComponent("head", "cd_phm_00_head_00_0008_macduff", (1,), (2,), 0.92, {}, "resolved")
+    chosen = replace(detail(selected), models=(SimpleNamespace(entry_id=1, path=head.path),), components=(component,))
+    publish_rows(dialog, service, [selected])
+    service.result_ready.emit(dialog._requests["detail"], "get_character_catalog_detail", chosen)
+    return dialog, chosen, head, prefab
+
+
+def _wait_for_export(dialog, shown, timeout=5.0):
+    """The export runs on a worker thread; a fixed number of event spins can end before it does."""
+    import time
+    deadline = time.monotonic() + timeout
+    while not (dialog._export_thread is None and shown) and time.monotonic() < deadline:
+        _APPLICATION.processEvents()
+        time.sleep(0.005)
+
+
+def test_export_fbx_gives_each_model_its_components_prefab(finder, monkeypatch, tmp_path):
+    from cdmw.domain.archives.mesh_contracts import MeshExportResult
+    from cdmw.domain.character_finder import CharacterPreviewInputs
+    dialog, chosen, head, prefab = _export_selection(finder, monkeypatch, tmp_path)
+    exported, shown = [], []
+
+    def export(entry, output_dir, export_format, **kwargs):
+        exported.append((entry, Path(output_dir), export_format, kwargs["authored_descriptor"]))
+        return MeshExportResult([Path(output_dir) / "head.fbx"], [
+            f"Appearance prefab: {prefab.path}", "Vertices: 3",
+            "Applied character skeleton variation cd_phm_macduff_head_0008.pabc (207/207 records matched the PAB)."])
+
+    monkeypatch.setattr("cdmw.core.archive_mesh_export.export_archive_mesh", export)
+    monkeypatch.setattr(feature.QMessageBox, "information", lambda _parent, _title, text: shown.append(text))
+    assert dialog._export.isEnabled()
+    dialog._export.click()
+    preparation = ExportPreparation.instances[-1]
+    assert preparation.started[0][1] == dialog._export_token and not dialog._export.isEnabled()
+    preparation.ready.emit(dialog._export_token, CharacterPreviewInputs(chosen, {1: head, 2: prefab}, (head, prefab), True))
+    _wait_for_export(dialog, shown)
+    assert exported == [(head, tmp_path / "out", "fbx", prefab)]
+    assert "Exported 1 of 1 models" in shown[0] and "cd_phm_macduff_head_0008.pabc" in shown[0]
+    assert "Vertices" not in shown[0] and dialog._export.isEnabled()
+
+
+def test_export_fbx_refuses_a_bounded_selection_and_stale_preparation(finder, monkeypatch, tmp_path):
+    from cdmw.domain.character_finder import CharacterPreviewInputs
+    dialog, chosen, head, prefab = _export_selection(finder, monkeypatch, tmp_path)
+    monkeypatch.setattr("cdmw.core.archive_mesh_export.export_archive_mesh", lambda *_a, **_k: pytest.fail("exported"))
+    dialog._export.click()
+    preparation = ExportPreparation.instances[-1]
+    # A late result of an earlier preparation must not consume the current one.
+    preparation.ready.emit(dialog._export_token - 1, CharacterPreviewInputs(chosen, {1: head}, (head,), True))
+    assert dialog._export_thread is None and dialog._export_pending is not None
+    preparation.ready.emit(dialog._export_token, CharacterPreviewInputs(chosen, {1: head, 2: prefab}, (head, prefab), False))
+    assert dialog._export_thread is None and "complete file set" in dialog._status.text()
+    assert dialog._export.isEnabled()
+    dialog._export.click()
+    dialog.close()
+    assert preparation.cancelled >= 1 and dialog._export_pending is None
+
+
+class LookPreparation(QObject):
+    ready = Signal(int, object, object)
+    failed = Signal(int, str)
+    progress = Signal(int, str)
+    instances = []
+
+    def __init__(self, service, parent=None):
+        super().__init__(parent)
+        self.started = []
+        self.cancelled = 0
+        LookPreparation.instances.append(self)
+
+    def start(self, session_id, look, token): self.started.append((session_id, look, token))
+    def cancel(self): self.cancelled += 1
+
+
+def _creator_folder(tmp_path, version="9.1.16 1138693 281B6192"):
+    folder = tmp_path / "CharacterCreator"
+    folder.mkdir(exist_ok=True)
+    (folder / "data.version").write_text(version, encoding="utf-8")
+    (folder / "menu.txt").write_text(
+        "mesh 1 201 phm 1 - cd_phm_00_head_00_0008_macduff 201 202\n"
+        "base 0 0 x cd_phm_00_nude_01_0002_macduff 1.02571 cd_phm_00_head_00_0001_macduff 0.92 cd_phm_00_hair_00_0022_player\n",
+        encoding="utf-8")
+    (folder / "profile.txt").write_text("mesh 1 201\n", encoding="utf-8")
+    return folder
+
+
+def test_kliff_look_action_needs_the_character_creator_folder(finder, tmp_path):
+    dialog, _service, _ = finder
+    assert dialog._creator_folder is None and not dialog._kliff_look.isEnabled()
+    dialog._creator_folder = _creator_folder(tmp_path)
+    dialog._buttons()
+    assert dialog._kliff_look.isEnabled()
+
+
+def test_kliff_look_refuses_an_unknown_character_creator_version(finder, monkeypatch, tmp_path):
+    dialog, _service, _ = finder
+    LookPreparation.instances.clear()
+    monkeypatch.setattr("cdmw.ui.character_finder.creator_look.KliffLookPreparation", LookPreparation)
+    monkeypatch.setattr(feature.QFileDialog, "getExistingDirectory", lambda *_args: pytest.fail("asked for a folder"))
+    warnings = []
+    monkeypatch.setattr(feature.QMessageBox, "warning", lambda _parent, _title, text: warnings.append(text))
+    dialog._creator_folder = _creator_folder(tmp_path, "9.2.0 1 2")
+    dialog._buttons()
+    dialog._kliff_look.click()
+    assert "Character Creator 9.2.0 is not supported yet" in warnings[0] and "9.1.16" in warnings[0]
+    assert not LookPreparation.instances and dialog._export_pending is None
+
+
+def test_kliff_look_exports_each_part_through_its_own_prefab(finder, monkeypatch, tmp_path):
+    from cdmw.domain.archives.catalogue import ArchiveDurableIdentity, ArchiveEntryDto, ArchiveEntryRole
+    from cdmw.domain.archives.mesh_contracts import MeshExportResult
+    from cdmw.domain.character_creator import CharacterCreatorResolvedPart, kliff_look_detail
+    from cdmw.domain.character_finder import CharacterPreviewInputs
+    from cdmw.models import ArchiveEntry
+    dialog, _service, _ = finder
+    LookPreparation.instances.clear()
+    ExportPreparation.instances.clear()
+    monkeypatch.setattr("cdmw.ui.character_finder.creator_look.KliffLookPreparation", LookPreparation)
+    monkeypatch.setattr("cdmw.ui.character_finder.preview_preparation.CharacterPreviewPreparation", ExportPreparation)
+    monkeypatch.setattr(feature.QFileDialog, "getExistingDirectory", lambda *_args: str(tmp_path / "out"))
+    shown, exported = [], []
+    monkeypatch.setattr(feature.QMessageBox, "information", lambda _parent, _title, text: shown.append(text))
+    dialog._creator_folder = _creator_folder(tmp_path)
+    dialog._buttons()
+    dialog._kliff_look.click()
+    look_preparation = LookPreparation.instances[-1]
+    session_id, look, token = look_preparation.started[0]
+    assert session_id == "session-a" and token == dialog._export_token
+    assert [part.prefab for part in look.parts] == [
+        "cd_phm_00_nude_01_0002_macduff", "cd_phm_00_head_00_0008_macduff", "cd_phm_00_hair_00_0022_player"]
+    assert not dialog._kliff_look.isEnabled() and not dialog._export.isEnabled()
+
+    def dto(entry_id, path):
+        return ArchiveEntryDto("session-a", entry_id, ArchiveDurableIdentity(path, "0.pamt", 0, entry_id), path,
+            "0.pamt", "0.paz", 0, entry_id, 1, 1, 0, "." + path.rsplit(".", 1)[-1], "0009", ArchiveEntryRole.MODEL, "model", True)
+
+    head_pac = "character/model/1_pc/1_phm/head/head/cd_phm_00_head_00_0001_macduff.pac"
+    descriptor_path = "character/prefab/1_pc/01_phm/head/head/cd_phm_00_head_00_0008_macduff.prefabdata_xml"
+    hair_pac = "character/model/1_pc/1_phm/head/hair/cd_phm_00_hair_00_0022_player.pac"
+    head_part, hair_part = look.parts[1], look.parts[2]
+    detail = kliff_look_detail("session-a", (
+        CharacterCreatorResolvedPart(head_part, dto(1, "a/cd_phm_00_head_00_0008_macduff.prefab"),
+                                     dto(2, descriptor_path), (dto(4, head_pac),), ()),
+        CharacterCreatorResolvedPart(hair_part, dto(3, "a/cd_phm_00_hair_00_0022_player.prefab"), None,
+                                     (dto(7, hair_pac),), ()),
+    ))
+    look_preparation.ready.emit(token, detail, ("cd_phm_00_nude_01_0002_macduff.prefab is not in the loaded archives; that part is skipped.",))
+    export_preparation = ExportPreparation.instances[-1]
+    assert export_preparation.started == [(detail, token)]
+
+    def entry(path, offset):
+        return ArchiveEntry(path, Path("0.pamt"), Path("0.paz"), offset, 1, 1, 0, 0)
+
+    head, descriptor, hair = entry(head_pac, 4), entry(descriptor_path, 2), entry(hair_pac, 7)
+
+    def export(entry, output_dir, export_format, **kwargs):
+        exported.append((entry.path, kwargs["authored_descriptor"]))
+        return MeshExportResult([Path(output_dir) / (Path(entry.path).stem + ".fbx")], [
+            *((f"Appearance prefab: {descriptor_path}",) if kwargs["authored_descriptor"] is not None else ()),
+            "Vertices: 3"])
+
+    monkeypatch.setattr("cdmw.core.archive_mesh_export.export_archive_mesh", export)
+    export_preparation.ready.emit(token, CharacterPreviewInputs(detail, {4: head, 2: descriptor, 7: hair},
+                                                                (head, descriptor, hair), True))
+    _wait_for_export(dialog, shown)
+    assert exported == [(head_pac, descriptor), (hair_pac, None)]
+    text = shown[0]
+    assert "Exported 2 of 2 models" in text
+    assert "<b>Head</b>: cd_phm_00_head_00_0008_macduff<br>FBX written for cd_phm_00_head_00_0001_macduff.pac" in text
+    assert f"Appearance prefab: {descriptor_path}" in text and "Vertices" not in text
+    assert "<b>Hair</b>: cd_phm_00_hair_00_0022_player" in text
+    assert "Head scale 0.92; not applied to the FBX files." in text and "cd_phm_00_nude_01_0002_macduff.prefab is not in the loaded archives" in text
+    assert dialog._look_export is None and dialog._kliff_look.isEnabled()

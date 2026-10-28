@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import html
 import xml.etree.ElementTree as ET
+from collections import Counter
 from dataclasses import dataclass, replace
 from itertools import chain
 from pathlib import PurePosixPath
@@ -592,6 +593,19 @@ def _descriptor_reference_paths(attr_name: str, raw_value: str) -> Tuple[str, ..
     return tuple(dict.fromkeys(paths))
 
 
+_SHAPE_DESCRIPTOR_ATTRIBUTES = frozenset({"skeletonname", "skeletonvariationname", "morphtargetset", "morphtargetsetname"})
+
+
+def descriptor_shape_paths(text: str) -> Tuple[str, ...]:
+    """Every archive path a prefab descriptor's skeleton, variation and morph set may live at."""
+    return tuple(dict.fromkeys(
+        path
+        for attribute, value in _prefabdata_xml_refs(text)
+        if attribute.strip().lower() in _SHAPE_DESCRIPTOR_ATTRIBUTES
+        for path in _descriptor_reference_paths(attribute, value)
+    ))
+
+
 def _resolve_descriptor_reference(
     attr_name: str,
     raw_value: str,
@@ -807,6 +821,60 @@ def _all_indexed_pab_candidates(
     return tuple(result)
 
 
+_FAMILY_DESCRIPTOR_READ_LIMIT = 64
+
+
+def _family_rig_from_descriptors(
+    model_path: str,
+    tied_paths: set[str],
+    archive_entries_by_normalized_path: Optional[Mapping[str, Sequence[ArchiveEntry]]],
+    read_entry_data: Callable[[ArchiveEntry], bytes],
+) -> str:
+    """The tied skeleton the player family's prefab descriptors name, or "" without one clear answer.
+
+    Humanoid rigs share bone names, so an orc, dwarf or goblin head's palette
+    ties the player and several creature rigs. Every prefab descriptor of a
+    ``character/prefab/1_pc/<NN>_<family>`` folder names one rig (orc, dwarf
+    and goblin men ``phm_01.pab``, women ``phw_01.pab``). Prefab folders pad the
+    family number that model folders do not (``09_pgm`` for ``9_pgm``).
+    Creature families mix rigs per character; Refit settles those itself.
+    """
+    parts = PurePosixPath(model_path).parts
+    if len(parts) < 5 or parts[:3] != ("character", "model", "1_pc") or "_" not in parts[3]:
+        return ""
+    group, family = parts[2], parts[3].split("_", 1)[1]
+    named: Counter[str] = Counter()
+    read = 0
+    for key, entries in (archive_entries_by_normalized_path or {}).items():
+        path = PurePosixPath(_normalize_virtual_path(key))
+        if (len(path.parts) < 5 or path.parts[:3] != ("character", "prefab", group)
+                or path.parts[3].split("_", 1)[-1] != family or not path.name.endswith(".prefabdata_xml")):
+            continue
+        entry = next(iter(entries or ()), None)
+        if entry is None:
+            continue
+        try:
+            text = read_entry_data(entry).decode("utf-8", "ignore")
+        except RunCancelled:
+            raise
+        except Exception:
+            continue
+        found = {
+            _normalize_virtual_path(reference)
+            for attribute, value in _prefabdata_xml_refs(text)
+            if attribute.strip().lower() == "skeletonname"
+            for reference in _descriptor_reference_paths(attribute, value)
+        }
+        named.update(found & tied_paths)
+        read += 1
+        if read >= _FAMILY_DESCRIPTOR_READ_LIMIT:
+            break
+    ranked = named.most_common(2)
+    if not ranked or (len(ranked) == 2 and ranked[0][1] == ranked[1][1]):
+        return ""
+    return ranked[0][0]
+
+
 def _descriptor_report_context(resolution: SkeletonDescriptorResolution) -> dict[str, str]:
     def entry_path(entry: Optional[ArchiveEntry]) -> str:
         return str(getattr(entry, "path", "") or "").replace("\\", "/")
@@ -979,6 +1047,26 @@ def resolve_skeleton_for_model(
     ranked.sort(key=lambda candidate: (candidate.palette_hits, candidate.score, candidate.bone_count, -len(candidate.path)), reverse=True)
     scored.sort(key=lambda candidate: (candidate.score, candidate.palette_hits, candidate.bone_count, -len(candidate.path)), reverse=True)
     if len(ranked) > 1 and _candidate_is_ambiguous(ranked[0], ranked[1], palette_mode=bool(palette_scored)):
+        family_rig = ""
+        if palette_scored and read_entry_data is not None:
+            top = ranked[0].palette_hits
+            family_rig = _family_rig_from_descriptors(
+                model_path,
+                {_normalize_virtual_path(candidate.path) for candidate in palette_scored if candidate.palette_hits == top},
+                archive_entries_by_normalized_path,
+                read_entry_data,
+            )
+        if family_rig:
+            selected = next(candidate for candidate in ranked if _normalize_virtual_path(candidate.path) == family_rig)
+            return _candidate_entry_for_path(candidates, selected.path), SkeletonResolveReport(
+                model_path=model_entry.path.replace("\\", "/"),
+                selected_path=selected.path,
+                confidence="family_descriptor",
+                reason=f"{selected.reason}; the palette tie is settled by the skeleton its family's prefab descriptors name",
+                **_descriptor_report_context(descriptor_resolution),
+                candidates=tuple(scored),
+                attempted_paths=tuple(dict.fromkeys((*descriptor_attempted, *attempted))),
+            )
         confidence = "ambiguous_palette" if palette_scored else "ambiguous"
         return None, SkeletonResolveReport(
             model_path=model_entry.path.replace("\\", "/"),

@@ -7,6 +7,11 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 ## [Unreleased]
 
+### Added
+
+- Body & Face Finder's Export FBX... exports the selected models as FBX files, each with the face shape the selected appearance gives it, and remembers the output folder for the next export.
+- Body & Face Finder's Kliff's Character Creator look... exports the look Khione95's Character Creator mod gives Kliff as one FBX per part (body, head, hair and beard), each with the face shape its game prefab gives it, and lists what each part exported. It reads the mod's own files without changing them; height, head scale, colours and sliders are reported but not applied. Only Kliff is supported, and only Character Creator 9.1.16.
+
 ### Fixed
 
 - Create New Item no longer refuses to build a plan with "the template wiring is incompatible" when a copied template model's dye setup lists a part that its own material does not dye. Template models keep their dyes as the game ships them, including the other models copied with an outfit, such as its lower body and accessories. If a Glow, Translucency or shader edit removes a template part's dye setup, the error now names the model and part and says how to fix it.

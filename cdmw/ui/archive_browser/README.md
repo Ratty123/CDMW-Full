@@ -273,6 +273,23 @@ these defaults. An explicitly selected type is remembered, including **All types
 **Show exact files** and **Show related files** return a bounded entry-ID scope to
 Archive Browser, where existing extraction/export/editor actions remain available.
 
+### Kliff's Character Creator look
+
+**Kliff's Character Creator look…** is enabled when `bin64\CharacterCreator\menu.txt`
+sits beside the game executable. It reads Khione95's Character Creator files
+(`data.version`, `menu.txt`, `profile.txt`, `identity.txt`) without writing them, and
+refuses any version other than 9.1.16. `cdmw/domain/character_creator.py` turns the
+stored options (the `menu.txt` Kliff column, not the editor's on-screen numbers) and the
+identity's `base` row into body, head, hair and beard prefab names.
+`creator_look.KliffLookPreparation` then asks the resident worker for each prefab and
+its `.prefabdata_xml` by basename, decodes the prepared `.prefab` for its PACs, and
+looks up those PACs and the descriptor's skeleton, `.pabc` and `.pamt` by exact path.
+The result is a Finder selection with one component per prefab, which the Export FBX
+preparation and worker export with that prefab's own descriptor, so a head reusing
+another head's PAC keeps its own face shape. Height, head scale, slot 5 (face details)
+and decoration values are reported, not applied. Damiane's and Oongka's profiles are
+not read.
+
 ### Catalogue ownership
 
 The resident .NET archive worker owns the character catalogue independently of ItemInfo.

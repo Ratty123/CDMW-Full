@@ -135,6 +135,34 @@ def test_character_obj_preserves_source_unless_neutral_appearance_is_requested(
         assert import_obj(str(obj)).total_vertices == 3
 
 
+def test_a_chosen_appearance_prefab_supplies_the_exported_face_shape(tmp_path, monkeypatch, mesh):
+    # Kliff's alternate heads reuse his default head's PAC with their own variation.
+    entry = _entry(tmp_path, "character/model/1_pc/1_phm/head/head/cd_phm_00_head_00_0001_macduff.pac")
+    prefab = _entry(tmp_path, "character/prefab/1_pc/01_phm/head/head/cd_phm_00_head_00_0008_macduff.prefabdata_xml")
+    mesh.path, mesh.format = entry.path, "pac"
+    monkeypatch.setattr(archive_mesh_export, "_parse_archive_mesh", lambda *args, **kwargs: mesh)
+    monkeypatch.setattr(archive_mesh_export, "_find_matching_skeleton_entry", lambda *args, **kwargs: (None, "", (), None))
+    descriptors = []
+
+    def appearance(*_args, **kwargs):
+        descriptors.append(kwargs.get("authored_descriptor"))
+        return mesh, ("Applied character skeleton variation cd_phm_macduff_head_0008.pabc",)
+
+    monkeypatch.setattr("cdmw.core.archive_mesh_appearance.apply_archive_mesh_appearance", appearance)
+    result = archive_mesh_export.export_archive_mesh(
+        entry, tmp_path / "export", "obj", build_preview_context=False, resolve_skeleton_for_obj=True,
+        authored_descriptor=prefab,
+    )
+    assert descriptors == [prefab]
+    assert f"Appearance prefab: {prefab.path}" in result.summary_lines
+
+    # The FBX path hands the same descriptor to the appearance step with its resolved rig.
+    descriptors.clear()
+    shaped, _notes = archive_mesh_export._appearance_fbx_mesh(
+        entry, mesh, SimpleNamespace(bones=(1,)), (0,), {}, {}, authored_descriptor=prefab)
+    assert shaped is mesh and descriptors == [prefab]
+
+
 @pytest.mark.parametrize("failure_stage", ["companion", "manifest", "cancel"])
 def test_failed_export_preserves_previous_output(tmp_path, monkeypatch, mesh, failure_stage):
     entry = _entry(tmp_path, "object/mesh.pam")
