@@ -7,13 +7,6 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 ## [Unreleased]
 
-### Fixed
-
-- Create New Item's Capture icon renders the view at full resolution, so an icon made from a small part of the preview is no longer blurry.
-- Mod Management explains why an item package cannot load alongside another mod that changes a file the item was built against, such as a character skeleton: disable that mod to load the item.
-- Create New Item's steps each need only their own width, so the Output step's destination column no longer makes the other steps wider than a narrow window.
-- Closing Create New Item while it is still removing an import's temporary files no longer raises an internal error.
-
 ## [0.11.0-alpha.27] - 2026-10-28
 
 ### Added
@@ -28,6 +21,10 @@ experimental-feature notes do not establish equivalent in-game behavior.
 - After a game overlay install, Create New Item gives the draft the next free suggested name, so Identity no longer reports the item it just installed as already existing. A name you typed yourself is kept.
 - Report a Problem returns to the first step that still needs an answer when you click a later step, such as a Summary under 10 characters, and highlights only the step that is open.
 - Mesh Editor's Keyboard Shortcuts window lines its key buttons up in the same columns for every group, with even button widths and row shading across the full width. Long action names shorten instead of pushing the keys out of line.
+- Create New Item's Capture icon renders the view at full resolution, so an icon made from a small part of the preview is no longer blurry.
+- Mod Management explains why an item package cannot load alongside another mod that changes a file the item was built against, such as a character skeleton: disable that mod to load the item.
+- Create New Item's steps each need only their own width, so the Output step's destination column no longer makes the other steps wider than a narrow window.
+- Closing Create New Item while it is still removing an import's temporary files no longer raises an internal error.
 
 ## [0.11.0-alpha.26] - 2026-10-27
 
