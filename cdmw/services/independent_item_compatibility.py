@@ -524,7 +524,10 @@ def _check_collection_additions(path, before, after):
             raise OverlayConflict('Required prefab metadata changed.')
         old, new = b.index(), a.index()
     else:
-        raise OverlayConflict('A required resource changed; its reference boundary is not supported for merging.')
+        # Only tables, localisation and prefab lists have a known record boundary; any
+        # other file (a skeleton, a model) cannot be checked against the item.
+        raise OverlayConflict("Another mod changes this file, and the item was built against the game's own copy. "
+                              "CDMW cannot combine changes to this kind of file; disable the other mod to load this item.")
     for key, value in old.items():
         if new.get(key) != value:
             raise OverlayConflict(f'Required record {key} was changed or removed.')

@@ -3866,7 +3866,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 922,
+          "line": 923,
           "sink": "setToolTip"
         }
       ]
@@ -4437,16 +4437,6 @@
       "manual": true
     },
     {
-      "key": "A required resource changed; its reference boundary is not supported for merging.",
-      "origins": [
-        {
-          "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 527,
-          "sink": "OverlayConflict"
-        }
-      ]
-    },
-    {
       "key": "A required texture replacement resource is missing.",
       "origins": [],
       "manual": true
@@ -4551,7 +4541,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 698,
+          "line": 701,
           "sink": "OverlayConflict"
         }
       ]
@@ -8506,7 +8496,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 871,
+          "line": 883,
           "sink": "setText"
         }
       ]
@@ -9006,7 +8996,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 840,
+          "line": 843,
           "sink": "OverlayConflict"
         }
       ]
@@ -9761,7 +9751,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 1006,
+          "line": 1007,
           "sink": "set_part_editor_state"
         },
         {
@@ -9796,7 +9786,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 1043,
+          "line": 1044,
           "sink": "failed"
         }
       ]
@@ -9808,6 +9798,16 @@
           "path": "cdmw/ui/shell/problem_report_catalog.py",
           "line": 14,
           "sink": "python-data:INSTALL_METHODS"
+        }
+      ]
+    },
+    {
+      "key": "Another mod changes this file, and the item was built against the game's own copy. CDMW cannot combine changes to this kind of file; disable the other mod to load this item.",
+      "origins": [
+        {
+          "path": "cdmw/services/independent_item_compatibility.py",
+          "line": 529,
+          "sink": "OverlayConflict"
         }
       ]
     },
@@ -10306,7 +10306,7 @@
         },
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 744,
+          "line": 745,
           "sink": "addButton"
         },
         {
@@ -10751,7 +10751,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 742,
+          "line": 743,
           "sink": "setWindowTitle"
         }
       ]
@@ -16311,7 +16311,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 590,
+          "line": 591,
           "sink": "QPushButton"
         },
         {
@@ -17741,7 +17741,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_identity.py",
-          "line": 390,
+          "line": 398,
           "sink": "note"
         },
         {
@@ -19286,7 +19286,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 1157,
+          "line": 1170,
           "sink": "_verification_failed"
         }
       ]
@@ -19346,7 +19346,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 1057,
+          "line": 1058,
           "sink": "set_part_editor_state"
         }
       ]
@@ -20706,7 +20706,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/item_preview.py",
-          "line": 1035,
+          "line": 1038,
           "sink": "emit"
         }
       ]
@@ -21286,7 +21286,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 959,
+          "line": 962,
           "sink": "CompatibilityFinding"
         }
       ]
@@ -21531,7 +21531,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 943,
+          "line": 956,
           "sink": "getOpenFileName:filter-label"
         }
       ]
@@ -21541,7 +21541,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 943,
+          "line": 956,
           "sink": "getOpenFileName"
         }
       ]
@@ -23496,7 +23496,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/item_preview.py",
-          "line": 1333,
+          "line": 1342,
           "sink": "emit"
         }
       ]
@@ -23546,7 +23546,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/item_preview.py",
-          "line": 1312,
+          "line": 1321,
           "sink": "emit"
         }
       ]
@@ -26326,7 +26326,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 1076,
+          "line": 1077,
           "sink": "set_part_editor_state"
         }
       ]
@@ -28116,7 +28116,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 908,
+          "line": 920,
           "sink": "setText"
         }
       ]
@@ -29011,7 +29011,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 903,
+          "line": 915,
           "sink": "getOpenFileNames"
         }
       ]
@@ -30951,7 +30951,7 @@
         },
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 1041,
+          "line": 1054,
           "sink": "setText"
         },
         {
@@ -32061,7 +32061,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 833,
+          "line": 836,
           "sink": "OverlayConflict"
         }
       ]
@@ -32731,12 +32731,12 @@
         },
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 884,
+          "line": 887,
           "sink": "CompatibilityFinding"
         },
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 952,
+          "line": 955,
           "sink": "CompatibilityFinding"
         }
       ]
@@ -32786,7 +32786,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 674,
+          "line": 677,
           "sink": "python-return:text"
         }
       ]
@@ -32796,7 +32796,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 674,
+          "line": 677,
           "sink": "python-return:text"
         }
       ]
@@ -32836,7 +32836,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 1120,
+          "line": 1133,
           "sink": "setText"
         }
       ]
@@ -33281,22 +33281,22 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 880,
+          "line": 883,
           "sink": "CompatibilityFinding"
         },
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 916,
+          "line": 919,
           "sink": "CompatibilityFinding"
         },
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 949,
+          "line": 952,
           "sink": "CompatibilityFinding"
         },
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 972,
+          "line": 975,
           "sink": "CompatibilityFinding"
         },
         {
@@ -33341,7 +33341,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 674,
+          "line": 677,
           "sink": "python-return:text"
         }
       ]
@@ -33916,7 +33916,7 @@
         },
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 592,
+          "line": 593,
           "sink": "QPushButton"
         },
         {
@@ -35626,7 +35626,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 1120,
+          "line": 1133,
           "sink": "setText"
         }
       ]
@@ -41771,7 +41771,7 @@
         },
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 745,
+          "line": 746,
           "sink": "addButton"
         },
         {
@@ -42051,7 +42051,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 922,
+          "line": 923,
           "sink": "setToolTip"
         }
       ]
@@ -42061,7 +42061,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 922,
+          "line": 923,
           "sink": "setToolTip"
         }
       ]
@@ -42276,7 +42276,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 1041,
+          "line": 1054,
           "sink": "setText"
         }
       ]
@@ -42811,7 +42811,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 990,
+          "line": 1003,
           "sink": "setText"
         }
       ]
@@ -44651,7 +44651,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_replacement.py",
-          "line": 574,
+          "line": 579,
           "sink": "RuntimeError"
         }
       ]
@@ -44661,7 +44661,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_replacement.py",
-          "line": 708,
+          "line": 713,
           "sink": "RuntimeError"
         }
       ]
@@ -44671,7 +44671,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_replacement.py",
-          "line": 502,
+          "line": 507,
           "sink": "RuntimeError"
         }
       ]
@@ -47191,7 +47191,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 1133,
+          "line": 1134,
           "sink": "warning"
         }
       ]
@@ -47776,7 +47776,7 @@
         },
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 875,
+          "line": 887,
           "sink": "setText"
         }
       ]
@@ -52491,17 +52491,17 @@
         },
         {
           "path": "cdmw/ui/new_item/item_preview.py",
-          "line": 1098,
+          "line": 1101,
           "sink": "emit"
         },
         {
           "path": "cdmw/ui/new_item/item_preview.py",
-          "line": 1235,
+          "line": 1238,
           "sink": "emit"
         },
         {
           "path": "cdmw/ui/new_item/item_preview.py",
-          "line": 1285,
+          "line": 1288,
           "sink": "emit"
         }
       ]
@@ -52511,7 +52511,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/item_preview.py",
-          "line": 1245,
+          "line": 1248,
           "sink": "emit"
         }
       ]
@@ -52526,12 +52526,12 @@
         },
         {
           "path": "cdmw/ui/new_item/item_preview.py",
-          "line": 1112,
+          "line": 1115,
           "sink": "emit"
         },
         {
           "path": "cdmw/ui/new_item/item_preview.py",
-          "line": 1292,
+          "line": 1295,
           "sink": "emit"
         }
       ]
@@ -57526,7 +57526,7 @@
         },
         {
           "path": "cdmw/ui/new_item/item_preview.py",
-          "line": 1285,
+          "line": 1288,
           "sink": "emit"
         }
       ]
@@ -65016,7 +65016,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 1003,
+          "line": 1004,
           "sink": "set_part_editor_state"
         }
       ]
@@ -68331,7 +68331,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 921,
+          "line": 924,
           "sink": "CompatibilityFinding"
         }
       ]
@@ -68381,7 +68381,7 @@
         },
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 1139,
+          "line": 1140,
           "sink": "warning"
         }
       ]
@@ -68401,7 +68401,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 1143,
+          "line": 1144,
           "sink": "question"
         }
       ]
@@ -68506,7 +68506,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 1143,
+          "line": 1144,
           "sink": "question"
         }
       ]
@@ -75841,22 +75841,22 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/item_preview.py",
-          "line": 1037,
+          "line": 1040,
           "sink": "emit"
         },
         {
           "path": "cdmw/ui/new_item/item_preview.py",
-          "line": 1098,
+          "line": 1101,
           "sink": "emit"
         },
         {
           "path": "cdmw/ui/new_item/item_preview.py",
-          "line": 1235,
+          "line": 1238,
           "sink": "emit"
         },
         {
           "path": "cdmw/ui/new_item/item_preview.py",
-          "line": 1285,
+          "line": 1288,
           "sink": "emit"
         }
       ]
@@ -76041,7 +76041,7 @@
         },
         {
           "path": "cdmw/ui/new_item/item_preview.py",
-          "line": 1235,
+          "line": 1238,
           "sink": "emit"
         }
       ]
@@ -79371,7 +79371,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 959,
+          "line": 962,
           "sink": "CompatibilityFinding"
         }
       ]
@@ -79381,7 +79381,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 674,
+          "line": 677,
           "sink": "python-return:text"
         }
       ]
@@ -80336,7 +80336,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 1032,
+          "line": 1033,
           "sink": "set_part_editor_state"
         }
       ]
@@ -80611,12 +80611,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 1025,
+          "line": 1026,
           "sink": "set_part_editor_state"
         },
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 1039,
+          "line": 1040,
           "sink": "set_part_editor_state"
         }
       ]
@@ -80866,12 +80866,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 995,
+          "line": 996,
           "sink": "set_part_editor_state"
         },
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 1028,
+          "line": 1029,
           "sink": "set_part_editor_state"
         }
       ]
@@ -83991,7 +83991,7 @@
         },
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 862,
+          "line": 865,
           "sink": "raise_if_cancelled"
         },
         {
@@ -85221,7 +85221,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 922,
+          "line": 923,
           "sink": "setToolTip"
         }
       ]
@@ -85231,7 +85231,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 816,
+          "line": 817,
           "sink": "note"
         }
       ]
@@ -85251,7 +85251,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 814,
+          "line": 815,
           "sink": "note"
         }
       ]
@@ -85261,7 +85261,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 812,
+          "line": 813,
           "sink": "note"
         }
       ]
@@ -85271,7 +85271,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 922,
+          "line": 923,
           "sink": "setToolTip"
         }
       ]
@@ -85281,7 +85281,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 922,
+          "line": 923,
           "sink": "setToolTip"
         }
       ]
@@ -85996,7 +85996,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_replacement.py",
-          "line": 459,
+          "line": 464,
           "sink": "ValueError"
         }
       ]
@@ -87706,7 +87706,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 805,
+          "line": 806,
           "sink": "note"
         }
       ]
@@ -87716,7 +87716,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 922,
+          "line": 923,
           "sink": "setToolTip"
         }
       ]
@@ -87726,7 +87726,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 803,
+          "line": 804,
           "sink": "note"
         }
       ]
@@ -87736,7 +87736,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 803,
+          "line": 804,
           "sink": "note"
         }
       ]
@@ -88666,7 +88666,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 461,
+          "line": 462,
           "sink": "_append_log"
         }
       ]
@@ -90266,7 +90266,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 682,
+          "line": 683,
           "sink": "ValueError"
         }
       ]
@@ -90631,7 +90631,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 974,
+          "line": 977,
           "sink": "CompatibilityFinding"
         }
       ]
@@ -91781,7 +91781,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 974,
+          "line": 977,
           "sink": "CompatibilityFinding"
         }
       ]
@@ -91791,7 +91791,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 674,
+          "line": 677,
           "sink": "python-return:text"
         }
       ]
@@ -92681,7 +92681,7 @@
         },
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 918,
+          "line": 930,
           "sink": "setText"
         }
       ]
@@ -94336,7 +94336,7 @@
         },
         {
           "path": "cdmw/ui/new_item/panels_identity.py",
-          "line": 390,
+          "line": 398,
           "sink": "note"
         }
       ]
@@ -96641,7 +96641,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 943,
+          "line": 956,
           "sink": "getOpenFileName"
         }
       ]
@@ -97576,12 +97576,12 @@
         },
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 1068,
+          "line": 1069,
           "sink": "set_part_editor_state"
         },
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 1072,
+          "line": 1073,
           "sink": "set_part_editor_state"
         }
       ]
@@ -97861,7 +97861,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 737,
+          "line": 738,
           "sink": "_append_log"
         }
       ]
@@ -98301,27 +98301,27 @@
         },
         {
           "path": "cdmw/ui/new_item/item_preview.py",
-          "line": 120,
+          "line": 123,
           "sink": "RunCancelled"
         },
         {
           "path": "cdmw/ui/new_item/item_preview.py",
-          "line": 204,
+          "line": 207,
           "sink": "RunCancelled"
         },
         {
           "path": "cdmw/ui/new_item/item_preview.py",
-          "line": 269,
-          "sink": "RunCancelled"
-        },
-        {
-          "path": "cdmw/ui/new_item/item_preview.py",
-          "line": 526,
+          "line": 272,
           "sink": "RunCancelled"
         },
         {
           "path": "cdmw/ui/new_item/item_preview.py",
           "line": 529,
+          "sink": "RunCancelled"
+        },
+        {
+          "path": "cdmw/ui/new_item/item_preview.py",
+          "line": 532,
           "sink": "RunCancelled"
         },
         {
@@ -99681,7 +99681,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 922,
+          "line": 923,
           "sink": "setToolTip"
         }
       ]
@@ -99691,7 +99691,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 922,
+          "line": 923,
           "sink": "setToolTip"
         }
       ]
@@ -99951,7 +99951,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 1133,
+          "line": 1134,
           "sink": "warning"
         }
       ]
@@ -104421,7 +104421,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 825,
+          "line": 826,
           "sink": "note"
         }
       ]
@@ -104431,7 +104431,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 825,
+          "line": 826,
           "sink": "note"
         }
       ]
@@ -105971,7 +105971,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 838,
+          "line": 839,
           "sink": "note"
         }
       ]
@@ -105981,7 +105981,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 836,
+          "line": 837,
           "sink": "note"
         }
       ]
@@ -107416,7 +107416,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_replacement.py",
-          "line": 637,
+          "line": 642,
           "sink": "RuntimeError"
         }
       ]
@@ -107426,7 +107426,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_replacement.py",
-          "line": 432,
+          "line": 437,
           "sink": "RuntimeError"
         }
       ]
@@ -107436,7 +107436,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_replacement.py",
-          "line": 406,
+          "line": 411,
           "sink": "RuntimeError"
         }
       ]
@@ -107446,7 +107446,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_replacement.py",
-          "line": 627,
+          "line": 632,
           "sink": "RuntimeError"
         }
       ]
@@ -107456,7 +107456,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_replacement.py",
-          "line": 618,
+          "line": 623,
           "sink": "RuntimeError"
         }
       ]
@@ -107696,7 +107696,7 @@
         },
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 1037,
+          "line": 1038,
           "sink": "set_part_editor_state"
         }
       ]
@@ -107776,7 +107776,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 957,
+          "line": 970,
           "sink": "setText"
         }
       ]
@@ -108546,7 +108546,7 @@
         },
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 1093,
+          "line": 1094,
           "sink": "set_part_editor_state"
         }
       ]
@@ -116636,7 +116636,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 737,
+          "line": 740,
           "sink": "OverlayConflict"
         }
       ]
@@ -121416,7 +121416,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_replacement.py",
-          "line": 156,
+          "line": 157,
           "sink": "ValueError"
         }
       ]
@@ -122191,7 +122191,7 @@
         },
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 871,
+          "line": 883,
           "sink": "setText"
         }
       ]
@@ -122201,7 +122201,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 1190,
+          "line": 1203,
           "sink": "setText"
         }
       ]
@@ -122426,7 +122426,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 530,
+          "line": 533,
           "sink": "OverlayConflict"
         }
       ]
@@ -125876,7 +125876,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 750,
+          "line": 753,
           "sink": "OverlayConflict"
         }
       ]
@@ -125916,7 +125916,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 884,
+          "line": 887,
           "sink": "CompatibilityFinding"
         }
       ]
@@ -126146,7 +126146,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 1025,
+          "line": 1038,
           "sink": "setText"
         }
       ]
@@ -126566,7 +126566,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_replacement.py",
-          "line": 466,
+          "line": 471,
           "sink": "ValueError"
         }
       ]
@@ -127006,7 +127006,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 674,
+          "line": 677,
           "sink": "python-return:text"
         }
       ]
@@ -129846,7 +129846,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 977,
+          "line": 990,
           "sink": "setToolTip"
         }
       ]
@@ -130976,7 +130976,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 903,
+          "line": 915,
           "sink": "getOpenFileNames:filter-label"
         }
       ]
@@ -130986,7 +130986,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 903,
+          "line": 915,
           "sink": "getOpenFileNames"
         }
       ]
@@ -137196,7 +137196,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 712,
+          "line": 715,
           "sink": "OverlayConflict"
         }
       ]
@@ -137206,7 +137206,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 766,
+          "line": 769,
           "sink": "OverlayConflict"
         }
       ]
@@ -137216,7 +137216,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 729,
+          "line": 732,
           "sink": "OverlayConflict"
         }
       ]
@@ -137326,7 +137326,7 @@
         },
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 1025,
+          "line": 1038,
           "sink": "setText"
         }
       ]
@@ -137366,7 +137366,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 1104,
+          "line": 1117,
           "sink": "setText"
         }
       ]
@@ -138706,7 +138706,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 834,
+          "line": 835,
           "sink": "note"
         }
       ]
@@ -138716,7 +138716,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 832,
+          "line": 833,
           "sink": "note"
         }
       ]
@@ -145256,7 +145256,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 1055,
+          "line": 1068,
           "sink": "setText"
         }
       ]
@@ -145961,7 +145961,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 746,
+          "line": 747,
           "sink": "addButton"
         }
       ]
@@ -145981,7 +145981,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 734,
+          "line": 735,
           "sink": "setText"
         }
       ]
@@ -146001,7 +146001,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 923,
+          "line": 924,
           "sink": "setAccessibleText"
         }
       ]
@@ -148891,7 +148891,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 800,
+          "line": 801,
           "sink": "note"
         }
       ]
@@ -148916,12 +148916,12 @@
         },
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 800,
+          "line": 801,
           "sink": "note"
         },
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 922,
+          "line": 923,
           "sink": "setToolTip"
         }
       ]
@@ -149751,7 +149751,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 616,
+          "line": 619,
           "sink": "OverlayConflict"
         }
       ]
@@ -150771,7 +150771,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 743,
+          "line": 744,
           "sink": "setText"
         }
       ]
@@ -151281,7 +151281,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 1139,
+          "line": 1140,
           "sink": "warning"
         },
         {
@@ -151836,7 +151836,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 1128,
+          "line": 1141,
           "sink": "_verification_failed"
         }
       ]
@@ -151856,7 +151856,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/item_preview.py",
-          "line": 1331,
+          "line": 1340,
           "sink": "emit"
         }
       ]
@@ -153296,7 +153296,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/item_preview.py",
-          "line": 320,
+          "line": 323,
           "sink": "RuntimeError"
         }
       ]
@@ -154231,7 +154231,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/item_preview.py",
-          "line": 1116,
+          "line": 1119,
           "sink": "emit"
         }
       ]
@@ -154441,7 +154441,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_replacement.py",
-          "line": 249,
+          "line": 254,
           "sink": "RuntimeError"
         }
       ]
@@ -154491,7 +154491,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/item_preview.py",
-          "line": 680,
+          "line": 683,
           "sink": "setText"
         }
       ]
@@ -154521,7 +154521,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/item_preview.py",
-          "line": 1250,
+          "line": 1253,
           "sink": "emit"
         }
       ]
@@ -154621,7 +154621,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 575,
+          "line": 578,
           "sink": "OverlayConflict"
         }
       ]
@@ -154636,7 +154636,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 587,
+          "line": 590,
           "sink": "OverlayConflict"
         }
       ]
@@ -154646,7 +154646,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 581,
+          "line": 584,
           "sink": "OverlayConflict"
         }
       ]
@@ -154661,7 +154661,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 907,
+          "line": 910,
           "sink": "OverlayConflict"
         }
       ]
@@ -154791,7 +154791,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 952,
+          "line": 955,
           "sink": "CompatibilityFinding"
         }
       ]
@@ -155946,7 +155946,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/item_preview.py",
-          "line": 1309,
+          "line": 1318,
           "sink": "emit"
         }
       ]
@@ -155966,12 +155966,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/item_preview.py",
-          "line": 663,
+          "line": 666,
           "sink": "QLabel"
         },
         {
           "path": "cdmw/ui/new_item/item_preview.py",
-          "line": 766,
+          "line": 769,
           "sink": "setText"
         }
       ]
@@ -156841,7 +156841,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 674,
+          "line": 677,
           "sink": "python-return:text"
         }
       ]
@@ -157051,7 +157051,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 929,
+          "line": 932,
           "sink": "CompatibilityFinding"
         }
       ]
@@ -157826,7 +157826,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 674,
+          "line": 677,
           "sink": "python-return:text"
         }
       ]
@@ -161581,17 +161581,17 @@
         },
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 916,
+          "line": 919,
           "sink": "CompatibilityFinding"
         },
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 921,
+          "line": 924,
           "sink": "CompatibilityFinding"
         },
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 929,
+          "line": 932,
           "sink": "CompatibilityFinding"
         },
         {
@@ -161941,7 +161941,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 674,
+          "line": 677,
           "sink": "python-return:text"
         }
       ]
@@ -162491,7 +162491,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 997,
+          "line": 1000,
           "sink": "OverlayConflict"
         }
       ]
@@ -163841,7 +163841,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 869,
+          "line": 872,
           "sink": "OverlayConflict"
         }
       ]
@@ -165481,7 +165481,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 1100,
+          "line": 1101,
           "sink": "set_part_editor_state"
         }
       ]
@@ -167136,7 +167136,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 830,
+          "line": 831,
           "sink": "note"
         }
       ]
@@ -167146,7 +167146,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 830,
+          "line": 831,
           "sink": "note"
         }
       ]
@@ -167506,7 +167506,7 @@
         },
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 1084,
+          "line": 1085,
           "sink": "set_part_editor_state"
         }
       ]
@@ -170101,7 +170101,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 569,
+          "line": 570,
           "sink": "QGroupBox"
         }
       ]
@@ -172836,7 +172836,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 575,
+          "line": 576,
           "sink": "tinted"
         }
       ]
@@ -177741,7 +177741,7 @@
         },
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 1046,
+          "line": 1047,
           "sink": "open_mesh_session"
         },
         {
@@ -179911,7 +179911,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/item_preview.py",
-          "line": 1083,
+          "line": 1086,
           "sink": "_package_ready"
         }
       ]
@@ -180291,7 +180291,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_replacement.py",
-          "line": 128,
+          "line": 129,
           "sink": "TypeError"
         }
       ]
@@ -183151,7 +183151,7 @@
         },
         {
           "path": "cdmw/services/mesh_service_replacement.py",
-          "line": 124,
+          "line": 125,
           "sink": "TypeError"
         }
       ]
@@ -184066,7 +184066,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_replacement.py",
-          "line": 647,
+          "line": 652,
           "sink": "TypeError"
         }
       ]
@@ -184481,7 +184481,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_replacement.py",
-          "line": 144,
+          "line": 145,
           "sink": "RuntimeError"
         }
       ]
@@ -185561,7 +185561,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_replacement.py",
-          "line": 314,
+          "line": 319,
           "sink": "TypeError"
         }
       ]
@@ -186851,7 +186851,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_replacement.py",
-          "line": 612,
+          "line": 617,
           "sink": "TypeError"
         }
       ]
@@ -192561,7 +192561,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/item_preview.py",
-          "line": 510,
+          "line": 513,
           "sink": "ValueError"
         }
       ]
@@ -198816,7 +198816,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 976,
+          "line": 989,
           "sink": "setText"
         }
       ]
@@ -198826,7 +198826,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 912,
+          "line": 924,
           "sink": "setText"
         }
       ]
@@ -198916,7 +198916,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 576,
+          "line": 577,
           "sink": "setToolTip"
         }
       ]
@@ -199121,7 +199121,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 808,
+          "line": 809,
           "sink": "note"
         }
       ]
@@ -200671,7 +200671,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 545,
+          "line": 548,
           "sink": "OverlayConflict"
         }
       ]
@@ -201001,7 +201001,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 757,
+          "line": 760,
           "sink": "OverlayConflict"
         }
       ]
@@ -201011,7 +201011,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 774,
+          "line": 777,
           "sink": "OverlayConflict"
         }
       ]
@@ -201021,7 +201021,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 706,
+          "line": 709,
           "sink": "OverlayConflict"
         }
       ]
@@ -201031,7 +201031,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 702,
+          "line": 705,
           "sink": "OverlayConflict"
         }
       ]
@@ -201126,7 +201126,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 584,
+          "line": 587,
           "sink": "OverlayConflict"
         }
       ]
@@ -201766,7 +201766,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 611,
+          "line": 614,
           "sink": "on_log"
         }
       ]
@@ -201866,7 +201866,7 @@
         },
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 922,
+          "line": 923,
           "sink": "setToolTip"
         }
       ]

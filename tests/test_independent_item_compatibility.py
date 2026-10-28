@@ -272,3 +272,8 @@ def test_external_archive_added_after_review_refuses_without_writing(tmp_path, a
     with pytest.raises(OverlayConflict, match='folder.*changed'):
         backups.apply(prepared)
     assert not (root / '.cdmw/independent-items.json').exists()
+
+def test_another_mods_change_to_a_skeleton_dependency_is_refused_with_a_reason():
+    from cdmw.services.independent_item_compatibility import _check_collection_additions
+    with pytest.raises(OverlayConflict, match="Another mod changes this file.*disable the other mod"):
+        _check_collection_additions('character/model/1_pc/2_phw/phw_01.pab', b'PAB shipped', b'PAB modded')

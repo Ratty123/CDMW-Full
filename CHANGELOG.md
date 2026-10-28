@@ -10,6 +10,7 @@ experimental-feature notes do not establish equivalent in-game behavior.
 ### Fixed
 
 - Create New Item's Capture icon renders the view at full resolution, so an icon made from a small part of the preview is no longer blurry.
+- Mod Management explains why an item package cannot load alongside another mod that changes a file the item was built against, such as a character skeleton: disable that mod to load the item.
 
 ## [0.11.0-alpha.27] - 2026-10-28
 
