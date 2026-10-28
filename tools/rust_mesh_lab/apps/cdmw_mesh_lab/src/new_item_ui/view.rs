@@ -1239,31 +1239,35 @@ impl PresentationView {
                 let arrow = ui.add_sized(Vec2::splat(arrow_width), egui::Button::new("▾"));
                 egui::Popup::menu(&arrow).anchor(field.response.rect.union(arrow.rect)).width(width).show(|ui| {
                     ui.set_width((width - 16.0).max(40.0));
-                    egui::ScrollArea::vertical().max_height(350.0).show(ui, |ui| self.choice_options(ui, node));
+                    egui::ScrollArea::vertical().max_height(350.0)
+                        .show(ui, |ui| self.choice_options(ui, node, (width - 16.0).max(40.0)));
                 });
                 self.record(ui, node, &arrow);
             });
             return;
         }
         ui.set_min_width(minimum_width(ui, node).min(ui.ctx().content_rect().width() - 32.0));
+        let field = ui.available_width().max(80.0);
         let response = egui::ComboBox::from_id_salt("choices")
             .selected_text(node.text("text"))
             .truncate()
-            .width(ui.available_width().max(80.0))
+            .width(field)
             .height(350.0)
-            .show_ui(ui, |ui| self.choice_options(ui, node))
+            .show_ui(ui, |ui| self.choice_options(ui, node, field))
             .response;
         self.record(ui, node, &response);
     }
 
-    fn choice_options(&mut self, ui: &mut Ui, node: &Node) {
+    fn choice_options(&mut self, ui: &mut Ui, node: &Node, field: f32) {
         let option_width = node.array("options").iter().map(|option| {
             ui.painter().layout_no_wrap(option["text"].as_str().unwrap_or("").to_owned(),
                 TextStyle::Button.resolve(ui.style()), ui.visuals().text_color()).size().x
         }).fold(0.0, f32::max) + 2.0 * ui.spacing().button_padding.x + 4.0;
         // The closed field may only say "All"; its menu still needs to fit
         // longer choices and the current font, within the window's bounds.
-        let width = ui.available_width().max(option_width).min(ui.ctx().content_rect().width() - 32.0);
+        // Size from the field, never from available_width: inside a popup that is
+        // the popup's own width last frame, so any overflow grew it on every hover.
+        let width = field.max(option_width).min(ui.ctx().content_rect().width() - 32.0);
         ui.set_width(width);
         for option in node.array("options") {
             let selected = option["index"].as_f64().unwrap_or(-1.0) == node.number("selected", -1.0);

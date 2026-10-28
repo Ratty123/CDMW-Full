@@ -987,6 +987,61 @@ fn editable_choice_uses_one_row_and_preserves_typing_and_selection() {
 }
 
 #[test]
+fn open_choice_menus_stop_growing_after_hover_rests() {
+    // The menu used to size itself from its own width last frame, so each rest
+    // on an item (hover state and tooltip) left it a little wider, without end.
+    let options: Vec<_> = ["ub", "lb", "ub_acc", "sho_under"].iter().enumerate()
+        .map(|(index, stem)| json!({"index":index,
+            "text":format!("cd_phw_00_ub_00_0151_u · cd_phw_00_{stem}_00_0151.pac · template")}))
+        .collect();
+    for editable in [false, true] {
+        let context = egui::Context::default();
+        let mut view = PresentationView::default();
+        let mut root = control("preview", "row", "", json!({}));
+        root.children = vec![control("search", "text", "", json!({"grow_x":true})),
+            control("variant", "choice", "", json!({"editable":editable,
+                "text":"cd_phw_00_ub_00_0151_u","selected":0,"options":options}))];
+        let state = state(root);
+        apply_theme(&context, &state.theme);
+        let size = egui::vec2(960.0, 720.0);
+        let mut time = 100.0;
+        let mut step = |context: &egui::Context, view: &mut PresentationView, events: Vec<egui::Event>| {
+            time += 0.1;
+            let input = egui::RawInput {
+                screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, size)),
+                time: Some(time), events, ..Default::default()
+            };
+            let mut output = context.run_ui(input, |ui| view.draw(ui, &state));
+            output.textures_delta.clear();
+        };
+        for _ in 0..3 { step(&context, &mut view, vec![]); }
+        let opener = view.rects.last().unwrap().rect;
+        let at = egui::pos2(opener[0] + 10.0, opener[1] + 10.0);
+        for pressed in [true, false] {
+            step(&context, &mut view, vec![egui::Event::PointerMoved(at), egui::Event::PointerButton {
+                pos: at, button: egui::PointerButton::Primary, pressed, modifiers: egui::Modifiers::NONE }]);
+        }
+        let popup = |context: &egui::Context| context.memory(|memory| memory.areas().visible_layer_ids()
+            .into_iter().filter(|layer| layer.order == egui::Order::Foreground)
+            .find_map(|layer| memory.area_rect(layer.id))).unwrap();
+        for _ in 0..3 { step(&context, &mut view, vec![]); }
+        let mut widths = Vec::new();
+        for round in 0..6 {
+            // Rest on an item long enough for its tooltip, then leave the menu.
+            let item = popup(&context).center_top() + egui::vec2(0.0, 14.0 + 22.0 * (round % 3) as f32);
+            step(&context, &mut view, vec![egui::Event::PointerMoved(item)]);
+            for _ in 0..15 { step(&context, &mut view, vec![]); }
+            step(&context, &mut view, vec![egui::Event::PointerMoved(egui::pos2(5.0, size.y - 5.0))]);
+            for _ in 0..3 { step(&context, &mut view, vec![]); }
+            widths.push(popup(&context).width());
+        }
+        // The first rest may settle the menu once; after that it must hold its width.
+        assert!(widths[1..].iter().all(|width| (width - widths[1]).abs() < 0.5),
+            "editable={editable}: the open menu kept growing: {widths:?}");
+    }
+}
+
+#[test]
 fn empty_lists_and_nested_action_rows_do_not_reserve_dead_space() {
     let context = egui::Context::default();
     let mut list = control("empty", "table", "", json!({"total":0,"columns":[{"index":0,"width":100}],"rows":[]}));
