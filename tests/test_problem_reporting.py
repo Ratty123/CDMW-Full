@@ -496,6 +496,26 @@ def test_guided_navigation_validates_skipped_steps_and_recollects_after_edit(tmp
         dialog.close()
 
 
+def test_a_later_step_returns_to_the_earliest_unanswered_page_and_keeps_one_step_checked(tmp_path):
+    app()
+    dialog = ProblemReportDialog(snapshot(tmp_path))
+    try:
+        fill_form(dialog)
+        dialog.summary.setText("short")
+        dialog.steps.clear()
+        for step in (2, 3, dialog._REVIEW_PAGE):
+            dialog._step_buttons[step].click()
+            assert dialog.tabs.currentIndex() == 0, f"step {step + 1} skipped the Problem page"
+            assert "10 characters" in dialog.status.text()
+            assert [button.isChecked() for button in dialog._step_buttons] == [True, False, False, False, False]
+        dialog.summary.setText(details().summary)
+        dialog._collect()
+        assert dialog._collection is None and dialog.tabs.currentIndex() == 1
+        assert [button.isChecked() for button in dialog._step_buttons] == [False, True, False, False, False]
+    finally:
+        dialog.close()
+
+
 def test_reporting_explains_repository_access_and_per_report_evidence_links(tmp_path):
     from cdmw.services.problem_report_service import REPORT_DESTINATION, REPORT_ENDPOINT
 

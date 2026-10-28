@@ -791,6 +791,16 @@ class ProblemReportDialog(QDialog):
         changed = self.last_working.currentData() == "Worked before"
         self._changes_field.setVisible(changed)
 
+    def _earliest_error(self, pages: int) -> tuple[str, str] | None:
+        """The first problem on the earliest of the first `pages` pages.
+
+        Checks run in field order, not page order; a step past several pages must
+        return to the first page that needs an answer.
+        """
+        found = [(page, key, message) for key, message in self._form_errors()
+                 for page, keys in enumerate(self._PAGE_FIELDS[:pages]) if key in keys]
+        return min(found, key=lambda error: error[0])[1:] if found else None
+
     def _show_field_error(self, key: str, message: str) -> None:
         index = next(index for index, keys in enumerate(self._PAGE_FIELDS) if key in keys)
         self.tabs.setCurrentIndex(index)
@@ -807,13 +817,15 @@ class ProblemReportDialog(QDialog):
     @Slot(int)
     def _navigate(self, index: int) -> None:
         if self._collection is not None or self._reply is not None or self._sent:
+            self._update_buttons()
             return
         index = max(0, min(self._REVIEW_PAGE, index))
-        required = frozenset().union(*self._PAGE_FIELDS[:index])
-        for key, message in self._form_errors():
-            if key in required:
-                self._show_field_error(key, message)
-                return
+        error = self._earliest_error(index)
+        if error is not None:
+            self._show_field_error(*error)
+            # A clicked step button checks itself; show the page actually open.
+            self._update_buttons()
+            return
         if index == self._REVIEW_PAGE and self._reviewed is None:
             self._collect()
             return
@@ -923,9 +935,10 @@ class ProblemReportDialog(QDialog):
         if self._collection is not None or self._reply is not None or self._sent:
             return
         details = self._details()
-        errors = self._form_errors()
-        if errors:
-            self._show_field_error(*errors[0])
+        error = self._earliest_error(len(self._PAGE_FIELDS))
+        if error is not None:
+            self._show_field_error(*error)
+            self._update_buttons()
             return
         self._invalidate()
         snapshot_provider = getattr(self.parent(), "_problem_report_snapshot", None)
