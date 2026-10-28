@@ -47,6 +47,9 @@ _LOGGER = logging.getLogger(__name__)
 #: "no token given": `_package_ready` then reads the build in flight
 _UNSET = object()
 
+#: the long side of an icon capture, the preview helper's largest frame
+_CAPTURE_LONG_SIDE = 2048
+
 __all__ = [
     "GIZMO_TOOLS",
     "ItemPreviewFrame",
@@ -1294,17 +1297,23 @@ class ItemPreviewFrame(QWidget):
     # ------------------------------------------------------------------ capture
 
     def capture(self, path: Optional[Path] = None) -> bool:
-        """Take the view as it is: the frame at the viewport's own size, so what is on
-        screen is what lands (the grid and the gizmo are hidden for it). `captured` fires
-        with the PNG when it arrives; the caller crops it to the icon it wants."""
+        """Take the view as it is: the viewport's framing, so what is on screen is what
+        lands (the grid and the gizmo are hidden for it). `captured` fires with the PNG
+        when it arrives; the caller crops it to the icon it wants.
+
+        The capture camera depends only on the frame's shape, so the frame is rendered
+        at the renderer's largest size with the viewport's shape. A pane-sized frame left
+        a small selection to be upscaled to the 512-pixel icon, which came out blurry."""
 
         if self.host is None or not self.is_ready:
             return False
         self._output_root.mkdir(parents=True, exist_ok=True)
         target = Path(path) if path is not None else self._output_root / f"icon_capture_{time.time_ns()}.png"
         size = self.host.size()
-        width = max(64, min(2048, int(size.width()) or 512))
-        height = max(64, min(2048, int(size.height()) or 512))
+        view_width, view_height = int(size.width()) or 512, int(size.height()) or 512
+        scale = _CAPTURE_LONG_SIDE / max(view_width, view_height)
+        width = max(64, min(_CAPTURE_LONG_SIDE, round(view_width * scale)))
+        height = max(64, min(_CAPTURE_LONG_SIDE, round(view_height * scale)))
         if not self.host.capture_replacement_icon(target, width=width, height=height):
             self.status_changed.emit("The viewport rejected the capture request.")
             return False

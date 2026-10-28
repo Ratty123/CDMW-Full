@@ -125,6 +125,21 @@ class ItemPreviewFrameTests(unittest.TestCase):
 
         return FakeHost
 
+    def test_an_icon_capture_renders_the_viewport_shape_at_full_resolution(self) -> None:
+        """A pane-sized frame left the icon selection to be upscaled and blurry."""
+
+        from cdmw.ui.new_item.item_preview import ItemPreviewFrame
+
+        workspace = tempfile.TemporaryDirectory(prefix="cdmw-item-preview-capture-")
+        self.addCleanup(workspace.cleanup)
+        frame = ItemPreviewFrame(output_root=Path(workspace.name) / "output", host_factory=self._fake_host_class())
+        self.assertTrue(frame._ensure_host())
+        frame.host.resize(450, 300)
+        frame.is_ready = True
+        self.assertTrue(frame.capture())
+        captures = [kwargs for name, _args, kwargs in frame.host.calls if name == "capture_replacement_icon"]
+        self.assertEqual(captures, [{"width": 2048, "height": 1365}])
+
     def test_a_borrowed_view_hides_the_gizmo_and_ignores_drags(self) -> None:
         from cdmw.ui.new_item.item_preview import ItemPreviewFrame
         from cdmw.ui.new_item.model_import import ModelPlacement
