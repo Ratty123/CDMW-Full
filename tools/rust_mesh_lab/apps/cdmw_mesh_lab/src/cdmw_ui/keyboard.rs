@@ -584,8 +584,10 @@ impl LabApplication {
                     .max_height((ui.available_height() - footer).max(1.0))
                     .auto_shrink([false, true])
                     .show(ui, |ui| {
+                        let columns = self.shortcut_columns(ui);
+                        let mut drawn = false;
                         for group in SHORTCUT_GROUPS {
-                            self.draw_shortcut_group(ui, group);
+                            drawn |= self.draw_shortcut_group(ui, group, columns, drawn);
                         }
                     });
                 ui.separator();
@@ -603,7 +605,56 @@ impl LabApplication {
         }
     }
 
-    fn draw_shortcut_group(&mut self, ui: &mut egui::Ui, group: ShortcutGroup) {
+    // One set of column widths for every group, so key buttons line up down the
+    // whole window instead of per group, and labels truncate before keys move.
+    fn shortcut_columns(&self, ui: &egui::Ui) -> [f32; 3] {
+        let measure = |text: String, style: egui::TextStyle| {
+            ui.painter()
+                .layout_no_wrap(text, style.resolve(ui.style()), ui.visuals().text_color())
+                .size()
+                .x
+        };
+        let combo_icon = ui.spacing().icon_width + ui.spacing().icon_spacing;
+        let mut binding = measure(
+            crate::localization::tr("Press keys..."),
+            egui::TextStyle::Button,
+        )
+        .max(
+            measure(
+                crate::localization::tr("Unassigned"),
+                egui::TextStyle::Button,
+            ) + combo_icon,
+        );
+        let mut label = 0.0_f32;
+        for spec in SHORTCUTS {
+            let text = crate::localization::tr(shortcut_label(spec.action));
+            label = label.max(measure(text, egui::TextStyle::Body));
+            for chord in self.shortcut_keymap.bindings(spec.action) {
+                binding = binding.max(measure(chord.text(), egui::TextStyle::Button));
+            }
+        }
+        let binding = (binding + ui.spacing().button_padding.x * 2.0).max(72.0);
+        let reset = ui.spacing().interact_size.y;
+        // The floating scroll bar draws over the right edge; keep reset clear of it.
+        let scroll_bar = ui.spacing().scroll.bar_width + ui.spacing().scroll.bar_outer_margin;
+        let keys = binding * crate::shortcuts::MAX_CHORDS as f32
+            + reset
+            + scroll_bar
+            + ui.spacing().item_spacing.x * (crate::shortcuts::MAX_CHORDS + 1) as f32;
+        [
+            label.min(ui.available_width() - keys).max(48.0),
+            binding,
+            reset,
+        ]
+    }
+
+    fn draw_shortcut_group(
+        &mut self,
+        ui: &mut egui::Ui,
+        group: ShortcutGroup,
+        [label_width, binding_width, reset_width]: [f32; 3],
+        gap: bool,
+    ) -> bool {
         let filter = self.shortcut_editor.filter.trim().to_lowercase();
         let rows = SHORTCUTS
             .iter()
@@ -621,20 +672,32 @@ impl LabApplication {
             })
             .collect::<Vec<_>>();
         if rows.is_empty() {
-            return;
+            return false;
+        }
+        if gap {
+            ui.add_space(ui.spacing().item_spacing.y * 2.0);
         }
         ui.label(RichText::new(crate::localization::tr(group_label(group))).strong());
-        egui::Grid::new(("cdmw-shortcut-group", group_label(group)))
-            .num_columns(4)
-            .striped(true)
-            .show(ui, |ui| {
-                for spec in rows {
-                    ui.push_id(spec.id, |ui| {
-                        ui.label(crate::localization::tr(shortcut_label(spec.action)));
+        let height = ui.spacing().interact_size.y;
+        for (index, spec) in rows.into_iter().enumerate() {
+            // The stripe is reserved before the row so it paints underneath, and it
+            // spans the scroll width rather than the widgets' extent.
+            let stripe = ui.painter().add(egui::Shape::Noop);
+            let row = ui.push_id(spec.id, |ui| {
+                ui.horizontal(|ui| {
+                    cdmw_list_cell(ui, label_width, |ui| {
+                        ui.add(
+                            egui::Label::new(crate::localization::tr(shortcut_label(spec.action)))
+                                .truncate(),
+                        );
                     });
                     if spec.takes_modifier() {
-                        self.draw_modifier_binding(ui, spec.action);
-                        ui.label("");
+                        cdmw_list_cell(ui, binding_width, |ui| {
+                            self.draw_modifier_binding(ui, spec.action, binding_width);
+                        });
+                        for _ in 1..crate::shortcuts::MAX_CHORDS {
+                            cdmw_list_cell(ui, binding_width, |_| {});
+                        }
                     } else {
                         let bindings = self.shortcut_keymap.bindings(spec.action);
                         for slot in 0..crate::shortcuts::MAX_CHORDS {
@@ -649,12 +712,15 @@ impl LabApplication {
                             } else if slot == bindings.len() {
                                 "+".to_owned()
                             } else {
-                                ui.label("");
+                                cdmw_list_cell(ui, binding_width, |_| {});
                                 continue;
                             };
                             let response = ui
-                                .push_id((spec.id, slot), |ui| {
-                                    ui.add(Button::new(text).selected(capturing))
+                                .push_id(slot, |ui| {
+                                    ui.add_sized(
+                                        [binding_width, height],
+                                        Button::new(text).selected(capturing).truncate(),
+                                    )
                                 })
                                 .inner;
                             if response.clicked() {
@@ -665,9 +731,12 @@ impl LabApplication {
                     }
                     let default = self.shortcut_keymap.is_default(spec.action);
                     if ui
-                        .push_id((spec.id, "reset"), |ui| {
-                            ui.add_enabled(!default, Button::new("↺"))
-                                .on_hover_text(crate::localization::tr("Reset to default"))
+                        .push_id("reset", |ui| {
+                            ui.add_enabled(
+                                !default,
+                                Button::new("↺").min_size(egui::vec2(reset_width, height)),
+                            )
+                            .on_hover_text(crate::localization::tr("Reset to default"))
                         })
                         .inner
                         .clicked()
@@ -675,18 +744,35 @@ impl LabApplication {
                         self.shortcut_keymap.reset(spec.action);
                         self.publish_shortcuts();
                     }
-                    ui.end_row();
-                }
+                })
+                .response
             });
+            if index % 2 == 1 {
+                let band = row
+                    .inner
+                    .rect
+                    .expand2(egui::vec2(0.0, ui.spacing().item_spacing.y * 0.5));
+                ui.painter().set(
+                    stripe,
+                    egui::epaint::RectShape::filled(
+                        egui::Rect::from_x_y_ranges(ui.max_rect().x_range(), band.y_range()),
+                        ui.visuals().widgets.noninteractive.corner_radius,
+                        ui.visuals().faint_bg_color,
+                    ),
+                );
+            }
+        }
+        true
     }
 
-    fn draw_modifier_binding(&mut self, ui: &mut egui::Ui, action: ShortcutAction) {
+    fn draw_modifier_binding(&mut self, ui: &mut egui::Ui, action: ShortcutAction, width: f32) {
         let current = self.shortcut_keymap.modifier(action);
         let mut chosen = current;
         egui::ComboBox::from_id_salt((
             "cdmw-shortcut-modifier",
             crate::shortcuts::spec_for(action).id,
         ))
+        .width(width)
         .selected_text(current.map_or_else(
             || crate::localization::tr("Unassigned"),
             |modifier| Binding::Modifier(modifier).text(),
