@@ -11,6 +11,7 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 - Create New Item no longer refuses to build a plan with "the template wiring is incompatible" when a copied template model's dye setup lists a part that its own material does not dye. Template models keep their dyes as the game ships them, including the other models copied with an outfit, such as its lower body and accessories. If a Glow, Translucency or shader edit removes a template part's dye setup, the error now names the model and part and says how to fix it.
 - Create New Item's dropdown lists, such as Preview Variant, Transfer from template, the dye part pickers and the Effects & Perks placement and emitter lists, no longer get wider each time the pointer rests on an entry and moves away.
+- After a game overlay install, Create New Item gives the draft the next free suggested name, so Identity no longer reports the item it just installed as already existing. A name you typed yourself is kept.
 - Mesh Editor's Keyboard Shortcuts window lines its key buttons up in the same columns for every group, with even button widths and row shading across the full width. Long action names shorten instead of pushing the keys out of line.
 
 ## [0.11.0-alpha.26] - 2026-10-27

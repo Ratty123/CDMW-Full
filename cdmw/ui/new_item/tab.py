@@ -447,6 +447,7 @@ class NewItemStudioTab(QWidget):
             if self._placement_panel is not None:
                 self._placement_panel._refresh_stores()
             # The install changes group membership, not the catalogue; keep its Qt item wrappers.
+            self.identity_panel.reseed_suggested_name()
             self.identity_panel.refresh_issues()
             self._refresh_summary()
             self.controller.start_effect_index()

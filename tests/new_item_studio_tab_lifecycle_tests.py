@@ -85,6 +85,25 @@ class _TabLifecycleMixin:
         tab.close()
         tab.deleteLater()
 
+    def test_post_install_reread_moves_a_suggested_name_on_and_keeps_a_typed_one(self) -> None:
+        """The reread holds the installed item, so its suggested name is now taken."""
+
+        tab = self._tab(get_package_root=lambda: str(self.root))
+        tab.prefill_template(TEMPLATE)
+        installed = tab.identity_panel.internal_name.text()
+        self.assertTrue(installed)
+        with patch.object(tab.controller, "suggest_internal_name", return_value=f"{installed}2"):
+            tab._snapshot_ready()
+        self.assertEqual(tab.identity_panel.internal_name.text(), f"{installed}2")
+        self.assertEqual(tab.controller.draft.internal_name, f"{installed}2")
+        tab.identity_panel.internal_name.setText("Typed_Name")
+        with patch.object(tab.controller, "suggest_internal_name", return_value=f"{installed}3"):
+            tab._snapshot_ready()
+        self.assertEqual(tab.identity_panel.internal_name.text(), "Typed_Name")
+        self.assertEqual(tab.controller.draft.internal_name, "Typed_Name")
+        tab.close()
+        tab.deleteLater()
+
     def test_post_install_snapshot_completion_preserves_group_picker_items(self) -> None:
         """A reread updates archive data without rebuilding the unchanged group picker."""
 

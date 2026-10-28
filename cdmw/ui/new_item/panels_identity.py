@@ -354,6 +354,15 @@ class IdentityPanel(QGroupBox):
             self.item_key.blockSignals(False)
             self.stem_manual.blockSignals(False)
             self.item_key_manual.blockSignals(False)
+        self.reseed_suggested_name()
+        self.refresh_issues()
+
+    def reseed_suggested_name(self) -> None:
+        """Replace an untouched suggested name with one no item has yet.
+
+        After an install the archives hold the item that used the suggestion, so the
+        draft for the next item needs the next free suffix. A name the user typed stays.
+        """
         # a name to start from: the template's with a suffix no item has, so the first
         # thing the reader sees is not "already exists"
         current = self.internal_name.text().strip()
@@ -370,7 +379,6 @@ class IdentityPanel(QGroupBox):
                 finally:
                     self.internal_name.blockSignals(False)
                 self._controller.draft.internal_name = suggestion
-        self.refresh_issues()
 
     def refresh_issues(self) -> tuple:
         """Show identity issues and return all issues for the workflow header."""
