@@ -4106,7 +4106,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_dyes.py",
-          "line": 82,
+          "line": 94,
           "sink": "ValueError"
         }
       ]
@@ -4416,7 +4416,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_dyes.py",
-          "line": 86,
+          "line": 98,
           "sink": "ValueError"
         }
       ]
@@ -4586,7 +4586,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_dyes.py",
-          "line": 77,
+          "line": 89,
           "sink": "ValueError"
         }
       ]
@@ -23237,6 +23237,16 @@
         {
           "path": "cdmw/services/mesh_service_morph.py",
           "line": 2099,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Cannot keep the template dyes for {value_0}: the edited material for {value_1} no longer has the template's dye wiring. Select this variant under Preview > Variant, then map its dye parts or click Clear dyes.",
+      "origins": [
+        {
+          "path": "cdmw/services/new_item_dyes.py",
+          "line": 86,
           "sink": "ValueError"
         }
       ]
@@ -43726,7 +43736,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_dyes.py",
-          "line": 84,
+          "line": 96,
           "sink": "ValueError"
         }
       ]
@@ -43751,7 +43761,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_dyes.py",
-          "line": 114,
+          "line": 126,
           "sink": "add"
         }
       ]
@@ -77252,16 +77262,6 @@
         {
           "path": "cdmw/services/mesh_replacement_import.py",
           "line": 236,
-          "sink": "ValueError"
-        }
-      ]
-    },
-    {
-      "key": "Map the imported dye parts explicitly or clear dye assignments; the template wiring is incompatible.",
-      "origins": [
-        {
-          "path": "cdmw/services/new_item_dyes.py",
-          "line": 74,
           "sink": "ValueError"
         }
       ]
@@ -148386,7 +148386,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_dyes.py",
-          "line": 121,
+          "line": 134,
           "sink": "log"
         }
       ]
@@ -150651,7 +150651,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_dyes.py",
-          "line": 97,
+          "line": 109,
           "sink": "ValueError"
         }
       ]
@@ -151296,7 +151296,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/dye_preview.py",
-          "line": 133,
+          "line": 134,
           "sink": "ValueError"
         }
       ]
@@ -153371,7 +153371,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_dyes.py",
-          "line": 127,
+          "line": 140,
           "sink": "ValueError"
         }
       ]
@@ -157721,7 +157721,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_dyes.py",
-          "line": 104,
+          "line": 116,
           "sink": "ValueError"
         }
       ]
@@ -175156,7 +175156,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_dyes.py",
-          "line": 114,
+          "line": 126,
           "sink": "add"
         }
       ]

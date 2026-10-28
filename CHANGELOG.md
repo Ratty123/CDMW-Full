@@ -7,6 +7,10 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 ## [Unreleased]
 
+### Fixed
+
+- Create New Item no longer refuses to build a plan with "the template wiring is incompatible" when a copied template model's dye setup lists a part that its own material does not dye. Template models keep their dyes as the game ships them, including the other models copied with an outfit, such as its lower body and accessories. If a Glow, Translucency or shader edit removes a template part's dye setup, the error now names the model and part and says how to fix it.
+
 ## [0.11.0-alpha.26] - 2026-10-27
 
 ### Added

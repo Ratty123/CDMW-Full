@@ -2362,6 +2362,11 @@ an explicit mask fitted to their UVs.
 No fuzzy name matching or inferred shader flags are used. If explicitly requested
 template dyes are incompatible with imported materials, preview/export omit them and
 Build plan records an actionable warning. Explicit mappings are still validated.
+Template copies, including the other models of a copied prefab, keep their shipped dye
+rows as the game ships them, even where a row names a part its own material does not
+wire. Build plan refuses only when a Glow, Translucency or shader edit removed wiring the
+template had; the error names the model and part. Select that variant under
+**Preview > Variant**, then map its dye parts or use **Clear dyes**.
 Material preview and export call the same preparation function. The preview is a
 material inspection; it does not simulate a chosen in-game pigment or prove dye station
 behavior. Mask revisions form part of the preview identity and immutable worker request.

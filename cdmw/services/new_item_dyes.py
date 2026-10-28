@@ -60,18 +60,30 @@ def prepare_dye_preview_table(index, row, parts):
                              encode_prefab_dye_row(replace(row, submeshes=parts)))
 
 
+def _wired(bindings, name):
+    wrappers = [wrapper for (_index,part),wrapper in bindings.items() if part == name]
+    return bool(wrappers) and all(has_dye_wiring(wrapper) for wrapper in wrappers)
+
+
 def prepare_dye_assignments(source_row, material, source_material, assignments, *, imported, mask_paths=None,
-                            preserve_materials=False):
+                            preserve_materials=False, model=""):
     if assignments == ():
         return (),material
     bindings = material_dye_bindings(material)
     targets = {name for _index,name in bindings}
     if assignments is None:
+        source_bindings = None
         for part in source_row.submeshes:
-            if part.name not in targets or any(not has_dye_wiring(wrapper) for (index,name),wrapper in bindings.items() if name == part.name):
-                if imported:
-                    return (),material
-                raise ValueError("Map the imported dye parts explicitly or clear dye assignments; the template wiring is incompatible.")
+            if _wired(bindings, part.name):
+                continue
+            if imported:
+                return (),material
+            # A template copy inherits the shipped row as the game ships it. Only
+            # wiring an appearance edit removed makes the inherited row invalid.
+            if source_bindings is None:
+                source_bindings = material_dye_bindings(source_material)
+            if _wired(source_bindings, part.name):
+                raise ValueError(f"Cannot keep the template dyes for {model}: the edited material for {part.name} no longer has the template's dye wiring. Select this variant under Preview > Variant, then map its dye parts or click Clear dyes.")
         return source_row.submeshes,material
     if len({entry.target_submesh for entry in assignments}) != len(assignments):
         raise ValueError("A target submesh has more than one dye assignment.")
@@ -114,7 +126,8 @@ def plan_variant_dye(planner,old_model,new_model,material,choice,imported):
         planner.add(snapshot.entry(old_model),target,data,f"Dye mask: {target}")
         masks[assignment.target_submesh] = target
     submeshes,material = prepare_dye_assignments(source,material,source_material,assignments,imported=imported,mask_paths=masks,
-        preserve_materials=bool(choice and (choice.glow_parts or choice.translucency is not None or choice.shader_controls or choice.surface_settings)))
+        preserve_materials=bool(choice and (choice.glow_parts or choice.translucency is not None or choice.shader_controls or choice.surface_settings)),
+        model=PurePosixPath(old_model).name)
     if imported and assignments is None and source.submeshes and not submeshes:
         warning = f"Template dyes were omitted for {old_model}: the imported materials do not support the template dye setup. Add explicit dye mappings to enable dyes."
         planner.warnings.append(warning)

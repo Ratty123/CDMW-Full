@@ -88,7 +88,8 @@ def variant_dye_preview_source(controller):
                 masks[assignment.target_submesh] = path
         parts,material = prepare_dye_assignments(row,payloads.get(material_path,snapshot.payload(material_path)),
             snapshot.payload(material_path),choice.dyes,imported=choice.custom_model,mask_paths=masks,
-            preserve_materials=bool(choice.glow_parts or choice.translucency is not None or choice.shader_controls or choice.surface_settings))
+            preserve_materials=bool(choice.glow_parts or choice.translucency is not None or choice.shader_controls or choice.surface_settings),
+            model=choice.model_path.rsplit("/",1)[-1])
         payloads[material_path] = material
         body,header = prepare_dye_preview_table(index,row,parts)
         payloads[index.pair.payload_entry.path],payloads[index.pair.header_entry.path] = body,header
