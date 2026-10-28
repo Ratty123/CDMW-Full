@@ -12,6 +12,7 @@ experimental-feature notes do not establish equivalent in-game behavior.
 - Create New Item's Capture icon renders the view at full resolution, so an icon made from a small part of the preview is no longer blurry.
 - Mod Management explains why an item package cannot load alongside another mod that changes a file the item was built against, such as a character skeleton: disable that mod to load the item.
 - Create New Item's steps each need only their own width, so the Output step's destination column no longer makes the other steps wider than a narrow window.
+- Closing Create New Item while it is still removing an import's temporary files no longer raises an internal error.
 
 ## [0.11.0-alpha.27] - 2026-10-28
 

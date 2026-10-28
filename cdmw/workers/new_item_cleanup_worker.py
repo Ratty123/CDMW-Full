@@ -167,11 +167,14 @@ class ModelSourceCleanupLane(QObject):
             self._retire_thread(thread)
 
     def _retire_thread(self, thread: QThread) -> None:
-        if not thread.wait(0):
-            QTimer.singleShot(0, lambda thread=thread: self._retire_thread(thread))
-            return
+        # A close poll, the queued finished signal and a pending retry can each
+        # retire the same thread. Only a still-tracked thread may be touched; a
+        # retired one may already be deleted.
         job = next((item for item in self._jobs if item[0] is thread), None)
         if job is None:
+            return
+        if not thread.wait(0):
+            QTimer.singleShot(0, lambda thread=thread: self._retire_thread(thread))
             return
         self._jobs.remove(job)
         _thread, worker, _source = job

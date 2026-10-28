@@ -73,6 +73,28 @@ def test_cleanup_lane_survives_owner_deletion_until_queued_jobs_finish() -> None
             app.processEvents()
 
 
+def test_a_late_retire_for_an_already_retired_cleanup_thread_is_ignored() -> None:
+    """A close poll retires a finished thread; the queued finished signal or a pending
+    retry then arrives for a deleted QThread and must not touch it."""
+    from PySide6.QtCore import QCoreApplication, QEvent
+    from shiboken6 import isValid
+    from cdmw.workers.new_item_cleanup_worker import ModelSourceCleanupLane
+
+    app = QApplication.instance() or QApplication([])
+    lane = ModelSourceCleanupLane()
+    lane.retire(SimpleNamespace(cleanup=lambda: None))
+    thread = lane._jobs[0][0]
+    deadline = time.monotonic() + 3
+    while not thread.isFinished() and time.monotonic() < deadline:
+        app.processEvents()
+        time.sleep(0.005)
+    assert lane.iter_shutdown_workers() == ()
+    QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+    assert not isValid(thread)
+    lane._retire_thread(thread)
+    app.processEvents()
+    lane.deleteLater()
+
 def test_discard_retires_the_source_without_waiting_for_preview_users_or_cleanup(tmp_path) -> None:
     app = QApplication.instance() or QApplication([])
     controller = NewItemStudioController()
