@@ -831,7 +831,8 @@ class TabTests(_TabAuthoringMixin, _TabOutputMixin, _TabLifecycleMixin, unittest
         self.assertLessEqual(abs(selection.bottom() - preview.bottom()), 1)
         self.assertGreater(selection.width(), preview.width(), "readable template names receive the wider column")
         self.assertEqual(panel.matches.header().visualIndex(1), 0)
-        self.assertGreater(panel.matches.columnWidth(1), panel.matches.columnWidth(0))
+        # Internal Name starts wider: those names are long and are what a clone is named from.
+        self.assertGreater(panel.matches.columnWidth(0), panel.matches.columnWidth(1))
 
         tab.shutdown()
         tab.close()
@@ -929,8 +930,11 @@ class TabTests(_TabAuthoringMixin, _TabOutputMixin, _TabLifecycleMixin, unittest
                 for _ in range(3):
                     self.app.processEvents()
                 page = tab.pages.currentWidget()
+                # The page is the panel itself now; an outer scroll area, if one
+                # returns, must still not scroll.
+                outer = getattr(page, "verticalScrollBar", None)
                 self.assertEqual(
-                    page.verticalScrollBar().maximum(),
+                    outer().maximum() if outer is not None else 0,
                     0,
                     f"Distribution has an outer scroll at {width}x{height}",
                 )
@@ -940,7 +944,7 @@ class TabTests(_TabAuthoringMixin, _TabOutputMixin, _TabLifecycleMixin, unittest
                 placement.routes_view.setCurrentWidget(placement.groups_page)
                 self.app.processEvents()
                 self.assertTrue(placement.group_list.isVisibleTo(placement))
-                self.assertEqual(page.verticalScrollBar().maximum(), 0)
+                self.assertEqual(outer().maximum() if outer is not None else 0, 0)
                 self.assertGreater(placement.group_list.height(), placement.groups_page.height() // 2)
                 placement.routes_view.setCurrentIndex(0)
 
@@ -1161,7 +1165,8 @@ class TabTests(_TabAuthoringMixin, _TabOutputMixin, _TabLifecycleMixin, unittest
         imported = SimpleNamespace(rebuilt_data=b"x", preview_model=SimpleNamespace(meshes=[object()]))
         tab.controller.set_imported_model(None, imported)
         token, build = tab.controller.item_preview_source()
-        self.assertEqual(token, ("imported", id(imported)))
+        # The rest of the token is the template, character, shader and translucency state.
+        self.assertEqual(token[:2], ("imported", id(imported)))
         self.assertIsInstance(build, ProgressivePreviewSource)
         self.assertTrue(build.supports_fast_material_package)
         self.assertIs(build(threading.Event()), imported.preview_model)
@@ -1290,7 +1295,8 @@ class TabTests(_TabAuthoringMixin, _TabOutputMixin, _TabLifecycleMixin, unittest
             imported_scene = imported_source.geometry(threading.Event())
 
         self.assertEqual(imported_token[0], "placement")
-        self.assertTrue(imported_token[-1])
+        # ("placement", source, bake, mesh generation, template, include_character, ...)
+        self.assertIs(imported_token[5], True, "the token records that the character is shown")
         self.assertIs(imported_scene.template, item)
         self.assertIs(imported_scene.model, item)
         self.assertIs(imported_scene.character, body)

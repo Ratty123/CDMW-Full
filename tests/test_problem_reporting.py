@@ -65,7 +65,10 @@ def wait_until(predicate, timeout: float = 5) -> None:
     start = time.monotonic()
     while not predicate():
         assert time.monotonic() - start < timeout
-        QTest.qWait(10)
+        QTest.qWait(1)
+        # QTest.qWait keeps the GIL while it waits; the collection worker needs it
+        # and starved, so a lone run never finished within the timeout.
+        time.sleep(0.009)
 
 
 @pytest.fixture(autouse=True)

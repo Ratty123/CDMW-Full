@@ -178,7 +178,7 @@ class _TabAuthoringMixin:
         controller = SimpleNamespace(
             model_import=SimpleNamespace(usage=nullcontext, label="Sword", bake=object(),
                                          mesh_generation=0, flip_texture_v=False),
-            draft=SimpleNamespace(model_source=ModelSource.IMPORTED),
+            draft=SimpleNamespace(model_source=ModelSource.IMPORTED, keep_template_physics=False),
             template_entries=lambda: (SimpleNamespace(basename="sword.pac"),),
             template_primary_entry=lambda: SimpleNamespace(basename="sword.pac"), _active_variant=("selected.prefab", "sword.pac"),
             model_placement=object(), snapshot=SimpleNamespace(archive_index_maps=archive_maps, payload=prefab_payload),
@@ -350,7 +350,7 @@ class _TabAuthoringMixin:
         self.assertTrue(perks.add_button.isEnabled())
         perks._add_selected()
         self.assertEqual(len(tab.controller.draft.socket_items), 5)
-        self.assertIn("experimental", perks.perk_count.text().lower())
+        self.assertIn("experimental", perks.perk_count.toolTip().lower())
         perks.reset_button.click()
         self.assertFalse(perks.own_perks.isChecked())
         self.assertIsNone(tab.controller.draft.socket_items)

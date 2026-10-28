@@ -390,6 +390,8 @@ class _TabOutputMixin:
         # nothing has been installed the old way, so there is nothing to move
         with patch("cdmw.ui.tools.mod_management.QMessageBox.information", return_value=None) as told:
             self.assertFalse(management.overlay_migration_button.isVisibleTo(management))
+            # The repair controls live on the Health and recovery tab.
+            management.pages.setCurrentWidget(management.pages.health)
             management.recovery.click()
             self.assertTrue(management.overlay_migration_button.isVisibleTo(management))
             self.assertFalse(told.called, "expanding maintenance controls performs no action")
@@ -574,7 +576,7 @@ class _TabOutputMixin:
         controller.model_import_failed.connect(errors.append)
         source = ModelImportSource(
             chosen_path=Path("helmet.dae"), model_path=Path("helmet.dae"),
-            scene=SimpleNamespace(mesh=None), preview_model=None,
+            scene=SimpleNamespace(mesh=SimpleNamespace(submeshes=())), preview_model=None,
             bounds=((-1.0, -1.0, -1.0), (1.0, 1.0, 1.0)), centroid=(0.0, 0.0, 0.0),
         )
         try:
@@ -599,7 +601,7 @@ class _TabOutputMixin:
         controller = NewItemStudioController(synchronous=True)
         controller.snapshot = SimpleNamespace(sources=None)
         controller.draft.template_key = 7
-        source = ModelImportSource(Path("helmet.dae"), Path("helmet.dae"), None, None, None)
+        source = ModelImportSource(Path("helmet.dae"), Path("helmet.dae"), SimpleNamespace(mesh=SimpleNamespace(submeshes=())), None, None)
         template_build = Mock(side_effect=RunCancelled("Template fitting cancelled"))
         try:
             with patch.object(controller, "_template_geometry_build", return_value=("template", template_build)), patch.object(
@@ -623,7 +625,7 @@ class _TabOutputMixin:
         stop = threading.Event()
         source = ModelImportSource(
             chosen_path=Path("helmet.dae"), model_path=Path("helmet.dae"),
-            scene=SimpleNamespace(mesh=None), preview_model=None,
+            scene=SimpleNamespace(mesh=SimpleNamespace(submeshes=())), preview_model=None,
             bounds=((-1.0, -1.0, -1.0), (1.0, 1.0, 1.0)), centroid=(0.0, 0.0, 0.0),
         )
 
@@ -773,6 +775,7 @@ class _TabOutputMixin:
         from cdmw.modding.mesh_deformer import clone_mesh_for_editing, split_faces_to_submesh
         from cdmw.modding.mesh_parser import ParsedMesh, SubMesh
         from cdmw.modding.scene_import_result_ops import SceneImportResult
+        from cdmw.domain.mesh.emission import GlowAnimation
         from cdmw.services.new_item_materials import glow_preview_parameter_groups
         from cdmw.services.preview_workflow_service import parsed_mesh_to_preview_model
         from cdmw.ui.new_item.model_import import ModelImportSource
@@ -885,7 +888,8 @@ class _TabOutputMixin:
         )
         glow_groups = glow_preview_parameter_groups(
             source.scene.mesh,
-            SimpleNamespace(parts=("blade split 2",), color=(1.0, 0.25, 0.0), intensity=3.0),
+            SimpleNamespace(parts=("blade split 2",), color=(1.0, 0.25, 0.0), intensity=3.0,
+                            animation=GlowAnimation()),
         )
         glow_by_part = {
             index: group

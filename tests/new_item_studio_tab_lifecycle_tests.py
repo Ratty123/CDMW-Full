@@ -35,7 +35,7 @@ from cdmw.ui.new_item.state import (  # noqa: E402
 )
 from cdmw.ui.new_item.workflow_header import WorkflowStepState  # noqa: E402
 from test_iteminfo_row import COPPER, DDD, build_row  # noqa: E402
-from test_new_item_service import OTHER, TEMPLATE, _read, build_package, synthetic_files  # noqa: E402
+from test_new_item_service import OTHER, TEMPLATE, _read, build_package, imported_pac, synthetic_files  # noqa: E402
 
 
 class _TabLifecycleMixin:
@@ -274,7 +274,7 @@ class _TabLifecycleMixin:
         self.assertIsNone(tab.controller.model_import, "cancelling the file dialog imports nothing")
         entry = tab.controller.template_entries()[0]
         self.assertFalse(tab.model_panel.plain_pbr.isEnabled(), "the material route is an imported model's question")
-        tab.receive_imported_model(entry, ModelFiles(pac_data=b"PAC imported"), scene=None)
+        tab.receive_imported_model(entry, ModelFiles(pac_data=imported_pac()), scene=None)
         self.assertTrue(tab.model_panel.import_model.isChecked())
         self.assertEqual(tab.controller.draft.model_source, ModelSource.IMPORTED)
         self.assertTrue(tab.model_panel.plain_pbr.isEnabled())
@@ -434,6 +434,8 @@ class _TabLifecycleMixin:
         controller = tab.controller
         self.assertIsNone(controller.model_result, "nothing applied yet")
 
+        # The preview reads the import only while the draft uses it.
+        controller.draft.model_source = ModelSource.IMPORTED
         controller.model_import = SimpleNamespace(
             baked_preview_mesh=lambda: mesh("frostmourne_basecolor.png"),
             baked_scene_mesh=lambda: mesh(""),

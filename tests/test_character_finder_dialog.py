@@ -128,6 +128,9 @@ def finder(monkeypatch, tmp_path):
     yield dialog, service, scopes
     if not dialog._closing:
         dialog.close()
+    # A test that shut the dialog down itself left it on screen, where it took
+    # activation from the next test's popups and closed them at random.
+    dialog.hide()
     _APPLICATION.processEvents()
     window.deleteLater()
 
