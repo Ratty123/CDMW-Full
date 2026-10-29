@@ -642,7 +642,7 @@ _CSHARP_CROSS_FILE_UI_RETURN_METHODS = frozenset(
 )
 _HTML_TAG_RE = re.compile(r"(<[^>]+>)")
 _HTML_NON_TEXT_BLOCK_RE = re.compile(
-    r"<(script|style)\b[^>]*>.*?</\1>",
+    r'<(script|style)\b[^>]*>.*?</\1>|<code translate="no">.*?</code>',
     re.IGNORECASE | re.DOTALL,
 )
 _WHITESPACE_RE = re.compile(r"\s+")
@@ -1534,6 +1534,8 @@ def _python_ui_catalogue_sources(
         names = ("FAMILY_LABELS", "SOCKET_PLACES", "_SIDE", "_SHORT_ACTION", "_TRIM_WORDS", "_TRIM_PAIRS", "_TRIM_ABBREV", "_PHASE", "RIG_GROUPS")
     elif relative == "tools/placement_studio/carry.py":
         names = ("ZONE_LABELS",)
+    elif relative == "cdmw/ui/shell/error_reference.py":
+        names = ("ERROR_REFERENCE_INTRO", "ERROR_REFERENCE_FALLBACK", "ERROR_REFERENCE_GROUPS", "CODE_GUIDANCE")
     elif relative == "cdmw/ui/shell/compact/registry.py":
         names = ("COMPACT_CATEGORY_ORDER",)
     elif relative == "tools/format_explorer/catalogue.py":

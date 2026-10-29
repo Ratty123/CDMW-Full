@@ -50,6 +50,7 @@ PAGE_TOPICS = {
     "Formats-and-Research": ("format_explorer", "research"),
     "Settings-and-Profiles": ("profile_settings", "window_layout"),
     "Troubleshooting-and-Reporting": ("troubleshooting",),
+    "Error-Code-Library": ("error_code_library",),
     "FAQ": ("faq",),
     "Contributing": ("contributing",),
 }
@@ -80,7 +81,7 @@ MANUAL_GROUPS = (
     ("Assets", ("Archive-Browser", "Create-New-Item", "Model-Library", "Item-Icons")),
     ("Authoring", ("Mesh-Editor", "Placement-and-Animations", "Textures")),
     ("Utilities", ("Mod-Management", "Independent-Item-Packages", "Translations-and-Text-Search", "Formats-and-Research")),
-    ("Help", ("Settings-and-Profiles", "Troubleshooting-and-Reporting", "Contributing")),
+    ("Help", ("Settings-and-Profiles", "Troubleshooting-and-Reporting", "Error-Code-Library", "Contributing")),
 )
 _CONTROLS = (
     "Mesh Data", "Vertex Parameters", "Position", "UV Coordinates", "Normals", "Skin Weights",
@@ -331,7 +332,10 @@ def _inline(node: Node | str, locale: str) -> str:
     if node.tag in {"i", "em"}:
         return f"*{body.strip()}*"
     if node.tag == "code":
-        return f"`{body.strip()}`"
+        body = body.strip()
+        fence = "`" * (max((len(run) for run in re.findall(r"`+", body)), default=0) + 1)
+        padding = " " if body.startswith("`") or body.endswith("`") else ""
+        return f"{fence}{padding}{body}{padding}{fence}"
     if node.tag == "a":
         target = node.attrs.get("href", "")
         if target.startswith("topic:"):
@@ -431,9 +435,10 @@ def build_pages() -> dict[str, str]:
     builder.archive = type("DocumentationArchive", (), {"archive_cache_root": "workspace/cache"})()
     sections = {section["id"]: section for section in builder._build_about_sections()}
     result = {}
-    source_fingerprint = hashlib.sha256(
-        (ROOT / "cdmw/ui/shell/about_documentation_en.py").read_bytes()
-    ).hexdigest()[:12]
+    source_fingerprint = hashlib.sha256(b"".join(
+        (ROOT / "cdmw/ui/shell" / name).read_bytes()
+        for name in ("about_documentation_en.py", "error_reference.py", "error_reference_data.py")
+    )).hexdigest()[:12]
     for language in BUILTIN_LANGUAGES:
         locale = language.code
         translations = load_builtin_catalog(locale)["translations"]
@@ -645,10 +650,20 @@ def build_manuals(guides: dict[str, str] | None = None) -> dict[str, str]:
         parts.append("\n\n".join(contents))
         for page in order:
             body = _guide_body(guides[page_slug(page, locale) + ".md"])
-            body = _readable_guide(
-                _guide_body(guides[page + ".md"]), body, locale,
-                mesh=page == "Mesh-Editor", faq=page == "FAQ",
-            )
+            if page == "Error-Code-Library":
+                # Keep diagnostic literals untouched; fold the long catalogue
+                # into its ten translated areas without creating more pages.
+                body = re.sub(
+                    r'(<a id="errors-[^"]+"></a>)\n\n## ([^\n]+)\n\n(.*?)(?=\n\n<a id="errors-|\Z)',
+                    lambda match: match[1] + '\n\n<details>\n<summary><strong>'
+                    + html.escape(match[2]) + '</strong></summary>\n\n' + match[3] + '\n\n</details>',
+                    body, flags=re.DOTALL,
+                )
+            else:
+                body = _readable_guide(
+                    _guide_body(guides[page + ".md"]), body, locale,
+                    mesh=page == "Mesh-Editor", faq=page == "FAQ",
+                )
             if page == "Home":
                 heading = "## " + translate("Start Here") + "\n"
                 if heading not in body:

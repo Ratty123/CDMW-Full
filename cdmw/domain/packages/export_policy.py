@@ -39,12 +39,11 @@ MOD_PACKAGE_STRUCTURES = frozenset(
     {"game_relative", "files_wrapper", "custom_compact_paths", "dmm_texture", "field_json_v31"}
 )
 MOD_PACKAGE_FILES_WRAPPER_STRUCTURES = frozenset({"files_wrapper", "custom_compact_paths"})
-MOD_PACKAGE_MANAGER_PROFILES = ("dmm", "jmm", "cdumm", "crimson_sharp", "field_json")
+MOD_PACKAGE_MANAGER_PROFILES = ("dmm", "jmm", "cdumm", "field_json")
 MOD_PACKAGE_MANAGER_PROFILE_LABELS = {
     "dmm": "Definitive Mod Manager",
     "jmm": "JMM JSON",
     "cdumm": "CDUMM",
-    "crimson_sharp": "Crimson Sharp",
     "field_json": "Field-JSON v3.1",
 }
 
@@ -118,8 +117,6 @@ def normalize_mod_package_manager_profile(profile: str) -> str:
         "field_json_v3_1": "field_json",
         "json": "jmm",
         "jmm_json": "jmm",
-        "crimson_browser": "crimson_sharp",
-        "sharp": "crimson_sharp",
         "definitive": "dmm",
         "definitive_mod_manager": "dmm",
         "ultimate": "cdumm",
@@ -169,12 +166,6 @@ def mod_package_export_options_for_manager(profile: str) -> ModPackageExportOpti
             manager_targets=("cdumm",),
             structure="files_wrapper",
             create_modinfo_json=True,
-        )
-    if normalized == "crimson_sharp":
-        return ModPackageExportOptions(
-            manager_targets=("crimson_sharp",),
-            structure="files_wrapper",
-            create_mod_json=True,
         )
     return mod_package_export_options_for_manager("dmm")
 

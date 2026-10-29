@@ -78,7 +78,6 @@ def accepted_cloth_edit(cloth_session, tmp_path, monkeypatch):
         ("dmm_loose", "dmm", "dmm", "manifest.json", ""),
         ("jmm_loose", "jmm", "jmm", "mod.json", ""),
         ("cdumm_loose", "cdumm", "cdumm", "modinfo.json", "files"),
-        ("crimson_sharp_loose", "crimson_sharp", "crimson-sharp", "mod.json", "files"),
         ("dmm_archive", "dmm", "dmm-archive", "manifest.json", ""),
     ],
 )
@@ -112,7 +111,7 @@ def test_finish_then_build_exports_cloth_edit_for_every_manager(
 
     def choose(dialog):
         assert isinstance(dialog, MeshModExportDialog)
-        assert dialog.manager.count() == 5
+        assert dialog.manager.count() == 4
         assert not dialog.build_button.isEnabled()
         assert not dialog.create_zip.isChecked() and not dialog.open_folder.isChecked()
         assert dialog.include_body.isHidden()  # Only a Fit session has a body to offer.
@@ -159,7 +158,7 @@ def test_finish_then_build_exports_cloth_edit_for_every_manager(
         assert (tmp_path / "meta/0.papgt").read_bytes() == mount
     else:
         payload = (output / wrapper / entry.path).read_bytes()
-        assert (output / ".no_encrypt").is_file() == (profile == "crimson_sharp")
+        assert not (output / ".no_encrypt").exists()
         if profile == "jmm":
             metadata = json.loads((output / descriptor).read_text())
             assert metadata["target"] == entry.path
@@ -179,8 +178,6 @@ def test_finish_then_build_exports_cloth_edit_for_every_manager(
         expected_files.update(("0036/0.pamt", "0036/0.paz"))
     else:
         expected_files.add((Path(wrapper) / entry.path).as_posix())
-        if profile == "crimson_sharp":
-            expected_files.add(".no_encrypt")
         if profile in {"jmm", "cdumm"}:
             expected_files.remove("manifest.json")
     assert {p.relative_to(output).as_posix() for p in output.rglob("*") if p.is_file()} == expected_files

@@ -78,7 +78,6 @@ class ModPackageRetrofitUi:
         self.empty_summary = RetrofitPathRepairSummary(mappings=tuple())
         self.profile_labels = dict(MOD_PACKAGE_MANAGER_PROFILE_LABELS)
         self.profile_labels["dmm"] = "Mod Manager"
-        self.profile_labels["crimson_sharp"] = "Crimson Sharp / Crimson Browser"
         config = owner.textures.collect_config()  # type: ignore[attr-defined]
         self.default_profile = str(getattr(config, "mod_ready_manager_profile", "dmm") or "dmm").strip().lower()
         if self.default_profile not in RETROFIT_MANAGER_PROFILES:
@@ -167,6 +166,9 @@ class ModPackageRetrofitUi:
 
         self.table = self._create_table()
         left_layout.addWidget(self.table, 1)
+        self.manager_warning = QLabel("JMM is outdated; compatibility cannot be ensured.")
+        self.manager_warning.setWordWrap(True)
+        left_layout.addWidget(self.manager_warning)
         self.scan_summary_label = QLabel('')
         self.scan_summary_label.setObjectName("HintLabel")
         self.scan_summary_label.setWordWrap(True)

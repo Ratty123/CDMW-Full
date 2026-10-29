@@ -3034,8 +3034,7 @@ Undo and Redo restore that full state. Any rejection keeps Rust open and leaves
 authority unchanged. Cancel, close, crash, protocol failure, or forced termination
 discards the shadow and only its owned files. An accepted Finish retains validation
 for that exact revision; subsequent edits require validation again before **Install
-as Overlay**, **Build Mod** or **Add to Archive Browser** can publish it. Build Mod supports DMM/JMM/CDUMM/Crimson
-Sharp loose packages and a DMM archive group through owned sibling staging; overlay
+as Overlay**, **Build Mod** or **Add to Archive Browser** can publish it. Build Mod supports DMM/JMM/CDUMM loose packages and a DMM archive group through owned sibling staging; overlay
 installation keeps the existing confirmation, backup, rollback, receipt, and restore
 lifecycle.
 
@@ -3295,8 +3294,10 @@ prevents retained source bindings from hiding authored material changes.
 invalidates that report; **Run validation** checks the new revision. **Export Mesh
 File** publishes a separate rebuilt asset and report. **Build Mod** opens one form for
 the mod manager, mod name, output folder, version, author and description. It publishes
-**DMM**, **JMM**, **CDUMM** or **Crimson Sharp** loose mesh packages using their
+**DMM**, **CDUMM** or **JMM** loose mesh packages using their
 respective layouts and metadata, or a **DMM Archive Group** in `0036/`.
+JMM is outdated; compatibility cannot be ensured. The manager chooser displays
+this warning. Prefer DMM or CDUMM for current game versions.
 
 DMM owns the mount list, so that package omits `meta/0.papgt`. Packages contain the
 replacement payloads and manager descriptors/markers only. The generated README and CDMW
@@ -3307,8 +3308,6 @@ exported bytes. DMM uses only `manifest.json` for its metadata, without a duplic
 duplicate manifest or unused encryption marker.
 
 Its detector accepts this layout and its importer reads mod details from `modinfo.json`:
-[CDUMM
-detector](https://github.com/faisalkindi/CrimsonDesert-UltimateModsManager/blob/master/src/cdumm/engine/crimson_browser_handler.py),
 [CDUMM
 importer](https://github.com/faisalkindi/CrimsonDesert-UltimateModsManager/blob/master/src/cdumm/engine/import_handler.py).
 [DMM's changelog](https://www.nexusmods.com/crimsondesert/mods/633?tab=logs) documents

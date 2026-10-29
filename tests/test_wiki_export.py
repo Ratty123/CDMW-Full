@@ -28,7 +28,7 @@ def wiki_manuals(wiki_pages):
     return build_manuals(wiki_pages)
 
 
-def test_manuals_have_one_native_named_page_per_language_and_18_guide_entries(wiki_manuals):
+def test_manuals_have_one_native_named_page_per_language_and_19_guide_entries(wiki_manuals):
     assert len(wiki_manuals) == 30
     assert set(wiki_manuals) == {
         *(manual_path(language.code) for language in BUILTIN_LANGUAGES),
@@ -40,8 +40,8 @@ def test_manuals_have_one_native_named_page_per_language_and_18_guide_entries(wi
         body = wiki_manuals[manual_path(language.code)]
         guides = re.findall(r'<a id="guide-([^"]+)"></a>', body)
         assert set(guides) == {page.lower() for page in PAGE_TOPICS}
-        assert len(guides) == len(PAGE_TOPICS) == 18
-        assert body.count("](#contents)") == 18
+        assert len(guides) == len(PAGE_TOPICS) == 19
+        assert body.count("](#contents)") == 19
         assert "> [!WARNING]" in body and "> [!IMPORTANT]" in body
     assert "<details>" not in wiki_manuals["_Sidebar.md"]
 
@@ -57,7 +57,7 @@ def test_each_manual_has_localized_contents_sidebar_and_opens_with_home(wiki_man
         assert sidebar.startswith("### " + translate("Contents", "Contents"))
         assert f"[{translate('Start Here', 'Start Here')}]({manual_url(language.code, 'start-here')})" in sidebar
         assert f"[{translate('Overview', 'Overview')}]({manual_url(language.code, 'overview')})" in sidebar
-        assert len(re.findall(r"\]\([^\n]+#guide-", sidebar)) == 18
+        assert len(re.findall(r"\]\([^\n]+#guide-", sidebar)) == 19
         assert "/Languages" not in sidebar and "🌐" not in sidebar
         assert all(url.startswith(manual_url(language.code) + "#") for url in re.findall(r"\]\(([^)]+)\)", sidebar))
         assert re.search(r"^## (.+)$", body, re.MULTILINE)[1] == translate("Home", "Home")
@@ -104,7 +104,7 @@ def test_consolidation_preserves_every_guides_visible_text(wiki_pages, wiki_manu
             r'<a id="guide-([^"]+)"></a>\n\n## [^\n]+\n\n(.*?)(?=\n\n---\n\n(?:<a id="guide-|CDMW `))',
             manual, re.DOTALL,
         ))
-        assert len(sections) == 18
+        assert len(sections) == 19
         for page in PAGE_TOPICS:
             old = wiki_pages[page_slug(page, language.code) + ".md"].split("\n", 1)[1]
             assert content_text(old) == content_text(sections[page.lower()]), (language.code, page)
@@ -201,7 +201,7 @@ def test_manual_migration_requires_every_source_guide(wiki_pages):
 
 def test_all_14_locales_have_complete_guides_and_same_language_navigation(wiki_pages):
     assert len(BUILTIN_LANGUAGES) == 14
-    assert len(wiki_pages) == 18 * 14 + 3
+    assert len(wiki_pages) == 19 * 14 + 3
     for language in BUILTIN_LANGUAGES:
         for page in PAGE_TOPICS:
             name = page_slug(page, language.code)
@@ -343,6 +343,18 @@ def test_in_app_browser_renders_the_expanded_guides_in_each_locale(tmp_path, lan
                 assert translated in wiki_pages[page_slug("Create-New-Item", language.code) + ".md"]
                 if language.code != "en": assert translated != definition_guide
         assert "_CDMW_VERTEX_ID" in dialog.browser.toPlainText()
+        dialog.select_section("error_code_library")
+        localizer.apply(dialog)
+        body = dialog.browser.toPlainText()
+        assert localizer.translate("Error Code Library") in body
+        assert localizer.translate("Archive operations") in body
+        assert "MAT_ROLE_ACK_TIMEOUT" in body
+        assert "permission_denied" in body
+        literal = "An effect is named `<stem>.<kind>.effect`, with a shipped level, action, gimmick, system or sequencer reference."
+        assert literal in body
+        guide = wiki_pages[page_slug("Error-Code-Library", language.code) + ".md"]
+        assert "MAT_ROLE_ACK_TIMEOUT" in guide
+        assert literal in guide
         dialog.select_section('new_item_studio')
         localizer.apply(dialog)
         import json
@@ -357,3 +369,19 @@ def test_in_app_browser_renders_the_expanded_guides_in_each_locale(tmp_path, lan
         localizer.shutdown()
         dialog.deleteLater()
         app.processEvents()
+
+
+def test_error_library_is_linked_and_folded_without_rewording_diagnostics(wiki_manuals):
+    from cdmw.ui.shell.error_reference_data import ERROR_REFERENCE
+    from cdmw.ui.localization_catalogs_v2 import load_builtin_catalog
+
+    for language in BUILTIN_LANGUAGES:
+        manual = wiki_manuals[manual_path(language.code)]
+        catalogue = load_builtin_catalog(language.code)["translations"]
+        assert '<a id="guide-error-code-library"></a>' in manual
+        assert '<a id="errors-archive"></a>\n\n<details>' in manual
+        assert catalogue["Error Code Library"] in manual
+        for sentence in _sentences(catalogue["JMM is outdated; compatibility cannot be ensured. Prefer DMM or CDUMM for current game versions."]):
+            assert sentence in manual
+        for row in ERROR_REFERENCE:
+            assert row["code"] in manual

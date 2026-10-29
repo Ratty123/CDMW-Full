@@ -138,7 +138,7 @@ topic copies.
 `scripts/export_github_wiki.py --output <wiki-folder>` renders those same topics
 and catalogues as 14 native-named GitHub Wiki manuals, a language index and
 localized contents sidebars. Each manual opens with Home, keeps a folded contents
-menu for narrow screens, and includes all 18 guides, stable section
+menu for narrow screens, and includes all 19 guides, stable section
 anchors and labelled callouts. The exporter never pushes or changes repository
 settings. `--check` compares the local
 pages with their source. Keep generated Wiki pages in their separate checkout,
@@ -158,6 +158,15 @@ technical identifiers; incompatible source/translation block structures refuse
 export. The in-app topics continue to own the wording.
 Folded sections use localized blockquote labels because GitHub Wiki does not
 process native alert markers inside HTML details blocks.
+
+The Error Code Library uses `error_reference.py` for translated guidance and
+`error_reference_data.py` for the generated inventory of diagnostic identifiers,
+literal messages and owning source paths. After changing named diagnostics, run
+`python scripts/generate_error_reference.py --write`; use `--check` for freshness.
+Exact diagnostic text uses `<code translate="no">` so both Help and Wiki retain
+searchable original messages. Errors, warnings, informational states and dynamic
+code families are distinguished in the guide; the inventory is source evidence,
+not a claim that every registered code is emitted or observed in a release.
 
 ## Settings and display scaling
 

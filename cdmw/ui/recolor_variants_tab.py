@@ -468,13 +468,15 @@ class RecolorVariantsTab(SharedRecolorModeMixin, QWidget):
             ("dmm", "Definitive Mod Manager", True),
             ("jmm", "JMM JSON", False),
             ("cdumm", "CDUMM files/ wrapper", False),
-            ("crimson_sharp", "Crimson Sharp / Browser", False),
             ("field_json", "Field-JSON v3.1", False),
         ):
             checkbox = QCheckBox(label)
             checkbox.setChecked(checked)
             self.profile_checkboxes[profile_id] = checkbox
             profiles_layout.addWidget(checkbox)
+        self.manager_warning = QLabel("JMM is outdated; compatibility cannot be ensured.")
+        self.manager_warning.setWordWrap(True)
+        profiles_layout.addWidget(self.manager_warning)
         layout.addWidget(QLabel("Parent root"), 0, 0)
         output_row = QHBoxLayout()
         output_row.setContentsMargins(0, 0, 0, 0)
@@ -1103,14 +1105,12 @@ class RecolorVariantsTab(SharedRecolorModeMixin, QWidget):
             "cdumm": "CDUMM",
             "jmm": "JMM JSON",
             "dmm": "Definitive Mod Manager",
-            "crimson_sharp": "Crimson Sharp",
             "field_json": "Field-JSON v3.1",
         }
         suffixes = {
             "cdumm": "CDUMM",
             "jmm": "JMM",
             "dmm": "DMM",
-            "crimson_sharp": "CrimsonSharp",
             "field_json": "FieldJSON",
         }
         for profile_id, checkbox in self.profile_checkboxes.items():

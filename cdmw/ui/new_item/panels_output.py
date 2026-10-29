@@ -283,6 +283,8 @@ class OutputPanel(QGroupBox):
         self.manager.setToolTip("The mod manager whose folder layout the loose mod is written in.")
         self.manager.currentTextChanged.connect(lambda text: setattr(self._controller.draft, "manager", str(text)))
         export.addWidget(self.manager)
+        self.manager_warning = NoteLabel("JMM is outdated; compatibility cannot be ensured.", WARN)
+        export.addWidget(self.manager_warning)
         export.addWidget(QLabel("Mod name"))
         self.mod_name = QLineEdit(controller.draft.mod_name)
         self.mod_name.setPlaceholderText(controller.draft.display_names.get("eng", "") or self.tr("Mod name"))

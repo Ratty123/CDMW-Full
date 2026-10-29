@@ -2108,7 +2108,6 @@ def test_loose_output_captures_after_pending_work_and_never_writes_source_archiv
         ("dmm", "character/model/test.pac", {"manifest.json"}),
         ("jmm", "character/model/test.pac", {"mod.json"}),
         ("cdumm", "files/character/model/test.pac", {"modinfo.json"}),
-        ("crimson_sharp", "files/character/model/test.pac", {"manifest.json", "mod.json", ".no_encrypt"}),
     ),
 )
 def test_loose_mesh_output_uses_manager_layout_and_metadata_without_touching_sources(

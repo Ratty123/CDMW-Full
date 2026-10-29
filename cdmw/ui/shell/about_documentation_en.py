@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Dict, List
 
 from cdmw.domain.textures.plan import describe_processing_path_kind
+from cdmw.ui.shell.error_reference import build_error_reference_section
 
 
 #: The Create New Item documentation section.
@@ -55,6 +56,7 @@ CREATE_NEW_ITEM_SECTION = {
     <p>Choose how the player obtains the item: a supported shop, recipe, reward or item group. Review quantities, prices, ingredients and dependencies. Recipes and reward edits remain experimental. A valid item record without a working distribution route may never become available during normal play.</p>
     <h4>Output</h4>
     <p>Choose the output type and any existing-mod base, then select Build plan under the plan status in Destination. Read the planned additions, dependencies, warnings and blocking errors. Changes to the item, the existing-mod base or the item-package choice clear the plan, and the status says why. The output folder, manager, mod name and overlay folder number are applied when writing and keep the plan. Build plan is read-only; exporting a folder, writing a package and installing an overlay are separate actions.</p>
+    <p data-alert="WARNING">JMM is outdated; compatibility cannot be ensured. Prefer DMM or CDUMM for current game versions.</p>
     <p>Mod folder supports CDUMM, JMM and build-dependent DMM output, with an optional ZIP. DMM has been re-enabled for testing with an updated manager; new-item and texture preservation still needs in-game verification. Older builds disable this route. Check the installed versions and release notes before choosing it.</p>
     <p>Add to existing mod deliberately extends a selected package. Include mounted items in a new mod copies supported installed overlay items into a separate package. Review every included item and archive, and follow the generated replacement and rollback instructions rather than enabling overlapping source and combined packages together.</p>
     <p>Independent item package writes a portable .cditem authoring package, not a game archive. Add it in Mod Management, review Apply changes and use the documented experimental launch route. Physical installation is a separate advanced action. Unknown ownership conflicts, missing dependencies and unsupported modules remain blocked.</p>
@@ -527,6 +529,8 @@ class AboutDocumentationEnglishMixin:
                 <h4>Export Mesh File</h4>
                 <p>For external editing, keep the exported GLB, FBX or OBJ with its CDMW companions. Exact return needs stable vertex and joint identity; topology-changing modifiers can invalidate it. In Blender, preserve _CDMW_VERTEX_ID attributes for GLB or the CDMW_VERTEX_ID UV layer for FBX, export the intended meshes and armature, and include all bone influences. Follow the editable exchange guide for format-specific settings.</p>
                 <h4>Build Mod</h4>
+                <p>DMM, CDUMM and JMM are the main supported mod managers. Available layouts depend on the exporting tool; Field-JSON is an output format, and CDMW overlays are a separate installation route.</p>
+                <p data-alert="WARNING">JMM is outdated; compatibility cannot be ensured. Prefer DMM or CDUMM for current game versions.</p>
                 <p>Build Mod includes required generated companions. A single mesh file may be unavailable when those companions cannot travel with it. Existing output folders and ZIPs are not overwritten. After an uncertain outcome, inspect the final output before retrying with a new destination.</p>
                 <p>After a Fit, Build Mod leaves out the body the outfit was fitted to, also in a later edit pass, so the mod changes only the outfit and other body mods keep working. Install as Overlay leaves it out too. To also ship changes you made to the body, turn on Include the body in the Build Mod window.</p>
                 <p>To verify an export, reopen the actual completed output with its dependencies and compare a known edit. Opening the original archive entry or resuming the live editor does not read back the exported bytes. Preview appearance and package validation remain separate from in-game testing.</p>
@@ -686,6 +690,7 @@ class AboutDocumentationEnglishMixin:
 
     def _build_reference_sections(self) -> List[Dict[str, str]]:
         return [
+            build_error_reference_section(),
             {
                 "id": "contributing",
                 "title": "Contributing",
@@ -710,6 +715,8 @@ class AboutDocumentationEnglishMixin:
                 "summary": "How loose output, mod-ready folders, metadata, and backups fit together.",
                 "keywords": "mod packaging output loose mod ready info json no_encrypt package prefix backup restore export",
                 "html": """
+                <p>DMM, CDUMM and JMM are the main supported mod managers. Available layouts depend on the exporting tool; Field-JSON is an output format, and CDMW overlays are a separate installation route.</p>
+                <p data-alert="WARNING">JMM is outdated; compatibility cannot be ensured. Prefer DMM or CDUMM for current game versions.</p>
                 <p>The app keeps normal workflow output and mod-ready packaging separate so you can review results before placing them into a mod manager.</p>
                 <ul>
                   <li><b>Output root</b> is the normal DDS result folder for Texture Workflow.</li>
@@ -807,7 +814,6 @@ class AboutDocumentationEnglishMixin:
                   <li><a href="https://chainner.app/download/">chaiNNer download page</a></li>
                   <li><a href="https://github.com/xinntao/Real-ESRGAN-ncnn-vulkan">Real-ESRGAN NCNN Vulkan</a></li>
                   <li><a href="https://www.nexusmods.com/crimsondesert/mods/62">Crimson Desert Unpacker</a></li>
-                  <li><a href="https://www.nexusmods.com/crimsondesert/mods/84">Crimson Browser &amp; Mod Manager</a></li>
                 </ul>
                 """,
             },
@@ -842,6 +848,7 @@ class AboutDocumentationEnglishMixin:
                   <li><b>Archive preview limits</b>: unusual DDS layouts and very large archive scans are still best-effort cases.</li>
                   <li><b>Technical textures</b>: preserve-first handling is still the safer default for normals, masks, packed channels, vectors, and other precision-sensitive maps.</li>
                 </ul>
+                <p>Look up named errors and warnings in the <a href="topic:error_code_library">Error Code Library</a>.</p>
                 <h4>Report a Problem</h4>
                 <p>Report a Problem is below Support Me in the sidebar and also under Help. Include the installed version, exact action, reproduction steps, expected and actual result, and relevant game or manager setup. Prepare and review the diagnostic draft and screenshots before sending. Reports go to a separate private inbox; keep report evidence links private.</p>
                 """,

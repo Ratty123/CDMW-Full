@@ -87,7 +87,10 @@ from cdmw.services.localization_file_service import (
 
 
 _HTML_TAG_RE = re.compile(r"(<[^>]+>)")
-_HTML_NON_TEXT_BLOCK_RE = re.compile(r"<(script|style)\b[^>]*>.*?</\1>", re.IGNORECASE | re.DOTALL)
+_HTML_NON_TEXT_BLOCK_RE = re.compile(
+    r'<(script|style)\b[^>]*>.*?</\1>|<code translate="no">.*?</code>',
+    re.IGNORECASE | re.DOTALL,
+)
 _WHITESPACE_RE = re.compile(r"\s+")
 _TRANSLATABLE_WORD_RE = re.compile(r"[A-Za-z][A-Za-z0-9'&/()\-+.,:;!? ]*")
 _TEMPLATE_VALUE_RE = re.compile(r"\{([A-Za-z_][A-Za-z0-9_]*)[^{}]*\}")

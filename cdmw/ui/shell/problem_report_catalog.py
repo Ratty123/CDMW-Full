@@ -8,7 +8,7 @@ from dataclasses import dataclass
 INTERFACE_ACTION = "Window / layout / controls"
 OTHER_ACTION = "Other / not sure"
 MOD_STATES = ("No mods installed", "Mods installed", "Not sure")
-MOD_MANAGERS = ("CDMW overlays", "CDUMM", "Definitive Mod Manager", "JMM", "Crimson Sharp / Crimson Browser",
+MOD_MANAGERS = ("CDMW overlays", "CDUMM", "Definitive Mod Manager", "JMM",
                 "Field-JSON", "Manual installation", "Another manager", "Not sure")
 INSTALL_METHODS = ("Not installed yet", "Manager folder / ZIP", "CDMW overlay", "Manual loose files",
                    "Direct archive edits", "Another method", "Not sure")

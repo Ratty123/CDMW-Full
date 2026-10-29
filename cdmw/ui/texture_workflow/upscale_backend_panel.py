@@ -277,7 +277,6 @@ class TextureWorkflowUpscaleBackendPanelMixin:
         self.mod_ready_manager_combo.addItem("Definitive Mod Manager", "dmm")
         self.mod_ready_manager_combo.addItem("JMM JSON", "jmm")
         self.mod_ready_manager_combo.addItem("CDUMM", "cdumm")
-        self.mod_ready_manager_combo.addItem("Crimson Sharp / Crimson Browser", "crimson_sharp")
         self.mod_ready_manager_combo.addItem("Field-JSON v3.1", "field_json")
         self.mod_ready_profile_checkboxes: Dict[str, QCheckBox] = {}
         self.mod_ready_profiles_widget = QWidget()
@@ -290,6 +289,8 @@ class TextureWorkflowUpscaleBackendPanelMixin:
             mod_ready_profiles_layout.addWidget(checkbox)
             self.mod_ready_profile_checkboxes[profile] = checkbox
         mod_ready_profiles_layout.addStretch(1)
+        self.mod_ready_manager_warning = QLabel("JMM is outdated; compatibility cannot be ensured.")
+        self.mod_ready_manager_warning.setWordWrap(True)
         self.mod_ready_structure_combo = QComboBox()
         self.mod_ready_structure_combo.addItem("Game-relative folders", "game_relative")
         self.mod_ready_structure_combo.addItem("files/ wrapper", "files_wrapper")
@@ -357,6 +358,7 @@ class TextureWorkflowUpscaleBackendPanelMixin:
         mod_package_layout.addRow("Author", self.mod_ready_package_author_edit)
         mod_package_layout.addRow("Description", self.mod_ready_package_description_edit)
         mod_package_layout.addRow("Target Mod Managers", self.mod_ready_profiles_widget)
+        mod_package_layout.addRow(self.mod_ready_manager_warning)
         mod_package_layout.addRow("Package output", self.mod_ready_zip_checkbox)
         self.mod_ready_conflict_mode_label = QLabel("Conflict mode")
         self.mod_ready_target_language_label = QLabel("Target language")

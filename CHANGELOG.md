@@ -7,6 +7,14 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 ## [Unreleased]
 
+### Changed
+
+- Mod exports focus on DMM, CDUMM and JMM. JMM remains available with a warning that it is outdated and compatibility cannot be ensured.
+
+### Docs
+
+- Help and the Wiki include a searchable error-code library with diagnostic sources, likely causes and recovery guidance in all 14 interface languages, alongside the current mod-manager compatibility guidance.
+
 ## [0.11.0-alpha.27] - 2026-10-28
 
 ### Added
@@ -218,7 +226,7 @@ Editor cloth tools, with faster browsing and more reliable authoring workflows.
 **Export availability:** Create New Item supports CDUMM (the default), JMM and
 CDMW game overlays. DMM remains visible but disabled because of new-item and
 texture-registration compatibility problems. Mesh Editor replacement exports
-still offer DMM, JMM, CDUMM and Crimson Sharp.
+still offer DMM, JMM and CDUMM.
 
 **Experimental features:** Weapon collider export, generated cloth guides,
 material/shader experiments and other labelled experimental tools still need
@@ -286,8 +294,8 @@ alpha.21 checkpoint; alpha.20 was the previous GitHub release.
 
 **Export availability:** Create New Item supports CDUMM (the default), JMM and
 CDMW game overlays. Its DMM export is temporarily disabled while compatibility
-issues are investigated. Mesh Editor replacement exports still offer DMM, JMM,
-CDUMM and Crimson Sharp.
+issues are investigated. Mesh Editor replacement exports still offer DMM, JMM
+and CDUMM.
 
 **Experimental features:** Material and shader experiments, generated cloth guides,
 and item visibility overrides still need in-game testing. Overlapping transparent

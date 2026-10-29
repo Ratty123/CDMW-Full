@@ -213,14 +213,11 @@ class ModPackageRetrofitTests(unittest.TestCase):
 
             dmm = retrofit_mod_package(package, output, manager_profile="dmm").package_root
             cdumm = retrofit_mod_package(package, output, manager_profile="cdumm").package_root
-            crimson = retrofit_mod_package(package, output, manager_profile="crimson_sharp").package_root
             field_json = retrofit_mod_package(package, output, manager_profile="field_json").package_root
 
             self.assertTrue((dmm / "modinfo.json").is_file())
             self.assertTrue((cdumm / "modinfo.json").is_file())
             self.assertTrue((cdumm / "files" / "character" / "texture" / "sample.dds").is_file())
-            self.assertTrue((crimson / "mod.json").is_file())
-            self.assertTrue((crimson / "files" / "character" / "texture" / "sample.dds").is_file())
             self.assertTrue((field_json / "mod.field.json").is_file())
             self.assertTrue((field_json / "assets" / "character" / "texture" / "sample.dds").is_file())
 

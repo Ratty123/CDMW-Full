@@ -112,7 +112,11 @@ See the [Create New Item guide](cdmw/ui/new_item/README.md) for detailed control
 
 Open a supported archive or local mesh, edit with Undo/Redo, then use
 **Finish Edit Mesh** to validate and accept the result. **Build Mod** offers DMM,
-JMM, CDUMM and Crimson Sharp packages, with an optional ZIP.
+JMM and CDUMM packages, with an optional ZIP.
+
+DMM, CDUMM and JMM are the main supported mod managers. JMM is outdated;
+compatibility cannot be ensured. Prefer DMM or CDUMM for current game versions,
+and check the producing tool's output limitations before installing.
 
 Tools include selection, transforms, sculpting, UVs, material controls, cloth and
 jiggle settings, Hair Tools, and Morph & Refit for body and garment adjustments.

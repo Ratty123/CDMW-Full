@@ -105,11 +105,6 @@ both keep their upstream notice inside the vendored source itself.
 - Upstream: https://github.com/lazorr410/crimson-desert-unpacker
 - Notes: informed parts of the read-only `.pamt/.paz` handling and related compatibility work
 
-### Crimson Browser & Mod Manager
-
-- Purpose: behavior/reference comparison while validating some archive DDS reconstruction cases
-- Notes: used as a compatibility reference during local validation; not bundled with this repository
-
 ### hzeemr/crimsonforge
 
 - Purpose: actively adapted mesh parsing/export/import and archive-modding reference code used by current Workbench mesh, preview, replacement, and package flows

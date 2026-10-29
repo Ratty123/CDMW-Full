@@ -748,8 +748,8 @@ visible Windows usability or licensed game-asset appearance.
 
 Integrated mode does not write a mod directly from the Rust window. **Finish
 Edit Mesh** returns the accepted revision to CDMW, where **Run validation** must
-pass. **Build Mod** can then create DMM/JMM/CDUMM/Crimson Sharp loose output or a
-DMM archive group; those package outputs are revision-pinned and atomically
+pass. **Build Mod** can then create DMM/CDUMM/JMM loose output or a
+DMM archive group. JMM is outdated and compatibility cannot be ensured. Those package outputs are revision-pinned and atomically
 staged. **Install as Overlay** instead enters the existing confirmed
 backup/rollback flow. Source PAMT/PAZ files remain unchanged.
 
