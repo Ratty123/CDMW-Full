@@ -163,8 +163,17 @@ The Error Code Library uses `error_reference.py` and
 `error_reference_guidance.py` for shared translated explanations. The generated
 `error_reference_data.py` records named codes, uncoded message patterns, native
 statuses/error kinds, source owners and dynamic error handoffs. Help separates
-the message index into feature topics; the Wiki keeps them in the same manual,
-with collapsible cause/recovery groups and exact diagnostic text for search.
+the complete message index into feature topics. Each Wiki manual keeps all named
+codes and recovery guidance, with links to Wiki-owned `reference/<locale>/`
+assets: a complete structured `index.json` for search/AI consumers and one
+readable `.txt` message list per area. These are generated from the same source
+and translated guidance as Help, not maintained separately.
+
+GitHub was observed truncating the 1.7 MB expanded manual during this audit.
+Keep rendered manuals below the tested 450,000-byte budget; full message assets
+must never be silently trimmed to fit. Non-Markdown assets preserve the native
+manual-per-language layout and do not populate GitHub's global Pages list.
+Validate both the live manual and linked raw files after publication.
 
 After changing diagnostics, run
 `python scripts/generate_error_reference.py --write`; use `--check` for freshness.

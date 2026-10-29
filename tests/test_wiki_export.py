@@ -13,7 +13,7 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from scripts.export_github_wiki import (
     BUILTIN_LANGUAGES, PAGE_TOPICS, WIKI, DocumentParser, _blocks,
     _translate_html, build_pages, page_slug,
-    build_manuals, manual_path, manual_slug,
+    build_manuals, build_reference_assets, manual_path, manual_slug,
     _emphasize_controls, _is_instruction, _readable_guide, _sentences,
 )
 
@@ -393,9 +393,32 @@ def test_error_library_is_linked_and_folded_without_rewording_diagnostics(wiki_m
             assert sentence in manual
         for row in ERROR_REFERENCE:
             assert row["code"] in manual
-        # Parse Markdown code spans independently of the HTML exporter. Every
-        # exact message must survive translation, escaping and manual folding.
-        quoted = {match[1].strip() for match in re.findall(r'(`+)(.*?)\1', manual, re.DOTALL)}
-        assert {row['message'] for row in MESSAGE_REFERENCE} <= quoted
+        # GitHub truncates long rendered pages. The complete message index is
+        # linked as Wiki-owned data, while every named code stays on the page.
+        assert len(manual.encode('utf-8')) < 450_000
+        assert f'/reference/{language.code}/index.json' in manual
         assert '<a id="external_errors"></a>' in manual
         assert '0xC0000005' in manual and '0xC0000142' in manual
+
+
+def test_complete_wiki_assets_preserve_every_message_source_and_translated_remedy(wiki_manuals):
+    import json
+    from cdmw.ui.shell.error_reference_data import ERROR_REFERENCE, MESSAGE_REFERENCE, DYNAMIC_REFERENCE
+    from cdmw.ui.shell.error_reference_guidance import RECOVERY_GUIDANCE, MESSAGE_AREAS
+    from cdmw.ui.localization_catalogs_v2 import load_builtin_catalog
+    assets = build_reference_assets()
+    assert len(assets) == 14 * 14
+    assert not any(path.endswith('.md') for path in assets)
+    for language in BUILTIN_LANGUAGES:
+        reference = json.loads(assets[f'reference/{language.code}/index.json'])
+        assert reference['messages'] == MESSAGE_REFERENCE
+        assert reference['dynamic_sources'] == DYNAMIC_REFERENCE
+        assert {row['code'] for row in reference['codes']} == {row['code'] for row in ERROR_REFERENCE}
+        catalogue = load_builtin_catalog(language.code)['translations']
+        for key, (title, remedy) in RECOVERY_GUIDANCE.items():
+            assert reference['recovery_guidance'][key] == {'title': catalogue[title], 'explanation': catalogue[remedy]}
+        for area in MESSAGE_AREAS:
+            filename = f'reference/{language.code}/{area}.txt'
+            assert '/' + filename in wiki_manuals[manual_path(language.code)]
+            quoted = {match[1].strip() for match in re.findall(r'(`+)(.*?)\1', assets[filename], re.DOTALL)}
+            assert {row['message'] for row in MESSAGE_REFERENCE if row['area'] == area} <= quoted

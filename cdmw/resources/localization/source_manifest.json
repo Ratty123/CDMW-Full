@@ -4361,7 +4361,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/error_reference_guidance.py",
-          "line": 53,
+          "line": 60,
           "sink": "python-data:EXTERNAL_ERROR_GUIDE"
         }
       ]
@@ -33092,6 +33092,16 @@
       ]
     },
     {
+      "key": "Complete message index (JSON)",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/error_reference_guidance.py",
+          "line": 55,
+          "sink": "python-data:WIKI_REFERENCE_FILES"
+        }
+      ]
+    },
+    {
       "key": "Complete source-owned swap requires the final package preview to match exact material bindings.",
       "origins": [
         {
@@ -56661,7 +56671,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/error_reference_guidance.py",
-          "line": 53,
+          "line": 60,
           "sink": "python-data:EXTERNAL_ERROR_GUIDE"
         }
       ]
@@ -56671,7 +56681,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/error_reference_guidance.py",
-          "line": 53,
+          "line": 60,
           "sink": "python-data:EXTERNAL_ERROR_GUIDE"
         }
       ]
@@ -56681,7 +56691,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/error_reference_guidance.py",
-          "line": 53,
+          "line": 60,
           "sink": "python-data:EXTERNAL_ERROR_GUIDE"
         }
       ]
@@ -72636,7 +72646,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/error_reference_guidance.py",
-          "line": 53,
+          "line": 60,
           "sink": "python-data:EXTERNAL_ERROR_GUIDE"
         }
       ]
@@ -83528,6 +83538,16 @@
           "path": "cdmw/ui/mesh_editor/workspace_panel_builder.py",
           "line": 340,
           "sink": "_tree"
+        }
+      ]
+    },
+    {
+      "key": "Message recovery guidance",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/error_reference_guidance.py",
+          "line": 57,
+          "sink": "python-data:WIKI_REFERENCE_FILES"
         }
       ]
     },
@@ -97803,6 +97823,16 @@
           "path": "schemas/archive_content_capabilities.v1.json",
           "line": 1,
           "sink": "json-presentation:origin"
+        }
+      ]
+    },
+    {
+      "key": "Open full message list",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/error_reference_guidance.py",
+          "line": 56,
+          "sink": "python-data:WIKI_REFERENCE_FILES"
         }
       ]
     },
@@ -152977,6 +153007,16 @@
       "manual": true
     },
     {
+      "key": "The complete message index is stored with this Wiki in the files below because GitHub limits how much text one page can render. These files include every indexed message, source and recovery group. The JSON file is intended for search tools and AI helpers.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/error_reference_guidance.py",
+          "line": 54,
+          "sink": "python-data:WIKI_REFERENCE_FILES"
+        }
+      ]
+    },
+    {
       "key": "The component stopped or forwarded an error whose exact cause is in the accompanying detail. Record the action, full message, application/helper version and reproducible input. Reopen the last accepted work; report repeated failures instead of forcing the operation.",
       "origins": [
         {
@@ -170826,7 +170866,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/error_reference_guidance.py",
-          "line": 53,
+          "line": 60,
           "sink": "python-data:EXTERNAL_ERROR_GUIDE"
         }
       ]
@@ -171331,7 +171371,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/error_reference_guidance.py",
-          "line": 53,
+          "line": 60,
           "sink": "python-data:EXTERNAL_ERROR_GUIDE"
         }
       ]
@@ -171366,7 +171406,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/error_reference_guidance.py",
-          "line": 53,
+          "line": 60,
           "sink": "python-data:EXTERNAL_ERROR_GUIDE"
         }
       ]
@@ -171376,7 +171416,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/error_reference_guidance.py",
-          "line": 53,
+          "line": 60,
           "sink": "python-data:EXTERNAL_ERROR_GUIDE"
         }
       ]

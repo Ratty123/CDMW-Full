@@ -50,6 +50,13 @@ MESSAGE_AREAS = {
     "other": "Other application error messages",
 }
 
+WIKI_REFERENCE_FILES = {
+    'intro': 'The complete message index is stored with this Wiki in the files below because GitHub limits how much text one page can render. These files include every indexed message, source and recovery group. The JSON file is intended for search tools and AI helpers.',
+    'json': 'Complete message index (JSON)',
+    'text': 'Open full message list',
+    'recovery': 'Message recovery guidance',
+}
+
 EXTERNAL_ERROR_GUIDE = """
 <p>Keep the complete message, tool name, operation and error namespace. A Windows error, HTTP status, HRESULT, native status and process exit number are different systems. The same decimal number can mean different things in each; exit code 1 or 2 alone does not identify a CDMW failure.</p>
 <p>For Windows file errors, 2 or 3 usually means a missing file or path; 5 means access was denied; 32 or 33 indicates a sharing or locking conflict; 112 indicates a full disk; 123 or 206 points to an invalid or excessively long name. Check the path and action reported by the failing component. These meanings apply to Win32 error numbers, not arbitrary process exit codes.</p>

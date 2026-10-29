@@ -24,10 +24,16 @@ from cdmw.ui.localization import _translate_html_text
 from cdmw.ui.localization_catalogs_v2 import load_builtin_catalog
 from cdmw.ui.shell.about_documentation_en import AboutDocumentationEnglishMixin
 from cdmw.ui.shell.compact.registry import COMPACT_TOOL_SPECS
-from cdmw.ui.shell.error_reference_guidance import MESSAGE_AREAS
+from cdmw.ui.shell.error_reference_guidance import (
+    MESSAGE_AREAS, MESSAGE_REFERENCE_INTRO, RECOVERY_GUIDANCE, EXTERNAL_ERROR_GUIDE,
+    WIKI_REFERENCE_FILES,
+)
+from cdmw.ui.shell.error_reference import build_error_reference_sections, CODE_GUIDANCE, ERROR_REFERENCE_GROUPS
+from cdmw.ui.shell.error_reference_data import ERROR_REFERENCE, MESSAGE_REFERENCE, DYNAMIC_REFERENCE
 
 WIKI = "https://github.com/Ratty123/CDMW-Full/wiki/"
 REPOSITORY = "https://github.com/Ratty123/CDMW-Full"
+WIKI_RAW = "https://raw.githubusercontent.com/wiki/Ratty123/CDMW-Full/"
 PAGE_TOPICS = {
     "Home": ("overview", "safety"),
     "Getting-Started": ("first_run_checklist",),
@@ -486,7 +492,27 @@ def build_pages() -> dict[str, str]:
                 parts.append(f'<details>\n<summary>{html.escape(translate("Documentation Index"))}</summary>\n\n{topic_links}\n\n</details>')
             for topic in visible_topics:
                 section = sections[topic]
-                body = _translate_html(section["html"], locale, translations)
+                source_html = section['html']
+                if page == 'Error-Code-Library':
+                    if topic.startswith('error_messages_'):
+                        area = topic.removeprefix('error_messages_')
+                        source_html = f'<p><a href="{WIKI_RAW}reference/{locale}/{area}.txt">{WIKI_REFERENCE_FILES["text"]}</a></p>'
+                    elif topic == 'external_errors':
+                        source_html = EXTERNAL_ERROR_GUIDE
+                    elif topic == 'error_code_library':
+                        # Link repeated remedies to their full explanation once,
+                        # keeping every code while leaving room for all locales.
+                        for key, (label, remedy) in RECOVERY_GUIDANCE.items():
+                            source_html = source_html.replace(
+                                f'<li>{html.escape(remedy)}</li>',
+                                f'<li><a href="#errors-recovery-{key}">{html.escape(label)}</a></li>',
+                            )
+                        source_html = (
+                            f'<p>{WIKI_REFERENCE_FILES["intro"]}</p>'
+                            f'<p><a href="{WIKI_RAW}reference/{locale}/index.json">{WIKI_REFERENCE_FILES["json"]}</a></p>'
+                            + source_html
+                        )
+                body = _translate_html(source_html, locale, translations)
                 parsed = DocumentParser(body).root
                 if topic == "overview":
                     # The Help search field is outside the article in CDMW.
@@ -526,6 +552,10 @@ def build_pages() -> dict[str, str]:
                     parts.append(f'{heading}\n\n<details>\n<summary>{html.escape(translate(section["title"]))}</summary>\n\n{markdown}\n\n</details>')
                 else:
                     parts.extend([heading, markdown])
+                if topic == 'external_errors':
+                    recovery = f'<h4 id="errors-recovery">{WIKI_REFERENCE_FILES["recovery"]}</h4>'
+                    recovery += ''.join(f'<h4 id="errors-recovery-{key}">{html.escape(title)}</h4><p>{html.escape(text)}</p>' for key, (title, text) in RECOVERY_GUIDANCE.items())
+                    parts.append(_blocks(DocumentParser(_translate_html(recovery, locale, translations)).root, locale))
             if page == "Independent-Item-Packages":
                 source = sections["new_item_studio"]["html"]
                 paragraphs = re.findall(r"<p>(.*?)</p>", source, re.S)
@@ -690,6 +720,39 @@ def build_manuals(guides: dict[str, str] | None = None) -> dict[str, str]:
     return result
 
 
+def build_reference_assets() -> dict[str, str]:
+    """Complete Wiki-owned data without exceeding GitHub's page renderer limit.
+
+    Non-Markdown assets do not create more pages in the global Wiki sidebar.
+    They use exactly the same diagnostic data and translations as in-app Help.
+    """
+    sections = {row['id']: row for row in build_error_reference_sections()}
+    assets = {}
+    for language in BUILTIN_LANGUAGES:
+        locale = language.code
+        translations = load_builtin_catalog(locale)['translations']
+        translate = lambda value: str(translations.get(value, value))
+        render = lambda value: _blocks(DocumentParser(_translate_html(value, locale, translations)).root, locale)
+        reference = {
+            'schema': 1,
+            'language': locale,
+            'source_build': APP_VERSION,
+            'source_base_url': REPOSITORY + '/blob/main/',
+            'scope': render(MESSAGE_REFERENCE_INTRO),
+            'areas': {area: translate(title) for area, title in MESSAGE_AREAS.items()},
+            'recovery_guidance': {key: {'title': translate(title), 'explanation': translate(text)} for key, (title, text) in RECOVERY_GUIDANCE.items()},
+            'codes': [{**row, 'explanation': translate(CODE_GUIDANCE[row['code']]) if row['code'] in CODE_GUIDANCE else render(ERROR_REFERENCE_GROUPS[row['group']][1])} for row in ERROR_REFERENCE],
+            'messages': MESSAGE_REFERENCE,
+            'dynamic_sources': DYNAMIC_REFERENCE,
+            'external_errors': render(EXTERNAL_ERROR_GUIDE),
+        }
+        assets[f'reference/{locale}/index.json'] = json.dumps(reference, ensure_ascii=False, indent=2) + '\n'
+        for area, title in MESSAGE_AREAS.items():
+            body = render(sections['error_messages_' + area]['html'])
+            assets[f'reference/{locale}/{area}.txt'] = translate(title) + '\n\n' + body + f'\n\nCDMW {APP_VERSION}\n'
+    return assets
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output", type=Path, required=True, help="Explicit local Wiki checkout or draft folder.")
@@ -704,7 +767,7 @@ def main() -> int:
     guides = None if args.source_wiki is None else {
         name: (args.source_wiki / name).read_text(encoding="utf-8") for name in legacy_names
     }
-    pages = build_manuals(guides)
+    pages = {**build_manuals(guides), **build_reference_assets()}
     output = args.output.resolve()
     old_paths = legacy_names | {manual_slug(language.code) + ".md" for language in BUILTIN_LANGUAGES}
     obsolete = sorted(name for name in old_paths - pages.keys() if (output / name).is_file())

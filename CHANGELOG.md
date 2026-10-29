@@ -13,7 +13,7 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 ### Docs
 
-- Help and the Wiki include a searchable error-code and error-message reference in all 14 interface languages, covering uncoded messages, native/helper failures, likely causes and recovery steps. Windows and external-tool guidance explains variable errors and what details to report, alongside the current mod-manager compatibility guidance.
+- Help and the Wiki include an error-code and error-message reference in all 14 interface languages, covering uncoded messages, native/helper failures, likely causes and recovery steps. The Wiki links complete message lists and a searchable index for AI helpers. Windows and external-tool guidance explains variable errors and what details to report, alongside the current mod-manager compatibility guidance.
 
 ## [0.11.0-alpha.27] - 2026-10-28
 
