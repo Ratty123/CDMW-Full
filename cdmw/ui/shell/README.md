@@ -159,14 +159,37 @@ export. The in-app topics continue to own the wording.
 Folded sections use localized blockquote labels because GitHub Wiki does not
 process native alert markers inside HTML details blocks.
 
-The Error Code Library uses `error_reference.py` for translated guidance and
-`error_reference_data.py` for the generated inventory of diagnostic identifiers,
-literal messages and owning source paths. After changing named diagnostics, run
+The Error Code Library uses `error_reference.py` and
+`error_reference_guidance.py` for shared translated explanations. The generated
+`error_reference_data.py` records named codes, uncoded message patterns, native
+statuses/error kinds, source owners and dynamic error handoffs. Help separates
+the message index into feature topics; the Wiki keeps them in the same manual,
+with collapsible cause/recovery groups and exact diagnostic text for search.
+
+After changing diagnostics, run
 `python scripts/generate_error_reference.py --write`; use `--check` for freshness.
+`scripts/error_reference_scan.py` reads application Python, feature tools and
+first-party C++, Rust and .NET sources without executing them. Test files,
+inline Rust test modules, development harnesses and vendored/build trees are
+excluded. Packaged native self-check diagnostics and optional tools can still
+appear; inclusion does not mean a path is enabled in every release.
+`python scripts/audit_error_reference.py` independently checks literal exception,
+assertion, warning-dialog, error-log and native failure sites against the data.
+The freshness check alone is not coverage proof. Keep the scanner regression
+fixtures and independent audit passing when introducing another emission form.
+
+The reference groups likely causes and recovery steps; those are starting points,
+not diagnoses inferred conclusively from a string. Forwarded Windows, library,
+provider and external-tool text is runtime-dependent and cannot be exhaustively
+enumerated. The external-error topic explains namespaces, common Win32/NTSTATUS
+values and what details to retain. It does not invent CDMW codes for them.
 Exact diagnostic text uses `<code translate="no">` so both Help and Wiki retain
 searchable original messages. Errors, warnings, informational states and dynamic
 code families are distinguished in the guide; the inventory is source evidence,
 not a claim that every registered code is emitted or observed in a release.
+Validate `tests/test_error_reference.py`, `tests/test_wiki_export.py` and the
+localization-manifest check. Review the published GitHub layout and the end of
+each translated manual for truncation after an authorized Wiki publication.
 
 ## Settings and display scaling
 

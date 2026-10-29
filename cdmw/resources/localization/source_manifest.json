@@ -3766,7 +3766,7 @@
         },
         {
           "path": "cdmw/ui/shell/error_reference.py",
-          "line": 104,
+          "line": 114,
           "sink": "python-return:build_error_reference_section"
         }
       ]
@@ -4071,7 +4071,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/error_reference.py",
-          "line": 63,
+          "line": 69,
           "sink": "python-data:CODE_GUIDANCE"
         }
       ]
@@ -4135,6 +4135,16 @@
       "key": "A file path is too long. Use a shorter app or workspace location.",
       "origins": [],
       "manual": true
+    },
+    {
+      "key": "A helper, library or required runtime is missing, blocked or from a different build. Use a complete matching CDMW distribution and check the reported executable path. Keep the helper's error output; do not download individual DLLs from unrelated sites.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/error_reference_guidance.py",
+          "line": 14,
+          "sink": "python-data:RECOVERY_GUIDANCE"
+        }
+      ]
     },
     {
       "key": "A little is normal; a lot means the item is buried. It is measured on demand because the check is too slow to run on every frame of a playing animation.",
@@ -4291,7 +4301,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/error_reference.py",
-          "line": 38,
+          "line": 44,
           "sink": "python-data:CODE_GUIDANCE"
         }
       ]
@@ -4301,7 +4311,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/error_reference.py",
-          "line": 54,
+          "line": 60,
           "sink": "python-data:CODE_GUIDANCE"
         }
       ]
@@ -4343,6 +4353,16 @@
           "path": "cdmw/services/archive_overlay_manager.py",
           "line": 983,
           "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "A process ending with NTSTATUS 0xC0000005 suffered an access violation; 0xC000007B indicates an invalid image format; 0xC0000135 indicates a missing DLL; 0xC0000142 indicates DLL initialization failure. A log may show the same 32-bit value as a signed decimal number. Preserve the crash log and version; these values identify a failure class, not the faulty file or a guaranteed remedy.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/error_reference_guidance.py",
+          "line": 53,
+          "sink": "python-data:EXTERNAL_ERROR_GUIDE"
         }
       ]
     },
@@ -4447,6 +4467,16 @@
       ]
     },
     {
+      "key": "A remote service could not be reached or returned an unsuccessful response. Check connectivity, the configured service and its status, then retry after any stated delay. Keep the HTTP status and response detail, but remove credentials before sharing a report.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/error_reference_guidance.py",
+          "line": 30,
+          "sink": "python-data:RECOVERY_GUIDANCE"
+        }
+      ]
+    },
+    {
       "key": "A renamed imported dye part needs an explicit RGB mask for its UV layout.",
       "origins": [
         {
@@ -4476,7 +4506,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/error_reference.py",
-          "line": 42,
+          "line": 48,
           "sink": "python-data:CODE_GUIDANCE"
         }
       ]
@@ -4485,6 +4515,16 @@
       "key": "A required texture replacement resource is missing.",
       "origins": [],
       "manual": true
+    },
+    {
+      "key": "A required value, selection or relationship does not satisfy the tool's rules. Correct the named field, range, item or dependency and rebuild the plan or validation report. Keep identifiers from the matching source data instead of guessing replacements.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/error_reference_guidance.py",
+          "line": 22,
+          "sink": "python-data:RECOVERY_GUIDANCE"
+        }
+      ]
     },
     {
       "key": "A resolved existing target icon entry is required for custom item icons.",
@@ -4621,8 +4661,13 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/error_reference.py",
-          "line": 71,
+          "line": 77,
           "sink": "python-data:CODE_GUIDANCE"
+        },
+        {
+          "path": "cdmw/ui/shell/error_reference_guidance.py",
+          "line": 13,
+          "sink": "python-data:RECOVERY_GUIDANCE"
         }
       ]
     },
@@ -4801,7 +4846,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/error_reference.py",
-          "line": 44,
+          "line": 50,
           "sink": "python-data:CODE_GUIDANCE"
         }
       ]
@@ -5055,6 +5100,16 @@
       "key": "Accepted current Research role for file",
       "origins": [],
       "manual": true
+    },
+    {
+      "key": "Access denied",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/error_reference_guidance.py",
+          "line": 15,
+          "sink": "python-data:RECOVERY_GUIDANCE"
+        }
+      ]
     },
     {
       "key": "Access was denied. Check permissions for the workspace and source files.",
@@ -9021,7 +9076,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/error_reference.py",
-          "line": 61,
+          "line": 67,
           "sink": "python-data:CODE_GUIDANCE"
         }
       ]
@@ -9031,7 +9086,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/error_reference.py",
-          "line": 60,
+          "line": 66,
           "sink": "python-data:CODE_GUIDANCE"
         }
       ]
@@ -9081,7 +9136,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/error_reference.py",
-          "line": 78,
+          "line": 84,
           "sink": "python-data:CODE_GUIDANCE"
         }
       ]
@@ -9916,8 +9971,13 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/error_reference.py",
-          "line": 73,
+          "line": 79,
           "sink": "python-data:CODE_GUIDANCE"
+        },
+        {
+          "path": "cdmw/ui/shell/error_reference_guidance.py",
+          "line": 16,
+          "sink": "python-data:RECOVERY_GUIDANCE"
         }
       ]
     },
@@ -12802,6 +12862,16 @@
       ]
     },
     {
+      "key": "Archive error messages",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/error_reference_guidance.py",
+          "line": 38,
+          "sink": "python-data:MESSAGE_AREAS"
+        }
+      ]
+    },
+    {
       "key": "Archive export cancelled.",
       "origins": [
         {
@@ -13281,7 +13351,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/error_reference.py",
-          "line": 21,
+          "line": 27,
           "sink": "python-data:ERROR_REFERENCE_GROUPS"
         }
       ]
@@ -17311,12 +17381,12 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/error_reference.py",
-          "line": 10,
+          "line": 15,
           "sink": "python-data:ERROR_REFERENCE_INTRO"
         },
         {
           "path": "cdmw/ui/shell/error_reference.py",
-          "line": 104,
+          "line": 114,
           "sink": "python-return:build_error_reference_section"
         }
       ]
@@ -21296,7 +21366,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/error_reference.py",
-          "line": 64,
+          "line": 70,
           "sink": "python-data:CODE_GUIDANCE"
         }
       ]
@@ -21456,7 +21526,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/error_reference.py",
-          "line": 81,
+          "line": 87,
           "sink": "python-data:CODE_GUIDANCE"
         }
       ]
@@ -23107,6 +23177,16 @@
       "manual": true
     },
     {
+      "key": "Cancelled operations",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/error_reference_guidance.py",
+          "line": 19,
+          "sink": "python-data:RECOVERY_GUIDANCE"
+        }
+      ]
+    },
+    {
       "key": "Cancelled the pending in-game mesh swap target.",
       "origins": [
         {
@@ -23506,8 +23586,18 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/error_reference.py",
-          "line": 30,
+          "line": 36,
           "sink": "python-data:ERROR_REFERENCE_GROUPS"
+        }
+      ]
+    },
+    {
+      "key": "Capture and research error messages",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/error_reference_guidance.py",
+          "line": 49,
+          "sink": "python-data:MESSAGE_AREAS"
         }
       ]
     },
@@ -24181,7 +24271,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/error_reference.py",
-          "line": 68,
+          "line": 74,
           "sink": "python-data:CODE_GUIDANCE"
         }
       ]
@@ -24468,6 +24558,16 @@
           "path": "cdmw/ui/archive_browser/pac_xml_editor_parameters.py",
           "line": 387,
           "sink": "QCheckBox"
+        }
+      ]
+    },
+    {
+      "key": "Changed or stale state",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/error_reference_guidance.py",
+          "line": 26,
+          "sink": "python-data:RECOVERY_GUIDANCE"
         }
       ]
     },
@@ -32281,7 +32381,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/error_reference.py",
-          "line": 79,
+          "line": 85,
           "sink": "python-data:CODE_GUIDANCE"
         }
       ]
@@ -36441,7 +36541,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/error_reference.py",
-          "line": 26,
+          "line": 32,
           "sink": "python-data:ERROR_REFERENCE_GROUPS"
         }
       ]
@@ -37005,6 +37105,16 @@
       "key": "Creatures",
       "origins": [],
       "manual": true
+    },
+    {
+      "key": "Credentials, permissions and quotas",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/error_reference_guidance.py",
+          "line": 31,
+          "sink": "python-data:RECOVERY_GUIDANCE"
+        }
+      ]
     },
     {
       "key": "Crimson Desert Mod Workbench",
@@ -38651,7 +38761,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/error_reference.py",
-          "line": 27,
+          "line": 33,
           "sink": "python-data:ERROR_REFERENCE_GROUPS"
         }
       ]
@@ -41161,12 +41271,12 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/error_reference.py",
-          "line": 10,
+          "line": 15,
           "sink": "python-data:ERROR_REFERENCE_INTRO"
         },
         {
           "path": "cdmw/ui/shell/error_reference.py",
-          "line": 104,
+          "line": 114,
           "sink": "python-return:build_error_reference_section"
         }
       ]
@@ -42118,6 +42228,16 @@
           "path": "cdmw/ui/archive_browser/static_replacement_prompt_preflight.py",
           "line": 332,
           "sink": "report"
+        }
+      ]
+    },
+    {
+      "key": "Disk space and memory",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/error_reference_guidance.py",
+          "line": 17,
+          "sink": "python-data:RECOVERY_GUIDANCE"
         }
       ]
     },
@@ -44208,6 +44328,16 @@
           "path": "cdmw/ui/archive_browser/pac_xml_editor_parameters.py",
           "line": 67,
           "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Each group gives likely causes and recovery steps, followed by the messages and their owning source files. A cause is a starting point, not a diagnosis proved by the wording alone. Follow a more specific instruction in the actual error. Repeated messages can come from different tools.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/error_reference_guidance.py",
+          "line": 3,
+          "sink": "python-data:MESSAGE_REFERENCE_INTRO"
         }
       ]
     },
@@ -47686,7 +47816,7 @@
         },
         {
           "path": "cdmw/ui/shell/error_reference.py",
-          "line": 104,
+          "line": 114,
           "sink": "python-return:build_error_reference_section"
         }
       ]
@@ -48226,7 +48356,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/error_reference.py",
-          "line": 23,
+          "line": 29,
           "sink": "python-data:ERROR_REFERENCE_GROUPS"
         }
       ]
@@ -48583,6 +48713,16 @@
           "path": "cdmw/ui/archive_browser/attachment_placement_diff_dialog.py",
           "line": 1910,
           "sink": "QTreeWidgetItem"
+        }
+      ]
+    },
+    {
+      "key": "Existing or conflicting output",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/error_reference_guidance.py",
+          "line": 25,
+          "sink": "python-data:RECOVERY_GUIDANCE"
         }
       ]
     },
@@ -53147,6 +53287,16 @@
       ]
     },
     {
+      "key": "File-format error messages",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/error_reference_guidance.py",
+          "line": 39,
+          "sink": "python-data:MESSAGE_AREAS"
+        }
+      ]
+    },
+    {
       "key": "File...",
       "origins": [
         {
@@ -53263,6 +53413,16 @@
           "path": "cdmw/ui/research/tab_builders.py",
           "line": 278,
           "sink": "EmptyStateTreeWidget"
+        }
+      ]
+    },
+    {
+      "key": "Files in use",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/error_reference_guidance.py",
+          "line": 16,
+          "sink": "python-data:RECOVERY_GUIDANCE"
         }
       ]
     },
@@ -54236,8 +54396,18 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/error_reference.py",
-          "line": 104,
+          "line": 114,
           "sink": "python-return:build_error_reference_section"
+        }
+      ]
+    },
+    {
+      "key": "Find a message without a code, its source and possible recovery steps.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/error_reference.py",
+          "line": 162,
+          "sink": "python-return:build_error_reference_sections"
         }
       ]
     },
@@ -54646,7 +54816,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/error_reference.py",
-          "line": 48,
+          "line": 54,
           "sink": "python-data:CODE_GUIDANCE"
         }
       ]
@@ -56483,6 +56653,36 @@
           "path": "cdmw/ui/new_item/panels_model.py",
           "line": 981,
           "sink": "setText"
+        }
+      ]
+    },
+    {
+      "key": "For HTTP or AI-provider failures, retain the status and provider error type. Authentication failures, rate limits, unavailable models, malformed requests and server failures need different remedies. Follow the provider's current documentation and retry instructions. Do not publish credentials or assume repeated retries will fix an invalid request.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/error_reference_guidance.py",
+          "line": 53,
+          "sink": "python-data:EXTERNAL_ERROR_GUIDE"
+        }
+      ]
+    },
+    {
+      "key": "For NCNN, chaiNNer, Blender, OpenImageIO, audio converters and other external tools, retain the executable version, command stage, exit status and standard error. Check the selected model, input format, output path and tool-specific requirements. CDMW cannot assign a universal meaning to every message produced by another program.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/error_reference_guidance.py",
+          "line": 53,
+          "sink": "python-data:EXTERNAL_ERROR_GUIDE"
+        }
+      ]
+    },
+    {
+      "key": "For Windows file errors, 2 or 3 usually means a missing file or path; 5 means access was denied; 32 or 33 indicates a sharing or locking conflict; 112 indicates a full disk; 123 or 206 points to an invalid or excessively long name. Check the path and action reported by the failing component. These meanings apply to Win32 error numbers, not arbitrary process exit codes.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/error_reference_guidance.py",
+          "line": 53,
+          "sink": "python-data:EXTERNAL_ERROR_GUIDE"
         }
       ]
     },
@@ -59738,6 +59938,16 @@
           "path": "cdmw/ui/texture_editor_tab.py",
           "line": 731,
           "sink": "addItem"
+        }
+      ]
+    },
+    {
+      "key": "Graphics and rendering failures",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/error_reference_guidance.py",
+          "line": 29,
+          "sink": "python-data:RECOVERY_GUIDANCE"
         }
       ]
     },
@@ -64227,6 +64437,16 @@
       ]
     },
     {
+      "key": "Identify variable operating-system, provider and subprocess failures.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/error_reference.py",
+          "line": 162,
+          "sink": "python-return:build_error_reference_sections"
+        }
+      ]
+    },
+    {
       "key": "Identity",
       "origins": [
         {
@@ -66141,7 +66361,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/error_reference.py",
-          "line": 36,
+          "line": 42,
           "sink": "python-data:CODE_GUIDANCE"
         }
       ]
@@ -67292,6 +67512,16 @@
       ]
     },
     {
+      "key": "Independent item and loader error messages",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/error_reference_guidance.py",
+          "line": 46,
+          "sink": "python-data:MESSAGE_AREAS"
+        }
+      ]
+    },
+    {
       "key": "Independent item changes applied. Backup:",
       "origins": [
         {
@@ -67406,7 +67636,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/error_reference.py",
-          "line": 29,
+          "line": 35,
           "sink": "python-data:ERROR_REFERENCE_GROUPS"
         }
       ]
@@ -69042,6 +69272,16 @@
       ]
     },
     {
+      "key": "Integrity and identity checks",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/error_reference_guidance.py",
+          "line": 27,
+          "sink": "python-data:RECOVERY_GUIDANCE"
+        }
+      ]
+    },
+    {
       "key": "Inter-part collisions and guide-cloth simulation are not included in this preview.",
       "origins": [
         {
@@ -69567,6 +69807,16 @@
       "manual": true
     },
     {
+      "key": "Invalid or incomplete file data",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/error_reference_guidance.py",
+          "line": 21,
+          "sink": "python-data:RECOVERY_GUIDANCE"
+        }
+      ]
+    },
+    {
       "key": "Invalid or missing shared compilation context. Restore the matching overlay inventory.",
       "origins": [],
       "manual": true
@@ -70053,6 +70303,16 @@
           "path": "cdmw/services/mesh_translucency.py",
           "line": 101,
           "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Invalid values or selections",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/error_reference_guidance.py",
+          "line": 22,
+          "sink": "python-data:RECOVERY_GUIDANCE"
         }
       ]
     },
@@ -70963,6 +71223,16 @@
           "path": "cdmw/ui/shell/about_documentation_en.py",
           "line": 368,
           "sink": "python-return:_build_archive_mesh_sections"
+        }
+      ]
+    },
+    {
+      "key": "Item authoring error messages",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/error_reference_guidance.py",
+          "line": 43,
+          "sink": "python-data:MESSAGE_AREAS"
         }
       ]
     },
@@ -72358,6 +72628,16 @@
           "path": "cdmw/ui/new_item/panels_perks.py",
           "line": 149,
           "sink": "QPushButton"
+        }
+      ]
+    },
+    {
+      "key": "Keep the complete message, tool name, operation and error namespace. A Windows error, HTTP status, HRESULT, native status and process exit number are different systems. The same decimal number can mean different things in each; exit code 1 or 2 alone does not identify a CDMW failure.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/error_reference_guidance.py",
+          "line": 53,
+          "sink": "python-data:EXTERNAL_ERROR_GUIDE"
         }
       ]
     },
@@ -78766,7 +79046,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/error_reference.py",
-          "line": 37,
+          "line": 43,
           "sink": "python-data:CODE_GUIDANCE"
         }
       ]
@@ -78778,6 +79058,16 @@
           "path": "cdmw/ui/archive_browser/material_sidecar_editor_helpers.py",
           "line": 445,
           "sink": "python-return:material_sidecar_preview_blocked_status"
+        }
+      ]
+    },
+    {
+      "key": "Material error messages",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/error_reference_guidance.py",
+          "line": 41,
+          "sink": "python-data:MESSAGE_AREAS"
         }
       ]
     },
@@ -79371,7 +79661,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/error_reference.py",
-          "line": 28,
+          "line": 34,
           "sink": "python-data:ERROR_REFERENCE_GROUPS"
         }
       ]
@@ -81571,7 +81861,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/error_reference.py",
-          "line": 22,
+          "line": 28,
           "sink": "python-data:ERROR_REFERENCE_GROUPS"
         }
       ]
@@ -81973,6 +82263,16 @@
           "path": "cdmw/ui/archive_browser/hkx_editor_dialog_shell_part_01.py",
           "line": 240,
           "sink": "addItem"
+        }
+      ]
+    },
+    {
+      "key": "Mesh and editing error messages",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/error_reference_guidance.py",
+          "line": 40,
+          "sink": "python-data:MESSAGE_AREAS"
         }
       ]
     },
@@ -83126,7 +83426,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/error_reference.py",
-          "line": 25,
+          "line": 31,
           "sink": "python-data:ERROR_REFERENCE_GROUPS"
         }
       ]
@@ -83146,7 +83446,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/error_reference.py",
-          "line": 24,
+          "line": 30,
           "sink": "python-data:ERROR_REFERENCE_GROUPS"
         }
       ]
@@ -83937,6 +84237,16 @@
       ]
     },
     {
+      "key": "Missing files or resources",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/error_reference_guidance.py",
+          "line": 13,
+          "sink": "python-data:RECOVERY_GUIDANCE"
+        }
+      ]
+    },
+    {
       "key": "Missing final texture path examples:",
       "origins": [
         {
@@ -84028,6 +84338,16 @@
           "path": "cdmw/ui/shell/about_documentation_en.py",
           "line": 791,
           "sink": "python-return:_build_environment_sections"
+        }
+      ]
+    },
+    {
+      "key": "Missing or incompatible helpers",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/error_reference_guidance.py",
+          "line": 14,
+          "sink": "python-data:RECOVERY_GUIDANCE"
         }
       ]
     },
@@ -88387,6 +88707,16 @@
       ]
     },
     {
+      "key": "Native and feature-tool identifiers",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/error_reference.py",
+          "line": 26,
+          "sink": "python-data:ERROR_REFERENCE_GROUPS"
+        }
+      ]
+    },
+    {
       "key": "Native character presentation preparation cancelled.",
       "origins": [
         {
@@ -88873,6 +89203,16 @@
           "path": "tools/placement_studio/constraints.py",
           "line": 443,
           "sink": "Section"
+        }
+      ]
+    },
+    {
+      "key": "Network and provider failures",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/error_reference_guidance.py",
+          "line": 30,
+          "sink": "python-data:RECOVERY_GUIDANCE"
         }
       ]
     },
@@ -93666,7 +94006,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/error_reference.py",
-          "line": 43,
+          "line": 49,
           "sink": "python-data:CODE_GUIDANCE"
         }
       ]
@@ -94808,6 +95148,16 @@
           "path": "cdmw/ui/policy_preview_dialog.py",
           "line": 255,
           "sink": "setPlainText"
+        }
+      ]
+    },
+    {
+      "key": "Nothing available to process",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/error_reference_guidance.py",
+          "line": 24,
+          "sink": "python-data:RECOVERY_GUIDANCE"
         }
       ]
     },
@@ -99787,6 +100137,16 @@
       ]
     },
     {
+      "key": "Other application error messages",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/error_reference_guidance.py",
+          "line": 50,
+          "sink": "python-data:MESSAGE_AREAS"
+        }
+      ]
+    },
+    {
       "key": "Other influences redistribute proportionally. Cloth guide weights are preserved.",
       "origins": [
         {
@@ -99908,6 +100268,16 @@
           "path": "cdmw/ui/shell/about_documentation_en.py",
           "line": 368,
           "sink": "python-return:_build_archive_mesh_sections"
+        }
+      ]
+    },
+    {
+      "key": "Output and publication failures",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/error_reference_guidance.py",
+          "line": 33,
+          "sink": "python-data:RECOVERY_GUIDANCE"
         }
       ]
     },
@@ -101843,6 +102213,16 @@
           "path": "cdmw/ui/archive_browser/attachment_safe_placement_dialog.py",
           "line": 322,
           "sink": "setHeaderLabels"
+        }
+      ]
+    },
+    {
+      "key": "Package and recovery error messages",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/error_reference_guidance.py",
+          "line": 45,
+          "sink": "python-data:MESSAGE_AREAS"
         }
       ]
     },
@@ -105933,6 +106313,16 @@
           "path": "cdmw/ui/archive_browser/attachment_placement_diff_dialog.py",
           "line": 1739,
           "sink": "getOpenFileName:filter-label"
+        }
+      ]
+    },
+    {
+      "key": "Placement and animation error messages",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/error_reference_guidance.py",
+          "line": 44,
+          "sink": "python-data:MESSAGE_AREAS"
         }
       ]
     },
@@ -115276,12 +115666,12 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/error_reference.py",
-          "line": 10,
+          "line": 15,
           "sink": "python-data:ERROR_REFERENCE_INTRO"
         },
         {
           "path": "cdmw/ui/shell/error_reference.py",
-          "line": 104,
+          "line": 114,
           "sink": "python-return:build_error_reference_section"
         }
       ]
@@ -117226,7 +117616,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/error_reference.py",
-          "line": 53,
+          "line": 59,
           "sink": "python-data:CODE_GUIDANCE"
         }
       ]
@@ -118666,8 +119056,18 @@
         },
         {
           "path": "cdmw/ui/shell/error_reference.py",
-          "line": 104,
+          "line": 114,
           "sink": "python-return:build_error_reference_section"
+        },
+        {
+          "path": "cdmw/ui/shell/error_reference.py",
+          "line": 162,
+          "sink": "python-return:build_error_reference_sections"
+        },
+        {
+          "path": "cdmw/ui/shell/error_reference.py",
+          "line": 162,
+          "sink": "python-return:build_error_reference_sections"
         },
         {
           "path": "cdmw/ui/shell/help_dialogs.py",
@@ -125162,6 +125562,16 @@
       ]
     },
     {
+      "key": "Resource and format limits",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/error_reference_guidance.py",
+          "line": 23,
+          "sink": "python-data:RECOVERY_GUIDANCE"
+        }
+      ]
+    },
+    {
       "key": "Respawn timer (raw u64)",
       "origins": [
         {
@@ -129272,6 +129682,16 @@
       ]
     },
     {
+      "key": "Safety and recovery refusals",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/error_reference_guidance.py",
+          "line": 28,
+          "sink": "python-data:RECOVERY_GUIDANCE"
+        }
+      ]
+    },
+    {
       "key": "Safety rules",
       "origins": [
         {
@@ -131881,12 +132301,12 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/error_reference.py",
-          "line": 10,
+          "line": 15,
           "sink": "python-data:ERROR_REFERENCE_INTRO"
         },
         {
           "path": "cdmw/ui/shell/error_reference.py",
-          "line": 104,
+          "line": 114,
           "sink": "python-return:build_error_reference_section"
         }
       ]
@@ -138497,6 +138917,16 @@
       ]
     },
     {
+      "key": "Settings and startup error messages",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/error_reference_guidance.py",
+          "line": 48,
+          "sink": "python-data:MESSAGE_AREAS"
+        }
+      ]
+    },
+    {
       "key": "Settings has five pages in its left-hand list:",
       "origins": [
         {
@@ -138518,6 +138948,16 @@
           "path": "cdmw/ui/shell/about_documentation_en.py",
           "line": 791,
           "sink": "python-return:_build_environment_sections"
+        }
+      ]
+    },
+    {
+      "key": "Settings, schemas and versions",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/error_reference_guidance.py",
+          "line": 32,
+          "sink": "python-data:RECOVERY_GUIDANCE"
         }
       ]
     },
@@ -143377,6 +143817,16 @@
       "manual": true
     },
     {
+      "key": "Some failures contain only an exception, operating-system message, provider response or subprocess output supplied at runtime. Their possible text is not a finite CDMW list. The external-error guidance explains how to identify the source and retain the details needed for diagnosis.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/error_reference_guidance.py",
+          "line": 3,
+          "sink": "python-data:MESSAGE_REFERENCE_INTRO"
+        }
+      ]
+    },
+    {
       "key": "Some items are still unresolved. Choose the original DDS for each of them before building.",
       "origins": [
         {
@@ -143541,7 +143991,7 @@
         },
         {
           "path": "cdmw/ui/shell/error_reference.py",
-          "line": 104,
+          "line": 114,
           "sink": "python-return:build_error_reference_section"
         },
         {
@@ -150187,6 +150637,16 @@
       ]
     },
     {
+      "key": "Texture error messages",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/error_reference_guidance.py",
+          "line": 42,
+          "sink": "python-data:MESSAGE_AREAS"
+        }
+      ]
+    },
+    {
       "key": "Texture filename or archive-relative DDS path",
       "origins": [
         {
@@ -151411,7 +151871,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/error_reference.py",
-          "line": 18,
+          "line": 23,
           "sink": "python-data:ERROR_REFERENCE_FALLBACK"
         }
       ]
@@ -151621,7 +152081,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/error_reference.py",
-          "line": 69,
+          "line": 75,
           "sink": "python-data:CODE_GUIDANCE"
         }
       ]
@@ -151631,7 +152091,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/error_reference.py",
-          "line": 80,
+          "line": 86,
           "sink": "python-data:CODE_GUIDANCE"
         }
       ]
@@ -151641,7 +152101,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/error_reference.py",
-          "line": 70,
+          "line": 76,
           "sink": "python-data:CODE_GUIDANCE"
         }
       ]
@@ -152126,8 +152586,13 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/error_reference.py",
-          "line": 76,
+          "line": 82,
           "sink": "python-data:CODE_GUIDANCE"
+        },
+        {
+          "path": "cdmw/ui/shell/error_reference_guidance.py",
+          "line": 20,
+          "sink": "python-data:RECOVERY_GUIDANCE"
         }
       ]
     },
@@ -152136,8 +152601,13 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/error_reference.py",
-          "line": 74,
+          "line": 80,
           "sink": "python-data:CODE_GUIDANCE"
+        },
+        {
+          "path": "cdmw/ui/shell/error_reference_guidance.py",
+          "line": 18,
+          "sink": "python-data:RECOVERY_GUIDANCE"
         }
       ]
     },
@@ -152322,6 +152792,16 @@
       ]
     },
     {
+      "key": "The bytes, hash, signature or source identity do not match the expected input or output. Keep the originals and failed report, restore matching companions and stop repeated writes. Do not edit a manifest or receipt to hide the mismatch.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/error_reference_guidance.py",
+          "line": 27,
+          "sink": "python-data:RECOVERY_GUIDANCE"
+        }
+      ]
+    },
+    {
       "key": "The capture came back empty.",
       "origins": [
         {
@@ -152495,6 +152975,16 @@
       "key": "The complete DDS texture could not be decoded: {value_0}",
       "origins": [],
       "manual": true
+    },
+    {
+      "key": "The component stopped or forwarded an error whose exact cause is in the accompanying detail. Record the action, full message, application/helper version and reproducible input. Reopen the last accepted work; report repeated failures instead of forcing the operation.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/error_reference_guidance.py",
+          "line": 34,
+          "sink": "python-data:RECOVERY_GUIDANCE"
+        }
+      ]
     },
     {
       "key": "The composed overlay history exceeds the supported size (at least {value_0} bytes; limit {value_1} bytes); this change cannot be published.",
@@ -152727,6 +153217,16 @@
       ]
     },
     {
+      "key": "The destination already exists or conflicts with another package or operation. Inspect it and choose a separate output name or use the tool's explicit replacement flow. Do not delete unknown files or combine overlapping mods to suppress the warning.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/error_reference_guidance.py",
+          "line": 25,
+          "sink": "python-data:RECOVERY_GUIDANCE"
+        }
+      ]
+    },
+    {
       "key": "The displayed target rig does not match its resolved PAC palette.",
       "origins": [
         {
@@ -152811,7 +153311,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/error_reference.py",
-          "line": 58,
+          "line": 64,
           "sink": "python-data:CODE_GUIDANCE"
         }
       ]
@@ -152821,7 +153321,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/error_reference.py",
-          "line": 46,
+          "line": 52,
           "sink": "python-data:CODE_GUIDANCE"
         }
       ]
@@ -152831,7 +153331,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/error_reference.py",
-          "line": 49,
+          "line": 55,
           "sink": "python-data:CODE_GUIDANCE"
         }
       ]
@@ -152861,7 +153361,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/error_reference.py",
-          "line": 67,
+          "line": 73,
           "sink": "python-data:CODE_GUIDANCE"
         }
       ]
@@ -153081,7 +153581,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/error_reference.py",
-          "line": 50,
+          "line": 56,
           "sink": "python-data:CODE_GUIDANCE"
         }
       ]
@@ -153142,11 +153642,21 @@
       ]
     },
     {
+      "key": "The external service rejected credentials, access or usage limits. Check the selected provider, account permission and available quota. Never include API keys, authorization headers or private tokens in a report.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/error_reference_guidance.py",
+          "line": 31,
+          "sink": "python-data:RECOVERY_GUIDANCE"
+        }
+      ]
+    },
+    {
       "key": "The failing component supplied no recognized code. Preserve the complete message and diagnostic report.",
       "origins": [
         {
           "path": "cdmw/ui/shell/error_reference.py",
-          "line": 83,
+          "line": 89,
           "sink": "python-data:CODE_GUIDANCE"
         }
       ]
@@ -153582,6 +154092,16 @@
       "manual": true
     },
     {
+      "key": "The input exceeds a size, count, index or resource limit. Reduce the affected selection or export in supported parts. A format limit may require a different workflow; do not remove the guard or force a truncated result.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/error_reference_guidance.py",
+          "line": 23,
+          "sink": "python-data:RECOVERY_GUIDANCE"
+        }
+      ]
+    },
+    {
       "key": "The installed Rust helper does not contain the New Item interface. Rebuild the native helpers before opening this tool.",
       "origins": [
         {
@@ -153661,7 +154181,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/error_reference.py",
-          "line": 82,
+          "line": 88,
           "sink": "python-data:CODE_GUIDANCE"
         }
       ]
@@ -153856,7 +154376,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/error_reference.py",
-          "line": 39,
+          "line": 45,
           "sink": "python-data:CODE_GUIDANCE"
         }
       ]
@@ -153943,6 +154463,16 @@
           "path": "cdmw/ui/mesh_editor/replacement_flow.py",
           "line": 34,
           "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "The message index includes errors without a code, validation refusals, warnings and native/helper diagnostics. Search a distinctive part of the message as well as its code. Braces and percent placeholders represent runtime values such as a path, number or upstream error; they are not text you must type.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/error_reference_guidance.py",
+          "line": 3,
+          "sink": "python-data:MESSAGE_REFERENCE_INTRO"
         }
       ]
     },
@@ -154296,7 +154826,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/error_reference.py",
-          "line": 75,
+          "line": 81,
           "sink": "python-data:CODE_GUIDANCE"
         }
       ]
@@ -154326,8 +154856,43 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/error_reference.py",
-          "line": 72,
+          "line": 78,
           "sink": "python-data:CODE_GUIDANCE"
+        },
+        {
+          "path": "cdmw/ui/shell/error_reference_guidance.py",
+          "line": 15,
+          "sink": "python-data:RECOVERY_GUIDANCE"
+        }
+      ]
+    },
+    {
+      "key": "The operation cannot prove that a write, rollback or restore is safe. Keep backups and receipts, inspect the recovery report and follow the documented restore flow for that exact target. Do not bypass confirmation or remove recovery material.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/error_reference_guidance.py",
+          "line": 28,
+          "sink": "python-data:RECOVERY_GUIDANCE"
+        }
+      ]
+    },
+    {
+      "key": "The operation could not obtain enough disk space or memory. Check the output and temporary drives, close unnecessary workloads and reduce the input size. Preserve recovery files; increasing a safety limit is not a fix.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/error_reference_guidance.py",
+          "line": 17,
+          "sink": "python-data:RECOVERY_GUIDANCE"
+        }
+      ]
+    },
+    {
+      "key": "The operation has no usable input, selection, matching result or pending change. Check filters and paths, load the required data and select the intended content. Empty output is not evidence that an export or installation succeeded.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/error_reference_guidance.py",
+          "line": 24,
+          "sink": "python-data:RECOVERY_GUIDANCE"
         }
       ]
     },
@@ -154338,6 +154903,16 @@
           "path": "cdmw/ui/new_item/panels_output.py",
           "line": 138,
           "sink": "python-return:install_result_report"
+        }
+      ]
+    },
+    {
+      "key": "The operation was cancelled or its owner closed. A cancellation is not proof of corrupt input. Keep the last accepted work and inspect any output or recovery report before starting a new attempt.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/error_reference_guidance.py",
+          "line": 19,
+          "sink": "python-data:RECOVERY_GUIDANCE"
         }
       ]
     },
@@ -154892,6 +155467,16 @@
       ]
     },
     {
+      "key": "The reader found an unexpected header, encoding, layout or incomplete payload. Confirm the file type and matching companion files, then retry an unchanged original or re-export with supported settings. A parse error alone does not prove the game installation is corrupt.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/error_reference_guidance.py",
+          "line": 21,
+          "sink": "python-data:RECOVERY_GUIDANCE"
+        }
+      ]
+    },
+    {
       "key": "The reading that fits is that .papr is a rig export left in the archives that no runtime code loads.",
       "origins": [
         {
@@ -154906,7 +155491,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/error_reference.py",
-          "line": 65,
+          "line": 71,
           "sink": "python-data:CODE_GUIDANCE"
         }
       ]
@@ -154972,11 +155557,21 @@
       ]
     },
     {
+      "key": "The renderer could not create or use a device, surface, shader or texture resource. Preserve accepted work, check the reported graphics backend and supported driver, and reopen the preview. Report repeated device loss or crashes with the native log; a blank preview does not prove the asset is empty.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/error_reference_guidance.py",
+          "line": 29,
+          "sink": "python-data:RECOVERY_GUIDANCE"
+        }
+      ]
+    },
+    {
       "key": "The renderer did not confirm the material update in time. Retry that material; report repeated timeouts.",
       "origins": [
         {
           "path": "cdmw/ui/shell/error_reference.py",
-          "line": 40,
+          "line": 46,
           "sink": "python-data:CODE_GUIDANCE"
         }
       ]
@@ -154996,7 +155591,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/error_reference.py",
-          "line": 56,
+          "line": 62,
           "sink": "python-data:CODE_GUIDANCE"
         }
       ]
@@ -155006,7 +155601,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/error_reference.py",
-          "line": 41,
+          "line": 47,
           "sink": "python-data:CODE_GUIDANCE"
         }
       ]
@@ -155201,7 +155796,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/error_reference.py",
-          "line": 57,
+          "line": 63,
           "sink": "python-data:CODE_GUIDANCE"
         }
       ]
@@ -155441,7 +156036,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/error_reference.py",
-          "line": 66,
+          "line": 72,
           "sink": "python-data:CODE_GUIDANCE"
         }
       ]
@@ -155751,7 +156346,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/error_reference.py",
-          "line": 47,
+          "line": 53,
           "sink": "python-data:CODE_GUIDANCE"
         }
       ]
@@ -155855,6 +156450,16 @@
       "key": "The session receipt location is not a directory.",
       "origins": [],
       "manual": true
+    },
+    {
+      "key": "The settings, document schema or protocol does not match what this build expects. Use matching application and helper versions, check the named setting and reopen or re-export with the supported format. Preserve the original configuration before changing it.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/error_reference_guidance.py",
+          "line": 32,
+          "sink": "python-data:RECOVERY_GUIDANCE"
+        }
+      ]
     },
     {
       "key": "The setup file and its stored identity disagree.",
@@ -156132,6 +156737,16 @@
       ]
     },
     {
+      "key": "The source audit includes application Python, feature tools and first-party Rust, C++ and .NET helpers. Unit tests, development harnesses, generated files and vendored libraries are excluded. A source entry can belong to an optional helper or a guarded path that your installed release does not use.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/error_reference_guidance.py",
+          "line": 3,
+          "sink": "python-data:MESSAGE_REFERENCE_INTRO"
+        }
+      ]
+    },
+    {
       "key": "The source dependency context does not contain its mesh.",
       "origins": [
         {
@@ -156177,11 +156792,21 @@
       "manual": true
     },
     {
+      "key": "The source, selection, revision or result no longer matches the active operation. Refresh from the current source and repeat the selection or validation. Preserve accepted work; an old response may be deliberately ignored rather than applied to newer edits.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/error_reference_guidance.py",
+          "line": 26,
+          "sink": "python-data:RECOVERY_GUIDANCE"
+        }
+      ]
+    },
+    {
       "key": "The staged package could not be published. Inspect the destination, permissions and full error before retrying.",
       "origins": [
         {
           "path": "cdmw/ui/shell/error_reference.py",
-          "line": 55,
+          "line": 61,
           "sink": "python-data:CODE_GUIDANCE"
         }
       ]
@@ -156506,7 +157131,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/error_reference.py",
-          "line": 51,
+          "line": 57,
           "sink": "python-data:CODE_GUIDANCE"
         }
       ]
@@ -156516,7 +157141,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/error_reference.py",
-          "line": 59,
+          "line": 65,
           "sink": "python-data:CODE_GUIDANCE"
         }
       ]
@@ -156616,7 +157241,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/error_reference.py",
-          "line": 45,
+          "line": 51,
           "sink": "python-data:CODE_GUIDANCE"
         }
       ]
@@ -156746,7 +157371,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/error_reference.py",
-          "line": 77,
+          "line": 83,
           "sink": "python-data:CODE_GUIDANCE"
         }
       ]
@@ -156826,7 +157451,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/error_reference.py",
-          "line": 29,
+          "line": 35,
           "sink": "python-data:ERROR_REFERENCE_GROUPS"
         }
       ]
@@ -156846,7 +157471,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/error_reference.py",
-          "line": 21,
+          "line": 27,
           "sink": "python-data:ERROR_REFERENCE_GROUPS"
         }
       ]
@@ -156856,7 +157481,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/error_reference.py",
-          "line": 26,
+          "line": 32,
           "sink": "python-data:ERROR_REFERENCE_GROUPS"
         }
       ]
@@ -156866,7 +157491,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/error_reference.py",
-          "line": 25,
+          "line": 31,
           "sink": "python-data:ERROR_REFERENCE_GROUPS"
         }
       ]
@@ -156878,6 +157503,16 @@
           "path": "cdmw/ui/archive_browser/prefab_inspector_rows.py",
           "line": 140,
           "sink": "setToolTip"
+        }
+      ]
+    },
+    {
+      "key": "These components can forward variable error details from another operation, library, service or process. Read the complete detail using the guidance above.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/error_reference.py",
+          "line": 162,
+          "sink": "python-return:build_error_reference_sections"
         }
       ]
     },
@@ -156921,7 +157556,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/error_reference.py",
-          "line": 28,
+          "line": 34,
           "sink": "python-data:ERROR_REFERENCE_GROUPS"
         }
       ]
@@ -156941,7 +157576,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/error_reference.py",
-          "line": 27,
+          "line": 33,
           "sink": "python-data:ERROR_REFERENCE_GROUPS"
         }
       ]
@@ -156951,7 +157586,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/error_reference.py",
-          "line": 24,
+          "line": 30,
           "sink": "python-data:ERROR_REFERENCE_GROUPS"
         }
       ]
@@ -156971,7 +157606,17 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/error_reference.py",
-          "line": 30,
+          "line": 36,
+          "sink": "python-data:ERROR_REFERENCE_GROUPS"
+        }
+      ]
+    },
+    {
+      "key": "These identifiers come from native helpers, texture jobs and feature-tool validation. An enum name or numeric native status identifies the reporting component; it is not a Windows error number. Read the associated message and the matching message-reference section for causes and recovery. Missing reports and failed publication require checking the helper output and final destination before retrying.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/error_reference.py",
+          "line": 26,
           "sink": "python-data:ERROR_REFERENCE_GROUPS"
         }
       ]
@@ -157051,7 +157696,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/error_reference.py",
-          "line": 22,
+          "line": 28,
           "sink": "python-data:ERROR_REFERENCE_GROUPS"
         }
       ]
@@ -158091,12 +158736,12 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/error_reference.py",
-          "line": 10,
+          "line": 15,
           "sink": "python-data:ERROR_REFERENCE_INTRO"
         },
         {
           "path": "cdmw/ui/shell/error_reference.py",
-          "line": 104,
+          "line": 114,
           "sink": "python-return:build_error_reference_section"
         }
       ]
@@ -158881,7 +159526,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/error_reference.py",
-          "line": 62,
+          "line": 68,
           "sink": "python-data:CODE_GUIDANCE"
         }
       ]
@@ -159273,6 +159918,16 @@
           "path": "cdmw/ui/new_item/read_failure.py",
           "line": 62,
           "sink": "python-return:_report_text"
+        }
+      ]
+    },
+    {
+      "key": "Timeouts",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/error_reference_guidance.py",
+          "line": 18,
+          "sink": "python-data:RECOVERY_GUIDANCE"
         }
       ]
     },
@@ -160026,7 +160681,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/error_reference.py",
-          "line": 23,
+          "line": 29,
           "sink": "python-data:ERROR_REFERENCE_GROUPS"
         }
       ]
@@ -160508,6 +161163,16 @@
           "path": "cdmw/ui/shell/problem_report_catalog.py",
           "line": 119,
           "sink": "python-data:REPORT_TOOLS"
+        }
+      ]
+    },
+    {
+      "key": "Translation and provider error messages",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/error_reference_guidance.py",
+          "line": 47,
+          "sink": "python-data:MESSAGE_AREAS"
         }
       ]
     },
@@ -162307,6 +162972,16 @@
       ]
     },
     {
+      "key": "Unexpected or forwarded failures",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/error_reference_guidance.py",
+          "line": 34,
+          "sink": "python-data:RECOVERY_GUIDANCE"
+        }
+      ]
+    },
+    {
       "key": "Unified Diff",
       "origins": [
         {
@@ -163358,6 +164033,16 @@
           "path": "cdmw/services/new_item_mounted_base.py",
           "line": 82,
           "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Unsupported operations",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/error_reference_guidance.py",
+          "line": 20,
+          "sink": "python-data:RECOVERY_GUIDANCE"
         }
       ]
     },
@@ -170137,6 +170822,16 @@
       ]
     },
     {
+      "key": "When no code or useful detail is shown, use Report a Problem and attach the reviewed diagnostic report. Include what you clicked, the affected input type, the expected result and whether an unchanged original also fails. The absence of a named code does not mean that the operation succeeded.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/error_reference_guidance.py",
+          "line": 53,
+          "sink": "python-data:EXTERNAL_ERROR_GUIDE"
+        }
+      ]
+    },
+    {
       "key": "When off, the mod leaves out {files}, so other body mods keep working. Turn this on only to ship changes you made to the body.",
       "origins": [
         {
@@ -170632,12 +171327,57 @@
       ]
     },
     {
+      "key": "Windows NTSTATUS reference",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/error_reference_guidance.py",
+          "line": 53,
+          "sink": "python-data:EXTERNAL_ERROR_GUIDE"
+        }
+      ]
+    },
+    {
       "key": "Windows account encryption was unavailable, so the API key was not written to disk. Everything else was saved, and the key still works for this session; you will need to enter it again next time.",
       "origins": [
         {
           "path": "tools/translation_studio/ai_panel.py",
           "line": 256,
           "sink": "warning"
+        }
+      ]
+    },
+    {
+      "key": "Windows and external-tool errors",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/error_reference.py",
+          "line": 114,
+          "sink": "python-return:build_error_reference_section"
+        },
+        {
+          "path": "cdmw/ui/shell/error_reference.py",
+          "line": 162,
+          "sink": "python-return:build_error_reference_sections"
+        }
+      ]
+    },
+    {
+      "key": "Windows loader errors 126, 127 or 193 can indicate a missing dependency, a missing entry point or an incompatible executable. The named program can exist while one of its dependencies is missing. Restore the complete matching distribution and inspect the helper's startup detail.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/error_reference_guidance.py",
+          "line": 53,
+          "sink": "python-data:EXTERNAL_ERROR_GUIDE"
+        }
+      ]
+    },
+    {
+      "key": "Windows system error reference",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/error_reference_guidance.py",
+          "line": 53,
+          "sink": "python-data:EXTERNAL_ERROR_GUIDE"
         }
       ]
     },
@@ -171671,7 +172411,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/error_reference.py",
-          "line": 52,
+          "line": 58,
           "sink": "python-data:CODE_GUIDANCE"
         }
       ]
@@ -171943,6 +172683,16 @@
           "path": "cdmw/ui/archive_browser/source_mix_actions.py",
           "line": 556,
           "sink": "log"
+        }
+      ]
+    },
+    {
+      "key": "Writing, validating or publishing the output failed. Inspect the destination, free space, permissions and complete report. A staged file is not necessarily a completed output; verify the final path before retrying, replacing or installing anything.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/error_reference_guidance.py",
+          "line": 33,
+          "sink": "python-data:RECOVERY_GUIDANCE"
         }
       ]
     },
@@ -179151,7 +179901,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/error_reference.py",
-          "line": 104,
+          "line": 114,
           "sink": "python-return:build_error_reference_section"
         }
       ]
@@ -203555,6 +204305,24 @@
       "symbol": "LabApplication::draw_cdmw_refit_feedback",
       "source": "still intersects Part ",
       "reason": "Native error matching token; the Fit panel presents separate translated guidance and keeps the original diagnostic in collapsed details."
+    },
+    {
+      "path": "cdmw/ui/shell/error_reference.py",
+      "symbol": "build_error_reference_sections",
+      "source": "error_messages_{value_0}",
+      "reason": "Internal Help topic identifier or search keywords; the visible title, summary and guidance are translated separately."
+    },
+    {
+      "path": "cdmw/ui/shell/error_reference.py",
+      "symbol": "build_error_reference_sections",
+      "source": "Windows Win32 HRESULT NTSTATUS exit status HTTP provider exception stderr",
+      "reason": "Internal Help topic identifier or search keywords; the visible title, summary and guidance are translated separately."
+    },
+    {
+      "path": "cdmw/ui/shell/error_reference.py",
+      "symbol": "build_error_reference_sections",
+      "source": "error message warning exception native helper failure recovery",
+      "reason": "Internal Help topic identifier or search keywords; the visible title, summary and guidance are translated separately."
     }
   ]
 }

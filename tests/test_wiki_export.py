@@ -355,6 +355,14 @@ def test_in_app_browser_renders_the_expanded_guides_in_each_locale(tmp_path, lan
         guide = wiki_pages[page_slug("Error-Code-Library", language.code) + ".md"]
         assert "MAT_ROLE_ACK_TIMEOUT" in guide
         assert literal in guide
+        for topic, needle in (("error_messages_textures", "native"), ("external_errors", "0xC0000005")):
+            dialog.select_section(topic)
+            localizer.apply(dialog)
+            plain = dialog.browser.toPlainText()
+            assert needle in plain
+            section = next(s for s in sections if s['id'] == topic)
+            assert localizer.translate(section['title']) in plain
+            assert localizer.translate(section['title']) in guide
         dialog.select_section('new_item_studio')
         localizer.apply(dialog)
         import json
@@ -372,7 +380,7 @@ def test_in_app_browser_renders_the_expanded_guides_in_each_locale(tmp_path, lan
 
 
 def test_error_library_is_linked_and_folded_without_rewording_diagnostics(wiki_manuals):
-    from cdmw.ui.shell.error_reference_data import ERROR_REFERENCE
+    from cdmw.ui.shell.error_reference_data import ERROR_REFERENCE, MESSAGE_REFERENCE
     from cdmw.ui.localization_catalogs_v2 import load_builtin_catalog
 
     for language in BUILTIN_LANGUAGES:
@@ -385,3 +393,9 @@ def test_error_library_is_linked_and_folded_without_rewording_diagnostics(wiki_m
             assert sentence in manual
         for row in ERROR_REFERENCE:
             assert row["code"] in manual
+        # Parse Markdown code spans independently of the HTML exporter. Every
+        # exact message must survive translation, escaping and manual folding.
+        quoted = {match[1].strip() for match in re.findall(r'(`+)(.*?)\1', manual, re.DOTALL)}
+        assert {row['message'] for row in MESSAGE_REFERENCE} <= quoted
+        assert '<a id="external_errors"></a>' in manual
+        assert '0xC0000005' in manual and '0xC0000142' in manual

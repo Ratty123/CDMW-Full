@@ -346,5 +346,23 @@
     "symbol": "LabApplication::draw_cdmw_refit_feedback",
     "source": "still intersects Part ",
     "reason": "Native error matching token; the Fit panel presents separate translated guidance and keeps the original diagnostic in collapsed details."
+  },
+  {
+    "path": "cdmw/ui/shell/error_reference.py",
+    "symbol": "build_error_reference_sections",
+    "source": "error_messages_{value_0}",
+    "reason": "Internal Help topic identifier or search keywords; the visible title, summary and guidance are translated separately."
+  },
+  {
+    "path": "cdmw/ui/shell/error_reference.py",
+    "symbol": "build_error_reference_sections",
+    "source": "Windows Win32 HRESULT NTSTATUS exit status HTTP provider exception stderr",
+    "reason": "Internal Help topic identifier or search keywords; the visible title, summary and guidance are translated separately."
+  },
+  {
+    "path": "cdmw/ui/shell/error_reference.py",
+    "symbol": "build_error_reference_sections",
+    "source": "error message warning exception native helper failure recovery",
+    "reason": "Internal Help topic identifier or search keywords; the visible title, summary and guidance are translated separately."
   }
 ]

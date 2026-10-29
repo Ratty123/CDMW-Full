@@ -4,7 +4,12 @@ from __future__ import annotations
 from html import escape
 from pathlib import PurePosixPath
 
-from cdmw.ui.shell.error_reference_data import ERROR_REFERENCE
+from collections import defaultdict
+
+from cdmw.ui.shell.error_reference_data import ERROR_REFERENCE, MESSAGE_REFERENCE, DYNAMIC_REFERENCE
+from cdmw.ui.shell.error_reference_guidance import (
+    MESSAGE_REFERENCE_INTRO, MESSAGE_AREAS, RECOVERY_GUIDANCE, EXTERNAL_ERROR_GUIDE,
+)
 
 
 ERROR_REFERENCE_INTRO = """
@@ -18,6 +23,7 @@ ERROR_REFERENCE_INTRO = """
 ERROR_REFERENCE_FALLBACK = "The accompanying detail identifies the failing value or dependency. Follow the recovery guidance for this section."
 
 ERROR_REFERENCE_GROUPS = {
+    "native_tools": ("Native and feature-tool identifiers", """<p>These identifiers come from native helpers, texture jobs and feature-tool validation. An enum name or numeric native status identifies the reporting component; it is not a Windows error number. Read the associated message and the matching message-reference section for causes and recovery. Missing reports and failed publication require checking the helper output and final destination before retrying.</p>"""),
     "archive": ("Archive operations", """<p>These codes come from the archive worker, its connection to CDMW, or catalogue recovery. The affected read, query or export stops; an error alone does not mean the archive is corrupt. Check the reported path and stage. Close competing file operations, check access and free space, then retry. After a game or mod update, rescan current sources. For missing or incompatible helpers, use a complete matching CDMW distribution. Repeated crashes, protocol errors or timeouts need the copied error report.</p>"""),
     "mesh_runtime": ("Mesh Editor runtime", """<p>These stable codes identify material delivery, view changes, edit sessions, writeback and package publication. For missing textures, resolve the imported dependencies. For a renderer failure, preserve a finished draft and reopen the editor. Wait for pending edits; undo or return to the last accepted mesh after a refused edit. Inspect output before retrying a failed build. Stale-generation codes normally discard an obsolete response and need no action unless the current operation is also stuck.</p>"""),
     "topology": ("Topology and provenance", """<p>Exact rebuild needs a proven relationship between edited geometry and the original mesh. These blockers refuse output when that relationship, supported layout or byte-preservation check fails. Undo the unsupported edit or return to the original editable package; use Free Edit for an external authoring package when exact game output is unavailable. Do not invent vertex identities or remove provenance checks. A PAC section is limited to 65,535 vertices and supported skin rows to six positive influences.</p>"""),
@@ -85,7 +91,9 @@ CODE_GUIDANCE = {
 
 
 def build_error_reference_section() -> dict[str, str]:
-    parts = [ERROR_REFERENCE_INTRO]
+    parts = [ERROR_REFERENCE_INTRO, MESSAGE_REFERENCE_INTRO, '<ul>']
+    parts.extend(f'<li><a href="topic:error_messages_{area}">{escape(title)}</a></li>' for area, title in MESSAGE_AREAS.items())
+    parts.append('<li><a href="topic:external_errors">Windows and external-tool errors</a></li></ul>')
     for group, (title, guide) in ERROR_REFERENCE_GROUPS.items():
         parts.append(f'<h4 id="errors-{group}">{escape(title)}</h4>{guide}')
         for row in ERROR_REFERENCE:
@@ -94,6 +102,8 @@ def build_error_reference_section() -> dict[str, str]:
             detail = []
             if row["code"] in CODE_GUIDANCE:
                 detail.append(escape(CODE_GUIDANCE[row["code"]]))
+            elif group == 'native_tools':
+                detail.append(escape(RECOVERY_GUIDANCE[row['recovery']][1]))
             detail.extend(f'<code translate="no">{escape(message)}</code>' for message in row["messages"])
             if not detail:
                 detail.append(ERROR_REFERENCE_FALLBACK)
@@ -109,3 +119,44 @@ def build_error_reference_section() -> dict[str, str]:
         "keywords": "error code library diagnostic warning fatal blocker recovery reason troubleshooting exception",
         "html": ''.join(parts),
     }
+
+
+def build_error_reference_sections() -> list[dict[str, str]]:
+    """Keep each Help topic bounded while exporting one complete Wiki guide."""
+    sections = [build_error_reference_section()]
+    for area, title in MESSAGE_AREAS.items():
+        parts = [MESSAGE_REFERENCE_INTRO]
+        by_recovery = defaultdict(lambda: defaultdict(list))
+        for row in MESSAGE_REFERENCE:
+            if row['area'] == area:
+                # A message can have several callers. Keep every source owner,
+                # but link each file once per recovery group for readability.
+                for source in row['sources']:
+                    by_recovery[row['recovery']][source].append(row['message'])
+        for recovery, (heading, guidance) in RECOVERY_GUIDANCE.items():
+            if recovery not in by_recovery:
+                continue
+            parts.append(f'<h4 id="errors-{area}-{recovery}">{escape(heading)}</h4><p>{escape(guidance)}</p>')
+            for source, messages in sorted(by_recovery[recovery].items()):
+                parts.append(f'<p><a href="https://github.com/Ratty123/CDMW-Full/blob/main/{source}"><code translate="no">{escape(source)}</code></a></p><ul>')
+                parts.extend(f'<li><code translate="no">{escape(message)}</code></li>' for message in sorted(set(messages)))
+                parts.append('</ul>')
+        sections.append({
+            'id': 'error_messages_' + area, 'title': title, 'category': 'Reference',
+            'summary': 'Find a message without a code, its source and possible recovery steps.',
+            'keywords': 'error message warning exception native helper failure recovery',
+            'html': ''.join(parts),
+        })
+    parts = [EXTERNAL_ERROR_GUIDE]
+    for area, paths in DYNAMIC_REFERENCE.items():
+        parts.append(f'<h4 id="errors-dynamic-{area}">{escape(MESSAGE_AREAS[area])}</h4>')
+        parts.append('<p>These components can forward variable error details from another operation, library, service or process. Read the complete detail using the guidance above.</p><ul>')
+        parts.extend(f'<li><a href="https://github.com/Ratty123/CDMW-Full/blob/main/{source}"><code translate="no">{escape(source)}</code></a></li>' for source in paths)
+        parts.append('</ul>')
+    sections.append({
+        'id': 'external_errors', 'title': 'Windows and external-tool errors', 'category': 'Reference',
+        'summary': 'Identify variable operating-system, provider and subprocess failures.',
+        'keywords': 'Windows Win32 HRESULT NTSTATUS exit status HTTP provider exception stderr',
+        'html': ''.join(parts),
+    })
+    return sections

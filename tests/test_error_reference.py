@@ -3,14 +3,15 @@ from cdmw.domain.mesh.topology import TOPOLOGY_BLOCKER_CODES
 from cdmw.services.mesh_editor_error_codes import MeshEditorErrorCode
 from cdmw.ui.localization import _translate_html_text
 from cdmw.ui.shell.error_reference import (
-    CODE_GUIDANCE, ERROR_REFERENCE_GROUPS, build_error_reference_section,
+    CODE_GUIDANCE, ERROR_REFERENCE_GROUPS, build_error_reference_section, build_error_reference_sections,
 )
-from cdmw.ui.shell.error_reference_data import ERROR_REFERENCE
-from scripts.generate_error_reference import ROOT, collect_reference
+from cdmw.ui.shell.error_reference_data import ERROR_REFERENCE, MESSAGE_REFERENCE, DYNAMIC_REFERENCE, SOURCE_COVERAGE
+from scripts.generate_error_reference import ROOT, collect_reference, collect_library
 
 
 def test_error_inventory_matches_emitting_sources_and_registries():
-    assert collect_reference() == ERROR_REFERENCE
+    assert collect_library() == {'ERROR_REFERENCE': ERROR_REFERENCE, 'MESSAGE_REFERENCE': MESSAGE_REFERENCE,
+                                'DYNAMIC_REFERENCE': DYNAMIC_REFERENCE, 'SOURCE_COVERAGE': SOURCE_COVERAGE}
     codes = {row["code"] for row in ERROR_REFERENCE}
     assert {code.value for code in MeshEditorErrorCode} <= codes
     assert set(TOPOLOGY_BLOCKER_CODES) <= codes
@@ -63,3 +64,95 @@ def example():
     codes = {row["code"] for row in rows}
     assert {"real_warning", "name.required"} <= codes
     assert "not_a_diagnostic" not in codes
+
+
+def test_independent_language_sink_audit_has_no_unaccounted_messages():
+    from scripts.audit_error_reference import audit
+    counts, missing = audit()
+    assert counts['Python raise'] > 7000
+    assert counts['Native direct failure literal'] > 1000
+    assert not missing, missing[:20]
+
+
+def test_message_topics_contain_every_pattern_recovery_and_source():
+    from html import escape
+    from cdmw.ui.shell.error_reference_guidance import RECOVERY_GUIDANCE
+    sections = {row['id']: row['html'] for row in build_error_reference_sections()}
+    for row in MESSAGE_REFERENCE:
+        body = sections['error_messages_' + row['area']]
+        assert f'<code translate="no">{escape(row["message"])}</code>' in body
+        assert escape(RECOVERY_GUIDANCE[row['recovery']][1]) in body
+        assert all('/blob/main/' + path in body for path in row['sources'])
+    for paths in DYNAMIC_REFERENCE.values():
+        assert all('/blob/main/' + path in sections['external_errors'] for path in paths)
+
+
+def test_python_scanner_keeps_reason_variants_and_ignores_metadata():
+    from scripts.error_reference_scan import python_emissions
+    source = '''
+def _record_failure(*, reason, detail): pass
+def run(failed):
+    reason = "nonzero_returncode" if failed else "missing_report"
+    _record_failure(reason=reason, detail=f"No report for {failed}")
+    message = "The first input is absent."
+    if failed:
+        message = "The second input is absent."
+    raise RuntimeError(message)
+colors = {"error": "#ff0000"}
+languages = {"code": "de", "native_name": "Deutsch"}
+error_fields = set()
+error_fields.add("mod_setup")
+'''
+    rows = python_emissions('cdmw/example.py', source)
+    assert {'nonzero_returncode', 'missing_report'} <= {row.code for row in rows}
+    assert {'The first input is absent.', 'The second input is absent.'} <= {row.text for row in rows}
+    assert not {'#ff0000', 'mod_setup'} & {row.text for row in rows}
+    assert 'de' not in {row.code for row in rows}
+
+
+def test_native_scanner_preserves_joined_errors_and_rust_display_kinds():
+    from scripts.error_reference_scan import native_emissions
+    cpp = 'throw OverlayConflict("Wrong entry " + std::to_string(id) + " in package.");'
+    assert 'Wrong entry {detail} in package.' in {row.text for row in native_emissions('native/example.cpp', cpp)}
+    assert not native_emissions('native/example.cpp', 'FileAccessError(utf8_path("C:/model.pac"), error, "open");')
+    rust = '''
+enum ExampleError {
+    #[error("Cannot open {0}")]
+    Open(String),
+    #[error(transparent)]
+    Io(std::io::Error),
+}
+impl std::fmt::Display for WindowError {
+    fn fmt(&self) { let message = match self {
+        Self::WrongHandle => "the created window has no native HWND",
+    }; }
+}
+#[cfg(test)]
+mod tests { fn check() { panic!("test-only failure"); } }
+fn later() { panic!("A production failure after the tests"); }
+'''
+    rows = native_emissions('tools/rust_mesh_lab/example.rs', rust)
+    assert {'ExampleError::Open', 'ExampleError::Io', 'WindowError::WrongHandle'} <= {r.code for r in rows}
+    assert 'test-only failure' not in {r.text for r in rows}
+    assert 'A production failure after the tests' in {r.text for r in rows}
+    assert any(r.text == '{upstream error}' and r.code == 'ExampleError::Io' for r in rows)
+
+
+def test_audited_scope_covers_application_and_native_entry_points():
+    for path in ('cdmw_app.py', 'cdmw/core/texture_native.py', 'tools/placement_studio/preflight.py',
+                 'native/cdmw_preview_core/src/owners/path_io.cpp',
+                 'tools/rust_mesh_lab/crates/cdmw_win32_embed/src/lib.rs',
+                 'tools/dotnet_archive_backend/src/Cdmw.FullArchive.Worker/WorkerRuntime.cs'):
+        assert path in SOURCE_COVERAGE
+    assert not any('/tests/' in p or p.endswith('/tests.rs') or '/headless_ui_tests/' in p for p in SOURCE_COVERAGE)
+    codes = {row['code'] for row in ERROR_REFERENCE}
+    assert {'native_helper_missing', 'unsafe_dds_input', 'missing_report', 'nonzero_returncode',
+            'access_denied', 'path_too_long', 'EmbeddedWindowError::UnsupportedPlatform'} <= codes
+
+
+def test_recovery_guidance_distinguishes_asset_libraries_and_bone_sockets():
+    from scripts.generate_error_reference import recovery_kind
+    assert recovery_kind('Model library import file is missing: {scene_path}') == 'missing'
+    assert recovery_kind('Missing imported material library: {library}') == 'missing'
+    assert recovery_kind('Native helper executable is missing.') == 'helper'
+    assert recovery_kind('Invalid attachment socket on the skeleton.') == 'input'

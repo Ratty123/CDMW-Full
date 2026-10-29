@@ -24,6 +24,7 @@ from cdmw.ui.localization import _translate_html_text
 from cdmw.ui.localization_catalogs_v2 import load_builtin_catalog
 from cdmw.ui.shell.about_documentation_en import AboutDocumentationEnglishMixin
 from cdmw.ui.shell.compact.registry import COMPACT_TOOL_SPECS
+from cdmw.ui.shell.error_reference_guidance import MESSAGE_AREAS
 
 WIKI = "https://github.com/Ratty123/CDMW-Full/wiki/"
 REPOSITORY = "https://github.com/Ratty123/CDMW-Full"
@@ -50,7 +51,7 @@ PAGE_TOPICS = {
     "Formats-and-Research": ("format_explorer", "research"),
     "Settings-and-Profiles": ("profile_settings", "window_layout"),
     "Troubleshooting-and-Reporting": ("troubleshooting",),
-    "Error-Code-Library": ("error_code_library",),
+    "Error-Code-Library": ("error_code_library", *("error_messages_" + area for area in MESSAGE_AREAS), "external_errors"),
     "FAQ": ("faq",),
     "Contributing": ("contributing",),
 }
@@ -437,7 +438,7 @@ def build_pages() -> dict[str, str]:
     result = {}
     source_fingerprint = hashlib.sha256(b"".join(
         (ROOT / "cdmw/ui/shell" / name).read_bytes()
-        for name in ("about_documentation_en.py", "error_reference.py", "error_reference_data.py")
+        for name in ("about_documentation_en.py", "error_reference.py", "error_reference_data.py", "error_reference_guidance.py")
     )).hexdigest()[:12]
     for language in BUILTIN_LANGUAGES:
         locale = language.code
@@ -652,9 +653,9 @@ def build_manuals(guides: dict[str, str] | None = None) -> dict[str, str]:
             body = _guide_body(guides[page_slug(page, locale) + ".md"])
             if page == "Error-Code-Library":
                 # Keep diagnostic literals untouched; fold the long catalogue
-                # into its ten translated areas without creating more pages.
+                # into translated areas without creating more Wiki pages.
                 body = re.sub(
-                    r'(<a id="errors-[^"]+"></a>)\n\n## ([^\n]+)\n\n(.*?)(?=\n\n<a id="errors-|\Z)',
+                    r'(<a id="errors-[^"]+"></a>)\n\n#{2,3} ([^\n]+)\n\n(.*?)(?=\n\n<a id="(?:errors-|error_messages_|external_errors)|\Z)',
                     lambda match: match[1] + '\n\n<details>\n<summary><strong>'
                     + html.escape(match[2]) + '</strong></summary>\n\n' + match[3] + '\n\n</details>',
                     body, flags=re.DOTALL,

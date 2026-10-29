@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Dict, List
 
 from cdmw.domain.textures.plan import describe_processing_path_kind
-from cdmw.ui.shell.error_reference import build_error_reference_section
+from cdmw.ui.shell.error_reference import build_error_reference_sections
 
 
 #: The Create New Item documentation section.
@@ -690,7 +690,7 @@ class AboutDocumentationEnglishMixin:
 
     def _build_reference_sections(self) -> List[Dict[str, str]]:
         return [
-            build_error_reference_section(),
+            *build_error_reference_sections(),
             {
                 "id": "contributing",
                 "title": "Contributing",
