@@ -169,6 +169,14 @@ assets: a complete structured `index.json` for search/AI consumers and one
 readable `.txt` message list per area. These are generated from the same source
 and translated guidance as Help, not maintained separately.
 
+Each complete-index link carries a `#sha256=<digest>` fingerprint of the exact
+UTF-8 JSON bytes. Search consumers can read the link from an immutable Wiki
+manual revision and verify the current raw download before using or caching it.
+The Discord support pilot searches this verified index and keeps each selected
+diagnostic with its source owners and recovery guidance; publishing a link alone
+does not make an arbitrary AI helper follow it. Raw endpoints can change, so a
+digest mismatch requires a fresh retrieval rather than using mismatched evidence.
+
 GitHub was observed truncating the 1.7 MB expanded manual during this audit.
 Keep rendered manuals below the tested 450,000-byte budget; full message assets
 must never be silently trimmed to fit. Non-Markdown assets preserve the native

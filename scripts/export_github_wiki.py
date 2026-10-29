@@ -441,6 +441,7 @@ def build_pages() -> dict[str, str]:
     builder.settings_file_path = "CrimsonDesertModWorkbench.cfg"
     builder.archive = type("DocumentationArchive", (), {"archive_cache_root": "workspace/cache"})()
     sections = {section["id"]: section for section in builder._build_about_sections()}
+    reference_assets = build_reference_assets()
     result = {}
     source_fingerprint = hashlib.sha256(b"".join(
         (ROOT / "cdmw/ui/shell" / name).read_bytes()
@@ -500,6 +501,7 @@ def build_pages() -> dict[str, str]:
                     elif topic == 'external_errors':
                         source_html = EXTERNAL_ERROR_GUIDE
                     elif topic == 'error_code_library':
+                        reference_digest = hashlib.sha256(reference_assets[f'reference/{locale}/index.json'].encode('utf-8')).hexdigest()
                         # Link repeated remedies to their full explanation once,
                         # keeping every code while leaving room for all locales.
                         for key, (label, remedy) in RECOVERY_GUIDANCE.items():
@@ -509,7 +511,7 @@ def build_pages() -> dict[str, str]:
                             )
                         source_html = (
                             f'<p>{WIKI_REFERENCE_FILES["intro"]}</p>'
-                            f'<p><a href="{WIKI_RAW}reference/{locale}/index.json">{WIKI_REFERENCE_FILES["json"]}</a></p>'
+                            f'<p><a href="{WIKI_RAW}reference/{locale}/index.json#sha256={reference_digest}">{WIKI_REFERENCE_FILES["json"]}</a></p>'
                             + source_html
                         )
                 body = _translate_html(source_html, locale, translations)

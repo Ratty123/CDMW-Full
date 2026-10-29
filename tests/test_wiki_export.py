@@ -402,6 +402,7 @@ def test_error_library_is_linked_and_folded_without_rewording_diagnostics(wiki_m
 
 
 def test_complete_wiki_assets_preserve_every_message_source_and_translated_remedy(wiki_manuals):
+    import hashlib
     import json
     from cdmw.ui.shell.error_reference_data import ERROR_REFERENCE, MESSAGE_REFERENCE, DYNAMIC_REFERENCE
     from cdmw.ui.shell.error_reference_guidance import RECOVERY_GUIDANCE, MESSAGE_AREAS
@@ -410,7 +411,10 @@ def test_complete_wiki_assets_preserve_every_message_source_and_translated_remed
     assert len(assets) == 14 * 14
     assert not any(path.endswith('.md') for path in assets)
     for language in BUILTIN_LANGUAGES:
-        reference = json.loads(assets[f'reference/{language.code}/index.json'])
+        raw = assets[f'reference/{language.code}/index.json']
+        reference = json.loads(raw)
+        digest = hashlib.sha256(raw.encode('utf-8')).hexdigest()
+        assert f'/reference/{language.code}/index.json#sha256={digest}' in wiki_manuals[manual_path(language.code)]
         assert reference['messages'] == MESSAGE_REFERENCE
         assert reference['dynamic_sources'] == DYNAMIC_REFERENCE
         assert {row['code'] for row in reference['codes']} == {row['code'] for row in ERROR_REFERENCE}
