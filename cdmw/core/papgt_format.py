@@ -29,6 +29,7 @@ __all__ = [
     "PapgtDirectory",
     "papgt_with_directory",
     "parse_papgt",
+    "read_papgt_directories",
     "serialize_papgt",
 ]
 
@@ -82,6 +83,38 @@ def parse_papgt(data: bytes) -> Tuple[PapgtDirectory, ...]:
         flags, name_offset, checksum = struct.unpack_from("<III", data, _HEADER_BYTES + index * _RECORD_BYTES)
         out.append(PapgtDirectory(name=_read_name(table, name_offset), flags=flags, pamt_checksum=checksum))
     return tuple(out)
+
+
+def read_papgt_directories(data: bytes) -> Tuple[PapgtDirectory, ...]:
+    """Read legacy or compact mount metadata without authorizing a rewrite.
+
+    The compact layout has a four-byte header and an opaque 64-byte trailer.
+    Its authentication/rewrite contract is not established; writers must keep
+    using parse_papgt, which only accepts the verified legacy checksum layout.
+    """
+    try:
+        return parse_papgt(data)
+    except ValueError:
+        if len(data) < 4 or data[3] != 2:
+            raise
+    count = data[2]
+    size_at = 4 + count * _RECORD_BYTES
+    if size_at + 4 + 64 > len(data):
+        raise ValueError("Compact PAPGT directory table is truncated")
+    table_size = struct.unpack_from("<I", data, size_at)[0]
+    if size_at + 4 + table_size + 64 != len(data):
+        raise ValueError("Compact PAPGT string table or trailer has invalid bounds")
+    table = data[size_at + 4:size_at + 4 + table_size]
+    result = []
+    seen = set()
+    for index in range(count):
+        flags, offset, checksum = struct.unpack_from("<III", data, 4 + index * _RECORD_BYTES)
+        name = _read_name(table, offset)
+        if not name or name in {".", ".."} or "/" in name or "\\" in name or ":" in name or name.casefold() in seen:
+            raise ValueError("Compact PAPGT has an invalid or duplicate directory name")
+        seen.add(name.casefold())
+        result.append(PapgtDirectory(name, flags, checksum))
+    return tuple(result)
 
 
 def serialize_papgt(directories: Sequence[PapgtDirectory], *, header: bytes = b"") -> bytes:

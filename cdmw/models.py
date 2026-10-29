@@ -472,7 +472,7 @@ class ArchiveEntry:
 
     @property
     def encrypted(self) -> bool:
-        return (self.flags >> 4) != 0
+        return self.encryption_type != 0
 
     @property
     def encryption_type(self) -> int:

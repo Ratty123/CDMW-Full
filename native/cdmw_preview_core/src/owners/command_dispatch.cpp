@@ -16,6 +16,7 @@ int run_cli(int argc, char** argv) {
             run_path_io_self_test();
             run_archive_path_io_self_test();
             run_archive_decode_size_self_test();
+            run_pamlod_table_self_test();
             run_material_contract_self_test();
             run_presentation_geometry_contract_self_test();
             cdmw_native_diag::event("self_test_ok");

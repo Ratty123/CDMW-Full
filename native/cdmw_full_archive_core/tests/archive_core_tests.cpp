@@ -1,5 +1,6 @@
 #include "cdmw_full_archive_core.h"
 #include "archive_core_internal.hpp"
+#include "../../common/pamt_compact.hpp"
 
 #include <chrono>
 #include <iostream>
@@ -124,6 +125,46 @@ void test_case_insensitive_path_compare() {
         "case-insensitive path comparison changed prefix ordering");
     require(compare_case_insensitive("path/file.pac", "PATH") > 0,
         "case-insensitive path comparison changed reverse prefix ordering");
+}
+
+void test_compact_index_and_extension_flags(const fs::path& root) {
+    std::vector<std::uint8_t> data;
+    for (const auto value : {0u, 1u, 0x610E0232u, 48u, 0u, 5u, 0u, 6u}) cdmw::full_archive::append_u32(data, value);
+    data.insert(data.end(), {0, 4, 't', 'e', 's', 't'});
+    for (const auto value : {0u, 1u, 0u, 0u, 5u, 5u}) cdmw::full_archive::append_u32(data, value);
+    append_u16(data, 48);
+    append_u16(data, 0x100);
+    cdmw::full_archive::append_u32(data, 6);
+    data.insert(data.end(), {0, '.', 't', 'x', 't', 0});
+    write_bytes(root / "0.pamt", data);
+    write_bytes(root / "48.paz", {'h', 'e', 'l', 'l', 'o'});
+    std::uint64_t count = 0;
+    std::array<char, 512> error{};
+    const auto index = root / "index.bin";
+    require(cdmw_full_archive_build_index_utf8(root.u8string().c_str(), index.u8string().c_str(), &count,
+        error.data(), error.size()) == CDMW_FULL_ARCHIVE_OK, std::string("compact index failed: ") + error.data());
+    require(count == 1, "compact index lost its entry");
+    const auto indexed = cdmw::full_archive::read_binary(index, 1024 * 1024);
+    const std::string text(indexed.begin(), indexed.end());
+    require(text.find("test.txt") != std::string::npos && text.find("48.paz") != std::string::npos,
+        "compact index lost the extension or sparse PAZ identifier");
+    std::array<std::uint8_t, 5> output{};
+    size_t required = 0;
+    std::array<char, 64> note{};
+    require(cdmw_full_archive_decode_entry_utf8("test.txt", (root / "48.paz").u8string().c_str(), 0, 5, 5, 0x100,
+        output.data(), output.size(), &required, note.data(), note.size(), error.data(), error.size()) == CDMW_FULL_ARCHIVE_OK,
+        "extension bits were interpreted as encryption");
+    require(std::string(output.begin(), output.end()) == "hello", "compact stored payload was modified");
+    data.pop_back();
+    write_bytes(root / "0.pamt", data);
+    const auto rejected = root / "rejected.bin";
+    require(cdmw_full_archive_build_index_utf8(root.u8string().c_str(), rejected.u8string().c_str(), &count,
+        error.data(), error.size()) == CDMW_FULL_ARCHIVE_FORMAT_ERROR, "truncated extension table was accepted");
+    require(!fs::exists(rejected), "invalid compact index was published");
+    std::vector<std::uint8_t> names(128, 0);
+    names.insert(names.end(), {0x80, 1, 5, '/', 'l', 'e', 'a', 'f'});
+    const auto part = cdmw::archive::compact_name_part(names, 128);
+    require(part.parent == 0 && part.text == "/leaf", "multi-byte compact parent distance was lost");
 }
 
 void test_index_and_raw_decode(const fs::path& root) {
@@ -366,6 +407,7 @@ int main() {
         require(cdmw_full_archive_core_abi_version() == CDMW_FULL_ARCHIVE_CORE_ABI_VERSION, "ABI version is wrong");
         test_case_insensitive_path_compare();
         test_index_and_raw_decode(root / "raw");
+        test_compact_index_and_extension_flags(root / "compact");
         test_duplicate_override_metadata(root / "duplicates");
         test_index_deduplicates_source_paths(root / "deduplicated-source-paths");
         test_lz4_and_chacha(root / "codec");

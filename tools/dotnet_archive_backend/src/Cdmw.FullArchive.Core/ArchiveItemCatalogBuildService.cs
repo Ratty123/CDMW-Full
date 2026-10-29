@@ -10,7 +10,7 @@ public sealed class ArchiveItemCatalogBuildService(
     ArchiveSessionManager sessions,
     NativeArchiveCore native)
 {
-    private const int CacheSchemaVersion = 6;
+    private const int CacheSchemaVersion = 7;
     private const int NativeCatalogSchemaVersion = 2;
     private const int MaximumDiagnosticCharacters = 64 * 1024;
     private static readonly TimeSpan IndexerTimeout = TimeSpan.FromMinutes(3);
@@ -40,9 +40,7 @@ public sealed class ArchiveItemCatalogBuildService(
             {
                 return Result(session, active, usedCache: true);
             }
-            var mountPath = Path.Combine(session.PackageRoot, "meta", "0.papgt");
-            var mountSignature = File.Exists(mountPath)
-                ? Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(File.ReadAllBytes(mountPath))) : "unmounted";
+            var mountSignature = ArchiveItemSources.MountSignature(session.PackageRoot);
             var cachePath = Path.Combine(session.GenerationPath, $"item-catalog-v{CacheSchemaVersion}-{mountSignature}.json");
             var cached = await TryLoadCacheAsync(cachePath, cancellationToken).ConfigureAwait(false);
             if (cached is not null)
@@ -185,6 +183,7 @@ public sealed class ArchiveItemCatalogBuildService(
         if (sources.EquipTypeInfoHeader is not null) payloads.Add(("equiptypeinfo_header.bin", sources.EquipTypeInfoHeader));
         if (sources.PartPrefabDyeSlotInfo is not null) payloads.Add(("partprefabdyeslotinfo.bin", sources.PartPrefabDyeSlotInfo));
         payloads.AddRange(sources.Localizations.Select(pair => ($"loc_{pair.Key}.bin", pair.Value)));
+        payloads.AddRange(sources.DlcItemPayloads());
         for (var index = 0; index < payloads.Count; index++)
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -194,7 +193,9 @@ public sealed class ArchiveItemCatalogBuildService(
                 await publishProgress(new ProgressUpdate(index, payloads.Count, "item_catalog_extract", name)).ConfigureAwait(false);
             }
             var decoded = await Task.Run(() => native.Decode(entry), cancellationToken).ConfigureAwait(false);
-            await File.WriteAllBytesAsync(Path.Combine(payloadRoot, name), decoded.Bytes, cancellationToken).ConfigureAwait(false);
+            var destination = Path.Combine(payloadRoot, name);
+            Directory.CreateDirectory(Path.GetDirectoryName(destination)!);
+            await File.WriteAllBytesAsync(destination, decoded.Bytes, cancellationToken).ConfigureAwait(false);
         }
     }
 

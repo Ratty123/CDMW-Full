@@ -274,7 +274,7 @@ internal sealed class SyntheticArchiveFixture : IAsyncDisposable
         return fixture;
     }
 
-    public static async Task<SyntheticArchiveFixture> CreateCurrentItemNamesAsync(byte[]? currentEnglish = null)
+    public static async Task<SyntheticArchiveFixture> CreateCurrentItemNamesAsync(byte[]? currentEnglish = null, bool compactDlc = false)
     {
         var fixture = await CreateNameIndexAsync().ConfigureAwait(false);
         const string tableRoot = "gamedata/binarystaticinfo__/bin/";
@@ -283,9 +283,10 @@ internal sealed class SyntheticArchiveFixture : IAsyncDisposable
         byte[] Row(uint id, string name, string key, bool linked)
         {
             using var output = new MemoryStream();
-            WriteUInt32(output, id);
+            if (!compactDlc) WriteUInt32(output, id);
             WriteUInt32(output, (uint)name.Length);
             output.Write(Encoding.ASCII.GetBytes(name));
+            if (compactDlc) WriteUInt32(output, id);
             output.WriteByte(0);
             WriteUInt32(output, 1);
             WriteUInt32(output, 0);
@@ -313,8 +314,9 @@ internal sealed class SyntheticArchiveFixture : IAsyncDisposable
             body.Write(rows[index]);
         }
         using var strings = new MemoryStream();
+        if (compactDlc) strings.Write(new byte[4]);
         WriteUInt32(strings, prefabHash);
-        strings.Write(new byte[5]);
+        strings.Write(new byte[compactDlc ? 1 : 5]);
         WriteUInt32(strings, 23);
         strings.Write(Encoding.ASCII.GetBytes("cd_marni_laser_hel_0001"));
         using var stringHeader = new MemoryStream();
@@ -360,10 +362,32 @@ internal sealed class SyntheticArchiveFixture : IAsyncDisposable
         // Independently calculated PA checksum for the six fixture mount records above.
         const uint checksum = 0x44147A70;
         using var papgt = new MemoryStream();
-        WriteUInt32(papgt, 0); WriteUInt32(papgt, checksum); WriteUInt32(papgt, (uint)mounts.Length);
+        if (compactDlc) papgt.Write([0x81, 0x16, (byte)mounts.Length, 2]);
+        else { WriteUInt32(papgt, 0); WriteUInt32(papgt, checksum); WriteUInt32(papgt, (uint)mounts.Length); }
         papgt.Write(mountBytes);
+        if (compactDlc) papgt.Write(new byte[64]);
         Directory.CreateDirectory(Path.Combine(fixture.Root, "meta"));
         await File.WriteAllBytesAsync(Path.Combine(fixture.Root, "meta", "0.papgt"), papgt.ToArray()).ConfigureAwait(false);
+        if (compactDlc)
+        {
+            var dlcRoot = Path.Combine(fixture.Root, "dlc", "dlc_01");
+            using var dlcHeader = new MemoryStream();
+            WriteUInt16(dlcHeader, 1); WriteUInt32(dlcHeader, 4001); WriteUInt32(dlcHeader, 0);
+            await BuildPackageAsync(dlcRoot, "0008", new[]
+            {
+                (tableRoot + "iteminfo.dlc_01.staticinfobody", Row(4001, "DLC_Helm", "12345681", true)),
+                (tableRoot + "iteminfo.dlc_01.staticinfoheader", dlcHeader.ToArray()),
+                (tableRoot + "stringinfo.dlc_01.staticinfobody", strings.ToArray()),
+                (tableRoot + "stringinfo.dlc_01.staticinfoheader", stringHeader.ToArray()),
+                (locRoot + "eng/item.dlc_01.paloc", BuildLocalization("12345681", "DLC Helmet")),
+            }).ConfigureAwait(false);
+            Directory.CreateDirectory(Path.Combine(dlcRoot, "meta"));
+            using var dlcMount = new MemoryStream();
+            dlcMount.Write([0x81, 0x16, 1, 2]);
+            WriteUInt32(dlcMount, 0x7FFF00); WriteUInt32(dlcMount, 0); WriteUInt32(dlcMount, 0);
+            WriteUInt32(dlcMount, 5); dlcMount.Write(Encoding.ASCII.GetBytes("0008\0")); dlcMount.Write(new byte[64]);
+            await File.WriteAllBytesAsync(Path.Combine(dlcRoot, "meta", "0.papgt"), dlcMount.ToArray()).ConfigureAwait(false);
+        }
         return fixture;
     }
 

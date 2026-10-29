@@ -29,6 +29,7 @@ internal static class Program
     private static async Task<int> CharacterAsync()
     {
         await CharacterCatalogTests.CatalogueAsync();
+        await CharacterCatalogTests.CompactCatalogueAsync();
         await CharacterCatalogTests.CacheAsync();
         Console.WriteLine("Character catalogue fixtures: PASS");
         return 0;

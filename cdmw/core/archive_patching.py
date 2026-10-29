@@ -128,6 +128,8 @@ def _parse_mutable_pamt(pamt_path: Path) -> _MutablePamt:
     file_table_size = file_count * struct.calcsize("<IIIIHH")
     if file_table_offset + file_table_size > len(data):
         raise ValueError(f"{pamt_path.name} file table is truncated.")
+    if file_table_offset + file_table_size != len(data):
+        raise ValueError("Compact or extended PAMT indexes are read-only; archive patching is not supported for this layout.")
     file_table = memoryview(data)[file_table_offset : file_table_offset + file_table_size]
 
     resolver = _VfsPathResolver(file_names)

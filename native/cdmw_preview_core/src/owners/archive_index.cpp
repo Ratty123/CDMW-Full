@@ -164,11 +164,12 @@ static std::vector<char> crypt_chacha20_filename(const std::vector<char>& data, 
 
 class VfsPathResolver {
 public:
-    explicit VfsPathResolver(const std::vector<char>& name_block) : name_block_(name_block) {
+    explicit VfsPathResolver(const std::vector<char>& name_block, bool compact = false) : name_block_(name_block), compact_(compact) {
         cache_[0xFFFFFFFFu] = "";
     }
 
     std::string get_full_path(std::uint32_t offset) {
+        if (compact_ && offset != 0xFFFFFFFFu && offset >= name_block_.size()) throw std::runtime_error("Compact VFS offset is outside the name block");
         if (offset == 0xFFFFFFFFu || offset >= name_block_.size()) return "";
         auto cached = cache_.find(offset);
         if (cached != cache_.end()) return cached->second;
@@ -182,6 +183,13 @@ public:
             if (hit != cache_.end()) {
                 base = hit->second;
                 break;
+            }
+            if (compact_) {
+                const auto part = cdmw::archive::compact_name_part(name_block_, current);
+                parts.emplace_back(current, part.text);
+                current = part.parent;
+                if (parts.size() > 255) throw std::runtime_error("Compact VFS path is too deep");
+                continue;
             }
             if (static_cast<size_t>(current) + 5 > name_block_.size()) break;
             const std::uint32_t parent = read_u32(name_block_, current);
@@ -204,6 +212,7 @@ public:
 
 private:
     const std::vector<char>& name_block_;
+    bool compact_;
     std::unordered_map<std::uint32_t, std::string> cache_;
 };
 
@@ -454,8 +463,9 @@ static PamtIndex parse_pamt_index(const fs::path& pamt_path) {
         throw std::runtime_error("PAMT file table is truncated");
     }
 
-    VfsPathResolver file_resolver(file_names);
-    VfsPathResolver dir_resolver(directory_data);
+    const auto extensions = cdmw::archive::pamt_extensions(data, file_table_offset + static_cast<size_t>(file_count) * file_record_size);
+    VfsPathResolver file_resolver(file_names, !extensions.empty());
+    VfsPathResolver dir_resolver(directory_data, !extensions.empty());
     struct FolderRange {
         std::uint32_t start = 0;
         std::uint32_t end = 0;
@@ -493,7 +503,7 @@ static PamtIndex parse_pamt_index(const fs::path& pamt_path) {
         const std::uint32_t orig_size = read_u32(data, base + 12);
         const std::uint16_t paz_index = read_u16(data, base + 16);
         const std::uint16_t flags = read_u16(data, base + 18);
-        std::string relative = file_resolver.get_full_path(name_offset);
+        std::string relative = file_resolver.get_full_path(name_offset) + cdmw::archive::pamt_extension(extensions, flags);
         std::replace(relative.begin(), relative.end(), '\\', '/');
         while (!relative.empty() && relative.front() == '/') relative.erase(relative.begin());
         ArchiveEntryRef ref;

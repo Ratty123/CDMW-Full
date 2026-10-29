@@ -2,6 +2,7 @@
 // read_archive_entry_data and archive_patching's payload processing, for the tables,
 // string tables and XML a composition touches. Other formats refuse as Unsupported.
 #include "composer_internal.hpp"
+#include "../../common/pamt_compact.hpp"
 
 #include <fstream>
 #include <unordered_set>
@@ -104,9 +105,10 @@ bool python_space(char32_t c) {
 // VfsPathResolver: a name block is a trie of (u32 parent, u8 length, bytes) records.
 class NameResolver {
 public:
-    NameResolver(const Bytes& block, std::size_t max_cache) : block_(block), max_cache_(max_cache) {}
+    NameResolver(const Bytes& block, std::size_t max_cache, bool compact = false) : block_(block), max_cache_(max_cache), compact_(compact) {}
 
     std::string get(std::uint32_t offset) {
+        if (compact_ && offset != no_parent && offset >= block_.size()) throw FormatError("Compact VFS offset is outside the name block");
         if (offset == no_parent || offset >= block_.size()) return "";
         if (const auto cached = cache_.find(offset); cached != cache_.end()) return cached->second;
         std::vector<std::pair<std::uint32_t, std::string>> parts;
@@ -118,6 +120,13 @@ public:
             if (const auto cached = cache_.find(current); cached != cache_.end()) {
                 base = cached->second;
                 break;
+            }
+            if (compact_) {
+                const auto part = cdmw::archive::compact_name_part(block_, current);
+                parts.emplace_back(current, part.text);
+                current = part.parent;
+                if (parts.size() > 255) throw FormatError("Compact VFS path is too deep");
+                continue;
             }
             const std::size_t at = current;
             if (at + 5 > block_.size()) break;
@@ -144,6 +153,7 @@ public:
 private:
     const Bytes& block_;
     std::size_t max_cache_;
+    bool compact_;
     std::unordered_map<std::uint32_t, std::string> cache_;
 };
 
@@ -308,7 +318,7 @@ Bytes stored_payload(const Bytes& data, std::uint64_t flags, const std::string& 
     const auto compression = flags & 15;
     if (compression > 2) throw FormatError("Archive patching does not support compression type " + std::to_string(compression) + " yet.");
     auto stored = compression == 2 ? lz4::compress(data.data(), data.size()) : data;
-    return flags >> 4 ? crypt_chacha20(stored, basename) : stored;
+    return ((flags >> 4) & 15u) ? crypt_chacha20(stored, basename) : stored;
 }
 
 std::vector<ArchiveEntry> parse_pamt(const Bytes& data, const std::filesystem::path& pamt_path,
@@ -344,7 +354,8 @@ std::vector<ArchiveEntry> parse_pamt(const Bytes& data, const std::filesystem::p
     need(at + file_count * 20, "file table");
     const auto files_at = static_cast<std::size_t>(at);
 
-    NameResolver file_names(names, 200000), folder_names(directories, 50000);
+    const auto extensions = cdmw::archive::pamt_extensions(data, files_at + static_cast<std::size_t>(file_count) * 20);
+    NameResolver file_names(names, 200000, !extensions.empty()), folder_names(directories, 50000, !extensions.empty());
     std::vector<std::tuple<std::uint64_t, std::uint64_t, std::string>> ranges;
     for (std::size_t i = 0; i < folder_count; ++i) {
         const auto row = folders_at + i * 16;
@@ -353,21 +364,25 @@ std::vector<ArchiveEntry> parse_pamt(const Bytes& data, const std::filesystem::p
     }
     std::sort(ranges.begin(), ranges.end());
     const auto folder = pamt_path.parent_path();
-    std::vector<std::filesystem::path> carriers(static_cast<std::size_t>(std::min<std::uint64_t>(paz_count, 0x10000)));
-    for (std::size_t index = 0; index < carriers.size(); ++index) carriers[index] = folder / path_of(std::to_string(index) + ".paz");
+    std::unordered_map<std::uint32_t, std::filesystem::path> carriers;
+    for (std::size_t index = 0; index < paz_count; ++index) {
+        const auto id = u32(data, 12 + index * 12);
+        if (id > 0xFFFFu || !carriers.emplace(id, folder / path_of(std::to_string(id) + ".paz")).second)
+            throw FormatError("PAMT has duplicate or invalid PAZ identifiers");
+    }
     std::vector<ArchiveEntry> entries;
     entries.reserve(static_cast<std::size_t>(file_count));
     std::size_t cursor = 0;
     for (std::size_t index = 0; index < file_count; ++index) {
         const auto row = files_at + index * 20;
-        const auto relative = tidy(file_names.get(u32(data, row)));
+        const auto relative = tidy(file_names.get(u32(data, row))) + cdmw::archive::pamt_extension(extensions, u16(data, row + 18));
         std::string directory;
         while (cursor < ranges.size() && index >= std::get<1>(ranges[cursor])) ++cursor;
         if (cursor < ranges.size() && std::get<0>(ranges[cursor]) <= index && index < std::get<1>(ranges[cursor]))
             directory = std::get<2>(ranges[cursor]);
         auto path = directory.empty() ? relative : strip(directory + "/" + relative, "/");
         const std::uint32_t paz_index = u16(data, row + 16);
-        if (paz_index >= paz_count) throw FormatError("Invalid PAZ index " + std::to_string(paz_index) + " for " + utf8_of(pamt_path));
+        if (carriers.count(paz_index) == 0) throw FormatError("Invalid PAZ index " + std::to_string(paz_index) + " for " + utf8_of(pamt_path));
         if (keep && !keep(path)) continue;
         ArchiveEntry entry;
         entry.path = std::move(path);
@@ -390,7 +405,7 @@ Bytes read_entry(const ArchiveEntry& entry) {
     const bool dds = extension == ".dds";
     auto data = read_raw(entry);
     const auto expand = [&](const Bytes& block) { return lz4::decompress_upto(block.data(), block.size(), static_cast<std::size_t>(entry.orig_size)); };
-    if (entry.flags >> 4) {
+    if ((entry.flags >> 4) & 15u) {
         if (((entry.flags >> 4) & 15u) != 3) throw FormatError("Unsupported archive encryption type for " + entry.path);
         auto candidate = crypt_chacha20(data, basename);
         if (extension == ".paloc") {

@@ -47,6 +47,25 @@ native indexing use the same selection, and refresh/recovery preserve both field
 
 ## Worker protocol
 
+### October 2026 DLC compatibility
+
+Scan the complete game root to include `dlc/dlc_01`. Official numbered DLC
+packages with their own `meta/0.papgt` are included without the duplicate-tree
+warning. Read-only mount selection accepts the new four-byte PAPGT header and
+preserves the 64-byte trailer as opaque metadata; its authentication and rewrite
+contract is not established.
+
+Item Finder merges the base and `.dlc_<number>` ItemInfo/StringInfo tables and
+their language-specific PALOC files. Body & Face Finder also reads the DLC
+character/link tables. Named rows can place the repeated key after the name;
+StringInfo and character-link rows can place it after four zero bytes. Each
+supported layout still verifies the directory key within the exact row bounds.
+Catalogue cache signatures include both the base and DLC mount metadata.
+
+These are read contracts. Compact archive patching, overlay installation and
+Create New Item authoring remain unsupported. Successful decoding, catalogue
+joins and mesh parsing do not establish visible rendering or real-game support.
+
 The self-contained Windows x64 worker uses newline-delimited JSON on standard
 input and output. Protocol v3 caps each message at one MiB and carries request,
 UI-generation, session, operation, and status fields. The worker loads only

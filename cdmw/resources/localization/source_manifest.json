@@ -95717,6 +95717,16 @@
       ]
     },
     {
+      "key": "October 2026 DLC: scan the complete game folder to include dlc/dlc_01. Browsing and extraction support compact archive indexes, including DLC item and character names. Direct archive patching, overlay installation and Create New Item are not supported for this new layout. Keep the original archives unchanged. Successful extraction does not establish editing or in-game support for every file type.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 368,
+          "sink": "python-return:_build_archive_mesh_sections"
+        }
+      ]
+    },
+    {
       "key": "Off",
       "origins": [
         {

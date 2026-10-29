@@ -669,12 +669,15 @@ def autodetect_archive_package_roots(
 
 
 class VfsPathResolver:
-    def __init__(self, name_block: bytes, *, max_cache_entries: int = 200_000) -> None:
+    def __init__(self, name_block: bytes, *, max_cache_entries: int = 200_000, compact: bool = False) -> None:
         self._name_block = name_block
+        self._compact = compact
         self._path_cache: Dict[int, str] = {0xFFFFFFFF: ""}
         self._max_cache_entries = max(1, int(max_cache_entries))
 
     def get_full_path(self, offset: int) -> str:
+        if self._compact:
+            return self._get_compact_path(offset)
         if offset == 0xFFFFFFFF or offset >= len(self._name_block):
             return ""
         cached = self._path_cache.get(offset)
@@ -711,6 +714,57 @@ class VfsPathResolver:
                 self._path_cache[part_offset] = built
         return self._path_cache.get(offset, built)
 
+    def _get_compact_path(self, offset: int) -> str:
+        parts = []
+        current = offset
+        while current not in self._path_cache:
+            pos = current
+            distance = 0
+            for shift in range(0, 35, 7):
+                if pos >= len(self._name_block):
+                    raise ValueError("Compact VFS parent distance is truncated.")
+                value = self._name_block[pos]
+                pos += 1
+                distance |= (value & 0x7F) << shift
+                if value < 0x80:
+                    break
+            else:
+                raise ValueError("Compact VFS parent distance is too large.")
+            if distance > current or distance > 0xFFFFFFFF:
+                raise ValueError("Compact VFS parent precedes the name block.")
+            if pos >= len(self._name_block):
+                raise ValueError("Compact VFS text length is truncated.")
+            length = self._name_block[pos]
+            pos += 1
+            if pos + length > len(self._name_block):
+                raise ValueError("Compact VFS text is truncated.")
+            parts.append((current, self._name_block[pos:pos + length].decode("utf-8")))
+            current = current - distance if distance else 0xFFFFFFFF
+            if len(parts) > 255:
+                raise ValueError("Compact VFS path depth exceeds 255 records.")
+        built = self._path_cache[current]
+        for part_offset, part in reversed(parts):
+            built += part
+            if len(self._path_cache) < self._max_cache_entries:
+                self._path_cache[part_offset] = built
+        return built
+
+
+def _pamt_extensions(data: bytes, file_table_end: int) -> Optional[Tuple[str, ...]]:
+    """The compact PAMT layout ends with a sized, NUL-separated extension table."""
+    if file_table_end == len(data):
+        return None
+    if len(data) - file_table_end < 5:
+        raise ValueError("PAMT extension table is truncated.")
+    length = struct.unpack_from("<I", data, file_table_end)[0]
+    table = data[file_table_end + 4:]
+    if length != len(table) or not table.startswith(b"\x00") or not table.endswith(b"\x00"):
+        raise ValueError("PAMT extension table has invalid bounds or terminators.")
+    extensions = tuple(part.decode("ascii") for part in table[:-1].split(b"\x00"))
+    if len(extensions) > 256 or any(not ext.startswith(".") or "/" in ext or "\\" in ext for ext in extensions[1:]):
+        raise ValueError("PAMT extension table contains an invalid extension.")
+    return extensions
+
 
 def parse_archive_pamt(pamt_path: Path, paz_dir: Optional[Path] = None) -> List[ArchiveEntry]:
     return parse_archive_pamt_bytes(pamt_path.read_bytes(), pamt_path, paz_dir=paz_dir)
@@ -743,6 +797,9 @@ def _parse_archive_pamt_bytes(data: bytes, pamt_path: Path, paz_dir: Optional[Pa
     paz_table_size = paz_count * 12
     if off + paz_table_size > size:
         raise ValueError(f"{pamt_path.name} paz table is truncated.")
+    paz_ids = [struct.unpack_from("<I", data, off + index * 12)[0] for index in range(paz_count)]
+    if len(set(paz_ids)) != paz_count or any(index > 0xFFFF for index in paz_ids):
+        raise ValueError(f"{pamt_path.name} has duplicate or invalid PAZ identifiers.")
     off += paz_table_size
 
     if off + 4 > size:
@@ -782,8 +839,9 @@ def _parse_archive_pamt_bytes(data: bytes, pamt_path: Path, paz_dir: Optional[Pa
         raise ValueError(f"{pamt_path.name} file table is truncated.")
     file_table = memoryview(data)[off : off + file_table_size]
 
-    resolver = VfsPathResolver(file_names)
-    dir_resolver = VfsPathResolver(directory_data, max_cache_entries=50_000)
+    extensions = _pamt_extensions(data, off + file_table_size)
+    resolver = VfsPathResolver(file_names, compact=extensions is not None)
+    dir_resolver = VfsPathResolver(directory_data, max_cache_entries=50_000, compact=extensions is not None)
     folder_ranges = sorted(
         (
             file_start_index,
@@ -793,7 +851,7 @@ def _parse_archive_pamt_bytes(data: bytes, pamt_path: Path, paz_dir: Optional[Pa
         for _folder_hash, name_offset, file_start_index, folder_file_count in struct.iter_unpack("<IIII", folder_table)
         if folder_file_count > 0
     )
-    paz_files = [resolved_paz_dir / f"{index}.paz" for index in range(paz_count)]
+    paz_files = {index: resolved_paz_dir / f"{index}.paz" for index in paz_ids}
 
     entries: List[ArchiveEntry] = []
     folder_cursor = 0
@@ -801,6 +859,11 @@ def _parse_archive_pamt_bytes(data: bytes, pamt_path: Path, paz_dir: Optional[Pa
         if entry_index % 1024 == 0:
             raise_if_cancelled(stop_event, "Archive index read cancelled.")
         relative_path = resolver.get_full_path(name_offset).replace("\\", "/").strip("/")
+        if extensions is not None:
+            extension_index = flags >> 8
+            if extension_index >= len(extensions):
+                raise ValueError(f"{pamt_path.name} has an invalid extension index {extension_index}.")
+            relative_path += extensions[extension_index]
         guessed_dir = ""
         while folder_cursor < len(folder_ranges) and entry_index >= folder_ranges[folder_cursor][1]:
             folder_cursor += 1
@@ -809,7 +872,7 @@ def _parse_archive_pamt_bytes(data: bytes, pamt_path: Path, paz_dir: Optional[Pa
             if start <= entry_index < end:
                 guessed_dir = candidate_dir
         full_path = f"{guessed_dir}/{relative_path}".strip("/") if guessed_dir else relative_path
-        if paz_index >= len(paz_files):
+        if paz_index not in paz_files:
             raise ValueError(f"Invalid PAZ index {paz_index} for {pamt_path}")
         entries.append(
             ArchiveEntry(

@@ -149,6 +149,11 @@ internal static class ArchiveDiscoveryWarnings
             {
                 continue;
             }
+            if (parts.Length == 4 && parts[0].Equals("dlc", StringComparison.OrdinalIgnoreCase)
+                && IsPackageGroup(parts[2]) && File.Exists(Path.Combine(manifest.PackageRoot, parts[0], parts[1], "meta", "0.papgt")))
+            {
+                continue;
+            }
             string relativeRoot;
             if (parts[0].Equals("game_files", StringComparison.OrdinalIgnoreCase))
             {

@@ -884,15 +884,23 @@ def _parse_archive_iteminfo_data_by_marker(
     return items
 
 
-def _iteminfo_row_internal_name(row: bytes) -> str:
+def _iteminfo_row_internal_name(row: bytes, expected_key: int | None = None) -> str:
     """Read the row's own name field, which follows the repeated primary key."""
 
     if len(row) < 8:
         return ""
-    length = struct.unpack_from("<I", row, 4)[0]
+    at = 4
+    legacy_length = struct.unpack_from("<I", row, 4)[0]
+    if expected_key is not None and (struct.unpack_from("<I", row)[0] != expected_key
+            or not 0 < legacy_length <= 256 or 8 + legacy_length > len(row)):
+        length = struct.unpack_from("<I", row)[0]
+        if not 0 < length <= 256 or 8 + length > len(row) or struct.unpack_from("<I", row, 4 + length)[0] != expected_key:
+            raise ValueError("Named table row does not repeat its directory key.")
+        at = 0
+    length = struct.unpack_from("<I", row, at)[0]
     if length <= 0 or length > 256 or 8 + length > len(row):
         return ""
-    raw = row[8 : 8 + length].split(b"\x00", 1)[0]
+    raw = row[at + 4 : at + 4 + length].split(b"\x00", 1)[0]
     return raw.decode("ascii", errors="replace")
 
 
@@ -930,7 +938,7 @@ def _parse_equip_type_names(data: bytes, header_data: bytes) -> Dict[int, str]:
     except Exception:
         return names
     for row, start, end in table.row_spans(len(data)):
-        name = _iteminfo_row_internal_name(data[start:end])
+        name = _iteminfo_row_internal_name(data[start:end], int(row.row_id))
         if name:
             names[int(row.row_id)] = name
     return names
@@ -985,7 +993,7 @@ def _parse_archive_iteminfo_rows(
             continue
         seen_ids.add(item_id)
         row_bytes = data[start:end]
-        name = _iteminfo_row_internal_name(row_bytes)
+        name = _iteminfo_row_internal_name(row_bytes, item_id)
 
         name_key = _iteminfo_sub_record_key(row_bytes, _ITEMINFO_NAME_KEY_TAG)
         description_key = _iteminfo_sub_record_key(row_bytes, _ITEMINFO_DESCRIPTION_KEY_TAG)

@@ -11,6 +11,11 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 - Mod exports focus on DMM, CDUMM and JMM. JMM remains available with a warning that it is outdated and compatibility cannot be ensured.
 
+### Fixed
+
+- Archive Browser reads the October 2026 compact archive indexes and DLC packages again. Item Finder and Body & Face Finder include the DLC naming tables. Direct archive patching and item installation remain unsupported for the new layout.
+- Static-model previews no longer mistake a texture name inside a PAMLOD material record for another mesh, which prevented a DLC ship from opening.
+
 ### Docs
 
 - Help and the Wiki include an error-code and error-message reference in all 14 interface languages, covering uncoded messages, native/helper failures, likely causes and recovery steps. The Wiki links complete message lists and a searchable index for AI helpers. Windows and external-tool guidance explains variable errors and what details to report, alongside the current mod-manager compatibility guidance.

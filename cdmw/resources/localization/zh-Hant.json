@@ -8251,6 +8251,7 @@
     "Object mode for whole-part editing.": "整件編輯的物件模式。",
     "Objects": "物件",
     "Occupied equipment slots": "佔用裝備欄位",
+    "October 2026 DLC: scan the complete game folder to include dlc/dlc_01. Browsing and extraction support compact archive indexes, including DLC item and character names. Direct archive patching, overlay installation and Create New Item are not supported for this new layout. Keep the original archives unchanged. Successful extraction does not establish editing or in-game support for every file type.": "2026年10月DLC：請掃描完整的遊戲資料夾，以包含dlc/dlc_01。瀏覽和擷取支援精簡型封存索引，並可讀取DLC物品和角色名稱。此新配置暫不支援直接修補封存、安裝覆蓋層或建立新物品。請保持原始封存不變。擷取成功並不代表每種檔案類型都支援編輯或已驗證可在遊戲中使用。",
     "Off": "關閉",
     "Off (least disk use)": "關閉（最少磁碟使用）",
     "Off by default for PAC XML because related skeleton/HKX data does not affect material values. Enable it only when rig or deformation context is useful.": "PAC XML 預設會關閉，因為相關骨架/HKX 資料不會影響材質值。僅當骨架或變形上下文有用時才啟用它。",

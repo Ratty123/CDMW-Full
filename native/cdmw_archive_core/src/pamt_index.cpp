@@ -1,4 +1,5 @@
 #include "archive_core_internal.hpp"
+#include "../../common/pamt_compact.hpp"
 
 #if defined(_WIN32)
 #include <windows.h>
@@ -12,8 +13,8 @@ namespace {
 
 class VfsPathResolver {
 public:
-    explicit VfsPathResolver(std::vector<std::uint8_t> data, size_t maximum_cache = 200000)
-        : data_(std::move(data)), maximum_cache_(maximum_cache) {}
+    explicit VfsPathResolver(std::vector<std::uint8_t> data, size_t maximum_cache = 200000, bool compact = false)
+        : data_(std::move(data)), maximum_cache_(maximum_cache), compact_(compact) {}
 
     std::string full_path(std::uint32_t offset) {
         if (offset == 0xFFFFFFFFu) return {};
@@ -28,6 +29,13 @@ public:
             if (const auto cached = cache_.find(current); cached != cache_.end()) {
                 base = cached->second;
                 break;
+            }
+            if (compact_) {
+                const auto part = cdmw::archive::compact_name_part(data_, current);
+                parts.emplace_back(current, part.text);
+                current = part.parent;
+                if (parts.size() > 255) throw std::runtime_error("VFS path depth exceeds 255 records");
+                continue;
             }
             if (current >= data_.size() || data_.size() - current < 5) {
                 throw std::runtime_error("VFS path record is truncated");
@@ -54,6 +62,7 @@ public:
 private:
     std::vector<std::uint8_t> data_;
     size_t maximum_cache_;
+    bool compact_;
     std::unordered_map<std::uint32_t, std::string> cache_;
 };
 
@@ -70,6 +79,11 @@ std::vector<Entry> parse_pamt(const fs::path& pamt_path) {
     const auto paz_count = read_u32(data, 4);
     offset = 12;
     if (paz_count > (data.size() - offset) / 12) throw std::runtime_error("PAMT PAZ table is truncated");
+    std::set<std::uint32_t> paz_ids;
+    for (std::uint32_t index = 0; index < paz_count; ++index) {
+        const auto id = read_u32(data, offset + static_cast<size_t>(index) * 12);
+        if (id > 0xFFFFu || !paz_ids.insert(id).second) throw std::runtime_error("PAMT has duplicate or invalid PAZ identifiers");
+    }
     offset += static_cast<size_t>(paz_count) * 12;
     const auto directory_size = read_u32(data, offset);
     offset += 4;
@@ -91,8 +105,9 @@ std::vector<Entry> parse_pamt(const fs::path& pamt_path) {
     if (file_count > (data.size() - offset) / 20) throw std::runtime_error("PAMT file table is truncated");
     const size_t file_table_offset = offset;
 
-    VfsPathResolver file_resolver(std::move(names));
-    VfsPathResolver directory_resolver(std::move(directories), 50000);
+    const auto extensions = cdmw::archive::pamt_extensions(data, file_table_offset + static_cast<size_t>(file_count) * 20);
+    VfsPathResolver file_resolver(std::move(names), 200000, !extensions.empty());
+    VfsPathResolver directory_resolver(std::move(directories), 50000, !extensions.empty());
     std::vector<FolderRange> ranges;
     ranges.reserve(folder_count);
     for (std::uint32_t index = 0; index < folder_count; ++index) {
@@ -116,7 +131,7 @@ std::vector<Entry> parse_pamt(const fs::path& pamt_path) {
     for (std::uint32_t index = 0; index < file_count; ++index) {
         const size_t row = file_table_offset + static_cast<size_t>(index) * 20;
         Entry entry;
-        entry.path = slash_copy(file_resolver.full_path(read_u32(data, row)));
+        entry.path = slash_copy(file_resolver.full_path(read_u32(data, row))) + cdmw::archive::pamt_extension(extensions, read_u16(data, row + 18));
         while (folder_cursor < ranges.size() && index >= ranges[folder_cursor].end) ++folder_cursor;
         if (folder_cursor < ranges.size() && index >= ranges[folder_cursor].start && !ranges[folder_cursor].directory.empty()) {
             entry.path = ranges[folder_cursor].directory + "/" + entry.path;
@@ -127,7 +142,7 @@ std::vector<Entry> parse_pamt(const fs::path& pamt_path) {
         entry.original_size = read_u32(data, row + 12);
         entry.paz_index = read_u16(data, row + 16);
         entry.flags = read_u16(data, row + 18);
-        if (entry.paz_index >= paz_count) throw std::runtime_error("PAMT entry has an invalid PAZ index");
+        if (paz_ids.count(entry.paz_index) == 0) throw std::runtime_error("PAMT entry has an invalid PAZ index");
         entry.paz_path = entry.pamt_path.parent_path() / (std::to_string(entry.paz_index) + ".paz");
         entries.push_back(std::move(entry));
     }

@@ -8251,6 +8251,7 @@
     "Object mode for whole-part editing.": "Modalità oggetto per la modifica parte-per-parte.",
     "Objects": "Oggetti",
     "Occupied equipment slots": "Slot equipaggiamento occupati",
+    "October 2026 DLC: scan the complete game folder to include dlc/dlc_01. Browsing and extraction support compact archive indexes, including DLC item and character names. Direct archive patching, overlay installation and Create New Item are not supported for this new layout. Keep the original archives unchanged. Successful extraction does not establish editing or in-game support for every file type.": "DLC di ottobre 2026: analizza l’intera cartella del gioco per includere dlc/dlc_01. La consultazione e l’estrazione supportano gli indici compatti degli archivi, inclusi i nomi di oggetti e personaggi del DLC. La modifica diretta degli archivi, l’installazione di overlay e Crea nuovo oggetto non sono supportate per questa nuova struttura. Mantieni intatti gli archivi originali. Un’estrazione riuscita non dimostra il supporto alla modifica o all’utilizzo nel gioco per ogni tipo di file.",
     "Off": "Spento",
     "Off (least disk use)": "Disattivato (minimo utilizzo del disco)",
     "Off by default for PAC XML because related skeleton/HKX data does not affect material values. Enable it only when rig or deformation context is useful.": "Disattivato per impostazione predefinita per PAC XML poiché i dati scheletrici/HKX correlati non influiscono sui valori dei materiali. Abilitatelo solo quando il contesto rig o deformazione è utile.",

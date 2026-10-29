@@ -65,6 +65,10 @@ def parse_stringinfo(payload: bytes, header: bytes, *, name: str = "") -> Tuple[
         if end - start < _ROW_HEAD:
             raise StringInfoFormatError(f"row {row.index} at 0x{start:X} is shorter than a row head{where}")
         key, zeros, length = struct.unpack_from("<I5sI", payload_bytes, start)
+        # October 2026 static tables move the key after four zero bytes.
+        if key == 0 and struct.unpack_from("<I", payload_bytes, start + 4)[0] == row.row_id:
+            key = row.row_id
+            zeros = payload_bytes[start:start + 4] + payload_bytes[start + 8:start + 9]
         if key != row.row_id:
             raise StringInfoFormatError(f"row {row.index} at 0x{start:X} does not repeat its directory key{where}")
         if zeros != b"\x00" * 5:
@@ -103,6 +107,9 @@ def append_stringinfo_strings(
     """
 
     existing = stringinfo_index(parse_stringinfo(payload, header, name=name))
+    table = parse_pabgh_table(header, payload=payload)
+    if any(payload[start:start + 4] != row.key for row, start, _ in table.row_spans(len(payload))):
+        raise StringInfoFormatError("Compact StringInfo is read-only; its table rewrite contract is not supported.")
     keys: list[int] = []
     new_rows: list[bytes] = []
     pending: dict[int, str] = {}

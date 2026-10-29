@@ -12,9 +12,12 @@ internal static class CharacterCatalogTests
     private static void Check(bool condition, string message)
     { if (!condition) throw new InvalidOperationException(message); }
 
-    public static async Task CatalogueAsync()
+    public static Task CatalogueAsync() => CatalogueCoreAsync(false);
+    public static Task CompactCatalogueAsync() => CatalogueCoreAsync(true);
+
+    private static async Task CatalogueCoreAsync(bool compact)
     {
-        await using var fixture = await SyntheticArchiveFixture.CreateCurrentItemNamesAsync();
+        await using var fixture = await SyntheticArchiveFixture.CreateCurrentItemNamesAsync(compactDlc: compact);
         var inventory = new List<ArchiveEntryDto>();
         var bytes = new Dictionary<long, byte[]>();
         ArchiveEntryDto Add(string path, byte[] payload, string package = "0009")
@@ -91,19 +94,23 @@ internal static class CharacterCatalogTests
         var name = U32(1).Concat(U32((uint)internalName.Length)).Concat(internalName)
             .Concat(new byte[] { 0, 3, 0x30, 0, 0, 0 }).Concat(U32(1))
             .Concat(U32((uint)nameKey.Length)).Concat(Encoding.ASCII.GetBytes(nameKey)).ToArray();
-        Add(table + "characterinfo.staticinfobody", name, "0036");
-        Add(table + "characterinfo.staticinfoheader", new byte[] { 1, 0 }.Concat(U32(1)).Concat(U32(0)).ToArray(), "0036");
+        var suffix = compact ? ".dlc_01" : "";
+        var package = compact ? "dlc/dlc_01/0008" : "0036";
+        if (compact) name = name.AsSpan(4, 4 + internalName.Length).ToArray().Concat(U32(1)).Concat(name.AsSpan(8 + internalName.Length).ToArray()).ToArray();
+        Add(table + "characterinfo" + suffix + ".staticinfobody", name, package);
+        Add(table + "characterinfo" + suffix + ".staticinfoheader", new byte[] { 1, 0 }.Concat(U32(1)).Concat(U32(0)).ToArray(), package);
         var link = new byte[29];
         BinaryPrimitives.WriteUInt32LittleEndian(link, 1);
         // Independent hashlittle vector for the full appearance path, seed 0xC5EDE.
         BinaryPrimitives.WriteUInt32LittleEndian(link.AsSpan(17), 0x85CC7485);
         BinaryPrimitives.WriteUInt32LittleEndian(link.AsSpan(25), 1);
-        Add(table + "characterappearanceindexinfo.staticinfobody", link, "0036");
-        Add(table + "characterappearanceindexinfo.staticinfoheader", new byte[] { 1, 0 }.Concat(U32(1)).Concat(U32(0)).Concat(U32(0)).ToArray(), "0036");
+        if (compact) link = new byte[4].Concat(link.AsSpan(0, 8).ToArray()).Concat(link.AsSpan(12).ToArray()).ToArray();
+        Add(table + "characterappearanceindexinfo" + suffix + ".staticinfobody", link, package);
+        Add(table + "characterappearanceindexinfo" + suffix + ".staticinfoheader", new byte[] { 1, 0 }.Concat(U32(1)).Concat(U32(0)).Concat(U32(0)).ToArray(), package);
         byte[] Loc(string value) => U32((uint)nameKey.Length).Concat(Encoding.ASCII.GetBytes(nameKey))
             .Concat(U32((uint)Encoding.UTF8.GetByteCount(value))).Concat(Encoding.UTF8.GetBytes(value)).ToArray();
-        Add("gamedata/stringtable/binary__/eng/character.paloc", Loc("Test Hero"), "0036");
-        Add("gamedata/stringtable/binary__/ara/character.paloc", Loc("البطل"), "0036");
+        Add("gamedata/stringtable/binary__/eng/character" + suffix + ".paloc", Loc("Test Hero"), package);
+        Add("gamedata/stringtable/binary__/ara/character" + suffix + ".paloc", Loc("البطل"), package);
 
         CharacterCatalogSnapshot Build(CancellationToken token = default) => ArchiveCharacterCatalogBuilder.Build(
             fixture.Root, "fixture-generation", inventory, entry => bytes[entry.EntryId], token);
@@ -221,8 +228,8 @@ internal static class CharacterCatalogTests
         Check(missingLink.Rows.Single().Key == "appearance-link:1/0" && missingLink.Rows.Single().Resolution == "unresolved",
             "unresolved character ownership disappeared instead of remaining searchable");
         // A highest-priority incomplete table pair cannot borrow a lower source's header.
-        Add(table + "characterinfo.staticinfobody", name, "0036");
-        inventory[^1] = inventory[^1] with { SourcePamt = Path.Combine(fixture.Root, "0036", "1.pamt") };
+        Add(table + "characterinfo" + suffix + ".staticinfobody", name, package);
+        inventory[^1] = inventory[^1] with { SourcePamt = Path.Combine(fixture.Root, package, "1.pamt") };
         var incomplete = Build();
         Check(incomplete.Warnings.Any(w => w.Contains("Incomplete characterinfo")), "incomplete source pair was silently mixed");
     }

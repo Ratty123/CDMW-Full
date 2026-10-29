@@ -16,13 +16,67 @@ internal sealed class ArchiveItemSources
 
     public ArchiveItemSources(string packageRoot)
     {
+        var roots = MountRoots(packageRoot).ToArray();
+        _hasMountTable = roots.Any(root => File.Exists(Path.Combine(root, "meta", "0.papgt")));
+        foreach (var root in roots) ReadMounts(root);
+    }
+
+    private static IEnumerable<string> MountRoots(string packageRoot)
+    {
+        yield return packageRoot;
+        var dlc = Path.Combine(packageRoot, "dlc");
+        if (Directory.Exists(dlc))
+            foreach (var root in Directory.EnumerateDirectories(dlc).Order(StringComparer.OrdinalIgnoreCase))
+                yield return root;
+    }
+
+    internal static string MountSignature(string packageRoot)
+    {
+        using var hash = System.Security.Cryptography.IncrementalHash.CreateHash(System.Security.Cryptography.HashAlgorithmName.SHA256);
+        foreach (var root in MountRoots(packageRoot))
+        {
+            var path = Path.Combine(root, "meta", "0.papgt");
+            if (!File.Exists(path)) continue;
+            if (new FileInfo(path).Length > 1024 * 1024) throw new InvalidDataException("Archive mount table is unexpectedly large.");
+            hash.AppendData(Encoding.UTF8.GetBytes(Path.GetRelativePath(packageRoot, path) + "\0"));
+            hash.AppendData(System.Security.Cryptography.SHA256.HashData(File.ReadAllBytes(path)));
+        }
+        return Convert.ToHexString(hash.GetHashAndReset());
+    }
+
+    private void ReadMounts(string packageRoot)
+    {
         var path = Path.Combine(packageRoot, "meta", "0.papgt");
         if (!File.Exists(path)) return;
-        _hasMountTable = true;
         if (new FileInfo(path).Length > 1024 * 1024) throw new InvalidDataException("Archive mount table is unexpectedly large.");
         var bytes = File.ReadAllBytes(path);
-        if (bytes.Length < 16 || BinaryPrimitives.ReadUInt32LittleEndian(bytes.AsSpan(4))
-            != ArchiveNameIndexBuilder.HashLittle(bytes.AsSpan(12), 0xC5EDE))
+        var legacyChecksum = bytes.Length >= 16 && BinaryPrimitives.ReadUInt32LittleEndian(bytes.AsSpan(4))
+            == ArchiveNameIndexBuilder.HashLittle(bytes.AsSpan(12), 0xC5EDE);
+        if (!legacyChecksum && bytes.Length >= 4 && bytes[3] == 2)
+        {
+            // Compact PAPGT: inspect directory metadata only. The 64-byte trailer
+            // remains opaque; this reader does not authorize archive rewrites.
+            var count = bytes[2];
+            var sizeAt = 4 + count * 12;
+            if (sizeAt + 4 + 64 > bytes.Length) throw new InvalidDataException("Compact archive mount table is truncated.");
+            var size = BinaryPrimitives.ReadUInt32LittleEndian(bytes.AsSpan(sizeAt));
+            if ((long)sizeAt + 4 + size + 64 != bytes.Length) throw new InvalidDataException("Compact archive mount table layout is invalid.");
+            for (var index = 0; index < count; index++)
+            {
+                var offset = BinaryPrimitives.ReadUInt32LittleEndian(bytes.AsSpan(4 + index * 12 + 4));
+                if (offset >= size) throw new InvalidDataException("Archive mount name offset is invalid.");
+                var start = checked(sizeAt + 4 + (int)offset);
+                var end = Array.IndexOf(bytes, (byte)0, start, checked((int)(size - offset)));
+                if (end < 0) throw new InvalidDataException("Archive mount name is not terminated.");
+                var name = Encoding.ASCII.GetString(bytes, start, end - start);
+                if (name.Length == 0 || name is "." or ".." || name.IndexOfAny(['/', '\\', ':']) >= 0)
+                    throw new InvalidDataException("Archive mount directory name is invalid.");
+                var key = Path.Combine(packageRoot, name).Replace('\\', '/').ToLowerInvariant();
+                if (!_mounts.TryAdd(key, count - index)) throw new InvalidDataException("Archive mount directory is duplicated.");
+            }
+            return;
+        }
+        if (!legacyChecksum)
             throw new InvalidDataException("Archive mount table checksum is invalid.");
         for (var count = 0; 12 + count * 12 + 4 <= bytes.Length; count++)
         {
@@ -105,6 +159,34 @@ internal sealed class ArchiveItemSources
         return Pair(stem, current);
     }
 
+    internal IEnumerable<string> DlcTableSuffixes(string table)
+    {
+        var prefix = Current + table + ".";
+        const string ending = ".staticinfobody";
+        return _candidates.Keys.Where(path => path.Length > prefix.Length + ending.Length && path.StartsWith(prefix) && path.EndsWith(ending)
+                && _candidates[path].Any(Accepts))
+            .Select(path => path[prefix.Length..^ending.Length])
+            .Where(name => name.StartsWith("dlc_", StringComparison.Ordinal) && name[4..].Length > 0 && name[4..].All(char.IsAsciiDigit))
+            .Distinct().Order(StringComparer.Ordinal);
+    }
+
+    internal IEnumerable<(string Name, ArchiveEntryDto Entry)> DlcItemPayloads()
+    {
+        foreach (var suffix in DlcTableSuffixes("iteminfo"))
+        {
+            foreach (var table in new[] { "iteminfo", "stringinfo", "equiptypeinfo", "partprefabdyeslotinfo" })
+            {
+                var path = Current + table + "." + suffix + ".staticinfobody";
+                if (!(_candidates.GetValueOrDefault(path) ?? []).Any(Accepts)) continue;
+                var pair = TablePair(table + "." + suffix);
+                if (pair.Body is not null) yield return ($"dlc/{suffix}/{table}.bin", pair.Body);
+                if (pair.Header is not null) yield return ($"dlc/{suffix}/{table}_header.bin", pair.Header);
+            }
+            foreach (var (language, entry) in DomainLocalizations("item." + suffix))
+                yield return ($"dlc/{suffix}/loc_{language}.bin", entry);
+        }
+    }
+
     internal Dictionary<string, ArchiveEntryDto> DomainLocalizations(string domain)
     {
         var result = new Dictionary<string, ArchiveEntryDto>(StringComparer.OrdinalIgnoreCase);
@@ -117,7 +199,7 @@ internal sealed class ArchiveItemSources
             if (entry is not null) result[parts[0]] = entry;
         }
         // Legacy all-domain localization tables only apply when no domain exists.
-        if (result.Count == 0)
+        if (result.Count == 0 && !domain.Contains('.'))
             foreach (var (path, candidates) in _candidates)
             {
                 var name = path.StartsWith(LocalizationRoot) ? path[LocalizationRoot.Length..] : "";

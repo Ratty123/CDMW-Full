@@ -6,6 +6,12 @@ prepares schema-v8 material/geometry packages consumed by Rust/D3D12, and emits 
 preview jobs do not inject synthetic textures or silently enable Python
 fallback.
 
+PAMLOD descriptor scanning treats each accepted descriptor's two fixed-width
+names as one record. DDS-looking material-name bytes cannot become additional
+mesh records. This fixes the October 2026 DLC helmshelter ship's read-only mesh
+parse; it does not enable PAMLOD rebuilding. The owned regression is
+`tests/test_dlc_static_mesh.py` and the same descriptor guard runs in `self-test`.
+
 ## Consumers and package contract
 
 Archive Browser and Create New Item both consume this package contract. A New

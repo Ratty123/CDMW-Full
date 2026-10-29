@@ -125,9 +125,9 @@ def _in_mount_order(root: Path, files: List[Path]) -> List[Path]:
     if not papgt.is_file():
         return files
     try:
-        from cdmw.core.papgt_format import parse_papgt
+        from cdmw.core.papgt_format import read_papgt_directories
 
-        order = {item.name.lower(): index for index, item in enumerate(parse_papgt(papgt.read_bytes()))}
+        order = {item.name.lower(): index for index, item in enumerate(read_papgt_directories(papgt.read_bytes()))}
     except Exception:  # noqa: BLE001 - an unreadable mount list is not a reason to refuse a scan
         return files
     if not order:

@@ -399,7 +399,7 @@ struct ArchiveEntryRef {
     }
 
     bool encrypted() const {
-        return (flags >> 4) != 0;
+        return ((flags >> 4) & 0x0F) != 0;
     }
 
     int encryption_type() const {

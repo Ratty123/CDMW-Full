@@ -46,12 +46,14 @@ internal static class FullArchiveTestRunner
             ("duplicate_override_state", DuplicateOverrideStateAsync),
             ("archive_name_index", ArchiveNameIndexAsync),
             ("current_item_names_and_mount_order", CurrentItemNamesAsync),
+            ("item_catalogue_compact_dlc", CompactDlcItemsAsync),
             ("item_catalogue_text_encoding", ItemCatalogTextTests.EncodingAsync),
             ("item_catalogue_compressed_localization", ItemCatalogTextTests.CompressedAsync),
             ("item_catalogue_invalid_localization_container", ItemCatalogTextTests.InvalidContainerAsync),
             ("item_catalogue_paging_and_bounded_scope", ItemCataloguePagingAndBoundedScopeAsync),
             ("item_catalogue_lite_category_parity", ItemCatalogueLiteCategoryParityAsync),
             ("character_catalogue_resolution_and_names", CharacterCatalogTests.CatalogueAsync),
+            ("character_catalogue_compact_dlc", CharacterCatalogTests.CompactCatalogueAsync),
             ("character_catalogue_cache_and_cancellation", CharacterCatalogTests.CacheAsync),
             ("texture_usage_classification", TextureUsageClassificationAsync),
             ("bounded_protocol_reader", BoundedProtocolReaderAsync),
@@ -1575,6 +1577,40 @@ internal static class FullArchiveTestRunner
         {
             DeleteDirectory(cacheRoot);
         }
+    }
+
+    private static async Task CompactDlcItemsAsync()
+    {
+        await using var fixture = await SyntheticArchiveFixture.CreateCurrentItemNamesAsync(compactDlc: true).ConfigureAwait(false);
+        var cacheRoot = TempDirectory("compact-dlc-cache");
+        try
+        {
+            var native = new NativeArchiveCore();
+            using var sessions = new ArchiveSessionManager(native, new ArchiveCacheStore(cacheRoot));
+            var handle = await sessions.OpenAsync(new OpenArchiveRequest(fixture.Root), CancellationToken.None).ConfigureAwait(false);
+            var builder = new ArchiveItemCatalogBuildService(sessions, native);
+            var built = await builder.BuildAsync(new BuildNameIndexRequest(handle.SessionId), null, CancellationToken.None).ConfigureAwait(false);
+            Require(built.Available && built.ItemCount == 4, "compact base/DLC table rows were lost");
+            var service = new ArchiveItemCatalogService(sessions, builder);
+            var result = await service.SearchAsync(new ItemCatalogSearchRequest(handle.SessionId, "4001"), null, CancellationToken.None).ConfigureAwait(false);
+            Require(result.Items.Count == 1 && result.Items[0].DisplayName == "DLC Helmet", "DLC table/localization join failed");
+            Require(result.Items[0].PacFiles.SequenceEqual(new[] { "cd_shared_armor_0002.pac" }), "compact StringInfo prefab join failed");
+            var original = await service.SearchAsync(new ItemCatalogSearchRequest(handle.SessionId, "1234"), null, CancellationToken.None).ConfigureAwait(false);
+            Require(original.Items.Count == 1 && original.Items[0].DisplayName == "Current Blade", "DLC erased base item names");
+            var signature = ArchiveItemSources.MountSignature(fixture.Root);
+            var mountPath = Path.Combine(fixture.Root, "dlc", "dlc_01", "meta", "0.papgt");
+            var mountBytes = await File.ReadAllBytesAsync(mountPath).ConfigureAwait(false);
+            mountBytes[^1] ^= 1;
+            await File.WriteAllBytesAsync(mountPath, mountBytes).ConfigureAwait(false);
+            Require(signature != ArchiveItemSources.MountSignature(fixture.Root), "DLC mount edits did not invalidate the catalogue signature");
+            var empty = Path.Combine(fixture.Root, "empty");
+            Directory.CreateDirectory(Path.Combine(empty, "meta"));
+            await File.WriteAllBytesAsync(Path.Combine(empty, "meta", "0.papgt"),
+                new byte[] { 0x81, 0x16, 0, 2 }.Concat(new byte[68]).ToArray()).ConfigureAwait(false);
+            var entry = sessions.GetRequired(handle.SessionId).Index.FindEntriesByPath("character/model/cd_shared_armor_0002.pac").First();
+            Require(!new ArchiveItemSources(empty).Accepts(entry), "an empty mount table accepted unmounted files");
+        }
+        finally { DeleteDirectory(cacheRoot); }
     }
 
     private static async Task CurrentItemNamesAsync()

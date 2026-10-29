@@ -60,10 +60,10 @@ def resolve_item_data_sources(entries: Iterable[ArchiveEntry], *, pamt_paths: It
         papgt = root / "meta" / "0.papgt"
         if not papgt.is_file():
             continue
-        from cdmw.core.papgt_format import parse_papgt
+        from cdmw.core.papgt_format import read_papgt_directories
         if papgt.stat().st_size > 1024 * 1024:
             raise ValueError(f"Archive mount table is unexpectedly large: {papgt}")
-        mounts = parse_papgt(papgt.read_bytes())
+        mounts = read_papgt_directories(papgt.read_bytes())
         mounted = {str(root / row.name).replace("\\", "/").casefold(): len(mounts) - index
                    for index, row in enumerate(mounts)}
         mount_priorities.update(mounted)

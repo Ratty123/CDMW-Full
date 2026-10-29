@@ -160,22 +160,29 @@ class ResidentArchiveIndex(Sequence[ArchiveEntry]):
             self._ascii_case_alias = None
             self._mounts = None
             self.missing_mod_mounts = []
-            mount_path = root / "meta" / "0.papgt"
-            if mount_path.is_file():
-                from cdmw.core.papgt_format import parse_papgt
+            packages = {file.parent.resolve() for file, *_ in self.source_files if file.suffix.lower() == ".pamt"}
+            mount_roots = {root} | {package.parent for package in packages if package.parent.parent == root / "dlc"}
+            for mount_root in sorted(mount_roots):
+                mount_path = mount_root / "meta" / "0.papgt"
+                if not mount_path.is_file():
+                    continue
+                from cdmw.core.papgt_format import read_papgt_directories
                 if mount_path.stat().st_size > 1024 * 1024:
                     raise ValueError("Archive mount table is unexpectedly large.")
-                mount_rows = parse_papgt(mount_path.read_bytes())
-                packages = {file.parent.name.casefold() for file, *_ in self.source_files if file.suffix.lower() == ".pamt"}
+                mount_rows = read_papgt_directories(mount_path.read_bytes())
                 ignored = {name.casefold() for name in source.ignored_folders}
                 if source.use_default_ignored_folders:
                     ignored.update(name.casefold() for name in BUILTIN_IGNORED_ARCHIVE_FOLDERS)
-                self._mounts = {}
+                stamp = mount_path.stat()
+                if all(file != mount_path for file, *_ in self.source_files):
+                    self.source_files.append((mount_path, stamp.st_size, stamp.st_mtime_ns // 100 + _DOTNET_EPOCH_TICKS))
+                if self._mounts is None:
+                    self._mounts = {}
                 for rank, mount in enumerate(mount_rows):
-                    directory = (root / mount.name).resolve()
-                    if directory.parent != root:
+                    directory = (mount_root / mount.name).resolve()
+                    if directory.parent != mount_root:
                         raise ValueError(f"Mounted archive is outside the game folder: {mount.name}")
-                    if mount.name.casefold() not in packages:
+                    if directory not in packages:
                         if mount.name.casefold() in ignored:
                             # Deliberately excluded folders are not missing inputs,
                             # even while another manager still mounts them in PAPGT.
@@ -187,10 +194,10 @@ class ResidentArchiveIndex(Sequence[ArchiveEntry]):
                         if not shipped and not directory.exists():
                             # PAPGT retains manager reservations after a mod is
                             # removed. They have no payloads to add to this view.
-                            self.missing_mod_mounts.append(mount.name)
+                            self.missing_mod_mounts.append(str(directory.relative_to(root)))
                             continue
                         raise ValueError(f"Mounted archive is missing: {mount.name}")
-                    self._mounts[str(root / mount.name).replace("\\", "/").casefold()] = rank
+                    self._mounts[str(directory).replace("\\", "/").casefold()] = rank
             self.by_path = _EntryGroups(self, "path")
             self.by_basename = _EntryGroups(self, "basename")
             self.by_extension = _EntryGroups(self, "extension")

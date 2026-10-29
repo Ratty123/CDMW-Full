@@ -8251,6 +8251,7 @@
     "Object mode for whole-part editing.": "Режим объекта для редактирования всей части.",
     "Objects": "Объекты",
     "Occupied equipment slots": "Занимаемые слоты снаряжения",
+    "October 2026 DLC: scan the complete game folder to include dlc/dlc_01. Browsing and extraction support compact archive indexes, including DLC item and character names. Direct archive patching, overlay installation and Create New Item are not supported for this new layout. Keep the original archives unchanged. Successful extraction does not establish editing or in-game support for every file type.": "DLC за октябрь 2026 года: просканируйте всю папку игры, чтобы включить dlc/dlc_01. Просмотр и извлечение поддерживают компактные индексы архивов, включая названия предметов и имена персонажей DLC. Прямое изменение архивов, установка оверлеев и создание новых предметов для этой новой структуры не поддерживаются. Оставьте исходные архивы без изменений. Успешное извлечение не подтверждает возможность редактирования или работы в игре для каждого типа файлов.",
     "Off": "Выкл.",
     "Off (least disk use)": "Выкл. (минимальное использование диска)",
     "Off by default for PAC XML because related skeleton/HKX data does not affect material values. Enable it only when rig or deformation context is useful.": "По умолчанию для PAC XML отключено, поскольку связанные данные скелета/HKX не влияют на параметры материала. Включайте его только тогда, когда контекст скелета или деформации полезен.",

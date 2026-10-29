@@ -9,6 +9,14 @@ The ABI has no archive mutation, replacement, patch, or restore functions. The
 source archive tree is opened read-only. Index publication is staged beside the
 cache destination and then replaced atomically.
 
+The October 2026 compact PAMT layout is readable alongside the legacy layout.
+Its name trie uses varuint backward parent distances; the extension table follows
+the file records and is indexed by the high byte of each entry's flags. Only the
+low compression/encryption nibbles describe payload transforms. PAZ records carry
+actual archive IDs, which can be sparse. Malformed names, extension indexes and
+references to absent PAZ IDs are refused. `native/common/pamt_compact.hpp` owns
+the shared compact-name and extension bounds checks.
+
 Partial PAM geometry (versions `0x1802` and `0x01001806`) and aligned PAMLOD LOD
 blocks are decoded by `native/common/partial_static_mesh.hpp`, shared with Preview
 Core. Mixed compressed/plain LODs retain their metadata and material descriptors;

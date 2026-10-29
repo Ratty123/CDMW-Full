@@ -1,5 +1,4 @@
 using System.Collections.Concurrent;
-using System.Security.Cryptography;
 using System.Text.Json;
 using Cdmw.FullArchive.Contracts;
 
@@ -20,9 +19,7 @@ public sealed class ArchiveCharacterCatalogService(ArchiveSessionManager session
         try
         {
             if (session.TryGetCharacterCatalog(out present)) return Summary(session.Id, present!, true);
-            var mount = Path.Combine(session.PackageRoot, "meta", "0.papgt");
-            var signature = session.Fingerprint + ":" + (File.Exists(mount)
-                ? Convert.ToHexString(SHA256.HashData(await File.ReadAllBytesAsync(mount, token).ConfigureAwait(false))) : "unmounted");
+            var signature = session.Fingerprint + ":" + ArchiveItemSources.MountSignature(session.PackageRoot);
             var cachePath = Path.Combine(session.GenerationPath, $"character-catalog-v{ArchiveCharacterCatalogBuilder.Version}.json");
             CharacterCatalogSnapshot? snapshot = null;
             if (File.Exists(cachePath) && new FileInfo(cachePath).Length <= 128 * 1024 * 1024)

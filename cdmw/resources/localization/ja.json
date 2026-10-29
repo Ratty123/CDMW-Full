@@ -8251,6 +8251,7 @@
     "Object mode for whole-part editing.": "パーツ全体を編集するためのオブジェクトモードです。",
     "Objects": "オブジェクト",
     "Occupied equipment slots": "占有する装備スロット",
+    "October 2026 DLC: scan the complete game folder to include dlc/dlc_01. Browsing and extraction support compact archive indexes, including DLC item and character names. Direct archive patching, overlay installation and Create New Item are not supported for this new layout. Keep the original archives unchanged. Successful extraction does not establish editing or in-game support for every file type.": "2026年10月のDLC：dlc/dlc_01を含めるため、ゲームフォルダー全体をスキャンしてください。閲覧と抽出はコンパクトなアーカイブインデックスに対応し、DLCのアイテム名とキャラクター名も読み取れます。この新しい構造では、アーカイブへの直接パッチ適用、オーバーレイのインストール、新規アイテムの作成はサポートされていません。元のアーカイブは変更せずに保持してください。抽出の成功は、すべてのファイル形式の編集やゲーム内での動作を保証するものではありません。",
     "Off": "オフ",
     "Off (least disk use)": "オフ (ディスク使用量が最小限)",
     "Off by default for PAC XML because related skeleton/HKX data does not affect material values. Enable it only when rig or deformation context is useful.": "関連するスケルトン/HKX データはマテリアル値に影響を与えないため、PAC XML ではデフォルトでオフになっています。リグまたは変形コンテキストが役立つ場合にのみ有効にします。",

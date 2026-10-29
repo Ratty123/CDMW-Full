@@ -94,6 +94,34 @@ can be writable without a semantic validator for its contents.
 
 ### 3.1 Storage and mount order
 
+**30 October 2026 patch-day review:** game `1.0.0.3392`, Steam build `26308950`,
+including `dlc/dlc_01`. Source baseline `83acd2dc` plus the compact-format changes
+in this revision. The installed indexes now use backward varuint name references,
+a trailing extension dictionary selected by the flags' high byte, and sparse PAZ
+IDs. Legacy readers treated extension bits as encryption and assumed contiguous
+PAZ IDs; those assumptions are corrected in the Python and native readers.
+The new PAPGT has a four-byte header and 64 opaque trailing bytes. Its directory
+list is readable; the trailer's meaning and valid rewrite procedure remain unknown.
+
+The read-only audit decoded all **2,089,061 indexed entries**, including **307,263
+DLC entries**, to their declared sizes. No unsupported encryption type or
+`PartialRaw` result occurred. All 1,155 PALOC payloads parsed. One text heuristic
+warning was a valid UTF-8 Korean test string, not undecrypted data. This is payload
+decoding evidence, not complete semantic validation of every format. The decoder
+SHA-256 was `127a24b5020776f246e7f2363b1a73fbdd94b51f070cbcaf739db77894896389`.
+
+The new `.admeta`, `.overridedlevellistbinary` and `.staticinfodummy` files are
+extractable; their semantic editing contracts are not established. DLC metadata
+uses `.dlc_01` table/localization names. Updated Item Finder joins yield 8,373
+distinct items. Character naming reads the reordered fields too; one appearance
+hash has no unique installed match and remains explicitly unresolved.
+
+Direct archive patching refuses compact/extended PAMT indexes. Overlay writes
+retain the legacy PAPGT checksum requirement, and Create New Item's existing
+authoring layouts are not qualified for the reordered tables. Browsing/extraction
+support must not be interpreted as permission or evidence for those writes.
+The review made no game changes, installation or in-game acceptance test.
+
 Numbered archive groups pair a `.pamt` index with numbered `.paz` payloads.
 The index records paths, payload locations, stored/original sizes and flags.
 `meta/0.papgt` describes mounted archive groups and their ordering. Correct
@@ -311,6 +339,16 @@ Sources: [EyeCover investigation][eyecover], [underlying-part workflow][new-item
 ## 5. Meshes, skeletons and character appearance
 
 ### 5.1 Mesh containers and exact output
+
+The 30 October 2026 DLC audit sampled 32 PAC/PAM/PAMLOD assets across base and DLC
+archives. One DLC helmshelter ship initially failed: the native PAMLOD scanner
+mistook DDS-looking bytes inside a material name for an additional descriptor.
+Skipping both fixed-width name fields after an accepted descriptor corrects that
+case without guessing new geometry. The owned malformed-descriptor regression
+passes through the real helper; all 12 sampled PAMLODs pass after the correction,
+alongside the 20 PAC/PAM samples that passed initially. These are nonvisual mesh
+parse checks. PAMLOD rebuild support, visible appearance and game acceptance are
+not established by this audit.
 
 PAC uses a sectioned `PAR ` container with metadata, submeshes, LODs, vertex
 layouts, indices and accompanying material data. Supported PAM and PAMLOD

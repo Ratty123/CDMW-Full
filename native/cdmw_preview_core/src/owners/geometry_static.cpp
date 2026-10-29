@@ -568,7 +568,9 @@ static std::vector<RawPamEntry> read_pamlod_entries(const std::vector<char>& dat
             && std::string(data.data() + off, 4) == std::string("dds\0", 4);
         if (!no_texture && !looks_like_dds_string(data, static_cast<size_t>(off), kPamNameMaxLength)) continue;
         const int entry_offset = off - 16;
-        if (entry_offset < kPamlodEntryTableOffset || static_cast<size_t>(off) + kPamNameMaxLength > data.size()) continue;
+        if (entry_offset < kPamlodEntryTableOffset
+            || off + 2 * kPamNameMaxLength > geom_offset
+            || static_cast<size_t>(off) + 2 * kPamNameMaxLength > data.size()) continue;
         const std::uint32_t vc = read_u32(data, entry_offset);
         const std::uint32_t ic = read_u32(data, entry_offset + 4);
         if (vc == 0 || vc > 131072 || ic == 0 || (ic % 3) != 0) continue;
@@ -581,8 +583,28 @@ static std::vector<RawPamEntry> read_pamlod_entries(const std::vector<char>& dat
             no_texture ? "" : read_c_string(data, off, kPamNameMaxLength),
             read_c_string(data, static_cast<size_t>(off) + kPamNameMaxLength, kPamNameMaxLength),
         });
+        // Both fixed-width names belong to this descriptor. A material name can
+        // contain another DDS suffix; its bytes are not another mesh header.
+        off += 2 * kPamNameMaxLength - 1;
     }
     return entries;
+}
+
+static void run_pamlod_table_self_test() {
+    const int geometry = kPamlodEntryTableOffset + 2 * kPamSubmeshStride;
+    std::vector<char> data(static_cast<size_t>(geometry) + 64, 0);
+    auto put = [&](int at, std::uint32_t value) { std::memcpy(data.data() + at, &value, sizeof(value)); };
+    for (int index = 0; index < 2; ++index) {
+        const int at = kPamlodEntryTableOffset + index * kPamSubmeshStride;
+        put(at, 3); put(at + 4, 3); put(at + 8, index * 3); put(at + 12, index * 3);
+        std::memcpy(data.data() + at + 16, "owned.dds", 10);
+    }
+    const int fake = kPamlodEntryTableOffset + 16 + kPamNameMaxLength + 32;
+    put(fake, 3); put(fake + 4, 3);
+    std::memcpy(data.data() + fake + 16, "nested.dds", 11);
+    const auto entries = read_pamlod_entries(data, geometry);
+    if (entries.size() != 2 || entries[1].vertex_element_offset != 3)
+        throw std::runtime_error("PAMLOD material bytes were mistaken for a mesh descriptor");
 }
 
 static std::vector<std::vector<RawPamEntry>> group_pamlod_entries(const std::vector<RawPamEntry>& entries, int lod_count) {

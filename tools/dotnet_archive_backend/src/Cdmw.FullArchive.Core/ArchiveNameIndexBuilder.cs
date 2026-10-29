@@ -332,7 +332,8 @@ internal static class ArchiveNameIndexBuilder
     }
 
     /// <summary>One `.pabgh` row: a primary key and where the matching `.pabgb` row starts.</summary>
-    internal readonly record struct PabghDirectoryRow(byte[] Key, uint Offset);
+    internal readonly record struct PabghDirectoryRow(byte[] Key, uint Offset, int KeyOffset = 0);
+    internal enum TableKeyLayout { Inline, Named, PrefixFourZeros }
 
     /// <summary>
     /// Resolve the header's count and key widths against the row payload.
@@ -340,7 +341,8 @@ internal static class ArchiveNameIndexBuilder
     /// payload: every row repeats its own key inline. A one-row table fits several
     /// widths arithmetically, and that inline check is the only thing separating them.
     /// </summary>
-    internal static List<PabghDirectoryRow>? ResolvePabghDirectory(byte[] header, byte[] payload)
+    internal static List<PabghDirectoryRow>? ResolvePabghDirectory(byte[] header, byte[] payload,
+        TableKeyLayout layout = TableKeyLayout.Inline)
     {
         foreach (var countWidth in PabghCountWidths)
         {
@@ -395,13 +397,38 @@ internal static class ArchiveNameIndexBuilder
                 continue;
             }
             var inlineKeysMatch = true;
-            foreach (var row in rows)
+            for (var index = 0; index < rows.Count; index++)
             {
-                if (!payload.AsSpan(checked((int)row.Offset), keyWidth).SequenceEqual(row.Key))
+                var row = rows[index];
+                var start = checked((int)row.Offset);
+                var end = index + 1 < rows.Count ? checked((int)rows[index + 1].Offset) : payload.Length;
+                if (start + keyWidth > end) { inlineKeysMatch = false; break; }
+                var inlineMatch = payload.AsSpan(start, keyWidth).SequenceEqual(row.Key);
+                if (layout == TableKeyLayout.Named && inlineMatch)
+                {
+                    inlineMatch = keyWidth == 4 && start + 8 <= end;
+                    if (inlineMatch)
+                    {
+                        var length = ReadUInt32(payload, start + 4);
+                        inlineMatch = length is > 0 and <= 256 && start + 8L + length <= end;
+                    }
+                }
+                if (inlineMatch) continue;
+                var keyOffset = 0;
+                if (layout == TableKeyLayout.Named && keyWidth == 4 && start + 8 <= end)
+                {
+                    var length = ReadUInt32(payload, start);
+                    if (length is 0 or > 256 || start + 8L + length > end) { inlineKeysMatch = false; break; }
+                    keyOffset = 4 + (int)length;
+                }
+                else if (layout == TableKeyLayout.PrefixFourZeros && start + 4 + keyWidth <= end
+                    && ReadUInt32(payload, start) == 0) keyOffset = 4;
+                if (keyOffset == 0 || !payload.AsSpan(start + keyOffset, keyWidth).SequenceEqual(row.Key))
                 {
                     inlineKeysMatch = false;
                     break;
                 }
+                rows[index] = row with { KeyOffset = keyOffset };
             }
             if (inlineKeysMatch)
             {
@@ -440,18 +467,19 @@ internal static class ArchiveNameIndexBuilder
     }
 
     /// <summary>The row's own name field, which follows the repeated primary key.</summary>
-    internal static string ReadItemInfoRowInternalName(byte[] data, int rowStart, int rowEnd)
+    internal static string ReadItemInfoRowInternalName(byte[] data, int rowStart, int rowEnd, bool nameFirst = false)
     {
         if (rowStart + 8 > rowEnd)
         {
             return string.Empty;
         }
-        var length = ReadUInt32(data, rowStart + 4);
+        var at = rowStart + (nameFirst ? 0 : 4);
+        var length = ReadUInt32(data, at);
         if (length is 0 or > 256 || rowStart + 8 + length > rowEnd)
         {
             return string.Empty;
         }
-        var raw = data.AsSpan(rowStart + 8, checked((int)length));
+        var raw = data.AsSpan(at + 4, checked((int)length));
         var nul = raw.IndexOf((byte)0);
         return Encoding.ASCII.GetString(nul < 0 ? raw : raw[..nul]);
     }
@@ -466,7 +494,7 @@ internal static class ArchiveNameIndexBuilder
         IReadOnlyDictionary<uint, string> stringInfoHashes,
         CancellationToken cancellationToken)
     {
-        var directory = ResolvePabghDirectory(header, data);
+        var directory = ResolvePabghDirectory(header, data, TableKeyLayout.Named);
         if (directory is null)
         {
             return null;
@@ -485,12 +513,12 @@ internal static class ArchiveNameIndexBuilder
             {
                 continue;
             }
-            var itemId = ReadUInt32(data, rowStart);
+            var itemId = ReadUInt32(data, rowStart + directory[index].KeyOffset);
             if (!seenIds.Add(itemId))
             {
                 continue;
             }
-            var internalName = ReadItemInfoRowInternalName(data, rowStart, rowEnd);
+            var internalName = ReadItemInfoRowInternalName(data, rowStart, rowEnd, directory[index].KeyOffset != 0);
             var nameKey = ReadItemInfoSubRecordKey(data, rowStart, rowEnd, 0x70);
             var localizationIds = nameKey.Length == 0 ? new List<string>() : [nameKey];
 

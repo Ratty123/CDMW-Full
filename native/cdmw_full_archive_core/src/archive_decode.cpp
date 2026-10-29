@@ -230,7 +230,7 @@ DecodeResult decode_entry(
     auto data = read_entry_raw(paz_path, archive_offset, stored_size);
     std::vector<std::string> notes;
     const auto encryption_type = (flags >> 4) & 0x0Fu;
-    if ((flags >> 4) != 0) {
+    if (encryption_type != 0) {
         if (encryption_type != 3) throw UnsupportedError("unsupported archive encryption type " + std::to_string(encryption_type));
         data = crypt_chacha20_filename(data, virtual_path);
         notes.emplace_back("ChaCha20");
