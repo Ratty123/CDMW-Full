@@ -32,6 +32,44 @@ CODEQL_WORKFLOW = ROOT / ".github" / "workflows" / "codeql.yml"
 POWERSHELL = shutil.which("powershell.exe")
 
 
+@pytest.mark.skipif(POWERSHELL is None, reason="PowerShell is required")
+def test_builder_stops_only_its_own_named_app_outputs():
+    script = f"""
+. '{str(BUILDER).replace("'", "''")}' -DescribeOnly | Out-Null
+$script:stopped = [Collections.Generic.List[int]]::new()
+function Get-Process {{
+    @(
+        [pscustomobject]@{{Id=1; ProcessName='CDMW'; Path='C:\\owned\\dist\\CDMW.exe'}},
+        [pscustomobject]@{{Id=2; ProcessName='CDMW'; Path='C:\\other\\dist\\CDMW.exe'}},
+        [pscustomobject]@{{Id=3; ProcessName='cdmw_mesh_lab'; Path='C:\\owned\\dist\\cdmw_mesh_lab.exe'}},
+        [pscustomobject]@{{Id=4; ProcessName='CrimsonDesertModWorkbench-old'; Path='C:\\owned\\dist\\CrimsonDesertModWorkbench-old.exe'}}
+    )
+}}
+function Stop-Process {{ param($Id, [switch]$Force, $ErrorAction) $script:stopped.Add($Id) }}
+function Wait-Process {{ param($Id, $Timeout, $ErrorAction) }}
+Stop-AppProcesses -NamePrefixes @('CrimsonDesertModWorkbench') -ExactNames @('CDMW') -OutputRoots @('C:\\owned\\dist') | Out-Null
+ConvertTo-Json -InputObject @($script:stopped.ToArray()) -Compress
+"""
+    run = subprocess.run([POWERSHELL, "-NoProfile", "-Command", script], cwd=ROOT, capture_output=True, text=True)
+    assert run.returncode == 0, run.stdout + run.stderr
+    assert json.loads(run.stdout.strip().splitlines()[-1]) == [1, 4]
+
+
+@pytest.mark.skipif(POWERSHELL is None, reason="PowerShell is required")
+@pytest.mark.parametrize("mode", ["onefile", "onedir"])
+@pytest.mark.parametrize("profile", ["release", "fast", "debug"])
+def test_builder_and_gui_agree_on_output_name(mode, profile):
+    from build_gui import BuildSelection, expected_output_path
+
+    script = f"""
+. '{str(BUILDER).replace("'", "''")}' -Mode {mode} -BuildProfile {profile} -DescribeOnly | Out-Null
+Write-Output $finalOutputPath
+"""
+    run = subprocess.run([POWERSHELL, "-NoProfile", "-Command", script], cwd=ROOT, capture_output=True, text=True)
+    assert run.returncode == 0, run.stdout + run.stderr
+    assert Path(run.stdout.strip().splitlines()[-1]) == expected_output_path(BuildSelection(mode, profile))
+
+
 def test_release_constraints_are_exact_complete_and_installed() -> None:
     pins = read_exact_constraints(CONSTRAINTS)
     locked = read_hashed_release_lock(RELEASE_LOCK)
@@ -124,6 +162,11 @@ def test_release_builder_keeps_portable_self_contained_defaults_and_smokes_befor
 
     assert '[string]$Mode = "onefile"' in source
     assert '[string]$BuildProfile = "release"' in source
+    assert '$appName = "CDMW"' in source
+    assert '$oneFileOutputName = "$appName.exe"' in source
+    assert spec_source.count('name="CDMW"') == 3
+    assert 'path: dist/CDMW.exe' in (ROOT / '.github/workflows/windows-build.yml').read_text(encoding='utf-8')
+    assert '-ExactNames @($appName, "$appName-fast", "$appName-debug")' in source
     assert "--self-contained true" in archive_backend_source
     assert "--self-contained false" not in archive_backend_source
     assert "-p:PublishSingleFile=false" in archive_backend_source

@@ -18,7 +18,7 @@ see the smaller, read-only [CDMW Lite](https://github.com/Ratty123/CDMW-Lite).
 
 ## Install
 
-1. Download and run `CrimsonDesertModWorkbench-<version>-windows-portable.exe`.
+1. Download and run `CDMW.exe`. Check **Help > About** or Windows file properties for the version.
 2. Set the game folder in **Settings > Paths > Archive Locations**.
 3. Open **Assets > Browse Archives** to inspect files, or choose a tool below.
 
@@ -244,7 +244,7 @@ To build a portable executable:
 .\build.bat onefile release
 ```
 
-Output: `dist\CrimsonDesertModWorkbench-<version>-windows-portable.exe`.
+Output: `dist\CDMW.exe`.
 Run `build.bat help` for other build modes. Follow the [test guide](tests/README.md)
 for focused validation; source tests and packaging checks are separate from
 visible UI and in-game testing.

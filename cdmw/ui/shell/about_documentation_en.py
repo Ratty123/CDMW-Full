@@ -403,6 +403,7 @@ class AboutDocumentationEnglishMixin:
                 <p>October 2026 DLC: scan the complete game folder to include dlc/dlc_01. Browsing and extraction support compact archive indexes, including DLC item and character names. Direct archive patching, overlay installation and Create New Item are not supported for this new layout. Keep the original archives unchanged. Successful extraction does not establish editing or in-game support for every file type.</p>
                 <p>Item Finder shows recovered ship icons and model links; unavailable icons keep a letter tile. Body &amp; Face Finder reads character names from both the base game and DLC.</p>
                 <p>If a DDS preview shows raw bytes, open Details and include the file path and the Decoded preview failed line in your report. Readable strings alone do not identify the decoding error.</p>
+                <p>Prepared archive files and DDS preview caches support long Windows paths without changing Windows settings. If access still fails, Details includes the operating-system error and path length.</p>
                 <p>Reopen the DDS entry or choose Refresh to retry a failed preview. Raw-byte fallbacks are not saved as successful previews.</p>
                 <p>Not every archive format is editable. Browsing and preview support is broader than patch support, so use the visible actions beside the preview to see what is currently available for the selected entry.</p>
                 <h3>Batch OBJ / FBX export</h3>
@@ -814,6 +815,7 @@ class AboutDocumentationEnglishMixin:
                 "keywords": "settings files config cache dependency native dds ncnn chainner license readme notices",
                 "html": f"""
                 <p>The app stores its local settings and archive cache beside the executable or local source checkout.</p>
+                <p>The Windows portable executable is named CDMW.exe. Check About or Windows file properties for its version; the settings filename remains CrimsonDesertModWorkbench.cfg.</p>
                 <ul>
                   <li><b>Config file</b>: <code>{settings_text}</code></li>
                   <li><b>Archive cache</b>: <code>{cache_text}</code></li>

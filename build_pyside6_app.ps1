@@ -11,7 +11,7 @@ param(
 $ErrorActionPreference = "Stop"
 Set-StrictMode -Version Latest
 
-$appName = "CrimsonDesertModWorkbench"
+$appName = "CDMW"
 $legacyAppNames = @("DDSRebuildApp")
 
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
@@ -214,16 +214,37 @@ function Remove-PackagedOnedirRuntimeArtifacts {
 function Stop-AppProcesses {
     param(
         [Parameter(Mandatory = $true)]
-        [string[]]$NamePrefixes
+        [string[]]$NamePrefixes,
+        [string[]]$ExactNames = @(),
+        [Parameter(Mandatory = $true)]
+        [string[]]$OutputRoots
     )
 
     $targets = @(Get-Process -ErrorAction SilentlyContinue | Where-Object {
         $processName = $_.ProcessName
+        $nameMatches = $false
+        if ($processName -in $ExactNames) {
+            $nameMatches = $true
+        }
         foreach ($prefix in $NamePrefixes) {
             if ($processName -like "$prefix*") {
-                return $true
+                $nameMatches = $true
+                break
             }
         }
+        if (-not $nameMatches) {
+            return $false
+        }
+        # A build must not close another checkout's app or similarly named helpers.
+        try {
+            $processPath = $_.Path
+            foreach ($root in $OutputRoots) {
+                $rootPrefix = [IO.Path]::GetFullPath($root).TrimEnd([char[]]@('\', '/')) + [IO.Path]::DirectorySeparatorChar
+                if ($processPath -and $processPath.StartsWith($rootPrefix, [StringComparison]::OrdinalIgnoreCase)) {
+                    return $true
+                }
+            }
+        } catch { }
         return $false
     } | Sort-Object Id -Unique)
 
@@ -1053,10 +1074,10 @@ if (-not $appVersion) {
 }
 
 if ($BuildProfile -eq "release") {
-    $oneFileOutputName = "$appName-$appVersion-windows-portable.exe"
+    $oneFileOutputName = "$appName.exe"
     $oneDirOutputName = "$appName-$appVersion-windows"
 } else {
-    $oneFileOutputName = "$appName-$appVersion-$BuildProfile-windows-portable.exe"
+    $oneFileOutputName = "$appName-$BuildProfile.exe"
     $oneDirOutputName = "$appName-$appVersion-$BuildProfile-windows"
 }
 
@@ -1092,7 +1113,7 @@ if ($BuildProfile -eq "release") {
 }
 
 Write-BuildProgress -Percent 5 -Stage "Preparing output folders"
-Stop-AppProcesses -NamePrefixes @($appName, $legacyAppNames)
+Stop-AppProcesses -NamePrefixes @("CrimsonDesertModWorkbench", $legacyAppNames) -ExactNames @($appName, "$appName-fast", "$appName-debug") -OutputRoots @($stableDistDir, $pyInstallerDistDir)
 New-Item -ItemType Directory -Path $stableDistDir -Force | Out-Null
 New-Item -ItemType Directory -Path $stableBuildDir -Force | Out-Null
 

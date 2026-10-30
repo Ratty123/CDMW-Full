@@ -25,6 +25,7 @@ from cdmw.constants import (
 from cdmw.models import ArchiveEntry, DdsInfo
 from cdmw.core.atomic_file import atomic_publish_directory
 from cdmw.core.common import hidden_subprocess_kwargs, raise_if_cancelled
+from cdmw.core.filesystem import filesystem_path
 from cdmw.core.archive_extraction import (
     _dds_bytes_per_block,
     _dds_surface_size,
@@ -383,7 +384,7 @@ def ensure_archive_preview_source(
     ).hexdigest()
     suffix = Path(entry.path).suffix or ".bin"
     filename = sanitize_cache_filename(f"{Path(entry.path).stem}{suffix}")
-    cache_dir = app_temp_cache_path("archive_preview_cache", cache_key)
+    cache_dir = filesystem_path(app_temp_cache_path("archive_preview_cache", cache_key))
     target_path = cache_dir / filename
     with app_temp_cache_build(cache_dir):
         try:

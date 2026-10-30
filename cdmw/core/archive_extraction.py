@@ -26,6 +26,7 @@ from cdmw.constants import (
     DDPF_RGB,
 )
 from cdmw.core.common import hidden_subprocess_kwargs, raise_if_cancelled
+from cdmw.core.filesystem import filesystem_path
 from cdmw.core.archive_format import try_decrypt_archive_entry_data
 from cdmw.core.dds_resource_limits import (
     DDS_MAX_DIMENSION,
@@ -552,12 +553,14 @@ def read_archive_entry_data(
     prepared_path = getattr(entry, "prepared_path", None)
     if prepared_path is not None:
         path = Path(prepared_path)
+        io_path = filesystem_path(path)
         raise_if_cancelled(stop_event)
         try:
-            size = path.stat().st_size
+            size = io_path.stat().st_size
         except OSError as exc:
             raise ValueError(
-                f"Prepared archive source is unavailable for {entry.path}: {path}"
+                f"Prepared archive source is unavailable for {entry.path}: {path} "
+                f"(path length: {len(str(path))}; stat failed: {exc})"
             ) from exc
         prepared_size = getattr(entry, "prepared_size", None)
         expected_size = int(prepared_size) if prepared_size is not None else max(0, int(entry.orig_size or 0))
@@ -566,8 +569,14 @@ def read_archive_entry_data(
                 f"Prepared archive source size changed for {entry.path}: "
                 f"expected {expected_size:,} bytes, found {size:,}."
             )
-        with path.open("rb") as stream:
-            data = stream.read()
+        try:
+            with io_path.open("rb") as stream:
+                data = stream.read()
+        except OSError as exc:
+            raise ValueError(
+                f"Prepared archive source is unavailable for {entry.path}: {path} "
+                f"(path length: {len(str(path))}; read failed: {exc})"
+            ) from exc
         raise_if_cancelled(stop_event)
         if len(data) != size:
             raise ValueError(f"Prepared archive source changed while reading {entry.path}.")

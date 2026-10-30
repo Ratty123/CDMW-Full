@@ -108622,6 +108622,16 @@
       ]
     },
     {
+      "key": "Prepared archive files and DDS preview caches support long Windows paths without changing Windows settings. If access still fails, Details includes the operating-system error and path length.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 369,
+          "sink": "python-return:_build_archive_mesh_sections"
+        }
+      ]
+    },
+    {
       "key": "Prepared editor geometry belongs to another archive target",
       "origins": [
         {
@@ -152523,6 +152533,16 @@
           "path": "cdmw/workers/character_finder_workers.py",
           "line": 378,
           "sink": "RuntimeError"
+        }
+      ]
+    },
+    {
+      "key": "The Windows portable executable is named CDMW.exe. Check About or Windows file properties for its version; the settings filename remains CrimsonDesertModWorkbench.cfg.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 810,
+          "sink": "python-return:_build_environment_sections"
         }
       ]
     },

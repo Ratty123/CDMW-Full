@@ -50,8 +50,31 @@ def test_missing_prepared_archive_entry_fails_closed(tmp_path: Path) -> None:
     (tmp_path / "fallback.paz").write_bytes(b"must not be read")
     entry = _prepared_entry(tmp_path / "missing.pac", expected_size=16)
 
-    with pytest.raises(ValueError, match="Prepared archive source is unavailable"):
+    with pytest.raises(ValueError, match="Prepared archive source is unavailable") as error:
         read_archive_entry_data(entry)
+    assert "stat failed:" in str(error.value)
+    assert str(error.value.__cause__) in str(error.value)
+    assert f"path length: {len(str(entry.prepared_path))}" in str(error.value)
+
+
+def test_prepared_archive_entry_read_error_preserves_os_details(tmp_path, monkeypatch):
+    prepared = tmp_path / "prepared.pac"
+    prepared.write_bytes(b"payload")
+    entry = _prepared_entry(prepared, expected_size=7)
+    original_open = Path.open
+    denied = PermissionError(13, "Access denied", str(prepared))
+
+    def fail_read(path, *args, **kwargs):
+        if path.name == prepared.name:
+            raise denied
+        return original_open(path, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "open", fail_read)
+    with pytest.raises(ValueError, match="read failed:") as error:
+        read_archive_entry_data(entry)
+    assert error.value.__cause__ is denied
+    assert str(denied) in str(error.value)
+    assert entry.path in str(error.value)
 
 
 def test_changed_prepared_archive_entry_size_is_rejected(tmp_path: Path) -> None:

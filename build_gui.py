@@ -129,11 +129,11 @@ def get_app_version() -> str:
 def expected_output_path(selection: BuildSelection) -> Path:
     version = get_app_version()
     if selection.profile == "release":
-        onefile_name = f"{APP_NAME}-{version}-windows-portable.exe"
-        onedir_name = f"{APP_NAME}-{version}-windows"
+        onefile_name = "CDMW.exe"
+        onedir_name = f"CDMW-{version}-windows"
     else:
-        onefile_name = f"{APP_NAME}-{version}-{selection.profile}-windows-portable.exe"
-        onedir_name = f"{APP_NAME}-{version}-{selection.profile}-windows"
+        onefile_name = f"CDMW-{selection.profile}.exe"
+        onedir_name = f"CDMW-{version}-{selection.profile}-windows"
     return ROOT / "dist" / (onefile_name if selection.mode == "onefile" else onedir_name)
 
 
@@ -922,7 +922,7 @@ def self_test() -> int:
         ROOT.exists(),
         (ROOT / "build_pyside6_app.ps1").exists(),
         build_command(BuildSelection("onedir", "fast"))[-4:] == ["-Mode", "onedir", "-BuildProfile", "fast"],
-        expected_output_path(BuildSelection("onefile", "release")).name.endswith("windows-portable.exe"),
+        expected_output_path(BuildSelection("onefile", "release")).name == "CDMW.exe",
         progress_from_line(0, "::progress::42::Packing payload") == 42,
         structured_stage_from_line("::progress::42::Packing payload") == "PACKING PAYLOAD",
         progress_from_line(0, "Building EXE from EXE-00.toc") >= 90,

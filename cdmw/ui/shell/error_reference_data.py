@@ -7385,7 +7385,7 @@ MESSAGE_REFERENCE = [
     "message": "- Requires PATHC/manifest registration: {'Yes' if crimson_info.requires_pathc else 'No'}",
     "recovery": "input",
     "sources": {
-      "cdmw/core/archive_media_preview.py": 282
+      "cdmw/core/archive_media_preview.py": 283
     }
   },
   {
@@ -8409,7 +8409,7 @@ MESSAGE_REFERENCE = [
     "message": "Archive entry has an invalid path: {entry.path}",
     "recovery": "input",
     "sources": {
-      "cdmw/core/archive_extraction.py": 263
+      "cdmw/core/archive_extraction.py": 264
     }
   },
   {
@@ -8585,7 +8585,7 @@ MESSAGE_REFERENCE = [
     "message": "Archive extraction complete: {extracted} extracted, {failed} failed.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/archive_extraction.py": 739
+      "cdmw/core/archive_extraction.py": 748
     }
   },
   {
@@ -9413,7 +9413,7 @@ MESSAGE_REFERENCE = [
     "recovery": "format",
     "sources": {
       "cdmw/core/archive_audio.py": 76,
-      "cdmw/core/archive_media_preview.py": 561
+      "cdmw/core/archive_media_preview.py": 562
     }
   },
   {
@@ -10360,7 +10360,7 @@ MESSAGE_REFERENCE = [
     "message": "DDS block decompressed to an unexpected size.",
     "recovery": "format",
     "sources": {
-      "cdmw/core/archive_extraction.py": 533
+      "cdmw/core/archive_extraction.py": 534
     }
   },
   {
@@ -10368,7 +10368,7 @@ MESSAGE_REFERENCE = [
     "message": "DDS depth {depth} exceeds the {DDS_MAX_DIMENSION}px resource limit.",
     "recovery": "limits",
     "sources": {
-      "cdmw/core/archive_extraction.py": 155
+      "cdmw/core/archive_extraction.py": 156
     }
   },
   {
@@ -10392,7 +10392,7 @@ MESSAGE_REFERENCE = [
     "message": "DDS output size {entry.orig_size} exceeds the {DDS_MAX_PAYLOAD_BYTES}-byte resource limit.",
     "recovery": "limits",
     "sources": {
-      "cdmw/core/archive_extraction.py": 526
+      "cdmw/core/archive_extraction.py": 527
     }
   },
   {
@@ -10640,7 +10640,7 @@ MESSAGE_REFERENCE = [
     "message": "Extracted {index} / {total} with {failed} failure(s): {entry.path}",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/archive_extraction.py": 737
+      "cdmw/core/archive_extraction.py": 746
     }
   },
   {
@@ -11416,7 +11416,7 @@ MESSAGE_REFERENCE = [
     "message": "Loose file preview from: {resolved_path} This loose file type cannot be previewed as an image.",
     "recovery": "input",
     "sources": {
-      "cdmw/core/archive_media_preview.py": 496
+      "cdmw/core/archive_media_preview.py": 497
     }
   },
   {
@@ -11761,7 +11761,7 @@ MESSAGE_REFERENCE = [
     "message": "Missing DDS header.",
     "recovery": "missing",
     "sources": {
-      "cdmw/core/archive_media_preview.py": 134
+      "cdmw/core/archive_media_preview.py": 135
     }
   },
   {
@@ -11769,7 +11769,7 @@ MESSAGE_REFERENCE = [
     "message": "Missing PAZ file: {entry.paz_file}",
     "recovery": "missing",
     "sources": {
-      "cdmw/core/archive_extraction.py": 313
+      "cdmw/core/archive_extraction.py": 314
     }
   },
   {
@@ -13177,7 +13177,7 @@ MESSAGE_REFERENCE = [
     "message": "Partial DDS DX10 header is truncated.",
     "recovery": "format",
     "sources": {
-      "cdmw/core/archive_extraction.py": 152
+      "cdmw/core/archive_extraction.py": 153
     }
   },
   {
@@ -13201,7 +13201,7 @@ MESSAGE_REFERENCE = [
     "message": "Partial DDS block decompressed to an unexpected size.",
     "recovery": "format",
     "sources": {
-      "cdmw/core/archive_extraction.py": 252
+      "cdmw/core/archive_extraction.py": 253
     }
   },
   {
@@ -13217,7 +13217,7 @@ MESSAGE_REFERENCE = [
     "message": "Partial DDS block is truncated.",
     "recovery": "format",
     "sources": {
-      "cdmw/core/archive_extraction.py": 229
+      "cdmw/core/archive_extraction.py": 230
     }
   },
   {
@@ -13225,7 +13225,7 @@ MESSAGE_REFERENCE = [
     "message": "Partial DDS header is missing or invalid.",
     "recovery": "missing",
     "sources": {
-      "cdmw/core/archive_extraction.py": 130
+      "cdmw/core/archive_extraction.py": 131
     }
   },
   {
@@ -13241,7 +13241,7 @@ MESSAGE_REFERENCE = [
     "message": "Partial DDS header size is invalid.",
     "recovery": "format",
     "sources": {
-      "cdmw/core/archive_extraction.py": 132
+      "cdmw/core/archive_extraction.py": 133
     }
   },
   {
@@ -13257,7 +13257,7 @@ MESSAGE_REFERENCE = [
     "message": "Partial DDS output exceeds the {DDS_MAX_PAYLOAD_BYTES}-byte resource limit.",
     "recovery": "limits",
     "sources": {
-      "cdmw/core/archive_extraction.py": 231
+      "cdmw/core/archive_extraction.py": 232
     }
   },
   {
@@ -13273,7 +13273,7 @@ MESSAGE_REFERENCE = [
     "message": "Partial PAM geometry block decompressed to an unexpected size.",
     "recovery": "format",
     "sources": {
-      "cdmw/core/archive_extraction.py": 422
+      "cdmw/core/archive_extraction.py": 423
     }
   },
   {
@@ -13281,7 +13281,7 @@ MESSAGE_REFERENCE = [
     "message": "Partial PAM geometry block has inconsistent sizes.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/archive_extraction.py": 415
+      "cdmw/core/archive_extraction.py": 416
     }
   },
   {
@@ -13289,7 +13289,7 @@ MESSAGE_REFERENCE = [
     "message": "Partial PAMLOD geometry block decompressed to an unexpected size.",
     "recovery": "format",
     "sources": {
-      "cdmw/core/archive_extraction.py": 382
+      "cdmw/core/archive_extraction.py": 383
     }
   },
   {
@@ -13297,7 +13297,7 @@ MESSAGE_REFERENCE = [
     "message": "Partial PAMLOD geometry block has inconsistent sizes or offsets.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/archive_extraction.py": 366
+      "cdmw/core/archive_extraction.py": 367
     }
   },
   {
@@ -13305,7 +13305,7 @@ MESSAGE_REFERENCE = [
     "message": "Partial PAMLOD geometry blocks do not match the archive size.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/archive_extraction.py": 374
+      "cdmw/core/archive_extraction.py": 375
     }
   },
   {
@@ -13313,7 +13313,7 @@ MESSAGE_REFERENCE = [
     "message": "Partial PAMLOD geometry table is invalid or ambiguous.",
     "recovery": "input",
     "sources": {
-      "cdmw/core/archive_extraction.py": 350
+      "cdmw/core/archive_extraction.py": 351
     }
   },
   {
@@ -13321,7 +13321,7 @@ MESSAGE_REFERENCE = [
     "message": "Partial PAMLOD geometry table is invalid.",
     "recovery": "input",
     "sources": {
-      "cdmw/core/archive_extraction.py": 345
+      "cdmw/core/archive_extraction.py": 346
     }
   },
   {
@@ -13329,7 +13329,7 @@ MESSAGE_REFERENCE = [
     "message": "Partial static mesh exceeds the one GiB resource limit.",
     "recovery": "limits",
     "sources": {
-      "cdmw/core/archive_extraction.py": 356
+      "cdmw/core/archive_extraction.py": 357
     }
   },
   {
@@ -13361,7 +13361,7 @@ MESSAGE_REFERENCE = [
     "message": "Playback is best-effort through Qt Multimedia. Some Wwise `.wem` variants may still fail if the local backend cannot decode them.",
     "recovery": "format",
     "sources": {
-      "cdmw/core/archive_media_preview.py": 734
+      "cdmw/core/archive_media_preview.py": 735
     }
   },
   {
@@ -13409,7 +13409,7 @@ MESSAGE_REFERENCE = [
     "message": "Prepared archive source changed while reading {entry.path}.",
     "recovery": "stale",
     "sources": {
-      "cdmw/core/archive_extraction.py": 573
+      "cdmw/core/archive_extraction.py": 582
     }
   },
   {
@@ -13417,15 +13417,23 @@ MESSAGE_REFERENCE = [
     "message": "Prepared archive source checksum changed for {entry.path}.",
     "recovery": "integrity",
     "sources": {
-      "cdmw/core/archive_extraction.py": 578
+      "cdmw/core/archive_extraction.py": 587
     }
   },
   {
     "area": "archive",
-    "message": "Prepared archive source is unavailable for {entry.path}: {path}",
+    "message": "Prepared archive source is unavailable for {entry.path}: {path} (path length: {len(str(path))}; read failed: {exc})",
     "recovery": "missing",
     "sources": {
-      "cdmw/core/archive_extraction.py": 559
+      "cdmw/core/archive_extraction.py": 576
+    }
+  },
+  {
+    "area": "archive",
+    "message": "Prepared archive source is unavailable for {entry.path}: {path} (path length: {len(str(path))}; stat failed: {exc})",
+    "recovery": "missing",
+    "sources": {
+      "cdmw/core/archive_extraction.py": 561
     }
   },
   {
@@ -13433,7 +13441,7 @@ MESSAGE_REFERENCE = [
     "message": "Prepared archive source size changed for {entry.path}: expected {expected_size} bytes, found {size}.",
     "recovery": "stale",
     "sources": {
-      "cdmw/core/archive_extraction.py": 565
+      "cdmw/core/archive_extraction.py": 568
     }
   },
   {
@@ -13731,7 +13739,7 @@ MESSAGE_REFERENCE = [
     "message": "Refusing to clear root directory: {resolved}",
     "recovery": "input",
     "sources": {
-      "cdmw/core/archive_extraction.py": 774
+      "cdmw/core/archive_extraction.py": 783
     }
   },
   {
@@ -14291,7 +14299,7 @@ MESSAGE_REFERENCE = [
     "message": "Sparse DDS header is truncated.",
     "recovery": "format",
     "sources": {
-      "cdmw/core/archive_extraction.py": 327
+      "cdmw/core/archive_extraction.py": 328
     }
   },
   {
@@ -14299,7 +14307,7 @@ MESSAGE_REFERENCE = [
     "message": "Sparse DDS output exceeds the {DDS_MAX_PAYLOAD_BYTES}-byte resource limit.",
     "recovery": "limits",
     "sources": {
-      "cdmw/core/archive_extraction.py": 333
+      "cdmw/core/archive_extraction.py": 334
     }
   },
   {
@@ -15694,7 +15702,7 @@ MESSAGE_REFERENCE = [
     "message": "This entry uses LZ4 compression, but the lz4 Python package is not installed.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/archive_extraction.py": 524
+      "cdmw/core/archive_extraction.py": 525
     }
   },
   {
@@ -15702,7 +15710,7 @@ MESSAGE_REFERENCE = [
     "message": "This entry uses Partial DDS reconstruction, but the lz4 Python package is not installed.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/archive_extraction.py": 246
+      "cdmw/core/archive_extraction.py": 247
     }
   },
   {
@@ -15934,7 +15942,7 @@ MESSAGE_REFERENCE = [
     "message": "Unsupported DDS partial compression format: DXGI={dxgi_format} FOURCC={four_cc}",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/core/archive_extraction.py": 122
+      "cdmw/core/archive_extraction.py": 123
     }
   },
   {
@@ -15974,7 +15982,7 @@ MESSAGE_REFERENCE = [
     "message": "Unsupported archive compression type {entry.compression_type} for {entry.path}",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/core/archive_extraction.py": 542
+      "cdmw/core/archive_extraction.py": 543
     }
   },
   {
@@ -16451,7 +16459,7 @@ MESSAGE_REFERENCE = [
     "message": "[{index}/{total}] FAIL {entry.path} -> {exc}",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/archive_extraction.py": 736
+      "cdmw/core/archive_extraction.py": 745
     }
   },
   {
@@ -17829,7 +17837,7 @@ MESSAGE_REFERENCE = [
       "cdmw/core/archive_accelerator.py": 94,
       "cdmw/core/archive_attachment_iteminfo.py": 38,
       "cdmw/core/archive_format.py": 249,
-      "cdmw/core/archive_media_preview.py": 674,
+      "cdmw/core/archive_media_preview.py": 675,
       "cdmw/core/archive_mesh_import_supplemental.py": 557,
       "cdmw/core/archive_name_search.py": 1150,
       "cdmw/core/archive_preview_result_builder.py": 814,
@@ -17955,7 +17963,7 @@ MESSAGE_REFERENCE = [
     "message": "strict",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/archive_media_preview.py": 53
+      "cdmw/core/archive_media_preview.py": 54
     }
   },
   {
@@ -95142,7 +95150,7 @@ MESSAGE_REFERENCE = [
     "message": "DDS file exceeds the {DDS_MAX_PAYLOAD_BYTES}-byte resource limit.",
     "recovery": "limits",
     "sources": {
-      "cdmw/core/texture_native.py": 279
+      "cdmw/core/texture_native.py": 280
     }
   },
   {
@@ -95182,7 +95190,7 @@ MESSAGE_REFERENCE = [
     "message": "DDS header inspection failed: {exc}",
     "recovery": "format",
     "sources": {
-      "cdmw/core/texture_native.py": 277
+      "cdmw/core/texture_native.py": 278
     }
   },
   {
@@ -95758,7 +95766,7 @@ MESSAGE_REFERENCE = [
     "message": "Native DDS encode input is not a valid PNG: {path}",
     "recovery": "input",
     "sources": {
-      "cdmw/core/texture_native.py": 883
+      "cdmw/core/texture_native.py": 884
     }
   },
   {
@@ -95806,7 +95814,7 @@ MESSAGE_REFERENCE = [
     "message": "Native texture decode is still running after {elapsed_seconds}s (timeout {resolved_timeout}s).",
     "recovery": "timeout",
     "sources": {
-      "cdmw/core/texture_native.py": 824
+      "cdmw/core/texture_native.py": 825
     }
   },
   {
@@ -95822,7 +95830,7 @@ MESSAGE_REFERENCE = [
     "message": "Native texture encode is still running after {elapsed_seconds}s (timeout {resolved_timeout}s).",
     "recovery": "timeout",
     "sources": {
-      "cdmw/core/texture_native.py": 1216
+      "cdmw/core/texture_native.py": 1217
     }
   },
   {
@@ -95830,7 +95838,7 @@ MESSAGE_REFERENCE = [
     "message": "Native texture helper is temporarily unavailable; waiting up to {timeout_seconds}s for replacement.",
     "recovery": "helper",
     "sources": {
-      "cdmw/core/texture_native.py": 190
+      "cdmw/core/texture_native.py": 191
     }
   },
   {
@@ -96141,7 +96149,7 @@ MESSAGE_REFERENCE = [
     "message": "PNG input does not exist: {request.input_path}",
     "recovery": "missing",
     "sources": {
-      "cdmw/core/texture_native.py": 1092
+      "cdmw/core/texture_native.py": 1093
     }
   },
   {
@@ -97550,7 +97558,7 @@ MESSAGE_REFERENCE = [
     "message": "alpha coverage reference must be between 0 and 1",
     "recovery": "input",
     "sources": {
-      "cdmw/core/texture_native.py": 88
+      "cdmw/core/texture_native.py": 89
     }
   },
   {
@@ -97647,7 +97655,7 @@ MESSAGE_REFERENCE = [
     "message": "dds_format is required",
     "recovery": "input",
     "sources": {
-      "cdmw/core/texture_native.py": 78
+      "cdmw/core/texture_native.py": 79
     }
   },
   {
@@ -97765,7 +97773,7 @@ MESSAGE_REFERENCE = [
     "message": "max_dimension cannot be negative",
     "recovery": "input",
     "sources": {
-      "cdmw/core/texture_native.py": 105
+      "cdmw/core/texture_native.py": 106
     }
   },
   {
@@ -97773,7 +97781,7 @@ MESSAGE_REFERENCE = [
     "message": "mip_count cannot be negative",
     "recovery": "input",
     "sources": {
-      "cdmw/core/texture_native.py": 82
+      "cdmw/core/texture_native.py": 83
     }
   },
   {
@@ -97783,7 +97791,7 @@ MESSAGE_REFERENCE = [
     "sources": {
       "cdmw/core/archive_model_texture_reporting.py": 40,
       "cdmw/core/archive_model_texture_resolution.py": 154,
-      "cdmw/core/texture_native.py": 327
+      "cdmw/core/texture_native.py": 328
     }
   },
   {
@@ -97799,7 +97807,7 @@ MESSAGE_REFERENCE = [
     "message": "missing_report_items",
     "recovery": "missing",
     "sources": {
-      "cdmw/core/texture_native.py": 1278
+      "cdmw/core/texture_native.py": 1279
     }
   },
   {
@@ -97807,7 +97815,7 @@ MESSAGE_REFERENCE = [
     "message": "native DDS dimension mismatch: expected {expected_width}x{expected_height}, got {item.get('width')}x{item.get('height')}",
     "recovery": "input",
     "sources": {
-      "cdmw/core/texture_native.py": 998
+      "cdmw/core/texture_native.py": 999
     }
   },
   {
@@ -97815,7 +97823,7 @@ MESSAGE_REFERENCE = [
     "message": "native DDS format mismatch: expected {request.dds_format}, got {reported_format or 'unknown'}",
     "recovery": "input",
     "sources": {
-      "cdmw/core/texture_native.py": 996
+      "cdmw/core/texture_native.py": 997
     }
   },
   {
@@ -97823,7 +97831,7 @@ MESSAGE_REFERENCE = [
     "message": "native DDS mip mismatch: expected {expected_mips}, got {item.get('mip_count')}",
     "recovery": "input",
     "sources": {
-      "cdmw/core/texture_native.py": 1003
+      "cdmw/core/texture_native.py": 1004
     }
   },
   {
@@ -97831,7 +97839,7 @@ MESSAGE_REFERENCE = [
     "message": "native helper did not produce a complete DDS file",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/texture_native.py": 988
+      "cdmw/core/texture_native.py": 989
     }
   },
   {
@@ -97855,7 +97863,7 @@ MESSAGE_REFERENCE = [
     "message": "native texture encode requests require input and output paths",
     "recovery": "input",
     "sources": {
-      "cdmw/core/texture_native.py": 925
+      "cdmw/core/texture_native.py": 926
     }
   },
   {
@@ -97863,7 +97871,7 @@ MESSAGE_REFERENCE = [
     "message": "native_helper_missing",
     "recovery": "helper",
     "sources": {
-      "cdmw/core/texture_native.py": 577
+      "cdmw/core/texture_native.py": 578
     }
   },
   {
@@ -97903,7 +97911,7 @@ MESSAGE_REFERENCE = [
     "message": "output exists and overwrite=false: {request.output_path}",
     "recovery": "conflict",
     "sources": {
-      "cdmw/core/texture_native.py": 1116
+      "cdmw/core/texture_native.py": 1117
     }
   },
   {
@@ -98062,7 +98070,7 @@ MESSAGE_REFERENCE = [
     "message": "preview_deferred_by_environment",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/texture_native.py": 564
+      "cdmw/core/texture_native.py": 565
     }
   },
   {
@@ -98078,7 +98086,7 @@ MESSAGE_REFERENCE = [
     "message": "published DDS DXGI format mismatch: expected {reported_dxgi}, got {inspected.dxgi_format}",
     "recovery": "write",
     "sources": {
-      "cdmw/core/texture_native.py": 1009
+      "cdmw/core/texture_native.py": 1010
     }
   },
   {
@@ -98086,7 +98094,7 @@ MESSAGE_REFERENCE = [
     "message": "published DDS header does not match the native encode report",
     "recovery": "format",
     "sources": {
-      "cdmw/core/texture_native.py": 1006
+      "cdmw/core/texture_native.py": 1007
     }
   },
   {
@@ -98107,7 +98115,7 @@ MESSAGE_REFERENCE = [
     "message": "requested_mip cannot be negative",
     "recovery": "input",
     "sources": {
-      "cdmw/core/texture_native.py": 107
+      "cdmw/core/texture_native.py": 108
     }
   },
   {
@@ -98243,7 +98251,7 @@ MESSAGE_REFERENCE = [
     "message": "texture dimensions cannot be negative",
     "recovery": "input",
     "sources": {
-      "cdmw/core/texture_native.py": 80
+      "cdmw/core/texture_native.py": 81
     }
   },
   {
@@ -98267,7 +98275,7 @@ MESSAGE_REFERENCE = [
     "message": "unsupported DDS alpha mode: {self.dds_alpha_mode}",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/core/texture_native.py": 90
+      "cdmw/core/texture_native.py": 91
     }
   },
   {
@@ -98307,7 +98315,7 @@ MESSAGE_REFERENCE = [
     "message": "unsupported mip alpha policy: {self.mip_alpha_policy}",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/core/texture_native.py": 86
+      "cdmw/core/texture_native.py": 87
     }
   },
   {
@@ -98323,7 +98331,7 @@ MESSAGE_REFERENCE = [
     "message": "unsupported output pixel type: {output_pixel_type}",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/core/texture_native.py": 618
+      "cdmw/core/texture_native.py": 619
     }
   },
   {
@@ -98331,7 +98339,7 @@ MESSAGE_REFERENCE = [
     "message": "unsupported output pixel type: {self.output_pixel_type}",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/core/texture_native.py": 109
+      "cdmw/core/texture_native.py": 110
     }
   },
   {
@@ -98356,7 +98364,7 @@ MESSAGE_REFERENCE = [
     "message": "unsupported source color policy: {self.source_color_policy}",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/core/texture_native.py": 84
+      "cdmw/core/texture_native.py": 85
     }
   },
   {
@@ -99731,7 +99739,7 @@ SOURCE_COVERAGE = {
     "diagnostic_field": 4,
     "diagnostic_text": 1,
     "display": 1,
-    "raise": 37,
+    "raise": 38,
     "report": 2
   },
   "cdmw/core/archive_filtering.py": {
@@ -100095,6 +100103,7 @@ SOURCE_COVERAGE = {
   "cdmw/core/eye_cover_overlap.py": {
     "raise": 8
   },
+  "cdmw/core/filesystem.py": {},
   "cdmw/core/final_package_binding_contract.py": {
     "finding": 40
   },

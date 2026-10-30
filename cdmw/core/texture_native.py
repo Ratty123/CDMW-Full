@@ -25,6 +25,7 @@ from cdmw.core.dds_resource_limits import (
     DDS_MAX_PAYLOAD_BYTES,
     checked_dds_mip_byte_counts,
 )
+from cdmw.core.filesystem import filesystem_path
 from cdmw.core.temp_cache import (
     DIRECTXTEX_TEXTURE_PREVIEW_CACHE_DIRNAME,
     app_temp_cache_path,
@@ -415,7 +416,7 @@ def _directxtex_preview_cache_path(
         output_pixel_type=output_pixel_type,
         binary=binary,
     )
-    cache_dir = app_temp_cache_path(cache_dirname, cache_key)
+    cache_dir = filesystem_path(app_temp_cache_path(cache_dirname, cache_key))
     return cache_dir / f"{dds_path.stem}.png"
 
 

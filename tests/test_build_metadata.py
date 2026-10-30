@@ -26,7 +26,7 @@ class BuildMetadataTests(unittest.TestCase):
         self.assertIn(f"StringStruct('CompanyName', {APP_ORGANIZATION!r})", text)
         self.assertIn(f"StringStruct('FileDescription', {APP_TITLE!r})", text)
         self.assertIn(f"StringStruct('InternalName', {APP_NAME!r})", text)
-        self.assertIn(f"StringStruct('OriginalFilename', {APP_NAME + '.exe'!r})", text)
+        self.assertIn("StringStruct('OriginalFilename', 'CDMW.exe')", text)
         self.assertIn(f"Official repository: {APP_REPOSITORY_URL}", text)
 
     def test_write_windows_version_resource_creates_parent_folder(self) -> None:

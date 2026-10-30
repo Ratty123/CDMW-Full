@@ -277,7 +277,7 @@ jobs:
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: CrimsonDesertModWorkbench-onedir-unsigned
-          path: dist/CrimsonDesertModWorkbench-*-windows
+          path: dist/CDMW-*-windows
           if-no-files-found: error
 
       - name: Upload unsigned onefile artifact
@@ -286,7 +286,7 @@ jobs:
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: CrimsonDesertModWorkbench-onefile-unsigned
-          path: dist/CrimsonDesertModWorkbench-*-windows-portable.exe
+          path: dist/CDMW.exe
           if-no-files-found: error
 
       - name: Validate SignPath settings

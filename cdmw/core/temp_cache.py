@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Iterator, Optional, Sequence
 
 from cdmw.constants import APP_NAME
+from cdmw.core.filesystem import filesystem_path
 from cdmw.core.owned_temp import (
     cleanup_owned_temp_directory,
     create_owned_temp_directory,
@@ -168,7 +169,7 @@ def _app_temp_cache_unit_path(path: Path | str) -> Path:
 
 
 def _resolved_path_key(path: Path | str) -> str:
-    candidate = _absolute_path(path)
+    candidate = filesystem_path(_absolute_path(path))
     try:
         candidate = candidate.resolve()
     except OSError:

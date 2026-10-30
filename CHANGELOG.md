@@ -25,9 +25,14 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 - Archive Browser can batch-export selected PAC, PAM and PAMLOD models as OBJ or FBX into separate folders, with referenced files, progress, cancellation and a final per-model report. Existing output folders are preserved; exporting a PAC as FBX without a skeleton requires an explicit choice.
 
+### Changed
+
+- The Windows portable executable is now named `CDMW.exe`. The version remains available in About and Windows file properties; existing settings and workspace folders are reused.
+
 ### Fixed
 
 - Archive Browser no longer freezes while updating preview details after quickly switching between DDS files. Failed DDS previews show the converter's error in Details and retry when reopened instead of keeping a cached raw-byte result.
+- Archive Browser reads prepared files and generates DDS previews from long cache paths even when Windows long-path support is disabled. File-access failures include the underlying Windows error and path length in Details.
 
 ### Docs
 
