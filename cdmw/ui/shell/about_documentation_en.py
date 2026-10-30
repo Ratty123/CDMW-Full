@@ -459,8 +459,11 @@ class AboutDocumentationEnglishMixin:
                 </ul>
                 <h4>Extract or hand off</h4>
                 <ul>
-                  <li><b>Export Selected</b> is the safest path for a small number of files.</li>
-                  <li><b>Export All</b> or filtered extraction is useful after you verify the filter matches exactly what you expect.</li>
+                  <li>Select any file types with Ctrl or Shift, then right-click a selected row and choose Extract Selected. Mixed formats are supported.</li>
+                  <li>Choose Extract Filtered from Actions or a file's right-click menu to extract every result of the applied search, including unloaded pages. Apply changed filters with Search first.</li>
+                  <li>Right-click a folder and choose Export Folder... to extract its matching contents and subfolders.</li>
+                  <li>Set the Extract folder in Archive Locations, then review the destination and existing-file options. Files keep their original formats and folder paths; OBJ/FBX conversion is separate.</li>
+                  <li>Individual file selections are limited to 4,096 rows. Use Extract Filtered or Export Folder... for larger sets.</li>
                   <li>Extract supported DDS/images when needed, then open the dedicated texture tool directly. Archive Browser keeps texture processing out of its normal action surface.</li>
                 </ul>
                 <p>Archive patching is intentionally separate from normal browsing. Patch actions only appear for supported formats and use explicit confirmation plus backup/restore where available.</p>

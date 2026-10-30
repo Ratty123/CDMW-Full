@@ -11,6 +11,19 @@ from cdmw.ui.model_preview_native import ARCHIVE_MODEL_RENDERER_D3D11
 class ArchiveBrowserActionControlsMixin:
     """Synchronize Archive Browser action buttons with the current selection."""
 
+    def _update_archive_extract_action_controls(self, *, busy: bool) -> None:
+        selected_count, _has_dds = self._selected_archive_entry_summary()
+        enabled = not busy and not getattr(self, "_archive_remote_export_request_id", None)
+        bridge = getattr(self, "archive_remote_bridge", None)
+        if bridge is not None and bridge.displays_v2:
+            enabled = enabled and bridge.current_session is not None and self.archive_remote_actions_safe
+            selection = bridge.filtered_export_selection()
+            has_filtered_entries = selection is not None and selection.requested_count > 0
+        else:
+            has_filtered_entries = bool(self.archive_filtered_entries)
+        self.archive_extract_selected_button.setEnabled(bool(enabled and selected_count > 0))
+        self.archive_extract_filtered_button.setEnabled(bool(enabled and has_filtered_entries))
+
     def _update_archive_model_action_controls(self, preview_model: Optional[object]) -> None:
         current_entry = self._current_archive_entry()
         mesh_entry = self._current_archive_mesh_entry()

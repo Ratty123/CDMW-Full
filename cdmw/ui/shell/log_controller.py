@@ -184,10 +184,7 @@ class LogControllerMixin:
         self.archive.archive_min_size_spin.setEnabled(not busy)
         self.archive.archive_previewable_only_checkbox.setEnabled(not busy)
         self.archive.archive_browser_view_mode_combo.setEnabled(not busy)
-        selected_entries = self.archive._selected_archive_entries()
-        self.archive.archive_extract_selected_button.setEnabled(not busy and len(selected_entries) > 0)
-        self.archive.archive_extract_filtered_button.setEnabled(not busy and bool(self.archive.archive_filtered_entries))
-        selected_has_dds = any(entry.extension == ".dds" for entry in selected_entries)
+        self.archive._update_archive_extract_action_controls(busy=busy)
         self.archive.archive_resolve_in_research_button.setEnabled(
             not busy
             and self.archive._current_archive_entry() is not None

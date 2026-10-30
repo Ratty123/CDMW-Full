@@ -26692,6 +26692,16 @@
       ]
     },
     {
+      "key": "Choose Extract Filtered from Actions or a file's right-click menu to extract every result of the applied search, including unloaded pages. Apply changed filters with Search first.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 369,
+          "sink": "python-return:_build_archive_mesh_sections"
+        }
+      ]
+    },
+    {
       "key": "Choose Finish Edit Mesh in Mesh Editor, then return here to use the accepted changes.",
       "origins": [
         {
@@ -49537,16 +49547,6 @@
       ]
     },
     {
-      "key": "Export All",
-      "origins": [
-        {
-          "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 368,
-          "sink": "python-return:_build_archive_mesh_sections"
-        }
-      ]
-    },
-    {
       "key": "Export All Referenced Files",
       "origins": [
         {
@@ -50383,16 +50383,6 @@
           "path": "cdmw/ui/text_search/tab.py",
           "line": 217,
           "sink": "QPushButton"
-        }
-      ]
-    },
-    {
-      "key": "Export Selected",
-      "origins": [
-        {
-          "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 368,
-          "sink": "python-return:_build_archive_mesh_sections"
         }
       ]
     },
@@ -52150,6 +52140,11 @@
       "key": "Extract Filtered",
       "origins": [
         {
+          "path": "cdmw/ui/archive_browser/actions.py",
+          "line": 439,
+          "sink": "addAction"
+        },
+        {
           "path": "cdmw/ui/archive_browser/controls_panel.py",
           "line": 301,
           "sink": "QPushButton"
@@ -52194,6 +52189,11 @@
     {
       "key": "Extract Selected",
       "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/actions.py",
+          "line": 437,
+          "sink": "addAction"
+        },
         {
           "path": "cdmw/ui/archive_browser/controls_panel.py",
           "line": 300,
@@ -52451,17 +52451,12 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 432,
-          "sink": "_run_archive_extract"
-        },
-        {
-          "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 577,
+          "line": 580,
           "sink": "_run_remote_archive_export"
         },
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 583,
+          "line": 586,
           "sink": "_run_archive_extract"
         }
       ]
@@ -68228,6 +68223,16 @@
           "path": "cdmw/ui/mesh_editor/workspace_reports.py",
           "line": 179,
           "sink": "QTreeWidgetItem"
+        }
+      ]
+    },
+    {
+      "key": "Individual file selections are limited to 4,096 rows. Use Extract Filtered or Export Folder... for larger sets.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 369,
+          "sink": "python-return:_build_archive_mesh_sections"
         }
       ]
     },
@@ -128737,6 +128742,16 @@
       ]
     },
     {
+      "key": "Right-click a folder and choose Export Folder... to extract its matching contents and subfolders.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 369,
+          "sink": "python-return:_build_archive_mesh_sections"
+        }
+      ]
+    },
+    {
       "key": "Right-drag",
       "origins": [
         {
@@ -136047,6 +136062,16 @@
       "manual": true
     },
     {
+      "key": "Select any file types with Ctrl or Shift, then right-click a selected row and choose Extract Selected. Mixed formats are supported.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 369,
+          "sink": "python-return:_build_archive_mesh_sections"
+        }
+      ]
+    },
+    {
       "key": "Select any original archive companion files that should be copied into the loose mod. Generated replacement textures and patched material sidecars are included automatically when enabled; original .pac_xml, .pab, .hkx, and old DDS files are unchecked by default.",
       "origins": [
         {
@@ -139133,6 +139158,16 @@
           "path": "cdmw/ui/shell/startup_controller.py",
           "line": 798,
           "sink": "set_status_message"
+        }
+      ]
+    },
+    {
+      "key": "Set the Extract folder in Archive Locations, then review the destination and existing-file options. Files keep their original formats and folder paths; OBJ/FBX conversion is separate.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 369,
+          "sink": "python-return:_build_archive_mesh_sections"
         }
       ]
     },
@@ -183592,16 +183627,6 @@
       ]
     },
     {
-      "key": "is the safest path for a small number of files.",
-      "origins": [
-        {
-          "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 368,
-          "sink": "python-return:_build_archive_mesh_sections"
-        }
-      ]
-    },
-    {
       "key": "is usually the cleanest path for one-off mod-ready texture output because it starts from the edited file and its matched original.",
       "origins": [
         {
@@ -188208,16 +188233,6 @@
           "path": "cdmw/ui/shell/about_documentation_en.py",
           "line": 804,
           "sink": "python-return:_build_environment_sections"
-        }
-      ]
-    },
-    {
-      "key": "or filtered extraction is useful after you verify the filter matches exactly what you expect.",
-      "origins": [
-        {
-          "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 368,
-          "sink": "python-return:_build_archive_mesh_sections"
         }
       ]
     },

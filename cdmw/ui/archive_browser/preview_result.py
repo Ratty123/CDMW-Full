@@ -463,12 +463,7 @@ class ArchivePreviewResultMixin:
         self._refresh_archive_preview_details_text()
 
     def _update_archive_selection_state(self) -> None:
-        selected_count, selected_has_dds = self._selected_archive_entry_summary()
-        has_filtered_entries = bool(self.archive_filtered_entries)
-        has_filtered_dds = self.archive_filtered_dds_count > 0
-        workflow_extract_enabled = selected_has_dds if selected_count > 0 else has_filtered_dds
-        self.archive_extract_selected_button.setEnabled(self.shell.worker_thread is None and selected_count > 0)
-        self.archive_extract_filtered_button.setEnabled(self.shell.worker_thread is None and has_filtered_entries)
+        self._update_archive_extract_action_controls(busy=self.shell.worker_thread is not None)
         current_entry = self._current_archive_entry()
         self.archive_resolve_in_research_button.setEnabled(
             self.shell.worker_thread is None

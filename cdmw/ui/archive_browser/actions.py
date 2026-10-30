@@ -383,8 +383,11 @@ class ArchiveBrowserActionMixin:
             return
         self.archive_context_menu_selection_suppressed = True
         selection_model = self.archive_tree.selectionModel()
-        preserved_selection = selection_model.selection() if item.isSelected() and selection_model is not None else None
-        if not item.isSelected():
+        index = self.archive_tree.indexAt(position) if selection_model is not None else None
+        is_selected = (selection_model.isRowSelected(index.row(), index.parent())
+                       if index is not None else item.isSelected())
+        preserved_selection = selection_model.selection() if is_selected and selection_model is not None else None
+        if not is_selected:
             self.archive_tree.clearSelection()
         try:
             self.archive_tree.setCurrentItem(item)
@@ -429,12 +432,12 @@ class ArchiveBrowserActionMixin:
         )
         extract_file_action = menu.addAction(menu_icons["file"], "Extract File...")
         extract_file_action.triggered.connect(
-            lambda _checked=False, current_entry=entry: self._run_archive_extract(
-                [current_entry],
-                allow_original_dds_root=True,
-                description=f"Extracting {current_entry.basename}...",
-            )
+            lambda _checked=False: self._extract_current_archive_file()
         )
+        extract_selected_action = menu.addAction(menu_icons["file"], "Extract Selected")
+        extract_selected_action.triggered.connect(lambda _checked=False: self.extract_selected_archive_entries())
+        extract_filtered_action = menu.addAction(menu_icons["file"], "Extract Filtered")
+        extract_filtered_action.triggered.connect(lambda _checked=False: self.extract_filtered_archive_entries())
         scope_file_action = menu.addAction(menu_icons["file"], "Show Only This File")
         scope_file_action.triggered.connect(lambda _checked=False: self._scope_current_archive_entry_only())
 

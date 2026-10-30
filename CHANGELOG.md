@@ -7,6 +7,10 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 ## [Unreleased]
 
+### Fixed
+
+- Archive Browser can extract mixed file types from the right-click menu without losing the selection. Extract Filtered exports all matching results and stays available after other operations finish.
+
 ## [0.11.0-alpha.29] - 2026-10-30
 
 ### Added

@@ -605,6 +605,7 @@ class ArchiveRemoteWindowBridge(QObject):
         window.archive.archive_tree.use_remote_model(self._model)
         window.archive.archive_tree.setRootIsDecorated(self._model.view_mode.value != "flat")
         window.archive.archive_tree.setEnabled(True)
+        window.archive._schedule_archive_selection_state_update()
         window.shell._schedule_archive_tree_content_autofit()
         window.archive._update_archive_filter_button_state()
         completion = f"Archive catalogue ready. Showing {handle.total_matches:,} entries."
@@ -784,6 +785,7 @@ class ArchiveRemoteWindowBridge(QObject):
 
     def _handle_actions_safe(self, safe: bool) -> None:
         self._window.archive_remote_actions_safe = bool(safe)
+        self._window._schedule_archive_selection_state_update()
         self._record_runtime("archive_backend_actions_safe", safe=bool(safe))
 
 

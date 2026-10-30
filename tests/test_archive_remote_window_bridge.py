@@ -78,6 +78,9 @@ class _ShadowWindow(QObject):
         self.logs: list[str] = []
         self.cache_health: list[tuple[str, str, str]] = []
 
+    def _schedule_archive_selection_state_update(self):
+        pass
+
     def append_archive_log(self, message: str, **_kwargs: object) -> None:
         self.logs.append(message)
 

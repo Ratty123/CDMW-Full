@@ -532,6 +532,20 @@ Browsing, preview, scan, extraction, and package preparation are read-only.
 Actions that can write route through service-owned confirmation and
 `ArchiveMutationService`; this UI package never patches PAMT/PAZ directly.
 
+**Actions > Extract Selected / Extract Filtered** exports original files of any
+type, including mixed extensions. Both commands also appear in a file's right-click
+menu. Ctrl/Shift-select files and right-click a selected row to retain the whole
+selection. **Extract File...** exports just the clicked file through the same
+archive worker. **Extract Filtered** uses every result of the applied search,
+including pages not loaded on screen; apply changed filters with **Search** first.
+Individual selections are limited to 4,096 rows. For larger sets, use
+**Extract Filtered** or right-click one folder and choose **Export Folder...**.
+Folder exports include matching subfolders. Set the **Extract** folder under
+**Archive Locations**, then review the destination and existing-file choices.
+Extraction retains original formats and folder paths; it does not convert files.
+Filter availability uses the current catalogue query, including after a background
+operation finishes, rather than the retired local entry list.
+
 Archive OBJ/FBX conversion rejects incomplete `PartialRaw` mesh payloads; select
 the PAMLOD companion explicitly when the PAM is incomplete. PAMLOD conversion
 uses the first usable LOD and retains its individual material groups, local

@@ -355,6 +355,19 @@ def test_in_app_browser_renders_the_expanded_guides_in_each_locale(tmp_path, lan
         assert translated != retry_guide or language.code == "en"
         assert translated in dialog.browser.toPlainText()
         assert translated in wiki_pages[page_slug("Archive-Browser", language.code) + ".md"]
+        dialog.select_section("archive_guides")
+        localizer.apply(dialog)
+        for extraction_guide in (
+            "Select any file types with Ctrl or Shift, then right-click a selected row and choose Extract Selected. Mixed formats are supported.",
+            "Choose Extract Filtered from Actions or a file's right-click menu to extract every result of the applied search, including unloaded pages. Apply changed filters with Search first.",
+            "Right-click a folder and choose Export Folder... to extract its matching contents and subfolders.",
+            "Set the Extract folder in Archive Locations, then review the destination and existing-file options. Files keep their original formats and folder paths; OBJ/FBX conversion is separate.",
+            "Individual file selections are limited to 4,096 rows. Use Extract Filtered or Export Folder... for larger sets.",
+        ):
+            translated = localizer.translate(extraction_guide)
+            assert translated != extraction_guide or language.code == "en"
+            assert translated in dialog.browser.toPlainText()
+            assert translated in wiki_pages[page_slug("Archive-Browser", language.code) + ".md"]
         dialog.select_section("error_code_library")
         localizer.apply(dialog)
         body = dialog.browser.toPlainText()
