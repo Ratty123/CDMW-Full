@@ -106,15 +106,21 @@ def test_legacy_mount_header_can_share_the_compact_marker():
     assert read_papgt_directories(raw) == parse_papgt(raw)
 
 
-def test_compact_string_dictionary_reads_but_refuses_legacy_append():
+def test_compact_string_dictionary_append_preserves_layout():
     from cdmw.core.stringinfo_table import parse_stringinfo, append_stringinfo_strings, stringinfo_key
     text = "dlc_fixture"
     key = stringinfo_key(text)
     raw = struct.pack("<IIBI", 0, key, 0, len(text)) + text.encode()
     header = struct.pack("<HII", 1, key, 0)
     assert parse_stringinfo(raw, header)[0].text == text
-    with pytest.raises(ValueError, match="read-only"):
-        append_stringinfo_strings(raw, header, ["new_stem"])
+    new_payload, new_header, keys = append_stringinfo_strings(raw, header, ["new_stem"])
+    new_key = stringinfo_key("new_stem")
+    assert keys == (new_key,)
+    assert new_payload[:len(raw)] == raw
+    assert struct.unpack_from("<IIBI", new_payload, len(raw)) == (0, new_key, 0, len(b"new_stem"))
+    assert [(row.key, row.text) for row in parse_stringinfo(new_payload, new_header)] == [
+        (key, text), (new_key, "new_stem"),
+    ]
     bad = bytearray(raw); bad[8] = 1
     with pytest.raises(ValueError, match="padding"):
         parse_stringinfo(bytes(bad), header)
