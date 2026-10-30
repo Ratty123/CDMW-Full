@@ -45,7 +45,7 @@ from cdmw.core.archive_model_references import (
     _score_model_related_entry_candidate,
 )
 from cdmw.core.archive_references import _archive_path_is_probable_item_icon
-from cdmw.core.archive_wwise_bank import embedded_media_wem_basenames
+from cdmw.core.archive_reverse_references import read_bank_media_reference_ids
 from cdmw.core.table_catalog import table_field_label
 from cdmw.core.upscale_profiles import derive_texture_group_key, normalize_texture_reference_for_sidecar_lookup
 
@@ -215,6 +215,8 @@ def _asset_family_evidence_chip(
     lowered = " ".join((relation_group, reason, role_hint)).casefold()
     if str(status or "").casefold() == "missing":
         return "Missing"
+    if normalized_confidence == "wwise_media_id":
+        return "Media ID"
     if "item_finder" in normalized_confidence or "item finder" in lowered:
         return "Item Finder"
     if "table" in normalized_confidence or "table" in lowered or "iteminfo." in lowered:
@@ -223,7 +225,7 @@ def _asset_family_evidence_chip(
         return "Sidecar"
     if "prefab" in lowered:
         return "Prefab"
-    if normalized_confidence in {RelationConfidence.AUTHORITATIVE.value, RelationConfidence.EXACT_PATH.value}:
+    if normalized_confidence in {RelationConfidence.AUTHORITATIVE.value, RelationConfidence.EXACT_PATH.value, "explicit_path"}:
         return "Exact"
     if normalized_confidence in {RelationConfidence.PATH_NORMALIZED.value, RelationConfidence.CROSS_PACKAGE.value}:
         return "Path hint"
@@ -914,17 +916,17 @@ def build_archive_entry_related_references(
     if text:
         for reference_name in _extract_text_asset_references(text, sidecar_path=source_entry.path):
             add_reference_name(reference_name)
-    elif binary_data:
+    elif binary_data and source_entry.extension != ".bnk":
         for reference_name in _extract_binary_asset_references(binary_data, sample_limit=262_144, max_references=64):
             add_reference_name(reference_name)
 
-    # A Wwise bank names its sounds by source id, so nothing inside one reads as a
-    # path and the text scan above finds no companions at all. The media table is
-    # the reference: a sound stored outside the bank carries that id as its file
-    # name, which is what links a bank to the loose sounds that play with it.
+    # Banks name media by ID. Read structured directories/source headers, never
+    # arbitrary integer matches in media or unknown HIRC payloads.
+    bank_media_ids: set[int] = set()
     if binary_data and str(source_entry.extension or "").strip().lower() == ".bnk":
-        for wem_basename in embedded_media_wem_basenames(binary_data):
-            add_reference_name(wem_basename)
+        bank_media_ids, _supported = read_bank_media_reference_ids(binary_data)
+        for media_id in sorted(bank_media_ids):
+            add_reference_name(f"{media_id}.wem")
 
     combined_companion_entries: List[ArchiveEntry] = []
     seen_companion_paths: set[str] = set()
@@ -954,10 +956,19 @@ def build_archive_entry_related_references(
             for related_candidate in _find_archive_model_related_entries(candidate, archive_entries_by_basename):
                 add_companion_entry(related_candidate)
 
-    return build_archive_related_file_references(
+    references = build_archive_related_file_references(
         source_entry,
         explicit_reference_names=combined_reference_names,
         companion_entries=combined_companion_entries,
         archive_entries_by_normalized_path=archive_entries_by_normalized_path,
         archive_entries_by_basename=archive_entries_by_basename,
     )
+    if bank_media_ids:
+        media_names = {f"{media_id}.wem" for media_id in bank_media_ids}
+        references = tuple(
+            replace(reference, relation_confidence="wwise_media_id", relation_reason=PurePosixPath(reference.reference_name).stem)
+            if reference.reference_name in media_names
+            else reference
+            for reference in references
+        )
+    return references

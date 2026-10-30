@@ -4,8 +4,9 @@ A `.bnk` is a flat sequence of RIFF-style chunks. `DIDX` lists the sounds
 embedded in the `DATA` chunk that follows it, and a bank that only carries
 events (`HIRC`) has no `DIDX` at all, because its audio streams from separate
 `.wem` files. That table is what decides whether a bank can be played, and it is
-also the only place a bank names the sounds that belong with it: a bank names
-them by Wwise source id, so nothing inside one reads as a path.
+also names embedded sounds by Wwise source ID rather than a path. Incoming
+reference discovery additionally reads supported HIRC Sound source headers in
+`archive_reverse_references`; that reader does not reconstruct event graphs.
 """
 
 from __future__ import annotations

@@ -6,11 +6,13 @@ from PySide6.QtCore import Qt, QTimer
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QGroupBox,
+    QHBoxLayout,
     QHeaderView,
     QLabel,
     QSizePolicy,
     QTabWidget,
     QTreeWidget,
+    QPushButton,
     QVBoxLayout,
 )
 
@@ -34,6 +36,19 @@ class ArchiveAssetFamilyLayoutMixin:
         self.archive_asset_family_summary_label.setWordWrap(True)
         self.archive_asset_family_summary_label.setVisible(False)
         archive_texture_refs_layout.addWidget(self.archive_asset_family_summary_label)
+        search_row = QHBoxLayout()
+        self.archive_reference_search_button = QPushButton("Find references")
+        self.archive_reference_cancel_button = QPushButton("Cancel")
+        self.archive_reference_cancel_button.setEnabled(False)
+        self.archive_reference_search_button.clicked.connect(self._start_archive_reference_search)
+        self.archive_reference_cancel_button.clicked.connect(self._cancel_archive_reference_search)
+        search_row.addWidget(self.archive_reference_search_button)
+        search_row.addWidget(self.archive_reference_cancel_button)
+        search_row.addStretch(1)
+        archive_texture_refs_layout.addLayout(search_row)
+        self.archive_reference_search_status = QLabel("Search supported files for incoming references. No matches does not mean unused.")
+        self.archive_reference_search_status.setWordWrap(True)
+        archive_texture_refs_layout.addWidget(self.archive_reference_search_status)
         self.archive_asset_map_tabs = QTabWidget()
         self.archive_asset_map_tree = EmptyStateTreeWidget(
             "No asset family",

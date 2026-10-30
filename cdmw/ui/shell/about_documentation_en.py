@@ -436,6 +436,13 @@ class AboutDocumentationEnglishMixin:
                   <li>For meshes and sidecars, click <b>Asset Family</b> to load related textures, XML, material sidecars, skeletons, and metadata only when needed.</li>
                   <li>Use <b>Item Finder</b> for name/icon/category-based lookup when the archive path is unknown.</li>
                 </ul>
+                <h4>Reverse reference search</h4>
+                <ol>
+                  <li>Select a texture or sound, open Asset Family, and click Find references to search supported files in the loaded archives.</li>
+                  <li>Review Confirmed references separately from Name-based guesses. Incoming files appear in Used By and Asset Family without becoming automatic export dependencies.</li>
+                </ol>
+                <p>Confirmed references identifies explicit paths or Wwise media IDs. An ID does not identify the language or archive override used at runtime. Complete event, music and gameplay-trigger chains are not reconstructed.</p>
+                <p>The search is read-only and cancellable. Files above 32 MiB are skipped; searches stop at 2 GiB or 2,000 results. Review skipped, unreadable and unsupported counts; no matches does not mean unused.</p>
                 <h4>Find bodies and faces</h4>
                 <p>After scanning, open <b>Body &amp; Face Finder</b>. Choose <b>Bodies</b> or <b>Faces</b>, then <b>Unique assets</b> or <b>Appearance variants</b>. Search character names, IDs or paths, and narrow results with the component, family and resolution filters.</p>
                 <p><b>Used by / Components</b> connects shared meshes and appearances. <b>Show exact files</b> or <b>Show related files</b> returns the selection to Archive Browser for extraction or export. Thumbnails load as you browse.</p>

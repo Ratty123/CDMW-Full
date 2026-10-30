@@ -523,6 +523,25 @@ Recovered relationships remain available for any selected extension and survive
 preview failure or cache reuse. An exact metadata companion can expose Asset Family
 for non-model files without adding unrelated model-family guesses.
 
+Asset Family's **Find references** scans incoming references on demand, independently
+of the preview dependency snapshot. `archive_reference_search.py` pages the resident
+catalogue and prepares batches through its existing read-only API; legacy archives
+use the same cancellable Python reader. Selection changes, hiding the panel and shell
+shutdown cancel outstanding work; stale results cannot replace another selection.
+Both Asset Family and Used By separate confirmed paths/media IDs from name-based
+guesses and unresolved/context rows. Incoming files do not become outgoing export
+dependencies. Matching paths and IDs describe encoded references, not runtime use,
+language selection or archive override precedence.
+
+The reader scans registered reference containers and text formats. Wwise coverage
+includes DIDX IDs and standard little-endian HIRC Sound source headers for versions
+113–154 (including streamed sources); music, event/action graphs, external sources
+and custom layouts are not reconstructed. Unknown versions retain valid DIDX
+evidence and report incomplete bank coverage. Per-file reads stop at 32 MiB; a search
+is bounded to 2 GiB of admitted input and 2,000 rows. Oversized, unreadable and
+unsupported banks are reported; an empty result never proves an asset unused.
+Owned-fixture and headless UI checks cover this path; game acceptance is not implied.
+
 Preview and Details text keep their syntax highlighter attached during replacement.
 Document signals are blocked for the replacement, then highlighting is refreshed;
 disconnecting the highlighter can deadlock with preview-worker QObject teardown.

@@ -165,14 +165,6 @@ def build_archive_related_file_references(
         relation_kind, relation_group, relation_confidence, relation_reason = _build_archive_relation_metadata(
             source_entry,
             resolved_entry=companion_entry,
-            authoritative=(
-                str(source_entry.extension or "").strip().lower() == ".dds"
-                and _is_material_sidecar_extension(
-                    str(companion_entry.extension or "").strip().lower(),
-                    PurePosixPath(companion_entry.path.replace("\\", "/")).name.lower(),
-                )
-            ),
-            authoritative_reason="Sidecar binding reference",
         )
         references[key] = ArchiveModelTextureReference(
             reference_name=PurePosixPath(companion_entry.path.replace("\\", "/")).name,
@@ -205,11 +197,15 @@ def build_archive_related_file_references(
         if not normalized_key_value or normalized_key_value == _normalize_model_texture_reference(source_entry.path):
             continue
         key = ("file", normalized_key_value)
+        authoritative = bool(
+            isinstance(resolved_entry, ArchiveEntry) and "/" in reference_name
+            and _normalize_model_texture_reference(reference_name).lstrip("/")
+            == _normalize_model_texture_reference(resolved_entry.path).lstrip("/")
+        )
         if key not in references:
-            authoritative = bool(isinstance(resolved_entry, ArchiveEntry) or "/" in reference_name or "." in PurePosixPath(reference_name).name)
             relation_kind, relation_group, relation_confidence, relation_reason = _build_archive_relation_metadata(
                 source_entry,
-                reference_name=reference_name,
+                reference_name=reference_name if "/" in reference_name else "",
                 resolved_entry=resolved_entry if isinstance(resolved_entry, ArchiveEntry) else None,
                 authoritative=authoritative,
                 authoritative_reason="Explicit path reference",
@@ -230,6 +226,10 @@ def build_archive_related_file_references(
             ordered_keys.append(key)
             continue
         references[key].usage_count += 1
+        if authoritative:
+            references[key].reference_name = reference_name
+            references[key].relation_confidence = RelationConfidence.AUTHORITATIVE.value
+            references[key].relation_reason = "Explicit path reference"
         if reference_name and not references[key].reference_name:
             references[key].reference_name = reference_name
         if isinstance(resolved_entry, ArchiveEntry) and references[key].resolved_entry is None:
@@ -372,7 +372,6 @@ def build_archive_relationship_references(
                 continue
             relation_kind, relation_group, relation_confidence, relation_reason = _build_archive_relation_metadata(
                 source_entry,
-                reference_name=related_entry.path,
                 resolved_entry=related_entry,
             )
             add_resolved_reference(

@@ -91,6 +91,8 @@ class ArchiveAssetFamilyReferenceMixin:
     def _archive_relation_confidence_label(value: str) -> str:
         normalized = str(value or "").strip().lower()
         return {
+            "explicit_path": "Explicit path",
+            "wwise_media_id": "Media ID",
             RelationConfidence.AUTHORITATIVE.value: "Authoritative",
             RelationConfidence.EXACT_PATH.value: "Exact path",
             RelationConfidence.PATH_NORMALIZED.value: "Path normalized",
@@ -190,7 +192,7 @@ class ArchiveAssetFamilyReferenceMixin:
                 add_texture_sidecar(
                     candidate,
                     reason="Material sidecar references this exact texture path.",
-                    confidence=RelationConfidence.EXACT_PATH.value,
+                    confidence="explicit_path",
                 )
             for candidate in sidecars_by_basename.get(basename, ()):
                 add_texture_sidecar(

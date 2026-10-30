@@ -23,6 +23,9 @@ from cdmw.models import (
 )
 from cdmw.domain.archives.association_vocabulary import ASSET_FAMILY_GROUP_ORDER
 from cdmw.ui.archive_browser.asset_family_references import _asset_family_dependency_maps
+from cdmw.services.archive_reference_search import (
+    ArchiveReferenceSearchController, REVERSE_TARGET_EXTENSIONS, reference_evidence_group,
+)
 
 
 def _asset_family_panel_dependencies(owner: object):
@@ -36,6 +39,109 @@ def _asset_family_panel_dependencies(owner: object):
 
 class ArchiveAssetFamilyPanelMixin:
     """Deferred reference-pane refresh helpers for archive previews."""
+
+    def _start_archive_reference_search(self) -> None:
+        entry = self._current_archive_entry()
+        if not isinstance(entry, ArchiveEntry):
+            return
+        controller = getattr(self, "archive_reference_search_controller", None)
+        if controller is None:
+            from cdmw.ui.shell.close_controller import register_transient_worker_controller
+            controller = ArchiveReferenceSearchController(getattr(self.archive, "archive_catalogue_service", None), self)
+            self.archive_reference_search_controller = controller
+            controller.updated.connect(self._archive_reference_search_updated)
+            controller.idle.connect(self._archive_reference_search_idle)
+            register_transient_worker_controller(self.shell, controller)
+        bridge = getattr(self.archive, "archive_remote_bridge", None)
+        session = getattr(bridge, "current_session", None)
+        remote = bool(getattr(bridge, "displays_v2", False))
+        if remote and session is None:
+            self.shell.set_status_message("Scan the game archives first.", error=True)
+            return
+        controller.start(
+            entry, () if remote else tuple(getattr(self.archive, "archive_entries", ())),
+            session_id=session.session_id if remote else "", generation=self.archive_preview_request_id,
+        )
+
+    def _cancel_archive_reference_search(self) -> None:
+        controller = getattr(self, "archive_reference_search_controller", None)
+        if controller is not None:
+            controller.cancel()
+
+    def _archive_reference_search_idle(self) -> None:
+        self.archive_reference_search_button.setEnabled(True)
+        self.archive_reference_cancel_button.setEnabled(False)
+
+    def _archive_reference_search_updated(self, state) -> None:
+        current = self._current_archive_entry()
+        bridge = getattr(self.archive, "archive_remote_bridge", None)
+        session = getattr(bridge, "current_session", None)
+        if (state.generation != self.archive_preview_request_id or not isinstance(current, ArchiveEntry)
+                or current.identity != state.target.identity
+                or (state.session_id and (session is None or session.session_id != state.session_id))):
+            self._cancel_archive_reference_search()
+            return
+        self.archive_reference_search_state = state
+        self.archive_reference_search_button.setEnabled(not self.archive_reference_search_controller.busy)
+        self.archive_reference_cancel_button.setEnabled(not state.finished)
+        phase = "Cancelled" if state.cancelled else "Incomplete" if state.error or state.limited else "Finished" if state.finished else "Searching"
+        localizer = getattr(self.shell, "ui_localizer", None)
+        if localizer is not None:
+            phase = localizer.translate(phase)
+        self.archive_reference_search_status.setText(
+            f"{phase} · {state.scanned}/{state.total} · Skipped: {state.skipped} · Unreadable: {state.unreadable} · Unsupported banks: {state.unsupported_banks}"
+        )
+        self.archive_reference_search_status.setToolTip(state.error or "Search supported files for incoming references. No matches does not mean unused.")
+        self._populate_archive_texture_reference_list(
+            self.current_archive_model_texture_references, self.current_archive_asset_family_graph, enrich=False,
+        )
+
+    def _archive_incoming_references(self, entry):
+        # These lookups use existing maps only; reading source files is worker-owned.
+        known = self._archive_known_used_by_references(entry)
+        state = getattr(self, "archive_reference_search_state", None)
+        if state is None or not isinstance(entry, ArchiveEntry) or state.target.identity != entry.identity:
+            return known
+        found = {ref.resolved_entry.identity: ref for ref in state.references if ref.resolved_entry is not None}
+        for ref in known:
+            if ref.resolved_entry is not None:
+                previous = found.get(ref.resolved_entry.identity)
+                if previous is None or (reference_evidence_group(ref.relation_confidence) == "Confirmed references"
+                                        and reference_evidence_group(previous.relation_confidence) != "Confirmed references"):
+                    found[ref.resolved_entry.identity] = ref
+        return list(found.values())
+
+    def _partition_archive_asset_map(self, references, member_rows) -> None:
+        """Group by evidence without changing action payloads or export dependencies."""
+        tree = self.archive_asset_map_tree
+        buckets = {}
+        while tree.topLevelItemCount():
+            group = tree.takeTopLevelItem(0)
+            while group.childCount():
+                item = group.takeChild(0)
+                source, index = item.data(0, Qt.UserRole) or ("family", -1)
+                if source == "uses" and 0 <= index < len(references):
+                    ref = references[index]
+                    label = reference_evidence_group(ref.relation_confidence, ref.resolution_status)
+                elif (source == "family" and index == -1) or (0 <= index < len(member_rows) and member_rows[index].source_evidence == "Selected"):
+                    label = "Selected asset"
+                else:
+                    label = "Unresolved / context"
+                buckets.setdefault(label, []).append(item)
+        for index, ref in enumerate(self.current_archive_used_by_references):
+            item = QTreeWidgetItem(["Used By", ref.resolved_archive_path, "Resolved",
+                                   self._archive_relation_confidence_label(ref.relation_confidence), ref.relation_reason])
+            item.setData(0, Qt.UserRole, ("used_by", index))
+            item.setToolTip(1, ref.resolved_archive_path)
+            buckets.setdefault(reference_evidence_group(ref.relation_confidence, ref.resolution_status), []).append(item)
+        for label in ("Selected asset", "Confirmed references", "Name-based guesses", "Unresolved / context"):
+            if label not in buckets:
+                continue
+            group = QTreeWidgetItem([label, "", "", "", ""])
+            group.setFlags(Qt.ItemIsEnabled)
+            group.addChildren(buckets[label])
+            tree.addTopLevelItem(group)
+        tree.expandAll()
 
     @staticmethod
     def _archive_texture_reference_group_label(
@@ -153,11 +259,7 @@ class ArchiveAssetFamilyPanelMixin:
         for index, reference in enumerate(references):
             resolved_entry = getattr(reference, "resolved_entry", None)
             role = self._archive_reference_role_label(reference)
-            relation_group = self._archive_asset_map_group_label(
-                str(getattr(reference, "relation_group", "") or ""),
-                resolved_entry if isinstance(resolved_entry, ArchiveEntry) else None,
-                str(getattr(reference, "reference_name", "") or ""),
-            )
+            relation_group = reference_evidence_group(reference.relation_confidence, reference.resolution_status)
             group_item = group_items.get(relation_group)
             if group_item is None:
                 group_item = QTreeWidgetItem([relation_group, "", "", "", ""])
@@ -354,6 +456,7 @@ class ArchiveAssetFamilyPanelMixin:
                     group_item.addChild(item)
                 group_item.setText(0, f"{group_label} ({group_item.childCount()})")
             self.archive_asset_map_tree.expandAll()
+            self._partition_archive_asset_map(references, member_rows)
             return
 
         if isinstance(source_entry, ArchiveEntry):
@@ -414,6 +517,7 @@ class ArchiveAssetFamilyPanelMixin:
         for group_label, group_item in group_items.items():
             group_item.setText(0, f"{group_label} ({group_item.childCount()})")
         self.archive_asset_map_tree.expandAll()
+        self._partition_archive_asset_map(references, member_rows)
 
     def _populate_archive_texture_reference_list(
         self,
@@ -424,15 +528,13 @@ class ArchiveAssetFamilyPanelMixin:
     ) -> None:
         current_entry, entries_by_normalized_path, entries_by_basename = _asset_family_panel_dependencies(self)
         base_references = list(references)
-        self.current_archive_used_by_references = (
-            self._archive_known_used_by_references(current_entry)
-            if enrich
-            else []
-        )
+        self.current_archive_used_by_references = self._archive_incoming_references(current_entry)
         item_icon_references: Tuple[ArchiveModelTextureReference, ...] = ()
         if enrich and isinstance(current_entry, ArchiveEntry):
             related_for_icon_match = list(base_references)
-            related_for_icon_match.extend(self.current_archive_used_by_references)
+            # Preserve preview enrichment from the old index without feeding
+            # newly scanned incoming sources into outgoing export dependencies.
+            related_for_icon_match.extend(self._archive_known_used_by_references(current_entry))
             item_icon_references = build_archive_item_icon_references_from_catalog(
                 current_entry,
                 tuple(getattr(self, "archive_item_asset_catalog", ()) or ()),
@@ -453,7 +555,7 @@ class ArchiveAssetFamilyPanelMixin:
         if isinstance(current_entry, ArchiveEntry) and str(current_entry.extension or "").lower() == ".dds":
             if enrich:
                 family_references = list(self.current_archive_model_texture_references)
-                family_references.extend(self.current_archive_used_by_references)
+                family_references.extend(self._archive_known_used_by_references(current_entry))
                 asset_family_graph_for_view = build_archive_asset_family_graph(current_entry, tuple(family_references))
         self.current_archive_asset_family_graph = asset_family_graph_for_view
         if isinstance(current_entry, ArchiveEntry) and isinstance(asset_family_graph_for_view, AssetFamilyGraph):
@@ -573,6 +675,7 @@ class ArchiveAssetFamilyPanelMixin:
             self.current_archive_model_texture_references
             or self.current_archive_used_by_references
             or self.current_archive_family_member_rows
+            or (isinstance(current_entry, ArchiveEntry) and current_entry.extension in REVERSE_TARGET_EXTENSIONS)
         )
         panel_requested = bool(
             has_asset_relationships
@@ -596,6 +699,10 @@ class ArchiveAssetFamilyPanelMixin:
         self._update_archive_texture_reference_action_controls()
 
     def _clear_archive_texture_reference_views(self) -> None:
+        self._cancel_archive_reference_search()
+        self.archive_reference_search_state = None
+        if hasattr(self, "archive_reference_search_status"):
+            self.archive_reference_search_status.setText("Search supported files for incoming references. No matches does not mean unused.")
         self.pending_archive_texture_reference_update = None
         self.archive_asset_family_panel_requested = False
         if hasattr(self, "archive_texture_reference_update_timer"):

@@ -24,7 +24,7 @@ from cdmw.models import (
     AssetFamilyMember,
     AttachmentPlacementEvidence,
 )
-from cdmw.domain.archives.association_vocabulary import ASSET_FAMILY_GROUP_ORDER
+from cdmw.services.archive_reference_search import REVERSE_TARGET_EXTENSIONS, reference_evidence_group
 from cdmw.ui.archive_browser.workflow_dependencies import archive_workflow_dependency_context
 
 
@@ -32,6 +32,9 @@ class ArchiveAssetFamilyDialogMixin:
     """Asset Family graph caching and workspace dialog tree population."""
 
     def _archive_has_asset_family_workspace(self) -> bool:
+        entry = self._current_archive_entry()
+        if isinstance(entry, ArchiveEntry) and entry.extension in REVERSE_TARGET_EXTENSIONS:
+            return True
         if bool(
             self.current_archive_model_texture_references
             or self.current_archive_used_by_references
@@ -161,10 +164,17 @@ class ArchiveAssetFamilyDialogMixin:
     ) -> None:
         tree.clear()
         group_items: Dict[str, QTreeWidgetItem] = {}
-        order = ASSET_FAMILY_GROUP_ORDER
         rows = tuple(getattr(graph, "member_rows", ()) or ())
-        for group_label in order:
-            group_rows = [row for row in rows if isinstance(row, AssetFamilyMember) and row.group == group_label]
+        evidence_rows: dict[str, list[AssetFamilyMember]] = {}
+        relations = {relation.target_path: relation for relation in graph.relations}
+        for member in rows:
+            relation = relations.get(member.path)
+            label = ("Selected asset" if member.source_evidence == "Selected" else
+                     reference_evidence_group(relation.confidence, relation.status) if relation is not None else
+                     "Unresolved / context")
+            evidence_rows.setdefault(label, []).append(member)
+        for group_label in ("Selected asset", "Confirmed references", "Name-based guesses", "Unresolved / context"):
+            group_rows = evidence_rows.get(group_label, [])
             if not group_rows:
                 continue
             group_item = QTreeWidgetItem([f"{group_label} ({len(group_rows)})", "", "", "", ""])
@@ -231,6 +241,9 @@ class ArchiveAssetFamilyDialogMixin:
             requested = bool(entry and self._archive_has_asset_family_workspace())
             self.archive_asset_family_panel_requested = requested
             if not requested:
+                cancel = getattr(self, "_cancel_archive_reference_search", None)
+                if callable(cancel):
+                    cancel()
                 self.archive_texture_reference_update_timer.stop()
                 self.archive_texture_refs_group.setVisible(False)
                 self.archive_preview_content_splitter.setCollapsible(1, True)

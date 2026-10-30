@@ -7,6 +7,10 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 ## [Unreleased]
 
+### Added
+
+- Archive Browser can reverse-search textures, sounds and other supported assets with Asset Family's Find references action. Asset Family and Used By separate confirmed paths and sound IDs from name-based guesses, with cancellation and visible search coverage limits.
+
 ### Changed
 
 - Mod Management and archive overlay workflows are temporarily disabled because they are incompatible with the DLC update. Mod Management remains visible but greyed out, with the reason shown on hover. Loose mod exports remain available.

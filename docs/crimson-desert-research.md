@@ -1858,9 +1858,20 @@ The catalogue retains the recorded evidence and failed record-size assumptions.
 ### 11.3 Audio and video
 
 Wwise BNK inspection recovers section tags and the DIDX media table; supported
-embedded sounds can be decoded through the bundled audio path. Full HIRC
-event/action semantics are not decoded, so swapping a known sound and adding
-a new event are different capabilities.
+embedded sounds can be decoded through the bundled audio path. The 2026-10-30
+source expansion adds incoming texture/audio path searches and media-ID links in
+Asset Family / Used By. Standard little-endian HIRC Sound source headers in bank
+versions 113–154 expose embedded or streamed source IDs; generators, music graphs,
+event/action semantics and gameplay triggers remain outside the reader. Unknown
+versions report incomplete bank coverage while retaining valid DIDX IDs.
+The source-header layout follows `CAkBankMgr__LoadSource` and
+`CAkBankMgr__ReadSourceParent_CAkSound_` in
+[wwiser's parser](https://github.com/bnnm/wwiser/blob/master/wwiser/parser/wparser.py).
+Owned synthetic bank/path fixtures and headless UI checks establish source behavior,
+not acceptance of every shipped bank or actual runtime playback. Confirmed paths
+and media IDs are separated from basename guesses; media IDs do not select language
+variants or archive overrides. The owning Archive Browser README records scan limits.
+Swapping a known sound and adding a new event remain different capabilities.
 
 Supported WEM playback/export does not imply a general Wwise encoder. The
 implemented writer is limited to the admitted uncompressed PCM path; Vorbis

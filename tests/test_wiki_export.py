@@ -40,6 +40,24 @@ def test_export_rejects_a_help_topic_missing_from_the_wiki(monkeypatch):
         build_pages()
 
 
+def test_reverse_search_workflow_and_limits_are_translated_in_every_manual(wiki_pages):
+    from cdmw.ui.localization_catalogs_v2 import load_builtin_catalog
+    sources = (
+        "Select a texture or sound, open Asset Family, and click Find references to search supported files in the loaded archives.",
+        "Review Confirmed references separately from Name-based guesses. Incoming files appear in Used By and Asset Family without becoming automatic export dependencies.",
+        "Confirmed references identifies explicit paths or Wwise media IDs. An ID does not identify the language or archive override used at runtime. Complete event, music and gameplay-trigger chains are not reconstructed.",
+        "The search is read-only and cancellable. Files above 32 MiB are skipped; searches stop at 2 GiB or 2,000 results. Review skipped, unreadable and unsupported counts; no matches does not mean unused.",
+    )
+    for language in BUILTIN_LANGUAGES:
+        translations = load_builtin_catalog(language.code)["translations"]
+        page = wiki_pages[page_slug("Archive-Browser", language.code) + ".md"]
+        for source in sources:
+            translated = translations[source]
+            assert language.code == "en" or translated != source
+            # The exporter may split sentences or emphasize control names.
+            assert translated.split(". ")[0] in page.replace("**", "")
+
+
 def test_settings_files_guidance_and_links_survive_export_without_local_paths(wiki_pages, wiki_manuals):
     from cdmw.ui.localization_catalogs_v2 import load_builtin_catalog
 
