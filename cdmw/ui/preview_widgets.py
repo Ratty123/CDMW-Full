@@ -13,7 +13,7 @@ except ImportError:
     QAudioOutput = None
     QMediaPlayer = None
     QVideoWidget = None
-from PySide6.QtWidgets import QComboBox, QHBoxLayout, QLabel, QPushButton, QScrollArea, QSlider, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QComboBox, QHBoxLayout, QLabel, QPushButton, QScrollArea, QSizePolicy, QSlider, QVBoxLayout, QWidget
 
 class PreviewLabel(QLabel):
     color_sampled = Signal(str)
@@ -446,6 +446,9 @@ class MediaPreviewWidget(QWidget):
 
         self.info_label = QLabel(message)
         self.info_label.setWordWrap(True)
+        # Unbroken cache paths must not set the minimum width of the preview
+        # stack and prevent the neighbouring Asset Family pane from expanding.
+        self.info_label.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Preferred)
         self.info_label.setObjectName("HintLabel")
         layout.addWidget(self.info_label)
 

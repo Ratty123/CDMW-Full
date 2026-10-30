@@ -19,7 +19,7 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 ### Fixed
 
-- Archive Browser plays cached WEM sounds and exports them as WAV again. Reference searches recognise language-folder paths, check sound banks and metadata first, and continue past 2 GiB in cancellable batches.
+- Archive Browser plays cached WEM sounds and exports them as WAV again. Long audio preview paths no longer prevent widening Asset Family. Reference searches recognise language-folder paths, check sound banks and metadata first, and continue past 2 GiB in cancellable batches.
 
 - Archive Browser skips CrimsonMods cache archives by default. Archive parse errors identify the failing file and offer to exclude recognised mod or backup folders and refresh.
 
