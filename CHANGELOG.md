@@ -7,23 +7,20 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 ## [Unreleased]
 
-### Fixed
-
-- Archive Browser no longer freezes while updating preview details after quickly switching between DDS files. Failed DDS previews show the converter's error in Details and retry when reopened instead of keeping a cached raw-byte result.
-
-### Docs
-
-- Help and the Wiki explain DDS raw-byte preview warnings, where to find the underlying error in Details, and what to include in a report. The searchable error reference includes more warnings and diagnostic messages across the app.
-
 ## [0.11.0-alpha.29] - 2026-10-30
 
 ### Added
 
 - Archive Browser can batch-export selected PAC, PAM and PAMLOD models as OBJ or FBX into separate folders, with referenced files, progress, cancellation and a final per-model report. Existing output folders are preserved; exporting a PAC as FBX without a skeleton requires an explicit choice.
 
+### Fixed
+
+- Archive Browser no longer freezes while updating preview details after quickly switching between DDS files. Failed DDS previews show the converter's error in Details and retry when reopened instead of keeping a cached raw-byte result.
+
 ### Docs
 
 - Help and the Wiki explain batch OBJ/FBX export, cancellation and output limits in all 14 interface languages.
+- Help > Documentation explains DDS raw-byte preview warnings, how to retry a failed preview, where to find the underlying error in Details, and what to include in a report. The searchable error reference includes more warnings and diagnostic messages across the app, with recovery guidance in all 14 interface languages.
 
 ## [0.11.0-alpha.28] - 2026-10-30
 
