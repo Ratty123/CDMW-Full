@@ -7,6 +7,10 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 ## [Unreleased]
 
+### Fixed
+
+- Mesh Editor no longer rejects imported materials because the original material preview still refers to the textures being replaced.
+
 ## [0.11.0-alpha.30] - 2026-10-30
 
 ### Added

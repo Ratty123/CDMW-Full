@@ -472,6 +472,7 @@ def test_repeated_imports_keep_other_materials_and_restore_original(editor, tmp_
 
 @pytest.mark.parametrize("part_index", [0, 1])
 def test_material_preview_and_package_share_frozen_bundle(editor, tmp_path, part_index):
+    from cdmw.core.archive_model_references import _parse_archive_model_sidecar_texture_bindings
     from cdmw.services.mesh_rust_authoring import RustMeshAuthoringSession
     from cdmw.services.mesh_rust_replacement_materials import stage_replacement_materials
     from cdmw.workers.mesh_editor_workers import MeshDirectOutputWorker
@@ -480,16 +481,47 @@ def test_material_preview_and_package_share_frozen_bundle(editor, tmp_path, part
     service, session_id = editor
     snapshot = service.capture_export_snapshot(session_id)
     target, context, model = material_fixture(tmp_path, snapshot)
-    host = RustMeshAuthoringSession.create(SimpleNamespace(mesh_service=service, active_session_id=session_id), tmp_path / "host", process_generation=1)
+    sidecar_entry = context.entries_by_basename["replacement.pac_xml"][0]
+    text = sidecar_entry.paz_file.read_text().replace(
+        "<Material>", '<Material Name="_resourceMaterial" _materialName="SkinnedMeshStandard">',
+    ).replace("</Vector>", '<MaterialParameterTexture _name="_materialTexture" Index="1">'
+              '<ResourceReferencePath_ITexture _path="character/texture/packed.dds"/>'
+              '</MaterialParameterTexture></Vector>')
+    prepared_sidecar = entry(tmp_path, sidecar_entry.path, text.encode())
+    packed_path = tmp_path / "packed.dds"
+    Image.new("RGBA", (4, 4), (128, 64, 192, 255)).save(packed_path)
+    packed = entry(tmp_path, "character/texture/packed.dds", packed_path.read_bytes())
+    for item in (prepared_sidecar, packed):
+        context.entries_by_basename[Path(item.path).name.casefold()] = [item]
+        context.entries_by_normalized_path[item.path.casefold()] = [item]
+    sidecar = next(file for file in capture_replacement_dependencies(target, context) if file.path.endswith(".pac_xml"))
+    bindings = _parse_archive_model_sidecar_texture_bindings(sidecar.data.decode(), sidecar_path=sidecar.path)
+    # Archive preview retains the original parameter vector as well as textures.
+    # Replacement must compile the new sidecar without those old DDS references.
+    preview_parts = []
+    for index, part in enumerate(snapshot.mesh.submeshes):
+        binding = next(row for row in bindings if row.submesh_name == part.name and row.parameter_name == "_diffuseTexture")
+        texture_path = context.entries_by_normalized_path[binding.texture_path][0].paz_file
+        preview_parts.append(SimpleNamespace(source_submesh_index=index, material=part.material,
+            preview_material_parameters=binding.material_parameters, preview_texture_dds_path=str(texture_path)))
+    controller = SimpleNamespace(mesh_service=service, active_session_id=session_id,
+        _cdmw_rust_mesh_preview_material_context=SimpleNamespace(
+            preview_model=SimpleNamespace(path=snapshot.mesh.path, meshes=preview_parts)))
+    host = RustMeshAuthoringSession.create(controller, tmp_path / "host", process_generation=1)
     try:
         chosen = command(host, "replacement_choose", {"scope": "selected", "part_ids": [initial_replacement_state(snapshot).parts[part_index].part_id],
                          "source_path": str(model), "_archive_entry": target, "_archive_dependencies": context})
+        assert host.pending_replacement.snapshot.mesh.submeshes[part_index].preview_material_parameters
         key = chosen["state"]["replacement"]["pending"]["targets"][0]["id"]
         applied = command(host, "replacement_apply", {"targets": [key], "materials": "imported"})
         material_key = applied["state"]["archive_refit_materials"]["key"]
         assert material_key != "base"
         textures = host.archive_refit_material_cache[material_key]["textures"]
         assert textures and any(part_index in row["material_indices_by_lod"][0] for row in textures)
+        texture = next(row for row in textures if row["role"] == "base_color"
+                       and part_index in row["material_indices_by_lod"][0])
+        with Image.open(host.root / texture["file"]["path"]) as image:
+            assert image.convert("RGBA").getpixel((0, 0)) == (210, 30, 60, 255)
         assert command(host, "replacement_compare", {"mode": "original"})["state"]["archive_refit_materials"]["key"] == "base"
         assert command(host, "replacement_compare", {"mode": "output"})["state"]["archive_refit_materials"]["key"] == material_key
         command(host, "replacement_compare", {"mode": "edit"})

@@ -155,6 +155,16 @@ def prepared_replacement_material_mesh(mesh, files, *, required, stop_event=None
                     for attribute in attributes:
                         setattr(part, attribute, "")
                 part.preview_material_texture_inputs = tuple(inputs)
+                if required:
+                    # The replacement sidecar owns both the new textures and
+                    # their parameter vector. Original DDS references would
+                    # otherwise look like dropped bindings to the compiler.
+                    parameters = []
+                    for binding in owned:
+                        for parameter in binding.material_parameters:
+                            if parameter not in parameters:
+                                parameters.append(parameter)
+                    part.preview_material_parameters = tuple(parameters)
         yield incoming
 
 
