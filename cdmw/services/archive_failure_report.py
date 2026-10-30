@@ -47,13 +47,15 @@ def _bounded_tail(value: str, limit: int) -> str:
 
 @dataclass(frozen=True, slots=True)
 class ArchiveOperationFailure:
-    """Local presentation context; the worker error wire schema is unchanged."""
+    """Local presentation context, including the confirmed failure source."""
 
     code: str
     message: str
     detail: str | None
     report: str
     request_id: str
+    source_path: str | None = None
+    package_root: str = ""
 
     def __str__(self) -> str:
         return self.message
@@ -83,7 +85,8 @@ def archive_failure_report(
         f"CDMW {APP_VERSION}\nRuntime: {runtime}; Python {platform.python_version()}; {platform.platform()}\n"
         f"Operation: {field(operation, 64)}\nBackend: {field(backend, 512)}\nAttempts: {attempts} / 2\n"
         f"Last stage: {field(phase or 'waiting for worker', 256)}\nProgress: {completed} / {total}\n"
-        f"Elapsed: {elapsed:.1f} seconds\nAffected path: {field(current_item or '(not supplied)', 768)}\n"
+        f"Elapsed: {elapsed:.1f} seconds\nAffected path: {field(error.source_path or '(not supplied)', 512)}\n"
+        f"Last progress item: {field(current_item or '(not supplied)', 256)}\n"
         f"Error code: {field(error.code, 128)}\nError: {field(error.message, 2048)}\n"
         f"Details:\n{field(error.detail or '', 6144)}\n"
         "Last progress entries:\n" + "\n".join(field(item, 384) for item in progress[-12:])

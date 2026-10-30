@@ -309,6 +309,7 @@ std::vector<std::vector<Entry>> parse_pamt_files(
     std::mutex report_gate;
     std::mutex failure_gate;
     std::exception_ptr failure;
+    fs::path failure_path;
     if (progress) progress(0, pamt_files.size(), "index_parse", pamt_files[schedule[0]].filename().u8string());
 
     const auto run_worker = [&] {
@@ -320,8 +321,10 @@ std::vector<std::vector<Entry>> parse_pamt_files(
                 if (failure) return;
             }
             const auto file_index = schedule[claimed];
+            bool parsing = true;
             try {
                 parsed[file_index] = parse_pamt(pamt_files[file_index]);
+                parsing = false;
                 const auto done = completed.fetch_add(1, std::memory_order_relaxed) + 1;
                 if (progress) {
                     // The sink raises on cancellation, so it stays inside the guarded
@@ -331,7 +334,10 @@ std::vector<std::vector<Entry>> parse_pamt_files(
                 }
             } catch (...) {
                 std::lock_guard<std::mutex> guard(failure_gate);
-                if (!failure) failure = std::current_exception();
+                if (!failure) {
+                    failure = std::current_exception();
+                    if (parsing) failure_path = pamt_files[file_index];
+                }
                 return;
             }
         }
@@ -344,7 +350,14 @@ std::vector<std::vector<Entry>> parse_pamt_files(
     }
     run_worker();
     for (auto& worker : workers) worker.join();
-    if (failure) std::rethrow_exception(failure);
+    if (failure) {
+        // All parsing workers have joined, so successful progress cannot replace
+        // this exact failure source. Callback/cancellation failures have no source.
+        if (progress && !failure_path.empty()) {
+            progress(completed.load(), pamt_files.size(), "index_parse_failed", failure_path.u8string());
+        }
+        std::rethrow_exception(failure);
+    }
     return parsed;
 }
 

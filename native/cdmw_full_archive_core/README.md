@@ -36,6 +36,12 @@ cooperative cancellation and prevents publication of an incomplete index. The
 non-progress `cdmw_full_archive_build_index_utf8` entry point remains available
 for simple callers.
 
+On a PAMT parse failure, the progress callback receives `index_parse_failed` with
+the exact source path after all parsing threads have joined. The original error
+status and message remain intact. Callback cancellation is still cancellation,
+and callback failures are not labelled as archive parse failures. The managed
+bridge uses this final source to populate the optional worker error `source_path`.
+
 `cdmw_full_archive_build_index_from_sources_utf8` accepts a non-empty array of
 UTF-8 PAMT paths selected by the caller. It builds from that list without walking
 the archive root again, preserving the same progress, cancellation and atomic

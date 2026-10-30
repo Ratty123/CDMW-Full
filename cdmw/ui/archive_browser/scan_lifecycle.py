@@ -7,6 +7,8 @@ import threading
 from PySide6.QtCore import QThreadPool, Qt, Slot
 
 from cdmw.domain.archives.catalogue_operations import ArchiveBackendError
+from cdmw.domain.archives.discovery import suggested_archive_exclusion
+from cdmw.services.settings_service import add_ignored_archive_folder
 from cdmw.ui.archive_browser.failure_report import ArchiveFailureDialog
 from cdmw.workers.game_executable_fingerprint import GameExecutableFingerprintTask
 
@@ -48,7 +50,31 @@ class ArchiveScanLifecycleMixin:
         dialog = ArchiveFailureDialog(self)
         self.archive_backend_failure_dialog = dialog
         generation = self.archive_open_generation
+        root_text = self.archive_package_root_edit.text().strip()
         bridge = self.archive_remote_bridge
+        def exclude_folder(folder):
+            if (self.shell._shutting_down or generation != self.archive_open_generation
+                    or self.archive_backend_failure_dialog is not dialog
+                    or self.archive_package_root_edit.text().strip() != root_text
+                    or self.archive_remote_query_pending):
+                return
+            if folder != suggested_archive_exclusion(root_text, getattr(error, "source_path", "") or ""):
+                return
+            try:
+                add_ignored_archive_folder(self.shell.settings, folder)
+            except (OSError, ValueError) as exc:
+                dialog.panel.guidance_label.setText(f"Could not save the folder exclusion: {exc}")
+                dialog.panel.exclude_button.setEnabled(True)
+                return
+            settings_tab = getattr(self.shell, "settings_tab", None)
+            if settings_tab is not None:
+                settings_tab.archive_ignored_folders_group.reload()
+            dialog.close()
+            self.archive_backend_failure_dialog = None
+            # A normal retry reuses the old exclusion snapshot. Start a new scan
+            # so the worker receives the saved list through the existing pipeline.
+            self.scan_archives(force_refresh=True, activate_archive_tab=False)
+
         def retry():
             if self.shell._shutting_down or generation != self.archive_open_generation:
                 dialog.close()
@@ -60,6 +86,7 @@ class ArchiveScanLifecycleMixin:
             else:
                 self.scan_archives(activate_archive_tab=False)
         dialog.retryRequested.connect(retry)
+        dialog.excludeFolderRequested.connect(exclude_folder)
         dialog.finished.connect(lambda _: setattr(self, "archive_backend_failure_dialog", None) if self.archive_backend_failure_dialog is dialog else None)
         dialog.panel.show_failure("The archive operation could not finish.", error, operation=kind,
                                   package_root=self.archive_package_root_edit.text().strip())

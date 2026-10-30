@@ -288,6 +288,22 @@ def test_cancelled_terminal_failure_cannot_publish_a_queued_report(operation):
     assert not failures
 
 
+def test_confirmed_failure_source_is_distinct_from_last_progress(operation):
+    _, client, service, failures, _ = operation
+    root = "C:/game"
+    source = root + "/bin64/.CrimsonModsCache/main/0009/0.pamt"
+    service.open_archive(OpenArchiveRequest(root), ui_generation=1)
+    client.request_progress.emit(client.calls[-1][2]["request_id"],
+        dict(completed=7, total=74, phase="index_parse", current_item="0001/0.pamt"))
+    client.error(ArchiveBackendError.from_wire({"code": "invalid_archive", "message": "Invalid table", "source_path": source}))
+    _APP.processEvents()
+    failure = failures[-1][1]
+    assert failure.source_path == source and failure.package_root == root
+    assert "Affected path: <game>/bin64/.CrimsonModsCache/main/0009/0.pamt" in failure.report
+    assert "Last progress item: 0001/0.pamt" in failure.report
+    assert ArchiveBackendError.from_wire({"code": "invalid_archive", "message": "Older worker"}).source_path is None
+
+
 def test_maximum_report_fields_still_preserve_each_progress_entry_and_newest_diagnostic():
     from cdmw.services.archive_failure_report import archive_failure_report
 

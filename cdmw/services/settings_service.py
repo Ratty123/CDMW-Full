@@ -10,6 +10,7 @@ from cdmw.constants import APP_NAME, LEGACY_APP_NAMES
 from cdmw.domain.archives.discovery import (
     ARCHIVE_IGNORED_FOLDERS_OVERRIDE_SETTING, ARCHIVE_IGNORED_FOLDERS_SETTING,
     BUILTIN_IGNORED_ARCHIVE_FOLDERS,
+    normalize_ignored_archive_folders,
 )
 from cdmw.core.classification_registry import configure_texture_classification_registry
 from cdmw.services.workspace_layout import WORKSPACE_MIGRATION_SETTINGS_KEY, migrate_legacy_workspace_layout
@@ -32,6 +33,21 @@ def read_ignored_archive_folders(settings: object | None) -> tuple[str, ...]:
     for item in folders:
         result.setdefault(str(item).casefold(), str(item))
     return tuple(result.values())
+
+
+def add_ignored_archive_folder(settings: object, folder: str) -> None:
+    from PySide6.QtCore import QSettings
+
+    folders = normalize_ignored_archive_folders((*read_ignored_archive_folders(settings), folder))
+    previous = settings.value(ARCHIVE_IGNORED_FOLDERS_OVERRIDE_SETTING, None)
+    settings.setValue(ARCHIVE_IGNORED_FOLDERS_OVERRIDE_SETTING, list(folders))
+    settings.sync()
+    if settings.status() != QSettings.Status.NoError:
+        if previous is None:
+            settings.remove(ARCHIVE_IGNORED_FOLDERS_OVERRIDE_SETTING)
+        else:
+            settings.setValue(ARCHIVE_IGNORED_FOLDERS_OVERRIDE_SETTING, previous)
+        raise OSError("Settings could not be saved.")
 
 
 def migrate_model_texture_setting_to_on_demand(settings: object) -> bool:

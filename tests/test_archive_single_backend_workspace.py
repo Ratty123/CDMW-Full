@@ -216,6 +216,38 @@ def test_background_name_failure_keeps_browsing_and_offers_targeted_retry(worksp
     assert archive.archive_backend_failure_dialog is None
 
 
+@pytest.mark.parametrize("existing_catalogue", [False, True])
+def test_failure_popup_excludes_cache_and_reopens_with_saved_settings(workspace, tmp_path, existing_catalogue):
+    from cdmw.domain.archives.discovery import ARCHIVE_IGNORED_FOLDERS_OVERRIDE_SETTING
+    from cdmw.services.settings_service import read_ignored_archive_folders
+
+    root = tmp_path / "game"
+    write_character_archive(root)
+    workspace.settings.setValue(ARCHIVE_IGNORED_FOLDERS_OVERRIDE_SETTING, ["extras/old"])
+    previous = _open(workspace, root) if existing_catalogue else None
+    cached = root / "bin64/.CrimsonModsCache/main/hash/0009/0.pamt"
+    cached.parent.mkdir(parents=True)
+    cached.write_bytes(b"bad cached index")
+    before = {p.relative_to(root): p.read_bytes() for p in root.rglob("*") if p.is_file()}
+    archive = workspace.archive
+    archive.archive_package_root_edit.setText(str(root))
+    archive.scan_archives(force_refresh=existing_catalogue, activate_archive_tab=False)
+    assert _Awaiter._wait_until(lambda: archive.archive_backend_failure_dialog is not None, timeout_ms=15_000)
+    panel = archive.archive_backend_failure_dialog.panel
+    assert archive.archive_remote_bridge.current_session == previous
+    assert ".CrimsonModsCache" in panel.source_label.text()
+    assert not panel.exclude_button.isHidden()
+    assert panel.excluded_folder == "bin64/.CrimsonModsCache"
+    panel.exclude_button.click()
+    assert _Awaiter._wait_until(lambda: not archive.archive_remote_query_pending
+        and archive.archive_remote_bridge.current_session is not None, timeout_ms=15_000)
+    assert archive.archive_backend_failure_dialog is None
+    assert read_ignored_archive_folders(workspace.settings) == ("extras/old", "bin64/.CrimsonModsCache")
+    assert before == {p.relative_to(root): p.read_bytes() for p in root.rglob("*") if p.is_file()}
+    group = workspace.settings_tab.archive_ignored_folders_group
+    assert "bin64/.CrimsonModsCache" in [group.folder_list.item(i).text() for i in range(group.folder_list.count())]
+
+
 def test_cancelled_refresh_preserves_uncached_pages_from_the_real_worker(workspace, tmp_path):
     root = tmp_path / "game"
     write_character_archive(root)

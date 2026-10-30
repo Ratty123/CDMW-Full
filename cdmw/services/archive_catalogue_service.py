@@ -823,7 +823,8 @@ class ArchiveCatalogueService(QObject):
         if self._closing or request.ui_generation < self._minimum_ui_generation:
             return
         if not isinstance(error, ArchiveBackendError):
-            error = ArchiveBackendError(getattr(error, "code", "unknown_error"), getattr(error, "message", str(error)), getattr(error, "detail", None))
+            error = ArchiveBackendError(getattr(error, "code", "unknown_error"), getattr(error, "message", str(error)),
+                getattr(error, "detail", None), getattr(error, "source_path", None))
         session = self._sessions.get(request.session_id or "")
         root = request.package_root or (session.package_root if session else "")
         update = request.last_progress or ProgressUpdate(0, 0, "waiting for worker")
@@ -836,7 +837,7 @@ class ArchiveCatalogueService(QObject):
         self._failed_requests[request_id] = request
         while len(self._failed_requests) > 32:
             self._failed_requests.popitem(last=False)
-        failure = ArchiveOperationFailure(error.code, error.message, error.detail, report, request_id)
+        failure = ArchiveOperationFailure(error.code, error.message, error.detail, report, request_id, error.source_path, root)
         # Missing helpers can fail synchronously during submit. Let callers first
         # register their logical request, and suppress superseded queued errors.
         QTimer.singleShot(0, lambda: self.request_failed.emit(request_id, failure)

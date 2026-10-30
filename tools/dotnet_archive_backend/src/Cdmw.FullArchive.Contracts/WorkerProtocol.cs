@@ -59,7 +59,7 @@ public static class WorkerProtocol
             status,
             SerializePayload(payload));
 
-    public static WorkerMessage Failure(WorkerMessage request, string code, string message, string? detail = null) =>
+    public static WorkerMessage Failure(WorkerMessage request, string code, string message, string? detail = null, string? sourcePath = null) =>
         new(
             Version,
             request.RequestId,
@@ -68,7 +68,7 @@ public static class WorkerProtocol
             request.Operation,
             WorkerMessageStatus.Error,
             null,
-            new WorkerError(code, message, detail));
+            new WorkerError(code, message, detail, sourcePath));
 
     public static T? ReadPayload<T>(WorkerMessage message) =>
         message.Payload is { } payload ? payload.Deserialize<T>(JsonOptions) : default;
@@ -110,7 +110,8 @@ public sealed record WorkerMessage(
     JsonElement? Payload = null,
     WorkerError? Error = null);
 
-public sealed record WorkerError(string Code, string Message, string? Detail = null);
+public sealed record WorkerError(string Code, string Message, string? Detail = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? SourcePath = null);
 
 public sealed record PingRequest(string ClientVersion);
 

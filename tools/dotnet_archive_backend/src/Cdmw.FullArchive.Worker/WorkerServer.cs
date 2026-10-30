@@ -183,7 +183,7 @@ internal sealed class WorkerServer(Stream input, Stream output, string cacheRoot
             var error = ClassifyFailure(exception);
             await WriteAsync(
                 writer,
-                WorkerProtocol.Failure(request, error.Code, error.Message, error.Detail),
+                WorkerProtocol.Failure(request, error.Code, error.Message, error.Detail, error.SourcePath),
                 CancellationToken.None).ConfigureAwait(false);
         }
     }
@@ -211,7 +211,7 @@ internal sealed class WorkerServer(Stream input, Stream output, string cacheRoot
             InvalidDataException => "invalid_data",
             _ => "worker_failure",
         };
-        return new WorkerError(code, exception.Message, exception.ToString());
+        return new WorkerError(code, exception.Message, exception.ToString(), (exception as NativeArchiveException)?.SourcePath);
     }
 
     private static WorkerMessage HandlePing(WorkerMessage request)

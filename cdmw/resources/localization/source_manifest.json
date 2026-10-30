@@ -7302,6 +7302,16 @@
       ]
     },
     {
+      "key": "Affected file: {value_0}",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/failure_report.py",
+          "line": 80,
+          "sink": "setText"
+        }
+      ]
+    },
+    {
       "key": "Affected textures:",
       "origins": [],
       "manual": true
@@ -21663,6 +21673,16 @@
           "path": "cdmw/app/bootstrap.py",
           "line": 94,
           "sink": "RuntimeError"
+        }
+      ]
+    },
+    {
+      "key": "CDMW could not read this archive. For an original game file, verify the installation through your game launcher. For a mod-generated copy, review Ignored folders in Settings.",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/failure_report.py",
+          "line": 97,
+          "sink": "setText"
         }
       ]
     },
@@ -36397,6 +36417,16 @@
       ]
     },
     {
+      "key": "Could not save the folder exclusion: {value_0}",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/scan_lifecycle.py",
+          "line": 66,
+          "sink": "setText"
+        }
+      ]
+    },
+    {
       "key": "Could not scale: {value_0}",
       "origins": [
         {
@@ -48677,6 +48707,16 @@
       ]
     },
     {
+      "key": "Exclude folder and refresh",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/failure_report.py",
+          "line": 37,
+          "sink": "QPushButton"
+        }
+      ]
+    },
+    {
       "key": "Exclude matching archive paths or basenames. Supports semicolon-separated substrings or glob patterns.",
       "origins": [
         {
@@ -56520,6 +56560,16 @@
       "key": "Folder structure",
       "origins": [],
       "manual": true
+    },
+    {
+      "key": "Folder to exclude: {value_0}",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/failure_report.py",
+          "line": 88,
+          "sink": "setText"
+        }
+      ]
     },
     {
       "key": "Folder where extracted archive files should be written",
@@ -64993,6 +65043,16 @@
     },
     {
       "key": "If a model's referenced textures are unavailable, Preview shows its geometry with a Textures unavailable warning. Texture defaults from another material are not reused.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 366,
+          "sink": "python-return:_build_archive_mesh_sections"
+        }
+      ]
+    },
+    {
+      "key": "If a scan fails, the error window shows the failing archive path when the worker provides it. For a recognised mod or backup folder, Exclude folder and refresh saves that folder in Ignored folders and starts a new scan. This does not delete files. Original game archives and unknown folders do not receive this shortcut; review Details and verify the installation when appropriate.",
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
@@ -159393,6 +159453,16 @@
           "path": "cdmw/ui/archive_browser/prefab_inspector_dialog.py",
           "line": 251,
           "sink": "python-return:_banner_text"
+        }
+      ]
+    },
+    {
+      "key": "This file is inside a mod or backup folder. Excluding the folder below skips its archives and refreshes the catalogue. No files are deleted.",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/failure_report.py",
+          "line": 97,
+          "sink": "setText"
         }
       ]
     },

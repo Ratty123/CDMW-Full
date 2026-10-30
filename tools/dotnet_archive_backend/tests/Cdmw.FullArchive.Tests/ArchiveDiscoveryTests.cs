@@ -9,6 +9,41 @@ namespace Cdmw.FullArchive.Tests;
 
 internal static class ArchiveDiscoveryTests
 {
+    public static async Task FailureSourceAsync()
+    {
+        await using var fixture = await SyntheticArchiveFixture.CreateAsync().ConfigureAwait(false);
+        var bad = Path.Combine(fixture.Root, "bin64", ".CrimsonModsCache", "main", "cache-Ω", "0009", "0.pamt");
+        Directory.CreateDirectory(Path.GetDirectoryName(bad)!);
+        await File.WriteAllBytesAsync(bad, [0]).ConfigureAwait(false);
+        var native = new NativeArchiveCore();
+        var updates = new List<ProgressUpdate>();
+        NativeArchiveException? failure = null;
+        var index = Path.Combine(fixture.OutputRoot, "rejected.ali");
+        try { native.BuildIndex(fixture.Root, index, updates.Add, sourcePamtPaths: [fixture.Pamt, bad]); }
+        catch (NativeArchiveException error) { failure = error; }
+        Require(failure is { Status: NativeStatus.FormatError } && failure.SourcePath == bad,
+            "native failure did not identify the exact rejected PAMT");
+        Require(updates[^1].Phase == "index_parse_failed" && updates[^1].CurrentItem == bad,
+            "successful parallel progress replaced the failure source");
+        Require(!File.Exists(index), "failed scan published an index");
+        var errorInfo = Cdmw.FullArchive.Worker.WorkerServer.ClassifyFailure(failure!);
+        var request = WorkerProtocol.Request(Guid.NewGuid(), 1, WorkerProtocol.OpenArchive, new OpenArchiveRequest(fixture.Root));
+        var message = WorkerProtocol.Failure(request, errorInfo.Code, errorInfo.Message, errorInfo.Detail, errorInfo.SourcePath);
+        var roundTrip = JsonSerializer.Deserialize<WorkerMessage>(JsonSerializer.Serialize(message, WorkerProtocol.JsonOptions), WorkerProtocol.JsonOptions)!;
+        Require(roundTrip.Error?.Code == "invalid_archive" && roundTrip.Error.SourcePath == bad,
+            "worker error lost the confirmed source path");
+        using var cancellation = new CancellationTokenSource();
+        var cancelled = false;
+        try
+        {
+            native.BuildIndex(fixture.Root, index,
+                update => { if (update.Phase == "index_parse_failed") cancellation.Cancel(); },
+                cancellation.Token, [fixture.Pamt, bad]);
+        }
+        catch (OperationCanceledException) { cancelled = true; }
+        Require(cancelled && !File.Exists(index), "cancelling failed-source delivery published a format failure or index");
+    }
+
     public static async Task RemovableDefaultsAsync()
     {
         await using var fixture = await SyntheticArchiveFixture.CreateAsync().ConfigureAwait(false);

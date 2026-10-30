@@ -287,6 +287,12 @@ The catalogue service coordinates one retry for temporary sharing failures,
 unexpected worker exits and timeouts, across transport restart, session/query
 reconstruction and publication. Transport never replays requests independently.
 Permanent errors retain the existing wire fields `code`, `message` and `detail`.
+PAMT parse failures may also provide `source_path`, omitted when unavailable.
+The native reader sends `index_parse_failed` with the exact source after joining
+its parsing workers, so later successful progress cannot replace the failure
+path. The managed bridge attaches that path to the typed error without changing
+the native ABI or guessing from the last progress item. Existing workers without
+this optional field remain readable; the UI offers no source-based action for them.
 The worker classifies demonstrable exception causes; unknown errors keep their
 exact exception details. See [scanner recovery and report limits](../../cdmw/ui/archive_browser/README.md#scanner-failures-and-recovery).
 

@@ -26,6 +26,7 @@ public sealed class NativeArchiveCore
         EnsureCompatible();
         var error = new StringBuilder(DiagnosticCapacity);
         Exception? callbackException = null;
+        string? sourcePath = null;
         NativeMethods.BuildIndexProgressCallback callback = (completed, total, phasePointer, itemPointer, _) =>
         {
             if (cancellationToken.IsCancellationRequested)
@@ -34,6 +35,8 @@ public sealed class NativeArchiveCore
             }
             try
             {
+                if (Marshal.PtrToStringUTF8(phasePointer) == "index_parse_failed")
+                    sourcePath = Marshal.PtrToStringUTF8(itemPointer);
                 progress?.Invoke(new ProgressUpdate(
                     checked((long)Math.Min(completed, (ulong)long.MaxValue)),
                     checked((long)Math.Min(total, (ulong)long.MaxValue)),
@@ -78,7 +81,7 @@ public sealed class NativeArchiveCore
         {
             throw new OperationCanceledException("Archive index build was cancelled.", cancellationToken);
         }
-        ThrowIfFailed(status, error.ToString());
+        ThrowIfFailed(status, error.ToString(), sourcePath);
         return checked((long)entryCount);
     }
 
@@ -154,11 +157,11 @@ public sealed class NativeArchiveCore
         }
     }
 
-    private static void ThrowIfFailed(NativeStatus status, string message)
+    private static void ThrowIfFailed(NativeStatus status, string message, string? sourcePath = null)
     {
         if (status != NativeStatus.Ok)
         {
-            throw new NativeArchiveException(status, string.IsNullOrWhiteSpace(message) ? "Native archive operation failed." : message);
+            throw new NativeArchiveException(status, string.IsNullOrWhiteSpace(message) ? "Native archive operation failed." : message, sourcePath);
         }
     }
 
@@ -253,7 +256,8 @@ public enum NativeStatus
     Cancelled = 6,
 }
 
-public sealed class NativeArchiveException(NativeStatus status, string message) : Exception(message)
+public sealed class NativeArchiveException(NativeStatus status, string message, string? sourcePath = null) : Exception(message)
 {
     public NativeStatus Status { get; } = status;
+    public string? SourcePath { get; } = sourcePath;
 }

@@ -85,6 +85,7 @@ class ArchiveBackendError:
     code: str
     message: str
     detail: str | None = None
+    source_path: str | None = None
 
     @classmethod
     def from_wire(cls, value: object) -> "ArchiveBackendError":
@@ -93,6 +94,7 @@ class ArchiveBackendError:
             code=read_string(payload, "code"),
             message=read_string(payload, "message"),
             detail=read_optional_string(payload, "detail"),
+            source_path=read_optional_string(payload, "source_path"),
         )
 
 

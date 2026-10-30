@@ -62,6 +62,7 @@ internal static class FullArchiveTestRunner
             ("source_independence_and_baseline", SourceIndependenceAndBaselineAsync),
             ("stdio_worker_ping_shutdown", StdioWorkerPingShutdownAsync),
             ("scanner_error_classification", ScannerErrorClassificationAsync),
+            ("archive_failure_source", ArchiveDiscoveryTests.FailureSourceAsync),
         };
         if (cacheMaintenanceOnly)
         {
@@ -70,7 +71,7 @@ internal static class FullArchiveTestRunner
         }
         if (scannerRecoveryOnly)
         {
-            tests = tests.Where(static test => test.Name is "scanner_error_classification" or "stdio_worker_ping_shutdown").ToArray();
+            tests = tests.Where(static test => test.Name is "scanner_error_classification" or "stdio_worker_ping_shutdown" or "archive_failure_source").ToArray();
         }
         if (archiveDiscoveryOnly)
         {

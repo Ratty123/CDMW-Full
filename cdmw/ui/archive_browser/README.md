@@ -245,6 +245,18 @@ and profile prefixes, retain at most twelve progress entries and are capped at
 16 KiB. An unknown failure is reported with its details without claiming game
 corruption.
 
+PAMT parse failures carry the confirmed `source_path` from the worker. The dialog
+shows that file; reports keep the last progress item separate instead of treating
+it as the failing source. Older workers without a confirmed path retain the
+ordinary error controls and do not offer a guessed exclusion.
+
+For an open/refresh format failure inside a known default mod or backup subtree,
+**Exclude folder and refresh** names the relative folder, adds it to the saved
+exclusion list without replacing custom entries, and starts a fresh scan with the
+new settings. It does not delete files. Original game archives, unknown folders,
+outside-root paths and non-opening failures do not get this shortcut. A closed or
+superseded dialog, changed root, pending scan or shutdown prevents the action.
+
 The opening workflow checks the game executable on a cancellable background task.
 It saves the existing `archive/game_executable_fingerprints` record only after
 catalogue publication succeeds. A demonstrated hash change forces a fresh
