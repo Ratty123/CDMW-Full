@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from pathlib import PurePosixPath
 from typing import List, Optional, Sequence, Tuple
 
-from PySide6.QtCore import QTimer, Qt
+from PySide6.QtCore import QItemSelectionModel, QTimer, Qt
 from PySide6.QtGui import QColor, QIcon, QPainter, QPixmap
 from PySide6.QtWidgets import QApplication, QMenu, QPushButton
 
@@ -382,10 +382,14 @@ class ArchiveBrowserActionMixin:
         if entry is None:
             return
         self.archive_context_menu_selection_suppressed = True
+        selection_model = self.archive_tree.selectionModel()
+        preserved_selection = selection_model.selection() if item.isSelected() and selection_model is not None else None
         if not item.isSelected():
             self.archive_tree.clearSelection()
         try:
             self.archive_tree.setCurrentItem(item)
+            if preserved_selection is not None:
+                selection_model.select(preserved_selection, QItemSelectionModel.ClearAndSelect | QItemSelectionModel.Rows)
         finally:
             self.archive_context_menu_selection_suppressed = False
         self._schedule_archive_selection_state_update()
@@ -469,6 +473,10 @@ class ArchiveBrowserActionMixin:
                 )
             export_fbx_action = menu.addAction(menu_icons["mesh"], "Export FBX...")
             export_fbx_action.triggered.connect(lambda _checked=False, current_entry=entry: self._start_archive_mesh_export(current_entry, "fbx"))
+            batch_obj_action = menu.addAction(menu_icons["mesh"], "Export Selected as OBJ...")
+            batch_obj_action.triggered.connect(lambda: self._export_selected_archive_models("obj"))
+            batch_fbx_action = menu.addAction(menu_icons["mesh"], "Export Selected as FBX...")
+            batch_fbx_action.triggered.connect(lambda: self._export_selected_archive_models("fbx"))
             export_character_dependencies_action = menu.addAction(menu_icons["mesh"], "Export Character Dependency Package...")
             export_character_dependencies_action.setToolTip(
                 "Collect the selected body/model with its strict appearance, prefab, material, texture, skeleton, physics, and motion dependencies."

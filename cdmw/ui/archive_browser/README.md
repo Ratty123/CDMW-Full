@@ -540,6 +540,24 @@ poses are unaffected. The native package cache invalidates older baked previews.
 
 ### OBJ export and round trips
 
+**Export > Export Selected as OBJ... / Export Selected as FBX...** converts
+explicitly selected PAC, PAM and PAMLOD file rows in a sequential batch. Use Ctrl
+or Shift to select models; folder/category rows and other file types are excluded.
+The same commands appear in a model's right-click menu. Each model gets a fresh
+`model_<name>` folder under the chosen root, with numbered suffixes for collisions.
+Resolved referenced files are included; existing output folders are preserved.
+OBJ keeps source coordinates. PAC FBX exports without a usable skeleton fail
+unless **Allow FBX without a skeleton** is explicitly enabled for the batch.
+
+The dialog shows progress and a copyable per-model report with output folders,
+warnings, failures and cancellation results. **Cancel** stops preparation or
+requests cancellation of conversion; completed exports remain available. Closing
+an active dialog requests cancellation and keeps the report open until the current
+worker has finished. The batch resolves each model's bounded dependency set through
+its own archive provider; no preview selection or global catalogue rebuild is
+required. Conversion retains the existing supported-format and round-trip limits.
+Fixture conversions and UI checks do not establish real-game acceptance.
+
 **Export > Export OBJ** exports the selected archive mesh without requiring a loaded
 preview. It and the right-click **Export OBJ...** action preserve the PAC's original
 positions and normals, including embedded head and ear geometry. To bake the same

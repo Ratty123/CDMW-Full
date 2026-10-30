@@ -17,6 +17,17 @@ class ArchiveBrowserActionControlsMixin:
         hkx_entry = self._current_archive_hkx_entry()
         binary_sidecar_entry = self._current_archive_binary_sidecar_entry()
         controls_enabled = self.shell.worker_thread is None
+        from cdmw.ui.archive_browser.mesh_batch_export_controller import has_selected_batch_models
+        can_batch_export = (controls_enabled and hasattr(self, "archive_model_batch_obj_button")
+                            and has_selected_batch_models(self))
+        for name in ("archive_model_batch_obj_button", "archive_model_batch_fbx_button"):
+            button = getattr(self, name, None)
+            if button is not None:
+                self._set_action_button_state(
+                    button, controls_enabled and can_batch_export,
+                    "Export selected models into separate folders with progress and a final report.",
+                    "select PAC, PAM or PAMLOD file rows first",
+                )
         has_current_entry = isinstance(current_entry, ArchiveEntry)
         can_mesh_actions = mesh_entry is not None
         can_hkx_actions = hkx_entry is not None

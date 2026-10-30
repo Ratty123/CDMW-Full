@@ -602,6 +602,23 @@ class ArchiveMeshImportExportMixin:
             materials_and_textures_only=bool(materials_and_textures_only),
         )
 
+    def _export_selected_archive_models(self, export_format: str) -> None:
+        from cdmw.ui.archive_browser.mesh_batch_export_controller import selected_batch_models
+        from cdmw.ui.archive_browser.mesh_batch_export_dialog import BatchMeshExportDialog
+
+        if self.shell._background_task_active():
+            return
+        selections = selected_batch_models(self)
+        if not selections:
+            QMessageBox.information(self, "Batch Mesh Export", "Select PAC, PAM or PAMLOD file rows first. Folders and other file types are not included.")
+            return
+        dialog = BatchMeshExportDialog(self, selections, export_format)
+        try:
+            dialog.exec()
+        finally:
+            dialog.controller.close()
+            dialog.deleteLater()
+
     def _start_archive_mesh_export(
         self, entry: ArchiveEntry, export_format: str, *, bake_neutral_appearance: bool = False,
     ) -> None:

@@ -33,6 +33,7 @@ class _ExportWindow(actions.ArchiveBrowserActionMixin, mesh_import_export.Archiv
         self.archive_tree = SimpleNamespace(
             itemAt=lambda _point: SimpleNamespace(isSelected=lambda: True),
             setCurrentItem=lambda _item: None,
+            selectionModel=lambda: None,
             viewport=lambda: SimpleNamespace(mapToGlobal=lambda point: point),
         )
 

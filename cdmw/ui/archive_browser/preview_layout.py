@@ -215,6 +215,12 @@ class ArchivePreviewLayoutMixin:
             "Export the selected archive mesh as FBX. PAC exports also try to attach the matching PAB skeleton."
         )
         self.archive_model_export_fbx_button.setEnabled(False)
+        self.archive_model_batch_obj_button = QPushButton("Export Selected as OBJ")
+        self.archive_model_batch_obj_button.setEnabled(False)
+        self.archive_model_batch_obj_button.clicked.connect(lambda: self._export_selected_archive_models("obj"))
+        self.archive_model_batch_fbx_button = QPushButton("Export Selected as FBX")
+        self.archive_model_batch_fbx_button.setEnabled(False)
+        self.archive_model_batch_fbx_button.clicked.connect(lambda: self._export_selected_archive_models("fbx"))
         self.archive_model_open_mesh_editor_button = QPushButton("Open in Mesh Editor")
         self.archive_model_open_mesh_editor_button.setToolTip(
             "Open the selected archive mesh directly in the resident mesh-authoring workspace."
@@ -366,6 +372,8 @@ class ArchivePreviewLayoutMixin:
                 ("Extract File", self.archive_action_extract_file_button),
                 ("Export OBJ", self.archive_model_export_obj_button),
                 ("Export FBX", self.archive_model_export_fbx_button),
+                ("Export Selected as OBJ", self.archive_model_batch_obj_button),
+                ("Export Selected as FBX", self.archive_model_batch_fbx_button),
                 ("Export Family", self.archive_action_export_family_button),
                 ("Export Character Dependency Package", self.archive_action_character_dependency_button),
                 ("Export Sidecar JSON", self.archive_sidecar_export_json_button),
@@ -495,6 +503,8 @@ class ArchivePreviewLayoutMixin:
         for button in (
             self.archive_model_export_obj_button,
             self.archive_model_export_fbx_button,
+            self.archive_model_batch_obj_button,
+            self.archive_model_batch_fbx_button,
             self.archive_action_preview_button,
             self.archive_action_open_preview_window_button,
             self.archive_action_copy_filename_button,
