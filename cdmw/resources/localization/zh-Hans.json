@@ -5635,6 +5635,7 @@
     "Identity profile written:": "标识配置已写入：",
     "Idle": "空闲",
     "If Build plan reports unapplied changes, return to the model or effect step and apply them. For missing textures, inspect the import dependencies. For unavailable outputs, read the selected manager's requirements. Keep the original model, working files, exported package and installation receipt distinct so recovery does not depend on the preview session.": "如果 生成计划 报告存在未应用的更改，请返回模型或效果步骤并应用。缺少纹理时检查导入依赖关系；输出不可用时阅读所选管理器的要求。请区分原始模型、工作文件、导出包和安装凭据，使恢复不依赖预览会话。",
+    "If a DDS preview shows raw bytes, open Details and include the file path and the Decoded preview failed line in your report. Readable strings alone do not identify the decoding error.": "如果 DDS 预览显示原始字节，请打开详情，并在报告中附上文件路径和以 Decoded preview failed 开头的行。仅凭可读字符串无法确定解码错误。",
     "If anything fails, open": "如果出现任何问题，请打开",
     "If decreased: {value_0}": "如果减少：{value_0}",
     "If increased: {value_0}": "如果增加：{value_0}",

@@ -5635,6 +5635,7 @@
     "Identity profile written:": "Kimlik profili yazıldı:",
     "Idle": "Boşta",
     "If Build plan reports unapplied changes, return to the model or effect step and apply them. For missing textures, inspect the import dependencies. For unavailable outputs, read the selected manager's requirements. Keep the original model, working files, exported package and installation receipt distinct so recovery does not depend on the preview session.": "Plan oluştur uygulanmamış değişiklik bildirirse model veya efekt adımına dönüp bunları uygulayın. Eksik dokular için içe aktarma bağımlılıklarını inceleyin. Kullanılamayan çıktılar için seçili yöneticinin koşullarını okuyun. Kurtarmanın önizleme oturumuna bağlı kalmaması için özgün modeli, çalışma dosyalarını, dışa aktarılan paketi ve kurulum kaydını birbirinden ayırın.",
+    "If a DDS preview shows raw bytes, open Details and include the file path and the Decoded preview failed line in your report. Readable strings alone do not identify the decoding error.": "DDS önizlemesinde ham baytlar görünüyorsa Ayrıntılar bölümünü açın ve raporunuza dosya yolunu ve Decoded preview failed ile başlayan satırı ekleyin. Okunabilir dizeler tek başına kod çözme hatasını belirlemez.",
     "If anything fails, open": "Herhangi bir şey başarısız olursa açın",
     "If decreased: {value_0}": "Azaltılmışsa: {value_0}",
     "If increased: {value_0}": "Artırılmışsa: {value_0}",

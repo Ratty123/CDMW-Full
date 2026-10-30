@@ -5635,6 +5635,7 @@
     "Identity profile written:": "Identity profile written:",
     "Idle": "Idle",
     "If Build plan reports unapplied changes, return to the model or effect step and apply them. For missing textures, inspect the import dependencies. For unavailable outputs, read the selected manager's requirements. Keep the original model, working files, exported package and installation receipt distinct so recovery does not depend on the preview session.": "If Build plan reports unapplied changes, return to the model or effect step and apply them. For missing textures, inspect the import dependencies. For unavailable outputs, read the selected manager's requirements. Keep the original model, working files, exported package and installation receipt distinct so recovery does not depend on the preview session.",
+    "If a DDS preview shows raw bytes, open Details and include the file path and the Decoded preview failed line in your report. Readable strings alone do not identify the decoding error.": "If a DDS preview shows raw bytes, open Details and include the file path and the Decoded preview failed line in your report. Readable strings alone do not identify the decoding error.",
     "If anything fails, open": "If anything fails, open",
     "If decreased: {value_0}": "If decreased: {value_0}",
     "If increased: {value_0}": "If increased: {value_0}",

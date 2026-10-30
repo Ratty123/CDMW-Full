@@ -5635,6 +5635,7 @@
     "Identity profile written:": "Профиль идентификаторов записан:",
     "Idle": "Простой",
     "If Build plan reports unapplied changes, return to the model or effect step and apply them. For missing textures, inspect the import dependencies. For unavailable outputs, read the selected manager's requirements. Keep the original model, working files, exported package and installation receipt distinct so recovery does not depend on the preview session.": "Если Собрать план сообщает о неприменённых изменениях, вернитесь к шагу модели или эффекта и примените их. При отсутствующих текстурах проверьте зависимости импорта. При недоступном выводе прочитайте требования выбранного менеджера. Различайте исходную модель, рабочие файлы, экспортированный пакет и квитанцию установки, чтобы восстановление не зависело от сеанса предварительного просмотра.",
+    "If a DDS preview shows raw bytes, open Details and include the file path and the Decoded preview failed line in your report. Readable strings alone do not identify the decoding error.": "Если при предпросмотре DDS отображаются необработанные байты, откройте Подробности и включите в отчёт путь к файлу и строку, начинающуюся с Decoded preview failed. Одних читаемых строк недостаточно, чтобы определить ошибку декодирования.",
     "If anything fails, open": "Если что-то не получается, откройте",
     "If decreased: {value_0}": "Если уменьшено: {value_0}",
     "If increased: {value_0}": "Если увеличено: {value_0}",

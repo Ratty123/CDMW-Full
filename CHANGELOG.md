@@ -7,6 +7,10 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 ## [Unreleased]
 
+### Fixed
+
+- Archive Browser no longer freezes while updating preview details after quickly switching between DDS files.
+
 ## [0.11.0-alpha.29] - 2026-10-30
 
 ### Added

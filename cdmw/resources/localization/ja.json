@@ -5635,6 +5635,7 @@
     "Identity profile written:": "識別子プロファイルを書き出しました：",
     "Idle": "アイドル状態",
     "If Build plan reports unapplied changes, return to the model or effect step and apply them. For missing textures, inspect the import dependencies. For unavailable outputs, read the selected manager's requirements. Keep the original model, working files, exported package and installation receipt distinct so recovery does not depend on the preview session.": "計画を作成 が未適用の変更を報告したら、モデルまたはエフェクトの手順に戻って適用してください。テクスチャ不足ではインポートの依存関係を、使えない出力では選択した管理ツールの要件を確認します。復元がプレビューセッションに依存しないよう、元モデル、作業ファイル、出力パッケージ、インストール記録を区別して保持してください。",
+    "If a DDS preview shows raw bytes, open Details and include the file path and the Decoded preview failed line in your report. Readable strings alone do not identify the decoding error.": "DDSのプレビューに生のバイト列が表示される場合は、詳細を開き、ファイルのパスと「Decoded preview failed」で始まる行を報告に含めてください。読み取り可能な文字列だけでは、デコードエラーの原因を特定できません。",
     "If anything fails, open": "何か問題があった場合は開きます",
     "If decreased: {value_0}": "減少した場合: {value_0}",
     "If increased: {value_0}": "増加した場合: {value_0}",

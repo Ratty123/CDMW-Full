@@ -343,6 +343,13 @@ def test_in_app_browser_renders_the_expanded_guides_in_each_locale(tmp_path, lan
                 assert translated in wiki_pages[page_slug("Create-New-Item", language.code) + ".md"]
                 if language.code != "en": assert translated != definition_guide
         assert "_CDMW_VERTEX_ID" in dialog.browser.toPlainText()
+        dialog.select_section("archive_browser")
+        localizer.apply(dialog)
+        dds_failure_guide = "If a DDS preview shows raw bytes, open Details and include the file path and the Decoded preview failed line in your report. Readable strings alone do not identify the decoding error."
+        translated = localizer.translate(dds_failure_guide)
+        assert translated != dds_failure_guide or language.code == "en"
+        assert translated in dialog.browser.toPlainText()
+        assert translated in wiki_pages[page_slug("Archive-Browser", language.code) + ".md"]
         dialog.select_section("error_code_library")
         localizer.apply(dialog)
         body = dialog.browser.toPlainText()

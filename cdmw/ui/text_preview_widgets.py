@@ -500,17 +500,15 @@ class CodePreviewEditor(QPlainTextEdit):
         self.setUpdatesEnabled(False)
         widget_blocker = QSignalBlocker(self)
         document_blocker = QSignalBlocker(document)
-        detached_highlighter = False
         try:
-            if highlighter is not None and hasattr(highlighter, "setDocument"):
-                highlighter.setDocument(None)
-                detached_highlighter = True
+            # Keep the highlighter attached. Disconnecting here can deadlock
+            # with a finished worker's QObject teardown: Qt holds a connection
+            # mutex while waiting for the GIL that this UI call still owns.
+            # Blocking document signals already suppresses incremental work.
             super().setPlainText(text)
         finally:
-            if detached_highlighter:
-                highlighter.setDocument(document)
-                if hasattr(highlighter, "rehighlight"):
-                    highlighter.rehighlight()
+            if highlighter is not None and hasattr(highlighter, "rehighlight"):
+                highlighter.rehighlight()
             del document_blocker
             del widget_blocker
             self.setUpdatesEnabled(previous_updates_enabled)

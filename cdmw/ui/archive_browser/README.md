@@ -516,6 +516,12 @@ Recovered relationships remain available for any selected extension and survive
 preview failure or cache reuse. An exact metadata companion can expose Asset Family
 for non-model files without adding unrelated model-family guesses.
 
+Preview and Details text keep their syntax highlighter attached during replacement.
+Document signals are blocked for the replacement, then highlighting is refreshed;
+disconnecting the highlighter can deadlock with preview-worker QObject teardown.
+For a DDS raw-byte fallback, Details retains the file path and the original
+`Decoded preview failed` error. Readable strings alone do not diagnose that failure.
+
 ## Read-only boundary and exports
 
 Browsing, preview, scan, extraction, and package preparation are read-only.

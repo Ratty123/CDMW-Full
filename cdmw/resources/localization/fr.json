@@ -5635,6 +5635,7 @@
     "Identity profile written:": "Profil d’identifiants enregistré :",
     "Idle": "Inactif",
     "If Build plan reports unapplied changes, return to the model or effect step and apply them. For missing textures, inspect the import dependencies. For unavailable outputs, read the selected manager's requirements. Keep the original model, working files, exported package and installation receipt distinct so recovery does not depend on the preview session.": "Si Construire le plan signale des changements non appliqués, revenez à l'étape du modèle ou de l'effet et appliquez-les. Pour des textures manquantes, inspectez les dépendances d'importation. Pour une sortie indisponible, consultez les exigences du gestionnaire choisi. Distinguez modèle original, fichiers de travail, paquet exporté et reçu d'installation afin que la récupération ne dépende pas de l'aperçu.",
+    "If a DDS preview shows raw bytes, open Details and include the file path and the Decoded preview failed line in your report. Readable strings alone do not identify the decoding error.": "Si l’aperçu d’un DDS affiche des octets bruts, ouvrez Détails et joignez à votre rapport le chemin du fichier et la ligne commençant par Decoded preview failed. Les chaînes lisibles seules ne permettent pas d’identifier l’erreur de décodage.",
     "If anything fails, open": "Si quelque chose échoue, ouvrez",
     "If decreased: {value_0}": "Si diminué : {value_0}",
     "If increased: {value_0}": "Si augmenté : {value_0}",
