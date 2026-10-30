@@ -7,6 +7,11 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 ## [Unreleased]
 
+### Fixed
+
+- Mesh Editor replacement imports keep separate part materials when the game reuses a material name, preserve glTF/GLB texture orientation, and use compatible formats for generated colour and glow textures.
+- Imported materials no longer gain glow from Blender's default black emission setting, OBJ surface shading settings or texture folder names. Material previews refresh their shader and glow settings when replaced, and reopening exported materials preserves authored glow strength, including zero.
+
 ## [0.11.0-alpha.31] - 2026-10-30
 
 ### Fixed

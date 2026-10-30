@@ -557,6 +557,22 @@ static void run_material_source_resolution_self_test() {
 }
 
 static void run_material_hint_authority_self_test() {
+    for (const float intensity : {0.0f, 1.0f, 2.5f}) {
+        SidecarTextureRef ref;
+        ref.path = "character/texture/owned_emi.dds";
+        ref.parameter_name = "_emissiveIntensityTexture";
+        ref.material_parameters = extract_material_parameters(
+            "<MaterialParameterTexture _name=\"_emissiveIntensityTexture\"/>"
+            "<MaterialParameterFloat _name=\"_emissiveIntensity\" _value=\""
+            + std::to_string(intensity) + "\"/>");
+        require_material_contract(material_parameter_has_scalar(ref.material_parameters, {"emissiveIntensity"})
+            && scalar_parameter_hint(ref.material_parameters, {"emissiveIntensity"}, -1.0f) == intensity,
+            "emissive texture name shadowed the authored scalar");
+        const auto binding = make_sidecar_texture_binding(ref, {}, {}, {}, "",
+            "SkinnedMeshEmissive_Ver2", "", nullptr, "", "", false, false, "", {});
+        require_material_contract(binding.role == "emissive" && binding.emissive_intensity_hint == intensity,
+            "authored emissive intensity (including zero) became the default glow");
+    }
     TextureBinding authored_anisotropy_binding;
     MaterialParameterRecord authored_anisotropy_parameter;
     authored_anisotropy_parameter.kind = "float";

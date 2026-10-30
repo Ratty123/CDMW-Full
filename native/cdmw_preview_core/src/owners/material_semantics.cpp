@@ -476,6 +476,14 @@ static const MaterialParameterRecord* find_material_parameter(
     const std::vector<MaterialParameterRecord>& parameters,
     std::initializer_list<const char*> names
 ) {
+    // An exact scalar must beat a texture sharing its prefix, for example
+    // _emissiveIntensity after _emissiveIntensityTexture in the source vector.
+    for (const MaterialParameterRecord& parameter : parameters) {
+        const std::string key = normalized_key(parameter.name);
+        for (const char* name : names) {
+            if (!key.empty() && key == normalized_key(name)) return &parameter;
+        }
+    }
     for (const MaterialParameterRecord& parameter : parameters) {
         const std::string key = normalized_key(parameter.name);
         for (const char* name : names) {

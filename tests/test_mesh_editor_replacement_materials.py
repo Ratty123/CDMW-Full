@@ -471,7 +471,8 @@ def test_repeated_imports_keep_other_materials_and_restore_original(editor, tmp_
 
 
 @pytest.mark.parametrize("part_index", [0, 1])
-def test_material_preview_and_package_share_frozen_bundle(editor, tmp_path, part_index):
+@pytest.mark.parametrize("material_labels", [("target0", "target1"), ("target1", "target1"), ("target0", "target0")])
+def test_material_preview_and_package_share_frozen_bundle(editor, tmp_path, part_index, material_labels, request):
     from cdmw.core.archive_model_references import _parse_archive_model_sidecar_texture_bindings
     from cdmw.services.mesh_rust_authoring import RustMeshAuthoringSession
     from cdmw.services.mesh_rust_replacement_materials import stage_replacement_materials
@@ -479,6 +480,12 @@ def test_material_preview_and_package_share_frozen_bundle(editor, tmp_path, part
     from tests.test_mesh_rust_replacement import command
     import json
     service, session_id = editor
+    snapshot = _snapshot_with_material_labels(service.capture_export_snapshot(session_id), material_labels)
+    from cdmw.services.mesh_service import MeshService
+    snapshot.mesh._cdmw_original_data = snapshot.original_data
+    service = MeshService()
+    session_id = service.open_edit_session(snapshot.mesh).session_id
+    request.addfinalizer(lambda: service.close_edit_session(session_id))
     snapshot = service.capture_export_snapshot(session_id)
     target, context, model = material_fixture(tmp_path, snapshot)
     sidecar_entry = context.entries_by_basename["replacement.pac_xml"][0]

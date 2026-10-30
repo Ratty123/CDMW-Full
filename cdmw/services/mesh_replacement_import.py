@@ -175,6 +175,14 @@ def prepare_import(snapshot, path, *, target_part_ids=(), entry=None, dependenci
         material_error = str(exc)
     source = import_scene_mesh_with_report(source_path, tolerate_missing_texture_files=True,
                                            preserve_skinning=True, stop_event=stop_event)
+    if source_path.suffix.lower() in {".gltf", ".glb"}:
+        # The general glTF importer supplies bottom-origin UVs for its existing
+        # scene consumers. Archive replacement writes top-origin PAC/PAM UVs
+        # and upright DDS pixels, just like the OBJ/DAE replacement routes.
+        for part in source.mesh.submeshes:
+            part.uvs = [(u, 1.0 - v) for u, v in part.uvs]
+            part.uv_sets = {index: [(u, 1.0 - v) for u, v in rows]
+                            for index, rows in part.uv_sets.items()}
     if not source.mesh.submeshes or not source.mesh.total_faces:
         raise ValueError("The imported model has no editable triangle geometry.")
     from cdmw.services.mesh_replacement_skinning import retain_imported_skinning

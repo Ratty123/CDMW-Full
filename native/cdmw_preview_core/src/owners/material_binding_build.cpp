@@ -549,7 +549,9 @@ static TextureBinding make_sidecar_texture_binding(
             };
         }
     }
-    if (binding.role == "emissive" && binding.emissive_intensity_hint <= 0.001f) {
+    if (binding.role == "emissive" && binding.emissive_intensity_hint <= 0.001f
+        && !material_parameter_has_scalar(ref.material_parameters,
+            {"emissiveIntensity", "emissiveAmount", "emissivePower", "glowIntensity"})) {
         binding.emissive_intensity_hint = direct_emissive_texture_or_shader_evidence(
             ref.path, basename, shader_family) ? 4.0f : 0.0f;
     }

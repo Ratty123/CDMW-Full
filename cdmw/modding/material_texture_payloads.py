@@ -1098,6 +1098,13 @@ def _build_texture_payload(
             # Baking a material factor must not downgrade an authored BC7 DDS
             # to the template's BC1/BC3, or discard its sRGB format tag.
             output_format = source_info.dds_format
+        if (str(source_slot.slot_kind or "").strip().lower() in {"base", "emissive"}
+                and output_format.upper().startswith(("BC4_", "BC5_", "R8_", "R8G8_"))):
+            # A target without a colour map may supply its normal/mask DDS as
+            # the size template. Its one/two-channel format loses source RGB
+            # and cannot be sampled as an sRGB colour texture by the renderer.
+            _warn_once(report, f"{source_png.name}: colour texture output uses BC7_UNORM instead of template format {output_format}.")
+            output_format = "BC7_UNORM"
         if source_alpha_mode != "OPAQUE" and (source_alpha_mode in {"BLEND", "MASK"} or _source_slot_needs_base_alpha_factor(source_slot)):
             # BC1 can only retain one-bit alpha. DXT5 is also used by the game's
             # plain base-colour materials and preserves intermediate opacity.

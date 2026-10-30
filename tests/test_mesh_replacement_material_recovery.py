@@ -180,6 +180,39 @@ def test_captured_material_rebind_preserves_resolved_owner_and_layer_metadata(ed
     assert mesh.submeshes[0].preview_texture_dds_path == direct
 
 
+def test_imported_sidecar_refreshes_shader_and_glow_without_mutating_original(editor, tmp_path):
+    from cdmw.services.mesh_rust_authoring import _mesh_material_presentations
+
+    service, sid = editor
+    mesh = service.capture_export_snapshot(sid).mesh
+    mesh.submeshes = mesh.submeshes[:1]
+    mesh.lod_levels = [mesh.submeshes]
+    part = mesh.submeshes[0]
+    part.preview_sidecar_shader_family = "SkinnedMeshStandard_Ver2"
+    part.preview_native_material_overrides = {
+        "emissive_color": [1, 1, 1], "emissive_intensity": 0.0,
+        "emission_animation": [0, 0, 0, 0], "roughness": 0.75,
+        "native_material_hints": {"emissive_intensity": 0.0},
+    }
+    path = tmp_path / "colour.dds"
+    Image.new("RGBA", (4, 4), (10, 20, 30, 255)).save(path)
+    xml = b'''<Root><SkinnedMeshMaterialWrapper _subMeshName="target0">
+    <Material _materialName="SkinnedMeshEmissive_Ver2"><Vector Name="_parameters">
+    <MaterialParameterTexture _name="_emissiveIntensityTexture" Index="0"><ResourceReferencePath_ITexture _path="character/texture/colour.dds"/></MaterialParameterTexture>
+    <MaterialParameterColor _name="_emissiveColor" _value="#FF0000FF" Index="1"/>
+    <MaterialParameterFloat _name="_emissiveIntensity" _value="2.5" Index="2"/>
+    </Vector></Material></SkinnedMeshMaterialWrapper></Root>'''
+    files = (ReplacementFile("character/model/replacement.pac_xml", xml),
+             ReplacementFile("character/texture/colour.dds", path.read_bytes()))
+    with prepared_replacement_material_mesh(mesh, files, required=True) as prepared:
+        row = _mesh_material_presentations(prepared)[0]
+        assert row["shader_family"] == "emissive_v2"
+        assert row["emissive_color"] == [1, 0, 0]
+        assert row["emissive_intensity"] == 2.5
+    assert part.preview_sidecar_shader_family == "SkinnedMeshStandard_Ver2"
+    assert part.preview_native_material_overrides["emissive_intensity"] == 0
+
+
 def test_captured_sidecar_does_not_replace_a_readable_authoritative_texture(editor, tmp_path):
     service, sid = editor
     mesh = service.capture_export_snapshot(sid).mesh

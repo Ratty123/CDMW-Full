@@ -1566,7 +1566,7 @@ def _texture_set_is_accent_glow_candidate(texture_set: ReplacementTextureSet, ta
         str(target_name or ""),
     ]
     for slot in tuple((texture_set.slots or {}).values()):
-        text_parts.append(str(getattr(slot, "source_path", "") or ""))
+        text_parts.append(Path(str(getattr(slot, "source_path", "") or "")).name)
         text_parts.append(str(getattr(slot, "semantic_subtype", "") or ""))
         text_parts.append(str(getattr(slot, "source_authority", "") or ""))
     tokens = {
@@ -1592,7 +1592,7 @@ def _texture_set_has_explicit_glow_authority(texture_set: ReplacementTextureSet)
         if slot_kind == "emissive":
             return True
         text_parts = (
-            str(getattr(slot, "source_path", "") or ""),
+            Path(str(getattr(slot, "source_path", "") or "")).name,
             str(getattr(slot, "semantic_subtype", "") or ""),
             str(getattr(slot, "source_authority", "") or ""),
         )

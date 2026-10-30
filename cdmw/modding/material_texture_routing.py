@@ -8,7 +8,7 @@ from dataclasses import replace
 from pathlib import Path, PurePosixPath
 from typing import Mapping, Optional, Sequence
 
-from cdmw.domain.textures.material_parameters import evaluate_material_parameters, source_emissive_strength
+from cdmw.domain.textures.material_parameters import evaluate_material_parameters, source_emissive_color, source_emissive_strength
 from cdmw.domain.textures.semantics import is_stock_or_shared_texture_path
 
 from .asset_replacement import classify_texture_binding, infer_cd_texture_role_from_path
@@ -648,14 +648,14 @@ def _source_material_role_tags(source_submesh: object) -> tuple[str, ...]:
     text_parts: list[str] = [
         str(getattr(source_submesh, "name", "") or ""),
         str(getattr(source_submesh, "material", "") or ""),
-        str(getattr(source_submesh, "texture", "") or ""),
+        Path(str(getattr(source_submesh, "texture", "") or "")).name,
         str(getattr(source_submesh, "preview_sidecar_shader_family", "") or ""),
     ]
     slot_kinds: set[str] = set()
     for slot_kind, slot_path in tuple(getattr(source_submesh, "texture_slots", ()) or ()):
         slot_text = str(slot_kind or "")
         slot_kinds.add(_normalize_source_texture_slot_kind(slot_text) or _sanitize_texture_component(slot_text))
-        text_parts.extend((slot_text, str(slot_path or "")))
+        text_parts.extend((slot_text, Path(str(slot_path or "")).name))
     for texture_input in tuple(getattr(source_submesh, "preview_material_texture_inputs", ()) or ()):
         for attr_name in (
             "slot_kind",
@@ -667,13 +667,27 @@ def _source_material_role_tags(source_submesh: object) -> tuple[str, ...]:
             "texture_name",
             "preview_texture_path",
         ):
-            text_parts.append(str(getattr(texture_input, attr_name, "") or ""))
+            value = str(getattr(texture_input, attr_name, "") or "")
+            text_parts.append(Path(value).name if attr_name.endswith("_path") else value)
         slot_kinds.add(
             _normalize_source_texture_slot_kind(str(getattr(texture_input, "slot_kind", "") or ""))
             or _sanitize_texture_component(str(getattr(texture_input, "slot_kind", "") or ""))
         )
     parameters = _source_material_parameters(source_submesh)
     for parameter in parameters:
+        # OBJ's illumination model selects surface shading, not emitted light.
+        # glTF declares a black emissive colour even on ordinary materials.
+        # The parameter's name alone must not opt that part into generated glow.
+        name = str(getattr(parameter, "parameter_name", "") or "").casefold()
+        if name == "_objilluminationmodel":
+            continue
+        if name == "_emissivecolor" and not any(source_emissive_color(source_submesh)):
+            continue
+        if name == "_emissiveintensity" and (
+            not source_emissive_strength(source_submesh)
+            or (source_emissive_color(source_submesh) and not any(source_emissive_color(source_submesh)))
+        ):
+            continue
         text_parts.extend(
             (
                 str(getattr(parameter, "parameter_name", "") or ""),

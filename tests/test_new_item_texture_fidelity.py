@@ -768,3 +768,77 @@ def test_bc7_normal_conversion_keeps_bc5_and_numeric_channels(tmp_path):
     with Image.open(BytesIO(data)) as image:
         np.testing.assert_allclose(np.asarray(image.convert("RGBA"))[0, 0, :2], [128, 159], atol=2)
     assert source.read_bytes() == original
+
+
+@pytest.mark.parametrize("role", ["base", "emissive"])
+@pytest.mark.parametrize("template_fourcc", [b"BC4U", b"BC5U"])
+def test_colour_png_keeps_rgb_when_the_only_target_template_is_technical(tmp_path, role, template_fourcc):
+    from cdmw.modding.material_replacer import ReplacementTextureSlot
+    from cdmw.modding.material_texture_payloads import _build_texture_payload
+
+    source, template = tmp_path / "colour.png", tmp_path / "template.dds"
+    Image.new("RGBA", (16, 16), (48, 96, 192, 255)).save(source)
+    original = source.read_bytes()
+    template_bytes = dds(template_fourcc)
+    template.write_bytes(template_bytes)
+    data = _build_texture_payload(
+        ReplacementTextureSlot("Sword", role, source),
+        target_entry=SimpleNamespace(path="character/texture/sword_n.dds"),
+        read_original_texture_bytes=lambda _entry: template_bytes,
+        original_texture_source_path=lambda _entry: template,
+        report=TextureReplacementReport(), on_log=None,
+    )
+    info = inspect_dds_native(data)
+    assert info.format_name == "BC7_UNORM"
+    assert (info.width, info.height, info.mip_count) == (16, 16, 5)
+    with Image.open(BytesIO(data)) as image:
+        np.testing.assert_allclose(np.asarray(image.convert("RGBA"))[0, 0], [48, 96, 192, 255], atol=2)
+    assert source.read_bytes() == original
+    assert template.read_bytes() == template_bytes
+
+
+@pytest.mark.parametrize("factor", [None, [0, 0, 0], [0.25, 0, 0]])
+@pytest.mark.parametrize("folder", ["ordinary", "glow-emissive-folder"])
+@pytest.mark.parametrize("strength", [None, 2.5])
+def test_plain_gltf_default_black_factor_does_not_add_a_glow_role(tmp_path, factor, folder, strength):
+    from cdmw.modding.material_profiles import get_complete_swap_material_profile
+    from cdmw.modding.material_source_driven import _complete_swap_accent_emissive_slot
+
+    tmp_path = tmp_path / folder
+    tmp_path.mkdir()
+    Image.new("RGB", (16, 16), (40, 90, 160)).save(tmp_path / "colour.png")
+    material = {"name": "Sword", "pbrMetallicRoughness": {"baseColorTexture": {"index": 0}}}
+    if factor is not None:
+        material["emissiveFactor"] = factor
+    if strength is not None:
+        material["extensions"] = {"KHR_materials_emissive_strength": {"emissiveStrength": strength}}
+    scene = import_scene_mesh_with_report(write_gltf(tmp_path, [material], ["colour.png"]))
+    texture_set = group_replacement_texture_sets(scene.discovered_texture_files, obj_mesh=scene.mesh)["sword"]
+    active = factor is not None and any(factor)
+    assert ("glow" in texture_set.source_role_tags) == active
+    glow = _complete_swap_accent_emissive_slot(texture_set, "Sword", get_complete_swap_material_profile("arm_standard"))
+    assert (glow is not None) == active
+
+
+@pytest.mark.parametrize("illumination", [0, 1, 2, 10])
+@pytest.mark.parametrize("emission", [None, "0 0 0", "0.25 0 0"])
+def test_obj_illumination_model_does_not_add_a_glow_role(tmp_path, illumination, emission):
+    from cdmw.modding.material_profiles import get_complete_swap_material_profile
+    from cdmw.modding.material_source_driven import _complete_swap_accent_emissive_slot
+
+    Image.new("RGB", (16, 16), (40, 90, 160)).save(tmp_path / "colour.png")
+    mtl = f"newmtl Sword\nKd 1 1 1\nillum {illumination}\nmap_Kd colour.png\n"
+    if emission is not None:
+        mtl += f"Ke {emission}\n"
+    (tmp_path / "source.mtl").write_text(mtl, encoding="utf-8")
+    path = tmp_path / "source.obj"
+    path.write_text(
+        "mtllib source.mtl\no Part\nusemtl Sword\nv 0 0 0\nv 1 0 0\nv 0 1 0\n"
+        "vt 0 0\nvt 1 0\nvt 0 1\nf 1/1 2/2 3/3\n", encoding="utf-8",
+    )
+    scene = import_scene_mesh_with_report(path)
+    texture_set = group_replacement_texture_sets(scene.discovered_texture_files, obj_mesh=scene.mesh)["sword"]
+    active = emission == "0.25 0 0"
+    assert ("glow" in texture_set.source_role_tags) == active
+    glow = _complete_swap_accent_emissive_slot(texture_set, "Sword", get_complete_swap_material_profile("arm_standard"))
+    assert (glow is not None) == active

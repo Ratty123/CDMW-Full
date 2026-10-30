@@ -11,7 +11,7 @@ from tempfile import TemporaryDirectory
 
 from cdmw.core.common import raise_if_cancelled
 from cdmw.domain.mesh.replacement import bound_part_indices
-from cdmw.services.mesh_replacement_materials import _sidecar_text
+from cdmw.services.mesh_replacement_materials import _sidecar_text, material_binding_name
 
 
 def replacement_material_key(mesh, state):
@@ -116,11 +116,15 @@ def prepared_replacement_material_mesh(mesh, files, *, required, stop_event=None
                             except (OSError, RustMeshProtocolError) as exc:
                                 invalid_roles[role] = exc
                                 setattr(part, attribute, "")
-                # Use the same case-insensitive ownership match as material conversion.
-                part_names = {name.casefold() for name in (part.name, part.material) if name}
+                # Match the same single owner as material conversion. A PAC can
+                # give several parts the same embedded material label, including
+                # another part's wrapper name; that label must not merge owners.
+                binding_names = {name.casefold() for binding in bindings for name in
+                                 (binding.material_name, binding.submesh_name, binding.part_name) if name}
+                owner_name = material_binding_name(part, binding_names)
                 owned = [binding for binding in bindings
-                         if part_names & {name.casefold() for name in
-                                          (binding.material_name, binding.submesh_name, binding.part_name) if name}
+                         if owner_name in {name.casefold() for name in
+                                           (binding.material_name, binding.submesh_name, binding.part_name) if name}
                          and _material_input_texture_role(binding) not in retained_roles]
                 missing = [binding.texture_path for binding in owned
                            if binding.texture_path.replace("\\", "/").casefold() not in files]
@@ -165,6 +169,21 @@ def prepared_replacement_material_mesh(mesh, files, *, required, stop_event=None
                             if parameter not in parameters:
                                 parameters.append(parameter)
                     part.preview_material_parameters = tuple(parameters)
+                    part.preview_sidecar_shader_family = next(
+                        (binding.shader_family for binding in owned if binding.shader_family), "")
+                    # Native preview factors describe the original sidecar.
+                    # Keep its unchanged surface/layer policy, but read the
+                    # replacement shader's glow from its new parameter vector.
+                    overrides = copy.deepcopy(getattr(part, "preview_native_material_overrides", {}) or {})
+                    for key in tuple(overrides):
+                        if key.startswith(("emissive_", "emission_")) or key in {"glow_surface_color", "material_shader_family"}:
+                            overrides.pop(key)
+                    hints = overrides.get("native_material_hints")
+                    if isinstance(hints, dict):
+                        for key in tuple(hints):
+                            if key.startswith("emissive_"):
+                                hints.pop(key)
+                    part.preview_native_material_overrides = overrides
         yield incoming
 
 

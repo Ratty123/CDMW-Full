@@ -15,6 +15,38 @@ from tests.test_mesh_cloth_sequences import all_cloth_fixture
 from tests.test_mesh_editor_replacement_sequences import source_variants
 from tests.test_mesh_rust_authoring_exact_output import _open_exact_session, _request
 from tests.test_mesh_rust_replacement import command
+from tests.test_mesh_editor_replacement import editor
+
+
+@pytest.mark.parametrize("extension", ["gltf", "glb"])
+@pytest.mark.parametrize("texcoord", [0, 1])
+def test_replacement_gltf_uvs_match_texture_rows_after_export(editor, tmp_path, extension, texcoord):
+    import json
+    from cdmw.services.mesh_replacement_import import prepare_import, compose_import, initial_replacement_state
+    from cdmw.services.mesh_replacement_output import prepare_replacement_output
+    from dataclasses import replace
+    from tests.test_scene_import_normalization import _write_gltf
+    from tests.test_scene_importer_gltf import _write_glb
+
+    service, sid = editor
+    snapshot = service.capture_export_snapshot(sid)
+    expected = [(0.125, 0.25), (0.625, 0.25), (0.125, 0.75)]
+    path = _write_gltf(tmp_path, positions=[(0, 0, 0), (1, 0, 0), (0, 1, 0)], indices=[0, 1, 2],
+        uvs=expected if texcoord == 0 else [(0, 0)] * 3,
+        uv1=expected if texcoord == 1 else None,
+        material={"pbrMetallicRoughness": {"baseColorTexture": {"index": 0, "texCoord": texcoord}}})
+    if extension == "glb":
+        document = json.loads(path.read_text())
+        document["buffers"][0].pop("uri")
+        path = tmp_path / "triangle.glb"
+        _write_glb(path, document, (tmp_path / "mesh.bin").read_bytes())
+    key = initial_replacement_state(snapshot).parts[0].part_id
+    pending = prepare_import(snapshot, path, target_part_ids=(key,))
+    mesh, state = compose_import(pending, (key,))
+    output = prepare_replacement_output(replace(snapshot, mesh=mesh, replacement_state=state))
+    # glTF and PAC both sample image rows from the top. Non-symmetric values
+    # catch an accidental V flip even when every vertex/UV count is preserved.
+    assert parse_pac(output.data).submeshes[0].uvs == expected
 
 
 def _write_uv_case(route, edited, source, tmp_path):
