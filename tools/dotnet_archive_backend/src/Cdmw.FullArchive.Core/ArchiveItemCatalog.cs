@@ -153,6 +153,11 @@ public sealed class ArchiveItemCatalog
     {
         var name = internal_name.ToLowerInvariant();
         var slot = equip_type.ToLowerInvariant();
+        // Socket gear can carry an equipment-slot hint without being wearable armor.
+        if (name.StartsWith("item_skill_abyssgear_", StringComparison.Ordinal))
+            return ("Progression / Reward", "Skill");
+        if (name.StartsWith("item_stat_abyssgear_", StringComparison.Ordinal))
+            return ("Progression / Reward", "Stat");
         var ship_slots = new Dictionary<string, string>(StringComparer.Ordinal)
         {
             ["shipsail"] = "Sails",

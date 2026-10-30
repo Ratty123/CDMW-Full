@@ -31,6 +31,23 @@ internal static class ItemCatalogueDefinitionTests
             || paging.Search("base", "Ships", null, 0, 72, onlyDlc: true).TotalMatches != 0
             || paging.Search("", "Ships", "Cannons", 0, 72, onlyDlc: true).TotalMatches != 0)
             throw new InvalidOperationException("DLC filtering must precede category/group search and pagination");
+        // Cache loads also pass saved records through FromRecords: stale armor
+        // categories must not survive, and facets/search must use the new result.
+        var socketGear = ArchiveItemCatalog.FromRecords([
+            new ArchiveItemCatalogRecord(1006117, "Item_Skill_AbyssGear_CircusMachine", "Trial by Fire", [], [], [], [], [],
+                Category: "Armor", Group: "Hands", EquipType: "Hand", IsDlc: true),
+            new ArchiveItemCatalogRecord(1006123, "Item_Skill_AbyssGear_Incarnation", "Ascended Incarnate", [], [], [], [], [],
+                Category: "Armor", Group: "Feet", EquipType: "Foot", IsDlc: true),
+            new ArchiveItemCatalogRecord(5, "Test_Leather_Gloves", "Gloves", [], [], [], [], [], EquipType: "Hand"),
+            new ArchiveItemCatalogRecord(6, "Test_Leather_Boots", "Boots", [], [], [], [], [], EquipType: "Foot"),
+        ]);
+        if (socketGear.Search("", "Armor", "Hands", 0, 72).Items.Single().ItemId != 5
+            || socketGear.Search("", "Armor", "Feet", 0, 72).Items.Single().ItemId != 6
+            || socketGear.Search("Trial by Fire", "Progression / Reward", "Skill", 0, 72, onlyDlc: true).Items.Single().ItemId != 1006117
+            || socketGear.Search("", "Progression / Reward", "Skill", 1, 1, onlyDlc: true).Items.Single().ItemId != 1006117
+            || socketGear.CategoryFacets.Single(facet => facet.Group == "Skill").Count != 2
+            || socketGear.Items.Single(item => item.ItemId == 1006117).EquipType != "Hand")
+            throw new InvalidOperationException("Socket gear must leave armor filters and keep its source slot as metadata");
         return Task.CompletedTask;
     }
 }

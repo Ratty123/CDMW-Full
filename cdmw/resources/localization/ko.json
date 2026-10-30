@@ -4747,6 +4747,7 @@
     "Find in preview": "미리보기에서 찾기",
     "Find matches: {value_0} / {value_1}": "일치하는 항목 찾기: {value_0} / {value_1}",
     "Find material values": "머티리얼 값 찾기",
+    "Find socketable Abyss Gear under Progression / Reward, in Skill or Stat. Equipment-slot hints do not place these items in armor categories.": "소켓에 장착하는 어비스 기어는 Progression / Reward의 Skill 또는 Stat에서 찾을 수 있습니다. 장비 슬롯 정보가 있어도 방어구 범주로 분류되지 않습니다.",
     "Find target:": "대상 찾기:",
     "Find textures used by a model": "모델에서 사용하는 텍스처 찾기",
     "Find the existing game texture before reviewing its replacement.": "교체할 텍스처를 검토하기 전에 기존 게임 텍스처를 찾으세요.",

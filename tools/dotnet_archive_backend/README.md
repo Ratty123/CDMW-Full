@@ -198,6 +198,10 @@ Search and scope accept `only_dlc` (default false), applied before paging; facet
 retain both total `count` and `dlc_count`. Equipment slots and definition families
 precede multilingual/model heuristics, including distinct Ships and Trade Goods
 groups. Python and Full share owned category witnesses in the focused tests.
+`Item_Skill_AbyssGear_` and `Item_Stat_AbyssGear_` families precede equipment-slot
+hints: socket gear belongs to Progression / Reward (Skill or Stat), including
+records with Hand/Foot metadata. Cache loads normalize records again, so saved
+armor categories do not survive this correction; no cache-schema bump is needed.
 
 ### Raw export and diagnostics
 

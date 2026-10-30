@@ -392,6 +392,7 @@ class AboutDocumentationEnglishMixin:
                   <li>Extract selected or filtered content to loose folders.</li>
                   <li>Use <b>Item Finder</b> when a name/category/icon is a better starting point than a raw path; armor and horse gear categories are inferred from item names, IDs, and game metadata where possible.</li>
                   <li>In Item Finder, select Ships to browse ship equipment, blueprints and materials. Tick Only DLC items to show newly introduced items in any category; existing base-game items updated by DLC are excluded. Category counts follow the checkbox, and the filter is remembered when you reopen the finder. Clear resets it.</li>
+                  <li>Find socketable Abyss Gear under Progression / Reward, in Skill or Stat. Equipment-slot hints do not place these items in armor categories.</li>
                   <li>Use <b>Body &amp; Face Finder</b> to browse character models and appearance variants, including creatures and mounts, with thumbnails and an independent interactive preview.</li>
                   <li>Inspect referenced model textures, export supported meshes as OBJ/FBX with dependencies, or open one directly in Mesh Editor. Replacement/import-preview, swap, material editing, and texture-tool handoffs are not Archive Browser mesh actions.</li>
                   <li>Use <a href="topic:placement_studio">Placement &amp; Animations</a> to review supported equipment placement, sockets, and animation replacements.</li>

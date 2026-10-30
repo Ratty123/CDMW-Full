@@ -54542,6 +54542,16 @@
       ]
     },
     {
+      "key": "Find socketable Abyss Gear under Progression / Reward, in Skill or Stat. Equipment-slot hints do not place these items in armor categories.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 368,
+          "sink": "python-return:_build_archive_mesh_sections"
+        }
+      ]
+    },
+    {
       "key": "Find target:",
       "origins": [
         {

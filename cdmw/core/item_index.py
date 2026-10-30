@@ -1262,6 +1262,11 @@ def _classify_item_definition(internal_name: str, equip_type: str) -> Optional[T
     """
     name = internal_name.lower()
     slot = equip_type.lower()
+    # Socket gear can carry an equipment-slot hint without being wearable armor.
+    if name.startswith("item_skill_abyssgear_"):
+        return "Progression / Reward", "Skill"
+    if name.startswith("item_stat_abyssgear_"):
+        return "Progression / Reward", "Stat"
     ship_slots = {
         "shipsail": "Sails", "shipfigurehead": "Figureheads", "shipstern": "Sterns",
         "shipcannon": "Cannons", "shipbowcannon": "Cannons",

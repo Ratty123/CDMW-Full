@@ -184,6 +184,9 @@ remain selectable. The checkbox is remembered on reopening and reset by **Clear*
 blueprint parts, equipment blueprints and ship materials. Equipment types and
 item-definition families take priority over translated names or linked models;
 trade cargo, furniture and recipes therefore retain their own categories.
+Socketable Abyss Gear stays under **Progression / Reward**, in **Skill** or
+**Stat**, even when its recovered metadata names an armor slot. These item
+families take priority over slot hints, including when reopening a cached catalogue.
 Current StringInfo row keys resolve explicit inventory icons, including non-`cd_`
 ship icons. Empty placeholder assets are not advertised as usable links. Linked
 prefabs retain their model dependencies through bounded nested prefab/PAMI walks;
