@@ -119,8 +119,35 @@ The worker's DLC-only filter returned exactly those 1,309 new IDs, with no missi
 or unclassified rows. Definition/equipment-based categorization recovers 102 ship
 equipment items, four ship blueprints, six blueprint parts, 40 equipment blueprints
 and six ship-material entries. These are metadata/search observations, not a count
-of every playable vessel or an in-game grant test. Character naming reads the reordered fields too; one appearance
-hash has no unique installed match and remains explicitly unresolved.
+of every playable vessel or an in-game grant test.
+
+The subsequent icon/preview follow-up on `1d74aca4` plus the current fixes found
+that the old icon scanner missed current StringInfo keys and non-`cd_` ship icons.
+Validated StringInfo hashes now select the archived inventory DDS directly;
+the empty `cd_t9999_empty` placeholder is excluded. All 158 ship item icons and
+1,307 of the 1,309 new DLC item icons prepared and decoded with visible alpha.
+Desert Antumbra Cloth Armor references an absent inventory DDS; Binoculars uses
+the empty `ItemIcon_` name. These retain the UI letter tile. Ship model discovery
+now follows bounded nested prefabs and PAMI references, preserving icon-derived
+relationships as related rather than exact item-prefab ownership.
+
+Body & Face Finder's managed name reader also needed PALOC decompression and
+base/DLC localization merging. The corrected catalogue resolves names for all
+7,336 linked character identities. Of 285 new CharacterInfo IDs, 267 have browsable
+appearances; the other 18 point to invisible object appearances and remain outside
+the body/face results. All 60,397 candidate files are accounted for: 33,104 resolved,
+2,819 unresolved and 24,474 excluded. One appearance hash has no unique installed
+match and remains explicitly unresolved. Real archive dependency preparation and
+Rust render/camera captures succeeded for a DLC spotted seal body and an ancient
+stone-warrior head. Both also rendered visibly in the rebuilt alpha.27 executable.
+The packaged ship-category check exposed a second flicker source: scrollbar-driven
+column-count oscillation. Reserving the scrollbar gutter removed that loop in the
+regression test and a 155-size grid sweep. These are application/runtime checks,
+not game acceptance.
+The final packaged related-file route also rendered Large Fair Wind Stern's PAM
+with partial material coverage. Its linked lamp remains geometry-only: the
+referenced `cd_bg_trimborder_metal_06_n_emc.dds` and `_emi.dds` are absent from the
+installed archive catalogue. Missing source textures are not decryption failures.
 
 Direct archive patching refuses compact/extended PAMT indexes. Overlay writes
 retain the legacy PAPGT checksum requirement, and Create New Item's existing

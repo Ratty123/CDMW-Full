@@ -6207,6 +6207,7 @@
     "Item Finder scope active: {value_0} [{value_1}]. {value_2}": "物品查找器範圍處於作用中：{value_0} [{value_1}]。 {value_2}",
     "Item Finder scope: {value_0} indexed file(s).": "物品查找器範圍：{value_0} 索引檔。",
     "Item Finder scoped Archive Browser to: {value_0} ({value_1}; no full archive scan).": "物品查找器將封存檔瀏覽器範圍限定為：{value_0}（{value_1}；無完整封存檔掃描）。",
+    "Item Finder shows recovered ship icons and model links; unavailable icons keep a letter tile. Body & Face Finder reads character names from both the base game and DLC.": "物品查找器顯示已找到的船隻圖示和模型連結；圖示無法使用時會保留字母方塊。身體與臉部查找器會同時讀取本體和DLC中的角色名稱。",
     "Item Icon": "物品圖示",
     "Item Icon service is not configured.": "物品圖示服務未配置。",
     "Item Icons": "物品圖示",

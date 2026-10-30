@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from math import ceil
+import re
 
 from PySide6.QtCore import QEvent, QModelIndex, QRect, QSize, QThread, QTimer, Qt
 from PySide6.QtGui import QFontMetrics, QIcon, QImage, QPainter, QPalette, QPixmap, QTextOption
@@ -157,7 +158,8 @@ class _ItemFinderDetailText(QTextBrowser):
         return self.toPlainText()
 
     def setText(self, text: str) -> None:
-        self.setPlainText(text)
+        if text != self.toPlainText():
+            self.setPlainText(text)
 
     def heightForWidth(self, width: int) -> int:
         document = self.document().clone()
@@ -195,6 +197,7 @@ class RemoteArchiveFinderDialog(QDialog):
         self._rows: dict[int, ItemCatalogRow] = {}
         self._tree_items: dict[int, QListWidgetItem] = {}
         self._icon_requested: set[int] = set()
+        self._applied_icons: dict[int, tuple[str, int]] = {}
         self._icon_threads: set[QThread] = set()
         self._icon_workers: dict[QThread, ArchiveItemThumbnailWorker] = {}
         self._icon_generation = 0
@@ -361,6 +364,9 @@ class RemoteArchiveFinderDialog(QDialog):
         self._item_grid.setWrapping(True)
         self._item_grid.setWordWrap(True)
         self._item_grid.setUniformItemSizes(True)
+        # Keep viewport width independent of the row count. At the scrollbar
+        # threshold, automatic gutter changes otherwise alternate column counts.
+        self._item_grid.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOn)
         self._item_grid.setIconSize(QSize(112, 112))
         self._item_grid.setGridSize(QSize(176, 184))
         self._item_grid.setSpacing(4)
@@ -678,6 +684,7 @@ class RemoteArchiveFinderDialog(QDialog):
         self._icon_generation += 1
         self._cancel_request("_icon_request_id")
         self._icon_requested.clear()
+        self._applied_icons.clear()
         for worker in tuple(self._icon_workers.values()):
             worker.stop()
 
@@ -886,12 +893,7 @@ class RemoteArchiveFinderDialog(QDialog):
             self._update_buttons()
             return
 
-        item = self._tree_items.get(row.item_id)
-        if isinstance(item, QListWidgetItem):
-            pixmap = item.icon().pixmap(QSize(112, 112))
-            if not pixmap.isNull():
-                self._detail_icon.setText("")
-                self._detail_icon.setPixmap(pixmap.scaled(112, 112, Qt.KeepAspectRatio, Qt.SmoothTransformation))
+        self._update_selected_item_icon(row.item_id)
         self._detail_title.setText(row.display_name or row.internal_name or f"Item {row.item_id}")
         self._detail_internal.setText(f"{row.internal_name or 'Unknown internal name'} (ID {row.item_id})")
         self._detail_category.setText(f"{row.category} / {row.group}")
@@ -910,12 +912,19 @@ class RemoteArchiveFinderDialog(QDialog):
         # items have no slot -- so say that rather than leaving the reader to
         # wonder whether the value failed to decode.
         self._detail_stats.setText("\n".join(stat_lines) or "No equip slot; this item is not worn or wielded.")
-        self._detail_description.setText(row.description or "None")
+        self._detail_description.setText(re.sub(r"<br\s*/?>", "\n", row.description, flags=re.IGNORECASE) or "None")
         self._detail_localized.setText(", ".join(row.localized_names) or "None")
         model_lines = [*(f"PAC: {value}" for value in row.pac_files), *(f"Model: {value}" for value in row.model_stems)]
         self._detail_models.setText("\n".join(model_lines) or "None")
         self._detail_icons.setText("\n".join(row.icon_paths) or "None")
         self._update_buttons()
+
+    def _update_selected_item_icon(self, item_id: int) -> None:
+        item = self._tree_items.get(item_id)
+        if isinstance(item, QListWidgetItem):
+            pixmap = item.icon().pixmap(QSize(112, 112))
+            if not pixmap.isNull():
+                self._detail_icon.setPixmap(pixmap.scaled(112, 112, Qt.KeepAspectRatio, Qt.SmoothTransformation))
 
     def _update_facet_counts(self, result: ItemCatalogSearchResult) -> None:
         counts = {
@@ -1148,6 +1157,7 @@ class RemoteArchiveFinderDialog(QDialog):
         ):
             return
         paths = payload[1]
+        selected = self._selected_row()
         for item_id, prepared in paths.items():
             tree_item = self._tree_items.get(int(item_id))
             if not isinstance(tree_item, QListWidgetItem):
@@ -1157,14 +1167,21 @@ class RemoteArchiveFinderDialog(QDialog):
                 and len(prepared) == 2
                 and isinstance(prepared[1], QImage)
             ):
+                identity = (str(prepared[0]), prepared[1].cacheKey())
+                if self._applied_icons.get(int(item_id)) == identity:
+                    continue
                 pixmap = QPixmap.fromImage(prepared[1])
             else:
+                identity = (str(prepared), 0)
+                if self._applied_icons.get(int(item_id)) == identity:
+                    continue
                 pixmap = QPixmap(str(prepared))
             if pixmap.isNull():
                 continue
             tree_item.setIcon(QIcon(pixmap.scaled(112, 112, Qt.KeepAspectRatio, Qt.SmoothTransformation)))
-        if self._selected_row() is not None:
-            self._update_selected_item_detail()
+            self._applied_icons[int(item_id)] = identity
+            if selected is not None and selected.item_id == int(item_id):
+                self._update_selected_item_icon(selected.item_id)
 
     def _handle_decoded_icon(self, generation: int, item_id: int, path: str, image: object) -> None:
         if not isinstance(image, QImage) or image.isNull():

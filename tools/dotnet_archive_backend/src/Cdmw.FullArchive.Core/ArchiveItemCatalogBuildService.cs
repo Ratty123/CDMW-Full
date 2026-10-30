@@ -10,7 +10,7 @@ public sealed class ArchiveItemCatalogBuildService(
     ArchiveSessionManager sessions,
     NativeArchiveCore native)
 {
-    private const int CacheSchemaVersion = 8;
+    private const int CacheSchemaVersion = 9;
     private const int NativeCatalogSchemaVersion = 3;
     private const int MaximumDiagnosticCharacters = 64 * 1024;
     private static readonly TimeSpan IndexerTimeout = TimeSpan.FromMinutes(3);
@@ -306,7 +306,7 @@ public sealed class ArchiveItemCatalogBuildService(
     {
         var items = state.ItemCatalog.Items;
         var candidates = items
-            .SelectMany(DirectPrefabStems)
+            .SelectMany(static item => item.ModelStems)
             .Select(ArchiveNameIndexBuilder.NormalizeModelStem)
             .Where(static value => value.Length > 0)
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
@@ -331,7 +331,8 @@ public sealed class ArchiveItemCatalogBuildService(
         foreach (var item in items)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            var itemCandidates = DirectPrefabStems(item)
+            var directPrefabs = DirectPrefabStems(item).ToHashSet(StringComparer.OrdinalIgnoreCase);
+            var itemCandidates = item.ModelStems
                 .Select(ArchiveNameIndexBuilder.NormalizeModelStem)
                 .Where(static value => value.Length > 0)
                 .Distinct(StringComparer.OrdinalIgnoreCase);
@@ -339,18 +340,19 @@ public sealed class ArchiveItemCatalogBuildService(
                 .SelectMany(candidate => dependencies.GetValueOrDefault(candidate) ?? [])
                 .Distinct(StringComparer.OrdinalIgnoreCase)
                 .ToArray();
-            foreach (var modelPath in modelPaths)
+            foreach (var candidate in itemCandidates)
             {
-                ArchiveNameIndexBuilder.AddDisplayName(
-                    exact,
-                    ArchiveNameIndexBuilder.NormalizeModelStem(modelPath),
-                    item.Evidence.Contains("generated friendly name", StringComparison.Ordinal) ? "" : item.DisplayName);
+                foreach (var modelPath in dependencies.GetValueOrDefault(candidate) ?? [])
+                    ArchiveNameIndexBuilder.AddDisplayName(
+                        directPrefabs.Contains(candidate) ? exact : related,
+                        ArchiveNameIndexBuilder.NormalizeModelStem(modelPath),
+                        item.Evidence.Contains("generated friendly name", StringComparison.Ordinal) ? "" : item.DisplayName);
             }
             enriched.Add(item with
             {
-                ModelStems = modelPaths
-                    .Select(ArchiveNameIndexBuilder.NormalizeModelStem)
+                ModelStems = DirectPrefabStems(item)
                     .Concat(item.ModelStems)
+                    .Concat(modelPaths.Select(ArchiveNameIndexBuilder.NormalizeModelStem))
                     .Distinct(StringComparer.OrdinalIgnoreCase)
                     .ToArray(),
                 PacFiles = modelPaths

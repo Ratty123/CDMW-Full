@@ -110,7 +110,8 @@ internal static class CharacterCatalogTests
         byte[] Loc(string value) => U32((uint)nameKey.Length).Concat(Encoding.ASCII.GetBytes(nameKey))
             .Concat(U32((uint)Encoding.UTF8.GetByteCount(value))).Concat(Encoding.UTF8.GetBytes(value)).ToArray();
         Add("gamedata/stringtable/binary__/eng/character" + suffix + ".paloc", Loc("Test Hero"), package);
-        Add("gamedata/stringtable/binary__/ara/character" + suffix + ".paloc", Loc("البطل"), package);
+        Add("gamedata/stringtable/binary__/ara/character.paloc", Loc("البطل"), "0036");
+        if (compact) Add("gamedata/stringtable/binary__/eng/character.paloc", Loc("Base Hero"), "0036");
 
         CharacterCatalogSnapshot Build(CancellationToken token = default) => ArchiveCharacterCatalogBuilder.Build(
             fixture.Root, "fixture-generation", inventory, entry => bytes[entry.EntryId], token);

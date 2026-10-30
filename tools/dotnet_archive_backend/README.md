@@ -62,6 +62,14 @@ StringInfo and character-link rows can place it after four zero bytes. Each
 supported layout still verifies the directory key within the exact row bounds.
 Catalogue cache signatures include both the base and DLC mount metadata.
 
+Current StringInfo hashes select archived inventory icons, including ship icons
+without a `cd_` prefix. Empty placeholder icons are excluded. Nested prefab/PAMI
+references resolve installed PAC/PAM/PAMLOD models with bounded traversal;
+icon-derived links stay related evidence rather than exact item ownership.
+Character names decode compressed PALOC containers and merge base/DLC names,
+retaining base translations when a DLC table omits them. Item catalogue cache v9
+and character catalogue cache v8 invalidate earlier incomplete results.
+
 These are read contracts. Compact archive patching, overlay installation and
 Create New Item authoring remain unsupported. Successful decoding, catalogue
 joins and mesh parsing do not establish visible rendering or real-game support.

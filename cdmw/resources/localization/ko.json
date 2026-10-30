@@ -6207,6 +6207,7 @@
     "Item Finder scope active: {value_0} [{value_1}]. {value_2}": "아이템 찾기 범위 활성: {value_0} [{value_1}]. {value_2}",
     "Item Finder scope: {value_0} indexed file(s).": "아이템 찾기 범위: {value_0} 색인 파일.",
     "Item Finder scoped Archive Browser to: {value_0} ({value_1}; no full archive scan).": "아이템 찾기 범위 아카이브 브라우저: {value_0}({value_1}, 전체 아카이브 검사 없음)",
+    "Item Finder shows recovered ship icons and model links; unavailable icons keep a letter tile. Body & Face Finder reads character names from both the base game and DLC.": "아이템 찾기는 확인된 선박 아이콘과 모델 링크를 표시합니다. 아이콘을 사용할 수 없으면 글자가 있는 타일을 유지합니다. 바디 및 얼굴 찾기는 본편과 DLC의 캐릭터 이름을 모두 읽습니다.",
     "Item Icon": "아이템 아이콘",
     "Item Icon service is not configured.": "아이템 아이콘 서비스가 구성되지 않았습니다.",
     "Item Icons": "아이템 아이콘",

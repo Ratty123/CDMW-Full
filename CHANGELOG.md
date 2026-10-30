@@ -18,7 +18,8 @@ experimental-feature notes do not establish equivalent in-game behavior.
 ### Fixed
 
 - Archive Browser reads the October 2026 compact archive indexes and DLC packages again. Item Finder and Body & Face Finder include the DLC naming tables. Direct archive patching and item installation remain unsupported for the new layout.
-- Item Finder correctly groups DLC ship equipment, blueprints, trade cargo, furniture, food and upgrade materials using their equipment types and item definitions.
+- Item Finder correctly groups DLC ship equipment, blueprints, trade cargo, furniture, food and upgrade materials. Ship icons and nested model links load correctly. The grid keeps a stable column layout, and background icon loading no longer repeatedly redraws the selection details. Item descriptions display their line breaks.
+- Body & Face Finder recovers character names from compressed base-game and DLC tables instead of showing internal filenames.
 - Static-model previews no longer mistake a texture name inside a PAMLOD material record for another mesh, which prevented a DLC ship from opening.
 
 ### Docs

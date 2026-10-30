@@ -143,6 +143,44 @@ def _row(item_id: int) -> ItemCatalogRow:
     )
 
 
+def test_icon_updates_do_not_rebuild_details_or_republish_cached_icons() -> None:
+    _app()
+    window = _Window()
+    dialog = RemoteArchiveFinderDialog(window)
+    try:
+        _drain()
+        rows = (replace(_row(1), description="Cotton sail.<br/>Fits a turtle ship.<BR>Literal <name>"), _row(2))
+        window.archive_catalogue_service.result_ready.emit("search-1", "search_item_catalog",
+            ItemCatalogSearchResult("session-a", 2, 0, 72, rows, ()))
+        dialog._item_grid.setCurrentRow(0)
+        assert dialog._detail_description.text() == "Cotton sail.\nFits a turtle ship.\nLiteral <name>"
+        dialog._detail_internal.selectAll()
+        changes = []
+        dialog._detail_internal.textChanged.connect(lambda: changes.append(True))
+        image = QImage(12, 12, QImage.Format_RGBA8888)
+        image.fill(Qt.red)
+        payload = (dialog._icon_generation, {2: ("other.png", image)})
+        dialog._apply_icons(payload)
+        assert not changes, "An unrelated icon reset the selected item's text/layout"
+        assert dialog._detail_internal.textCursor().hasSelection()
+        icon_key = dialog._tree_items[2].icon().cacheKey()
+        dialog._apply_icons(payload)
+        assert dialog._tree_items[2].icon().cacheKey() == icon_key
+        dialog._apply_icons((dialog._icon_generation, {1: ("selected.png", image)}))
+        assert not changes, "A selected icon update reset the detail documents"
+        assert dialog._detail_icon.pixmap().toImage().pixelColor(0, 0) == Qt.red
+        dialog._apply_icons((dialog._icon_generation - 1, {2: ("stale.png", image)}))
+        assert dialog._tree_items[2].icon().cacheKey() == icon_key
+        dialog._detail_internal.setText(dialog._detail_internal.text())
+        assert not changes
+    finally:
+        dialog.close()
+        window.close()
+        dialog.deleteLater()
+        window.deleteLater()
+        _drain()
+
+
 def test_dlc_checkbox_composes_with_categories_pages_scope_and_saved_state(tmp_path) -> None:
     from cdmw.ui.archive_browser.remote_finder_warmup import RemoteItemFinderWarmupController
 
@@ -443,6 +481,51 @@ def test_category_list_is_on_the_left_and_filters_categories_or_groups() -> None
     assert dialog._selected_filters() == (None, None)
     assert service.searches[-1].category is None and service.searches[-1].group is None
     dialog.close()
+
+
+def test_small_result_grid_settles_at_the_scrollbar_threshold() -> None:
+    from cdmw.ui.themes import build_app_stylesheet
+
+    app = _app()
+    original_font, original_stylesheet = app.font(), app.styleSheet()
+    app.setFont(QFont("Segoe UI", 10))
+    app.setStyleSheet(build_app_stylesheet("graphite", density_key="compact"))
+    window = _Window()
+    dialog = RemoteArchiveFinderDialog(window)
+    try:
+        _drain()
+        names = ("Large Fair Wind Stern", "Large Gentle Wave Stern", "Large Long-Horned Fish Stern",
+                 "Large Phantom Stern", "Large Skyborne Beast Stern", "Large Steam and Clockwork Stern",
+                 "Medium Fair Wind Stern", "Medium Gentle Wave Stern", "Medium Long-Horned Fish Stern",
+                 "Medium Skyborne Beast Stern", "Medium Steam and Clockwork Stern")
+        rows = tuple(replace(_row(index + 1), display_name=name, category="Ships", group="Sterns")
+                     for index, name in enumerate(names))
+        window.archive_catalogue_service.result_ready.emit("search-1", "search_item_catalog",
+            ItemCatalogSearchResult("session-a", 11, 0, 72, rows, ()))
+        grid = dialog._item_grid
+        dialog.show()
+        grid.setFixedSize(780, 750)
+        QTest.qWait(50)
+        grid.setFixedSize(790, 750)
+        QTest.qWait(50)
+        states = []
+        for _ in range(40):
+            QTest.qWait(5)
+            states.append((grid.viewport().width(), grid.gridSize().width(),
+                           grid.verticalScrollBar().maximum(), grid.visualItemRect(grid.item(2)).y()))
+        assert len(set(states[-12:])) == 1, "The grid keeps alternating its column count and scrollbar"
+        rectangles = [grid.visualItemRect(grid.item(index)) for index in range(grid.count())]
+        used_width = max(rect.right() + 1 for rect in rectangles if rect.y() == rectangles[0].y())
+        assert grid.viewport().width() - used_width <= 20, states[-12:]
+        assert grid.horizontalScrollBar().maximum() == 0
+    finally:
+        dialog.close()
+        window.close()
+        dialog.deleteLater()
+        window.deleteLater()
+        app.setFont(original_font)
+        app.setStyleSheet(original_stylesheet)
+        _drain()
 
 
 @pytest.mark.parametrize(

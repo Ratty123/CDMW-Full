@@ -56,10 +56,13 @@ internal static class ArchiveCharacterNames
             var wanted = names.Values.Select(static row => row.NameKey).Where(static value => value.Length > 0)
                 .ToHashSet(StringComparer.Ordinal);
             var localized = new Dictionary<string, Dictionary<string, string>>(StringComparer.OrdinalIgnoreCase);
-            foreach (var (language, entry) in sources.DomainLocalizations("character" + suffix))
+            foreach (var domain in new[] { "character" }.Concat(sources.DlcTableSuffixes("characterinfo").Select(static value => "character." + value)))
+            foreach (var (language, entry) in sources.DomainLocalizations(domain))
             {
                 token.ThrowIfCancellationRequested();
-                localized[language] = ArchiveNameIndexBuilder.ParseLocalization(decode(entry), wanted, token);
+                if (!localized.TryGetValue(language, out var languageNames)) localized[language] = languageNames = new(StringComparer.Ordinal);
+                foreach (var (key, value) in ArchiveNameIndexBuilder.ParseLocalization(decode(entry), wanted, token))
+                    languageNames[key] = value;
             }
             var hashes = appearances.GroupBy(static entry => ArchiveNameIndexBuilder.ModelNameHash(entry.Path.ToLowerInvariant()))
                 .ToDictionary(static group => group.Key, static group => group.ToArray());

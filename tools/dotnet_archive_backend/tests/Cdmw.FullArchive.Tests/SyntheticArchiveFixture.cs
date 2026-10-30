@@ -274,7 +274,7 @@ internal sealed class SyntheticArchiveFixture : IAsyncDisposable
         return fixture;
     }
 
-    public static async Task<SyntheticArchiveFixture> CreateCurrentItemNamesAsync(byte[]? currentEnglish = null, bool compactDlc = false)
+    public static async Task<SyntheticArchiveFixture> CreateCurrentItemNamesAsync(byte[]? currentEnglish = null, bool compactDlc = false, bool explicitIcons = false)
     {
         var fixture = await CreateNameIndexAsync().ConfigureAwait(false);
         const string tableRoot = "gamedata/binarystaticinfo__/bin/";
@@ -296,6 +296,11 @@ internal sealed class SyntheticArchiveFixture : IAsyncDisposable
             output.Write(Encoding.ASCII.GetBytes(key));
             output.Write(new byte[64]); // current rows do not require the old prefab-list marker
             if (linked) WriteUInt32(output, prefabHash);
+            if (explicitIcons && id == 1236)
+            {
+                WriteUInt32(output, 0x9703EB02); // ItemIcon_Prefab_gimmick_test_sail
+                WriteUInt32(output, 0xC87F5991); // cd_t9999_empty
+            }
             return output.ToArray();
         }
         var rows = new[]
@@ -314,15 +319,20 @@ internal sealed class SyntheticArchiveFixture : IAsyncDisposable
             body.Write(rows[index]);
         }
         using var strings = new MemoryStream();
-        if (compactDlc) strings.Write(new byte[4]);
-        WriteUInt32(strings, prefabHash);
-        strings.Write(new byte[compactDlc ? 1 : 5]);
-        WriteUInt32(strings, 23);
-        strings.Write(Encoding.ASCII.GetBytes("cd_marni_laser_hel_0001"));
         using var stringHeader = new MemoryStream();
-        WriteUInt16(stringHeader, 1);
-        WriteUInt32(stringHeader, prefabHash);
-        WriteUInt32(stringHeader, 0);
+        var stringRows = new List<(uint Key, string Text)> { (prefabHash, "cd_marni_laser_hel_0001") };
+        if (explicitIcons) stringRows.AddRange([(0x9703EB02, "ItemIcon_Prefab_gimmick_test_sail"), (0xC87F5991, "cd_t9999_empty")]);
+        WriteUInt16(stringHeader, (ushort)stringRows.Count);
+        foreach (var (key, text) in stringRows)
+        {
+            WriteUInt32(stringHeader, key);
+            WriteUInt32(stringHeader, (uint)strings.Length);
+            if (compactDlc) strings.Write(new byte[4]);
+            WriteUInt32(strings, key);
+            strings.Write(new byte[compactDlc ? 1 : 5]);
+            WriteUInt32(strings, (uint)text.Length);
+            strings.Write(Encoding.ASCII.GetBytes(text));
+        }
         var tables = new (string Path, byte[] Bytes)[]
         {
             (tableRoot + "iteminfo.staticinfobody", body.ToArray()),
@@ -330,6 +340,18 @@ internal sealed class SyntheticArchiveFixture : IAsyncDisposable
             (tableRoot + "stringinfo.staticinfobody", strings.ToArray()),
             (tableRoot + "stringinfo.staticinfoheader", stringHeader.ToArray()),
         };
+        if (explicitIcons) tables = tables.Concat(new (string Path, byte[] Bytes)[]
+        {
+            ("ui/texture/icon/itemicon_prefab_gimmick_test_sail.dds", "DDS owned sail icon"u8.ToArray()),
+            ("ui/texture/icon/itemicon_prefab_cd_t9999_empty.dds", "DDS placeholder"u8.ToArray()),
+            ("object/gimmick_test_sail.prefab", "/object/gimmick_test_sail_child.prefab\0"u8.ToArray()),
+            ("object/bin__/gimmick_test_sail_child.prefab", "object/test_sail_mesh.pac\0object/test_sail_instance.pami\0object/gimmick_test_sail.prefab\0"u8.ToArray()),
+            ("object/test_sail_instance.pami", "object/test_sail_lod.pamlod\0"u8.ToArray()),
+            ("object/test_sail_instance.pam", "PAM unrelated prefix collision"u8.ToArray()),
+            ("object/test_sail_lod.pamlod", "PAMLOD owned sail mesh"u8.ToArray()),
+            ("object/cd_t9999_empty.prefab", []),
+            ("object/test_sail_mesh.pac", "PAC owned sail mesh"u8.ToArray()),
+        }).ToArray();
         File.Delete(Path.Combine(fixture.Root, "0008", "0.pamt"));
         File.Delete(Path.Combine(fixture.Root, "0008", "0.paz"));
         await BuildPackageAsync(fixture.Root, "0008", tables).ConfigureAwait(false);

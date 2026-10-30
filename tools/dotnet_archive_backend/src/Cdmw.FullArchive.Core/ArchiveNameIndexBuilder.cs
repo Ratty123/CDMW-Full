@@ -83,7 +83,7 @@ internal static class ArchiveNameIndexBuilder
         "itemicon_prefab_", "itemicon_", "icon_prefab_", "icon_",
     ];
     private static readonly Regex PrefabModelPathPattern = new(
-        "(?<path>(?:character|object|vehicle|environment|effect)[/\\\\][A-Za-z0-9_./\\\\-]+\\.(?:pac|pam|pamlod))",
+        "(?<path>(?:character|object|vehicle|environment|effect)[/\\\\][A-Za-z0-9_./\\\\-]+\\.(?:pamlod|pami|pac|pam|prefab))",
         RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Compiled);
     private static readonly HashSet<string> GenericItemModelTokens = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -255,6 +255,7 @@ internal static class ArchiveNameIndexBuilder
         IReadOnlySet<string> wantedIds,
         CancellationToken cancellationToken)
     {
+        data = DecodeLocalizationContainer(data, cancellationToken);
         var rows = new Dictionary<string, string>(StringComparer.Ordinal);
         var position = 0;
         while (position + 8 < data.Length)
@@ -294,6 +295,59 @@ internal static class ArchiveNameIndexBuilder
             position++;
         }
         return rows;
+    }
+
+    private static byte[] DecodeLocalizationContainer(byte[] data, CancellationToken cancellationToken)
+    {
+        if (!data.AsSpan().StartsWith("paloc"u8)) return data;
+        const int headerSize = 512, maximumPayload = 256 * 1024 * 1024;
+        if (data.Length < headerSize) throw new InvalidDataException("PALOC container header is truncated");
+        if (ReadUInt32(data, 5) != 0) throw new InvalidDataException("Unsupported PALOC container version");
+        if (ReadUInt32(data, 9) != data.Length - headerSize) throw new InvalidDataException("PALOC compressed size does not match its bytes");
+        var size = ReadUInt32(data, 13);
+        if (size < 4 || size > maximumPayload) throw new InvalidDataException("PALOC uncompressed size is out of bounds");
+        var output = new byte[(int)size];
+        var input = headerSize;
+        var written = 0;
+        int Length(int length)
+        {
+            if (length != 15) return length;
+            byte extension;
+            do
+            {
+                if (input == data.Length) throw new InvalidDataException("PALOC LZ4 length is truncated");
+                extension = data[input++];
+                if (length > maximumPayload - extension) throw new InvalidDataException("PALOC LZ4 length is out of bounds");
+                length += extension;
+            } while (extension == 255);
+            return length;
+        }
+        while (input < data.Length)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var token = data[input++];
+            var literals = Length(token >> 4);
+            if (literals > data.Length - input || literals > output.Length - written)
+                throw new InvalidDataException("PALOC LZ4 literal run is outside its buffer");
+            data.AsSpan(input, literals).CopyTo(output.AsSpan(written));
+            input += literals;
+            written += literals;
+            if (input == data.Length) break;
+            if (data.Length - input < 2) throw new InvalidDataException("PALOC LZ4 match offset is truncated");
+            var offset = data[input] | data[input + 1] << 8;
+            input += 2;
+            if (offset == 0 || offset > written) throw new InvalidDataException("PALOC LZ4 match offset is invalid");
+            var matched = Length(token & 15) + 4;
+            if (matched > output.Length - written) throw new InvalidDataException("PALOC LZ4 match run is outside its output buffer");
+            for (var index = 0; index < matched; index++)
+            {
+                if ((index & 0xFFFF) == 0) cancellationToken.ThrowIfCancellationRequested();
+                output[written + index] = output[written - offset + index];
+            }
+            written += matched;
+        }
+        if (written != output.Length) throw new InvalidDataException("PALOC decoded size does not match its payload");
+        return output;
     }
 
     private static Dictionary<uint, string> ParseStringInfo(byte[] data, CancellationToken cancellationToken)
@@ -744,7 +798,7 @@ internal static class ArchiveNameIndexBuilder
         }
 
         var matches = new List<(ArchiveEntryDto Entry, HashSet<string> Owners)>();
-        var existingModels = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var assets = new Dictionary<string, ArchiveEntryDto>(StringComparer.OrdinalIgnoreCase);
         var total = session.Index.EntryCount;
         Publish(progress, new ProgressUpdate(0, total, "names_prefab_scan"));
         for (long entryId = 0; entryId < total; entryId++)
@@ -755,7 +809,15 @@ internal static class ArchiveNameIndexBuilder
                 Publish(progress, new ProgressUpdate(entryId, total, "names_prefab_scan"));
             }
             var entry = session.Index.ReadEntry(entryId, session.Id);
-            if (entry.Extension == ".pac" && (sources is null || sources.Accepts(entry))) existingModels.Add(entry.Path.Replace('\\', '/'));
+            if (entry.Extension is ".pac" or ".pam" or ".pamlod" or ".prefab" or ".pami"
+                && (sources is null || sources.Accepts(entry)))
+            {
+                var path = entry.Path.Replace('\\', '/');
+                if (!assets.TryGetValue(path, out var previous)
+                    || (sources is null ? ArchiveItemSources.Priority(entry).CompareTo(ArchiveItemSources.Priority(previous))
+                                        : sources.Order(entry).CompareTo(sources.Order(previous))) > 0)
+                    assets[path] = entry;
+            }
             if (entry.Extension != ".prefab" || (sources is not null && !sources.Accepts(entry))) continue;
             var basename = Path.GetFileName(entry.Path);
             if (ownersByPrefabName.TryGetValue(basename, out var owners))
@@ -772,6 +834,9 @@ internal static class ArchiveNameIndexBuilder
             static candidate => candidate,
             static _ => new HashSet<string>(StringComparer.OrdinalIgnoreCase),
             StringComparer.OrdinalIgnoreCase);
+        var byName = assets.Values.GroupBy(static entry => entry.Name, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(static group => group.Key, static group => group.ToArray(), StringComparer.OrdinalIgnoreCase);
+        var references = new Dictionary<long, string[]>();
         for (var index = 0; index < matches.Count; index++)
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -780,17 +845,34 @@ internal static class ArchiveNameIndexBuilder
                 Publish(progress, new ProgressUpdate(index, matches.Count, "names_prefab_decode"));
             }
             var (entry, owners) = matches[index];
-            if (entry.OriginalSize is <= 0 or > MaximumPrefabSourceBytes) continue;
-            byte[] bytes;
-            try
+            var modelPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var pending = new Queue<ArchiveEntryDto>();
+            var visited = new HashSet<long>();
+            pending.Enqueue(entry);
+            while (pending.TryDequeue(out var dependency) && visited.Count < MaximumPrefabDependencyPaths)
             {
-                bytes = native.Decode(entry).Bytes;
+                cancellationToken.ThrowIfCancellationRequested();
+                if (!visited.Add(dependency.EntryId)) continue;
+                if (dependency.Extension is ".pac" or ".pam" or ".pamlod")
+                {
+                    modelPaths.Add(dependency.Path.Replace('\\', '/'));
+                    continue;
+                }
+                if (dependency.OriginalSize is <= 0 or > MaximumPrefabSourceBytes) continue;
+                if (!references.TryGetValue(dependency.EntryId, out var paths))
+                {
+                    try { paths = ExtractPrefabModelPaths(native.Decode(dependency).Bytes); }
+                    catch (Exception exception) when (exception is IOException or InvalidDataException or NativeArchiveException or UnauthorizedAccessException)
+                    { paths = []; }
+                    references[dependency.EntryId] = paths;
+                }
+                foreach (var path in paths)
+                {
+                    if (assets.TryGetValue(path, out var target)) pending.Enqueue(target);
+                    else if (byName.TryGetValue(Path.GetFileName(path), out var named) && named.Length == 1)
+                        pending.Enqueue(named[0]);
+                }
             }
-            catch (Exception exception) when (exception is IOException or InvalidDataException or NativeArchiveException or UnauthorizedAccessException)
-            {
-                continue;
-            }
-            var modelPaths = ExtractPrefabModelPaths(bytes).Where(existingModels.Contains);
             foreach (var owner in owners)
             {
                 resolved[owner].UnionWith(modelPaths);
@@ -921,7 +1003,7 @@ internal static class ArchiveNameIndexBuilder
     internal static string NormalizeModelStem(string value)
     {
         var basename = Path.GetFileName(value.Replace('\\', '/')).ToLowerInvariant();
-        return Path.GetExtension(basename) is ".pac" or ".prefab" or ".pact"
+        return Path.GetExtension(basename) is ".pac" or ".pam" or ".pamlod" or ".prefab" or ".pact"
             ? Path.GetFileNameWithoutExtension(basename)
             : basename;
     }

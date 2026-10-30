@@ -6207,6 +6207,7 @@
     "Item Finder scope active: {value_0} [{value_1}]. {value_2}": "Item Finder scope active: {value_0} [{value_1}]. {value_2}",
     "Item Finder scope: {value_0} indexed file(s).": "Item Finder scope: {value_0} indexed file(s).",
     "Item Finder scoped Archive Browser to: {value_0} ({value_1}; no full archive scan).": "Item Finder scoped Archive Browser to: {value_0} ({value_1}; no full archive scan).",
+    "Item Finder shows recovered ship icons and model links; unavailable icons keep a letter tile. Body & Face Finder reads character names from both the base game and DLC.": "Item Finder shows recovered ship icons and model links; unavailable icons keep a letter tile. Body & Face Finder reads character names from both the base game and DLC.",
     "Item Icon": "Item Icon",
     "Item Icon service is not configured.": "Item Icon service is not configured.",
     "Item Icons": "Item Icons",

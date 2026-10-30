@@ -184,6 +184,15 @@ remain selectable. The checkbox is remembered on reopening and reset by **Clear*
 blueprint parts, equipment blueprints and ship materials. Equipment types and
 item-definition families take priority over translated names or linked models;
 trade cargo, furniture and recipes therefore retain their own categories.
+Current StringInfo row keys resolve explicit inventory icons, including non-`cd_`
+ship icons. Empty placeholder assets are not advertised as usable links. Linked
+prefabs retain their model dependencies through bounded nested prefab/PAMI walks;
+icon-derived model names remain related evidence. Missing icons keep the letter
+tile. Repeated cached icons do not republish grid decorations, and icon arrivals
+update only the selected icon without resetting its text, selection or layout.
+The grid reserves scrollbar space so small result sets cannot oscillate between
+column counts as the scrollbar appears and disappears.
+Description line breaks are displayed as lines while identifiers remain plain text.
 Category names and grid captions wrap for larger fonts;
 the grid uses the available width. Detail actions wrap onto more rows when
 needed, and long names and paths wrap while retaining their original copied
@@ -313,6 +322,10 @@ Bodies/Faces results.
 Mount precedence chooses active paths; complete CharacterInfo table pairs and verified
 CharacterAppearanceIndexInfo full-path hashes supply names. Missing XML attribute
 separators are repaired only in memory and reported.
+The name reader decompresses PALOC containers before lookup and merges base and
+DLC localization in mount order. DLC tables can reuse base character-name keys;
+missing DLC translations do not erase the base names. Catalogue generations
+invalidate older caches that scanned compressed bytes as though they were text.
 
 ### Warmup and preview workers
 

@@ -6207,6 +6207,7 @@
     "Item Finder scope active: {value_0} [{value_1}]. {value_2}": "アイテム ファインダー スコープがアクティブです: {value_0} [{value_1}]。 {value_2}",
     "Item Finder scope: {value_0} indexed file(s).": "アイテム ファインダーのスコープ: {value_0} インデックス付きファイル。",
     "Item Finder scoped Archive Browser to: {value_0} ({value_1}; no full archive scan).": "アイテム ファインダーのアーカイブ ブラウザーのスコープ: {value_0} ({value_1}; フル アーカイブ スキャンなし)。",
+    "Item Finder shows recovered ship icons and model links; unavailable icons keep a letter tile. Body & Face Finder reads character names from both the base game and DLC.": "アイテム ファインダーには、取得できた船のアイコンとモデルへのリンクが表示されます。アイコンがない場合は、文字入りのタイルが表示されます。ボディ・顔検索は、本編とDLCの両方からキャラクター名を読み取ります。",
     "Item Icon": "アイテム アイコン",
     "Item Icon service is not configured.": "アイテム アイコン サービスが設定されていません。",
     "Item Icons": "アイテム アイコン",

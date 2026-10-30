@@ -6207,6 +6207,7 @@
     "Item Finder scope active: {value_0} [{value_1}]. {value_2}": "Bereich des Gegenstandsfinders aktiv: {value_0} [{value_1}]. {value_2}",
     "Item Finder scope: {value_0} indexed file(s).": "Gegenstandsfinder-Bereich: {value_0} indizierte Datei(en).",
     "Item Finder scoped Archive Browser to: {value_0} ({value_1}; no full archive scan).": "Gegenstandsfinder hat den Archiv-Browser auf Folgendes beschränkt: {value_0} ({value_1}; kein vollständiger Archivscan).",
+    "Item Finder shows recovered ship icons and model links; unavailable icons keep a letter tile. Body & Face Finder reads character names from both the base game and DLC.": "Der Gegenstandsfinder zeigt ermittelte Schiffssymbole und Modellverknüpfungen; bei nicht verfügbaren Symbolen bleibt die Buchstabenkachel erhalten. Die Körper- und Gesichtssuche liest Charakternamen aus dem Grundspiel und dem DLC.",
     "Item Icon": "Gegenstandssymbol",
     "Item Icon service is not configured.": "Gegenstandssymboldienst ist nicht konfiguriert.",
     "Item Icons": "Gegenstandssymbole",

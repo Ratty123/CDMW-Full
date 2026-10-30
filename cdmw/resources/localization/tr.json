@@ -6207,6 +6207,7 @@
     "Item Finder scope active: {value_0} [{value_1}]. {value_2}": "Öğe Bulucu kapsamı etkin: {value_0} [{value_1}]. {value_2}",
     "Item Finder scope: {value_0} indexed file(s).": "Öğe Bulucu kapsamı: {value_0} dizine eklenmiş dosya(lar).",
     "Item Finder scoped Archive Browser to: {value_0} ({value_1}; no full archive scan).": "Öğe Bulucu, Arşiv Tarayıcısını şuraya yönlendirdi: {value_0} ({value_1}; tam arşiv taraması yok).",
+    "Item Finder shows recovered ship icons and model links; unavailable icons keep a letter tile. Body & Face Finder reads character names from both the base game and DLC.": "Öğe Bulucu, bulunan gemi simgelerini ve model bağlantılarını gösterir; simge bulunamazsa harfli kutu korunur. Vücut ve Yüz Bulucu, karakter adlarını hem temel oyundan hem de DLC’den okur.",
     "Item Icon": "Öğe Simgesi",
     "Item Icon service is not configured.": "Öğe Simgesi hizmeti yapılandırılmadı.",
     "Item Icons": "Öğe Simgeleri",

@@ -65,6 +65,10 @@ internal static class ItemCatalogTextTests
         };
         foreach (var (bytes, error) in cases)
         {
+            var rejected = false;
+            try { ArchiveNameIndexBuilder.ParseLocalization(bytes, new HashSet<string> { "12345678" }, CancellationToken.None); }
+            catch (InvalidDataException exception) when (exception.Message.Contains(error, StringComparison.Ordinal)) { rejected = true; }
+            Require(rejected, $"Managed character/name reader accepted an invalid PALOC container: {error}");
             await using var fixture = await SyntheticArchiveFixture.CreateCurrentItemNamesAsync(bytes);
             using var sessions = new ArchiveSessionManager(new NativeArchiveCore(), new ArchiveCacheStore(Path.Combine(fixture.Root, "cache")));
             var handle = await sessions.OpenAsync(new OpenArchiveRequest(fixture.Root), CancellationToken.None);
@@ -84,6 +88,8 @@ internal static class ItemCatalogTextTests
 
     private static async Task CheckCatalogueAsync(byte[] localization, Func<string, bool> checkName, string failure, bool seedOldCache = false)
     {
+        var managed = ArchiveNameIndexBuilder.ParseLocalization(localization, new HashSet<string> { "12345678" }, CancellationToken.None);
+        Require(managed.TryGetValue("12345678", out var managedName) && checkName(managedName.Trim()), "Managed character/name reader: " + failure);
         await using var fixture = await SyntheticArchiveFixture.CreateCurrentItemNamesAsync(localization);
         var cache = new ArchiveCacheStore(Path.Combine(fixture.Root, "cache"));
         var native = new NativeArchiveCore();

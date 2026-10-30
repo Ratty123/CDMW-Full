@@ -47,6 +47,7 @@ internal static class FullArchiveTestRunner
             ("archive_name_index", ArchiveNameIndexAsync),
             ("current_item_names_and_mount_order", CurrentItemNamesAsync),
             ("item_catalogue_compact_dlc", CompactDlcItemsAsync),
+            ("item_catalogue_explicit_icons", ItemCatalogIconTests.RunAsync),
             ("item_catalogue_dlc_definitions", ItemCatalogueDefinitionTests.RunAsync),
             ("item_catalogue_text_encoding", ItemCatalogTextTests.EncodingAsync),
             ("item_catalogue_compressed_localization", ItemCatalogTextTests.CompressedAsync),

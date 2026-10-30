@@ -6207,6 +6207,7 @@
     "Item Finder scope active: {value_0} [{value_1}]. {value_2}": "Активна область инструмента «Поиск предметов»: {value_0} [{value_1}]. {value_2}",
     "Item Finder scope: {value_0} indexed file(s).": "Область инструмента «Поиск предметов»: индексированные файлы {value_0}.",
     "Item Finder scoped Archive Browser to: {value_0} ({value_1}; no full archive scan).": "Браузер архивов в области поиска предметов: {value_0} ({value_1}; нет полного сканирования архива).",
+    "Item Finder shows recovered ship icons and model links; unavailable icons keep a letter tile. Body & Face Finder reads character names from both the base game and DLC.": "Поиск предметов показывает найденные значки кораблей и ссылки на модели; если значок недоступен, остаётся плитка с буквой. Поиск тел и лиц читает имена персонажей как из основной игры, так и из DLC.",
     "Item Icon": "Значок предмета",
     "Item Icon service is not configured.": "Служба значков предметов не настроена.",
     "Item Icons": "Значки предметов",

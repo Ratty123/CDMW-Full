@@ -1128,7 +1128,7 @@ std::map<std::uint32_t, std::string> parse_stringinfo_hashes(const std::vector<c
             }
             if (!prefix.empty()) {
                 std::string model_stem = normalize_icon_model_stem(text.substr(prefix.size()));
-                if (starts_with(model_stem, "cd_")) {
+                if (starts_with(model_stem, "cd_") && model_stem != "cd_t9999_empty") {
                     const std::uint32_t stored_hash = read_u32(data, pos + 4 + slen);
                     hashes[stored_hash] = model_stem;
                     hashes[hashlittle_bytes(text, 0xC5EDE)] = model_stem;
@@ -1409,13 +1409,20 @@ std::map<std::uint32_t, std::string> parse_equiptypeinfo(
     return types;
 }
 
-// Exact StringInfo keys whose values are present as archived prefab stems.
-std::map<std::uint32_t, std::string> parse_prefab_stringinfo(
-    const std::vector<char>& data, const std::vector<char>& header, const std::vector<Entry>& entries
+// Resolve validated StringInfo keys against assets actually present in the archive.
+// Current tables put the key before the text; the legacy icon scanner cannot read them.
+std::map<std::uint32_t, std::string> parse_asset_stringinfo(
+    const std::vector<char>& data, const std::vector<char>& header, const std::vector<Entry>& entries,
+    bool inventory_icons = false
 ) {
-    std::set<std::string> stems;
+    std::map<std::string, std::string> assets;
     for (const auto& entry : entries) {
-        if (extension_for(entry.path) == ".prefab") stems.insert(lower_copy(stem_for_path(entry.path)));
+        const auto path = lower_copy(slash_copy(entry.path));
+        const auto stem = stem_for_path(path);
+        if (stem == "cd_t9999_empty" || stem == "itemicon_prefab_cd_t9999_empty") continue;
+        if (inventory_icons ? (extension_for(path) == ".dds" && path.find("/icon/") != std::string::npos)
+                            : extension_for(path) == ".prefab")
+            assets[stem] = inventory_icons ? slash_copy(entry.path) : stem;
     }
     std::vector<PabghDirectoryRow> rows;
     if (!resolve_pabgh_directory(header, data, rows, TableKeyLayout::StringInfo)) throw std::runtime_error("StringInfo row directory is invalid");
@@ -1430,8 +1437,9 @@ std::map<std::uint32_t, std::string> parse_prefab_stringinfo(
         const size_t padding = start + (rows[index].key_offset ? 0 : 4);
         if (read_u32(data, padding) != 0 || data[start + 8] != 0) continue;
         const auto key = read_u32(data, start + rows[index].key_offset);
-        if (key == hashlittle_bytes(text, 0xC5EDE) && stems.count(lower_copy(text)))
-            result[key] = lower_copy(text);
+        const auto asset = assets.find(lower_copy(text));
+        if (key == hashlittle_bytes(text, 0xC5EDE) && asset != assets.end())
+            result[key] = asset->second;
     }
     return result;
 }
@@ -1445,7 +1453,8 @@ std::vector<NativeItemRecord> parse_iteminfo_rows(
     const std::map<std::uint32_t, std::string>& icon_hashes,
     const std::map<std::uint32_t, std::string>& equip_types,
     bool& resolved,
-    const std::map<std::uint32_t, std::string>* prefab_names = nullptr
+    const std::map<std::uint32_t, std::string>* prefab_names = nullptr,
+    const std::map<std::uint32_t, std::string>* exact_icon_paths = nullptr
 ) {
     std::vector<NativeItemRecord> items;
     std::vector<PabghDirectoryRow> rows;
@@ -1524,6 +1533,12 @@ std::vector<NativeItemRecord> parse_iteminfo_rows(
             for (size_t cursor = row_start + 8 + record.internal_name.size(); cursor + 4 <= row_end; ++cursor) {
                 const auto value = read_u32(data, cursor);
                 if (prefab_names->count(value) && seen_prefab_hashes.insert(value).second) record.prefab_hashes.push_back(value);
+            }
+        }
+        if (exact_icon_paths != nullptr) {
+            for (size_t cursor = row_start + 8 + record.internal_name.size(); cursor + 4 <= row_end; ++cursor) {
+                const auto found = exact_icon_paths->find(read_u32(data, cursor));
+                if (found != exact_icon_paths->end()) add_unique(record.icon_paths, found->second);
             }
         }
         if (!icon_hashes.empty()) {
@@ -1675,6 +1690,7 @@ std::map<std::string, std::vector<std::string>> build_icon_path_index(const std:
         const std::string lower_path = lower_copy(slash_copy(entry.path));
         if (extension_for(lower_path) != ".dds") continue;
         const std::string stem = stem_for_path(lower_path);
+        if (stem == "itemicon_prefab_cd_t9999_empty") continue;
         if (lower_path.find("itemicon") == std::string::npos && std::none_of(prefixes.begin(), prefixes.end(), [&](const std::string& p) { return starts_with(stem, p); })) continue;
         std::string model_stem;
         for (const std::string& prefix : prefixes) {
@@ -1837,7 +1853,7 @@ int run_item_index_job(
             }
         }
         }
-        std::map<std::uint32_t, std::string> icon_hashes, prefab_names, equip_types;
+        std::map<std::uint32_t, std::string> icon_hashes, prefab_names, equip_types, exact_icon_paths;
         std::map<std::string, std::vector<std::string>> material_index;
         bool has_string_header = false;
         for (const auto& dataset : datasets) {
@@ -1846,7 +1862,8 @@ int run_item_index_job(
             const auto header = read_binary_if_exists(dataset / "stringinfo_header.bin");
             if (!header.empty()) {
                 has_string_header = true;
-                for (const auto& row : parse_prefab_stringinfo(strings, header, entries)) prefab_names[row.first] = row.second;
+                for (const auto& row : parse_asset_stringinfo(strings, header, entries)) prefab_names[row.first] = row.second;
+                for (const auto& row : parse_asset_stringinfo(strings, header, entries, true)) exact_icon_paths[row.first] = row.second;
             }
             for (const auto& row : parse_equiptypeinfo(read_binary_if_exists(dataset / "equiptypeinfo.bin"),
                     read_binary_if_exists(dataset / "equiptypeinfo_header.bin"))) equip_types[row.first] = row.second;
@@ -1861,7 +1878,8 @@ int run_item_index_job(
             const auto header = read_binary_if_exists(dataset / "iteminfo_header.bin");
             bool resolved = false;
             auto rows = header.empty() ? std::vector<NativeItemRecord>()
-                : parse_iteminfo_rows(data, header, loc_tables, icon_hashes, equip_types, resolved, has_string_header ? &prefab_names : nullptr);
+                : parse_iteminfo_rows(data, header, loc_tables, icon_hashes, equip_types, resolved,
+                    has_string_header ? &prefab_names : nullptr, has_string_header ? &exact_icon_paths : nullptr);
             if (!resolved) {
                 if (dataset != work_dir) throw std::runtime_error("DLC ItemInfo row directory is unsupported: " + dataset.string());
                 rows = parse_iteminfo_bin(data, loc_tables, icon_hashes);
@@ -1898,8 +1916,21 @@ int run_item_index_job(
             else found->second += " " + value;
         };
 
+        std::set<std::string> archived_prefabs;
+        for (const auto& entry : entries)
+            if (extension_for(entry.path) == ".prefab") archived_prefabs.insert(lower_copy(stem_for_path(entry.path)));
         std::vector<NativeItemRecord> linked_items;
         for (NativeItemRecord& item : items) {
+            // An explicit inventory icon can identify a related prefab even when
+            // the item's equipped geometry is selected by another game table.
+            for (const auto& icon : item.icon_paths) {
+                const auto stem = lower_copy(stem_for_path(icon));
+                const std::string prefix = "itemicon_prefab_";
+                if (starts_with(stem, prefix)) {
+                    const auto model = stem.substr(prefix.size());
+                    if (archived_prefabs.count(model)) add_unique(item.model_stems, model);
+                }
+            }
             std::vector<std::string> exact_models;
             std::vector<std::string> related_models = item.model_stems;
             for (std::uint32_t hash : item.prefab_hashes) {

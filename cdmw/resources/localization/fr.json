@@ -6207,6 +6207,7 @@
     "Item Finder scope active: {value_0} [{value_1}]. {value_2}": "Portée de l'outil de recherche d'objets active : {value_0} [{value_1}]. {value_2}",
     "Item Finder scope: {value_0} indexed file(s).": "Périmètre de Recherche d’objets : {value_0} fichier(s) indexé(s).",
     "Item Finder scoped Archive Browser to: {value_0} ({value_1}; no full archive scan).": "Recherche d’objets a limité le Navigateur d'archives à : {value_0} ({value_1} ; aucune analyse complète des archives).",
+    "Item Finder shows recovered ship icons and model links; unavailable icons keep a letter tile. Body & Face Finder reads character names from both the base game and DLC.": "La Recherche d’objets affiche les icônes de navires et les liens vers les modèles retrouvés ; les icônes indisponibles restent représentées par une lettre. La Recherche de corps et visages lit les noms des personnages du jeu de base et du DLC.",
     "Item Icon": "Icône d’objet",
     "Item Icon service is not configured.": "Le service d'icône d’objet n'est pas configuré.",
     "Item Icons": "Icônes d’objets",
