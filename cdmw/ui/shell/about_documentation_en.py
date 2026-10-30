@@ -8,6 +8,7 @@ from typing import Dict, List
 
 from cdmw.domain.textures.plan import describe_processing_path_kind
 from cdmw.ui.shell.error_reference import build_error_reference_sections
+from cdmw.ui.shell.error_reference_guidance import ARCHIVE_PREVIEW_GUIDANCE
 
 
 #: The Create New Item documentation section.
@@ -862,6 +863,7 @@ class AboutDocumentationEnglishMixin:
                   <li><b>Archive preview limits</b>: unusual DDS layouts and very large archive scans are still best-effort cases.</li>
                   <li><b>Technical textures</b>: preserve-first handling is still the safer default for normals, masks, packed channels, vectors, and other precision-sensitive maps.</li>
                 </ul>
+                """ + ARCHIVE_PREVIEW_GUIDANCE + """
                 <p>Look up named errors and warnings in the <a href="topic:error_code_library">Error Code Library</a>.</p>
                 <h4>Report a Problem</h4>
                 <p>Report a Problem is below Support Me in the sidebar and also under Help. Include the installed version, exact action, reproduction steps, expected and actual result, and relevant game or manager setup. Prepare and review the diagnostic draft and screenshots before sending. Reports go to a separate private inbox; keep report evidence links private.</p>

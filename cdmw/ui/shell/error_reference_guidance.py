@@ -10,6 +10,7 @@ MESSAGE_REFERENCE_INTRO = """
 # These are shared explanations, not automatic repairs. No advice changes game
 # archives, bypasses validation or claims a successful retry proves game safety.
 RECOVERY_GUIDANCE = {
+    "preview": ("Raw-byte preview fallback", "Open Details and copy the complete Decoded preview failed line, selected archive path and package. Include the CDMW version and action in your report. Stored-byte strings do not identify the cause or prove file corruption. The 128 KB limit applies to the text scan, not the file. Follow the underlying error before choosing a fix."),
     "missing": ("Missing files or resources", "A source file or directory no longer exists. Check the configured path and rescan."),
     "helper": ("Missing or incompatible helpers", "A helper, library or required runtime is missing, blocked or from a different build. Use a complete matching CDMW distribution and check the reported executable path. Keep the helper's error output; do not download individual DLLs from unrelated sites."),
     "permission": ("Access denied", "The operating system denied file access. Check folder permissions and file protection."),
@@ -33,6 +34,22 @@ RECOVERY_GUIDANCE = {
     "write": ("Output and publication failures", "Writing, validating or publishing the output failed. Inspect the destination, free space, permissions and complete report. A staged file is not necessarily a completed output; verify the final path before retrying, replacing or installing anything."),
     "internal": ("Unexpected or forwarded failures", "The component stopped or forwarded an error whose exact cause is in the accompanying detail. Record the action, full message, application/helper version and reproducible input. Reopen the last accepted work; report repeated failures instead of forcing the operation."),
 }
+
+ARCHIVE_PREVIEW_GUIDANCE = """
+<h4 id="dds-raw-preview">Raw bytes instead of a DDS preview</h4>
+<p><code translate="no">Showing raw stored bytes because the decoded preview path failed.</code></p>
+<p>This warning can appear for DDS entries in Archive Browser when normal preview decoding fails. CDMW displays the stored archive bytes instead of the decoded image. It is a fallback warning, not a numbered error code, and does not by itself prove that the DDS is corrupt.</p>
+<ol>
+<li>Open Details for the selected entry.</li>
+<li>Copy the complete error line, including the text after the colon.<br/><code translate="no">Decoded preview failed: ...</code></li>
+<li>Include the full archive entry path, package, CDMW version and the action that triggered the warning in your report.</li>
+</ol>
+<p>The underlying error may concern archive decompression, partial DDS reconstruction or the native DDS helper. Use that error to choose the next step; this fallback message does not identify one universal fix.</p>
+<p><code translate="no">Readable strings from the first 128.0 KB of binary data:</code></p>
+<p>These are printable fragments found in binary data, not the decoding error. Garbled strings do not identify the cause.</p>
+<p><code translate="no">String scan truncated to keep the preview responsive.</code></p>
+<p>The scan stops after the first 128 KB to keep the preview responsive. This does not mean that the DDS file itself is truncated.</p>
+"""
 
 MESSAGE_AREAS = {
     "archive": "Archive error messages",

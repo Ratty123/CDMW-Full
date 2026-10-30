@@ -81,6 +81,18 @@ uses the matching sidebar; their public page names and URLs stay unchanged.
 Review the generated pages and links before an authorized Wiki push. Do not
 recreate separate guide pages for each locale.
 
+When diagnostic messages change, regenerate the shared Help/Wiki error index
+with `python scripts/generate_error_reference.py --write`. Run
+`python scripts/audit_error_reference.py` and the focused
+`tests/test_error_reference.py` and `tests/test_wiki_export.py` checks. The
+independent audit checks exception/log sinks, diagnostic payload fields and
+report fragments; add a reproducer when a new emission pattern escapes it.
+Check the complete Wiki-owned `reference/<locale>/index.json` and text lists as
+well as the rendered manual. The manual links these files because GitHub's page
+size limit prevents embedding every message. Runtime/provider error text still
+requires the original exception or helper output; a source index cannot promise
+to enumerate every possible failure.
+
 To migrate an already published per-guide Wiki without changing its prose, use
 `--source-wiki <old-checkout> --output <wiki-folder> --replace-legacy`. This preserves
 all guide text and replaces only obsolete generated guide or flat manual files;

@@ -1543,7 +1543,7 @@ def _python_ui_catalogue_sources(
     elif relative == "cdmw/ui/shell/error_reference.py":
         names = ("ERROR_REFERENCE_INTRO", "ERROR_REFERENCE_FALLBACK", "ERROR_REFERENCE_GROUPS", "CODE_GUIDANCE")
     elif relative == "cdmw/ui/shell/error_reference_guidance.py":
-        names = ("MESSAGE_REFERENCE_INTRO", "MESSAGE_AREAS", "RECOVERY_GUIDANCE", "EXTERNAL_ERROR_GUIDE", "WIKI_REFERENCE_FILES")
+        names = ("MESSAGE_REFERENCE_INTRO", "MESSAGE_AREAS", "RECOVERY_GUIDANCE", "EXTERNAL_ERROR_GUIDE", "WIKI_REFERENCE_FILES", "ARCHIVE_PREVIEW_GUIDANCE")
     elif relative == "cdmw/ui/shell/compact/registry.py":
         names = ("COMPACT_CATEGORY_ORDER",)
     elif relative == "tools/format_explorer/catalogue.py":

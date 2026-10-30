@@ -33,6 +33,12 @@ ERROR_WORDS = re.compile(
     r"requires?|nothing to|no (?:usable|valid|supported|matching)|already exists)\b", re.I,
 )
 DIAGNOSTIC_NAME = re.compile(r"error|fail|warn|issue|blocker|unavailable|reject", re.I)
+DIAGNOSTIC_FIELDS = frozenset({
+    "error", "errors", "warning", "warnings", "warning_text", "warning_badge",
+    "error_text", "error_message", "error_detail", "failure_reason",
+    "failure_message", "failure_detail", "blocking_reason",
+})
+REPORT_PARTS = re.compile(r"(?:^|[._])(?:lines|parts|notes|details)$")
 CODE = re.compile(r"[A-Za-z][A-Za-z0-9_.:/{}-]*\Z")
 
 
@@ -122,12 +128,30 @@ def expression_variants(node, bindings, depth=0):
     if depth > 8:
         return ['{detail}']
     if isinstance(node, (ast.Name, ast.Attribute)) and ast.unparse(node) in bindings:
-        return expression_variants(bindings[ast.unparse(node)], bindings, depth + 1)
+        value = bindings[ast.unparse(node)]
+        variants = expression_variants(value, bindings, depth + 1)
+        # Appends/updates may add runtime details after a collection is created.
+        # Retain that handoff as well as its statically visible messages.
+        if isinstance(value, (ast.List, ast.Set)):
+            variants.append("{" + ast.unparse(node) + "}")
+        return variants
     if isinstance(node, ast.IfExp):
         return expression_variants(node.body, bindings, depth + 1) + expression_variants(node.orelse, bindings, depth + 1)
     if isinstance(node, ast.BoolOp):
         return [text for value in node.values for text in expression_variants(value, bindings, depth + 1)]
+    if isinstance(node, (ast.List, ast.Tuple, ast.Set)):
+        return [text for value in node.elts for text in expression_variants(value, bindings, depth + 1)]
+    if isinstance(node, ast.Call):
+        if isinstance(node.func, ast.Name) and node.func.id in {"str", "repr", "tr", "translate", "list", "tuple", "set"} and node.args:
+            return expression_variants(node.args[-1], bindings, depth + 1)
+        if isinstance(node.func, ast.Attribute):
+            if node.func.attr in {"tr", "translate"} and node.args:
+                return expression_variants(node.args[-1], bindings, depth + 1)
+            if node.func.attr in {"format", "strip", "lstrip", "rstrip"}:
+                return expression_variants(node.func.value, bindings, depth + 1)
     if isinstance(node, ast.BinOp) and isinstance(node.op, ast.Add):
+        if isinstance(node.left, (ast.List, ast.Tuple, ast.Set)) or isinstance(node.right, (ast.List, ast.Tuple, ast.Set)):
+            return expression_variants(node.left, bindings, depth + 1) + expression_variants(node.right, bindings, depth + 1)
         return [a + b for a in expression_variants(node.left, bindings, depth + 1) for b in expression_variants(node.right, bindings, depth + 1)]
     return [expression_text(node, bindings, depth)]
 
@@ -143,7 +167,7 @@ def python_emissions(path: str, source: str, external_signatures=None, external_
             signatures[node.name] = [arg.arg for arg in node.args.args if arg.arg not in {"self", "cls"}]
         elif isinstance(node, ast.ClassDef):
             fields = [entry.target.id for entry in node.body if isinstance(entry, ast.AnnAssign) and isinstance(entry.target, ast.Name)]
-            if "code" in fields and any(key in fields for key in ("message", "detail", "severity")):
+            if DIAGNOSTIC_FIELDS.intersection(fields) or "code" in fields and any(key in fields for key in ("message", "detail", "severity")):
                 signatures[node.name] = fields
         if isinstance(node, (ast.Assign, ast.AnnAssign)):
             value = node.value
@@ -155,7 +179,7 @@ def python_emissions(path: str, source: str, external_signatures=None, external_
                 parent = parents.get(parent)
             bindings = module_bindings if isinstance(parent, ast.Module) else scopes.setdefault(parent, {})
             for target in targets:
-                if isinstance(target, (ast.Name, ast.Attribute)) and isinstance(value, (ast.Constant, ast.JoinedStr, ast.BinOp, ast.IfExp)):
+                if isinstance(target, (ast.Name, ast.Attribute)) and isinstance(value, (ast.Constant, ast.JoinedStr, ast.BinOp, ast.IfExp, ast.BoolOp, ast.Name, ast.Attribute, ast.Call, ast.List, ast.Tuple, ast.Set)):
                     name = ast.unparse(target)
                     if name in bindings:
                         bindings[name] = ast.BoolOp(op=ast.Or(), values=[bindings[name], value])
@@ -181,8 +205,10 @@ def python_emissions(path: str, source: str, external_signatures=None, external_
             return
         # A sink forwarding an exception is retained as a dynamic handoff, not
         # silently dropped and not misrepresented as a literal error message.
-        for text in expression_variants(value, bindings or {}) if value is not None else ['']:
+        for text in expression_variants(value, bindings or {}) if value is not None else ['{detail}']:
             text = " ".join(text.split())
+            if not text and not code:
+                continue
             if re.fullmatch(r'#[0-9a-fA-F]{3,8}', text):
                 continue  # Theme colours keyed by error/warning are not diagnostics.
             key = (node.lineno, kind, text, code)
@@ -215,6 +241,13 @@ def python_emissions(path: str, source: str, external_signatures=None, external_
             fields = {k.arg: k.value for k in node.keywords if k.arg}
             sig = signatures.get(short, []) if isinstance(node.func, ast.Name) or name.startswith(("self._", "cls._")) else []
             fields.update(zip(sig, node.args))
+            # Result containers often have neutral names (ArchivePreviewResult,
+            # replace, etc.). Their explicit diagnostic fields are still sinks.
+            for key in DIAGNOSTIC_FIELDS & fields.keys():
+                add(node, "diagnostic_field", fields[key], bindings=bindings)
+            for key in ("message", "detail", "reason", "detail_text", "preview_text"):
+                if key in fields and any(ERROR_WORDS.search(text) for text in expression_variants(fields[key], bindings)):
+                    add(node, "report", fields[key], bindings=bindings)
             code_node = next((fields[key] for key in ("code", "error_code", "recovery_error_code", "failure_code", "reason_code") if key in fields), None)
             if not DIAGNOSTIC_NAME.search(name) and not any(key in fields for key in ('message', 'detail', 'severity')):
                 code_node = None
@@ -226,6 +259,8 @@ def python_emissions(path: str, source: str, external_signatures=None, external_
                     add(node, "code", message_node, code=code, bindings=bindings)
             if "QMessageBox" in name and len(node.args) >= 3 and (short in {"warning", "critical"} or short in {'information', 'question'} and ERROR_WORDS.search(expression_text(node.args[2], bindings))):
                 add(node, "dialog", node.args[2], severity=short, bindings=bindings)
+            elif short == 'QMessageBox' and len(node.args) >= 3 and ast.unparse(node.args[0]).endswith(('.Warning', '.Critical')):
+                add(node, "dialog", node.args[2], bindings=bindings)
             elif short in {"warning", "error", "critical", "exception", "fatal", "warn"} and node.args:
                 add(node, "log", node.args[0], severity=short, bindings=bindings)
             elif short == "emit" and DIAGNOSTIC_NAME.search(name) and node.args:
@@ -236,6 +271,10 @@ def python_emissions(path: str, source: str, external_signatures=None, external_
                     if short in {'add', 'update'} and isinstance(value, ast.Constant) and isinstance(value.value, str) and not re.search(r'\s', value.value):
                         continue  # Field names in an error-highlight set are not messages.
                     add(node, "finding", value, bindings=bindings)
+            elif short in {"append", "extend"} and isinstance(node.func, ast.Attribute) and REPORT_PARTS.search(ast.unparse(node.func.value)) and node.args:
+                for text in expression_variants(node.args[0], bindings):
+                    if ERROR_WORDS.search(text):
+                        add(node, "report", ast.Constant(text))
             elif (short.endswith(("Error", "Exception", "Warning")) or short in {"fail", "_fail", "_error", "_issue", "_diagnostic", "_warn_once"}) and node.args:
                 if not isinstance(parents.get(node), ast.Raise):
                     add(node, "failure", message_node or node.args[-1], bindings=bindings)
@@ -251,6 +290,8 @@ def python_emissions(path: str, source: str, external_signatures=None, external_
                     if isinstance(value, (ast.Constant, ast.JoinedStr, ast.BinOp)) and ERROR_WORDS.search(expression_text(value, bindings)):
                         add(node, "display", value, bindings=bindings)
         if isinstance(node, ast.Dict):
+            if len(node.values) > 1 and all(isinstance(value, ast.Attribute) and value.attr.isupper() for value in node.values):
+                continue  # Enum alias tables map state names, not error messages.
             fields = {key.value: value for key, value in zip(node.keys, node.values) if isinstance(key, ast.Constant) and isinstance(key.value, str)}
             for key in ("code", "error_code", "recovery_error_code", "failure_code", "reason_code"):
                 if key in fields:
@@ -259,7 +300,7 @@ def python_emissions(path: str, source: str, external_signatures=None, external_
                     for code in expression_variants(fields[key], bindings):
                         if CODE.fullmatch(code) and _literal_part(code):
                             add(node, "code", fields.get("message", fields.get("detail")), code=code, bindings=bindings)
-            for key in ("error", "warning", "failure_reason", "blocking_reason", "error_message", "error_detail"):
+            for key in DIAGNOSTIC_FIELDS:
                 if key in fields:
                     add(node, "report", fields[key], bindings=bindings)
             for key in ("reason", "detail", "message", "notes"):
@@ -267,6 +308,15 @@ def python_emissions(path: str, source: str, external_signatures=None, external_
                     add(node, "report", fields[key], bindings=bindings)
         if isinstance(node, (ast.Assign, ast.AnnAssign)) and node.value is not None:
             targets = node.targets if isinstance(node, ast.Assign) else [node.target]
+            for target in targets:
+                name = ast.unparse(target)
+                field = target.attr if isinstance(target, ast.Attribute) else target.id if isinstance(target, ast.Name) else target.slice.value if isinstance(target, ast.Subscript) and isinstance(target.slice, ast.Constant) else ""
+                if field in DIAGNOSTIC_FIELDS:
+                    add(node, "diagnostic_field", node.value, bindings=bindings)
+                elif REPORT_PARTS.search(name):
+                    for text in expression_variants(node.value, bindings):
+                        if ERROR_WORDS.search(text):
+                            add(node, "report", ast.Constant(text))
             if isinstance(node.value, (ast.Constant, ast.JoinedStr, ast.BinOp)):
                 for target in targets:
                     if DIAGNOSTIC_NAME.search(ast.unparse(target)) and ERROR_WORDS.search(expression_text(node.value, bindings)):
@@ -451,7 +501,7 @@ def scan_sources(root: Path) -> tuple[list[Emission], dict[str, dict[str, int]]]
         for node in ast.walk(ast.parse(source)):
             if isinstance(node, ast.ClassDef):
                 fields = [n.target.id for n in node.body if isinstance(n, ast.AnnAssign) and isinstance(n.target, ast.Name)]
-                if "code" in fields and any(key in fields for key in ("message", "detail", "severity")):
+                if DIAGNOSTIC_FIELDS.intersection(fields) or "code" in fields and any(key in fields for key in ("message", "detail", "severity")):
                     signatures[node.name] = fields
                 for member in node.body:
                     if isinstance(member, ast.Assign) and isinstance(member.value, ast.Constant) and isinstance(member.value.value, str):

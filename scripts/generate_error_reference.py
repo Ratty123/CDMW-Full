@@ -168,6 +168,8 @@ def message_area(path: str) -> str:
 
 def recovery_kind(text: str) -> str:
     value = text.lower().replace('_', ' ')
+    if re.search(r'showing raw stored bytes|^decoded preview failed:|^raw bytes$|^string scan truncated', value):
+        return 'preview'
     rules = (
         ('cancelled', r'cancelled|canceled|cancellation|user.*cancel'),
         ('authentication', r'api key|credential|unauthorized|unauthorised|\b401\b|\b403\b|\b429\b|rate limit|quota'),

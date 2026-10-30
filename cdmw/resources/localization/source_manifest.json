@@ -35387,6 +35387,16 @@
       ]
     },
     {
+      "key": "Copy the complete error line, including the text after the colon.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/error_reference_guidance.py",
+          "line": 38,
+          "sink": "python-data:ARCHIVE_PREVIEW_GUIDANCE"
+        }
+      ]
+    },
+    {
       "key": "Copy the current validation report as JSON.",
       "origins": [
         {
@@ -67492,6 +67502,16 @@
       ]
     },
     {
+      "key": "Include the full archive entry path, package, CDMW version and the action that triggered the warning in your report.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/error_reference_guidance.py",
+          "line": 38,
+          "sink": "python-data:ARCHIVE_PREVIEW_GUIDANCE"
+        }
+      ]
+    },
+    {
       "key": "Include the item and the actions you took.",
       "origins": [
         {
@@ -96947,6 +96967,26 @@
       ]
     },
     {
+      "key": "Open Details and copy the complete Decoded preview failed line, selected archive path and package. Include the CDMW version and action in your report. Stored-byte strings do not identify the cause or prove file corruption. The 128 KB limit applies to the text scan, not the file. Follow the underlying error before choosing a fix.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/error_reference_guidance.py",
+          "line": 13,
+          "sink": "python-data:RECOVERY_GUIDANCE"
+        }
+      ]
+    },
+    {
+      "key": "Open Details for the selected entry.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/error_reference_guidance.py",
+          "line": 38,
+          "sink": "python-data:ARCHIVE_PREVIEW_GUIDANCE"
+        }
+      ]
+    },
+    {
       "key": "Open Document",
       "origins": [
         {
@@ -115862,6 +115902,16 @@
       ]
     },
     {
+      "key": "Raw bytes instead of a DDS preview",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/error_reference_guidance.py",
+          "line": 38,
+          "sink": "python-data:ARCHIVE_PREVIEW_GUIDANCE"
+        }
+      ]
+    },
+    {
       "key": "Raw channels (compatible)",
       "origins": [
         {
@@ -115938,6 +115988,16 @@
           "path": "cdmw/ui/archive_browser/pac_xml_editor_parameters.py",
           "line": 103,
           "sink": "QLabel"
+        }
+      ]
+    },
+    {
+      "key": "Raw-byte preview fallback",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/error_reference_guidance.py",
+          "line": 13,
+          "sink": "python-data:RECOVERY_GUIDANCE"
         }
       ]
     },
@@ -156572,6 +156632,16 @@
       ]
     },
     {
+      "key": "The scan stops after the first 128 KB to keep the preview responsive. This does not mean that the DDS file itself is truncated.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/error_reference_guidance.py",
+          "line": 38,
+          "sink": "python-data:ARCHIVE_PREVIEW_GUIDANCE"
+        }
+      ]
+    },
+    {
       "key": "The sculpt brush has no eligible vertices here",
       "origins": [
         {
@@ -157727,6 +157797,16 @@
       ]
     },
     {
+      "key": "The underlying error may concern archive decompression, partial DDS reconstruction or the native DDS helper. Use that error to choose the next step; this fallback message does not identify one universal fix.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/error_reference_guidance.py",
+          "line": 38,
+          "sink": "python-data:ARCHIVE_PREVIEW_GUIDANCE"
+        }
+      ]
+    },
+    {
       "key": "The underlying game ItemInfo table is unavailable. Use the original mod folder instead.",
       "origins": [
         {
@@ -158003,6 +158083,16 @@
           "path": "cdmw/ui/shell/error_reference.py",
           "line": 35,
           "sink": "python-data:ERROR_REFERENCE_GROUPS"
+        }
+      ]
+    },
+    {
+      "key": "These are printable fragments found in binary data, not the decoding error. Garbled strings do not identify the cause.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/error_reference_guidance.py",
+          "line": 38,
+          "sink": "python-data:ARCHIVE_PREVIEW_GUIDANCE"
         }
       ]
     },
@@ -160128,6 +160218,16 @@
           "path": "cdmw/ui/new_item/effect_placement_package.py",
           "line": 370,
           "sink": "setText"
+        }
+      ]
+    },
+    {
+      "key": "This warning can appear for DDS entries in Archive Browser when normal preview decoding fails. CDMW displays the stored archive bytes instead of the decoded image. It is a fallback warning, not a numbered error code, and does not by itself prove that the DDS is corrupt.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/error_reference_guidance.py",
+          "line": 38,
+          "sink": "python-data:ARCHIVE_PREVIEW_GUIDANCE"
         }
       ]
     },

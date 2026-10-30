@@ -385,6 +385,25 @@ def test_in_app_browser_renders_the_expanded_guides_in_each_locale(tmp_path, lan
             assert translated in dialog.browser.toPlainText()
             assert translated in wiki_pages[page_slug('Create-New-Item',language.code)+'.md']
             if language.code!='en': assert translated!=guide
+        dialog.select_section('troubleshooting')
+        localizer.apply(dialog)
+        plain = dialog.browser.toPlainText()
+        for text in (
+            'Showing raw stored bytes because the decoded preview path failed.',
+            'Decoded preview failed: ...',
+            'Readable strings from the first 128.0 KB of binary data:',
+            'String scan truncated to keep the preview responsive.',
+        ):
+            assert text in plain
+        for text in (
+            'Raw bytes instead of a DDS preview',
+            'Open Details for the selected entry.',
+            'Copy the complete error line, including the text after the colon.',
+            'The scan stops after the first 128 KB to keep the preview responsive. This does not mean that the DDS file itself is truncated.',
+        ):
+            translated = localizer.translate(text)
+            assert translated in plain
+            assert translated != text or language.code == 'en'
     finally:
         localizer.shutdown()
         dialog.deleteLater()
@@ -410,6 +429,9 @@ def test_error_library_is_linked_and_folded_without_rewording_diagnostics(wiki_m
         assert len(manual.encode('utf-8')) < 450_000
         assert f'/reference/{language.code}/index.json' in manual
         assert '<a id="external_errors"></a>' in manual
+        assert '<a id="dds-raw-preview"></a>' in manual
+        assert 'Showing raw stored bytes because the decoded preview path failed.' in manual
+        assert 'Decoded preview failed: ...' in manual
         assert '0xC0000005' in manual and '0xC0000142' in manual
 
 
@@ -428,6 +450,10 @@ def test_complete_wiki_assets_preserve_every_message_source_and_translated_remed
         digest = hashlib.sha256(raw.encode('utf-8')).hexdigest()
         assert f'/reference/{language.code}/index.json#sha256={digest}' in wiki_manuals[manual_path(language.code)]
         assert reference['messages'] == MESSAGE_REFERENCE
+        for message in ('Showing raw stored bytes because the decoded preview path failed.',
+                        'Decoded preview failed: {exc}', 'String scan truncated to keep the preview responsive.'):
+            row = next(row for row in reference['messages'] if row['message'] == message)
+            assert row['recovery'] == 'preview'
         assert reference['dynamic_sources'] == DYNAMIC_REFERENCE
         assert {row['code'] for row in reference['codes']} == {row['code'] for row in ERROR_REFERENCE}
         catalogue = load_builtin_catalog(language.code)['translations']

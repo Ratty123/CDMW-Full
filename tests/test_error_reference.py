@@ -156,3 +156,104 @@ def test_recovery_guidance_distinguishes_asset_libraries_and_bone_sockets():
     assert recovery_kind('Missing imported material library: {library}') == 'missing'
     assert recovery_kind('Native helper executable is missing.') == 'helper'
     assert recovery_kind('Invalid attachment socket on the skeleton.') == 'input'
+
+
+def test_scanner_captures_result_fields_collections_and_report_fragments():
+    from scripts.error_reference_scan import python_emissions
+    source = '''
+class Result:
+    warning_text: str
+def run(exc, failed):
+    warnings = ["The texture is only a best-effort preview."]
+    alias = warnings
+    raw_extra_parts = [f"Decoded preview failed: {exc}", "Stored bytes follow."]
+    lines = []
+    lines.extend(["", "String scan truncated to keep the preview responsive."])
+    result = Result(warning_text="Showing raw stored bytes because the decoded preview path failed.",
+                    warning_badge="Raw bytes", warnings=tuple(alias),
+                    error_detail=str(exc), detail_text="Native preview failed.")
+    result.warning_text = "Check Details for the underlying exception." if failed else ""
+    result["error_message"] = "Selected input is absent."
+    return {"warning_text": "This preview is approximate.", "errors": ["Keep the original."]}
+metadata = {"warning_color": "#ff0000", "error_count": 2}
+aliases = {"warning": State.WARNING, "error": State.FAILED}
+Result(warning_text="", error=None, warnings=[], errors=())
+Result(warnings=["First warning."] + ["Second warning."])
+Result("A positional warning.")
+Result(error_detail=str(provider() or "No reason supplied.").strip())
+message = str(provider() or "Decoder returned an unspecified error.")
+Result(failure_message=message)
+QMessageBox(QMessageBox.Icon.Warning, "Review", "Keep the original package.")
+file_filters = ["Missing *.dds"]
+'''
+    rows = python_emissions('cdmw/example.py', source)
+    messages = {row.text for row in rows}
+    assert {
+        'Showing raw stored bytes because the decoded preview path failed.', 'Raw bytes',
+        'The texture is only a best-effort preview.', 'Decoded preview failed: {exc}',
+        'String scan truncated to keep the preview responsive.', 'Native preview failed.',
+        'Check Details for the underlying exception.', 'Selected input is absent.',
+        'This preview is approximate.', 'Keep the original.',
+        'First warning.', 'Second warning.',
+        'A positional warning.', 'Keep the original package.',
+        'No reason supplied.',
+        'Decoder returned an unspecified error.',
+    } <= messages
+    assert not {'', '#ff0000', '2', 'Missing *.dds', 'First warning.Second warning.', '{State.WARNING}', '{State.FAILED}'} & messages
+    assert any(row.text == '{exc}' for row in rows)
+
+
+def test_archive_fallback_diagnostics_have_specific_recovery_in_the_inventory():
+    messages = {row['message']: row for row in MESSAGE_REFERENCE}
+    for text in (
+        'Showing raw stored bytes because the decoded preview path failed.',
+        'Raw bytes', 'Decoded preview failed: {exc}',
+        'String scan truncated to keep the preview responsive.',
+    ):
+        assert messages[text]['recovery'] == 'preview'
+        assert messages[text]['area'] == ('formats' if text.startswith('String scan') else 'archive')
+
+
+def test_independent_audit_detects_missing_payload_and_report_messages(tmp_path, monkeypatch):
+    from scripts.audit_error_reference import audit
+    from cdmw.ui.shell import error_reference_data as data
+    source = tmp_path / 'cdmw/example.py'
+    source.parent.mkdir()
+    source.write_text('''
+LIMIT_NOTE = "Preserve matching companion files."
+Result(warning_text="Stored bytes are shown.")
+Result(warning_text=LIMIT_NOTE)
+warning = self.tr("Review the selected package.")
+payload = {"error_detail": "The decoder stopped."}
+raw_extra_parts = ["Decoded preview failed: sample"]
+theme = {"warning": "#123456" if light else "#654321"}
+aliases = {"warning": State.WARNING, "error": State.FAILED}
+QMessageBox(QMessageBox.Icon.Critical, "Review", "The source is no longer readable.")
+''', encoding='utf-8')
+    monkeypatch.setattr(data, 'SOURCE_COVERAGE', {'cdmw/example.py': {}})
+    monkeypatch.setattr(data, 'MESSAGE_REFERENCE', [])
+    monkeypatch.setattr(data, 'ERROR_REFERENCE', [])
+    monkeypatch.setattr(data, 'DYNAMIC_REFERENCE', {})
+    _, missing = audit(tmp_path)
+    assert {row[3] for row in missing} == {
+        'Stored bytes are shown.', 'The decoder stopped.', 'Decoded preview failed: sample',
+        'Preserve matching companion files.', 'Review the selected package.',
+        'The source is no longer readable.',
+    }
+
+
+def test_scanner_preserves_bare_reraises_assertions_and_mutable_warning_handoffs():
+    from scripts.error_reference_scan import python_emissions
+    source = '''
+def run(provider):
+    warnings = []
+    warnings.extend(provider())
+    Result(warnings=warnings)
+    try:
+        assert provider()
+    except Exception:
+        raise
+'''
+    rows = python_emissions('cdmw/example.py', source)
+    assert {'raise', 'assertion', 'diagnostic_field'} <= {row.kind for row in rows}
+    assert any(row.kind == 'diagnostic_field' and row.text == '{warnings}' for row in rows)

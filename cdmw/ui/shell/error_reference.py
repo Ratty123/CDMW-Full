@@ -9,6 +9,7 @@ from collections import defaultdict
 from cdmw.ui.shell.error_reference_data import ERROR_REFERENCE, MESSAGE_REFERENCE, DYNAMIC_REFERENCE
 from cdmw.ui.shell.error_reference_guidance import (
     MESSAGE_REFERENCE_INTRO, MESSAGE_AREAS, RECOVERY_GUIDANCE, EXTERNAL_ERROR_GUIDE,
+    ARCHIVE_PREVIEW_GUIDANCE,
 )
 
 
@@ -126,6 +127,8 @@ def build_error_reference_sections() -> list[dict[str, str]]:
     sections = [build_error_reference_section()]
     for area, title in MESSAGE_AREAS.items():
         parts = [MESSAGE_REFERENCE_INTRO]
+        if area == 'archive':
+            parts.append(ARCHIVE_PREVIEW_GUIDANCE)
         by_recovery = defaultdict(lambda: defaultdict(list))
         for row in MESSAGE_REFERENCE:
             if row['area'] == area:
