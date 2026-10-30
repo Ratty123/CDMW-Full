@@ -40,3 +40,23 @@ def text_bytes(value):
     if len(raw) > 4096:
         raise RecordError("Static record string exceeds the supported bound")
     return struct.pack("<I", len(raw)) + raw
+
+
+def named_prefix(raw, width=4, *, key=None):
+    """Read either qualified name/key order, returning its generation and cursor."""
+    matches = []
+    for generation in ('legacy', 'compact'):
+        reader = Cursor(raw)
+        try:
+            if generation == 'compact':
+                name, own = reader.text(), int.from_bytes(reader.take(width), 'little')
+            else:
+                own, name = int.from_bytes(reader.take(width), 'little'), reader.text()
+            blocked = reader.unpack('B')
+            if (not name or name.isprintable()) and blocked in (0, 1) and (key is None or own == key):
+                matches.append((own, name, blocked, generation, reader))
+        except (RecordError, UnicodeError):
+            pass
+    if len(matches) != 1:
+        raise RecordError('Unknown or ambiguous static record identity.')
+    return matches[0]

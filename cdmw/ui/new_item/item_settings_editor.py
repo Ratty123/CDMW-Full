@@ -273,6 +273,7 @@ class ItemSettingsEditor(QWidget):
         settings = draft.item_settings or ItemSettings()
         try:
             for name, combo in self.policies.items():
+                combo.setEnabled(getattr(self._source,name) is not None)
                 combo.setCurrentIndex(combo.findData(getattr(settings, name)))
             for name in ('minimum_extract_level', 'charge_type', 'shared_cooldown_group'):
                 control = getattr(self, name)

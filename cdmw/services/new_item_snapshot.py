@@ -101,6 +101,11 @@ class NewItemSnapshot:
     english: LocalizationTable
     model_stems: FrozenSet[str]
     sources: Optional[ItemDataSources] = None
+    metadata_pairs: Dict[str, Tuple[TablePair, ...]] = field(default_factory=dict, repr=False)
+    row_sources: Dict[str, Mapping[int, TablePair]] = field(default_factory=dict, repr=False)
+    dlc_paloc_entries: Mapping[str, Tuple[ArchiveEntry, ...]] = field(default_factory=dict, repr=False)
+    #: Keep the base output separate from the combined base/DLC lookup.
+    pappt_base: Optional[PartPrefabTable] = None
     provenance: Optional[SourceTracker] = field(default=None, repr=False)
     base_payloads: Mapping[str, bytes] = field(default_factory=dict, repr=False)
     base_manifest: Mapping[str, object] = field(default_factory=dict, repr=False)
@@ -143,7 +148,7 @@ class NewItemSnapshot:
             reader = self.provenance.reader
         tracker = self.provenance.fork(reader) if self.provenance is not None else SourceTracker(reader)
         return replace(self, read_entry=tracker.read, provenance=tracker, _payloads={},
-                       _authoring_indexes={}, _contexts={}, _families={})
+                       _authoring_indexes={}, _contexts={}, _families={}, metadata_pairs={}, row_sources={})
 
     def entry(self, path: str) -> ArchiveEntry:
         key = str(path or "").replace("\\", "/").strip("/").lower()
@@ -292,7 +297,13 @@ class NewItemSnapshot:
         entry = self.paloc_entries.get(language)
         if entry is None:
             raise NewItemSnapshotError(f"there is no localisation table for {language}")
-        return parse_paloc(self.payload(entry.path), name=entry.path)
+        table = parse_paloc(self.payload(entry.path), name=entry.path)
+        if self.dlc_paloc_entries.get(language):
+            merged = dict(table.index())
+            for extra in self.dlc_paloc_entries[language]:
+                merged.update(parse_paloc(self.payload(extra.path),name=extra.path).index())
+            table = replace(table,entries=tuple(merged.values()))
+        return table
 
     @property
     def languages(self) -> Tuple[str, ...]:
@@ -451,7 +462,7 @@ def _default_reader(entry: ArchiveEntry) -> bytes:
 
 
 def _table_pair(entries: Mapping[str, ArchiveEntry], read: ReadEntry, stem: str, *, sources: Optional[ItemDataSources] = None) -> TablePair:
-    selected = sources or resolve_item_data_sources(entries.values())
+    selected = sources or resolve_item_data_sources(entries.values(), read_entry=read)
     pair = selected.tables.get(stem)
     if pair is None:
         raise NewItemSnapshotError(f"the archives have no complete {stem} table pair for the selected item-data layout")
@@ -465,6 +476,10 @@ def _parse_names_by_key(pair: TablePair) -> Mapping[int, str]:
     table = parse_pabgh_table(pair.header, payload=pair.payload)
     names: Dict[int, str] = {}
     for row, start, end in table.row_spans(len(pair.payload)):
+        if table.key_layout == 'named':
+            from cdmw.core.new_item_record import named_prefix
+            names[row.row_id] = named_prefix(pair.payload[start:end], table.key_width, key=row.row_id)[1]
+            continue
         if end - start < 8:
             continue
         length = struct.unpack_from("<I", pair.payload, start + 4)[0]
@@ -513,7 +528,7 @@ def _log_progress(callback: Optional[Callable[[str], None]], message: str) -> No
 
 
 
-def _localized_item_names(rows, paloc_entries, english, read, stop_event):
+def _localized_item_names(rows, paloc_entries, english, read, stop_event, dlc_palocs=None):
     english_by_key = english.index()
     item_display_names: Dict[int, str] = {}
     for key, row in rows.items():
@@ -530,6 +545,9 @@ def _localized_item_names(rows, paloc_entries, english, read, stop_event):
             english.entries if language == "eng"
             else select_paloc_entries(bytes(read(entry)), wanted_keys, name=entry.path)
         )
+        if language != 'eng':
+            for extra in (dlc_palocs or {}).get(language,()):
+                localized_entries = (*localized_entries,*select_paloc_entries(bytes(read(extra)),wanted_keys,name=extra.path))
         for localized in localized_entries:
             if localized.key in wanted_keys and localized.text.strip():
                 names = names_by_key.setdefault(localized.key, [])
@@ -569,6 +587,7 @@ def build_snapshot(
             resident_catalogue.item_metadata(stop_event=stop_event) if resident_catalogue is not None else entries,
             pamt_paths=(path for path in resident_catalogue.source_paths if path.suffix.lower() == ".pamt")
             if resident_catalogue is not None else (),
+            read_entry=read,
         )
     except ValueError as exc:
         raise NewItemSnapshotError(str(exc)) from exc
@@ -593,7 +612,10 @@ def build_snapshot(
     rows: Dict[int, ItemInfoRow] = {}
     for row, start, end in spans:
         try:
-            rows[row.row_id] = parse_iteminfo_row(iteminfo.payload[start:end], item_keys=keys)
+            parsed = parse_iteminfo_row(iteminfo.payload[start:end], item_keys=keys)
+            if parsed.key != row.row_id or row.row_id in rows:
+                raise ItemInfoRowError('ItemInfo has an inconsistent or duplicate row identity.')
+            rows[row.row_id] = parsed
         except ItemInfoRowError as exc:
             raise NewItemSnapshotError(f"ItemInfo row {row.row_id} did not decode: {exc}") from exc
     keys_by_name = {row.string_key: key for key, row in rows.items()}
@@ -606,6 +628,15 @@ def build_snapshot(
     if pappt_entry is None:
         raise NewItemSnapshotError(f"the archives have no {PAPPT_PATH}")
     pappt = parse_pappt(bytes(read(pappt_entry)), name=PAPPT_PATH)
+    pappt_base = pappt
+    parts, heads = pappt.index(), {record.stem: record for record in pappt.head_records}
+    for path in sorted(path for path in by_path
+                       if path.startswith('character/bin__/partprefabtable_dlc_') and path.endswith('.pappt')):
+        raise_if_cancelled(stop_event)
+        layer = parse_pappt(bytes(read(by_path[path])), name=path)
+        parts = {**parts, **layer.index()}
+        heads.update({record.stem: record for record in layer.head_records})
+    pappt = replace(pappt, records=tuple(parts.values()), head_records=tuple(heads.values()))
 
     raise_if_cancelled(stop_event, "New item snapshot cancelled.")
     _log_progress(on_log, "Reading StoreInfo, ItemGroupInfo, StatusInfo and EquipTypeInfo...")
@@ -626,6 +657,57 @@ def build_snapshot(
         multichange = _table_pair(by_path, read, "multichangeinfo", sources=sources)
         multichange_rows = {row.key: row for row in parse_multichange_table(multichange.payload, multichange.header)}
 
+    metadata_pairs, row_sources = {}, {}
+    primary = {'iteminfo':iteminfo,'stringinfo':stringinfo,'storeinfo':storeinfo,'itemgroupinfo':itemgroupinfo,
+               'statusinfo':statusinfo,'equiptypeinfo':equiptypeinfo,'multichangeinfo':multichange}
+    for name, base_pair in primary.items():
+        pairs = ([base_pair] if base_pair is not None else []) + [
+            _table_pair(by_path,read,stem,sources=sources) for stem in sorted(sources.tables) if stem.startswith(name+'.')]
+        metadata_pairs[name] = tuple(pairs)
+        origins = {}
+        identities = {}
+        for pair in pairs:
+            directory = parse_pabgh_table(pair.header,payload=pair.payload)
+            seen = set()
+            for entry,_start,_end in directory.row_spans(len(pair.payload)):
+                if entry.row_id in seen:
+                    raise NewItemSnapshotError(f'{name} has duplicate row {entry.row_id}.')
+                seen.add(entry.row_id)
+                if directory.key_layout == 'named':
+                    from cdmw.core.new_item_record import named_prefix
+                    identity = named_prefix(pair.payload[_start:_end],directory.key_width,key=entry.row_id)[1]
+                    if entry.row_id in identities and identities[entry.row_id] != identity:
+                        raise NewItemSnapshotError(f'{name} has conflicting base/DLC identities for key {entry.row_id}.')
+                    identities[entry.row_id] = identity
+                origins[entry.row_id] = pair
+            if pair is base_pair:
+                continue
+            if name == 'iteminfo':
+                for entry,start,end in directory.row_spans(len(pair.payload)):
+                    raise_if_cancelled(stop_event)
+                    parsed = parse_iteminfo_row(pair.payload[start:end],structured=True)
+                    if parsed.key != entry.row_id:
+                        raise NewItemSnapshotError('DLC ItemInfo identity differs from its directory.')
+                    rows[entry.row_id] = parsed
+            elif name == 'stringinfo':
+                texts = {**texts, **stringinfo_index(parse_stringinfo(pair.payload,pair.header))}
+            elif name == 'storeinfo':
+                merged = {row.key:row for row in stores}
+                merged.update({row.key:row for row in parse_store_table(pair.payload,pair.header,layout='current' if sources.static_layout else 'legacy')})
+                stores = tuple(merged.values())
+            elif name == 'itemgroupinfo':
+                merged = {row.key:row for row in item_groups}
+                merged.update({row.key:row for row in parse_item_group_table(pair.payload,pair.header)})
+                item_groups = tuple(merged.values())
+            elif name == 'statusinfo':
+                status_names = {**status_names, **parse_status_names(pair.payload,pair.header)}
+            elif name == 'equiptypeinfo':
+                equip_type_names = {**equip_type_names, **_parse_names_by_key(pair)}
+            elif name == 'multichangeinfo':
+                multichange_rows.update({row.key:row for row in parse_multichange_table(pair.payload,pair.header)})
+        row_sources[name] = origins
+    keys_by_name = {row.string_key:key for key,row in rows.items()}
+
     raise_if_cancelled(stop_event, "New item snapshot cancelled.")
     _log_progress(on_log, "Reading the English localisation table...")
     paloc_entries = dict(sources.localizations)
@@ -633,7 +715,23 @@ def build_snapshot(
     if english_entry is None:
         raise NewItemSnapshotError("the archives have no English localisation table")
     english = parse_paloc(bytes(read(english_entry)), name=english_entry.path)
-    item_display_names, item_localized_names = _localized_item_names(rows, paloc_entries, english, read, stop_event)
+    dlc_palocs = {}
+    candidates = entries_by_extension.get('.paloc',()) if entries_by_extension else (entry for path,entry in by_path.items() if path.endswith('.paloc'))
+    for entry in candidates:
+        path = entry.path.replace('\\','/').lower()
+        if sources.accepts(entry) and path.startswith(PALOC_DIR+'/'):
+            parts = path[len(PALOC_DIR)+1:].split('/')
+            if len(parts)==2 and parts[1].startswith('item.dlc_') and parts[1].endswith('.paloc'):
+                chosen = by_path.get(path)
+                if chosen is not None and chosen == entry:
+                    dlc_palocs.setdefault(parts[0],[]).append(entry)
+    dlc_palocs = {language:tuple(sorted(values,key=lambda entry:entry.path)) for language,values in dlc_palocs.items()}
+    if dlc_palocs.get('eng'):
+        merged = dict(english.index())
+        for extra in dlc_palocs['eng']:
+            merged.update(parse_paloc(bytes(read(extra)),name=extra.path).index())
+        english = replace(english,entries=tuple(merged.values()))
+    item_display_names, item_localized_names = _localized_item_names(rows, paloc_entries, english, read, stop_event,dlc_palocs)
 
     model_candidates = entries_by_extension.get(".pac", ()) if entries_by_extension else (
         entry for path, entry in by_path.items() if path.startswith(MODEL_ROOT) and path.endswith(".pac")
@@ -692,6 +790,7 @@ def build_snapshot(
         stringinfo_texts=texts,
         pappt_entry=pappt_entry,
         pappt=pappt,
+        pappt_base=pappt_base,
         storeinfo=storeinfo,
         stores=stores,
         itemgroupinfo=itemgroupinfo,
@@ -704,6 +803,9 @@ def build_snapshot(
         english=english,
         model_stems=model_stems,
         sources=sources,
+        metadata_pairs=metadata_pairs,
+        row_sources=row_sources,
+        dlc_paloc_entries=dlc_palocs,
         provenance=provenance,
         pathc=pathc,
         pathc_source_digest=pathc_source_digest,

@@ -42,6 +42,7 @@ def _labels():
         'category': tr('Localization category'), 'key': tr('Localization number'), 'text_key': tr('Localization key'),
         'target_type': tr('Target type'), 'item': tr('Item'), 'count': tr('Count'), 'target': tr('Target'),
         'valid': tr('Enabled'), 'costs': tr('Costs'), 'prices': tr('Prices'), 'tier': tr('Tier'),
+        'synergies': tr('Faction synergies'),
     }
 
 
@@ -342,6 +343,7 @@ class ItemDefinitionEditor(QWidget):
             chosen = key('statusinfo', {row['stat'] for row in values})
             return {'stat': chosen, 'value': 0} if chosen else None
         if name == 'faction':
+            if path == ('synergies',): return 0
             chosen = key('iteminfo', {row['item'] for row in values})
             return {'item': chosen, 'count': 1, 'minimum': 0, 'maximum': 0} if chosen else None
         kind = COLLECTIONS.get(name, (None, None, None))[1]
@@ -412,7 +414,8 @@ class ItemDefinitionEditor(QWidget):
         source = self._snapshot.rows.get(source_key) if self._snapshot else None
         original = ''
         try:
-            key = decode_local_string(read_item_layout(source.raw).data('_itemDesc2'))['text_key'] if source else ''
+            from cdmw.core.compact_static import field_payload
+            key = decode_local_string(field_payload(read_item_layout(source.raw),'_itemDesc2') or bytes(13))['text_key'] if source else ''
             original = self._english[key].text if key in self._english else ''
         except ValueError: pass
         for row, language in enumerate(languages):

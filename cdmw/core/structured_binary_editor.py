@@ -39,6 +39,7 @@ class PabghTable:
     header_size: int = 2
     proof_lines: Tuple[str, ...] = ()
     key_width: int = 4
+    key_layout: str = "prefix"
 
     def row_spans(self, payload_length: int) -> Tuple[Tuple[PabghRow, int, int], ...]:
         """`(row, start, end)` per row, in payload order.
@@ -176,13 +177,30 @@ _PABGH_COUNT_WIDTHS = (1, 2, 4)
 _PABGH_KEY_WIDTHS = (1, 2, 4, 8, 12)
 
 
+def table_row_key(raw: bytes, key_width: int, key_layout: str = "prefix") -> bytes:
+    """Read the qualified key position, including compact name-before-key rows."""
+    offset = 0
+    if key_layout == "named":
+        if len(raw) < 4:
+            raise ValueError("Truncated compact table row name.")
+        length = int.from_bytes(raw[:4], "little")
+        offset = 4 + length
+        if length > 4096 or offset + key_width > len(raw):
+            raise ValueError("Invalid compact table row name boundary.")
+        raw[4:offset].decode("utf-8")
+    elif key_layout != "prefix":
+        raise ValueError("Unknown table key layout.")
+    if offset + key_width > len(raw):
+        raise ValueError("Table row is shorter than its key.")
+    return raw[offset:offset + key_width]
+
+
 def _parse_pabgh_row_directory(header: bytes, payload: bytes) -> PabghTable | None:
     """Resolve the header's count and key widths against the row payload.
 
-    A one-row table fits several widths arithmetically, so the inline key -- every
-    row repeats its own primary key as its first field -- is what decides between
-    them. Without the payload that ambiguity is unresolvable, and this returns None
-    rather than guessing.
+    A one-row table fits several widths arithmetically. Match every inline key,
+    either at the row start or after its compact name, to resolve the layout.
+    Without the payload that ambiguity is unresolvable, so return None.
     """
 
     for count_width in _PABGH_COUNT_WIDTHS:
@@ -222,13 +240,23 @@ def _parse_pabgh_row_directory(header: bytes, payload: bytes) -> PabghTable | No
             continue
         if rows[0].offset != 0 or rows[-1].offset >= len(payload):
             continue
-        if any(payload[row.offset : row.offset + key_width] != row.key for row in rows):
+        key_layout = None
+        for candidate in ("prefix", "named"):
+            try:
+                if all(table_row_key(payload[row.offset:rows[index + 1].offset if index + 1 < count else len(payload)],
+                                     key_width, candidate) == row.key for index, row in enumerate(rows)):
+                    key_layout = candidate
+                    break
+            except (ValueError, UnicodeError):
+                pass
+        if key_layout is None:
             continue
         return PabghTable(
             row_size=row_size,
             rows=tuple(rows),
             header_size=count_width,
             key_width=key_width,
+            key_layout=key_layout,
             proof_lines=(
                 f"Detected {count:,} row(s).",
                 f"Resolved a {count_width}-byte count and a {key_width}-byte key against the payload.",
@@ -249,6 +277,10 @@ def parse_pabgh_table(data: bytes, *, payload: bytes | None = None) -> PabghTabl
     header = bytes(data or b"")
     if len(header) < 2:
         raise ValueError("PABGH table is too short to contain a row count.")
+    if payload is not None:
+        resolved = _parse_pabgh_row_directory(header, bytes(payload))
+        if resolved is not None:
+            return resolved
     count = struct.unpack_from("<H", header, 0)[0]
     exact_row_sizes = [
         row_size
@@ -283,10 +315,6 @@ def parse_pabgh_table(data: bytes, *, payload: bytes | None = None) -> PabghTabl
                 f"Detected exact {row_size}-byte row flavor.",
             ),
         )
-    if payload is not None:
-        resolved = _parse_pabgh_row_directory(header, bytes(payload))
-        if resolved is not None:
-            return resolved
     candidates: list[tuple[int, int]] = []
     for row_size in (5, 8):
         table_end = 2 + count * row_size
@@ -334,9 +362,9 @@ def append_table_rows(
 ) -> Tuple[bytes, bytes]:
     """Append whole rows to a `.pabgb` payload and register them in its `.pabgh`.
 
-    A row's bytes must begin with its own primary key, exactly as every shipped
-    row does (that inline repeat is what lets :func:`parse_pabgh_table` resolve
-    the key width in the first place). Rows go at the end of the payload, their
+    Each row must carry its primary key in the source table's qualified location:
+    at the start for older tables, or after the name for compact tables.
+    Rows go at the end of the payload, their
     directory entries at the end of the header, and the header's count grows.
     The directory is not sorted by key in the shipped tables, so appending is
     the shape the game already reads.
@@ -366,7 +394,7 @@ def append_table_rows(
         row_bytes = bytes(row)
         if len(row_bytes) < key_width:
             raise ValueError(f"Row {index} is {len(row_bytes)} byte(s), shorter than the {key_width}-byte key.")
-        key = row_bytes[:key_width]
+        key = table_row_key(row_bytes, key_width, table.key_layout)
         if key in known_keys:
             raise ValueError(f"Row {index} repeats key {key.hex()} which the table already holds.")
         known_keys.add(key)
@@ -392,8 +420,8 @@ def replace_table_row(
     it was except for the shift, and rewrite the `.pabgh` offsets that follow it.
 
     The row is found by its directory key (`bytes` of the table's key width, or an
-    int for the 1/2/4-byte flavors). `new_row` must begin with the same key, as
-    every shipped row does; a size change is fine, since the directory addresses
+    int for the 1/2/4-byte flavors). `new_row` must carry the same inline key in
+    the source layout; a size change is fine, since the directory addresses
     rows by offset and later offsets are shifted by the delta. The count and every
     key stay as they were, so this is the write path for edits that change a row's
     length (a rebuilt stat block, an added store entry) without touching the
@@ -415,7 +443,7 @@ def replace_table_row(
     if len(key_bytes) != key_width:
         raise ValueError(f"Key is {len(key_bytes)} byte(s); this table's keys are {key_width}.")
     row_bytes = bytes(new_row)
-    if len(row_bytes) < key_width or row_bytes[:key_width] != key_bytes:
+    if len(row_bytes) < key_width or table_row_key(row_bytes, key_width, table.key_layout) != key_bytes:
         raise ValueError("The replacement row must begin with the row's own key.")
     matches = [row for row in table.rows if bytes(row.key) == key_bytes]
     if len(matches) != 1:

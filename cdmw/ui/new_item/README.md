@@ -4,8 +4,9 @@ Archive overlays are disabled following the October 2026 DLC update. Their
 implementation is retained, but overlay export, installation, mounted-item
 inclusion and overlay management/recovery are unavailable in CDMW. Descriptions
 of those internal paths below document retained code, not available workflows.
-CDUMM/JMM loose mod folders and portable `.cditem` authoring packages remain available;
-this does not establish DLC or in-game compatibility for new items.
+CDUMM/JMM loose mod folders and portable `.cditem` authoring packages remain available.
+The compact base/DLC authoring tables are supported; exported items still require
+in-game verification. This does not re-enable archive installation.
 
 ## Contents
 
@@ -2214,9 +2215,40 @@ The seven workflow steps support the current `binarystaticinfo__/bin` tables as
 well as legacy `binary__/client/bin` tables. Current complete table pairs take
 precedence as a generation; missing halves and parse errors cannot fall through
 to an old mod. An unreadable included archive index stops authoring rather than exposing
-an incomplete catalogue. ItemInfo preserves its actual `0x11` or `0x12` stat marker.
-Current StoreInfo retains the additional stock condition bytes and all opaque
-fields. Every writable shape must round-trip without changes first.
+an incomplete catalogue. Empty static tables use a zero count of one, two or four
+bytes, with either no body or a verified zero-length body. They are omitted from
+the active table set, including when an older complete copy exists. A missing
+body with a nonzero or malformed header still stops loading.
+
+The compact serialization used by game `1.0.0.3446` has name-before-key records,
+reordered fields and optional-value presence bytes. `compact_static.py` and its
+closed schema own those boundaries; edits retain unassigned fields. ItemInfo,
+shops, groups, crafting, item rewards/use actions, equipment bonuses, strings and
+dye records use their source format when written. Legacy ItemInfo retains its
+actual `0x11` or `0x12` stat marker. Removed Important item, Quick slot and
+Consumable types controls are disabled for compact templates. New source fields
+without controls are preserved. A pre-DLC static mod folder cannot replace compact
+tables merely because their file extensions match; rebuild those items.
+
+Base and DLC dictionaries are combined, with later DLC records replacing the same
+identity. Shop, group and stock-item edits target the table that supplied the
+effective row. New owned rows are appended to the base table with IDs reserved
+across both layers, including unsupported records. DLC localization supplies template
+names and inherited text; new text is added to the base language container without duplicating its DLC
+entries. Base and `partprefabtable_dlc_*.pappt` records form one model lookup;
+new cloned records go into the base prefab table without copying unedited DLC records.
+The faction, docking and inspection trees expose their additional compact fields.
+Unset texture/map-icon keys remain unset. Compact texture hashes resolve through
+StringInfo, and their resource dependencies are verified during stock export.
+Unknown reward/action variants remain unavailable individually rather
+than blocking unrelated authoring.
+
+Qualification covers source codecs, owned synthetic snapshot/plan/export fixtures
+and read-only installed-table checks: 8,616 ItemInfo records, all installed shops,
+groups, crafting rows, dye rows and the 38 equipment-used buff definitions. The
+installed snapshot contains 8,374 effective items and 16,071 prefab records after
+DLC overrides. This is
+offline format evidence, not executable packaging, rendering or game acceptance.
 
 New Item honors the folder exclusions captured when the archive catalogue opened,
 including in its separate verification process. Mounted `dmmsa` and `dmmgen`

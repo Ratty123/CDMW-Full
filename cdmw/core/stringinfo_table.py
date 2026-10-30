@@ -25,6 +25,9 @@ from cdmw.core.archive_format import hashlittle
 from cdmw.core.structured_binary_editor import append_table_rows, parse_pabgh_table
 
 STRINGINFO_HASH_INIT = 0xC5EDE
+# Compact texture fields use this absent dictionary key for an unset texture.
+# The 1.0.0.3446 texture reader resolves it to the invalid u16 texture index.
+UNSET_TEXTURE_KEY = 0xEAC5E173
 _ROW_HEAD = struct.calcsize("<I5sI")
 
 
@@ -108,8 +111,6 @@ def append_stringinfo_strings(
 
     existing = stringinfo_index(parse_stringinfo(payload, header, name=name))
     table = parse_pabgh_table(header, payload=payload)
-    if any(payload[start:start + 4] != row.key for row, start, _ in table.row_spans(len(payload))):
-        raise StringInfoFormatError("Compact StringInfo is read-only; its table rewrite contract is not supported.")
     keys: list[int] = []
     new_rows: list[bytes] = []
     pending: dict[int, str] = {}
@@ -128,7 +129,8 @@ def append_stringinfo_strings(
                 raise StringInfoFormatError(f"{text!r} and {queued!r} both hash to 0x{key:08X}")
             continue
         pending[key] = text
-        new_rows.append(build_stringinfo_row(text))
+        row = build_stringinfo_row(text)
+        new_rows.append(bytes(4) + row[:4] + row[8:] if table.key_layout == "named" else row)
     if not new_rows:
         return bytes(payload), bytes(header), tuple(keys)
     new_payload, new_header = append_table_rows(payload, header, new_rows)

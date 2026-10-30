@@ -37,6 +37,7 @@ def replace_rows(body, header, replacements):
 
 def replace_rows_with_header(body,header,replacements):
     """Replace complete records and rebuild offsets, retaining every key/order."""
+    from cdmw.core.structured_binary_editor import table_row_key
     table,records=_table(body,header)
     if (table.key_width,table.header_size)!=(4,2):
         raise OverlayConflict('Declared ItemInfo edits require the verified table directory.')
@@ -45,7 +46,7 @@ def replace_rows_with_header(body,header,replacements):
     payload=bytearray(); offsets={}
     for key,raw in records:
         replacement=replacements.get(int.from_bytes(key,'little'),raw)
-        if not isinstance(replacement,bytes) or not replacement.startswith(key):
+        if not isinstance(replacement,bytes) or table_row_key(replacement,table.key_width,table.key_layout) != key:
             raise OverlayConflict('Declared ItemInfo edits cannot change record identities.')
         offsets[key]=len(payload); payload.extend(replacement)
     directory=header[:2]+b''.join(row.key+struct.pack('<I',offsets[row.key]) for row in table.rows)

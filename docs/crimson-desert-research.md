@@ -149,10 +149,17 @@ with partial material coverage. Its linked lamp remains geometry-only: the
 referenced `cd_bg_trimborder_metal_06_n_emc.dds` and `_emi.dds` are absent from the
 installed archive catalogue. Missing source textures are not decryption failures.
 
-Direct archive patching refuses compact/extended PAMT indexes. Overlay writes
-retain the legacy PAPGT checksum requirement, and Create New Item's existing
-authoring layouts are not qualified for the reordered tables. Browsing/extraction
-support must not be interpreted as permission or evidence for those writes.
+Direct archive patching refuses compact/extended PAMT indexes, and archive overlay
+workflows remain disabled. A subsequent 30 October source migration qualified
+Create New Item's compact table readers and loose/package writers against game
+`1.0.0.3446`: all 8,616 base/DLC ItemInfo records decode, with 8,374 effective items
+after overrides. Empty DLC headers use one-, two- or four-byte zero counts. Shops,
+groups, crafting, item rewards, equipment bonuses, dyes and optional item fields
+retain source boundaries; edited DLC records retain their source table. The
+[Create New Item contract](../cdmw/ui/new_item/README.md#current-game-tables-and-extended-authoring)
+owns supported variants and refusal boundaries. Owned fixtures exercise snapshot,
+editing, planning and export readback. These source and read-only corpus checks
+do not establish archive-write compatibility, packaged behavior or game acceptance.
 The review made no game changes, installation or in-game acceptance test.
 
 Numbered archive groups pair a `.pamt` index with numbered `.paz` payloads.

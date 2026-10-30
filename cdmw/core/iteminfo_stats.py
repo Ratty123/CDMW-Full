@@ -54,7 +54,8 @@ def item_stat_entries(layout):
 
 
 def equipment_passive_skills(layout):
-    cursor = Cursor(layout.data('_equipPassiveSkillList'))
+    from cdmw.core.compact_static import field_payload
+    cursor = Cursor(field_payload(layout, '_equipPassiveSkillList') or bytes(4))
     result = tuple(PassiveSkill(cursor.unpack('I'), cursor.unpack('I')) for _ in range(cursor.count(128)))
     cursor.finish()
     return result
@@ -70,7 +71,7 @@ def stat_list_spans(layout):
         if member.owner != 'EnchantStatData' or member.name not in kinds or '_enchantDataList' not in member.path:
             continue
         kind, span = kinds[member.name], member.span
-        if kind == 'level_stat':
+        if kind == 'level_stat' and layout.generation != 'compact':
             count = int.from_bytes(layout.raw[span.start:span.end], 'little')
             span = Span(span.start, span.end + 5 * count)
         result.append((kind, levels[_level_path(member.path)], span))
@@ -88,7 +89,8 @@ def set_item_stats(raw, settings):
     if settings.passive_skills is not None:
         data = struct.pack('<I', len(settings.passive_skills)) + b''.join(
             struct.pack('<II', skill.skill_key, skill.level) for skill in settings.passive_skills)
-        layout = replace_layout_fields(layout, {'_equipPassiveSkillList': data})
+        from cdmw.core.compact_static import field_bytes
+        layout = replace_layout_fields(layout, {'_equipPassiveSkillList': field_bytes(layout, '_equipPassiveSkillList', data)})
     spans = stat_list_spans(layout)
     changed = {}
     for edit in settings.statistics:

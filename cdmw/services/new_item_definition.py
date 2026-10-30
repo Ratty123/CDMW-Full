@@ -5,7 +5,7 @@ import xml.etree.ElementTree as ET
 from cdmw.core.item_layout import read_item_layout, replace_layout_fields
 from cdmw.core.iteminfo_definition import read_definition_fields, set_definition_fields, decode_local_string, encode_local_string
 from cdmw.core.new_item_record import Cursor, RecordError
-from cdmw.core.stringinfo_table import stringinfo_key
+from cdmw.core.stringinfo_table import stringinfo_key, UNSET_TEXTURE_KEY
 from cdmw.domain.cancellation import raise_if_cancelled
 from cdmw.domain.new_item.item_definition import NUMBERS, SEAL_TARGETS, encode_definition_settings
 from cdmw.services.new_item_settings import _rows, _reference
@@ -46,10 +46,8 @@ def _qualified_reference(snapshot, table, key, *, stop_event=None):
     raw = _rows(snapshot, table, stop_event=stop_event, key_width=REFERENCE_TABLES[table]).get(key)
     if raw is None:
         raise RecordError(f'Missing {table} dependency {key}.')
-    cursor = Cursor(raw)
-    cursor.take(REFERENCE_TABLES[table])
-    cursor.text()
-    if cursor.unpack('B') != 0:
+    from cdmw.core.new_item_record import named_prefix
+    if named_prefix(raw,REFERENCE_TABLES[table],key=key)[2] != 0:
         raise RecordError(f'Blocked {table} dependency {key}.')
 
 
@@ -77,10 +75,9 @@ def load_definition_index(snapshot, *, stop_event=None):
         for key, raw in _rows(snapshot, table, key_width=width, stop_event=stop_event).items():
             raise_if_cancelled(stop_event)
             try:
-                cursor = Cursor(raw)
-                cursor.take(width)
-                name = cursor.text()
-                if cursor.unpack('B') == 0:
+                from cdmw.core.new_item_record import named_prefix
+                _key,name,blocked,_generation,_cursor = named_prefix(raw,width,key=key)
+                if blocked == 0:
                     named.append((key, name))
             except (ValueError, UnicodeError):
                 continue
@@ -98,11 +95,12 @@ def load_definition_index(snapshot, *, stop_event=None):
                 slots.setdefault(slot['name_hash'], set()).update(slot['indexes'])
             if values['map_icon']:
                 map_icons.add(values['map_icon'])
-            description = decode_local_string(layout.data('_itemDesc2'))
+            from cdmw.core.compact_static import field_payload
+            description = decode_local_string(field_payload(layout,'_itemDesc2') or bytes(13))
             if (description['key'] >> 32 == key and description['text_key'] == str(description['key'])
                     and description['key'] & 0xffffffff not in (0, 0x70, 0x71) and description['text_key'] in english):
                 descriptions.append((key, row.string_key))
-            references = [decode_local_string(layout.data(field)) for field in ('_itemName', '_itemDesc', '_itemDesc2')]
+            references = [decode_local_string(field_payload(layout,field) or bytes(13)) for field in ('_itemName', '_itemDesc', '_itemDesc2')]
             references.extend(parameter for pattern in values['pattern_descriptions'] for parameter in pattern['parameters'])
             for value in references:
                 text_key = value['text_key']
@@ -139,7 +137,7 @@ def _localization_reference(snapshot, value, *, stop_event=None):
 
 
 def resolve_map_icon(snapshot, key, *, stop_event=None):
-    if not key:
+    if not key or key == UNSET_TEXTURE_KEY:
         return None
     cache = snapshot._authoring_indexes.get(('definition-map-icon', key))
     if cache is not None:
@@ -239,16 +237,19 @@ def apply_definition(raw, settings, snapshot, item_key, template_key, *, stop_ev
     plan = None
     text = settings.secondary_description
     if text is None:
-        inherited = decode_local_string(read_item_layout(raw).data('_itemDesc2'))
+        from cdmw.core.compact_static import field_payload
+        inherited = decode_local_string(field_payload(read_item_layout(raw),'_itemDesc2') or bytes(13))
         _localization_reference(snapshot, inherited, stop_event=stop_event)
     if text is not None:
         layout = read_item_layout(raw)
         if not text['texts']:
-            raw = replace_layout_fields(layout, {'_itemDesc2': bytes(13)}).raw
+            from cdmw.core.compact_static import field_bytes
+            raw = replace_layout_fields(layout, {'_itemDesc2': field_bytes(layout,'_itemDesc2',bytes(13))}).raw
         else:
             source_key = text['source_item'] or template_key
             _qualified_reference(snapshot, 'iteminfo', source_key, stop_event=stop_event)
-            source = decode_local_string(read_item_layout(snapshot.rows[source_key].raw).data('_itemDesc2'))
+            from cdmw.core.compact_static import field_payload,field_bytes
+            source = decode_local_string(field_payload(read_item_layout(snapshot.rows[source_key].raw),'_itemDesc2') or bytes(13))
             if (source['key'] >> 32 != source_key or source['text_key'] != str(source['key'])
                     or source['key'] & 0xffffffff in (0, 0x70, 0x71)):
                 raise RecordError('Choose a source item with an independent numeric secondary description.')
@@ -257,7 +258,7 @@ def apply_definition(raw, settings, snapshot, item_key, template_key, *, stop_ev
             _localization_reference(snapshot, source, stop_event=stop_event)
             new_key = (item_key << 32) | (source['key'] & 0xffffffff)
             value = dict(source, key=new_key, text_key=str(new_key))
-            raw = replace_layout_fields(layout, {'_itemDesc2': encode_local_string(value)}).raw
+            raw = replace_layout_fields(layout, {'_itemDesc2': field_bytes(layout,'_itemDesc2',encode_local_string(value))}).raw
             plan = SecondaryDescriptionPlan(source['text_key'], str(new_key), dict(text['texts']))
     validate_definition_dependencies(raw, snapshot, stop_event=stop_event)
     return raw, plan

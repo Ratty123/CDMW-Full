@@ -40,6 +40,8 @@ def stock_item_operations(snapshot, spec, *, stop_event=None):
     for selector in (*FIELDS,*(('definition',name) for name in DEFINITION_ROOTS)):
         raise_if_cancelled(stop_event)
         root=field_root(selector)
+        if root not in before.fields:
+            continue
         if before.data(root)==after.data(root): continue
         represented.add(root)
         operations.append({'id':'edit_'+str(len(operations)), 'kind':'field.replace',
@@ -57,12 +59,22 @@ def lower_field_operations(package, snapshot, changes, *, stop_event=None, _auth
     contributions = package_operations(package)
     if not contributions:
         return changes
-    pair = snapshot.iteminfo
-    body, header = pair.payload_entry.path.lower(), pair.header_entry.path.lower()
-    original = {path: snapshot.payload(path) for path in (body, header)}
-    if any(package.dependencies.get(path) != digest(data) for path, data in original.items()):
-        raise IndependentItemError('Typed ItemInfo edits require exact table-body and header dependencies.')
-    rows = rows_of(original[body], original[header])
+    from cdmw.services.new_item_tables import row_pair
+    from cdmw.domain.new_item.iteminfo_operations import decode_assignment
+    keys = {decode_assignment(group['owner'],raw).record for group in contributions for raw in group['operations']}
+    pairs = {row_pair(snapshot,'iteminfo',key).payload_entry.path:row_pair(snapshot,'iteminfo',key) for key in keys}
+    original,rows,pair_rows = {},{},{}
+    for pair in pairs.values():
+        for entry in (pair.payload_entry,pair.header_entry):
+            path = entry.path.lower()
+            original[path] = snapshot.payload(path)
+            if package.dependencies.get(path) != digest(original[path]):
+                raise IndependentItemError('Typed ItemInfo edits require exact table-body and header dependencies.')
+        pair_rows[pair.payload_entry.path] = rows_of(original[pair.payload_entry.path.lower()],original[pair.header_entry.path.lower()])
+    # The effective row can be a DLC override of a base identity.
+    for key in keys:
+        pair = row_pair(snapshot,'iteminfo',key)
+        rows[key] = pair_rows[pair.payload_entry.path][key]
     compiled = compile_assignments([(row['owner'], row['operations']) for row in contributions], rows, stop_event=stop_event)
     changed = compose_assignments(rows, compiled, stop_event=stop_event)
     touched = {item.operation.record for item in compiled}
@@ -83,11 +95,14 @@ def lower_field_operations(package, snapshot, changes, *, stop_event=None, _auth
         revision.validate(stop_event)
         snapshot.provenance.record_reference_closure(False)
     result = dict(changes)
-    for path, entry in ((body, pair.payload_entry), (header, pair.header_entry)):
-        result.setdefault(path, {'before': original[path], 'after': original[path], 'flags': entry.flags, 'meta': False})
-    payload,directory=replace_rows_with_header(result[body]['after'],result[header]['after'],{key:changed[key] for key in touched})
-    result[body]=dict(result[body],after=payload)
-    result[header]=dict(result[header],after=directory)
+    for pair in pairs.values():
+        body,header = pair.payload_entry.path.lower(),pair.header_entry.path.lower()
+        for path, entry in ((body, pair.payload_entry), (header, pair.header_entry)):
+            result.setdefault(path, {'before': original[path], 'after': original[path], 'flags': entry.flags, 'meta': False})
+        replacements = {key:changed[key] for key in touched if row_pair(snapshot,'iteminfo',key) is pair}
+        payload,directory=replace_rows_with_header(result[body]['after'],result[header]['after'],replacements)
+        result[body]=dict(result[body],after=payload)
+        result[header]=dict(result[header],after=directory)
     return result
 
 
@@ -131,8 +146,10 @@ def from_declared_iteminfo_operations(snapshot,identity,title,operations,*,relea
     from pathlib import Path
     from cdmw.services.independent_item_package import FORMAT
     from cdmw.services.independent_mod_package import read_v2
-    pair=snapshot.iteminfo
-    dependencies={entry.path.lower():digest(snapshot.payload(entry.path)) for entry in (pair.payload_entry,pair.header_entry)}
+    from cdmw.services.new_item_tables import row_pair
+    from cdmw.domain.new_item.iteminfo_operations import decode_assignment
+    pairs = [row_pair(snapshot,'iteminfo',decode_assignment(identity,raw).record) for raw in operations]
+    dependencies={entry.path.lower():digest(snapshot.payload(entry.path)) for pair in pairs for entry in (pair.payload_entry,pair.header_entry)}
     manifest={'format':FORMAT,'version':2,'identity':identity,'title':title,'release':release,
         'requires':{'item.overrides':1},'modules':[{'id':'edits','type':'item.overrides','version':1,'required':True,
         'data':{'operations':list(operations)}}],'dependencies':dependencies,'blobs':{},'provenance':None,'metadata':{}}

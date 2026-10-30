@@ -38,6 +38,7 @@ class PrefabDyeRow:
     blocked: bool
     submeshes: tuple[DyeSubmesh, ...]
     model_path: str
+    generation: str = 'legacy'
 
     def for_model(self, path: str, *, submeshes=None):
         normalized = path.replace("\\", "/")
@@ -75,10 +76,10 @@ class _Reader:
 
 
 def parse_prefab_dye_row(raw: bytes) -> PrefabDyeRow:
+    from cdmw.core.new_item_record import named_prefix
+    key,name,blocked,generation,prefix = named_prefix(raw)
     reader = _Reader(raw)
-    key = struct.unpack("<I", reader.take(4))[0]
-    name = reader.text()
-    blocked = reader.take(1)[0]
+    reader.pos = prefix.pos
     if blocked not in (0, 1):
         raise DyeTableError("Unsupported dye row flag")
     submeshes = []
@@ -99,7 +100,7 @@ def parse_prefab_dye_row(raw: bytes) -> PrefabDyeRow:
         raise DyeTableError("Unproven dye row boundary")
     if key != hashlittle(path.encode("utf-8"), 0xC5EDE):
         raise DyeTableError("Dye row key does not match its model path")
-    return PrefabDyeRow(key, name, bool(blocked), tuple(submeshes), path)
+    return PrefabDyeRow(key, name, bool(blocked), tuple(submeshes), path,generation)
 
 
 def _text(value):
@@ -116,7 +117,8 @@ def _binding(value):
 
 
 def encode_prefab_dye_row(row: PrefabDyeRow) -> bytes:
-    out = bytearray(struct.pack("<I", row.key) + _text(row.string_key) + bytes([row.blocked]))
+    prefix = (_text(row.string_key)+struct.pack('<I',row.key)) if row.generation == 'compact' else (struct.pack('<I',row.key)+_text(row.string_key))
+    out = bytearray(prefix + bytes([row.blocked]))
     out += struct.pack("<I", len(row.submeshes))
     for part in row.submeshes:
         if len(part.slots) != 3 or any(not -1 <= value <= 11 for value in part.slots):

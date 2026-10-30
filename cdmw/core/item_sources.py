@@ -1,10 +1,10 @@
-"""Select one generation of item metadata without reading or changing archives."""
+"""Select item metadata, reading only header-only tables to verify empty ones."""
 from __future__ import annotations
 
 from collections import defaultdict
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Iterable, Mapping, Sequence
+from typing import Callable, Iterable, Mapping, Sequence
 
 from cdmw.domain.archives.filters import archive_entry_load_priority
 from cdmw.models import ArchiveEntry
@@ -44,7 +44,10 @@ class ItemDataSources:
         return (self.mount_priorities.get(source_package(entry), 0), *archive_entry_load_priority(entry))
 
 
-def resolve_item_data_sources(entries: Iterable[ArchiveEntry], *, pamt_paths: Iterable[Path] = ()) -> ItemDataSources:
+def resolve_item_data_sources(
+    entries: Iterable[ArchiveEntry], *, pamt_paths: Iterable[Path] = (),
+    read_entry: Callable[[ArchiveEntry], bytes] | None = None,
+) -> ItemDataSources:
     candidates: dict[str, list[ArchiveEntry]] = defaultdict(list)
     pamt_paths = {str(path) for path in pamt_paths}
     for entry in entries:
@@ -110,7 +113,21 @@ def resolve_item_data_sources(entries: Iterable[ArchiveEntry], *, pamt_paths: It
             continue
         selected = max(options, key=priority)
         package = source_package(selected)
-        if any(not any(pamt(e) == pamt(selected) for e in candidates.get(path, ())) for path in paths):
+        pair = [next((e for e in candidates.get(path, ()) if pamt(e) == pamt(selected)), None)
+                for path in paths]
+        body_entry, header_entry = pair
+        if (static_layout and header_entry is not None and header_entry.orig_size in (1, 2, 4)
+                and (body_entry is None or body_entry.orig_size == 0)):
+            if read_entry is None:
+                from cdmw.core.archive_extraction import read_archive_entry_data
+                read = lambda entry: read_archive_entry_data(entry)[0]
+            else:
+                read = read_entry
+            if read(header_entry) == bytes(header_entry.orig_size) and (body_entry is None or read(body_entry) == b''):
+                # An authoritative empty table also shadows older full copies.
+                tables.pop(stem, None)
+                continue
+        if any(entry is None for entry in pair):
             raise ValueError(f"Incomplete {stem} table pair in {package}: {' and '.join(paths)}")
     # Older installations can ship these two read-only dictionaries in either layout.
     if not static_layout:

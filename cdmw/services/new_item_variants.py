@@ -268,7 +268,9 @@ def plan_variant_records(planner):
     planner.patch(pair.header_entry,header,"Variant identity directory")
     index = planner.snapshot.pappt.index()
     rows = [index[old].cloned(new) for old,new in variants.stem_map.items()]
-    table = insert_part_prefabs(planner.snapshot.pappt,rows,after_stem=next(iter(variants.stem_map)))
+    base = planner.snapshot.pappt_base if planner.snapshot.pappt_base is not None else planner.snapshot.pappt
+    donor = next(iter(variants.stem_map))
+    table = insert_part_prefabs(base,rows,after_stem=donor if donor in base.index() else None)
     planner.patch(planner.snapshot.pappt_entry,encode_pappt(table),"PartPrefab: selected variant copies")
     planner.manifest["pappt_records"] = dict(variants.stem_map)
 

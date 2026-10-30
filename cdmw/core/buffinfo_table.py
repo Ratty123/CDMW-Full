@@ -44,6 +44,35 @@ class EquipmentBuff:
 
 def parse_equipment_buff(raw: bytes) -> EquipmentBuff:
     data = bytes(raw)
+    from cdmw.core.new_item_record import named_prefix,Cursor
+    if named_prefix(raw)[3] == 'compact':
+        from cdmw.core.compact_static import read_compact_layout
+        layout = read_compact_layout(raw,'buffinfo')
+        groups = {}
+        for member in layout.members:
+            if member.path[:1] == ('_buffDataList',):
+                groups.setdefault(member.path[1],{})[(member.owner,member.name)] = member.span
+        levels = []
+        for group in groups.values():
+            level_span,data_span = group[('BuffLevel','_level')],group[('BuffLevel','_data')]
+            value = raw[data_span.start:data_span.end]
+            if len(value)<2 or value[0]!=0:
+                raise BuffInfoError('Empty equipment buff definition.')
+            description_span = group[('BuffData','_description')]
+            description = Cursor(raw[description_span.start:description_span.end]).text()
+            levels.append(BuffLevel(int.from_bytes(raw[level_span.start:level_span.end],'little',signed=True),
+                value[1],description,raw[level_span.start:data_span.end]))
+        block = layout.fields['_buffDataList']
+        result = EquipmentBuff(layout.integer('_key',width=4),Cursor(layout.data('_stringKey')).text(),
+            bool(layout.integer('_isBlocked',width=1)),tuple(levels),
+            int.from_bytes(layout.data('_minLevel'),'little',signed=True),int.from_bytes(layout.data('_maxLevel'),'little',signed=True),
+            layout.integer('_buffLevelCalculateType',width=1),raw[:block.start+4],raw[block.end:])
+        expected = {level for level in range(result.minimum,result.maximum+1) if level} if 0 <= result.maximum-result.minimum <= 1024 else None
+        # Compact equipment uses calculation type 1 and can apply several buff
+        # definitions at the same level. Each complete level remains selectable.
+        if result.calculation != 1 or expected != {level.level for level in levels}:
+            raise BuffInfoError(f'Unsupported compact BuffInfo level map: {result.name}')
+        return result
     if len(data) < 40:
         raise BuffInfoError("BuffInfo row is truncated")
     key, length = struct.unpack_from("<II", data)

@@ -3,7 +3,7 @@
 Presentation fields and elemental-status labels retain their exact localization
 references. Nonempty elemental-material/condition arrays remain unsupported.
 """
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import struct
 
 from cdmw.core.new_item_record import Cursor, RecordError, text_bytes
@@ -48,6 +48,7 @@ class ItemRecipe:
     presentation: bytes
     reward_keys: tuple[int, ...]
     additional_reward_keys: tuple[int, ...] = ()
+    compact_raw: bytes = field(default=b'', compare=False, repr=False)
 
 
 def _local_string(reader):
@@ -74,6 +75,10 @@ def _presentation(reader):
 
 
 def parse_item_recipe(raw):
+    from cdmw.core.new_item_record import named_prefix
+    if named_prefix(raw)[3] == 'compact':
+        from cdmw.core.acquisition_compact import parse_compact_recipe
+        return parse_compact_recipe(raw)
     reader = Cursor(raw)
     key, name = reader.unpack("I"), reader.text()
     if reader.take(1) != b"\0":
@@ -100,6 +105,9 @@ def parse_item_recipe(raw):
 
 
 def encode_item_recipe(row):
+    if row.compact_raw:
+        from cdmw.core.acquisition_compact import encode_compact_recipe
+        return encode_compact_recipe(row)
     out = bytearray(struct.pack("<I", row.key) + text_bytes(row.name) + b"\0")
     out += struct.pack("<HBI", row.tool_key, row.consume_type, len(row.elemental_statuses))
     for status in row.elemental_statuses:

@@ -15,6 +15,7 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 - OBJ export accepts Chinese and other non-English characters in output paths. Archive Browser previews models with unavailable textures, including affected ship PAM files, as geometry with a warning.
 
+- Create New Item opens the DLC game tables, including empty DLC tables, and includes DLC templates, names, models, shops, item groups and crafting when editing and exporting. Settings removed by the game update are disabled individually.
 - Mesh Editor replacement imports keep separate part materials when the game reuses a material name, preserve glTF/GLB texture orientation, and use compatible formats for generated colour and glow textures.
 - Imported materials no longer gain glow from Blender's default black emission setting, OBJ surface shading settings or texture folder names. Material previews refresh their shader and glow settings when replaced, and reopening exported materials preserves authored glow strength, including zero.
 

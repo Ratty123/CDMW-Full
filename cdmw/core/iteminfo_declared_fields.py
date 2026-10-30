@@ -1,6 +1,7 @@
 """Closed named root fields shared by stock-item authoring and composition."""
 from cdmw.core.item_layout import read_item_layout, replace_layout_fields
-from cdmw.core.iteminfo_behavior import read_value, write_value
+from cdmw.core.iteminfo_behavior import read_value, write_value, default_value
+from cdmw.core.compact_static import field_payload, field_bytes
 from cdmw.core.iteminfo_definition import read_definition_fields, set_definition_fields
 from cdmw.core.new_item_record import Cursor, RecordError
 from cdmw.domain.new_item import item_inventory as inventory, item_settings as settings, item_definition as definition
@@ -80,8 +81,16 @@ def validate_field_value(selector,value):
 def read_field(raw,selector):
     validate_root=field_root(selector)
     if selector[0]=='definition': return read_definition_fields(raw)[selector[1]]
-    layout=read_item_layout(raw); cursor=Cursor(layout.data(validate_root))
-    value=read_value(cursor,FIELDS[selector][1],generation=layout.generation,owner=selector[1]); cursor.finish()
+    layout=read_item_layout(raw)
+    if selector == ('progression','enchantments') and layout.generation == 'compact':
+        return _read_compact_enchantments(layout)[0]
+    shape = FIELDS[selector][1]
+    optional = isinstance(shape,tuple) and shape[0] == 'optional'
+    data = layout.data(validate_root) if optional else field_payload(layout,validate_root)
+    if data is None:
+        return default_value(shape)
+    cursor=Cursor(data)
+    value=read_value(cursor,shape,generation=layout.generation,owner=selector[1]); cursor.finish()
     return value
 
 
@@ -89,5 +98,29 @@ def write_field(raw,selector,value):
     validate_field_value(selector,value)
     if selector[0]=='definition': return set_definition_fields(raw,{selector[1]:value})
     layout=read_item_layout(raw); field,shape=FIELDS[selector]
+    if selector == ('progression','enchantments') and layout.generation == 'compact':
+        import struct
+        _values, passive = _read_compact_enchantments(layout)
+        data = struct.pack('<I',len(value)) + b''.join(
+            write_value(('record',ENCHANT[1][:-1]),{key:part for key,part in level.items() if key!='effect'},generation='compact')
+            + passive.get(level['level'],bytes(4)) + struct.pack('<I',level['effect']) for level in value)
+        return replace_layout_fields(layout,{field:field_bytes(layout,field,data)}).raw
     data=write_value(shape,value,generation=layout.generation,owner=selector[1])
+    if not (isinstance(shape,tuple) and shape[0]=='optional'):
+        data=field_bytes(layout,field,data)
     return replace_layout_fields(layout,{field:data}).raw
+
+
+def _read_compact_enchantments(layout):
+    """Keep the existing semantic fields while retaining unedited passive buffs."""
+    cursor=Cursor(field_payload(layout,'_enchantDataList') or bytes(4))
+    values,passive=[],{}
+    for _ in range(cursor.count(40)):
+        level=read_value(cursor,('record',ENCHANT[1][:-1]),generation='compact')
+        start=cursor.pos
+        cursor.take(8*cursor.count())
+        passive[level['level']]=cursor.raw[start:cursor.pos]
+        level['effect']=cursor.unpack('I')
+        values.append(level)
+    cursor.finish()
+    return values,passive

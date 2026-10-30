@@ -36,6 +36,7 @@ def _labels():
         'page_knowledge':tr('Page knowledge'), 'read_after_reward':tr('Allow reading after reward'),
         'refer_to_left_page':tr('Refer to left-page inspection'), 'effect':tr('Inspection effect'),
         'complete_effect':tr('Inspection completion effect'), 'action_hash':tr('Action hash'),
+        'extract_distance_bits':tr('Extraction distance (raw bits)'), 'extract_angle_bits':tr('Extraction angle (raw bits)'),
         'catch_tag_hash':tr('Catch tag hash'), 'catcher_socket':tr('Catcher socket'), 'target_socket':tr('Target socket'),
         'enchant_level':tr('Initial enchantment level'), 'socket_items':tr('Default socket items'),
         'socket_materials':tr('Socket unlock materials'), 'count':tr('Count'), 'subitem':tr('Drop subitem'),
@@ -45,6 +46,7 @@ def _labels():
         'equip_gimmick':tr('Equipment docking gimmick'), 'damage_parent':tr('Send damage to parent'),
         'body_part':tr('Body part'), 'docking_type':tr('Docking type'), 'summoner_team':tr('Use summoner team'),
         'player_only':tr('Player only'), 'npc_only':tr('NPC condition'), 'sync_break_parent':tr('Synchronize parent breaking'),
+        'owner_condition':tr('Owner condition'), 'use_cooldown':tr('Use cooldown'),
         'hit_part':tr('Hit part'), 'detected_by_npc':tr('Detected by NPCs'), 'bag_docking':tr('Bag docking'),
         'collision':tr('Enable collision'), 'disable_other_gimmick_collision':tr('Disable other gimmick collision'),
         'slot_key':tr('Docking slot key'), 'inherit_summoner':tr('Inherit summoner'), 'summon_tags':tr('Summon tag hashes'),
@@ -66,7 +68,7 @@ ROOT_REFERENCES = {'category':'categoryinfo','equipment_type':'equiptypeinfo','s
 LEAF_REFERENCES = {'item':'iteminfo','gimmick':'gimmickinfo','character':'characterinfo','speak_character':'characterinfo',
     'left_knowledge':'knowledgeinfo','right_knowledge':'knowledgeinfo','reward_knowledge':'knowledgeinfo',
     'page_knowledge':'knowledgeinfo','effect':'effectinfo','complete_effect':'effectinfo',
-    'npc_only':'conditioninfo','player_condition':'conditioninfo','target_condition':'conditioninfo','event_condition':'conditioninfo',
+    'npc_only':'conditioninfo','owner_condition':'conditioninfo','player_condition':'conditioninfo','target_condition':'conditioninfo','event_condition':'conditioninfo',
     'left_texture':'texture','right_texture':'texture','icon':'stringinfo','money_icon':'stringinfo','highlight_icon':'stringinfo',
     'prefabs':'stringinfo','animations':'stringinfo','tribe_genders':'stringinfo','docking_switch':'stringinfo','text_key':'localization',
     'socket_items':'iteminfo'}
@@ -147,7 +149,11 @@ class ItemBehaviorEditor(ItemDefinitionEditor):
         shape=BEHAVIOR_FIELDS[self.field.currentData()][1]
         for part in path:
             if isinstance(shape,tuple) and shape[0]=='optional': shape=shape[1]
-            if isinstance(shape,tuple) and shape[0]=='record': shape=dict(shape[1])[part]
+            if isinstance(shape,tuple) and shape[0]=='record':
+                members = dict(shape[1])
+                if part in ('extract_distance_bits','extract_angle_bits','owner_condition'): shape = 'u32'
+                elif part == 'use_cooldown': shape = 'bool'
+                else: shape = members[part]
             elif isinstance(shape,tuple): shape=shape[1]
             else: return 'u8' if part=='type' else 'u32'
         return shape

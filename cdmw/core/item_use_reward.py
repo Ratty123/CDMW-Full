@@ -16,12 +16,13 @@ class ItemUseReward:
     conditions: tuple[bytes, ...]
     reward_key: int
     tail: bytes
+    generation: str = 'legacy'
 
 
 def parse_item_use_reward(raw):
-    reader = Cursor(raw)
-    key, name = reader.unpack("I"), reader.text()
-    if reader.take(1) != b"\0":
+    from cdmw.core.new_item_record import named_prefix
+    key,name,blocked,generation,reader = named_prefix(raw)
+    if blocked:
         raise RecordError("Blocked item use")
     header = reader.take(19)
     if header[0] != 2:
@@ -34,11 +35,12 @@ def parse_item_use_reward(raw):
     if tail[:2] != b"\0\x0e" or tail[-1] not in (0, 1):
         raise RecordError("Unsupported item-use reward metadata")
     reader.finish()
-    return ItemUseReward(key, name, header, conditions, reward, tail)
+    return ItemUseReward(key, name, header, conditions, reward, tail,generation)
 
 
 def encode_item_use_reward(row):
-    result = (struct.pack("<I", row.key) + text_bytes(row.name) + b"\0" + row.use_header
+    prefix = (text_bytes(row.name)+struct.pack('<I',row.key)) if row.generation == 'compact' else (struct.pack('<I',row.key)+text_bytes(row.name))
+    result = (prefix + b"\0" + row.use_header
               + struct.pack("<I", len(row.conditions)) + b"".join(row.conditions)
               + b"\1" + struct.pack("<I", row.reward_key) + row.tail)
     if parse_item_use_reward(result) != row:
@@ -76,5 +78,7 @@ def replace_item_use_reference(row, known_keys, index, old_key, new_key):
     if not 0 <= index < len(keys) or keys[index] != old_key:
         raise RecordError("The selected reward consumer has changed")
     result = bytearray(row.raw)
+    if row.layout_generation == 'compact':
+        offset += 1  # The nonempty use list has a declared presence flag.
     struct.pack_into("<I", result, offset + 4 + 4 * index, new_key)
     return bytes(result)

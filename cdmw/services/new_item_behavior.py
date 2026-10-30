@@ -4,7 +4,7 @@ import json
 
 from cdmw.core.iteminfo_behavior import read_behavior_fields, set_behavior_fields
 from cdmw.core.new_item_record import Cursor, RecordError
-from cdmw.core.stringinfo_table import stringinfo_key
+from cdmw.core.stringinfo_table import stringinfo_key, UNSET_TEXTURE_KEY
 from cdmw.domain.cancellation import raise_if_cancelled
 from cdmw.domain.new_item.item_behavior import BEHAVIOR_FIELDS
 from cdmw.services.new_item_definition import (load_definition_index, _qualified_reference,
@@ -32,8 +32,8 @@ def named_reference(snapshot, table, key, *, stop_event=None):
     width = BEHAVIOR_TABLES[table]
     raw = _rows(snapshot, table, key_width=width, stop_event=stop_event).get(key)
     if raw is None: raise RecordError(f'Missing {table} dependency {key}.')
-    cursor = Cursor(raw); cursor.take(width); cursor.text()
-    if cursor.unpack('B') != 0: raise RecordError(f'Blocked {table} dependency {key}.')
+    from cdmw.core.new_item_record import named_prefix
+    if named_prefix(raw,width,key=key)[2] != 0: raise RecordError(f'Blocked {table} dependency {key}.')
 
 
 def load_behavior_index(snapshot, *, stop_event=None):
@@ -50,8 +50,9 @@ def load_behavior_index(snapshot, *, stop_event=None):
         for key,raw in _rows(snapshot, table, key_width=width, stop_event=stop_event).items():
             raise_if_cancelled(stop_event)
             try:
-                cursor = Cursor(raw); cursor.take(width); name = cursor.text()
-                if cursor.unpack('B') == 0: named.append((key,name))
+                from cdmw.core.new_item_record import named_prefix
+                _key,name,blocked,_generation,_cursor = named_prefix(raw,width,key=key)
+                if blocked == 0: named.append((key,name))
             except (ValueError,UnicodeError): continue
         choices[table] = tuple(sorted(named))
     observed = {name:[] for name in BEHAVIOR_FIELDS}
@@ -94,11 +95,13 @@ def string_reference(snapshot, key, *, stop_event=None):
 
 def texture_reference(snapshot, value, *, stop_event=None):
     raise_if_cancelled(stop_event)
-    if not value: return
+    if not value or value == UNSET_TEXTURE_KEY: return
+    if type(value) is int:
+        value = string_reference(snapshot,value,stop_event=stop_event)
     if value.lower().endswith('.dds'):
         from cdmw.services.independent_item_package import virtual_path
         from cdmw.core.pathc_format import validate_dds_payload
-        path = virtual_path(value.replace('\\','/').lower())
+        path = virtual_path(value.replace('\\','/').lstrip('/').lower())
         if not snapshot.has_entry(path): raise RecordError(f'Missing behavior texture dependency {path}.')
         validate_dds_payload(snapshot.payload(path))
     else:
@@ -138,6 +141,7 @@ def validate_behavior_dependencies(raw, snapshot, *, stop_event=None):
     if drop['valid_sockets'] > len(drop['socket_items']): raise RecordError('Drop socket count exceeds the declared item list.')
     docking = values['docking']
     if docking is not None:
+        ref('conditioninfo',docking.get('owner_condition',0))
         for field,table in (('gimmick','gimmickinfo'),('character','characterinfo'),('item','iteminfo'),('npc_only','conditioninfo')):
             ref(table,docking[field])
     change = values['inventory_change']

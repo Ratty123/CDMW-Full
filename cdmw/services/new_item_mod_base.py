@@ -223,6 +223,16 @@ def build_mod_base_snapshot(service, snapshot, folder: Path, *, read_entry, on_l
         for suffix, other in ((body_suffix, head_suffix), (head_suffix, body_suffix)):
             if path.endswith(suffix) and path[:-len(suffix)] + other not in payloads:
                 raise ValueError(f"Incomplete table pair in mod base: {path}")
+    if current:
+        for path,payload in payloads.items():
+            if not path.endswith(body_suffix) or not snapshot.has_entry(path):
+                continue
+            header_path = path[:-len(body_suffix)] + head_suffix
+            source = parse_pabgh_table(snapshot.payload(header_path),payload=snapshot.payload(path))
+            carried = parse_pabgh_table(payloads[header_path].read_bytes(),payload=payload.read_bytes())
+            if (source.key_layout,source.key_width) != (carried.key_layout,carried.key_width):
+                raise ValueError(f'Incompatible mod base {folder}: {path} uses a different static-table format. '
+                                 'Rebuild the affected items for this game version; the folder is preserved.')
     from cdmw.core.mod_compatibility import build_label, build_status, game_identity, read_compatibility
     compatibility = read_compatibility(folder, stop_event=stop_event)
     if compatibility is not None:

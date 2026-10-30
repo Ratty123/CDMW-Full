@@ -13,6 +13,7 @@ from cdmw.core.iteminfo_definition import read_definition_fields
 from cdmw.core.iteminfo_inventory import read_item_inventory
 from cdmw.core.iteminfo_settings import read_item_settings
 from cdmw.core.new_item_record import RecordError
+from cdmw.core.stringinfo_table import UNSET_TEXTURE_KEY
 from cdmw.domain.cancellation import raise_if_cancelled
 from cdmw.domain.new_item.effect_authoring import split_effect_reference
 from cdmw.domain.new_item.item_definition import SEAL_TARGETS
@@ -114,10 +115,12 @@ def validate_item_graph(raw, snapshot, *, stop_event=None):
                 resources.update(string_reference(snapshot,symbol,stop_event=stop_event) for symbol in prefab['animations'])
             for name in ('default_texture','emoji_texture'):
                 value=behavior[name]
-                if value and value.lower().endswith('.dds'): resources.add(value)
+                if value == UNSET_TEXTURE_KEY: continue
+                if type(value) is int: value=string_reference(snapshot,value,stop_event=stop_event)
+                if value and value.lower().endswith('.dds'): resources.add(value.replace('\\','/').lstrip('/'))
             for name in ('fixed_pages','dynamic_pages'):
                 for page in behavior[name]:
-                    resources.update(page[side+'_texture'] for side in ('left','right')
+                    resources.update(page[side+'_texture'].replace('\\','/').lstrip('/') for side in ('left','right')
                                      if page[side+'_texture'].lower().endswith('.dds'))
             # These tables are qualified and pinned by the direct validators;
             # their arbitrary game-condition/effect payloads are not decoded.

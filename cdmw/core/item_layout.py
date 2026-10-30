@@ -162,6 +162,11 @@ class _Walker:
 
 
 def _read(raw, kind, generation):
+    if generation == 'compact':
+        if kind == 'itemuseinfo':
+            return _read_compact_use(raw)
+        from cdmw.core.compact_static import read_compact_layout
+        return read_compact_layout(raw, kind)
     grammar, fields = (ITEMINFO_LAYOUT, ITEMINFO_FIELDS) if kind == 'iteminfo' else (ITEMUSE_LAYOUT, ITEMUSE_FIELDS)
     walk = _Walker(raw, grammar, generation)
     try:
@@ -178,11 +183,11 @@ def _read(raw, kind, generation):
 def read_item_layout(raw, *, generation=None):
     """Qualify the entire row, including EOF; unknown/ambiguous layouts refuse."""
     if generation is not None:
-        if generation not in ('legacy', 'current'):
+        if generation not in ('legacy', 'current', 'compact'):
             raise RecordError('Unknown ItemInfo generation.')
         return _read(raw, 'iteminfo', generation)
     candidates = []
-    for variant in ('legacy', 'current'):
+    for variant in ('legacy', 'current', 'compact'):
         try:
             candidates.append(_read(raw, 'iteminfo', variant))
         except RecordError:
@@ -193,14 +198,40 @@ def read_item_layout(raw, *, generation=None):
 
 
 def read_item_use_layout(raw):
-    result = _read(raw, 'itemuseinfo', 'current')
+    from cdmw.core.new_item_record import named_prefix
+    generation = named_prefix(raw)[3]
+    result = _read(raw, 'itemuseinfo', 'compact' if generation == 'compact' else 'current')
     if result.integer('_isBlocked', width=1) != 0:
         raise RecordError('Blocked item-use definition.')
     return result
 
 
+def _read_compact_use(raw):
+    from cdmw.core.new_item_record import named_prefix, text_bytes
+    from dataclasses import replace
+    key,name,blocked,generation,cursor = named_prefix(raw)
+    if generation != 'compact':
+        raise RecordError('Expected a compact item-use definition.')
+    if cursor.pos == len(raw):
+        raise RecordError('Truncated compact use action.')
+    tag = raw[cursor.pos]
+    if tag == 15:
+        from cdmw.core.compact_static import read_compact_layout
+        result = read_compact_layout(raw,'itemuseinfo')
+        return replace(result,variants=(ITEMUSE_LAYOUT[0][4][3][tag],))
+    converted = key.to_bytes(4,'little') + text_bytes(name) + bytes([blocked]) + raw[cursor.pos:]
+    result = _read(converted,'itemuseinfo','current')
+    fields = dict(result.fields)
+    fields['_stringKey'] = Span(0,len(text_bytes(name)))
+    fields['_key'] = Span(fields['_stringKey'].end,fields['_stringKey'].end+4)
+    return replace(result,raw=bytes(raw),generation='compact',fields=MappingProxyType(fields))
+
+
 def item_use_prefix(raw):
     """Cheap read-only catalogue hint; edits still require a complete layout."""
+    from cdmw.core.new_item_record import named_prefix
+    if named_prefix(raw)[3] == 'compact':
+        return counted_integers(read_item_layout(raw,generation='compact'),'_itemUseInfoList')
     walk = _Walker(raw, ITEMINFO_LAYOUT, 'current', stop_at='_itemUseInfoList')
     try:
         walk.run(ITEMINFO_LAYOUT[0], root=True)
@@ -230,8 +261,9 @@ def replace_layout_fields(layout, replacements):
 
 
 def counted_integers(layout, field, *, width=4):
-    cursor = Cursor(layout.data(field))
-    values = tuple(int.from_bytes(cursor.take(width), 'little') for _ in range(cursor.count(MAX_ELEMENTS)))
+    from cdmw.core.compact_static import field_payload
+    cursor = Cursor(field_payload(layout, field) or bytes(4))
+    values = tuple(int.from_bytes(cursor.take(width), 'little') for _ in range(cursor.count(65536 if layout.generation == 'compact' else MAX_ELEMENTS)))
     cursor.finish()
     return values
 
@@ -287,7 +319,8 @@ def clone_layout_item(layout, *, key, string_key, name_key, desc_key, hashes, re
             raise RecordError('An owned recipe has no declared ItemInfo reference.')
         entries = tuple(recipes.get(value, value) for value in old)
         data = struct.pack('<I', len(entries)) + b''.join(struct.pack('<I', value) for value in entries)
-        layout = replace_layout_fields(layout, {'_multiChangeInfoList': data})
+        from cdmw.core.compact_static import field_bytes
+        layout = replace_layout_fields(layout, {'_multiChangeInfoList': field_bytes(layout, '_multiChangeInfoList', data)})
     name = layout.data('_itemName')
     description = layout.data('_itemDesc')
     if len(name) < 13 or name[:5] != b'\x07\x70\0\0\0':

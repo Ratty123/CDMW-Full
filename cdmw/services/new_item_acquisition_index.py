@@ -27,10 +27,11 @@ class AcquisitionIndex:
 
 
 def optional_pair(snapshot, name):
-    if snapshot.sources is None or name not in snapshot.sources.tables:
+    from cdmw.services.new_item_tables import table_pairs
+    pairs = table_pairs(snapshot,name)
+    if not pairs:
         raise ValueError(f"The active game generation has no complete {name} table.")
-    body, header = snapshot.sources.tables[name]
-    return TablePair(body, header, snapshot.payload(body.path), snapshot.payload(header.path))
+    return pairs[0]
 
 
 def _rows(pair):
@@ -48,7 +49,8 @@ def load_acquisition_index(snapshot, *, stop_event=None):
                                   ("dropsetinfo", parse_item_reward_set, encode_item_reward_set),
                                   ("itemuseinfo", parse_item_use_reward, encode_item_use_reward)):
         rows, errors = {}, {}
-        for key, raw in _rows(pairs[name]):
+        from cdmw.services.new_item_tables import table_rows
+        for key, raw in table_rows(snapshot,name,stop_event=stop_event).items():
             raise_if_cancelled(stop_event, "Acquisition index cancelled.")
             try:
                 row = parser(raw)
@@ -62,14 +64,19 @@ def load_acquisition_index(snapshot, *, stop_event=None):
     names = {}
     for name, width in (("crafttoolinfo", 2), ("knowledgeinfo", 4)):
         rows = {}
-        for key, raw in _rows(pairs[name]):
+        from cdmw.services.new_item_tables import table_pairs, row_pair
+        layouts = {id(pair): parse_pabgh_table(pair.header,payload=pair.payload).key_layout
+                   for pair in table_pairs(snapshot,name)}
+        for key, raw in table_rows(snapshot,name,stop_event=stop_event,key_width=width).items():
             raise_if_cancelled(stop_event, "Acquisition index cancelled.")
+            pair = row_pair(snapshot,name,key)
             cursor = Cursor(raw)
-            cursor.take(width)
+            if layouts[id(pair)] == 'prefix':
+                cursor.take(width)
             rows[key] = cursor.text()
         names[name] = MappingProxyType(rows)
     uses, rewards = decoded["itemuseinfo"], decoded["dropsetinfo"]
-    all_use_keys = frozenset(key for key, _ in _rows(pairs["itemuseinfo"]))
+    all_use_keys = frozenset(table_rows(snapshot,'itemuseinfo',stop_event=stop_event))
     consumers = []
     for item in snapshot.rows.values():
         raise_if_cancelled(stop_event, "Acquisition index cancelled.")

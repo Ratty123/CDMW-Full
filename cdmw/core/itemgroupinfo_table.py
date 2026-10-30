@@ -43,9 +43,13 @@ class ItemGroupRow:
     subgroups: Tuple[int, ...]
     members: Tuple[int, ...]
     tail: bytes
+    layout: str = 'legacy'
 
     @property
     def members_offset(self) -> int:
+        if self.layout == 'compact':
+            from cdmw.core.compact_static import read_compact_layout
+            return read_compact_layout(self.raw, 'itemgroupinfo').fields['_itemInfoList'].start + 4
         return len(self.prefix) + 4 + 2 * len(self.subgroups) + 4
 
 
@@ -53,6 +57,20 @@ def parse_item_group_row(raw: bytes, *, key: Optional[int] = None, item_keys: Op
     """Decode one row. `item_keys`, when given, must contain every member."""
 
     data = bytes(raw)
+    from cdmw.core.new_item_record import named_prefix
+    try:
+        own, name, _blocked, generation, _reader = named_prefix(data, 2, key=key)
+    except ValueError:
+        generation = 'legacy'
+    if generation == 'compact':
+        from cdmw.core.compact_static import read_compact_layout
+        from cdmw.core.item_layout import counted_integers
+        layout = read_compact_layout(data, 'itemgroupinfo')
+        subgroups = counted_integers(layout, '_itemGroupInfoList', width=2)
+        members = counted_integers(layout, '_itemInfoList')
+        if item_keys is not None and set(members) - set(item_keys):
+            raise ItemGroupError('Compact group contains an unknown item.')
+        return ItemGroupRow(data, own, name, b'', subgroups, members, b'', 'compact')
     if len(data) < 6:
         raise ItemGroupError("row is too short for a key and a name length")
     row_key = struct.unpack_from("<H", data, 0)[0]
@@ -100,6 +118,12 @@ def parse_item_group_row(raw: bytes, *, key: Optional[int] = None, item_keys: Op
 
 
 def encode_item_group_row(row: ItemGroupRow) -> bytes:
+    if row.layout == 'compact':
+        from cdmw.core.compact_static import read_compact_layout
+        from cdmw.core.item_layout import replace_layout_fields
+        changes = {field:struct.pack('<I', len(values)) + b''.join(struct.pack(fmt, value) for value in values)
+                   for field,fmt,values in (('_itemGroupInfoList','<H',row.subgroups),('_itemInfoList','<I',row.members))}
+        return replace_layout_fields(read_compact_layout(row.raw, 'itemgroupinfo'), changes).raw
     out = bytearray(row.prefix)
     out += struct.pack("<I", len(row.subgroups))
     for sub in row.subgroups:

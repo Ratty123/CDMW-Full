@@ -16,11 +16,12 @@ def read_item_inventory(raw):
             raise RecordError(f'Unsupported {field} flag.')
         values[name] = bool(value)
     for name, (field, width, _minimum, _maximum) in INTEGER_FIELDS.items():
-        values[name] = layout.integer(field, width=width)
+        values[name] = layout.integer(field, width=width) if field in layout.fields else None
     for name, field in LIST_FIELDS.items():
-        values[name] = counted_integers(layout, field)
+        values[name] = counted_integers(layout, field) if field in layout.fields else None
     for name, field in PAIR_FIELDS.items():
-        cursor = Cursor(layout.data(field))
+        from cdmw.core.compact_static import field_payload
+        cursor = Cursor(field_payload(layout, field) or bytes(4))
         cls, fmt = (ReserveSlotTarget, 'II') if name == 'reserve_slots' else (MaterialGroup, 'HI')
         values[name] = tuple(cls(*cursor.unpack(fmt)) for _ in range(cursor.count(256)))
         cursor.finish()
@@ -46,4 +47,5 @@ def set_item_inventory(raw, settings):
                 (row.group_key, row.value) for row in value)
             fmt = '<II' if name == 'reserve_slots' else '<HI'
             replacements[field] = struct.pack('<I', len(value)) + b''.join(struct.pack(fmt, *row) for row in pairs)
-    return replace_layout_fields(layout, replacements).raw
+    from cdmw.core.compact_static import field_bytes
+    return replace_layout_fields(layout, {field: field_bytes(layout, field, data) for field, data in replacements.items()}).raw

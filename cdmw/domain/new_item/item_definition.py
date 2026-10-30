@@ -117,7 +117,10 @@ def _collection(kind, value):
             _stat_list(value[name], name == 'parameters')
         return
     if kind == 'faction':
-        _record(value, ('valid', 'costs', 'prices', 'tier'))
+        _record(value, ('valid', 'costs', 'prices', 'tier', 'synergies') if 'synergies' in value else ('valid', 'costs', 'prices', 'tier'))
+        _list(value.get('synergies', []))
+        for synergy in value.get('synergies', []):
+            _integer(synergy,65535)
         if type(value['valid']) is not bool:
             raise ValueError('Item faction validity requires a boolean.')
         if value['tier'] is not None:
@@ -131,7 +134,7 @@ def _collection(kind, value):
                     _integer(row[counter], (1 << 64) - 1)
             _unique(value[name], lambda row: row['item'])
         return
-    _list(value, 10 if kind == 'routing' else 8 if kind == 'slots' else 256)
+    _list(value, 12 if kind == 'routing' else 8 if kind == 'slots' else 256)
     for row in value:
         if kind == 'bundles':
             _record(row, ('minimum', 'gimmick'))
@@ -167,7 +170,7 @@ def _collection(kind, value):
         else:
             _integer(row, 65535 if kind == 'routing' else 0xffffffff)
     if kind == 'routing':
-        if len(value) not in (9, 10):
+        if len(value) not in (9, 10, 12):
             raise ValueError('Inventory routing requires its complete source-generation array.')
     elif kind in ('slots', 'bundles', 'patterns'):
         _unique(value, lambda row: row[{'slots': 'name_hash', 'bundles': 'gimmick', 'patterns': 'pattern'}[kind]])

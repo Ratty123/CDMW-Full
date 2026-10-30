@@ -44,10 +44,12 @@ def _read(kind, cursor, generation):
         for name in ('costs', 'prices'):
             value[name] = [dict(zip(('item', 'count', 'minimum', 'maximum'), cursor.unpack('IQQQ')))
                            for _ in range(cursor.count(256))]
-        value['tier'] = cursor.unpack('I') if generation == 'current' else None
+        value['tier'] = cursor.unpack('I') if generation != 'legacy' else None
+        if generation == 'compact':
+            value['synergies'] = [cursor.unpack('H') for _ in range(cursor.count(256))]
         return value
     if kind == 'routing':
-        return [cursor.unpack('H') for _ in range(10 if generation == 'current' else 9)]
+        return [cursor.unpack('H') for _ in range({'compact':12,'current':10,'legacy':9}[generation])]
     values = []
     for _ in range(cursor.count(256)):
         if kind == 'bundles':
@@ -92,9 +94,14 @@ def _write(kind, value, generation):
         result = bytes([int(value['valid'])])
         for name in ('costs', 'prices'):
             result += _counted(value[name], lambda row: struct.pack('<IQQQ', row['item'], row['count'], row['minimum'], row['maximum']))
-        return result + (struct.pack('<I', value['tier']) if value['tier'] is not None else b'')
+        result += struct.pack('<I', value['tier']) if value['tier'] is not None else b''
+        if generation == 'compact':
+            result += _counted(value.get('synergies', []), lambda v: struct.pack('<H',v))
+        elif value.get('synergies'):
+            raise RecordError('This source generation has no faction synergies.')
+        return result
     if kind == 'routing':
-        if len(value) != (10 if generation == 'current' else 9):
+        if len(value) != {'compact':12,'current':10,'legacy':9}[generation]:
             raise RecordError('Inventory routing length must match the source generation.')
         return b''.join(struct.pack('<H', entry) for entry in value)
     def row_bytes(row):
@@ -124,7 +131,11 @@ def read_definition_fields(raw):
     for name, (field, width, _section, _table) in NUMBERS.items():
         result[name] = layout.integer(field, width=width)
     for name, (field, kind, _section) in COLLECTIONS.items():
-        cursor = Cursor(layout.data(field))
+        from cdmw.core.compact_static import field_payload
+        data = field_payload(layout, field)
+        if data is None:
+            data = bytes(20 if kind == 'sharpness' else 17 if kind == 'faction' else 4)
+        cursor = Cursor(data)
         result[name] = _read(kind, cursor, layout.generation)
         cursor.finish()
     return result
@@ -142,5 +153,6 @@ def set_definition_fields(raw, values):
             replacements[field] = value.to_bytes(width, 'little')
         else:
             field, kind, _section = COLLECTIONS[name]
-            replacements[field] = _write(kind, value, layout.generation)
+            from cdmw.core.compact_static import field_bytes
+            replacements[field] = field_bytes(layout, field, _write(kind, value, layout.generation))
     return replace_layout_fields(layout, replacements).raw

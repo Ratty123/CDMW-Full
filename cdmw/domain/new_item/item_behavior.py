@@ -62,7 +62,7 @@ BEHAVIOR_FIELDS = {
     'mission': ('_lookDetailMissionInfo', 'u32', 'classification'),
     'broken_prefix': ('_brokenItemPrefixString', 'u32', 'metadata'),
     'memo': ('_itemMemo', 'text', 'metadata'), 'filter_type': ('_filterType', 'text', 'metadata'),
-    'default_texture': ('_defaultTexturePath', 'text', 'metadata'), 'emoji_texture': ('_emojiTextureID', 'text', 'metadata'),
+    'default_texture': ('_defaultTexturePath', 'texture', 'metadata'), 'emoji_texture': ('_emojiTextureID', 'texture', 'metadata'),
     'drop_stat_type': ('_applyDropStatType', 'u8', 'drops'),
     'drop_defaults': ('_dropDefaultData', DROP, 'drops'),
     'default_subitem': ('_defaultSubItem', 'subitem', 'drops'),
@@ -88,6 +88,8 @@ class ItemBehaviorSettings:
 
 def validate_value(shape, value):
     if isinstance(shape, str):
+        if shape == 'texture':
+            return validate_value('u32' if type(value) is int else 'text', value)
         if shape.startswith('u'):
             if type(value) is not int or not 0 <= value < 1 << int(shape[1:]):
                 raise ValueError('Item behavior integer is outside its storage range.')
@@ -113,9 +115,13 @@ def validate_value(shape, value):
     if kind == 'optional':
         if value is not None: validate_value(shape[1], value)
     elif kind == 'record':
-        if not isinstance(value, dict) or set(value) != {name for name, _shape in shape[1]}:
+        extra = {'extract_distance_bits','extract_angle_bits'} if shape == INSPECTION and isinstance(value,dict) and 'extract_distance_bits' in value else set()
+        if shape == DOCKING and isinstance(value,dict) and 'owner_condition' in value:
+            extra = {'owner_condition','use_cooldown'}
+        if not isinstance(value, dict) or set(value) != {name for name, _shape in shape[1]} | extra:
             raise ValueError('Unsupported item behavior record fields.')
         for name, child in shape[1]: validate_value(child, value[name])
+        for name in extra: validate_value('bool' if name == 'use_cooldown' else 'u32',value[name])
     elif kind in ('array', 'list'):
         if not isinstance(value, list) or (len(value) != shape[2] if kind == 'array' else len(value) > shape[2]):
             raise ValueError('Unsupported item behavior list length.')

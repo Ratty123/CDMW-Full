@@ -42,6 +42,7 @@ class MultiChangeRow:
     name: str
     #: The item key 24 bytes after the name's NUL; None when the bytes are not there.
     item_key: Optional[int]
+    layout: str = 'legacy'
 
     @property
     def name_end(self) -> int:
@@ -55,6 +56,20 @@ class MultiChangeRow:
 
 def parse_multichange_row(raw: bytes, *, key: Optional[int] = None) -> MultiChangeRow:
     data = bytes(raw)
+    from cdmw.core.new_item_record import named_prefix, RecordError
+    try:
+        own, name, _blocked, generation, _reader = named_prefix(data)
+    except RecordError:
+        generation = 'legacy'  # Preserve the legacy codec's specific diagnostics.
+    if generation == 'compact' and key is not None and own != key:
+        raise MultiChangeError(f'row key {own} does not match the directory key {key}')
+    if generation == 'compact':
+        from cdmw.core.compact_static import read_compact_layout
+        layout = read_compact_layout(data, 'multichangeinfo')
+        from cdmw.core.new_item_record import Cursor
+        cursor = Cursor(layout.data('_fixedMaterialDataList'))
+        item = cursor.unpack('I') if cursor.count() else None
+        return MultiChangeRow(data,own,name,item,'compact')
     if len(data) < 9:
         raise MultiChangeError("row is too short for a key and a name")
     row_key, length = struct.unpack_from("<II", data, 0)
@@ -119,6 +134,17 @@ def clone_multichange_row(row: MultiChangeRow, *, key: int, name: str, item_key:
 
     if not 0 < int(key) <= 0xFFFFFFFF:
         raise MultiChangeError("the new key must be a positive u32")
+    if row.layout == 'compact':
+        from cdmw.core.compact_static import read_compact_layout
+        from cdmw.core.item_layout import replace_layout_fields
+        from cdmw.core.new_item_record import text_bytes
+        layout = read_compact_layout(row.raw,'multichangeinfo')
+        materials = bytearray(layout.data('_fixedMaterialDataList'))
+        if len(materials)<8 or row.item_key is None:
+            raise MultiChangeError('Compact enhancement has no source item ingredient.')
+        struct.pack_into('<I',materials,4,item_key)
+        return replace_layout_fields(layout,{'_key':struct.pack('<I',key),'_stringKey':text_bytes(name),
+            '_fixedMaterialDataList':bytes(materials)}).raw
     if row.item_key is None:
         raise MultiChangeError(f"multichange {row.key} ({row.name}) has no item key to repoint")
     encoded = str(name or "").encode("utf-8")

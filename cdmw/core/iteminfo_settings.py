@@ -19,7 +19,7 @@ class ItemQuantity:
 def _level_path(path):
     for index, component in enumerate(path):
         if component == '_enchantDataList':
-            return path[index + 2]
+            return next(value for value in path[index + 1:] if isinstance(value, int))
     return None
 
 
@@ -59,18 +59,22 @@ def read_item_settings(raw):
     layout = read_item_layout(raw)
     values = {}
     for name, field in POLICY_FIELDS.items():
+        if field not in layout.fields:
+            values[name] = None
+            continue
         value = layout.integer(field, width=1)
         if value not in (0, 1):
             raise RecordError('Unknown ItemInfo policy flag value.')
         values[name] = bool(value)
     for name, (field, width) in SCALAR_FIELDS.items():
         values[name] = layout.integer(field, width=width)
-    cursor = Cursor(layout.data('_repairDataList'))
+    from cdmw.core.compact_static import field_payload
+    cursor = Cursor(field_payload(layout, '_repairDataList') or bytes(4))
     repairs = tuple(RepairEntry(cursor.unpack('I'), cursor.unpack('H'), cursor.unpack('B'), cursor.unpack('Q'))
                     for _ in range(cursor.count(128)))
     cursor.finish()
     values.update(repairs=repairs, use_actions=counted_integers(layout, '_itemUseInfoList'),
-                  cooldowns=struct.unpack('<3Q', layout.data('_cooltime')),
+                  cooldowns=struct.unpack('<3Q', field_payload(layout, '_cooltime') or bytes(24)),
                   maximum_charges=struct.unpack('<3I', layout.data('_maxChargedUseableCount')))
     return ItemSettings(**values), item_quantities(layout)
 
@@ -99,6 +103,8 @@ def set_item_settings(raw, settings):
         if value is not None:
             changes[field] = struct.pack(fmt, *value)
     if changes:
+        from cdmw.core.compact_static import field_bytes
+        changes = {field: field_bytes(layout, field, data) for field, data in changes.items()}
         layout = replace_layout_fields(layout, changes)
     output = bytearray(layout.raw)
     available = item_quantities(layout)

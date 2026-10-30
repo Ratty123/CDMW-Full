@@ -83,17 +83,20 @@ class ItemInventoryEditor(QWidget):
             for name, control in self.policies.items():
                 control.setCurrentIndex(control.findData(getattr(settings, name)))
             for name, control in self.numbers.items():
+                control.setEnabled(self._source is not None and getattr(self._source,name) is not None)
                 value = getattr(settings, name)
                 control.setText('' if value is None else str(value))
                 control.setPlaceholderText(str(getattr(self._source, name)) if self._source else '')
             for name, control in self.lists.items():
+                supported = self._source is not None and getattr(self._source,name) is not None
+                self.overrides[name].setEnabled(supported)
                 value = getattr(settings, name)
                 self.overrides[name].setChecked(value is not None)
-                control.setEnabled(value is not None)
+                control.setEnabled(value is not None and supported)
                 if value is None:
                     value = getattr(self._source, name) if self._source else ()
                 control.setText('; '.join(f'{entry.slot_key}:{entry.condition_key}' if name == 'reserve_slots'
-                    else f'{entry.group_key}:{entry.value}' if name == 'material_groups' else str(entry) for entry in value))
+                    else f'{entry.group_key}:{entry.value}' if name == 'material_groups' else str(entry) for entry in (value or ())))
         finally:
             self._syncing = False
 

@@ -26,23 +26,21 @@ def load_equipment_bonuses(snapshot, *, stop_event=None) -> EquipmentBonusIndex:
         raise ValueError("The active game generation has no complete BuffInfo table.")
     used = {key for row in snapshot.rows.values() if row.equip_type_key
             for level in row.enchant_levels for key in level.equip_buffs}
-    body_entry, head_entry = snapshot.sources.tables["buffinfo"]
-    body, head = snapshot.payload(body_entry.path), snapshot.payload(head_entry.path)
-    table = parse_pabgh_table(head, payload=body)
+    from cdmw.services.new_item_tables import table_rows
     buffs, unsupported = {}, {}
-    for row, start, end in table.row_spans(len(body)):
+    for key,raw in table_rows(snapshot,'buffinfo',stop_event=stop_event).items():
         raise_if_cancelled(stop_event, "Bonus index cancelled.")
-        if row.row_id not in used:
+        if key not in used:
             continue
         try:
-            buff = parse_equipment_buff(body[start:end])
-            if buff.key != row.row_id or encode_equipment_buff(buff) != body[start:end]:
+            buff = parse_equipment_buff(raw)
+            if buff.key != key or encode_equipment_buff(buff) != raw:
                 raise BuffInfoError("BuffInfo round trip failed")
             if buff.blocked:
                 raise BuffInfoError("BuffInfo is blocked by the game")
-            buffs[row.row_id] = buff
+            buffs[key] = buff
         except (ValueError, UnicodeError) as exc:
-            unsupported[row.row_id] = str(exc)
+            unsupported[key] = str(exc)
     for key in used - buffs.keys() - unsupported.keys():
         unsupported[key] = "BuffInfo reference is missing"
     presets = []

@@ -63,9 +63,8 @@ def load_settings_index(snapshot, *, stop_event=None):
     for key, raw in (_rows(snapshot, 'skillinfo', stop_event=stop_event) if 'skillinfo' in available else {}).items():
         raise_if_cancelled(stop_event)
         try:
-            cursor = Cursor(raw)
-            cursor.take(4)
-            skills.append((key, cursor.text()))
+            from cdmw.core.new_item_record import named_prefix
+            skills.append((key, named_prefix(raw,key=key)[1]))
         except (RecordError, UnicodeError):
             pass
     result = ItemSettingsIndex(tuple(sorted(items)), tuple(sorted(actions)), tuple(sorted(rewards)), unsupported,
@@ -82,14 +81,8 @@ def _rows(snapshot, table, *, stop_event=None, key_width=4):
     cache_key = ('item-settings-table', table) if key_width == 4 else ('item-settings-table', table, key_width)
     cached = snapshot._authoring_indexes.get(cache_key)
     if cached is None:
-        pair = optional_pair(snapshot, table)
-        rows = {}
-        for directory, start, end in parse_pabgh_table(pair.header, payload=pair.payload).row_spans(len(pair.payload)):
-            raise_if_cancelled(stop_event)
-            raw = pair.payload[start:end]
-            if len(raw) < key_width or int.from_bytes(raw[:key_width], 'little') != directory.row_id or directory.row_id in rows:
-                raise RecordError(f'{table} has an unqualified row identity.')
-            rows[directory.row_id] = raw
+        from cdmw.services.new_item_tables import table_rows
+        rows = table_rows(snapshot,table,stop_event=stop_event,key_width=key_width)
         raise_if_cancelled(stop_event)
         cached = rows
         snapshot._authoring_indexes[cache_key] = cached

@@ -25,8 +25,8 @@ def plan_reward_acquisition(planner):
     use_pair, reward_pair = index.pairs["itemuseinfo"], index.pairs["dropsetinfo"]
     use_body, use_header = planner.table_data(use_pair)
     reward_body, reward_header = planner.table_data(reward_pair)
-    item_body, item_header = planner.table_data(snapshot.iteminfo)
-    use_keys, reward_keys = table_keys(use_body, use_header), table_keys(reward_body, reward_header)
+    use_keys = table_keys(use_body, use_header) | set(index.all_use_keys)
+    reward_keys = table_keys(reward_body, reward_header) | set(index.rewards) | set(index.unsupported['dropsetinfo'])
     use_rows, reward_rows, changed_items, manifests = [], [], {}, []
     for identity, edits in selected.items():
         planner.check()
@@ -71,9 +71,13 @@ def plan_reward_acquisition(planner):
     use_body, use_header = append_table_rows(use_body, use_header, use_rows)
     reward_body, reward_header = append_table_rows(reward_body, reward_header, reward_rows)
     for item in changed_items.values():
+        from cdmw.services.new_item_tables import row_pair
+        pair = row_pair(snapshot,'iteminfo',item.key)
+        item_body,item_header = planner.table_data(pair)
         item_body, item_header = replace_table_row(item_body, item_header, item.key, item.raw)
-    for pair, body, header in ((use_pair, use_body, use_header), (reward_pair, reward_body, reward_header),
-                               (snapshot.iteminfo, item_body, item_header)):
+        planner.patch(pair.payload_entry,item_body,'ItemInfo: selected reward consumer')
+        planner.patch(pair.header_entry,item_header,'Reward consumer directory')
+    for pair, body, header in ((use_pair, use_body, use_header), (reward_pair, reward_body, reward_header)):
         planner.patch(pair.payload_entry, body, f"{pair.payload_entry.path}: selected reward routes")
         planner.patch(pair.header_entry, header, "Reward route directory")
     planner.manifest["reward_acquisitions"] = manifests

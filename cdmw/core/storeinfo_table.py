@@ -85,6 +85,7 @@ class StockEntry:
     #: Current StockData carries eight additional bytes before its order list.
     #: Their semantics are not established; edits must retain them verbatim.
     condition_data: bytes = b""
+    compact_raw: bytes = b""
 
     @property
     def is_sellable(self) -> bool:
@@ -135,6 +136,9 @@ class StockEntry:
 
 
 def encode_stock_entry(entry: StockEntry) -> bytes:
+    if entry.compact_raw:
+        from cdmw.core.storeinfo_compact import encode_compact_stock
+        return encode_compact_stock(entry)
     if len(entry.flags) != 5:
         raise StoreInfoError("a stock entry carries five flag bytes")
     if len(entry.drop_bytes) != _ITEM_B - (_ITEM_A + 4):
@@ -308,6 +312,9 @@ def _find_empty_head(raw: bytes, name_end: int) -> Optional[int]:
 def parse_store_row(raw: bytes, *, key: Optional[int] = None, layout: str = "legacy") -> StoreRow:
     """Decode one store row. `key` cross-checks the row's own u16 key when given."""
 
+    if layout == 'compact':
+        from cdmw.core.storeinfo_compact import parse_compact_store
+        return parse_compact_store(raw, key)
     if layout not in ("legacy", "current"):
         raise StoreInfoError(f"unsupported StoreInfo layout {layout!r}")
     extra_size = 8 if layout == "current" else 0
@@ -361,6 +368,9 @@ def parse_store_row(raw: bytes, *, key: Optional[int] = None, layout: str = "leg
 def encode_store_row(row: StoreRow) -> bytes:
     """Serialise a row; a fresh parse re-encodes to its own bytes."""
 
+    if row.layout == 'compact':
+        from cdmw.core.storeinfo_compact import encode_compact_store
+        return encode_compact_store(row)
     out = bytearray(row.prefix)
     out += struct.pack("<II", _u32(row.buyable_count, "buyable count"), _u32(row.sellable_count, "sellable count"))
     out += bytes([row.store_type])
@@ -488,6 +498,8 @@ def parse_store_table(payload: bytes, header: bytes, *, layout: str = "legacy") 
     """Every row of `storeinfo.pabgb`, in payload order."""
 
     table = parse_pabgh_table(header, payload=payload)
+    if table.key_layout == 'named':
+        layout = 'compact'
     rows = tuple(parse_store_row(payload[start:end], key=row.row_id, layout=layout) for row, start, end in table.row_spans(len(payload)))
     if any(encode_store_row(row) != row.raw for row in rows):
         raise StoreInfoError("StoreInfo does not round-trip in the selected layout")

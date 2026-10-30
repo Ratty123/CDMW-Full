@@ -4,7 +4,7 @@ from pathlib import Path, PurePosixPath
 from types import MappingProxyType
 
 from cdmw.core.item_dye_material import material_dye_bindings, has_dye_wiring, copy_dye_materials
-from cdmw.core.partprefab_dye_table import parse_prefab_dye_table, encode_prefab_dye_row
+from cdmw.core.partprefab_dye_table import parse_prefab_dye_row, encode_prefab_dye_row
 from cdmw.core.structured_binary_editor import append_table_rows, parse_pabgh_table, replace_table_row
 from cdmw.domain.cancellation import raise_if_cancelled
 from cdmw.services.new_item_acquisition_index import optional_pair
@@ -17,6 +17,7 @@ _NO_REVISION = object()
 class DyeIndex:
     pair: object
     rows: object
+    sources: object = None
 
 
 def dye_mask_revision(path):
@@ -47,16 +48,19 @@ def load_dye_index(snapshot, *, stop_event=None):
         return cached
     pair = optional_pair(snapshot,"partprefabdyeslotinfo")
     raise_if_cancelled(stop_event,"Dye index cancelled.")
-    rows = parse_prefab_dye_table(pair.payload,pair.header)
+    from cdmw.services.new_item_tables import table_rows
+    rows = [parse_prefab_dye_row(raw) for raw in table_rows(snapshot,'partprefabdyeslotinfo',stop_event=stop_event).values()]
     raise_if_cancelled(stop_event,"Dye index cancelled.")
-    result = DyeIndex(pair,MappingProxyType({row.model_path.casefold():row for row in rows}))
+    result = DyeIndex(pair,MappingProxyType({row.model_path.casefold():row for row in rows}),
+                      MappingProxyType(dict(snapshot.row_sources['partprefabdyeslotinfo'])))
     snapshot._authoring_indexes["dyes"] = result
     return result
 
 
 def prepare_dye_preview_table(index, row, parts):
     """Replace only the selected dye row in the disposable preview table."""
-    return replace_table_row(index.pair.payload, index.pair.header, row.key,
+    pair = index.sources[row.key] if index.sources is not None else index.pair
+    return replace_table_row(pair.payload, pair.header, row.key,
                              encode_prefab_dye_row(replace(row, submeshes=parts)))
 
 
@@ -135,7 +139,7 @@ def plan_variant_dye(planner,old_model,new_model,material,choice,imported):
     row = source.for_model(new_model,submeshes=submeshes)
     pair = index.pair
     body,header = planner.table_data(pair)
-    keys = {directory.row_id for directory in parse_pabgh_table(header,payload=body).rows}
+    keys = {directory.row_id for directory in parse_pabgh_table(header,payload=body).rows} | {value.key for value in index.rows.values()}
     if row.key in keys:
         raise ValueError("The new model's dye identity collides with an existing record.")
     body,header = append_table_rows(body,header,[encode_prefab_dye_row(row)])

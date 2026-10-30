@@ -77,6 +77,64 @@ def test_incomplete_current_pair_cannot_fall_back_to_legacy(tmp_path):
         resolve_item_data_sources([*entries, partial])
 
 
+@pytest.mark.parametrize("resident", [False, True])
+def test_empty_dlc_tables_do_not_block_new_item_snapshot_or_export(tmp_path, resident):
+    from tests.archive_resident_index_fixtures import write_resident_index
+
+    root = tmp_path / "game"
+    entries = parse_archive_pamt(build_package(root, current_files()))
+    empty_paths = [
+        f"gamedata/binarystaticinfo__/bin/{stem}.dlc_01.staticinfoheader"
+        for stem in ("aiactionattributeinfo", "equiptypeinfo", "multichangeinfo")
+    ]
+    empty_headers = dict.fromkeys(empty_paths, b'\0\0')
+    empty_headers['gamedata/binarystaticinfo__/bin/gamestartinfo.dlc_01.staticinfoheader'] = b'\0'
+    empty_headers['gamedata/binarystaticinfo__/bin/validscheduleaction.dlc_01.staticinfoheader'] = bytes(4)
+    entries += parse_archive_pamt(build_package(
+        root / "dlc/dlc_01", empty_headers))
+    catalogue = write_resident_index(root, entries, tmp_path / "catalogue").open() if resident else None
+    service = NewItemService()
+    snapshot = service.build_snapshot(entries, read_entry=_read, resident_catalogue=catalogue)
+
+    assert snapshot.rows[TEMPLATE].string_key == "Ziane_OneHandSword"
+    assert not any(stem.endswith(".dlc_01") for stem in snapshot.sources.tables)
+    witnessed = {row.entry.path for row in snapshot.provenance.capture().payloads}
+    assert set(empty_headers) <= witnessed
+    plan = service.plan(spec(), snapshot)
+    service.export_loose(plan, tmp_path / "output", manager="JMM")
+    assert (tmp_path / "output/new-item.json").is_file()
+
+
+@pytest.mark.parametrize("header", [b"\1\0", b"\0\1", bytes(3), bytes(5), b'\1', b'\0\0\0\1'])
+def test_missing_dlc_body_is_not_accepted_for_a_nonempty_or_malformed_header(tmp_path, header):
+    files = current_files()
+    files["gamedata/binarystaticinfo__/bin/aiactionattributeinfo.dlc_01.staticinfoheader"] = header
+    entries = parse_archive_pamt(build_package(tmp_path / "game", files))
+    with pytest.raises(ValueError, match="Incomplete aiactionattributeinfo.dlc_01"):
+        resolve_item_data_sources(entries)
+
+
+def test_empty_authoritative_dlc_table_does_not_restore_a_lower_complete_copy(tmp_path):
+    root = tmp_path / "game"
+    stem = "gamedata/binarystaticinfo__/bin/itemuseinfo.dlc_01"
+    files = current_files()
+    files[stem + ".staticinfobody"] = b"older rows"
+    files[stem + ".staticinfoheader"] = b"older directory"
+    entries = parse_archive_pamt(build_package(root, files))
+    entries += parse_archive_pamt(build_package(root / "dlc/dlc_01", {stem + ".staticinfoheader": b"\0\0"}))
+
+    assert "itemuseinfo.dlc_01" not in resolve_item_data_sources(entries).tables
+
+
+@pytest.mark.parametrize('count_width',[1,2,4])
+def test_zero_length_dlc_body_is_also_an_empty_table(tmp_path,count_width):
+    files = current_files()
+    stem = 'gamedata/binarystaticinfo__/bin/itemuseinfo.dlc_01'
+    files[stem+'.staticinfobody'],files[stem+'.staticinfoheader'] = b'',bytes(count_width)
+    entries = parse_archive_pamt(build_package(tmp_path/'game',files))
+    assert 'itemuseinfo.dlc_01' not in resolve_item_data_sources(entries).tables
+
+
 def test_unreadable_archive_index_cannot_expose_older_tables(tmp_path, monkeypatch):
     from cdmw.workers.new_item_workers import list_archive_entries
     import cdmw.core.archive_format as archive_format

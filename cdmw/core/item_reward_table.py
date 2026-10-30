@@ -4,7 +4,7 @@ Non-item result types and unfamiliar entry variants are deliberately rejected.
 The source's roll policy and derived cache bytes are preserved. Raw weights are
 not presented as percentages: their interpretation depends on that roll policy.
 """
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, replace, field
 import struct
 
 from cdmw.core.new_item_record import Cursor, RecordError, text_bytes
@@ -33,6 +33,7 @@ class ItemRewardSet:
     total_weight: int
     skip_weight: int
     original_string: str
+    compact_raw: bytes = field(default=b'', compare=False, repr=False)
 
     def with_entries(self, entries, *, key=None, name=None):
         entries = tuple(entries)
@@ -47,6 +48,10 @@ class ItemRewardSet:
 
 
 def parse_item_reward_set(raw):
+    from cdmw.core.new_item_record import named_prefix
+    if named_prefix(raw)[3] == 'compact':
+        from cdmw.core.acquisition_compact import parse_compact_reward
+        return parse_compact_reward(raw)
     reader = Cursor(raw)
     key, name = reader.unpack("I"), reader.text()
     if reader.take(1) != b"\0":
@@ -76,6 +81,9 @@ def parse_item_reward_set(raw):
 
 
 def encode_item_reward_set(row):
+    if row.compact_raw:
+        from cdmw.core.acquisition_compact import encode_compact_reward
+        return encode_compact_reward(row)
     if len(row.policy) != 13 or len(row.cache) != 10:
         raise RecordError("Invalid reward policy or cache")
     out = bytearray(struct.pack("<I", row.key) + text_bytes(row.name) + b"\0" + row.policy)

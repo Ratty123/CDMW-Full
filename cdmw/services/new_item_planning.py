@@ -315,7 +315,9 @@ class _Planner(EffectPlanningMixin):
         index = self.snapshot.pappt.index()
         records = [index[old].cloned(new) for old, new in mapping.items()]
         records += [index[old].cloned(new) for old, new in sheathed.items()]
-        table = insert_part_prefabs(self.snapshot.pappt, records, after_stem=next(iter(mapping)))
+        base = self.snapshot.pappt_base if self.snapshot.pappt_base is not None else self.snapshot.pappt
+        donor = next(iter(mapping))
+        table = insert_part_prefabs(base, records, after_stem=donor if donor in base.index() else None)
         self.manifest["pappt_records"] = dict(mapping)
         self.manifest["sheathed_records"] = dict(sheathed)
         self.patch(self.snapshot.pappt_entry, encode_pappt(table), f"partprefabtable.pappt: {len(records)} record(s) cloned")
@@ -567,28 +569,38 @@ class _Planner(EffectPlanningMixin):
         if not groups:
             self.manifest["item_groups"] = []
             return
-        pair = self.snapshot.itemgroupinfo
-        payload, header = pair.payload, pair.header
+        from cdmw.services.new_item_tables import row_pair
         names = []
         for group in groups:
+            pair = row_pair(self.snapshot,'itemgroupinfo',group.key)
+            payload,header = self.table_data(pair)
             grown = add_group_members(group, [int(self.spec.item_key)], after=template_key if template_key in group.members else None)
             payload, header = apply_item_group_row(payload, header, grown)
+            self.patch(pair.payload_entry,payload,f'ItemGroupInfo: joined {group.name}')
+            self.patch(pair.header_entry,header,'ItemGroupInfo directory')
             names.append(group.name)
         self.manifest["item_groups"] = names
-        self.patch(pair.payload_entry, payload, f"ItemGroupInfo: joined {len(groups)} group(s)")
-        self.patch(pair.header_entry, header, "ItemGroupInfo directory")
 
     def plan_store(self) -> None:
         from cdmw.services.new_item_shops import plan_shops
-        pair = self.snapshot.storeinfo
-        payload, header, summaries, warnings, placements = plan_shops(self.spec, self.snapshot, *self.table_data(pair))
-        self.manifest["store"] = placements[0] if len(placements) == 1 else None
-        self.manifest["stores"] = placements
-        if placements:
-            self.patch(pair.payload_entry, payload, "StoreInfo: selected shop placements")
-            self.patch(pair.header_entry, header, "StoreInfo directory")
-            self.summary.extend(summaries)
-            self.warnings.extend(warnings)
+        from cdmw.services.new_item_tables import row_pair
+        from dataclasses import replace
+        selections = (self.spec.placement,) if self.spec.shop_placements is None else self.spec.shop_placements
+        grouped = {}
+        for choice in selections:
+            if choice.kind is PlacementKind.NONE: continue
+            store = self.snapshot.store(choice.store_name)
+            pair = row_pair(self.snapshot,'storeinfo',store.key)
+            grouped.setdefault(pair.payload_entry.path,(pair,[]))[1].append(choice)
+        placements = []
+        for pair,choices in grouped.values():
+            spec = replace(self.spec,shop_placements=tuple(choices))
+            payload,header,summaries,warnings,records = plan_shops(spec,self.snapshot,*self.table_data(pair))
+            self.patch(pair.payload_entry,payload,'StoreInfo: selected shop placements')
+            self.patch(pair.header_entry,header,'StoreInfo directory')
+            self.summary.extend(summaries); self.warnings.extend(warnings); placements.extend(records)
+        self.manifest['store'] = placements[0] if len(placements)==1 else None
+        self.manifest['stores'] = placements
 
     def plan_acquisition(self) -> None:
         from cdmw.services.new_item_reward_acquisition import plan_reward_acquisition
@@ -632,8 +644,10 @@ class _Planner(EffectPlanningMixin):
                         raise NewItemPlanError(f"The {language} table has no localization for perk {source.string_key}: {old_key}")
                     new_entries += entries_like(table, old_key, {new_key: original.text})
                     texts[new_key] = original.text
-            grown = add_localization_entries(table, new_entries)
             entry = self.snapshot.paloc_entries[language]
+            from cdmw.core.paloc_format import parse_paloc
+            target = parse_paloc(self.snapshot.payload(entry.path),name=entry.path)
+            grown = add_localization_entries(target, new_entries)
             self.patch(entry, encode_paloc(grown), f"{language}: {len(new_entries)} localisation record(s)")
             written[language] = texts
         self.manifest["localisation"] = written

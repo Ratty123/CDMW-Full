@@ -213,7 +213,9 @@ def audit_references(plan, snapshot, *, stop_event=None):
     if layout is not None:
         strings = dict(snapshot.stringinfo_texts)
         strings.update({stringinfo_key(text): text for text in plan.manifest.get('stringinfo_texts', ())})
-        parts = parse_pappt(plan.loose_files[pappt_path]).index() if pappt_path in plan.loose_files else snapshot.pappt.index()
+        parts = dict(snapshot.pappt.index())
+        if pappt_path in plan.loose_files:
+            parts.update(parse_pappt(plan.loose_files[pappt_path]).index())
         source = f'iteminfo:{plan.spec.item_key}'
         for role, span in hash_reference_spans(layout):
             key = int.from_bytes(layout.raw[span.start:span.end], 'little')

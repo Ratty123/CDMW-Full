@@ -28,7 +28,8 @@ def replace_recipe_references(row, known_keys, selected, *, source_keys=None):
         if any(key not in known_keys for key in old) or source_keys is not None and tuple(source_keys) != old:
             raise RecordError('The declared recipe references disagree with their source.')
         data = struct.pack('<I', len(selected)) + b''.join(struct.pack('<I', key) for key in selected)
-        return replace_layout_fields(layout, {'_multiChangeInfoList': data}).raw
+        from cdmw.core.compact_static import field_bytes
+        return replace_layout_fields(layout, {'_multiChangeInfoList': field_bytes(layout,'_multiChangeInfoList',data)}).raw
     old = find_multichange_keys(row, known_keys) if source_keys is None else source_keys
     if not old:
         if selected:
@@ -68,8 +69,9 @@ def plan_recipes(planner):
     recipe_pair, reward_pair = index.pairs["multichangeinfo"], index.pairs["dropsetinfo"]
     recipe_body, recipe_header = planner.table_data(recipe_pair)
     reward_body, reward_header = planner.table_data(reward_pair)
-    recipe_keys = planner.allocate_owned_keys("multichangeinfo", tuple(f"recipe:{choice.recipe_key}" for choice in choices), table_keys(recipe_body, recipe_header))
-    used_rewards = table_keys(reward_body, reward_header)
+    recipe_keys = planner.allocate_owned_keys("multichangeinfo", tuple(f"recipe:{choice.recipe_key}" for choice in choices),
+        table_keys(recipe_body, recipe_header) | set(index.recipes) | set(index.unsupported['multichangeinfo']))
+    used_rewards = table_keys(reward_body, reward_header) | set(index.rewards) | set(index.unsupported['dropsetinfo'])
     recipe_rows, reward_rows, mapping, manifests = [], [], {}, []
     for choice, new_key in zip(choices, recipe_keys):
         planner.check()

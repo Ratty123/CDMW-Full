@@ -139,6 +139,8 @@ class EnchantLevel:
     equip_buff_extras: Tuple[int, ...] = ()
     #: The trailing u32 (0 on every shipped level).
     tail: int = 0
+    #: Compact rows keep their independent passive-buff array verbatim.
+    passive_buffs: bytes = bytes(4)
 
 
 @dataclass(frozen=True, slots=True)
@@ -178,9 +180,13 @@ class ItemInfoRow:
     #: `_categoryInfo` u16; older readers incorrectly called this `item_type`.
     category_info: Optional[int] = None
     category_info_offset: Optional[int] = None
+    layout_generation: str = "legacy"
+    stack_count_offset: Optional[int] = None
 
     @property
     def max_stack_count_offset(self) -> int:
+        if self.stack_count_offset is not None:
+            return self.stack_count_offset
         # key(4) + length(4) + name + isBlocked(1)
         return 8 + len(self.string_key.encode("utf-8")) + 1
 
@@ -424,6 +430,9 @@ def _parse_iteminfo_row(raw: bytes, *, item_keys: Optional[Iterable[int]] = None
     all; a row whose stat block cannot be found parses with `coverage == "no-stat-block"`.
     """
 
+    if layout is not None and layout.generation == 'compact':
+        from cdmw.core.iteminfo_compact import parse_compact_item
+        return parse_compact_item(layout)
     data = bytes(raw or b"")
     if len(data) < 12:
         raise ItemInfoRowError("row is too short to hold a key and a name")
@@ -739,6 +748,10 @@ def encode_stat_block(
     none, 2026-08-18) and 1 when the row has any slot.
     """
 
+    if row.layout_generation == 'compact':
+        from cdmw.core.iteminfo_compact import encode_compact_stat_block
+        return encode_compact_stat_block(row, levels=levels, price_list=price_list,
+            socket_items=socket_items, add_socket_materials=add_socket_materials)
     if row.stat_block_offset is None:
         raise ItemInfoRowError(f"{row.string_key} has no decoded stat block to rebuild")
     ladder = tuple(row.enchant_levels if levels is None else levels)
@@ -888,6 +901,10 @@ def parse_status_names(payload: bytes, header: bytes) -> Mapping[int, str]:
     table = parse_pabgh_table(bytes(header or b""), payload=bytes(payload or b""))
     names = {}
     for row, start, end in table.row_spans(len(payload)):
+        if table.key_layout == 'named':
+            from cdmw.core.new_item_record import named_prefix
+            names[row.row_id] = named_prefix(payload[start:end], table.key_width, key=row.row_id)[1]
+            continue
         length = _u32(payload, start + table.key_width)
         text_start = start + table.key_width + 4
         if 0 < length <= 128 and text_start + length <= end:
