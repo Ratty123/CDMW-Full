@@ -10399,6 +10399,7 @@
     "Rendering archive files... {value_0} / {value_1}": "Rendering dei file di archivio... {value_0} / {value_1}",
     "Rendering thumbnail…": "Rendering della miniatura…",
     "Reopen every Refit source from Archive Browser to retain its dependencies.": "Riapri ogni sorgente di adattamento da Esplora archivi per conservarne le dipendenze.",
+    "Reopen the DDS entry or choose Refresh to retry a failed preview. Raw-byte fallbacks are not saved as successful previews.": "Riapri la voce DDS o scegli Aggiorna per riprovare un’anteprima non riuscita. La visualizzazione dei byte grezzi non viene salvata come anteprima riuscita.",
     "Reopen the accepted mesh in the current session, keeping its fitting setup, parts and output choices. The original source stays the reference. Undo/Redo starts again when the editor reopens.": "Riapri la mesh accettata nella sessione corrente, mantenendo configurazione di adattamento, parti e scelte di output. La sorgente originale rimane il riferimento. La cronologia Annulla/Ripeti riparte da zero quando l'editor viene riaperto.",
     "Reopen this mesh from Archive Browser to retain its source dependencies.": "Riapri questa mesh da Esplora archivi per conservarne le dipendenze sorgenti.",
     "Reopening the accepted mesh revision for editing...": "Apertura dell'area di lavoro...",

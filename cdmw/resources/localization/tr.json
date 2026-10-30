@@ -10399,6 +10399,7 @@
     "Rendering archive files... {value_0} / {value_1}": "Arşiv dosyaları oluşturuluyor... {value_0} / {value_1}",
     "Rendering thumbnail…": "Küçük resim oluşturuluyor…",
     "Reopen every Refit source from Archive Browser to retain its dependencies.": "Bağımlılıklarını korumak için her uyarlama kaynağını Arşiv Tarayıcısı üzerinden yeniden açın.",
+    "Reopen the DDS entry or choose Refresh to retry a failed preview. Raw-byte fallbacks are not saved as successful previews.": "Başarısız önizlemeyi yeniden denemek için DDS girdisini tekrar açın veya Yenile seçeneğini kullanın. Yedek olarak gösterilen ham baytlar başarılı önizleme olarak kaydedilmez.",
     "Reopen the accepted mesh in the current session, keeping its fitting setup, parts and output choices. The original source stays the reference. Undo/Redo starts again when the editor reopens.": "Kabul edilen mesh'i, uyarlama ayarlarını, parçalarını ve çıktı seçimlerini koruyarak geçerli oturumda yeniden açın. Orijinal kaynak referans olarak kalır. Düzenleyici yeniden açıldığında Geri Al/Yinele geçmişi sıfırlanır.",
     "Reopen this mesh from Archive Browser to retain its source dependencies.": "Kaynak bağımlılıklarını korumak için bu mesh'i Arşiv Tarayıcısı üzerinden yeniden açın.",
     "Reopening the accepted mesh revision for editing...": "Çalışma alanı açılıyor...",

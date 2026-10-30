@@ -345,6 +345,8 @@ class ArchivePreviewWorker(ArchivePreviewNativeMixin, QObject):
         cached = self.preview_cache_snapshot.get(key)
         if not isinstance(cached, ArchivePreviewResult):
             return None
+        if cached.warning_badge == "Raw bytes":
+            return None
         dotnet_package_path = str(getattr(cached, "dotnet_preview_package_path", "") or "").strip()
         if dotnet_package_path:
             valid_package, _missing = validate_rust_preview_cache_package(Path(dotnet_package_path))

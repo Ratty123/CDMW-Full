@@ -10399,6 +10399,7 @@
     "Rendering archive files... {value_0} / {value_1}": "アーカイブ ファイルをレンダリング中... {value_0} / {value_1}",
     "Rendering thumbnail…": "サムネイルを描画中…",
     "Reopen every Refit source from Archive Browser to retain its dependencies.": "依存ファイルを保持するには、フィット調整のすべてのソースをアーカイブ ブラウザーから開き直してください。",
+    "Reopen the DDS entry or choose Refresh to retry a failed preview. Raw-byte fallbacks are not saved as successful previews.": "DDSの項目を開き直すか、リフレッシュを選択して、失敗したプレビューを再試行してください。代わりに表示された生のバイト列は、成功したプレビューとして保存されません。",
     "Reopen the accepted mesh in the current session, keeping its fitting setup, parts and output choices. The original source stays the reference. Undo/Redo starts again when the editor reopens.": "フィット設定、パーツ、出力の選択を保持したまま、確定したメッシュを現在のセッションで開き直します。元のソースは引き続き参照として使用します。エディタを開き直すと、元に戻す・やり直しの履歴は最初から始まります。",
     "Reopen this mesh from Archive Browser to retain its source dependencies.": "元の依存ファイルを保持するには、このメッシュをアーカイブ ブラウザーから開き直してください。",
     "Reopening the accepted mesh revision for editing...": "ワークスペースを開いています...",

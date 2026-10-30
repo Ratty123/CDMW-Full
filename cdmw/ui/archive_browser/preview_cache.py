@@ -458,6 +458,8 @@ class ArchivePreviewCacheMixin:
         return clone_archive_preview_model(preview_model, strip_images=strip_images)
 
     def _archive_preview_result_cacheable(self, result: ArchivePreviewResult) -> bool:
+        if result.warning_badge == "Raw bytes":
+            return False
         dotnet_package_path = str(getattr(result, "dotnet_preview_package_path", "") or "").strip()
         if dotnet_package_path:
             if not is_durable_dotnet_preview_package_path(
@@ -564,6 +566,9 @@ class ArchivePreviewCacheMixin:
             return None
         cached = self.archive_preview_cache.get(cache_key)
         if cached is None:
+            return None
+        if cached.warning_badge == "Raw bytes":
+            self.archive_preview_cache.pop(cache_key, None)
             return None
         dotnet_package_path = str(getattr(cached, "dotnet_preview_package_path", "") or "").strip()
         if dotnet_package_path:

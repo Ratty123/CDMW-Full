@@ -9,7 +9,7 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 ### Fixed
 
-- Archive Browser no longer freezes while updating preview details after quickly switching between DDS files.
+- Archive Browser no longer freezes while updating preview details after quickly switching between DDS files. Failed DDS previews show the converter's error in Details and retry when reopened instead of keeping a cached raw-byte result.
 
 ## [0.11.0-alpha.29] - 2026-10-30
 

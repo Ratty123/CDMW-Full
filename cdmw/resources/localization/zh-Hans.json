@@ -10399,6 +10399,7 @@
     "Rendering archive files... {value_0} / {value_1}": "渲染归档文件... {value_0} / {value_1}",
     "Rendering thumbnail…": "正在渲染缩略图…",
     "Reopen every Refit source from Archive Browser to retain its dependencies.": "请从归档浏览器重新打开每个贴合源，以保留其依赖项。",
+    "Reopen the DDS entry or choose Refresh to retry a failed preview. Raw-byte fallbacks are not saved as successful previews.": "重新打开 DDS 条目或选择刷新，以重试失败的预览。原始字节的替代显示不会保存为成功的预览。",
     "Reopen the accepted mesh in the current session, keeping its fitting setup, parts and output choices. The original source stays the reference. Undo/Redo starts again when the editor reopens.": "在当前会话中重新打开已接受的网格，保留贴合设置、部件和输出选项。原始源仍用作参考。编辑器重新打开时，撤销/重做历史记录会重新开始。",
     "Reopen this mesh from Archive Browser to retain its source dependencies.": "请从归档浏览器重新打开此网格，以保留其源依赖项。",
     "Reopening the accepted mesh revision for editing...": "打开工作区...",

@@ -350,6 +350,11 @@ def test_in_app_browser_renders_the_expanded_guides_in_each_locale(tmp_path, lan
         assert translated != dds_failure_guide or language.code == "en"
         assert translated in dialog.browser.toPlainText()
         assert translated in wiki_pages[page_slug("Archive-Browser", language.code) + ".md"]
+        retry_guide = "Reopen the DDS entry or choose Refresh to retry a failed preview. Raw-byte fallbacks are not saved as successful previews."
+        translated = localizer.translate(retry_guide)
+        assert translated != retry_guide or language.code == "en"
+        assert translated in dialog.browser.toPlainText()
+        assert translated in wiki_pages[page_slug("Archive-Browser", language.code) + ".md"]
         dialog.select_section("error_code_library")
         localizer.apply(dialog)
         body = dialog.browser.toPlainText()

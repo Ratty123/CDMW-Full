@@ -10399,6 +10399,7 @@
     "Rendering archive files... {value_0} / {value_1}": "Рендеринг архивных файлов... {value_0}/{value_1}",
     "Rendering thumbnail…": "Создание миниатюры…",
     "Reopen every Refit source from Archive Browser to retain its dependencies.": "Заново откройте каждый источник подгонки через Браузер архивов, чтобы сохранить его зависимости.",
+    "Reopen the DDS entry or choose Refresh to retry a failed preview. Raw-byte fallbacks are not saved as successful previews.": "Снова откройте запись DDS или выберите Обновить, чтобы повторить неудавшийся предпросмотр. Показ необработанных байтов вместо изображения не сохраняется как успешный предпросмотр.",
     "Reopen the accepted mesh in the current session, keeping its fitting setup, parts and output choices. The original source stays the reference. Undo/Redo starts again when the editor reopens.": "Заново откройте принятую сетку в текущем сеансе, сохранив настройки подгонки, части и параметры вывода. Исходный источник остаётся эталоном. При повторном открытии редактора история отмены/повтора начинается заново.",
     "Reopen this mesh from Archive Browser to retain its source dependencies.": "Заново откройте эту сетку через Браузер архивов, чтобы сохранить её исходные зависимости.",
     "Reopening the accepted mesh revision for editing...": "Открытие рабочего места...",

@@ -142,6 +142,7 @@ def ensure_dds_display_preview_png(
             normal_space=normal_space,
             output_pixel_type=output_pixel_type,
             stop_event=stop_event,
+            raise_on_failure=True,
         )
         if native_preview is not None:
             return native_preview

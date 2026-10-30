@@ -10399,6 +10399,7 @@
     "Rendering archive files... {value_0} / {value_1}": "Archivdateien rendern... {value_0} / {value_1}",
     "Rendering thumbnail…": "Vorschaubild wird gerendert…",
     "Reopen every Refit source from Archive Browser to retain its dependencies.": "Öffnen Sie jede Anpassungsquelle erneut im Archiv-Browser, um ihre Abhängigkeiten zu behalten.",
+    "Reopen the DDS entry or choose Refresh to retry a failed preview. Raw-byte fallbacks are not saved as successful previews.": "Öffnen Sie den DDS-Eintrag erneut oder wählen Sie Aktualisieren, um eine fehlgeschlagene Vorschau erneut zu versuchen. Die ersatzweise Anzeige von Rohbytes wird nicht als erfolgreiche Vorschau gespeichert.",
     "Reopen the accepted mesh in the current session, keeping its fitting setup, parts and output choices. The original source stays the reference. Undo/Redo starts again when the editor reopens.": "Öffnen Sie das übernommene Mesh erneut in der aktuellen Sitzung und behalten Sie seine Anpassungseinstellungen, Teile und Ausgabeoptionen bei. Die Originalquelle bleibt die Referenz. Der Rückgängig-/Wiederholen-Verlauf beginnt beim erneuten Öffnen des Editors von vorn.",
     "Reopen this mesh from Archive Browser to retain its source dependencies.": "Öffnen Sie dieses Mesh erneut im Archiv-Browser, um seine Quellabhängigkeiten zu behalten.",
     "Reopening the accepted mesh revision for editing...": "Arbeitsbereich wird geöffnet...",

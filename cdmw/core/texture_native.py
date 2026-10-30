@@ -11,6 +11,7 @@ import tempfile
 import threading
 import time
 from collections import deque
+from contextvars import ContextVar
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, Mapping, Optional, Sequence
@@ -43,6 +44,9 @@ NATIVE_TEXTURE_PROTOCOL_VERSION = 2
 DIRECTXTEX_BINARY_REAPPEAR_TIMEOUT_SECONDS = 60.0
 _DIRECTXTEX_FAILURE_REPORTS: deque[Dict[str, Any]] = deque(maxlen=128)
 _DIRECTXTEX_FAILURE_REPORTS_LOCK = threading.Lock()
+_NATIVE_PREVIEW_FAILURES: ContextVar[Optional[list[Dict[str, Any]]]] = ContextVar(
+    "native_preview_failures", default=None,
+)
 _DIRECTXTEX_BINARY_STATE_LOCK = threading.Lock()
 _last_directxtex_binary_path: Optional[Path] = None
 _UNSUPPORTED_NATIVE_DDS_REASON = "DDS format is not a supported 2D texture format"
@@ -246,6 +250,9 @@ def _record_directxtex_failure(
     }
     if reason:
         report["reason"] = str(reason)
+    current_failures = _NATIVE_PREVIEW_FAILURES.get()
+    if current_failures is not None:
+        current_failures.append(report)
     with _DIRECTXTEX_FAILURE_REPORTS_LOCK:
         _DIRECTXTEX_FAILURE_REPORTS.append(report)
     return report
@@ -699,19 +706,34 @@ def ensure_native_dds_preview_png(
     timeout_seconds: Optional[float] = None,
     on_log: Optional[Any] = None,
     stop_event: Optional[threading.Event] = None,
+    raise_on_failure: bool = False,
 ) -> Optional[Path]:
-    return ensure_directxtex_dds_preview_png(
-        dds_path,
-        max_dimension=max_dimension,
-        slot_kind=slot_kind,
-        srgb=srgb,
-        normal_space=normal_space,
-        requested_mip=requested_mip,
-        output_pixel_type=output_pixel_type,
-        timeout_seconds=timeout_seconds,
-        on_log=on_log,
-        stop_event=stop_event,
-    )
+    """Optionally raise this call's decoder error; existing callers keep None."""
+    # Capture this conversion's reports, without consuming the global history
+    # or attributing another preview worker's failure to the selected file.
+    failures: list[Dict[str, Any]] = []
+    token = _NATIVE_PREVIEW_FAILURES.set(failures) if raise_on_failure else None
+    try:
+        preview = ensure_directxtex_dds_preview_png(
+            dds_path,
+            max_dimension=max_dimension,
+            slot_kind=slot_kind,
+            srgb=srgb,
+            normal_space=normal_space,
+            requested_mip=requested_mip,
+            output_pixel_type=output_pixel_type,
+            timeout_seconds=timeout_seconds,
+            on_log=on_log,
+            stop_event=stop_event,
+        )
+    finally:
+        if token is not None:
+            _NATIVE_PREVIEW_FAILURES.reset(token)
+    if preview is None and raise_on_failure and failures:
+        report = failures[-1]
+        detail = report.get("stderr_summary") or report.get("reason") or report["returncode"]
+        raise ValueError(str(detail))
+    return preview
 
 
 def decode_dds_preview_with_directxtex(

@@ -521,6 +521,10 @@ Document signals are blocked for the replacement, then highlighting is refreshed
 disconnecting the highlighter can deadlock with preview-worker QObject teardown.
 For a DDS raw-byte fallback, Details retains the file path and the original
 `Decoded preview failed` error. Readable strings alone do not diagnose that failure.
+Raw-byte fallbacks are excluded from the preview cache and ignored in existing
+worker snapshots, so reopening an entry or choosing Refresh retries decoding.
+DDS display failures retain the current conversion's native error without taking
+messages from other workers or consuming the shared diagnostic history.
 
 ## Read-only boundary and exports
 
