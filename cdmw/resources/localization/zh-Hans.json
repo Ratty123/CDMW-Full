@@ -9706,6 +9706,7 @@
     "Previewing model library item: {value_0}.": "预览模型库物品：{value_0}。",
     "Previewing placement source geometry: {value_0} | {value_1} mesh(es), {value_2} vertices, {value_3} faces": "预览放置源几何图形：{value_0} | {value_1} 网格、{value_2} 顶点、{value_3} 面",
     "Previewing {value_0} | {value_1} vertices, {value_2} faces": "预览 {value_0} | {value_1} 顶点、{value_2} 面",
+    "Previews keep the selected face shape when sharing a skeleton, and faces without shape adjustments keep their original geometry.": "共用骨骼时，预览会保留所选的脸部形状；未进行形状调整的脸部会保留原始几何体。",
     "Previous": "上一页",
     "Previous Mesh Editor workflow closed.": "之前的网格编辑器工作流程已关闭。",
     "Previous preview · current selection is not prepared": "先前预览 · 当前选择尚未准备",

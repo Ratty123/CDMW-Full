@@ -9706,6 +9706,7 @@
     "Previewing model library item: {value_0}.": "Model kitaplığı öğesinin önizlemesi gösteriliyor: {value_0}.",
     "Previewing placement source geometry: {value_0} | {value_1} mesh(es), {value_2} vertices, {value_3} faces": "Yerleştirme kaynağı geometrisinin önizlemesi: {value_0} | {value_1} mesh, {value_2} köşeleri, {value_3} yüzleri",
     "Previewing {value_0} | {value_1} vertices, {value_2} faces": "{value_0}'in önizlemesi | {value_1} köşeleri, {value_2} yüzleri",
+    "Previews keep the selected face shape when sharing a skeleton, and faces without shape adjustments keep their original geometry.": "Önizlemeler ortak bir iskelet kullanıldığında seçilen yüz şeklini korur; şekil ayarı olmayan yüzler özgün geometrilerini korur.",
     "Previous": "Önceki",
     "Previous Mesh Editor workflow closed.": "Önceki Mesh Düzenleyici iş akışı kapatıldı.",
     "Previous preview · current selection is not prepared": "Önceki önizleme · geçerli seçim hazırlanmadı",

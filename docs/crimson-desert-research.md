@@ -500,6 +500,17 @@ does not prove that a smooth-skinned mesh belongs to a particular rig. Related
 character races can share the principal PHM, PHW or PTM skeletons; resolution
 must be demonstrated by the palette.
 
+The 2026-10-30 Body & Face Finder investigation confirmed missing shared-rig inputs
+for dwarf/goblin heads and missing `_nude_<variant>` descriptors for creature bodies.
+The resident worker now follows those descriptors within the existing dependency
+bounds; an added family descriptor supplies skeleton references only. Valid head
+descriptors without shape references preserve source geometry, while malformed XML
+and unresolved declared shapes still fail. Focused synthetic regressions and 28
+concurrent thumbnail jobs against the installed post-DLC archives passed with these
+source changes on baseline `a08470eba146`. PAMT content hashes and PAZ size and
+modification-time metadata remained unchanged. This is preview-rendering evidence,
+not packaged-release or in-game acceptance.
+
 These are supported authoring limits for the inspected layout, not a claim that
 every stored game record has at most six influences. Untouched records can retain
 extra raw influence data. The authored import mapper refuses more than six

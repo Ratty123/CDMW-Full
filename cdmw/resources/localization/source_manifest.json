@@ -113352,6 +113352,16 @@
       ]
     },
     {
+      "key": "Previews keep the selected face shape when sharing a skeleton, and faces without shape adjustments keep their original geometry.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 368,
+          "sink": "python-return:_build_archive_mesh_sections"
+        }
+      ]
+    },
+    {
       "key": "Previous",
       "origins": [
         {

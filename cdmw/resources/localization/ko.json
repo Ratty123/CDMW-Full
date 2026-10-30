@@ -9706,6 +9706,7 @@
     "Previewing model library item: {value_0}.": "모델 라이브러리 항목 미리보기: {value_0}.",
     "Previewing placement source geometry: {value_0} | {value_1} mesh(es), {value_2} vertices, {value_3} faces": "배치 소스 형상 미리보기: {value_0} | {value_1} 메시, {value_2} 정점, {value_3} 면",
     "Previewing {value_0} | {value_1} vertices, {value_2} faces": "{value_0} 미리보기 | {value_1} 꼭지점, {value_2} 면",
+    "Previews keep the selected face shape when sharing a skeleton, and faces without shape adjustments keep their original geometry.": "스켈레톤을 공유해도 미리보기에는 선택한 얼굴 형태가 유지되며, 형태 조정이 없는 얼굴은 원래 지오메트리를 유지합니다.",
     "Previous": "이전",
     "Previous Mesh Editor workflow closed.": "이전 메시 편집기 작업 흐름이 닫혔습니다.",
     "Previous preview · current selection is not prepared": "이전 미리보기 · 현재 선택 준비 안 됨",

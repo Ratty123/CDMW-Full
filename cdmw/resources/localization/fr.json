@@ -9706,6 +9706,7 @@
     "Previewing model library item: {value_0}.": "Aperçu de l'élément de bibliothèque de modèles : {value_0}.",
     "Previewing placement source geometry: {value_0} | {value_1} mesh(es), {value_2} vertices, {value_3} faces": "Aperçu de la géométrie source du placement : {value_0} | Maillage(s) {value_1}, sommets {value_2}, faces {value_3}",
     "Previewing {value_0} | {value_1} vertices, {value_2} faces": "Aperçu {value_0} | Sommets {value_1}, faces {value_2}",
+    "Previews keep the selected face shape when sharing a skeleton, and faces without shape adjustments keep their original geometry.": "Les aperçus conservent la forme de visage sélectionnée lorsque le squelette est partagé. Les visages sans ajustement de forme conservent leur géométrie d’origine.",
     "Previous": "Précédent",
     "Previous Mesh Editor workflow closed.": "Le workflow précédent de l'éditeur de maillage est fermé.",
     "Previous preview · current selection is not prepared": "Aperçu précédent · sélection actuelle non préparée",

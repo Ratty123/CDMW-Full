@@ -323,6 +323,13 @@ identity skeleton. The Python mesh loader verifies the candidate PAB against the
 palette before attaching it. Archive existence still validates every derived candidate,
 so an unmatched binary fragment cannot enter the snapshot.
 
+Humanoid previews also resolve the family base-body descriptor in padded or unpadded
+prefab folders to discover a shared PAB. Only skeleton references from that additional
+descriptor are traversed; its body shape and materials do not become head inputs.
+Creature whole-body PACs named after their containing family plus a numeric variant
+also resolve the matching `_nude_<variant>.prefabdata_xml` companion. Both lookups keep
+the existing dependency bounds and prepare the resolved PAB through the normal closure.
+
 A complete snapshot is the native preview core's in-memory archive index; it does not
 trigger a second full-PAMT parse. The two-entry in-game mesh-swap flow merges the
 already prepared target and source snapshots into one immutable request context capped

@@ -228,7 +228,8 @@ public sealed class ArchiveLookupService(
             ids,
             cancellationToken);
         incomplete |= AddPreviewCompanionPaths(selected, session.Index, ids, cancellationToken);
-        incomplete |= AddPreviewPabCandidates(selected, dependencyIndex, session.Index, ids, cancellationToken);
+        var familySkeletonDescriptorIds = new HashSet<long>();
+        incomplete |= AddPreviewPabCandidates(selected, dependencyIndex, session.Index, ids, familySkeletonDescriptorIds, cancellationToken);
 
         var scanIds = new List<long>();
         var queuedIds = new HashSet<long>();
@@ -300,6 +301,10 @@ public sealed class ArchiveLookupService(
                 incomplete |= extracted.Truncated;
                 foreach (var token in extracted.Tokens)
                 {
+                    // A family body descriptor supplies rig authority only.
+                    // Its body shape/materials must not become the head's inputs.
+                    if (familySkeletonDescriptorIds.Contains(entry.EntryId)
+                        && !token.EndsWith(".pab", StringComparison.OrdinalIgnoreCase)) continue;
                     if (ids.Count >= MaximumPreviewLookupResults)
                     {
                         incomplete = true;
@@ -307,7 +312,8 @@ public sealed class ArchiveLookupService(
                     }
                     incomplete |= AddPreviewReference(session, dependencyIndex, token, ids, cancellationToken);
                 }
-                if (entry.Extension is ".xml" or ".pac_xml" or ".prefabdata_xml" or ".material")
+                if (!familySkeletonDescriptorIds.Contains(entry.EntryId)
+                    && entry.Extension is ".xml" or ".pac_xml" or ".prefabdata_xml" or ".material")
                 {
                     var references = ArchivePbdMaterialReferences.Names(decoded.Bytes, cancellationToken);
                     incomplete |= references.Incomplete;
@@ -552,6 +558,20 @@ public sealed class ArchiveLookupService(
         {
             candidates.Add(path[..^7] + ".pam");
         }
+        else if (selected.Extension == ".pac" && path.StartsWith("character/model/2_mon/", StringComparison.OrdinalIgnoreCase))
+        {
+            // Some whole-body PACs omit the "nude" component present in their
+            // prefab name. Follow the exact sibling descriptor for that variant.
+            var stem = Path.GetFileNameWithoutExtension(path);
+            var separator = stem.LastIndexOf('_');
+            var folder = path[..path.LastIndexOf('/')];
+            if (separator > 0 && stem[(separator + 1)..].Length > 0 && stem[(separator + 1)..].All(char.IsDigit)
+                && stem[..separator] == folder[(folder.LastIndexOf('/') + 1)..])
+            {
+                candidates.Add(folder.Replace("character/model/", "character/prefab/", StringComparison.OrdinalIgnoreCase)
+                    + "/" + stem[..separator] + "_nude" + stem[separator..] + ".prefabdata_xml");
+            }
+        }
         if (selected.Extension is ".pac" or ".pam" or ".pamlod" or ".pat")
         {
             candidates.Add("character/identityskeleton.pab");
@@ -568,6 +588,7 @@ public sealed class ArchiveLookupService(
         ArchiveDependencyIndex dependencyIndex,
         ArchiveIndex index,
         HashSet<long> ids,
+        HashSet<long> familySkeletonDescriptorIds,
         CancellationToken cancellationToken)
     {
         var path = NormalizePath(selected.Path);
@@ -635,6 +656,36 @@ public sealed class ArchiveLookupService(
                 dependencyIndex.FindEntryIdsByBasename(index, basename, MaximumPreviewLookupResults, cancellationToken),
                 ids,
                 cancellationToken);
+        }
+        // Heads can name only a PABC, while the family's base-body descriptor
+        // names a shared rig (for example a dwarf woman's phw_01.pab). Keep that
+        // descriptor in the bounded closure so its references are prepared too.
+        // The mesh resolver still verifies the PAC palette against the PAB.
+        var parts = path.Split('/');
+        if (parts.Length >= 5 && parts[2] == "1_pc")
+        {
+            var familyParts = parts[3].Split('_', 2);
+            if (familyParts.Length == 2 && int.TryParse(familyParts[0], out var familyNumber)
+                && familyParts[1].Length is >= 2 and <= 5 && familyParts[1].All(char.IsLetter))
+            {
+                foreach (var folder in new[] { parts[3], $"{familyNumber:D2}_{familyParts[1]}" }.Distinct())
+                {
+                    foreach (var prefix in new[] { "", "cd_" })
+                    {
+                        var descriptors = new HashSet<long>();
+                        incomplete |= AddExactPathMatches(index,
+                            $"character/prefab/1_pc/{folder}/nude/{prefix}{familyParts[1]}_00_nude_00_0001.prefabdata_xml",
+                            descriptors, cancellationToken);
+                        foreach (var descriptorId in descriptors)
+                        {
+                            if (ids.Contains(descriptorId)) continue;
+                            if (ids.Count >= MaximumPreviewLookupResults) { incomplete = true; break; }
+                            ids.Add(descriptorId);
+                            familySkeletonDescriptorIds.Add(descriptorId);
+                        }
+                    }
+                }
+            }
         }
         return incomplete;
     }

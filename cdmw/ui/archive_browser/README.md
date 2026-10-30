@@ -379,6 +379,12 @@ disk-cache policy, trimming toward 1.5 GiB, to retain more prepared models acros
 changes. Saved images remain usable after their larger 3D packages leave that bounded
 cache; selecting one can rebuild its interactive package.
 
+Shared-rig humanoid heads obtain their PAB through the family's base-body descriptor;
+that extra descriptor supplies skeleton references only, preserving the selected head's
+own PABC and materials. Creature body models whose name omits `nude` resolve the matching
+numbered body descriptor. A valid face descriptor with no shape references retains the
+original geometry; malformed descriptors and missing declared shape files remain errors.
+
 Catalogue caches use archive generation, mount signature and format version; thumbnails
 also use appearance context, renderer/package schema, settings and camera preset.
 Refresh invalidates the finder. Search changes cancel obsolete work; close retains

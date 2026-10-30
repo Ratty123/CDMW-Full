@@ -1114,6 +1114,40 @@ internal static class FullArchiveTestRunner
                 "head with only a shared morph-set reference lost its verifiable PAB candidate");
 
             var preparation = new ArchiveEntryPreparationService(sessions, native);
+            var creature = Enumerable.Range(0, checked((int)handle.EntryCount)).Select(index => session.ReadEntry(index))
+                .Single(static entry => entry.Path.EndsWith("/cd_m0001_00_giantent_0002.pac", StringComparison.OrdinalIgnoreCase));
+            var creatureAssociation = await lookup.FindAssociationCandidatesAsync(
+                new ArchiveAssociationRequest(handle.SessionId, creature.EntryId, 128, ArchiveAssociationPurpose.Preview),
+                CancellationToken.None).ConfigureAwait(false);
+            Require(!creatureAssociation.Truncated
+                && creatureAssociation.Candidates.Any(static entry => entry.Path.EndsWith("/cd_m0001_00_giantent_nude_0002.prefabdata_xml", StringComparison.OrdinalIgnoreCase))
+                && creatureAssociation.Candidates.Any(static entry => entry.Path == "character/model/1_pc/1_phm/phm_01.pab"),
+                "creature body lost its nude-prefab skeleton dependency");
+            foreach (var (family, stem, rig) in new[] {
+                ("08_pdw", "cd_pdw_00_head_00_0005", "character/model/1_pc/2_phw/phw_01.pab"),
+                ("09_pgm", "cd_pgm_00_head_00_4001", "character/model/1_pc/1_phm/phm_01.pab") })
+            {
+                var head = Enumerable.Range(0, checked((int)handle.EntryCount)).Select(index => session.ReadEntry(index))
+                    .Single(entry => entry.Path.EndsWith($"/{stem}.pac", StringComparison.OrdinalIgnoreCase));
+                var familyAssociation = await lookup.FindAssociationCandidatesAsync(
+                    new ArchiveAssociationRequest(handle.SessionId, head.EntryId, 128, ArchiveAssociationPurpose.Preview),
+                    CancellationToken.None).ConfigureAwait(false);
+                var familyPaths = familyAssociation.Candidates.Select(static entry => entry.Path).ToHashSet();
+                var bodyStem = $"cd_{family[3..]}_00_nude_00_0001";
+                Require(!familyAssociation.Truncated && familyPaths.Contains(rig)
+                    && familyPaths.Contains($"character/prefab/1_pc/{family}/nude/{bodyStem}.prefabdata_xml")
+                    && familyPaths.Contains($"character/prefab/1_pc/{family}/head/head/{stem}.prefabdata_xml")
+                    && familyAssociation.Candidates.Any(static entry => entry.Extension == ".pabc")
+                    && !familyPaths.Contains("unrelated/monster.pab")
+                    && !familyPaths.Contains("unrelated/body.pabc")
+                    && !familyAssociation.Candidates.Any(static entry => entry.Extension == ".pac"),
+                    $"{family} head lost its family-authored shared skeleton or included an unrelated body/creature");
+                var familyPrepared = await preparation.PrepareManyAsync(new PrepareEntriesRequest(handle.SessionId,
+                    familyAssociation.Candidates.Select(static entry => entry.EntryId).Prepend(head.EntryId).ToArray()),
+                    CancellationToken.None).ConfigureAwait(false);
+                Require(familyPrepared.Items.Any(item => session.ReadEntry(item.Entry.EntryId).Path == rig && File.Exists(item.PreparedPath)),
+                    $"{family} shared skeleton was not delivered as prepared preview bytes");
+            }
             var entryIds = association.Candidates
                 .Select(static entry => entry.EntryId)
                 .Prepend(selected.EntryId)

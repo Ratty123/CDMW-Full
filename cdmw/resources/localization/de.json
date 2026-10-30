@@ -9706,6 +9706,7 @@
     "Previewing model library item: {value_0}.": "Vorschau des Modellbibliothekselements: {value_0}.",
     "Previewing placement source geometry: {value_0} | {value_1} mesh(es), {value_2} vertices, {value_3} faces": "Vorschau der Platzierungsquellgeometrie: {value_0} | {value_1}-Mesh(e), {value_2}-Eckpunkte, {value_3}-Flächen",
     "Previewing {value_0} | {value_1} vertices, {value_2} faces": "Vorschau {value_0} | {value_1}-Eckpunkte, {value_2}-Flächen",
+    "Previews keep the selected face shape when sharing a skeleton, and faces without shape adjustments keep their original geometry.": "Vorschauen behalten bei gemeinsam genutzten Skeletten die ausgewählte Gesichtsform bei. Gesichter ohne Formanpassungen behalten ihre ursprüngliche Geometrie.",
     "Previous": "Zurück",
     "Previous Mesh Editor workflow closed.": "Vorheriger Mesh-Editor-Workflow geschlossen.",
     "Previous preview · current selection is not prepared": "Vorherige Vorschau · aktuelle Auswahl nicht vorbereitet",

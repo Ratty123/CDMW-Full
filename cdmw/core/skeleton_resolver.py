@@ -690,13 +690,18 @@ def resolve_skeleton_descriptor_for_model(
             continue
         try:
             text = read_entry_data(descriptor_entry).decode("utf-8", "ignore")
+            if authored_descriptor is not None:
+                # An empty HeadPrefabData is a valid source-shape selection.
+                # Validate it separately: the reference reader also returns no
+                # references for malformed XML, which must remain an error.
+                ET.fromstring(text)
         except RunCancelled:
             raise
         except Exception as exc:
             errors.append(f"{descriptor_entry.path}: {exc}")
             continue
         refs = _prefabdata_xml_refs(text)
-        if not refs:
+        if not refs and authored_descriptor is None:
             continue
         resolved: dict[str, ArchiveEntry] = {}
         attempted: list[str] = []
@@ -753,7 +758,9 @@ def resolve_skeleton_descriptor_for_model(
         if not any(
             key in resolved
             for key in ("skeletonname", "skeletonvariationname", "morphtargetset", "morphtargetsetname")
-        ):
+        ) and (authored_descriptor is None or any(
+            attr.strip().lower() in _SHAPE_DESCRIPTOR_ATTRIBUTES for attr, _value in refs
+        )):
             continue
         resolution = SkeletonDescriptorResolution(
             descriptor_entry=descriptor_entry,

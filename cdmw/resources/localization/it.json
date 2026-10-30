@@ -9706,6 +9706,7 @@
     "Previewing model library item: {value_0}.": "Anteprima dell'elemento della libreria del modello: {value_0}.",
     "Previewing placement source geometry: {value_0} | {value_1} mesh(es), {value_2} vertices, {value_3} faces": "Anteprima della geometria di origine del posizionamento: {value_0} | Mesh {value_1}, vertici {value_2}, facce {value_3}",
     "Previewing {value_0} | {value_1} vertices, {value_2} faces": "Anteprima di {value_0} | Vertici {value_1}, facce {value_2}",
+    "Previews keep the selected face shape when sharing a skeleton, and faces without shape adjustments keep their original geometry.": "Le anteprime mantengono la forma del viso selezionata quando condividono uno scheletro, mentre i visi senza modifiche alla forma mantengono la geometria originale.",
     "Previous": "Precedente",
     "Previous Mesh Editor workflow closed.": "Flusso di lavoro precedente dell'Editor di mesh chiuso.",
     "Previous preview · current selection is not prepared": "Anteprima precedente · selezione corrente non preparata",
