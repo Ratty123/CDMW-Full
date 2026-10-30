@@ -485,7 +485,9 @@ def test_compact_activity_and_selection_helpers_are_classic_noops() -> None:
     assert sync_compact_workspace_selection(owner, "archive_browser") == ""
 
 
-def test_compact_workspace_executes_rail_footer_status_and_drawer_contracts(tmp_path: Path) -> None:
+def test_compact_workspace_executes_rail_footer_status_and_drawer_contracts(tmp_path: Path, monkeypatch) -> None:
+    from PySide6.QtGui import QDesktopServices
+
     app = _app()
     settings = create_settings(settings_file_path=tmp_path / "rail-settings.cfg")
     owner = _CompactOwner(settings)
@@ -538,6 +540,15 @@ def test_compact_workspace_executes_rail_footer_status_and_drawer_contracts(tmp_
     assert row.isEnabled()
 
     assert workspace.rail.settings_button.defaultAction() is owner.open_settings_action
+    opened_urls = []
+    monkeypatch.setattr(QDesktopServices, "openUrl", lambda url: opened_urls.append(url.toString()) or True)
+    discord = workspace.rail.discord_button
+    assert discord.text() == discord.accessibleName() == "Discord"
+    assert not discord.isCheckable()
+    QTest.mouseClick(discord, Qt.LeftButton)
+    discord.setFocus()
+    QTest.keyClick(discord, Qt.Key_Space)
+    assert opened_urls == ["https://discord.gg/Ucyp39ayUX"] * 2
     assert workspace.rail.help_button.menu() is owner.help_menu
     assert workspace.rail.support_button is owner.support_corner_button
     assert owner.profile_menu.menuAction() in workspace.rail.overflow_menu.actions()
@@ -560,13 +571,17 @@ def test_compact_workspace_executes_rail_footer_status_and_drawer_contracts(tmp_
     assert workspace.rail.support_button.isFlat()
     footer = workspace.rail.settings_button.parentWidget()
     assert footer is not None
-    assert footer.height() <= 162
+    assert footer.height() <= 193
+    assert footer.layout().indexOf(workspace.rail.discord_button) == (
+        footer.layout().indexOf(workspace.rail.help_button) - 1
+    )
     assert footer.layout().indexOf(workspace.rail.report_problem_button) == (
         footer.layout().indexOf(workspace.rail.support_button) + 1
     )
     shell_buttons = [
         *workspace.rail.tool_buttons.values(),
         workspace.rail.settings_button,
+        workspace.rail.discord_button,
         workspace.rail.help_button,
         workspace.rail.support_button,
         workspace.rail.report_problem_button,
@@ -604,6 +619,54 @@ def test_compact_workspace_executes_rail_footer_status_and_drawer_contracts(tmp_
     owner.close()
     owner.deleteLater()
     app.processEvents()
+
+
+def test_discord_icon_stays_crisp_and_readable_when_switching_themes(tmp_path: Path) -> None:
+    from math import ceil
+    from PySide6.QtCore import QPoint, QSize
+    from cdmw.ui.themes import build_app_palette, build_app_stylesheet
+
+    app = _app()
+    previous_palette, previous_stylesheet = app.palette(), app.styleSheet()
+    owner = _CompactOwner(create_settings(settings_file_path=tmp_path / "discord-themes.cfg"))
+    workspace = CompactWorkspace(owner, QTabWidget())
+    owner.setCentralWidget(workspace)
+    owner.resize(1120, 720)
+    owner.show()
+
+    def luminance(color):
+        channels = (color.redF(), color.greenF(), color.blueF())
+        linear = [value / 12.92 if value <= 0.04045 else ((value + 0.055) / 1.055) ** 2.4 for value in channels]
+        return sum(weight * value for weight, value in zip((0.2126, 0.7152, 0.0722), linear))
+
+    try:
+        for theme_key in UI_THEME_SCHEMES:
+            app.setPalette(build_app_palette(theme_key))
+            app.setStyleSheet(build_app_stylesheet(theme_key))
+            workspace.refresh_palette()
+            app.processEvents()
+            button = workspace.rail.discord_button
+            sample = button.mapTo(owner, QPoint(button.width() - 12, button.height() // 2))
+            background = luminance(owner.grab().toImage().pixelColor(sample))
+            for scale in (1.0, 1.25, 2.0, 3.0):
+                pixmap = button.icon().pixmap(QSize(18, 18), scale)
+                assert not pixmap.isNull(), theme_key
+                assert pixmap.width() == pixmap.height() == ceil(18 * scale)
+                assert pixmap.devicePixelRatio() == scale
+                image = pixmap.toImage()
+                solid = [image.pixelColor(x, y) for y in range(image.height()) for x in range(image.width())
+                         if image.pixelColor(x, y).alpha() == 255]
+                assert len(solid) > 30 * scale * scale, theme_key
+                assert len({color.name() for color in solid}) == 1
+                assert solid[0].name() in {"#000000", "#ffffff"}
+                foreground = luminance(solid[0])
+                assert (max(background, foreground) + 0.05) / (min(background, foreground) + 0.05) >= 4.5, theme_key
+    finally:
+        owner.close()
+        owner.deleteLater()
+        app.processEvents()
+        app.setPalette(previous_palette)
+        app.setStyleSheet(previous_stylesheet)
 
 
 def test_compact_drawer_follows_appearance_log_font_across_tool_switches(tmp_path: Path) -> None:

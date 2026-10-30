@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from PySide6.QtCore import Qt, Signal
-from PySide6.QtGui import QColor, QPalette
+from PySide6.QtCore import Qt, QUrl, Signal
+from PySide6.QtGui import QColor, QDesktopServices, QPalette
 from PySide6.QtWidgets import (
     QButtonGroup,
     QFrame,
@@ -16,6 +16,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from cdmw.constants import APP_DISCORD_URL
 from cdmw.ui.shell.compact.config import compact_category_expanded_setting
 from cdmw.ui.shell.compact.icons import compact_line_icon
 from cdmw.ui.shell.compact.registry import (
@@ -170,6 +171,19 @@ class CompactWorkspaceRail(QFrame):
         self.settings_button.setMinimumHeight(31)
         layout.addWidget(self.settings_button)
 
+        self.discord_button = QToolButton()
+        self.discord_button.setObjectName("CompactDiscordButton")
+        self.discord_button.setProperty("compactFooterRow", True)
+        self.discord_button.setText("Discord")
+        self.discord_button.setToolTip("Open the Discord community in your browser.")
+        self.discord_button.setAccessibleName("Discord")
+        self.discord_button.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
+        self.discord_button.setFocusPolicy(Qt.StrongFocus)
+        self.discord_button.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        self.discord_button.setMinimumHeight(31)
+        self.discord_button.clicked.connect(lambda: QDesktopServices.openUrl(QUrl(APP_DISCORD_URL)))
+        layout.addWidget(self.discord_button)
+
         self.help_button = QToolButton()
         self.help_button.setObjectName("CompactHelpButton")
         self.help_button.setProperty("compactFooterRow", True)
@@ -276,6 +290,7 @@ class CompactWorkspaceRail(QFrame):
         for header in self._category_headers.values():
             header._refresh_icon()
         self.settings_button.setIcon(compact_line_icon("mesh", palette))
+        self.discord_button.setIcon(compact_line_icon("discord", palette))
         self.help_button.setIcon(compact_line_icon("book", palette))
         self._owner.shell.report_problem_action.setIcon(compact_line_icon("bug", palette))
         self.overflow_button.setIcon(compact_line_icon("more", palette))

@@ -776,7 +776,7 @@ class AboutDocumentationEnglishMixin:
                 "title": 'Window & Layout',
                 "summary": 'Compact or Classic navigation around the same tools.',
                 "keywords": "window layout detach attach tab geometry splitter restore detached tool",
-                "html": '<p>Choose Compact or Classic in Settings &gt; Appearance &gt; Layout, then restart.</p><p>Compact is the default; your saved layout choice is preserved.</p>',
+                "html": '<p>Choose Compact or Classic in Settings &gt; Appearance &gt; Layout, then restart.</p><p>Compact is the default; your saved layout choice is preserved.</p><p>In Compact, choose Discord above Help in the sidebar to open the community invite in your default browser.</p>',
             },
             {
                 "id": "safety",

@@ -59,7 +59,10 @@ before a scheduled redraw. All retained events and duplicate coalescing keep the
 existing semantics.
 
 Assets lists Browse Archives, Create New Item, Model Library, and Item Icons in that
-order. The Compact navigation rail sizes to its labels, icons, and layout margins,
+order. Discord sits directly above Help in the fixed footer and opens the community
+invite in the default browser. Its official symbol uses the black or white variant
+with the stronger contrast against the current theme and retains its proportions
+at each display scale. The Compact navigation rail sizes to its labels, icons, and layout margins,
 including room for a scrollbar, so it stays narrow without clipping larger fonts or
 longer translations. Collapsing categories keeps that width stable. The shell navigation
 arrow controls the app rail. Mesh Editor's own header chevrons independently collapse

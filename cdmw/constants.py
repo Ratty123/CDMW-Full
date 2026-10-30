@@ -180,6 +180,7 @@ APP_NAME = "CrimsonDesertModWorkbench"
 APP_TITLE = "Crimson Desert Mod Workbench"
 APP_REPOSITORY_URL = "https://github.com/Ratty123/CDMW-Full"
 APP_KOFI_URL = "https://ko-fi.com/ratrider"
+APP_DISCORD_URL = "https://discord.gg/Ucyp39ayUX"
 PREFERRED_CRIMSON_DESERT_MOD_MANAGER_URL = "https://www.nexusmods.com/crimsondesert/mods/113"
 LEGACY_APP_NAMES = ("DDSRebuildApp",)
 APP_VERSION = "0.11.0-alpha.29"

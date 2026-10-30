@@ -42342,6 +42342,21 @@
       ]
     },
     {
+      "key": "Discord",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/compact/rail.py",
+          "line": 177,
+          "sink": "setText"
+        },
+        {
+          "path": "cdmw/ui/shell/compact/rail.py",
+          "line": 179,
+          "sink": "setAccessibleName"
+        }
+      ]
+    },
+    {
       "key": "Discovered texture file(s): {value_0}",
       "origins": [
         {
@@ -66868,6 +66883,16 @@
           "path": "tools/placement_studio/clip_names.py",
           "line": 311,
           "sink": "python-data:_TRIM_WORDS"
+        }
+      ]
+    },
+    {
+      "key": "In Compact, choose Discord above Help in the sidebar to open the community invite in your default browser.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 710,
+          "sink": "python-return:_build_reference_sections"
         }
       ]
     },
@@ -98437,6 +98462,16 @@
         {
           "path": "cdmw/ui/archive_browser/hkx_editor_dialog_shell_part_01.py",
           "line": 128,
+          "sink": "setToolTip"
+        }
+      ]
+    },
+    {
+      "key": "Open the Discord community in your browser.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/compact/rail.py",
+          "line": 178,
           "sink": "setToolTip"
         }
       ]

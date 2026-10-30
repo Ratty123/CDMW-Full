@@ -346,6 +346,13 @@ def test_in_app_browser_renders_the_expanded_guides_in_each_locale(tmp_path, lan
         assert translated != sync_rule or language.code == "en"
         assert translated in dialog.browser.toPlainText()
         assert translated in wiki_pages[page_slug("Contributing", language.code) + ".md"]
+        dialog.select_section("window_layout")
+        localizer.apply(dialog)
+        discord_guide = "In Compact, choose Discord above Help in the sidebar to open the community invite in your default browser."
+        translated = localizer.translate(discord_guide)
+        assert translated != discord_guide or language.code == "en"
+        assert translated in dialog.browser.toPlainText()
+        assert translated in wiki_pages[page_slug("Settings-and-Profiles", language.code) + ".md"]
         for topic in ("new_item_studio", "mesh_editor"):
             dialog.select_section(topic)
             localizer.apply(dialog)

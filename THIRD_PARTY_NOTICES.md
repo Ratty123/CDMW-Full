@@ -30,6 +30,17 @@ This file is a practical notice list for repository and release packaging. For a
 - Upstream: https://github.com/pyca/cryptography
 - Notes: used for deterministic ChaCha20 archive payload decryption where supported
 
+## Brand Artwork
+
+### Discord
+
+- Purpose: identify the Discord community link in the Compact sidebar
+- Upstream: [Discord Brand Assets](https://discord.com/branding)
+- Artwork: the official Clyde symbol, with unchanged geometry and proportions,
+  using its black or white variant to suit the application theme
+- The Discord name and Clyde symbol belong to Discord Inc. Their use follows
+  the upstream brand guidelines and does not imply endorsement of CDMW.
+
 ## Native Libraries
 
 ### CDMW Rust Mesh Editor and Archive Preview runtime dependencies

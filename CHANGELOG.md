@@ -7,6 +7,10 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 ## [Unreleased]
 
+### Added
+
+- Compact's sidebar has a Discord button above Help, with the official icon adapting to light and dark themes.
+
 ### Fixed
 
 - Archive Browser can extract mixed file types from the right-click menu without losing the selection. Extract Filtered exports all matching results and stays available after other operations finish.
