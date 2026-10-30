@@ -64897,6 +64897,16 @@
       ]
     },
     {
+      "key": "If a model's referenced textures are unavailable, Preview shows its geometry with a Textures unavailable warning. Texture defaults from another material are not reused.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 366,
+          "sink": "python-return:_build_archive_mesh_sections"
+        }
+      ]
+    },
+    {
       "key": "If anything fails, open",
       "origins": [
         {
@@ -95803,6 +95813,16 @@
           "path": "cdmw/services/modify_original_workspace_service.py",
           "line": 379,
           "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "OBJ export supports Chinese and other non-English characters in output folder and file names, regardless of the interface language.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 366,
+          "sink": "python-return:_build_archive_mesh_sections"
         }
       ]
     },

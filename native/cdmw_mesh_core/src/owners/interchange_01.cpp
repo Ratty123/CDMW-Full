@@ -513,7 +513,7 @@ ObjExportResult run_obj_export(const JsonValue& root) {
         throw std::runtime_error("non-finite OBJ export scale");
     }
 
-    std::ofstream out(output_path, std::ios::binary | std::ios::trunc);
+    std::ofstream out(std::filesystem::u8path(output_path), std::ios::binary | std::ios::trunc);
     if (!out) {
         throw std::runtime_error("cannot open OBJ output file: " + output_path);
     }

@@ -402,7 +402,9 @@ class AboutDocumentationEnglishMixin:
                 <p>Prepared archive files and DDS preview caches support long Windows paths without changing Windows settings. If access still fails, Details includes the operating-system error and path length.</p>
                 <p>Reopen the DDS entry or choose Refresh to retry a failed preview. Raw-byte fallbacks are not saved as successful previews.</p>
                 <p>Not every archive format is editable. Browsing and preview support is broader than patch support, so use the visible actions beside the preview to see what is currently available for the selected entry.</p>
+                <p>If a model's referenced textures are unavailable, Preview shows its geometry with a Textures unavailable warning. Texture defaults from another material are not reused.</p>
                 <h3>Batch OBJ / FBX export</h3>
+                <p>OBJ export supports Chinese and other non-English characters in output folder and file names, regardless of the interface language.</p>
                 <ol>
                   <li>Select PAC, PAM or PAMLOD file rows with Ctrl or Shift. Folders and other file types are excluded.</li>
                   <li>Open Export and choose Export Selected as OBJ... or Export Selected as FBX..., then choose an output folder.</li>

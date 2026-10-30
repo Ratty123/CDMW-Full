@@ -489,6 +489,8 @@ base geometry.
 If source-declared textures cannot be resolved, the worker prepares a separate
 geometry-only native contract and displays **Textures unavailable**. It preserves the
 saved texture choice and does not automatically retry the failed texture request.
+A missing source shared by several materials stays a missing-source warning when
+another material uses its own technique default; that default is never borrowed.
 Invalid material ownership and lost parameters still fail validation. The same warning
 covers a completed texture lookup with no usable texture sources; geometry-only mode and
 authored colour-only materials do not report missing textures.
@@ -563,6 +565,9 @@ retaining small authored adjustments and other neutral shape changes. Animation
 poses are unaffected. The native package cache invalidates older baked previews.
 
 ### OBJ export and round trips
+
+OBJ, MTL and round-trip metadata support Unicode output folders and file names,
+including Chinese characters, independently of the interface language.
 
 **Export > Export Selected as OBJ... / Export Selected as FBX...** converts
 explicitly selected PAC, PAM and PAMLOD file rows in a sequential batch. Use Ctrl

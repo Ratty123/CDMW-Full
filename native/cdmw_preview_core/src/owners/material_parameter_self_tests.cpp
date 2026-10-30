@@ -430,6 +430,49 @@ static void run_material_parameter_transport_self_test() {
 }
 
 static void run_material_source_resolution_self_test() {
+    {
+        EntryJob job;
+        PamtIndex index;
+        std::vector<NativeSubmesh> meshes;
+        TechniqueIndex techniques;
+        NativeMaterialConservationRow row;
+        row.component_scope_id = "owned.pam#model_property=0";
+        row.owner_wrapper_item_id = "material:1";
+        row.material_wrapper_index = 1;
+        row.logical_graph_edge = true;
+        row.parameter.kind = "texture";
+        row.parameter.name = "_baseColorTexture";
+        row.parameter.texture_path = "texture/missing.dds";
+        TextureBinding binding;
+        binding.component_scope_id = row.component_scope_id;
+        binding.owner_wrapper_item_id = "material:0";
+        binding.material_wrapper_index = 0;
+        binding.parameter_name = row.parameter.name;
+        binding.declared_texture_path = row.parameter.texture_path;
+        binding.archive_path = "texture/authored_default.dds";
+        binding.source_resolution = "technique_default_after_missing_declared_source";
+        binding.declared_source_missing = true;
+
+        auto finding = [&](const TextureBinding& candidate) {
+            NativePackage package;
+            package.material_conservation_rows.push_back(row);
+            MaterialBindingBuildState state{job, index, meshes, package, techniques};
+            state.bindings.push_back(candidate);
+            finish_material_bindings(state, 1);
+            require_material_contract(!package.material_conservation_ok,
+                "missing or foreign-owner material was accepted as conserved");
+            require_material_contract(!package.material_conservation_rows[0].texture_resolved,
+                "another owner's texture was assigned to the missing material");
+            return package.material_conservation_rows[0].finding;
+        };
+        require_material_contract(finding(binding) == "source_dds_unavailable",
+            "another owner's technique default hid the missing-source diagnosis");
+        binding.source_resolution = "declared_exact";
+        binding.declared_source_missing = false;
+        binding.archive_path = row.parameter.texture_path;
+        require_material_contract(finding(binding) == "cross_owner_binding",
+            "an actual foreign-owner source no longer fails ownership validation");
+    }
     EntryJob source_resolution_job;
     ArchiveEntryRef source_resolution_sidecar;
     source_resolution_sidecar.path = "character/modelproperty/samuel.pac_xml";

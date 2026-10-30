@@ -816,7 +816,12 @@ static void finish_material_bindings(MaterialBindingBuildState& state, size_t si
                 resolved = &binding;
                 break;
             }
-            cross_owner = &binding;
+            // Another material's technique default is not a binding of this
+            // owner's missing source. Keep the missing-source diagnosis so
+            // the caller can offer its explicit geometry-only preview.
+            if (binding.source_resolution != "technique_default_after_missing_declared_source") {
+                cross_owner = &binding;
+            }
         }
         if (resolved != nullptr) {
             row.texture_resolved = true;

@@ -96,7 +96,7 @@ void write_obj_roundtrip_manifest(
     const std::vector<ObjRoundtripManifestSubmesh>& submeshes,
     const JsonValue* extra_payload
 ) {
-    std::ofstream out(manifest_path, std::ios::binary | std::ios::trunc);
+    std::ofstream out(std::filesystem::u8path(manifest_path), std::ios::binary | std::ios::trunc);
     if (!out) {
         throw std::runtime_error("cannot open OBJ round-trip manifest: " + manifest_path);
     }
