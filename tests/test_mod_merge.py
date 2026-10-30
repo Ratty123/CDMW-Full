@@ -70,7 +70,7 @@ def test_combine_folder_picker_retains_named_rows_and_real_paths(tmp_path, monke
 def make_mods(tmp_path, *, current=True, shop=False, same_key=False):
     service, snapshot, entries = setup_game(tmp_path, current=current)
     plans, folders = [], []
-    for index, manager in enumerate(("JMM", "DMM")):
+    for index, manager in enumerate(("CDUMM", "DMM")):
         item = replace(spec("First" if index == 0 else "Second"),
                        item_key=1990000 + (0 if same_key else index * 100), recipes=() if current else None)
         if shop:
@@ -102,7 +102,7 @@ def test_generated_icon_mods_merge_through_flat_registry_route(tmp_path, reverse
     service, snapshot, entries = setup_game(tmp_path)
     baseline_rows = parse_icon_registry(snapshot.payload(ICON_REGISTRY_PATH)).textures
     folders, names = [], []
-    for index, manager in enumerate(('JMM', 'DMM')):
+    for index, manager in enumerate(('CDUMM', 'DMM')):
         choice = replace(spec(f'Icon{index}'), item_key=1990000 + index * 100,
                          stem=f'cd_phm_01_sword_{9109 + index}', recipes=(), icon=IconSource.GENERATED)
         name = icon_string_for_stem(choice.stem)
@@ -191,7 +191,7 @@ def test_colliding_generated_recipe_ids_require_resolution(tmp_path):
     service, snapshot, entries, _plans, folders = make_mods(tmp_path)
     for index, folder in enumerate(folders):
         plan = service.plan(replace(spec(folder.name), item_key=1990000 + index * 100), snapshot)
-        service.export_loose(plan, folder, manager="JMM" if index == 0 else "DMM")
+        service.export_loose(plan, folder, manager="CDUMM" if index == 0 else "DMM")
     merged = prepare_mod_merge(folders, tmp_path / "game", entries=entries)
     assert any("multichangeinfo" in issue and "1990000" in issue for issue in merged.conflicts)
 
@@ -310,7 +310,7 @@ def test_unknown_file_conflicts_and_incomplete_tables_are_reported(tmp_path):
     for index, folder in enumerate(folders):
         (folder / "character").mkdir(exist_ok=True)
         (folder / "character/shared.pac").write_bytes(bytes([index]))
-    (folders[0] / snapshot.iteminfo.header_entry.path).unlink()
+    (folders[0] / "files" / snapshot.iteminfo.header_entry.path).unlink()
     plan = prepare_mod_merge(folders, tmp_path / "game", entries=entries)
     assert any("incomplete table pair" in issue for issue in plan.conflicts)
     assert any("character/shared.pac" in issue for issue in plan.conflicts)

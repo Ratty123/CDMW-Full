@@ -245,7 +245,7 @@ class EditPanelMixin:
         self._export_button.clicked.connect(self._export)
         self._package_button = QPushButton("Packages…")
         self._package_button.setToolTip(
-            "Write installable mod packages (CDUMM, DMM and JMM) from these changes."
+            "Write installable mod packages (CDUMM and DMM) from these changes."
         )
         self._package_button.clicked.connect(self._build_packages)
 

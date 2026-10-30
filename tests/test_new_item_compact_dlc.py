@@ -61,7 +61,7 @@ def setup(tmp_path, *, dlc=False, localized=False):
 def test_compact_snapshot_plan_export_and_readback(tmp_path):
     service, snapshot = setup(tmp_path)
     plan = service.plan(spec('CompactOwned'), snapshot, capture_independent=True)
-    service.export_loose(plan, tmp_path/'output', manager='JMM')
+    service.export_loose(plan, tmp_path/'output', manager='CDUMM')
     body = plan.loose_files[ROOT+'iteminfo.staticinfobody']
     header = plan.loose_files[ROOT+'iteminfo.staticinfoheader']
     rows = {r.row_id: body[s:e] for r, s, e in parse_pabgh_table(header, payload=body).row_spans(len(body))}

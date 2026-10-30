@@ -460,7 +460,7 @@ blocked because a lower LOD would outrank it. Cleanup can synchronize independen
 stored copies only after proving identical complete payloads, descriptor counts
 and vertex/index splits. Output checks cover all rewritten payloads and counts;
 distinct lower LODs retain the original rank guard and byte-preservation checks.
-The supplied asset passed Undo/Redo, Exact Finish, PAC reparse and JMM loose-package
+The supplied asset passed Undo/Redo, Exact Finish, PAC reparse and loose-package
 creation for part 3 (917 to 817 vertices) and all five parts (3,522 to 2,915 vertices).
 Surviving skin/cloth and tangent/handedness bits, source bounds and the input ZIP
 were preserved. This is source/native, headless and supplied-asset export evidence;

@@ -9,6 +9,7 @@ from cdmw.domain.packages.export_policy import (
     mod_package_export_options_for_manager,
     mod_package_export_options_for_profiles,
     mod_package_profile_uses_manager_metadata,
+    normalize_mod_package_manager_profile,
 )
 from cdmw.services.texture_workflow_service import discover_realesrgan_ncnn_models
 
@@ -216,18 +217,16 @@ class ReplaceAssistantControlMixin:
         self.package_output_root_edit.setText(
             str(getattr(config, "mod_ready_export_root", self.package_output_root_edit.text()))
         )
-        self._set_combo_by_value(
-            self.package_manager_combo,
-            str(getattr(config, "mod_ready_manager_profile", self._combo_value(self.package_manager_combo))),
-        )
+        manager_profile = normalize_mod_package_manager_profile(getattr(config, "mod_ready_manager_profile", "dmm"))
+        self._set_combo_by_value(self.package_manager_combo, manager_profile)
         mirrored_profiles = tuple(
             str(value or "").strip()
             for value in tuple(getattr(config, "mod_ready_manager_profiles", ()) or ())
             if str(value or "").strip() in MOD_PACKAGE_MANAGER_PROFILES
-        ) or (str(getattr(config, "mod_ready_manager_profile", "dmm") or "dmm"),)
+        ) or (manager_profile,)
         for profile, checkbox in self.package_profile_checkboxes.items():
             checkbox.setChecked(profile in set(mirrored_profiles))
-        profile_defaults = mod_package_export_options_for_manager(str(getattr(config, "mod_ready_manager_profile", "dmm")))
+        profile_defaults = mod_package_export_options_for_manager(manager_profile)
         self._set_combo_by_value(
             self.package_structure_combo,
             str(getattr(config, "mod_ready_package_structure", self._combo_value(self.package_structure_combo))),

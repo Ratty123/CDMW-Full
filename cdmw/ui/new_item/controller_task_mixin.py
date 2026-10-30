@@ -320,7 +320,7 @@ class NewItemTaskControllerMixin:
             return False
         if manager not in MANAGERS:
             self.status_message.emit(
-                "Choose CDUMM, JMM or DMM for new item exports.", True)
+                "Choose CDUMM or DMM for new item exports.", True)
             return False
         if not self.has_current_plan:
             self.status_message.emit("Build the plan first.", True)

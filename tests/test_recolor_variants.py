@@ -166,11 +166,11 @@ class RecolorVariantTests(unittest.TestCase):
                     export_options=dataclasses.replace(recolor_export_options_for_manager("dmm"), create_zip=True),
                 ),
                 RecolorVariantOutputProfile(
-                    profile_id="jmm",
-                    label="JMM JSON",
+                    profile_id="cdumm",
+                    label="CDUMM",
                     enabled=True,
-                    package_title_suffix="JMM v1.2",
-                    export_options=dataclasses.replace(recolor_export_options_for_manager("jmm"), create_zip=True),
+                    package_title_suffix="CDUMM v1.2",
+                    export_options=dataclasses.replace(recolor_export_options_for_manager("cdumm"), create_zip=True),
                 ),
             )
 
@@ -189,12 +189,12 @@ class RecolorVariantTests(unittest.TestCase):
             self.assertTrue(result.succeeded)
             self.assertEqual(original_source_bytes, source_base.read_bytes())
             self.assertEqual(2, len(result.output_roots))
-            dmm_root = next(path for path in result.output_roots if not path.name.endswith("_jmm"))
-            jmm_root = next(path for path in result.output_roots if path.name.endswith("_jmm"))
+            dmm_root = next(path for path in result.output_roots if not path.name.endswith("_cdumm"))
+            cdumm_root = next(path for path in result.output_roots if path.name.endswith("_cdumm"))
             self.assertEqual(b"RECOLORED", (dmm_root / "character" / "texture" / "blade_basecolor.dds").read_bytes())
             self.assertNotEqual(b"RECOLORED", (dmm_root / "character" / "texture" / "blade_n.dds").read_bytes())
-            self.assertTrue((jmm_root / "mod.json").exists())
-            self.assertFalse((jmm_root / "manifest.json").exists())
+            self.assertTrue((cdumm_root / "modinfo.json").exists())
+            self.assertTrue((cdumm_root / "manifest.json").exists())
             for output_root in result.output_roots:
                 self.assertIn("v1.2", output_root.name)
                 with zipfile.ZipFile(output_root.with_name(output_root.name + ".zip")) as archive:

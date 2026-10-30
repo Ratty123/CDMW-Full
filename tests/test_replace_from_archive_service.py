@@ -586,13 +586,13 @@ def test_export_is_cancellable_atomic_and_does_not_mutate_source_or_archives(
         parent_root=output_root,
         package_info=ModPackageInfo(title="Multi Replacement"),
         export_options=ModPackageExportOptions(
-            export_profiles=("jmm", "cdumm"),
+            export_profiles=("dmm", "cdumm"),
             create_zip=True,
         ),
         create_no_encrypt_file=False,
     )
     assert len(multi.package_roots) == 2
-    assert (multi.package_roots[0] / "mod.json").is_file()
+    assert (multi.package_roots[0] / "modinfo.json").is_file()
     assert (multi.package_roots[0] / "character" / "model" / "target.pac").is_file()
     assert (multi.package_roots[1] / "manifest.json").is_file()
     assert (

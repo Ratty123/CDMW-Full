@@ -505,7 +505,7 @@ def test_last_island_preserves_other_part_records_at_every_lod(tmp_path, monkeyp
 
 @pytest.mark.parametrize('island_host', [6, 'retained-records', 'decoded-records'], indirect=True, ids=['bounds', 'raw-records', 'resolved-skin'])
 @pytest.mark.parametrize('excluded', [(0, 2), tuple(range(6))], ids=['some-islands', 'all-islands'])
-@pytest.mark.parametrize('manager,folder', [('dmm', ''), ('jmm', ''),
+@pytest.mark.parametrize('manager,folder', [('dmm', ''),
                                            ('cdumm', 'files')])
 def test_island_mod_preview_draft_and_manager_exports(island_host, tmp_path, manager, folder, excluded):
     from cdmw.modding.mesh_parser import parse_mesh

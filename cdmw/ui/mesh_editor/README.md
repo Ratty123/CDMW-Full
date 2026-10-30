@@ -1,7 +1,7 @@
 # Mesh Editor
 
 Archive overlay export, installation and restoration are disabled following the
-October 2026 DLC update. Build Mod offers DMM, JMM and CDUMM loose packages;
+October 2026 DLC update. Build Mod offers DMM and CDUMM loose packages;
 saved DMM archive-group choices return to loose output. Additional-hairstyle
 packages depend on the disabled overlay route and cannot be exported. Overlay
 implementation details below describe retained code, not available UI actions.
@@ -3042,7 +3042,7 @@ authority unchanged. Cancel, close, crash, protocol failure, or forced terminati
 discards the shadow and only its owned files. An accepted Finish retains validation
 for that exact revision; subsequent edits require validation again before
 **Build Mod** or **Add to Archive Browser** can publish it. Build Mod supports
-DMM/JMM/CDUMM loose packages through owned sibling staging. The retained overlay
+DMM/CDUMM loose packages through owned sibling staging. The retained overlay
 installation and restoration paths are unavailable following the DLC update.
 
 Neither route rewrites source PAMT/PAZ archives in place.
@@ -3301,10 +3301,8 @@ prevents retained source bindings from hiding authored material changes.
 invalidates that report; **Run validation** checks the new revision. **Export Mesh
 File** publishes a separate rebuilt asset and report. **Build Mod** opens one form for
 the mod manager, mod name, output folder, version, author and description. It publishes
-**DMM**, **CDUMM** or **JMM** loose mesh packages using their
+**DMM** or **CDUMM** loose mesh packages using their
 respective layouts and metadata, or a **DMM Archive Group** in `0036/`.
-JMM is outdated; compatibility cannot be ensured. The manager chooser displays
-this warning. Prefer DMM or CDUMM for current game versions.
 
 DMM owns the mount list, so that package omits `meta/0.papgt`. Packages contain the
 replacement payloads and manager descriptors/markers only. The generated README and CDMW

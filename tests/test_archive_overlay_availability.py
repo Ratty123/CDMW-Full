@@ -28,7 +28,7 @@ def test_mesh_package_choices_ignore_saved_archive_output(app, tmp_path):
     try:
         assert not constants.ARCHIVE_OVERLAYS_ENABLED
         choices = [dialog.manager.itemData(i) for i in range(dialog.manager.count())]
-        assert {choice[0] for choice in choices} == {"dmm_loose", "jmm_loose", "cdumm_loose"}
+        assert {choice[0] for choice in choices} == {"dmm_loose", "cdumm_loose"}
         assert all(choice[1] == "loose_mod" for choice in choices)
         assert dialog.manager.currentData()[0] == "dmm_loose"
     finally:
@@ -62,7 +62,7 @@ def test_new_item_output_keeps_only_folder_and_portable_package(app, tmp_path, m
         assert panel.overlay_mode_button.isHidden()
         assert not panel.overlay_mode_button.isEnabled()
         assert panel.include_mounted.isHidden()
-        assert [panel.manager.itemText(i) for i in range(panel.manager.count())] == ["CDUMM", "JMM"]
+        assert [panel.manager.itemText(i) for i in range(panel.manager.count())] == ["CDUMM"]
         from cdmw.ui.new_item.rust_ui_bridge import NewItemPresentationBridge
         projected = json.dumps(NewItemPresentationBridge(panel).snapshot())
         assert "Game overlay" not in projected

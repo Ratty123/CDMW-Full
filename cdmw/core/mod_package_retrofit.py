@@ -13,7 +13,6 @@ from typing import Mapping, Sequence
 from cdmw.core.mod_package import (
     MeshLooseModAsset,
     MeshLooseModFile,
-    write_jmm_mod_json,
     write_mesh_loose_mod_package_metadata,
     write_mod_package_manifest,
 )
@@ -47,12 +46,6 @@ _IGNORED_ROOT_FILENAMES = {
 }
 _IGNORED_SUFFIXES = {".zip", ".7z", ".rar", ".png", ".jpg", ".jpeg", ".webp", ".gif", ".bmp"}
 _MESH_SUFFIXES = {".pac", ".pam", ".pamlod", ".pac_xml", ".pam_xml", ".pamlod_xml", ".pami"}
-_JMM_DESCRIPTOR_ALIAS_PAIRS = (
-    (
-        "character/phm_description_player_kliff.xml",
-        "character/descriptors/characterdescription/phm_description_player_kliff.xml",
-    ),
-)
 
 
 def scan_retrofittable_mod_packages(
@@ -175,28 +168,6 @@ def retrofit_mod_package(
             {remapped(path): data for path, data in compatibility.originals.items()},
             tuple(dict(row, path=remapped(row['path'])) for row in compatibility.dependencies))
         write_compatibility(package_root, compatibility)
-    if normalized_profile == "jmm":
-        _add_jmm_descriptor_alias_payloads(
-            package_root,
-            copied_payload_paths,
-            new_file_paths,
-            stop_event=stop_event,
-        )
-        mod_json_path = _write_jmm_mod_json(package_root, package, copied_payload_paths, new_file_paths)
-        zip_path = _write_retrofit_package_zip(package_root, stop_event=stop_event)
-        return ModPackageRetrofitResult(
-            source_root=package.root,
-            output_root=output_root,
-            package_root=package_root,
-            zip_path=zip_path,
-            manager_profile=normalized_profile,
-            metadata_files=(mod_json_path,),
-            payload_paths=tuple(copied_payload_paths),
-            warnings=tuple(warnings),
-            repaired_path_count=repair_summary.repaired_path_count,
-            unresolved_path_count=repair_summary.unresolved_path_count,
-            ambiguous_path_count=repair_summary.ambiguous_path_count,
-        )
 
     export_options = _retrofit_export_options(normalized_profile, package.kind, copied_payload_paths, export_options)
     raise_if_cancelled(stop_event, "Retrofit conversion cancelled.")
@@ -742,14 +713,6 @@ def build_retrofit_path_repair_summary(
     warnings: list[str] = []
     manifest_rows = _manifest_file_rows_by_path(package.manifest)
     manifest_new_paths = _manifest_new_paths(package.manifest)
-    package_payload_path_keys = {
-        normalized.casefold()
-        for normalized in (
-            normalize_mod_package_payload_path(path).as_posix().strip("/")
-            for path in package.payload_paths
-        )
-        if normalized
-    }
     mappings: list[RetrofitPayloadMapping] = []
     repaired = 0
     unresolved = 0
@@ -778,15 +741,12 @@ def build_retrofit_path_repair_summary(
         ):
             is_new = False
             stale_new_path_repaired = True
-        if not stale_new_path_repaired and _descriptor_alias_pair_complete(source_path, package_payload_path_keys):
-            target_path, status, message = source_path, "unchanged", ""
-        else:
-            target_path, status, message = _repair_retrofit_payload_path(
-                source_path,
-                package_group=package_group,
-                is_new=is_new,
-                archive_entries_by_basename=archive_entries_by_basename,
-            )
+        target_path, status, message = _repair_retrofit_payload_path(
+            source_path,
+            package_group=package_group,
+            is_new=is_new,
+            archive_entries_by_basename=archive_entries_by_basename,
+        )
         if stale_new_path_repaired and status == "unchanged":
             status = "repaired"
             message = f"Removed stale new-path marker for existing current-game path: {source_path}"
@@ -1037,23 +997,6 @@ def _declared_new_path_exists_in_current_game(
         for candidate in candidates
     ):
         return True
-    alias_paths = {
-        path.casefold()
-        for pair in _JMM_DESCRIPTOR_ALIAS_PAIRS
-        for path in pair
-    }
-    return normalized.casefold() in alias_paths and bool(candidates)
-
-
-def _descriptor_alias_pair_complete(source_path: str, package_payload_path_keys: set[str]) -> bool:
-    normalized = normalize_mod_package_payload_path(source_path).as_posix().strip("/").casefold()
-    if not normalized:
-        return False
-    for left, right in _JMM_DESCRIPTOR_ALIAS_PAIRS:
-        left_key = left.casefold()
-        right_key = right.casefold()
-        if normalized in {left_key, right_key} and left_key in package_payload_path_keys and right_key in package_payload_path_keys:
-            return True
     return False
 
 
@@ -1236,51 +1179,6 @@ def _copy_payloads(
     return copied
 
 
-def _add_jmm_descriptor_alias_payloads(
-    package_root: Path,
-    payload_paths: list[str],
-    new_file_paths: list[str],
-    *,
-    stop_event: threading.Event | None = None,
-) -> None:
-    payload_keys = {normalize_mod_package_payload_path(path).as_posix().strip("/").casefold() for path in payload_paths}
-    new_path_keys = {
-        normalize_mod_package_payload_path(path).as_posix().strip("/").casefold()
-        for path in new_file_paths
-    }
-    for left, right in _JMM_DESCRIPTOR_ALIAS_PAIRS:
-        raise_if_cancelled(stop_event, "Retrofit conversion cancelled.")
-        left_key = left.casefold()
-        right_key = right.casefold()
-        left_is_payload = left_key in payload_keys
-        right_is_payload = right_key in payload_keys
-        if left_is_payload and right_is_payload:
-            if left_key in new_path_keys and right_key not in new_path_keys:
-                new_file_paths.append(right)
-                new_path_keys.add(right_key)
-            if right_key in new_path_keys and left_key not in new_path_keys:
-                new_file_paths.append(left)
-                new_path_keys.add(left_key)
-            continue
-        if left_is_payload and not right_is_payload:
-            source_rel, source_key, target_rel, target_key = left, left_key, right, right_key
-        elif right_is_payload and not left_is_payload:
-            source_rel, source_key, target_rel, target_key = right, right_key, left, left_key
-        else:
-            continue
-        source_path = package_root.joinpath(*PurePosixPath(source_rel).parts)
-        if not source_path.is_file():
-            continue
-        target_path = package_root.joinpath(*PurePosixPath(target_rel).parts)
-        target_path.parent.mkdir(parents=True, exist_ok=True)
-        _copy_file_cancellable(source_path, target_path, stop_event=stop_event)
-        payload_paths.append(target_rel)
-        payload_keys.add(target_key)
-        if source_key in new_path_keys and target_key not in new_path_keys:
-            new_file_paths.append(target_rel)
-            new_path_keys.add(target_key)
-
-
 def _copy_payloads_from_zip(
     source_zip: Path,
     package_root: Path,
@@ -1398,18 +1296,6 @@ def _retrofit_export_options(
     defaults = mod_package_export_options_for_manager(manager_profile)
     base = override_options if isinstance(override_options, ModPackageExportOptions) else defaults
     base = dataclasses.replace(base, manager_targets=defaults.manager_targets, export_profiles=(), output_profile_suffix="")
-    if manager_profile == "jmm":
-        return dataclasses.replace(
-            base,
-            manager_targets=("jmm",),
-            structure="game_relative",
-            create_manifest_json=False,
-            create_mod_json=False,
-            create_modinfo_json=False,
-            create_info_json=False,
-            create_no_encrypt_file=False,
-            create_zip=True,
-        )
     kind_normalized = str(kind or "").strip().lower()
     texture_only = bool(payload_paths) and all(PurePosixPath(path).suffix.lower() == ".dds" for path in payload_paths)
     if manager_profile == "dmm" and not (kind_normalized == "dds_loose_mod" and texture_only):
@@ -1424,87 +1310,6 @@ def _retrofit_export_options(
             create_zip=True,
         )
     return dataclasses.replace(base, create_zip=True)
-
-
-def _write_jmm_mod_json(
-    package_root: Path,
-    package: RetrofittableModPackage,
-    payload_paths: Sequence[str],
-    new_file_paths: Sequence[str] = (),
-) -> Path:
-    source_metadata = package.manifest
-    source_target = normalize_mod_package_payload_path(_metadata_text(source_metadata, "target")).as_posix().strip("/")
-    repaired_targets = {path.casefold() for path in payload_paths}
-    target = source_target if source_target.casefold() in repaired_targets else _first_payload_with_suffix(payload_paths, (".pac", ".pam", ".pamlod"))
-    source_new_paths = source_metadata.get("new_paths")
-    has_explicit_new_paths = isinstance(source_new_paths, Sequence) and not isinstance(
-        source_new_paths,
-        (str, bytes, bytearray),
-    )
-    inferred_new_paths = () if has_explicit_new_paths else tuple(_jmm_new_paths(source_metadata, payload_paths))
-    path = write_jmm_mod_json(
-        package_root,
-        ModPackageInfo(
-            title=package.package_info.title or _metadata_text(source_metadata, "name") or package.root.stem,
-            version=package.package_info.version or "1.0",
-            author=package.package_info.author,
-            description=package.package_info.description,
-            nexus_url=package.package_info.nexus_url,
-        ),
-        payload_paths=payload_paths,
-        new_file_paths=tuple(dict.fromkeys([*inferred_new_paths, *new_file_paths])),
-        kind=_metadata_text(source_metadata, "kind") or package.kind or "file_replacement",
-    )
-    if target:
-        payload = json.loads(path.read_text(encoding="utf-8"))
-        payload["target"] = target
-        if _metadata_text(source_metadata, "category"):
-            payload["category"] = _metadata_text(source_metadata, "category")
-        path.write_text(json.dumps(_compact_retrofit_value(payload), indent=2), encoding="utf-8")
-    return path
-
-
-def _first_payload_with_suffix(payload_paths: Sequence[str], suffixes: Sequence[str]) -> str:
-    normalized_suffixes = tuple(suffix.lower() for suffix in suffixes)
-    for path in payload_paths:
-        if PurePosixPath(path).suffix.lower() in normalized_suffixes:
-            return path
-    return payload_paths[0] if payload_paths else ""
-
-
-def _infer_jmm_category(target: str, payload_paths: Sequence[str]) -> str:
-    text = " ".join((target, *payload_paths)).lower()
-    if "weapon" in text:
-        return "weapon"
-    if "/ui/" in f"/{text}":
-        return "ui"
-    if "/character/" in f"/{text}":
-        return "character"
-    if "/object/" in f"/{text}":
-        return "object"
-    return "file_replacement"
-
-
-def _jmm_new_paths(source_metadata: Mapping[str, object], payload_paths: Sequence[str]) -> list[str]:
-    source_new_paths = source_metadata.get("new_paths")
-    if isinstance(source_new_paths, Sequence) and not isinstance(source_new_paths, (str, bytes, bytearray)):
-        result = [_payload_path_from_any_member(str(path or "")) for path in source_new_paths]
-        return [path for path in result if path]
-    return [path for path in payload_paths if PurePosixPath(path).suffix.lower() == ".dds"]
-
-
-def _compact_retrofit_value(value: object) -> object:
-    if isinstance(value, dict):
-        result = {}
-        for key, item in value.items():
-            compacted = _compact_retrofit_value(item)
-            if compacted in ("", None, [], {}):
-                continue
-            result[str(key)] = compacted
-        return result
-    if isinstance(value, list):
-        return [_compact_retrofit_value(item) for item in value if _compact_retrofit_value(item) not in ("", None, [], {})]
-    return value
 
 
 def _write_retrofit_package_zip(

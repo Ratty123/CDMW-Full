@@ -21,7 +21,7 @@ def test_replacement_profiles_and_zips_publish_together_or_preserve_prior_output
     output = tmp_path / "packages"
     options = dict(
         output_parent=output, package_info=ModPackageInfo(title="Texture job.v1"),
-        export_options=mod_package_export_options_for_profiles(("dmm", "jmm"), create_zip=True),
+        export_options=mod_package_export_options_for_profiles(("dmm", "cdumm"), create_zip=True),
         create_no_encrypt_file=False, overwrite=True, file_count=1,
     )
     packaging.publish_replace_assistant_packages(source, **options)
@@ -73,7 +73,7 @@ def test_replacement_profiles_and_zips_publish_together_or_preserve_prior_output
     assert not any(path.name.startswith(".") for path in output.iterdir())
 
 
-@pytest.mark.parametrize("profiles", [("dmm",), ("dmm", "jmm")])
+@pytest.mark.parametrize("profiles", [("dmm",), ("dmm", "cdumm")])
 def test_dotted_replacement_title_keeps_full_zip_names_and_unrelated_zip(tmp_path, profiles):
     import zipfile
     from cdmw.core.replace_assistant_package import publish_replace_assistant_packages

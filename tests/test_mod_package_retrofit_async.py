@@ -292,7 +292,7 @@ def test_publication_failure_rolls_back_all_new_outputs(
     assert not list(output_root.glob(".cdmw-retrofit-*"))
 
 
-@pytest.mark.parametrize("profile", ["dmm", "jmm"])
+@pytest.mark.parametrize("profile", ["dmm", "cdumm"])
 def test_dotted_conversion_names_reserve_full_zip_names_and_keep_prior_outputs(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

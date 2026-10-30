@@ -44,11 +44,11 @@ def _build_new(studio, manager="CDUMM"):
     return panel
 
 
-@pytest.mark.parametrize("manager", ["CDUMM", "JMM", "DMM"])
+@pytest.mark.parametrize("manager", ["CDUMM", "DMM"])
 def test_inherited_item_is_a_visible_block_before_writing(studio, manager):
     fixture, tab, bridge = studio
     first, _folder, pamt = _mounted_item(studio, manager)
-    panel = _build_new(studio, "JMM" if manager == "DMM" else manager)
+    panel = _build_new(studio, "CDUMM" if manager == "DMM" else manager)
     plan = tab.controller.plan
     assert plan.unselected_source_items == (f"Existing <Sword> (item {first.spec.item_key})",)
     assert panel.plan_state.plain_text() == "Export blocked"

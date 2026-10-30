@@ -12,7 +12,6 @@ from cdmw.core.archive_modding_constants import (
     ARCHIVE_MESH_EXTENSIONS,
     MESH_IMPORT_COMPANION_EXTENSIONS,
     MESH_IMPORT_SIDECAR_EXTENSIONS,
-    _JMM_DESCRIPTOR_ALIAS_PAIRS,
     _MESH_IMPORT_AUTOCOPY_COMPANION_EXTENSIONS,
 )
 from cdmw.core.archive_mesh_types import (
@@ -182,35 +181,6 @@ def _export_related_archive_entries(
 
 
 
-def _add_jmm_descriptor_alias_payloads(
-    package_root: Path,
-    *,
-    written_files: List[Path],
-    written_virtual_paths: set[str],
-    payload_paths: List[str],
-    new_file_paths: List[str],
-    on_log: Optional[Callable[[str], None]] = None,
-) -> None:
-    for left, right in _JMM_DESCRIPTOR_ALIAS_PAIRS:
-        left_key = left.casefold()
-        right_key = right.casefold()
-        if left_key in written_virtual_paths and right_key not in written_virtual_paths:
-            source_rel, target_rel = left, right
-        elif right_key in written_virtual_paths and left_key not in written_virtual_paths:
-            source_rel, target_rel = right, left
-        else:
-            continue
-        source_path = package_root.joinpath(*PurePosixPath(source_rel).parts)
-        if not source_path.is_file():
-            continue
-        target_path = package_root.joinpath(*PurePosixPath(target_rel).parts)
-        target_path.parent.mkdir(parents=True, exist_ok=True)
-        target_path.write_bytes(source_path.read_bytes())
-        written_files.append(target_path)
-        written_virtual_paths.add(target_rel.casefold())
-        payload_paths.append(target_rel)
-        new_file_paths.append(target_rel)
-        _safe_log(on_log, f"Writing JMM descriptor alias payload: {target_rel}")
 
 
 def export_archive_payloads_to_mod_ready_loose(
@@ -317,21 +287,6 @@ def export_archive_payloads_to_mod_ready_loose(
         payload_paths.append(normalized_target_path)
         if not isinstance(spec.target_entry, ArchiveEntry):
             new_file_paths.append(normalized_target_path)
-
-    manager_targets = {
-        str(target or "").strip().casefold()
-        for target in tuple(getattr(active_export_options, "manager_targets", ()) or ())
-        if str(target or "").strip()
-    }
-    if "jmm" in manager_targets:
-        _add_jmm_descriptor_alias_payloads(
-            package_root,
-            written_files=written_files,
-            written_virtual_paths=written_virtual_paths,
-            payload_paths=payload_paths,
-            new_file_paths=new_file_paths,
-            on_log=on_log,
-        )
 
     from cdmw.core.mod_compatibility import capture_patch_compatibility, write_compatibility
     write_compatibility(package_root, capture_patch_compatibility(requests,

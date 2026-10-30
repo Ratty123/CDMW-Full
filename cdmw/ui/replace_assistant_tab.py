@@ -437,7 +437,6 @@ class ReplaceAssistantTab(
         self.package_nexus_edit = QLineEdit("")
         self.package_manager_combo = QComboBox()
         self.package_manager_combo.addItem("Definitive Mod Manager", "dmm")
-        self.package_manager_combo.addItem("JMM JSON", "jmm")
         self.package_manager_combo.addItem("CDUMM", "cdumm")
         self.package_manager_combo.addItem("Field-JSON v3.1", "field_json")
         self.package_profile_checkboxes: Dict[str, QCheckBox] = {}
@@ -453,9 +452,6 @@ class ReplaceAssistantTab(
             package_profiles_layout.addWidget(checkbox)
             self.package_profile_checkboxes[profile] = checkbox
         package_profiles_layout.addStretch(1)
-        self.package_manager_warning = QLabel("JMM is outdated; compatibility cannot be ensured.")
-        self.package_manager_warning.setWordWrap(True)
-        package_profiles_layout.addWidget(self.package_manager_warning)
         self.package_structure_combo = QComboBox()
         self.package_structure_combo.addItem("Game-relative folders", "game_relative")
         self.package_structure_combo.addItem("files/ wrapper", "files_wrapper")

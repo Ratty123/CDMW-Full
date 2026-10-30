@@ -85,6 +85,19 @@ def workspace(tmp_path, monkeypatch, request):
         assert not callback_errors, "\n".join(callback_errors)
 
 
+def test_removed_manager_settings_use_supported_texture_exports(workspace, monkeypatch):
+    from dataclasses import replace
+
+    _window, textures, matcher = workspace
+    for combo in (matcher.package_manager_combo,):
+        assert {combo.itemData(i) for i in range(combo.count())} == {"dmm", "cdumm", "field_json"}
+    config = replace(textures.collect_config(), mod_ready_manager_profile="jmm", mod_ready_manager_profiles=("jmm",))
+    monkeypatch.setattr(matcher, "get_current_config", lambda: config)
+    matcher.mirror_texture_workflow_settings()
+    assert matcher.package_manager_combo.currentData() == "dmm"
+    assert {profile for profile, checkbox in matcher.package_profile_checkboxes.items() if checkbox.isChecked()} == {"dmm"}
+
+
 def load_folder(matcher, folder, monkeypatch):
     monkeypatch.setattr(QFileDialog, "getExistingDirectory", lambda *_a, **_k: str(folder))
     matcher.add_folder_button.click()
@@ -516,7 +529,7 @@ def test_real_native_folder_match_package_and_external_rebuild(workspace, tmp_pa
     matcher.package_zip_checkbox.setChecked(True)
     matcher._set_combo_by_value(matcher.build_mode_combo, "rebuild_only")
     for profile, checkbox in matcher.package_profile_checkboxes.items():
-        checkbox.setChecked(profile in {"dmm", "jmm"})
+        checkbox.setChecked(profile in {"dmm", "cdumm"})
     reviews = []
     monkeypatch.setattr(matcher, "_open_review_dialog", lambda items: reviews.append(tuple(items)))
     wrong_threads = []

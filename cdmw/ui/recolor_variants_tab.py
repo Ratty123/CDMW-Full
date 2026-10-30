@@ -466,7 +466,6 @@ class RecolorVariantsTab(SharedRecolorModeMixin, QWidget):
         profiles_layout = profiles_group.body_layout
         for profile_id, label, checked in (
             ("dmm", "Definitive Mod Manager", True),
-            ("jmm", "JMM JSON", False),
             ("cdumm", "CDUMM files/ wrapper", False),
             ("field_json", "Field-JSON v3.1", False),
         ):
@@ -474,9 +473,6 @@ class RecolorVariantsTab(SharedRecolorModeMixin, QWidget):
             checkbox.setChecked(checked)
             self.profile_checkboxes[profile_id] = checkbox
             profiles_layout.addWidget(checkbox)
-        self.manager_warning = QLabel("JMM is outdated; compatibility cannot be ensured.")
-        self.manager_warning.setWordWrap(True)
-        profiles_layout.addWidget(self.manager_warning)
         layout.addWidget(QLabel("Parent root"), 0, 0)
         output_row = QHBoxLayout()
         output_row.setContentsMargins(0, 0, 0, 0)
@@ -1103,13 +1099,11 @@ class RecolorVariantsTab(SharedRecolorModeMixin, QWidget):
         profiles: list[RecolorVariantOutputProfile] = []
         labels = {
             "cdumm": "CDUMM",
-            "jmm": "JMM JSON",
             "dmm": "Definitive Mod Manager",
             "field_json": "Field-JSON v3.1",
         }
         suffixes = {
             "cdumm": "CDUMM",
-            "jmm": "JMM",
             "dmm": "DMM",
             "field_json": "FieldJSON",
         }

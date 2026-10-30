@@ -408,7 +408,7 @@ def test_rust_finish_geometry_is_the_geometry_published_in_a_loose_manager_packa
         flags=0,
         paz_index=0,
     )
-    output_root = tmp_path / "jmm-rust-finished-mesh"
+    output_root = tmp_path / "dmm-rust-finished-mesh"
     worker = MeshDirectOutputWorker(
         91,
         authoritative,
@@ -416,7 +416,7 @@ def test_rust_finish_geometry_is_the_geometry_published_in_a_loose_manager_packa
         entry,
         kind="loose_mod",
         output_path=output_root,
-        manager_profile="jmm",
+        manager_profile="dmm",
         expected_mesh_revision=accepted_revision,
     )
     completed: list[object] = []
@@ -434,7 +434,7 @@ def test_rust_finish_geometry_is_the_geometry_published_in_a_loose_manager_packa
     original = parse_pac(source, entry.path)
     assert published.submeshes[0].vertices[0][0] == pytest.approx(edited_x, abs=2e-5)
     assert published.lod_levels[1:] == original.lod_levels[1:]
-    assert (output_root / "mod.json").is_file()
+    assert (output_root / "manifest.json").is_file()
     assert (pamt.read_bytes(), paz.read_bytes()) == source_fingerprints
 
 

@@ -210,85 +210,6 @@ def _write_json(path: Path, payload: object) -> Path:
     return path
 
 
-def _first_payload_with_suffix(payload_paths: Sequence[str | Path], suffixes: Sequence[str]) -> str:
-    normalized_suffixes = tuple(suffix.lower() for suffix in suffixes)
-    for path_value in payload_paths:
-        path_text = _payload_path_text(path_value)
-        if path_text and PurePosixPath(path_text).suffix.lower() in normalized_suffixes:
-            return path_text
-    for path_value in payload_paths:
-        path_text = _payload_path_text(path_value)
-        if path_text:
-            return path_text
-    return ""
-
-
-def _infer_jmm_category(target: str, payload_paths: Sequence[str | Path]) -> str:
-    text = " ".join((target, *(_payload_path_text(path) for path in payload_paths))).lower()
-    if "weapon" in text:
-        return "weapon"
-    if "armor" in text:
-        return "armor"
-    if "/ui/" in f"/{text}":
-        return "ui"
-    if "/character/" in f"/{text}":
-        return "character"
-    if "/object/" in f"/{text}":
-        return "object"
-    return "file_replacement"
-
-
-def _jmm_mod_json_payload(
-    package_info: ModPackageInfo,
-    *,
-    payload_paths: Sequence[str | Path],
-    new_file_paths: Sequence[str | Path] = (),
-    kind: str = "loose_mod",
-) -> dict[str, object]:
-    normalized_payloads = [
-        path_text
-        for path_text in (_payload_path_text(path) for path in payload_paths)
-        if path_text
-    ]
-    target = _first_payload_with_suffix(normalized_payloads, (".pac", ".pam", ".pamlod")) or (normalized_payloads[0] if normalized_payloads else "")
-    new_paths = normalize_mod_package_new_path_prefixes(new_file_paths, all_payload_paths=normalized_payloads)
-    title = (package_info.title or "").strip() or "Crimson Desert Mod Workbench Mod"
-    return _compact_nested_value(
-        {
-            "name": title,
-            "title": title,
-            "version": (package_info.version or "").strip() or "1.0",
-            "author": (package_info.author or "").strip(),
-            "game": "Crimson Desert",
-            "description": (package_info.description or "").strip(),
-            "kind": str(kind or "file_replacement").strip() or "file_replacement",
-            "category": _infer_jmm_category(target, normalized_payloads),
-            "target": target,
-            "files": list(dict.fromkeys(normalized_payloads)),
-            "new_paths": new_paths,
-        }
-    )  # type: ignore[return-value]
-
-
-def write_jmm_mod_json(
-    root: Path,
-    package_info: ModPackageInfo,
-    *,
-    payload_paths: Sequence[str | Path],
-    new_file_paths: Sequence[str | Path] = (),
-    kind: str = "loose_mod",
-) -> Path:
-    return _write_json(
-        root / "mod.json",
-        _jmm_mod_json_payload(
-            package_info,
-            payload_paths=payload_paths,
-            new_file_paths=new_file_paths,
-            kind=kind,
-        ),
-    )
-
-
 def _sha256_file(path: Path) -> str:
     digest = hashlib.sha256()
     with path.open("rb") as handle:
@@ -715,16 +636,6 @@ def finalize_mod_package_export(
     )
     if resolved_options.create_mod_json:
         metadata_files.append(_write_json(root / "mod.json", mod_json_payload))
-    if "jmm" in set(manager_targets):
-        metadata_files.append(
-            write_jmm_mod_json(
-                root,
-                package_info,
-                payload_paths=effective_payload_paths,
-                new_file_paths=new_file_paths,
-                kind=kind,
-            )
-        )
     if resolved_options.create_modinfo_json:
         metadata_files.append(_write_json(root / "modinfo.json", modinfo))
     if resolved_options.create_info_json:
@@ -860,10 +771,6 @@ def write_mod_package_readme(
     elif "cdumm" in target_set:
         _readme_append_step(lines, 1, "Place this folder inside your CDUMM mods folder.")
         _readme_append_step(lines, 2, "Enable the mod in CDUMM. CDUMM reads modinfo.json for name, version, author, description, conflict_mode, and target_language.")
-        _readme_append_step(lines, 3, "Verify that the replaced assets load correctly in game.")
-    elif "jmm" in target_set:
-        _readme_append_step(lines, 1, "Place this folder inside your JMM mods folder.")
-        _readme_append_step(lines, 2, "Enable the mod in JMM. JMM reads mod.json for file replacement paths.")
         _readme_append_step(lines, 3, "Verify that the replaced assets load correctly in game.")
     else:
         _readme_append_step(lines, 1, "Copy or import the contents of the folder into your Crimson Desert mod manager.")
@@ -1157,16 +1064,6 @@ def write_mesh_loose_mod_package_metadata(
         *([manifest_path] if manifest_path.exists() else []),
         *[path for path in finalized.metadata_files if path.name != "manifest.json"],
     ]
-    if "jmm" in set(manager_targets):
-        jmm_path = write_jmm_mod_json(
-            root,
-            package_info,
-            payload_paths=file_paths,
-            new_file_paths=[file_info.path for file_info in files if bool(getattr(file_info, "is_new", False))],
-            kind="mesh_loose_mod",
-        )
-        if jmm_path not in metadata_files:
-            metadata_files.append(jmm_path)
     readme_path = write_mod_package_readme(
         root,
         package_info,

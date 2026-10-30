@@ -392,7 +392,7 @@ class PackageIsolationTests(unittest.TestCase):
                 units={unit.unit_id: unit},
                 shared_socket_users=_shared_users(session),
                 replacements=rows,
-                managers=("CDUMM", "DMM", "JMM"),
+                managers=("CDUMM", "DMM"),
                 accept_warnings=True,
             )
             for package in results:

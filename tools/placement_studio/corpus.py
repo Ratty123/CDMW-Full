@@ -118,8 +118,6 @@ def _manager_of(root: Path) -> str:
     name = root.name.upper()
     if (root / "files").is_dir() or (root / ".no_encrypt").exists():
         return "CDUMM"
-    if (root / "mod.json").is_file():
-        return "JMM"
     if name.endswith("- DMM") or (root / "modinfo.json").is_file():
         return "DMM"
     return "UNKNOWN"

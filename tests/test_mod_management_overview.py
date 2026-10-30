@@ -395,7 +395,7 @@ def test_package_details_edit_the_selected_package_and_survive_navigation(tmp_pa
         assert ui.table.columnWidth(1) == 420
         _send(bridge, ui.details_toggle, 'activate')
         manager = ui.detail_fields[5]
-        _send(bridge, manager, 'choose', manager.findData('jmm'))
+        _send(bridge, manager, 'choose', manager.findData('field_json'))
         assert not ui.detail_fields[6].isEnabled()
         _send(bridge, manager, 'choose', manager.findData('cdumm'))
         structure = ui.detail_fields[6]

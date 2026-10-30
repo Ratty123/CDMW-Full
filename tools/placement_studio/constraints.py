@@ -471,7 +471,7 @@ def export_packages(
     author: str = "",
     version: str = "1.0.0",
     description: str = "",
-    managers: Sequence[str] = ("CDUMM", "DMM", "JMM"),
+    managers: Sequence[str] = ("CDUMM", "DMM"),
 ):
     """Write one mod package per manager. Returns the results, or () when unchanged."""
 

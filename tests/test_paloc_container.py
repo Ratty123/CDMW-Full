@@ -167,7 +167,7 @@ def test_new_item_loads_and_exports_wrapped_names(tmp_path):
     assert snapshot.item_display_names()[TEMPLATE] == "Wolf's Fang"
     plan = service.plan(NewItemSpec(template_key=TEMPLATE, internal_name="Wrapped_Clone_OneHandSword",
                                     display_names={"eng": "Wrapped Clone"}), snapshot)
-    service.export_loose(plan, tmp_path / "mod", manager="JMM")
+    service.export_loose(plan, tmp_path / "mod", manager="CDUMM")
     from cdmw.services.new_item_mod_base import mod_folder_payloads
     exported = mod_folder_payloads(tmp_path / "mod")[path].read_bytes()
     assert exported == plan.loose_files[path]

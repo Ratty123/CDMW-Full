@@ -6,7 +6,6 @@ from cdmw.domain.archives.constants import (
     ARCHIVE_MESH_EXTENSIONS,
     MESH_IMPORT_COMPANION_EXTENSIONS,
     MESH_IMPORT_SIDECAR_EXTENSIONS,
-    _JMM_DESCRIPTOR_ALIAS_PAIRS,
     _MESH_IMPORT_ASSET_ROOT_MARKERS,
     _MESH_IMPORT_AUTOCOPY_COMPANION_EXTENSIONS,
     _MESH_IMPORT_RUNTIME_MESH_EXTENSIONS,
@@ -15,4 +14,4 @@ from cdmw.domain.archives.constants import (
 )
 
 
-__all__ = [name for name in globals() if name.isupper() or name.startswith("_MESH_IMPORT_") or name == "_JMM_DESCRIPTOR_ALIAS_PAIRS"]
+__all__ = [name for name in globals() if name.isupper() or name.startswith("_MESH_IMPORT_")]

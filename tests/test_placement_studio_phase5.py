@@ -14,19 +14,18 @@ from unittest.mock import patch
 
 from tools.placement_studio.ops import Operation, Plan
 from tools.placement_studio.packaging import (
-    DESCRIPTOR_ALIAS_PAIRS,
     IN_GAME_CHECKLIST,
     MANAGER_PROFILES,
     PackageMetadata,
     PackagingError,
-    apply_alias_closure,
     build_all,
     build_package,
     build_readme,
     derive_new_paths,
 )
 
-_ALIAS, _CANONICAL = DESCRIPTOR_ALIAS_PAIRS[0]
+_ALIAS = "character/phm_description_player_kliff.xml"
+_CANONICAL = "character/descriptors/characterdescription/phm_description_player_kliff.xml"
 _SOCKETS = "character/descriptors/socketbonedata/1_pc/1_phm/phm_01.pab.sockets.xml"
 _CHART = "actionchart/bin__/upperaction/1_pc/1_phm/ride_upper.paac"
 
@@ -82,19 +81,13 @@ class NewPathTests(unittest.TestCase):
         baseline = _FakeBaseline([_SOCKETS, _CANONICAL, _CHART])
         self.assertEqual(derive_new_paths([_SOCKETS, _CHART], baseline), [])
 
-    def test_the_guide_rule_declares_both_descriptor_halves(self) -> None:
-        """"If either path is in new_paths, both should be" — a manager quirk, encoded."""
+    def test_existing_descriptor_is_not_declared_new_for_an_alias(self) -> None:
 
         baseline = _FakeBaseline([_CANONICAL])  # the alias is genuinely new
         derived = derive_new_paths([_ALIAS, _CANONICAL], baseline)
-        self.assertEqual(derived, sorted([_ALIAS, _CANONICAL]))
+        self.assertEqual(derived, [_ALIAS])
 
-    def test_closure_does_not_invent_paths_the_package_does_not_ship(self) -> None:
-        # Only the alias is shipped, so the canonical must not be declared.
-        self.assertEqual(apply_alias_closure([_ALIAS], [_ALIAS]), [_ALIAS])
 
-    def test_closure_is_a_no_op_without_alias_paths(self) -> None:
-        self.assertEqual(apply_alias_closure([_SOCKETS], [_SOCKETS, _CHART]), [_SOCKETS])
 
 
 class ReadmeTests(unittest.TestCase):
@@ -125,7 +118,7 @@ class ReadmeTests(unittest.TestCase):
 
     def test_new_files_are_called_out(self) -> None:
         text = build_readme(
-            _plan(), _metadata(), manager="JMM", payload_paths=[], new_paths=[_ALIAS]
+            _plan(), _metadata(), manager="DMM", payload_paths=[], new_paths=[_ALIAS]
         )
         self.assertIn("New files (not present in vanilla)", text)
         self.assertIn(_ALIAS, text)
@@ -153,18 +146,7 @@ class LayoutTests(unittest.TestCase):
             self.assertTrue((result.root / "character").is_dir())
             self.assertFalse((result.root / ".no_encrypt").exists())
 
-    def test_jmm_writes_mod_json_and_no_manifest(self) -> None:
-        with tempfile.TemporaryDirectory() as directory:
-            result = self._build("JMM", directory)
-            self.assertTrue((result.root / "mod.json").is_file())
-            self.assertFalse((result.root / "manifest.json").exists())
 
-    def test_jmm_declares_loose_mod_not_archive_loose_mod(self) -> None:
-        # The goldens use loose_mod here; passing the archive kind produced a silent mismatch.
-        with tempfile.TemporaryDirectory() as directory:
-            result = self._build("JMM", directory)
-            payload = json.loads((result.root / "mod.json").read_text(encoding="utf-8"))
-            self.assertEqual(payload["kind"], "loose_mod")
 
     def test_payload_bytes_survive_the_layout(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -230,13 +212,13 @@ class BuildAllTests(unittest.TestCase):
                 baseline=_FakeBaseline([_SOCKETS, _CANONICAL, _CHART]),
                 created_utc="2026-07-27T12:00:00+00:00",
             )
-            self.assertEqual([r.manager for r in results], ["CDUMM", "DMM", "JMM"])
+            self.assertEqual([r.manager for r in results], ["CDUMM", "DMM"])
             for result in results:
                 self.assertEqual(result.file_count, len(_files()))
                 self.assertTrue((result.root / "README.txt").is_file())
 
     def test_every_profile_is_buildable(self) -> None:
-        self.assertEqual(set(MANAGER_PROFILES), {"CDUMM", "DMM", "JMM"})
+        self.assertEqual(set(MANAGER_PROFILES), {"CDUMM", "DMM"})
 
 
 if __name__ == "__main__":

@@ -89,7 +89,7 @@ versioned authoring package and validated Finish path.
 ### Finish and validation
 
 Finish returns an accepted revision to CDMW. **Run validation** must then pass
-for that revision before **Build Mod** can publish a DMM, JMM, CDUMM, or Crimson
+for that revision before **Build Mod** can publish a DMM, CDUMM, or Crimson
 Sharp loose package or a DMM archive group. **Install as Overlay** is gated by
 the same revision and retains its existing confirmed backup/rollback lifecycle.
 Package outputs are staged and published atomically. The source PAMT/PAZ bytes

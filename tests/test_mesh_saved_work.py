@@ -235,7 +235,7 @@ def test_next_edit_pass_draft_keeps_its_rebuilt_source_after_the_session_result_
 def _build_mod(loaded, entry: ArchiveEntry, revision: int, output: Path, drafts: Path):
     worker = MeshDirectOutputWorker(
         5, loaded.service, loaded.view.session_id, entry, kind="loose_mod", output_path=output,
-        manager_profile="jmm", expected_mesh_revision=revision, saved_work_root=drafts,
+        manager_profile="dmm", expected_mesh_revision=revision, saved_work_root=drafts,
     )
     completed, errors = [], []
     worker.completed.connect(lambda _id, result: completed.append(result))

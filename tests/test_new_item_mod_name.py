@@ -23,7 +23,7 @@ def test_rust_mod_name_reaches_export_metadata_without_replanning(studio, entere
     _send(bridge, tab.identity_panel.display_name, "text", "Frost")
     tab.show_step(6)
     panel = tab.output_panel
-    assert [panel.manager.itemText(i) for i in range(panel.manager.count())] == ["CDUMM", "JMM", "DMM"]
+    assert [panel.manager.itemText(i) for i in range(panel.manager.count())] == ["CDUMM", "DMM"]
     assert tab.controller.draft.manager == "CDUMM"
     assert _send(bridge, panel.manager, "choose", panel.manager.findText("CDUMM"))["type"] == "ack"
     parent = fixture.root / "mods"
@@ -90,10 +90,10 @@ def test_new_item_refuses_unavailable_managers_before_starting_export(studio, ma
         run.assert_not_called()
     assert not folder.exists()
     assert messages[-1][1]
-    assert "Choose CDUMM, JMM or DMM" in messages[-1][0]
+    assert "Choose CDUMM or DMM" in messages[-1][0]
 
 
-@pytest.mark.parametrize("manager", ["CDUMM", "JMM", "DMM"])
+@pytest.mark.parametrize("manager", ["CDUMM", "DMM"])
 def test_rust_manager_selection_exports_the_complete_package(studio, manager):
     from cdmw.services.new_item_mod_base import mod_folder_payloads
 
@@ -149,7 +149,7 @@ def test_dmm_is_selectable_in_rust_and_retained_across_output_modes(studio):
     assert panel.manager.currentText() == tab.controller.draft.manager == "DMM"
 
 
-@pytest.mark.parametrize(("saved_manager", "expected_manager"), [("DMM", "DMM"), ("JMM", "JMM"), ("Unknown", "CDUMM")])
+@pytest.mark.parametrize(("saved_manager", "expected_manager"), [("DMM", "DMM"), ("JMM", "CDUMM"), ("Unknown", "CDUMM")])
 def test_output_reconciles_saved_manager_with_available_exports(studio, saved_manager, expected_manager):
     from cdmw.ui.new_item.panels_output import OutputPanel
 

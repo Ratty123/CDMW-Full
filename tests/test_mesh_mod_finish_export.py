@@ -76,7 +76,6 @@ def accepted_cloth_edit(cloth_session, tmp_path, monkeypatch):
     "choice,profile,suffix,descriptor,wrapper",
     [
         ("dmm_loose", "dmm", "dmm", "manifest.json", ""),
-        ("jmm_loose", "jmm", "jmm", "mod.json", ""),
         ("cdumm_loose", "cdumm", "cdumm", "modinfo.json", "files"),
     ],
 )
@@ -110,7 +109,7 @@ def test_finish_then_build_exports_cloth_edit_for_every_manager(
 
     def choose(dialog):
         assert isinstance(dialog, MeshModExportDialog)
-        assert dialog.manager.count() == 3
+        assert dialog.manager.count() == 2
         assert not dialog.build_button.isEnabled()
         assert not dialog.create_zip.isChecked() and not dialog.open_folder.isChecked()
         assert dialog.include_body.isHidden()  # Only a Fit session has a body to offer.
@@ -158,10 +157,6 @@ def test_finish_then_build_exports_cloth_edit_for_every_manager(
     else:
         payload = (output / wrapper / entry.path).read_bytes()
         assert not (output / ".no_encrypt").exists()
-        if profile == "jmm":
-            metadata = json.loads((output / descriptor).read_text())
-            assert metadata["target"] == entry.path
-            assert metadata["files"] == [entry.path]
     assert payload == apply_pac_cloth_rules(source, {0: PacClothRule(0)})
     for name in ("manifest.json", descriptor):
         if (output / name).is_file():
@@ -177,7 +172,7 @@ def test_finish_then_build_exports_cloth_edit_for_every_manager(
         expected_files.update(("0036/0.pamt", "0036/0.paz"))
     else:
         expected_files.add((Path(wrapper) / entry.path).as_posix())
-        if profile in {"jmm", "cdumm"}:
+        if profile == "cdumm":
             expected_files.remove("manifest.json")
     assert {p.relative_to(output).as_posix() for p in output.rglob("*") if p.is_file()} == expected_files
     for name in ("mesh-editor-session.json", "cdmw-compatibility.json", "cdmw-baseline.zip"):

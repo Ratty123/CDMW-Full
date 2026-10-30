@@ -433,13 +433,6 @@ class ModPackageExportTests(unittest.TestCase):
         self.assertEqual(("field_json",), field_json.manager_targets)
         self.assertEqual("field_json_v31", field_json.structure)
 
-        jmm = mod_package_export_options_for_manager("jmm")
-        self.assertFalse(jmm.create_manifest_json)
-        self.assertFalse(jmm.create_mod_json)
-        self.assertFalse(jmm.create_modinfo_json)
-        self.assertFalse(jmm.create_info_json)
-        self.assertEqual(("jmm",), jmm.manager_targets)
-        self.assertEqual("game_relative", jmm.structure)
 
     def test_multi_profile_config_keeps_cdumm_conflict_options(self) -> None:
         options = build_mod_package_export_options_from_config(
@@ -467,18 +460,18 @@ class ModPackageExportTests(unittest.TestCase):
         self.assertEqual("override", cdumm.conflict_mode)
         self.assertEqual("ko", cdumm.target_language)
 
-        jmm = mod_package_export_options_for_profiles(
-            ("jmm",),
+        dmm = mod_package_export_options_for_profiles(
+            ("dmm",),
             create_zip=True,
             create_material_authority_report=True,
             create_active_file_authority_audit=True,
         )
-        self.assertEqual(("jmm",), jmm.manager_targets)
-        self.assertEqual("game_relative", jmm.structure)
-        self.assertFalse(jmm.create_manifest_json)
-        self.assertTrue(jmm.create_zip)
-        self.assertTrue(jmm.create_material_authority_report)
-        self.assertTrue(jmm.create_active_file_authority_audit)
+        self.assertEqual(("dmm",), dmm.manager_targets)
+        self.assertEqual("dmm_texture", dmm.structure)
+        self.assertFalse(dmm.create_manifest_json)
+        self.assertTrue(dmm.create_zip)
+        self.assertTrue(dmm.create_material_authority_report)
+        self.assertTrue(dmm.create_active_file_authority_audit)
 
     def test_profile_helper_expands_multi_manager_output(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -486,7 +479,7 @@ class ModPackageExportTests(unittest.TestCase):
             entry = _entry("character/texture/sample.dds", root)
 
             export_options = mod_package_export_options_for_profiles(
-                ("jmm", "cdumm"),
+                ("dmm", "cdumm"),
                 create_zip=True,
                 create_material_authority_report=True,
                 conflict_mode="override",
@@ -498,12 +491,12 @@ class ModPackageExportTests(unittest.TestCase):
                 export_options=export_options,
             )
 
-            jmm_root = root / "out" / "AutoProfiles_jmm"
+            dmm_root = root / "out" / "AutoProfiles_dmm"
             cdumm_root = root / "out" / "AutoProfiles_cdumm"
-            self.assertEqual((jmm_root, cdumm_root), result.package_roots)
-            self.assertTrue((jmm_root / "mod.json").is_file())
-            self.assertFalse((jmm_root / "manifest.json").exists())
-            self.assertTrue((jmm_root.with_suffix(".zip")).is_file())
+            self.assertEqual((dmm_root, cdumm_root), result.package_roots)
+            self.assertTrue((dmm_root / "modinfo.json").is_file())
+            self.assertFalse((dmm_root / "manifest.json").exists())
+            self.assertTrue((dmm_root.with_suffix(".zip")).is_file())
             self.assertTrue((cdumm_root / "manifest.json").is_file())
             self.assertTrue((cdumm_root / "modinfo.json").is_file())
             self.assertTrue((cdumm_root / "files" / "character" / "texture" / "sample.dds").is_file())
@@ -514,73 +507,7 @@ class ModPackageExportTests(unittest.TestCase):
             self.assertTrue(expanded[0][1].create_material_authority_report)
             self.assertTrue(expanded[1][1].create_material_authority_report)
 
-    def test_jmm_profile_writes_jmm_mod_json(self) -> None:
-        with tempfile.TemporaryDirectory() as temp_dir:
-            root = Path(temp_dir) / "JmmMod"
-            payload = root / "character" / "model" / "weapon" / "sample.pac"
-            payload.parent.mkdir(parents=True)
-            payload.write_bytes(b"PAC")
-            texture = root / "character" / "texture" / "sample_new.dds"
-            texture.parent.mkdir(parents=True)
-            texture.write_bytes(b"DDS ")
 
-            write_mod_package_manifest(
-                root,
-                ModPackageInfo(title="JMM Example", version="1.0", author="Author"),
-                kind="mesh_loose_mod",
-                all_payload_paths=(
-                    "character/model/weapon/sample.pac",
-                    "character/texture/sample_new.dds",
-                ),
-                new_file_paths=("character/texture/sample_new.dds",),
-                export_options=ModPackageExportOptions(manager_targets=("jmm",), structure="game_relative"),
-            )
-
-            self.assertFalse((root / "manifest.json").exists())
-            mod_json = json.loads((root / "mod.json").read_text(encoding="utf-8"))
-            self.assertEqual("JMM Example", mod_json["title"])
-            self.assertEqual("character/model/weapon/sample.pac", mod_json["target"])
-            self.assertEqual(
-                ["character/model/weapon/sample.pac", "character/texture/sample_new.dds"],
-                mod_json["files"],
-            )
-            self.assertEqual(["character/texture/sample_new.dds"], mod_json["new_paths"])
-
-    def test_jmm_archive_export_mirrors_player_descriptor_alias_for_placement(self) -> None:
-        with tempfile.TemporaryDirectory() as temp_dir:
-            root = Path(temp_dir)
-            entry = _entry("character/phm_description_player_kliff.xml", root)
-
-            result = export_archive_payloads_to_mod_ready_loose(
-                (ArchivePatchRequest(entry, b"<Root/>"),),
-                parent_root=root / "out",
-                package_info=ModPackageInfo(title="JMM Placement"),
-                export_options=ModPackageExportOptions(manager_targets=("jmm",), structure="game_relative"),
-            )
-
-            package_root = result.package_root
-            root_alias = package_root / "character" / "phm_description_player_kliff.xml"
-            descriptor_alias = (
-                package_root
-                / "character"
-                / "descriptors"
-                / "characterdescription"
-                / "phm_description_player_kliff.xml"
-            )
-            self.assertTrue(root_alias.is_file())
-            self.assertTrue(descriptor_alias.is_file())
-            self.assertEqual(root_alias.read_bytes(), descriptor_alias.read_bytes())
-
-            mod_json = json.loads((package_root / "mod.json").read_text(encoding="utf-8"))
-            self.assertIn("character/phm_description_player_kliff.xml", mod_json["files"])
-            self.assertIn(
-                "character/descriptors/characterdescription/phm_description_player_kliff.xml",
-                mod_json["files"],
-            )
-            self.assertIn(
-                "character/descriptors/characterdescription/phm_description_player_kliff.xml",
-                mod_json["new_paths"],
-            )
 
     def test_multi_profile_archive_export_writes_separate_profile_folders_and_zips(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -592,17 +519,17 @@ class ModPackageExportTests(unittest.TestCase):
                 parent_root=root / "out",
                 package_info=ModPackageInfo(title="Multi"),
                 export_options=ModPackageExportOptions(
-                    export_profiles=("jmm", "cdumm"),
+                    export_profiles=("dmm", "cdumm"),
                     create_zip=True,
                     conflict_mode="override",
                 ),
             )
 
-            jmm_root = root / "out" / "Multi_jmm"
+            dmm_root = root / "out" / "Multi_dmm"
             cdumm_root = root / "out" / "Multi_cdumm"
-            self.assertEqual((jmm_root, cdumm_root), result.package_roots)
-            self.assertTrue((jmm_root / "mod.json").is_file())
-            self.assertTrue((jmm_root.with_suffix(".zip")).is_file())
+            self.assertEqual((dmm_root, cdumm_root), result.package_roots)
+            self.assertTrue((dmm_root / "modinfo.json").is_file())
+            self.assertTrue((dmm_root.with_suffix(".zip")).is_file())
             self.assertTrue((cdumm_root / "manifest.json").is_file())
             self.assertTrue((cdumm_root / "modinfo.json").is_file())
             self.assertTrue((cdumm_root.with_suffix(".zip")).is_file())

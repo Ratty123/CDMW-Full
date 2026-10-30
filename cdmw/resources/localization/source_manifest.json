@@ -19977,16 +19977,16 @@
       ]
     },
     {
-      "key": "Build Mod writes loose packages for DMM, CDUMM and JMM.",
+      "key": "Build Mod writes loose packages for DMM and CDUMM.",
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 366,
+          "line": 365,
           "sink": "python-return:_build_archive_mesh_sections"
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 709,
+          "line": 708,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -26612,7 +26612,7 @@
       ]
     },
     {
-      "key": "Choose CDUMM, JMM or DMM for new item exports.",
+      "key": "Choose CDUMM or DMM for new item exports.",
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_task_mixin.py",
@@ -68097,6 +68097,11 @@
       ]
     },
     {
+      "key": "Independent items",
+      "origins": [],
+      "manual": true
+    },
+    {
       "key": "Independent items (*.cditem)",
       "origins": [
         {
@@ -72413,101 +72418,6 @@
           "path": "schemas/archive_content_capabilities.v1.json",
           "line": 1,
           "sink": "json-presentation:remaining"
-        }
-      ]
-    },
-    {
-      "key": "JMM",
-      "origins": [
-        {
-          "path": "cdmw/ui/shell/problem_report_catalog.py",
-          "line": 11,
-          "sink": "python-data:MOD_MANAGERS"
-        }
-      ]
-    },
-    {
-      "key": "JMM JSON",
-      "origins": [
-        {
-          "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 473,
-          "sink": "QCheckBox"
-        },
-        {
-          "path": "cdmw/ui/replace_assistant_tab.py",
-          "line": 440,
-          "sink": "addItem"
-        },
-        {
-          "path": "cdmw/ui/texture_workflow/upscale_backend_panel.py",
-          "line": 278,
-          "sink": "addItem"
-        }
-      ]
-    },
-    {
-      "key": "JMM Loose Mesh",
-      "origins": [
-        {
-          "path": "cdmw/ui/mesh_editor/mod_export_dialog.py",
-          "line": 57,
-          "sink": "addItem"
-        }
-      ]
-    },
-    {
-      "key": "JMM is outdated; compatibility cannot be ensured.",
-      "origins": [
-        {
-          "path": "cdmw/ui/mesh_editor/mod_export_dialog.py",
-          "line": 74,
-          "sink": "QLabel"
-        },
-        {
-          "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 297,
-          "sink": "NoteLabel"
-        },
-        {
-          "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 477,
-          "sink": "QLabel"
-        },
-        {
-          "path": "cdmw/ui/replace_assistant_tab.py",
-          "line": 456,
-          "sink": "QLabel"
-        },
-        {
-          "path": "cdmw/ui/texture_workflow/upscale_backend_panel.py",
-          "line": 292,
-          "sink": "QLabel"
-        },
-        {
-          "path": "cdmw/ui/tools/mod_package_retrofit_widget.py",
-          "line": 169,
-          "sink": "QLabel"
-        }
-      ]
-    },
-    {
-      "key": "JMM is outdated; compatibility cannot be ensured. Prefer DMM or CDUMM for current game versions.",
-      "origins": [
-        {
-          "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 87,
-          "sink": "python-return:_build_start_sections"
-        },
-        {
-          "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 366,
-          "sink": "python-return:_build_archive_mesh_sections"
-        },
-        {
-          "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 709,
-          "sink": "python-return:_build_reference_sections"
         }
       ]
     },
@@ -85322,11 +85232,11 @@
       ]
     },
     {
-      "key": "Mod folder supports CDUMM and JMM, with an optional ZIP.",
+      "key": "Mod folder supports CDUMM, with an optional ZIP.",
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 87,
+          "line": 86,
           "sink": "python-return:_build_start_sections"
         }
       ]
@@ -96227,16 +96137,16 @@
       ]
     },
     {
-      "key": "October 2026 DLC: scan the complete game folder to include dlc/dlc_01. Browsing, extraction and Create New Item support the compact base and DLC tables. Empty DLC tables are skipped; incomplete nonempty tables still stop loading. Create New Item exports CDUMM/JMM folders and .cditem authoring packages. Direct archive patching and overlay installation remain unavailable. Export checks do not establish in-game compatibility.",
+      "key": "October 2026 DLC: scan the complete game folder to include dlc/dlc_01. Browsing, extraction and Create New Item support the compact base and DLC tables. Empty DLC tables are skipped; incomplete nonempty tables still stop loading. Create New Item exports CDUMM folders and .cditem authoring packages. Direct archive patching and overlay installation remain unavailable. Export checks do not establish in-game compatibility.",
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 87,
+          "line": 86,
           "sink": "python-return:_build_start_sections"
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 366,
+          "line": 365,
           "sink": "python-return:_build_archive_mesh_sections"
         }
       ]
@@ -103062,11 +102972,11 @@
       ]
     },
     {
-      "key": "Package reviewed changes for CDUMM, DMM, or JMM; unsupported graph swaps or variable-length binary edits remain outside the bounded workflow.",
+      "key": "Package reviewed changes for CDUMM or DMM; unsupported graph swaps or variable-length binary edits remain outside the bounded workflow.",
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 586,
+          "line": 585,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -173197,7 +173107,7 @@
       ]
     },
     {
-      "key": "Write installable mod packages (CDUMM, DMM and JMM) from these changes.",
+      "key": "Write installable mod packages (CDUMM and DMM) from these changes.",
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
@@ -183592,31 +183502,6 @@
       ]
     },
     {
-      "key": "jmm",
-      "origins": [
-        {
-          "path": "cdmw/ui/mesh_editor/mod_export_dialog.py",
-          "line": 57,
-          "sink": "addItem"
-        },
-        {
-          "path": "cdmw/ui/mesh_editor/mod_export_dialog.py",
-          "line": 57,
-          "sink": "addItem"
-        },
-        {
-          "path": "cdmw/ui/replace_assistant_tab.py",
-          "line": 440,
-          "sink": "addItem"
-        },
-        {
-          "path": "cdmw/ui/texture_workflow/upscale_backend_panel.py",
-          "line": 278,
-          "sink": "addItem"
-        }
-      ]
-    },
-    {
       "key": "jumping",
       "origins": [
         {
@@ -188502,11 +188387,11 @@
       ]
     },
     {
-      "key": "placement animations weapon armour socket viewport draw stow retarget hkx pac package cdumm dmm jmm",
+      "key": "placement animations weapon armour socket viewport draw stow retarget hkx pac package cdumm dmm",
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 586,
+          "line": 585,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -191097,11 +190982,11 @@
       ]
     },
     {
-      "key": "retrofit repackage mod package normalize inspect loose manager cdumm dmm jmm manifest",
+      "key": "retrofit repackage mod package normalize inspect loose manager cdumm dmm manifest",
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 626,
+          "line": 625,
           "sink": "python-return:_build_utility_sections"
         }
       ]

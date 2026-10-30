@@ -92,31 +92,27 @@ Model variants retain their own appearance settings. Material tools include glow
 translucency and painted transparency; experimental options are labelled.
 
 For an imported model, use **Apply placement** before **Build plan**. Review the
-planned files and warnings in **Output**, then create a mod folder or install a
-CDMW game overlay. Use **Add to existing mod** to extend a package deliberately;
+planned files and warnings in **Output**, then create a mod folder or a portable
+`.cditem` authoring package. Use **Add to existing mod** to extend a package deliberately;
 fresh exports check for unintended inherited custom items.
 
-**Available outputs: CDUMM (default), JMM, DMM and CDMW game overlays.** DMM is
-enabled again for testing with an updated manager; item and texture preservation
-still needs in-game verification.
+**Available outputs: CDUMM mod folders and portable `.cditem` authoring packages.**
+DMM archive groups and CDMW game overlays are disabled following the DLC update.
 New mod folders can have a custom name and an optional ZIP copy.
 
-**Include mounted items in a new mod** combines installed overlay items and their
-assets with the new item in a separate CDUMM, JMM or DMM package. Review the included
-items and archives in Output, then follow the package's installation and rollback
-steps when replacing the original mods.
+**Include mounted items in a new mod** is unavailable while archive overlays are
+disabled. Use **Add to existing mod** to review a selected package's included items
+and assets before extending it.
 
 See the [Create New Item guide](cdmw/ui/new_item/README.md) for detailed controls.
 
 ## Mesh Editor
 
 Open a supported archive or local mesh, edit with Undo/Redo, then use
-**Finish Edit Mesh** to validate and accept the result. **Build Mod** offers DMM,
-JMM and CDUMM packages, with an optional ZIP.
+**Finish Edit Mesh** to validate and accept the result. **Build Mod** offers DMM
+and CDUMM packages, with an optional ZIP.
 
-DMM, CDUMM and JMM are the main supported mod managers. JMM is outdated;
-compatibility cannot be ensured. Prefer DMM or CDUMM for current game versions,
-and check the producing tool's output limitations before installing.
+DMM and CDUMM are the supported mod managers. Check the producing tool's output limitations before installing.
 
 Tools include selection, transforms, sculpting, UVs, material controls, cloth and
 jiggle settings, Hair Tools, and Morph & Refit for body and garment adjustments.
@@ -137,7 +133,7 @@ physics controls, draft recovery and output limits.
 Adjust where equipment sits and review supported socket or animation replacements.
 Use **Prepare preview** to inspect synchronized Before/After playback and check the
 proposed file changes. **Build packages** exports the selected operations for
-CDUMM, DMM or JMM; it does not install them into the game.
+CDUMM or DMM; it does not install them into the game.
 
 Preview checks do not certify in-game contact, physics or animation behavior.
 Unsupported operations and unresolved dependencies are identified before output.

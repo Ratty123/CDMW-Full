@@ -257,8 +257,8 @@ def test_loose_export_and_mod_base_preserve_each_items_rules_and_provenance(tmp_
     service, snapshot, _ = game(tmp_path)
     first = service.plan(replace(spec("Visibility_A"), body_visibility=SKIN), snapshot)
     folder = tmp_path / "A"
-    service.export_loose(first, folder, manager="JMM")
-    assert (folder / SHRINK_PATH).read_bytes() == first.loose_files[SHRINK_PATH]
+    service.export_loose(first, folder, manager="CDUMM")
+    assert (folder / "files" / SHRINK_PATH).read_bytes() == first.loose_files[SHRINK_PATH]
     manifest = json.loads((folder / "new-item.json").read_text(encoding="utf-8"))
     assert manifest["body_visibility"]["experimental"]
     assert SHRINK_PATH in json.dumps(manifest["sources"])

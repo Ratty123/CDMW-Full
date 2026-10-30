@@ -44,7 +44,7 @@ from cdmw.domain.new_item.spec import (
 
 from cdmw.domain.new_item.effect_authoring import EffectLayer, EmitterEdit
 
-MANAGERS: Tuple[str, ...] = ("CDUMM", "JMM", "DMM")
+MANAGERS: Tuple[str, ...] = ("CDUMM", "DMM")
 STAT_KIND = "stat"
 BUY_PRICE_KIND = "buy_price"
 

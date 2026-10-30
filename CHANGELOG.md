@@ -13,6 +13,8 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 ### Changed
 
+- Removed the retired mod-manager export option from all tools, package writers and documentation. DMM and CDUMM remain available where supported.
+
 - Mod Management and archive overlay workflows are temporarily disabled because they are incompatible with the DLC update. Mod Management remains visible but greyed out, with the reason shown on hover. Loose mod exports remain available.
 
 ### Fixed
@@ -81,7 +83,7 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 ### Changed
 
-- Mod exports focus on DMM, CDUMM and JMM. JMM remains available with a warning that it is outdated and compatibility cannot be ensured.
+- Mod exports focus on DMM and CDUMM.
 
 ### Fixed
 
@@ -302,10 +304,10 @@ experimental-feature notes do not establish equivalent in-game behavior.
 Adds guided private problem reporting, mounted-item packaging and expanded Mesh
 Editor cloth tools, with faster browsing and more reliable authoring workflows.
 
-**Export availability:** Create New Item supports CDUMM (the default), JMM and
+**Export availability:** Create New Item supports CDUMM (the default) and
 CDMW game overlays. DMM remains visible but disabled because of new-item and
 texture-registration compatibility problems. Mesh Editor replacement exports
-still offer DMM, JMM and CDUMM.
+still offer DMM and CDUMM.
 
 **Experimental features:** Weapon collider export, generated cloth guides,
 material/shader experiments and other labelled experimental tools still need
@@ -315,7 +317,7 @@ tuning does not establish in-game behavior.
 ### Added
 
 - Create New Item offers experimental independent `.cditem` packages. Mod Management installs and updates compatible packages without manual merging, retains item identities after removal, and transfers mappings with identity profiles. Unsupported dependencies and conflicts are refused; in-game and save compatibility remain unverified.
-- Create New Item can combine mounted overlay items and their assets with a new item in a separate CDUMM or JMM package. Output reviews the included items and archives, reports missing assets or conflicts, and supplies installation and rollback steps.
+- Create New Item can combine mounted overlay items and their assets with a new item in a separate CDUMM package. Output reviews the included items and archives, reports missing assets or conflicts, and supplies installation and rollback steps.
 - Jiggle can adjust named bone regions independently through the existing contribution control, preserving skin-weight blending across LODs, Undo/Redo and saved drafts. Recovered drafts can use the whole-part controls without reopening the archive. The existing bone preview settings can also target individual regions; solver settings remain preview-only.
 - Mesh Editor offers experimental spline playback with flexible starting settings, guide rotation and adjustable spring-back. Verified rigid attachments can preview without a character skeleton, and saved profile edits refresh the loaded preview.
 - Mesh Editor previews cloth against supported rigid weapon parts or a separately positioned weapon reference. Collision inputs can come from external files or game archives; body and weapon shapes can be inspected through the mesh before playback or while paused. Experimental weapon collider export supports Undo, drafts and Build Mod, alongside an explicit own-model collision profile override; in-game activation remains unverified.
@@ -325,7 +327,7 @@ tuning does not establish in-game behavior.
 
 - Create New Item renames Perks & Effects to Effects & Perks to match its initial Effects tab.
 - Create New Item labels every placement value with its axis, identifies scale width, height and depth, and adds optional Uniform scale to resize all three axes while keeping the current proportions.
-- Create New Item keeps DMM visible but disabled, with an explanation that DMM 3.5.0 can lose new items and their texture registrations. Saved DMM selections switch to CDUMM; JMM and CDMW game overlays remain available.
+- Create New Item keeps DMM visible but disabled, with an explanation that DMM 3.5.0 can lose new items and their texture registrations. Saved DMM selections switch to CDUMM; CDMW game overlays remain available.
 - Mesh Editor's Experimental features button expands Weapon colliders, Collision sources and Create cloth guides within Cloth settings, with one weapon PAC picker in Collision sources. Wind preview is removed from Jiggle because it does not affect Cloth. Explanatory text uses hover help, collision sources show shorter filenames, and Selection controls open directly from the Selection heading.
 - Mesh Editor Action History supports selecting individual entries and right-clicking to undo from that action or restore through an undone action. Later actions remain available to restore until a new edit replaces them.
 - Problem reports collect recent activity and logs across tools, detailed worker and helper failures, crash or hang evidence and build fingerprints. Evidence refreshes when preparing a draft, with missing or truncated sources identified in the reviewed report.
@@ -371,10 +373,9 @@ Expanded Mesh Editor and Create New Item authoring, material and physics control
 mod management, and faster previews. This release includes the unpublished
 alpha.21 checkpoint; alpha.20 was the previous GitHub release.
 
-**Export availability:** Create New Item supports CDUMM (the default), JMM and
+**Export availability:** Create New Item supports CDUMM (the default) and
 CDMW game overlays. Its DMM export is temporarily disabled while compatibility
-issues are investigated. Mesh Editor replacement exports still offer DMM, JMM
-and CDUMM.
+issues are investigated. Mesh Editor replacement exports still offer DMM and CDUMM.
 
 **Experimental features:** Material and shader experiments, generated cloth guides,
 and item visibility overrides still need in-game testing. Overlapping transparent

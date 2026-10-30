@@ -120,6 +120,10 @@ def test_each_manual_has_localized_contents_sidebar_and_opens_with_home(wiki_man
         assert sidebar.startswith("### " + translate("Contents", "Contents"))
         assert f"[{translate('Start Here', 'Start Here')}]({manual_url(language.code, 'start-here')})" in sidebar
         assert f"[{translate('Overview', 'Overview')}]({manual_url(language.code, 'overview')})" in sidebar
+        independent_title = translate("Independent items")
+        assert independent_title and independent_title in sidebar and independent_title in body
+        if language.code != "en":
+            assert independent_title != "Independent items"
         assert len(re.findall(r"\]\([^\n]+#guide-", sidebar)) == 19
         assert "/Languages" not in sidebar and "🌐" not in sidebar
         assert all(url.startswith(manual_url(language.code) + "#") for url in re.findall(r"\]\(([^)]+)\)", sidebar))
@@ -508,8 +512,7 @@ def test_error_library_is_linked_and_folded_without_rewording_diagnostics(wiki_m
         assert '<a id="guide-error-code-library"></a>' in manual
         assert '<a id="errors-archive"></a>\n\n<details>' in manual
         assert catalogue["Error Code Library"] in manual
-        for sentence in _sentences(catalogue["JMM is outdated; compatibility cannot be ensured. Prefer DMM or CDUMM for current game versions."]):
-            assert sentence in manual
+        assert "jmm" not in manual.casefold()
         for row in ERROR_REFERENCE:
             assert row["code"] in manual
         # GitHub truncates long rendered pages. The complete message index is

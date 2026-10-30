@@ -671,8 +671,6 @@ def build_recolor_variant_outputs(
                 export_options=export_options,
                 create_no_encrypt_file=export_options.create_no_encrypt_file,
             )
-            if profile.profile_id.strip().lower() == "jmm":
-                _write_jmm_mod_json(staged_root, package_info, analysis.payload_paths)
             publication_paths.append((staged_root, final_root))
             if export_options.create_zip:
                 staged_zip = staged_root.with_name(staged_root.name + ".zip")
@@ -710,17 +708,6 @@ def build_recolor_variant_outputs(
 
 def recolor_export_options_for_manager(profile_id: str) -> ModPackageExportOptions:
     normalized = str(profile_id or "dmm").strip().lower()
-    if normalized == "jmm":
-        return ModPackageExportOptions(
-            manager_targets=("jmm",),
-            structure="game_relative",
-            create_manifest_json=False,
-            create_mod_json=False,
-            create_modinfo_json=False,
-            create_info_json=False,
-            create_no_encrypt_file=False,
-            create_zip=False,
-        )
     from cdmw.core.mod_package import mod_package_export_options_for_manager
 
     return mod_package_export_options_for_manager(normalized)
@@ -740,13 +727,6 @@ def default_recolor_output_profiles() -> tuple[RecolorVariantOutputProfile, ...]
             enabled=False,
             package_title_suffix="CDUMM",
             export_options=recolor_export_options_for_manager("cdumm"),
-        ),
-        RecolorVariantOutputProfile(
-            profile_id="jmm",
-            label="JMM JSON",
-            enabled=False,
-            package_title_suffix="JMM",
-            export_options=recolor_export_options_for_manager("jmm"),
         ),
     )
 
@@ -1178,40 +1158,6 @@ def _profile_output_root(output_root: Path, package_info: ModPackageInfo, profil
     if profile.profile_id and profile.profile_id.strip().lower() not in {"", "dmm"}:
         return root.with_name(f"{root.name}_{_safe_slug(profile.profile_id)}")
     return root
-
-
-def _write_jmm_mod_json(root: Path, package_info: ModPackageInfo, payload_paths: Sequence[str]) -> Path:
-    target = next((path for path in payload_paths if path.lower().endswith((".pac", ".pam", ".pamlod"))), "")
-    payload = {
-        "name": package_info.title,
-        "title": package_info.title,
-        "version": package_info.version or "1.0",
-        "author": package_info.author,
-        "game": "Crimson Desert",
-        "description": package_info.description,
-        "kind": "mesh_loose_mod" if target else "dds_loose_mod",
-        "category": _infer_jmm_category(target or (payload_paths[0] if payload_paths else "")),
-        "target": target or (payload_paths[0] if payload_paths else ""),
-        "files": list(payload_paths),
-        "new_paths": [path for path in payload_paths if path.lower().endswith(".dds")],
-    }
-    compact = {key: value for key, value in payload.items() if value not in ("", None, [], {})}
-    path = root / "mod.json"
-    path.write_text(json.dumps(compact, indent=2), encoding="utf-8")
-    return path
-
-
-def _infer_jmm_category(path_value: str) -> str:
-    lowered = str(path_value or "").replace("\\", "/").lower()
-    if "/weapon/" in lowered:
-        return "weapon"
-    if "/armor/" in lowered:
-        return "armor"
-    if "/tools/" in lowered:
-        return "tool"
-    if lowered.startswith("ui/"):
-        return "ui"
-    return "replacement"
 
 
 def _source_path_for_payload(source_root: Path, payload_path: str, normalized: str) -> Optional[Path]:

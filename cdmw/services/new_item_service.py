@@ -52,7 +52,6 @@ LOOSE_EXPORT_PROFILES: Mapping[str, Mapping[str, object]] = {
     # DMM needs a standalone archive group so it retains newly added paths as well
     # as whole replacement tables. Its group-replacement route drops additions.
     "DMM": {"manager_targets": ("dmm",), "structure": "archive_group", "create_manifest_json": True, "create_modinfo_json": True, "create_no_encrypt_file": False, "create_mod_json": False, "kind": "archive_override_mod"},
-    "JMM": {"manager_targets": ("jmm",), "structure": "game_relative", "create_manifest_json": False, "create_modinfo_json": False, "create_no_encrypt_file": False, "create_mod_json": False, "kind": "loose_mod"},
 }
 
 

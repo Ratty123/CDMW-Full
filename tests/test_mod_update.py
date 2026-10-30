@@ -27,7 +27,7 @@ def exported(tmp_path, manager="DMM"):
     return plan, snapshot, entries, folder
 
 
-@pytest.mark.parametrize("manager", ("DMM", "JMM", "CDUMM"))
+@pytest.mark.parametrize("manager", ("DMM", "CDUMM"))
 def test_exports_record_originals_and_compare_unchanged(tmp_path, manager):
     original, _snapshot, entries, folder = exported(tmp_path, manager)
     evidence = read_compatibility(folder)
@@ -242,7 +242,7 @@ def test_installed_texture_comparison_preserves_owned_and_external_registrations
 def test_compatibility_survives_zip_and_retrofit(tmp_path):
     import zipfile
     from cdmw.core.mod_package_retrofit import analyze_retrofittable_mod_package, retrofit_mod_package
-    _original, _snapshot, _entries, folder = exported(tmp_path, "JMM")
+    _original, _snapshot, _entries, folder = exported(tmp_path, "CDUMM")
     zipped = tmp_path / "mod.zip"
     with zipfile.ZipFile(zipped, "w") as archive:
         for path in folder.rglob("*"):
@@ -317,7 +317,7 @@ def test_oversized_originals_remain_unknown(tmp_path, monkeypatch):
     assert [row["baseline_known"] for row in evidence.files] == [False, True, False]
 
 
-@pytest.mark.parametrize("manager", ("DMM", "JMM", "CDUMM"))
+@pytest.mark.parametrize("manager", ("DMM", "CDUMM"))
 def test_adding_to_existing_mod_keeps_original_game_baseline(tmp_path, manager):
     from cdmw.services.new_item_mod_base import build_mod_base_snapshot
     from cdmw.services.new_item_service import NewItemService

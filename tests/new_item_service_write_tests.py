@@ -241,9 +241,9 @@ class _WriteTestsMixin:
         self.assertIn("cd_phm_01_sword_9109", text)
         with self.assertRaisesRegex(ValueError, "manager profile"):
             self.service.export_loose(plan, self.root / "x", manager="nope")
-        jmm = self.service.export_loose(plan, self.root / "jmm", manager="JMM")
-        self.assertTrue((self.root / "jmm" / "character" / "model" / Path(MODEL_FOLDER) / "cd_phm_01_sword_9109.pac").is_file())
-        self.assertEqual(jmm.manager, "JMM")
+        with self.assertRaisesRegex(ValueError, "manager profile"):
+            self.service.export_loose(plan, self.root / "retired", manager="JMM")
+        self.assertFalse((self.root / "retired").exists())
 
     def test_a_failed_export_leaves_the_existing_folder_unchanged(self) -> None:
         plan = self._plan()
@@ -258,7 +258,7 @@ class _WriteTestsMixin:
 
         with patch("cdmw.core.mod_package.finalize_mod_package_export", side_effect=RuntimeError("metadata failed")):
             with self.assertRaisesRegex(RuntimeError, "metadata failed"):
-                self.service.export_loose(plan, out, manager="JMM")
+                self.service.export_loose(plan, out, manager="CDUMM")
 
         after = {
             path.relative_to(out).as_posix(): path.read_bytes()
@@ -286,7 +286,7 @@ class _WriteTestsMixin:
 
         with patch.object(Path, "write_bytes", cancelling_write):
             with self.assertRaises(RunCancelled):
-                self.service.export_loose(plan, out, manager="JMM", stop_event=stop)
+                self.service.export_loose(plan, out, manager="CDUMM", stop_event=stop)
 
         self.assertTrue(wrote_staged_file, "the cancellation happened after staging began")
         self.assertEqual(

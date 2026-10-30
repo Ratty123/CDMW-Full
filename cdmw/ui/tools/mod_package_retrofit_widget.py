@@ -166,9 +166,6 @@ class ModPackageRetrofitUi:
 
         self.table = self._create_table()
         left_layout.addWidget(self.table, 1)
-        self.manager_warning = QLabel("JMM is outdated; compatibility cannot be ensured.")
-        self.manager_warning.setWordWrap(True)
-        left_layout.addWidget(self.manager_warning)
         self.scan_summary_label = QLabel('')
         self.scan_summary_label.setObjectName("HintLabel")
         self.scan_summary_label.setWordWrap(True)
@@ -363,7 +360,7 @@ class ModPackageRetrofitUi:
             index = structure.findData(defaults.structure)
             if index >= 0:
                 structure.setCurrentIndex(index)
-            structure.setEnabled(profile not in {"jmm", "field_json"})
+            structure.setEnabled(profile != "field_json")
         uses_metadata = mod_package_profile_uses_manager_metadata(profile)
         for column in (7, 8):
             widget = self.table.cellWidget(row, column)

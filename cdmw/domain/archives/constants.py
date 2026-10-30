@@ -48,10 +48,3 @@ _MESH_IMPORT_AUTOCOPY_COMPANION_EXTENSIONS = {
 _MESH_IMPORT_RUNTIME_MESH_EXTENSIONS = {".pac", ".pam", ".pamlod"}
 _MESH_IMPORT_TEXTURE_SUFFIXES = ("_basecolor", "_diffuse", "_normal", "_disp", "_height", "_roughness")
 _MESH_IMPORT_SHORT_TEXTURE_SUFFIXES = ("_ma", "_mg", "_sp", "_n", "_m", "_o")
-
-_JMM_DESCRIPTOR_ALIAS_PAIRS: Tuple[Tuple[str, str], ...] = (
-    (
-        "character/phm_description_player_kliff.xml",
-        "character/descriptors/characterdescription/phm_description_player_kliff.xml",
-    ),
-)

@@ -48,7 +48,6 @@ class MeshModExportDialog(QDialog):
         self.manager = QComboBox(self)
         for label, choice, kind, profile, suffix in (
             ("DMM Loose Mesh", "dmm_loose", "loose_mod", "dmm", "dmm"),
-            ("JMM Loose Mesh", "jmm_loose", "loose_mod", "jmm", "jmm"),
             ("CDUMM Loose Mesh", "cdumm_loose", "loose_mod", "cdumm", "cdumm"),
             ("DMM Archive Group", "dmm_archive", "overlay_package", "dmm", "dmm-archive"),
         ):
@@ -71,9 +70,6 @@ class MeshModExportDialog(QDialog):
         self.author = QLineEdit(self)
         self.description = QLineEdit(description, self)
         form.addRow("Mod manager", self.manager)
-        self.manager_warning = QLabel("JMM is outdated; compatibility cannot be ensured.", self)
-        self.manager_warning.setWordWrap(True)
-        form.addRow(self.manager_warning)
         form.addRow("Mod name", self.mod_name)
         form.addRow("Output folder", folder_row)
         form.addRow("Version", self.version)

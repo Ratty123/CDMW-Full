@@ -86,8 +86,8 @@ def test_independent_output_preserves_draft_and_exports_through_rust_input(studi
     controller.draft.display_names['eng'] = 'Independent test'
     controller.draft.item_key = 1990420
     controller.draft.stem = 'cd_phm_01_sword_9876'
-    controller.draft.manager = 'JMM'
-    output.manager.setCurrentText('JMM')
+    controller.draft.manager = 'CDUMM'
+    output.manager.setCurrentText('CDUMM')
     tab.show_step(6)
     _send(bridge, output.independent_mode_button, 'activate')
     assert controller.independent_mode
@@ -127,7 +127,7 @@ def test_independent_output_preserves_draft_and_exports_through_rust_input(studi
     assert released_before_build == [True]
     assert read_package(target).identity == package.identity == controller.draft.independent_identity
     _send(bridge, output.folder_mode_button, 'activate')
-    assert not controller.independent_mode and output.manager.currentText() == 'JMM'
+    assert not controller.independent_mode and output.manager.currentText() == 'CDUMM'
     assert controller.current_spec().item_key == 1990420
     assert controller.draft.display_names['eng'] == 'Independent test'
 

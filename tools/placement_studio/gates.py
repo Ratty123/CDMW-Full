@@ -504,7 +504,6 @@ def cmd_package(args: argparse.Namespace) -> int:
       3. every manifest key present in *both* schemas holds an identical value,
       4. schema differences are enumerated rather than tolerated silently,
       5. `new_paths` is derived from the baseline and matches the golden's declaration,
-      6. the JMM descriptor-alias rule holds: both descriptor paths, or neither.
     """
 
     import json as json_module
@@ -550,10 +549,9 @@ def cmd_package(args: argparse.Namespace) -> int:
 
         files = {entry.game_path: entry.disk_path.read_bytes() for entry in mod.files}
 
-        # JMM ships no manifest.json, so its metadata lives in mod.json. Reading only the
-        # manifest silently produced version 1.0.0 against the golden's 1.0.2.
+        # Use manager metadata when the package has no workbench manifest.
         declared = dict(golden_manifest)
-        for fallback in ("mod.json", "modinfo.json"):
+        for fallback in ("modinfo.json",):
             if declared:
                 break
             candidate = mod.root / fallback
@@ -619,41 +617,6 @@ def cmd_package(args: argparse.Namespace) -> int:
             if differing:
                 failures += 1
 
-        # 4b. JMM mod.json — the only metadata that layout ships, so it must be checked.
-        golden_mod_json = mod.root / "mod.json"
-        ours_mod_json = result.root / "mod.json"
-        if golden_mod_json.is_file() and ours_mod_json.is_file():
-            gold_json = json_module.loads(golden_mod_json.read_text(encoding="utf-8"))
-            our_json = json_module.loads(ours_mod_json.read_text(encoding="utf-8"))
-            shared = [k for k in gold_json if k in our_json]
-            differing = [k for k in shared if gold_json[k] != our_json[k]]
-            _log(
-                f"   mod.json: {len(shared) - len(differing)}/{len(shared)} shared keys identical"
-                f"   (+{[k for k in our_json if k not in gold_json]})"
-            )
-            for key in differing:
-                left, right = gold_json[key], our_json[key]
-                if isinstance(left, list):
-                    _log(
-                        f"      {key}: golden {len(left)} vs ours {len(right)}; "
-                        f"only-golden={sorted(set(left) - set(right))[:2]}"
-                    )
-                else:
-                    _log(f"      {key}: golden={left!r} ours={right!r}")
-            if differing:
-                failures += 1
-
-            # The guide's rule, checked on the emitted file rather than assumed.
-            from tools.placement_studio.packaging import DESCRIPTOR_ALIAS_PAIRS
-
-            declared_new = set(our_json.get("new_paths") or [])
-            listed = set(our_json.get("files") or [])
-            for left, right in DESCRIPTOR_ALIAS_PAIRS:
-                pair = {left, right}
-                if declared_new & pair and pair <= listed and not pair <= declared_new:
-                    _log(f"      JMM new_paths rule VIOLATED for {left} / {right}")
-                    failures += 1
-
         # 5. new_paths derived from the baseline vs the golden's declaration
         if golden_manifest:
             declared = sorted(golden_manifest.get("new_paths") or [])
@@ -665,27 +628,6 @@ def cmd_package(args: argparse.Namespace) -> int:
                 _log(f"      golden : {declared}")
                 _log(f"      derived: {derived}")
 
-        # 6. the guide's JMM rule: both descriptor paths, or neither
-        alias_pairs = [
-            (
-                "character/phm_description_player_kliff.xml",
-                "character/descriptors/characterdescription/phm_description_player_kliff.xml",
-            )
-        ]
-        shipped = {entry.game_path for entry in mod.files}
-        for left, right in alias_pairs:
-            if (left in shipped) != (right in shipped):
-                # The golden itself may ship only one half; the studio must ship both.
-                produced_paths = {
-                    p.relative_to(payload_root).as_posix()
-                    for p in payload_root.rglob("*")
-                    if p.is_file()
-                }
-                if manager == "JMM" and (left in produced_paths) != (right in produced_paths):
-                    _log(f"   JMM alias rule: DIFFERS ({left} / {right})")
-                    failures += 1
-                else:
-                    _log(f"   JMM alias rule: golden ships one half only ({left.split('/')[-1]})")
         _log("")
 
     _log(f"packages written to {out_root}")

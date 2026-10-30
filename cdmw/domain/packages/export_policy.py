@@ -39,10 +39,9 @@ MOD_PACKAGE_STRUCTURES = frozenset(
     {"game_relative", "files_wrapper", "custom_compact_paths", "dmm_texture", "field_json_v31"}
 )
 MOD_PACKAGE_FILES_WRAPPER_STRUCTURES = frozenset({"files_wrapper", "custom_compact_paths"})
-MOD_PACKAGE_MANAGER_PROFILES = ("dmm", "jmm", "cdumm", "field_json")
+MOD_PACKAGE_MANAGER_PROFILES = ("dmm", "cdumm", "field_json")
 MOD_PACKAGE_MANAGER_PROFILE_LABELS = {
     "dmm": "Definitive Mod Manager",
-    "jmm": "JMM JSON",
     "cdumm": "CDUMM",
     "field_json": "Field-JSON v3.1",
 }
@@ -115,8 +114,6 @@ def normalize_mod_package_manager_profile(profile: str) -> str:
         "field_json_v31": "field_json",
         "field-json": "field_json",
         "field_json_v3_1": "field_json",
-        "json": "jmm",
-        "jmm_json": "jmm",
         "definitive": "dmm",
         "definitive_mod_manager": "dmm",
         "ultimate": "cdumm",
@@ -153,12 +150,6 @@ def mod_package_export_options_for_manager(profile: str) -> ModPackageExportOpti
             structure="dmm_texture",
             create_manifest_json=False,
             create_modinfo_json=True,
-            create_no_encrypt_file=False,
-        )
-    if normalized == "jmm":
-        return ModPackageExportOptions(
-            manager_targets=("jmm",),
-            create_manifest_json=False,
             create_no_encrypt_file=False,
         )
     if normalized == "cdumm":
@@ -258,17 +249,6 @@ def effective_mod_package_export_options_for_kind(
 ) -> ModPackageExportOptions:
     normalized_kind = str(kind or "").strip().lower()
     manager_targets = tuple(normalize_mod_package_manager_targets(options.manager_targets))
-    if "jmm" in set(manager_targets):
-        return replace(
-            options,
-            manager_targets=manager_targets,
-            structure="game_relative",
-            create_manifest_json=False,
-            create_mod_json=False,
-            create_modinfo_json=False,
-            create_info_json=False,
-            create_no_encrypt_file=False,
-        )
     if "dmm" in set(manager_targets) and normalized_kind == "dds_loose_mod":
         return replace(
             options,

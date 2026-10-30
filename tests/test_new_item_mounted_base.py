@@ -52,7 +52,7 @@ def mounted_game(tmp_path, current=True):
     return service, clean, first, mounted, root
 
 
-@pytest.mark.parametrize("manager", ["DMM", "CDUMM", "JMM"])
+@pytest.mark.parametrize("manager", ["DMM", "CDUMM"])
 @pytest.mark.parametrize("current", [True, False])
 def test_mounted_export_keeps_tables_assets_registry_and_clean_baselines(tmp_path, manager, current):
     service, clean, first, mounted, root = mounted_game(tmp_path, current)
@@ -176,7 +176,7 @@ def test_recovered_package_can_be_extended_and_merged_with_another_mod(tmp_path)
     extended_base = build_mod_base_snapshot(service, clean, folder, read_entry=_read)
     extended = service.plan(spec("Third"), extended_base)
     assert {first.spec.item_key, combined.spec.item_key} <= extended_base.rows.keys()
-    service.export_loose(extended, tmp_path / "extended", manager="JMM", replace_existing=False)
+    service.export_loose(extended, tmp_path / "extended", manager="CDUMM", replace_existing=False)
 
     separate = service.plan(replace(spec("Independent"), item_key=1990080, recipes=()), clean)
     other = tmp_path / "other"

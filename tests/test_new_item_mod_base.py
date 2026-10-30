@@ -71,7 +71,7 @@ class ModBaseTests(unittest.TestCase):
             ),
             self.service.build_snapshot(self.entries, read_entry=_read),
         )
-        self.service.export_loose(first, folder, manager="JMM")
+        self.service.export_loose(first, folder, manager="CDUMM")
         self.assertEqual(self._rows(folder), {first.spec.item_key: "Item_One"})
 
         # what the studio does when the folder already holds a mod: read the tables from
@@ -92,7 +92,7 @@ class ModBaseTests(unittest.TestCase):
             over_mod,
         )
         self.assertNotEqual(second.spec.item_key, first.spec.item_key, "and it takes the next key")
-        self.service.export_loose(second, folder, manager="JMM")
+        self.service.export_loose(second, folder, manager="CDUMM")
 
         self.assertEqual(
             self._rows(folder),
@@ -111,12 +111,12 @@ class ModBaseTests(unittest.TestCase):
             self.service.allocate(NewItemSpec(template_key=TEMPLATE, internal_name="Item_One", display_names={"eng": "One"}), snapshot),
             snapshot,
         )
-        self.service.export_loose(first, folder, manager="JMM")
+        self.service.export_loose(first, folder, manager="CDUMM")
         second = self.service.plan(
             self.service.allocate(NewItemSpec(template_key=TEMPLATE, internal_name="Item_Two", display_names={"eng": "Two"}), snapshot),
             snapshot,
         )
-        self.service.export_loose(second, folder, manager="JMM")
+        self.service.export_loose(second, folder, manager="CDUMM")
         self.assertEqual(list(self._rows(folder).values()), ["Item_Two"], "the first item is gone")
 
     def test_the_studio_plans_on_the_folder_when_it_is_pointed_at_one(self) -> None:
@@ -138,7 +138,7 @@ class ModBaseTests(unittest.TestCase):
             self.service.allocate(NewItemSpec(template_key=TEMPLATE, internal_name="Item_One", display_names={"eng": "One"}), snapshot),
             snapshot,
         )
-        self.service.export_loose(first, folder, manager="JMM")
+        self.service.export_loose(first, folder, manager="CDUMM")
 
         controller = NewItemStudioController(read_entry=_read, synchronous=True)
         controller.snapshot = snapshot

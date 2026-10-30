@@ -92,7 +92,6 @@ ARCHIVE_MODDING_EXPORTS_0: dict[str, tuple[str, str]] = {
     '_MutablePazRecord': ('cdmw.core.archive_patching', '_MutablePazRecord'),
     '_VfsPathResolver': ('cdmw.core.archive_patching', '_VfsPathResolver'),
     '_WavFormatInfo': ('cdmw.core.archive_audio', '_WavFormatInfo'),
-    '_add_jmm_descriptor_alias_payloads': ('cdmw.core.archive_loose_export', '_add_jmm_descriptor_alias_payloads'),
     '_align_source_owned_target_names_to_mesh': ('cdmw.core.archive_mesh_import_preview', '_align_source_owned_target_names_to_mesh'),
     '_apply_generated_static_texture_previews': ('cdmw.core.archive_mesh_import_preview', '_apply_generated_static_texture_previews'),
     '_apply_mesh_import_local_sidecar_texture_overrides': ('cdmw.core.archive_mesh_import_preview', '_apply_mesh_import_local_sidecar_texture_overrides'),

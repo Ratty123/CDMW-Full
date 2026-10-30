@@ -2,7 +2,7 @@
 
 The app already has a proven packaging pipeline — it produced the golden mods, which carry
 `"generator": "Crimson Desert Mod Workbench"`. This module reuses `cdmw.core.mod_package`
-rather than reimplementing manifests, so the JMM descriptor-alias rule, `.no_encrypt`
+rather than reimplementing manifests, so `.no_encrypt`
 handling and manifest schema stay in one place and cannot drift apart from the app.
 
 What is new here is the mapping from a *placement plan* to a package: which paths are new
@@ -40,16 +40,6 @@ MANAGER_PROFILES: Dict[str, Dict[str, object]] = {
         "create_no_encrypt_file": False,
         "create_mod_json": False,
         "kind": "archive_loose_mod",
-    },
-    "JMM": {
-        "manager_targets": ("jmm",),
-        "structure": "game_relative",
-        "create_manifest_json": False,
-        "create_modinfo_json": False,
-        "create_no_encrypt_file": False,
-        "create_mod_json": False,
-        # The goldens' JMM mod.json declares loose_mod, which is also the app writer's default.
-        "kind": "loose_mod",
     },
 }
 
@@ -103,8 +93,7 @@ class PackageMetadata:
     description: str = ""
 
     def title_for(self, manager: str) -> str:
-        # JMM shows the raw name, and the goldens carry the manager in it.
-        return f"{self.name} - {manager}" if manager == "JMM" else self.name
+        return self.name
 
 
 @dataclass(frozen=True, slots=True)
@@ -130,46 +119,16 @@ class PackageResult:
         return description
 
 
-# The guide's JMM rule: "If either path is in new_paths, both should be in new_paths."
-# A manager quirk rather than a truth about the game — only the root-level alias is genuinely
-# new — so it is encoded here as a closure over the pair rather than left to the author.
-DESCRIPTOR_ALIAS_PAIRS: Tuple[Tuple[str, str], ...] = (
-    (
-        "character/phm_description_player_kliff.xml",
-        "character/descriptors/characterdescription/phm_description_player_kliff.xml",
-    ),
-    (
-        "character/phm_description_player_001.xml",
-        "character/descriptors/characterdescription/phm_description_player_001.xml",
-    ),
-    (
-        "character/phw_description_player_001.xml",
-        "character/descriptors/characterdescription/phw_description_player_001.xml",
-    ),
-)
-
-
-def apply_alias_closure(new_paths: Iterable[str], shipped: Iterable[str]) -> List[str]:
-    """If one half of a descriptor alias pair is new, declare both — when both are shipped."""
-
-    result = set(new_paths)
-    available = set(shipped)
-    for left, right in DESCRIPTOR_ALIAS_PAIRS:
-        if result & {left, right} and {left, right} <= available:
-            result.update((left, right))
-    return sorted(result)
-
-
 def derive_new_paths(paths: Iterable[str], baseline) -> List[str]:
     """Paths the game does not already ship — these are additions, not overwrites.
 
     Derived from the pinned baseline rather than declared by hand, so a new file can never be
-    silently packaged as an overwrite. The alias closure is then applied so the JMM rule holds.
+    silently packaged as an overwrite.
     """
 
     shipped = list(paths)
     genuinely_new = [path for path in shipped if path not in baseline]
-    return apply_alias_closure(genuinely_new, shipped)
+    return sorted(set(genuinely_new))
 
 
 def build_readme(
@@ -345,7 +304,7 @@ def package_destinations(
     metadata: PackageMetadata,
     *,
     out_root: Path,
-    managers: Sequence[str] = ("CDUMM", "DMM", "JMM"),
+    managers: Sequence[str] = ("CDUMM", "DMM"),
 ) -> List[Path]:
     """Derive single-component folder names without changing the display metadata."""
     name = metadata.name.strip()
@@ -492,7 +451,7 @@ def build_all(
     out_root: Path,
     baseline=None,
     created_utc: Optional[str] = None,
-    managers: Sequence[str] = ("CDUMM", "DMM", "JMM"),
+    managers: Sequence[str] = ("CDUMM", "DMM"),
     scope=None,
     manifest: Optional[Mapping[str, object]] = None,
     replace_existing: bool = False,
@@ -555,7 +514,7 @@ def build_for_operations(
     out_root: Path,
     baseline=None,
     created_utc: Optional[str] = None,
-    managers: Sequence[str] = ("CDUMM", "DMM", "JMM"),
+    managers: Sequence[str] = ("CDUMM", "DMM"),
     units: Optional[Mapping[str, object]] = None,
     shared_socket_users: Optional[Mapping[str, Sequence[str]]] = None,
     replacements: Sequence[object] = (),

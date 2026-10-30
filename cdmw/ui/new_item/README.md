@@ -4,7 +4,7 @@ Archive overlays are disabled following the October 2026 DLC update. Their
 implementation is retained, but overlay export, installation, mounted-item
 inclusion and overlay management/recovery are unavailable in CDMW. Descriptions
 of those internal paths below document retained code, not available workflows.
-CDUMM/JMM loose mod folders and portable `.cditem` authoring packages remain available.
+CDUMM loose mod folders and portable `.cditem` authoring packages remain available.
 The compact base/DLC authoring tables are supported; exported items still require
 in-game verification. This does not re-enable archive installation.
 
@@ -1976,9 +1976,8 @@ in-game appearance.
 
 ## Mod manager exports
 
-**Create New Item → Output → Mod folder** offers **CDUMM** and **JMM**.
-CDUMM writes a `files/` package with manager metadata; JMM writes game-relative
-files with its `mod.json` replacement map. New drafts and saved DMM selections
+**Create New Item → Output → Mod folder** offers **CDUMM**.
+CDUMM writes a `files/` package with manager metadata. New drafts and saved unavailable manager selections
 use CDUMM. DMM archive-group export and **Game overlay** are disabled following
 the DLC update. Unknown manager choices are refused before export.
 
@@ -1991,7 +1990,7 @@ The earlier DMM 3.5.0 mount generated a vanilla-only ItemInfo table ahead of the
 mod's complete table, hiding its added item record. The shop still referenced that
 item, producing an empty, unbuyable entry. The mount also
 omitted the package's new PATHC texture registrations. The same mod was reported
-working in game with JMM. These earlier reports do not establish DLC compatibility.
+working in game with a loose package. These earlier reports do not establish DLC compatibility.
 
 ### Mounted source data
 
@@ -2020,7 +2019,7 @@ existing behavior. This check does not certify arbitrary third-party edits as va
 2. Create the new item normally. In **Output → Mod folder**, select
    **Include mounted items in a new mod**. This and **Add to existing mod** are
    alternative sources; choosing one clears the other.
-3. Choose CDUMM, JMM or DMM, a new mod name, and an output folder
+3. Choose CDUMM or DMM, a new mod name, and an output folder
    outside the game installation. **Rebuild plan** reads the installed content in
    the background. Cancelling preserves the draft and source files.
 4. Review **Included mounted items** and **Archive folders** at the top of Destination,

@@ -221,233 +221,12 @@ class ModPackageRetrofitTests(unittest.TestCase):
             self.assertTrue((field_json / "mod.field.json").is_file())
             self.assertTrue((field_json / "assets" / "character" / "texture" / "sample.dds").is_file())
 
-    def test_nested_jmm_json_zip_scans_and_retrofits_to_jmm_profile(self) -> None:
-        with tempfile.TemporaryDirectory() as temp_dir:
-            source_zip = Path(temp_dir) / "Wolf Gravestone Sword 2h (JSON).zip"
-            mod_json = {
-                "name": "Wolf Gravestone Sword_2h_v1",
-                "title": "Wolf Gravestone Sword (2H) v1",
-                "version": "1.0",
-                "author": "Ratrider",
-                "game": "Crimson Desert",
-                "description": "Replaces a two-handed sword.",
-                "kind": "file_replacement",
-                "category": "weapon",
-                "target": "character/model/1_pc/weapon/example.pac",
-                "files": [
-                    "character/model/1_pc/weapon/example.pac",
-                    "character/modelproperty/1_pc/weapon/example.pac_xml",
-                    "character/texture/example_basecolor.dds",
-                    "character/texture/example_n.dds",
-                ],
-                "new_paths": [
-                    "character/texture/example_basecolor.dds",
-                    "character/texture/example_n.dds",
-                ],
-            }
-            with zipfile.ZipFile(source_zip, "w") as archive:
-                prefix = "Wolf Gravestone Sword 2h (JSON)/Wolf Gravestone Sword_2h_v1"
-                archive.writestr(f"{prefix}/character/model/1_pc/weapon/example.pac", b"PAC")
-                archive.writestr(f"{prefix}/character/modelproperty/1_pc/weapon/example.pac_xml", b"<xml/>")
-                archive.writestr(f"{prefix}/character/texture/example_basecolor.dds", b"DDS base")
-                archive.writestr(f"{prefix}/character/texture/example_n.dds", b"DDS normal")
-                archive.writestr(f"{prefix}/mod.json", json.dumps(mod_json))
 
-            packages = scan_retrofittable_mod_packages(source_zip)
-            self.assertEqual(1, len(packages))
-            self.assertEqual("Wolf Gravestone Sword 2h (JSON)", packages[0].name)
-            self.assertEqual("mesh_loose_mod", packages[0].kind)
-            self.assertEqual(tuple(mod_json["files"]), packages[0].payload_paths)
-            self.assertEqual(("mod.json",), packages[0].existing_metadata)
 
-            result = retrofit_mod_package(packages[0], Path(temp_dir) / "converted", manager_profile="jmm")
 
-            written_mod_json = json.loads((result.package_root / "mod.json").read_text(encoding="utf-8"))
-            self.assertEqual("file_replacement", written_mod_json["kind"])
-            self.assertEqual("weapon", written_mod_json["category"])
-            self.assertEqual(mod_json["files"], written_mod_json["files"])
-            self.assertEqual(mod_json["new_paths"], written_mod_json["new_paths"])
-            self.assertTrue((result.package_root / "character" / "model" / "1_pc" / "weapon" / "example.pac").is_file())
-            self.assertTrue(result.zip_path.is_file())
-            with zipfile.ZipFile(result.zip_path) as archive:
-                names = set(archive.namelist())
-            self.assertIn("mod.json", names)
-            self.assertIn("character/model/1_pc/weapon/example.pac", names)
-            self.assertNotIn("Wolf Gravestone Sword 2h (JSON).zip", names)
 
-    def test_jmm_retrofit_mirrors_player_descriptor_alias_for_placement(self) -> None:
-        with tempfile.TemporaryDirectory() as temp_dir:
-            root = Path(temp_dir)
-            source = root / "Placement"
-            root_descriptor = source / "character" / "phm_description_player_kliff.xml"
-            root_descriptor.parent.mkdir(parents=True)
-            root_descriptor.write_text("<Root/>", encoding="utf-8")
-            manifest = {
-                "kind": "archive_loose_mod",
-                "title": "Placement",
-                "name": "Placement",
-                "new_paths": ["character/phm_description_player_kliff.xml"],
-            }
-            (source / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
-            package = scan_retrofittable_mod_packages(source)[0]
 
-            result = retrofit_mod_package(package, root / "converted", manager_profile="jmm")
-
-            root_alias = result.package_root / "character" / "phm_description_player_kliff.xml"
-            descriptor_alias = (
-                result.package_root
-                / "character"
-                / "descriptors"
-                / "characterdescription"
-                / "phm_description_player_kliff.xml"
-            )
-            self.assertTrue(root_alias.is_file())
-            self.assertTrue(descriptor_alias.is_file())
-            self.assertEqual(root_alias.read_bytes(), descriptor_alias.read_bytes())
-            mod_json = json.loads((result.package_root / "mod.json").read_text(encoding="utf-8"))
-            self.assertIn("character/phm_description_player_kliff.xml", mod_json["files"])
-            self.assertIn("character/descriptors/characterdescription/phm_description_player_kliff.xml", mod_json["files"])
-            self.assertIn("character/phm_description_player_kliff.xml", mod_json["new_paths"])
-            self.assertIn(
-                "character/descriptors/characterdescription/phm_description_player_kliff.xml",
-                mod_json["new_paths"],
-            )
-
-    def test_jmm_retrofit_marks_existing_player_descriptor_alias_as_new_path(self) -> None:
-        with tempfile.TemporaryDirectory() as temp_dir:
-            root = Path(temp_dir)
-            source = root / "Placement"
-            root_descriptor = source / "character" / "phm_description_player_kliff.xml"
-            descriptor_alias = (
-                source
-                / "character"
-                / "descriptors"
-                / "characterdescription"
-                / "phm_description_player_kliff.xml"
-            )
-            root_descriptor.parent.mkdir(parents=True)
-            descriptor_alias.parent.mkdir(parents=True)
-            root_descriptor.write_text("<Root/>", encoding="utf-8")
-            descriptor_alias.write_text("<Root/>", encoding="utf-8")
-            manifest = {
-                "kind": "archive_loose_mod",
-                "title": "Placement",
-                "name": "Placement",
-                "new_paths": ["character/phm_description_player_kliff.xml"],
-            }
-            (source / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
-            package = scan_retrofittable_mod_packages(source)[0]
-
-            result = retrofit_mod_package(package, root / "converted", manager_profile="jmm")
-
-            mod_json = json.loads((result.package_root / "mod.json").read_text(encoding="utf-8"))
-            self.assertIn("character/phm_description_player_kliff.xml", mod_json["new_paths"])
-            self.assertIn(
-                "character/descriptors/characterdescription/phm_description_player_kliff.xml",
-                mod_json["new_paths"],
-            )
-
-    def test_jmm_retrofit_removes_stale_descriptor_new_paths_when_game_index_has_target(self) -> None:
-        with tempfile.TemporaryDirectory() as temp_dir:
-            root = Path(temp_dir)
-            source = root / "Placement"
-            root_descriptor = source / "character" / "phm_description_player_kliff.xml"
-            descriptor_alias = (
-                source
-                / "character"
-                / "descriptors"
-                / "characterdescription"
-                / "phm_description_player_kliff.xml"
-            )
-            root_descriptor.parent.mkdir(parents=True)
-            descriptor_alias.parent.mkdir(parents=True)
-            root_descriptor.write_text("<Root/>", encoding="utf-8")
-            descriptor_alias.write_text("<Root/>", encoding="utf-8")
-            manifest = {
-                "kind": "file_replacement",
-                "title": "Placement",
-                "name": "Placement",
-                "files": [
-                    "character/descriptors/characterdescription/phm_description_player_kliff.xml",
-                    "character/phm_description_player_kliff.xml",
-                ],
-                "new_paths": [
-                    "character/descriptors/characterdescription/phm_description_player_kliff.xml",
-                    "character/phm_description_player_kliff.xml",
-                ],
-            }
-            (source / "mod.json").write_text(json.dumps(manifest), encoding="utf-8")
-            package = scan_retrofittable_mod_packages(source)[0]
-            archive_index = {
-                "phm_description_player_kliff.xml": [
-                    _entry(
-                        "character/descriptors/characterdescription/phm_description_player_kliff.xml",
-                        root,
-                        "0009",
-                    )
-                ]
-            }
-
-            summary = build_retrofit_path_repair_summary(package, archive_entries_by_basename=archive_index)
-            result = retrofit_mod_package(
-                package,
-                root / "converted",
-                manager_profile="jmm",
-                archive_entries_by_basename=archive_index,
-            )
-
-            self.assertEqual(2, summary.repaired_path_count)
-            mod_json = json.loads((result.package_root / "mod.json").read_text(encoding="utf-8"))
-            self.assertNotIn("new_paths", mod_json)
-            self.assertIn("character/descriptors/characterdescription/phm_description_player_kliff.xml", mod_json["files"])
-            self.assertIn("character/phm_description_player_kliff.xml", mod_json["files"])
-
-    def test_jmm_retrofit_does_not_repair_complete_descriptor_alias_pair_without_stale_new_paths(self) -> None:
-        with tempfile.TemporaryDirectory() as temp_dir:
-            root = Path(temp_dir)
-            source = root / "Placement"
-            root_descriptor = source / "character" / "phm_description_player_kliff.xml"
-            descriptor_alias = (
-                source
-                / "character"
-                / "descriptors"
-                / "characterdescription"
-                / "phm_description_player_kliff.xml"
-            )
-            root_descriptor.parent.mkdir(parents=True)
-            descriptor_alias.parent.mkdir(parents=True)
-            root_descriptor.write_text("<Root/>", encoding="utf-8")
-            descriptor_alias.write_text("<Root/>", encoding="utf-8")
-            manifest = {
-                "kind": "file_replacement",
-                "title": "Placement",
-                "name": "Placement",
-                "files": [
-                    "character/descriptors/characterdescription/phm_description_player_kliff.xml",
-                    "character/phm_description_player_kliff.xml",
-                ],
-            }
-            (source / "mod.json").write_text(json.dumps(manifest), encoding="utf-8")
-            package = scan_retrofittable_mod_packages(source)[0]
-
-            summary = build_retrofit_path_repair_summary(
-                package,
-                archive_entries_by_basename={
-                    "phm_description_player_kliff.xml": [
-                        _entry(
-                            "character/descriptors/characterdescription/phm_description_player_kliff.xml",
-                            root,
-                            "0009",
-                        )
-                    ]
-                },
-            )
-
-            self.assertEqual(0, summary.repaired_path_count)
-            self.assertEqual(0, summary.unresolved_path_count)
-            self.assertEqual(0, summary.ambiguous_path_count)
-
-    def test_custom_compact_paths_retrofit_to_jmm_repairs_model_and_sidecar_paths(self) -> None:
+    def test_custom_compact_paths_retrofit_to_dmm_repairs_model_and_sidecar_paths(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             source = root / "Compact"
@@ -493,7 +272,7 @@ class ModPackageRetrofitTests(unittest.TestCase):
             result = retrofit_mod_package(
                 package,
                 root / "converted",
-                manager_profile="jmm",
+                manager_profile="dmm",
                 archive_entries_by_basename=archive_index,
             )
 
@@ -501,12 +280,13 @@ class ModPackageRetrofitTests(unittest.TestCase):
             self.assertTrue((result.package_root / "character" / "model" / "1_pc" / "weapon" / "example.pac").is_file())
             self.assertTrue((result.package_root / "character" / "modelproperty" / "1_pc" / "weapon" / "example.pac_xml").is_file())
             self.assertTrue((result.package_root / "character" / "texture" / "example_new.dds").is_file())
-            mod_json = json.loads((result.package_root / "mod.json").read_text(encoding="utf-8"))
-            self.assertEqual("character/model/1_pc/weapon/example.pac", mod_json["target"])
-            self.assertIn("character/model/1_pc/weapon/example.pac", mod_json["files"])
-            self.assertIn("character/modelproperty/1_pc/weapon/example.pac_xml", mod_json["files"])
-            self.assertIn("character/texture/example_new.dds", mod_json["new_paths"])
-            self.assertNotIn("character/example.pac", mod_json["files"])
+            manifest = json.loads((result.package_root / "manifest.json").read_text(encoding="utf-8"))
+            paths = {row["path"] for row in manifest["files"]}
+            self.assertIn("character/model/1_pc/weapon/example.pac", paths)
+            self.assertIn("character/modelproperty/1_pc/weapon/example.pac_xml", paths)
+            self.assertIn("character/texture/example_new.dds", manifest["new_paths"])
+            self.assertNotIn("character/example.pac", paths)
+
 
     def test_compact_repair_uses_assets_group_and_case_insensitive_archive_key(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -599,7 +379,7 @@ class ModPackageRetrofitTests(unittest.TestCase):
             package = scan_retrofittable_mod_packages(source)[0]
 
             summary = build_retrofit_path_repair_summary(package)
-            result = retrofit_mod_package(package, root / "converted", manager_profile="jmm")
+            result = retrofit_mod_package(package, root / "converted", manager_profile="dmm")
 
             self.assertEqual(1, summary.unresolved_path_count)
             self.assertEqual(1, result.unresolved_path_count)

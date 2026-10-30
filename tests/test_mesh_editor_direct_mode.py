@@ -2104,7 +2104,6 @@ def test_loose_output_captures_after_pending_work_and_never_writes_source_archiv
     ("manager_profile", "payload_path", "metadata_names"),
     (
         ("dmm", "character/model/test.pac", {"manifest.json"}),
-        ("jmm", "character/model/test.pac", {"mod.json"}),
         ("cdumm", "files/character/model/test.pac", {"modinfo.json"}),
     ),
 )
@@ -2174,10 +2173,6 @@ def test_loose_mesh_output_uses_manager_layout_and_metadata_without_touching_sou
         assert manifest["kind"] == "mesh_loose_mod"
         assert manifest["manager_targets"] == [manager_profile]
         assert manifest["files"][0]["path"] == entry.path
-    if manager_profile == "jmm":
-        mod_json = json.loads((output_root / "mod.json").read_text(encoding="utf-8"))
-        assert mod_json["target"] == entry.path
-        assert mod_json["files"] == [entry.path]
     session = json.loads(mod_metadata_path(output_root, "mesh-editor-session.json").read_text(encoding="utf-8"))
     assert session["manager_profile"] == manager_profile
     assert (pamt.read_bytes(), paz.read_bytes()) == before
@@ -2276,7 +2271,7 @@ def test_loose_mesh_output_rejects_destination_claimed_during_staging(tmp_path: 
         entry,
         kind="loose_mod",
         output_path=output_root,
-        manager_profile="jmm",
+        manager_profile="dmm",
         expected_mesh_revision=6,
     )
     errors: list[str] = []
@@ -2336,7 +2331,7 @@ def test_direct_output_start_pins_capture_to_the_successful_validation_revision(
             "loose_mod",
             entry,
             output_path=tmp_path / "pinned-output",
-            manager_profile="jmm",
+            manager_profile="dmm",
         )
         thread = tab.standalone_output_thread
         assert thread is not None
@@ -2344,7 +2339,7 @@ def test_direct_output_start_pins_capture_to_the_successful_validation_revision(
         app.processEvents()
 
     assert captured["expected_mesh_revision"] == expected_revision
-    assert captured["manager_profile"] == "jmm"
+    assert captured["manager_profile"] == "dmm"
     tab.close_standalone_session()
     tab.deleteLater()
     app.processEvents()

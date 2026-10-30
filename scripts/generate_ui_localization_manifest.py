@@ -57,6 +57,8 @@ _DECLARED_PYTHON_UI_RETURN_METHODS = {
 
 MANUAL_SOURCE_KEYS = frozenset(
     {
+        # The Wiki exporter uses this shared navigation label without a widget sink.
+        "Independent items",
         # Dynamic reference-search confidence and progress labels.
         "Explicit path", "Media ID", "Incomplete", "Finished", "Searching",
         "item properties changed",

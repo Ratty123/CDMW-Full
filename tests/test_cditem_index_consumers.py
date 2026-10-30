@@ -79,7 +79,7 @@ def test_unchanged_authoring_exports_with_original_index_witness(tmp_path, route
     plan = service.plan(spec('Witnessed'), snapshot)
     assert expected in plan.source_revision.indexes
     plan.source_revision.validate()
-    result = service.export_loose(plan, tmp_path / 'output', manager='JMM')
+    result = service.export_loose(plan, tmp_path / 'output', manager='CDUMM')
     assert (tmp_path / 'output/new-item.json').is_file()
     assert result is not None and pamt.read_bytes() == original
 
