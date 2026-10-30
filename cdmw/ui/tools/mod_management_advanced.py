@@ -1,4 +1,5 @@
 """Flat navigation for the existing Mod Management workflow owners."""
+from cdmw import constants
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import QHBoxLayout, QSplitter, QTabWidget, QToolButton, QVBoxLayout, QWidget
 
@@ -24,7 +25,11 @@ class ModManagementPages(QTabWidget):
         self.task.currentChanged.connect(lambda _index: self.task_changed.emit())
         self.addTab(self.task, 'Prepare packages')
         self.addTab(independent, 'Item identities')
-        self.addTab(independent.shared_page, 'Shared files')
+        if constants.ARCHIVE_OVERLAYS_ENABLED:
+            self.addTab(independent.shared_page, 'Shared files')
+        else:
+            independent.shared_page.setParent(self)
+            independent.shared_page.hide()
 
         self.health = QWidget()
         self.health.setObjectName('mod_management_health')
@@ -35,6 +40,8 @@ class ModManagementPages(QTabWidget):
         self.repair_toggle.setText('Repair and recovery…')
         self.repair_toggle.setObjectName('mod_management_recovery_toggle')
         self.repair_toggle.setCheckable(True)
+        self.repair_toggle.setVisible(constants.ARCHIVE_OVERLAYS_ENABLED)
+        self.repair_toggle.setEnabled(constants.ARCHIVE_OVERLAYS_ENABLED)
         self.repair_toggle.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
         self.repair_toggle.setArrowType(Qt.ArrowType.RightArrow)
         toolbar = QHBoxLayout()
@@ -57,6 +64,8 @@ class ModManagementPages(QTabWidget):
         self.addTab(self.health, 'Health and recovery')
 
     def open_page(self, page):
+        if page is self._recovery and not constants.ARCHIVE_OVERLAYS_ENABLED:
+            return
         if page in (self._overview, self._recovery):
             self.setCurrentWidget(self.health)
             if page is self._recovery:

@@ -1639,7 +1639,7 @@ def test_direct_resident_editor_does_not_disable_qt_owned_output_controls(tmp_pa
         assert tab.standalone_replace_from_archive_button.isEnabled()
         assert tab.standalone_export_mesh_file_button.isEnabled()
         assert tab.standalone_build_mod_button.isEnabled()
-        assert tab.standalone_install_overlay_button.isEnabled()
+        assert not tab.standalone_install_overlay_button.isEnabled()
 
         tab.standalone_dotnet_target_embedded = True
         tab.update_editor_action_state(publish_native=False)
@@ -1997,8 +1997,6 @@ def test_direct_output_button_clicks_reach_each_tab_handler() -> None:
         ("Select a supported archive mesh first.", True),
         ("Run validation successfully before rebuilding a patched asset.", True),
         ("Open an archive mesh before creating a Mesh Editor output.", True),
-        ("Open an archive mesh before creating a Mesh Editor output.", True),
-        ("No Mesh Editor overlay install receipt is available.", True),
     ]
     tab.deleteLater()
     app.processEvents()

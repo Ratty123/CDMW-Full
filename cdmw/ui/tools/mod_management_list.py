@@ -1,6 +1,8 @@
 """One mod inventory, with the existing installation owners retaining authority."""
 from pathlib import Path
 
+from cdmw import constants
+
 from PySide6.QtCore import Qt, QSignalBlocker, QTimer, Signal
 from PySide6.QtWidgets import QHBoxLayout, QHeaderView, QLabel, QLineEdit, QMenu, QMessageBox, QPushButton, QTreeWidgetItem
 
@@ -134,6 +136,8 @@ class ModManagementList(VirtualLoaderPage):
         owned = {entry.directory for entry in self.inventory._entries}
         selected_folders = set(self._profile().mods)
         for entry in self.inventory._entries:
+            if not constants.ARCHIVE_OVERLAYS_ENABLED:
+                continue
             identity = identities.get(entry.id)
             state = translate({'mounted': self.tr('Enabled'), 'disabled': self.tr('Disabled'),
                                'unmounted': self.tr('Not mounted'), 'missing': self.tr('Missing files'),

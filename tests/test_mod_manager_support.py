@@ -27,7 +27,7 @@ def test_build_mod_keeps_jmm_and_explains_compatibility(tmp_path):
     )
     try:
         assert [dialog.manager.itemData(i)[0] for i in range(dialog.manager.count())] == [
-            "dmm_loose", "jmm_loose", "cdumm_loose", "dmm_archive",
+            "dmm_loose", "jmm_loose", "cdumm_loose",
         ]
         assert dialog.manager.currentData()[2] == "jmm"
         assert dialog.build_button.isEnabled()

@@ -185,8 +185,6 @@ class RustMeshEditorHostFrame(QFrame):
                  "Add the finished mesh to Archive Browser > Controls > Edited results. Open it there for a fresh editing pass, or choose another mesh from a combined Refit result. Results stay available until you close CDMW. This does not install a mod or change your game archives."),
                 ("Check or install", "RunValidation", "Check mesh", self.run_validation_requested,
                  "Check whether this mesh can be rebuilt in its output format. Finish Edit Mesh already checks the accepted edit; use this to run that check again. A passed check does not verify appearance in the game."),
-                ("Check or install", "InstallasOverlay", "Install to game...", self.install_overlay_requested,
-                 "Install this mesh directly through CDMW's overlay workflow. Close Crimson Desert first. The next step shows what will change and asks for confirmation before installation. Use Build Mod if you want a package for a mod manager."),
                 ("", "CloseSession", "Close this mesh", self.close_session_requested,
                  "Close the current mesh editing session. Build a mod or add the finished mesh to Archive Browser first if you want to keep using the result."),
         )

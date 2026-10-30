@@ -8,6 +8,8 @@ import zipfile
 os.environ.setdefault('QT_QPA_PLATFORM', 'offscreen')
 
 import pytest
+
+pytestmark = pytest.mark.usefixtures("retained_archive_overlays")
 from PySide6.QtCore import QEvent
 from PySide6.QtWidgets import QApplication
 

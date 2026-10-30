@@ -1,4 +1,5 @@
 """Thin UI for reviewed portable-item operations on the shared worker lane."""
+from cdmw import constants
 from PySide6.QtCore import Qt, Signal, QItemSelectionModel
 from PySide6.QtWidgets import QCheckBox, QFileDialog, QGroupBox, QHBoxLayout, QHeaderView, QInputDialog, QLabel, QMenu, QMessageBox, QPlainTextEdit, QPushButton, QSplitter, QToolButton, QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget
 
@@ -151,7 +152,8 @@ class IndependentItemsPage(QWidget):
         statuses = {item.data(0, Qt.ItemDataRole.UserRole + 1) for item in selected}
         status = next(iter(statuses)) if len(statuses) == 1 else None
         removed = statuses == {'Removed / reserved'}
-        self.import_button.setEnabled(ready and self.mutations is not None)
+        self.import_button.setVisible(constants.ARCHIVE_OVERLAYS_ENABLED)
+        self.import_button.setEnabled(constants.ARCHIVE_OVERLAYS_ENABLED and ready and self.mutations is not None)
         self.remove_button.setText((self.tr('Delete saved identities…') if len(selected) > 1 else self.tr('Delete saved identity…'))
                                   if removed else self.tr('Remove selected items…') if len(selected) > 1 else self.tr('Remove selected item...'))
         self.remove_button.setToolTip(
@@ -161,8 +163,10 @@ class IndependentItemsPage(QWidget):
         if len(statuses) > 1 and not statuses <= {'Installed', 'Disabled'}:
             self.remove_button.setToolTip(self.tr('Select installed items to remove, or removed identities to delete.'))
         self.remove_button.setEnabled(ready and self.mutations is not None and bool(selected)
-                                      and (removed or statuses <= {'Installed', 'Disabled'}))
-        self.rebuild_button.setEnabled(ready and self.mutations is not None and len(selected) == 1 and status == 'Installed')
+                                      and (removed or constants.ARCHIVE_OVERLAYS_ENABLED and statuses <= {'Installed', 'Disabled'}))
+        self.remove_button.setVisible(constants.ARCHIVE_OVERLAYS_ENABLED or removed)
+        self.rebuild_button.setVisible(constants.ARCHIVE_OVERLAYS_ENABLED)
+        self.rebuild_button.setEnabled(constants.ARCHIVE_OVERLAYS_ENABLED and ready and self.mutations is not None and len(selected) == 1 and status == 'Installed')
         self.refresh_button.setEnabled(ready)
         self.export_profile_button.setEnabled(ready)
         self.import_profile_button.setEnabled(ready and self.mutations is not None)
@@ -261,6 +265,8 @@ class IndependentItemsPage(QWidget):
         self._buttons()
 
     def _import(self):
+        if not constants.ARCHIVE_OVERLAYS_ENABLED:
+            return
         paths, _ = QFileDialog.getOpenFileNames(self, self.tr("Import independent items"), "", self.tr("Independent items (*.cditem)"))
         if not paths:
             return
@@ -292,6 +298,8 @@ class IndependentItemsPage(QWidget):
         self._run(task, completed)
 
     def _compose_shared(self):
+        if not constants.ARCHIVE_OVERLAYS_ENABLED:
+            return
         if (self._comparison is None or not self._comparison.compatible
                 or self._comparison.virtual_profile or self._comparison.folders):
             return
@@ -426,6 +434,8 @@ class IndependentItemsPage(QWidget):
             self._queued = ('apply', prepared)
 
     def _apply(self, prepared):
+        if not constants.ARCHIVE_OVERLAYS_ENABLED:
+            return
         from cdmw.services.archive_overlay_manager import apply_overlay_change
         mutations = self.mutations
         def task(log, stop):

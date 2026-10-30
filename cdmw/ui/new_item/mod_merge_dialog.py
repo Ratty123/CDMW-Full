@@ -149,6 +149,7 @@ class ModMergeDialog(QDialog):
         self._buttons()
 
     def _buttons(self, *_args):
+        from cdmw import constants
         if self._closed:
             return
         count = self.folders.count()
@@ -164,6 +165,7 @@ class ModMergeDialog(QDialog):
         self.remove_button.setEnabled(available and self.folders.currentRow() >= 0)
         self.scan_button.setEnabled(available and self.folders.count() >= 2 and bool(self.game_root.text().strip()))
         self.export_button.setEnabled(available and self._plan is not None and not self._plan.conflicts
+                                     and (constants.ARCHIVE_OVERLAYS_ENABLED or self._plan.semantic_export is not None)
                                       and bool(self.destination.text().strip()))
         self.progress.setVisible(self._working)
 
@@ -196,9 +198,12 @@ class ModMergeDialog(QDialog):
                   self._scanned, "Checking mod contents and their game baseline...")
 
     def _scanned(self, plan):
+        from cdmw import constants
         self._plan = plan
         if plan.conflicts:
             self.status.setText(f"{len(plan.conflicts)} conflict(s). No package can be written yet.")
+        elif not constants.ARCHIVE_OVERLAYS_ENABLED and plan.semantic_export is None:
+            self.status.setText(self.tr("Archive overlays are disabled because they are incompatible with the DLC update."))
         else:
             destination = 'CDMW semantic .cditem' if plan.semantic_export is not None else 'DMM'
             self.status.setText(f"Ready to combine {len(plan.folders)} mods into one {destination} package.")
@@ -226,6 +231,9 @@ class ModMergeDialog(QDialog):
 
     def _export(self):
         if self._plan is None or self._plan.conflicts:
+            return
+        from cdmw import constants
+        if not constants.ARCHIVE_OVERLAYS_ENABLED and self._plan.semantic_export is None:
             return
         self._run(mod_merge_export_task(self._plan, self.destination.text().strip(), self.title.text(),
                                        dmm_v3=self.dmm_v3.isChecked()),

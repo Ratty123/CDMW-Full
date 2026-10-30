@@ -1,5 +1,12 @@
 # Mesh Editor
 
+Archive overlay export, installation and restoration are disabled following the
+October 2026 DLC update. Build Mod offers DMM, JMM and CDUMM loose packages;
+saved DMM archive-group choices return to loose output. Additional-hairstyle
+packages depend on the disabled overlay route and cannot be exported. Overlay
+implementation details below describe retained code, not available UI actions.
+Viewport selection, physics and other visual overlays are unaffected.
+
 ## Contents
 
 - [Layout and shared controls](#layout-and-shared-controls)
@@ -3033,10 +3040,10 @@ Session`;
 Undo and Redo restore that full state. Any rejection keeps Rust open and leaves
 authority unchanged. Cancel, close, crash, protocol failure, or forced termination
 discards the shadow and only its owned files. An accepted Finish retains validation
-for that exact revision; subsequent edits require validation again before **Install
-as Overlay**, **Build Mod** or **Add to Archive Browser** can publish it. Build Mod supports DMM/JMM/CDUMM loose packages and a DMM archive group through owned sibling staging; overlay
-installation keeps the existing confirmation, backup, rollback, receipt, and restore
-lifecycle.
+for that exact revision; subsequent edits require validation again before
+**Build Mod** or **Add to Archive Browser** can publish it. Build Mod supports
+DMM/JMM/CDUMM loose packages through owned sibling staging. The retained overlay
+installation and restoration paths are unavailable following the DLC update.
 
 Neither route rewrites source PAMT/PAZ archives in place.
 
@@ -3069,9 +3076,9 @@ An accepted Finish disposes the shadow and groups the next steps into **Keep
 editing**, **Save and reuse**, and **Check or install**. Each action has a clickable
 **?** explaining its result. **Resume current edit** retains the current setup;
 **Start next edit pass** uses rebuilt game-format bytes as a new baseline.
-**Build Mod...**, **Add to Archive Browser**, **Check mesh**, **Install to game...**
-and **Close this mesh** act on the accepted revision. Overlay restoration is not
-shown on this page. `native_preview_payloads.py` and the old helper-status
+**Build Mod...**, **Add to Archive Browser**, **Check mesh** and **Close this mesh**
+act on the accepted revision. Overlay installation and restoration are unavailable.
+`native_preview_payloads.py` and the old helper-status
 path remain compatibility code for retained preview consumers; the direct editor does
 not invoke them.
 

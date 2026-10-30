@@ -7,6 +7,10 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 ## [Unreleased]
 
+### Changed
+
+- Archive overlay export, installation and management are disabled because they are incompatible with the DLC update. Loose mod exports remain available.
+
 ### Fixed
 
 - Mesh Editor replacement imports keep separate part materials when the game reuses a material name, preserve glTF/GLB texture orientation, and use compatible formats for generated colour and glow textures.

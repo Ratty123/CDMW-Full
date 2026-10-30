@@ -1144,6 +1144,9 @@ class NewItemStudioTab(QWidget):
         dialog.show()
 
     def _install_overlay(self) -> None:
+        from cdmw import constants
+        if not constants.ARCHIVE_OVERLAYS_ENABLED:
+            return
         plan = self.controller.plan
         if plan is None:
             return

@@ -165,6 +165,11 @@ class MeshEditorStatePresentationMixin:
             button = getattr(self, button_name, None)
             if button is None:
                 continue
+            from cdmw import constants
+            if button_name in {"standalone_install_overlay_button", "standalone_restore_overlay_button"} and not constants.ARCHIVE_OVERLAYS_ENABLED:
+                button.setEnabled(False)
+                button.hide()
+                continue
             enabled = has_standalone and not output_task_active
             if button_name == "standalone_replace_from_archive_button":
                 button.setEnabled(enabled and has_archive_target)

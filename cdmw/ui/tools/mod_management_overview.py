@@ -101,6 +101,9 @@ class ModManagementOverview(QWidget):
 
     def set_entries(self, entries):
         self._entries = tuple(entries)
+        from cdmw import constants
+        if not constants.ARCHIVE_OVERLAYS_ENABLED:
+            entries = ()
         self.counts['enabled'].setText(str(sum(entry.enabled for entry in entries)))
         self.counts['disabled'].setText(str(sum(not entry.enabled for entry in entries)))
         self.counts['attention'].setText(str(sum(bool(entry.issue) or entry.health not in {'mounted', 'disabled'}
@@ -159,6 +162,9 @@ class ModManagementOverview(QWidget):
         states = {}
         owned = {entry.directory for entry in self._entries}
         for row in self._mounts:
+            from cdmw import constants
+            if row.name in owned and not constants.ARCHIVE_OVERLAYS_ENABLED:
+                continue
             if row.game and not self.show_game.isChecked():
                 continue
             if not row.game and not row.present and not self.show_missing.isChecked():
@@ -172,8 +178,10 @@ class ModManagementOverview(QWidget):
         self._cleanup_button()
 
     def _cleanup_button(self):
+        from cdmw import constants
+        self.clean_missing.setVisible(constants.ARCHIVE_OVERLAYS_ENABLED)
         self.clean_missing.setEnabled(bool(
-            not self._closed and not self._working and not self.controller.busy
+            constants.ARCHIVE_OVERLAYS_ENABLED and not self._closed and not self._working and not self.controller.busy
             and self.mutations is not None and self._root
             and any(not row.game and not row.present for row in self._mounts)))
 

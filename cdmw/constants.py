@@ -2,6 +2,10 @@ from __future__ import annotations
 
 import re
 
+# Archive-group overlays are incompatible with the October 2026 DLC layout.
+# Keep their implementation for future repair, without a user-facing opt-in.
+ARCHIVE_OVERLAYS_ENABLED = False
+
 ORIGINAL_DDS_ROOT = ""
 PNG_ROOT = ""
 TEXTURE_EDITOR_PNG_ROOT = ""

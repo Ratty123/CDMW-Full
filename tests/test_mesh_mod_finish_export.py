@@ -78,7 +78,6 @@ def accepted_cloth_edit(cloth_session, tmp_path, monkeypatch):
         ("dmm_loose", "dmm", "dmm", "manifest.json", ""),
         ("jmm_loose", "jmm", "jmm", "mod.json", ""),
         ("cdumm_loose", "cdumm", "cdumm", "modinfo.json", "files"),
-        ("dmm_archive", "dmm", "dmm-archive", "manifest.json", ""),
     ],
 )
 @pytest.mark.parametrize("create_zip,open_folder", [(False, False), (True, False), (False, True), (True, True)])
@@ -111,7 +110,7 @@ def test_finish_then_build_exports_cloth_edit_for_every_manager(
 
     def choose(dialog):
         assert isinstance(dialog, MeshModExportDialog)
-        assert dialog.manager.count() == 4
+        assert dialog.manager.count() == 3
         assert not dialog.build_button.isEnabled()
         assert not dialog.create_zip.isChecked() and not dialog.open_folder.isChecked()
         assert dialog.include_body.isHidden()  # Only a Fit session has a body to offer.

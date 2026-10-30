@@ -4,6 +4,10 @@ os.environ.setdefault('QT_QPA_PLATFORM', 'offscreen')
 
 from unittest.mock import patch
 
+import pytest
+
+pytestmark = pytest.mark.usefixtures("retained_archive_overlays")
+
 from PySide6.QtWidgets import QApplication, QMessageBox
 
 from cdmw.core.mod_compatibility import SEMANTIC_EXPORT_FILE, read_semantic_export

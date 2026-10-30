@@ -26,12 +26,10 @@ CREATE_NEW_ITEM_SECTION = {
       <li><b>Stats &amp; Prices</b>: compare raw game values with the template. Advanced stat edits remain experimental.</li>
       <li><b>Effects &amp; Perks</b>: choose gameplay perks separately from visual effects. Four perks is the default cap; five to eight requires experimental mode. Apply staged effect placement before planning.</li>
       <li><b>Distribution</b>: review shops, crafting recipes, supported reward sources, and item groups. Saved routes are included in the final plan.</li>
-      <li><b>Output</b>: Build plan is read-only. Export a mod package or review and confirm an overlay installation. New Item does not install into shipped archives.</li>
+      <li><b>Output</b>: Build plan is read-only. Export a mod folder or an independent item package.</li>
     </ol>
     <p>Valid template sockets are preserved. Armour weight transfer needs a compatible template or verified body donor; disable template physics and review Build plan warnings. Each mesh section is limited to 65,535 vertices. Imported-model dyes are off by default.</p>
-    <p>Installed overlays removes a selected CDMW install while preserving the others. Shared-file conflicts and recipe dependencies can block removal.</p>
-    <p>Merge mods writes a separate DMM package from compatible mod folders. Conflicts block export. Use the merged package in place of its source packages.</p>
-    <p>Check mods for game updates compares recorded originals with the current game. Review conflicts before writing a separate updated DMM package; source mods and game files stay unchanged.</p>
+    <p>Archive overlays are disabled because they are incompatible with the DLC update.</p>
     <p>Effects are approximate previews and do not add elemental damage. A successful build or game startup does not verify equipping, appearance, stats, or behavior in a save.</p>
     <h4>Template</h4>
     <p>Start with a template from the same equipment family. Keep its original model for a first test, set a name, choose one supported shop route, then build a separate package. This checks identity and distribution before you add imported geometry, materials or effects.</p>
@@ -56,12 +54,12 @@ CREATE_NEW_ITEM_SECTION = {
     <h4>Distribution</h4>
     <p>Choose how the player obtains the item: a supported shop, recipe, reward or item group. Review quantities, prices, ingredients and dependencies. Recipes and reward edits remain experimental. A valid item record without a working distribution route may never become available during normal play.</p>
     <h4>Output</h4>
-    <p>Choose the output type and any existing-mod base, then select Build plan under the plan status in Destination. Read the planned additions, dependencies, warnings and blocking errors. Changes to the item, the existing-mod base or the item-package choice clear the plan, and the status says why. The output folder, manager, mod name and overlay folder number are applied when writing and keep the plan. Build plan is read-only; exporting a folder, writing a package and installing an overlay are separate actions.</p>
+    <p>Build plan is read-only. Review the planned files, warnings and errors before exporting.</p>
     <p data-alert="WARNING">JMM is outdated; compatibility cannot be ensured. Prefer DMM or CDUMM for current game versions.</p>
-    <p>Mod folder supports CDUMM, JMM and build-dependent DMM output, with an optional ZIP. DMM has been re-enabled for testing with an updated manager; new-item and texture preservation still needs in-game verification. Older builds disable this route. Check the installed versions and release notes before choosing it.</p>
-    <p>Add to existing mod deliberately extends a selected package. Include mounted items in a new mod copies supported installed overlay items into a separate package. Review every included item and archive, and follow the generated replacement and rollback instructions rather than enabling overlapping source and combined packages together.</p>
-    <p>Independent item package writes a portable .cditem authoring package, not a game archive. Add it in Mod Management, review Apply changes and use the documented experimental launch route. Physical installation is a separate advanced action. Unknown ownership conflicts, missing dependencies and unsupported modules remain blocked.</p>
-    <p>In Shared files, scan archive-installed independent items, enable DMM V3 field JSON (experimental), then Export installed items. Merge mods offers the same opt-in for retained semantic exports. The option starts off.</p>
+    <p>Mod folder supports CDUMM and JMM, with an optional ZIP.</p>
+    <p>Add to existing mod extends a selected package. Review the included items and files before exporting.</p>
+    <p>Independent item package writes a portable .cditem authoring package. Add it to Mods in Mod Management, review Apply changes and use the experimental launch route. Unknown conflicts, missing dependencies and unsupported modules remain blocked.</p>
+    <p>Merge mods offers DMM V3 field JSON (experimental) for retained semantic exports. The option starts off.</p>
     <p>Only existing models and icons are supported; unsupported changes refuse. Shop additions append stock. Import or re-export the included cdmw-source/cdmw-semantic.cditem through CDMW to retain original identities, assigned IDs and dependency witnesses.</p>
     <p>Enable the DMM package in place of its original contributions. DMM does not enforce source hashes at mount: re-export after game updates and inspect its log. DMM mounting, game behaviour and save compatibility remain unverified.</p>
     <h4>Troubleshooting</h4>
@@ -548,14 +546,14 @@ class AboutDocumentationEnglishMixin:
                 <h4>Export Mesh File</h4>
                 <p>For external editing, keep the exported GLB, FBX or OBJ with its CDMW companions. Exact return needs stable vertex and joint identity; topology-changing modifiers can invalidate it. In Blender, preserve _CDMW_VERTEX_ID attributes for GLB or the CDMW_VERTEX_ID UV layer for FBX, export the intended meshes and armature, and include all bone influences. Follow the editable exchange guide for format-specific settings.</p>
                 <h4>Build Mod</h4>
-                <p>DMM, CDUMM and JMM are the main supported mod managers. Available layouts depend on the exporting tool; Field-JSON is an output format, and CDMW overlays are a separate installation route.</p>
+                <p>Build Mod writes loose packages for DMM, CDUMM and JMM.</p>
                 <p data-alert="WARNING">JMM is outdated; compatibility cannot be ensured. Prefer DMM or CDUMM for current game versions.</p>
                 <p>Build Mod includes required generated companions. A single mesh file may be unavailable when those companions cannot travel with it. Existing output folders and ZIPs are not overwritten. After an uncertain outcome, inspect the final output before retrying with a new destination.</p>
-                <p>After a Fit, Build Mod leaves out the body the outfit was fitted to, also in a later edit pass, so the mod changes only the outfit and other body mods keep working. Install as Overlay leaves it out too. To also ship changes you made to the body, turn on Include the body in the Build Mod window.</p>
+                <p>After a Fit, Build Mod leaves out the body the outfit was fitted to, also in a later edit pass, so the mod changes only the outfit and other body mods keep working. To also ship changes you made to the body, turn on Include the body in the Build Mod window.</p>
                 <p>To verify an export, reopen the actual completed output with its dependencies and compare a known edit. Opening the original archive entry or resuming the live editor does not read back the exported bytes. Preview appearance and package validation remain separate from in-game testing.</p>
                 <ul>
-                  <li>Export Mesh File writes a separate rebuilt asset. Build Mod writes a loose manager package or a DMM archive-group package.</li>
-                  <li>Install as Overlay requires review, confirmation, a closed game, and verified recovery. Restore Last Overlay Install uses the saved receipt.</li>
+                  <li>Export Mesh File writes a separate rebuilt asset.</li>
+                  <li>Archive overlays are disabled because they are incompatible with the DLC update.</li>
                 </ul>
                 <p>Use Textures for texture editing; Hair Appearance also has a dedicated DDS editing handoff. Use Create New Item for a new equipment identity and Placement &amp; Animations for equipment placement.</p>
                 <p>Mesh Editor follows the selected interface language. Tool availability still depends on the source format, selected LOD and output route.</p>
@@ -648,16 +646,16 @@ class AboutDocumentationEnglishMixin:
             {
                 "id": "mod_management",
                 "title": "Mod Management",
-                "summary": "Preview installed overlays, manage mods and review archive recovery.",
+                "summary": "Manage mods and prepare packages.",
                 "keywords": "utilities mods overlay installed preview removal merge update recovery",
                 "html": """
                 <p>Open <b>Utilities &gt; Mod Management</b> without creating an item or reading the Create New Item archives first.</p>
                 <ul>
-                  <li><b>Overview</b> shows installation status, missing archive folders and shortcuts. <b>Installed mods</b> lists CDMW installs with model previews. <b>Independent items</b> installs experimental .cditem packages.</li>
+                  <li>Mods manages the experimental virtual profile. Item identities keeps saved IDs. Health and recovery shows archive status.</li>
                   <li><b>Repackage</b> converts mod folders or ZIPs for a supported manager and shows results inline.</li>
-                  <li><b>Merge mods</b> combines compatible mod folders into a separate package. <b>Check mods for game updates</b> compares recorded source data with the current game.</li>
-                  <li><b>Recovery</b> provides rebuild, reapply and start-fresh actions, and reviews changes previously written into shipped archives before moving them into an overlay.</li>
-                  <li>Removal and recovery require review and confirmation, then preserve the existing backup and rollback workflow. Previewing does not write to game archives.</li>
+                  <li>Merge mods offers DMM V3 field JSON (experimental) for retained semantic exports. The option starts off.</li>
+                  <li><b>Check mods for game updates</b> compares recorded source data with the current game.</li>
+                  <li>Archive overlays are disabled because they are incompatible with the DLC update.</li>
                 </ul>
                 """,
             },
@@ -734,7 +732,7 @@ class AboutDocumentationEnglishMixin:
                 "summary": "How loose output, mod-ready folders, metadata, and backups fit together.",
                 "keywords": "mod packaging output loose mod ready info json no_encrypt package prefix backup restore export",
                 "html": """
-                <p>DMM, CDUMM and JMM are the main supported mod managers. Available layouts depend on the exporting tool; Field-JSON is an output format, and CDMW overlays are a separate installation route.</p>
+                <p>Build Mod writes loose packages for DMM, CDUMM and JMM.</p>
                 <p data-alert="WARNING">JMM is outdated; compatibility cannot be ensured. Prefer DMM or CDUMM for current game versions.</p>
                 <p>The app keeps normal workflow output and mod-ready packaging separate so you can review results before placing them into a mod manager.</p>
                 <ul>

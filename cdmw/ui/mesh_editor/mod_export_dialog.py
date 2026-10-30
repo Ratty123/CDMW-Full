@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from cdmw import constants
+
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -50,6 +52,8 @@ class MeshModExportDialog(QDialog):
             ("CDUMM Loose Mesh", "cdumm_loose", "loose_mod", "cdumm", "cdumm"),
             ("DMM Archive Group", "dmm_archive", "overlay_package", "dmm", "dmm-archive"),
         ):
+            if kind == "overlay_package" and not constants.ARCHIVE_OVERLAYS_ENABLED:
+                continue
             self.manager.addItem(label, userData=(choice, kind, profile, suffix))
         selected = next(
             (index for index in range(self.manager.count()) if self.manager.itemData(index)[0] == output_choice),

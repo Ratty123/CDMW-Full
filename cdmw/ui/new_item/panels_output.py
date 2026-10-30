@@ -5,6 +5,8 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Optional
 
+from cdmw import constants
+
 from PySide6.QtCore import QElapsedTimer, QEvent, QSettings, QTimer, Qt, QUrl, Signal
 from PySide6.QtGui import QDesktopServices, QIntValidator
 from PySide6.QtWidgets import (
@@ -192,7 +194,7 @@ class OutputPanel(QGroupBox):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(6)
         self.workspace_splitter.addWidget(workflow)
-        self.setToolTip("Build the plan (nothing is written yet), read what it changes, then write a mod folder or install into the game.")
+        self.setToolTip("Build plan is read-only. Review the planned files, warnings and errors before exporting.")
 
         self.busy_bar = QProgressBar()
         self.busy_bar.setRange(0, 0)
@@ -214,7 +216,7 @@ class OutputPanel(QGroupBox):
         self.plan_state = NoteLabel("Plan not built.", WARN)
         self.plan_state.setToolTip(
             "Changes to the item, or to the mod it builds on, clear the plan. "
-            "The output folder, mod manager, mod name and overlay folder number keep it."
+            "The output folder, mod manager and mod name keep it."
         )
 
         self.sidebar = QGroupBox("Destination")
@@ -228,7 +230,8 @@ class OutputPanel(QGroupBox):
         # Keep one mode value for both the visible choices and existing callers.
         self.output_mode = QComboBox(self)
         self.output_mode.addItem("Mod folder", "folder")
-        self.output_mode.addItem("Game overlay", "overlay")
+        if constants.ARCHIVE_OVERLAYS_ENABLED:
+            self.output_mode.addItem("Game overlay", "overlay")
         self.output_mode.addItem(self.tr("Independent item package (Experimental)") + " · .cditem", "independent")
         self.output_mode.hide()
         self.mode_buttons = QWidget()
@@ -238,7 +241,12 @@ class OutputPanel(QGroupBox):
         self.folder_mode_button = QToolButton(self.mode_buttons)
         self.overlay_mode_button = QToolButton(self.mode_buttons)
         self.independent_mode_button = QToolButton(self.mode_buttons)
-        for index, button in enumerate((self.folder_mode_button, self.overlay_mode_button, self.independent_mode_button)):
+        for mode, button in (("folder", self.folder_mode_button), ("overlay", self.overlay_mode_button), ("independent", self.independent_mode_button)):
+            index = self.output_mode.findData(mode)
+            if index < 0:
+                button.hide()
+                button.setEnabled(False)
+                continue
             button.setText(self.output_mode.itemText(index))
             button.setCheckable(True)
             button.setAutoExclusive(True)
@@ -269,6 +277,8 @@ class OutputPanel(QGroupBox):
         )
         self.include_mounted.toggled.connect(self._mounted_base_changed)
         export.addWidget(self.include_mounted)
+        self.include_mounted.setVisible(constants.ARCHIVE_OVERLAYS_ENABLED)
+        self.include_mounted.setEnabled(constants.ARCHIVE_OVERLAYS_ENABLED)
         self.mounted_review = NoteLabel("", WARN)
         export.addWidget(self.mounted_review)
         self.mod_base_note = QLabel("")
@@ -277,8 +287,9 @@ class OutputPanel(QGroupBox):
         export.addWidget(self.mod_base_note)
         export.addWidget(QLabel("Mod manager"))
         self.manager = QComboBox()
-        self.manager.addItems(MANAGERS)
-        self.manager.setCurrentText(controller.draft.manager if controller.draft.manager in MANAGERS else MANAGERS[0])
+        managers = tuple(manager for manager in MANAGERS if manager != "DMM" or constants.ARCHIVE_OVERLAYS_ENABLED)
+        self.manager.addItems(managers)
+        self.manager.setCurrentText(controller.draft.manager if controller.draft.manager in managers else managers[0])
         controller.draft.manager = self.manager.currentText()
         self.manager.setToolTip("The mod manager whose folder layout the loose mod is written in.")
         self.manager.currentTextChanged.connect(lambda text: setattr(self._controller.draft, "manager", str(text)))
@@ -320,7 +331,7 @@ class OutputPanel(QGroupBox):
         self.independent_controls = QWidget()
         independent_layout = QVBoxLayout(self.independent_controls)
         independent_layout.setContentsMargins(0, 0, 0, 0)
-        self.independent_note = QLabel(self.tr("Build the plan, then write a .cditem file. Load it through Mod Management > Virtual loader or install it through Independent items."))
+        self.independent_note = QLabel(self.tr("Independent item package writes a portable .cditem authoring package. Add it to Mods in Mod Management, review Apply changes and use the experimental launch route. Unknown conflicts, missing dependencies and unsupported modules remain blocked."))
         self.independent_note.setWordWrap(True)
         independent_layout.addWidget(self.independent_note)
         self.update_package_button = QPushButton("Update an existing item package...")
@@ -360,7 +371,7 @@ class OutputPanel(QGroupBox):
         self.install_overlay_button.setProperty("newItemPrimary", True)
         write_layout.addWidget(self.overlay_controls)
         write.setToolTip(
-            "Export a mod folder or install as an overlay. Overlay installation keeps the shipped archive payloads intact."
+            "Archive overlays are disabled because they are incompatible with the DLC update."
         )
         self.checklist = DetailsToggle(
             "\n".join(f"- {line}" for line in CHECKLIST),
@@ -490,7 +501,7 @@ class OutputPanel(QGroupBox):
         """Only use the selected folder as a base when the user asks to extend it."""
         folder_mode = self.output_mode.currentData() == "folder"
         self.add_to_mod.setVisible(folder_mode)
-        self.include_mounted.setVisible(folder_mode)
+        self.include_mounted.setVisible(constants.ARCHIVE_OVERLAYS_ENABLED and folder_mode)
         if self.add_to_mod.isChecked() and self.include_mounted.isChecked():
             self.include_mounted.blockSignals(True)
             self.include_mounted.setChecked(False)
@@ -682,7 +693,7 @@ class OutputPanel(QGroupBox):
         self.build_button.style().unpolish(self.build_button)
         self.build_button.style().polish(self.build_button)
         self.export_button.setEnabled(enabled and not self._controller.busy)
-        self.install_overlay_button.setEnabled(enabled and not self._controller.busy)
+        self.install_overlay_button.setEnabled(constants.ARCHIVE_OVERLAYS_ENABLED and enabled and not self._controller.busy)
         self._refresh_export_state()
         mode = self.output_mode.currentData()
         if getattr(self, "_displayed_plan", False) == (id(plan), mode):
@@ -788,10 +799,11 @@ class OutputPanel(QGroupBox):
         self.build_button.setEnabled(not busy)
         has_plan = self._controller.has_current_plan
         self.export_button.setEnabled(has_plan and not busy)
-        self.install_overlay_button.setEnabled(has_plan and not busy)
+        self.install_overlay_button.setEnabled(constants.ARCHIVE_OVERLAYS_ENABLED and has_plan and not busy)
         self.overlay_directory.setEnabled(not busy)
         for control in (self.output_mode, self.mode_buttons, self.folder_controls, self.independent_controls, self.add_to_mod, self.include_mounted):
             control.setEnabled(not busy)
+        self.include_mounted.setEnabled(constants.ARCHIVE_OVERLAYS_ENABLED and not busy)
         self.update_package_button.setEnabled(has_plan and not busy)
         self._refresh_export_state()
 

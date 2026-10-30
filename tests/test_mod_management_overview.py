@@ -4,6 +4,8 @@ import threading
 import time
 
 import pytest
+
+pytestmark = pytest.mark.usefixtures("retained_archive_overlays")
 from PySide6.QtCore import QEvent
 from PySide6.QtWidgets import QApplication
 

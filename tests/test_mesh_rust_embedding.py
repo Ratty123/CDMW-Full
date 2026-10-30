@@ -630,13 +630,13 @@ def test_result_page_actions_and_retry_are_explicit_signals() -> None:
         "MeshEditorRustResultBuildMod",
         "MeshEditorRustResultAddtoArchiveBrowser",
         "MeshEditorRustResultContinueeditingmodifiedmesh",
-        "MeshEditorRustResultInstallasOverlay",
         "MeshEditorRustResultReopenEdit",
         "MeshEditorRustResultCloseSession",
     ):
         host.findChild(QPushButton, object_name).click()
 
-    assert emitted == ["retry", "validate", "build", "browser", "next_pass", "install", "reopen", "close"]
+    assert emitted == ["retry", "validate", "build", "browser", "next_pass", "reopen", "close"]
+    assert host.findChild(QPushButton, "MeshEditorRustResultInstallasOverlay") is None
     assert host.findChild(QPushButton, "MeshEditorRustResultRestoreLastOverlayInstall") is None
     host.deleteLater()
     application.processEvents()
@@ -666,7 +666,7 @@ def test_result_page_groups_and_clickable_help_distinguish_editing_choices() -> 
         assert scroll.verticalScrollBar().maximum() > 0
         actions = [button for button in host.findChildren(QPushButton)
                    if button.objectName().startswith("MeshEditorRustResult")]
-        assert len(actions) == 7
+        assert len(actions) == 6
         with patch("cdmw.ui.mesh_editor.rust_host.QWhatsThis.showText") as explain:
             for button in actions:
                 help_button = host.findChild(QToolButton, button.objectName() + "Help")
@@ -674,7 +674,7 @@ def test_result_page_groups_and_clickable_help_distinguish_editing_choices() -> 
                 assert help_button.whatsThis() == button.toolTip()
                 help_button.click()
                 assert explain.call_args.args[1] == button.whatsThis()
-        assert explain.call_count == 7
+        assert explain.call_count == len(actions)
     finally:
         host.deleteLater()
         app.processEvents()

@@ -6,6 +6,8 @@ import json
 from dataclasses import replace
 from pathlib import Path
 
+from cdmw import constants
+
 from PySide6.QtCore import QThread, QTimer, Qt
 from PySide6.QtWidgets import QProgressDialog
 
@@ -105,6 +107,9 @@ class MeshEditorDirectOutputMixin:
         revision = self.standalone_export_validation_revision
         hair = controller.mesh_service._session(controller.active_session_id).hair_state
         if hair is not None:
+            if not constants.ARCHIVE_OVERLAYS_ENABLED:
+                self.status_message_requested.emit(self.tr("Archive overlays are disabled because they are incompatible with the DLC update."), True)
+                return
             session_id = controller.active_session_id
             revision = self.standalone_export_validation_revision
             parent = _tab.QFileDialog.getExistingDirectory(self, "Build Additional Hairstyle — DMM Package",
@@ -208,6 +213,8 @@ class MeshEditorDirectOutputMixin:
         return tuple(bodies), named
 
     def _start_mesh_overlay_prepare_requested(self) -> None:
+        if not constants.ARCHIVE_OVERLAYS_ENABLED:
+            return
         entry = self._mesh_output_target()
         if entry is None:
             return
@@ -245,6 +252,8 @@ class MeshEditorDirectOutputMixin:
         saved_work_root: Path | None = None,
         include_refit_body: bool = False,
     ) -> bool:
+        if kind in {"overlay_package", "overlay_prepare"} and not constants.ARCHIVE_OVERLAYS_ENABLED:
+            return False
         controller = self.standalone_controller
         if controller is None or not controller.active_session_id:
             return False
@@ -556,9 +565,12 @@ class MeshEditorDirectOutputMixin:
         receipt = self._mesh_overlay_receipt_path()
         button = getattr(self.standalone_workspace, "restore_overlay_button", None)
         if button is not None:
-            button.setEnabled(bool(receipt is not None and receipt.is_file()))
+            button.setVisible(constants.ARCHIVE_OVERLAYS_ENABLED)
+            button.setEnabled(constants.ARCHIVE_OVERLAYS_ENABLED and bool(receipt is not None and receipt.is_file()))
 
     def _restore_last_mesh_overlay_requested(self) -> None:
+        if not constants.ARCHIVE_OVERLAYS_ENABLED:
+            return
         receipt = self._mesh_overlay_receipt_path()
         if receipt is None or not receipt.is_file():
             self.status_message_requested.emit("No Mesh Editor overlay install receipt is available.", True)

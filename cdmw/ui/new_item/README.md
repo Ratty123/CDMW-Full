@@ -1,5 +1,12 @@
 # Create New Item
 
+Archive overlays are disabled following the October 2026 DLC update. Their
+implementation is retained, but overlay export, installation, mounted-item
+inclusion and overlay management/recovery are unavailable in CDMW. Descriptions
+of those internal paths below document retained code, not available workflows.
+CDUMM/JMM loose mod folders and portable `.cditem` authoring packages remain available;
+this does not establish DLC or in-game compatibility for new items.
+
 ## Contents
 
 - [Shader experiments and transparency](#shader-experiments-and-transparency)
@@ -1214,13 +1221,13 @@ settings in a right sidebar.
 
 ## Output review and Mod Management
 
-The sidebar groups **Mod folder**, **Game overlay** and **Independent item package
+The sidebar groups **Mod folder** and **Independent item package
 (Experimental) · .cditem**, destination, plan status, **Build plan** and the selected
 output action. Its
 settings scroll independently while the plan status and output actions stay visible.
 
-The experimental output writes a separate `.cditem` file for installation through
-**Mod Management > Independent items**, or preparation through **Virtual loader**.
+The experimental output writes a separate `.cditem` file for the virtual profile
+under **Mod Management > Mods**. Physical overlay installation is disabled.
 Choose **Build plan**, then **Write item package (.cditem)**. **Update an existing
 item package** keeps the selected package's identity; writing a new package creates
 a separate item. CDMW assigns destination identities and
@@ -1238,18 +1245,15 @@ metadata; the item's names and internal identity are unchanged.
 ### Destination and plan review
 
 Choose the output type and existing-mod base first, build the plan, then review its
-file changes and full details. **Add to existing mod** and **Include mounted items in
-a new mod** sit at the top of the Mod folder settings because they change what the
-folder field means. Only plan inputs clear the plan, including an in-flight result:
-the existing-mod base, mounted-item inclusion and switching to or from the
-independent package. The output folder of a new mod, manager, mod name and overlay
-folder number are applied when writing, so changing them keeps a built plan and its
-allocated identity; switching between Mod folder and Game overlay refreshes the
-review for the same plan. When a plan is cleared, the plan status says it is out of
+file changes and full details. **Add to existing mod** changes the package being
+extended. Only plan inputs clear the plan, including an in-flight result:
+the existing-mod base and switching to or from the independent package. The output
+folder, manager and mod name are applied when writing, so changing them keeps the
+built plan and allocated identity. When a plan is cleared, the plan status says it is out of
 date and why, instead of reverting to "not built". **Utilities > Mod Management**
-contains Merge mods, game-update checks, Installed overlays and Archive recovery.
-These tools no longer sit in Output and need no item draft; opening them or
-expanding recovery controls never performs a write.
+contains semantic-package merging and read-only game-update comparisons for mod folders. Overlay inventory,
+Shared files and overlay recovery are unavailable. The remaining tools need no
+item draft; opening them never performs a write.
 
 ### Mod Management workspace
 
@@ -1971,25 +1975,22 @@ in-game appearance.
 
 ## Mod manager exports
 
-**Create New Item → Output → Mod folder** offers **CDUMM**, **JMM** and **DMM**.
+**Create New Item → Output → Mod folder** offers **CDUMM** and **JMM**.
 CDUMM writes a `files/` package with manager metadata; JMM writes game-relative
-files with its `mod.json` replacement map. DMM writes a standalone `0036/` archive
-group with manager metadata. New drafts default to CDUMM; saved DMM selections
-remain selected. Unknown manager choices are refused before export.
-CDMW's **Game overlay** option remains available.
+files with its `mod.json` replacement map. New drafts and saved DMM selections
+use CDUMM. DMM archive-group export and **Game overlay** are disabled following
+the DLC update. Unknown manager choices are refused before export.
 
 ### DMM archive compatibility
 
-DMM export was re-enabled on 2026-10-21 for user testing after the DMM developer
-reported a fix. That report has not yet been verified in game with CDMW output.
+DMM archive-group export is disabled following the October 2026 DLC update.
+The earlier 2026-10-21 testing route and findings below are historical.
 
 The earlier DMM 3.5.0 mount generated a vanilla-only ItemInfo table ahead of the
 mod's complete table, hiding its added item record. The shop still referenced that
 item, producing an empty, unbuyable entry. The mount also
 omitted the package's new PATHC texture registrations. The same mod was reported
-working in game with JMM. Test with the updated DMM release and check the item,
-shop entry and textures in game; a successful mount message does not establish
-that the new items and textures were preserved.
+working in game with JMM. These earlier reports do not establish DLC compatibility.
 
 ### Mounted source data
 

@@ -465,9 +465,10 @@ class MeshEditorReportsMixin(MeshEditorDirectOutputMixin):
         if button is not None:
             button.setEnabled(bool(enabled))
     def _set_package_rebuilt_asset_button_enabled(self, enabled: bool) -> None:
+        from cdmw import constants
         button = getattr(self.standalone_workspace, "install_overlay_button", None)
         if button is not None:
-            button.setEnabled(bool(enabled))
+            button.setEnabled(constants.ARCHIVE_OVERLAYS_ENABLED and bool(enabled))
     def _standalone_export_validation_ok(self) -> bool:
         refresh_ui_state = getattr(self, "_refresh_mesh_editor_ui_state", None)
         if callable(refresh_ui_state):

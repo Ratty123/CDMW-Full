@@ -4,6 +4,8 @@ import threading
 from unittest.mock import patch
 import pytest
 
+pytestmark = pytest.mark.usefixtures("retained_archive_overlays")
+
 from PySide6.QtWidgets import QApplication, QMessageBox
 from PySide6.QtCore import QEvent, Qt
 

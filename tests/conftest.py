@@ -9,6 +9,12 @@ from pathlib import Path
 import pytest
 
 
+@pytest.fixture
+def retained_archive_overlays(monkeypatch):
+    """Exercise retained pre-DLC paths; default availability has its own UI tests."""
+    monkeypatch.setattr("cdmw.constants.ARCHIVE_OVERLAYS_ENABLED", True)
+
+
 @pytest.fixture(autouse=True)
 def _isolate_mod_export_history(tmp_path, monkeypatch):
     """Exports must never write authoring records into the user's real history."""

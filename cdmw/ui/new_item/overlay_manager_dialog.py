@@ -2,6 +2,8 @@
 from datetime import datetime
 from uuid import uuid4
 
+from cdmw import constants
+
 from PySide6.QtCore import Qt, QTimer, QSignalBlocker, Signal
 from PySide6.QtWidgets import (
     QAbstractItemView, QDialog, QDialogButtonBox, QHeaderView, QLabel,
@@ -297,6 +299,8 @@ class OverlayManagerDialog(QDialog):
                                         self._preview_revision), framing_key=(entry.id, key))
 
     def _run(self, task, done, status, *, applying=False):
+        if not constants.ARCHIVE_OVERLAYS_ENABLED:
+            return
         if self._closed:
             return
         self._working, self._applying = True, applying

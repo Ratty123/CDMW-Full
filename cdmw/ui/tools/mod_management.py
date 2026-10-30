@@ -1,6 +1,8 @@
 """Utilities entry for existing mod merge, update and overlay workflows."""
 from pathlib import Path
 
+from cdmw import constants
+
 from PySide6.QtCore import Qt, QTimer, QSignalBlocker, Signal
 from PySide6.QtWidgets import (
     QFileDialog, QGroupBox, QHBoxLayout, QLabel, QLineEdit, QMessageBox, QPlainTextEdit, QProgressBar,
@@ -173,6 +175,8 @@ class ModManagementTab(QWidget):
         self._busy_changed(self.controller.busy)
 
     def open_page(self, key):
+        if key in {'installed', 'recovery', 'shared'} and not constants.ARCHIVE_OVERLAYS_ENABLED:
+            return
         page = self._page_by_key.get(key)
         if page is not None and not self._closed:
             with QSignalBlocker(self.pages), QSignalBlocker(self.pages.task):
@@ -310,6 +314,9 @@ class ModManagementTab(QWidget):
         for button in (self.overlay_removal_button, self.merge_button, self.update_button,
                        self.overlay_migration_button):
             button.setEnabled(not busy)
+        if not constants.ARCHIVE_OVERLAYS_ENABLED:
+            self.overlay_removal_button.setEnabled(False)
+            self.overlay_migration_button.setEnabled(False)
         own = bool(busy and self._owns_operation())
         self._update_operation_bar()
         self.progress.setVisible(own)
@@ -363,6 +370,8 @@ class ModManagementTab(QWidget):
         return mutations(), Path(root)
 
     def _migrate_overlay(self) -> None:
+        if not constants.ARCHIVE_OVERLAYS_ENABLED:
+            return
         title = "Move installed items into the overlay"
         found = self._overlay_services(title)
         if found is None:
@@ -405,6 +414,8 @@ class ModManagementTab(QWidget):
         self.controller.start_overlay_migration(mutations, root)
 
     def _remove_overlay(self) -> None:
+        if not constants.ARCHIVE_OVERLAYS_ENABLED:
+            return
         self.open_page('installed')
         self.inventory.refresh()
 

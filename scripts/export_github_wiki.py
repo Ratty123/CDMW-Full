@@ -569,7 +569,7 @@ def build_pages() -> dict[str, str]:
                 source = sections["new_item_studio"]["html"]
                 paragraphs = re.findall(r"<p>(.*?)</p>", source, re.S)
                 selected = [text for text in paragraphs if text.startswith((
-                    "Independent item package writes", "Use the player-facing name", "Add to existing mod deliberately",
+                    "Independent item package writes", "Use the player-facing name", "Add to existing mod",
                 ))]
                 if len(selected) != 3:
                     raise ValueError("Independent package guide paragraphs are missing")

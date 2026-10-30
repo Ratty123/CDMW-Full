@@ -152,16 +152,6 @@
       ]
     },
     {
-      "key": "\nUse this package in place of the original mod. For installed overlays, review Archive recovery before replacing the installed set.",
-      "origins": [
-        {
-          "path": "cdmw/ui/new_item/mod_update_dialog.py",
-          "line": 221,
-          "sink": "appendPlainText"
-        }
-      ]
-    },
-    {
       "key": "      {value_0}  at {value_1}",
       "origins": [
         {
@@ -3087,11 +3077,11 @@
       ]
     },
     {
-      "key": ": Build plan is read-only. Export a mod package or review and confirm an overlay installation. New Item does not install into shipped archives.",
+      "key": ": Build plan is read-only. Export a mod folder or an independent item package.",
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 89,
+          "line": 88,
           "sink": "python-return:_build_start_sections"
         }
       ]
@@ -6672,11 +6662,11 @@
       ]
     },
     {
-      "key": "Add to existing mod deliberately extends a selected package. Include mounted items in a new mod copies supported installed overlay items into a separate package. Review every included item and archive, and follow the generated replacement and rollback instructions rather than enabling overlapping source and combined packages together.",
+      "key": "Add to existing mod extends a selected package. Review the included items and files before exporting.",
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 89,
+          "line": 88,
           "sink": "python-return:_build_start_sections"
         }
       ]
@@ -7607,11 +7597,11 @@
       ]
     },
     {
-      "key": "After a Fit, Build Mod leaves out the body the outfit was fitted to, also in a later edit pass, so the mod changes only the outfit and other body mods keep working. Install as Overlay leaves it out too. To also ship changes you made to the body, turn on Include the body in the Build Mod window.",
+      "key": "After a Fit, Build Mod leaves out the body the outfit was fitted to, also in a later edit pass, so the mod changes only the outfit and other body mods keep working. To also ship changes you made to the body, turn on Include the body in the Build Mod window.",
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 368,
+          "line": 367,
           "sink": "python-return:_build_archive_mesh_sections"
         }
       ]
@@ -13368,6 +13358,46 @@
           "path": "cdmw/ui/shell/error_reference.py",
           "line": 27,
           "sink": "python-data:ERROR_REFERENCE_GROUPS"
+        }
+      ]
+    },
+    {
+      "key": "Archive overlays are disabled because they are incompatible with the DLC update.",
+      "origins": [
+        {
+          "path": "cdmw/ui/mesh_editor/tab_direct_output.py",
+          "line": 111,
+          "sink": "tr"
+        },
+        {
+          "path": "cdmw/ui/new_item/mod_merge_dialog.py",
+          "line": 206,
+          "sink": "tr"
+        },
+        {
+          "path": "cdmw/ui/new_item/mod_update_dialog.py",
+          "line": 195,
+          "sink": "tr"
+        },
+        {
+          "path": "cdmw/ui/new_item/panels_output.py",
+          "line": 373,
+          "sink": "setToolTip"
+        },
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 88,
+          "sink": "python-return:_build_start_sections"
+        },
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 367,
+          "sink": "python-return:_build_archive_mesh_sections"
+        },
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 616,
+          "sink": "python-return:_build_utility_sections"
         }
       ]
     },
@@ -19932,6 +19962,21 @@
       ]
     },
     {
+      "key": "Build Mod writes loose packages for DMM, CDUMM and JMM.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 367,
+          "sink": "python-return:_build_archive_mesh_sections"
+        },
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 709,
+          "sink": "python-return:_build_reference_sections"
+        }
+      ]
+    },
+    {
       "key": "Build Mod...",
       "origins": [
         {
@@ -20192,7 +20237,7 @@
       ]
     },
     {
-      "key": "Build a loose mod folder or DMM archive-group overlay package.",
+      "key": "Build a loose mod folder for your mod manager.",
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_panel_builder.py",
@@ -20417,6 +20462,21 @@
       ]
     },
     {
+      "key": "Build plan is read-only. Review the planned files, warnings and errors before exporting.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/panels_output.py",
+          "line": 197,
+          "sink": "setToolTip"
+        },
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 88,
+          "sink": "python-return:_build_start_sections"
+        }
+      ]
+    },
+    {
       "key": "Build progress, exports, installs, and other messages appear here.",
       "origins": [
         {
@@ -20477,16 +20537,6 @@
       ]
     },
     {
-      "key": "Build the plan (nothing is written yet), read what it changes, then write a mod folder or install into the game.",
-      "origins": [
-        {
-          "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 195,
-          "sink": "setToolTip"
-        }
-      ]
-    },
-    {
       "key": "Build the plan first.",
       "origins": [
         {
@@ -20513,16 +20563,6 @@
           "path": "cdmw/ui/new_item/panels_output.py",
           "line": 165,
           "sink": "setPlaceholderText"
-        }
-      ]
-    },
-    {
-      "key": "Build the plan, then write a .cditem file. Load it through Mod Management > Virtual loader or install it through Independent items.",
-      "origins": [
-        {
-          "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 323,
-          "sink": "tr"
         }
       ]
     },
@@ -24742,11 +24782,11 @@
       ]
     },
     {
-      "key": "Changes to the item, or to the mod it builds on, clear the plan. The output folder, mod manager, mod name and overlay folder number keep it.",
+      "key": "Changes to the item, or to the mod it builds on, clear the plan. The output folder, mod manager and mod name keep it.",
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 215,
+          "line": 217,
           "sink": "setToolTip"
         }
       ]
@@ -25722,16 +25762,6 @@
       ]
     },
     {
-      "key": "Check mods for game updates compares recorded originals with the current game. Review conflicts before writing a separate updated DMM package; source mods and game files stay unchanged.",
-      "origins": [
-        {
-          "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 89,
-          "sink": "python-return:_build_start_sections"
-        }
-      ]
-    },
-    {
       "key": "Check mods for game updates...",
       "origins": [
         {
@@ -25766,12 +25796,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/rust_host.py",
-          "line": 197,
-          "sink": "QGroupBox"
-        },
-        {
-          "path": "cdmw/ui/mesh_editor/rust_host.py",
-          "line": 197,
+          "line": 195,
           "sink": "QGroupBox"
         }
       ]
@@ -29270,16 +29295,6 @@
       "key": "Choose the original draw/material target that this selected source should feed.",
       "origins": [],
       "manual": true
-    },
-    {
-      "key": "Choose the output type and any existing-mod base, then select Build plan under the plan status in Destination. Read the planned additions, dependencies, warnings and blocking errors. Changes to the item, the existing-mod base or the item-package choice clear the plan, and the status says why. The output folder, manager, mod name and overlay folder number are applied when writing and keep the plan. Build plan is read-only; exporting a folder, writing a package and installing an overlay are separate actions.",
-      "origins": [
-        {
-          "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 89,
-          "sink": "python-return:_build_start_sections"
-        }
-      ]
     },
     {
       "key": "Choose the parent folder for a new OBJ package.",
@@ -39097,21 +39112,6 @@
       ]
     },
     {
-      "key": "DMM, CDUMM and JMM are the main supported mod managers. Available layouts depend on the exporting tool; Field-JSON is an output format, and CDMW overlays are a separate installation route.",
-      "origins": [
-        {
-          "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 368,
-          "sink": "python-return:_build_archive_mesh_sections"
-        },
-        {
-          "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 705,
-          "sink": "python-return:_build_reference_sections"
-        }
-      ]
-    },
-    {
       "key": "Dagger",
       "origins": [],
       "manual": true
@@ -41971,17 +41971,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/mod_update_dialog.py",
-          "line": 61,
+          "line": 63,
           "sink": "QLabel"
-        }
-      ]
-    },
-    {
-      "key": "Disable the original mod in your mod manager before comparing. CDMW's own installed overlays are handled as a group.",
-      "origins": [
+        },
         {
           "path": "cdmw/ui/new_item/mod_update_dialog.py",
-          "line": 62,
+          "line": 64,
           "sink": "setToolTip"
         }
       ]
@@ -50187,11 +50182,11 @@
       ]
     },
     {
-      "key": "Export Mesh File writes a separate rebuilt asset. Build Mod writes a loose manager package or a DMM archive-group package.",
+      "key": "Export Mesh File writes a separate rebuilt asset.",
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 368,
+          "line": 367,
           "sink": "python-return:_build_archive_mesh_sections"
         }
       ]
@@ -50557,16 +50552,6 @@
         {
           "path": "cdmw/ui/archive_browser/preview_layout.py",
           "line": 235,
-          "sink": "setToolTip"
-        }
-      ]
-    },
-    {
-      "key": "Export a mod folder or install as an overlay. Overlay installation keeps the shipped archive payloads intact.",
-      "origins": [
-        {
-          "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 362,
           "sink": "setToolTip"
         }
       ]
@@ -66907,16 +66892,6 @@
       ]
     },
     {
-      "key": "In Shared files, scan archive-installed independent items, enable DMM V3 field JSON (experimental), then Export installed items. Merge mods offers the same opt-in for retained semantic exports. The option starts off.",
-      "origins": [
-        {
-          "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 89,
-          "sink": "python-return:_build_start_sections"
-        }
-      ]
-    },
-    {
       "key": "In game",
       "origins": [],
       "manual": true
@@ -67877,11 +67852,16 @@
       ]
     },
     {
-      "key": "Independent item package writes a portable .cditem authoring package, not a game archive. Add it in Mod Management, review Apply changes and use the documented experimental launch route. Physical installation is a separate advanced action. Unknown ownership conflicts, missing dependencies and unsupported modules remain blocked.",
+      "key": "Independent item package writes a portable .cditem authoring package. Add it to Mods in Mod Management, review Apply changes and use the experimental launch route. Unknown conflicts, missing dependencies and unsupported modules remain blocked.",
       "origins": [
         {
+          "path": "cdmw/ui/new_item/panels_output.py",
+          "line": 334,
+          "sink": "tr"
+        },
+        {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 89,
+          "line": 88,
           "sink": "python-return:_build_start_sections"
         }
       ]
@@ -67938,16 +67918,6 @@
           "path": "cdmw/services/independent_item_install.py",
           "line": 574,
           "sink": "raise_if_cancelled"
-        }
-      ]
-    },
-    {
-      "key": "Independent items",
-      "origins": [
-        {
-          "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 612,
-          "sink": "python-return:_build_utility_sections"
         }
       ]
     },
@@ -69177,16 +69147,6 @@
       ]
     },
     {
-      "key": "Install as Overlay requires review, confirmation, a closed game, and verified recovery. Restore Last Overlay Install uses the saved receipt.",
-      "origins": [
-        {
-          "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 368,
-          "sink": "python-return:_build_archive_mesh_sections"
-        }
-      ]
-    },
-    {
       "key": "Install as an overlay",
       "origins": [
         {
@@ -69287,42 +69247,12 @@
       ]
     },
     {
-      "key": "Install this mesh directly through CDMW's overlay workflow. Close Crimson Desert first. The next step shows what will change and asks for confirmation before installation. Use Build Mod if you want a package for a mod manager.",
-      "origins": [
-        {
-          "path": "cdmw/ui/mesh_editor/rust_host.py",
-          "line": 212,
-          "sink": "setToolTip"
-        },
-        {
-          "path": "cdmw/ui/mesh_editor/rust_host.py",
-          "line": 213,
-          "sink": "setWhatsThis"
-        },
-        {
-          "path": "cdmw/ui/mesh_editor/rust_host.py",
-          "line": 219,
-          "sink": "setWhatsThis"
-        }
-      ]
-    },
-    {
       "key": "Install this validated mesh through the workbench overlay?\n\nMesh path:\n  {value_0}\n\nOverlay directory:\n  {value_1}\n\nMount list before:\n  {value_2}\nMount list after:\n  {value_3}\n\nCarry-forward set ({value_4}):\n{value_5}\n\nBackup targets ({value_6}):\n{value_7}\n\nThe game-closed check is repeated immediately before apply. Shipped PAMT/PAZ archives are never written.",
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_direct_output.py",
           "line": 368,
           "sink": "question"
-        }
-      ]
-    },
-    {
-      "key": "Install to game...",
-      "origins": [
-        {
-          "path": "cdmw/ui/mesh_editor/rust_host.py",
-          "line": 208,
-          "sink": "QPushButton"
         }
       ]
     },
@@ -69486,13 +69416,8 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/overlay_manager_dialog.py",
-          "line": 73,
+          "line": 75,
           "sink": "QGroupBox"
-        },
-        {
-          "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 612,
-          "sink": "python-return:_build_utility_sections"
         }
       ]
     },
@@ -69533,16 +69458,6 @@
           "path": "cdmw/ui/shell/problem_report_catalog.py",
           "line": 100,
           "sink": "python-data:REPORT_TOOLS"
-        }
-      ]
-    },
-    {
-      "key": "Installed overlays removes a selected CDMW install while preserving the others. Shared-file conflicts and recipe dependencies can block removal.",
-      "origins": [
-        {
-          "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 89,
-          "sink": "python-return:_build_start_sections"
         }
       ]
     },
@@ -78232,6 +78147,16 @@
       ]
     },
     {
+      "key": "Manage mods and prepare packages.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 616,
+          "sink": "python-return:_build_utility_sections"
+        }
+      ]
+    },
+    {
       "key": "Managed by",
       "origins": [
         {
@@ -80430,24 +80355,24 @@
           "sink": "setWindowTitle"
         },
         {
-          "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 612,
-          "sink": "python-return:_build_utility_sections"
-        },
-        {
           "path": "cdmw/ui/tools/mod_management.py",
-          "line": 110,
+          "line": 112,
           "sink": "QPushButton"
         }
       ]
     },
     {
-      "key": "Merge mods writes a separate DMM package from compatible mod folders. Conflicts block export. Use the merged package in place of its source packages.",
+      "key": "Merge mods offers DMM V3 field JSON (experimental) for retained semantic exports. The option starts off.",
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 89,
+          "line": 88,
           "sink": "python-return:_build_start_sections"
+        },
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 616,
+          "sink": "python-return:_build_utility_sections"
         }
       ]
     },
@@ -85222,11 +85147,11 @@
       ]
     },
     {
-      "key": "Mod folder supports CDUMM, JMM and build-dependent DMM output, with an optional ZIP. DMM has been re-enabled for testing with an updated manager; new-item and texture preservation still needs in-game verification. Older builds disable this route. Check the installed versions and release notes before choosing it.",
+      "key": "Mod folder supports CDUMM and JMM, with an optional ZIP.",
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 89,
+          "line": 88,
           "sink": "python-return:_build_start_sections"
         }
       ]
@@ -86703,6 +86628,16 @@
           "path": "cdmw/ui/shell/problem_report_catalog.py",
           "line": 10,
           "sink": "python-data:MOD_STATES"
+        }
+      ]
+    },
+    {
+      "key": "Mods manages the experimental virtual profile. Item identities keeps saved IDs. Health and recovery shows archive status.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 616,
+          "sink": "python-return:_build_utility_sections"
         }
       ]
     },
@@ -102066,13 +102001,8 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 89,
+          "line": 88,
           "sink": "python-return:_build_start_sections"
-        },
-        {
-          "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 612,
-          "sink": "python-return:_build_utility_sections"
         }
       ]
     },
@@ -111842,16 +111772,6 @@
       ]
     },
     {
-      "key": "Preview installed overlays, manage mods and review archive recovery.",
-      "origins": [
-        {
-          "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 612,
-          "sink": "python-return:_build_utility_sections"
-        }
-      ]
-    },
-    {
       "key": "Preview is GPU-warmed and ready for a model.",
       "origins": [
         {
@@ -119242,16 +119162,6 @@
       ]
     },
     {
-      "key": "Recovery",
-      "origins": [
-        {
-          "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 612,
-          "sink": "python-return:_build_utility_sections"
-        }
-      ]
-    },
-    {
       "key": "Recovery / restore",
       "origins": [
         {
@@ -121148,16 +121058,6 @@
           "path": "cdmw/ui/archive_browser/model.py",
           "line": 578,
           "sink": "TypeError"
-        }
-      ]
-    },
-    {
-      "key": "Removal and recovery require review and confirmation, then preserve the existing backup and rollback workflow. Previewing does not write to game archives.",
-      "origins": [
-        {
-          "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 612,
-          "sink": "python-return:_build_utility_sections"
         }
       ]
     },
@@ -167337,6 +167237,16 @@
       ]
     },
     {
+      "key": "Use this package in place of the original mod.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/mod_update_dialog.py",
+          "line": 231,
+          "sink": "tr"
+        }
+      ]
+    },
+    {
       "key": "Use this part's glow colour for its surface too. This removes a competing surface hue without increasing glow.",
       "origins": [
         {
@@ -178327,16 +178237,6 @@
       ]
     },
     {
-      "key": "combines compatible mod folders into a separate package.",
-      "origins": [
-        {
-          "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 612,
-          "sink": "python-return:_build_utility_sections"
-        }
-      ]
-    },
-    {
       "key": "comfortable",
       "origins": [
         {
@@ -183467,16 +183367,6 @@
       ]
     },
     {
-      "key": "installs experimental .cditem packages.",
-      "origins": [
-        {
-          "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 612,
-          "sink": "python-return:_build_utility_sections"
-        }
-      ]
-    },
-    {
       "key": "intersect",
       "origins": [
         {
@@ -184283,16 +184173,6 @@
           "path": "cdmw/ui/archive_browser/hkx_editor_dialog_physics_part_01.py",
           "line": 498,
           "sink": "_connected_add_row"
-        }
-      ]
-    },
-    {
-      "key": "lists CDMW installs with model previews.",
-      "origins": [
-        {
-          "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 612,
-          "sink": "python-return:_build_utility_sections"
         }
       ]
     },
@@ -189982,16 +189862,6 @@
       ]
     },
     {
-      "key": "provides rebuild, reapply and start-fresh actions, and reviews changes previously written into shipped archives before moving them into an overlay.",
-      "origins": [
-        {
-          "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 612,
-          "sink": "python-return:_build_utility_sections"
-        }
-      ]
-    },
-    {
       "key": "public format; decoded by the image pipeline",
       "origins": [
         {
@@ -192898,16 +192768,6 @@
           "path": "cdmw/ui/shell/about_documentation_en.py",
           "line": 368,
           "sink": "python-return:_build_archive_mesh_sections"
-        }
-      ]
-    },
-    {
-      "key": "shows installation status, missing archive folders and shortcuts.",
-      "origins": [
-        {
-          "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 612,
-          "sink": "python-return:_build_utility_sections"
         }
       ]
     },

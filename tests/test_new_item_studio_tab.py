@@ -85,6 +85,10 @@ class TabTests(_TabAuthoringMixin, _TabOutputMixin, _TabLifecycleMixin, unittest
         cls.app = QApplication.instance() or QApplication([])
 
     def setUp(self) -> None:
+        # This fixture also owns the retained pre-DLC overlay lifecycle cases.
+        self._overlay_policy = patch("cdmw.constants.ARCHIVE_OVERLAYS_ENABLED", True)
+        self._overlay_policy.start()
+        self.addCleanup(self._overlay_policy.stop)
         self._tabs = []
         self._temp = tempfile.TemporaryDirectory()
         self.root = Path(self._temp.name)
@@ -130,6 +134,7 @@ class TabTests(_TabAuthoringMixin, _TabOutputMixin, _TabLifecycleMixin, unittest
         self._open_folder_patch.stop()
         self._output_settings_patch.stop()
         self._backup_patch.stop()
+        self._overlay_policy.stop()
         self._temp.cleanup()
 
     def _tab(self, window=None, **kwargs):

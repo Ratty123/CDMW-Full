@@ -315,6 +315,9 @@ class NewItemTaskControllerMixin:
 
     def start_export(self, package_root: Path, manager: str, *, create_zip: bool = False,
                      replace_existing: bool = True) -> bool:
+        from cdmw import constants
+        if manager == "DMM" and not constants.ARCHIVE_OVERLAYS_ENABLED:
+            return False
         if manager not in MANAGERS:
             self.status_message.emit(
                 "Choose CDUMM, JMM or DMM for new item exports.", True)
@@ -386,6 +389,9 @@ class NewItemTaskControllerMixin:
     def start_install_overlay(self, mutation_service, *, directory_name: Optional[str] = None) -> bool:
         """Install the plan as its own archive directory instead of into the shipped ones."""
 
+        from cdmw import constants
+        if not constants.ARCHIVE_OVERLAYS_ENABLED:
+            return False
         if not self.has_current_plan:
             self.status_message.emit("Build the plan first.", True)
             return False
@@ -400,6 +406,9 @@ class NewItemTaskControllerMixin:
     def start_overlay_migration(self, mutation_service, package_root) -> bool:
         """Move what the shipped archives already carry into the overlay, off the UI thread."""
 
+        from cdmw import constants
+        if not constants.ARCHIVE_OVERLAYS_ENABLED:
+            return False
         task = overlay_migration_task(package_root, mutation_service=mutation_service)
         return self._run("overlay", task, self.install_finished.emit,
                          lambda message: self.status_message.emit(message, True), publishes_result=True)
@@ -407,6 +416,9 @@ class NewItemTaskControllerMixin:
     def start_overlay_removal(self, mutation_service, package_root) -> bool:
         """Unmount the overlay and delete it, off the UI thread."""
 
+        from cdmw import constants
+        if not constants.ARCHIVE_OVERLAYS_ENABLED:
+            return False
         task = overlay_removal_task(package_root, mutation_service=mutation_service)
         return self._run("overlay", task, self.install_finished.emit,
                          lambda message: self.status_message.emit(message, True), publishes_result=True)
