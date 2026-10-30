@@ -28,6 +28,38 @@ def wiki_manuals(wiki_pages):
     return build_manuals(wiki_pages)
 
 
+def test_export_rejects_a_help_topic_missing_from_the_wiki(monkeypatch):
+    from cdmw.ui.shell.about_documentation_en import AboutDocumentationEnglishMixin
+
+    original = AboutDocumentationEnglishMixin._build_about_sections
+    monkeypatch.setattr(AboutDocumentationEnglishMixin, "_build_about_sections", lambda self: [
+        *original(self),
+        {"id": "new_unmapped_guide", "title": "New guide", "html": "<p>New instructions.</p>"},
+    ])
+    with pytest.raises(ValueError, match="Unmapped Help documentation topics: new_unmapped_guide"):
+        build_pages()
+
+
+def test_settings_files_guidance_and_links_survive_export_without_local_paths(wiki_pages, wiki_manuals):
+    from cdmw.ui.localization_catalogs_v2 import load_builtin_catalog
+
+    for language in BUILTIN_LANGUAGES:
+        translations = load_builtin_catalog(language.code)["translations"]
+        page = wiki_pages[page_slug("Settings-and-Profiles", language.code) + ".md"]
+        manual = wiki_manuals[manual_path(language.code)]
+        assert '<a id="settings_files"></a>' in page and '<a id="settings_files"></a>' in manual
+        for text in (
+            "Settings, Files & Dependencies", "External requirements",
+            "The app stores its local settings and archive cache beside the executable or local source checkout.",
+        ):
+            assert translations[text] in page
+        for filename in ("CrimsonDesertModWorkbench.cfg", "workspace/cache", "README.md", "LICENSE", "THIRD_PARTY_NOTICES.md"):
+            assert f"`{filename}`" in page
+        assert not re.search(r"[A-Z]:[\\/]", page.replace("https://", ""))
+        faq = wiki_pages[page_slug("FAQ", language.code) + ".md"]
+        assert page_slug("Settings-and-Profiles", language.code) + "#settings_files" in faq
+
+
 def test_manuals_have_one_native_named_page_per_language_and_19_guide_entries(wiki_manuals):
     assert len(wiki_manuals) == 30
     assert set(wiki_manuals) == {
@@ -309,6 +341,11 @@ def test_in_app_browser_renders_the_expanded_guides_in_each_locale(tmp_path, lan
         dialog.select_section("contributing")
         localizer.apply(dialog)
         assert localizer.translate("Contributing") in dialog.browser.toPlainText()
+        sync_rule = "Keep Help and the GitHub Wiki aligned in all 14 languages whenever either is edited. Before exporting, compare the latest published Wiki with the shared documentation source and bring any GitHub-only corrections back into Help and its translations. Regenerate and check every guide and diagnostic reference, then verify the published Wiki after an authorized update. Existing executables keep the Help they were built with until rebuilt."
+        translated = localizer.translate(sync_rule)
+        assert translated != sync_rule or language.code == "en"
+        assert translated in dialog.browser.toPlainText()
+        assert translated in wiki_pages[page_slug("Contributing", language.code) + ".md"]
         for topic in ("new_item_studio", "mesh_editor"):
             dialog.select_section(topic)
             localizer.apply(dialog)

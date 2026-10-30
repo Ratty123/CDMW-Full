@@ -55,14 +55,13 @@ PAGE_TOPICS = {
     "Independent-Item-Packages": (),
     "Translations-and-Text-Search": ("translation_studio", "text_search"),
     "Formats-and-Research": ("format_explorer", "research"),
-    "Settings-and-Profiles": ("profile_settings", "window_layout"),
+    "Settings-and-Profiles": ("profile_settings", "window_layout", "settings_files"),
     "Troubleshooting-and-Reporting": ("troubleshooting",),
     "Error-Code-Library": ("error_code_library", *("error_messages_" + area for area in MESSAGE_AREAS), "external_errors"),
     "FAQ": ("faq",),
     "Contributing": ("contributing",),
 }
 TOPIC_PAGE = {topic: page for page, topics in PAGE_TOPICS.items() for topic in topics}
-TOPIC_PAGE["settings_files"] = "Settings-and-Profiles"
 PAGE_REFERENCES = {
     "Getting-Started": ("README.md#install",),
     "Archive-Browser": ("cdmw/ui/archive_browser/README.md",),
@@ -349,7 +348,7 @@ def _inline(node: Node | str, locale: str) -> str:
             topic = target[6:]
             if topic not in TOPIC_PAGE:
                 raise ValueError(f"Unmapped documentation topic: {topic}")
-            anchor = "" if topic == "documentation_index" else "profile_settings" if topic == "settings_files" else topic
+            anchor = "" if topic == "documentation_index" else topic
             target = page_url(TOPIC_PAGE[topic], locale, anchor)
         return f"[{body.strip()}]({target})"
     if node.tag == "br":
@@ -441,6 +440,9 @@ def build_pages() -> dict[str, str]:
     builder.settings_file_path = "CrimsonDesertModWorkbench.cfg"
     builder.archive = type("DocumentationArchive", (), {"archive_cache_root": "workspace/cache"})()
     sections = {section["id"]: section for section in builder._build_about_sections()}
+    unmapped = sorted(sections.keys() - TOPIC_PAGE.keys())
+    if unmapped:
+        raise ValueError("Unmapped Help documentation topics: " + ", ".join(unmapped))
     reference_assets = build_reference_assets()
     result = {}
     source_fingerprint = hashlib.sha256(b"".join(
@@ -494,6 +496,11 @@ def build_pages() -> dict[str, str]:
             for topic in visible_topics:
                 section = sections[topic]
                 source_html = section['html']
+                if topic == 'settings_files':
+                    # Help shows the user's actual paths; the public manual uses
+                    # the same guidance with portable example paths instead.
+                    for filename in ('README.md', 'LICENSE', 'THIRD_PARTY_NOTICES.md'):
+                        source_html = source_html.replace(html.escape(str(ROOT / filename)), filename)
                 if page == 'Error-Code-Library':
                     if topic.startswith('error_messages_'):
                         area = topic.removeprefix('error_messages_')

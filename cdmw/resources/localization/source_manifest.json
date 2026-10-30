@@ -72677,6 +72677,16 @@
       ]
     },
     {
+      "key": "Keep Help and the GitHub Wiki aligned in all 14 languages whenever either is edited. Before exporting, compare the latest published Wiki with the shared documentation source and bring any GitHub-only corrections back into Help and its translations. Regenerate and check every guide and diagnostic reference, then verify the published Wiki after an authorized update. Existing executables keep the Help they were built with until rebuilt.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 710,
+          "sink": "python-return:_build_reference_sections"
+        }
+      ]
+    },
+    {
       "key": "Keep Original",
       "origins": [
         {
@@ -165113,16 +165123,6 @@
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs",
           "line": 3041,
           "sink": "rust-presentation"
-        }
-      ]
-    },
-    {
-      "key": "Update the GitHub Wiki and Help documentation when workflows, controls, output support or limitations change. Keep all 14 interface locales aligned. The shared documentation source and translation catalogues supply both surfaces; export and check the Wiki before publication.",
-      "origins": [
-        {
-          "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 705,
-          "sink": "python-return:_build_reference_sections"
         }
       ]
     },

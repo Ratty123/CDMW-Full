@@ -68,18 +68,45 @@ feature README own exact implementation contracts. Update those owners and the
 affected research sections together when the supported behaviour or evidence
 changes; do not create a competing overview.
 
-The GitHub Wiki and **Help > Documentation** must also reflect user-facing
-workflow, navigation, settings, output, installation and limitation changes.
-Keep all 14 built-in interface locales aligned. The in-app documentation source
-and its translation catalogues supply the Wiki guides; export them into a local
-Wiki checkout with `python scripts/export_github_wiki.py --output <wiki-folder>`,
-then use the same command with `--check` to verify freshness. This command does
-not publish. It writes one manual per language with localized contents sidebars,
-plus the language index. Manuals open with Home; their in-article contents are
-folded for narrow screens. Translated manuals live in locale folders so GitHub
-uses the matching sidebar; their public page names and URLs stay unchanged.
-Review the generated pages and links before an authorized Wiki push. Do not
-recreate separate guide pages for each locale.
+The GitHub Wiki and **Help > Documentation** are two presentations of the same
+manual. Every documentation change must keep both aligned, whether the edit
+starts on GitHub, in the app's documentation source, or alongside a feature fix.
+This covers every topic, supported workflow, warning, limitation and link in all
+14 built-in languages. Layout, navigation and machine-specific path examples can
+differ to suit each surface; their instructions and meaning must agree.
+
+The shared sources under `cdmw/ui/shell/about_documentation*.py`, their translation
+catalogues and diagnostic reference modules own the content. Follow this workflow
+before handing off documentation changes or preparing a rebuild:
+
+1. Read the latest published Wiki revision and preserve any local Wiki edits.
+   Generate into a separate directory under `.work/` with
+   `.\.venv\Scripts\python.exe scripts/export_github_wiki.py --output <draft-folder>`.
+   Compare that output with the published revision before overwriting any files.
+2. Reconcile differences in both directions. Port valid GitHub-only edits into
+   the shared Help source and all affected translations, then regenerate. Retain
+   useful online corrections; resolve conflicting instructions against the owning
+   code and evidence. Never treat exporting over unexplained differences as a sync.
+3. Run the focused `tests/test_wiki_export.py` checks, the affected localization
+   checks, and the export command with `--check`. The exporter refuses unmapped
+   Help topics. Check all manuals, sidebars, anchors and diagnostic assets, not
+   just the English Home page.
+4. Review the complete local Wiki diff. Publish only within the user's authorized
+   scope; a request to prepare documentation alone does not authorize a push.
+   After publication, verify the actual remote revision with the same export
+   `--check` and inspect the affected GitHub-rendered sections.
+5. Report source, prepared Wiki, published Wiki and packaged Help separately.
+   A local match is not a published match. Existing executables keep the Help
+   bundled when they were built, so a source edit or Wiki push cannot update them.
+   Keep any pending publication, reconciliation or rebuild explicit; do not claim
+   complete alignment until the relevant versions have been checked.
+
+The exporter does not publish. It writes one native-named manual per language,
+localized contents sidebars and the language index. Manuals open with Home and
+fold the in-article contents for narrow screens. Translated manuals live in locale
+folders; public page names and URLs remain stable. Do not recreate separate guide
+pages for each locale. Direct Wiki edits must return through the workflow above
+so they survive the next export and reach Help as well.
 
 When diagnostic messages change, regenerate the shared Help/Wiki error index
 with `python scripts/generate_error_reference.py --write`. Run

@@ -11,6 +11,10 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 - Archive Browser can extract mixed file types from the right-click menu without losing the selection. Extract Filtered exports all matching results and stays available after other operations finish.
 
+### Docs
+
+- The Wiki includes Help's Settings, Files & Dependencies guide in all 14 languages. Documentation contributions must keep Help and the Wiki aligned, including corrections made directly on GitHub.
+
 ## [0.11.0-alpha.29] - 2026-10-30
 
 ### Added

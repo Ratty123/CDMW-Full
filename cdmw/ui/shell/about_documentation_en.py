@@ -717,7 +717,7 @@ class AboutDocumentationEnglishMixin:
                 "keywords": "contributing wiki documentation source build tests security translations",
                 "html": """
                 <p>Use the repository's contribution guide for development requirements and reporting policy. Describe the task, expected result and a reproducible example. Keep code changes focused and run the checks for the affected behaviour. Report source, packaged, preview and game checks separately.</p>
-                <p>Update the GitHub Wiki and Help documentation when workflows, controls, output support or limitations change. Keep all 14 interface locales aligned. The shared documentation source and translation catalogues supply both surfaces; export and check the Wiki before publication.</p>
+                <p>Keep Help and the GitHub Wiki aligned in all 14 languages whenever either is edited. Before exporting, compare the latest published Wiki with the shared documentation source and bring any GitHub-only corrections back into Help and its translations. Regenerate and check every guide and diagnostic reference, then verify the published Wiki after an authorized update. Existing executables keep the Help they were built with until rebuilt.</p>
                 <p>Keep detailed format findings in the public research reference and exact contracts in their owning feature documentation. Do not include game assets, extracted archives, private diagnostics or build output in contributions. Security-sensitive reports follow the security policy.</p>
                 <ul>
                   <li><a href="https://github.com/Ratty123/CDMW-Full/blob/main/CONTRIBUTING.md">Contributing</a></li>
