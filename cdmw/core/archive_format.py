@@ -751,16 +751,21 @@ class VfsPathResolver:
 
 
 def _pamt_extensions(data: bytes, file_table_end: int) -> Optional[Tuple[str, ...]]:
-    """The compact PAMT layout ends with a sized, NUL-separated extension table."""
+    """Read a sized, NUL-separated extension table; the last NUL is optional."""
     if file_table_end == len(data):
         return None
     if len(data) - file_table_end < 5:
         raise ValueError("PAMT extension table is truncated.")
     length = struct.unpack_from("<I", data, file_table_end)[0]
     table = data[file_table_end + 4:]
-    if length != len(table) or not table.startswith(b"\x00") or not table.endswith(b"\x00"):
+    if length != len(table) or not table.startswith(b"\x00"):
         raise ValueError("PAMT extension table has invalid bounds or terminators.")
-    extensions = tuple(part.decode("ascii") for part in table[:-1].split(b"\x00"))
+    # A final delimiter adds no extra slot; without it the checked length ends
+    # the last extension. Never drop that extension's final character.
+    parts = table.split(b"\x00")
+    if parts[-1] == b"":
+        parts.pop()
+    extensions = tuple(part.decode("ascii") for part in parts)
     if len(extensions) > 256 or any(not ext.startswith(".") or "/" in ext or "\\" in ext for ext in extensions[1:]):
         raise ValueError("PAMT extension table contains an invalid extension.")
     return extensions

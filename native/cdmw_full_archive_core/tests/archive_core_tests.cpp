@@ -127,6 +127,48 @@ void test_case_insensitive_path_compare() {
         "case-insensitive path comparison changed reverse prefix ordering");
 }
 
+void test_compact_extension_table_bounds() {
+    const auto table_bytes = [](const std::vector<std::uint8_t>& table) {
+        std::vector<std::uint8_t> data;
+        cdmw::full_archive::append_u32(data, static_cast<std::uint32_t>(table.size()));
+        data.insert(data.end(), table.begin(), table.end());
+        return data;
+    };
+    for (const auto& table : std::vector<std::vector<std::uint8_t>>{
+        {0, '.', 'b', 'i', 'n', 0, '.', 't', 'x', 't'},
+        {0, '.', 'b', 'i', 'n', 0, '.', 't', 'x', 't', 0}}) {
+        const auto data = table_bytes(table);
+        const auto extensions = cdmw::archive::pamt_extensions(data, 0);
+        require(extensions == std::vector<std::string>{"", ".bin", ".txt"}, "extension slots changed with final terminator");
+        require(cdmw::archive::pamt_extension(extensions, 0x200) == ".txt", "final extension index shifted");
+        // The accelerator instantiates this shared reader with char rather than uint8_t.
+        const std::vector<char> signed_data(data.begin(), data.end());
+        require(cdmw::archive::pamt_extensions(signed_data, 0) == extensions, "signed-byte extension reader differs");
+        bool rejected = false;
+        try { cdmw::archive::pamt_extension(extensions, 0x300); }
+        catch (const std::runtime_error&) { rejected = true; }
+        require(rejected, "out-of-range extension index was accepted");
+    }
+    require(cdmw::archive::pamt_extensions(table_bytes({0}), 0) == std::vector<std::string>{""},
+        "extension-free compact names lost slot zero");
+    auto invalid_tables = std::vector<std::vector<std::uint8_t>>{
+        {'.', 't', 'x', 't', 0}, {0, 0}, {0, '.', 'x', 0, 0}, {0, 'b', 'a', 'd'},
+        {0, '.', 'x', '/'}, {0, '.', 'x', '\\'}, {0, '.', 0xFF}};
+    std::vector<std::uint8_t> maximum{0};
+    for (size_t i = 0; i < 255; ++i) maximum.insert(maximum.end(), {'.', 'x', 0});
+    maximum.pop_back();
+    require(cdmw::archive::pamt_extensions(table_bytes(maximum), 0).size() == 256,
+        "maximum extension count without a final terminator was rejected");
+    maximum.insert(maximum.end(), {0, '.', 'x'});
+    invalid_tables.push_back(maximum);
+    for (const auto& table : invalid_tables) {
+        bool rejected = false;
+        try { cdmw::archive::pamt_extensions(table_bytes(table), 0); }
+        catch (const std::runtime_error&) { rejected = true; }
+        require(rejected, "malformed extension table was accepted");
+    }
+}
+
 void test_compact_index_and_extension_flags(const fs::path& root) {
     std::vector<std::uint8_t> data;
     for (const auto value : {0u, 1u, 0x610E0232u, 48u, 0u, 5u, 0u, 6u}) cdmw::full_archive::append_u32(data, value);
@@ -134,6 +176,7 @@ void test_compact_index_and_extension_flags(const fs::path& root) {
     for (const auto value : {0u, 1u, 0u, 0u, 5u, 5u}) cdmw::full_archive::append_u32(data, value);
     append_u16(data, 48);
     append_u16(data, 0x100);
+    const auto extension_size_offset = data.size();
     cdmw::full_archive::append_u32(data, 6);
     data.insert(data.end(), {0, '.', 't', 'x', 't', 0});
     write_bytes(root / "0.pamt", data);
@@ -161,6 +204,15 @@ void test_compact_index_and_extension_flags(const fs::path& root) {
     require(cdmw_full_archive_build_index_utf8(root.u8string().c_str(), rejected.u8string().c_str(), &count,
         error.data(), error.size()) == CDMW_FULL_ARCHIVE_FORMAT_ERROR, "truncated extension table was accepted");
     require(!fs::exists(rejected), "invalid compact index was published");
+    // This is a complete five-byte table, not a truncated six-byte table.
+    write_u32_at(data, extension_size_offset, 5);
+    write_bytes(root / "0.pamt", data);
+    const auto length_terminated = root / "length-terminated.bin";
+    require(cdmw_full_archive_build_index_utf8(root.u8string().c_str(), length_terminated.u8string().c_str(), &count,
+        error.data(), error.size()) == CDMW_FULL_ARCHIVE_OK, "length-bounded final extension was rejected");
+    const auto length_indexed = cdmw::full_archive::read_binary(length_terminated, 1024 * 1024);
+    require(count == 1 && std::string(length_indexed.begin(), length_indexed.end()).find("test.txt") != std::string::npos,
+        "length-bounded extension lost its final character or entry");
     std::vector<std::uint8_t> names(128, 0);
     names.insert(names.end(), {0x80, 1, 5, '/', 'l', 'e', 'a', 'f'});
     const auto part = cdmw::archive::compact_name_part(names, 128);
@@ -406,6 +458,7 @@ int main() {
         fs::create_directories(root);
         require(cdmw_full_archive_core_abi_version() == CDMW_FULL_ARCHIVE_CORE_ABI_VERSION, "ABI version is wrong");
         test_case_insensitive_path_compare();
+        test_compact_extension_table_bounds();
         test_index_and_raw_decode(root / "raw");
         test_compact_index_and_extension_flags(root / "compact");
         test_duplicate_override_metadata(root / "duplicates");

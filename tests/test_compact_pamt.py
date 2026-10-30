@@ -30,6 +30,39 @@ def test_compact_name_extension_sparse_paz_and_encryption_bits():
     assert encrypted.encrypted and encrypted.encryption_type == 3
 
 
+@pytest.mark.parametrize("extensions,flags,expected", [
+    (b"\x00.txt\x00", 0x100, "test.txt"),
+    (b"\x00.txt", 0x100, "test.txt"),
+    (b"\x00.bin\x00.txt\x00", 0x200, "test.txt"),
+    (b"\x00.bin\x00.txt", 0x200, "test.txt"),
+    (b"\x00", 0, "test"),
+])
+def test_compact_extension_table_length_can_end_last_extension(extensions, flags, expected):
+    entry, = parse_archive_pamt_bytes(compact_pamt(extensions=extensions, flags=flags), Path("0.pamt"))
+    assert entry.path == expected
+    assert _decode_archive_entry_data(entry, b"hello") == (b"hello", False, "")
+
+
+@pytest.mark.parametrize("extensions", [
+    b".txt\x00", b"\x00\x00", b"\x00.txt\x00\x00", b"\x00bad",
+    b"\x00.dir/file", b"\x00.dir\\file", b"\x00.\xff",
+    b"\x00" + b"\x00".join([b".txt"] * 256),
+])
+def test_compact_unterminated_extension_keeps_table_validation(extensions):
+    with pytest.raises(ValueError):
+        parse_archive_pamt_bytes(compact_pamt(extensions=extensions), Path("0.pamt"))
+
+
+def test_compact_unterminated_extension_keeps_index_and_length_validation():
+    with pytest.raises(ValueError, match="extension index"):
+        parse_archive_pamt_bytes(compact_pamt(extensions=b"\x00.txt", flags=0x200), Path("0.pamt"))
+    with pytest.raises(ValueError, match="bounds"):
+        parse_archive_pamt_bytes(compact_pamt(extensions=b"\x00.txt") + b"x", Path("0.pamt"))
+    entry, = parse_archive_pamt_bytes(
+        compact_pamt(extensions=b"\x00" + b"\x00".join([b".txt"] * 255), flags=0xFF00), Path("0.pamt"))
+    assert entry.path == "test.txt"
+
+
 def test_compact_parent_distance_crosses_a_varint_boundary():
     block = b"\x00\x04root" + b"\x00\x78" + b"x" * 120
     assert len(block) == 128
@@ -123,10 +156,11 @@ def test_resident_view_includes_dlc_mounts_and_detects_mount_changes(tmp_path):
         view.validate_sources()
 
 
-def test_compact_pamt_cannot_enter_the_archive_writer(tmp_path):
+@pytest.mark.parametrize("extensions", [b"\x00.txt\x00", b"\x00.txt"])
+def test_compact_pamt_cannot_enter_the_archive_writer(tmp_path, extensions):
     from cdmw.core.archive_patching import _parse_mutable_pamt
     path = tmp_path / "0.pamt"
-    raw = compact_pamt()
+    raw = compact_pamt(extensions=extensions)
     path.write_bytes(raw)
     with pytest.raises(ValueError, match="read-only"):
         _parse_mutable_pamt(path)

@@ -340,6 +340,7 @@
     "A clip authored for the other playable character. It plays — the rigs share most of their bones — but the proportions differ, so a borrowed draw may reach near the hilt rather than onto it.": "もう一方のプレイアブルキャラクター向けに作られたクリップです。再生はされます — リグはほとんどのボーンを共有しています — が、プロポーションが異なるため、借用した抜刀は柄そのものではなく柄の近くに届くことがあります。",
     "A color DDS also supplies another material role; edit that texture explicitly.": "カラーDDSが別のマテリアル用途にも使われています。そのテクスチャを直接編集してください。",
     "A combined mod from mounted items must be written to a new folder. Choose another mod name.": "マウント済みアイテムから作る統合Modは、新しいフォルダーに書き出す必要があります。別のMod名を選んでください。",
+    "A compact PAMT extension table may omit its final zero byte if its declared size matches exactly. Invalid tables are still rejected; archive writes remain unsupported.": "コンパクト形式の PAMT 拡張子テーブルは、宣言されたサイズが実際のサイズと完全に一致していれば、末尾のゼロバイトを省略できます。不正なテーブルは引き続き拒否され、アーカイブへの書き込みはサポートされません。",
     "A complete, grouped index of every current documentation topic.": "現在のすべてのドキュメントトピックの完全なグループ化されたインデックス。",
     "A connected scalp section can cover most of the head. Turn off to erase only the brushed faces of imported hair.": "連結した頭皮の領域は、頭部の大部分に及ぶ場合があります。インポートした髪のうち、ブラシを当てた面だけを消すにはオフにしてください。",
     "A derived vertex needs more skin influences than the supported row can store.": "派生頂点に必要なボーンの影響数が、対応する行に格納できる数を超えています。",

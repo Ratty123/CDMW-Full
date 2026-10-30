@@ -16,24 +16,29 @@ std::vector<std::string> pamt_extensions(const Bytes& data, size_t end) {
     std::uint32_t length = 0;
     for (unsigned i = 0; i < 4; ++i) length |= static_cast<std::uint32_t>(static_cast<unsigned char>(data[end + i])) << (i * 8);
     end += 4;
-    if (length != data.size() - end || data[end] != 0 || data.back() != 0) {
+    if (length != data.size() - end || data[end] != 0) {
         throw std::runtime_error("PAMT extension table has invalid bounds or terminators");
     }
     std::vector<std::string> extensions;
     std::string current;
+    const auto append_extension = [&] {
+        if (!extensions.empty() && (current.empty() || current[0] != '.' || current.find_first_of("/\\") != std::string::npos)) {
+            throw std::runtime_error("PAMT extension table contains an invalid extension");
+        }
+        extensions.push_back(current);
+        current.clear();
+    };
     for (; end < data.size(); ++end) {
         const auto ch = static_cast<unsigned char>(data[end]);
         if (ch == 0) {
-            if (!extensions.empty() && (current.empty() || current[0] != '.' || current.find_first_of("/\\") != std::string::npos)) {
-                throw std::runtime_error("PAMT extension table contains an invalid extension");
-            }
-            extensions.push_back(current);
-            current.clear();
+            append_extension();
         } else {
             if (ch > 127) throw std::runtime_error("PAMT extension is not ASCII");
             current += static_cast<char>(ch);
         }
     }
+    // The checked byte length also bounds the final extension when it has no NUL.
+    if (!current.empty()) append_extension();
     if (extensions.size() > 256) throw std::runtime_error("PAMT has too many extensions");
     return extensions;
 }

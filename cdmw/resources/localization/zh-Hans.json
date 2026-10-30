@@ -340,6 +340,7 @@
     "A clip authored for the other playable character. It plays — the rigs share most of their bones — but the proportions differ, so a borrowed draw may reach near the hilt rather than onto it.": "为另一位可操作角色制作的片段。它能播放 — 两套骨架共用大部分骨骼 — 但比例不同，所以借来的拔武器动作可能落在握柄附近而不是握柄上。",
     "A color DDS also supplies another material role; edit that texture explicitly.": "颜色 DDS 还用于其他材质用途；请直接编辑该纹理。",
     "A combined mod from mounted items must be written to a new folder. Choose another mod name.": "由已挂载物品生成的合并模组必须写入新文件夹。请选择其他模组名称。",
+    "A compact PAMT extension table may omit its final zero byte if its declared size matches exactly. Invalid tables are still rejected; archive writes remain unsupported.": "紧凑格式的 PAMT 扩展名表在声明大小与实际大小完全一致时，可以省略末尾的零字节。无效表仍会被拒绝，仍不支持写入归档。",
     "A complete, grouped index of every current documentation topic.": "所有当前文档主题的完整分组索引。",
     "A connected scalp section can cover most of the head. Turn off to erase only the brushed faces of imported hair.": "相连的头皮区段可能覆盖头部大部分。关闭后，仅擦除导入头发中画笔刷过的面。",
     "A derived vertex needs more skin influences than the supported row can store.": "派生顶点需要的骨骼影响数量超过受支持行的存储容量。",

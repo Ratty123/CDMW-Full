@@ -340,6 +340,7 @@
     "A clip authored for the other playable character. It plays — the rigs share most of their bones — but the proportions differ, so a borrowed draw may reach near the hilt rather than onto it.": "다른 플레이어 캐릭터용으로 만든 클립입니다. 재생은 됩니다 — 리그가 대부분의 본을 공유합니다 — 하지만 비율이 달라서, 빌려온 뽑기 동작이 손잡이 위가 아니라 그 근처에 닿을 수 있습니다.",
     "A color DDS also supplies another material role; edit that texture explicitly.": "색상 DDS가 다른 머티리얼 용도로도 사용됩니다. 해당 텍스처를 직접 편집하세요.",
     "A combined mod from mounted items must be written to a new folder. Choose another mod name.": "마운트된 아이템으로 만든 통합 모드는 새 폴더에 저장해야 합니다. 다른 모드 이름을 선택하세요.",
+    "A compact PAMT extension table may omit its final zero byte if its declared size matches exactly. Invalid tables are still rejected; archive writes remain unsupported.": "압축형 PAMT 확장자 테이블은 선언된 크기가 실제 크기와 정확히 일치하면 마지막 0바이트를 생략할 수 있습니다. 잘못된 테이블은 계속 거부되며 아카이브 쓰기는 지원되지 않습니다.",
     "A complete, grouped index of every current documentation topic.": "현재 문서의 모든 주제를 그룹으로 묶은 전체 색인입니다.",
     "A connected scalp section can cover most of the head. Turn off to erase only the brushed faces of imported hair.": "연결된 두피 구역이 머리 대부분을 덮을 수 있습니다. 끄면 가져온 머리카락에서 브러시로 칠한 면만 지웁니다.",
     "A derived vertex needs more skin influences than the supported row can store.": "파생 정점에 필요한 본 영향 수가 지원되는 행의 저장 한도를 넘습니다.",

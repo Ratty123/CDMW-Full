@@ -398,6 +398,7 @@ class AboutDocumentationEnglishMixin:
                   <li>Use Textures for editing, recolor, upscaling, and replacement review.</li>
                 </ul>
                 <p>October 2026 DLC: scan the complete game folder to include dlc/dlc_01. Browsing, extraction and Create New Item support the compact base and DLC tables. Empty DLC tables are skipped; incomplete nonempty tables still stop loading. Create New Item exports CDUMM/JMM folders and .cditem authoring packages. Direct archive patching and overlay installation remain unavailable. Export checks do not establish in-game compatibility.</p>
+                <p>A compact PAMT extension table may omit its final zero byte if its declared size matches exactly. Invalid tables are still rejected; archive writes remain unsupported.</p>
                 <p>Item Finder shows recovered ship icons and model links; unavailable icons keep a letter tile. Body &amp; Face Finder reads character names from both the base game and DLC.</p>
                 <p>If a DDS preview shows raw bytes, open Details and include the file path and the Decoded preview failed line in your report. Readable strings alone do not identify the decoding error.</p>
                 <p>Prepared archive files and DDS preview caches support long Windows paths without changing Windows settings. If access still fails, Details includes the operating-system error and path length.</p>

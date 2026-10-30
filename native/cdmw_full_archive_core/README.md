@@ -15,7 +15,13 @@ the file records and is indexed by the high byte of each entry's flags. Only the
 low compression/encryption nibbles describe payload transforms. PAZ records carry
 actual archive IDs, which can be sparse. Malformed names, extension indexes and
 references to absent PAZ IDs are refused. `native/common/pamt_compact.hpp` owns
-the shared compact-name and extension bounds checks.
+the shared compact-name and extension bounds checks. The extension table's
+declared length must match the remaining bytes exactly; that boundary may end
+the final extension without a trailing NUL. Slot zero must remain empty, every
+other extension must be valid ASCII beginning with a dot and contain no path
+separators, and all file extension indexes must resolve. This is a read-only
+compatibility rule covered by owned fixtures, not additional archive-write or
+game-acceptance evidence.
 
 Partial PAM geometry (versions `0x1802` and `0x01001806`) and aligned PAMLOD LOD
 blocks are decoded by `native/common/partial_static_mesh.hpp`, shared with Preview

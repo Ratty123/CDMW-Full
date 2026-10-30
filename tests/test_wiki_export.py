@@ -60,6 +60,19 @@ def test_settings_files_guidance_and_links_survive_export_without_local_paths(wi
         assert page_slug("Settings-and-Profiles", language.code) + "#settings_files" in faq
 
 
+def test_compact_pamt_reader_limit_is_translated_in_help_and_wiki(wiki_pages):
+    from cdmw.ui.localization_catalogs_v2 import load_builtin_catalog
+
+    source = "A compact PAMT extension table may omit its final zero byte if its declared size matches exactly. Invalid tables are still rejected; archive writes remain unsupported."
+    for language in BUILTIN_LANGUAGES:
+        translated = load_builtin_catalog(language.code)["translations"][source]
+        assert translated
+        if language.code != "en":
+            assert translated != source
+        page = wiki_pages[page_slug("Archive-Browser", language.code) + ".md"]
+        assert translated.split(". ")[0] in page
+
+
 def test_manuals_have_one_native_named_page_per_language_and_19_guide_entries(wiki_manuals):
     assert len(wiki_manuals) == 30
     assert set(wiki_manuals) == {
