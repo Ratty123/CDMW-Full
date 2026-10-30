@@ -193,7 +193,7 @@ def test_captured_sidecar_does_not_replace_a_readable_authoritative_texture(edit
         assert not getattr(prepared.submeshes[0], "preview_material_texture_inputs", ())
 
 
-@pytest.mark.parametrize("fault", ["unreadable-sidecar", "missing-texture"])
+@pytest.mark.parametrize("fault", ["unreadable-sidecar", "missing-texture", "unmatched-binding"])
 @pytest.mark.parametrize("required", [False, True])
 def test_incomplete_original_materials_allow_geometry_but_imported_materials_stay_strict(editor, tmp_path, fault, required):
     service, sid = editor
@@ -202,10 +202,13 @@ def test_incomplete_original_materials_allow_geometry_but_imported_materials_sta
     files = capture_replacement_dependencies(target, context)
     if fault == "missing-texture":
         files = tuple(file for file in files if not file.path.endswith(".dds"))
+    elif fault == "unmatched-binding":
+        files = tuple(replace(file, data=file.data.replace(b"target", b"other"))
+                      if file.path.endswith(".pac_xml") else file for file in files)
     else:
         files = tuple(replace(file, data=b"") if file.path.endswith(".pac_xml") else file for file in files)
     if required:
-        with pytest.raises(ValueError, match="not readable text|Missing prepared texture"):
+        with pytest.raises(ValueError, match="not readable text|Missing prepared texture|no prepared texture binding"):
             with prepared_replacement_material_mesh(snapshot.mesh, files, required=True):
                 pytest.fail("Incomplete imported materials were accepted")
     else:

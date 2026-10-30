@@ -99,6 +99,50 @@ def test_imported_materials_bind_part_wrappers_instead_of_embedded_labels(editor
     assert any(file.path.endswith(".dds") for file in files)
 
 
+def test_imported_material_apply_matches_case_insensitive_target_bindings(editor, tmp_path):
+    from cdmw.modding.mesh_parser import parse_mesh
+    from cdmw.services.mesh_rust_authoring import RustMeshAuthoringSession
+    from cdmw.services.mesh_service import MeshService
+    from tests.test_mesh_rust_replacement import command
+
+    original_service, original_id = editor
+    snapshot = original_service.capture_export_snapshot(original_id)
+    data = snapshot.original_data.replace(b"target0", b"TARGET0").replace(b"target1", b"TARGET1")
+    mesh = parse_mesh(data, snapshot.mesh.path)
+    mesh._cdmw_original_data = data
+    service = MeshService()
+    session_id = service.open_edit_session(mesh).session_id
+    host = None
+    try:
+        snapshot = service.capture_export_snapshot(session_id)
+        target, context, model = material_fixture(tmp_path, snapshot)
+        host = RustMeshAuthoringSession.create(
+            SimpleNamespace(mesh_service=service, active_session_id=session_id),
+            tmp_path / "host", process_generation=1,
+        )
+        key = initial_replacement_state(snapshot).parts[0].part_id
+        command(host, "replacement_choose", {
+            "scope": "selected", "part_ids": [key], "source_path": str(model),
+            "_archive_entry": target, "_archive_dependencies": context,
+        })
+        result = command(host, "replacement_apply", {"targets": [key], "materials": "imported"})
+        material_key = result["state"]["archive_refit_materials"]["key"]
+        assert material_key != "base"
+        textures = host.archive_refit_material_cache[material_key]["textures"]
+        texture = next(row for row in textures if row["role"] == "base_color"
+                       and 0 in row["material_indices_by_lod"][0])
+        with Image.open(host.root / texture["file"]["path"]) as image:
+            assert image.convert("RGBA").getpixel((0, 0)) == (210, 30, 60, 255)
+        edited = host.shadow_service.working_mesh(host.shadow_session_id)
+        assert [(part.name, part.material) for part in edited.submeshes] == [
+            ("TARGET0", "TARGET0"), ("TARGET1", "TARGET1"),
+        ]
+    finally:
+        if host is not None and not host.closed:
+            host.cancel()
+        service.close_edit_session(session_id)
+
+
 def test_imported_materials_still_reject_a_genuinely_shared_wrapper(editor, tmp_path):
     import re
 

@@ -116,8 +116,11 @@ def prepared_replacement_material_mesh(mesh, files, *, required, stop_event=None
                             except (OSError, RustMeshProtocolError) as exc:
                                 invalid_roles[role] = exc
                                 setattr(part, attribute, "")
+                # Use the same case-insensitive ownership match as material conversion.
+                part_names = {name.casefold() for name in (part.name, part.material) if name}
                 owned = [binding for binding in bindings
-                         if {binding.material_name, binding.submesh_name, binding.part_name} & {part.name, part.material}
+                         if part_names & {name.casefold() for name in
+                                          (binding.material_name, binding.submesh_name, binding.part_name) if name}
                          and _material_input_texture_role(binding) not in retained_roles]
                 missing = [binding.texture_path for binding in owned
                            if binding.texture_path.replace("\\", "/").casefold() not in files]

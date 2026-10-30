@@ -14,6 +14,7 @@ experimental-feature notes do not establish equivalent in-game behavior.
 ### Fixed
 
 - Archive Browser can extract mixed file types from the right-click menu without losing the selection. Extract Filtered exports all matching results and stays available after other operations finish.
+- Mesh Editor applies imported materials when part and material names differ only in capitalization, avoiding a false missing-texture-binding error.
 
 ### Docs
 
