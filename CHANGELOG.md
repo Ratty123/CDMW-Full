@@ -7,13 +7,20 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 ## [Unreleased]
 
+## [0.11.0-alpha.30] - 2026-10-30
+
 ### Added
 
 - Compact's sidebar has a Discord button above Help, with the official icon adapting to light and dark themes.
 
+### Changed
+
+- The Windows portable download is named `CDMW.exe`; its version is shown in About and Windows file properties.
+
 ### Fixed
 
 - Archive Browser can extract mixed file types from the right-click menu without losing the selection. Extract Filtered exports all matching results and stays available after other operations finish.
+- Archive Browser reads prepared files and DDS preview caches from long Windows paths. File-access failures include the operating-system error and path length in Details.
 - Mesh Editor applies imported materials when part and material names differ only in capitalization, avoiding a false missing-texture-binding error.
 
 ### Docs
