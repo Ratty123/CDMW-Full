@@ -331,7 +331,7 @@ class OutputPanel(QGroupBox):
         self.independent_controls = QWidget()
         independent_layout = QVBoxLayout(self.independent_controls)
         independent_layout.setContentsMargins(0, 0, 0, 0)
-        self.independent_note = QLabel(self.tr("Independent item package writes a portable .cditem authoring package. Add it to Mods in Mod Management, review Apply changes and use the experimental launch route. Unknown conflicts, missing dependencies and unsupported modules remain blocked."))
+        self.independent_note = QLabel(self.tr("Independent item package writes a portable .cditem authoring package. Mod Management is temporarily unavailable, so keep the package for later use."))
         self.independent_note.setWordWrap(True)
         independent_layout.addWidget(self.independent_note)
         self.update_package_button = QPushButton("Update an existing item package...")

@@ -753,6 +753,12 @@ class ShellToolTabsMixin:
         self.mod_management_tab = self._add_lazy_shell_tool(
             "Mod Management", "mod_management", self._create_mod_management_tab
         )
+        self.mod_management_tab.setEnabled(False)
+        self.mod_management_tab.setToolTip(
+            "Mod Management is temporarily disabled because it is incompatible with the Crimson Desert DLC update."
+        )
+        self.mod_package_tool_action.setEnabled(False)
+        self.mod_package_tool_action.setToolTip(self.mod_management_tab.toolTip())
         self.mod_package_retrofit_tab = self.mod_management_tab  # Retained attribute for older integrations.
         # Mesh Editor and Placement are complete workspaces, so both sit directly in the
         # main strip instead of adding a second tab bar above their own workspace controls.

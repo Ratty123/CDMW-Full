@@ -45,6 +45,9 @@ class ClassicNavigation(QWidget):
                 continue
             index = self.tools.addTab(self.shell.ui_localizer.translate(spec.label))
             self.tools.setTabData(index, spec.key)
+            widget = self.shell.tab_registry.widgets[spec.key]
+            self.tools.setTabEnabled(index, widget.isEnabled())
+            self.tools.setTabToolTip(index, widget.toolTip())
             if spec.key == active_key:
                 self.tools.setCurrentIndex(index)
         self.tools.blockSignals(False)
@@ -53,8 +56,9 @@ class ClassicNavigation(QWidget):
         category = self.groups.tabData(index)
         self._fill_tools(category)
         key = self._last_key_by_category.get(category)
-        if key is None and self.tools.count():
-            key = self.tools.tabData(0)
+        enabled_keys = [self.tools.tabData(i) for i in range(self.tools.count()) if self.tools.isTabEnabled(i)]
+        if key not in enabled_keys:
+            key = next(iter(enabled_keys), None)
         if key:
             self.shell._activate_tool_key(key)
 

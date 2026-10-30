@@ -37,6 +37,11 @@ drag, independent windows, final flushes, minimize/restore, and existing keys.
 
 ## Compact Workspace and navigation
 
+Mod Management remains visible but disabled in both layouts while it is incompatible
+with the DLC update. Its translated tooltip explains why. Saved navigation falls
+back to Archive Browser; direct activation, detachment and Repackage shortcuts
+cannot construct the disabled tool. Loose export stays available in the owning tools.
+
 `compact/` owns the restart-selected Compact Workspace presentation around the same
 authoritative tool widgets. Compact is the first-run default; an existing Classic or
 Compact choice remains authoritative. Compact mode hides the existing tab bars, routes

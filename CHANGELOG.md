@@ -9,7 +9,7 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 ### Changed
 
-- Archive overlay export, installation and management are disabled because they are incompatible with the DLC update. Loose mod exports remain available.
+- Mod Management and archive overlay workflows are temporarily disabled because they are incompatible with the DLC update. Mod Management remains visible but greyed out, with the reason shown on hover. Loose mod exports remain available.
 
 ### Fixed
 

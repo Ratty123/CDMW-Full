@@ -818,27 +818,17 @@ def test_real_main_window_compact_wrapper_preserves_tool_authority(tmp_path: Pat
         assert window.compact_workspace.rail.tool_buttons["archive_browser"].isChecked()
 
         window._activate_tool_key("mod_management")
-        deadline = time.monotonic() + 4.0
-        while window.mod_management_tab.widget_if_created() is None and time.monotonic() < deadline:
-            app.processEvents()
-            time.sleep(0.001)
-        from cdmw.ui.tools.rust_mod_management import RustModManagementTab
-        management = window.mod_management_tab.widget_if_created()
-        assert isinstance(management, RustModManagementTab)
-        assert management.controller is window._shared_new_item_controller()
-        assert management.controller.snapshot is None
-        assert window.compact_workspace.rail.tool_buttons["mod_management"].isChecked()
-        assert window._tool_key_for_widget(window._current_navigation_widget()) == "mod_management"
+        assert window.mod_management_tab.widget_if_created() is None
+        assert not window.compact_workspace.rail.tool_buttons["mod_management"].isEnabled()
+        assert window._tool_key_for_widget(window._current_navigation_widget()) == "archive_browser"
 
         window._activate_tool_key('mod_package_retrofit')
         assert window.mod_package_retrofit_tab is window.mod_management_tab
         assert 'mod_package_retrofit' not in window._tool_widgets_by_key
-        assert management.workflow.pages.current_page() is management.workflow.repackage_page
-        assert management.workflow.repackage_ui is not None
-        management.open_page('overview')
         window.settings.setValue('ui/active_tool_key', 'mod_package_retrofit')
         window._restore_saved_navigation()
-        assert management.workflow.pages.current_page() is management.workflow.repackage_page
+        assert window._current_navigation_widget() is window.archive_browser_tab
+        assert window.mod_management_tab.widget_if_created() is None
 
         window._activate_tool_key("format_explorer")
         deadline = time.monotonic() + 4.0

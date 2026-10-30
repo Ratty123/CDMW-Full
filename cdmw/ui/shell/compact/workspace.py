@@ -85,6 +85,8 @@ class CompactWorkspace(QWidget):
             widget = containers.get(key) if isinstance(containers, dict) else None
             if widget is not None:
                 button.setEnabled(widget.isEnabled())
+                if widget.toolTip():
+                    button.setToolTip(widget.toolTip())
 
     def append_activity(
         self,

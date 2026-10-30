@@ -58,10 +58,8 @@ CREATE_NEW_ITEM_SECTION = {
     <p data-alert="WARNING">JMM is outdated; compatibility cannot be ensured. Prefer DMM or CDUMM for current game versions.</p>
     <p>Mod folder supports CDUMM and JMM, with an optional ZIP.</p>
     <p>Add to existing mod extends a selected package. Review the included items and files before exporting.</p>
-    <p>Independent item package writes a portable .cditem authoring package. Add it to Mods in Mod Management, review Apply changes and use the experimental launch route. Unknown conflicts, missing dependencies and unsupported modules remain blocked.</p>
-    <p>Merge mods offers DMM V3 field JSON (experimental) for retained semantic exports. The option starts off.</p>
+    <p>Independent item package writes a portable .cditem authoring package. Mod Management is temporarily unavailable, so keep the package for later use.</p>
     <p>Only existing models and icons are supported; unsupported changes refuse. Shop additions append stock. Import or re-export the included cdmw-source/cdmw-semantic.cditem through CDMW to retain original identities, assigned IDs and dependency witnesses.</p>
-    <p>Enable the DMM package in place of its original contributions. DMM does not enforce source hashes at mount: re-export after game updates and inspect its log. DMM mounting, game behaviour and save compatibility remain unverified.</p>
     <h4>Troubleshooting</h4>
     <p>The first archive read after the game or a mod changes the archives checks the cached archive catalogue against the game's index files. This can take up to a minute on a slow drive; later reads reuse the result until the archives change again.</p>
     <p>If Build plan reports unapplied changes, return to the model or effect step and apply them. For missing textures, inspect the import dependencies. For unavailable outputs, read the selected manager's requirements. Keep the original model, working files, exported package and installation receipt distinct so recovery does not depend on the preview session.</p>
@@ -646,31 +644,21 @@ class AboutDocumentationEnglishMixin:
             {
                 "id": "mod_management",
                 "title": "Mod Management",
-                "summary": "Manage mods and prepare packages.",
+                "summary": "Mod Management is temporarily disabled because it is incompatible with the Crimson Desert DLC update.",
                 "keywords": "utilities mods overlay installed preview removal merge update recovery",
                 "html": """
-                <p>Open <b>Utilities &gt; Mod Management</b> without creating an item or reading the Create New Item archives first.</p>
-                <ul>
-                  <li>Mods manages the experimental virtual profile. Item identities keeps saved IDs. Health and recovery shows archive status.</li>
-                  <li><b>Repackage</b> converts mod folders or ZIPs for a supported manager and shows results inline.</li>
-                  <li>Merge mods offers DMM V3 field JSON (experimental) for retained semantic exports. The option starts off.</li>
-                  <li><b>Check mods for game updates</b> compares recorded source data with the current game.</li>
-                  <li>Archive overlays are disabled because they are incompatible with the DLC update.</li>
-                </ul>
+                <p>Mod Management is temporarily disabled because it is incompatible with the Crimson Desert DLC update.</p>
+                <p>Export loose mod files from Mesh Editor or Create New Item and install them with a compatible external mod manager.</p>
                 """,
             },
             {
                 "id": "mod_package_retrofit",
                 "title": "Retrofit/Repackage",
-                "summary": "Inspect and normalize an existing loose mod for supported manager layouts.",
+                "summary": "Mod Management is temporarily disabled because it is incompatible with the Crimson Desert DLC update.",
                 "keywords": "retrofit repackage mod package normalize inspect loose manager cdumm dmm jmm manifest",
                 "html": """
-                <p>Open <b>Utilities &gt; Mod Management &gt; Repackage</b> to inspect and convert existing mod folders or ZIPs for a supported manager.</p>
-                <ul>
-                  <li>Open the existing mod, review detected files and metadata, and choose the intended target layout.</li>
-                  <li>Write the repackaged result as a separate output rather than mutating shipped game archives.</li>
-                  <li>Use the generated manager metadata and folder report to review the result before installation.</li>
-                </ul>
+                <p>Mod Management is temporarily disabled because it is incompatible with the Crimson Desert DLC update.</p>
+                <p>Export loose mod files from Mesh Editor or Create New Item and install them with a compatible external mod manager.</p>
                 """,
             },
             {

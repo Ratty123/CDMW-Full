@@ -41,6 +41,9 @@ class NavigationControllerMixin:
         saved_key = str(self.settings.value("ui/active_tool_key", "") or "").strip()
         if saved_key == "new_item_rust_studio":
             saved_key = "new_item_studio"
+        saved_widget = self._tool_widgets_by_key.get("mod_management" if saved_key == "mod_package_retrofit" else saved_key)
+        if saved_widget is not None and not saved_widget.isEnabled():
+            saved_key = "archive_browser"
         if saved_key == "dashboard":
             self._activate_tool_key("archive_browser")
             return
@@ -83,6 +86,9 @@ class NavigationControllerMixin:
 
                 title = compact_tool_label(key, title)
             action = self.window_menu.addAction(as_label(f"Show {title}"))
+            widget = self._tool_widgets_by_key[key]
+            action.setEnabled(widget.isEnabled())
+            action.setToolTip(widget.toolTip())
             action.triggered.connect(lambda _checked=False, tool_key=key: self._activate_tool_key(tool_key))
             self._tool_window_actions[key] = action
         self._update_window_menu_state()
@@ -160,7 +166,7 @@ class NavigationControllerMixin:
             from cdmw.ui.shell.compact.registry import compact_tool_label
 
             title = compact_tool_label(key, title)
-        if widget is None or not title:
+        if widget is None or not widget.isEnabled() or not title:
             return
         tab_widget = self.tool_stack
         tab_index = tab_widget.indexOf(widget)
@@ -267,6 +273,9 @@ class NavigationControllerMixin:
         return True
 
     def _activate_tool_key(self, key: str) -> None:
+        widget = self._tool_widgets_by_key.get("mod_management" if key == "mod_package_retrofit" else key)
+        if widget is not None and not widget.isEnabled():
+            return
         if key == 'mod_package_retrofit':
             widget = self._tool_widgets_by_key.get('mod_management')
             if widget is not None:
@@ -287,6 +296,8 @@ class NavigationControllerMixin:
             self._activate_tool_widget(widget)
 
     def _activate_tool_widget(self, widget: QWidget) -> None:
+        if not widget.isEnabled():
+            return
         for key in ("texture_editor", "recolor_variants", "replace_assistant"):
             if widget is getattr(self, key + "_tab", None):
                 self.textures.activate_texture_alias(key)
