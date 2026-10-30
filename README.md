@@ -1,7 +1,7 @@
 # Crimson Desert Mod Workbench
 
 [![Windows build](https://img.shields.io/github/actions/workflow/status/Ratty123/CDMW-Full/windows-build.yml?branch=main&style=flat-square&logo=github&label=Windows%20build)](https://github.com/Ratty123/CDMW-Full/actions/workflows/windows-build.yml)
-![version](https://img.shields.io/badge/version-0.11.0--alpha.28-1f6feb?style=flat-square)
+![version](https://img.shields.io/badge/version-0.11.0--alpha.29-1f6feb?style=flat-square)
 ![platform](https://img.shields.io/badge/platform-Windows%2011%20x64-555555?style=flat-square)
 [![license](https://img.shields.io/badge/license-MIT-brightgreen?style=flat-square)](LICENSE)
 
@@ -9,11 +9,11 @@ A Windows app for creating **Crimson Desert** mods. Browse game assets, create
 new equipment, edit meshes and textures, adjust equipment placement, and build
 mod packages.
 
-**[Download the Windows portable app](https://github.com/Ratty123/CDMW-Full/releases/latest)**
+**[Download the Windows portable pre-release](https://github.com/Ratty123/CDMW-Full/releases/tag/v0.11.0-alpha.29)**
 · [Release history](CHANGELOG.md) · [Research reference](docs/crimson-desert-research.md)
 · [Report a problem](https://github.com/Ratty123/CDMW-Full/issues)
 
-`0.11.0-alpha.28` is the current source version. For browsing and extraction only,
+`0.11.0-alpha.29` is the current source version. For browsing and extraction only,
 see the smaller, read-only [CDMW Lite](https://github.com/Ratty123/CDMW-Lite).
 
 ## Install

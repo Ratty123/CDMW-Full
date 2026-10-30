@@ -7,9 +7,15 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 ## [Unreleased]
 
+## [0.11.0-alpha.29] - 2026-10-30
+
 ### Added
 
-- Archive Browser can batch-export selected PAC, PAM and PAMLOD models as OBJ or FBX into separate folders, with referenced files, progress, cancellation and a final per-model report. Existing output folders are preserved; mesh-only FBX requires an explicit choice when a skeleton is unavailable.
+- Archive Browser can batch-export selected PAC, PAM and PAMLOD models as OBJ or FBX into separate folders, with referenced files, progress, cancellation and a final per-model report. Existing output folders are preserved; exporting a PAC as FBX without a skeleton requires an explicit choice.
+
+### Docs
+
+- Help and the Wiki explain batch OBJ/FBX export, cancellation and output limits in all 14 interface languages.
 
 ## [0.11.0-alpha.28] - 2026-10-30
 
