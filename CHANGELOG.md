@@ -7,6 +7,8 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 ## [Unreleased]
 
+## [0.11.0-alpha.28] - 2026-10-30
+
 ### Added
 
 - Item Finder has a Ships category and an Only DLC items checkbox that works across categories and remembers the selection. It shows newly introduced DLC items, excluding updated base-game items.
