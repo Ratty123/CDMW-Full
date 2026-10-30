@@ -46,7 +46,8 @@ def test_reverse_search_workflow_and_limits_are_translated_in_every_manual(wiki_
         "Select a texture or sound, open Asset Family, and click Find references to search supported files in the loaded archives.",
         "Review Confirmed references separately from Name-based guesses. Incoming files appear in Used By and Asset Family without becoming automatic export dependencies.",
         "Confirmed references identifies explicit paths or Wwise media IDs. An ID does not identify the language or archive override used at runtime. Complete event, music and gameplay-trigger chains are not reconstructed.",
-        "The search is read-only and cancellable. Files above 32 MiB are skipped; searches stop at 2 GiB or 2,000 results. Review skipped, unreadable and unsupported counts; no matches does not mean unused.",
+        "Sound searches check banks and text metadata first. Bank IDs match numeric .wem filenames; named sounds need a path or filename reference.",
+        "The search is read-only and cancellable. Files above 32 MiB are skipped; searches continue in bounded batches without a fixed total byte limit, up to 2,000 results. Review skipped, unreadable and unsupported counts; no matches does not mean unused.",
     )
     for language in BUILTIN_LANGUAGES:
         translations = load_builtin_catalog(language.code)["translations"]

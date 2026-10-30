@@ -119726,7 +119726,17 @@
       "origins": [
         {
           "path": "cdmw/services/archive_reference_search.py",
-          "line": 196,
+          "line": 214,
+          "sink": "ValueError"
+        },
+        {
+          "path": "cdmw/services/archive_reference_search.py",
+          "line": 230,
+          "sink": "ValueError"
+        },
+        {
+          "path": "cdmw/services/archive_reference_search.py",
+          "line": 236,
           "sink": "ValueError"
         }
       ]
@@ -119761,7 +119771,12 @@
       "origins": [
         {
           "path": "cdmw/services/archive_reference_search.py",
-          "line": 204,
+          "line": 222,
+          "sink": "ValueError"
+        },
+        {
+          "path": "cdmw/services/archive_reference_search.py",
+          "line": 244,
           "sink": "ValueError"
         }
       ]
@@ -144657,6 +144672,16 @@
       ]
     },
     {
+      "key": "Sound searches check banks and text metadata first. Bank IDs match numeric .wem filenames; named sounds need a path or filename reference.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 365,
+          "sink": "python-return:_build_archive_mesh_sections"
+        }
+      ]
+    },
+    {
       "key": "Sound:",
       "origins": [
         {
@@ -156867,11 +156892,11 @@
       ]
     },
     {
-      "key": "The search is read-only and cancellable. Files above 32 MiB are skipped; searches stop at 2 GiB or 2,000 results. Review skipped, unreadable and unsupported counts; no matches does not mean unused.",
+      "key": "The search is read-only and cancellable. Files above 32 MiB are skipped; searches continue in bounded batches without a fixed total byte limit, up to 2,000 results. Review skipped, unreadable and unsupported counts; no matches does not mean unused.",
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 366,
+          "line": 365,
           "sink": "python-return:_build_archive_mesh_sections"
         }
       ]

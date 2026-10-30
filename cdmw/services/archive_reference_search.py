@@ -8,9 +8,8 @@ from pathlib import Path
 from PySide6.QtCore import QObject, QThread, QTimer, Signal
 
 from cdmw.core.archive_reverse_references import (
-    MAX_REFERENCE_FILE_BYTES, MAX_REFERENCE_RESULTS, MAX_REFERENCE_SCAN_BYTES,
-    REFERENCE_SOURCE_EXTENSIONS, ReferenceScanBatch,
-    REVERSE_TARGET_EXTENSIONS, reference_evidence_group,
+    MAX_REFERENCE_FILE_BYTES, MAX_REFERENCE_RESULTS, ReferenceScanBatch,
+    REVERSE_TARGET_EXTENSIONS, reference_evidence_group, reference_source_extension_groups,
 )
 from cdmw.domain.archives.catalogue import ArchivePage, ArchiveQuery, ArchiveQueryHandle
 from cdmw.domain.archives.catalogue_operations import FetchPageRequest, PrepareEntriesRequest, PrepareEntriesResult
@@ -53,11 +52,14 @@ class ArchiveReferenceSearchController(QObject):
         self._worker = None
         self._query = None
         self._page = ()
+        self._prepared = {}
         self._legacy = ()
         self._position = 0
-        self._budget = 0
+        self._extension_groups = iter(())
+        self._source_extensions = ()
         if catalogue is not None:
             catalogue.result_ready.connect(self._result)
+            catalogue.batch_ready.connect(self._prepared_batch)
             catalogue.request_failed.connect(self._failure)
             catalogue.request_cancelled.connect(self._cancelled)
 
@@ -70,25 +72,39 @@ class ArchiveReferenceSearchController(QObject):
             return False
         self._epoch += 1
         self._active = True
-        self._position = self._budget = 0
+        self._position = 0
         self._query = None
         self._legacy = tuple(entries) if not session_id else ()
+        self._extension_groups = iter(reference_source_extension_groups(target))
         self.state = ReferenceSearchState(generation, replace(target), session_id, total=len(self._legacy))
         self.updated.emit(self.state)
+        self._next_source_group()
+        return True
+
+    def _next_source_group(self):
+        if not self._active:
+            return
+        self._position = 0
+        self._query = None
+        self._source_extensions = next(self._extension_groups, ())
+        if not self._source_extensions:
+            self._finish()
+            return
         try:
-            if session_id:
+            if self.state.session_id:
                 self._request = self.catalogue.create_query(
-                    ArchiveQuery(session_id, extensions=REFERENCE_SOURCE_EXTENSIONS), ui_generation=generation,
+                    ArchiveQuery(self.state.session_id, extensions=self._source_extensions),
+                    ui_generation=self.state.generation,
                 )
             else:
                 QTimer.singleShot(0, self._advance)
         except Exception as exc:
             self._finish(error=str(exc))
-        return True
 
     def cancel(self):
         self._epoch += 1
         self._active = False
+        self._prepared.clear()
         request, self._request = self._request, None
         if request is not None:
             self.catalogue.cancel(request)
@@ -110,6 +126,7 @@ class ArchiveReferenceSearchController(QObject):
     def _finish(self, **fields):
         self._active = False
         self._request = None
+        self._prepared.clear()
         self.state = replace(self.state, finished=True, **fields)
         self.updated.emit(self.state)
         if self._thread is None:
@@ -118,11 +135,12 @@ class ArchiveReferenceSearchController(QObject):
     def _advance(self):
         if not self._active or self._thread is not None:
             return
-        if len(self.state.references) >= MAX_REFERENCE_RESULTS or self._budget >= MAX_REFERENCE_SCAN_BYTES:
+        if len(self.state.references) >= MAX_REFERENCE_RESULTS:
             self._finish(limited=True)
             return
-        if self._position >= self.state.total:
-            self._finish()
+        group_total = self._query.total_matches if self._query is not None else len(self._legacy)
+        if self._position >= group_total:
+            self._next_source_group()
             return
         try:
             if self._query is not None:
@@ -133,8 +151,9 @@ class ArchiveReferenceSearchController(QObject):
                 # Keep each UI scheduling slice small even in a large legacy index.
                 page = self._legacy[self._position:self._position + 128]
                 self._position += len(page)
-                entries = self._admit(tuple(entry for entry in page if entry.extension in REFERENCE_SOURCE_EXTENSIONS))
-                self.state = replace(self.state, visited=self._position)
+                candidates = tuple(entry for entry in page if entry.extension in self._source_extensions)
+                entries = self._admit(candidates)
+                self.state = replace(self.state, visited=self.state.visited + len(candidates))
                 self._run(entries)
         except Exception as exc:
             self._finish(error=str(exc))
@@ -142,16 +161,13 @@ class ArchiveReferenceSearchController(QObject):
     def _admit(self, entries):
         accepted = []
         skipped = 0
-        limited = self.state.limited
         for entry in entries:
             size = max(entry.orig_size, entry.comp_size, entry.prepared_size or 0)
-            if size > MAX_REFERENCE_FILE_BYTES or self._budget + size > MAX_REFERENCE_SCAN_BYTES:
+            if size > MAX_REFERENCE_FILE_BYTES:
                 skipped += 1
-                limited |= self._budget + size > MAX_REFERENCE_SCAN_BYTES
                 continue
-            self._budget += size
             accepted.append(replace(entry))
-        self.state = replace(self.state, skipped=self.state.skipped + skipped, limited=limited)
+        self.state = replace(self.state, skipped=self.state.skipped + skipped)
         return tuple(accepted)
 
     def _result(self, request_id, operation, payload):
@@ -163,23 +179,24 @@ class ArchiveReferenceSearchController(QObject):
                 if payload.session_id != self.state.session_id:
                     raise ValueError("Reference search received a mismatched archive page.")
                 self._query = payload
-                self.state = replace(self.state, session_id=payload.session_id, total=payload.total_matches)
+                self.state = replace(self.state, total=self.state.total + payload.total_matches)
                 self._advance()
             elif isinstance(payload, ArchivePage):
                 if (payload.page_start != self._position or payload.query_id != self._query.query_id
                         or payload.session_id != self.state.session_id or payload.generation != self._query.generation):
                     raise ValueError("Reference search received a mismatched archive page.")
                 if not payload.rows:
-                    if self._position < self.state.total:
+                    if self._position < self._query.total_matches:
                         raise ValueError("Reference search received an incomplete archive page.")
                     self._finish()
                     return
                 self._position += len(payload.rows)
-                self.state = replace(self.state, visited=self._position)
+                self.state = replace(self.state, visited=self.state.visited + len(payload.rows))
                 entries = self._admit(tuple(ArchiveCatalogueService.compatibility_entry(dto) for dto in payload.rows))
                 identities = {entry.identity for entry in entries}
                 self._page = tuple(dto for dto in payload.rows if ArchiveCatalogueService.compatibility_entry(dto).identity in identities)
                 if self._page:
+                    self._prepared.clear()
                     self._request = self.catalogue.prepare_entries(
                         PrepareEntriesRequest(self.state.session_id, tuple(dto.entry_id for dto in self._page)),
                         ui_generation=self.state.generation,
@@ -187,7 +204,8 @@ class ArchiveReferenceSearchController(QObject):
                 else:
                     QTimer.singleShot(0, self._advance)
             elif isinstance(payload, PrepareEntriesResult):
-                prepared = {item.entry.entry_id: item for item in payload.items}
+                self._collect_prepared(payload)
+                prepared, self._prepared = self._prepared, {}
                 entries = []
                 for dto in self._page:
                     item = prepared.get(dto.entry_id)
@@ -204,6 +222,31 @@ class ArchiveReferenceSearchController(QObject):
                 raise ValueError("Reference search received an unexpected archive response.")
         except Exception as exc:
             self._finish(error=str(exc))
+
+    def _collect_prepared(self, payload):
+        expected = {dto.entry_id: dto for dto in self._page}
+        if (payload.session_id != self.state.session_id or payload.requested != len(expected)
+                or payload.prepared != len(expected)):
+            raise ValueError("Reference search preparation omitted a requested file.")
+        for item in payload.items:
+            dto = expected.get(item.entry.entry_id)
+            previous = self._prepared.get(item.entry.entry_id)
+            if (dto is None or item.entry.session_id != payload.session_id or item.entry.identity != dto.identity
+                    or (previous is not None and previous != item)):
+                raise ValueError("Reference search preparation omitted a requested file.")
+            self._prepared[item.entry.entry_id] = item
+
+    def _prepared_batch(self, request_id, operation, payload):
+        if not self._active or request_id != self._request:
+            return
+        try:
+            if not isinstance(payload, PrepareEntriesResult):
+                raise ValueError("Reference search received an unexpected archive response.")
+            self._collect_prepared(payload)
+        except Exception as exc:
+            request = self._request
+            self._finish(error=str(exc))
+            self.catalogue.cancel(request)
 
     def _run(self, entries):
         if not entries:

@@ -1871,6 +1871,15 @@ Owned synthetic bank/path fixtures and headless UI checks establish source behav
 not acceptance of every shipped bank or actual runtime playback. Confirmed paths
 and media IDs are separated from basename guesses; media IDs do not select language
 variants or archive overrides. The owning Archive Browser README records scan limits.
+The 2026-10-31 correction checks banks and text metadata before other containers,
+preserves language-folder parentheses in paths, and continues searches past the old
+2 GiB total limit in bounded batches. Owned fixtures through the real resident worker
+confirm streamed preparation reaches the search; the earlier final-reply-only reader
+lost those items. Bank IDs still require numeric WEM filenames;
+named dialogue files need a path or filename reference. An isolated copy of the
+reported cached dialogue clip decodes to PCM and loads in Qt after removing the
+Windows I/O prefix from decoder arguments; this is cached-asset/headless evidence,
+not packaged-app or game acceptance.
 Swapping a known sound and adding a new event remain different capabilities.
 
 Supported WEM playback/export does not imply a general Wwise encoder. The

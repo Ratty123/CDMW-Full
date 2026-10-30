@@ -19,7 +19,6 @@ from cdmw.models import ArchiveEntry, ArchiveModelTextureReference, RunCancelled
 
 
 MAX_REFERENCE_FILE_BYTES = 32 * 1024 * 1024
-MAX_REFERENCE_SCAN_BYTES = 2 * 1024 * 1024 * 1024
 MAX_REFERENCE_RESULTS = 2000
 REFERENCE_SOURCE_EXTENSIONS = tuple(sorted(reference_container_extensions() | RESEARCH_REFERENCE_SOURCE_EXTENSIONS))
 REVERSE_TARGET_EXTENSIONS = frozenset(
@@ -27,6 +26,21 @@ REVERSE_TARGET_EXTENSIONS = frozenset(
     | {".seqmt", ".pac", ".pam", ".pamlod", ".prefab", ".pab", ".paa"}
 )
 CONFIRMED_REFERENCE_CONFIDENCES = frozenset({"explicit_path", "wwise_media_id"})
+
+
+def reference_source_extension_groups(target: ArchiveEntry) -> tuple[tuple[str, ...], ...]:
+    """Read likely reference owners before large geometry/animation payloads."""
+    remaining = set(REFERENCE_SOURCE_EXTENSIONS)
+    banks = {".bnk"} if target.extension == ".wem" else set()
+    text = {item.extension for item in load_capabilities() if item.container == "text"}
+    text.update(RESEARCH_REFERENCE_SOURCE_EXTENSIONS)
+    groups = []
+    for candidates in (banks, text, remaining.copy()):
+        group = remaining & candidates
+        if group:
+            groups.append(tuple(sorted(group)))
+            remaining.difference_update(group)
+    return tuple(groups)
 
 
 def reference_evidence_group(confidence: str, status: str = "resolved") -> str:
@@ -105,7 +119,7 @@ def _matching_path_tokens(text: str, basename: str):
     # Search the literal basename first. Running an unanchored general path
     # expression over large binary/string runs can have quadratic cost.
     def path_char(char):
-        return char.isalnum() or char in "_@%+-./\\"
+        return char.isalnum() or char in "_@%+-./\\()"
 
     for match in re.finditer(re.escape(basename), text, re.IGNORECASE):
         if match.end() < len(text) and path_char(text[match.end()]):

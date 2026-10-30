@@ -540,19 +540,35 @@ of the preview dependency snapshot. `archive_reference_search.py` pages the resi
 catalogue and prepares batches through its existing read-only API; legacy archives
 use the same cancellable Python reader. Selection changes, hiding the panel and shell
 shutdown cancel outstanding work; stale results cannot replace another selection.
+Preparation items arrive on `batch_ready`; the final reply contains totals and no
+items. The controller validates and retains only the current page's streamed items
+until completion, and clears them on cancellation or failure.
 Both Asset Family and Used By separate confirmed paths/media IDs from name-based
 guesses and unresolved/context rows. Incoming files do not become outgoing export
 dependencies. Matching paths and IDs describe encoded references, not runtime use,
 language selection or archive override precedence.
 
-The reader scans registered reference containers and text formats. Wwise coverage
+The reader scans registered reference containers and text formats. Sound searches
+check banks first, then text metadata, then the remaining registered containers;
+other searches check text metadata before binary containers. Resident queries page
+each disjoint extension group; the legacy path yields between bounded index slices.
+The total read allowance grows with the admitted files instead of stopping at 2 GiB.
+Windows language-folder parentheses are retained when matching explicit paths.
+Wwise coverage
 includes DIDX IDs and standard little-endian HIRC Sound source headers for versions
 113–154 (including streamed sources); music, event/action graphs, external sources
 and custom layouts are not reconstructed. Unknown versions retain valid DIDX
-evidence and report incomplete bank coverage. Per-file reads stop at 32 MiB; a search
-is bounded to 2 GiB of admitted input and 2,000 rows. Oversized, unreadable and
+evidence and report incomplete bank coverage. Bank IDs resolve numeric `.wem`
+filenames only; named sounds need a path or filename reference. Per-file reads stop
+at 32 MiB and results at 2,000 rows. Oversized, unreadable and
 unsupported banks are reported; an empty result never proves an asset unused.
 Owned-fixture and headless UI checks cover this path; game acceptance is not implied.
+
+WEM preview and WAV export remove the Windows extended-path prefix only from
+vgmstream's command arguments: its wildcard parser treats the prefix's `?` as a
+pattern and otherwise fails to open ordinary cached sounds. Internal cache I/O keeps
+the prefix. This fixes the prefixed-path regression; the bundled decoder still has
+its own long-path and non-ANSI filename limits.
 
 Preview and Details text keep their syntax highlighter attached during replacement.
 Document signals are blocked for the replacement, then highlighting is refreshed;

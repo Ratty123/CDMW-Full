@@ -83,6 +83,40 @@ def test_root_asset_still_requires_path_evidence(tmp_path, payload, confidence):
     assert reference.relation_confidence == confidence
 
 
+@pytest.mark.parametrize("language", ["english(us)", "chinese(prc)", "portuguese(br)"])
+def test_sound_reference_preserves_language_folder_parentheses(tmp_path, language):
+    path = f"sound/windows/{language}/dialogue.wem"
+    data = f'<Sound path="{path}"/>'.encode()
+    target, source = entries_at(tmp_path, [(path, b"RIFF"), ("sound/dialogue.xml", data)])
+    ref, _ = incoming_reference(target, source, data)
+    assert ref is not None
+    assert ref.relation_confidence == "explicit_path"
+
+
+def test_legacy_search_reaches_banks_and_metadata_before_large_model_payloads(app, tmp_path, monkeypatch):
+    from cdmw.workers import archive_reference_workers
+    data = bank()
+    files = entries_at(tmp_path, [
+        ("audio/42.wem", b"RIFF"), ("character/body.pac", b"x" * 512),
+        ("audio/bank.bnk", data), ("audio/info.xml", b'"audio/42.wem"'),
+    ])
+    scanned = []
+    def record_scan(target, entries, stop):
+        scanned.extend(entry.path for entry in entries)
+        return scan_reference_batch(target, entries, stop)
+    monkeypatch.setattr(archive_reference_workers, "scan_reference_batch", record_scan)
+    controller = ArchiveReferenceSearchController()
+    try:
+        controller.start(files[0], files)
+        wait_for(app, lambda: not controller.busy)
+        assert {ref.resolved_entry.path for ref in controller.state.references} == {"audio/bank.bnk", "audio/info.xml"}
+        assert scanned == ["audio/bank.bnk", "audio/info.xml", "character/body.pac"]
+        assert not controller.state.limited
+    finally:
+        controller.cancel()
+        wait_for(app, lambda: not controller.busy)
+
+
 def test_unknown_evidence_is_context_not_confirmation_or_a_name_guess():
     assert reference_evidence_group("xml_reference") == "Unresolved / context"
     assert reference_evidence_group("explicit_path", "missing") == "Unresolved / context"
@@ -192,6 +226,7 @@ def test_legacy_controller_runs_real_worker_and_keeps_partial_coverage(app, tmp_
 
 class Catalogue(QObject):
     result_ready = Signal(str, str, object)
+    batch_ready = Signal(str, str, object)
     request_failed = Signal(str, object)
     request_cancelled = Signal(str)
 
@@ -203,6 +238,7 @@ class Catalogue(QObject):
         self.prepared = []
         self.cancelled = []
         self.queries = []
+        self.batch_transform = lambda result: result
 
     def publish(self, payload):
         self.counter += 1
@@ -212,7 +248,8 @@ class Catalogue(QObject):
 
     def create_query(self, query, **_kwargs):
         self.queries.append(query)
-        return self.publish(ArchiveQueryHandle("session", "query", 0, len(self.entries)))
+        self.query_indices = [i for i, entry in enumerate(self.entries) if entry.extension in query.extensions]
+        return self.publish(ArchiveQueryHandle("session", "query", 0, len(self.query_indices)))
 
     def dto(self, index):
         entry = self.entries[index]
@@ -222,8 +259,8 @@ class Catalogue(QObject):
 
     def fetch_page(self, request, **_kwargs):
         self.pages.append(request.page_start)
-        rows = tuple(self.dto(i) for i in range(request.page_start, min(len(self.entries), request.page_start + request.page_size)))
-        return self.publish(ArchivePage("session", "query", 0, len(self.entries), request.page_start, rows))
+        rows = tuple(self.dto(i) for i in self.query_indices[request.page_start:request.page_start + request.page_size])
+        return self.publish(ArchivePage("session", "query", 0, len(self.query_indices), request.page_start, rows))
 
     def prepare_entries(self, request, **_kwargs):
         self.prepared.extend(request.entry_ids)
@@ -235,7 +272,16 @@ class Catalogue(QObject):
             path.write_bytes(data)
             dto = self.dto(index)
             items.append(PrepareEntryResult(ArchiveEntryRef("session", index, dto.identity, dto.path), str(path), len(data), hashlib.sha256(data).hexdigest()))
-        return self.publish(PrepareEntriesResult("session", tuple(items), len(items), len(items), sum(item.size for item in items)))
+        self.counter += 1
+        request_id = str(self.counter)
+        result = PrepareEntriesResult("session", tuple(items), len(items), len(items), sum(item.size for item in items))
+        def publish_prepared():
+            # The production worker streams items, then sends an empty final list.
+            for item in items:
+                self.batch_ready.emit(request_id, "prepare_entry", self.batch_transform(replace(result, items=(item,))))
+            self.result_ready.emit(request_id, "prepare_entry", replace(result, items=()))
+        QTimer.singleShot(0, publish_prepared)
+        return request_id
 
     def cancel(self, request):
         self.cancelled.append(request)
@@ -296,15 +342,145 @@ def test_shutdown_retains_running_worker_until_exit_and_discards_late_batch(app,
         wait_for(app, lambda: not controller.busy)
 
 
-def test_scan_budget_reports_partial_coverage(app, tmp_path, monkeypatch):
+def test_per_file_limit_reports_skips(app, tmp_path, monkeypatch):
     import cdmw.services.archive_reference_search as search
     target, source = entries_at(tmp_path, [("audio/42.wem", b"RIFF"), ("audio/ambient.bnk", bank())])
-    monkeypatch.setattr(search, "MAX_REFERENCE_SCAN_BYTES", 1)
+    monkeypatch.setattr(search, "MAX_REFERENCE_FILE_BYTES", 1)
     controller = ArchiveReferenceSearchController()
     controller.start(target, (source,))
     wait_for(app, lambda: not controller.busy)
-    assert controller.state.finished and controller.state.limited
+    assert controller.state.finished
     assert controller.state.skipped == 1 and not controller.state.references
+
+
+def test_search_continues_past_two_gib_in_bounded_batches(app, tmp_path, monkeypatch):
+    from cdmw.workers import archive_reference_workers
+    from cdmw.core.archive_reverse_references import ReferenceScanBatch
+    files = entries_at(tmp_path, [("audio/42.wem", b"RIFF"),
+                                  *[(f"audio/{i}.bnk", bank()) for i in range(65)]])
+    files[1:] = [replace(entry, orig_size=32 * 1024 * 1024) for entry in files[1:]]
+    batches = []
+    def scan(target, entries, stop):
+        batches.append(len(entries))
+        refs = tuple(incoming_reference(target, entry, bank())[0] for entry in entries)
+        return ReferenceScanBatch(refs, scanned=len(entries), bytes_read=sum(entry.orig_size for entry in entries))
+    monkeypatch.setattr(archive_reference_workers, "scan_reference_batch", scan)
+    catalogue = Catalogue(files[1:])
+    controller = ArchiveReferenceSearchController(catalogue)
+    try:
+        controller.start(files[0], session_id="session")
+        wait_for(app, lambda: not controller.busy)
+        assert not controller.state.error and not controller.state.limited
+        assert controller.state.scanned == controller.state.total == 65
+        assert controller.state.bytes_read > 2 * 1024 * 1024 * 1024
+        assert len(controller.state.references) == 65
+        assert max(batches) <= 16
+    finally:
+        controller.cancel()
+        wait_for(app, lambda: not controller.busy)
+
+
+def test_remote_search_prioritizes_banks_then_text_without_losing_binary_references(app, tmp_path):
+    path = "sound/windows/english(us)/dialogue.wem"
+    files = entries_at(tmp_path, [(path, b"RIFF"), ("character/body.pac", path.encode()),
+                                  ("audio/bank.bnk", bank()), ("sound/dialogue.xml", path.encode())])
+    catalogue = Catalogue(files[1:])
+    controller = ArchiveReferenceSearchController(catalogue)
+    try:
+        controller.start(files[0], session_id="session")
+        wait_for(app, lambda: not controller.busy)
+        assert not controller.state.error
+        assert catalogue.prepared == [1, 2, 0]
+        assert controller.state.scanned == controller.state.total == 3
+        assert [ref.resolved_entry.path for ref in controller.state.references] == ["sound/dialogue.xml", "character/body.pac"]
+    finally:
+        controller.cancel()
+        wait_for(app, lambda: not controller.busy)
+
+
+def test_cancel_during_preparation_discards_later_streamed_items(app, tmp_path):
+    files = entries_at(tmp_path, [("audio/42.wem", b"RIFF"), ("audio/ambient.bnk", bank())])
+    catalogue = Catalogue(files[1:])
+    controller = ArchiveReferenceSearchController(catalogue)
+    catalogue.batch_ready.connect(lambda *_: controller.cancel())
+    controller.start(files[0], session_id="session")
+    wait_for(app, lambda: not controller.busy)
+    assert controller.state.cancelled and not controller.state.references
+    assert not controller._prepared
+    assert len(catalogue.queries) == 1
+
+
+def test_mismatched_preparation_batch_stops_search_and_discards_final_reply(app, tmp_path):
+    files = entries_at(tmp_path, [("audio/42.wem", b"RIFF"), ("audio/ambient.bnk", bank())])
+    catalogue = Catalogue(files[1:])
+    catalogue.batch_transform = lambda result: replace(result, session_id="another-session")
+    controller = ArchiveReferenceSearchController(catalogue)
+    controller.start(files[0], session_id="session")
+    wait_for(app, lambda: not controller.busy)
+    assert controller.state.error == "Reference search preparation omitted a requested file."
+    assert not controller.state.references and not controller._prepared
+    assert len(catalogue.cancelled) == 1 and len(catalogue.queries) == 1
+
+
+@pytest.mark.parametrize("basename", ["42.wem", "dialogue.wem"])
+def test_real_worker_search_consumes_streamed_preparation(app, tmp_path, basename):
+    import shiboken6
+    from cdmw.domain.archives.catalogue import ArchiveQuery
+    from cdmw.domain.archives.catalogue_operations import FetchPageRequest, OpenArchiveRequest
+    from cdmw.services.archive_catalogue_service import ArchiveCatalogueService
+    from cdmw.ui.shell.archive_backend_client import ArchiveBackendClient
+    from tools.dotnet_archive_backend.probe_full_archive_backend import _Awaiter
+
+    worker = Path(__file__).resolve().parents[1] / (
+        "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Worker/bin/Release/"
+        "net10.0-windows/win-x64/cdmw-full-archive-worker.exe"
+    )
+    if not worker.is_file():
+        pytest.skip("built archive worker is required for the real protocol check")
+    root = tmp_path / "owned"
+    package = root / "0000"
+    package.mkdir(parents=True)
+    target_path = f"sound/windows/english(us)/{basename}"
+    payloads = [(target_path, b"RIFF"),
+                *[(f"sound/bank{i:02}.bnk", bank(media_id=42 if i == 20 else 43)) for i in range(21)],
+                ("sound/scene.xml", f'<Sound path="{target_path}"/>'.encode()),
+                ("character/body.pac", target_path.encode())]
+    names, contents, records = bytearray(), bytearray(), bytearray()
+    for path, data in payloads:
+        encoded = path.encode()
+        records += struct.pack("<IIIIHH", len(names), len(contents), len(data), len(data), 0, 0)
+        names += struct.pack("<I", 0xFFFFFFFF) + bytes([len(encoded)]) + encoded
+        contents += data
+    (package / "0.paz").write_bytes(contents)
+    (package / "0.pamt").write_bytes(struct.pack("<7I", 0, 1, 0, 0, 0, 0, 0)
+        + struct.pack("<I", len(names)) + names + struct.pack("<II", 0, len(payloads)) + records)
+    before = {path: hashlib.sha256(path.read_bytes()).hexdigest() for path in package.iterdir()}
+    client = ArchiveBackendClient(cache_root=tmp_path / "cache", worker_executable=worker)
+    service = ArchiveCatalogueService(client)
+    awaiter = _Awaiter(service)
+    controller = ArchiveReferenceSearchController(service)
+    try:
+        session = awaiter.wait(service.open_archive(OpenArchiveRequest(str(root)), ui_generation=5))
+        query = awaiter.wait(service.create_query(ArchiveQuery(session.session_id, extensions=(".wem",)), ui_generation=5))
+        page = awaiter.wait(service.fetch_page(FetchPageRequest(query.query_id, 0, 16), ui_generation=5))
+        target = service.compatibility_entry(page.rows[0])
+        controller.start(target, session_id=session.session_id, generation=5)
+        assert _Awaiter._wait_until(lambda: not controller.busy, timeout_ms=15000)
+        assert not controller.state.error, controller.state.error
+        expected = {"sound/scene.xml", "character/body.pac"}
+        if basename == "42.wem":
+            expected.add("sound/bank20.bnk")
+        assert {ref.resolved_archive_path for ref in controller.state.references} == expected
+        assert controller.state.scanned == controller.state.total == 23
+        assert before == {path: hashlib.sha256(path.read_bytes()).hexdigest() for path in package.iterdir()}
+    finally:
+        controller.cancel()
+        assert _Awaiter._wait_until(lambda: not controller.busy, timeout_ms=5000)
+        client.shutdown()
+        assert _Awaiter._wait_until(lambda: client.process_id == 0, timeout_ms=5000)
+        shiboken6.delete(controller)
+        shiboken6.delete(service)
+        shiboken6.delete(client)
 
 
 class Family(QWidget, ArchiveAssetFamilyPanelMixin, ArchiveAssetFamilyDialogMixin, ArchiveAssetFamilyReferenceMixin):

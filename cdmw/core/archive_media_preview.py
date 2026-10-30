@@ -544,6 +544,17 @@ def _resolve_vgmstream_cli_path() -> Optional[Path]:
     return None
 
 
+def _vgmstream_path_argument(path: Path) -> str:
+    """Keep Win32 I/O prefixes out of the decoder's wildcard filename parser."""
+    value = str(path)
+    if sys.platform == "win32":
+        if value.startswith("\\\\?\\UNC\\"):
+            return "\\\\" + value[8:]
+        if value.startswith("\\\\?\\"):
+            return value[4:]
+    return value
+
+
 def _decode_wem_with_vgmstream(
     source_path: Path,
     *,
@@ -573,10 +584,10 @@ def _decode_wem_with_vgmstream(
         except OSError:
             pass
 
-    command = [str(cli_path), "-o", str(output_path)]
+    command = [str(cli_path), "-o", _vgmstream_path_argument(output_path)]
     if subsong_index > 0:
         command += ["-s", str(subsong_index)]
-    command.append(str(source_path))
+    command.append(_vgmstream_path_argument(source_path))
     popen_kwargs: Dict[str, object] = {
         "cwd": str(cli_path.parent),
         "stdout": subprocess.DEVNULL,

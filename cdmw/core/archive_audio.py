@@ -69,15 +69,15 @@ def _convert_audio_to_wav(source_path: Path, output_path: Path) -> Path:
 
 
 def _decode_with_vgmstream(source_path: Path, output_path: Path, *, subsong: int = 0) -> Path:
-    from cdmw.core.archive_media_preview import _resolve_vgmstream_cli_path
+    from cdmw.core.archive_media_preview import _resolve_vgmstream_cli_path, _vgmstream_path_argument
 
     cli_path = _resolve_vgmstream_cli_path()
     if cli_path is None:
         raise ValueError("Bundled vgmstream decoder is not available in this build.")
-    command = [str(cli_path), "-o", str(output_path)]
+    command = [str(cli_path), "-o", _vgmstream_path_argument(output_path)]
     if int(subsong) > 0:
         command += ["-s", str(int(subsong))]
-    command.append(str(source_path))
+    command.append(_vgmstream_path_argument(source_path))
     result = _run_hidden_process(command, timeout=180)
     if result.returncode != 0 or not output_path.is_file():
         raise ValueError(result.stderr.strip() or "vgmstream-cli could not decode this Wwise stream.")
