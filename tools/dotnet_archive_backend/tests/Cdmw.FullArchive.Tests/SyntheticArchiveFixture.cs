@@ -371,11 +371,14 @@ internal sealed class SyntheticArchiveFixture : IAsyncDisposable
         if (compactDlc)
         {
             var dlcRoot = Path.Combine(fixture.Root, "dlc", "dlc_01");
+            var dlcRow = Row(4001, "DLC_Helm", "12345681", true);
+            var baseOverride = Row(1234, "Updated_Sword", "12345678", true);
             using var dlcHeader = new MemoryStream();
-            WriteUInt16(dlcHeader, 1); WriteUInt32(dlcHeader, 4001); WriteUInt32(dlcHeader, 0);
+            WriteUInt16(dlcHeader, 2); WriteUInt32(dlcHeader, 4001); WriteUInt32(dlcHeader, 0);
+            WriteUInt32(dlcHeader, 1234); WriteUInt32(dlcHeader, (uint)dlcRow.Length);
             await BuildPackageAsync(dlcRoot, "0008", new[]
             {
-                (tableRoot + "iteminfo.dlc_01.staticinfobody", Row(4001, "DLC_Helm", "12345681", true)),
+                (tableRoot + "iteminfo.dlc_01.staticinfobody", dlcRow.Concat(baseOverride).ToArray()),
                 (tableRoot + "iteminfo.dlc_01.staticinfoheader", dlcHeader.ToArray()),
                 (tableRoot + "stringinfo.dlc_01.staticinfobody", strings.ToArray()),
                 (tableRoot + "stringinfo.dlc_01.staticinfoheader", stringHeader.ToArray()),

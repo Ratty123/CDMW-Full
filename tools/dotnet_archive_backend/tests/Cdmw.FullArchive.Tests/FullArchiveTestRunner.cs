@@ -47,6 +47,7 @@ internal static class FullArchiveTestRunner
             ("archive_name_index", ArchiveNameIndexAsync),
             ("current_item_names_and_mount_order", CurrentItemNamesAsync),
             ("item_catalogue_compact_dlc", CompactDlcItemsAsync),
+            ("item_catalogue_dlc_definitions", ItemCatalogueDefinitionTests.RunAsync),
             ("item_catalogue_text_encoding", ItemCatalogTextTests.EncodingAsync),
             ("item_catalogue_compressed_localization", ItemCatalogTextTests.CompressedAsync),
             ("item_catalogue_invalid_localization_container", ItemCatalogTextTests.InvalidContainerAsync),
@@ -1597,6 +1598,28 @@ internal static class FullArchiveTestRunner
             Require(result.Items[0].PacFiles.SequenceEqual(new[] { "cd_shared_armor_0002.pac" }), "compact StringInfo prefab join failed");
             var original = await service.SearchAsync(new ItemCatalogSearchRequest(handle.SessionId, "1234"), null, CancellationToken.None).ConfigureAwait(false);
             Require(original.Items.Count == 1 && original.Items[0].DisplayName == "Current Blade", "DLC erased base item names");
+            Require(original.Items[0].InternalName == "Updated_Sword", "DLC override fixture was not applied");
+            var dlcOnly = await service.SearchAsync(new ItemCatalogSearchRequest(handle.SessionId, OnlyDlc: true), null, CancellationToken.None);
+            Require(dlcOnly.TotalMatches == 1 && dlcOnly.Items[0].ItemId == 4001
+                && dlcOnly.Categories.Sum(static facet => facet.DlcCount) == 1,
+                "DLC-only included a base override or lost the new item/facet count");
+            Require((await service.SearchAsync(new ItemCatalogSearchRequest(handle.SessionId, "1234", OnlyDlc: true), null, CancellationToken.None)).TotalMatches == 0,
+                "DLC-only query returned an updated base item");
+            var scopes = new ArchiveItemCatalogScopeService(sessions, builder, new ArchiveLookupService(sessions, new ArchiveCacheStore(cacheRoot), native));
+            Require((await scopes.ResolveAsync(new ItemCatalogScopeRequest(handle.SessionId, OnlyDlc: true), null, CancellationToken.None)).ItemCount == 1,
+                "DLC-only scope ignored its filter");
+            Require((await scopes.ResolveAsync(new ItemCatalogScopeRequest(handle.SessionId, ItemIds: [1234, 4001], OnlyDlc: true), null, CancellationToken.None)).ItemCount == 1,
+                "DLC-only explicit scope included a base override");
+            using (var reopenedSessions = new ArchiveSessionManager(native, new ArchiveCacheStore(cacheRoot)))
+            {
+                var reopened = await reopenedSessions.OpenAsync(new OpenArchiveRequest(fixture.Root), CancellationToken.None);
+                var reopenedBuilder = new ArchiveItemCatalogBuildService(reopenedSessions, native);
+                Require((await reopenedBuilder.BuildAsync(new BuildNameIndexRequest(reopened.SessionId), null, CancellationToken.None)).UsedCache,
+                    "DLC cache was not reused");
+                var cachedDlc = await new ArchiveItemCatalogService(reopenedSessions, reopenedBuilder).SearchAsync(
+                    new ItemCatalogSearchRequest(reopened.SessionId, OnlyDlc: true), null, CancellationToken.None);
+                Require(cachedDlc.TotalMatches == 1 && cachedDlc.Items[0].ItemId == 4001, "DLC origin was lost in the cache");
+            }
             var signature = ArchiveItemSources.MountSignature(fixture.Root);
             var mountPath = Path.Combine(fixture.Root, "dlc", "dlc_01", "meta", "0.papgt");
             var mountBytes = await File.ReadAllBytesAsync(mountPath).ConfigureAwait(false);

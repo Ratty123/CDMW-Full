@@ -18,7 +18,8 @@ public sealed class ArchiveItemCatalog
                 .ToDictionary(static group => group.Key, static group => group.First()));
         CategoryFacets = items
             .GroupBy(static item => (item.Category, item.Group), CategoryGroupComparer.Instance)
-            .Select(static group => new ItemCatalogCategoryFacet(group.Key.Category, group.Key.Group, group.LongCount()))
+            .Select(static group => new ItemCatalogCategoryFacet(group.Key.Category, group.Key.Group,
+                group.LongCount(), group.LongCount(static item => item.IsDlc)))
             .OrderBy(static facet => facet.Category, StringComparer.OrdinalIgnoreCase)
             .ThenBy(static facet => facet.Group, StringComparer.OrdinalIgnoreCase)
             .ToArray();
@@ -51,7 +52,8 @@ public sealed class ArchiveItemCatalog
         string? category,
         string? group,
         int pageStart,
-        int pageSize)
+        int pageSize,
+        bool onlyDlc = false)
     {
         if (pageStart < 0)
         {
@@ -63,6 +65,7 @@ public sealed class ArchiveItemCatalog
         }
 
         IEnumerable<ArchiveItemCatalogRecord> matches = _items;
+        if (onlyDlc) matches = matches.Where(static item => item.IsDlc);
         if (!string.IsNullOrWhiteSpace(category))
         {
             matches = matches.Where(item => item.Category.Equals(category.Trim(), StringComparison.OrdinalIgnoreCase));
@@ -98,7 +101,8 @@ public sealed class ArchiveItemCatalog
             localizedNames,
             pacFiles,
             modelStems,
-            iconPaths);
+            iconPaths,
+            source.EquipType);
         var evidence = string.Join(
             "; ",
             new[]
@@ -143,14 +147,215 @@ public sealed class ArchiveItemCatalog
         };
     }
 
+    // Definition rules precede multilingual name/model heuristics. Keep in sync
+    // with _classify_item_definition in cdmw/core/item_index.py.
+    private static (string Category, string Group)? ClassifyDefinition(string internal_name, string equip_type)
+    {
+        var name = internal_name.ToLowerInvariant();
+        var slot = equip_type.ToLowerInvariant();
+        var ship_slots = new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            ["shipsail"] = "Sails",
+            ["shipfigurehead"] = "Figureheads",
+            ["shipstern"] = "Sterns",
+            ["shipcannon"] = "Cannons",
+            ["shipbowcannon"] = "Cannons",
+            ["turtleshipbowcannon"] = "Cannons",
+            ["ghostshipbowcannon"] = "Cannons",
+            ["shipteleporter"] = "Teleporters",
+        };
+        if (ship_slots.ContainsKey(slot))
+        {
+            return ("Ships", ship_slots[slot]);
+        }
+        foreach (var (category, group, slots) in new (string, string, string[])[]
+        {
+            ("Armor", "Head", new[] { "helm" }),
+            ("Armor", "Face", new[] { "mask" }),
+            ("Armor", "Body", new[] { "upperbody" }),
+            ("Armor", "Hands", new[] { "hand", "gauntlet" }),
+            ("Armor", "Feet", new[] { "foot" }),
+            ("Armor", "Back / Cloak", new[] { "cloak" }),
+            ("Accessory", "Ring", new[] { "ring" }),
+            ("Accessory", "Earrings", new[] { "earring" }),
+            ("Accessory", "Necklace", new[] { "necklace" }),
+            ("Accessory", "Belt / Band", new[] { "bracelet" }),
+            ("Accessory", "Other Accessory", new[] { "glass" }),
+            ("Weapon", "Sword", new[] { "onehandsword", "twohandsword", "twohandgiantsword" }),
+            ("Weapon", "Shield", new[] { "onehandshield", "onehandshieldright", "onehandtowershield" }),
+            ("Weapon", "Dagger / Rapier", new[] { "onehanddagger", "onehandrapier" }),
+            ("Weapon", "Axe / Mace / Hammer", new[] { "onehandaxe", "twohandaxe", "onehandmace", "twohandhammer", "twohandwarhammer" }),
+            ("Weapon", "Polearm / Spear", new[] { "twohandspear", "twohandhalberd", "twohandpike" }),
+            ("Weapon", "Bow / Crossbow", new[] { "onehandbow", "onehandcrossbow" }),
+            ("Weapon", "Firearm", new[] { "onehandcannon", "twohandcannon", "onehandmusket", "onehandpistol", "onehandshotgun", "onehandspeargun", "twohandblowpipe" }),
+            ("Weapon", "Fist / Martial", new[] { "onehandfist" }),
+            ("Weapon", "Wand / Fan", new[] { "onehandfan", "toolpriestwandbig" }),
+            ("Tool", "Backpack / Pack", new[] { "backpack" }),
+            ("Tool", "Light / Lantern", new[] { "lantern", "onehandtorch" }),
+            ("Tool", "Fishing", new[] { "toolfishingrod" }),
+            ("Tool", "Gathering Tool", new[] { "onehanddrill", "onehandsaw", "toolaxe", "toolpickaxe", "toolhoe", "toolsaw", "toolshovel", "toolsythe", "toolhayfork" }),
+            ("Mount / Pet", "Mount Gear", new[] { "specialvehiclearmor", "dragonarmor" }),
+        })
+        {
+            if (slots.Contains(slot))
+            {
+                return (category, group);
+            }
+        }
+        if (slot.StartsWith("horse", StringComparison.Ordinal))
+        {
+            return ("Mount / Pet", "Horse Gear");
+        }
+        if (slot.StartsWith("pet", StringComparison.Ordinal))
+        {
+            return ("Mount / Pet", "Pet Gear");
+        }
+        if (new[] { "robot", "wagon" }.Any(prefix => slot.StartsWith(prefix, StringComparison.Ordinal)))
+        {
+            return ("Mount / Pet", "Vehicle Gear");
+        }
+        if (slot.StartsWith("tool", StringComparison.Ordinal))
+        {
+            return ("Tool", "Hand Tool");
+        }
+        if (name.StartsWith("recipe_", StringComparison.Ordinal))
+        {
+            if ((name.StartsWith("recipe_riding_", StringComparison.Ordinal) && name.Contains("ship")))
+            {
+                return ("Ships", Regex.IsMatch(name, "_(?:i|ii|iii|iv)$", RegexOptions.CultureInvariant) ? "Blueprint Parts" : "Ship Blueprints");
+            }
+            if (Regex.IsMatch(name, "^recipe_item_(?:small|big|huge|turtle)?ship_", RegexOptions.CultureInvariant))
+            {
+                return ("Ships", "Equipment Blueprints");
+            }
+            return ("Crafting / Recipe", "Recipe Book");
+        }
+        if ((name.StartsWith("essence_riding_", StringComparison.Ordinal) && name.Contains("ship")))
+        {
+            return ("Ships", "Ship Materials");
+        }
+        if (name.StartsWith("trade_", StringComparison.Ordinal))
+        {
+            return ("Trade Goods", name.EndsWith("_packedinvehicle", StringComparison.Ordinal) ? "Packaged Cargo" : "Trade Goods");
+        }
+        if (new[] { "item_set_", "dropitem_", "item_abyssgear_recipe_box_" }.Any(prefix => name.StartsWith(prefix, StringComparison.Ordinal)))
+        {
+            return ("Progression / Reward", "Reward");
+        }
+        if (name.StartsWith("capsule_riding_", StringComparison.Ordinal))
+        {
+            return ("Mount / Pet", "Vehicle");
+        }
+        if (name.StartsWith("enhanced_handcannon_", StringComparison.Ordinal))
+        {
+            return ("Material", "Upgrade Material");
+        }
+        if (name.StartsWith("item_skill_", StringComparison.Ordinal))
+        {
+            return ("Progression / Reward", "Skill");
+        }
+        if (name.StartsWith("gimmick_cart_", StringComparison.Ordinal))
+        {
+            return ("Mount / Pet", "Vehicle");
+        }
+        if (name.StartsWith("visione_chip_", StringComparison.Ordinal))
+        {
+            return ("Quest / Document", "Memory Fragment");
+        }
+        if (name.StartsWith("management_reward_", StringComparison.Ordinal))
+        {
+            return ("Progression / Reward", "Reward");
+        }
+        if (new[] { "book_", "quest_book_" }.Any(prefix => name.StartsWith(prefix, StringComparison.Ordinal)))
+        {
+            return ("Quest / Document", "Book / Diary");
+        }
+        if (new[] { "paper_", "letter_", "noticepaper_", "quest_wantedpaper_", "demeniss_paper_" }.Any(prefix => name.StartsWith(prefix, StringComparison.Ordinal)))
+        {
+            return ("Quest / Document", "Document");
+        }
+        if (new[] { "food_", "gimbap_", "abalone_porridge", "parboiled_seafood", "cheese_grilledclams", "grilledclams", "jellyfish_salad", "shortneckclam_noodlesoup", "mussel_soup", "seapineapple_bibimbap", "seastring_seasoned", "seaweed_soup", "item_chocolate_" }.Any(prefix => name.StartsWith(prefix, StringComparison.Ordinal)))
+        {
+            return ("Consumable", "Food / Drink");
+        }
+        if (name.StartsWith("item_rare_collect_", StringComparison.Ordinal))
+        {
+            if (new[] { "coral", "starfish" }.Any(token => name.Contains(token)))
+            {
+                return ("Material", "Sea Life");
+            }
+            if (new[] { "abalone", "conch", "mussel", "scallop", "seapineapple", "seaurchin", "sea_", "seacucumber", "seasquirt", "shortneckclam", "penshell" }.Any(token => name.Contains(token)))
+            {
+                return ("Consumable", "Food / Drink");
+            }
+        }
+        if (new[] { "item_mecoptera", "item_hercules_beetle", "item_eupatorus_beetle", "item_hydrothermal_snail" }.Contains(name))
+        {
+            return ("Material", name.Contains("snail") ? "Sea Life" : "Insects");
+        }
+        if (new[] { "malachite", "manganese", "hydrothermalmineral", "item_dropset_collect_manganese" }.Contains(name))
+        {
+            return ("Material", "Ore / Metal");
+        }
+        if (new[] { "obsidian", "item_natural_pearl" }.Contains(name))
+        {
+            return ("Material", "Crystal / Gem");
+        }
+        if (new[] { "ambergris", "giant_jellyfish_skin" }.Contains(name))
+        {
+            return ("Material", "Creature Part");
+        }
+        if (name == "desert_shinystone_01")
+        {
+            return ("Tool", "Light / Lantern");
+        }
+        if (name == "item_festival_firework_01")
+        {
+            return ("Tool", "Throwable / Utility");
+        }
+        if (name == "destroyed_mechanism")
+        {
+            return ("Gimmick / Interactive", "Machine Part");
+        }
+        if (name == "snakerelic_0001")
+        {
+            return ("Item", "Relic");
+        }
+        var housing = (new[] { "item_in_", "item_me_00_str_", "background_", "backgroundcd_", "collection_", "tent_", "item_tent_", "wood_tower_", "hellhound_wood_tower_", "gimmick_tower_", "gimmick_spot_wolfrider_watchtower_", "gimmick_tent_", "flag_graymane_", "item_lamp_", "lamp_", "troll_lamp_", "troll_academy_stand_lamp_", "item_straw_", "item_background_", "item_festival_", "item_cd_", "item_basecamp_", "item_carpenter_", "item_animal_feedstock_", "item_marnigolem_scarecrow_", "item_farm_fan_", "item_mantlet_", "item_barricade_", "item_product_prop_", "item_kusunsla_", "item_switch_firebellows_", "item_troll_academy_torchlight_", "item_gimmick_box_", "item_gimmick_breakable_", "item_gimmick_in_", "item_gimmick_craft_", "item_gimmick_graymane_wood_totem_", "item_gimmick_jail_", "item_gimmick_management_", "item_gimmick_lamp_", "item_gimmick_tool_windmill_", "item_gimmick_tower_", "item_gimmick_wood_bench_", "item_gimmick_island_warehouse_", "item_gimmick_tool_scarecrow_", "item_gimmick_tool_dryingstand_", "item_gimmick_tool_automata_", "item_gimmick_toilet_" }.Any(prefix => name.StartsWith(prefix, StringComparison.Ordinal)) || name.Contains("_housing"));
+        if (housing)
+        {
+            if (new[] { "tent", "shade", "stable", "gazebo", "cliff", "attachbuilding", "sawmill_000", "tower", "windmill" }.Any(token => name.Contains(token)))
+            {
+                return ("Housing / Prop", "Buildings / Tents");
+            }
+            if (new[] { "door", "window", "fence", "gate", "barricade", "mantlet" }.Any(token => name.Contains(token)))
+            {
+                return ("Housing / Prop", "Doors / Windows / Fences");
+            }
+            if (new[] { "bookcase", "cabinet", "closet", "chair", "table", "bed", "shelf", "bench", "desk", "carpenter" }.Any(token => name.Contains(token)))
+            {
+                return ("Housing / Prop", "Furniture");
+            }
+            if (new[] { "chest", "box", "barrel", "crate", "storage", "farm_attach_" }.Any(token => name.Contains(token)))
+            {
+                return ("Housing / Prop", "Container");
+            }
+            return ("Housing / Prop", "Decor");
+        }
+        return null;
+    }
+
     private static (string Category, string Group, string Evidence) Classify(
         string internalName,
         string displayName,
         IReadOnlyList<string> localizedNames,
         IReadOnlyList<string> pacFiles,
         IReadOnlyList<string> modelStems,
-        IReadOnlyList<string> iconPaths)
+        IReadOnlyList<string> iconPaths,
+        string equipType)
     {
+        if (ClassifyDefinition(internalName, equipType) is { } definition)
+            return (definition.Category, definition.Group, "Recovered item definition / equip type");
         var primaryNames = new[] { internalName, displayName }.Concat(localizedNames).ToArray();
         var primaryText = string.Join(' ', primaryNames).ToLowerInvariant();
         var relationText = string.Join(' ', pacFiles.Concat(modelStems).Concat(iconPaths)).ToLowerInvariant();
@@ -438,6 +643,7 @@ public sealed record ArchiveItemCatalogRecord(
     string Evidence = "",
     string SearchText = "",
     string Description = "",
-    string EquipType = "");
+    string EquipType = "",
+    bool IsDlc = false);
 
 public sealed record ArchiveItemCatalogPage(long TotalMatches, IReadOnlyList<ArchiveItemCatalogRecord> Items);

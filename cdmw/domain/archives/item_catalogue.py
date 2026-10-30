@@ -81,6 +81,7 @@ class ItemCatalogSearchRequest:
     group: str | None = None
     page_start: int = 0
     page_size: int = 72
+    only_dlc: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -88,6 +89,7 @@ class ItemCatalogCategoryFacet:
     category: str
     group: str
     count: int
+    dlc_count: int = 0
 
     @classmethod
     def from_wire(cls, value: object) -> "ItemCatalogCategoryFacet":
@@ -96,6 +98,7 @@ class ItemCatalogCategoryFacet:
             category=read_string(payload, "category"),
             group=read_string(payload, "group"),
             count=read_int(payload, "count"),
+            dlc_count=read_int(payload, "dlc_count", default=0),
         )
 
 
@@ -224,6 +227,7 @@ class ItemCatalogScopeRequest:
     group: str | None = None
     include_related: bool = False
     maximum_results: int = 4096
+    only_dlc: bool = False
 
 
 @dataclass(frozen=True, slots=True)

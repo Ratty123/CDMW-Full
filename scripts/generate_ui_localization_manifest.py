@@ -216,6 +216,12 @@ MANUAL_SOURCE_KEYS = frozenset(
         "This selection has no proven source mapping for same-count channel edits.",
         "Skin weights are read-only while neutral appearance uses different bone transforms; changing them could move saved vertices.",
         "Experimental: positioning, scale or animation may be wrong in game. Skin weights are transferred from the original part; export reverses its neutral display transform.",
+        # Item Finder's new definition-based facets arrive through typed worker rows.
+        "Ships", "Sails", "Figureheads", "Sterns", "Cannons", "Teleporters",
+        "Ship Blueprints", "Blueprint Parts", "Equipment Blueprints", "Ship Materials",
+        "Trade Goods", "Packaged Cargo", "Mount Gear", "Vehicle Gear", "Memory Fragment",
+        "Upgrade Material", "Sea Life", "Insects", "Buildings / Tents",
+        "Doors / Windows / Fences", "Relic", "Recovered item definition / equip type",
         # Body & Face Finder facets/statuses arrive through typed worker rows.
         "Whole character", "Head", "Facial detail", "Beard", "Unclassified",
         "Humanoids", "Player families", "Creatures", "NPCs", "Mounts", "Objects", "Towers",

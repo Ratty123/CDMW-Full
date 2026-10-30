@@ -1254,7 +1254,132 @@ def _catalog_text_matches_any(text: str, tokens: Sequence[str]) -> bool:
     return False
 
 
+def _classify_item_definition(internal_name: str, equip_type: str) -> Optional[Tuple[str, str]]:
+    """Prefer the item's own definition over translated names and linked assets.
+
+    Keep these rules in sync with ArchiveItemCatalog.ClassifyDefinition in Full.
+    A recipe for a cannon, a ship ornament and a cannon occupy different groups.
+    """
+    name = internal_name.lower()
+    slot = equip_type.lower()
+    ship_slots = {
+        "shipsail": "Sails", "shipfigurehead": "Figureheads", "shipstern": "Sterns",
+        "shipcannon": "Cannons", "shipbowcannon": "Cannons",
+        "turtleshipbowcannon": "Cannons", "ghostshipbowcannon": "Cannons",
+        "shipteleporter": "Teleporters",
+    }
+    if slot in ship_slots:
+        return "Ships", ship_slots[slot]
+    for category, group, slots in (
+        ("Armor", "Head", ("helm",)),
+        ("Armor", "Face", ("mask",)),
+        ("Armor", "Body", ("upperbody",)),
+        ("Armor", "Hands", ("hand", "gauntlet")),
+        ("Armor", "Feet", ("foot",)),
+        ("Armor", "Back / Cloak", ("cloak",)),
+        ("Accessory", "Ring", ("ring",)),
+        ("Accessory", "Earrings", ("earring",)),
+        ("Accessory", "Necklace", ("necklace",)),
+        ("Accessory", "Belt / Band", ("bracelet",)),
+        ("Accessory", "Other Accessory", ("glass",)),
+        ("Weapon", "Sword", ("onehandsword", "twohandsword", "twohandgiantsword")),
+        ("Weapon", "Shield", ("onehandshield", "onehandshieldright", "onehandtowershield")),
+        ("Weapon", "Dagger / Rapier", ("onehanddagger", "onehandrapier")),
+        ("Weapon", "Axe / Mace / Hammer", ("onehandaxe", "twohandaxe", "onehandmace", "twohandhammer", "twohandwarhammer")),
+        ("Weapon", "Polearm / Spear", ("twohandspear", "twohandhalberd", "twohandpike")),
+        ("Weapon", "Bow / Crossbow", ("onehandbow", "onehandcrossbow")),
+        ("Weapon", "Firearm", ("onehandcannon", "twohandcannon", "onehandmusket", "onehandpistol", "onehandshotgun", "onehandspeargun", "twohandblowpipe")),
+        ("Weapon", "Fist / Martial", ("onehandfist",)),
+        ("Weapon", "Wand / Fan", ("onehandfan", "toolpriestwandbig")),
+        ("Tool", "Backpack / Pack", ("backpack",)),
+        ("Tool", "Light / Lantern", ("lantern", "onehandtorch")),
+        ("Tool", "Fishing", ("toolfishingrod",)),
+        ("Tool", "Gathering Tool", ("onehanddrill", "onehandsaw", "toolaxe", "toolpickaxe", "toolhoe", "toolsaw", "toolshovel", "toolsythe", "toolhayfork")),
+        ("Mount / Pet", "Mount Gear", ("specialvehiclearmor", "dragonarmor")),
+    ):
+        if slot in slots:
+            return category, group
+    if slot.startswith("horse"):
+        return "Mount / Pet", "Horse Gear"
+    if slot.startswith("pet"):
+        return "Mount / Pet", "Pet Gear"
+    if slot.startswith(("robot", "wagon")):
+        return "Mount / Pet", "Vehicle Gear"
+    if slot.startswith("tool"):
+        return "Tool", "Hand Tool"
+
+    if name.startswith("recipe_"):
+        if name.startswith("recipe_riding_") and "ship" in name:
+            return "Ships", "Blueprint Parts" if re.search(r"_(?:i|ii|iii|iv)$", name) else "Ship Blueprints"
+        if re.match(r"recipe_item_(?:small|big|huge|turtle)?ship_", name):
+            return "Ships", "Equipment Blueprints"
+        return "Crafting / Recipe", "Recipe Book"
+    if name.startswith("essence_riding_") and "ship" in name:
+        return "Ships", "Ship Materials"
+    if name.startswith("trade_"):
+        return "Trade Goods", "Packaged Cargo" if name.endswith("_packedinvehicle") else "Trade Goods"
+    if name.startswith(("item_set_", "dropitem_", "item_abyssgear_recipe_box_")):
+        return "Progression / Reward", "Reward"
+    if name.startswith("capsule_riding_"):
+        return "Mount / Pet", "Vehicle"
+    if name.startswith("enhanced_handcannon_"):
+        return "Material", "Upgrade Material"
+    if name.startswith("item_skill_"):
+        return "Progression / Reward", "Skill"
+    if name.startswith("gimmick_cart_"):
+        return "Mount / Pet", "Vehicle"
+    if name.startswith("visione_chip_"):
+        return "Quest / Document", "Memory Fragment"
+    if name.startswith("management_reward_"):
+        return "Progression / Reward", "Reward"
+    if name.startswith(("book_", "quest_book_")):
+        return "Quest / Document", "Book / Diary"
+    if name.startswith(("paper_", "letter_", "noticepaper_", "quest_wantedpaper_", "demeniss_paper_")):
+        return "Quest / Document", "Document"
+    if name.startswith(("food_", "gimbap_", "abalone_porridge", "parboiled_seafood", "cheese_grilledclams", "grilledclams", "jellyfish_salad", "shortneckclam_noodlesoup", "mussel_soup", "seapineapple_bibimbap", "seastring_seasoned", "seaweed_soup", "item_chocolate_")):
+        return "Consumable", "Food / Drink"
+    if name.startswith("item_rare_collect_"):
+        if any(token in name for token in ("coral", "starfish")):
+            return "Material", "Sea Life"
+        if any(token in name for token in ("abalone", "conch", "mussel", "scallop", "seapineapple", "seaurchin", "sea_", "seacucumber", "seasquirt", "shortneckclam", "penshell")):
+            return "Consumable", "Food / Drink"
+    if name in ("item_mecoptera", "item_hercules_beetle", "item_eupatorus_beetle", "item_hydrothermal_snail"):
+        return "Material", "Sea Life" if "snail" in name else "Insects"
+    if name in ("malachite", "manganese", "hydrothermalmineral", "item_dropset_collect_manganese"):
+        return "Material", "Ore / Metal"
+    if name in ("obsidian", "item_natural_pearl"):
+        return "Material", "Crystal / Gem"
+    if name in ("ambergris", "giant_jellyfish_skin"):
+        return "Material", "Creature Part"
+    if name == "desert_shinystone_01":
+        return "Tool", "Light / Lantern"
+    if name == "item_festival_firework_01":
+        return "Tool", "Throwable / Utility"
+    if name == "destroyed_mechanism":
+        return "Gimmick / Interactive", "Machine Part"
+    if name == "snakerelic_0001":
+        return "Item", "Relic"
+
+    # These are placeable objects; their wood, stone, clothing or animal words
+    # describe the prop, not an inventory material or a wearable equip slot.
+    housing = name.startswith(("item_in_", "item_me_00_str_", "background_", "backgroundcd_", "collection_", "tent_", "item_tent_", "wood_tower_", "hellhound_wood_tower_", "gimmick_tower_", "gimmick_spot_wolfrider_watchtower_", "gimmick_tent_", "flag_graymane_", "item_lamp_", "lamp_", "troll_lamp_", "troll_academy_stand_lamp_", "item_straw_", "item_background_", "item_festival_", "item_cd_", "item_basecamp_", "item_carpenter_", "item_animal_feedstock_", "item_marnigolem_scarecrow_", "item_farm_fan_", "item_mantlet_", "item_barricade_", "item_product_prop_", "item_kusunsla_", "item_switch_firebellows_", "item_troll_academy_torchlight_", "item_gimmick_box_", "item_gimmick_breakable_", "item_gimmick_in_", "item_gimmick_craft_", "item_gimmick_graymane_wood_totem_", "item_gimmick_jail_", "item_gimmick_management_", "item_gimmick_lamp_", "item_gimmick_tool_windmill_", "item_gimmick_tower_", "item_gimmick_wood_bench_", "item_gimmick_island_warehouse_", "item_gimmick_tool_scarecrow_", "item_gimmick_tool_dryingstand_", "item_gimmick_tool_automata_", "item_gimmick_toilet_")) or "_housing" in name
+    if housing:
+        if any(token in name for token in ("tent", "shade", "stable", "gazebo", "cliff", "attachbuilding", "sawmill_000", "tower", "windmill")):
+            return "Housing / Prop", "Buildings / Tents"
+        if any(token in name for token in ("door", "window", "fence", "gate", "barricade", "mantlet")):
+            return "Housing / Prop", "Doors / Windows / Fences"
+        if any(token in name for token in ("bookcase", "cabinet", "closet", "chair", "table", "bed", "shelf", "bench", "desk", "carpenter")):
+            return "Housing / Prop", "Furniture"
+        if any(token in name for token in ("chest", "box", "barrel", "crate", "storage", "farm_attach_")):
+            return "Housing / Prop", "Container"
+        return "Housing / Prop", "Decor"
+    return None
+
+
 def _classify_archive_asset_catalog_category_group(item: ArchiveItemRecord) -> Tuple[str, str]:
+    definition = _classify_item_definition(item.internal_name, item.equip_type)
+    if definition is not None:
+        return definition
     primary_names = (
         item.internal_name,
         item.display_name,
@@ -2046,7 +2171,7 @@ def _try_build_archive_item_search_index_native(
     if not isinstance(report, Mapping) or report.get("status") != "ok":
         return None
     catalog_schema = report.get("catalog_schema")
-    if catalog_schema != 2:
+    if catalog_schema not in (2, 3):
         if on_log is not None:
             on_log(f"Item-name search: native catalog schema {catalog_schema!r} is not supported; falling back to Python.")
         return None

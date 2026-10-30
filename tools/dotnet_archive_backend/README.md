@@ -183,6 +183,14 @@ saved first page and then walks every catalogue page to warm durable icon PNGs
 under `cache/preview/item-icons/` in small low-priority batches. Only a bounded
 recent image window remains in memory. Failed catalogue loads remain retryable.
 
+Native catalogue schema 3 records `is_dlc` from source-table membership: a row is
+new DLC only when its ID is absent from the base table. Later DLC replacements
+preserve this distinction. Cache schema 8 invalidates earlier unmarked catalogues.
+Search and scope accept `only_dlc` (default false), applied before paging; facets
+retain both total `count` and `dlc_count`. Equipment slots and definition families
+precede multilingual/model heuristics, including distinct Ships and Trade Goods
+groups. Python and Full share owned category witnesses in the focused tests.
+
 ### Raw export and diagnostics
 
 Raw export accepts bounded entry IDs, a server-side query token, a query-scoped

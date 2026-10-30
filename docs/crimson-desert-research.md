@@ -113,7 +113,13 @@ SHA-256 was `127a24b5020776f246e7f2363b1a73fbdd94b51f070cbcaf739db77894896389`.
 The new `.admeta`, `.overridedlevellistbinary` and `.staticinfodummy` files are
 extractable; their semantic editing contracts are not established. DLC metadata
 uses `.dlc_01` table/localization names. Updated Item Finder joins yield 8,373
-distinct items. Character naming reads the reordered fields too; one appearance
+distinct items. The 30 October catalogue follow-up compared the base and DLC row
+directories: 1,309 IDs are newly introduced and 242 base IDs are overridden by DLC.
+The worker's DLC-only filter returned exactly those 1,309 new IDs, with no missing
+or unclassified rows. Definition/equipment-based categorization recovers 102 ship
+equipment items, four ship blueprints, six blueprint parts, 40 equipment blueprints
+and six ship-material entries. These are metadata/search observations, not a count
+of every playable vessel or an in-game grant test. Character naming reads the reordered fields too; one appearance
 hash has no unique installed match and remains explicitly unresolved.
 
 Direct archive patching refuses compact/extended PAMT indexes. Overlay writes

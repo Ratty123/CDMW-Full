@@ -37,7 +37,8 @@ public sealed class ArchiveItemCatalogService(
             request.Category,
             request.Group,
             Math.Max(0, request.PageStart),
-            pageSize);
+            pageSize,
+            request.OnlyDlc);
         return new ItemCatalogSearchResult(
             request.SessionId,
             page.TotalMatches,
@@ -178,7 +179,7 @@ public sealed class ArchiveItemCatalogScopeService(
         {
             foreach (var itemId in request.ItemIds.Distinct().Take(4096))
             {
-                if (catalog.TryGet(itemId, out var item) && item is not null) selected.Add(item);
+                if (catalog.TryGet(itemId, out var item) && item is not null && (!request.OnlyDlc || item.IsDlc)) selected.Add(item);
             }
         }
         else
@@ -186,7 +187,7 @@ public sealed class ArchiveItemCatalogScopeService(
             var start = 0;
             while (selected.Count < 4096)
             {
-                var page = catalog.Search(request.Query, request.Category, request.Group, start, 256);
+                var page = catalog.Search(request.Query, request.Category, request.Group, start, 256, request.OnlyDlc);
                 selected.AddRange(page.Items);
                 start += page.Items.Count;
                 if (page.Items.Count == 0 || start >= page.TotalMatches) break;

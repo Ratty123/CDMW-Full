@@ -17,7 +17,8 @@ public sealed record ItemCatalogSearchRequest(
     string? Category = null,
     string? Group = null,
     int PageStart = 0,
-    int PageSize = 72);
+    int PageSize = 72,
+    bool OnlyDlc = false);
 
 public sealed record ItemCatalogSearchResult(
     string SessionId,
@@ -44,7 +45,7 @@ public sealed record ItemCatalogRow(
     string Description = "",
     string EquipType = "");
 
-public sealed record ItemCatalogCategoryFacet(string Category, string Group, long Count);
+public sealed record ItemCatalogCategoryFacet(string Category, string Group, long Count, long DlcCount = 0);
 
 public sealed record ItemCatalogValueFacet(string Value, long Count);
 
@@ -68,7 +69,8 @@ public sealed record ItemCatalogScopeRequest(
     string? Category = null,
     string? Group = null,
     bool IncludeRelated = false,
-    int MaximumResults = 4096);
+    int MaximumResults = 4096,
+    bool OnlyDlc = false);
 
 public sealed record ItemCatalogScopeResult(
     string SessionId,

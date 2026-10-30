@@ -143,6 +143,49 @@ def _row(item_id: int) -> ItemCatalogRow:
     )
 
 
+def test_dlc_checkbox_composes_with_categories_pages_scope_and_saved_state(tmp_path) -> None:
+    from cdmw.ui.archive_browser.remote_finder_warmup import RemoteItemFinderWarmupController
+
+    _app()
+    window = _Window()
+    window.settings = QSettings(str(tmp_path / "finder.ini"), QSettings.IniFormat)
+    dialog = RemoteArchiveFinderDialog(window)
+    _drain()
+    service = window.archive_catalogue_service
+    facets = (ItemCatalogCategoryFacet("Ships", "Sails", 3, 2),
+              ItemCatalogCategoryFacet("Weapon", "Sword", 2, 1))
+    ship = replace(_row(2), category="Ships", group="Sails")
+    service.result_ready.emit("search-1", "search_item_catalog",
+        ItemCatalogSearchResult("session-a", 5, 0, 72, (ship,), facets))
+    sails = dialog._category_tree.topLevelItem(1).child(0)
+    dialog._category_tree.setCurrentItem(sails)
+    dialog._only_dlc.click()
+    QTest.qWait(250)
+    request = service.searches[-1]
+    assert (request.category, request.group, request.only_dlc, request.page_start) == ("Ships", "Sails", True, 0)
+    service.result_ready.emit(dialog._search_request_id, "search_item_catalog",
+        ItemCatalogSearchResult("session-a", 145, 0, 72, (ship,), facets))
+    assert dialog._category_tree.topLevelItem(0).text(1) == "3"
+    assert sails.text(1) == "2"
+    dialog._item_grid.setCurrentRow(0)
+    dialog._scope_selected(include_related=False)
+    assert service.scopes[-1].only_dlc and service.scopes[-1].item_ids == (2,)
+    dialog._next_page()
+    assert service.searches[-1].only_dlc and service.searches[-1].page_start == 72
+    dialog.close()
+
+    warmup = RemoteItemFinderWarmupController(service, window.settings)
+    saved = warmup._saved_search_request("session-a")
+    assert (saved.only_dlc, saved.category, saved.group, saved.page_start) == (True, "Ships", "Sails", 72)
+    reopened = RemoteArchiveFinderDialog(window)
+    _drain()
+    assert reopened._only_dlc.isChecked() and service.searches[-1] == saved
+    reopened._clear_filters()
+    assert not service.searches[-1].only_dlc and service.searches[-1].category is None
+    reopened.close()
+    warmup.request_shutdown()
+
+
 def test_finder_scope_failure_keeps_typed_report_and_retries_the_scope_only() -> None:
     _app()
     window = _Window()

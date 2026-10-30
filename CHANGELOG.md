@@ -7,6 +7,10 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 ## [Unreleased]
 
+### Added
+
+- Item Finder has a Ships category and an Only DLC items checkbox that works across categories and remembers the selection. It shows newly introduced DLC items, excluding updated base-game items.
+
 ### Changed
 
 - Mod exports focus on DMM, CDUMM and JMM. JMM remains available with a warning that it is outdated and compatibility cannot be ensured.
@@ -14,6 +18,7 @@ experimental-feature notes do not establish equivalent in-game behavior.
 ### Fixed
 
 - Archive Browser reads the October 2026 compact archive indexes and DLC packages again. Item Finder and Body & Face Finder include the DLC naming tables. Direct archive patching and item installation remain unsupported for the new layout.
+- Item Finder correctly groups DLC ship equipment, blueprints, trade cargo, furniture, food and upgrade materials using their equipment types and item definitions.
 - Static-model previews no longer mistake a texture name inside a PAMLOD material record for another mesh, which prevented a DLC ship from opening.
 
 ### Docs

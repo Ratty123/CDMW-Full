@@ -176,7 +176,15 @@ including replies still buffered when the worker exits.
 Item Finder shows its categories and subcategories in a collapsible list on the
 left, with item counts. The item grid is in the middle and item details and asset
 actions are on the right. Select a category for all its groups, or a subcategory
-to narrow the results. Category names and grid captions wrap for larger fonts;
+to narrow the results. **Only DLC items** limits every category, search and page
+to IDs introduced in mounted DLC tables, excluding IDs already in the base table
+even when DLC overrides them. Counts follow this checkbox; zero-count categories
+remain selectable. The checkbox is remembered on reopening and reset by **Clear**.
+**Ships** separates sails, figureheads, sterns, cannons, teleporters, ship blueprints,
+blueprint parts, equipment blueprints and ship materials. Equipment types and
+item-definition families take priority over translated names or linked models;
+trade cargo, furniture and recipes therefore retain their own categories.
+Category names and grid captions wrap for larger fonts;
 the grid uses the available width. Detail actions wrap onto more rows when
 needed, and long names and paths wrap while retaining their original copied
 text. Additional window width goes to the grid; the details pane keeps its

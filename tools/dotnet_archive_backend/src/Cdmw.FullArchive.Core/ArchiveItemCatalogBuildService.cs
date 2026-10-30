@@ -10,8 +10,8 @@ public sealed class ArchiveItemCatalogBuildService(
     ArchiveSessionManager sessions,
     NativeArchiveCore native)
 {
-    private const int CacheSchemaVersion = 7;
-    private const int NativeCatalogSchemaVersion = 2;
+    private const int CacheSchemaVersion = 8;
+    private const int NativeCatalogSchemaVersion = 3;
     private const int MaximumDiagnosticCharacters = 64 * 1024;
     private static readonly TimeSpan IndexerTimeout = TimeSpan.FromMinutes(3);
     private static readonly JsonSerializerOptions CacheJsonOptions = new()
@@ -285,7 +285,8 @@ public sealed class ArchiveItemCatalogBuildService(
                 ReadStrings(row, "pac_files"),
                 ReadStrings(row, "icon_paths"),
                 Description: ReadString(row, "description"),
-                EquipType: ReadString(row, "equip_type")));
+                EquipType: ReadString(row, "equip_type"),
+                IsDlc: row.GetProperty("is_dlc").GetBoolean()));
         }
         return result;
     }

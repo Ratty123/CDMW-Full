@@ -265,6 +265,7 @@ class RemoteItemFinderWarmupController(QObject):
             group=group,
             page_start=page_start,
             page_size=_INITIAL_PAGE_SIZE,
+            only_dlc=self._setting("ui/item_finder_only_dlc").lower() in ("true", "1"),
         )
 
     def _setting(self, key: str) -> str:

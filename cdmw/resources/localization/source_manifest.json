@@ -18037,6 +18037,11 @@
       ]
     },
     {
+      "key": "Blueprint Parts",
+      "origins": [],
+      "manual": true
+    },
+    {
       "key": "Blues",
       "origins": [
         {
@@ -20952,6 +20957,11 @@
       ]
     },
     {
+      "key": "Buildings / Tents",
+      "origins": [],
+      "manual": true
+    },
+    {
       "key": "Builds a simulation mesh from a stored LOD, using the existing bones.",
       "origins": [
         {
@@ -23375,6 +23385,11 @@
           "sink": "add"
         }
       ]
+    },
+    {
+      "key": "Cannons",
+      "origins": [],
+      "manual": true
     },
     {
       "key": "Cannot apply {value_0} to {value_1}",
@@ -42712,6 +42727,11 @@
       "manual": true
     },
     {
+      "key": "Doors / Windows / Fences",
+      "origins": [],
+      "manual": true
+    },
+    {
       "key": "Double-click a line in Text to retranslate it. Nothing in this format is offset-addressed, so a longer or shorter line is safe.",
       "origins": [
         {
@@ -47630,6 +47650,11 @@
           "sink": "QCheckBox"
         }
       ]
+    },
+    {
+      "key": "Equipment Blueprints",
+      "origins": [],
+      "manual": true
     },
     {
       "key": "Equipment and sharpness",
@@ -53100,6 +53125,11 @@
           "sink": "addTab"
         }
       ]
+    },
+    {
+      "key": "Figureheads",
+      "origins": [],
+      "manual": true
     },
     {
       "key": "File",
@@ -66592,6 +66622,16 @@
       ]
     },
     {
+      "key": "In Item Finder, select Ships to browse ship equipment, blueprints and materials. Tick Only DLC items to show newly introduced items in any category; existing base-game items updated by DLC are excluded. Category counts follow the checkbox, and the filter is remembered when you reopen the finder. Clear resets it.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 368,
+          "sink": "python-return:_build_archive_mesh_sections"
+        }
+      ]
+    },
+    {
       "key": "In Shared files, scan archive-installed independent items, enable DMM V3 field JSON (experimental), then Export installed items. Merge mods offers the same opt-in for retained semantic exports. The option starts off.",
       "origins": [
         {
@@ -68390,6 +68430,11 @@
           "sink": "rust-presentation"
         }
       ]
+    },
+    {
+      "key": "Insects",
+      "origins": [],
+      "manual": true
     },
     {
       "key": "Inset",
@@ -79952,6 +79997,11 @@
       ]
     },
     {
+      "key": "Memory Fragment",
+      "origins": [],
+      "manual": true
+    },
+    {
       "key": "Memory audit | phase={value_0}; main_private={value_1} MiB; preview_core_private={value_2} MiB; dotnet_preview_private={value_3} MiB; preview_core_decoded_cache={value_4} MiB; entries={value_5}; filtered={value_6}; name_tokens={value_7}; asset_family_cache={value_8}; workers={value_9}; preview_cache_entries={value_10}; icon_cache_entries={value_11}; dotnet_running={value_12}",
       "origins": [
         {
@@ -86825,6 +86875,11 @@
           "sink": "setHeaderLabels"
         }
       ]
+    },
+    {
+      "key": "Mount Gear",
+      "origins": [],
+      "manual": true
     },
     {
       "key": "Mounted archive is missing or outside the game folder: {value_0}",
@@ -96102,6 +96157,16 @@
       ]
     },
     {
+      "key": "Only DLC items",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
+          "line": 454,
+          "sink": "QCheckBox"
+        }
+      ]
+    },
+    {
       "key": "Only PAC, PAM, and PAMLOD entries can open in this viewport",
       "origins": [
         {
@@ -102620,6 +102685,11 @@
           "sink": "python-return:render"
         }
       ]
+    },
+    {
+      "key": "Packaged Cargo",
+      "origins": [],
+      "manual": true
     },
     {
       "key": "Packaged UI language catalog is missing: {value_0}",
@@ -118572,6 +118642,11 @@
       ]
     },
     {
+      "key": "Recovered item definition / equip type",
+      "origins": [],
+      "manual": true
+    },
+    {
       "key": "Recovered item details will appear here.",
       "origins": [
         {
@@ -120525,6 +120600,11 @@
           "sink": "setText"
         }
       ]
+    },
+    {
+      "key": "Relic",
+      "origins": [],
+      "manual": true
     },
     {
       "key": "Reload",
@@ -129742,6 +129822,11 @@
       ]
     },
     {
+      "key": "Sails",
+      "origins": [],
+      "manual": true
+    },
+    {
       "key": "Same",
       "origins": [
         {
@@ -131995,6 +132080,11 @@
           "sink": "python-data:_TRIM_ABBREV"
         }
       ]
+    },
+    {
+      "key": "Sea Life",
+      "origins": [],
+      "manual": true
     },
     {
       "key": "Sealable character targets",
@@ -139502,6 +139592,16 @@
       ]
     },
     {
+      "key": "Ship Blueprints",
+      "origins": [],
+      "manual": true
+    },
+    {
+      "key": "Ship Materials",
+      "origins": [],
+      "manual": true
+    },
+    {
       "key": "Shipped equipment carries {value_0} between {value_1} and {value_2} (median {value_3}, {value_4} entrie(s)). A value far outside that range has crashed the game when the item is bought.",
       "origins": [
         {
@@ -139550,6 +139650,11 @@
           "sink": "set_note"
         }
       ]
+    },
+    {
+      "key": "Ships",
+      "origins": [],
+      "manual": true
     },
     {
       "key": "Shop",
@@ -140428,6 +140533,16 @@
           "path": "cdmw/ui/archive_browser/hkx_editor_dialog_shell_part_01.py",
           "line": 517,
           "sink": "QPushButton"
+        }
+      ]
+    },
+    {
+      "key": "Show items introduced by DLC in the selected category. Base-game items updated by DLC are excluded.",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
+          "line": 455,
+          "sink": "setToolTip"
         }
       ]
     },
@@ -146967,6 +147082,11 @@
       ]
     },
     {
+      "key": "Sterns",
+      "origins": [],
+      "manual": true
+    },
+    {
       "key": "Stiffer",
       "origins": [
         {
@@ -149550,6 +149670,11 @@
           "sink": "python-return:_build_environment_sections"
         }
       ]
+    },
+    {
+      "key": "Teleporters",
+      "origins": [],
+      "manual": true
     },
     {
       "key": "Tell which duplicate is active",
@@ -160907,6 +161032,11 @@
       ]
     },
     {
+      "key": "Trade Goods",
+      "origins": [],
+      "manual": true
+    },
+    {
       "key": "Trade market",
       "origins": [
         {
@@ -164862,6 +164992,11 @@
       ]
     },
     {
+      "key": "Upgrade Material",
+      "origins": [],
+      "manual": true
+    },
+    {
       "key": "Upper Arm",
       "origins": [
         {
@@ -167845,6 +167980,11 @@
           "sink": "Section"
         }
       ]
+    },
+    {
+      "key": "Vehicle Gear",
+      "origins": [],
+      "manual": true
     },
     {
       "key": "Velocity stretch",

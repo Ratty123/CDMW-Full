@@ -8,6 +8,7 @@ from PySide6.QtCore import QEvent, QModelIndex, QRect, QSize, QThread, QTimer, Q
 from PySide6.QtGui import QFontMetrics, QIcon, QImage, QPainter, QPalette, QPixmap, QTextOption
 from PySide6.QtWidgets import (
     QAbstractItemView,
+    QCheckBox,
     QDialog,
     QFrame,
     QHeaderView,
@@ -310,6 +311,7 @@ class RemoteArchiveFinderDialog(QDialog):
         self._visible_icon_timer.setInterval(100)
         self._search_edit.textChanged.connect(self._queue_first_page)
         self._category_tree.currentItemChanged.connect(lambda _current, _previous: self._queue_first_page())
+        self._only_dlc.toggled.connect(self._queue_first_page)
         self._search_edit.returnPressed.connect(self._start_search)
         search_button.clicked.connect(self._start_search)
         clear_button.clicked.connect(self._clear_filters)
@@ -449,6 +451,10 @@ class RemoteArchiveFinderDialog(QDialog):
         category_layout = QVBoxLayout(category_panel)
         category_layout.setContentsMargins(0, 0, 4, 0)
         category_layout.addWidget(self._section_label("Categories"))
+        self._only_dlc = QCheckBox("Only DLC items")
+        self._only_dlc.setToolTip("Show items introduced by DLC in the selected category. Base-game items updated by DLC are excluded.")
+        self._only_dlc.setChecked(self._read_setting("ui/item_finder_only_dlc").lower() in ("true", "1"))
+        category_layout.addWidget(self._only_dlc)
         self._category_tree = QTreeWidget()
         self._category_tree.setObjectName("ItemFinderCategoryList")
         self._category_tree.setHeaderLabels(["Category", "Items"])
@@ -584,13 +590,14 @@ class RemoteArchiveFinderDialog(QDialog):
 
     def _clear_filters(self) -> None:
         self._search_timer.stop()
-        for widget in (self._search_edit, self._category_tree):
+        for widget in (self._search_edit, self._category_tree, self._only_dlc):
             widget.blockSignals(True)
         try:
             self._search_edit.clear()
+            self._only_dlc.setChecked(False)
             self._category_tree.setCurrentItem(self._category_tree.topLevelItem(0))
         finally:
-            for widget in (self._search_edit, self._category_tree):
+            for widget in (self._search_edit, self._category_tree, self._only_dlc):
                 widget.blockSignals(False)
         # The saved filter is held here until the first facet response replaces it with
         # a real category selection. Clearing only the controls left the next search still
@@ -631,6 +638,7 @@ class RemoteArchiveFinderDialog(QDialog):
             group=group,
             page_start=self._page_start,
             page_size=self._page_size,
+            only_dlc=self._only_dlc.isChecked(),
         )
         self._status.setText("Loading catalogue..." if not self._facets_ready else "Searching catalogue...")
         self._retry_button.setVisible(False)
@@ -769,6 +777,7 @@ class RemoteArchiveFinderDialog(QDialog):
             self._tree_items[row.item_id] = item
         if not self._facets_ready:
             self._populate_facets(result)
+        self._update_facet_counts(result)
         self._item_grid._update_grid_layout()
         self._facets_ready = True
         if selected_id in self._tree_items:
@@ -908,6 +917,22 @@ class RemoteArchiveFinderDialog(QDialog):
         self._detail_icons.setText("\n".join(row.icon_paths) or "None")
         self._update_buttons()
 
+    def _update_facet_counts(self, result: ItemCatalogSearchResult) -> None:
+        counts = {
+            (facet.category, facet.group): facet.dlc_count if self._only_dlc.isChecked() else facet.count
+            for facet in result.categories
+        }
+        self._category_tree.topLevelItem(0).setText(1, f"{sum(counts.values()):,}")
+        for index in range(1, self._category_tree.topLevelItemCount()):
+            parent = self._category_tree.topLevelItem(index)
+            total = 0
+            for child_index in range(parent.childCount()):
+                child = parent.child(child_index)
+                count = counts.get(child.data(0, Qt.UserRole), 0)
+                child.setText(1, f"{count:,}")
+                total += count
+            parent.setText(1, f"{total:,}")
+
     def _populate_facets(self, result: ItemCatalogSearchResult) -> None:
         category_value = self._selected_filters()
         blocked = self._category_tree.blockSignals(True)
@@ -978,6 +1003,7 @@ class RemoteArchiveFinderDialog(QDialog):
                 self._session_id,
                 item_ids=item_ids,
                 include_related=include_related,
+                only_dlc=self._only_dlc.isChecked(),
             ),
             label=f"{self.windowTitle()}: {label}",
         )
@@ -1212,6 +1238,7 @@ class RemoteArchiveFinderDialog(QDialog):
             self._settings.setValue("ui/item_finder_search_text", self._search_edit.text())
             self._settings.setValue("ui/item_finder_category", category or "")
             self._settings.setValue("ui/item_finder_group", group or "")
+            self._settings.setValue("ui/item_finder_only_dlc", self._only_dlc.isChecked())
             self._settings.setValue("ui/item_finder_page_start", self._page_start)
             if self._facets_ready:
                 self._expanded_categories = {

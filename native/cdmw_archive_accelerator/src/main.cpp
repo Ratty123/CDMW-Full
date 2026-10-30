@@ -1007,6 +1007,7 @@ struct NativeItemRecord {
     std::string display_name;
     std::string description;
     std::string equip_type;
+    bool is_dlc = false;
     std::vector<std::string> localized_names;
     std::vector<std::uint32_t> prefab_hashes;
     std::vector<std::string> model_stems;
@@ -1854,6 +1855,7 @@ int run_item_index_job(
         }
         std::vector<NativeItemRecord> items;
         std::map<int, size_t> item_positions;
+        std::set<int> base_item_ids;
         for (const auto& dataset : datasets) {
             const auto data = read_binary_if_exists(dataset / "iteminfo.bin");
             const auto header = read_binary_if_exists(dataset / "iteminfo_header.bin");
@@ -1865,6 +1867,8 @@ int run_item_index_job(
                 rows = parse_iteminfo_bin(data, loc_tables, icon_hashes);
             }
             for (auto& row : rows) {
+                if (dataset == work_dir) base_item_ids.insert(row.item_id);
+                row.is_dlc = dataset != work_dir && !base_item_ids.count(row.item_id);
                 const auto found = item_positions.find(row.item_id);
                 if (found != item_positions.end()) items[found->second] = std::move(row);
                 else {
@@ -1951,11 +1955,12 @@ int run_item_index_job(
 
         std::ostringstream out;
         out << "{\"status\":\"ok\",\"backend\":\"" << kBackend << "\",\"protocol\":" << kProtocol
-            << ",\"catalog_schema\":2,\"items\":[";
+            << ",\"catalog_schema\":3,\"items\":[";
         for (size_t i = 0; include_items && i < linked_items.size(); ++i) {
             const auto& item = linked_items[i];
             if (i) out << ",";
             out << "{\"item_id\":" << item.item_id
+                << ",\"is_dlc\":" << (item.is_dlc ? "true" : "false")
                 << ",\"internal_name\":\"" << json_escape(item.internal_name)
                 << "\",\"display_name\":\"" << json_escape(item.display_name)
                 << "\",\"description\":\"" << json_escape(item.description)
