@@ -5117,6 +5117,7 @@
     "Game updated since this was made": "Игра обновилась после создания",
     "Game version *": "Версия игры *",
     "Game, working copy, original recovery and retained attempt must be separate folders.": "Игра, рабочая копия, исходная резервная копия для восстановления и сохранённый результат попытки должны находиться в разных папках.",
+    "Game-folder scans ignore .CrimsonModsCache and bin64/.CrimsonModsCache by default. Saved custom exclusion lists stay unchanged. To exclude the cache manually, add bin64/.CrimsonModsCache in Settings > Paths > Ignored folders, then reload or refresh the archives. No files are deleted.": "При сканировании папки игры .CrimsonModsCache и bin64/.CrimsonModsCache по умолчанию пропускаются. Сохранённые пользовательские списки исключений не изменяются. Чтобы исключить кэш вручную, добавьте bin64/.CrimsonModsCache в Настройки > Пути > Игнорируемые папки, затем заново загрузите или обновите архивы. Файлы не удаляются.",
     "Game-relative folders": "Папки относительно игры",
     "Gameplay perks and abilities": "Игровые преимущества и способности",
     "Gameplay perks change the item's built-in abilities or stats. Visual effects change appearance only; they do not add damage, stats or elemental status effects.": "Игровые способности изменяют встроенные возможности или характеристики предмета. Визуальные эффекты меняют только внешний вид; они не добавляют урон, характеристики или эффекты стихийного состояния.",

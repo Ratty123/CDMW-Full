@@ -5117,6 +5117,7 @@
     "Game updated since this was made": "Jogo atualizado desde a criação",
     "Game version *": "Versão do jogo *",
     "Game, working copy, original recovery and retained attempt must be separate folders.": "O jogo, a cópia de trabalho, a recuperação original e a tentativa preservada devem ficar em pastas separadas.",
+    "Game-folder scans ignore .CrimsonModsCache and bin64/.CrimsonModsCache by default. Saved custom exclusion lists stay unchanged. To exclude the cache manually, add bin64/.CrimsonModsCache in Settings > Paths > Ignored folders, then reload or refresh the archives. No files are deleted.": "As verificações da pasta do jogo ignoram .CrimsonModsCache e bin64/.CrimsonModsCache por padrão. As listas de exclusão personalizadas salvas permanecem inalteradas. Para excluir o cache manualmente da verificação, adicione bin64/.CrimsonModsCache em Configurações > Caminhos > Pastas ignoradas e recarregue ou atualize os arquivos do jogo. Nenhum arquivo é apagado.",
     "Game-relative folders": "Pastas relativas ao jogo",
     "Gameplay perks and abilities": "Vantagens e habilidades de jogo",
     "Gameplay perks change the item's built-in abilities or stats. Visual effects change appearance only; they do not add damage, stats or elemental status effects.": "As vantagens de jogabilidade alteram as habilidades ou estatísticas internas do item. Efeitos visuais mudam apenas a aparência; não adicionam dano, estatísticas nem efeitos de status elemental.",

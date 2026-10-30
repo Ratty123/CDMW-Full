@@ -58917,6 +58917,16 @@
       "manual": true
     },
     {
+      "key": "Game-folder scans ignore .CrimsonModsCache and bin64/.CrimsonModsCache by default. Saved custom exclusion lists stay unchanged. To exclude the cache manually, add bin64/.CrimsonModsCache in Settings > Paths > Ignored folders, then reload or refresh the archives. No files are deleted.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 366,
+          "sink": "python-return:_build_archive_mesh_sections"
+        }
+      ]
+    },
+    {
       "key": "Game-relative folders",
       "origins": [
         {

@@ -8,6 +8,7 @@ from collections.abc import Iterable
 BUILTIN_IGNORED_ARCHIVE_FOLDERS = (
     "cdmods", "backups", ".cdmw", "crimsonforge_backups",
     "dmmsa", "dmmgen", "CrimsonFastLoad.backup",
+    ".CrimsonModsCache", "bin64/.CrimsonModsCache",
 )
 ARCHIVE_IGNORED_FOLDERS_SETTING = "archive/ignored_folders"
 ARCHIVE_IGNORED_FOLDERS_OVERRIDE_SETTING = "archive/ignored_folders_override"

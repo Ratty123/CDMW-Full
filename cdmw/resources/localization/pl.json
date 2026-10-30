@@ -5117,6 +5117,7 @@
     "Game updated since this was made": "Gra zaktualizowana od czasu utworzenia",
     "Game version *": "Wersja gry *",
     "Game, working copy, original recovery and retained attempt must be separate folders.": "Gra, kopia robocza, oryginalne dane odzyskiwania i zachowana próba muszą znajdować się w oddzielnych folderach.",
+    "Game-folder scans ignore .CrimsonModsCache and bin64/.CrimsonModsCache by default. Saved custom exclusion lists stay unchanged. To exclude the cache manually, add bin64/.CrimsonModsCache in Settings > Paths > Ignored folders, then reload or refresh the archives. No files are deleted.": "Skanowanie folderu gry domyślnie pomija .CrimsonModsCache i bin64/.CrimsonModsCache. Zapisane niestandardowe listy wykluczeń pozostają bez zmian. Aby ręcznie wykluczyć pamięć podręczną, dodaj bin64/.CrimsonModsCache w Ustawienia > Ścieżki > Pomijane foldery, a następnie ponownie wczytaj lub odśwież archiwa. Żadne pliki nie są usuwane.",
     "Game-relative folders": "Foldery względem gry",
     "Gameplay perks and abilities": "Korzyści i umiejętności związane z rozgrywką",
     "Gameplay perks change the item's built-in abilities or stats. Visual effects change appearance only; they do not add damage, stats or elemental status effects.": "Atuty rozgrywki zmieniają wbudowane zdolności lub statystyki przedmiotu. Efekty wizualne zmieniają tylko wygląd; nie dodają obrażeń, statystyk ani efektów statusu żywiołu.",

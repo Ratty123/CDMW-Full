@@ -17,8 +17,9 @@ reference Archive Lite projects, assemblies, settings, processes, or caches.
 ## Archive discovery exclusions
 
 Directory scans skip the archive root's `backups/`, `Cdmods/`, `.cdmw/`,
-`crimsonforge_backups/`, `dmmsa/`, `dmmgen/` and `CrimsonFastLoad.backup/` directories
-by default, case-insensitively, before descending into them. Saved virtual-loader
+`crimsonforge_backups/`, `dmmsa/`, `dmmgen/`, `CrimsonFastLoad.backup/` and
+`.CrimsonModsCache/` directories, plus `bin64/.CrimsonModsCache/`, by default,
+case-insensitively, before descending into them. Saved virtual-loader
 generations and other ignored copies stay outside the live catalogue. Native discovery, source
 fingerprints and shared archive readers use the same exclusions. Live
 archive groups and overlays remain discoverable, including groups under

@@ -5117,6 +5117,7 @@
     "Game updated since this was made": "创建后游戏已更新",
     "Game version *": "游戏版本 *",
     "Game, working copy, original recovery and retained attempt must be separate folders.": "游戏、工作副本、原始恢复文件及保留的尝试结果必须位于不同文件夹中。",
+    "Game-folder scans ignore .CrimsonModsCache and bin64/.CrimsonModsCache by default. Saved custom exclusion lists stay unchanged. To exclude the cache manually, add bin64/.CrimsonModsCache in Settings > Paths > Ignored folders, then reload or refresh the archives. No files are deleted.": "扫描游戏文件夹时，默认忽略 .CrimsonModsCache 和 bin64/.CrimsonModsCache。已保存的自定义排除列表保持不变。要手动排除缓存，请在“设置 > 路径 > 已忽略的文件夹”中添加 bin64/.CrimsonModsCache，然后重新加载或刷新归档。此操作不会删除任何文件。",
     "Game-relative folders": "游戏相对路径文件夹",
     "Gameplay perks and abilities": "游戏福利和能力",
     "Gameplay perks change the item's built-in abilities or stats. Visual effects change appearance only; they do not add damage, stats or elemental status effects.": "游戏玩法特性会改变物品内置的能力或属性。视觉效果只改变外观；不会增加伤害、属性或元素状态效果。",

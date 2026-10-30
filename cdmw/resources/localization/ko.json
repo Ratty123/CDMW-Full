@@ -5117,6 +5117,7 @@
     "Game updated since this was made": "만든 뒤 게임이 업데이트됨",
     "Game version *": "게임 버전 *",
     "Game, working copy, original recovery and retained attempt must be separate folders.": "게임, 작업 사본, 원본 복구 파일 및 보존된 시도 파일은 각각 별도 폴더에 있어야 합니다.",
+    "Game-folder scans ignore .CrimsonModsCache and bin64/.CrimsonModsCache by default. Saved custom exclusion lists stay unchanged. To exclude the cache manually, add bin64/.CrimsonModsCache in Settings > Paths > Ignored folders, then reload or refresh the archives. No files are deleted.": "게임 폴더를 검색할 때 기본적으로 .CrimsonModsCache와 bin64/.CrimsonModsCache를 제외합니다. 저장된 사용자 지정 제외 목록은 변경되지 않습니다. 캐시를 직접 제외하려면 설정 > 경로 > 무시할 폴더에서 bin64/.CrimsonModsCache를 추가한 다음 아카이브를 다시 불러오거나 새로 고치세요. 파일은 삭제되지 않습니다.",
     "Game-relative folders": "게임 상대 경로 폴더",
     "Gameplay perks and abilities": "게임플레이 특전 및 능력",
     "Gameplay perks change the item's built-in abilities or stats. Visual effects change appearance only; they do not add damage, stats or elemental status effects.": "게임플레이 특성은 아이템에 내장된 능력이나 능력치를 바꿉니다. 시각 효과는 외형만 바꾸며 피해, 능력치 또는 속성 상태 효과를 추가하지 않습니다.",

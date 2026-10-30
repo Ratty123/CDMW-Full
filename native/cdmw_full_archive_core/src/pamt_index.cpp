@@ -460,10 +460,11 @@ std::vector<Entry> scan_package_root(const fs::path& package_root, const Progres
                 continue;
             }
             const auto& item = *iterator;
-            if (iterator.depth() == 0 && item.is_directory(error)) {
-                const auto name = lower_copy(item.path().filename().string());
+            if (item.is_directory(error)) {
+                const auto name = lower_copy(item.path().lexically_relative(package_root).generic_u8string());
                 if (name == "cdmods" || name == "backups" || name == ".cdmw" || name == "crimsonforge_backups"
-                    || name == "dmmsa" || name == "dmmgen" || name == "crimsonfastload.backup") {
+                    || name == "dmmsa" || name == "dmmgen" || name == "crimsonfastload.backup"
+                    || name == ".crimsonmodscache" || name == "bin64/.crimsonmodscache") {
                     iterator.disable_recursion_pending();
                     continue;
                 }

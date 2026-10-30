@@ -139,24 +139,26 @@ public static class ArchiveFingerprint
                 || path.EndsWith(".pathc", StringComparison.OrdinalIgnoreCase)));
             foreach (var child in Directory.EnumerateDirectories(directory, "*", topLevelOptions))
             {
-                if (useDefaultIgnoredFolders && directory == root && IsIgnoredArchiveDirectory(child)) continue;
-                if (ignored.Contains(Path.GetRelativePath(root, child).Replace('\\', '/'))) continue;
+                var relative = Path.GetRelativePath(root, child).Replace('\\', '/');
+                if (useDefaultIgnoredFolders && IsIgnoredArchiveDirectory(relative)) continue;
+                if (ignored.Contains(relative)) continue;
                 pending.Push(child);
             }
         }
         return files.Order(StringComparer.OrdinalIgnoreCase).ToArray();
     }
 
-    private static bool IsIgnoredArchiveDirectory(string path)
+    private static bool IsIgnoredArchiveDirectory(string relativePath)
     {
-        var name = Path.GetFileName(path);
-        return name.Equals("cdmods", StringComparison.OrdinalIgnoreCase)
-            || name.Equals("backups", StringComparison.OrdinalIgnoreCase)
-            || name.Equals("crimsonforge_backups", StringComparison.OrdinalIgnoreCase)
-            || name.Equals("dmmsa", StringComparison.OrdinalIgnoreCase)
-            || name.Equals("dmmgen", StringComparison.OrdinalIgnoreCase)
-            || name.Equals("CrimsonFastLoad.backup", StringComparison.OrdinalIgnoreCase)
-            || name.Equals(".cdmw", StringComparison.OrdinalIgnoreCase);
+        return relativePath.Equals("cdmods", StringComparison.OrdinalIgnoreCase)
+            || relativePath.Equals("backups", StringComparison.OrdinalIgnoreCase)
+            || relativePath.Equals("crimsonforge_backups", StringComparison.OrdinalIgnoreCase)
+            || relativePath.Equals("dmmsa", StringComparison.OrdinalIgnoreCase)
+            || relativePath.Equals("dmmgen", StringComparison.OrdinalIgnoreCase)
+            || relativePath.Equals("CrimsonFastLoad.backup", StringComparison.OrdinalIgnoreCase)
+            || relativePath.Equals(".cdmw", StringComparison.OrdinalIgnoreCase)
+            || relativePath.Equals(".CrimsonModsCache", StringComparison.OrdinalIgnoreCase)
+            || relativePath.Equals("bin64/.CrimsonModsCache", StringComparison.OrdinalIgnoreCase);
     }
 
     private static string RelativeIdentity(string root, string file) =>

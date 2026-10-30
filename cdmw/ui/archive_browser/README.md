@@ -116,8 +116,9 @@ use the same rule.
 ## Catalogue and Item Finder
 
 Game-folder scans ignore the top-level `cdmods`, `backups`, `.cdmw`,
-`crimsonforge_backups`, `dmmsa`, `dmmgen` and `CrimsonFastLoad.backup` folders by
-default, regardless of letter case. Ignored indexes do not enter the live
+`crimsonforge_backups`, `dmmsa`, `dmmgen`, `CrimsonFastLoad.backup` and
+`.CrimsonModsCache` folders, plus `bin64/.CrimsonModsCache`, by default, regardless
+of letter case. Ignored indexes do not enter the live
 catalogue or its fingerprint. Explicitly opening an ignored `.pamt` remains
 available for inspection.
 
@@ -130,6 +131,10 @@ defaults, to remove them with **Remove selected** or the context menu. Removed
 defaults stay removed after reopening Settings; clearing the list allows all
 folders to be scanned. Existing custom exclusions are retained alongside the
 defaults until the list is edited.
+
+Saved custom lists remain authoritative when new defaults are added. Add
+`bin64/.CrimsonModsCache` manually to an existing custom list to exclude the
+CrimsonMods cache when scanning the main game folder.
 
 Changes apply on the next archive load or refresh. The filtered source list owns
 both the catalogue fingerprint and native indexing, so cached results update when

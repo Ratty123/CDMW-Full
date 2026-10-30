@@ -5117,6 +5117,7 @@
     "Game updated since this was made": "作成後にゲームが更新されています",
     "Game version *": "ゲームのバージョン *",
     "Game, working copy, original recovery and retained attempt must be separate folders.": "ゲーム、作業用コピー、元の復旧データ、保管する試行結果には、それぞれ別のフォルダーを使用する必要があります。",
+    "Game-folder scans ignore .CrimsonModsCache and bin64/.CrimsonModsCache by default. Saved custom exclusion lists stay unchanged. To exclude the cache manually, add bin64/.CrimsonModsCache in Settings > Paths > Ignored folders, then reload or refresh the archives. No files are deleted.": "ゲームフォルダーのスキャンでは、既定で .CrimsonModsCache と bin64/.CrimsonModsCache を無視します。保存済みのカスタム除外リストは変更されません。手動でキャッシュを除外するには、「設定 > パス > 除外するフォルダー」で bin64/.CrimsonModsCache を追加し、アーカイブを再読み込みまたは更新してください。ファイルは削除されません。",
     "Game-relative folders": "ゲームからの相対フォルダー",
     "Gameplay perks and abilities": "ゲームプレイの特典と能力",
     "Gameplay perks change the item's built-in abilities or stats. Visual effects change appearance only; they do not add damage, stats or elemental status effects.": "ゲームプレイ用パークはアイテム内蔵の能力やステータスを変更します。ビジュアル効果は外見だけを変え、ダメージ、ステータス、属性状態効果は追加しません。",

@@ -39,6 +39,23 @@ def test_ignored_folders_normalize_separators_and_duplicate_case():
     assert normalize_ignored_archive_folders([" Extras\\Old/ ", "extras/old"]) == ("Extras/Old",)
 
 
+def test_crimsonmods_cache_is_pruned_at_its_known_paths_only(tmp_path, monkeypatch):
+    ignored = [tmp_path / ".CrimsonModsCache", tmp_path / "BIN64" / ".cRIMSONmODSCache"]
+    live = [tmp_path / "0009" / "0.pamt", tmp_path / "BIN64" / ".CrimsonModsCache2" / "0.pamt",
+            tmp_path / "extras" / ".CrimsonModsCache" / "0.pamt"]
+    for path in [*live, *(root / "main" / "hash" / "0009" / "0.pamt" for root in ignored)]:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(b"index")
+    real_scandir = os.scandir
+
+    def checked_scandir(path):
+        assert not any(Path(path).is_relative_to(root) for root in ignored)
+        return real_scandir(path)
+
+    monkeypatch.setattr(os, "scandir", checked_scandir)
+    assert set(discover_pamt_files(tmp_path)) == set(live)
+
+
 @pytest.mark.parametrize("folder", BUILTIN_IGNORED_ARCHIVE_FOLDERS)
 def test_default_ignored_folder_can_be_restored_or_all_exclusions_cleared(tmp_path, folder):
     ignored_index = tmp_path / folder.swapcase() / "0009" / "0.pamt"
@@ -88,7 +105,7 @@ def test_archive_discovery_does_not_visit_backup_or_mod_library_trees(
     assert set(discover_pamt_files(tmp_path)) == set(live_indexes)
 
 
-@pytest.mark.parametrize("storage", ["backups", ".cdmw", "crimsonforge_backups"])
+@pytest.mark.parametrize("storage", ["backups", ".cdmw", "crimsonforge_backups", ".CrimsonModsCache", "bin64/.CrimsonModsCache"])
 def test_explicit_backup_index_remains_available_for_inspection(tmp_path: Path, storage: str) -> None:
     backup_index = tmp_path / storage / "vault" / "files" / "0009" / "0.pamt"
     backup_index.parent.mkdir(parents=True)
@@ -97,7 +114,7 @@ def test_explicit_backup_index_remains_available_for_inspection(tmp_path: Path, 
     assert discover_pamt_files(backup_index) == [backup_index]
 
 
-@pytest.mark.parametrize("storage", ["backups", ".cdmw", "crimsonforge_backups"])
+@pytest.mark.parametrize("storage", ["backups", ".cdmw", "crimsonforge_backups", ".CrimsonModsCache", "bin64/.CrimsonModsCache"])
 def test_legacy_scan_cache_with_backup_entries_is_rejected(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, storage: str
 ) -> None:

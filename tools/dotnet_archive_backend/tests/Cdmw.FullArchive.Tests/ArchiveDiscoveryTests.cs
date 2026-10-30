@@ -16,7 +16,8 @@ internal static class ArchiveDiscoveryTests
         var cache = new ArchiveCacheStore(cacheRoot);
         try
         {
-            string[] defaults = ["cdmods", "backups", ".cdmw", "crimsonforge_backups", "dmmsa", "dmmgen", "CrimsonFastLoad.backup"];
+            string[] defaults = ["cdmods", "backups", ".cdmw", "crimsonforge_backups", "dmmsa", "dmmgen", "CrimsonFastLoad.backup",
+                ".CrimsonModsCache", "bin64/.CrimsonModsCache"];
             foreach (var folder in defaults)
             {
                 var directory = Path.Combine(fixture.Root, folder.ToUpperInvariant());
@@ -37,17 +38,17 @@ internal static class ArchiveDiscoveryTests
                 var restored = await sessions.OpenAsync(request, CancellationToken.None).ConfigureAwait(false);
                 Require(!restored.CacheHit && restored.EntryCount == 8, "removing a default did not rebuild with its archives");
                 var session = sessions.GetRequired(restored.SessionId);
-                var restoredPamt = Path.Combine(fixture.Root, restoredFolder.ToUpperInvariant(), "0.pamt");
+                var restoredPamt = Path.GetFullPath(Path.Combine(fixture.Root, restoredFolder.ToUpperInvariant(), "0.pamt"));
                 Require(Enumerable.Range(0, 8).Any(id => session.ReadEntry(id).SourcePamt.Equals(restoredPamt, StringComparison.OrdinalIgnoreCase)),
                     "native indexing silently reapplied a removed default");
             }
             var emptyRequest = new OpenArchiveRequest(fixture.Root, IgnoredFolders: [], UseDefaultIgnoredFolders: false);
             var all = await sessions.OpenAsync(emptyRequest, CancellationToken.None).ConfigureAwait(false);
-            Require(!all.CacheHit && all.EntryCount == 32, "clearing the list did not include every source");
+            Require(!all.CacheHit && all.EntryCount == 4 * (defaults.Length + 1), "clearing the list did not include every source");
             var health = await cache.InspectAsync(fixture.Root, CancellationToken.None, ignoredFolders: [], useDefaultIgnoredFolders: false).ConfigureAwait(false);
             Require(health.State == "current", "cache health reapplied defaults to an empty list");
             var refreshed = await sessions.RefreshAsync(emptyRequest, CancellationToken.None).ConfigureAwait(false);
-            Require(!refreshed.CacheHit && refreshed.EntryCount == 32, "refresh reapplied cleared defaults");
+            Require(!refreshed.CacheHit && refreshed.EntryCount == 4 * (defaults.Length + 1), "refresh reapplied cleared defaults");
             var reset = await sessions.OpenAsync(new OpenArchiveRequest(fixture.Root), CancellationToken.None).ConfigureAwait(false);
             Require(!reset.CacheHit && reset.EntryCount == 4, "reapplying defaults reused the unfiltered catalogue");
         }
@@ -156,6 +157,13 @@ internal static class ArchiveDiscoveryTests
             await File.WriteAllTextAsync(Path.Combine(Path.GetDirectoryName(backupPamt)!, "0.pathc"), "backup metadata").ConfigureAwait(false);
             Require(!File.Exists(Path.ChangeExtension(backupPamt, ".paz")), "backup fixture must have no PAZ payload");
 
+            foreach (var folder in new[] { ".CrimsonModsCache", "BIN64/.crimsonmodscache" })
+            {
+                var cachedPamt = Path.Combine(fixture.Root, folder, "main", "hash", "0009", "0.pamt");
+                Directory.CreateDirectory(Path.GetDirectoryName(cachedPamt)!);
+                await File.WriteAllBytesAsync(cachedPamt, [0]).ConfigureAwait(false);
+            }
+
             var native = new NativeArchiveCore();
             var cache = new ArchiveCacheStore(cacheRoot);
             using var sessions = new ArchiveSessionManager(native, cache);
@@ -198,7 +206,7 @@ internal static class ArchiveDiscoveryTests
 
     public static async Task ExistingBackupCacheAsync()
     {
-        foreach (var directoryName in new[] { "backups", ".cdmw", "crimsonforge_backups" })
+        foreach (var directoryName in new[] { "backups", ".cdmw", "crimsonforge_backups", ".CrimsonModsCache", "bin64/.CrimsonModsCache" })
         {
             await ExistingIgnoredCacheAsync(directoryName).ConfigureAwait(false);
         }

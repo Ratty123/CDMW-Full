@@ -372,6 +372,7 @@ class AboutDocumentationEnglishMixin:
                 "html": """
                 <p><b>Archive Browser</b> is the in-app inspection surface for Crimson Desert package data. It can browse archives in flat or tree view, preview many supported formats directly, extract files, and for supported workflows either patch the game archives or write mod-ready loose output with confirmation and backup support.</p>
                 <div class="doc-callout doc-warning"><b>First scan note:</b> set <b>Settings &gt; Paths &gt; Archive Locations &gt; Game / Package</b> first. Optional global sidecar indexing can take a long time because it reads many material sidecars to build reverse texture connections. If you enable it, let it complete; worker count and cache behavior are configured in <b>Settings &gt; Performance</b>.</div>
+                <p>Game-folder scans ignore .CrimsonModsCache and bin64/.CrimsonModsCache by default. Saved custom exclusion lists stay unchanged. To exclude the cache manually, add bin64/.CrimsonModsCache in Settings &gt; Paths &gt; Ignored folders, then reload or refresh the archives. No files are deleted.</p>
                 <table>
                   <tr><th>Area</th><th>What it is for</th><th>Typical actions</th></tr>
                   <tr><td>Archive Files</td><td>Browsable index of package entries.</td><td>Filter, sort columns, resize columns, switch Flat/Folders/Categories, select files or folders, and read the <b>State</b> column for active mod/original/shadowed duplicate status.</td></tr>

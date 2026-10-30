@@ -13,6 +13,8 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 ### Fixed
 
+- Archive Browser skips CrimsonMods cache archives by default, preventing generated cache files from blocking game-folder scans.
+
 - Archive Browser accepts compact PAMT indexes whose final extension ends at the declared table boundary, avoiding an unnecessary extension-table error. Malformed and truncated tables are still rejected.
 
 - OBJ export accepts Chinese and other non-English characters in output paths. Archive Browser previews models with unavailable textures, including affected ship PAM files, as geometry with a warning.
