@@ -37,6 +37,29 @@ def test_native_transform_exports_exact_pam_and_keeps_other_parts():
     assert parsed.submeshes[1].faces == mesh.submeshes[1].faces
 
 
+def test_pamlod_with_every_level_opens_and_exports_lod0_exactly():
+    original = static_fixture("pamlod", levels=2)
+    mesh = parse_mesh(original, "object/two.pamlod")
+    mesh._cdmw_original_data = original
+    assert [len(level) for level in mesh.lod_levels] == [2, 2]
+    service = MeshService()
+    view = service.open_edit_session(mesh, mode="edit", load_layer_project=False)
+    try:
+        assert len(mesh.lod_levels) == 2, "the caller's mesh keeps its levels"
+        service.apply_command(view.session_id, MeshEditCommand(
+            "transform", selection=MeshEditSelection.from_maps(source_indices=(0,)), params={"scale": (0.5, 0.5, 0.5)}))
+        snapshot = service.capture_export_snapshot(view.session_id)
+        built, _report = service.rebuild_result_from_snapshot(snapshot, available_textures=("target0.dds", "target1.dds"))
+    finally:
+        service.close_edit_session(view.session_id, force_without_saving=True)
+    parsed = parse_mesh(built.data, mesh.path)
+    assert [len(level) for level in parsed.lod_levels] == [2, 2]
+    for actual, wanted in zip(parsed.lod_levels[0][0].vertices, snapshot.mesh.submeshes[0].vertices, strict=True):
+        assert actual == pytest.approx(wanted, abs=1e-4)
+    assert parsed.lod_levels[0][1].vertices == mesh.lod_levels[0][1].vertices
+    assert [part.vertices for part in parsed.lod_levels[1]] == [part.vertices for part in mesh.lod_levels[1]]
+
+
 def test_pam_still_refuses_a_contract_that_changes_its_faces():
     original = static_fixture("pam")
     source = parse_mesh(original, "object/two.pam")
