@@ -9354,6 +9354,7 @@
     "Prepared profile proposal; runtime activation and save producer are unverified.": "프로필 제안이 준비되었습니다. 런타임 활성화와 저장 생성자는 검증되지 않았습니다.",
     "Prepared replacement material preview could not be compiled: {value_0}": "준비된 교체 머티리얼 미리보기를 컴파일할 수 없습니다: {value_0}",
     "Prepared replacement materials produced no renderer resources.": "준비된 교체 머티리얼에서 렌더러 리소스가 생성되지 않았습니다.",
+    "Prepared the served files.": "제공할 파일을 준비했습니다.",
     "Prepared {value_0} DDS import preview for {value_1}.": "{value_1}에 대한 {value_0} DDS 가져오기 미리보기를 준비했습니다.",
     "Prepared {value_0} built item(s) for review. Opening the review window after cleanup.": "검토를 위해 빌드된 항목 {value_0}개를 준비했습니다. 정리 후 리뷰창을 엽니다.",
     "Prepared {value_0}. Review the source preview and continue when ready.": "{value_0}가 준비되었습니다. 소스 미리보기를 검토하고 준비가 되면 계속하십시오.",

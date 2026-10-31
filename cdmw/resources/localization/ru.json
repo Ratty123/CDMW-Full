@@ -9354,6 +9354,7 @@
     "Prepared profile proposal; runtime activation and save producer are unverified.": "Подготовлено предложение профиля; активация во время выполнения и процесс, создавший сохранение, не проверены.",
     "Prepared replacement material preview could not be compiled: {value_0}": "Не удалось скомпилировать предварительный просмотр подготовленного материала замены: {value_0}",
     "Prepared replacement materials produced no renderer resources.": "Подготовленные материалы замены не создали ресурсов рендерера.",
+    "Prepared the served files.": "Файлы для выдачи игре подготовлены.",
     "Prepared {value_0} DDS import preview for {value_1}.": "Подготовлен предварительный просмотр импорта {value_0} DDS для {value_1}.",
     "Prepared {value_0} built item(s) for review. Opening the review window after cleanup.": "Подготовлены собранные предметы {value_0} для проверки. Открытие окна просмотра после очистки.",
     "Prepared {value_0}. Review the source preview and continue when ready.": "Подготовлено {value_0}. Просмотрите предварительный просмотр источника и продолжите, когда будете готовы.",

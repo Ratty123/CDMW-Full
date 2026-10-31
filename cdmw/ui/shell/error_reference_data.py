@@ -24705,7 +24705,7 @@ MESSAGE_REFERENCE = [
     "message": ": {detail}. Apply changes in CDMW and publish the profile again.",
     "recovery": "write",
     "sources": {
-      "native/cdmw_virtual_loader/runtime.cpp": 252
+      "native/cdmw_virtual_loader/runtime.cpp": 253
     }
   },
   {
@@ -24729,7 +24729,7 @@ MESSAGE_REFERENCE = [
     "message": "A catalogue witness conflicts with a required source guard.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/virtual_loader_runtime.py": 221
+      "cdmw/services/virtual_loader_runtime.py": 230
     }
   },
   {
@@ -24737,7 +24737,7 @@ MESSAGE_REFERENCE = [
     "message": "A diagnostic game launch requires explicit review.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/virtual_loader_runtime.py": 439
+      "cdmw/services/virtual_loader_runtime.py": 454
     }
   },
   {
@@ -24745,7 +24745,7 @@ MESSAGE_REFERENCE = [
     "message": "A file with the runtime name is not owned by this setup. It will not be overwritten.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/virtual_loader_runtime.py": 607
+      "cdmw/services/virtual_loader_runtime.py": 622
     }
   },
   {
@@ -24761,7 +24761,7 @@ MESSAGE_REFERENCE = [
     "message": "A game or mod source is missing: {path}. Apply changes again.",
     "recovery": "missing",
     "sources": {
-      "cdmw/services/virtual_loader_standalone.py": 76
+      "cdmw/services/virtual_loader_standalone.py": 77
     }
   },
   {
@@ -24793,7 +24793,7 @@ MESSAGE_REFERENCE = [
     "message": "A required item resource is missing.",
     "recovery": "missing",
     "sources": {
-      "cdmw/services/independent_item_package.py": 562
+      "cdmw/services/independent_item_package.py": 565
     }
   },
   {
@@ -24809,7 +24809,7 @@ MESSAGE_REFERENCE = [
     "message": "A selected package changed during preparation: {path}. Apply changes again.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/virtual_loader_composition.py": 259
+      "cdmw/services/virtual_loader_composition.py": 267
     }
   },
   {
@@ -24833,7 +24833,7 @@ MESSAGE_REFERENCE = [
     "message": "A single installed Steam client is required for the verified game launch.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/virtual_loader_runtime.py": 236
+      "cdmw/services/virtual_loader_runtime.py": 251
     }
   },
   {
@@ -24841,7 +24841,7 @@ MESSAGE_REFERENCE = [
     "message": "A staged snapshot file failed readback.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/virtual_loader_state.py": 304
+      "cdmw/services/virtual_loader_state.py": 325
     }
   },
   {
@@ -24849,7 +24849,7 @@ MESSAGE_REFERENCE = [
     "message": "A standalone profile cannot name a session host or launcher",
     "recovery": "input",
     "sources": {
-      "native/cdmw_virtual_loader/protocol.cpp": 90
+      "native/cdmw_virtual_loader/protocol.cpp": 104
     }
   },
   {
@@ -24865,7 +24865,7 @@ MESSAGE_REFERENCE = [
     "message": "A v2 package requires a v2-aware editor. Refusing to discard its modules or provenance.",
     "recovery": "integrity",
     "sources": {
-      "cdmw/services/independent_item_package.py": 802
+      "cdmw/services/independent_item_package.py": 805
     }
   },
   {
@@ -24873,7 +24873,7 @@ MESSAGE_REFERENCE = [
     "message": "A virtual profile file was replaced by a directory.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/virtual_loader_state.py": 47
+      "cdmw/services/virtual_loader_state.py": 58
     }
   },
   {
@@ -24961,7 +24961,7 @@ MESSAGE_REFERENCE = [
     "message": "An interrupted profile was changed externally; automatic recovery is refused.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/virtual_loader_state.py": 253
+      "cdmw/services/virtual_loader_state.py": 274
     }
   },
   {
@@ -24977,7 +24977,7 @@ MESSAGE_REFERENCE = [
     "message": "An item resource exceeds the package size limit.",
     "recovery": "limits",
     "sources": {
-      "cdmw/services/independent_item_package.py": 616
+      "cdmw/services/independent_item_package.py": 619
     }
   },
   {
@@ -25086,6 +25086,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "independent",
+    "message": "Cannot allocate a served path",
+    "recovery": "input",
+    "sources": {
+      "native/cdmw_virtual_loader/resource_serving.cpp": 133
+    }
+  },
+  {
+    "area": "independent",
     "message": "Cannot await runtime",
     "recovery": "input",
     "sources": {
@@ -25097,7 +25105,7 @@ MESSAGE_REFERENCE = [
     "message": "Cannot claim Steam session",
     "recovery": "input",
     "sources": {
-      "native/cdmw_virtual_loader/runtime.cpp": 452
+      "native/cdmw_virtual_loader/runtime.cpp": 477
     }
   },
   {
@@ -25105,7 +25113,7 @@ MESSAGE_REFERENCE = [
     "message": "Cannot create bounded trace",
     "recovery": "input",
     "sources": {
-      "native/cdmw_virtual_loader/runtime.cpp": 324
+      "native/cdmw_virtual_loader/runtime.cpp": 343
     }
   },
   {
@@ -25170,7 +25178,7 @@ MESSAGE_REFERENCE = [
     "recovery": "input",
     "sources": {
       "native/cdmw_virtual_loader/compose_launch.cpp": 454,
-      "native/cdmw_virtual_loader/protocol.cpp": 143
+      "native/cdmw_virtual_loader/protocol.cpp": 169
     }
   },
   {
@@ -25258,7 +25266,15 @@ MESSAGE_REFERENCE = [
     "message": "Cannot open a profile source",
     "recovery": "input",
     "sources": {
-      "native/cdmw_virtual_loader/runtime.cpp": 298
+      "native/cdmw_virtual_loader/runtime.cpp": 305
+    }
+  },
+  {
+    "area": "independent",
+    "message": "Cannot open a resource loader slot",
+    "recovery": "input",
+    "sources": {
+      "native/cdmw_virtual_loader/resource_serving.cpp": 230
     }
   },
   {
@@ -25274,7 +25290,7 @@ MESSAGE_REFERENCE = [
     "message": "Cannot pin a prepared item file",
     "recovery": "input",
     "sources": {
-      "native/cdmw_virtual_loader/runtime.cpp": 315
+      "native/cdmw_virtual_loader/runtime.cpp": 322
     }
   },
   {
@@ -25306,7 +25322,7 @@ MESSAGE_REFERENCE = [
     "message": "Cannot pin runtime module",
     "recovery": "input",
     "sources": {
-      "native/cdmw_virtual_loader/runtime.cpp": 327
+      "native/cdmw_virtual_loader/runtime.cpp": 346
     }
   },
   {
@@ -25314,7 +25330,7 @@ MESSAGE_REFERENCE = [
     "message": "Cannot pin snapshot file",
     "recovery": "input",
     "sources": {
-      "native/cdmw_virtual_loader/runtime.cpp": 490
+      "native/cdmw_virtual_loader/runtime.cpp": 515
     }
   },
   {
@@ -25322,7 +25338,7 @@ MESSAGE_REFERENCE = [
     "message": "Cannot protect import slot",
     "recovery": "input",
     "sources": {
-      "native/cdmw_virtual_loader/runtime.cpp": 147
+      "native/cdmw_virtual_loader/runtime.cpp": 148
     }
   },
   {
@@ -25338,7 +25354,7 @@ MESSAGE_REFERENCE = [
     "message": "Cannot publish session manifest",
     "recovery": "write",
     "sources": {
-      "native/cdmw_virtual_loader/protocol.cpp": 186
+      "native/cdmw_virtual_loader/protocol.cpp": 222
     }
   },
   {
@@ -25370,7 +25386,7 @@ MESSAGE_REFERENCE = [
     "message": "Cannot read source: {path}. Apply changes again.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/virtual_loader_composition.py": 51
+      "cdmw/services/virtual_loader_composition.py": 47
     }
   },
   {
@@ -25402,7 +25418,7 @@ MESSAGE_REFERENCE = [
     "message": "Cannot retain runtime lease",
     "recovery": "input",
     "sources": {
-      "native/cdmw_virtual_loader/runtime.cpp": 310
+      "native/cdmw_virtual_loader/runtime.cpp": 317
     }
   },
   {
@@ -25411,6 +25427,14 @@ MESSAGE_REFERENCE = [
     "recovery": "input",
     "sources": {
       "native/cdmw_virtual_loader/compose_launch.cpp": 312
+    }
+  },
+  {
+    "area": "independent",
+    "message": "Cannot size a prepared item file",
+    "recovery": "input",
+    "sources": {
+      "native/cdmw_virtual_loader/runtime.cpp": 335
     }
   },
   {
@@ -25426,7 +25450,7 @@ MESSAGE_REFERENCE = [
     "message": "Cannot start trace writer",
     "recovery": "write",
     "sources": {
-      "native/cdmw_virtual_loader/runtime.cpp": 335
+      "native/cdmw_virtual_loader/runtime.cpp": 359
     }
   },
   {
@@ -25458,7 +25482,7 @@ MESSAGE_REFERENCE = [
     "message": "Cannot write session manifest",
     "recovery": "write",
     "sources": {
-      "native/cdmw_virtual_loader/protocol.cpp": 185
+      "native/cdmw_virtual_loader/protocol.cpp": 221
     }
   },
   {
@@ -25546,7 +25570,7 @@ MESSAGE_REFERENCE = [
     "message": "Close Crimson Desert before changing its runtime setup.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/virtual_loader_runtime.py": 618
+      "cdmw/services/virtual_loader_runtime.py": 633
     }
   },
   {
@@ -25562,7 +25586,7 @@ MESSAGE_REFERENCE = [
     "message": "Close Crimson Desert before publishing a virtual profile.",
     "recovery": "write",
     "sources": {
-      "cdmw/services/virtual_loader_state.py": 277
+      "cdmw/services/virtual_loader_state.py": 298
     }
   },
   {
@@ -25570,7 +25594,7 @@ MESSAGE_REFERENCE = [
     "message": "Close Crimson Desert before publishing the launcher profile.",
     "recovery": "write",
     "sources": {
-      "cdmw/services/virtual_loader_standalone.py": 93
+      "cdmw/services/virtual_loader_standalone.py": 94
     }
   },
   {
@@ -25578,7 +25602,7 @@ MESSAGE_REFERENCE = [
     "message": "Close Crimson Desert before removing its runtime.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/virtual_loader_runtime.py": 552
+      "cdmw/services/virtual_loader_runtime.py": 567
     }
   },
   {
@@ -25594,7 +25618,7 @@ MESSAGE_REFERENCE = [
     "message": "Close Crimson Desert before starting a virtual session.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/virtual_loader_runtime.py": 296
+      "cdmw/services/virtual_loader_runtime.py": 311
     }
   },
   {
@@ -25634,7 +25658,7 @@ MESSAGE_REFERENCE = [
     "message": "Committed profile diagnostic delivery failed.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/virtual_loader_state.py": 372
+      "cdmw/services/virtual_loader_state.py": 393
     }
   },
   {
@@ -25674,7 +25698,7 @@ MESSAGE_REFERENCE = [
     "message": "Controlled virtual loading requires an explicitly reviewed launch plan and save backup.",
     "recovery": "recovery",
     "sources": {
-      "cdmw/services/virtual_loader_runtime.py": 379
+      "cdmw/services/virtual_loader_runtime.py": 394
     }
   },
   {
@@ -25690,7 +25714,7 @@ MESSAGE_REFERENCE = [
     "message": "Copied template physics requires unchanged cloth and model-property bindings.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/independent_item_physics.py": 60
+      "cdmw/services/independent_item_physics.py": 81
     }
   },
   {
@@ -25698,7 +25722,7 @@ MESSAGE_REFERENCE = [
     "message": "Copied template physics requires unchanged mesh geometry and skin/cloth bindings. Disable template physics for a replacement model.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/independent_item_physics.py": 55
+      "cdmw/services/independent_item_physics.py": 50
     }
   },
   {
@@ -25746,7 +25770,7 @@ MESSAGE_REFERENCE = [
     "message": "Duplicate or missing package entries.",
     "recovery": "conflict",
     "sources": {
-      "cdmw/services/independent_item_package.py": 752
+      "cdmw/services/independent_item_package.py": 755
     }
   },
   {
@@ -25754,7 +25778,7 @@ MESSAGE_REFERENCE = [
     "message": "Duplicate package metadata key.",
     "recovery": "conflict",
     "sources": {
-      "cdmw/services/independent_item_package.py": 767
+      "cdmw/services/independent_item_package.py": 770
     }
   },
   {
@@ -25762,7 +25786,7 @@ MESSAGE_REFERENCE = [
     "message": "Duplicate prepared variant binding.",
     "recovery": "conflict",
     "sources": {
-      "cdmw/services/independent_item_package.py": 583
+      "cdmw/services/independent_item_package.py": 586
     }
   },
   {
@@ -25778,7 +25802,7 @@ MESSAGE_REFERENCE = [
     "message": "Duplicate virtual profile field.",
     "recovery": "conflict",
     "sources": {
-      "cdmw/services/virtual_loader_state.py": 58
+      "cdmw/services/virtual_loader_state.py": 69
     }
   },
   {
@@ -25858,7 +25882,7 @@ MESSAGE_REFERENCE = [
     "message": "Import exceeds image",
     "recovery": "limits",
     "sources": {
-      "native/cdmw_virtual_loader/runtime.cpp": 198
+      "native/cdmw_virtual_loader/runtime.cpp": 199
     }
   },
   {
@@ -25866,7 +25890,7 @@ MESSAGE_REFERENCE = [
     "message": "Import slot changed or protection restore failed",
     "recovery": "internal",
     "sources": {
-      "native/cdmw_virtual_loader/runtime.cpp": 150
+      "native/cdmw_virtual_loader/runtime.cpp": 151
     }
   },
   {
@@ -25874,7 +25898,7 @@ MESSAGE_REFERENCE = [
     "message": "Imported module unavailable",
     "recovery": "missing",
     "sources": {
-      "native/cdmw_virtual_loader/runtime.cpp": 194
+      "native/cdmw_virtual_loader/runtime.cpp": 195
     }
   },
   {
@@ -25890,7 +25914,7 @@ MESSAGE_REFERENCE = [
     "message": "Independent item changes an existing {name} record.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/independent_item_package.py": 334
+      "cdmw/services/independent_item_package.py": 337
     }
   },
   {
@@ -25906,7 +25930,7 @@ MESSAGE_REFERENCE = [
     "message": "Independent item packages use the .cditem extension.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/independent_item_package.py": 795
+      "cdmw/services/independent_item_package.py": 798
     }
   },
   {
@@ -25914,7 +25938,7 @@ MESSAGE_REFERENCE = [
     "message": "Independent packages can only copy unchanged template physics.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/independent_item_physics.py": 53
+      "cdmw/services/independent_item_physics.py": 73
     }
   },
   {
@@ -25922,7 +25946,7 @@ MESSAGE_REFERENCE = [
     "message": "Independent packages cannot carry the shared change: {path}",
     "recovery": "input",
     "sources": {
-      "cdmw/services/independent_item_package.py": 338
+      "cdmw/services/independent_item_package.py": 341
     }
   },
   {
@@ -25930,7 +25954,7 @@ MESSAGE_REFERENCE = [
     "message": "Independent packages cannot modify existing reward consumers or include another mod base.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/independent_item_package.py": 311
+      "cdmw/services/independent_item_package.py": 314
     }
   },
   {
@@ -25938,7 +25962,7 @@ MESSAGE_REFERENCE = [
     "message": "Independent packages may borrow only shipped game resources. Rebuild against the clean game baseline.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/independent_item_package.py": 389
+      "cdmw/services/independent_item_package.py": 392
     }
   },
   {
@@ -25946,7 +25970,7 @@ MESSAGE_REFERENCE = [
     "message": "Independent packages require verified source dependencies.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/independent_item_package.py": 364
+      "cdmw/services/independent_item_package.py": 367
     }
   },
   {
@@ -25954,7 +25978,7 @@ MESSAGE_REFERENCE = [
     "message": "Independent packages support adding shop stock, not replacing existing stock.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/independent_item_package.py": 313
+      "cdmw/services/independent_item_package.py": 316
     }
   },
   {
@@ -25970,7 +25994,7 @@ MESSAGE_REFERENCE = [
     "message": "Install the reviewed diagnostic runtime before starting a trace.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/virtual_loader_runtime.py": 429
+      "cdmw/services/virtual_loader_runtime.py": 444
     }
   },
   {
@@ -25986,7 +26010,8 @@ MESSAGE_REFERENCE = [
     "message": "Invalid DOS header",
     "recovery": "format",
     "sources": {
-      "native/cdmw_virtual_loader/runtime.cpp": 177
+      "native/cdmw_virtual_loader/resource_serving.cpp": 156,
+      "native/cdmw_virtual_loader/runtime.cpp": 178
     }
   },
   {
@@ -26010,7 +26035,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid catalogue guard",
     "recovery": "input",
     "sources": {
-      "native/cdmw_virtual_loader/protocol.cpp": 139
+      "native/cdmw_virtual_loader/protocol.cpp": 165
     }
   },
   {
@@ -26058,7 +26083,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid disabled virtual selection paths.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/virtual_loader_state.py": 97
+      "cdmw/services/virtual_loader_state.py": 108
     }
   },
   {
@@ -26074,7 +26099,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid game dependency checksum.",
     "recovery": "integrity",
     "sources": {
-      "cdmw/services/independent_item_package.py": 522
+      "cdmw/services/independent_item_package.py": 525
     }
   },
   {
@@ -26082,7 +26107,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid game root",
     "recovery": "input",
     "sources": {
-      "native/cdmw_virtual_loader/protocol.cpp": 92
+      "native/cdmw_virtual_loader/protocol.cpp": 106
     }
   },
   {
@@ -26090,7 +26115,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid import descriptor",
     "recovery": "input",
     "sources": {
-      "native/cdmw_virtual_loader/runtime.cpp": 190
+      "native/cdmw_virtual_loader/runtime.cpp": 191
     }
   },
   {
@@ -26098,7 +26123,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid import directory",
     "recovery": "input",
     "sources": {
-      "native/cdmw_virtual_loader/runtime.cpp": 182
+      "native/cdmw_virtual_loader/runtime.cpp": 183
     }
   },
   {
@@ -26106,7 +26131,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid import name",
     "recovery": "input",
     "sources": {
-      "native/cdmw_virtual_loader/runtime.cpp": 202
+      "native/cdmw_virtual_loader/runtime.cpp": 203
     }
   },
   {
@@ -26122,7 +26147,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid independent item package: {exc}",
     "recovery": "input",
     "sources": {
-      "cdmw/services/independent_item_package.py": 789
+      "cdmw/services/independent_item_package.py": 792
     }
   },
   {
@@ -26130,7 +26155,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid independent item recipe.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/independent_item_package.py": 538
+      "cdmw/services/independent_item_package.py": 541
     }
   },
   {
@@ -26146,7 +26171,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid installation lock",
     "recovery": "input",
     "sources": {
-      "native/cdmw_virtual_loader/protocol.cpp": 146
+      "native/cdmw_virtual_loader/protocol.cpp": 172
     }
   },
   {
@@ -26154,7 +26179,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid item package title.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/independent_item_package.py": 514
+      "cdmw/services/independent_item_package.py": 517
     }
   },
   {
@@ -26170,7 +26195,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid launcher descriptor",
     "recovery": "input",
     "sources": {
-      "native/cdmw_virtual_loader/protocol.cpp": 167
+      "native/cdmw_virtual_loader/protocol.cpp": 201
     }
   },
   {
@@ -26178,7 +26203,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid launcher profile status.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/virtual_loader_standalone.py": 132
+      "cdmw/services/virtual_loader_standalone.py": 133
     }
   },
   {
@@ -26186,7 +26211,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid logical depth",
     "recovery": "input",
     "sources": {
-      "native/cdmw_virtual_loader/protocol.cpp": 109
+      "native/cdmw_virtual_loader/protocol.cpp": 124
     }
   },
   {
@@ -26194,7 +26219,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid map size",
     "recovery": "input",
     "sources": {
-      "native/cdmw_virtual_loader/protocol.cpp": 104
+      "native/cdmw_virtual_loader/protocol.cpp": 119
     }
   },
   {
@@ -26219,6 +26244,14 @@ MESSAGE_REFERENCE = [
     "recovery": "input",
     "sources": {
       "cdmw/domain/virtual_session_receipt.py": 34
+    }
+  },
+  {
+    "area": "independent",
+    "message": "Invalid or duplicate resource path",
+    "recovery": "conflict",
+    "sources": {
+      "native/cdmw_virtual_loader/protocol.cpp": 143
     }
   },
   {
@@ -26266,7 +26299,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid prepared model.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/independent_item_package.py": 569
+      "cdmw/services/independent_item_package.py": 572
     }
   },
   {
@@ -26274,7 +26307,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid prepared variant binding.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/independent_item_package.py": 580
+      "cdmw/services/independent_item_package.py": 583
     }
   },
   {
@@ -26282,7 +26315,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid prepared variants.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/independent_item_package.py": 577
+      "cdmw/services/independent_item_package.py": 580
     }
   },
   {
@@ -26290,7 +26323,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid retained virtual package name.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/virtual_loader_state.py": 307
+      "cdmw/services/virtual_loader_state.py": 328
     }
   },
   {
@@ -26298,7 +26331,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid runtime process identity.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/virtual_loader_runtime.py": 498
+      "cdmw/services/virtual_loader_runtime.py": 513
     }
   },
   {
@@ -26306,7 +26339,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid runtime session progress.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/virtual_loader_runtime.py": 501
+      "cdmw/services/virtual_loader_runtime.py": 516
     }
   },
   {
@@ -26343,10 +26376,26 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "independent",
+    "message": "Invalid served resource count",
+    "recovery": "input",
+    "sources": {
+      "native/cdmw_virtual_loader/resource_serving.cpp": 253
+    }
+  },
+  {
+    "area": "independent",
+    "message": "Invalid served resource path",
+    "recovery": "input",
+    "sources": {
+      "native/cdmw_virtual_loader/resource_serving.cpp": 257
+    }
+  },
+  {
+    "area": "independent",
     "message": "Invalid session identity",
     "recovery": "input",
     "sources": {
-      "native/cdmw_virtual_loader/protocol.cpp": 91
+      "native/cdmw_virtual_loader/protocol.cpp": 105
     }
   },
   {
@@ -26354,7 +26403,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid source guard",
     "recovery": "input",
     "sources": {
-      "native/cdmw_virtual_loader/protocol.cpp": 127
+      "native/cdmw_virtual_loader/protocol.cpp": 153
     }
   },
   {
@@ -26394,7 +26443,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid virtual catalogue guard.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/virtual_loader_state.py": 111
+      "cdmw/services/virtual_loader_state.py": 122
     }
   },
   {
@@ -26402,7 +26451,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid virtual catalogue guards.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/virtual_loader_state.py": 105
+      "cdmw/services/virtual_loader_state.py": 116
     }
   },
   {
@@ -26410,7 +26459,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid virtual file checksum.",
     "recovery": "integrity",
     "sources": {
-      "cdmw/services/virtual_loader_state.py": 135
+      "cdmw/services/virtual_loader_state.py": 156
     }
   },
   {
@@ -26418,7 +26467,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid virtual file map.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/virtual_loader_state.py": 130
+      "cdmw/services/virtual_loader_state.py": 144
     }
   },
   {
@@ -26426,7 +26475,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid virtual identity binding.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/virtual_loader_state.py": 82
+      "cdmw/services/virtual_loader_state.py": 93
     }
   },
   {
@@ -26434,7 +26483,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid virtual installation guard.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/virtual_loader_state.py": 117
+      "cdmw/services/virtual_loader_state.py": 128
     }
   },
   {
@@ -26442,7 +26491,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid virtual inventory entry.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/virtual_loader_state.py": 126
+      "cdmw/services/virtual_loader_state.py": 137
     }
   },
   {
@@ -26450,7 +26499,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid virtual ownership.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/virtual_loader_state.py": 78
+      "cdmw/services/virtual_loader_state.py": 89
     }
   },
   {
@@ -26458,7 +26507,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid virtual profile JSON.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/virtual_loader_state.py": 64
+      "cdmw/services/virtual_loader_state.py": 75
     }
   },
   {
@@ -26466,7 +26515,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid virtual profile inputs.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/virtual_loader_state.py": 85
+      "cdmw/services/virtual_loader_state.py": 96
     }
   },
   {
@@ -26474,7 +26523,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid virtual profile path.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/virtual_loader_state.py": 29
+      "cdmw/services/virtual_loader_state.py": 40
     }
   },
   {
@@ -26482,7 +26531,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid virtual recovery targets.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/virtual_loader_state.py": 243
+      "cdmw/services/virtual_loader_state.py": 264
     }
   },
   {
@@ -26490,7 +26539,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid virtual selection paths.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/virtual_loader_state.py": 92
+      "cdmw/services/virtual_loader_state.py": 103
     }
   },
   {
@@ -26498,7 +26547,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid virtual source guard.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/virtual_loader_state.py": 101
+      "cdmw/services/virtual_loader_state.py": 112
     }
   },
   {
@@ -26506,7 +26555,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid virtual source inventory.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/virtual_loader_state.py": 121
+      "cdmw/services/virtual_loader_state.py": 132
     }
   },
   {
@@ -26522,7 +26571,7 @@ MESSAGE_REFERENCE = [
     "message": "Item package exceeds the supported size.",
     "recovery": "limits",
     "sources": {
-      "cdmw/services/independent_item_package.py": 526
+      "cdmw/services/independent_item_package.py": 529
     }
   },
   {
@@ -26530,7 +26579,7 @@ MESSAGE_REFERENCE = [
     "message": "Item package metadata exceeds the supported size.",
     "recovery": "limits",
     "sources": {
-      "cdmw/services/independent_item_package.py": 614
+      "cdmw/services/independent_item_package.py": 617
     }
   },
   {
@@ -26554,7 +26603,7 @@ MESSAGE_REFERENCE = [
     "message": "Item resource failed its checksum or size check.",
     "recovery": "integrity",
     "sources": {
-      "cdmw/services/independent_item_package.py": 676
+      "cdmw/services/independent_item_package.py": 679
     }
   },
   {
@@ -26570,7 +26619,7 @@ MESSAGE_REFERENCE = [
     "message": "Linked virtual paths are unsupported",
     "recovery": "unsupported",
     "sources": {
-      "native/cdmw_virtual_loader/protocol.cpp": 80
+      "native/cdmw_virtual_loader/protocol.cpp": 94
     }
   },
   {
@@ -26586,7 +26635,7 @@ MESSAGE_REFERENCE = [
     "message": "Local dye mask files are not supported in independent packages. Clear the custom dye mask before exporting.",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/services/independent_item_package.py": 558
+      "cdmw/services/independent_item_package.py": 561
     }
   },
   {
@@ -26594,7 +26643,7 @@ MESSAGE_REFERENCE = [
     "message": "Map targets must be archives or game metadata",
     "recovery": "input",
     "sources": {
-      "native/cdmw_virtual_loader/protocol.cpp": 114
+      "native/cdmw_virtual_loader/protocol.cpp": 129
     }
   },
   {
@@ -26602,7 +26651,7 @@ MESSAGE_REFERENCE = [
     "message": "Missing virtual mount list",
     "recovery": "missing",
     "sources": {
-      "native/cdmw_virtual_loader/protocol.cpp": 123
+      "native/cdmw_virtual_loader/protocol.cpp": 138
     }
   },
   {
@@ -26626,7 +26675,7 @@ MESSAGE_REFERENCE = [
     "message": "New textures require a verified game texture registry.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/virtual_loader_composition.py": 165
+      "cdmw/services/virtual_loader_composition.py": 163
     }
   },
   {
@@ -26642,7 +26691,7 @@ MESSAGE_REFERENCE = [
     "message": "No live session host; stale activation refused",
     "recovery": "stale",
     "sources": {
-      "native/cdmw_virtual_loader/runtime.cpp": 437
+      "native/cdmw_virtual_loader/runtime.cpp": 462
     }
   },
   {
@@ -26650,7 +26699,7 @@ MESSAGE_REFERENCE = [
     "message": "No supported file imports",
     "recovery": "empty",
     "sources": {
-      "native/cdmw_virtual_loader/runtime.cpp": 230
+      "native/cdmw_virtual_loader/runtime.cpp": 231
     }
   },
   {
@@ -26658,7 +26707,7 @@ MESSAGE_REFERENCE = [
     "message": "Owned physics has no unambiguous template mesh binding.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/independent_item_physics.py": 48
+      "cdmw/services/independent_item_physics.py": 68
     }
   },
   {
@@ -26666,7 +26715,7 @@ MESSAGE_REFERENCE = [
     "message": "Owned physics must accompany its exact model path.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/independent_item_physics.py": 43
+      "cdmw/services/independent_item_physics.py": 63
     }
   },
   {
@@ -26690,7 +26739,7 @@ MESSAGE_REFERENCE = [
     "message": "Physics settings inside a render material are unverified.",
     "recovery": "configuration",
     "sources": {
-      "cdmw/services/independent_item_physics.py": 26
+      "cdmw/services/independent_item_physics.py": 30
     }
   },
   {
@@ -26698,7 +26747,7 @@ MESSAGE_REFERENCE = [
     "message": "Portable items must use symbolic identities.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/independent_item_package.py": 541
+      "cdmw/services/independent_item_package.py": 544
     }
   },
   {
@@ -26714,7 +26763,7 @@ MESSAGE_REFERENCE = [
     "message": "Prepared generation or file identities disagree.",
     "recovery": "stale",
     "sources": {
-      "cdmw/services/virtual_loader_state.py": 287
+      "cdmw/services/virtual_loader_state.py": 308
     }
   },
   {
@@ -26722,7 +26771,7 @@ MESSAGE_REFERENCE = [
     "message": "Prepared ownership does not match its identity reservations.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/virtual_loader_state.py": 291
+      "cdmw/services/virtual_loader_state.py": 312
     }
   },
   {
@@ -26730,7 +26779,7 @@ MESSAGE_REFERENCE = [
     "message": "Prepared virtual files failed validation.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/virtual_loader_state.py": 293
+      "cdmw/services/virtual_loader_state.py": 314
     }
   },
   {
@@ -26810,7 +26859,7 @@ MESSAGE_REFERENCE = [
     "message": "Readiness handshake failed",
     "recovery": "internal",
     "sources": {
-      "native/cdmw_virtual_loader/runtime.cpp": 238
+      "native/cdmw_virtual_loader/runtime.cpp": 239
     }
   },
   {
@@ -26826,7 +26875,7 @@ MESSAGE_REFERENCE = [
     "message": "Recover the interrupted virtual profile transaction first.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/virtual_loader_state.py": 168
+      "cdmw/services/virtual_loader_state.py": 189
     }
   },
   {
@@ -26882,7 +26931,7 @@ MESSAGE_REFERENCE = [
     "message": "Retained virtual recovery evidence changed during verification.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/virtual_loader_state.py": 353
+      "cdmw/services/virtual_loader_state.py": 374
     }
   },
   {
@@ -26914,7 +26963,7 @@ MESSAGE_REFERENCE = [
     "message": "Runtime recovery material failed verification.",
     "recovery": "recovery",
     "sources": {
-      "cdmw/services/virtual_loader_runtime.py": 562
+      "cdmw/services/virtual_loader_runtime.py": 577
     }
   },
   {
@@ -26930,7 +26979,7 @@ MESSAGE_REFERENCE = [
     "message": "Runtime removal requires review of its exact target.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/virtual_loader_runtime.py": 548
+      "cdmw/services/virtual_loader_runtime.py": 563
     }
   },
   {
@@ -26938,7 +26987,7 @@ MESSAGE_REFERENCE = [
     "message": "Runtime setup requires review of its exact target and checksum.",
     "recovery": "integrity",
     "sources": {
-      "cdmw/services/virtual_loader_runtime.py": 615
+      "cdmw/services/virtual_loader_runtime.py": 630
     }
   },
   {
@@ -27035,7 +27084,7 @@ MESSAGE_REFERENCE = [
     "message": "Select Independent item package and rebuild the plan first.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/independent_item_package.py": 362
+      "cdmw/services/independent_item_package.py": 365
     }
   },
   {
@@ -27067,7 +27116,7 @@ MESSAGE_REFERENCE = [
     "message": "Select at most 128 external mod folders.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/virtual_loader_composition.py": 102
+      "cdmw/services/virtual_loader_composition.py": 100
     }
   },
   {
@@ -27075,7 +27124,7 @@ MESSAGE_REFERENCE = [
     "message": "Select at most 128 item packages and 128 mod folders, including disabled entries.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/virtual_loader_composition.py": 108
+      "cdmw/services/virtual_loader_composition.py": 106
     }
   },
   {
@@ -27131,7 +27180,7 @@ MESSAGE_REFERENCE = [
     "message": "Select the existing package explicitly before updating it.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/independent_item_package.py": 800
+      "cdmw/services/independent_item_package.py": 803
     }
   },
   {
@@ -27176,6 +27225,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "independent",
+    "message": "Served path is not valid Unicode",
+    "recovery": "internal",
+    "sources": {
+      "native/cdmw_virtual_loader/resource_serving.cpp": 146
+    }
+  },
+  {
+    "area": "independent",
     "message": "Session pipe failed",
     "recovery": "internal",
     "sources": {
@@ -27192,18 +27249,10 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "independent",
-    "message": "Since the October 2026 game update, the game checks its archive list and will not start with item archives added to it, so item packages cannot be applied to this game version yet.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/services/virtual_loader_composition.py": 100
-    }
-  },
-  {
-    "area": "independent",
     "message": "Snapshot checksum mismatch",
     "recovery": "integrity",
     "sources": {
-      "native/cdmw_virtual_loader/runtime.cpp": 488,
+      "native/cdmw_virtual_loader/runtime.cpp": 513,
       "native/cdmw_virtual_loader/session.cpp": 34
     }
   },
@@ -27220,7 +27269,7 @@ MESSAGE_REFERENCE = [
     "message": "Source index changed since parsing: {path}.",
     "recovery": "stale",
     "sources": {
-      "cdmw/services/virtual_loader_composition.py": 184
+      "cdmw/services/virtual_loader_composition.py": 182
     }
   },
   {
@@ -27252,7 +27301,7 @@ MESSAGE_REFERENCE = [
     "message": "Steam session binding timed out",
     "recovery": "timeout",
     "sources": {
-      "native/cdmw_virtual_loader/runtime.cpp": 457
+      "native/cdmw_virtual_loader/runtime.cpp": 482
     }
   },
   {
@@ -27260,7 +27309,7 @@ MESSAGE_REFERENCE = [
     "message": "Steam session binding was refused",
     "recovery": "input",
     "sources": {
-      "native/cdmw_virtual_loader/runtime.cpp": 462
+      "native/cdmw_virtual_loader/runtime.cpp": 487
     }
   },
   {
@@ -27308,7 +27357,7 @@ MESSAGE_REFERENCE = [
     "message": "Test mode is unavailable in the production runtime",
     "recovery": "missing",
     "sources": {
-      "native/cdmw_virtual_loader/protocol.cpp": 85
+      "native/cdmw_virtual_loader/protocol.cpp": 99
     }
   },
   {
@@ -27340,7 +27389,7 @@ MESSAGE_REFERENCE = [
     "message": "The active virtual profile does not match its retained generation.",
     "recovery": "stale",
     "sources": {
-      "cdmw/services/virtual_loader_state.py": 175
+      "cdmw/services/virtual_loader_state.py": 196
     }
   },
   {
@@ -27412,7 +27461,7 @@ MESSAGE_REFERENCE = [
     "message": "The clean game catalogue changed during snapshot validation.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/independent_item_package.py": 247
+      "cdmw/services/independent_item_package.py": 250
     }
   },
   {
@@ -27420,7 +27469,7 @@ MESSAGE_REFERENCE = [
     "message": "The clean game catalogue changed while building its snapshot.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/independent_item_package.py": 268
+      "cdmw/services/independent_item_package.py": 271
     }
   },
   {
@@ -27452,7 +27501,7 @@ MESSAGE_REFERENCE = [
     "message": "The composed virtual profile exceeds its supported size.",
     "recovery": "limits",
     "sources": {
-      "cdmw/services/virtual_loader_composition.py": 155
+      "cdmw/services/virtual_loader_composition.py": 153
     }
   },
   {
@@ -27476,7 +27525,7 @@ MESSAGE_REFERENCE = [
     "message": "The controlled launch plan changed. Review it again.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/virtual_loader_runtime.py": 460
+      "cdmw/services/virtual_loader_runtime.py": 475
     }
   },
   {
@@ -27508,7 +27557,7 @@ MESSAGE_REFERENCE = [
     "message": "The destination changed during package export.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/independent_item_package.py": 826
+      "cdmw/services/independent_item_package.py": 829
     }
   },
   {
@@ -27516,7 +27565,7 @@ MESSAGE_REFERENCE = [
     "message": "The diagnostic launch plan changed. Review it again.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/virtual_loader_runtime.py": 442
+      "cdmw/services/virtual_loader_runtime.py": 457
     }
   },
   {
@@ -27532,7 +27581,7 @@ MESSAGE_REFERENCE = [
     "message": "The existing compatible ASI bootstrap is required. Its installation is separate.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/virtual_loader_runtime.py": 600
+      "cdmw/services/virtual_loader_runtime.py": 615
     }
   },
   {
@@ -27556,7 +27605,15 @@ MESSAGE_REFERENCE = [
     "message": "The game archive layout is unsupported for independent items.",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/services/independent_item_package.py": 168
+      "cdmw/services/independent_item_package.py": 171
+    }
+  },
+  {
+    "area": "independent",
+    "message": "The game cannot be asked for {unservable[0]} by path, so it cannot be served. Rename the file in its mod or package.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/services/virtual_loader_composition.py": 212
     }
   },
   {
@@ -27573,6 +27630,14 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/services/virtual_loader_saves.py": 25
+    }
+  },
+  {
+    "area": "independent",
+    "message": "The game's resource loader classes were not found",
+    "recovery": "missing",
+    "sources": {
+      "native/cdmw_virtual_loader/resource_serving.cpp": 198
     }
   },
   {
@@ -27628,7 +27693,7 @@ MESSAGE_REFERENCE = [
     "message": "The launch plan changed. Review it again.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/virtual_loader_runtime.py": 244
+      "cdmw/services/virtual_loader_runtime.py": 259
     }
   },
   {
@@ -27636,7 +27701,7 @@ MESSAGE_REFERENCE = [
     "message": "The model property file exceeds the physics audit limit.",
     "recovery": "limits",
     "sources": {
-      "cdmw/services/independent_item_physics.py": 13
+      "cdmw/services/independent_item_physics.py": 17
     }
   },
   {
@@ -27676,7 +27741,7 @@ MESSAGE_REFERENCE = [
     "message": "The package changed while it was being read.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/independent_item_package.py": 778
+      "cdmw/services/independent_item_package.py": 781
     }
   },
   {
@@ -27684,7 +27749,7 @@ MESSAGE_REFERENCE = [
     "message": "The package contains unreferenced resources.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/independent_item_package.py": 597
+      "cdmw/services/independent_item_package.py": 600
     }
   },
   {
@@ -27708,7 +27773,7 @@ MESSAGE_REFERENCE = [
     "message": "The package has no verified game dependencies.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/independent_item_package.py": 516
+      "cdmw/services/independent_item_package.py": 519
     }
   },
   {
@@ -27724,7 +27789,7 @@ MESSAGE_REFERENCE = [
     "message": "The package resource inventory does not match its contents.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/independent_item_package.py": 524
+      "cdmw/services/independent_item_package.py": 527
     }
   },
   {
@@ -27732,7 +27797,7 @@ MESSAGE_REFERENCE = [
     "message": "The package selected for update is missing.",
     "recovery": "missing",
     "sources": {
-      "cdmw/services/independent_item_package.py": 806
+      "cdmw/services/independent_item_package.py": 809
     }
   },
   {
@@ -27764,7 +27829,7 @@ MESSAGE_REFERENCE = [
     "message": "The prepared generation already exists; prepare a fresh profile.",
     "recovery": "stale",
     "sources": {
-      "cdmw/services/virtual_loader_state.py": 296
+      "cdmw/services/virtual_loader_state.py": 317
     }
   },
   {
@@ -28084,7 +28149,7 @@ MESSAGE_REFERENCE = [
     "message": "The retained session host changed outside CDMW.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/virtual_loader_runtime.py": 318
+      "cdmw/services/virtual_loader_runtime.py": 333
     }
   },
   {
@@ -28100,7 +28165,7 @@ MESSAGE_REFERENCE = [
     "message": "The runtime changed or its ownership is unknown. Removal is refused.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/virtual_loader_runtime.py": 556
+      "cdmw/services/virtual_loader_runtime.py": 571
     }
   },
   {
@@ -28108,7 +28173,7 @@ MESSAGE_REFERENCE = [
     "message": "The runtime setup changed after review.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/virtual_loader_runtime.py": 620
+      "cdmw/services/virtual_loader_runtime.py": 635
     }
   },
   {
@@ -28300,7 +28365,7 @@ MESSAGE_REFERENCE = [
     "message": "The shipped item tables contain custom items. Restore a clean game baseline before using independent packages.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/independent_item_package.py": 264
+      "cdmw/services/independent_item_package.py": 267
     }
   },
   {
@@ -28316,7 +28381,7 @@ MESSAGE_REFERENCE = [
     "message": "The source contains conflicting resource versions.",
     "recovery": "conflict",
     "sources": {
-      "cdmw/services/independent_item_package.py": 392
+      "cdmw/services/independent_item_package.py": 395
     }
   },
   {
@@ -28324,7 +28389,7 @@ MESSAGE_REFERENCE = [
     "message": "The staged package failed final identity and content readback.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/independent_item_package.py": 817
+      "cdmw/services/independent_item_package.py": 820
     }
   },
   {
@@ -28348,7 +28413,7 @@ MESSAGE_REFERENCE = [
     "message": "The template cloth dependency could not be verified: {context.problem}",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/independent_item_physics.py": 71
+      "cdmw/services/independent_item_physics.py": 92
     }
   },
   {
@@ -28356,7 +28421,7 @@ MESSAGE_REFERENCE = [
     "message": "The template cloth dependency could not be verified: {detail}",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/independent_item_physics.py": 71
+      "cdmw/services/independent_item_physics.py": 92
     }
   },
   {
@@ -28388,7 +28453,7 @@ MESSAGE_REFERENCE = [
     "message": "The virtual archive is missing its metadata or payload pair.",
     "recovery": "missing",
     "sources": {
-      "cdmw/services/virtual_loader_state.py": 141
+      "cdmw/services/virtual_loader_state.py": 162
     }
   },
   {
@@ -28396,7 +28461,7 @@ MESSAGE_REFERENCE = [
     "message": "The virtual compilation record disagrees with the profile.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/virtual_loader_state.py": 153
+      "cdmw/services/virtual_loader_state.py": 174
     }
   },
   {
@@ -28404,7 +28469,7 @@ MESSAGE_REFERENCE = [
     "message": "The virtual map contains a case-insensitive path collision.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/virtual_loader_state.py": 138
+      "cdmw/services/virtual_loader_state.py": 159
     }
   },
   {
@@ -28412,7 +28477,7 @@ MESSAGE_REFERENCE = [
     "message": "The virtual mount list is missing.",
     "recovery": "missing",
     "sources": {
-      "cdmw/services/virtual_loader_state.py": 143
+      "cdmw/services/virtual_loader_state.py": 164
     }
   },
   {
@@ -28420,7 +28485,7 @@ MESSAGE_REFERENCE = [
     "message": "The virtual package dependency graph disagrees with the profile.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/virtual_loader_state.py": 155
+      "cdmw/services/virtual_loader_state.py": 176
     }
   },
   {
@@ -28428,7 +28493,7 @@ MESSAGE_REFERENCE = [
     "message": "The virtual profile changed before launch. Review it again.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/virtual_loader_runtime.py": 302
+      "cdmw/services/virtual_loader_runtime.py": 317
     }
   },
   {
@@ -28436,7 +28501,7 @@ MESSAGE_REFERENCE = [
     "message": "The virtual runtime does not match its build provenance.",
     "recovery": "integrity",
     "sources": {
-      "cdmw/services/virtual_loader_runtime.py": 313
+      "cdmw/services/virtual_loader_runtime.py": 328
     }
   },
   {
@@ -28444,7 +28509,7 @@ MESSAGE_REFERENCE = [
     "message": "The virtual selection contains duplicate paths.",
     "recovery": "conflict",
     "sources": {
-      "cdmw/services/virtual_loader_composition.py": 110
+      "cdmw/services/virtual_loader_composition.py": 108
     }
   },
   {
@@ -28476,7 +28541,7 @@ MESSAGE_REFERENCE = [
     "message": "This executable build is not supported by the diagnostic runtime.",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/services/virtual_loader_runtime.py": 596
+      "cdmw/services/virtual_loader_runtime.py": 611
     }
   },
   {
@@ -28540,7 +28605,7 @@ MESSAGE_REFERENCE = [
     "message": "Truncated item package resource.",
     "recovery": "format",
     "sources": {
-      "cdmw/services/independent_item_package.py": 695
+      "cdmw/services/independent_item_package.py": 698
     }
   },
   {
@@ -28660,7 +28725,7 @@ MESSAGE_REFERENCE = [
     "message": "Unsafe or unsupported package entry.",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/services/independent_item_package.py": 759
+      "cdmw/services/independent_item_package.py": 762
     }
   },
   {
@@ -28668,7 +28733,8 @@ MESSAGE_REFERENCE = [
     "message": "Unsupported PE",
     "recovery": "unsupported",
     "sources": {
-      "native/cdmw_virtual_loader/runtime.cpp": 179
+      "native/cdmw_virtual_loader/resource_serving.cpp": 158,
+      "native/cdmw_virtual_loader/runtime.cpp": 180
     }
   },
   {
@@ -28676,7 +28742,7 @@ MESSAGE_REFERENCE = [
     "message": "Unsupported XML declaration.",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/services/independent_item_physics.py": 16
+      "cdmw/services/independent_item_physics.py": 20
     }
   },
   {
@@ -28724,7 +28790,7 @@ MESSAGE_REFERENCE = [
     "message": "Unsupported independent item package version or fields.",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/services/independent_item_package.py": 504
+      "cdmw/services/independent_item_package.py": 507
     }
   },
   {
@@ -28748,7 +28814,7 @@ MESSAGE_REFERENCE = [
     "message": "Unsupported launcher",
     "recovery": "unsupported",
     "sources": {
-      "native/cdmw_virtual_loader/protocol.cpp": 102
+      "native/cdmw_virtual_loader/protocol.cpp": 116
     }
   },
   {
@@ -28756,7 +28822,7 @@ MESSAGE_REFERENCE = [
     "message": "Unsupported launcher profile status.",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/services/virtual_loader_standalone.py": 129
+      "cdmw/services/virtual_loader_standalone.py": 130
     }
   },
   {
@@ -28764,7 +28830,7 @@ MESSAGE_REFERENCE = [
     "message": "Unsupported manifest",
     "recovery": "unsupported",
     "sources": {
-      "native/cdmw_virtual_loader/protocol.cpp": 153
+      "native/cdmw_virtual_loader/protocol.cpp": 180
     }
   },
   {
@@ -28789,7 +28855,7 @@ MESSAGE_REFERENCE = [
     "message": "Unsupported owned resource: {path}",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/services/independent_item_package.py": 342
+      "cdmw/services/independent_item_package.py": 345
     }
   },
   {
@@ -28797,7 +28863,7 @@ MESSAGE_REFERENCE = [
     "message": "Unsupported package resource path: {value}",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/services/independent_item_package.py": 143
+      "cdmw/services/independent_item_package.py": 146
     }
   },
   {
@@ -28821,7 +28887,7 @@ MESSAGE_REFERENCE = [
     "message": "Unsupported prepared model side file.",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/services/independent_item_package.py": 572
+      "cdmw/services/independent_item_package.py": 575
     }
   },
   {
@@ -28829,7 +28895,7 @@ MESSAGE_REFERENCE = [
     "message": "Unsupported runtime session status.",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/services/virtual_loader_runtime.py": 492
+      "cdmw/services/virtual_loader_runtime.py": 507
     }
   },
   {
@@ -28837,7 +28903,7 @@ MESSAGE_REFERENCE = [
     "message": "Unsupported session path length.",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/services/virtual_loader_runtime.py": 191
+      "cdmw/services/virtual_loader_runtime.py": 200
     }
   },
   {
@@ -28845,7 +28911,7 @@ MESSAGE_REFERENCE = [
     "message": "Unsupported shared metadata change.",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/services/independent_item_package.py": 344
+      "cdmw/services/independent_item_package.py": 347
     }
   },
   {
@@ -28853,7 +28919,7 @@ MESSAGE_REFERENCE = [
     "message": "Unsupported shared table: {name}",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/services/independent_item_package.py": 328
+      "cdmw/services/independent_item_package.py": 331
     }
   },
   {
@@ -28861,7 +28927,7 @@ MESSAGE_REFERENCE = [
     "message": "Unsupported virtual profile.",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/services/virtual_loader_state.py": 70
+      "cdmw/services/virtual_loader_state.py": 81
     }
   },
   {
@@ -28885,7 +28951,7 @@ MESSAGE_REFERENCE = [
     "message": "Unverified startup path; virtual loading refused. Loader callout",
     "recovery": "input",
     "sources": {
-      "native/cdmw_virtual_loader/runtime.cpp": 477
+      "native/cdmw_virtual_loader/runtime.cpp": 502
     }
   },
   {
@@ -28949,7 +29015,7 @@ MESSAGE_REFERENCE = [
     "message": "Virtual ownership and saved item identities disagree. Recover their matching ledgers.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/virtual_loader_state.py": 180
+      "cdmw/services/virtual_loader_state.py": 201
     }
   },
   {
@@ -28981,7 +29047,7 @@ MESSAGE_REFERENCE = [
     "message": "Virtual profile committed after verified recovery: {publication_error}",
     "recovery": "write",
     "sources": {
-      "cdmw/services/virtual_loader_state.py": 367
+      "cdmw/services/virtual_loader_state.py": 388
     }
   },
   {
@@ -28989,7 +29055,7 @@ MESSAGE_REFERENCE = [
     "message": "Virtual profile exceeds its size limit.",
     "recovery": "limits",
     "sources": {
-      "cdmw/services/virtual_loader_state.py": 53
+      "cdmw/services/virtual_loader_state.py": 64
     }
   },
   {
@@ -28997,7 +29063,7 @@ MESSAGE_REFERENCE = [
     "message": "Virtual profile path escapes the installation.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/virtual_loader_state.py": 36
+      "cdmw/services/virtual_loader_state.py": 47
     }
   },
   {
@@ -29005,7 +29071,7 @@ MESSAGE_REFERENCE = [
     "message": "Virtual profile paths cannot pass through links or junctions.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/virtual_loader_state.py": 34
+      "cdmw/services/virtual_loader_state.py": 45
     }
   },
   {
@@ -29013,7 +29079,7 @@ MESSAGE_REFERENCE = [
     "message": "Virtual profile recovery is required. Publication: {publication_error}. Recovery: {recovery_error}. Recovery material: {backup}",
     "recovery": "recovery",
     "sources": {
-      "cdmw/services/virtual_loader_state.py": 355
+      "cdmw/services/virtual_loader_state.py": 376
     }
   },
   {
@@ -29021,7 +29087,7 @@ MESSAGE_REFERENCE = [
     "message": "Virtual profile restored and verified after journal cleanup reported: %s",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/virtual_loader_state.py": 360
+      "cdmw/services/virtual_loader_state.py": 381
     }
   },
   {
@@ -29029,7 +29095,7 @@ MESSAGE_REFERENCE = [
     "message": "Virtual recovery did not establish the selected ledger bytes.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/virtual_loader_state.py": 210
+      "cdmw/services/virtual_loader_state.py": 231
     }
   },
   {
@@ -29037,7 +29103,7 @@ MESSAGE_REFERENCE = [
     "message": "Virtual recovery did not select a verified state.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/virtual_loader_state.py": 348
+      "cdmw/services/virtual_loader_state.py": 369
     }
   },
   {
@@ -29045,7 +29111,7 @@ MESSAGE_REFERENCE = [
     "message": "Virtual recovery does not match its retained generation manifest.",
     "recovery": "stale",
     "sources": {
-      "cdmw/services/virtual_loader_state.py": 225
+      "cdmw/services/virtual_loader_state.py": 246
     }
   },
   {
@@ -29053,7 +29119,7 @@ MESSAGE_REFERENCE = [
     "message": "Virtual recovery found a changed generation file.",
     "recovery": "stale",
     "sources": {
-      "cdmw/services/virtual_loader_state.py": 228
+      "cdmw/services/virtual_loader_state.py": 249
     }
   },
   {
@@ -29061,7 +29127,7 @@ MESSAGE_REFERENCE = [
     "message": "Virtual recovery is missing the matching identity ledger.",
     "recovery": "missing",
     "sources": {
-      "cdmw/services/virtual_loader_state.py": 215
+      "cdmw/services/virtual_loader_state.py": 236
     }
   },
   {
@@ -29069,7 +29135,7 @@ MESSAGE_REFERENCE = [
     "message": "Virtual recovery journal preservation failed verification.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/virtual_loader_state.py": 263
+      "cdmw/services/virtual_loader_state.py": 284
     }
   },
   {
@@ -29077,7 +29143,7 @@ MESSAGE_REFERENCE = [
     "message": "Virtual recovery ledgers changed during verification.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/virtual_loader_state.py": 230
+      "cdmw/services/virtual_loader_state.py": 251
     }
   },
   {
@@ -29085,7 +29151,7 @@ MESSAGE_REFERENCE = [
     "message": "Virtual recovery material failed readback.",
     "recovery": "recovery",
     "sources": {
-      "cdmw/services/virtual_loader_state.py": 321
+      "cdmw/services/virtual_loader_state.py": 342
     }
   },
   {
@@ -29093,7 +29159,7 @@ MESSAGE_REFERENCE = [
     "message": "Virtual recovery material failed validation.",
     "recovery": "recovery",
     "sources": {
-      "cdmw/services/virtual_loader_state.py": 241
+      "cdmw/services/virtual_loader_state.py": 262
     }
   },
   {
@@ -29101,7 +29167,7 @@ MESSAGE_REFERENCE = [
     "message": "Virtual recovery ownership and identity ledgers disagree.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/virtual_loader_state.py": 219
+      "cdmw/services/virtual_loader_state.py": 240
     }
   },
   {
@@ -29109,7 +29175,7 @@ MESSAGE_REFERENCE = [
     "message": "Virtual recovery still has an active transaction journal.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/virtual_loader_state.py": 351
+      "cdmw/services/virtual_loader_state.py": 372
     }
   },
   {
@@ -29117,7 +29183,7 @@ MESSAGE_REFERENCE = [
     "message": "Virtual redirection is limited to prepared archive and metadata files.",
     "recovery": "limits",
     "sources": {
-      "cdmw/services/virtual_loader_state.py": 133
+      "cdmw/services/virtual_loader_state.py": 154
     }
   },
   {
@@ -29165,7 +29231,7 @@ MESSAGE_REFERENCE = [
     "message": "replace",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/virtual_loader_standalone.py": 142
+      "cdmw/services/virtual_loader_standalone.py": 143
     }
   },
   {
@@ -29311,7 +29377,7 @@ MESSAGE_REFERENCE = [
     "message": "{package.title}: only Create New Item packages can be rebuilt ({extra}).",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/independent_item_package.py": 474
+      "cdmw/services/independent_item_package.py": 477
     }
   },
   {
@@ -29712,7 +29778,7 @@ MESSAGE_REFERENCE = [
     "message": "A verified character body with compatible skin weights is required for this armour import.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/new_item_skinning.py": 91
+      "cdmw/services/new_item_skinning.py": 111
     }
   },
   {
@@ -29962,7 +30028,7 @@ MESSAGE_REFERENCE = [
     "message": "Armour weights were transferred from the character body. Check fit and deformation; cloth simulation is not rebuilt.{detail}",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_skinning.py": 219
+      "cdmw/services/new_item_skinning.py": 239
     }
   },
   {
@@ -30051,7 +30117,7 @@ MESSAGE_REFERENCE = [
     "message": "Cannot copy prefab {item.path}: {exc}",
     "recovery": "input",
     "sources": {
-      "cdmw/services/new_item_planning.py": 720
+      "cdmw/services/new_item_planning.py": 724
     }
   },
   {
@@ -30059,7 +30125,7 @@ MESSAGE_REFERENCE = [
     "message": "Cannot copy prefab {part.prefab_path}: {exc}",
     "recovery": "input",
     "sources": {
-      "cdmw/services/new_item_variants.py": 360
+      "cdmw/services/new_item_variants.py": 368
     }
   },
   {
@@ -30083,7 +30149,7 @@ MESSAGE_REFERENCE = [
     "message": "Cannot prepare equipment visibility rules: {exc}",
     "recovery": "input",
     "sources": {
-      "cdmw/services/new_item_planning.py": 918
+      "cdmw/services/new_item_planning.py": 927
     }
   },
   {
@@ -32200,7 +32266,7 @@ MESSAGE_REFERENCE = [
     "message": "No icon registry ({ICON_REGISTRY_PATH}) in the archives; the generated icon will not draw until it is registered there.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 806
+      "cdmw/services/new_item_planning.py": 815
     }
   },
   {
@@ -32272,7 +32338,7 @@ MESSAGE_REFERENCE = [
     "message": "No texture registry (meta/0.pathc) was found beside the archives; the new textures will not draw when installed directly until it is rebuilt.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 836
+      "cdmw/services/new_item_planning.py": 845
     }
   },
   {
@@ -32288,7 +32354,7 @@ MESSAGE_REFERENCE = [
     "message": "No verified character body is available for this target skeleton.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_skinning.py": 158
+      "cdmw/services/new_item_skinning.py": 178
     }
   },
   {
@@ -33825,7 +33891,7 @@ MESSAGE_REFERENCE = [
     "message": "The selected variant prefab has no exact model binding to repoint.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/new_item_variants.py": 362
+      "cdmw/services/new_item_variants.py": 370
     }
   },
   {
@@ -33881,7 +33947,7 @@ MESSAGE_REFERENCE = [
     "message": "The source item table already contains custom items: {detail}. Their records would be included in the exported tables. To create a separate mod, unmount existing item mods and read the archives again before building the plan. To combine mounted items, select Include mounted items in a new mod and rebuild. To extend a mod folder, select it with Add to existing mod. Source: {snapshot.iteminfo.payload_entry.pamt_path}",
     "recovery": "format",
     "sources": {
-      "cdmw/services/new_item_planning.py": 968
+      "cdmw/services/new_item_planning.py": 977
     }
   },
   {
@@ -33961,7 +34027,7 @@ MESSAGE_REFERENCE = [
     "message": "The template has no {role} at {item.path}; the clone goes without one.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 704
+      "cdmw/services/new_item_planning.py": 699
     }
   },
   {
@@ -35195,7 +35261,7 @@ MESSAGE_REFERENCE = [
     "message": "a generated icon needs the spec's stem to be allocated",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 860
+      "cdmw/services/new_item_planning.py": 869
     }
   },
   {
@@ -35331,7 +35397,7 @@ MESSAGE_REFERENCE = [
     "message": "enchant level {level} for {what} is negative",
     "recovery": "input",
     "sources": {
-      "cdmw/services/new_item_planning.py": 867
+      "cdmw/services/new_item_planning.py": 876
     }
   },
   {
@@ -35339,7 +35405,7 @@ MESSAGE_REFERENCE = [
     "message": "enchant level {level} for {what} skips level {len(levels)}; levels are added one at a time",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 869
+      "cdmw/services/new_item_planning.py": 878
     }
   },
   {
@@ -35403,7 +35469,7 @@ MESSAGE_REFERENCE = [
     "message": "icon registry: {exc}",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 812
+      "cdmw/services/new_item_planning.py": 821
     }
   },
   {
@@ -35765,7 +35831,7 @@ MESSAGE_REFERENCE = [
     "message": "texture registry: {exc}",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 849
+      "cdmw/services/new_item_planning.py": 858
     }
   },
   {
@@ -35773,7 +35839,7 @@ MESSAGE_REFERENCE = [
     "message": "texture {request.path}: {exc}",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 835
+      "cdmw/services/new_item_planning.py": 844
     }
   },
   {
@@ -35942,7 +36008,7 @@ MESSAGE_REFERENCE = [
     "message": "the imported build carries no rebuilt mesh data",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 1011
+      "cdmw/services/new_item_planning.py": 1020
     }
   },
   {
@@ -35998,7 +36064,7 @@ MESSAGE_REFERENCE = [
     "message": "the spec asks for a generated icon but no icon was built",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 797
+      "cdmw/services/new_item_planning.py": 806
     }
   },
   {
@@ -36022,7 +36088,7 @@ MESSAGE_REFERENCE = [
     "message": "the spec needs a stem and none is allocated",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 897
+      "cdmw/services/new_item_planning.py": 906
     }
   },
   {
@@ -36030,7 +36096,7 @@ MESSAGE_REFERENCE = [
     "message": "the spec's {name} is not allocated",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 895
+      "cdmw/services/new_item_planning.py": 904
     }
   },
   {
@@ -36038,7 +36104,7 @@ MESSAGE_REFERENCE = [
     "message": "the template has no enchant level to copy for {what}",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 872
+      "cdmw/services/new_item_planning.py": 881
     }
   },
   {
@@ -36231,7 +36297,7 @@ MESSAGE_REFERENCE = [
     "message": "{item.path} names none of the family's meshes, so it cannot be re-pathed",
     "recovery": "input",
     "sources": {
-      "cdmw/services/new_item_planning.py": 722
+      "cdmw/services/new_item_planning.py": 726
     }
   },
   {
@@ -36424,7 +36490,7 @@ MESSAGE_REFERENCE = [
     "message": "{part.prefab_path} names no mesh to re-path to the imported model",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 759
+      "cdmw/services/new_item_planning.py": 768
     }
   },
   {
@@ -36616,7 +36682,7 @@ MESSAGE_REFERENCE = [
     "message": "{self.template.string_key} has no icon file to shape the new one after",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 801
+      "cdmw/services/new_item_planning.py": 810
     }
   },
   {
@@ -99815,6 +99881,7 @@ DYNAMIC_REFERENCE = {
     "cdmw/services/virtual_save_experiment_protocol.py",
     "native/cdmw_virtual_loader/compose_launch.cpp",
     "native/cdmw_virtual_loader/protocol.cpp",
+    "native/cdmw_virtual_loader/resource_serving.cpp",
     "native/cdmw_virtual_loader/runtime.cpp",
     "native/cdmw_virtual_loader/session.cpp"
   ],
@@ -102416,7 +102483,7 @@ SOURCE_COVERAGE = {
     "raise": 60
   },
   "cdmw/services/independent_item_physics.py": {
-    "raise": 12
+    "raise": 13
   },
   "cdmw/services/independent_item_references.py": {
     "raise": 18
@@ -102999,7 +103066,7 @@ SOURCE_COVERAGE = {
   },
   "cdmw/services/virtual_loader_state.py": {
     "log": 3,
-    "raise": 57
+    "raise": 58
   },
   "cdmw/services/virtual_save_experiment_protocol.py": {
     "diagnostic_field": 1,
@@ -105609,12 +105676,17 @@ SOURCE_COVERAGE = {
   "native/cdmw_virtual_loader/compose_launch.hpp": {},
   "native/cdmw_virtual_loader/protocol.cpp": {
     "native_handoff": 3,
-    "native_message": 30
+    "native_message": 31
   },
   "native/cdmw_virtual_loader/protocol.hpp": {},
+  "native/cdmw_virtual_loader/resource_serving.cpp": {
+    "native_handoff": 1,
+    "native_message": 8
+  },
+  "native/cdmw_virtual_loader/resource_serving.hpp": {},
   "native/cdmw_virtual_loader/runtime.cpp": {
     "native_handoff": 8,
-    "native_message": 33
+    "native_message": 35
   },
   "native/cdmw_virtual_loader/session.cpp": {
     "native_handoff": 1,

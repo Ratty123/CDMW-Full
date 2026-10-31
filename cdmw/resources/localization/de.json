@@ -9354,6 +9354,7 @@
     "Prepared profile proposal; runtime activation and save producer are unverified.": "Vorbereiteter Profilvorschlag; Laufzeitaktivierung und Spielstandserzeuger sind nicht verifiziert.",
     "Prepared replacement material preview could not be compiled: {value_0}": "Vorbereitete Ersatzmaterialvorschau konnte nicht kompiliert werden: {value_0}",
     "Prepared replacement materials produced no renderer resources.": "Vorbereitete Ersatzmaterialien haben keine Renderer-Ressourcen erzeugt.",
+    "Prepared the served files.": "Die bereitzustellenden Dateien wurden vorbereitet.",
     "Prepared {value_0} DDS import preview for {value_1}.": "{value_0} DDS-Importvorschau für {value_1} vorbereitet.",
     "Prepared {value_0} built item(s) for review. Opening the review window after cleanup.": "{value_0} erstellte Gegenstände wurden zur Überprüfung vorbereitet. Öffnen des Überprüfungsfensters nach der Bereinigung.",
     "Prepared {value_0}. Review the source preview and continue when ready.": "{value_0} vorbereitet. Quellvorschau überprüfen und fortfahren, sobald bereit.",

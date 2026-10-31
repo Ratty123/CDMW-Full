@@ -9354,6 +9354,7 @@
     "Prepared profile proposal; runtime activation and save producer are unverified.": "プロファイル案を準備しました。実行時の有効化とセーブの作成元は未検証です。",
     "Prepared replacement material preview could not be compiled: {value_0}": "準備済みの置換マテリアルプレビューをコンパイルできませんでした: {value_0}",
     "Prepared replacement materials produced no renderer resources.": "準備済みの置換マテリアルからレンダラーリソースが生成されませんでした。",
+    "Prepared the served files.": "配信するファイルを準備しました。",
     "Prepared {value_0} DDS import preview for {value_1}.": "{value_1} 用の {value_0} DDS インポート プレビューを準備しました。",
     "Prepared {value_0} built item(s) for review. Opening the review window after cleanup.": "レビュー用に {value_0} 構築アイテムを準備しました。クリーンアップ後にレビュー ウィンドウを開く。",
     "Prepared {value_0}. Review the source preview and continue when ready.": "{value_0} を準備しました。ソースプレビューを確認し、準備ができたら続行してください。",

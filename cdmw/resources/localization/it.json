@@ -9354,6 +9354,7 @@
     "Prepared profile proposal; runtime activation and save producer are unverified.": "Proposta di profilo preparata; attivazione in runtime e processo autore del salvataggio non verificati.",
     "Prepared replacement material preview could not be compiled: {value_0}": "Impossibile compilare l'anteprima dei materiali sostitutivi preparati: {value_0}",
     "Prepared replacement materials produced no renderer resources.": "I materiali sostitutivi preparati non hanno prodotto risorse per il renderer.",
+    "Prepared the served files.": "I file da servire sono pronti.",
     "Prepared {value_0} DDS import preview for {value_1}.": "Anteprima di importazione {value_0} DDS preparata per {value_1}.",
     "Prepared {value_0} built item(s) for review. Opening the review window after cleanup.": "Oggetti costruiti {value_0} preparati per la revisione. Apertura della finestra di revisione dopo la pulizia.",
     "Prepared {value_0}. Review the source preview and continue when ready.": "Preparato {value_0}. Rivedi l’anteprima della sorgente e continua quando sei pronto.",

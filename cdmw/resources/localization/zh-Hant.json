@@ -9354,6 +9354,7 @@
     "Prepared profile proposal; runtime activation and save producer are unverified.": "已準備配置方案；執行時啟用情況及存檔生成者尚未驗證。",
     "Prepared replacement material preview could not be compiled: {value_0}": "無法編譯已準備的替換材質預覽：{value_0}",
     "Prepared replacement materials produced no renderer resources.": "已準備的替換材質未產生算繪器資源。",
+    "Prepared the served files.": "已準備好要提供的檔案。",
     "Prepared {value_0} DDS import preview for {value_1}.": "為 {value_1} 準備了 {value_0} DDS 導入預覽。",
     "Prepared {value_0} built item(s) for review. Opening the review window after cleanup.": "準備 {value_0} 建置項目以供審核。清理後開啟審閱視窗。",
     "Prepared {value_0}. Review the source preview and continue when ready.": "已準備好 {value_0}。查看來源預覽，準備就緒後繼續。",

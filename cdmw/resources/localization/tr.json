@@ -9354,6 +9354,7 @@
     "Prepared profile proposal; runtime activation and save producer are unverified.": "Profil önerisi hazırlandı; çalışma zamanında etkinleşme ve kayıt üreticisi doğrulanmadı.",
     "Prepared replacement material preview could not be compiled: {value_0}": "Hazırlanmış değiştirme malzemesi önizlemesi derlenemedi: {value_0}",
     "Prepared replacement materials produced no renderer resources.": "Hazırlanmış değiştirme malzemeleri işleyici kaynağı üretmedi.",
+    "Prepared the served files.": "Sunulacak dosyalar hazırlandı.",
     "Prepared {value_0} DDS import preview for {value_1}.": "{value_1} için {value_0} DDS içe aktarma önizlemesi hazırlandı.",
     "Prepared {value_0} built item(s) for review. Opening the review window after cleanup.": "İnceleme için {value_0} yerleşik öğesi/öğeleri hazırlandı. Temizlemeden sonra inceleme penceresi açılıyor.",
     "Prepared {value_0}. Review the source preview and continue when ready.": "{value_0} hazırlandı. Kaynak önizlemesini inceleyin ve hazır olduğunuzda devam edin.",
