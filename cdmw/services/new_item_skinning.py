@@ -22,8 +22,8 @@ def strip_template_vertex_physics(data):
     """Keep skeletal attachment weights, but remove donor cloth/jiggle at every LOD.
 
     The shared replacement writer deliberately retains donor simulation lanes.
-    A new imported item with template physics off must not publish those lanes,
-    even when it does not copy the separate HKX companion.
+    A new imported item with template physics off must not publish those lanes;
+    its HKX companion is only the template's collision shape.
     """
     from cdmw.domain.mesh.cloth import PacClothRule
     from cdmw.domain.mesh.jiggle import PacJiggleRule
@@ -35,6 +35,26 @@ def strip_template_vertex_physics(data):
                    if any(data[offset + 39] & 63 != 63 for offset in part.source_vertex_offsets)}
     data = apply_pac_cloth_rules(data, {index: PacClothRule(amount=0) for index in cloth_parts})
     return apply_pac_jiggle_rules(data, {index: PacJiggleRule() for index in range(len(levels[0].submeshes))})
+
+
+def template_collision_copy(planner, path):
+    """The template's mesh physics for an imported model's new stem, or None.
+
+    The game looks up `meshphysics/<stem>.hkx` for every model stem and logs each
+    one it cannot find. The shipped files there are rigid Havok shapes (convex
+    hulls, compounds, capsules, spheres) holding no vertex indices and no names,
+    so the file is copied as it is; the template's cloth lives in the PAC and PAC_XML
+    and is stripped separately. Collision then follows the template's outline,
+    not the imported mesh's. A package carries only the layouts its audit knows.
+    """
+    data = planner.snapshot.payload(path)
+    if planner.independent:
+        from cdmw.core.archive_hkx_copy import validate_hkx_copy_source
+        try:
+            validate_hkx_copy_source(data)
+        except ValueError:
+            return None
+    return data
 
 
 def strip_template_material_physics(data):

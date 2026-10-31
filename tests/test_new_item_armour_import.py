@@ -124,7 +124,7 @@ def test_legacy_plan_cannot_reenable_physics_for_an_applied_six_weight_model(tmp
     from cdmw.domain.new_item.spec import ModelSource, NewItemSpec
     from cdmw.services.new_item_planning import ModelFiles
     from tests.test_new_item_provenance import setup_game
-    from tests.test_new_item_service import TEMPLATE, imported_pac
+    from tests.test_new_item_service import HKX, TEMPLATE, imported_pac
 
     service, snapshot, _entries = setup_game(tmp_path, current=False)
     model = ModelFiles(_with_influences_at_lod(imported_pac(), 6, 3))
@@ -133,7 +133,8 @@ def test_legacy_plan_cannot_reenable_physics_for_an_applied_six_weight_model(tmp
     # Apply was completed with physics off. Changing only the plan choice must
     # not reuse that output with template simulation enabled.
     plan = service.plan(spec, snapshot, model=model)
-    assert not any(path.endswith(".hkx") for path in plan.new_paths)
+    # Only the template's collision shape travels; its cloth does not.
+    assert [plan.loose_files[path] for path in plan.new_paths if path.endswith(".hkx")] == [snapshot.payload(HKX)]
     with pytest.raises(ValueError, match="Turn off Template cloth / physics"):
         service.plan(replace(spec, keep_template_physics=True), snapshot, model=model)
 

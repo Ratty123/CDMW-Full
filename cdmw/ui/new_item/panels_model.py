@@ -898,10 +898,10 @@ class ModelPanel(ModelPanelPreviewMixin, QGroupBox):
         model_layout.addWidget(self.own_sheath)
         self.keep_physics = QCheckBox("Template cloth / physics")
         self.keep_physics.setToolTip(
-            "A template's mesh physics file binds cloth and collision to that template's own vertices. On a model of your own "
-            "those indices land wherever they land, which is how a handle ends up swinging like a cape. Off, the item is written "
-            "without a physics file and the game gives it none. On for a template whose cloth you want and whose shape yours "
-            "follows closely."
+            "A template's cloth and jiggle bindings are tied to that template's own vertices. On a model of your own "
+            "those indices land wherever they land, which is how a handle ends up swinging like a cape. Off, those bindings "
+            "are removed and the item keeps only the template's collision shape. On for a template whose cloth you want and "
+            "whose shape yours follows closely."
         )
         self.keep_physics.toggled.connect(self._keep_physics_changed)
         model_layout.addWidget(self.keep_physics)

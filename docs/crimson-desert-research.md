@@ -125,8 +125,11 @@ groups, and CDMW's runtime served the texture registry. The five swords appeared
 Tranan's camp equipment shop with names and prices, and a bought one showed its model
 when equipped. The game requested each sword's new `.pac`, `.pac_xml` and 40 textures,
 paths in no archive index, and DMM served them all. The game also looked for a mesh-physics
-file per new model (`character/bin__/meshphysics/.../<stem>.hkx`) and logged it as missing;
-CDMW writes none, and what that affects (dropped-item physics, for example) is untested.
+file per new model (`character/bin__/meshphysics/.../<stem>.hkx`) and logged it as missing:
+the swords used imported models, for which CDMW then wrote none. Plans now copy the
+template's collision shape under the new stem ([6.5](#65-havok-hkx)); what the missing
+file affected (dropped-item physics, for example) was not tested, and the copy has not
+been checked in game.
 The other data errors matched unmodified launches. The DMM app was not running; only its
 runtime and a temporarily extended manifest were used.
 
@@ -1239,9 +1242,26 @@ references, arrays or strings require a semantic writer and remain blocked.
 Havok XML export is an inspection/interchange representation, not proof that an
 arbitrary edited XML document can be compiled into a compatible game asset.
 
-Independent item packages can copy witnessed convex/compound collision templates
-under stricter unchanged-mesh and dependency rules. Copying a collision HKX alone
-does not transfer cloth motion to a new mesh.
+Independent item packages can copy witnessed convex/compound collision templates.
+Beside the template's own mesh the whole cloth graph must be unchanged; beside a
+replacement mesh the copy is accepted only as a collision shape, with no template
+cloth, jiggle or simulation assignment left in the mesh or material. Copying a
+collision HKX alone does not transfer cloth motion to a new mesh.
+
+Read-only mesh-physics survey, 2026-10-31, against game executable `1.0.0.3446`
+(game 2.04.02): the installed archives index 13,306 HKX files under
+`character/bin__/meshphysics/` in 1,065 folders. All 982 files in the player weapon
+folders and up to four per other folder (3,291 in all) were read. Each is a 2024.2
+tagfile of rigid `hknp` shapes (convex hulls, compounds, capsules, spheres, triangles)
+with mass properties; none contains a cloth (`hcl`) type or its own stem name, so a
+template's file can be copied byte for byte under a new stem. All 305 player one-hand
+sword PACs have a same-stem HKX. Of the 6,687 player (`1_pc`) HKX files, 6,598 pass
+the package collision recogniser; the 89 that do not hold triangle, capsule or sphere
+shapes. On 31 October the game logged a missing HKX for each new stem of five
+imported-model swords; Create New Item now copies the template's file for imported
+models as well. Collision then follows the template's outline. What the game uses the
+file for (dropped items, world collision) and the copy's in-game effect remain
+unverified. This is archive inspection and source/fixture evidence only.
 
 Read-only naming review, 2026-10-24, against CDMW implementation `5a7b18a3` and
 game executable `1.0.0.2976` (SHA-256

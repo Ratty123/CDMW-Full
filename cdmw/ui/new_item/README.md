@@ -2428,13 +2428,21 @@ prefabs. A composed armour prefab can name several meshes, each with its own HKX
 stripping an `_index02` suffix from the prefab name does not establish that binding.
 
 **Imported model physics:** with **Template cloth / physics** off (the default),
-Build plan removes inherited cloth-guide and jiggle bindings from every PAC LOD,
-clears simulation assignments in every material property variant, and excludes the
-template's HKX companion. Skeletal attachment/animation weights, authored geometry,
-textures and shader choices remain intact. This applies to both imported builds and
-prebuilt model payloads when building a new or updated plan. The shared Mesh Editor writer
-still preserves physics for ordinary edits. Explicitly retaining template physics
-keeps its original bindings; copying the template model itself also retains them.
+Build plan removes inherited cloth-guide and jiggle bindings from every PAC LOD and
+clears simulation assignments in every material property variant. Skeletal
+attachment/animation weights, authored geometry, textures and shader choices remain
+intact. This applies to both imported builds and prebuilt model payloads when building
+a new or updated plan. The shared Mesh Editor writer still preserves physics for
+ordinary edits. Explicitly retaining template physics keeps its original bindings;
+copying the template model itself also retains them.
+
+The template's HKX companion is copied byte for byte under each new stem either way.
+It is a rigid Havok collision shape that names no vertices or files, and the game
+looks one up for every model stem: game 2.04.02 logs each one it cannot find.
+Collision therefore follows the template's outline, not the imported mesh's.
+`.cditem` plans carry it only when the package audit recognises its collision layout
+and the mesh and material hold no template cloth; otherwise the plan summary says the
+item goes without one. Loose exports always copy it.
 
 ### Imported armour and skinning
 

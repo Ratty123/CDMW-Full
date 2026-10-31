@@ -1,4 +1,8 @@
-"""Conservative pass-through ownership of unchanged template collision/cloth."""
+"""Conservative pass-through ownership of unchanged template collision/cloth.
+
+A replacement mesh may keep only the template's collision shape: the HKX is
+unchanged and recognised, and the mesh and material carry no template cloth.
+"""
 import xml.etree.ElementTree as ET
 import re
 
@@ -32,8 +36,24 @@ def _material_binding(data):
     return value(root)
 
 
+def _audit_collision_only(path, data, mesh, material):
+    """A replacement mesh keeps the template's rigid collision shape, never its cloth."""
+    from cdmw.core.archive_hkx_copy import validate_hkx_copy_source
+    from cdmw.services.new_item_skinning import strip_template_material_physics, strip_template_vertex_physics
+
+    try:
+        validate_hkx_copy_source(data)
+        # Stripping is idempotent: an output it would change still carries
+        # template cloth guides, jiggle or simulation assignments.
+        if strip_template_vertex_physics(mesh) != mesh or (
+                material is not None and strip_template_material_physics(material) != material):
+            raise ValueError('Copied template physics requires unchanged mesh geometry and skin/cloth bindings. Disable template physics for a replacement model.')
+    except (UnicodeError, ValueError) as exc:
+        raise IndependentItemError(f'{path}: {exc}') from exc
+
+
 def audit_physics_copy(path, data, outputs, mesh_bindings, snapshot, require, *, stop_event=None):
-    """Keep the original physics graph together; never apply it to a new mesh."""
+    """Keep the original physics graph together; a new mesh gets only its collision shape."""
     from cdmw.core.archive_hkx_copy import validate_hkx_copy_source
     from cdmw.models import PbdProfileContext
     from cdmw.services.mesh_physics_profiles import _capture_document, _resolve_documents
@@ -52,7 +72,8 @@ def audit_physics_copy(path, data, outputs, mesh_bindings, snapshot, require, *,
     if data != snapshot.payload(physics):
         raise IndependentItemError('Independent packages can only copy unchanged template physics.')
     if outputs[model] != snapshot.payload(source):
-        raise IndependentItemError('Copied template physics requires unchanged mesh geometry and skin/cloth bindings. Disable template physics for a replacement model.')
+        _audit_collision_only(path, data, outputs[model], outputs.get(xml_path(model)))
+        return
     try:
         validate_hkx_copy_source(data)
         old_xml, new_xml = xml_path(source), xml_path(model)

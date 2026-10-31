@@ -573,7 +573,8 @@ class PlanTests(_PackageCase):
         added = {request.path: request for request in plan.additions}
         self.assertEqual(set(added), {
             f"character/model/{MODEL_FOLDER}/{new_stem}.pac", f"character/modelproperty/{MODEL_FOLDER}/{new_stem}.pac_xml",
-            # no mesh physics: the template's binds cloth to the template's own vertices
+            # the template's collision shape; its cloth stays behind
+            f"character/bin__/meshphysics/{MODEL_FOLDER}/{new_stem}.hkx",
             f"character/bin__/prefab/{FOLDER}/{new_stem}_r.prefab", f"character/bin__/prefab/{FOLDER}/{new_stem}_l.prefab",
             # the sheathed (_IN) part of the item's own: the borrowed scabbard record cloned, its prefab re-pathed to the imported mesh
             f"character/bin__/prefab/{FOLDER}/{new_stem}_r_in.prefab",
@@ -626,12 +627,13 @@ class PlanTests(_PackageCase):
         self.assertTrue(registry.startswith(b"\xef\xbb\xbf"))
         self.assertTrue(any("icon registry" in line for line in plan.summary_lines))
 
-    def test_an_imported_model_does_not_inherit_the_template_s_physics(self) -> None:
-        """A template's mesh physics binds cloth and collision to the template's own
-        vertices. Copied onto a model of one's own it drives whichever vertices those
-        indices land on, which is how an imported hammer's handle ended up swinging like
-        cloth. The companion is excluded and embedded vertex motion is disabled by
-        default; the choice is on the Model step for a template whose cloth is wanted."""
+    def test_an_imported_model_keeps_only_the_template_s_collision_shape(self) -> None:
+        """A template's cloth and jiggle bindings name the template's own vertices.
+        Kept on a model of one's own they drive whichever vertices those indices land
+        on, which is how an imported hammer's handle ended up swinging like cloth, so
+        they are stripped by default. The mesh physics file is a rigid collision shape
+        naming no vertices, and game 2.04.02 logs every model stem it cannot find one
+        for, so it is copied under the new stem byte for byte either way."""
 
         spec = NewItemSpec(
             template_key=TEMPLATE, internal_name="Ziane_Clone_OneHandSword", display_names={"eng": "X"},
@@ -639,14 +641,18 @@ class PlanTests(_PackageCase):
         )
         plan = self.service.plan(self.service.allocate(spec, self.snapshot), self.snapshot, model=ModelFiles(pac_data=imported_pac()))
         physics = [path for path in plan.new_paths if path.lower().endswith(".hkx")]
-        self.assertEqual(physics, [], "the template's physics is not copied by default")
-        self.assertTrue(any("mesh physics" in line for line in plan.summary_lines), plan.summary_lines)
+        self.assertEqual(physics, [HKX.replace(STEM, plan.spec.stem)], "the collision shape follows the new stem")
+        self.assertEqual(plan.loose_files[physics[0]], self.snapshot.payload(HKX))
+        self.assertTrue(any("collision shape" in line for line in plan.summary_lines), plan.summary_lines)
+        self.assertTrue(any("cloth and jiggle bindings removed" in line for line in plan.summary_lines), plan.summary_lines)
 
         wanted = self.service.plan(
             self.service.allocate(replace(spec, keep_template_physics=True), self.snapshot),
             self.snapshot, model=ModelFiles(pac_data=imported_pac()),
         )
-        self.assertTrue([path for path in wanted.new_paths if path.lower().endswith(".hkx")], "asked for, it is copied")
+        self.assertEqual([path for path in wanted.new_paths if path.lower().endswith(".hkx")],
+                         [HKX.replace(STEM, wanted.spec.stem)], "kept with its cloth when asked for")
+        self.assertFalse(any("cloth and jiggle bindings removed" in line for line in wanted.summary_lines))
 
         # a template-model item keeps it: the mesh is the template's own, so its physics fits
         template_model = self.service.plan(

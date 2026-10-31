@@ -689,21 +689,25 @@ class _Planner(EffectPlanningMixin):
                 texture_paths[path] = target.lower() if self.independent else target
         donor = self._effect_donor()
         written: List[str] = []
-        skipped_physics = ""
+        collision_physics, skipped_physics = "", ""
         strip_physics = self.spec.model_source is ModelSource.IMPORTED and not self.spec.keep_template_physics
         for item in family.files:
             role, new_path = renamed[item.path]
             if role == "icon":
                 continue
-            if role == "hkx" and self.spec.model_source is ModelSource.IMPORTED and not self.spec.keep_template_physics:
-                # the template's cloth is bound to the template's vertices; on a model of
-                # its own it drives whatever those indices hit
-                skipped_physics = item.path
-                continue
             if not item.exists:
                 self.warnings.append(f"The template has no {role} at {item.path}; the clone goes without one.")
                 continue
-            if role == "pac":
+            if role == "hkx" and strip_physics:
+                # the template's cloth is stripped below; its collision shape names no
+                # vertices, and the game asks for one per stem
+                from cdmw.services.new_item_skinning import template_collision_copy
+                payload = template_collision_copy(self, item.path)
+                if payload is None:
+                    skipped_physics = item.path
+                    continue
+                collision_physics = item.path
+            elif role == "pac":
                 payload = self.model.pac_data if item.path == old_pac else self.model.side_files.get(item.path, self.snapshot.payload(item.path))
                 if strip_physics:
                     from cdmw.services.new_item_skinning import strip_template_vertex_physics
@@ -739,9 +743,14 @@ class _Planner(EffectPlanningMixin):
                 payload = self.snapshot.payload(item.path)
             self.add(self.snapshot.entry(item.path), new_path, payload, f"{role}: {new_path}")
             written.append(new_path)
+        if collision_physics:
+            self.summary.append(
+                f"mesh physics: the template's collision shape {collision_physics.rsplit('/', 1)[-1]} is copied; its cloth is not"
+            )
         if skipped_physics:
             self.summary.append(
-                f"mesh physics: the template's {skipped_physics.rsplit('/', 1)[-1]} is not copied"
+                f"mesh physics: the template's {skipped_physics.rsplit('/', 1)[-1]} has a collision layout packages do not carry; "
+                "the item goes without one"
             )
         for old_path, data in self.model.side_files.items():
             if not old_path.lower().endswith(".dds"):

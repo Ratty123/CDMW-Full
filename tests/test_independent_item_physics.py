@@ -13,12 +13,16 @@ from cdmw.core.equipment_visibility import POSTFIX_PATH, matching_postfixes
 from cdmw.domain.new_item.independent import IndependentItemError
 from cdmw.services.independent_item_install import resolve_items
 from cdmw.services.independent_item_package import from_plan, package_bytes, read_package
+from cdmw.domain.new_item.spec import ModelSource
+from cdmw.modding.pac_cloth import pac_cloth_lods
 from cdmw.services.independent_item_physics import audit_physics_copy, _material_binding
+from cdmw.services.new_item_planning import ModelFiles
 from cdmw.services.new_item_service import NewItemService
+from cdmw.services.new_item_skinning import strip_template_material_physics
 from cdmw.services.new_item_variants import xml_path
 from tests.test_archive_overlay_manager import shop_spec
 from tests.test_independent_items import imported_game
-from tests.test_new_item_service import PAC, PAC_XML, HKX, build_package, _read
+from tests.test_new_item_service import PAC, PAC_XML, HKX, build_package, imported_pac, _read
 from tests.test_new_item_variant_authoring import selections
 
 CATALOGUE = 'character/descriptors/pbd/pbdconfig.xml'
@@ -158,6 +162,66 @@ def test_unknown_stock_collision_is_not_accepted_just_because_it_is_stock(tmp_pa
     choice = replace(shop_spec('UnknownPhysics'), variants=(selections(snapshot)[0],))
     with pytest.raises(IndependentItemError, match='unverified collision layout'):
         service.plan(choice, snapshot, capture_independent=True)
+
+
+def replacement_plan(service, snapshot, name, route, **options):
+    if route == 'variant':
+        choice = replace(selections(snapshot)[0], custom_model=True)
+        return service.plan(replace(shop_spec(name), variants=(choice,)), snapshot,
+                            variant_models={choice.identity: ModelFiles(imported_pac(100))}, **options)
+    return service.plan(replace(shop_spec(name), model_source=ModelSource.IMPORTED), snapshot,
+                        model=ModelFiles(imported_pac(100)), **options)
+
+
+@pytest.mark.parametrize('route', ['variant', 'family'])
+def test_replacement_mesh_package_carries_the_template_collision_shape(tmp_path, collision, route):
+    # Game 2.04.02 logs every model stem it finds no mesh physics for. The
+    # replacement keeps the template's rigid shape; its cloth is stripped.
+    service, snapshot = physics_game(tmp_path / 'author', collision)
+    plan = replacement_plan(service, snapshot, 'ReplacementPhysics', route, capture_independent=True)
+    owned = [path for path in plan.new_paths if path.endswith('.hkx')]
+    assert [plan.loose_files[path] for path in owned] == [collision]
+    model = 'character/model/' + owned[0][len('character/bin__/meshphysics/'):-4] + '.pac'
+    assert b'TestCloth' not in plan.loose_files[xml_path(model)]
+    package = from_plan(plan, uuid4().hex)
+    assert read_package(package_bytes(package)) == package
+    assert HKX in package.dependencies
+    physics_game(tmp_path / 'recipient', collision)
+    resolved = resolve_items([package_bytes(package)], tmp_path / 'recipient/game')
+    (_package, changes), = resolved.contributions
+    assert [value['after'] for path, value in changes.items()
+            if path.endswith('.hkx') and value['before'] is None] == [collision]
+
+
+@pytest.mark.parametrize('kept', [None, 'material', 'jiggle', 'layout'])
+def test_replacement_mesh_keeps_the_collision_shape_never_template_cloth(tmp_path, collision, kept, monkeypatch):
+    _, snapshot = physics_game(tmp_path, collision)
+    physics, outputs, bindings = owned_copy(snapshot)
+    model = next(iter(bindings))
+    outputs[model] = imported_pac(100)
+    if kept != 'material':
+        outputs[xml_path(model)] = strip_template_material_physics(outputs[xml_path(model)])
+    if kept == 'jiggle':
+        mesh = bytearray(outputs[model])
+        mesh[pac_cloth_lods(outputs[model])[0].submeshes[0].source_vertex_offsets[0] + 38] = 0
+        outputs[model] = bytes(mesh)
+    elif kept == 'layout':
+        monkeypatch.setattr(hkx_copy, '_SCHEMAS', {})
+    if kept is None:
+        audit_physics_copy(physics, collision, outputs, bindings, snapshot, lambda path: None)
+        return
+    with pytest.raises(IndependentItemError, match='unverified collision layout' if kept == 'layout' else 'replacement model'):
+        audit_physics_copy(physics, collision, outputs, bindings, snapshot, lambda path: None)
+
+
+@pytest.mark.parametrize('route', ['variant', 'family'])
+def test_unrecognised_collision_stays_out_of_a_replacement_package_not_a_loose_export(tmp_path, route):
+    service, snapshot = physics_game(tmp_path, b'opaque collision payload')
+    package = replacement_plan(service, snapshot, 'OpaqueReplacement', route, capture_independent=True)
+    assert not any(path.endswith('.hkx') for path in package.new_paths)
+    assert any('packages' in line for line in package.summary_lines), package.summary_lines
+    loose = replacement_plan(service, snapshot, 'OpaqueReplacement', route)
+    assert [loose.loose_files[path] for path in loose.new_paths if path.endswith('.hkx')] == [b'opaque collision payload']
 
 
 def test_variant_collision_retry_preserves_inherited_rule_suffix(tmp_path, collision, monkeypatch):

@@ -144,7 +144,7 @@ class _WriteTestsMixin:
         self.assertEqual(again.rows[1990000].string_key, "Ziane_Clone_OneHandSword")
         family = again.family(1990000)
         self.assertEqual(family.model_stem, "cd_phm_01_sword_9109")
-        self.assertEqual([item.role for item in family.missing_files], ["hkx"], "no inherited mesh physics")
+        self.assertEqual(family.missing_files, (), "the template's collision shape travels with the stem")
         if result.backup_dir is not None:
             names = sorted(path.name for path in result.backup_dir.iterdir())
             self.assertNotIn("0009_0.paz", names, "no shipped payload file is in the backup")
@@ -193,7 +193,7 @@ class _WriteTestsMixin:
         self.assertIn(first.spec.item_key, again.rows, "the item the overlay carries")
         self.assertIn(second.spec.item_key, again.rows, "the item composed into the overlay")
         for key in (first.spec.item_key, second.spec.item_key):
-            self.assertEqual([item.role for item in again.family(key).missing_files], ["hkx"], "no inherited mesh physics")
+            self.assertEqual(again.family(key).missing_files, (), "the template's collision shape travels with the stem")
 
     def test_a_read_that_fails_after_the_archives_moved_says_so(self) -> None:
         """Another program rewriting the archives -- a mod manager mounting or unmounting

@@ -1081,7 +1081,7 @@ exceptions are defined in [Existing ItemInfo field operations](#existing-iteminf
 | PAC XML and DDS | Parsed resource paths and owned textures/icons; composed texture registry | Unknown XML root/reference attributes, unresolved resources or absent registry |
 | PAPPT and prefabs | Existing structured editors and relocation | Incomplete or inferred prefab reference layouts |
 | Owned effects/emitters/presets | Complete reflection decode, bounded fixed-length reference edits and reserved tokens | Missing dependencies or ambiguous reflection boundaries |
-| Collision physics files | Item-owned byte-for-byte copies of the verified Havok 2024.2 convex/compound template layouts | Unknown type dictionaries, malformed boundaries, changed collision data or changed companion mesh |
+| Collision physics files | Item-owned byte-for-byte copies of the verified Havok 2024.2 convex/compound template layouts, beside the template mesh or a replacement mesh that holds no template cloth | Unknown type dictionaries, malformed boundaries, changed collision data, or a changed mesh or material that still carries template cloth, jiggle or simulation assignments |
 | Cloth and jiggle accompanying copied collision physics | Preserve every PAC LOD and its skin/cloth data; retain model-property bindings and pin the referenced PBD catalogue/profiles | Changed geometry or simulation bindings, missing or ambiguous profiles; no physics transfer to a different mesh |
 | Equipment visibility suffixes | Independent variants retain the template's existing matching suffix rules | Changes requiring shared visibility descriptors remain unsupported |
 | Global rendering edits | Unsupported | Any required shared rendering change outside the additive whitelist |
@@ -1097,10 +1097,10 @@ The source and destination HKX paths follow their actual PAC paths, replacing
 Prefab names, including `_index02` variants, do not replace that mesh binding.
 Each mesh in a composed armour prefab is checked separately.
 
-Owned physics is deliberately limited to unchanged template geometry. The package
-audit checks the exact source HKX and PAC bytes, including all mesh LODs, weights
-and cloth lanes. It permits render-material edits such as emission while requiring
-unchanged model and cloth bindings. Referenced PBD configuration and profile files
+Owned cloth physics is deliberately limited to unchanged template geometry. Beside
+the template's own mesh, the package audit checks the exact source HKX and PAC
+bytes, including all mesh LODs, weights and cloth lanes. It permits render-material
+edits such as emission while requiring unchanged model and cloth bindings. Referenced PBD configuration and profile files
 remain hashed game dependencies; their contents are not regenerated or clamped to
 preview values. Export and installation perform the same checks.
 
@@ -1113,6 +1113,14 @@ PBD bindings. Copying an HKX alone is insufficient.
 An imported replacement with different vertices must leave **Template cloth /
 physics** off until a compatible transfer is implemented and verified. Its rigid
 or skinned attachment is a separate check and is not evidence of cloth physics.
+
+With that choice off, the replacement still owns an unchanged copy of the template's
+HKX under its new stem, because the game looks one up for every model stem. The
+audit accepts it as a collision shape only: the HKX bytes match the template and use
+a recognised layout, and stripping template cloth, jiggle and simulation assignments
+from the output PAC and PAC_XML would change nothing. No PBD catalogue or profile is
+pinned for it. The planner leaves the HKX out of a package, with a summary line, when
+its layout is not recognised; a loose export still copies it.
 Source checks cover copying and composition; armor movement, collision behavior,
 coexistence and save/reload still require controlled in-game comparison before
 advertising community support for that equipment.

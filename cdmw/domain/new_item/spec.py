@@ -199,11 +199,12 @@ class NewItemSpec:
     material_route: MaterialRoute = MaterialRoute.PLAIN_PBR
     #: Only read for an imported model.
     sheathed_model: SheathedModel = SheathedModel.OWN_MODEL
-    #: Copy the template's mesh physics (`character/bin__/meshphysics/<stem>.hkx`) onto the
-    #: item. That file binds cloth and collision to the *template's* own vertices, so on a
-    #: model of your own it drives whichever vertices those indices land on: a handle that
-    #: swings like cloth, a blade that sags. The game finds the file by the stem, so an item
-    #: written without one simply has no physics. Only read for an imported model.
+    #: Keep the template's cloth and jiggle bindings on the imported mesh. They name the
+    #: *template's* own vertices, so on a model of your own they drive whichever vertices
+    #: those indices land on: a handle that swings like cloth, a blade that sags. Off, they
+    #: are stripped; the template's mesh physics (`character/bin__/meshphysics/<stem>.hkx`)
+    #: is a rigid collision shape naming no vertices and is copied either way, since the
+    #: game looks one up for every stem. Only read for an imported model.
     keep_template_physics: bool = False
     #: Which parts of the item glow, in what colour, and how strongly. Empty parts means
     #: nothing glows, which is what an imported model does unless it brought an emissive

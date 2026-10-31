@@ -92,9 +92,10 @@ def test_armour_variant_physics_follows_exported_mesh_not_indexed_prefab(tmp_pat
     plan = service.plan(replace(spec(), variants=(choice,)), snapshot, variant_models=models)
     outputs = {row["model_path"]: row["output_model"] for row in plan.manifest["variants"] if "output_model" in row}
     assert set(outputs) == set(source_physics)
+    # An imported mesh drops the template's cloth, not its collision shape.
     expected = {
         target.replace("character/model/", "character/bin__/meshphysics/").replace(".pac", ".hkx"): files[source_physics[source]]
-        for source, target in outputs.items() if source != model or not custom_model or keep_physics
+        for source, target in outputs.items()
     }
     copied = {path: data for path, data in plan.loose_files.items() if path.endswith(".hkx")}
     assert copied == expected

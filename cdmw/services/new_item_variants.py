@@ -346,10 +346,18 @@ def plan_variant_files(planner):
             elif choice is not None and choice.dyes:
                 raise ValueError("Dye authoring requires a complete model material file.")
             physics = old.replace("character/model/","character/bin__/meshphysics/").removesuffix(".pac")+".hkx"
-            if snapshot.has_entry(physics) and (not imported or choice.keep_template_physics):
+            if snapshot.has_entry(physics):
                 target = str(PurePosixPath(physics).with_name(stem+".hkx"))
-                planner.add(snapshot.entry(physics),target,snapshot.payload(physics),f"Variant physics: {target}")
-                written.append(target)
+                if imported and not choice.keep_template_physics:
+                    from cdmw.services.new_item_skinning import template_collision_copy
+                    collision = template_collision_copy(planner, physics)
+                    planner.summary.append(f"  {old}: " + ("template collision shape copied; its cloth is not" if collision is not None
+                                           else "the template's collision layout is not carried by packages; no mesh physics"))
+                else:
+                    collision = snapshot.payload(physics)
+                if collision is not None:
+                    planner.add(snapshot.entry(physics),target,collision,f"Variant physics: {target}")
+                    written.append(target)
             manifest.append({"prefab_path":part.prefab_path,"model_path":old,"output_model":new,
                              "appearance":"custom model" if imported else "owned template copy",
                              "companion":choice is None,"material_route":model.material_route if model else "template"})
