@@ -13209,7 +13209,7 @@ MESSAGE_REFERENCE = [
     "message": "Parent export root is required.",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/archive_browser/mod_ready_export.py": 247
+      "cdmw/ui/archive_browser/mod_ready_export.py": 213
     }
   },
   {
@@ -25535,6 +25535,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "independent",
+    "message": "Choose Item package · .cditem and rebuild the plan first.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/services/independent_item_package.py": 365
+    }
+  },
+  {
+    "area": "independent",
     "message": "Choose a new capture path; existing reports are never replaced.",
     "recovery": "internal",
     "sources": {
@@ -27085,14 +27093,6 @@ MESSAGE_REFERENCE = [
     "recovery": "limits",
     "sources": {
       "cdmw/domain/virtual_save_lineage.py": 43
-    }
-  },
-  {
-    "area": "independent",
-    "message": "Select Independent item package and rebuild the plan first.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/services/independent_item_package.py": 365
     }
   },
   {
@@ -29972,7 +29972,7 @@ MESSAGE_REFERENCE = [
     "message": "Another mesh was opened while this model was being prepared.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/new_item/tab.py": 1062
+      "cdmw/ui/new_item/tab.py": 1064
     }
   },
   {
@@ -30028,7 +30028,7 @@ MESSAGE_REFERENCE = [
     "message": "Archive read failed: {message}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/new_item/tab.py": 421
+      "cdmw/ui/new_item/tab.py": 423
     }
   },
   {
@@ -30285,7 +30285,7 @@ MESSAGE_REFERENCE = [
     "message": "Choose a template item first.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/new_item/state.py": 438
+      "cdmw/ui/new_item/state.py": 440
     }
   },
   {
@@ -30701,7 +30701,7 @@ MESSAGE_REFERENCE = [
     "message": "Effect indexing failed: {message}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/new_item/tab.py": 281
+      "cdmw/ui/new_item/tab.py": 283
     }
   },
   {
@@ -30815,7 +30815,7 @@ MESSAGE_REFERENCE = [
     "message": "Enter an archive folder number from 0036 to 9999, or leave it blank for Auto.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/new_item/tab.py": 1155
+      "cdmw/ui/new_item/tab.py": 1157
     }
   },
   {
@@ -32266,7 +32266,7 @@ MESSAGE_REFERENCE = [
     "message": "No deferred page {index}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/new_item/tab.py": 683
+      "cdmw/ui/new_item/tab.py": 685
     }
   },
   {
@@ -32443,7 +32443,7 @@ MESSAGE_REFERENCE = [
     "message": "Overlay installation failed: {message}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/new_item/panels_output.py": 771
+      "cdmw/ui/new_item/panels_output.py": 769
     }
   },
   {
@@ -33327,7 +33327,7 @@ MESSAGE_REFERENCE = [
     "message": "The archive list is empty and no game folder is set. Set the game folder in the Archive Browser first, then come back.",
     "recovery": "empty",
     "sources": {
-      "cdmw/ui/new_item/tab.py": 384
+      "cdmw/ui/new_item/tab.py": 386
     }
   },
   {
@@ -33352,7 +33352,7 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/services/new_item_service.py": 617,
-      "cdmw/ui/new_item/tab.py": 1161,
+      "cdmw/ui/new_item/tab.py": 1163,
       "cdmw/workers/new_item_workers.py": 340
     }
   },
@@ -33369,7 +33369,7 @@ MESSAGE_REFERENCE = [
     "message": "The archives could not be read for a new item. {message}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/new_item/tab.py": 433
+      "cdmw/ui/new_item/tab.py": 435
     }
   },
   {
@@ -33641,7 +33641,7 @@ MESSAGE_REFERENCE = [
     "message": "The mod was created, but its folder could not be opened: {root}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/new_item/panels_output.py": 759
+      "cdmw/ui/new_item/panels_output.py": 757
     }
   },
   {
@@ -33721,7 +33721,7 @@ MESSAGE_REFERENCE = [
     "message": "The plan could not be built: {message}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/new_item/panels_output.py": 724
+      "cdmw/ui/new_item/panels_output.py": 722
     }
   },
   {
@@ -72348,7 +72348,7 @@ MESSAGE_REFERENCE = [
     "message": "Analysis returned an unexpected result.",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/recolor_variants_tab.py": 767
+      "cdmw/ui/recolor_variants_tab.py": 768
     }
   },
   {
@@ -72846,7 +72846,7 @@ MESSAGE_REFERENCE = [
     "message": "Build failed: {message}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/recolor_variants_tab.py": 1225
+      "cdmw/ui/recolor_variants_tab.py": 1222
     }
   },
   {
@@ -74335,7 +74335,7 @@ MESSAGE_REFERENCE = [
     "message": "DDS metadata is only available for loose files or zip members.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/recolor_variants.py": 834
+      "cdmw/core/recolor_variants.py": 827
     }
   },
   {
@@ -75229,7 +75229,7 @@ MESSAGE_REFERENCE = [
     "message": "Error: {error}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/recolor_variants_tab.py": 1211
+      "cdmw/ui/recolor_variants_tab.py": 1208
     }
   },
   {
@@ -78087,7 +78087,7 @@ MESSAGE_REFERENCE = [
     "message": "Native DDS encode failed.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/recolor_variants.py": 1105,
+      "cdmw/core/recolor_variants.py": 1098,
       "cdmw/core/replace_assistant.py": 873
     }
   },
@@ -78480,7 +78480,7 @@ MESSAGE_REFERENCE = [
     "message": "Open DDS preview unavailable",
     "recovery": "missing",
     "sources": {
-      "cdmw/ui/recolor_variants_tab.py": 901
+      "cdmw/ui/recolor_variants_tab.py": 902
     }
   },
   {
@@ -79232,7 +79232,7 @@ MESSAGE_REFERENCE = [
     "message": "Preview returned an unexpected result.",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/recolor_variants_tab.py": 1023
+      "cdmw/ui/recolor_variants_tab.py": 1024
     }
   },
   {
@@ -79352,7 +79352,7 @@ MESSAGE_REFERENCE = [
     "message": "Recolor analysis cancelled.",
     "recovery": "cancelled",
     "sources": {
-      "cdmw/ui/recolor_variants_tab.py": 755
+      "cdmw/ui/recolor_variants_tab.py": 756
     }
   },
   {
@@ -79368,7 +79368,7 @@ MESSAGE_REFERENCE = [
     "message": "Recolor preview images could not be decoded.",
     "recovery": "format",
     "sources": {
-      "cdmw/ui/recolor_variants_tab.py": 1012
+      "cdmw/ui/recolor_variants_tab.py": 1013
     }
   },
   {
@@ -79376,7 +79376,7 @@ MESSAGE_REFERENCE = [
     "message": "Recolor preview source texture was not found in zip: {target.game_path}",
     "recovery": "missing",
     "sources": {
-      "cdmw/core/recolor_variants.py": 1042
+      "cdmw/core/recolor_variants.py": 1035
     }
   },
   {
@@ -79384,7 +79384,7 @@ MESSAGE_REFERENCE = [
     "message": "Recolor preview source texture was not found: {target.game_path}",
     "recovery": "missing",
     "sources": {
-      "cdmw/core/recolor_variants.py": 1036
+      "cdmw/core/recolor_variants.py": 1029
     }
   },
   {
@@ -79705,7 +79705,7 @@ MESSAGE_REFERENCE = [
     "message": "Select at least one recolor target in the asset list.",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/recolor_variants_tab.py": 1163
+      "cdmw/ui/recolor_variants_tab.py": 1160
     }
   },
   {
@@ -80009,7 +80009,7 @@ MESSAGE_REFERENCE = [
     "message": "Source Mod not found: {source}",
     "recovery": "missing",
     "sources": {
-      "cdmw/ui/recolor_variants_tab.py": 753
+      "cdmw/ui/recolor_variants_tab.py": 754
     }
   },
   {
@@ -83222,7 +83222,7 @@ MESSAGE_REFERENCE = [
     "message": "Unsupported recolor preview source package: {source_package}",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/core/recolor_variants.py": 1047
+      "cdmw/core/recolor_variants.py": 1040
     }
   },
   {
@@ -83542,7 +83542,7 @@ MESSAGE_REFERENCE = [
     "message": "Zip member scan failed: {exc}",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/recolor_variants.py": 804
+      "cdmw/core/recolor_variants.py": 797
     }
   },
   {
@@ -85532,7 +85532,7 @@ MESSAGE_REFERENCE = [
       "cdmw/core/common.py": 418,
       "cdmw/core/item_index.py": 904,
       "cdmw/core/pat_decoder.py": 115,
-      "cdmw/core/recolor_variants.py": 1179,
+      "cdmw/core/recolor_variants.py": 1172,
       "cdmw/core/structured_binary_editor.py": 117,
       "cdmw/core/text_search.py": 151,
       "cdmw/domain/xml_text.py": 211,
@@ -87942,7 +87942,7 @@ MESSAGE_REFERENCE = [
     "message": "Nothing in the shipped archives differs from the oldest backup of it, so there is nothing to move.",
     "recovery": "recovery",
     "sources": {
-      "cdmw/ui/tools/mod_management.py": 396
+      "cdmw/ui/tools/mod_management.py": 397
     }
   },
   {
@@ -87950,7 +87950,7 @@ MESSAGE_REFERENCE = [
     "message": "Operation finished or cancelled. Review the results before continuing.",
     "recovery": "cancelled",
     "sources": {
-      "cdmw/ui/tools/mod_management.py": 332
+      "cdmw/ui/tools/mod_management.py": 333
     }
   },
   {
@@ -88118,7 +88118,7 @@ MESSAGE_REFERENCE = [
     "message": "Point the workbench at the game folder first.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/tools/mod_management.py": 368
+      "cdmw/ui/tools/mod_management.py": 369
     }
   },
   {
@@ -88406,7 +88406,7 @@ MESSAGE_REFERENCE = [
     "message": "The archive mutation service is not available in this window.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/tools/mod_management.py": 364
+      "cdmw/ui/tools/mod_management.py": 365
     }
   },
   {
@@ -88414,7 +88414,7 @@ MESSAGE_REFERENCE = [
     "message": "The archives could not be read: {message}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/tools/mod_management.py": 386
+      "cdmw/ui/tools/mod_management.py": 387
     }
   },
   {
@@ -89530,7 +89530,7 @@ MESSAGE_REFERENCE = [
     "message": "Every change in this session was made outside an operation. Move an item with Swap animations… so the change can be scoped, reviewed and packaged on its own.",
     "recovery": "internal",
     "sources": {
-      "tools/placement_studio/window_editing.py": 1111
+      "tools/placement_studio/window_editing.py": 1114
     }
   },
   {
@@ -91157,7 +91157,7 @@ MESSAGE_REFERENCE = [
     "message": "No defined socket matches the {len(chart_socket)} characters of {chart_socket}, so the draw animation cannot be retargeted yet. A socket of exactly that length unblocks it.",
     "recovery": "input",
     "sources": {
-      "tools/placement_studio/window_editing.py": 476
+      "tools/placement_studio/window_editing.py": 479
     }
   },
   {
@@ -91654,7 +91654,7 @@ MESSAGE_REFERENCE = [
     "message": "Package blocked — see the errors",
     "recovery": "input",
     "sources": {
-      "tools/placement_studio/window_editing.py": 1266
+      "tools/placement_studio/window_editing.py": 1270
     }
   },
   {
@@ -91662,7 +91662,7 @@ MESSAGE_REFERENCE = [
     "message": "Package cancelled — nothing was written",
     "recovery": "cancelled",
     "sources": {
-      "tools/placement_studio/window_editing.py": 1278
+      "tools/placement_studio/window_editing.py": 1282
     }
   },
   {
