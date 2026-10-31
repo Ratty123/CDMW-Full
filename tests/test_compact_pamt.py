@@ -181,3 +181,18 @@ def test_compact_pamt_cannot_enter_the_archive_writer(tmp_path, extensions):
     with pytest.raises(ValueError, match="read-only"):
         _parse_mutable_pamt(path)
     assert path.read_bytes() == raw
+
+
+def test_dmm_archive_group_package_on_a_compact_game_writes_no_mount_list(tmp_path):
+    # Create New Item's DMM export used to rebuild the game's signed mount list and failed.
+    from cdmw.domain.archives.mutation import ArchiveAddRequest
+    from cdmw.services.archive_overlay_package_service import export_archive_overlay_package
+    game = tmp_path / "game"
+    (game / "meta").mkdir(parents=True)
+    (game / "meta" / "0.papgt").write_bytes(compact_mount())
+    addition = ArchiveAddRequest(pamt_path=game / "0009" / "0.pamt", path="gamedata/new.txt", payload_data=b"added")
+    result = export_archive_overlay_package((), (addition,), package_root=tmp_path / "mod", game_root=game)
+    assert result.group == "0036" and not result.mount_list_written
+    assert (tmp_path / "mod" / "0036" / "0.pamt").is_file()
+    assert not (tmp_path / "mod" / "meta" / "0.papgt").exists()
+    assert (game / "meta" / "0.papgt").read_bytes() == compact_mount()
