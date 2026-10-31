@@ -1551,6 +1551,39 @@ def _composite_preview_core_material_graph(package_dir, scene, textures, present
     }
 
 
+def _finite_preview_document(document: dict[str, object]) -> dict[str, object]:
+    """Keep NaN and infinity out of document.json, which the Rust host reads as strict JSON.
+
+    Some shipped static meshes store NaN bit patterns in the UV field of their vertex records
+    (456 PAMLOD levels in game 1.0.0.3446). The preview draws those UVs at 0 and lists them in
+    the document warnings. A non-finite position or normal is not authored data, so the package
+    is refused with the part named instead of being written as JSON the host cannot read.
+    """
+    for lod in document["lods"]:
+        for part in lod["submeshes"]:
+            for channel in ("positions", "normals"):
+                if not _finite_rows(part[channel]):
+                    raise ValueError(
+                        f"Preview refused: LOD {lod['level']} part '{part['name']}' has a vertex "
+                        f"{channel[:-1]} that is not a finite number, so its geometry was not read correctly."
+                    )
+            if not _finite_rows(part["uvs"]):
+                rows = part["uvs"]
+                count = sum(1 for row in rows if not all(math.isfinite(value) for value in row))
+                part["uvs"] = [[value if math.isfinite(value) else 0.0 for value in row] for row in rows]
+                document["warnings"].append(
+                    f"LOD {lod['level']} part '{part['name']}': {count} source UVs are not finite numbers "
+                    "and are drawn at 0."
+                )
+    return document
+
+
+def _finite_rows(rows) -> bool:
+    # The nested sum stays in C, and any NaN or infinity makes the total non-finite. A total that
+    # overflows from large finite values falls through to the exact per-value check.
+    return math.isfinite(sum(map(sum, rows))) or all(math.isfinite(value) for row in rows for value in row)
+
+
 def _write_preview_mesh_resources(package_dir, scene, root_identity, include_material_resources, material_package_path, quality, cancelled):
     from cdmw.services.mesh_rust_authoring import (
         _RustMaterialSynthesisState,
@@ -1565,7 +1598,7 @@ def _write_preview_mesh_resources(package_dir, scene, root_identity, include_mat
     document = _atomic_write_payload(
         package_dir,
         "document.json",
-        _mesh_document_payload(scene, allow_preview_formats=True),
+        _finite_preview_document(_mesh_document_payload(scene, allow_preview_formats=True)),
         data_type="mesh_document_json",
         element_count=sum(len(level) for level in _mesh_lods(scene)),
         expected_root_identity=root_identity,
