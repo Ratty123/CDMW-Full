@@ -29,7 +29,7 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 - Mods are exported for DMM (Definitive Mod Manager) only, because other mod managers are not being updated for the DLC. Create New Item offers a DMM mod folder or a .cditem item package. Mesh Editor Build Mod, Placement & Animations, Texture Replacer, Texture Recolor, texture upscaling and the other mod-ready exports no longer offer CDUMM, Field-JSON v3.1 or the retired mod-manager option; saved choices of those fall back to DMM. Create New Item's DMM mod folders are written as before; mounting them in the updated DMM is untested.
 
-- Mod Management is available again, for .cditem item packages only. Add packages on Mods, choose Apply changes, then choose Launch game or start the game from Steam or DMM. CDMW's runtime is updated for game version 2.04.03. Adding mod folders, converting, combining and updating mods, and the Health and recovery page are no longer offered; use DMM for other mods. Loading items this way is experimental, and a DMM mod that replaces the item or shop tables may hide the items. Archive overlay workflows stay disabled because they are incompatible with the DLC update.
+- Mod Management now handles .cditem item packages only. Add packages on Mods, choose Apply changes, then choose Launch game or start the game from Steam or DMM; CDMW's runtime is updated for game version 2.04.03. Adding mod folders, converting, combining and updating mods, and the Health and recovery page are removed; use DMM for other mods. Archive overlay installation is disabled because it is incompatible with the DLC update. Loading items this way is experimental, and a DMM mod that replaces the item or shop tables may hide the items.
 
 ### Fixed
 
