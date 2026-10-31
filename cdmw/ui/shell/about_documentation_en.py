@@ -476,6 +476,7 @@ class AboutDocumentationEnglishMixin:
                   <li>Right-click a folder and choose Export Folder... to extract its matching contents and subfolders.</li>
                   <li>Set the Extract folder in Archive Locations, then review the destination and existing-file options. Files keep their original formats and folder paths; OBJ/FBX conversion is separate.</li>
                   <li>Individual file selections are limited to 4,096 rows. Use Extract Filtered or Export Folder... for larger sets.</li>
+                  <li>Exports wait until every file is on disk before reporting success. Turn off <b>Settings &gt; Performance &gt; Export safety</b> for much faster exports of many files; a power loss or system crash right after such an export can leave some exported files empty or incomplete.</li>
                   <li>Extract supported DDS/images when needed, then open the dedicated texture tool directly. Archive Browser keeps texture processing out of its normal action surface.</li>
                 </ul>
                 <p>Archive patching is intentionally separate from normal browsing. Patch actions only appear for supported formats and use explicit confirmation plus backup/restore where available.</p>

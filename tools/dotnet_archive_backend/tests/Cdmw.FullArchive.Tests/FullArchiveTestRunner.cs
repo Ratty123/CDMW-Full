@@ -869,6 +869,20 @@ internal static class FullArchiveTestRunner
             Require(exported.Exported == 1 && !exported.Cancelled, "query-token export failed");
             var materialPath = Path.Combine(exportRoot, "materials", "sample.material");
             Require(await File.ReadAllTextAsync(materialPath).ConfigureAwait(false) == "material alpha", "exported decoded bytes changed");
+            // Skipping the per-file flush changes durability only, never the files written.
+            var unflushedRoot = Path.Combine(exportRoot, "unflushed-export");
+            var unflushed = await exports.ExportAsync(
+                new ArchiveExportRequest(
+                    sessionHandle.SessionId,
+                    ArchiveExportSelectionKind.Query,
+                    unflushedRoot,
+                    QueryId: materialQuery.QueryId,
+                    FlushToDisk: false),
+                CancellationToken.None).ConfigureAwait(false);
+            Require(unflushed.Exported == 1 && !unflushed.Cancelled, "unflushed export failed");
+            var unflushedBytes = await File.ReadAllBytesAsync(Path.Combine(unflushedRoot, "materials", "sample.material")).ConfigureAwait(false);
+            var flushedBytes = await File.ReadAllBytesAsync(materialPath).ConfigureAwait(false);
+            Require(unflushedBytes.AsSpan().SequenceEqual(flushedBytes), "unflushed export wrote different bytes");
             var structureQuery = await queries.CreateAsync(
                 new ArchiveQuery(sessionHandle.SessionId, Folder: "base/text"),
                 generation: 13,

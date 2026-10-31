@@ -384,6 +384,7 @@ class ArchiveExtractionMixin(ArchiveRemoteRelatedExportMixin):
             include_package_root=bool(getattr(selection, "include_package_root", True)),
             replace_destination=replace_destination,
             extensions=tuple(getattr(selection, "extensions", ()) or ()),
+            flush_to_disk=bool(getattr(self.shell._current_archive_performance_settings(), "durable_exports", True)),
         )
         self._archive_remote_export_context = {
             "output_root": output_root,

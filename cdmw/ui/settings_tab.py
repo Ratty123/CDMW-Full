@@ -422,6 +422,18 @@ class SettingsTab(CompactWorkspaceSettingsMixin, SettingsHelperDiscoveryMixin, Q
             "Impact: lower = smoother UI. Higher = faster folder fill, but larger pauses.",
             max_control_width=400,
         )
+        self.archive_durable_exports_checkbox = QCheckBox("Save each file to disk before finishing")
+        self.archive_durable_exports_checkbox.setToolTip(
+            "Archive Browser exports wait until every exported file is on disk before reporting success. Turning this off makes exports of many files much faster, but a power loss or system crash right after an export can leave some exported files empty or incomplete. Game archives are never written either way."
+        )
+        archive_list_row = _add_performance_row(
+            archive_list_layout,
+            archive_list_row,
+            "Export safety",
+            self.archive_durable_exports_checkbox,
+            "Impact: off = much faster many-file exports; a crash right after exporting can damage those files.",
+            max_control_width=360,
+        )
         related_index_group, related_index_layout = _performance_group("Related-File Indexing")
         related_index_row = 0
         self.archive_sidecar_indexing_checkbox = QCheckBox("Enabled")
@@ -1031,6 +1043,7 @@ class SettingsTab(CompactWorkspaceSettingsMixin, SettingsHelperDiscoveryMixin, Q
         self.archive_preview_cache_limit_spin.valueChanged.connect(self._handle_archive_performance_changed)
         self.archive_native_preview_cache_mode_combo.currentIndexChanged.connect(self._handle_archive_performance_changed)
         self.archive_quick_then_full_checkbox.toggled.connect(self._handle_archive_performance_changed)
+        self.archive_durable_exports_checkbox.toggled.connect(self._handle_archive_performance_changed)
         self.archive_maximum_indexing_priority_checkbox.toggled.connect(self._handle_archive_performance_changed)
         for widget in self._model_preview_setting_widgets():
             if isinstance(widget, QCheckBox):
@@ -1496,6 +1509,7 @@ class SettingsTab(CompactWorkspaceSettingsMixin, SettingsHelperDiscoveryMixin, Q
         self.settings.setValue("archive/native_preview_cache_mode", archive_performance_settings.native_preview_cache_mode)
         self.settings.setValue("archive/quick_then_full_preview", archive_performance_settings.quick_then_full_preview)
         self.settings.setValue("archive/maximum_indexing_priority", archive_performance_settings.maximum_indexing_priority)
+        self.settings.setValue("archive/durable_exports", archive_performance_settings.durable_exports)
         preview_settings = self.current_model_preview_render_settings()
         self.settings.setValue("archive/model_use_textures", preview_settings.use_textures_by_default)
         self.settings.setValue("archive/model_high_quality", preview_settings.high_quality_by_default)
@@ -1657,6 +1671,7 @@ class SettingsTab(CompactWorkspaceSettingsMixin, SettingsHelperDiscoveryMixin, Q
             self.archive_native_preview_cache_mode_combo,
             self.archive_quick_then_full_checkbox,
             self.archive_maximum_indexing_priority_checkbox,
+            self.archive_durable_exports_checkbox,
         )
 
     @staticmethod
@@ -1722,6 +1737,7 @@ class SettingsTab(CompactWorkspaceSettingsMixin, SettingsHelperDiscoveryMixin, Q
             )
             self._set_combo_by_value(self.archive_native_preview_cache_mode_combo, clamped.native_preview_cache_mode)
             self.archive_quick_then_full_checkbox.setChecked(clamped.quick_then_full_preview)
+            self.archive_durable_exports_checkbox.setChecked(clamped.durable_exports)
             self.archive_maximum_indexing_priority_checkbox.setChecked(clamped.maximum_indexing_priority)
         finally:
             for widget in self._archive_performance_setting_widgets():
@@ -1751,6 +1767,7 @@ class SettingsTab(CompactWorkspaceSettingsMixin, SettingsHelperDiscoveryMixin, Q
                 native_preview_cache_mode=str(self.archive_native_preview_cache_mode_combo.currentData() or "balanced"),
                 quick_then_full_preview=self.archive_quick_then_full_checkbox.isChecked(),
                 maximum_indexing_priority=self.archive_maximum_indexing_priority_checkbox.isChecked(),
+                durable_exports=self.archive_durable_exports_checkbox.isChecked(),
             )
         )
 

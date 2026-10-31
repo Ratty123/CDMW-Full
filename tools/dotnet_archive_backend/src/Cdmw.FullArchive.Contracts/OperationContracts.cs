@@ -114,7 +114,8 @@ public sealed record ArchiveExportRequest(
     bool WriteManifest = true,
     bool IncludePackageRoot = false,
     bool ReplaceDestination = false,
-    IReadOnlyList<string>? Extensions = null);
+    IReadOnlyList<string>? Extensions = null,
+    bool FlushToDisk = true);
 
 public sealed record ArchiveExportItem(
     string SourcePath,

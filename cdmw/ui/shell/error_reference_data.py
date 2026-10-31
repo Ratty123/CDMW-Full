@@ -8547,7 +8547,7 @@ MESSAGE_REFERENCE = [
     "message": "Archive export cancelled.",
     "recovery": "cancelled",
     "sources": {
-      "cdmw/ui/archive_browser/extraction.py": 503
+      "cdmw/ui/archive_browser/extraction.py": 504
     }
   },
   {
@@ -8555,7 +8555,7 @@ MESSAGE_REFERENCE = [
     "message": "Archive export could not start: {exc}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/archive_browser/extraction.py": 403
+      "cdmw/ui/archive_browser/extraction.py": 404
     }
   },
   {
@@ -8563,7 +8563,7 @@ MESSAGE_REFERENCE = [
     "message": "Archive export failed: {message}",
     "recovery": "write",
     "sources": {
-      "cdmw/ui/archive_browser/extraction.py": 495
+      "cdmw/ui/archive_browser/extraction.py": 496
     }
   },
   {
@@ -8579,7 +8579,7 @@ MESSAGE_REFERENCE = [
     "message": "Archive export item details were truncated by the worker reporting bound.",
     "recovery": "format",
     "sources": {
-      "cdmw/ui/archive_browser/extraction.py": 486
+      "cdmw/ui/archive_browser/extraction.py": 487
     }
   },
   {
@@ -8587,7 +8587,7 @@ MESSAGE_REFERENCE = [
     "message": "Archive extraction cancelled.",
     "recovery": "cancelled",
     "sources": {
-      "cdmw/ui/archive_browser/extraction.py": 540
+      "cdmw/ui/archive_browser/extraction.py": 541
     }
   },
   {
@@ -8603,7 +8603,7 @@ MESSAGE_REFERENCE = [
     "message": "Archive extraction summary: extracted={extracted}, decompressed={decompressed}, renamed={renamed}, failed={failed}.",
     "recovery": "format",
     "sources": {
-      "cdmw/ui/archive_browser/extraction.py": 619
+      "cdmw/ui/archive_browser/extraction.py": 620
     }
   },
   {
@@ -8611,7 +8611,7 @@ MESSAGE_REFERENCE = [
     "message": "Archive extraction summary: extracted={payload.exported}, renamed_reported={renamed}, skipped={payload.skipped}, failed={payload.failed}.",
     "recovery": "format",
     "sources": {
-      "cdmw/ui/archive_browser/extraction.py": 481
+      "cdmw/ui/archive_browser/extraction.py": 482
     }
   },
   {
@@ -8651,7 +8651,7 @@ MESSAGE_REFERENCE = [
     "message": "Archive index path range is invalid.",
     "recovery": "input",
     "sources": {
-      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveIndex.cs": 282
+      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveIndex.cs": 309
     }
   },
   {
@@ -8675,7 +8675,7 @@ MESSAGE_REFERENCE = [
     "message": "Archive index string range is invalid.",
     "recovery": "input",
     "sources": {
-      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveIndex.cs": 370
+      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveIndex.cs": 451
     }
   },
   {
@@ -9046,7 +9046,7 @@ MESSAGE_REFERENCE = [
     "message": "Archive query is not available or has expired from the bounded query cache.",
     "recovery": "internal",
     "sources": {
-      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveSession.cs": 110
+      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveSession.cs": 161
     }
   },
   {
@@ -9262,7 +9262,7 @@ MESSAGE_REFERENCE = [
     "message": "Archive worker returned an invalid export result.",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/archive_browser/extraction.py": 443
+      "cdmw/ui/archive_browser/extraction.py": 444
     }
   },
   {
@@ -10682,7 +10682,7 @@ MESSAGE_REFERENCE = [
     "message": "Family export requires a seed entry id.",
     "recovery": "input",
     "sources": {
-      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveExportService.cs": 264
+      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveExportService.cs": 365
     }
   },
   {
@@ -10706,7 +10706,7 @@ MESSAGE_REFERENCE = [
     "message": "Filtered export requires a server-side query token.",
     "recovery": "input",
     "sources": {
-      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveExportService.cs": 222
+      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveExportService.cs": 323
     }
   },
   {
@@ -10794,7 +10794,7 @@ MESSAGE_REFERENCE = [
     "message": "Folder export requires a virtual folder path.",
     "recovery": "input",
     "sources": {
-      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveExportService.cs": 229
+      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveExportService.cs": 330
     }
   },
   {
@@ -14901,7 +14901,7 @@ MESSAGE_REFERENCE = [
     "message": "The archive export selection kind is not supported.",
     "recovery": "unsupported",
     "sources": {
-      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveExportService.cs": 277
+      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveExportService.cs": 378
     }
   },
   {
@@ -14981,7 +14981,7 @@ MESSAGE_REFERENCE = [
     "message": "The archive query is too large to materialize.",
     "recovery": "limits",
     "sources": {
-      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveSession.cs": 259
+      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveSession.cs": 310
     }
   },
   {
@@ -15141,7 +15141,7 @@ MESSAGE_REFERENCE = [
     "message": "The destination buffer is smaller than the archive path.{detail}",
     "recovery": "internal",
     "sources": {
-      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveIndex.cs": 276
+      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveIndex.cs": 303
     }
   },
   {
@@ -99893,6 +99893,7 @@ DYNAMIC_REFERENCE = {
     "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveLookupService.cs",
     "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveNameIndexBuilder.cs",
     "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveNameIndexService.cs",
+    "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveParallel.cs",
     "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveQueryService.cs",
     "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveSession.cs",
     "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveSessionManager.cs",
@@ -105921,7 +105922,7 @@ SOURCE_COVERAGE = {
     "native_message": 7
   },
   "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveExportService.cs": {
-    "native_handoff": 10,
+    "native_handoff": 12,
     "native_message": 7
   },
   "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveFingerprint.cs": {
@@ -105929,7 +105930,7 @@ SOURCE_COVERAGE = {
     "native_message": 4
   },
   "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveIndex.cs": {
-    "native_handoff": 16,
+    "native_handoff": 17,
     "native_message": 8
   },
   "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveItemCatalog.cs": {
@@ -105960,6 +105961,9 @@ SOURCE_COVERAGE = {
     "native_handoff": 4,
     "native_message": 4
   },
+  "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveParallel.cs": {
+    "native_handoff": 1
+  },
   "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchivePathOrder.cs": {},
   "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchivePbdMaterialReferences.cs": {},
   "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchivePreviewReferenceScanner.cs": {},
@@ -105967,6 +105971,7 @@ SOURCE_COVERAGE = {
     "native_handoff": 1,
     "native_message": 1
   },
+  "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveQueryService.Filter.cs": {},
   "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveRoleDisplay.cs": {},
   "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveSession.cs": {
     "native_handoff": 3,

@@ -3199,6 +3199,28 @@ rejection and source witnessing survive. Reusing a cache is useful only if the
 cache key includes the inputs that affect the result. A completed output must
 not be deleted by late cancellation after its owner accepted it.
 
+A 2026-10-31 pass on the installed game (2,095,396 archive entries, 8-core
+desktop, NVMe, OS cache warm, process warm) confirmed four more cost classes,
+each removed with output proven identical by hashes:
+
+- **Full-entry materialization in scans.** Archive Browser queries built a
+  complete, name-enriched entry for every row and re-parsed each pattern per
+  row. Filtering on the index's own fields, resolving item names once per
+  session and scanning in ordered parallel chunks took filters from about 2–10 s
+  to 0.1–0.5 s and full sorts from about 9 s to 2.5 s, with identical entry-id
+  order.
+- **Per-byte Python loops over whole files.** The no-edit roundtrip compared
+  original and rebuilt bytes one byte at a time, about 3 s on a 23 MiB PAC.
+- **Locale-aware number formatting and container relocation in the native mesh
+  core.** MSVC iostream doubles and `std::vector` regrowth that deep-copies
+  JSON values (their `std::map` member has no `noexcept` move) dominated large
+  OBJ/GLB exports; the remaining JSON-tree cost scales with payload size.
+- **Per-file durable flushes.** Bulk export flushes every staged file to disk,
+  about 2–4 ms each on NVMe even in parallel; this durability choice, not
+  decoding, bounds a many-file export (11,090 files: 47 s flushed, about 2 s
+  without). **Settings > Performance > Export safety** keeps it on by default and
+  lets users trade it for speed; the written bytes are the same either way.
+
 Performance claims need a defined endpoint: geometry-ready is not textured
 viewport-ready; a warm helper is not process-cold startup; fewer repeated
 hashes do not justify weaker source verification. Private-cache cold, process

@@ -21,6 +21,10 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 ### Changed
 
+- Archive Browser searches, filters and sorts are several times faster on the full game archive: text, wildcard, package, role, override and size filters return in well under a second instead of several seconds, and sorting every entry takes a few seconds instead of about nine. Results and their order are unchanged. Exporting many files from the Archive Browser decodes and writes several at a time. A new Settings > Performance > Export safety option (on by default) can be turned off to skip saving each exported file to disk before the export finishes, which makes many-file exports much faster but lets a power loss or system crash right after an export damage those files.
+
+- Mesh Editor opens large models and finishes edits faster, and OBJ and GLB exports of large models take about half the time or less, with byte-identical output.
+
 - Mesh Editor and Create New Item preview existing glass visors and net veils, such as the bridal veil helmet `cd_phw_00_hel_00_0219`, as see-through instead of solid.
 
 - Removed the retired mod-manager export option from all tools, package writers and documentation. DMM and CDUMM remain available where supported.

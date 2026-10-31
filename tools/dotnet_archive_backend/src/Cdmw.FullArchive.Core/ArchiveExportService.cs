@@ -40,6 +40,7 @@ public sealed class ArchiveExportService(
         var publishFiles = new List<PublishFile>();
         var reservedFinalPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         long skipped = 0;
+        var decodes = new ExportDecodePipeline(native, request.FlushToDisk, cancellationToken);
         try
         {
             if (progress is not null)
@@ -72,6 +73,7 @@ public sealed class ArchiveExportService(
                 {
                     if (request.CollisionPolicy == ArchiveExportCollisionPolicy.Cancel)
                     {
+                        await decodes.DrainAsync(items, progress, entryIds.Count).ConfigureAwait(false);
                         return Result(session.Id, entryIds.Count, 0, 0, 0, cancelled: true, null, items);
                     }
                     if (request.CollisionPolicy == ArchiveExportCollisionPolicy.Skip)
@@ -86,6 +88,8 @@ public sealed class ArchiveExportService(
                             file.Entry is not null && file.FinalPath.Equals(finalPath, StringComparison.OrdinalIgnoreCase));
                         if (supersededIndex >= 0)
                         {
+                            // The superseded file may still be decoding or writing.
+                            await decodes.DrainAsync(items, progress, entryIds.Count).ConfigureAwait(false);
                             TryDeleteFile(publishFiles[supersededIndex].StagedPath);
                             publishFiles.RemoveAt(supersededIndex);
                         }
@@ -93,21 +97,20 @@ public sealed class ArchiveExportService(
                 }
 
                 var stagedPath = ExportPathPolicy.ResolveContainedPath(stagingRoot, relative);
-                Directory.CreateDirectory(Path.GetDirectoryName(stagedPath)!);
-                var decoded = await Task.Run(() => native.Decode(entry), cancellationToken).ConfigureAwait(false);
-                await WriteFileAsync(stagedPath, decoded.Bytes, cancellationToken).ConfigureAwait(false);
                 publishFiles.Add(new PublishFile(entry, relative, stagedPath, finalPath));
                 reservedFinalPaths.Add(finalPath);
-                AddItem(items, new ArchiveExportItem(
-                    entry.Path,
-                    finalPath,
-                    renamed ? "renamed" : "exported",
-                    decoded.Note));
-                if (progress is not null && ((index & 0x3F) == 0 || index + 1 == entryIds.Count))
-                {
-                    await progress(new ProgressUpdate(index + 1, entryIds.Count, "export_decode", entry.Path)).ConfigureAwait(false);
-                }
+                // The item keeps its place in the report; its decode note is filled in
+                // when the entry has been decoded and staged.
+                var itemSlot = items.Count <= MaximumReportedItems ? items.Count : -1;
+                var item = new ArchiveExportItem(entry.Path, finalPath, renamed ? "renamed" : "exported");
+                AddItem(items, item);
+                await decodes.EnqueueAsync(
+                    new ExportJob(entry, stagedPath, index, itemSlot, item),
+                    items,
+                    progress,
+                    entryIds.Count).ConfigureAwait(false);
             }
+            await decodes.DrainAsync(items, progress, entryIds.Count).ConfigureAwait(false);
 
             string? manifestRelativePath = null;
             if (request.WriteManifest)
@@ -141,7 +144,7 @@ public sealed class ArchiveExportService(
                             entry.OriginalSize,
                             entry.Flags);
                     }).ToArray());
-                await WriteJsonAsync(stagedManifest, manifest, cancellationToken).ConfigureAwait(false);
+                await WriteJsonAsync(stagedManifest, manifest, request.FlushToDisk, cancellationToken).ConfigureAwait(false);
                 if (!request.ReplaceDestination && File.Exists(finalManifest) &&
                     request.CollisionPolicy == ArchiveExportCollisionPolicy.Cancel)
                 {
@@ -195,9 +198,107 @@ public sealed class ArchiveExportService(
                 manifestPath,
                 items);
         }
+        catch
+        {
+            // Nothing may still be writing into the staging folder when it is removed.
+            await decodes.AbandonAsync().ConfigureAwait(false);
+            throw;
+        }
         finally
         {
             TryDeleteDirectory(stagingRoot);
+        }
+    }
+
+    private sealed record ExportJob(ArchiveEntryDto Entry, string StagedPath, int Index, int ItemSlot, ArchiveExportItem Item);
+
+    /// <summary>
+    /// Decodes and stages entries a few at a time. Each staged file is still written
+    /// and flushed on its own, but several are in flight at once; results are taken
+    /// in request order, so the report, progress and the first failure match a
+    /// one-at-a-time export.
+    /// </summary>
+    private sealed class ExportDecodePipeline(NativeArchiveCore native, bool flushToDisk, CancellationToken cancellationToken)
+    {
+        private readonly Queue<(ExportJob Job, Task<string> Note)> _pending = new();
+        private readonly SemaphoreSlim _slots = new(ArchiveParallel.DegreeOfParallelism, ArchiveParallel.DegreeOfParallelism);
+        private readonly CancellationTokenSource _abandon = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+
+        public async Task EnqueueAsync(
+            ExportJob job,
+            List<ArchiveExportItem> items,
+            Func<ProgressUpdate, Task>? progress,
+            int total)
+        {
+            _pending.Enqueue((job, RunAsync(job)));
+            // Bound the decoded bytes held in memory.
+            while (_pending.Count > ArchiveParallel.DegreeOfParallelism * 2)
+            {
+                await CompleteOldestAsync(items, progress, total).ConfigureAwait(false);
+            }
+        }
+
+        public async Task DrainAsync(List<ArchiveExportItem> items, Func<ProgressUpdate, Task>? progress, int total)
+        {
+            while (_pending.Count > 0)
+            {
+                await CompleteOldestAsync(items, progress, total).ConfigureAwait(false);
+            }
+        }
+
+        public async Task AbandonAsync()
+        {
+            _abandon.Cancel();
+            while (_pending.TryDequeue(out var pending))
+            {
+                try
+                {
+                    await pending.Note.ConfigureAwait(false);
+                }
+                catch
+                {
+                    // The export is already failing; only the first failure is reported.
+                }
+            }
+        }
+
+        private async Task CompleteOldestAsync(List<ArchiveExportItem> items, Func<ProgressUpdate, Task>? progress, int total)
+        {
+            var (job, noteTask) = _pending.Peek();
+            string note;
+            try
+            {
+                note = await noteTask.ConfigureAwait(false);
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                throw new OperationCanceledException(cancellationToken);
+            }
+            _pending.Dequeue();
+            if (job.ItemSlot >= 0)
+            {
+                items[job.ItemSlot] = job.Item with { Message = note };
+            }
+            if (progress is not null && ((job.Index & 0x3F) == 0 || job.Index + 1 == total))
+            {
+                await progress(new ProgressUpdate(job.Index + 1, total, "export_decode", job.Entry.Path)).ConfigureAwait(false);
+            }
+        }
+
+        private async Task<string> RunAsync(ExportJob job)
+        {
+            await _slots.WaitAsync(_abandon.Token).ConfigureAwait(false);
+            try
+            {
+                Directory.CreateDirectory(Path.GetDirectoryName(job.StagedPath)!);
+                var decoded = await Task.Run(() => native.Decode(job.Entry), _abandon.Token).ConfigureAwait(false);
+                await WriteFileAsync(job.StagedPath, decoded.Bytes, flushToDisk, _abandon.Token).ConfigureAwait(false);
+                return decoded.Note;
+            }
+            finally
+            {
+                _slots.Release();
+            }
         }
     }
 
@@ -454,9 +555,16 @@ public sealed class ArchiveExportService(
         }
     }
 
+    /// <summary>
+    /// Writes a staged export file. With <paramref name="flushToDisk"/> (the default
+    /// setting) the file is on disk before the export reports success; without it
+    /// Windows writes it out shortly afterwards, so a power loss or system crash in
+    /// that window can leave it empty or incomplete. The bytes are the same either way.
+    /// </summary>
     private static async Task WriteFileAsync(
         string path,
         ReadOnlyMemory<byte> bytes,
+        bool flushToDisk,
         CancellationToken cancellationToken)
     {
         await using var stream = new FileStream(
@@ -465,13 +573,16 @@ public sealed class ArchiveExportService(
             FileAccess.Write,
             FileShare.None,
             128 * 1024,
-            FileOptions.Asynchronous | FileOptions.WriteThrough);
+            flushToDisk ? FileOptions.Asynchronous | FileOptions.WriteThrough : FileOptions.Asynchronous);
         await stream.WriteAsync(bytes, cancellationToken).ConfigureAwait(false);
         await stream.FlushAsync(cancellationToken).ConfigureAwait(false);
-        stream.Flush(flushToDisk: true);
+        if (flushToDisk)
+        {
+            stream.Flush(flushToDisk: true);
+        }
     }
 
-    private static async Task WriteJsonAsync<T>(string path, T value, CancellationToken cancellationToken)
+    private static async Task WriteJsonAsync<T>(string path, T value, bool flushToDisk, CancellationToken cancellationToken)
     {
         await using var stream = new FileStream(
             path,
@@ -479,10 +590,13 @@ public sealed class ArchiveExportService(
             FileAccess.Write,
             FileShare.None,
             64 * 1024,
-            FileOptions.Asynchronous | FileOptions.WriteThrough);
+            flushToDisk ? FileOptions.Asynchronous | FileOptions.WriteThrough : FileOptions.Asynchronous);
         await JsonSerializer.SerializeAsync(stream, value, WorkerProtocol.JsonOptions, cancellationToken).ConfigureAwait(false);
         await stream.FlushAsync(cancellationToken).ConfigureAwait(false);
-        stream.Flush(flushToDisk: true);
+        if (flushToDisk)
+        {
+            stream.Flush(flushToDisk: true);
+        }
     }
 
     private static ArchiveExportResult Result(

@@ -1901,6 +1901,7 @@ class ArchivePerformanceSettings:
     native_preview_cache_mode: str = "balanced"
     quick_then_full_preview: bool = True
     maximum_indexing_priority: bool = False
+    durable_exports: bool = True
 
 
 def clamp_archive_performance_settings(
@@ -1935,6 +1936,7 @@ def clamp_archive_performance_settings(
         native_preview_cache_mode=native_preview_cache_mode,
         quick_then_full_preview=bool(current.quick_then_full_preview),
         maximum_indexing_priority=bool(current.maximum_indexing_priority),
+        durable_exports=bool(getattr(current, "durable_exports", True)),
     )
 
 

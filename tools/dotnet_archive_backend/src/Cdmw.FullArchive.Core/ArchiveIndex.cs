@@ -134,14 +134,8 @@ public sealed class ArchiveIndex : IDisposable
         var extension = System.IO.Path.GetExtension(virtualPath).ToLowerInvariant();
         var role = ArchiveEntryClassifier.Classify(virtualPath, extension);
         var identity = new ArchiveDurableIdentity(virtualPath.ToLowerInvariant(), pamt, pazIndex, archiveOffset);
-        var hasDuplicate = (overrideMetadata & 0x2u) != 0;
-        var isActiveOverride = hasDuplicate && (overrideMetadata & 0x1u) != 0;
-        var isModPackage = IsModPackage(pamt);
-        var overrideState = hasDuplicate
-            ? isActiveOverride
-                ? isModPackage ? "Active mod" : "Active original"
-                : isModPackage ? "Shadowed mod" : "Shadowed original"
-            : isModPackage ? "Mod-added" : string.Empty;
+        var isActiveOverride = (overrideMetadata & 0x2u) != 0 && (overrideMetadata & 0x1u) != 0;
+        var overrideState = OverrideState(overrideMetadata, pamt);
         var entry = new ArchiveEntryDto(
             sessionId,
             entryId,
@@ -201,20 +195,53 @@ public sealed class ArchiveIndex : IDisposable
                 index = _extensionEntryIds;
                 if (index is null)
                 {
-                    var buckets = new Dictionary<string, List<long>>(StringComparer.OrdinalIgnoreCase);
-                    for (long entryId = 0; entryId < EntryCount; entryId++)
+                    // Chunks are scanned in parallel and joined in chunk order, so every
+                    // posting list keeps ascending entry order.
+                    var chunkBuckets = new Dictionary<string, List<long>>?[ArchiveParallel.ChunkCount(EntryCount)];
+                    var progressGate = new object();
+                    long scanned = 0;
+                    progress?.Invoke(0);
+                    ArchiveParallel.ForEachChunk(EntryCount, cancellationToken, (chunk, start, end) =>
                     {
-                        if ((entryId & 0xFFF) == 0)
+                        var local = new Dictionary<string, List<long>>(StringComparer.OrdinalIgnoreCase);
+                        for (var entryId = start; entryId < end; entryId++)
                         {
-                            cancellationToken.ThrowIfCancellationRequested();
-                            progress?.Invoke(entryId);
+                            if ((entryId & 0xFFF) == 0)
+                            {
+                                cancellationToken.ThrowIfCancellationRequested();
+                            }
+                            var extension = System.IO.Path.GetExtension(ReadEntryPath(entryId));
+                            if (!local.TryGetValue(extension, out var ids))
+                            {
+                                local[extension] = ids = [];
+                            }
+                            ids.Add(entryId);
                         }
-                        var extension = System.IO.Path.GetExtension(ReadEntryPath(entryId));
-                        if (!buckets.TryGetValue(extension, out var ids))
+                        chunkBuckets[chunk] = local;
+                        if (progress is not null)
                         {
-                            buckets[extension] = ids = [];
+                            lock (progressGate)
+                            {
+                                scanned += end - start;
+                                progress(scanned);
+                            }
                         }
-                        ids.Add(entryId);
+                    });
+                    var buckets = new Dictionary<string, List<long>>(StringComparer.OrdinalIgnoreCase);
+                    foreach (var local in chunkBuckets)
+                    {
+                        if (local is null)
+                        {
+                            continue;
+                        }
+                        foreach (var (extension, ids) in local)
+                        {
+                            if (!buckets.TryGetValue(extension, out var merged))
+                            {
+                                buckets[extension] = merged = [];
+                            }
+                            merged.AddRange(ids);
+                        }
                     }
                     var built = new Dictionary<string, long[]>(StringComparer.OrdinalIgnoreCase);
                     foreach (var (extension, ids) in buckets)
@@ -298,6 +325,60 @@ public sealed class ArchiveIndex : IDisposable
     }
 
     internal string ReadString(ArchiveIndexStringRange range) => ReadString(range.Offset, range.Length);
+
+    /// <summary>The <see cref="ArchiveEntryDto.OriginalSize"/> <see cref="ReadEntry"/> would report.</summary>
+    internal long ReadOriginalSize(long entryId) =>
+        checked((long)_view.ReadUInt64(CheckedRecord(entryId) + 40));
+
+    /// <summary>The <see cref="ArchiveEntryDto.IsActiveOverride"/> <see cref="ReadEntry"/> would report.</summary>
+    internal bool ReadIsActiveOverride(long entryId)
+    {
+        var overrideMetadata = _view.ReadUInt32(CheckedRecord(entryId) + 68);
+        return (overrideMetadata & 0x2u) != 0 && (overrideMetadata & 0x1u) != 0;
+    }
+
+    private long CheckedRecord(long entryId)
+    {
+        ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) != 0, this);
+        if (entryId < 0 || entryId >= EntryCount)
+        {
+            throw new ArgumentOutOfRangeException(nameof(entryId));
+        }
+        return checked(_recordsOffset + entryId * RecordSize);
+    }
+
+    /// <summary>The <see cref="ArchiveEntryDto.OverrideState"/> label for an entry's override bits and PAMT.</summary>
+    internal static string OverrideState(uint overrideMetadata, string pamtPath)
+    {
+        var hasDuplicate = (overrideMetadata & 0x2u) != 0;
+        var isActiveOverride = hasDuplicate && (overrideMetadata & 0x1u) != 0;
+        var isModPackage = IsModPackage(pamtPath);
+        return hasDuplicate
+            ? isActiveOverride
+                ? isModPackage ? "Active mod" : "Active original"
+                : isModPackage ? "Shadowed mod" : "Shadowed original"
+            : isModPackage ? "Mod-added" : string.Empty;
+    }
+
+    /// <summary>
+    /// The raw record fields a sort key needs, with the path normalized as
+    /// <see cref="ReadEntry"/> normalizes it, but without building the entry.
+    /// </summary>
+    internal ArchiveSortFacts ReadSortFacts(long entryId)
+    {
+        var record = CheckedRecord(entryId);
+        var pathOffset = checked((long)_view.ReadUInt64(record));
+        var pathLength = checked((int)_view.ReadUInt32(record + 48));
+        return new ArchiveSortFacts(
+            NormalizePath(ReadPooledString(pathOffset, pathLength)),
+            new ArchiveIndexStringRange(checked((long)_view.ReadUInt64(record + 8)), checked((int)_view.ReadUInt32(record + 52))),
+            checked((int)_view.ReadUInt32(record + 64)),
+            checked((long)_view.ReadUInt64(record + 24)),
+            checked((long)_view.ReadUInt64(record + 32)),
+            checked((long)_view.ReadUInt64(record + 40)),
+            checked((int)_view.ReadUInt32(record + 60)),
+            _view.ReadUInt32(record + 68));
+    }
 
     private static bool IsModPackage(string pamtPath)
     {
@@ -402,3 +483,13 @@ public sealed class ArchiveIndex : IDisposable
 }
 
 internal readonly record struct ArchiveIndexStringRange(long Offset, int Length);
+
+internal readonly record struct ArchiveSortFacts(
+    string Path,
+    ArchiveIndexStringRange PamtRange,
+    int PazIndex,
+    long ArchiveOffset,
+    long StoredSize,
+    long OriginalSize,
+    int Flags,
+    uint OverrideMetadata);
