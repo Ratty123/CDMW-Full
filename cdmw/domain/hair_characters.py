@@ -29,8 +29,11 @@ class HairCharacter:
         root = f"character/model/1_pc/{self.reference_family}/"
         if not path.startswith(root) or not path.endswith(".pac"):
             return False
+        # The DLC update dropped the cd_ prefix from the player bodies
+        # (cd_phw_00_nude_* became phw_00_nude_*); accept both generations.
+        name = path.rsplit("/", 1)[-1].removeprefix("cd_")
         return ("/head/head/" in path if role == "head" else
-                "/nude/" in path and path.rsplit("/", 1)[-1].startswith(f"cd_{self.prefix}_00_nude_"))
+                "/nude/" in path and name.startswith(f"{self.prefix}_00_nude_"))
 
 
 HAIR_CHARACTERS = (

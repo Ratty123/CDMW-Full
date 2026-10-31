@@ -108,6 +108,19 @@ def test_automatic_context_selects_matching_roles_cancels_stale_work_and_reuses_
     assert len(service.calls) == count + 1
 
 
+def test_reference_roles_accept_bodies_renamed_by_the_dlc_update():
+    from cdmw.domain.hair_characters import hair_character
+    damiane, oongka = hair_character("Damiane"), hair_character("Oongka")
+    for body in ("character/model/1_pc/2_phw/nude/phw_00_nude_00_0001_damian.pac",
+                 "character/model/1_pc/2_phw/nude/cd_phw_00_nude_00_0001_damian.pac"):
+        assert damiane.accepts_reference(body, "body")
+        assert not damiane.accepts_reference(body, "head")
+    assert damiane.accepts_reference("character/model/1_pc/2_phw/head/head/phw_00_head_00_0111.pac", "head")
+    assert oongka.accepts_reference("character/model/1_pc/5_pom/nude/pom_00_nude_00_0001.pac", "body")
+    assert not damiane.accepts_reference("character/model/1_pc/2_phw/nude/phw_00_fuzz_00_0001.pac", "body")
+    assert not damiane.accepts_reference("character/model/1_pc/1_phm/nude/phm_00_nude_00_0001.pac", "body")
+
+
 def test_hair_button_opens_single_setup(owner, monkeypatch):
     from cdmw.ui.mesh_editor import hair_flow
     calls = []

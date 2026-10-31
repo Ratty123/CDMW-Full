@@ -225,8 +225,8 @@ class HairReferencePickerDialog(QDialog):
         self._rows[row.key] = row
         label = row.label
         if self._role != "hair" and (label.endswith(".pac") or label.startswith("cd_")):
-            stem = Path(row.path).stem
-            prefix = f"cd_{self._profile.prefix}_00_" + ("head_00_" if self._role == "head" else "nude_00_")
+            stem = Path(row.path).stem.removeprefix("cd_")
+            prefix = f"{self._profile.prefix}_00_" + ("head_00_" if self._role == "head" else "nude_00_")
             variant = stem.removeprefix(prefix).replace("_", " ")
             label = self._profile.name + (" head " if self._role == "head" else " base body ") + variant
         item = QListWidgetItem(label)

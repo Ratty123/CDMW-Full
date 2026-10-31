@@ -145,29 +145,30 @@ class ArchiveAttachmentVisualCoreMixin:
         family = "phw" if "phw" in evidence_text or "/2_phw/" in evidence_text else "phm"
         preferred = (
             (
-                "cd_phw_00_nude_00_0001.pac",
-                "cd_phw_00_nude_00_0001_damian.pac",
+                "phw_00_nude_00_0001.pac",
+                "phw_00_nude_00_0001_damian.pac",
             )
             if family == "phw"
             else (
-                "cd_phm_00_nude_10_0001.pac",
-                "cd_phm_00_nude_00_0001.pac",
-                "cd_phm_00_nude_00_4001.pac",
+                "phm_00_nude_10_0001.pac",
+                "phm_00_nude_00_0001.pac",
+                "phm_00_nude_00_4001.pac",
             )
         )
-        for basename in preferred:
+        # The DLC update dropped the cd_ prefix from player bodies; older installs keep it.
+        for basename in (name for stem in preferred for name in (stem, f"cd_{stem}")):
             for entry in tuple(dependencies.entries_by_basename.get(basename, ()) or ()):
                 if isinstance(entry, ArchiveEntry) and str(entry.extension or "").lower() == ".pac":
                     return entry
 
-        prefix = f"cd_{family}_00_nude"
+        prefix = f"{family}_00_nude"
         candidates: List[Tuple[int, str, ArchiveEntry]] = []
         for entry in dependencies.entries:
             if not isinstance(entry, ArchiveEntry) or str(entry.extension or "").lower() != ".pac":
                 continue
             basename = str(entry.basename or PurePosixPath(entry.path.replace("\\", "/")).name).casefold()
             path = str(entry.path or "").replace("\\", "/").casefold()
-            if not basename.startswith(prefix):
+            if not basename.removeprefix("cd_").startswith(prefix):
                 continue
             score = 0
             if "/nude/" in path:

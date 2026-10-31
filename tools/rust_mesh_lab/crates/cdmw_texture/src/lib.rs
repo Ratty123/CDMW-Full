@@ -854,13 +854,23 @@ pub fn inspect_dds(bytes: &[u8], role: TextureRole) -> Result<DdsMetadata, Textu
             | DdsFormat::Bgra8Srgb
     );
     let color_space = match role {
-        // Colour slots also carry scalar particle/emissive masks. These have
-        // no sRGB view; sample their intensity linearly and keep the authored
-        // material or particle colour responsible for the hue.
+        // Colour slots also carry scalar particle/emissive masks, and shipped
+        // materials sometimes bind a two-channel normal map there. Formats with
+        // no sRGB view are sampled as stored, as the game does, and the authored
+        // material or particle colour stays responsible for the hue.
         TextureRole::BaseColor | TextureRole::Emissive
             if matches!(
                 format,
-                DdsFormat::Bc4Unorm | DdsFormat::Bc4Snorm | DdsFormat::R8Unorm
+                DdsFormat::Bc4Unorm
+                    | DdsFormat::Bc4Snorm
+                    | DdsFormat::Bc5Unorm
+                    | DdsFormat::Bc5Snorm
+                    | DdsFormat::Bc6hUnsignedFloat
+                    | DdsFormat::Bc6hSignedFloat
+                    | DdsFormat::R8Unorm
+                    | DdsFormat::Rg8Unorm
+                    | DdsFormat::Rgba16Float
+                    | DdsFormat::Rgba32Float
             ) =>
         {
             ColorSpace::Linear
@@ -1594,7 +1604,8 @@ mod tests {
     #[test]
     fn single_channel_colour_slots_are_linear_intensity_data() -> Result<(), TextureError> {
         for role in [TextureRole::BaseColor, TextureRole::Emissive] {
-            for dxgi in [80, 81, 61] {
+            // BC4, R8, and the BC5 normal map a DLC jacket binds as base colour.
+            for dxgi in [80, 81, 61, 83, 84, 95] {
                 let metadata = inspect_dds(&dds_dx10(dxgi), role)?;
                 assert_eq!(metadata.color_space, ColorSpace::Linear);
             }
