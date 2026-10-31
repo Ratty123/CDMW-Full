@@ -176,7 +176,7 @@ def _folder_metadata(external, folder, stop_event):
         if mount.is_file():
             # Discovery reads this index for the folder's archive order. Keep its
             # original parsed digest even though it is never a deployed payload.
-            read_index(mount, parse_papgt)
+            read_index(mount, read_papgt_directories)
             consumed.add(mount)
         pathc = base / 'meta/0.pathc'
         if pathc.is_file():
