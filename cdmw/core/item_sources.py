@@ -12,6 +12,8 @@ from cdmw.models import ArchiveEntry
 LEGACY_TABLE_ROOT = "gamedata/binary__/client/bin"
 STATIC_TABLE_ROOT = "gamedata/binarystaticinfo__/bin"
 LOCALIZATION_ROOT = "gamedata/stringtable/binary__"
+#: Static (DLC-generation) table stem -> the legacy stem item rules reference.
+STATIC_TABLE_LEGACY_NAMES = {"skill": "skillinfo", "reserveslot": "reserveslotinfo"}
 
 
 def source_package(entry: ArchiveEntry) -> str:
@@ -134,6 +136,14 @@ def resolve_item_data_sources(
         for stem in ("statusinfo", "equiptypeinfo"):
             if stem in current:
                 tables.setdefault(stem, current[stem])
+    else:
+        # The static generation renamed tables the item rules still name by their
+        # legacy stems; expose base and DLC pairs under both names.
+        for stem, pair in list(tables.items()):
+            base, dot, suffix = stem.partition(".")
+            legacy = STATIC_TABLE_LEGACY_NAMES.get(base)
+            if legacy:
+                tables.setdefault(legacy + dot + suffix, pair)
     languages: dict[str, list[ArchiveEntry]] = defaultdict(list)
     for path, options in candidates.items():
         language = item_localization_language(path)

@@ -59,7 +59,7 @@ def validate_item_graph(raw, snapshot, *, stop_event=None):
     from cdmw.services.new_item_definition import validate_definition_dependencies
     from cdmw.services.new_item_settings import (validate_inventory_dependencies, validate_stat_dependencies,
         validate_settings_dependencies, validate_reward, load_use_action, _reference)
-    from cdmw.services.independent_item_package import virtual_path
+    from cdmw.services.independent_item_package import _resource_path
     from cdmw.core.item_layout import read_item_layout
 
     raise_if_cancelled(stop_event)
@@ -137,7 +137,9 @@ def validate_item_graph(raw, snapshot, *, stop_event=None):
     todo=list(resources); checked=set(); total=0
     while todo:
         raise_if_cancelled(stop_event)
-        path=virtual_path(todo.pop().replace('\\','/').lower())
+        # Borrowed shipped resources are only read here, so any game root is
+        # acceptable (coin and gimmick props live under object/).
+        path=_resource_path(todo.pop().replace('\\','/').lower())
         if path in checked: continue
         checked.add(path)
         if len(checked)>MAX_RESOURCES: raise RecordError('The declared resource graph exceeds its resource limit.')

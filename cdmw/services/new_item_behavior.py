@@ -87,7 +87,9 @@ def load_behavior_index(snapshot, *, stop_event=None):
 
 def string_reference(snapshot, key, *, stop_event=None):
     raise_if_cancelled(stop_event)
-    if not key: return ''
+    # Compact rows store the unset string hash, not zero, for an empty reference
+    # (every shipped prefab's docking switch since the DLC update).
+    if not key or key == UNSET_TEXTURE_KEY: return ''
     value = snapshot.stringinfo_texts.get(key)
     if not value or stringinfo_key(value) != key: raise RecordError('Unqualified behavior StringInfo reference.')
     return value

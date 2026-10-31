@@ -218,3 +218,18 @@ def test_effect_discovery_does_not_expand_authoring_revision(tmp_path, child_dec
     files[selected] = b"owned changed effect"
     with pytest.raises(StaleNewItemSource, match="Source changed"):
         revision.validate()
+
+
+def test_renamed_static_tables_answer_to_their_legacy_names(tmp_path):
+    root = tmp_path / "game"
+    files = current_files()
+    static = "gamedata/binarystaticinfo__/bin/"
+    for stem in ("skill", "reserveslot"):
+        files[static + stem + ".staticinfobody"] = b"rows"
+        files[static + stem + ".staticinfoheader"] = b"directory"
+    entries = parse_archive_pamt(build_package(root, files))
+    entries += parse_archive_pamt(build_package(root / "dlc/dlc_01", {
+        static + "skill.dlc_01.staticinfobody": b"dlc rows", static + "skill.dlc_01.staticinfoheader": b"dlc directory"}))
+    tables = resolve_item_data_sources(entries).tables
+    for legacy, current in (("skillinfo", "skill"), ("reserveslotinfo", "reserveslot"), ("skillinfo.dlc_01", "skill.dlc_01")):
+        assert tables[legacy] is tables[current]

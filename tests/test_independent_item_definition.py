@@ -364,3 +364,18 @@ def test_map_icon_lists_registries_by_extension_without_walking_every_entry(tmp_
     expected = resolve_map_icon(snapshot, stringinfo_key(MAP_NAME))
     assert expected == (MAP_NAME, MAP_DDS, (MAP_XML,))
     assert resolve_map_icon(unwalked(snapshot, entries), stringinfo_key(MAP_NAME)) == expected
+
+
+def test_named_localization_references_into_other_string_tables_are_accepted():
+    from types import SimpleNamespace
+    from cdmw.core.new_item_record import RecordError
+    from cdmw.core.stringinfo_table import stringinfo_key
+    from cdmw.services.new_item_definition import _localization_reference
+    name = 'textdialog_recipe_boiledpork_00060'
+    snapshot = SimpleNamespace(languages=())
+    # The installed recipe papers' shape: (StringInfo hash << 32) | the dialog table code.
+    _localization_reference(snapshot, {'category': 29, 'key': stringinfo_key(name) << 32 | 0x1d0, 'text_key': name})
+    with pytest.raises(RecordError, match='disagrees'):
+        _localization_reference(snapshot, {'category': 29, 'key': (stringinfo_key(name) + 1) << 32 | 0x1d0, 'text_key': name})
+    with pytest.raises(RecordError, match='disagrees'):
+        _localization_reference(snapshot, {'category': 0, 'key': 123, 'text_key': '124'})

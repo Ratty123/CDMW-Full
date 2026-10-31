@@ -10,7 +10,7 @@ RECIPE_FLAGS = ('_isWithSealedItem', '_isFromItemInfo', '_isAllowMaterialItemSel
 
 
 def parse_compact_recipe(raw):
-    from cdmw.core.item_recipe_table import ItemRecipe, RecipeIngredient, RecipeGroupIngredient, RecipeElementalStatus
+    from cdmw.core.item_recipe_table import ItemRecipe, RecipeIngredient, RecipeGroupIngredient, RecipeElementalStatus, _local_string
     layout = read_compact_layout(raw, 'multichangeinfo')
     if layout.integer('_isBlocked', width=1):
         raise RecordError('Blocked recipe')
@@ -23,8 +23,17 @@ def parse_compact_recipe(raw):
     cursor = Cursor(layout.data('_recipeItemGroupInfoList'))
     groups = tuple(RecipeGroupIngredient(*cursor.unpack('HQH')) for _ in range(cursor.count()))
     cursor.finish()
-    if layout.data('_conditionList') != bytes(4) or layout.data('_elementalMaterialStateList') != bytes(4):
-        raise RecordError('Recipe elemental-state or condition arrays are not decoded')
+    # Conditions (a condition key and its localized refusal message) and
+    # elemental material states are validated and retained unchanged.
+    cursor = Cursor(layout.data('_conditionList'))
+    for _ in range(cursor.count()):
+        cursor.unpack('I')
+        _local_string(cursor)
+    cursor.finish()
+    cursor = Cursor(layout.data('_elementalMaterialStateList'))
+    for _ in range(cursor.count()):
+        cursor.text()
+    cursor.finish()
     elemental = layout.integer('_elementalStatusInfo', width=4)
     presentation = layout.data('_description') + b''.join(layout.data(f) for f in
         ('_groupStringInfo','_subGroupStringInfo','_enchantRecipeDesc')) + layout.data('_complteDescription')

@@ -120,7 +120,12 @@ def _localization_reference(snapshot, value, *, stop_event=None):
     if not key and value['key'] == 0:
         return
     if value['key'] and key != str(value['key']):
-        raise RecordError('A numeric localization reference disagrees with its text key.')
+        # Named references into the per-domain string tables (dialog, quest...)
+        # carry (StringInfo hash of the name << 32) | table code. Item exports
+        # never write those tables, so a consistent shipped reference stays valid.
+        if key.isdigit() or value['key'] >> 32 != stringinfo_key(key):
+            raise RecordError('A numeric localization reference disagrees with its text key.')
+        return
     for language in snapshot.languages:
         raise_if_cancelled(stop_event)
         cache_key = ('definition-localization-counts', language)

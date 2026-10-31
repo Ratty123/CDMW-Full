@@ -165,3 +165,16 @@ def test_texture_choices_list_dds_by_extension_without_walking_every_entry(tmp_p
     assert expected and ('ui/texture/left.dds','ui/texture/left.dds') in expected
     assert expected==tuple(sorted(expected)) and all(path.endswith('.dds') for path,_ in expected)
     assert load_behavior_index(unwalked(snapshot,entries)).choices['texture']==expected
+
+
+def test_unset_string_hash_is_an_empty_behavior_reference():
+    from types import SimpleNamespace
+    from cdmw.core.new_item_record import RecordError
+    from cdmw.core.stringinfo_table import UNSET_TEXTURE_KEY, stringinfo_key
+    from cdmw.services.new_item_behavior import string_reference
+    snapshot = SimpleNamespace(stringinfo_texts={stringinfo_key('Switch_A'): 'Switch_A'})
+    assert string_reference(snapshot, UNSET_TEXTURE_KEY) == ''
+    assert string_reference(snapshot, 0) == ''
+    assert string_reference(snapshot, stringinfo_key('Switch_A')) == 'Switch_A'
+    with pytest.raises(RecordError):
+        string_reference(snapshot, stringinfo_key('Missing'))
