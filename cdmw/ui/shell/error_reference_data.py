@@ -19711,7 +19711,7 @@ MESSAGE_REFERENCE = [
     "message": "A pointee spans 0x{at}, so its stored length would no longer describe it; refusing to splice there",
     "recovery": "input",
     "sources": {
-      "cdmw/core/prefab_array_edit.py": 228
+      "cdmw/core/prefab_array_edit.py": 237
     }
   },
   {
@@ -20095,7 +20095,7 @@ MESSAGE_REFERENCE = [
     "message": "Element {element_index} is empty; refusing to resize",
     "recovery": "empty",
     "sources": {
-      "cdmw/core/prefab_array_edit.py": 211
+      "cdmw/core/prefab_array_edit.py": 220
     }
   },
   {
@@ -20103,7 +20103,7 @@ MESSAGE_REFERENCE = [
     "message": "Element {index} is missing from the resized collection",
     "recovery": "missing",
     "sources": {
-      "cdmw/core/prefab_array_edit.py": 325
+      "cdmw/core/prefab_array_edit.py": 334
     }
   },
   {
@@ -20111,7 +20111,7 @@ MESSAGE_REFERENCE = [
     "message": "Element {index} reads back as {end - start} bytes, but the duplicated element is {expected_span}; the copy did not re-read as its own source",
     "recovery": "conflict",
     "sources": {
-      "cdmw/core/prefab_array_edit.py": 328
+      "cdmw/core/prefab_array_edit.py": 337
     }
   },
   {
@@ -20423,7 +20423,7 @@ MESSAGE_REFERENCE = [
     "message": "No collection {collection_index}; this prefab has {len(document.collections)}",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/prefab_array_edit.py": 146
+      "cdmw/core/prefab_array_edit.py": 147
     }
   },
   {
@@ -20487,7 +20487,7 @@ MESSAGE_REFERENCE = [
     "message": "No element {element_index} in {collection.member_name}; it has {len(collection.elements)}",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/prefab_array_edit.py": 204
+      "cdmw/core/prefab_array_edit.py": 213
     }
   },
   {
@@ -20784,7 +20784,7 @@ MESSAGE_REFERENCE = [
     "message": "Prefab did not decode completely, so resizing would be unsafe: unknown",
     "recovery": "format",
     "sources": {
-      "cdmw/core/prefab_array_edit.py": 141
+      "cdmw/core/prefab_array_edit.py": 142
     }
   },
   {
@@ -20792,7 +20792,7 @@ MESSAGE_REFERENCE = [
     "message": "Prefab did not decode completely, so resizing would be unsafe: {document.walk_note}",
     "recovery": "format",
     "sources": {
-      "cdmw/core/prefab_array_edit.py": 141
+      "cdmw/core/prefab_array_edit.py": 142
     }
   },
   {
@@ -21659,7 +21659,7 @@ MESSAGE_REFERENCE = [
     "message": "The resized collection declares {expected_count} element(s) but {len(got.elements)} were read back",
     "recovery": "input",
     "sources": {
-      "cdmw/core/prefab_array_edit.py": 308
+      "cdmw/core/prefab_array_edit.py": 317
     }
   },
   {
@@ -21667,7 +21667,7 @@ MESSAGE_REFERENCE = [
     "message": "The resized collection reads back with {got.count} element(s), expected {expected_count}",
     "recovery": "input",
     "sources": {
-      "cdmw/core/prefab_array_edit.py": 303
+      "cdmw/core/prefab_array_edit.py": 312
     }
   },
   {
@@ -21675,7 +21675,7 @@ MESSAGE_REFERENCE = [
     "message": "The resized prefab declares {stated} bytes but is {len(rebuilt)}",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/prefab_array_edit.py": 340
+      "cdmw/core/prefab_array_edit.py": 349
     }
   },
   {
@@ -21683,7 +21683,7 @@ MESSAGE_REFERENCE = [
     "message": "The resized prefab does not read back: {exc}",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/prefab_array_edit.py": 294
+      "cdmw/core/prefab_array_edit.py": 303
     }
   },
   {
@@ -21691,7 +21691,7 @@ MESSAGE_REFERENCE = [
     "message": "The resized prefab holds {len(found)} pointer(s), expected {expected_pointers}",
     "recovery": "input",
     "sources": {
-      "cdmw/core/prefab_array_edit.py": 335
+      "cdmw/core/prefab_array_edit.py": 344
     }
   },
   {
@@ -21699,7 +21699,7 @@ MESSAGE_REFERENCE = [
     "message": "The resized prefab is {len(rebuilt)} bytes, expected {len(original) + delta}",
     "recovery": "input",
     "sources": {
-      "cdmw/core/prefab_array_edit.py": 313
+      "cdmw/core/prefab_array_edit.py": 322
     }
   },
   {
@@ -21707,7 +21707,7 @@ MESSAGE_REFERENCE = [
     "message": "The resized prefab no longer reads all the way through: {after.walk_note}",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/prefab_array_edit.py": 296
+      "cdmw/core/prefab_array_edit.py": 305
     }
   },
   {
@@ -21715,7 +21715,7 @@ MESSAGE_REFERENCE = [
     "message": "The resized prefab reads back with fewer collections",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/prefab_array_edit.py": 300
+      "cdmw/core/prefab_array_edit.py": 309
     }
   },
   {
@@ -21803,7 +21803,7 @@ MESSAGE_REFERENCE = [
     "message": "This prefab's collection headers read two different ways and the file does not choose between them, so every offset in it is a guess; refusing to resize.",
     "recovery": "format",
     "sources": {
-      "cdmw/core/prefab_array_edit.py": 198
+      "cdmw/core/prefab_array_edit.py": 207
     }
   },
   {
@@ -23849,7 +23849,7 @@ MESSAGE_REFERENCE = [
     "message": "{collection.member_name} declares {collection.count} element(s) but only {len(collection.elements)} were read; refusing to resize it",
     "recovery": "input",
     "sources": {
-      "cdmw/core/prefab_array_edit.py": 153
+      "cdmw/core/prefab_array_edit.py": 154
     }
   },
   {
@@ -23857,7 +23857,15 @@ MESSAGE_REFERENCE = [
     "message": "{collection.member_name} has one element left; removing it would leave an empty collection, which no shipped prefab does",
     "recovery": "empty",
     "sources": {
-      "cdmw/core/prefab_array_edit.py": 220
+      "cdmw/core/prefab_array_edit.py": 229
+    }
+  },
+  {
+    "area": "formats",
+    "message": "{collection.member_name} is an indexed list (socket list); resizing it is not supported",
+    "recovery": "unsupported",
+    "sources": {
+      "cdmw/core/prefab_array_edit.py": 163
     }
   },
   {
@@ -44332,7 +44340,7 @@ MESSAGE_REFERENCE = [
     "message": "Exact PAC LOD0 topology rebuild needs the original parsed mesh, and it is unavailable. Refusing to fall back to the generic rebuild, which would choose donor records.",
     "recovery": "missing",
     "sources": {
-      "cdmw/modding/mesh_importer.py": 535
+      "cdmw/modding/mesh_importer.py": 533
     }
   },
   {
@@ -44364,7 +44372,7 @@ MESSAGE_REFERENCE = [
     "message": "Exact PAC skin-weight replacement changed an unowned byte at file offset {offset}; only record bytes 20:34 are authorized.",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/mesh_importer.py": 797
+      "cdmw/modding/mesh_importer.py": 833
     }
   },
   {
@@ -44372,7 +44380,7 @@ MESSAGE_REFERENCE = [
     "message": "Exact PAC skin-weight replacement changed the file size; byte ownership could not be proven.",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/mesh_importer.py": 725
+      "cdmw/modding/mesh_importer.py": 761
     }
   },
   {
@@ -44452,7 +44460,7 @@ MESSAGE_REFERENCE = [
     "message": "Exact PAC skin-weight replacement lacks the proven 40-byte source records for submesh {submesh_index}.",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/mesh_importer.py": 759
+      "cdmw/modding/mesh_importer.py": 795
     }
   },
   {
@@ -44460,7 +44468,7 @@ MESSAGE_REFERENCE = [
     "message": "Exact PAC skin-weight replacement may target only valid LOD 0 submeshes.",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/mesh_importer.py": 733
+      "cdmw/modding/mesh_importer.py": 769
     }
   },
   {
@@ -44500,7 +44508,7 @@ MESSAGE_REFERENCE = [
     "message": "Exact PAC skin-weight replacement source record is outside the file for submesh {submesh_index} vertex {vertex_index}.",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/mesh_importer.py": 767
+      "cdmw/modding/mesh_importer.py": 803
     }
   },
   {
@@ -44508,7 +44516,7 @@ MESSAGE_REFERENCE = [
     "message": "Exact PAC skin-weight replacement targets missing submesh {submesh_index}.",
     "recovery": "missing",
     "sources": {
-      "cdmw/modding/mesh_importer.py": 746
+      "cdmw/modding/mesh_importer.py": 782
     }
   },
   {
@@ -46812,7 +46820,7 @@ MESSAGE_REFERENCE = [
     "recovery": "input",
     "sources": {
       "cdmw/domain/mesh/export_validation.py": 1805,
-      "cdmw/modding/mesh_importer.py": 842
+      "cdmw/modding/mesh_importer.py": 878
     }
   },
   {
@@ -49648,7 +49656,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh edit operation blocked rebuild: {blockers[0].message}",
     "recovery": "input",
     "sources": {
-      "cdmw/modding/mesh_importer.py": 854
+      "cdmw/modding/mesh_importer.py": 890
     }
   },
   {
@@ -50507,7 +50515,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh sidecar metadata drift blocked rebuild: {message}",
     "recovery": "input",
     "sources": {
-      "cdmw/modding/mesh_importer.py": 990
+      "cdmw/modding/mesh_importer.py": 1026
     }
   },
   {
@@ -51907,7 +51915,7 @@ MESSAGE_REFERENCE = [
     "message": "Neutral OBJ edit exceeds PAC normal precision for {part.name} (reconstructed direction error {degrees} degrees). Use a source-coordinate OBJ for this normal edit.",
     "recovery": "limits",
     "sources": {
-      "cdmw/modding/mesh_importer.py": 615
+      "cdmw/modding/mesh_importer.py": 613
     }
   },
   {
@@ -51915,7 +51923,7 @@ MESSAGE_REFERENCE = [
     "message": "Neutral OBJ edit exceeds PAC normal precision for {part.name}: the Blender input contains a zero-length normal. Restore its normal direction before reimport.",
     "recovery": "limits",
     "sources": {
-      "cdmw/modding/mesh_importer.py": 607
+      "cdmw/modding/mesh_importer.py": 605
     }
   },
   {
@@ -51923,7 +51931,7 @@ MESSAGE_REFERENCE = [
     "message": "Neutral OBJ edit exceeds PAC position precision for {part.name} (reconstructed displacement {error}). Use a source-coordinate OBJ or Mesh Replacement for this edit.",
     "recovery": "limits",
     "sources": {
-      "cdmw/modding/mesh_importer.py": 599
+      "cdmw/modding/mesh_importer.py": 597
     }
   },
   {
@@ -52284,7 +52292,7 @@ MESSAGE_REFERENCE = [
     "message": "OBJ round-trip changed protected PAC tangent bits in submesh {submesh_index} vertex {vertex_index}.",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/mesh_importer.py": 692
+      "cdmw/modding/mesh_importer.py": 728
     }
   },
   {
@@ -52292,7 +52300,7 @@ MESSAGE_REFERENCE = [
     "message": "OBJ round-trip changed protected PAC vertex bytes for submesh {submesh_index} vertex {vertex_index} at record bytes {start}:{end}.",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/mesh_importer.py": 697
+      "cdmw/modding/mesh_importer.py": 733
     }
   },
   {
@@ -52300,7 +52308,7 @@ MESSAGE_REFERENCE = [
     "message": "OBJ round-trip changed the PAC file size; protected vertex-byte preservation could not be proven.",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/mesh_importer.py": 643
+      "cdmw/modding/mesh_importer.py": 679
     }
   },
   {
@@ -52308,7 +52316,7 @@ MESSAGE_REFERENCE = [
     "message": "OBJ round-trip could not prove protected PAC vertex-byte preservation for submesh {submesh_index} vertex {vertex_index}: source record is outside the file.",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/mesh_importer.py": 685
+      "cdmw/modding/mesh_importer.py": 721
     }
   },
   {
@@ -52316,7 +52324,7 @@ MESSAGE_REFERENCE = [
     "message": "OBJ round-trip could not prove protected PAC vertex-byte preservation for submesh {submesh_index}: source offsets or stride are incomplete.",
     "recovery": "format",
     "sources": {
-      "cdmw/modding/mesh_importer.py": 669
+      "cdmw/modding/mesh_importer.py": 705
     }
   },
   {
@@ -52489,16 +52497,16 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "mesh",
-    "message": "OBJ sidecar topology changed for part '{name}' (submesh {submesh_index}): expected {expected_vertices} source vertices, got {actual_vertices}. Blender drops vertices that no face uses; adding or deleting geometry needs a replacement import.",
-    "recovery": "stale",
+    "message": "OBJ sidecar topology changed for submesh {submesh_index}: expected {expected_indices} indices, got {actual_indices}.",
+    "recovery": "input",
     "sources": {
       "cdmw/modding/mesh_obj_importer.py": 623
     }
   },
   {
     "area": "mesh",
-    "message": "OBJ sidecar topology changed for submesh {submesh_index}: expected {expected_indices} indices, got {actual_indices}.",
-    "recovery": "input",
+    "message": "OBJ sidecar topology changed for submesh {submesh_index}: expected {expected_vertices} source vertices, got {actual_vertices}.",
+    "recovery": "stale",
     "sources": {
       "cdmw/modding/mesh_obj_importer.py": 615
     }
@@ -60005,7 +60013,7 @@ MESSAGE_REFERENCE = [
     "message": "Topology provenance is only rebuildable into PAC; this mesh is {fmt or 'unknown'}.",
     "recovery": "integrity",
     "sources": {
-      "cdmw/modding/mesh_importer.py": 531
+      "cdmw/modding/mesh_importer.py": 644
     }
   },
   {
@@ -60593,7 +60601,7 @@ MESSAGE_REFERENCE = [
     "message": "Unsupported mesh format for rebuild: {fmt}",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/modding/mesh_importer.py": 577
+      "cdmw/modding/mesh_importer.py": 575
     }
   },
   {
