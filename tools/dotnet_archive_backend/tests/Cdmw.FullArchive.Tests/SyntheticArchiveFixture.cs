@@ -194,6 +194,30 @@ internal sealed class SyntheticArchiveFixture : IAsyncDisposable
         return fixture;
     }
 
+    public static async Task<SyntheticArchiveFixture> CreateAnimationReferencesAsync()
+    {
+        var root = Path.Combine(Path.GetTempPath(), $"cdmw-full-archive-animation-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(root);
+        var fixture = new SyntheticArchiveFixture(root);
+        static byte[] Framed(string value) => [(byte)(value.Length + 1), .. Encoding.ASCII.GetBytes(value), 0];
+        // 98 characters frame with length byte 'c', which a path scan would swallow.
+        var longSubChart = "loweraction/" + new string('x', 86);
+        await BuildPackageAsync(root, "0009",
+        [
+            ("actionchart/bin__/upperaction/basic_upper.paac",
+                [.. Framed("1_pc/1_phm/idle.paa"), .. Framed("loweraction/2_mon/default_fist_lower"),
+                 .. Framed(longSubChart), .. Framed("baseseq/fx/dark"), .. Framed("RHand_Socket"),
+                 .. Framed("loweraction/never/installed")]),
+            ("actionchart/bin__/loweraction/2_mon/default_fist_lower.paac", "chart"u8.ToArray()),
+            ("actionchart/bin__/" + longSubChart + ".paac", "chart"u8.ToArray()),
+            ("sequencer/baseseq/fx/dark.paseq", "sequence"u8.ToArray()),
+            ("character/motion/1_pc/1_phm/idle.paa", "PAR clip"u8.ToArray()),
+            ("character/motion/motion_lod__/1_pc/1_phm/idle_lod.paa", "PAR lod"u8.ToArray()),
+            ("character/motion/motion_lod__/1_pc/1_phm/unrelated_lod.paa", "PAR lod"u8.ToArray()),
+        ]).ConfigureAwait(false);
+        return fixture;
+    }
+
     public static async Task<SyntheticArchiveFixture> CreatePbdMaterialsAsync(bool malformed = false, bool excessive = false)
     {
         var root = Path.Combine(Path.GetTempPath(), $"cdmw-full-archive-pbd-{Guid.NewGuid():N}");

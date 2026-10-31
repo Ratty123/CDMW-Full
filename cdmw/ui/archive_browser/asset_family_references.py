@@ -93,6 +93,8 @@ class ArchiveAssetFamilyReferenceMixin:
         return {
             "explicit_path": "Explicit path",
             "wwise_media_id": "Media ID",
+            "path_layout": "Path layout",
+            "line_name": "Line name",
             RelationConfidence.AUTHORITATIVE.value: "Authoritative",
             RelationConfidence.EXACT_PATH.value: "Exact path",
             RelationConfidence.PATH_NORMALIZED.value: "Path normalized",

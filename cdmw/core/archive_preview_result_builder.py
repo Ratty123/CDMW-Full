@@ -37,6 +37,7 @@ from cdmw.core.archive_data_table_preview import (
     build_static_table_preview,
     find_static_table_companion,
 )
+from cdmw.core.archive_action_chart import MAX_ACTION_CHART_RESOURCE_NAMES, action_chart_resource_names
 from cdmw.core.archive_model_references import _ArchiveModelSidecarTextureBinding
 from cdmw.core.archive_model_textures import _FAST_ARCHIVE_PREVIEW_TEXTURE_NOTE
 from cdmw.core.archive_content_analysis import load_archive_content_analysis
@@ -1393,6 +1394,22 @@ def build_archive_preview_result(
                 if overlay_notes:
                     info_extra_parts.extend(overlay_notes)
                 add_timing("hkx_physics_overlay_s", overlay_started_at)
+        elif extension == ".paac":
+            # A chart names its clips, blend spaces, sub-charts and prefabs in a
+            # framed string table; without this the chart's family was empty.
+            references_started_at = time.perf_counter()
+            chart_names = action_chart_resource_names(data)
+            model_texture_references = build_archive_related_file_references(
+                entry,
+                explicit_reference_names=chart_names,
+                archive_entries_by_normalized_path=texture_entries_by_normalized_path,
+                archive_entries_by_basename=texture_entries_by_basename,
+            )
+            if len(chart_names) >= MAX_ACTION_CHART_RESOURCE_NAMES:
+                info_extra_parts.append(
+                    f"Asset Family lists the first {MAX_ACTION_CHART_RESOURCE_NAMES:,} resource paths this chart names."
+                )
+            add_timing("action_chart_references_s", references_started_at)
         binary_preview_started_at = time.perf_counter()
         preferred_view, preview_text, info_extra = build_archive_binary_preview_payload(
             entry,

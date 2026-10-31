@@ -17,6 +17,9 @@ wire validation shared across the shell client, services, and Archive Browser.
 `format.py` owns extension normalization, sidecar classification, and bounded
 text-payload detection. `attachments.py`, `prefab.py`, `relationships.py`, and
 `weapon_swap.py` own immutable contracts re-exported by legacy core owners.
+`resource_paths.py` owns the engine resource roots stored animation paths are
+read under and the installed-layout companions (clip metadata, LOD, language
+copies, lip-sync voice lines) that Asset Family and Find references share.
 
 ## Mod merge contracts
 

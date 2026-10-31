@@ -6,7 +6,7 @@ from collections import OrderedDict, defaultdict
 from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path, PurePosixPath
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Mapping, Optional, Sequence, Tuple
 
 from cdmw.core.archive_extraction import read_archive_entry_data
 from cdmw.core.archive_format import (
@@ -24,6 +24,7 @@ from cdmw.core.upscale_profiles import (
     parse_texture_sidecar_bindings,
 )
 from cdmw.rendering.crimson_shader_registry import decode_crimson_texture_binding
+from cdmw.domain.archives.resource_paths import layout_companions, layout_relation
 from cdmw.modding.skeleton_parser import iter_pab_candidate_basenames
 from cdmw.models import (
     ArchiveEntry,
@@ -1263,6 +1264,37 @@ def _relation_kind_for_entry(candidate_entry: Optional[ArchiveEntry], reference_
     return RelationKind.METADATA.value
 
 
+_LAYOUT_RELATION_REASONS: Dict[str, str] = {
+    "animation_metadata": "Event metadata stored for this clip under actionchart/bin__/animmeta/.",
+    "animation_clip": "The clip this event metadata belongs to, under character/motion/.",
+    "lod_clip": "Distance LOD of this clip under character/motion/motion_lod__/.",
+    "base_clip": "Full-detail clip this distance LOD was made from.",
+    "language_variant": "The same file in another voice-language folder.",
+    "voice_line": "Voice line with this lip-sync clip's name in the same language folder. Matched by name; neither file names the other.",
+    "lip_sync_clip": "Lip-sync clip with this voice line's name in the same language folder. Matched by name; neither file names the other.",
+}
+
+
+def _find_archive_layout_companion_entries(
+    source_entry: ArchiveEntry,
+    archive_entries_by_basename: Optional[Mapping[str, Sequence[ArchiveEntry]]],
+) -> Tuple[ArchiveEntry, ...]:
+    """Installed files at a fixed path transformation of `source_entry`.
+
+    Looked up by basename and kept only on an exact path (or folder) match, so a
+    file that merely shares the name elsewhere never joins as a layout companion.
+    """
+
+    if archive_entries_by_basename is None:
+        return ()
+    found: List[ArchiveEntry] = []
+    for companion in layout_companions(source_entry.path):
+        for candidate in archive_entries_by_basename.get(companion.lookup_basename, ()):
+            if companion.matches(candidate.path) and candidate.path != source_entry.path and candidate not in found:
+                found.append(candidate)
+    return tuple(found)
+
+
 def _build_archive_relation_metadata(
     source_entry: ArchiveEntry,
     *,
@@ -1280,6 +1312,12 @@ def _build_archive_relation_metadata(
     ).name.strip().lower()
     same_stem_targets = _collect_same_stem_related_target_basenames(source_entry)
     family_targets = _collect_family_heuristic_target_basenames(source_entry)
+    layout = layout_relation(source_entry.path, normalized_resolved) if normalized_resolved and not authoritative else None
+    if layout is not None:
+        # Rated by the installed layout rather than by package: language packs
+        # live in their own archive folders, which made every language copy of
+        # a clip or voice line look like a cross-package guess.
+        return relation_kind, _relation_group_for_kind(relation_kind), layout.confidence, _LAYOUT_RELATION_REASONS[layout.kind]
     if authoritative:
         confidence = RelationConfidence.AUTHORITATIVE.value
         reason = authoritative_reason or "Explicit path or sidecar binding"
@@ -1386,16 +1424,23 @@ def _find_archive_model_related_entries(
     add_target(f"{basename}.meshinfo", must_keep=True)
 
     candidates: List[ArchiveEntry] = []
-    must_keep_candidates: List[ArchiveEntry] = []
+    layout_entries = _find_archive_layout_companion_entries(source_entry, archive_entries_by_basename)
+    must_keep_candidates: List[ArchiveEntry] = list(layout_entries)
     for target_basename in target_basenames:
         for candidate in archive_entries_by_basename.get(target_basename, ()):
             if candidate.path == source_entry.path:
+                continue
+            # Another language's metadata, or the clip of another language's
+            # voice line, belongs to a companion rather than to this file.
+            if candidate not in layout_entries and any(
+                layout_relation(companion.path, candidate.path) is not None for companion in layout_entries
+            ):
                 continue
             if candidate not in candidates:
                 candidates.append(candidate)
             if target_basename in must_keep_basenames and candidate not in must_keep_candidates:
                 must_keep_candidates.append(candidate)
-    if not candidates:
+    if not candidates and not must_keep_candidates:
         return ()
     candidates.sort(key=lambda candidate: _score_model_related_entry_candidate(source_entry, candidate), reverse=True)
     ordered: List[ArchiveEntry] = []

@@ -6,6 +6,7 @@ from typing import Dict, List, Mapping, Optional, Sequence, Tuple
 from cdmw.constants import ARCHIVE_MODEL_EXTENSIONS
 from cdmw.models import ArchiveEntry, ArchiveModelTextureReference, RelationConfidence
 from cdmw.core.archive_format import _is_material_sidecar_extension
+from cdmw.domain.archives.resource_paths import installed_path_candidates, layout_relation, length_prefix_variants
 from cdmw.core.archive_model_references import (
     _ARCHIVE_ITEM_ICON_STEM_PREFIXES,
     _archive_entry_identity_signature,
@@ -89,6 +90,36 @@ def _resolve_related_archive_entry(
         reverse=True,
     )
     return candidates[0]
+
+
+def _resolve_engine_resource_path(
+    source_entry: ArchiveEntry,
+    reference_name: str,
+    archive_entries_by_normalized_path: Optional[Dict[str, Sequence[ArchiveEntry]]],
+) -> Tuple[Optional[ArchiveEntry], str]:
+    """The installed file a stored path names exactly, and the path as stored.
+
+    Charts and sequences name clips, blend spaces, sub-charts and prefabs
+    relative to the folders the engine reads them from, and a one-byte length
+    prefix can leak into a scanned string. Both are resolved here before any
+    basename fallback is considered.
+    """
+
+    if archive_entries_by_normalized_path is None:
+        return None, ""
+    source_path = _normalize_model_texture_reference(source_entry.path)
+    for variant in length_prefix_variants(reference_name):
+        for candidate in installed_path_candidates(variant):
+            matches = [
+                entry for entry in archive_entries_by_normalized_path.get(candidate, ())
+                if _normalize_model_texture_reference(entry.path) != source_path
+            ]
+            if matches:
+                # Several packages can hold the same path; prefer the one the
+                # basename resolver would, such as the source's own package.
+                best = max(matches, key=lambda entry: _score_related_reference_candidate(source_entry, entry, reference_name=candidate))
+                return best, variant
+    return None, ""
 
 
 def _describe_generic_related_reference_label(reference_name: str, resolved_entry: Optional[ArchiveEntry] = None) -> str:
@@ -185,12 +216,24 @@ def build_archive_related_file_references(
         reference_name = str(raw_reference_name or "").strip().replace("\\", "/")
         if not reference_name:
             continue
-        resolved_entry = _resolve_related_archive_entry(
-            source_entry,
-            reference_name,
-            archive_entries_by_normalized_path=archive_entries_by_normalized_path,
-            archive_entries_by_basename=archive_entries_by_basename,
+        resolved_entry, stored_name = _resolve_engine_resource_path(
+            source_entry, reference_name, archive_entries_by_normalized_path
         )
+        authoritative_reason = "Explicit path reference"
+        if isinstance(resolved_entry, ArchiveEntry):
+            if _normalize_model_texture_reference(stored_name).lstrip("/") != _normalize_model_texture_reference(resolved_entry.path):
+                authoritative_reason = "Path under the engine resource folder it is read from"
+            reference_name = stored_name
+        elif not PurePosixPath(reference_name).suffix:
+            # An extensionless string names a file only when it resolves.
+            continue
+        else:
+            resolved_entry = _resolve_related_archive_entry(
+                source_entry,
+                reference_name,
+                archive_entries_by_normalized_path=archive_entries_by_normalized_path,
+                archive_entries_by_basename=archive_entries_by_basename,
+            )
         normalized_key_value = _normalize_model_texture_reference(
             resolved_entry.path if isinstance(resolved_entry, ArchiveEntry) else reference_name
         )
@@ -199,8 +242,8 @@ def build_archive_related_file_references(
         key = ("file", normalized_key_value)
         authoritative = bool(
             isinstance(resolved_entry, ArchiveEntry) and "/" in reference_name
-            and _normalize_model_texture_reference(reference_name).lstrip("/")
-            == _normalize_model_texture_reference(resolved_entry.path).lstrip("/")
+            and _normalize_model_texture_reference(resolved_entry.path)
+            in installed_path_candidates(reference_name)
         )
         if key not in references:
             relation_kind, relation_group, relation_confidence, relation_reason = _build_archive_relation_metadata(
@@ -208,7 +251,7 @@ def build_archive_related_file_references(
                 reference_name=reference_name if "/" in reference_name else "",
                 resolved_entry=resolved_entry if isinstance(resolved_entry, ArchiveEntry) else None,
                 authoritative=authoritative,
-                authoritative_reason="Explicit path reference",
+                authoritative_reason=authoritative_reason,
             )
             references[key] = ArchiveModelTextureReference(
                 reference_name=reference_name,
@@ -229,7 +272,7 @@ def build_archive_related_file_references(
         if authoritative:
             references[key].reference_name = reference_name
             references[key].relation_confidence = RelationConfidence.AUTHORITATIVE.value
-            references[key].relation_reason = "Explicit path reference"
+            references[key].relation_reason = authoritative_reason
         if reference_name and not references[key].reference_name:
             references[key].reference_name = reference_name
         if isinstance(resolved_entry, ArchiveEntry) and references[key].resolved_entry is None:
@@ -366,8 +409,10 @@ def build_archive_relationship_references(
         for related_entry in _find_archive_model_related_entries(source_entry, archive_entries_by_basename):
             # Other formats can have an exact metadata companion without
             # inheriting broad model-family guesses from unrelated folders.
-            if source_entry.extension not in family_hint_extensions and (
-                related_entry.basename.casefold() != f"{source_entry.basename.casefold()}.xml"
+            if (
+                source_entry.extension not in family_hint_extensions
+                and related_entry.basename.casefold() != f"{source_entry.basename.casefold()}.xml"
+                and layout_relation(source_entry.path, related_entry.path) is None
             ):
                 continue
             relation_kind, relation_group, relation_confidence, relation_reason = _build_archive_relation_metadata(

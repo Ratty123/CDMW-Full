@@ -11,6 +11,10 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 - Archive Browser can reverse-search textures, sounds and other supported assets with Asset Family's Find references action. Asset Family and Used By separate confirmed paths and sound IDs from name-based guesses, with cancellation and visible search coverage limits.
 
+- Asset Family connects animation and voice files. An action chart lists the clips, blend spaces, sub-charts and prefabs it names. An animation clip lists its event metadata, distance LOD and copies in other voice languages. Lip-sync clips and voice lines with the same name and language are paired. Each row says whether it comes from the path layout or a matching line name, because neither file names the other.
+
+- Archive Browser shows a Wwise sound's codec, length, speaker layout, loop points and markers in Details, and notes that Patch Audio To Game writes uncompressed PCM rather than re-encoding Vorbis.
+
 - Create New Item and Mesh Editor add two experimental shader experiments that use the game's blended transparency pass, so layers behind each other stay visible. **Layered glass** gives equipment a real Opacity value with edge opacity, roughness, reflectance and tint. **Sheer net veil** makes see-through hexagonal net for veils, tulle and net lace. Both accept plain opaque or glowing equipment; in-game appearance after conversion is untested.
 
 ### Changed
@@ -24,6 +28,8 @@ experimental-feature notes do not establish equivalent in-game behavior.
 ### Fixed
 
 - Archive Browser plays cached WEM sounds and exports them as WAV again. Long audio preview paths no longer prevent widening Asset Family. Reference searches recognise language-folder paths, check sound banks and metadata first, and continue past 2 GiB in cancellable batches.
+
+- Find references on an animation clip now finds the action charts, blend spaces and sequences that use it, which name clips relative to the game's motion folder. Blend spaces, action charts and sequences can be searched too. Clips named by charts and blend spaces are listed as confirmed references instead of name guesses, and language copies are no longer shown as cross-package hints. WEM details no longer report compressed sounds as 0-bit.
 
 - Archive Browser skips CrimsonMods cache archives by default. Archive parse errors identify the failing file and offer to exclude recognised mod or backup folders and refresh.
 

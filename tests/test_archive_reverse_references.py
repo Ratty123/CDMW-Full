@@ -14,7 +14,9 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from PySide6.QtCore import QObject, QTimer, Signal, Qt, QSettings
 from PySide6.QtWidgets import QApplication, QPushButton, QLabel, QTreeWidget, QWidget
 
-from cdmw.core.archive_reverse_references import incoming_reference, scan_reference_batch, reference_evidence_group
+from cdmw.core.archive_reverse_references import (
+    incoming_reference, reference_evidence_group, reference_source_extension_groups, scan_reference_batch,
+)
 from cdmw.domain.archives.catalogue import ArchiveDurableIdentity, ArchiveEntryDto, ArchiveEntryRef, ArchiveEntryRole, ArchivePage, ArchiveQueryHandle
 from cdmw.domain.archives.catalogue_operations import PrepareEntryResult, PrepareEntriesResult
 from cdmw.models import ArchiveEntry, RunCancelled
@@ -91,6 +93,50 @@ def test_sound_reference_preserves_language_folder_parentheses(tmp_path, languag
     ref, _ = incoming_reference(target, source, data)
     assert ref is not None
     assert ref.relation_confidence == "explicit_path"
+
+
+def chart_string(text):
+    """The `.paac` frame: `<strlen + 1><ASCII><NUL>`; 98 characters frame as `c`."""
+    return bytes([len(text) + 1]) + text.encode("ascii") + b"\x00"
+
+
+_LONG_CLIP = "1_pc/1_phm/" + "x" * 83 + ".paa"
+
+
+@pytest.mark.parametrize("target_path, source_path, payload, expected", [
+    ("character/motion/1_pc/1_phm/idle.paa", "actionchart/bin__/upperaction/basic.paac",
+     chart_string("1_pc/1_phm/idle.paa"), "explicit_path"),
+    ("character/motion/" + _LONG_CLIP, "actionchart/bin__/upperaction/basic.paac",
+     chart_string(_LONG_CLIP), "explicit_path"),
+    ("character/motion/1_pc/1_phm/idle.paa", "character/binary/motionblending/phm/stance.motionblending",
+     struct.pack("<I", 19) + b"1_pc/1_phm/idle.paa", "explicit_path"),
+    ("actionchart/bin__/loweraction/2_mon/default_fist_lower.paac", "actionchart/bin__/loweraction/ai_lower.paac",
+     chart_string("loweraction/2_mon/default_fist_lower"), "explicit_path"),
+    ("character/bin__/prefab/6_object/tools/torch.prefab", "actionchart/bin__/loweraction/ride.paac",
+     chart_string("/character/prefab/6_object/tools/torch.prefab"), "explicit_path"),
+    ("sequencer/baseseq/fx/dark.paseq", "actionchart/bin__/loweraction/aux.paac",
+     chart_string("baseseq/fx/dark"), "explicit_path"),
+    ("character/motion/1_pc/1_phm/idle.paa", "actionchart/bin__/upperaction/basic.paac",
+     chart_string("1_pc/2_phw/idle.paa"), None),
+    ("actionchart/bin__/loweraction/2_mon/default_fist_lower.paac", "actionchart/bin__/loweraction/ai_lower.paac",
+     chart_string("upperaction/2_mon/default_fist_lower"), None),
+    ("actionchart/bin__/loweraction/2_mon/default_fist_lower.paac", "actionchart/bin__/loweraction/ai_lower.paac",
+     chart_string("default_fist_lower_extra"), None),
+], ids=["chart-clip", "leaked-length-byte", "blend-space", "sub-chart", "compiled-prefab", "sequence",
+        "other-rig-folder", "other-chart-folder", "longer-name"])
+def test_engine_resource_paths_are_explicit_references(tmp_path, target_path, source_path, payload, expected):
+    target, source = entries_at(tmp_path, [(target_path, b"PAR "), (source_path, payload)])
+    ref, supported = incoming_reference(target, source, payload)
+    assert supported
+    assert (ref.relation_confidence if ref else None) == expected
+
+
+def test_animation_targets_read_charts_and_blend_spaces_first(tmp_path):
+    (clip,) = entries_at(tmp_path, [("character/motion/1_pc/idle.paa", b"PAR ")])
+    (texture,) = entries_at(tmp_path, [("textures/rock.dds", b"DDS ")])
+    first = set(reference_source_extension_groups(clip)[0])
+    assert {".paac", ".motionblending", ".paseq"} <= first and ".paa" not in first
+    assert ".paac" not in reference_source_extension_groups(texture)[0]
 
 
 def test_legacy_search_reaches_banks_and_metadata_before_large_model_payloads(app, tmp_path, monkeypatch):
@@ -554,6 +600,29 @@ def test_other_registered_images_and_sounds_expose_search(app, tmp_path, target_
         owner.archive_reference_search_button.click()
         wait_for(app, lambda: not owner.archive_reference_search_controller.busy)
         assert owner.current_archive_used_by_references[0].resolved_entry == files[1]
+    finally:
+        owner._cancel_archive_reference_search()
+        wait_for(app, lambda: not owner.archive_reference_search_controller.busy)
+        owner.deleteLater()
+
+
+@pytest.mark.parametrize("target_path, stored", [
+    ("character/motion/1_pc/1_phm/idle.paa", "1_pc/1_phm/idle.paa"),
+    ("character/binary/motionblending/phm/walk.motionblending", "character/binary/motionblending/phm/walk.motionblending"),
+    ("actionchart/bin__/loweraction/2_mon/default_fist_lower.paac", "loweraction/2_mon/default_fist_lower"),
+], ids=["clip", "blend-space", "sub-chart"])
+def test_animation_targets_find_the_charts_that_name_them(app, tmp_path, target_path, stored):
+    files = entries_at(tmp_path, [
+        (target_path, b"PAR "), ("actionchart/bin__/upperaction/basic_upper.paac", chart_string(stored)),
+    ])
+    owner = Family(files[0], files)
+    try:
+        assert owner._archive_has_asset_family_workspace()
+        owner.archive_reference_search_button.click()
+        wait_for(app, lambda: not owner.archive_reference_search_controller.busy)
+        (reference,) = owner.current_archive_used_by_references
+        assert reference.resolved_entry == files[1]
+        assert reference_evidence_group(reference.relation_confidence) == "Confirmed references"
     finally:
         owner._cancel_archive_reference_search()
         wait_for(app, lambda: not owner.archive_reference_search_controller.busy)

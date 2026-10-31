@@ -312,6 +312,16 @@ public sealed class ArchiveLookupService(
                     }
                     incomplete |= AddPreviewReference(session, dependencyIndex, token, ids, cancellationToken);
                 }
+                if (entry.EntryId == selected.EntryId && entry.Extension == ".paac")
+                {
+                    var chart = ArchiveAnimationReferences.ChartResourcePaths(decoded.Bytes, cancellationToken);
+                    incomplete |= chart.Truncated;
+                    foreach (var chartPath in chart.Paths)
+                    {
+                        if (ids.Count >= MaximumPreviewLookupResults) { incomplete = true; break; }
+                        incomplete |= AddExactPathMatches(session.Index, chartPath, ids, cancellationToken);
+                    }
+                }
                 if (!familySkeletonDescriptorIds.Contains(entry.EntryId)
                     && entry.Extension is ".xml" or ".pac_xml" or ".prefabdata_xml" or ".material")
                 {
@@ -576,6 +586,7 @@ public sealed class ArchiveLookupService(
         {
             candidates.Add("character/identityskeleton.pab");
         }
+        candidates.AddRange(ArchiveAnimationReferences.ClipCompanionPaths(path));
         foreach (var candidate in candidates)
         {
             incomplete |= AddExactPathMatches(index, candidate, ids, cancellationToken);

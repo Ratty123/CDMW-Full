@@ -14,6 +14,7 @@ from cdmw.core.archive_wwise_bank import is_sound_bank, read_bank_chunks
 from cdmw.core.common import raise_if_cancelled
 from cdmw.domain.archives.association_vocabulary import reference_container_extensions
 from cdmw.domain.archives.content_capabilities import load_capabilities
+from cdmw.domain.archives.resource_paths import length_prefix_variants, stored_reference_forms
 from cdmw.domain.research.contracts import RESEARCH_REFERENCE_SOURCE_EXTENSIONS
 from cdmw.models import ArchiveEntry, ArchiveModelTextureReference, RunCancelled
 
@@ -21,9 +22,13 @@ from cdmw.models import ArchiveEntry, ArchiveModelTextureReference, RunCancelled
 MAX_REFERENCE_FILE_BYTES = 32 * 1024 * 1024
 MAX_REFERENCE_RESULTS = 2000
 REFERENCE_SOURCE_EXTENSIONS = tuple(sorted(reference_container_extensions() | RESEARCH_REFERENCE_SOURCE_EXTENSIONS))
+_ANIMATION_GRAPH_TARGETS = frozenset({".paa", ".motionblending", ".paac", ".paseq", ".pab", ".prefab"})
+# Charts, blend spaces and sequences name clips, blend spaces, sub-charts and
+# prefabs; read them before the hundreds of thousands of clips themselves.
+_ANIMATION_GRAPH_SOURCES = frozenset({".paac", ".motionblending", ".paseq", ".paseqc", ".pastage"})
 REVERSE_TARGET_EXTENSIONS = frozenset(
     {capability.extension for capability in load_capabilities() if capability.group in {"texture_image", "audio_video"}}
-    | {".seqmt", ".pac", ".pam", ".pamlod", ".prefab", ".pab", ".paa"}
+    | {".seqmt", ".pac", ".pam", ".pamlod", ".prefab", ".pab", ".paa", ".motionblending", ".paac", ".paseq"}
 )
 CONFIRMED_REFERENCE_CONFIDENCES = frozenset({"explicit_path", "wwise_media_id"})
 
@@ -32,10 +37,11 @@ def reference_source_extension_groups(target: ArchiveEntry) -> tuple[tuple[str, 
     """Read likely reference owners before large geometry/animation payloads."""
     remaining = set(REFERENCE_SOURCE_EXTENSIONS)
     banks = {".bnk"} if target.extension == ".wem" else set()
+    graphs = set(_ANIMATION_GRAPH_SOURCES) if target.extension in _ANIMATION_GRAPH_TARGETS else set()
     text = {item.extension for item in load_capabilities() if item.container == "text"}
     text.update(RESEARCH_REFERENCE_SOURCE_EXTENSIONS)
     groups = []
-    for candidates in (banks, text, remaining.copy()):
+    for candidates in (banks, graphs, text, remaining.copy()):
         group = remaining & candidates
         if group:
             groups.append(tuple(sorted(group)))
@@ -148,19 +154,35 @@ def incoming_reference(target: ArchiveEntry, source: ArchiveEntry, data: bytes) 
             evidence = target_name[:-4]
         # Media bytes can contain coincidental filenames; never string-scan banks.
     else:
+        # A container may store the target under the folder the engine reads it
+        # from (`1_pc/clip.paa` for `character/motion/1_pc/clip.paa`) or without
+        # its extension (sub-charts, sequences). Each stored form is searched by
+        # its own last segment.
+        target_forms = set(stored_reference_forms(target.path)) or {target_path}
+        search_names = tuple(dict.fromkeys((target_name, *(form.rpartition("/")[2] for form in target_forms))))
         texts = [data.decode("utf-8-sig", errors="replace")]
         if b"\x00" in data or data.startswith((b"\xff\xfe", b"\xfe\xff")):
             texts.extend((data.decode("utf-16-le", errors="replace"), data.decode("utf-16-be", errors="replace")))
         for text in texts:
-            for raw_token in _matching_path_tokens(html.unescape(text), target_name):
-                token = _path(raw_token)
-                has_path = "/" in raw_token.replace("\\", "/")
-                if has_path and (token == target_path or _path(posixpath.join(posixpath.dirname(source.path), raw_token.replace("\\", "/"))) == target_path):
-                    confidence, evidence = "explicit_path", raw_token
+            unescaped = html.unescape(text)
+            for search_name in search_names:
+                for raw_token in _matching_path_tokens(unescaped, search_name):
+                    for stored in length_prefix_variants(raw_token):
+                        token = _path(stored)
+                        has_path = "/" in stored.replace("\\", "/")
+                        if has_path and (
+                            token in target_forms
+                            or _path(posixpath.join(posixpath.dirname(source.path), stored.replace("\\", "/"))) == target_path
+                        ):
+                            confidence, evidence = "explicit_path", stored
+                            break
+                        # An explicit path to a DIFFERENT folder is not a basename hit.
+                        if not has_path and token == target_name and not confidence:
+                            confidence, evidence = "derived_same_stem", stored
+                    if confidence == "explicit_path":
+                        break
+                if confidence == "explicit_path":
                     break
-                # An explicit path to a DIFFERENT folder is not a basename hit.
-                if not has_path and token == target_name and not confidence:
-                    confidence, evidence = "derived_same_stem", raw_token
             if confidence == "explicit_path":
                 break
     if not confidence:

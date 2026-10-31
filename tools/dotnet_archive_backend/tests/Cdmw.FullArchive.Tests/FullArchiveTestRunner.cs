@@ -37,6 +37,7 @@ internal static class FullArchiveTestRunner
             ("preview_material_dependency_closure", PreviewMaterialDependencyClosureAsync),
             ("preview_material_dependency_bounds", PreviewMaterialDependencyBoundsAsync),
             ("preview_pbd_material_dependencies", PreviewPbdMaterialDependenciesAsync),
+            ("preview_animation_references", PreviewAnimationReferencesAsync),
             ("query_sort_parity", QuerySortParityAsync),
             ("extension_index_query", ArchiveQueryTests.ExtensionSearchAsync),
             ("extension_index_cancellation", ArchiveQueryTests.CancellationAsync),
@@ -95,7 +96,7 @@ internal static class FullArchiveTestRunner
         {
             tests = tests.Where(static test => test.Name is "preview_association_and_prepare_batch"
                 or "preview_material_dependency_closure" or "preview_material_dependency_bounds"
-                or "preview_pbd_material_dependencies").ToArray();
+                or "preview_pbd_material_dependencies" or "preview_animation_references").ToArray();
         }
         var failures = new List<string>();
         foreach (var test in tests)
@@ -1218,6 +1219,48 @@ internal static class FullArchiveTestRunner
                 cancelled = true;
             }
             Require(cancelled, "newly discovered material scans ignored cancellation");
+        }
+        finally
+        {
+            DeleteDirectory(cacheRoot);
+        }
+    }
+
+    private static async Task PreviewAnimationReferencesAsync()
+    {
+        await using var fixture = await SyntheticArchiveFixture.CreateAnimationReferencesAsync().ConfigureAwait(false);
+        var cacheRoot = TempDirectory("animation-reference-cache");
+        try
+        {
+            var native = new NativeArchiveCore();
+            var cache = new ArchiveCacheStore(cacheRoot);
+            using var sessions = new ArchiveSessionManager(native, cache);
+            var handle = await sessions.OpenAsync(new OpenArchiveRequest(fixture.Root), CancellationToken.None).ConfigureAwait(false);
+            var session = sessions.GetRequired(handle.SessionId);
+            var lookup = new ArchiveLookupService(sessions, cache, native);
+            async Task<HashSet<string>> CandidatesFor(string path)
+            {
+                var selected = Enumerable.Range(0, checked((int)handle.EntryCount))
+                    .Select(index => session.ReadEntry(index))
+                    .Single(entry => entry.Path == path);
+                var association = await lookup.FindAssociationCandidatesAsync(
+                    new ArchiveAssociationRequest(handle.SessionId, selected.EntryId, 128, ArchiveAssociationPurpose.Preview),
+                    CancellationToken.None).ConfigureAwait(false);
+                return association.Candidates.Select(static entry => entry.Path).ToHashSet(StringComparer.OrdinalIgnoreCase);
+            }
+
+            var chart = await CandidatesFor("actionchart/bin__/upperaction/basic_upper.paac").ConfigureAwait(false);
+            Require(chart.Contains("actionchart/bin__/loweraction/2_mon/default_fist_lower.paac")
+                && chart.Contains("actionchart/bin__/loweraction/" + new string('x', 86) + ".paac")
+                && chart.Contains("sequencer/baseseq/fx/dark.paseq")
+                && chart.Contains("character/motion/1_pc/1_phm/idle.paa"),
+                "chart preview missed its extensionless sub-charts, sequence or root-relative clip");
+            var clip = await CandidatesFor("character/motion/1_pc/1_phm/idle.paa").ConfigureAwait(false);
+            Require(clip.Contains("character/motion/motion_lod__/1_pc/1_phm/idle_lod.paa")
+                && !clip.Contains("character/motion/motion_lod__/1_pc/1_phm/unrelated_lod.paa"),
+                "clip preview did not deliver exactly its distance LOD");
+            var lod = await CandidatesFor("character/motion/motion_lod__/1_pc/1_phm/idle_lod.paa").ConfigureAwait(false);
+            Require(lod.Contains("character/motion/1_pc/1_phm/idle.paa"), "LOD preview did not deliver its base clip");
         }
         finally
         {

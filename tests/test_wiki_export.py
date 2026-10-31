@@ -43,11 +43,13 @@ def test_export_rejects_a_help_topic_missing_from_the_wiki(monkeypatch):
 def test_reverse_search_workflow_and_limits_are_translated_in_every_manual(wiki_pages):
     from cdmw.ui.localization_catalogs_v2 import load_builtin_catalog
     sources = (
-        "Select a texture or sound, open Asset Family, and click Find references to search supported files in the loaded archives.",
+        "Select a texture, sound, animation clip, blend space, action chart or sequence, open Asset Family, and click Find references to search supported files in the loaded archives.",
         "Review Confirmed references separately from Name-based guesses. Incoming files appear in Used By and Asset Family without becoming automatic export dependencies.",
         "Confirmed references identifies explicit paths or Wwise media IDs. An ID does not identify the language or archive override used at runtime. Complete event, music and gameplay-trigger chains are not reconstructed.",
         "Sound searches check banks and text metadata first. Bank IDs match numeric .wem filenames; named sounds need a path or filename reference.",
         "The search is read-only and cancellable. Files above 32 MiB are skipped; searches continue in bounded batches without a fixed total byte limit, up to 2,000 results. Review skipped, unreadable and unsupported counts; no matches does not mean unused.",
+        "Action charts, blend spaces and sequences store clips and sub-charts relative to the folders the game reads them from. Those paths count as confirmed references, and an action chart's Asset Family lists the clips, blend spaces, sub-charts and prefabs it names.",
+        "Asset Family lists a clip's event metadata, distance LOD and other voice-language copies as Path layout. A lip-sync clip and the voice line with the same name and language are paired as Line name; neither file names the other. Wwise sound details show the codec, length, loop points and markers.",
     )
     for language in BUILTIN_LANGUAGES:
         translations = load_builtin_catalog(language.code)["translations"]

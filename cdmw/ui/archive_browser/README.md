@@ -564,6 +564,40 @@ at 32 MiB and results at 2,000 rows. Oversized, unreadable and
 unsupported banks are reported; an empty result never proves an asset unused.
 Owned-fixture and headless UI checks cover this path; game acceptance is not implied.
 
+Charts, blend spaces, animation sets and sequences store paths relative to the
+folder the engine reads them from. `cdmw/domain/archives/resource_paths.py` owns
+those roots: a `.paa` path without `character/` is read under `character/motion/`,
+a relative `.motionblending` under `character/binary/motionblending/`,
+`character/prefab/` and `object/prefab/` under their `bin__/prefab/` copies, and an
+extensionless chart string as `actionchart/bin__/<name>.paac` or
+`sequencer/<name>.paseq`. Forward resolution and Find references both treat an
+exact match under a root as an explicit path; a path to another folder stays a
+basename guess or no match. A one-byte length prefix leaking into a scanned string
+is removed only when its value equals the length a chart (`strlen + 1`) or clip
+(`strlen`) frame implies. Animation targets read charts, blend spaces and
+sequences before other containers. `.paac` previews list up to 256 framed
+resource paths (`cdmw/core/archive_action_chart.py`); extensionless strings that
+resolve to nothing are dropped rather than reported missing.
+
+The same module owns installed-layout companions, matched by exact path and
+labelled **Path layout** or **Line name** rather than as package guesses:
+
+- a clip's `actionchart/bin__/animmeta/<clip path>_metabin` and its
+  `character/motion/motion_lod__/<path>_lod.paa`, both `recommended`;
+- the same file in each other voice-language folder (`manual`);
+- a `99_autofacial/<language>/` lip-sync clip and `sound/windows/<language>/` voice
+  line of the same name (`manual`). Neither file names the other.
+
+Another language's metadata or lip-sync clip is not listed as a companion of this
+file. The resident worker delivers LOD clips, base clips and extensionless
+sub-charts to the preview snapshot (`ArchiveAnimationReferences.cs`); same-stem
+companions already reach it.
+
+WEM Details read the RIFF header without decoding (`archive_wwise_stream.py`):
+codec, channel layout, sample rate, length, `smpl` loop range and `cue`/`labl`
+markers. Compressed streams report no bit depth. Patch Audio To Game still writes
+uncompressed PCM; Details says so for non-PCM sources.
+
 WEM preview and WAV export remove the Windows extended-path prefix only from
 vgmstream's command arguments: its wildcard parser treats the prefix's `?` as a
 pattern and otherwise fails to open ordinary cached sounds. Internal cache I/O keeps

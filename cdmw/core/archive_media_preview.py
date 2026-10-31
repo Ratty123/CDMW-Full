@@ -35,7 +35,9 @@ from cdmw.core.archive_extraction import (
 )
 from cdmw.core.archive_format import extract_binary_strings
 from cdmw.core.archive_preview_support import resolve_archive_pathc_path
+from cdmw.core.archive_audio import _read_wav_format_info_from_bytes
 from cdmw.core.archive_wwise_bank import read_bank_chunks, read_embedded_media
+from cdmw.core.archive_wwise_stream import read_wem_stream_info, wem_stream_detail_lines, wem_stream_summary
 from cdmw.core.temp_cache import (
     app_temp_cache_build,
     app_temp_cache_path,
@@ -718,28 +720,22 @@ def _build_wem_media_preview_detail_text(
         return metadata_summary, "\n".join(detail_lines)
 
     detail_lines.append("Detected RIFF/WAVE-style Wwise audio container.")
-    fmt_channels = None
-    fmt_sample_rate = None
-    fmt_bits_per_sample = None
-    chunk_names: List[str] = []
-    for chunk_name, chunk_size, chunk_offset in _iter_riff_chunks(data):
-        chunk_names.append(f"{chunk_name} ({chunk_size:,} B)")
-        if chunk_name == "fmt " and chunk_size >= 16 and chunk_offset + 16 <= len(data):
-            try:
-                _audio_format, fmt_channels, fmt_sample_rate, _byte_rate, _block_align, fmt_bits_per_sample = struct.unpack_from(
-                    "<HHIIHH",
-                    data,
-                    chunk_offset,
-                )
-            except struct.error:
-                fmt_channels = None
-                fmt_sample_rate = None
-                fmt_bits_per_sample = None
-    if fmt_channels is not None and fmt_sample_rate is not None:
-        metadata_summary = (
-            f"{metadata_summary} | {fmt_channels} ch | {fmt_sample_rate:,} Hz"
-            + (f" | {fmt_bits_per_sample}-bit" if fmt_bits_per_sample is not None else "")
-        )
+    chunk_names = [f"{chunk_name} ({chunk_size:,} B)" for chunk_name, chunk_size, _offset in _iter_riff_chunks(data)]
+    try:
+        stream_info = read_wem_stream_info(data) if resolved_source.suffix.lower() == ".wem" else None
+    except struct.error:
+        stream_info = None
+    if stream_info is not None:
+        # Compressed Wwise streams store no bit depth, so a 0-bit label is noise.
+        metadata_summary = f"{metadata_summary} | {wem_stream_summary(stream_info)}"
+        detail_lines.extend(wem_stream_detail_lines(stream_info))
+    else:
+        wav_info = _read_wav_format_info_from_bytes(data)
+        if wav_info is not None:
+            metadata_summary = (
+                f"{metadata_summary} | {wav_info.channels} ch | {wav_info.sample_rate:,} Hz"
+                + (f" | {wav_info.bits_per_sample}-bit" if wav_info.bits_per_sample else "")
+            )
     if chunk_names:
         detail_lines.append("RIFF chunks: " + ", ".join(chunk_names[:12]))
     if resolved_source.suffix.lower() == ".wem":

@@ -1228,6 +1228,31 @@ retargets, but their full node/event semantics are not decoded. Sequence and
 stage formats likewise do not yet provide unrestricted cutscene authoring.
 A previewed clip does not establish a live animation-control or possession API.
 
+A read-only inventory of the installed archives (game 1.0.0.3446, executable
+SHA-256 prefix `fec07be1b725a466`, 2,081,896 paths, 2026-10-31) fixed the path
+conventions Asset Family and Find references now follow:
+
+- **Resource roots.** All 560 charts store strings as `<strlen + 1><ASCII><NUL>`.
+  Of their clip strings, 65,294 resolve exactly under `character/motion/`, 171 are
+  full paths and 15 name a folder the clip is no longer in. Sub-charts are stored
+  without an extension (977 resolve as `actionchart/bin__/<name>.paac`), sequences
+  as `sequencer/<name>.paseq`, and prefabs under `character/prefab/` or
+  `object/prefab/` for their `bin__/prefab/` copies. Blend spaces and animation
+  sets use the same clip root; clips name their skeleton with a one-byte
+  `<strlen>` prefix.
+- **Layout companions.** Every one of the 197,516 `.paa_metabin` files is
+  `actionchart/bin__/animmeta/<clip path>_metabin` of an installed clip, and
+  179,502 of 179,503 LOD clips are `character/motion/motion_lod__/<path>_lod.paa`
+  of one. No LOD clip has its own metadata.
+- **Lip-sync pairs.** 79,838 of the 80,490 `99_autofacial/<language>/` clips have
+  a voice line of the same name in `sound/windows/<language>/`; the misses are
+  mostly lines with no shipped voice file. The pairing is a naming convention:
+  neither file names the other, and it says nothing about which clip the game
+  plays with a line.
+
+These are path facts. They do not decode chart nodes, event timing or the
+`AnimationMetaData` records, whose time-range fields remain unnamed.
+
 Sources: [Placement Studio][placement], [clip replacement and timing owners][placement-playback],
 [format inventory][capabilities].
 
@@ -1934,6 +1959,16 @@ reported cached dialogue clip decodes to PCM and loads in Qt after removing the
 Windows I/O prefix from decoder arguments; this is cached-asset/headless evidence,
 not packaged-app or game acceptance.
 Swapping a known sound and adding a new event remain different capabilities.
+
+The same 2026-10-31 inventory found 488,038 `.wem` files. Numeric media IDs under
+`sound/windows/media/` are unique across languages (211,988 IDs, one file each),
+so an ID has no language copies to link. Named dialogue files repeat across
+`sound/windows/<language>/` in three or eight languages, and 330 banks repeat in
+three. All 3,000 sampled streams were Wwise Vorbis with a 0x42-byte `fmt `;
+a few carry `smpl` loops or a `cue` marker labelled with the source WAV name.
+The header reader's sample count, rate, channels, speaker mask and loop points
+matched `vgmstream-cli -m` on all 40 extracted samples. This is header evidence,
+not a decoder or encoder change.
 
 Supported WEM playback/export does not imply a general Wwise encoder. The
 implemented writer is limited to the admitted uncompressed PCM path; Vorbis

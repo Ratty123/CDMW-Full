@@ -25,6 +25,18 @@ from cdmw.domain.archives.association_vocabulary import (
     asset_family_role_from_manifest,
     asset_reference_pattern,
 )
+from cdmw.domain.archives.resource_paths import (
+    ANIMATION_CLIP,
+    ANIMATION_METADATA,
+    BASE_CLIP,
+    LANGUAGE_VARIANT,
+    LINE_NAME_CONFIDENCE,
+    LIP_SYNC_CLIP,
+    LOD_CLIP,
+    PATH_LAYOUT_CONFIDENCE,
+    VOICE_LINE,
+    layout_relation,
+)
 from cdmw.core.common import raise_if_cancelled
 from cdmw.core.archive_extraction import read_archive_entry_data
 from cdmw.core.archive_format import _is_material_sidecar_extension
@@ -50,6 +62,19 @@ from cdmw.core.table_catalog import table_field_label
 from cdmw.core.upscale_profiles import derive_texture_group_key, normalize_texture_reference_for_sidecar_lookup
 
 _ASSET_FAMILY_GROUP_ORDER: Tuple[str, ...] = ASSET_FAMILY_GROUP_ORDER
+_LAYOUT_ROLES: Dict[str, str] = {
+    ANIMATION_METADATA: "Animation Metadata",
+    ANIMATION_CLIP: "Animation Clip",
+    LOD_CLIP: "LOD Clip",
+    BASE_CLIP: "Base Clip",
+    LANGUAGE_VARIANT: "Language Variant",
+    VOICE_LINE: "Voice Line",
+    LIP_SYNC_CLIP: "Lip-sync Clip",
+}
+# A clip ships with its metadata and distance LOD, so those travel with it the
+# way a model's sidecar does. Language copies and name-matched pairs are listed
+# for review only.
+_LAYOUT_RECOMMENDED_KINDS = frozenset({ANIMATION_METADATA, ANIMATION_CLIP, LOD_CLIP, BASE_CLIP})
 _ATTACHMENT_PREFAB_FIELD_NAMES: frozenset[str] = frozenset(
     {
         "_attachedSocketName",
@@ -217,6 +242,10 @@ def _asset_family_evidence_chip(
         return "Missing"
     if normalized_confidence == "wwise_media_id":
         return "Media ID"
+    if normalized_confidence == PATH_LAYOUT_CONFIDENCE:
+        return "Path layout"
+    if normalized_confidence == LINE_NAME_CONFIDENCE:
+        return "Line name"
     if "item_finder" in normalized_confidence or "item finder" in lowered:
         return "Item Finder"
     if "table" in normalized_confidence or "table" in lowered or "iteminfo." in lowered:
@@ -689,9 +718,18 @@ def build_archive_asset_family_graph(
             status=status,
         )
         include_policy = _asset_family_include_policy(family_group, status, evidence)
+        layout = (
+            layout_relation(source_entry.path, target_path)
+            if confidence in {PATH_LAYOUT_CONFIDENCE, LINE_NAME_CONFIDENCE}
+            else None
+        )
+        if layout is not None and status == "Resolved":
+            include_policy = "recommended" if layout.kind in _LAYOUT_RECOMMENDED_KINDS else "manual"
         storage_warning = _asset_family_storage_warning(reference)
         warning = storage_warning or (
-            "Weak relationship hint; review before treating as required." if include_policy == "manual" else ""
+            "Weak relationship hint; review before treating as required."
+            if include_policy == "manual" and layout is None
+            else ""
         )
         relation_kind = str(getattr(reference, "reference_kind", "") or _relation_kind_for_entry(resolved_entry))
         display_name = (
@@ -702,7 +740,7 @@ def build_archive_asset_family_graph(
         add_member_row(
             AssetFamilyMember(
                 group=family_group,
-                role=_asset_family_role_for_entry(
+                role=_LAYOUT_ROLES[layout.kind] if layout is not None else _asset_family_role_for_entry(
                     resolved_entry,
                     relation_kind=relation_kind,
                     relation_group=relation_group,

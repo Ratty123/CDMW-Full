@@ -61,6 +61,9 @@ MANUAL_SOURCE_KEYS = frozenset(
         "Independent items",
         # Dynamic reference-search confidence and progress labels.
         "Explicit path", "Media ID", "Incomplete", "Finished", "Searching",
+        # Asset Family layout-companion roles and evidence chips from cdmw/core.
+        "Path layout", "Line name", "Animation Clip", "LOD Clip", "Base Clip",
+        "Language Variant", "Voice Line", "Lip-sync Clip",
         "item properties changed",
         "Usable item",
         "Inventory-use template; no equipment model is required.",
