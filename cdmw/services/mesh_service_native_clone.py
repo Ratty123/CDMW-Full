@@ -67,12 +67,15 @@ def _copy_mesh_validation_metadata(source: ParsedMesh, target: ParsedMesh) -> No
 
 
 def _displayed_level_view(mesh: ParsedMesh) -> ParsedMesh:
-    """The mesh without its LOD list when its parts are the displayed level.
+    """The mesh without its LOD list when its parts are the displayed LOD0.
 
     PAM/PAMLOD parsers keep every level, while a session edits the displayed
     one and the exact writers take the other levels from the source bytes.
     Restored session clones never carry the list, but the native snapshot
     refuses a mesh that does, so every PAMLOD failed to open.
+
+    Only LOD0 drops the list: edit operations, their coverage check and export
+    validation number a mesh without a list as LOD0, so a lower level keeps it.
     """
     levels = getattr(mesh, "lod_levels", None)
     if not levels:
@@ -81,7 +84,7 @@ def _displayed_level_view(mesh: ParsedMesh) -> ParsedMesh:
         index = int(getattr(mesh, "active_lod_index", getattr(mesh, "displayed_lod_index", 0)) or 0)
     except (TypeError, ValueError, OverflowError):
         return mesh
-    if not 0 <= index < len(levels) or levels[index] is not mesh.submeshes:
+    if index != 0 or levels[0] is not mesh.submeshes:
         return mesh
     view = copy.copy(mesh)
     view.lod_levels = []
