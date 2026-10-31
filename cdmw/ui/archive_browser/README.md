@@ -614,6 +614,26 @@ worker snapshots, so reopening an entry or choosing Refresh retries decoding.
 DDS display failures retain the current conversion's native error without taking
 messages from other workers or consuming the shared diagnostic history.
 
+### Binary format inspectors
+
+`archive_preview_result_builder.py` sends these formats to exact read-only
+inspectors before the readable-strings fallback:
+
+- `.padxil` shaders and `.pars` root signatures: `archive_shader_preview.py`
+  splits the PASC wrapper and DXBC container and decodes PSV0, signatures, SFI0,
+  RDAT and RTS0. DXIL/STAT bitcode is not disassembled.
+- `.parg`, `.pasg`, `.pcg`, `.save` and `.uianiminit`: `archive_reflect_preview.py`
+  decodes them with `effect_binary.py` and lists the object graph. A fully walked
+  `.pcg` also returns a convex-hull model for the 3D view. `.pae`/`.paem` keep the
+  structured inspector, led by the same exact graph.
+- `.ttf`/`.otf`/`.ttc` fonts and `.ani` cursors: `archive_ui_resource_preview.py`
+  reads the sfnt tables or RIFF chunks and renders a PNG with Pillow into the
+  pruned `archive_preview_cache` (units named `ui-<kind>-v1-<content hash>`).
+
+A container these readers refuse falls back to readable strings, with the reason
+in Details. A failed font or cursor render keeps the text description. Strings in
+these previews are diagnostic text and are not translated.
+
 ## Read-only boundary and exports
 
 Browsing, preview, scan, extraction, and package preparation are read-only.

@@ -15,6 +15,8 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 - Archive Browser shows a Wwise sound's codec, length, speaker layout, loop points and markers in Details, and notes that Patch Audio To Game writes uncompressed PCM rather than re-encoding Vorbis.
 
+- Archive Browser previews more game formats instead of listing readable strings. Shader cache entries show their stage, entry point, inputs, outputs and resource bindings, and root signatures show their parameters and samplers. Effect render and simulation presets, save presets and UI animation states show their decoded values, and effects and emitters now list their exact decoded values first. Convex collision files open as 3D hulls, and fonts and animated cursors show a rendered sample. Format Explorer reflects the improved read support.
+
 - Create New Item and Mesh Editor add two experimental shader experiments that use the game's blended transparency pass, so layers behind each other stay visible. **Layered glass** gives equipment a real Opacity value with edge opacity, roughness, reflectance and tint. **Sheer net veil** makes see-through hexagonal net for veils, tulle and net lace. Both accept plain opaque or glowing equipment; in-game appearance after conversion is untested.
 
 ### Changed

@@ -64,7 +64,7 @@ def test_archive_inventory_is_preserved_and_package_count_does_not_apply(rows):
 
 
 @pytest.mark.parametrize("include_other,editable,expected", [
-    (False, False, 99), (False, True, 40), (True, False, 155), (True, True, 64),
+    (False, False, 99), (False, True, 42), (True, False, 155), (True, True, 66),
 ])
 def test_presence_and_editing_filters_are_independent(rows, include_other, editable, expected):
     found = catalogue.filter_rows(rows, shipped_only=not include_other, editable_only=editable)

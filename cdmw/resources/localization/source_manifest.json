@@ -3057,6 +3057,16 @@
       ]
     },
     {
+      "key": "56 files stop at the by-value _convexHullList collection, whose element layout differs; there is no writer.",
+      "origins": [
+        {
+          "path": "schemas/archive_content_capabilities.v1.json",
+          "line": 1,
+          "sink": "json-presentation:remaining"
+        }
+      ]
+    },
+    {
       "key": "6. Export Summary",
       "origins": [
         {
@@ -46392,6 +46402,21 @@
       ]
     },
     {
+      "key": "Effect authoring clones presets and edits fixed-size values in place; strings and collections are read, not resized.",
+      "origins": [
+        {
+          "path": "schemas/archive_content_capabilities.v1.json",
+          "line": 1,
+          "sink": "json-presentation:remaining"
+        },
+        {
+          "path": "schemas/archive_content_capabilities.v1.json",
+          "line": 1,
+          "sink": "json-presentation:remaining"
+        }
+      ]
+    },
+    {
       "key": "Effect cleanup must name a directly owned package.",
       "origins": [
         {
@@ -47567,18 +47592,18 @@
       ]
     },
     {
-      "key": "Encrypted with the standard filename-derived ChaCha20 key; decrypted LZ4 payloads expand to exactly their declared sizes (2026-10-31 review, game 1.0.0.3446). Earlier extraction failures came from the Python reader's content check, not from the key.",
+      "key": "Encrypted DXBC container with one RTS0 chunk, a serialized D3D12 root signature (version 1.1). Archive Browser decodes the parameters, descriptor ranges and static samplers of all 246 shipped files (2026-10-31, game 1.0.0.3446).",
       "origins": [
         {
           "path": "schemas/archive_content_capabilities.v1.json",
           "line": 1,
           "sink": "json-presentation:evidence"
-        },
-        {
-          "path": "schemas/archive_content_capabilities.v1.json",
-          "line": 1,
-          "sink": "json-presentation:evidence"
-        },
+        }
+      ]
+    },
+    {
+      "key": "Encrypted with the standard filename-derived ChaCha20 key; decrypted LZ4 payloads expand to exactly their declared sizes (2026-10-31 review, game 1.0.0.3446). Earlier extraction failures came from the Python reader's content check, not from the key.",
+      "origins": [
         {
           "path": "schemas/archive_content_capabilities.v1.json",
           "line": 1,
@@ -98538,6 +98563,11 @@
           "path": "schemas/archive_content_capabilities.v1.json",
           "line": 1,
           "sink": "json-presentation:origin"
+        },
+        {
+          "path": "schemas/archive_content_capabilities.v1.json",
+          "line": 1,
+          "sink": "json-presentation:origin"
         }
       ]
     },
@@ -102588,6 +102618,16 @@
           "path": "tools/placement_studio/inspector.py",
           "line": 170,
           "sink": "python-return:describe_part"
+        }
+      ]
+    },
+    {
+      "key": "PASC version 8 wrapper around a DXBC container with DXIL (shader model 6.6). Archive Browser reads stage, entry point, signatures, resource bindings and feature flags from its PSV0, ISG1/OSG1, SFI0 and RDAT chunks (2026-10-31, game 1.0.0.3446).",
+      "origins": [
+        {
+          "path": "schemas/archive_content_capabilities.v1.json",
+          "line": 1,
+          "sink": "json-presentation:evidence"
         }
       ]
     },
@@ -115498,11 +115538,6 @@
           "path": "schemas/archive_content_capabilities.v1.json",
           "line": 1,
           "sink": "json-presentation:origin"
-        },
-        {
-          "path": "schemas/archive_content_capabilities.v1.json",
-          "line": 1,
-          "sink": "json-presentation:origin"
         }
       ]
     },
@@ -116557,6 +116592,16 @@
       ]
     },
     {
+      "key": "Read with the effect reflection grammar: 264 of 320 shipped files walk to the last byte and open as 3D convex hulls; 99% of their 41,333 faces are planar and bound the hull to within 0.4% of its size (2026-10-31, game 1.0.0.3446).",
+      "origins": [
+        {
+          "path": "schemas/archive_content_capabilities.v1.json",
+          "line": 1,
+          "sink": "json-presentation:evidence"
+        }
+      ]
+    },
+    {
       "key": "Read-only",
       "origins": [
         {
@@ -116778,6 +116823,21 @@
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
           "line": 2840,
           "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Read-only; member meanings beyond their names are not established.",
+      "origins": [
+        {
+          "path": "schemas/archive_content_capabilities.v1.json",
+          "line": 1,
+          "sink": "json-presentation:remaining"
+        },
+        {
+          "path": "schemas/archive_content_capabilities.v1.json",
+          "line": 1,
+          "sink": "json-presentation:remaining"
         }
       ]
     },
@@ -120463,6 +120523,31 @@
           "path": "cdmw/domain/mesh/shader_controls.py",
           "line": 1,
           "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Reflection container read with the grammar cdmw/core/effect_binary.py uses for effects: every non-empty shipped file walks to the last byte, and Archive Browser shows its object graph with values by declared member type (2026-10-31, game 1.0.0.3446).",
+      "origins": [
+        {
+          "path": "schemas/archive_content_capabilities.v1.json",
+          "line": 1,
+          "sink": "json-presentation:evidence"
+        },
+        {
+          "path": "schemas/archive_content_capabilities.v1.json",
+          "line": 1,
+          "sink": "json-presentation:evidence"
+        },
+        {
+          "path": "schemas/archive_content_capabilities.v1.json",
+          "line": 1,
+          "sink": "json-presentation:evidence"
+        },
+        {
+          "path": "schemas/archive_content_capabilities.v1.json",
+          "line": 1,
+          "sink": "json-presentation:evidence"
         }
       ]
     },
@@ -172412,6 +172497,16 @@
       ]
     },
     {
+      "key": "Which pipelines use each root signature is not recorded in the file; there is no writer.",
+      "origins": [
+        {
+          "path": "schemas/archive_content_capabilities.v1.json",
+          "line": 1,
+          "sink": "json-presentation:remaining"
+        }
+      ]
+    },
+    {
       "key": "White",
       "origins": [
         {
@@ -172783,6 +172878,16 @@
           "path": "cdmw/ui/shell/error_reference.py",
           "line": 165,
           "sink": "python-return:build_error_reference_sections"
+        }
+      ]
+    },
+    {
+      "key": "Windows animated cursor (RIFF ACON) whose frames are .cur images; Archive Browser lists the timing and frames and draws them for all 3 shipped files.",
+      "origins": [
+        {
+          "path": "schemas/archive_content_capabilities.v1.json",
+          "line": 1,
+          "sink": "json-presentation:evidence"
         }
       ]
     },
@@ -176053,11 +176158,6 @@
           "path": "schemas/archive_content_capabilities.v1.json",
           "line": 1,
           "sink": "json-presentation:role"
-        },
-        {
-          "path": "schemas/archive_content_capabilities.v1.json",
-          "line": 1,
-          "sink": "json-presentation:role"
         }
       ]
     },
@@ -176084,11 +176184,6 @@
     {
       "key": "animation scene",
       "origins": [
-        {
-          "path": "schemas/archive_content_capabilities.v1.json",
-          "line": 1,
-          "sink": "json-presentation:group"
-        },
         {
           "path": "schemas/archive_content_capabilities.v1.json",
           "line": 1,
@@ -178048,36 +178143,6 @@
     },
     {
       "key": "cdmw/core/pathc_format.py parses and re-encodes the recorded meta/0.pathc corpus, including texture headers, checksum entries, collision rows and names. register_dds validates the complete DDS, reuses a compatible shape/tag descriptor or appends a new 148-byte header, and derives raw mip block information from the validated payload. tests/test_pathc_format.py covers new-header registration and DX10 descriptor separation. Historical observation on 2026-08-17: an unregistered icon used the placeholder bag; no new in-game result is claimed here.",
-      "origins": [
-        {
-          "path": "schemas/archive_content_capabilities.v1.json",
-          "line": 1,
-          "sink": "json-presentation:evidence"
-        }
-      ]
-    },
-    {
-      "key": "cdmw/core/prefab_binary.py decodes it: same self-describing reflection container as .prefab (magic 0xFFFF, version 4, schema revision 14-15). All 40 shipped files decode their header, type table and string pool with no failures, exposing EmitterSimulationGroupData with 9 root members",
-      "origins": [
-        {
-          "path": "schemas/archive_content_capabilities.v1.json",
-          "line": 1,
-          "sink": "json-presentation:evidence"
-        }
-      ]
-    },
-    {
-      "key": "cdmw/core/prefab_binary.py decodes it: same self-describing reflection container as .prefab (magic 0xFFFF, version 4, schema revision 14-15). All 750 shipped files decode their header, type table and string pool with no failures, exposing EmitterRenderGroupData with 12 root members. Across the 882 reflection files the schema recovers 29 types, 237 distinct member names and 41 value types including ParticleAlignMode, ParticleBlendMode, ParticleGeometryType and MaterialParameterTexture",
-      "origins": [
-        {
-          "path": "schemas/archive_content_capabilities.v1.json",
-          "line": 1,
-          "sink": "json-presentation:evidence"
-        }
-      ]
-    },
-    {
-      "key": "cdmw/core/prefab_binary.py decodes it: same self-describing reflection container as .prefab (magic 0xFFFF, version 4, schema revision 14-15). All 92 shipped files decode their header, type table and string pool with no failures, exposing ConvexGeometry and its _convexHullList member",
       "origins": [
         {
           "path": "schemas/archive_content_capabilities.v1.json",
@@ -183493,6 +183558,11 @@
           "path": "schemas/archive_content_capabilities.v1.json",
           "line": 1,
           "sink": "json-presentation:role"
+        },
+        {
+          "path": "schemas/archive_content_capabilities.v1.json",
+          "line": 1,
+          "sink": "json-presentation:role"
         }
       ]
     },
@@ -187403,11 +187473,6 @@
           "path": "schemas/archive_content_capabilities.v1.json",
           "line": 1,
           "sink": "json-presentation:evidence"
-        },
-        {
-          "path": "schemas/archive_content_capabilities.v1.json",
-          "line": 1,
-          "sink": "json-presentation:evidence"
         }
       ]
     },
@@ -187824,6 +187889,11 @@
     {
       "key": "not an authoring target in CDMW",
       "origins": [
+        {
+          "path": "schemas/archive_content_capabilities.v1.json",
+          "line": 1,
+          "sink": "json-presentation:remaining"
+        },
         {
           "path": "schemas/archive_content_capabilities.v1.json",
           "line": 1,
@@ -190579,16 +190649,6 @@
     {
       "key": "record layout not parsed",
       "origins": [
-        {
-          "path": "schemas/archive_content_capabilities.v1.json",
-          "line": 1,
-          "sink": "json-presentation:remaining"
-        },
-        {
-          "path": "schemas/archive_content_capabilities.v1.json",
-          "line": 1,
-          "sink": "json-presentation:remaining"
-        },
         {
           "path": "schemas/archive_content_capabilities.v1.json",
           "line": 1,
@@ -194067,16 +194127,6 @@
       ]
     },
     {
-      "key": "structured_metadata scrape",
-      "origins": [
-        {
-          "path": "schemas/archive_content_capabilities.v1.json",
-          "line": 1,
-          "sink": "json-presentation:evidence"
-        }
-      ]
-    },
-    {
       "key": "subdivide",
       "origins": [
         {
@@ -194672,16 +194722,6 @@
       ]
     },
     {
-      "key": "the DXBC container magic identifies it as compiled DirectX shader bytecode; the shipped cache is 89,824 of them and is the ground truth for what a material parameter actually does",
-      "origins": [
-        {
-          "path": "schemas/archive_content_capabilities.v1.json",
-          "line": 1,
-          "sink": "json-presentation:evidence"
-        }
-      ]
-    },
-    {
       "key": "the bundled editor was not found",
       "origins": [
         {
@@ -194694,11 +194734,6 @@
     {
       "key": "the bytecode itself is not disassembled here; that needs dxc/dxil-dis, and there is no route to recompile an edited shader back into the cache",
       "origins": [
-        {
-          "path": "schemas/archive_content_capabilities.v1.json",
-          "line": 1,
-          "sink": "json-presentation:remaining"
-        },
         {
           "path": "schemas/archive_content_capabilities.v1.json",
           "line": 1,
@@ -194813,36 +194848,6 @@
           "path": "cdmw/ui/new_item/effect_placement_construction.py",
           "line": 374,
           "sink": "_add_legend_row"
-        }
-      ]
-    },
-    {
-      "key": "the pointer-addressed heap walk does not complete, so nested values are not read; there is no writer for this extension yet The heap walk diverges from .prefab in the pointee trailer: where a prefab repeats the consumed length, these files carry a padding byte and then a small value of 1, 2 or 3 (measured as 256/512/768 when read one byte early across 747 of the 882 files), so it is a kind tag rather than a length. That is where a future attempt should start.",
-      "origins": [
-        {
-          "path": "schemas/archive_content_capabilities.v1.json",
-          "line": 1,
-          "sink": "json-presentation:remaining"
-        }
-      ]
-    },
-    {
-      "key": "the pointer-addressed heap walk does not complete, so nested values are not read; there is no writer for this extension yet. Convex collision hulls, so a writer would allow custom collision",
-      "origins": [
-        {
-          "path": "schemas/archive_content_capabilities.v1.json",
-          "line": 1,
-          "sink": "json-presentation:remaining"
-        }
-      ]
-    },
-    {
-      "key": "the pointer-addressed heap walk does not complete, so nested values are not read; there is no writer for this extension yet. This is the particle render schema, so closing it opens VFX modding The heap walk diverges from .prefab in the pointee trailer: where a prefab repeats the consumed length, these files carry a padding byte and then a small value of 1, 2 or 3 (measured as 256/512/768 when read one byte early across 747 of the 882 files), so it is a kind tag rather than a length. That is where a future attempt should start.",
-      "origins": [
-        {
-          "path": "schemas/archive_content_capabilities.v1.json",
-          "line": 1,
-          "sink": "json-presentation:remaining"
         }
       ]
     },
@@ -195778,11 +195783,6 @@
           "path": "schemas/archive_content_capabilities.v1.json",
           "line": 1,
           "sink": "json-presentation:remaining"
-        },
-        {
-          "path": "schemas/archive_content_capabilities.v1.json",
-          "line": 1,
-          "sink": "json-presentation:remaining"
         }
       ]
     },
@@ -195919,6 +195919,11 @@
     {
       "key": "user interface text",
       "origins": [
+        {
+          "path": "schemas/archive_content_capabilities.v1.json",
+          "line": 1,
+          "sink": "json-presentation:group"
+        },
         {
           "path": "schemas/archive_content_capabilities.v1.json",
           "line": 1,

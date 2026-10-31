@@ -84,7 +84,7 @@ can be writable without a semantic validator for its contents.
 | Skeletons | Proven PAB hierarchy and bind transforms support bone resolution, skinning and clip playback. | Arbitrary skeleton restructuring and unknown layouts are not supported. |
 | Physics | Several render-cloth, jiggle and collision consumers have been traced and reproduced as bounded reference stages. | Preview motion, resource activation and game physics compatibility remain distinct. |
 | Animation | PAA tracks, supported clocks, bind-relative motion and lossless encoding are implemented. | Action-chart semantics, arbitrary timing profiles and game acceptance of edited clips remain incomplete. |
-| Prefabs | Reflection metadata and a supported structural heap grammar enable safe reference and placement edits. | Ambiguous or incomplete walks restrict editing; related reflection formats have different unresolved heap rules. |
+| Prefabs | Reflection metadata and a supported structural heap grammar enable safe reference and placement edits. Render/simulation presets, UI animation states and save presets walk completely with the effect grammar. | Ambiguous or incomplete walks restrict editing; 56 of 320 convex-geometry files stop at a by-value hull collection. |
 | Game data | Known table directories and typed item, string, shop, group, recipe and reward subsets support new-item composition. | Unmodelled fields and unrelated table families remain opaque. |
 | Effects | PAE/PAEM reflection, keyed inheritance and constrained authoring are implemented; selected particle shader behaviour is reproduced. | Exact runtime target binding, animated surfaces and complete game appearance remain open. |
 | Packages | Independent packages retain identities, owned resources, explicit requirements and recoverable lifecycle changes. | Typed adapters cover selected domains, not every mod category. |
@@ -128,6 +128,19 @@ no remaining failure beyond a 16-byte `XAR ` PAT stub and 31 DLC proxy-LOD PAMs 
 declare no submeshes. Small `leveldata/hda` PAMs fail only the Python fallback
 geometry check; the native preview renders them. This is read-only source and
 headless evidence; visible app and game behaviour were not checked.
+
+**31 October 2026 inspector pass** (same installation): formats that still fell
+back to a readable-strings dump were matched against documented or decoded
+layouts, and the Archive Browser now decodes them. All 84,432 `.padxil` shaders
+share one wrapper and DXBC layout, and all 246 `.pars` files are single D3D12
+root signatures ([section 11.4](#114-text-ui-and-shader-resources)). The effect
+reflection grammar walks every `.parg` (783), `.pasg` (42) and `.uianiminit`
+(489), 396 of 397 `.save` presets and 264 of 320 `.pcg` files to the last byte
+([section 8.4](#84-related-reflection-resources)). The 19 fonts and 3 cursors
+are standard TrueType and RIFF `ACON` files. Preview-builder sweeps over every
+entry of those formats except `.padxil`, plus 1,500 sampled `.padxil` and 2,060
+`.pae`/`.paem` files, raised no exception. Source, synthetic tests and headless rendering
+only; the visible app and the game were not checked.
 
 The new `.admeta`, `.overridedlevellistbinary` and `.staticinfodummy` files are
 extractable; their semantic editing contracts are not established. DLC metadata
@@ -1336,15 +1349,45 @@ percentage describes every prefab family or proves game acceptance.
 
 ### 8.4 Related reflection resources
 
-PCG, PARG and PASG share useful header/type-table structure with prefabs, but
-their pointer-addressed bodies do not follow the established prefab tail rule
-throughout. A small tag/padding interpretation was identified as a research
-lead. This does not supply complete convex-geometry, emitter-render-group or
-simulation-group authoring.
+PARG (emitter render presets), PASG (emitter simulation presets), PCG (convex
+collision geometry), save presets (`.save`) and UI animation start states
+(`.uianiminit`) use the same reflection container as prefabs and effects. Their
+object data does not follow the prefab heap rules, but it does follow the effect
+grammar documented in [the effect reader][effect-binary]. On 31 October 2026
+(game `1.0.0.3446`) every shipped PARG (783) and PASG (42) walked to the last
+byte, as did every UIANIMINIT (489, after four leading zero bytes) and 396 of
+397 save presets. The remaining save preset, `miscellaneous/inputpresetb.save`,
+is a 36-byte container that declares no types. Effect authoring already clones
+and edits render and simulation presets through this reader; the capability
+labels now record that.
+
+PCG walks in 264 of 320 files. The other 56 stop at the container byte of the
+by-value `ConvexGeometry._convexHullList` collection (member kind 6), so their
+by-value elements are laid out differently from a pointer collection's. In the
+decoded files a `ConvexHull` lists face `f` as
+`_indices[_firstFaceVertexIndices[f] : + _faceNumIndices[f]]`, indexes into
+`_vertices`. Over all 41,333 faces of the 4,449 decoded hulls, the median face is
+exactly planar with every other hull vertex behind its plane, and 99% are within
+0.4% of the hull's size on both counts, so this reading is treated as
+established. `_faceLinks` is not interpreted.
+
+The Archive Browser shows these objects as a typed object graph, opens decoded
+PCG hulls as 3D models, and leads PAE/PAEM previews with the exact effect graph.
+Values follow their declared member types: `Transform` as scale, quaternion and
+position (a decoded save-preset rotation is a unit quaternion), `HashCode32` in
+hexadecimal and key types as integers. Member names are the only semantics; no
+gameplay meaning beyond them is established, and no writer exists for PCG, save
+presets or UI animation states.
+
+**Superseded on 2026-10-31:** a padding byte followed by a small value of 1, 2
+or 3 at the end of PARG/PASG pointees was earlier read as a kind tag that a
+prefab-style heap walk would need. The effect grammar describes these files
+without it.
 
 Sources: [prefab reader][prefab-reader], [relocation writer][prefab-writer],
 [blob closure][prefab-tail], [collection edits][prefab-collections],
-[JSON import policy][prefab-json], [structural tests][prefab-tests].
+[JSON import policy][prefab-json], [structural tests][prefab-tests],
+[reflection-object inspector](../cdmw/core/archive_reflect_preview.py).
 
 ## 9. Game tables, localisation and item creation
 
@@ -1551,6 +1594,10 @@ overrides, spawn/simulation/render settings, materials, timelines and curves.
 The supported reader retains byte offsets and keyed collection identities.
 Selected numeric edits and bounded reference changes can be written back.
 This is not unrestricted collection/string resizing.
+
+Since 31 October 2026 the Archive Browser opens a PAE or PAEM with this exact
+decoded graph, ahead of the older candidate-offset scan; all 300 effects and
+emitters sampled from game `1.0.0.3446` decoded to the last byte.
 
 An emitter's position in a collection is not its identity. Inherited entries,
 removals and inserted overrides must resolve by their explicit IDs or lookup
@@ -1983,13 +2030,50 @@ game UI behaviour. Compiled PADXIL shader resources are valuable ground truth
 for parameter consumers, but the application does not supply a general edited
 shader recompilation and cache-integration workflow.
 
+**Shader cache.** `shadercache__/d3d12` holds 84,432 `.padxil` shaders and 246
+`.pars` root signatures (game `1.0.0.3446`, reviewed 31 October 2026). Each
+PADXIL starts with a 36-byte `PASC` header: version 8, the entry size, a u32
+that was 61 in every one of 600 sampled entries and is not identified, the
+payload offset 36, and a 16-byte digest that equalled the DXBC `HASH` chunk in
+all 600. A standard DXBC container follows. A 400-entry survey found the chunks
+SFI0, ISG1, OSG1, PSV0, STAT, HASH and DXIL in every entry, all shader model
+6.6. A 1,500-entry sample split into 635 pixel, 555 vertex, 293 compute, 11
+geometry, 3 library, 2 domain and 1 hull shader. Library (ray-tracing) shaders
+carry VERS and RDAT instead of the signatures, and RDAT names their exported
+functions and resources (for example `RayTraceLocalLightsRayGenerationRG` and
+`__3__36__0__0__g_baseColor`). Other stages keep resource names only in the
+STAT bitcode, which CDMW does not disassemble; their PSV0 still gives the entry
+point, thread-group size, register ranges and resource kinds.
+
+Every PARS is an encrypted DXBC container holding only `RTS0`, a version 1.1
+root signature. `underwater.pars` and `sky.pars`, for instance, declare 16 and
+17 root parameters: large bindless descriptor tables (SRV ranges up to
+`t0-t64999`), 13 static samplers, and a UAV at `u0` in register space
+2147420894, the space AMD GPU Services documents for its shader-intrinsics
+slot. The files do not record which pipelines use each root signature.
+
+**Fonts and cursors.** The 19 `ui/fonts` files are TrueType fonts. Eleven are
+byte-identical copies of Vollkorn Medium (the base font for ten Latin and
+Cyrillic interface languages, plus the minigame font); Korean, Japanese,
+Simplified and Traditional Chinese and Arabic have their own fonts, and the
+gamertag font maps 45,188 characters. The three `.ani` files are Windows
+animated cursors with a single `.cur` frame each.
+
+The Archive Browser decodes all of the above read-only: shader stage, entry
+point, signatures, bindings, feature flags and root-signature layouts as text,
+font names, metrics and Unicode coverage with a rendered specimen, and cursor
+frames as an enlarged strip.
+
 Rare encrypted or unknown resources remain named gaps, including relevant
-binary strings, projectile/attack data, linked scene resources and archive-stored
-save-like resources. A named extension or recognizable container is not a
-decoded payload.
+binary strings, projectile/attack data and linked scene resources. High-volume
+formats that still preview only as strings include `.pampg` (24,639 files),
+`.binarygimmick` (15,713), `.imp` (1,612) and `.uibinary` (356). A named
+extension or recognizable container is not a decoded payload.
 
 Sources: [complete capability inventory][capabilities], [PAT decoder][pat],
-[audio owners][archive-audio], [shader-consumer study][shader-study].
+[audio owners][archive-audio], [shader-consumer study][shader-study],
+[shader-cache inspector](../cdmw/core/archive_shader_preview.py),
+[font and cursor previews](../cdmw/core/archive_ui_resource_preview.py).
 
 ## 12. Independent packages and mod composition
 
@@ -2969,7 +3053,8 @@ This is a research register, not a promised delivery schedule.
 | Question | Established starting point | Evidence needed to close it |
 | --- | --- | --- |
 | Can every relevant prefab be structurally edited? | Header/type grammar and constrained heap/relocation rules | Resolve ambiguous groups/lengths without permissive fallback; independent edited-asset game checks |
-| Can PCG/PARG/PASG bodies be fully decoded? | Shared reflection metadata and a distinct pointee-tail lead | A complete grammar checked against independent counts/boundaries and representative assets |
+| Can the remaining PCG convex-hull collections be decoded? | The effect grammar walks every PARG/PASG and 264 of 320 PCG files; the other 56 stop at the container byte of the by-value `_convexHullList` collection | The by-value element layout, checked against hull counts and face planarity in those 56 files |
+| What do the high-volume string-only binaries contain? | `.pampg` (24,639) starts `PAM ` version 5 and names impostor `.pat` files; about half of 200 sampled also hold byte patterns shaped like 64-bit process addresses. `.binarygimmick` repeats a 4-byte marker; `.imp` is a 72-byte `IMP ` record of floats and small integers | A record grammar checked against every file of each format, with any address-like fields explained |
 | Can exact mesh authoring be broadened? | Operation/LOD-specific writer gates | Source-preserving layouts, lower-LOD correspondence and physics/skin retention for each new operation |
 | Do imported authored-weight garments animate correctly in game? | New Item preserves compatible authored skin with explicit loss/transfer policies. The internal source/PAB-bound 93-to-95 extension passed complete Rosa primary output, materials and independently decoded four-LOD skin records. Current 1.0.0.2976 executable analysis confirms the counted reader, count-sized CPU remap, 1,024-entry/index bounds and remap-resource preparation. Sixty D3D12 captures compare four/six-weight LOD0 outputs with the original under seven controlled poses and three decoded PHW motion samples; six weights is closer, with localized reduction loss still present. | Final resource stride, matrix/upload/draw/shader and special-physics consumers; artist approval of the six-influence source; exact PABC/item/companion appearance, full playback, lower-LOD deformation and packaged/game animation comparisons |
 | Can skeletons be restructured? | Proven fixed-layout hierarchy and bind transforms | A semantic writer, all dependent bindings and game acceptance |
@@ -3107,8 +3192,9 @@ agreement and the staged publication scope.
 
 ## 17. Format inventory
 
-The following tables reproduce the **141 registered extension labels** at the
-research baseline, grouped by area. `PA` identifies Pearl Abyss formats,
+The following tables reproduce the **154 registered extension labels** in the
+capability manifest as reviewed on 31 October 2026 against game `1.0.0.3446`,
+grouped by area. `PA` identifies Pearl Abyss formats,
 `Middleware` licensed/third-party engine formats, and `Open` interchange or
 standard formats; `Unknown` is an unclassified origin. These labels describe
 the catalogue's resource role, not
@@ -3126,7 +3212,7 @@ are distinct roles. Non-shipped interchange entries can have application
 import/export routes even when their archive-oriented label is None. No table
 below establishes game acceptance of an edited asset.
 
-Source: [capability manifest][capabilities].
+Source: [capability manifest](../schemas/archive_content_capabilities.v1.json).
 
 ### Textures and images (12 formats)
 
@@ -3169,11 +3255,10 @@ Source: [capability manifest][capabilities].
 | `.patx` | PA | None | None |
 | `.pcg` | PA | Partial | None |
 
-### Animation and scenes (15 formats)
+### Animation and scenes (14 formats)
 
 | Extension | Origin | Read | Write |
 | --- | --- | --- | --- |
-| `.ani` | PA | None | None |
 | `.motionblending` | PA | Surface | None |
 | `.paa` | PA | Full | Full |
 | `.paa_metabin` | PA | Surface | None |
@@ -3189,15 +3274,17 @@ Source: [capability manifest][capabilities].
 | `.pastage` | PA | Surface | Constrained |
 | `.pma` | PA | Full | Full |
 
-### Materials and metadata (62 formats)
+### Materials and metadata (73 formats)
 
 | Extension | Origin | Read | Write |
 | --- | --- | --- | --- |
+| `.admeta` | PA | None | None |
 | `.app_xml` | PA | Full | Full |
 | `.binarygimmick` | PA | Surface | None |
 | `.binarygimmickcacheddata` | PA | None | None |
 | `.binarygimmickframeevent` | PA | None | None |
 | `.binarystring` | PA | None | None |
+| `.contentgroupkeymap` | PA | None | None |
 | `.dat` | PA | None | None |
 | `.ies` | Open | Full | None |
 | `.imp` | PA | None | None |
@@ -3209,6 +3296,7 @@ Source: [capability manifest][capabilities].
 | `.mi` | PA | Full | Full |
 | `.mtl` | Open | Full | Full |
 | `.nav` | PA | Surface | None |
+| `.overridedlevellistbinary` | PA | None | None |
 | `.paacdesc` | PA | None | None |
 | `.paasmt` | PA | None | None |
 | `.paatt` | PA | None | None |
@@ -3218,7 +3306,9 @@ Source: [capability manifest][capabilities].
 | `.pabv` | PA | Surface | None |
 | `.pac_xml` | PA | Full | Full |
 | `.paccd` | PA | Surface | None |
-| `.padxil` | Middleware | Surface | None |
+| `.paccd_xml` | PA | Full | Full |
+| `.pacpmt` | PA | None | None |
+| `.padxil` | Middleware | Partial | None |
 | `.pagbg` | PA | Surface | None |
 | `.palevel` | PA | Surface | None |
 | `.pam_xml` | PA | Full | Full |
@@ -3230,11 +3320,12 @@ Source: [capability manifest][capabilities].
 | `.pappt` | PA | Full | Constrained |
 | `.paproj` | PA | None | None |
 | `.paprojdesc` | PA | Full | Full |
-| `.parg` | PA | Partial | None |
+| `.parg` | PA | Full | Constrained |
+| `.pars` | Middleware | Full | None |
 | `.pas` | PA | Full | Full |
 | `.paschedulectx` | PA | None | None |
 | `.paseqh` | PA | None | None |
-| `.pasg` | PA | Partial | None |
+| `.pasg` | PA | Full | Constrained |
 | `.pashv` | PA | None | None |
 | `.pasound` | PA | None | None |
 | `.pathc` | PA | Full | Constrained |
@@ -3246,20 +3337,27 @@ Source: [capability manifest][capabilities].
 | `.road` | PA | Surface | None |
 | `.roadidx` | PA | None | None |
 | `.roadsector` | PA | Surface | None |
-| `.save` | PA | None | None |
+| `.save` | PA | Full | None |
 | `.seqmt` | PA | Surface | None |
 | `.shader` | PA | Full | Full |
 | `.spline` | PA | Full | Full |
 | `.spline2d` | PA | Full | Full |
+| `.staticinfobody` | PA | Partial | Constrained |
+| `.staticinfodummy` | PA | None | None |
+| `.staticinfoheader` | PA | Full | Constrained |
+| `.staticinfomisc` | PA | None | None |
 | `.technique` | PA | Full | Full |
+| `.vce_meta` | Unknown | None | None |
 | `.xml` | Open | Full | Full |
 | `.yaml` | Open | Full | Full |
 | `.yml` | Open | Full | Full |
 
-### Interface and text (15 formats)
+### Interface and text (18 formats)
 
 | Extension | Origin | Read | Write |
 | --- | --- | --- | --- |
+| `.ani` | Open | Full | None |
+| `.bak` | PA | Full | Full |
 | `.cfg` | Open | Full | Full |
 | `.css` | Open | Full | Full |
 | `.csv` | Open | Full | Full |
@@ -3274,7 +3372,8 @@ Source: [capability manifest][capabilities].
 | `.ttf` | Open | Full | None |
 | `.txt` | Open | Full | Full |
 | `.ui` | PA | None | None |
-| `.uianiminit` | PA | Surface | None |
+| `.uianiminit` | PA | Full | None |
+| `.uibinary` | PA | None | None |
 
 ### Audio and video (18 formats)
 

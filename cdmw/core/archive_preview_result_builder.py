@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from importlib import import_module
+import struct
 import threading
 import time
 from dataclasses import replace
@@ -38,6 +39,22 @@ from cdmw.core.archive_data_table_preview import (
     find_static_table_companion,
 )
 from cdmw.core.archive_action_chart import MAX_ACTION_CHART_RESOURCE_NAMES, action_chart_resource_names
+from cdmw.core.archive_reflect_preview import (
+    REFLECT_OBJECT_EXTENSIONS,
+    build_effect_tree_section,
+    build_reflect_object_preview,
+)
+from cdmw.core.archive_shader_preview import (
+    SHADER_CACHE_EXTENSIONS,
+    ShaderContainerError,
+    build_shader_cache_preview,
+)
+from cdmw.core.archive_ui_resource_preview import (
+    UI_RESOURCE_EXTENSIONS,
+    UiResourceError,
+    build_ui_resource_preview,
+)
+from cdmw.core.effect_binary import EffectBinaryError
 from cdmw.core.archive_model_references import _ArchiveModelSidecarTextureBinding
 from cdmw.core.archive_model_textures import _FAST_ARCHIVE_PREVIEW_TEXTURE_NOTE
 from cdmw.core.archive_content_analysis import load_archive_content_analysis
@@ -464,6 +481,102 @@ def build_archive_preview_result(
                 loose_preview_detail_text=loose_preview_detail_text,
             )
 
+        inspector_note = ""
+        if extension in SHADER_CACHE_EXTENSIONS:
+            try:
+                shader_preview = build_shader_cache_preview(data, entry.path, extension=extension)
+            except (ShaderContainerError, struct.error) as exc:
+                inspector_note = f"The shader container could not be read: {exc}"
+            else:
+                return ArchivePreviewResult(
+                    status="ok",
+                    title=entry.basename,
+                    metadata_summary=f"{metadata_summary} | {shader_preview.metadata_label}",
+                    detail_text=build_archive_entry_detail_text(
+                        entry,
+                        "\n\n".join(
+                            part
+                            for part in [
+                                ("Decrypted via deterministic ChaCha20 filename derivation." if "ChaCha20" in note_flags else ""),
+                                "\n".join(shader_preview.detail_lines),
+                            ]
+                            if part
+                        ),
+                    ),
+                    preview_text=shader_preview.preview_text,
+                    preferred_view="text",
+                    loose_file_path=loose_file_path,
+                    loose_preview_image_path=loose_preview_image_path,
+                    loose_preview_media_path=loose_preview_media_path,
+                    loose_preview_media_kind=loose_preview_media_kind,
+                    loose_preview_title=loose_preview_title,
+                    loose_preview_metadata_summary=loose_preview_metadata_summary,
+                    loose_preview_detail_text=loose_preview_detail_text,
+                )
+
+        if extension in REFLECT_OBJECT_EXTENSIONS:
+            try:
+                reflect_preview = build_reflect_object_preview(data, entry.path, extension=extension)
+            except EffectBinaryError as exc:
+                inspector_note = f"The reflection object could not be decoded: {exc}"
+            else:
+                related_references = build_archive_related_file_references(
+                    entry,
+                    explicit_reference_names=reflect_preview.reference_names,
+                    archive_entries_by_normalized_path=texture_entries_by_normalized_path,
+                    archive_entries_by_basename=texture_entries_by_basename,
+                )
+                detail_extra = "\n\n".join(
+                    part
+                    for part in [
+                        ("Decrypted via deterministic ChaCha20 filename derivation." if "ChaCha20" in note_flags else ""),
+                        "\n".join(reflect_preview.bundle.detail_lines),
+                        ("Files this object names are listed below." if related_references else ""),
+                    ]
+                    if part
+                )
+                return ArchivePreviewResult(
+                    status="ok",
+                    title=entry.basename,
+                    metadata_summary=f"{metadata_summary} | {reflect_preview.bundle.metadata_label}",
+                    detail_text=build_archive_entry_detail_text(entry, detail_extra),
+                    preview_text=reflect_preview.bundle.preview_text,
+                    preview_model=reflect_preview.model,
+                    model_texture_references=related_references,
+                    asset_family_graph=build_archive_asset_family_graph(entry, related_references),
+                    preferred_view="model" if reflect_preview.model is not None else "text",
+                    loose_file_path=loose_file_path,
+                    loose_preview_image_path=loose_preview_image_path,
+                    loose_preview_media_path=loose_preview_media_path,
+                    loose_preview_media_kind=loose_preview_media_kind,
+                    loose_preview_title=loose_preview_title,
+                    loose_preview_metadata_summary=loose_preview_metadata_summary,
+                    loose_preview_detail_text=loose_preview_detail_text,
+                )
+
+        if extension in UI_RESOURCE_EXTENSIONS:
+            try:
+                ui_preview = build_ui_resource_preview(data, entry.path, extension=extension)
+            except (UiResourceError, struct.error) as exc:
+                inspector_note = f"The file could not be read as a font or cursor: {exc}"
+            else:
+                return ArchivePreviewResult(
+                    status="ok",
+                    title=entry.basename,
+                    metadata_summary=f"{metadata_summary} | {ui_preview.bundle.metadata_label}",
+                    detail_text=build_archive_entry_detail_text(entry, "\n".join(ui_preview.bundle.detail_lines)),
+                    preview_text=ui_preview.bundle.preview_text,
+                    preview_image_path=ui_preview.image_path,
+                    preferred_view="image" if ui_preview.image_path else "text",
+                    loose_file_path=loose_file_path,
+                    loose_preview_image_path=loose_preview_image_path,
+                    loose_preview_media_path=loose_preview_media_path,
+                    loose_preview_media_kind=loose_preview_media_kind,
+                    loose_preview_title=loose_preview_title,
+                    loose_preview_metadata_summary=loose_preview_metadata_summary,
+                    loose_preview_detail_text=loose_preview_detail_text,
+                )
+
         table_decode_note = ""
         if extension == ".paloc":
             try:
@@ -625,6 +738,15 @@ def build_archive_preview_result(
                 archive_entries_by_normalized_path=texture_entries_by_normalized_path,
                 archive_entries_by_basename=texture_entries_by_basename,
             )
+            if extension in {".pae", ".paem"}:
+                # The exact decode leads; the older candidate scan stays below it.
+                effect_tree = build_effect_tree_section(data, extension=extension)
+                if effect_tree:
+                    title, _separator, rest = structured_preview.preview_text.partition("\n")
+                    structured_preview = replace(
+                        structured_preview,
+                        preview_text="\n".join([title, "", *effect_tree, "", "Candidate scan:", rest.lstrip("\n")]),
+                    )
             detail_extra = "\n\n".join(
                 part
                 for part in [
@@ -985,6 +1107,8 @@ def build_archive_preview_result(
             )
         if "ChaCha20" in note_flags:
             info_extra_parts.append("Decrypted via deterministic ChaCha20 filename derivation.")
+        if inspector_note:
+            info_extra_parts.append(inspector_note)
         model_preview = None
         model_texture_references: Tuple[ArchiveModelTextureReference, ...] = ()
         model_preview_error = ""

@@ -44,101 +44,102 @@
     "headline": {
       "note": "Engine formats are the ones CDMW had to reverse engineer. Open formats are counted separately because decoding them is not the project's work. The shipped bucket drops engine formats the build does not actually contain, which is the number that reflects what a modder can reach.",
       "shipped_engine_formats": {
-        "extensions": 87,
-        "decode_percent": 43.6,
-        "write_percent": 30.5,
+        "extensions": 86,
+        "decode_percent": 48.5,
+        "write_percent": 32.0,
         "decode": {
-          "full": 25,
-          "none": 29,
-          "partial": 10,
-          "surface": 23
+          "full": 30,
+          "none": 26,
+          "partial": 9,
+          "surface": 21
         },
         "write": {
-          "constrained": 13,
+          "constrained": 15,
           "full": 20,
-          "none": 54
+          "none": 51
         }
       },
       "engine_formats": {
-        "extensions": 101,
-        "decode_percent": 44.0,
-        "write_percent": 31.7,
+        "extensions": 100,
+        "decode_percent": 48.2,
+        "write_percent": 33.0,
         "decode": {
-          "full": 30,
-          "none": 35,
-          "partial": 12,
-          "surface": 24
-        },
-        "write": {
-          "constrained": 16,
-          "full": 24,
-          "none": 61
-        }
-      },
-      "proprietary_formats": {
-        "extensions": 93,
-        "decode_percent": 45.2,
-        "write_percent": 32.8,
-        "decode": {
-          "full": 30,
+          "full": 35,
           "none": 32,
-          "partial": 9,
+          "partial": 11,
           "surface": 22
         },
         "write": {
-          "constrained": 13,
+          "constrained": 18,
           "full": 24,
-          "none": 56
+          "none": 58
+        }
+      },
+      "proprietary_formats": {
+        "extensions": 92,
+        "decode_percent": 48.4,
+        "write_percent": 34.2,
+        "decode": {
+          "full": 34,
+          "none": 30,
+          "partial": 7,
+          "surface": 21
+        },
+        "write": {
+          "constrained": 15,
+          "full": 24,
+          "none": 53
         }
       },
       "all_formats": {
         "extensions": 154,
-        "decode_percent": 54.3,
-        "write_percent": 35.1,
+        "decode_percent": 57.4,
+        "write_percent": 35.7,
         "decode": {
-          "full": 65,
-          "none": 39,
-          "partial": 12,
-          "surface": 38
+          "full": 71,
+          "none": 36,
+          "partial": 11,
+          "surface": 36
         },
         "write": {
-          "constrained": 16,
+          "constrained": 18,
           "full": 46,
-          "none": 92
+          "none": 90
         }
       }
     },
     "coverage_by_file_count": {
-      "files": 1697383,
-      "decode_percent": 66.1,
-      "write_percent": 54.3
+      "files": 1697380,
+      "decode_percent": 67.7,
+      "write_percent": 54.4
     },
     "unlisted_in_manifest": [],
     "by_origin": {
       "proprietary": {
-        "extensions": 93,
-        "decode_percent": 45.2,
-        "write_percent": 32.8,
+        "extensions": 92,
+        "decode_percent": 48.4,
+        "write_percent": 34.2,
         "decode": {
-          "full": 30,
-          "none": 32,
-          "partial": 9,
-          "surface": 22
+          "full": 34,
+          "none": 30,
+          "partial": 7,
+          "surface": 21
         },
         "write": {
-          "constrained": 13,
+          "constrained": 15,
           "full": 24,
-          "none": 56
+          "none": 53
         }
       },
       "third_party": {
         "extensions": 8,
-        "decode_percent": 30.0,
+        "decode_percent": 46.2,
         "write_percent": 18.8,
         "decode": {
-          "none": 3,
-          "partial": 3,
-          "surface": 2
+          "full": 1,
+          "none": 2,
+          "partial": 4,
+          "surface": 1
         },
         "write": {
           "constrained": 3,
@@ -146,16 +147,16 @@
         }
       },
       "open": {
-        "extensions": 49,
-        "decode_percent": 80.0,
-        "write_percent": 44.9,
+        "extensions": 50,
+        "decode_percent": 80.4,
+        "write_percent": 44.0,
         "decode": {
-          "full": 35,
+          "full": 36,
           "surface": 14
         },
         "write": {
           "full": 22,
-          "none": 27
+          "none": 28
         }
       },
       "unknown": {
@@ -172,19 +173,19 @@
     },
     "by_group": {
       "animation_scene": {
-        "extensions": 15,
-        "decode_percent": 51.3,
-        "write_percent": 40.0,
+        "extensions": 14,
+        "decode_percent": 55.0,
+        "write_percent": 42.9,
         "decode": {
           "full": 5,
-          "none": 2,
+          "none": 1,
           "partial": 1,
           "surface": 7
         },
         "write": {
           "constrained": 6,
           "full": 3,
-          "none": 6
+          "none": 5
         }
       },
       "audio_video": {
@@ -204,18 +205,18 @@
       },
       "material_metadata": {
         "extensions": 73,
-        "decode_percent": 45.5,
-        "write_percent": 33.6,
+        "decode_percent": 49.7,
+        "write_percent": 34.9,
         "decode": {
-          "full": 26,
-          "none": 28,
-          "partial": 5,
-          "surface": 14
+          "full": 30,
+          "none": 26,
+          "partial": 4,
+          "surface": 13
         },
         "write": {
-          "constrained": 7,
+          "constrained": 9,
           "full": 21,
-          "none": 45
+          "none": 43
         }
       },
       "model_mesh_physics": {
@@ -249,17 +250,16 @@
         }
       },
       "user_interface_text": {
-        "extensions": 17,
-        "decode_percent": 84.1,
-        "write_percent": 76.5,
+        "extensions": 18,
+        "decode_percent": 88.9,
+        "write_percent": 72.2,
         "decode": {
-          "full": 14,
-          "none": 2,
-          "surface": 1
+          "full": 16,
+          "none": 2
         },
         "write": {
           "full": 13,
-          "none": 4
+          "none": 5
         }
       }
     },
@@ -296,9 +296,9 @@
       },
       {
         "extension": ".parg",
-        "decode": "partial",
-        "write": "none",
-        "remaining": "the pointer-addressed heap walk does not complete, so nested values are not read; there is no writer for this extension yet. This is the particle render schema, so closing it opens VFX modding The heap walk diverges from .prefab in the pointee trailer: where a prefab repeats the consumed length, these files carry a padding byte and then a small value of 1, 2 or 3 (measured as 256/512/768 when read one byte early across 747 of the 882 files), so it is a kind tag rather than a length. That is where a future attempt should start."
+        "decode": "full",
+        "write": "constrained",
+        "remaining": "Effect authoring clones presets and edits fixed-size values in place; strings and collections are read, not resized."
       },
       {
         "extension": ".pat",
@@ -407,7 +407,7 @@
     { "extension": ".paschedulepath", "role": "animation", "group": "animation_scene", "container": "binary", "analyzer": "sequence", "maturity": "heuristic", "readable": true, "structured": true, "references": true, "visual": false, "playback": false, "exports": ["raw", "decode_json"], "origin": "proprietary", "decode": "surface", "write": "none", "priority": "medium", "archive_files": 3808, "evidence": "sequence reference graph", "remaining": "schedule entries not parsed - NPC routines cannot be retimed or rerouted" },
     { "extension": ".pastage", "role": "animation", "group": "animation_scene", "container": "binary", "analyzer": "sequence", "maturity": "heuristic", "readable": true, "structured": true, "references": true, "visual": false, "playback": false, "exports": ["raw", "decode_json"], "origin": "proprietary", "decode": "surface", "write": "constrained", "priority": "medium", "archive_files": 3891, "evidence": "cdmw/core/archive_binary_preview_paseq_0.py: sequence reference graph. cdmw/ui/archive_browser/actions.py exposes Edit Structured Data Safely...; cdmw/services/structured_sidecar_edit_service.py writes validated fixed-size string replacements to an edited copy.", "remaining": "Track and event layout is not fully parsed, so full cutscene authoring remains unavailable. Only validated length-prefixed string fields can be replaced without changing their encoded size; arbitrary fields and variable-size edits are refused." },
     { "extension": ".paac", "role": "animation", "group": "animation_scene", "container": "binary", "analyzer": "sequence", "maturity": "heuristic", "readable": true, "structured": true, "references": true, "visual": false, "playback": false, "exports": ["raw", "decode_json"], "origin": "proprietary", "decode": "partial", "write": "constrained", "priority": "high", "archive_files": 560, "evidence": "tools/placement_studio/paac.py: length-prefixed string table indexed and retargeted", "remaining": "chart node structure around the strings is not parsed, so only same-length retargets are allowed" },
-    { "extension": ".ani", "role": "animation", "group": "animation_scene", "container": "binary", "analyzer": "generic_binary", "maturity": "raw_only", "readable": true, "structured": false, "references": true, "visual": false, "playback": false, "exports": ["raw"], "origin": "proprietary", "decode": "none", "write": "none", "priority": "low", "archive_files": 3, "evidence": "no analyzer; raw bytes only", "remaining": "unknown; rare in shipped archives" },
+    { "extension": ".ani", "role": "image", "group": "user_interface_text", "container": "binary", "analyzer": "generic_binary", "maturity": "proven", "readable": true, "structured": true, "references": true, "visual": true, "playback": false, "exports": ["raw"], "origin": "open", "decode": "full", "write": "none", "priority": "low", "archive_files": 3, "evidence": "Windows animated cursor (RIFF ACON) whose frames are .cur images; Archive Browser lists the timing and frames and draws them for all 3 shipped files.", "remaining": "not an authoring target in CDMW" },
     { "extension": ".pai", "role": "animation", "group": "animation_scene", "container": "binary", "analyzer": "generic_binary", "maturity": "raw_only", "readable": true, "structured": false, "references": true, "visual": false, "playback": false, "exports": ["raw"], "origin": "proprietary", "decode": "none", "write": "none", "priority": "low", "archive_files": 2, "evidence": "no analyzer; raw bytes only", "remaining": "unknown; rare in shipped archives" },
 
     { "extension": ".prefab", "role": "metadata", "group": "material_metadata", "container": "binary", "analyzer": "prefab", "maturity": "proven", "readable": true, "structured": true, "references": true, "visual": false, "playback": false, "exports": ["raw", "decode_json"], "origin": "proprietary", "decode": "partial", "write": "constrained", "priority": "high", "archive_files": 53429, "evidence": "cdmw/core/prefab_binary.py: self-describing type table plus pointer-addressed heap walk; headers cover 12,000/12,000 sampled archive prefabs; the heap walk completes on 59.6% of a seeded random sample of 4,000 of the 47,343 archive prefabs, and 95.3% of the objects it does recover have a component type stated by the file rather than inferred. The earlier ~93% figure was measured with scripts/prefab_walk_failure_census.py --limit, which took a lexicographic prefix rather than a sample, so it described the alphabetical head of one extracted corpus and not the archives; --limit now samples. cdmw/core/prefab_binary_edit.py rewrites resource paths including length changes, round-tripped over 1,500 real prefabs 2026-08-17: the element header is `u16 width, mask (width bytes), u8 typeIndex, u16 0`, so a three-byte mask carries member bits 16..23 (14 more of the 15,557 character prefabs walk, none lost); cdmw/core/prefab_component_graft.py grafts a component element from a donor prefab into a target (types appended, type indices remapped, pointers relocated), proven on the thrown lightning spear's EffectComponent onto sword prefabs (real_game gate); a grafted effect is unproven in game.", "remaining": "38% of archive prefabs do not walk to completion (62.0% of a seeded 1,500-file sample, up from 58.5% once the blob's close was understood as unread pointee length fields rather than a trailer grammar). The collection-header width rule behind much of that is not determined by member metadata. Telemetry over 7,121 collection sites in 2,500 random prefabs: every collection member carries flags=7, 4 of the 12 distinct (member name, flags) tuples require both the narrow and the wide header form, and 6,183 of 7,121 sites are ambiguous because both widths yield a plausible count -- so the shipped plausibility heuristic chooses arbitrarily at 87% of sites and is unsound even where a walk completes. Two hypotheses are dead: width from the element type in the type table (circular, kind 7 declares the generic ReflectObjectPtr) and width from member metadata (refuted by the telemetry). The discriminator is upstream in component selection, and it is not the mask arithmetic. At every one of 247 sampled component-selection failures the file states no type index (type_index out of range, 100%), so the walk is guessing by declaration order. The masks themselves look explicable: strip the top set bit and all of them fit the members available -- 0x0110 needs 5 against 5, 0x091a needs 9 against 11, 0x0100 needs 0 against 8. That top-bit-as-sentinel reading was implemented and measured, and it is rejected: completion moved 59.6% to 59.8% (+8 of 4,000), the mask errors were merely replaced by fresh ones and by blob-string-length desyncs further on. It fits the arithmetic without being the rule. The external source needed for marker-1 component identity looks like it is already in the archives: .prefabdata_xml, 2,613 files, is an XML serialisation of the same reflection data and 399 of 400 sampled pair with a .prefab binary of the same stem. Each names its root type and its members directly -- for example HeadPrefabData with SkeletonVariationName, FacialAnimationIntensityMask, FacialAnimationMask, MorphTargetSet, SkeletonMorphMask and EmotionAnimationSet. That is the same pairing trick that confirmed .paprojdesc against its XML. That pairing was built and measured, and it does not help: of 2,609 stems that pair, 2,607 (99.9%) already walk to completion, and only 2 fail. The XML-paired set is almost exactly the easy subset -- small character prefabs with simple roots such as HeadPrefabData and NudePrefabData -- so the 40% of the corpus that fails has essentially no XML counterpart and the oracle gives no leverage on marker-1 component identity. Ruled out rather than assumed. A better lead came out of the executable: the reflection system behind this container appears to be Havok's, not a Pearl Abyss one. CrimsonDesert.exe carries hkReflect RTTI throughout -- MutableTypeReg, BuiltinTypeReg, AttributeArrayWithOwnership, Version::PatchRegistry, Version::PatchSet, ClonerCallback -- with a Pearl Abyss layer above it (AutoReflectBase@pa, ReflectObjectIterator@pa, IReflectObjectResourceBase@pa, CustomAttributeReflectObject@pa, EnumReflectPropertyBase@pa). ReflectObject appears 737 times and SceneObject 504. If component identity is resolved through a Havok type registry rather than through declaration order, then marker-1 identity may be recoverable from that registry, and hkReflect is documented middleware rather than a format that has to be derived from the bytes. The version is Havok_2024, which appears 107 times in the executable, and the hope that this makes it documented middleware is wrong. The classic Havok reflection registry names are absent: hkTypeInfoRegistry, hkBuiltinTypeRegistry and hkDynamicClassNameRegistry all occur zero times, while hkReflect occurs 191 times and hkSerialize 54. So this is the newer hkReflect system rather than the hkClass one that public Havok documentation and the community .hkx tooling both target, and it postdates the withdrawal of Havok's public SDK docs. Practically that means component resolution has to be reverse engineered from this binary like anything else, and existing Havok knowledge is aimed at the wrong system. Reading the resolution out of the runtime is now ruled out too, for a reason that reframes the format: most of the component types in shipped prefabs do not exist in the runtime. Of 488 distinct component type names sampled from 600 archive prefabs, only 75 (15%) appear as strings in CrimsonDesert.exe, and the absent ones include HDAComponent, HoudiniOutput, HoudiniParameterBool, HoudiniParameterInt, HoudiniParameterResourcePath and HoudiniSubnetInputSpline -- Houdini digital-asset authoring types the game never instantiates. The 75 that are present are scattered rather than tabled: only 8 of 74 consecutive names sit within 80 bytes of each other, so there is no contiguous registry to read. So .prefab carries authoring-time reflection data much of which has no runtime counterpart, which is the same pattern as .papr being a 3ds Max rig export, and marker-1 component identity cannot be recovered from a runtime type registry that does not contain the types. Exhaustive backtracking over candidate components, using 'the blob closes exactly' as the oracle rather than any external source, was also tried and does not work: over 600 prefabs it closed 5 of 228 failures, +0.8%, with 4 of the 5 at a single choice point. So the failures are not mis-picked candidates among plausible ones -- either no assignment closes the blob or the walk dies before reaching a choice point. Seven hypotheses have now been retired with measurements. Separately, the worry that local collection ambiguity makes a completed walk untrustworthy was tested and does not hold: over 1,500 prefabs the shipped narrow-first reader completes 916 files, 913 of which contain at least one locally ambiguous site, yet forcing the wide reading at those sites leaves only 11 completing. A wrong width desynchronises everything after it and the blob then fails to close, so completion is globally determined even where individual sites are not, and it is strong evidence of a correct parse. Array resizing is implemented and on: duplicate or remove a whole collection element, from the Prefab Inspector's row menu. It still has no oracle -- over 3,000 sampled prefabs only 6 pairs share a type signature and differ by one object, and those are unrelated assets rather than the same asset with a child added (cd_gimmick_steam_engine_train_rail_0001 against cd_tower_wooden_set13_06), so nothing equivalent to the 10,066 same-asset path pairs that validated the path rewriter exists. It is validated the other way instead, exactly as this entry previously said it would have to be: duplicate an element, remove the duplicate, demand the original bytes back -- 796 of 796 byte-exact over a 1,500-file sample. Every result is read back before it is returned and refused unless the walk completes, the collection carries the new count, the file is the size the splice implies, every pointer still satisfies value == offset + 4, and the copy reads back the size of its source. The hazard that had to be ruled out was the 8-byte owner preceding each pointer record: measured over 1,500 prefabs it is either NULL_OWNER or a small ordinal, and none of the 706 non-null owners fell inside the data blob, so a splice does not relocate them. The 11 files that complete both ways are genuinely undetermined and are the only known population where a complete walk may still be wrong Value editing is scoped rather than blocked on this: offset-keyed fixed-size writes with a source digest and expected-old bytes, on objects whose component type the file stated" },
@@ -429,26 +429,26 @@
     { "extension": ".staticinfomisc", "role": "metadata", "group": "material_metadata", "container": "binary", "analyzer": "generic_binary", "maturity": "raw_only", "readable": true, "structured": false, "references": true, "visual": false, "playback": false, "exports": ["raw"], "origin": "proprietary", "decode": "none", "write": "none", "priority": "low", "archive_files": 10, "evidence": "Encrypted with the standard filename-derived ChaCha20 key; decrypted LZ4 payloads expand to exactly their declared sizes (2026-10-31 review, game 1.0.0.3446). Earlier extraction failures came from the Python reader's content check, not from the key.", "remaining": "record layout not parsed" },
     { "extension": ".staticinfodummy", "role": "metadata", "group": "material_metadata", "container": "binary", "analyzer": "generic_binary", "maturity": "raw_only", "readable": true, "structured": false, "references": true, "visual": false, "playback": false, "exports": ["raw"], "origin": "proprietary", "decode": "none", "write": "none", "priority": "low", "archive_files": 1, "evidence": "Encrypted with the standard filename-derived ChaCha20 key; decrypted LZ4 payloads expand to exactly their declared sizes (2026-10-31 review, game 1.0.0.3446). Earlier extraction failures came from the Python reader's content check, not from the key.", "remaining": "unknown; rare in shipped archives" },
     { "extension": ".pathc", "role": "metadata", "group": "material_metadata", "container": "binary", "analyzer": "pathc", "maturity": "measured", "readable": true, "structured": true, "references": true, "visual": false, "playback": false, "exports": ["raw", "decode_json"], "origin": "proprietary", "decode": "full", "write": "constrained", "priority": "medium", "archive_files": 1, "evidence": "cdmw/core/pathc_format.py parses and re-encodes the recorded meta/0.pathc corpus, including texture headers, checksum entries, collision rows and names. register_dds validates the complete DDS, reuses a compatible shape/tag descriptor or appends a new 148-byte header, and derives raw mip block information from the validated payload. tests/test_pathc_format.py covers new-header registration and DX10 descriptor separation. Historical observation on 2026-08-17: an unregistered icon used the placeholder bag; no new in-game result is claimed here.", "remaining": "Hash collisions are refused because collision-table authoring is not implemented. Adding a descriptor requires 148-byte registry headers and available header capacity. Raw DDS mip block information is derived; storage information for non-raw textures is not." },
-    { "extension": ".uianiminit", "role": "metadata", "group": "user_interface_text", "container": "binary", "analyzer": "structured_metadata", "maturity": "heuristic", "readable": true, "structured": true, "references": true, "visual": false, "playback": false, "exports": ["raw", "decode_json"], "origin": "proprietary", "decode": "surface", "write": "none", "priority": "medium", "archive_files": 489, "evidence": "structured_metadata scrape", "remaining": "record layout not parsed" },
+    { "extension": ".uianiminit", "role": "metadata", "group": "user_interface_text", "container": "binary", "analyzer": "structured_metadata", "maturity": "proven", "readable": true, "structured": true, "references": true, "visual": false, "playback": false, "exports": ["raw", "decode_json"], "origin": "proprietary", "decode": "full", "write": "none", "priority": "medium", "archive_files": 489, "evidence": "Reflection container read with the grammar cdmw/core/effect_binary.py uses for effects: every non-empty shipped file walks to the last byte, and Archive Browser shows its object graph with values by declared member type (2026-10-31, game 1.0.0.3446).", "remaining": "Read-only; member meanings beyond their names are not established." },
     { "extension": ".binarygimmick", "role": "metadata", "group": "material_metadata", "container": "binary", "analyzer": "structured_metadata", "maturity": "heuristic", "readable": true, "structured": true, "references": true, "visual": false, "playback": false, "exports": ["raw", "decode_json"], "origin": "proprietary", "decode": "surface", "write": "none", "priority": "low", "archive_files": 15713, "evidence": "structured metadata scrape: names and references", "remaining": "record layout not parsed" },
     { "extension": ".pagbg", "role": "metadata", "group": "material_metadata", "container": "binary", "analyzer": "descriptor_table", "maturity": "heuristic", "readable": true, "structured": true, "references": true, "visual": false, "playback": false, "exports": ["raw", "decode_json"], "origin": "proprietary", "decode": "surface", "write": "none", "priority": "none", "archive_files": 0, "evidence": "descriptor-table scrape: row counts and referenced paths", "remaining": "the shipped build contains no entry with this extension, so there is nothing here to decode; previously recorded as: field semantics unknown" },
     { "extension": ".pampg", "role": "metadata", "group": "material_metadata", "container": "binary", "analyzer": "descriptor_table", "maturity": "heuristic", "readable": true, "structured": true, "references": true, "visual": false, "playback": false, "exports": ["raw", "decode_json"], "origin": "proprietary", "decode": "surface", "write": "none", "priority": "low", "archive_files": 24639, "evidence": "descriptor-table scrape: row counts and referenced paths", "remaining": "field semantics unknown" },
-    { "extension": ".padxil", "role": "metadata", "group": "material_metadata", "container": "binary", "analyzer": "generic_binary", "maturity": "header_only", "readable": true, "structured": true, "references": true, "visual": false, "playback": false, "exports": ["raw"], "origin": "third_party", "decode": "surface", "write": "none", "priority": "medium", "archive_files": 84432, "evidence": "the DXBC container magic identifies it as compiled DirectX shader bytecode; the shipped cache is 89,824 of them and is the ground truth for what a material parameter actually does", "remaining": "the bytecode itself is not disassembled here; that needs dxc/dxil-dis, and there is no route to recompile an edited shader back into the cache" },
+    { "extension": ".padxil", "role": "metadata", "group": "material_metadata", "container": "binary", "analyzer": "generic_binary", "maturity": "proven", "readable": true, "structured": true, "references": true, "visual": false, "playback": false, "exports": ["raw"], "origin": "third_party", "decode": "partial", "write": "none", "priority": "medium", "archive_files": 84432, "evidence": "PASC version 8 wrapper around a DXBC container with DXIL (shader model 6.6). Archive Browser reads stage, entry point, signatures, resource bindings and feature flags from its PSV0, ISG1/OSG1, SFI0 and RDAT chunks (2026-10-31, game 1.0.0.3446).", "remaining": "the bytecode itself is not disassembled here; that needs dxc/dxil-dis, and there is no route to recompile an edited shader back into the cache" },
     { "extension": ".imp", "role": "metadata", "group": "material_metadata", "container": "binary", "analyzer": "generic_binary", "maturity": "raw_only", "readable": true, "structured": false, "references": true, "visual": false, "playback": false, "exports": ["raw"], "origin": "proprietary", "decode": "none", "write": "none", "priority": "low", "archive_files": 1612, "evidence": "magic IMP; unknown; 1,489 files", "remaining": "container identified, record layout unknown" },
-    { "extension": ".parg", "role": "metadata", "group": "material_metadata", "container": "binary", "analyzer": "prefab", "maturity": "proven", "readable": true, "structured": true, "references": true, "visual": false, "playback": false, "exports": ["raw", "decode_json"], "origin": "proprietary", "decode": "partial", "write": "none", "priority": "high", "archive_files": 783, "evidence": "cdmw/core/prefab_binary.py decodes it: same self-describing reflection container as .prefab (magic 0xFFFF, version 4, schema revision 14-15). All 750 shipped files decode their header, type table and string pool with no failures, exposing EmitterRenderGroupData with 12 root members. Across the 882 reflection files the schema recovers 29 types, 237 distinct member names and 41 value types including ParticleAlignMode, ParticleBlendMode, ParticleGeometryType and MaterialParameterTexture", "remaining": "the pointer-addressed heap walk does not complete, so nested values are not read; there is no writer for this extension yet. This is the particle render schema, so closing it opens VFX modding The heap walk diverges from .prefab in the pointee trailer: where a prefab repeats the consumed length, these files carry a padding byte and then a small value of 1, 2 or 3 (measured as 256/512/768 when read one byte early across 747 of the 882 files), so it is a kind tag rather than a length. That is where a future attempt should start." },
+    { "extension": ".parg", "role": "metadata", "group": "material_metadata", "container": "binary", "analyzer": "prefab", "maturity": "proven", "readable": true, "structured": true, "references": true, "visual": false, "playback": false, "exports": ["raw", "decode_json"], "origin": "proprietary", "decode": "full", "write": "constrained", "priority": "high", "archive_files": 783, "evidence": "Reflection container read with the grammar cdmw/core/effect_binary.py uses for effects: every non-empty shipped file walks to the last byte, and Archive Browser shows its object graph with values by declared member type (2026-10-31, game 1.0.0.3446).", "remaining": "Effect authoring clones presets and edits fixed-size values in place; strings and collections are read, not resized." },
     { "extension": ".pbd", "role": "metadata", "group": "material_metadata", "container": "binary", "analyzer": "generic_binary", "maturity": "raw_only", "readable": true, "structured": false, "references": true, "visual": false, "playback": false, "exports": ["raw"], "origin": "proprietary", "decode": "none", "write": "none", "priority": "low", "archive_files": 636, "evidence": "magic PBD; unknown; 584 files", "remaining": "container identified, record layout unknown" },
-    { "extension": ".save", "role": "metadata", "group": "material_metadata", "container": "binary", "analyzer": "generic_binary", "maturity": "raw_only", "readable": true, "structured": false, "references": true, "visual": false, "playback": false, "exports": [], "origin": "proprietary", "decode": "none", "write": "none", "priority": "low", "archive_files": 397, "evidence": "Encrypted with the standard filename-derived ChaCha20 key; decrypted LZ4 payloads expand to exactly their declared sizes (2026-10-31 review, game 1.0.0.3446). Earlier extraction failures came from the Python reader's content check, not from the key.", "remaining": "record layout not parsed" },
+    { "extension": ".save", "role": "metadata", "group": "material_metadata", "container": "binary", "analyzer": "generic_binary", "maturity": "proven", "readable": true, "structured": true, "references": true, "visual": false, "playback": false, "exports": [], "origin": "proprietary", "decode": "full", "write": "none", "priority": "low", "archive_files": 397, "evidence": "Reflection container read with the grammar cdmw/core/effect_binary.py uses for effects: every non-empty shipped file walks to the last byte, and Archive Browser shows its object graph with values by declared member type (2026-10-31, game 1.0.0.3446).", "remaining": "Read-only; member meanings beyond their names are not established." },
     { "extension": ".paatt", "role": "metadata", "group": "material_metadata", "container": "binary", "analyzer": "generic_binary", "maturity": "raw_only", "readable": true, "structured": false, "references": true, "visual": false, "playback": false, "exports": ["raw"], "origin": "proprietary", "decode": "none", "write": "none", "priority": "low", "archive_files": 229, "evidence": "magic 01000000; unknown; 223 files, sits beside the action charts", "remaining": "container identified, record layout unknown" },
-    { "extension": ".pcg", "role": "physics", "group": "model_mesh_physics", "container": "binary", "analyzer": "prefab", "maturity": "proven", "readable": true, "structured": true, "references": true, "visual": false, "playback": false, "exports": ["raw", "decode_json"], "origin": "proprietary", "decode": "partial", "write": "none", "priority": "medium", "archive_files": 320, "evidence": "cdmw/core/prefab_binary.py decodes it: same self-describing reflection container as .prefab (magic 0xFFFF, version 4, schema revision 14-15). All 92 shipped files decode their header, type table and string pool with no failures, exposing ConvexGeometry and its _convexHullList member", "remaining": "the pointer-addressed heap walk does not complete, so nested values are not read; there is no writer for this extension yet. Convex collision hulls, so a writer would allow custom collision" },
+    { "extension": ".pcg", "role": "physics", "group": "model_mesh_physics", "container": "binary", "analyzer": "prefab", "maturity": "proven", "readable": true, "structured": true, "references": true, "visual": true, "playback": false, "exports": ["raw", "decode_json"], "origin": "proprietary", "decode": "partial", "write": "none", "priority": "medium", "archive_files": 320, "evidence": "Read with the effect reflection grammar: 264 of 320 shipped files walk to the last byte and open as 3D convex hulls; 99% of their 41,333 faces are planar and bound the hull to within 0.4% of its size (2026-10-31, game 1.0.0.3446).", "remaining": "56 files stop at the by-value _convexHullList collection, whose element layout differs; there is no writer." },
     { "extension": ".spline2d", "role": "metadata", "group": "material_metadata", "container": "text", "analyzer": "xml", "maturity": "proven", "readable": true, "structured": true, "references": true, "visual": false, "playback": false, "exports": ["raw", "text"], "origin": "proprietary", "decode": "full", "write": "full", "priority": "low", "archive_files": 87, "evidence": "plain XML (SplinePresetData) carrying ReflectObjectXMLData, readable and shippable as text", "remaining": "no schema model, so edits are unchecked text edits" },
     { "extension": ".spline", "role": "metadata", "group": "material_metadata", "container": "text", "analyzer": "xml", "maturity": "proven", "readable": true, "structured": true, "references": true, "visual": false, "playback": false, "exports": ["raw", "text"], "origin": "proprietary", "decode": "full", "write": "full", "priority": "low", "archive_files": 112, "evidence": "plain XML (SplineDataGroup) carrying ReflectObjectXMLData, readable and shippable as text", "remaining": "no schema model, so edits are unchecked text edits" },
     { "extension": ".impostor", "role": "metadata", "group": "material_metadata", "container": "binary", "analyzer": "generic_binary", "maturity": "raw_only", "readable": true, "structured": false, "references": true, "visual": false, "playback": false, "exports": ["raw"], "origin": "proprietary", "decode": "none", "write": "none", "priority": "low", "archive_files": 45, "evidence": "magic df892040; impostor billboards for distant objects", "remaining": "container identified, record layout unknown" },
-    { "extension": ".pasg", "role": "metadata", "group": "material_metadata", "container": "binary", "analyzer": "prefab", "maturity": "proven", "readable": true, "structured": true, "references": true, "visual": false, "playback": false, "exports": ["raw", "decode_json"], "origin": "proprietary", "decode": "partial", "write": "none", "priority": "medium", "archive_files": 42, "evidence": "cdmw/core/prefab_binary.py decodes it: same self-describing reflection container as .prefab (magic 0xFFFF, version 4, schema revision 14-15). All 40 shipped files decode their header, type table and string pool with no failures, exposing EmitterSimulationGroupData with 9 root members", "remaining": "the pointer-addressed heap walk does not complete, so nested values are not read; there is no writer for this extension yet The heap walk diverges from .prefab in the pointee trailer: where a prefab repeats the consumed length, these files carry a padding byte and then a small value of 1, 2 or 3 (measured as 256/512/768 when read one byte early across 747 of the 882 files), so it is a kind tag rather than a length. That is where a future attempt should start." },
+    { "extension": ".pasg", "role": "metadata", "group": "material_metadata", "container": "binary", "analyzer": "prefab", "maturity": "proven", "readable": true, "structured": true, "references": true, "visual": false, "playback": false, "exports": ["raw", "decode_json"], "origin": "proprietary", "decode": "full", "write": "constrained", "priority": "medium", "archive_files": 42, "evidence": "Reflection container read with the grammar cdmw/core/effect_binary.py uses for effects: every non-empty shipped file walks to the last byte, and Archive Browser shows its object graph with values by declared member type (2026-10-31, game 1.0.0.3446).", "remaining": "Effect authoring clones presets and edits fixed-size values in place; strings and collections are read, not resized." },
     { "extension": ".ies", "role": "metadata", "group": "material_metadata", "container": "text", "analyzer": "text", "maturity": "proven", "readable": true, "structured": true, "references": true, "visual": false, "playback": false, "exports": ["raw", "text"], "origin": "open", "decode": "full", "write": "none", "priority": "none", "archive_files": 58, "evidence": "IESNA photometric light data, a published open format used unmodified", "remaining": "not an authoring target in CDMW" },
     { "extension": ".pamt", "role": "metadata", "group": "material_metadata", "container": "binary", "analyzer": "generic_binary", "maturity": "raw_only", "readable": true, "structured": false, "references": true, "visual": false, "playback": false, "exports": [], "origin": "proprietary", "decode": "none", "write": "none", "priority": "low", "archive_files": 34, "evidence": "archive containers stored as entries inside another archive; extraction fails ChaCha20 validation", "remaining": "nested container copies, not content to decode" },
     { "extension": ".mi", "role": "metadata", "group": "material_metadata", "container": "text", "analyzer": "xml", "maturity": "proven", "readable": true, "structured": true, "references": true, "visual": false, "playback": false, "exports": ["raw", "text"], "origin": "proprietary", "decode": "full", "write": "full", "priority": "low", "archive_files": 24, "evidence": "plain XML (SkinnedDecalProperty) carrying ReflectObjectXMLData", "remaining": "no schema model, so edits are unchecked text edits" },
     { "extension": ".pashv", "role": "metadata", "group": "material_metadata", "container": "binary", "analyzer": "generic_binary", "maturity": "raw_only", "readable": true, "structured": false, "references": true, "visual": false, "playback": false, "exports": ["raw"], "origin": "proprietary", "decode": "none", "write": "none", "priority": "low", "archive_files": 24, "evidence": "magic 15001a63; carries c_characterinfo_agenttype and interaction flag names", "remaining": "container identified, record layout unknown" },
-    { "extension": ".ttf", "role": "metadata", "group": "user_interface_text", "container": "binary", "analyzer": "generic_binary", "maturity": "proven", "readable": true, "structured": false, "references": true, "visual": false, "playback": false, "exports": ["raw"], "origin": "open", "decode": "full", "write": "none", "priority": "none", "archive_files": 19, "evidence": "TrueType font, a published open format used unmodified", "remaining": "not an authoring target in CDMW" },
+    { "extension": ".ttf", "role": "metadata", "group": "user_interface_text", "container": "binary", "analyzer": "generic_binary", "maturity": "proven", "readable": true, "structured": false, "references": true, "visual": true, "playback": false, "exports": ["raw"], "origin": "open", "decode": "full", "write": "none", "priority": "none", "archive_files": 19, "evidence": "TrueType font, a published open format used unmodified", "remaining": "not an authoring target in CDMW" },
     { "extension": ".dat", "role": "metadata", "group": "material_metadata", "container": "binary", "analyzer": "generic_binary", "maturity": "raw_only", "readable": true, "structured": false, "references": true, "visual": false, "playback": false, "exports": ["raw"], "origin": "proprietary", "decode": "none", "write": "none", "priority": "low", "archive_files": 20, "evidence": "magic 01000100; names level sectors such as intro_0001/sectorrootlevel", "remaining": "container identified, record layout unknown" },
     { "extension": ".technique", "role": "metadata", "group": "material_metadata", "container": "text", "analyzer": "xml", "maturity": "proven", "readable": true, "structured": true, "references": true, "visual": false, "playback": false, "exports": ["raw", "text"], "origin": "proprietary", "decode": "full", "write": "full", "priority": "none", "archive_files": 16, "evidence": "plain XML naming a shader Category and Technique; with the .padxil cache this is what makes texture and parameter semantics provable rather than guessed", "remaining": "" },
     { "extension": ".pasound", "role": "metadata", "group": "material_metadata", "container": "binary", "analyzer": "generic_binary", "maturity": "raw_only", "readable": true, "structured": false, "references": true, "visual": false, "playback": false, "exports": ["raw"], "origin": "proprietary", "decode": "none", "write": "none", "priority": "low", "archive_files": 16, "evidence": "magic 03004f05; names CONTROLLER_HEADPHONES/MOTION/SPEAKER routing targets", "remaining": "container identified, record layout unknown" },
@@ -468,7 +468,7 @@
     { "extension": ".binarygimmickframeevent", "role": "metadata", "group": "material_metadata", "container": "binary", "analyzer": "generic_binary", "maturity": "raw_only", "readable": true, "structured": false, "references": true, "visual": false, "playback": false, "exports": ["raw"], "origin": "proprietary", "decode": "none", "write": "none", "priority": "low", "archive_files": 0, "evidence": "magic 300c0000; 4.9 MB of gimmick frame events", "remaining": "container identified, record layout unknown" },
 
     { "extension": ".uibinary", "role": "metadata", "group": "user_interface_text", "container": "binary", "analyzer": "generic_binary", "maturity": "raw_only", "readable": true, "structured": false, "references": true, "visual": false, "playback": false, "exports": ["raw"], "origin": "proprietary", "decode": "none", "write": "none", "priority": "low", "archive_files": 356, "evidence": "Encrypted with the standard filename-derived ChaCha20 key; decrypted LZ4 payloads expand to exactly their declared sizes (2026-10-31 review, game 1.0.0.3446). Earlier extraction failures came from the Python reader's content check, not from the key.", "remaining": "record layout not parsed" },
-    { "extension": ".pars", "role": "metadata", "group": "material_metadata", "container": "binary", "analyzer": "generic_binary", "maturity": "header_only", "readable": true, "structured": false, "references": false, "visual": false, "playback": false, "exports": ["raw"], "origin": "third_party", "decode": "none", "write": "none", "priority": "low", "archive_files": 246, "evidence": "Encrypted with the standard filename-derived ChaCha20 key; decrypted LZ4 payloads expand to exactly their declared sizes (2026-10-31 review, game 1.0.0.3446). Earlier extraction failures came from the Python reader's content check, not from the key.", "remaining": "the bytecode itself is not disassembled here; that needs dxc/dxil-dis, and there is no route to recompile an edited shader back into the cache" },
+    { "extension": ".pars", "role": "metadata", "group": "material_metadata", "container": "binary", "analyzer": "generic_binary", "maturity": "proven", "readable": true, "structured": true, "references": false, "visual": false, "playback": false, "exports": ["raw"], "origin": "third_party", "decode": "full", "write": "none", "priority": "low", "archive_files": 246, "evidence": "Encrypted DXBC container with one RTS0 chunk, a serialized D3D12 root signature (version 1.1). Archive Browser decodes the parameters, descriptor ranges and static samplers of all 246 shipped files (2026-10-31, game 1.0.0.3446).", "remaining": "Which pipelines use each root signature is not recorded in the file; there is no writer." },
     { "extension": ".admeta", "role": "metadata", "group": "material_metadata", "container": "binary", "analyzer": "generic_binary", "maturity": "raw_only", "readable": true, "structured": false, "references": true, "visual": false, "playback": false, "exports": ["raw"], "origin": "proprietary", "decode": "none", "write": "none", "priority": "low", "archive_files": 1, "evidence": "Encrypted with the standard filename-derived ChaCha20 key; decrypted LZ4 payloads expand to exactly their declared sizes (2026-10-31 review, game 1.0.0.3446). Earlier extraction failures came from the Python reader's content check, not from the key.", "remaining": "record layout not parsed" },
     { "extension": ".contentgroupkeymap", "role": "metadata", "group": "material_metadata", "container": "binary", "analyzer": "generic_binary", "maturity": "raw_only", "readable": true, "structured": false, "references": true, "visual": false, "playback": false, "exports": ["raw"], "origin": "proprietary", "decode": "none", "write": "none", "priority": "low", "archive_files": 2, "evidence": "Encrypted with the standard filename-derived ChaCha20 key; decrypted LZ4 payloads expand to exactly their declared sizes (2026-10-31 review, game 1.0.0.3446). Earlier extraction failures came from the Python reader's content check, not from the key.", "remaining": "record layout not parsed" },
     { "extension": ".overridedlevellistbinary", "role": "metadata", "group": "material_metadata", "container": "binary", "analyzer": "generic_binary", "maturity": "raw_only", "readable": true, "structured": false, "references": true, "visual": false, "playback": false, "exports": ["raw"], "origin": "proprietary", "decode": "none", "write": "none", "priority": "low", "archive_files": 1, "evidence": "Encrypted with the standard filename-derived ChaCha20 key; decrypted LZ4 payloads expand to exactly their declared sizes (2026-10-31 review, game 1.0.0.3446). Earlier extraction failures came from the Python reader's content check, not from the key.", "remaining": "record layout not parsed" },
