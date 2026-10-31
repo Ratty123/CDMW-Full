@@ -354,6 +354,9 @@ class ArchiveTextSearchRequest:
     context_characters: int = 160
     regex_timeout_milliseconds: int = 1_000
     batch_size: int = 128
+    #: Search every file's stored bytes, binary ones included, not only text files.
+    #: Workers advertise support as "text_search_bytes_v1"; older ones ignore it.
+    match_bytes: bool = False
 
 
 @dataclass(frozen=True, slots=True)

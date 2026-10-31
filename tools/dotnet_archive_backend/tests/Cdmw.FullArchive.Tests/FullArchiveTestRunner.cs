@@ -758,6 +758,37 @@ internal static class FullArchiveTestRunner
             Require(searchMatches[0].Path == "text/hello.txt" && searchMatches[0].Line == 1, "text match location changed");
             Require(searchMatches[0].Package == "base/0.pamt", "text match package label changed");
 
+            // Text search skips binary files; byte search reads them as stored.
+            var rawQuery = "\u0002\u0003\u0004";
+            var textOnly = await search.SearchAsync(
+                new ArchiveTextSearchRequest(sessionHandle.SessionId, rawQuery, CaseSensitive: true, Extensions: [".bin"]),
+                null,
+                CancellationToken.None).ConfigureAwait(false);
+            Require(textOnly.FilesScanned == 1 && textOnly.FilesMatched == 0, "text search started reading binary files");
+            var byteBatches = new List<ArchiveTextSearchBatch>();
+            var rawSearch = await search.SearchAsync(
+                new ArchiveTextSearchRequest(
+                    sessionHandle.SessionId, rawQuery, CaseSensitive: true, Extensions: [".bin"], BatchSize: 1, MatchBytes: true),
+                batch =>
+                {
+                    byteBatches.Add(batch);
+                    return Task.CompletedTask;
+                },
+                CancellationToken.None).ConfigureAwait(false);
+            var byteMatches = byteBatches.SelectMany(static batch => batch.Matches).ToArray();
+            Require(
+                rawSearch.IsFinal && rawSearch.FilesMatched == 1 && byteMatches.Length == 1
+                && byteMatches[0].Path == "binary/blob.bin" && byteMatches[0].Column == 3,
+                "byte search did not find raw bytes in a binary file: "
+                + $"scanned={rawSearch.FilesScanned} matched={rawSearch.FilesMatched} "
+                + string.Join(", ", byteMatches.Select(static match => $"{match.Path}@{match.Column}"))
+                + " warnings=" + string.Join("; ", rawSearch.Warnings));
+            var caseless = await search.SearchAsync(
+                new ArchiveTextSearchRequest(sessionHandle.SessionId, "CRIMSON", Extensions: [".txt", ".bin"], MatchBytes: true),
+                null,
+                CancellationToken.None).ConfigureAwait(false);
+            Require(caseless.FilesScanned == 2 && caseless.FilesMatched == 1, "byte search is not case-insensitive by default");
+
             var preparation = new ArchiveEntryPreparationService(sessions, native);
             var prepared = await preparation.PrepareAsync(
                 new PrepareEntryRequest(sessionHandle.SessionId, 2),
@@ -1261,6 +1292,11 @@ internal static class FullArchiveTestRunner
                 "clip preview did not deliver exactly its distance LOD");
             var lod = await CandidatesFor("character/motion/motion_lod__/1_pc/1_phm/idle_lod.paa").ConfigureAwait(false);
             Require(lod.Contains("character/motion/1_pc/1_phm/idle.paa"), "LOD preview did not deliver its base clip");
+            var impostor = await CandidatesFor("tree/impostor/bush_alder_01.imp").ConfigureAwait(false);
+            Require(impostor.Contains("tree/impostor/bush_alder_01_impostor_color.dds")
+                && impostor.Contains("tree/impostor/bush_alder_01_impostor_depth.dds")
+                && !impostor.Contains("tree/impostor/bush_alder_02_impostor_color.dds"),
+                "impostor preview did not deliver exactly its two atlases");
         }
         finally
         {
@@ -1944,6 +1980,8 @@ internal static class FullArchiveTestRunner
                     "worker did not advertise custom folder exclusions");
                 Require(pingResult?.Capabilities?.Contains("archive_ignored_folders_v2") == true,
                     "worker did not advertise removable default exclusions");
+                Require(pingResult?.Capabilities?.Contains("text_search_bytes_v1") == true,
+                    "worker did not advertise byte search");
 
                 var ignoredFolder = Path.Combine(fixture.Root, "My backups");
                 Directory.CreateDirectory(ignoredFolder);

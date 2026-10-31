@@ -139,7 +139,9 @@ def test_animation_targets_read_charts_and_blend_spaces_first(tmp_path):
     assert ".paac" not in reference_source_extension_groups(texture)[0]
 
 
-def test_legacy_search_reaches_banks_and_metadata_before_large_model_payloads(app, tmp_path, monkeypatch):
+def test_legacy_search_reads_only_banks_for_a_numeric_sound(app, tmp_path, monkeypatch):
+    # No shipped file stores a .wem path (all 1,133,077 reference containers of
+    # game 1.0.0.3446 were read); banks name sounds by media ID.
     from cdmw.workers import archive_reference_workers
     data = bank()
     files = entries_at(tmp_path, [
@@ -155,8 +157,8 @@ def test_legacy_search_reaches_banks_and_metadata_before_large_model_payloads(ap
     try:
         controller.start(files[0], files)
         wait_for(app, lambda: not controller.busy)
-        assert {ref.resolved_entry.path for ref in controller.state.references} == {"audio/bank.bnk", "audio/info.xml"}
-        assert scanned == ["audio/bank.bnk", "audio/info.xml", "character/body.pac"]
+        assert {ref.resolved_entry.path for ref in controller.state.references} == {"audio/bank.bnk"}
+        assert scanned == ["audio/bank.bnk"]
         assert not controller.state.limited
     finally:
         controller.cancel()
@@ -426,7 +428,7 @@ def test_search_continues_past_two_gib_in_bounded_batches(app, tmp_path, monkeyp
         wait_for(app, lambda: not controller.busy)
 
 
-def test_remote_search_prioritizes_banks_then_text_without_losing_binary_references(app, tmp_path):
+def test_paged_search_also_skips_named_voice_lines(app, tmp_path):
     path = "sound/windows/english(us)/dialogue.wem"
     files = entries_at(tmp_path, [(path, b"RIFF"), ("character/body.pac", path.encode()),
                                   ("audio/bank.bnk", bank()), ("sound/dialogue.xml", path.encode())])
@@ -435,10 +437,8 @@ def test_remote_search_prioritizes_banks_then_text_without_losing_binary_referen
     try:
         controller.start(files[0], session_id="session")
         wait_for(app, lambda: not controller.busy)
-        assert not controller.state.error
-        assert catalogue.prepared == [1, 2, 0]
-        assert controller.state.scanned == controller.state.total == 3
-        assert [ref.resolved_entry.path for ref in controller.state.references] == ["sound/dialogue.xml", "character/body.pac"]
+        assert not controller.state.error and controller.state.note == "runtime_named_sound"
+        assert not catalogue.queries and not catalogue.prepared and not controller.state.references
     finally:
         controller.cancel()
         wait_for(app, lambda: not controller.busy)
@@ -513,11 +513,14 @@ def test_real_worker_search_consumes_streamed_preparation(app, tmp_path, basenam
         controller.start(target, session_id=session.session_id, generation=5)
         assert _Awaiter._wait_until(lambda: not controller.busy, timeout_ms=15000)
         assert not controller.state.error, controller.state.error
-        expected = {"sound/scene.xml", "character/body.pac"}
         if basename == "42.wem":
-            expected.add("sound/bank20.bnk")
-        assert {ref.resolved_archive_path for ref in controller.state.references} == expected
-        assert controller.state.scanned == controller.state.total == 23
+            # The worker byte-searches the 21 banks for the media ID; Python reads the one hit.
+            assert {ref.resolved_archive_path for ref in controller.state.references} == {"sound/bank20.bnk"}
+            assert controller.state.scanned == controller.state.total == 21
+            assert controller.state.candidates == (1 if service.byte_search_available else 0)
+        else:
+            assert not controller.state.references and controller.state.note == "runtime_named_sound"
+            assert controller.state.scanned == controller.state.total == 0
         assert before == {path: hashlib.sha256(path.read_bytes()).hexdigest() for path in package.iterdir()}
     finally:
         controller.cancel()
@@ -591,15 +594,23 @@ def test_button_search_displays_confirmed_and_guesses_separately(app, tmp_path):
         owner.deleteLater()
 
 
-@pytest.mark.parametrize("target_path", ["ui/icon.png", "audio/voice.ogg"])
-def test_other_registered_images_and_sounds_expose_search(app, tmp_path, target_path):
-    files = entries_at(tmp_path, [(target_path, b""), ("ui/scene.xml", target_path.encode())])
+@pytest.mark.parametrize("target_path, source_path, found", [
+    ("ui/icon.png", "tree/bush_icon.pat", True),
+    # No shipped file names an .ogg, so the search says so instead of reading.
+    ("audio/voice.ogg", "ui/scene.xml", False),
+])
+def test_other_registered_images_and_sounds_expose_search(app, tmp_path, target_path, source_path, found):
+    files = entries_at(tmp_path, [(target_path, b""), (source_path, target_path.encode())])
     owner = Family(files[0], files)
     try:
         assert owner._archive_has_asset_family_workspace()
         owner.archive_reference_search_button.click()
         wait_for(app, lambda: not owner.archive_reference_search_controller.busy)
-        assert owner.current_archive_used_by_references[0].resolved_entry == files[1]
+        if found:
+            assert owner.current_archive_used_by_references[0].resolved_entry == files[1]
+        else:
+            assert not owner.current_archive_used_by_references
+            assert owner.archive_reference_search_status.text().startswith("Not searched")
     finally:
         owner._cancel_archive_reference_search()
         wait_for(app, lambda: not owner.archive_reference_search_controller.busy)
@@ -667,3 +678,143 @@ def test_real_layout_and_full_panel_preserve_incoming_results(app, tmp_path, tex
         wait_for(app, lambda: not owner.archive_reference_search_controller.busy)
         owner.archive_texture_refs_group.deleteLater()
         owner.deleteLater()
+
+
+# -- measured source formats and the worker's byte search ----------------------
+
+
+class ByteSearchCatalogue(Catalogue):
+    """A catalogue whose worker offers byte search, as text_search_bytes_v1 workers do."""
+
+    progress = Signal(str, object)
+    byte_search_available = True
+
+    def __init__(self, entries):
+        super().__init__(entries)
+        self.searches = []
+        self.resolved = []
+
+    def text_search(self, request, **_kwargs):
+        from cdmw.domain.archives.catalogue_operations import ArchiveTextMatch, ArchiveTextSearchBatch
+        self.searches.append(request)
+        needles = [request.query]
+        if request.query.isascii() and request.query.isprintable():
+            needles += ["".join(f"{c}\0" for c in request.query), "".join(f"\0{c}" for c in request.query)]
+        matches, scanned = [], 0
+        for index, entry in enumerate(self.entries):
+            if entry.extension not in request.extensions:
+                continue
+            scanned += 1
+            text = entry.paz_file.read_bytes()[entry.offset:entry.offset + entry.orig_size].decode("latin-1")
+            haystack = text if request.case_sensitive else text.lower()
+            if any((needle if request.case_sensitive else needle.lower()) in haystack for needle in needles):
+                matches.append(ArchiveTextMatch(index, entry.path, 1, 1, len(request.query), "", "0"))
+        self.counter += 1
+        request_id = str(self.counter)
+        def publish():
+            self.batch_ready.emit(request_id, "text_search", ArchiveTextSearchBatch(
+                "session", scanned, len(matches), 0, tuple(matches), False, False, ()))
+            self.result_ready.emit(request_id, "text_search", ArchiveTextSearchBatch(
+                "session", scanned, len(matches), 0, (), True, False, ()))
+        QTimer.singleShot(0, publish)
+        return request_id
+
+    def resolve_entries(self, request, **_kwargs):
+        from cdmw.domain.archives.catalogue import ArchiveLookupResult
+        self.resolved.extend(request.entry_ids)
+        rows = tuple(self.dto(index) for index in request.entry_ids)
+        self.counter += 1
+        request_id = str(self.counter)
+        def publish():
+            self.batch_ready.emit(request_id, "resolve_entries", ArchiveLookupResult("session", rows, len(rows), False))
+            self.result_ready.emit(request_id, "resolve_entries", ArchiveLookupResult("session", (), len(rows), False))
+        QTimer.singleShot(0, publish)
+        return request_id
+
+
+def run_search(app, controller, target):
+    try:
+        controller.start(target, session_id="session", generation=3)
+        wait_for(app, lambda: not controller.busy)
+        return controller.state
+    finally:
+        controller.cancel()
+        wait_for(app, lambda: not controller.busy)
+
+
+def test_named_voice_lines_are_not_searched(app, tmp_path):
+    path = "sound/windows/chinese(prc)/unique_kliff_aidialogstringinfo_affinity_quest_51013.wem"
+    files = entries_at(tmp_path, [(path, b"RIFF"), ("sound/dialogue.xml", path.encode()), ("audio/a.bnk", bank())])
+    catalogue = ByteSearchCatalogue(files[1:])
+
+    state = run_search(app, ArchiveReferenceSearchController(catalogue), files[0])
+
+    assert state.finished and not state.error and not state.references
+    assert state.note == "runtime_named_sound"
+    assert not catalogue.queries and not catalogue.searches and not catalogue.prepared
+
+
+def test_byte_search_reads_only_measured_formats_and_candidate_files(app, tmp_path):
+    texture = "character/texture/rock_d.dds"
+    files = entries_at(tmp_path, [
+        (texture, b"DDS "),
+        ("object/rock.pami", f'<Texture path="{texture}"/>'.encode()),
+        ("object/other.pami", b'<Texture path="character/texture/sand_d.dds"/>'),
+        ("object/rock.pam", b"PAR \x00\x00" + texture.upper().encode("utf-16-le") + b"\x00\x00"),
+        ("character/model/rock.pac", texture.encode()),
+    ])
+    catalogue = ByteSearchCatalogue(files[1:])
+
+    state = run_search(app, ArchiveReferenceSearchController(catalogue), files[0])
+
+    assert not state.error and not state.limited
+    assert {ref.resolved_entry.path for ref in state.references} == {"object/rock.pami", "object/rock.pam"}
+    assert all(search.match_bytes and not search.case_sensitive for search in catalogue.searches)
+    assert all(".pac" not in search.extensions for search in catalogue.searches)
+    assert sorted(catalogue.resolved) == sorted(catalogue.prepared) == [0, 2]
+    assert state.candidates == 2 and state.scanned == state.total == 3
+    assert not catalogue.pages
+
+
+def test_numeric_sounds_search_banks_for_their_media_id_bytes(app, tmp_path):
+    from cdmw.core.archive_reverse_references import bank_media_id_query
+    files = entries_at(tmp_path, [("audio/42.wem", b"RIFF"), ("audio/a.bnk", bank(media_id=43)), ("audio/b.bnk", bank()),
+                                  ("audio/info.xml", b'"audio/42.wem"')])
+    catalogue = ByteSearchCatalogue(files[1:])
+
+    state = run_search(app, ArchiveReferenceSearchController(catalogue), files[0])
+
+    assert [ref.resolved_archive_path for ref in state.references] == ["audio/b.bnk"]
+    (search,) = catalogue.searches
+    assert search.query == bank_media_id_query(42) and search.case_sensitive and search.extensions == (".bnk",)
+    assert catalogue.prepared == [1]
+
+
+def test_older_workers_fall_back_to_reading_the_measured_formats(app, tmp_path):
+    texture = "character/texture/rock_d.dds"
+    files = entries_at(tmp_path, [(texture, b"DDS "), ("object/rock.pami", f'"{texture}"'.encode()),
+                                  ("character/model/rock.pac", texture.encode())])
+    catalogue = Catalogue(files[1:])
+
+    state = run_search(app, ArchiveReferenceSearchController(catalogue), files[0])
+
+    assert [ref.resolved_entry.path for ref in state.references] == ["object/rock.pami"]
+    assert catalogue.prepared == [0] and all(".pac" not in query.extensions for query in catalogue.queries)
+
+
+def test_files_without_the_name_are_rejected_before_any_decoding():
+    from cdmw.core.archive_reverse_references import may_name_target
+    assert may_name_target(b"..ROCK_D.DDS..", ("rock_d.dds",))
+    assert may_name_target("x rock_d.dds".encode("utf-16-le"), ("rock_d.dds",))
+    assert may_name_target("x rock_d.dds".encode("utf-16-be"), ("rock_d.dds",))
+    assert not may_name_target(b"rock_n.dds sand_d.dds", ("rock_d.dds",))
+
+
+def test_length_prefixed_paths_count_whatever_byte_follows_them(tmp_path):
+    path = "effect/texture/pafx_grass_001a_1bit.dds"
+    stored = struct.pack("<I", len(path)) + path.encode() + b"/\x00\x00\x00Y"
+    target, preset = entries_at(tmp_path, [(path, b"DDS "), ("effect/binary__/renderpreset/grass.parg", b"\x00" * 8 + stored)])
+    ref, _supported = incoming_reference(target, preset, b"\x00" * 8 + stored)
+    assert ref is not None and ref.relation_confidence == "explicit_path" and ref.relation_reason == path
+    longer = struct.pack("<I", len(path) + 4) + b"old/" + path.encode() + b"/"
+    assert incoming_reference(target, preset, longer)[0] is None

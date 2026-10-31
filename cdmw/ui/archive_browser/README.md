@@ -536,9 +536,18 @@ preview failure or cache reuse. An exact metadata companion can expose Asset Fam
 for non-model files without adding unrelated model-family guesses.
 
 Asset Family's **Find references** scans incoming references on demand, independently
-of the preview dependency snapshot. `archive_reference_search.py` pages the resident
-catalogue and prepares batches through its existing read-only API; legacy archives
-use the same cancellable Python reader. Selection changes, hiding the panel and shell
+of the preview dependency snapshot. `reference_search_plan` limits a search to the
+formats measured to store paths of the target's kind
+(`cdmw/domain/archives/reference_sources.py`); a numeric `.wem` searches banks for
+its media ID, a named `.wem` (voice lines) is not searched because no game file
+stores its path, and types no measured format names (`.pamlod`, `.seqmt`, most
+audio and video) say so instead of searching. With a worker that advertises `text_search_bytes_v1`,
+`archive_reference_search.py` asks it to byte-search those formats for the target's
+name, then resolves and prepares only the matching files for the Python check;
+older workers fall back to paging and preparing every file of those formats, and
+legacy archives use the same cancellable Python reader. Either way a file that
+does not contain the name's bytes is rejected before any text decoding, and Asset
+Family is rebuilt only when results change. Selection changes, hiding the panel and shell
 shutdown cancel outstanding work; stale results cannot replace another selection.
 Preparation items arrive on `batch_ready`; the final reply contains totals and no
 items. The controller validates and retains only the current page's streamed items
@@ -624,8 +633,12 @@ inspectors before the readable-strings fallback:
   RDAT and RTS0. DXIL/STAT bitcode is not disassembled.
 - `.parg`, `.pasg`, `.pcg`, `.save` and `.uianiminit`: `archive_reflect_preview.py`
   decodes them with `effect_binary.py` and lists the object graph. A fully walked
-  `.pcg` also returns a convex-hull model for the 3D view. `.pae`/`.paem` keep the
-  structured inspector, led by the same exact graph.
+  `.pcg` also returns a convex-hull model for the 3D view; schema revision 14 files
+  are read without collection presence bytes. `.pae`/`.paem` keep the structured
+  inspector, led by the same exact graph.
+- `.imp` tree impostors: `archive_impostor_preview.py` labels the 72-byte record,
+  and the builder shows the `_impostor_color.dds` atlas the worker supplies as a
+  preview companion (`ArchiveLookupService.AddPreviewCompanionPaths`).
 - `.ttf`/`.otf`/`.ttc` fonts and `.ani` cursors: `archive_ui_resource_preview.py`
   reads the sfnt tables or RIFF chunks and renders a PNG with Pillow into the
   pruned `archive_preview_cache` (units named `ui-<kind>-v1-<content hash>`).

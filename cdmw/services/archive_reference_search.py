@@ -1,4 +1,10 @@
-"""Paged incoming-reference search over legacy entries or the resident catalogue."""
+"""Incoming-reference search over legacy entries or the resident catalogue.
+
+A search reads only the formats measured to store paths of the target's kind
+(`reference_search_plan`). With a worker that offers byte search, the worker
+finds the files holding the target's name natively and Python reads just those;
+otherwise every file of those formats is prepared and read in pages.
+"""
 
 from __future__ import annotations
 
@@ -8,11 +14,16 @@ from pathlib import Path
 from PySide6.QtCore import QObject, QThread, QTimer, Signal
 
 from cdmw.core.archive_reverse_references import (
-    MAX_REFERENCE_FILE_BYTES, MAX_REFERENCE_RESULTS, ReferenceScanBatch,
-    REVERSE_TARGET_EXTENSIONS, reference_evidence_group, reference_source_extension_groups,
+    MAX_REFERENCE_FILE_BYTES, MAX_REFERENCE_RESULTS, NOTE_NO_PATH_SOURCES, NOTE_RUNTIME_NAMED_SOUND, ReferenceScanBatch,
+    REVERSE_TARGET_EXTENSIONS, bank_media_id_query, reference_evidence_group, reference_search_plan,
+    reference_source_extension_groups,
 )
-from cdmw.domain.archives.catalogue import ArchivePage, ArchiveQuery, ArchiveQueryHandle
-from cdmw.domain.archives.catalogue_operations import FetchPageRequest, PrepareEntriesRequest, PrepareEntriesResult
+from cdmw.domain.archives.catalogue import (
+    ArchiveLookupKind, ArchiveLookupRequest, ArchiveLookupResult, ArchivePage, ArchiveQuery, ArchiveQueryHandle,
+)
+from cdmw.domain.archives.catalogue_operations import (
+    ArchiveTextSearchBatch, ArchiveTextSearchRequest, FetchPageRequest, PrepareEntriesRequest, PrepareEntriesResult,
+)
 from cdmw.models import ArchiveEntry, ArchiveModelTextureReference
 from cdmw.services.archive_catalogue_service import ArchiveCatalogueService
 from cdmw.workers.archive_reference_workers import ArchiveReferenceScanWorker
@@ -35,6 +46,16 @@ class ReferenceSearchState:
     cancelled: bool = False
     limited: bool = False
     error: str = ""
+    #: Why the plan reads nothing, for example a sound chosen by name at run time.
+    note: str = ""
+    #: Files the worker's byte search found holding the target's name.
+    candidates: int = 0
+
+
+#: Worker byte-search hits per needle; a stem shared by thousands of files stops here.
+MAX_REFERENCE_CANDIDATES = 10_000
+#: Candidate files resolved and prepared per request in the byte-search path.
+CANDIDATE_PAGE_SIZE = 32
 
 
 class ArchiveReferenceSearchController(QObject):
@@ -57,11 +78,25 @@ class ArchiveReferenceSearchController(QObject):
         self._position = 0
         self._extension_groups = iter(())
         self._source_extensions = ()
+        self._plan = None
+        self._native = False
+        self._needle_queries = []
+        self._candidates = {}
+        self._confirm_ids = ()
+        self._confirm_position = 0
+        self._confirming = False
+        self._resolved = []
+        self._group_total = 0
+        self._scanned_base = 0
+        self._counting_scans = False
         if catalogue is not None:
             catalogue.result_ready.connect(self._result)
             catalogue.batch_ready.connect(self._prepared_batch)
             catalogue.request_failed.connect(self._failure)
             catalogue.request_cancelled.connect(self._cancelled)
+            progress = getattr(catalogue, "progress", None)
+            if progress is not None:
+                progress.connect(self._progress)
 
     @property
     def busy(self):
@@ -75,8 +110,20 @@ class ArchiveReferenceSearchController(QObject):
         self._position = 0
         self._query = None
         self._legacy = tuple(entries) if not session_id else ()
-        self._extension_groups = iter(reference_source_extension_groups(target))
-        self.state = ReferenceSearchState(generation, replace(target), session_id, total=len(self._legacy))
+        self._needle_queries = []
+        self._candidates = {}
+        self._confirm_ids = ()
+        self._confirming = False
+        self._resolved = []
+        self._counting_scans = False
+        self._scanned_base = 0
+        self._group_total = 0
+        self._plan = reference_search_plan(target)
+        self._native = bool(session_id) and bool(getattr(self.catalogue, "byte_search_available", False))
+        self._extension_groups = iter(self._plan.groups)
+        self.state = ReferenceSearchState(
+            generation, replace(target), session_id, total=len(self._legacy), note=self._plan.note,
+        )
         self.updated.emit(self.state)
         self._next_source_group()
         return True
@@ -127,13 +174,118 @@ class ArchiveReferenceSearchController(QObject):
         self._active = False
         self._request = None
         self._prepared.clear()
+        self._candidates = {}
+        self._confirm_ids = ()
+        self._confirming = False
+        self._resolved = []
         self.state = replace(self.state, finished=True, **fields)
         self.updated.emit(self.state)
         if self._thread is None:
             self.idle.emit()
 
+    # -- byte-search path: the worker finds candidate files, Python confirms them
+
+    def _begin_native_search(self):
+        plan = self._plan
+        if plan.bank_media_id is not None and ".bnk" in self._source_extensions:
+            # Banks store media IDs as four little-endian bytes, never as names.
+            self._needle_queries = [(bank_media_id_query(plan.bank_media_id), True)]
+        else:
+            self._needle_queries = [(needle, False) for needle in plan.needles]
+        self._candidates = {}
+        self._scanned_base = self.state.scanned
+        self._search_next_needle(first=True)
+
+    def _search_next_needle(self, *, first=False):
+        if not self._active:
+            return
+        if not self._needle_queries:
+            self._counting_scans = False
+            self._confirm_ids = tuple(self._candidates)
+            self._confirm_position = 0
+            self._confirming = True
+            self.state = replace(self.state, candidates=self.state.candidates + len(self._confirm_ids))
+            self.updated.emit(self.state)
+            self._confirm_next()
+            return
+        query, case_sensitive = self._needle_queries.pop(0)
+        self._counting_scans = first
+        try:
+            self._request = self.catalogue.text_search(
+                ArchiveTextSearchRequest(
+                    self.state.session_id, query, case_sensitive=case_sensitive,
+                    extensions=self._source_extensions, maximum_matches=MAX_REFERENCE_CANDIDATES,
+                    context_characters=0, match_bytes=True,
+                ),
+                ui_generation=self.state.generation,
+            )
+        except Exception as exc:
+            self._finish(error=str(exc))
+
+    def _collect_candidates(self, payload):
+        if payload.session_id != self.state.session_id:
+            raise ValueError("Reference search received a mismatched archive search batch.")
+        for match in payload.matches:
+            self._candidates.setdefault(match.entry_id, None)
+        fields = {"limited": self.state.limited or payload.limit_reached}
+        if self._counting_scans:
+            scanned = self._scanned_base + payload.files_scanned
+            fields.update(scanned=scanned, visited=scanned)
+        self.state = replace(self.state, **fields)
+        self.updated.emit(self.state)
+
+    def _confirm_next(self):
+        if not self._active or self._thread is not None:
+            return
+        if len(self.state.references) >= MAX_REFERENCE_RESULTS:
+            self._finish(limited=True)
+            return
+        if self._confirm_position >= len(self._confirm_ids):
+            self._confirming = False
+            self._next_source_group()
+            return
+        chunk = self._confirm_ids[self._confirm_position:self._confirm_position + CANDIDATE_PAGE_SIZE]
+        self._confirm_position += len(chunk)
+        self._resolved = []
+        try:
+            self._request = self.catalogue.resolve_entries(
+                ArchiveLookupRequest(self.state.session_id, ArchiveLookupKind.ENTRY_IDS, entry_ids=chunk, limit=len(chunk)),
+                ui_generation=self.state.generation,
+            )
+        except Exception as exc:
+            self._finish(error=str(exc))
+
+    def _prepare_page(self, rows):
+        entries = self._admit(tuple(ArchiveCatalogueService.compatibility_entry(dto) for dto in rows))
+        identities = {entry.identity for entry in entries}
+        self._page = tuple(dto for dto in rows if ArchiveCatalogueService.compatibility_entry(dto).identity in identities)
+        if self._page:
+            self._prepared.clear()
+            self._request = self.catalogue.prepare_entries(
+                PrepareEntriesRequest(self.state.session_id, tuple(dto.entry_id for dto in self._page)),
+                ui_generation=self.state.generation,
+            )
+        else:
+            QTimer.singleShot(0, self._advance)
+
+    def _progress(self, request_id, update):
+        # Text search reports its walk over the whole index; scale it to this group
+        # so the counter moves while no candidate has been found yet.
+        if not (self._active and self._native and request_id == self._request and self._counting_scans):
+            return
+        current, total = getattr(update, "completed", 0), getattr(update, "total", 0)
+        if not total or self._group_total <= 0:
+            return
+        estimate = self._scanned_base + min(self._group_total, int(self._group_total * current / total))
+        if estimate > self.state.scanned:
+            self.state = replace(self.state, scanned=estimate, visited=estimate)
+            self.updated.emit(self.state)
+
     def _advance(self):
         if not self._active or self._thread is not None:
+            return
+        if self._confirming:
+            self._confirm_next()
             return
         if len(self.state.references) >= MAX_REFERENCE_RESULTS:
             self._finish(limited=True)
@@ -179,8 +331,25 @@ class ArchiveReferenceSearchController(QObject):
                 if payload.session_id != self.state.session_id:
                     raise ValueError("Reference search received a mismatched archive page.")
                 self._query = payload
+                self._group_total = payload.total_matches
                 self.state = replace(self.state, total=self.state.total + payload.total_matches)
-                self._advance()
+                if self._native:
+                    if payload.total_matches:
+                        self._begin_native_search()
+                    else:
+                        self._next_source_group()
+                else:
+                    self._advance()
+            elif isinstance(payload, ArchiveTextSearchBatch):
+                # The final reply carries totals only; matches arrived as batches.
+                self._collect_candidates(payload)
+                self._search_next_needle()
+            elif isinstance(payload, ArchiveLookupResult):
+                rows = (*self._resolved, *payload.entries)
+                self._resolved = []
+                if payload.session_id != self.state.session_id or any(dto.session_id != self.state.session_id for dto in rows):
+                    raise ValueError("Reference search received a mismatched archive lookup.")
+                self._prepare_page(tuple(rows))
             elif isinstance(payload, ArchivePage):
                 if (payload.page_start != self._position or payload.query_id != self._query.query_id
                         or payload.session_id != self.state.session_id or payload.generation != self._query.generation):
@@ -192,17 +361,7 @@ class ArchiveReferenceSearchController(QObject):
                     return
                 self._position += len(payload.rows)
                 self.state = replace(self.state, visited=self.state.visited + len(payload.rows))
-                entries = self._admit(tuple(ArchiveCatalogueService.compatibility_entry(dto) for dto in payload.rows))
-                identities = {entry.identity for entry in entries}
-                self._page = tuple(dto for dto in payload.rows if ArchiveCatalogueService.compatibility_entry(dto).identity in identities)
-                if self._page:
-                    self._prepared.clear()
-                    self._request = self.catalogue.prepare_entries(
-                        PrepareEntriesRequest(self.state.session_id, tuple(dto.entry_id for dto in self._page)),
-                        ui_generation=self.state.generation,
-                    )
-                else:
-                    QTimer.singleShot(0, self._advance)
+                self._prepare_page(payload.rows)
             elif isinstance(payload, PrepareEntriesResult):
                 self._collect_prepared(payload)
                 prepared, self._prepared = self._prepared, {}
@@ -240,6 +399,12 @@ class ArchiveReferenceSearchController(QObject):
         if not self._active or request_id != self._request:
             return
         try:
+            if isinstance(payload, ArchiveTextSearchBatch):
+                self._collect_candidates(payload)
+                return
+            if isinstance(payload, ArchiveLookupResult):
+                self._resolved.extend(payload.entries)
+                return
             if not isinstance(payload, PrepareEntriesResult):
                 raise ValueError("Reference search received an unexpected archive response.")
             self._collect_prepared(payload)
@@ -269,9 +434,11 @@ class ArchiveReferenceSearchController(QObject):
         if not self._active or epoch != self._epoch:
             return
         references = (*self.state.references, *result.references)
+        # In the byte-search path the worker already counted these files as searched.
+        scanned = self.state.scanned + (0 if self._native else result.scanned)
         self.state = replace(
             self.state, references=references[:MAX_REFERENCE_RESULTS],
-            scanned=self.state.scanned + result.scanned, skipped=self.state.skipped + result.skipped,
+            scanned=scanned, skipped=self.state.skipped + result.skipped,
             unreadable=self.state.unreadable + result.unreadable,
             unsupported_banks=self.state.unsupported_banks + result.unsupported_banks,
             bytes_read=self.state.bytes_read + result.bytes_read,

@@ -3057,16 +3057,6 @@
       ]
     },
     {
-      "key": "56 files stop at the by-value _convexHullList collection, whose element layout differs; there is no writer.",
-      "origins": [
-        {
-          "path": "schemas/archive_content_capabilities.v1.json",
-          "line": 1,
-          "sink": "json-presentation:remaining"
-        }
-      ]
-    },
-    {
       "key": "6. Export Summary",
       "origins": [
         {
@@ -3083,6 +3073,16 @@
           "path": "cdmw/ui/settings_tab.py",
           "line": 392,
           "sink": "addItem"
+        }
+      ]
+    },
+    {
+      "key": "72-byte IMP version 1 records beside 1024 x 1024 colour (DXT1) and depth (BC4) atlases; the two integers that are 1024 and 8 in every file match the atlas size and its 8 x 8 grid of views. Archive Browser shows the colour atlas and links both (2026-10-31, game 1.0.0.3446).",
+      "origins": [
+        {
+          "path": "schemas/archive_content_capabilities.v1.json",
+          "line": 1,
+          "sink": "json-presentation:evidence"
         }
       ]
     },
@@ -14577,12 +14577,32 @@
       ]
     },
     {
+      "key": "Asset Family already lists this sound's lip-sync clip and its copies in other languages.",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/asset_family_panel.py",
+          "line": 94,
+          "sink": "translate_active_ui_text"
+        }
+      ]
+    },
+    {
       "key": "Asset Family lists a clip's event metadata, distance LOD and other voice-language copies as Path layout. A lip-sync clip and the voice line with the same name and language are paired as Line name; neither file names the other. Wwise sound details show the codec, length, loop points and markers.",
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
           "line": 365,
           "sink": "python-return:_build_archive_mesh_sections"
+        }
+      ]
+    },
+    {
+      "key": "Asset Family lists the files linked to it by name or folder layout.",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/asset_family_panel.py",
+          "line": 101,
+          "sink": "translate_active_ui_text"
         }
       ]
     },
@@ -95622,6 +95642,26 @@
       ]
     },
     {
+      "key": "Not searched: no game file stores paths to this kind of file.",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/asset_family_panel.py",
+          "line": 98,
+          "sink": "translate_active_ui_text"
+        }
+      ]
+    },
+    {
+      "key": "Not searched: the game picks voice lines and named sounds by name while it runs, so no game file stores their path.",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/asset_family_panel.py",
+          "line": 91,
+          "sink": "translate_active_ui_text"
+        }
+      ]
+    },
+    {
       "key": "Not set",
       "origins": [
         {
@@ -116592,7 +116632,7 @@
       ]
     },
     {
-      "key": "Read with the effect reflection grammar: 264 of 320 shipped files walk to the last byte and open as 3D convex hulls; 99% of their 41,333 faces are planar and bound the hull to within 0.4% of its size (2026-10-31, game 1.0.0.3446).",
+      "key": "Read with the effect reflection grammar: all 320 shipped files walk to the last byte (the 56 at schema revision 14 write collection counts without a presence byte) and open as 3D convex hulls; 99% of their 72,035 faces are planar and bound the hull to within 0.3% of its size (2026-10-31, game 1.0.0.3446).",
       "origins": [
         {
           "path": "schemas/archive_content_capabilities.v1.json",
@@ -120136,7 +120176,17 @@
         },
         {
           "path": "cdmw/services/archive_reference_search.py",
-          "line": 236,
+          "line": 395,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Reference search received a mismatched archive lookup.",
+      "origins": [
+        {
+          "path": "cdmw/services/archive_reference_search.py",
+          "line": 351,
           "sink": "ValueError"
         }
       ]
@@ -120151,7 +120201,17 @@
         },
         {
           "path": "cdmw/services/archive_reference_search.py",
-          "line": 187,
+          "line": 356,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Reference search received a mismatched archive search batch.",
+      "origins": [
+        {
+          "path": "cdmw/services/archive_reference_search.py",
+          "line": 227,
           "sink": "ValueError"
         }
       ]
@@ -133636,12 +133696,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/asset_family_panel.py",
-          "line": 94,
-          "sink": "setToolTip"
-        },
-        {
-          "path": "cdmw/ui/archive_browser/asset_family_panel.py",
-          "line": 705,
+          "line": 729,
           "sink": "setText"
         }
       ]
@@ -133763,6 +133818,16 @@
           "path": "cdmw/ui/new_item/panels_perks.py",
           "line": 235,
           "sink": "addRow"
+        }
+      ]
+    },
+    {
+      "key": "Searches the file formats that store paths of this kind of file. No matches does not mean unused.",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/asset_family_panel.py",
+          "line": 112,
+          "sink": "translate_active_ui_text"
         }
       ]
     },
@@ -158412,6 +158477,16 @@
       ]
     },
     {
+      "key": "The ten floats and the third integer are not identified; there is no writer.",
+      "origins": [
+        {
+          "path": "schemas/archive_content_capabilities.v1.json",
+          "line": 1,
+          "sink": "json-presentation:remaining"
+        }
+      ]
+    },
+    {
       "key": "The texture codec or mip layout is unsupported.",
       "origins": [
         {
@@ -158813,6 +158888,16 @@
           "path": "cdmw/services/new_item_shops.py",
           "line": 22,
           "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "There is no writer, and _faceLinks is not interpreted.",
+      "origins": [
+        {
+          "path": "schemas/archive_content_capabilities.v1.json",
+          "line": 1,
+          "sink": "json-presentation:remaining"
         }
       ]
     },
@@ -179308,11 +179393,6 @@
           "path": "schemas/archive_content_capabilities.v1.json",
           "line": 1,
           "sink": "json-presentation:remaining"
-        },
-        {
-          "path": "schemas/archive_content_capabilities.v1.json",
-          "line": 1,
-          "sink": "json-presentation:remaining"
         }
       ]
     },
@@ -184683,16 +184763,6 @@
     },
     {
       "key": "magic 9c010d50; action chart descriptor naming upper-action packages",
-      "origins": [
-        {
-          "path": "schemas/archive_content_capabilities.v1.json",
-          "line": 1,
-          "sink": "json-presentation:evidence"
-        }
-      ]
-    },
-    {
-      "key": "magic IMP; unknown; 1,489 files",
       "origins": [
         {
           "path": "schemas/archive_content_capabilities.v1.json",
@@ -202406,7 +202476,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/asset_family_panel.py",
-          "line": 91,
+          "line": 109,
           "sink": "setText"
         }
       ]

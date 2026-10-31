@@ -245,28 +245,33 @@ def test_reflection_objects_render_their_graph_with_game_value_types():
     assert preview.reference_names == ("effect/mesh/test.pam",)
 
 
-def convex_geometry() -> bytes:
-    """One ConvexHull: a tetrahedron with four triangular faces."""
+def convex_geometry(revision: int = 15) -> bytes:
+    """One ConvexHull: a tetrahedron with four triangular faces.
 
-    types = _text("ConvexGeometry") + struct.pack("<H", 1) + _member("_convexHullList", "ConvexHull", 7, 0)
+    Revision 15 puts a null byte before every container's count; revision 14
+    writes the count alone, as the game's revision-14 `.pcg` files do.
+    """
+
+    types = _text("ConvexGeometry") + struct.pack("<H", 1) + _member("_convexHullList", "ConvexHull", 6, 0)
     types += _text("ConvexHull") + struct.pack("<H", 5)
     types += _member("_vertices", "float3", 3, 12)
     types += _member("_faceLinks", "uint16", 3, 2)
     types += _member("_firstFaceVertexIndices", "uint16", 3, 2)
     types += _member("_faceNumIndices", "uint16", 3, 2)
     types += _member("_indices", "uint8", 3, 1)
-    header = struct.pack("<HHH", 0xFFFF, 4, 0) + bytes(8) + struct.pack("<IH", 14, 2) + types + struct.pack("<I", 0)
+    header = struct.pack("<HHH", 0xFFFF, 4, 0) + bytes(8) + struct.pack("<IH", revision, 2) + types + struct.pack("<I", 0)
     blob_offset = len(header) + 28
+    flag = b"\0" if revision >= 15 else b""
 
     def array(layout: str, values: list) -> bytes:
         flat = [component for value in values for component in (value if isinstance(value, tuple) else (value,))]
-        return b"\0" + struct.pack("<I", len(values)) + struct.pack(f"<{len(flat)}{layout}", *flat)
+        return flag + struct.pack("<I", len(values)) + struct.pack(f"<{len(flat)}{layout}", *flat)
 
     indices = [0, 2, 1, 0, 1, 3, 0, 3, 2, 1, 2, 3]
     members = array("f", [(0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (0.0, 1.0, 0.0), (0.0, 0.0, 1.0)])
     members += array("H", [0] * 12) + array("H", [0, 3, 6, 9]) + array("H", [3, 3, 3, 3]) + array("B", indices)
     blob = struct.pack("<H", 1) + b"\x01" + struct.pack("<HB", 0, 0) + b"\0"
-    blob += b"\0" + struct.pack("<I", 1) + b"\0" + struct.pack("<III", 0, 0, 0)
+    blob += flag + struct.pack("<I", 1) + b"\0" + struct.pack("<III", 0, 0, 0)
     element = struct.pack("<H", 1) + b"\x1f" + struct.pack("<HB", 1, 0) + struct.pack("<Q", 0)
     site = blob_offset + len(blob) + len(element)
     pointee_body = struct.pack("<HH", 0, 0) + members
@@ -275,8 +280,9 @@ def convex_geometry() -> bytes:
     return header + data_header + blob
 
 
-def test_convex_geometry_opens_as_a_3d_model_of_its_hulls(stored):
-    result = build_archive_preview_result(stored("object/00_common/test_hull.pcg", convex_geometry()))
+@pytest.mark.parametrize("revision", [15, 14])
+def test_convex_geometry_opens_as_a_3d_model_of_its_hulls(stored, revision):
+    result = build_archive_preview_result(stored("object/00_common/test_hull.pcg", convex_geometry(revision)))
 
     assert "- Decode: complete" in result.preview_text
     assert result.preferred_view == "model"
@@ -420,3 +426,72 @@ def test_animated_cursor_lists_frames_and_renders_a_strip(stored):
     assert "- Default frame time: 6 jiffies (100 ms)" in result.preview_text
     assert "[1] cursor, 16 x 16" in result.preview_text
     assert "hotspot 3,5" in result.preview_text
+
+
+# -- tree impostors ---------------------------------------------------------------
+
+
+def impostor_descriptor(atlas: int = 1024, views: int = 8) -> bytes:
+    floats = struct.pack("<10f", 0.0, 1.5, 0.0, -1.0, 0.0, -1.0, 1.0, 3.0, 0.9, 1.6)
+    return b"IMP " + bytes([0, 1, 0, 0]) + bytes(8) + floats + struct.pack("<III", atlas, views, 1) + bytes(4)
+
+
+def test_impostor_descriptor_names_its_atlases_and_grid():
+    from cdmw.core.archive_impostor_preview import ImpostorError, build_impostor_preview
+
+    preview = build_impostor_preview(impostor_descriptor(), "tree/impostor/bush_alder_01.imp")
+
+    assert preview.atlas_paths == (
+        "tree/impostor/bush_alder_01_impostor_color.dds",
+        "tree/impostor/bush_alder_01_impostor_depth.dds",
+    )
+    assert "- Atlas size: 1024 px (matches the shipped atlases)" in preview.bundle.preview_text
+    assert "- Views per side: 8 (8 x 8 grid in the colour atlas)" in preview.bundle.preview_text
+    with pytest.raises(ImpostorError):
+        build_impostor_preview(impostor_descriptor()[:-1], "x.imp")
+
+
+def test_impostor_preview_lists_its_atlases_in_asset_family(stored):
+    result = build_archive_preview_result(stored("tree/impostor/bush_alder_01.imp", impostor_descriptor()))
+
+    assert result.preview_text.startswith("Tree impostor descriptor for tree/impostor/bush_alder_01.imp")
+    assert "Tree Impostor" in result.metadata_summary
+    assert {reference.reference_name for reference in result.model_texture_references} >= {
+        "tree/impostor/bush_alder_01_impostor_color.dds", "tree/impostor/bush_alder_01_impostor_depth.dds",
+    }
+
+
+# -- sound banks --------------------------------------------------------------
+
+
+def sound_bank() -> bytes:
+    def chunk(kind: bytes, payload: bytes) -> bytes:
+        return kind + struct.pack("<I", len(payload)) + payload
+
+    def sound(object_id: int, plugin: int, media: int) -> bytes:
+        body = struct.pack("<IIBI", object_id, plugin, 0, media) + struct.pack("<IB", 0, 0) + bytes(4)
+        return struct.pack("<BI", 2, len(body)) + body
+
+    event = struct.pack("<BI", 4, 8) + struct.pack("<II", 77, 0)
+    objects = [sound(10, 0x00040001, 42), sound(11, 0x00040001, 99), sound(12, 0x00650002, 5), event]
+    hirc = struct.pack("<I", len(objects)) + b"".join(objects)
+    return (
+        chunk(b"BKHD", struct.pack("<IIII", 150, 1234, 0, 0))
+        + chunk(b"DIDX", struct.pack("<III", 42, 0, 4))
+        + chunk(b"DATA", b"RIFF")
+        + chunk(b"HIRC", hirc)
+    )
+
+
+def test_bank_preview_lists_object_types_and_where_each_sound_plays_from():
+    from cdmw.core.archive_media_preview import build_bnk_soundbank_preview
+
+    text, _detail = build_bnk_soundbank_preview(sound_bank())
+
+    assert "  Sound: 3" in text and "  Event: 1" in text
+    assert "- Sounds with media: 2 (1 in this bank, 1 elsewhere, usually a loose numeric .wem)" in text
+    assert "- Generator sounds (no media): 1" in text
+    assert "object 10: media 42.wem (in this bank), in memory, Vorbis" in text
+    assert "object 11: media 99.wem (not in this bank), in memory, Vorbis" in text
+    assert "object 12: generator plugin 0x00650002" in text
+    assert "Readable strings" not in text

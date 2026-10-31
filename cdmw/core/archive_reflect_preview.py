@@ -10,16 +10,15 @@ these to the last byte in game build 1.0.0.3446:
 - `.uianiminit` UI animation start states (4 zero bytes, then the container): 489 of 489
 - `.save` save presets (bare, or after 4 zero bytes): 396 of 397; the last is an
   empty container that declares no types
-- `.pcg` convex collision geometry (bare): 264 of 320; the rest stop at the
-  by-value `ConvexGeometry._convexHullList` collection
+- `.pcg` convex collision geometry (bare): 320 of 320; the 56 at schema revision
+  14 write collection counts without a presence byte, which the reader handles
 
 So this module decodes with that reader and renders the object graph as text.
 A decoded `.pcg` also becomes a 3D preview: face ``f`` of a hull is the polygon
 ``_indices[_firstFaceVertexIndices[f] : + _faceNumIndices[f]]`` over
-``_vertices``. Over the 41,333 faces of all 4,449 decodable hulls, the median
-face is exactly planar with every other hull vertex behind it, and 99% are
-within 0.4% of the hull's extent on both counts, which a wrong reading would not
-produce.
+``_vertices``. Over the 72,035 faces of all 5,788 hulls, the median face is
+exactly planar with every other hull vertex behind it, and 99% are within 0.3% of
+the hull's extent on both counts, which a wrong reading would not produce.
 Values come straight from the declared member types; nothing here assigns
 gameplay meaning beyond the member names the files carry.
 """

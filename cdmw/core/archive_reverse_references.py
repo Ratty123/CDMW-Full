@@ -14,6 +14,7 @@ from cdmw.core.archive_wwise_bank import is_sound_bank, read_bank_chunks
 from cdmw.core.common import raise_if_cancelled
 from cdmw.domain.archives.association_vocabulary import reference_container_extensions
 from cdmw.domain.archives.content_capabilities import load_capabilities
+from cdmw.domain.archives.reference_sources import REFERENCE_SOURCES_BY_TARGET, RUNTIME_NAMED_TARGETS
 from cdmw.domain.archives.resource_paths import length_prefix_variants, stored_reference_forms
 from cdmw.domain.research.contracts import RESEARCH_REFERENCE_SOURCE_EXTENSIONS
 from cdmw.models import ArchiveEntry, ArchiveModelTextureReference, RunCancelled
@@ -33,20 +34,94 @@ REVERSE_TARGET_EXTENSIONS = frozenset(
 CONFIRMED_REFERENCE_CONFIDENCES = frozenset({"explicit_path", "wwise_media_id"})
 
 
+#: Why a search reads nothing: the target is chosen by name at run time.
+NOTE_RUNTIME_NAMED_SOUND = "runtime_named_sound"
+#: Why a search reads nothing: no shipped format stores paths of this kind.
+NOTE_NO_PATH_SOURCES = "no_path_sources"
+
+
+@dataclass(frozen=True)
+class ReferenceSearchPlan:
+    """What one Find references search reads, in order, and what it looks for."""
+
+    groups: tuple[tuple[str, ...], ...]
+    #: Names whose presence makes a file worth reading in full (casefolded).
+    needles: tuple[str, ...]
+    #: For a numeric `.wem`: banks are searched for this media ID instead of a name.
+    bank_media_id: int | None = None
+    #: Set when the plan is deliberately empty; the UI explains it.
+    note: str = ""
+
+
+def _search_names(target: ArchiveEntry) -> tuple[str, ...]:
+    """The basename and the last segment of every form the target is stored under."""
+
+    target_forms = set(stored_reference_forms(target.path)) or {_path(target.path)}
+    return tuple(dict.fromkeys((target.basename.casefold(), *(form.rpartition("/")[2] for form in target_forms))))
+
+
+def reference_search_needles(target: ArchiveEntry) -> tuple[str, ...]:
+    """The fewest names that every stored form of the target contains."""
+
+    names = tuple(name for name in _search_names(target) if name)
+    shortest = min(names, key=len, default="")
+    if shortest and all(shortest in name for name in names):
+        return (shortest,)
+    return names
+
+
+def reference_search_plan(target: ArchiveEntry) -> ReferenceSearchPlan:
+    """Read only the formats measured to store paths of the target's kind."""
+
+    needles = reference_search_needles(target)
+    if target.extension in RUNTIME_NAMED_TARGETS:
+        stem = target.basename[: -len(target.extension)]
+        if stem.isdigit():
+            return ReferenceSearchPlan(((".bnk",),), needles, bank_media_id=int(stem))
+        return ReferenceSearchPlan((), needles, note=NOTE_RUNTIME_NAMED_SOUND)
+    groups: list[tuple[str, ...]] = []
+    seen: set[str] = set()
+    if target.extension in _ANIMATION_GRAPH_TARGETS:
+        # Charts, blend spaces and sequences also name targets without an extension.
+        groups.append(tuple(sorted(_ANIMATION_GRAPH_SOURCES)))
+        seen.update(_ANIMATION_GRAPH_SOURCES)
+    for measured in REFERENCE_SOURCES_BY_TARGET.get(target.extension, ()):
+        remaining = tuple(source for source in measured if source not in seen)
+        seen.update(remaining)
+        if remaining:
+            groups.append(remaining)
+    if not groups:
+        return ReferenceSearchPlan((), needles, note=NOTE_NO_PATH_SOURCES)
+    return ReferenceSearchPlan(tuple(groups), needles)
+
+
 def reference_source_extension_groups(target: ArchiveEntry) -> tuple[tuple[str, ...], ...]:
     """Read likely reference owners before large geometry/animation payloads."""
-    remaining = set(REFERENCE_SOURCE_EXTENSIONS)
-    banks = {".bnk"} if target.extension == ".wem" else set()
-    graphs = set(_ANIMATION_GRAPH_SOURCES) if target.extension in _ANIMATION_GRAPH_TARGETS else set()
-    text = {item.extension for item in load_capabilities() if item.container == "text"}
-    text.update(RESEARCH_REFERENCE_SOURCE_EXTENSIONS)
-    groups = []
-    for candidates in (banks, graphs, text, remaining.copy()):
-        group = remaining & candidates
-        if group:
-            groups.append(tuple(sorted(group)))
-            remaining.difference_update(group)
-    return tuple(groups)
+    return reference_search_plan(target).groups
+
+
+def bank_media_id_query(media_id: int) -> str:
+    """A media ID as the four little-endian bytes a bank stores, one character per byte."""
+
+    return struct.pack("<I", media_id).decode("latin-1")
+
+
+def may_name_target(data: bytes, needles: tuple[str, ...]) -> bool:
+    """Whether a file can hold any needle, as ASCII or UTF-16; no decoding needed.
+
+    Reading every candidate as text, three encodings over, was the dominant cost
+    of a search. A file without the bytes cannot produce a match below.
+    """
+
+    lowered = data.lower()
+    for needle in needles:
+        try:
+            raw = needle.encode("ascii")
+        except UnicodeEncodeError:
+            return True
+        if raw in lowered or needle.encode("utf-16-le") in lowered or needle.encode("utf-16-be") in lowered:
+            return True
+    return False
 
 
 def reference_evidence_group(confidence: str, status: str = "resolved") -> str:
@@ -121,6 +196,28 @@ def read_bank_media_reference_ids(data: bytes) -> tuple[set[int], bool]:
     return ids, supported
 
 
+def _length_prefixed_form(data: bytes, forms) -> str:
+    """A stored form written as a whole u32-length-prefixed string, as reflection
+    containers (prefabs, effects, presets) store paths.
+
+    The byte after such a string belongs to the next field and can be anything,
+    `/` included, so the text matcher below would reject it; a length that equals
+    the form's own length says the string is exactly that path.
+    """
+
+    lowered = data.lower()
+    for form in forms:
+        raw = form.encode("utf-8")
+        if not raw:
+            continue
+        start = lowered.find(raw)
+        while start >= 0:
+            if start >= 4 and struct.unpack_from("<I", data, start - 4)[0] == len(raw):
+                return data[start:start + len(raw)].decode("utf-8", errors="replace")
+            start = lowered.find(raw, start + 1)
+    return ""
+
+
 def _matching_path_tokens(text: str, basename: str):
     # Search the literal basename first. Running an unanchored general path
     # expression over large binary/string runs can have quadratic cost.
@@ -159,9 +256,14 @@ def incoming_reference(target: ArchiveEntry, source: ArchiveEntry, data: bytes) 
         # its extension (sub-charts, sequences). Each stored form is searched by
         # its own last segment.
         target_forms = set(stored_reference_forms(target.path)) or {target_path}
-        search_names = tuple(dict.fromkeys((target_name, *(form.rpartition("/")[2] for form in target_forms))))
-        texts = [data.decode("utf-8-sig", errors="replace")]
-        if b"\x00" in data or data.startswith((b"\xff\xfe", b"\xfe\xff")):
+        search_names = _search_names(target)
+        if not may_name_target(data, reference_search_needles(target)):
+            return None, supported
+        stored = _length_prefixed_form(data, target_forms)
+        if stored:
+            confidence, evidence = "explicit_path", stored
+        texts = [] if confidence else [data.decode("utf-8-sig", errors="replace")]
+        if not confidence and (b"\x00" in data or data.startswith((b"\xff\xfe", b"\xfe\xff"))):
             texts.extend((data.decode("utf-16-le", errors="replace"), data.decode("utf-16-be", errors="replace")))
         for text in texts:
             unescaped = html.unescape(text)

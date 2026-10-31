@@ -8,6 +8,7 @@ import subprocess
 import sys
 import tempfile
 import threading
+from collections import Counter
 from pathlib import Path, PurePosixPath
 from typing import Dict, List, Optional, Sequence, Tuple
 
@@ -36,7 +37,15 @@ from cdmw.core.archive_extraction import (
 from cdmw.core.archive_format import extract_binary_strings
 from cdmw.core.archive_preview_support import resolve_archive_pathc_path
 from cdmw.core.archive_audio import _read_wav_format_info_from_bytes
-from cdmw.core.archive_wwise_bank import read_bank_chunks, read_embedded_media
+from cdmw.core.archive_wwise_bank import (
+    HIRC_OBJECT_TYPES,
+    HIRC_STREAM_TYPES,
+    WWISE_CODECS,
+    is_codec_plugin,
+    read_bank_chunks,
+    read_embedded_media,
+    read_hirc_objects,
+)
 from cdmw.core.archive_wwise_stream import read_wem_stream_info, wem_stream_detail_lines, wem_stream_summary
 from cdmw.core.temp_cache import (
     app_temp_cache_build,
@@ -862,10 +871,39 @@ def build_bnk_soundbank_preview(data: bytes) -> Tuple[str, str]:
         preview_lines.append("- First embedded media ids:")
         preview_lines.extend(f"  {example}" for example in embedded_media_examples)
 
-    readable_strings = extract_binary_strings(data, sample_limit=262144, max_strings=24)
-    if readable_strings:
-        preview_lines.append("- Readable strings:")
-        preview_lines.extend(f"  {text}" for text in readable_strings[:16])
+    # A bank's strings are compressed audio, so the object table says more.
+    _version, hirc_objects = read_hirc_objects(data)
+    if hirc_objects:
+        kinds = Counter(item.kind for item in hirc_objects)
+        preview_lines.append("- HIRC objects by type:")
+        preview_lines.extend(
+            f"  {HIRC_OBJECT_TYPES.get(kind, f'type {kind}')}: {count:,}" for kind, count in kinds.most_common()
+        )
+        sounds = [item for item in hirc_objects if item.kind == 2 and item.source_id]
+        if sounds:
+            local_media = {media.source_id for media in read_embedded_media(data)}
+            played = [item for item in sounds if is_codec_plugin(item.plugin_id)]
+            in_bank = sum(1 for item in played if item.source_id in local_media)
+            preview_lines.append(
+                f"- Sounds with media: {len(played):,} ({in_bank:,} in this bank, "
+                f"{len(played) - in_bank:,} elsewhere, usually a loose numeric .wem)"
+            )
+            if len(sounds) > len(played):
+                preview_lines.append(f"- Generator sounds (no media): {len(sounds) - len(played):,}")
+            preview_lines.append(f"- Sounds (first {min(24, len(sounds))} of {len(sounds):,}):")
+            for item in sounds[:24]:
+                if not is_codec_plugin(item.plugin_id):
+                    preview_lines.append(f"  object {item.object_id}: generator plugin 0x{item.plugin_id:08x}")
+                    continue
+                codec = WWISE_CODECS.get(item.plugin_id, f"plugin 0x{item.plugin_id:08x}")
+                stream = HIRC_STREAM_TYPES.get(item.stream_type, f"type {item.stream_type}")
+                where = "in this bank" if item.source_id in local_media else "not in this bank"
+                preview_lines.append(f"  object {item.object_id}: media {item.source_id}.wem ({where}), {stream}, {codec}")
+    else:
+        readable_strings = extract_binary_strings(data, sample_limit=262144, max_strings=24)
+        if readable_strings:
+            preview_lines.append("- Readable strings:")
+            preview_lines.extend(f"  {text}" for text in readable_strings[:16])
 
     detail_lines.append("Top-level chunks: " + ", ".join(chunk_descriptions[:16]))
     if embedded_media_count:

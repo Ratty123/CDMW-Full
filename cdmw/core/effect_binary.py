@@ -28,7 +28,9 @@ corpus obeys (6,855 of 6,855 effect and emitter files walk to the last byte,
 
 The presence mask gates every member except the container kinds (3, 6, 7, 10):
 those always write their null byte, and the byte alone says whether a count follows;
-their mask bit is informational. Members with attribute bit 0x80 (editor-only:
+their mask bit is informational. Schema revision 14 writes no null byte at all, only
+the count: the 56 revision-14 ``.pcg`` files in game 1.0.0.3446 walk to the last byte
+that way, and no revision-14 effect ships. Members with attribute bit 0x80 (editor-only:
 ``_segmentList``, ``_annotationList``, ``_isEditLock``...) are never written. Objects
 whose header says ``override`` are deltas over the emitter an effect embeds by path
 (the effect's type table names the emitter file as a type); an override curve with an
@@ -354,9 +356,14 @@ def _build_member_descriptors(types):
 _member_descriptors = lru_cache(maxsize=32)(_build_member_descriptors)
 
 
+#: Containers carry their null byte from this schema revision on.
+CONTAINER_FLAG_MIN_REVISION = 15
+
+
 class _Walker:
-    def __init__(self, data: bytes, base: int, types: Sequence[PrefabType], blob_offset: int, blob_length: int, *, metadata_only: bool = False) -> None:
+    def __init__(self, data: bytes, base: int, types: Sequence[PrefabType], blob_offset: int, blob_length: int, *, metadata_only: bool = False, container_flags: bool = True) -> None:
         self.data = data
+        self.container_flags = container_flags
         #: Absolute offset of the reflect container within ``data``.
         self.base = base
         self.types = tuple(types)
@@ -505,6 +512,10 @@ class _Walker:
             if container:
                 if editor_only:
                     continue
+                if not self.container_flags:
+                    node.wire[member.name] = {"null": False, "flagless": True}
+                    self.read_container(node, member, path, depth)
+                    continue
                 null = self.u8()
                 node.wire[member.name] = {"null": null == 1}
                 if null == 1:
@@ -585,7 +596,8 @@ class _Walker:
         self._need(index_bytes, "collection lookup indices")
         indices = self.data[self.pos:self.pos + index_bytes]
         self.pos += index_bytes
-        node.wire[member.name] = dict(null=False, with_ids=with_ids, a=a, b=b, pairs=pairs, indices=indices, count=count)
+        node.wire[member.name] = dict(null=False, with_ids=with_ids, a=a, b=b, pairs=pairs, indices=indices, count=count,
+                                      flagless=not self.container_flags)
         elements = tuple(
             self.read_element(f"{path}.{member.name}[{index}]", with_ids == 1, depth + 1) for index in range(count)
         )
@@ -616,7 +628,8 @@ def decode_effect_binary(data: bytes, *, metadata_only: bool = False) -> EffectD
     blob_end = header.blob_offset + header.blob_length
     if blob_end > len(body):
         raise EffectBinaryError(f"blob {header.blob_offset}+{header.blob_length} outside a {len(body)}-byte body")
-    walker = _Walker(payload, base, header.types, header.blob_offset, header.blob_length, metadata_only=metadata_only)
+    walker = _Walker(payload, base, header.types, header.blob_offset, header.blob_length, metadata_only=metadata_only,
+                     container_flags=header.revision >= CONTAINER_FLAG_MIN_REVISION)
     complete, note = True, ""
     try:
         root = walker.read_root()

@@ -1702,7 +1702,7 @@ def describe_archive_binary_content(extension: str, data: bytes) -> str:
         if extension == ".pab":
             return "Detected PAR skeleton data."
         if extension == ".pat":
-            return "Detected PAR model data. Visual model preview is not available yet."
+            return "Detected PAR plant model data."
         if extension == ".pam":
             return "Detected PAR mesh data."
         if extension == ".pamlod":

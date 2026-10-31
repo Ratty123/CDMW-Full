@@ -138,13 +138,93 @@ def embedded_media_wem_basenames(data: bytes) -> Tuple[str, ...]:
     return tuple(basenames)
 
 
+#: HIRC object types as Wwise numbers them for bank versions 128 and later.
+HIRC_OBJECT_TYPES = {
+    1: "State", 2: "Sound", 3: "Action", 4: "Event", 5: "Random/Sequence container", 6: "Switch container",
+    7: "Actor-Mixer", 8: "Audio bus", 9: "Blend container", 10: "Music segment", 11: "Music track",
+    12: "Music switch container", 13: "Music playlist container", 14: "Attenuation", 15: "Dialogue event",
+    16: "Effect share set", 17: "Custom effect", 18: "Auxiliary bus", 19: "LFO modulator",
+    20: "Envelope modulator", 21: "Audio device", 22: "Time modulator",
+}
+#: How Wwise loads a Sound's media. "In memory" does not mean inside this bank:
+#: in game 1.0.0.3446, 95,314 of the 125,904 codec-backed Sounds play a loose
+#: numeric `.wem`, 30,490 their own bank's media, 10 another bank's.
+HIRC_STREAM_TYPES = {0: "in memory", 1: "prefetched stream", 2: "streamed"}
+#: Codec plugin IDs of the sources this game ships; others are shown as hex.
+WWISE_CODECS = {0x00010001: "PCM", 0x00020001: "ADPCM", 0x00040001: "Vorbis", 0x00080001: "external source"}
+
+
+def is_codec_plugin(plugin_id: int) -> bool:
+    """Codec plugins decode media; source plugins (type 2) generate sound with none."""
+
+    return plugin_id & 0xF == 1
+_SOUND_SOURCE_VERSIONS = range(113, 155)
+_MAXIMUM_HIRC_OBJECTS = 200_000
+
+
+@dataclass(slots=True, frozen=True)
+class WwiseHircObject:
+    """One HIRC object; Sound objects also carry the media they play."""
+
+    kind: int
+    object_id: int
+    size: int
+    source_id: int = 0
+    stream_type: int = -1
+    plugin_id: int = 0
+
+
+def read_hirc_objects(data: bytes) -> Tuple[int, Tuple[WwiseHircObject, ...]]:
+    """The bank version and its HIRC objects, read as far as their framing holds.
+
+    Every object is `u8 type, u32 size, u32 id, ...`. A Sound's source header,
+    for bank versions 113-154, follows the id as `u32 plugin, u8 stream type,
+    u32 source id` (the layout `archive_reverse_references` reads for IDs).
+    """
+
+    if not is_sound_bank(data):
+        return 0, ()
+    chunks, _consumed = read_bank_chunks(data)
+    version = 0
+    objects: List[WwiseHircObject] = []
+    for chunk in chunks:
+        start, end = chunk.offset, chunk.offset + chunk.size
+        if chunk.identifier == "BKHD" and chunk.size >= 4:
+            version = struct.unpack_from("<I", data, start)[0]
+        elif chunk.identifier == "HIRC" and chunk.size >= 4:
+            count = min(struct.unpack_from("<I", data, start)[0], _MAXIMUM_HIRC_OBJECTS)
+            cursor = start + 4
+            for _ in range(count):
+                if cursor + 9 > end:
+                    break
+                kind, size = struct.unpack_from("<BI", data, cursor)
+                cursor += 5
+                if size < 4 or cursor + size > end:
+                    break
+                object_id = struct.unpack_from("<I", data, cursor)[0]
+                minimum = 22 if version > 150 else 18
+                if kind == 2 and version in _SOUND_SOURCE_VERSIONS and size >= minimum:
+                    plugin, stream_type, source_id = struct.unpack_from("<IBI", data, cursor + 4)
+                    objects.append(WwiseHircObject(kind, object_id, size, source_id, stream_type, plugin))
+                else:
+                    objects.append(WwiseHircObject(kind, object_id, size))
+                cursor += size
+    return version, tuple(objects)
+
+
 __all__ = [
     "BANK_HEADER_CHUNK",
+    "HIRC_OBJECT_TYPES",
+    "HIRC_STREAM_TYPES",
     "MEDIA_DIRECTORY_CHUNK",
+    "WWISE_CODECS",
     "WwiseBankChunk",
     "WwiseEmbeddedMedia",
+    "WwiseHircObject",
     "embedded_media_wem_basenames",
+    "is_codec_plugin",
     "is_sound_bank",
     "read_bank_chunks",
     "read_embedded_media",
+    "read_hirc_objects",
 ]

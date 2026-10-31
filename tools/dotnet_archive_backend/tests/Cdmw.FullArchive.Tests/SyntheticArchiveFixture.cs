@@ -214,6 +214,10 @@ internal sealed class SyntheticArchiveFixture : IAsyncDisposable
             ("character/motion/1_pc/1_phm/idle.paa", "PAR clip"u8.ToArray()),
             ("character/motion/motion_lod__/1_pc/1_phm/idle_lod.paa", "PAR lod"u8.ToArray()),
             ("character/motion/motion_lod__/1_pc/1_phm/unrelated_lod.paa", "PAR lod"u8.ToArray()),
+            ("tree/impostor/bush_alder_01.imp", "IMP "u8.ToArray()),
+            ("tree/impostor/bush_alder_01_impostor_color.dds", "DDS color"u8.ToArray()),
+            ("tree/impostor/bush_alder_01_impostor_depth.dds", "DDS depth"u8.ToArray()),
+            ("tree/impostor/bush_alder_02_impostor_color.dds", "DDS other"u8.ToArray()),
         ]).ConfigureAwait(false);
         return fixture;
     }

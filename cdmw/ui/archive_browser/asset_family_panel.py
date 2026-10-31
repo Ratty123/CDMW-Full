@@ -24,8 +24,10 @@ from cdmw.models import (
 from cdmw.domain.archives.association_vocabulary import ASSET_FAMILY_GROUP_ORDER
 from cdmw.ui.archive_browser.asset_family_references import _asset_family_dependency_maps
 from cdmw.services.archive_reference_search import (
-    ArchiveReferenceSearchController, REVERSE_TARGET_EXTENSIONS, reference_evidence_group,
+    NOTE_NO_PATH_SOURCES, NOTE_RUNTIME_NAMED_SOUND, ArchiveReferenceSearchController, REVERSE_TARGET_EXTENSIONS,
+    reference_evidence_group,
 )
+from cdmw.services.active_ui_translation import translate_active_ui_text
 
 
 def _asset_family_panel_dependencies(owner: object):
@@ -81,20 +83,42 @@ class ArchiveAssetFamilyPanelMixin:
                 or (state.session_id and (session is None or session.session_id != state.session_id))):
             self._cancel_archive_reference_search()
             return
+        previous = getattr(self, "archive_reference_search_state", None)
         self.archive_reference_search_state = state
         self.archive_reference_search_button.setEnabled(not self.archive_reference_search_controller.busy)
         self.archive_reference_cancel_button.setEnabled(not state.finished)
-        phase = "Cancelled" if state.cancelled else "Incomplete" if state.error or state.limited else "Finished" if state.finished else "Searching"
-        localizer = getattr(self.shell, "ui_localizer", None)
-        if localizer is not None:
-            phase = localizer.translate(phase)
-        self.archive_reference_search_status.setText(
-            f"{phase} · {state.scanned}/{state.total} · Skipped: {state.skipped} · Unreadable: {state.unreadable} · Unsupported banks: {state.unsupported_banks}"
-        )
-        self.archive_reference_search_status.setToolTip(state.error or "Search supported files for incoming references. No matches does not mean unused.")
-        self._populate_archive_texture_reference_list(
-            self.current_archive_model_texture_references, self.current_archive_asset_family_graph, enrich=False,
-        )
+        if state.note == NOTE_RUNTIME_NAMED_SOUND:
+            self.archive_reference_search_status.setText(translate_active_ui_text(
+                "Not searched: the game picks voice lines and named sounds by name while it runs, so no game file stores their path."
+            ))
+            self.archive_reference_search_status.setToolTip(translate_active_ui_text(
+                "Asset Family already lists this sound's lip-sync clip and its copies in other languages."
+            ))
+        elif state.note == NOTE_NO_PATH_SOURCES:
+            self.archive_reference_search_status.setText(translate_active_ui_text(
+                "Not searched: no game file stores paths to this kind of file."
+            ))
+            self.archive_reference_search_status.setToolTip(translate_active_ui_text(
+                "Asset Family lists the files linked to it by name or folder layout."
+            ))
+        else:
+            phase = "Cancelled" if state.cancelled else "Incomplete" if state.error or state.limited else "Finished" if state.finished else "Searching"
+            localizer = getattr(self.shell, "ui_localizer", None)
+            if localizer is not None:
+                phase = localizer.translate(phase)
+            self.archive_reference_search_status.setText(
+                f"{phase} · {state.scanned}/{state.total} · Skipped: {state.skipped} · Unreadable: {state.unreadable} · Unsupported banks: {state.unsupported_banks}"
+            )
+            self.archive_reference_search_status.setToolTip(state.error or translate_active_ui_text(
+                "Searches the file formats that store paths of this kind of file. No matches does not mean unused."
+            ))
+        # Rebuilding Asset Family is the expensive part of an update; progress
+        # alone only changes the status line.
+        same_search = previous is not None and previous.target.identity == state.target.identity and previous.generation == state.generation
+        if not same_search or len(previous.references) != len(state.references) or state.finished:
+            self._populate_archive_texture_reference_list(
+                self.current_archive_model_texture_references, self.current_archive_asset_family_graph, enrich=False,
+            )
 
     def _archive_incoming_references(self, entry):
         # These lookups use existing maps only; reading source files is worker-owned.

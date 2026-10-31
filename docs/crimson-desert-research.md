@@ -84,7 +84,7 @@ can be writable without a semantic validator for its contents.
 | Skeletons | Proven PAB hierarchy and bind transforms support bone resolution, skinning and clip playback. | Arbitrary skeleton restructuring and unknown layouts are not supported. |
 | Physics | Several render-cloth, jiggle and collision consumers have been traced and reproduced as bounded reference stages. | Preview motion, resource activation and game physics compatibility remain distinct. |
 | Animation | PAA tracks, supported clocks, bind-relative motion and lossless encoding are implemented. | Action-chart semantics, arbitrary timing profiles and game acceptance of edited clips remain incomplete. |
-| Prefabs | Reflection metadata and a supported structural heap grammar enable safe reference and placement edits. Render/simulation presets, UI animation states and save presets walk completely with the effect grammar. | Ambiguous or incomplete walks restrict editing; 56 of 320 convex-geometry files stop at a by-value hull collection. |
+| Prefabs | Reflection metadata and a supported structural heap grammar enable safe reference and placement edits. Render/simulation presets, UI animation states, save presets and convex collision geometry walk completely with the effect grammar. | Ambiguous or incomplete walks restrict editing; the effect-grammar formats other than presets have no writer. |
 | Game data | Known table directories and typed item, string, shop, group, recipe and reward subsets support new-item composition. | Unmodelled fields and unrelated table families remain opaque. |
 | Effects | PAE/PAEM reflection, keyed inheritance and constrained authoring are implemented; selected particle shader behaviour is reproduced. | Exact runtime target binding, animated surfaces and complete game appearance remain open. |
 | Packages | Independent packages retain identities, owned resources, explicit requirements and recoverable lifecycle changes. | Typed adapters cover selected domains, not every mod category. |
@@ -142,13 +142,16 @@ back to a readable-strings dump were matched against documented or decoded
 layouts, and the Archive Browser now decodes them. All 84,432 `.padxil` shaders
 share one wrapper and DXBC layout, and all 246 `.pars` files are single D3D12
 root signatures ([section 11.4](#114-text-ui-and-shader-resources)). The effect
-reflection grammar walks every `.parg` (783), `.pasg` (42) and `.uianiminit`
-(489), 396 of 397 `.save` presets and 264 of 320 `.pcg` files to the last byte
+reflection grammar walks every `.parg` (783), `.pasg` (42), `.uianiminit`
+(489) and `.pcg` (320, once schema revision 14 is read without collection
+presence bytes) and 396 of 397 `.save` presets to the last byte
 ([section 8.4](#84-related-reflection-resources)). The 19 fonts and 3 cursors
-are standard TrueType and RIFF `ACON` files. Preview-builder sweeps over every
-entry of those formats except `.padxil`, plus 1,500 sampled `.padxil` and 2,060
-`.pae`/`.paem` files, raised no exception. Source, synthetic tests and headless rendering
-only; the visible app and the game were not checked.
+are standard TrueType and RIFF `ACON` files, and the 1,612 tree impostor
+descriptors are fixed 72-byte records beside their atlases
+([section 11.1](#111-world-and-scene-data)). Preview-builder sweeps over every
+entry of those formats except `.padxil` and `.imp`, plus 1,500 sampled `.padxil`,
+300 `.imp` and 2,060 `.pae`/`.paem` files, raised no exception. Source, synthetic
+tests and headless rendering only; the visible app and the game were not checked.
 
 The new `.admeta`, `.overridedlevellistbinary` and `.staticinfodummy` files are
 extractable; their semantic editing contracts are not established. DLC metadata
@@ -265,6 +268,51 @@ PAPPT part/prefab registrations and socket descriptors add further bindings.
 the source evidence used by the final plan. Do not identify an asset by a
 convenient filename alone. Missing, ambiguous and unindexed references are
 different states; an index that does not cover a resource cannot prove absence.
+
+**Which formats name which files (31 October 2026, game `1.0.0.3446`).**
+All 1,133,077 files of the reference-container formats (shader bytecode excluded)
+were searched for path tokens, ASCII and UTF-16LE, ending in each extension Find
+references can target. Textures are named by material sidecars (`.pami`,
+`.pac_xml`, `.mi`, `.material`), meshes (`.pam`, `.pamlod`), effects and their
+presets, levels, XML, `.pat`, techniques and sequences, and a few by
+`iteminfo` rows. Meshes are named by `.pami`, effects, presets, levels, XML,
+sequences and prefabs; `.pac` by levels, prefabs, sequences, `.pac_xml`, blend
+spaces, clips, XML and effects; `.pab` mostly by clips (187,634 of 381,871 name a
+skeleton), blend spaces and prefab data; clips by blend spaces, action charts and
+sequences; prefabs by levels, sequences and other prefabs; `.tga`, `.png` and
+`.jpg` by `.pat`. A format counts when at least 2 of its files and at least 0.05%
+of them name the kind. The rarer hits in large binary formats were checked by hand
+and are random bytes (`eU.WEm`, `dDG.dDS`, `p.avi`). No file stores a `.wem` path,
+only `sound/soundconfig.xml` names a bank (`init.bnk`), and nothing names
+`.pamlod`, `.seqmt` or most audio and video types, so Find references does not
+search for those. The table is
+[`reference_sources.py`](../cdmw/domain/archives/reference_sources.py); a search
+reads only its formats.
+
+Sounds are linked through banks, not paths. All 3,450 banks are version 150. Of
+their 125,904 HIRC Sound objects that use a codec, 30,490 play media in their own
+bank, 95,314 a loose numeric `.wem`, 10 another bank's media and 90 none found;
+another 11,127 Sound objects are generator plugins with no media. Wwise's
+"in memory" stream type therefore does not mean "inside this bank". Some numeric
+voice media, for example `sound/windows/media/german/896392984.wem`, appear in no
+bank at all, not even as raw bytes. Named voice lines such as
+`unique_kliff_aidialogstringinfo_affinity_quest_51013.wem` are picked by name
+while the game runs; Asset Family pairs them with their lip-sync clip and language
+copies by path layout ([section 7.3](#73-placement-sockets-and-action-routing)).
+
+Reflection containers (prefabs, effects, presets) store a path as a u32 length
+followed by its characters, and the next field's first byte can be anything,
+including `/`. A text matcher that requires a non-path character after a match
+therefore misses them; a length prefix equal to the path's own length is the
+stronger test. With both rules, Find references on
+`effect/texture/pafx_grass_001a_1bit.dds` confirms its two effects and one render
+preset, and on `effect/mesh/cdfx_bg_leaf_pine_01a_ksh.pam` 25 effects. Measured
+through the real worker protocol on an otherwise idle machine, the texture took
+66 s over 312,207 files, the mesh 40 s over 230,027, a numeric sound 3 s over
+3,450 banks, and a named voice line returns at once. The worker byte-searches
+those formats on up to six threads and Python reads only the candidates; decoding
+is now the cost. Before this, a search read about 1.2 million files of every
+reference-container format in Python and redrew Asset Family after every 16.
 
 Sources: [archive format][archive-format], [extraction][archive-extraction],
 [mount table][papgt], [resource graph and prefab resolution][item-family],
@@ -1369,15 +1417,18 @@ is a 36-byte container that declares no types. Effect authoring already clones
 and edits render and simulation presets through this reader; the capability
 labels now record that.
 
-PCG walks in 264 of 320 files. The other 56 stop at the container byte of the
-by-value `ConvexGeometry._convexHullList` collection (member kind 6), so their
-by-value elements are laid out differently from a pointer collection's. In the
-decoded files a `ConvexHull` lists face `f` as
+All 320 PCG files walk as well. The 56 at schema revision 14 write every
+collection's count without the one-byte presence flag that revision 15 puts in
+front of it; read that way, and only for revision 14, they decode to the last
+byte. No revision-14 effect, preset, save preset or UI animation state ships, so
+the rule changes nothing else. (An earlier reading on the same day blamed the
+by-value `_convexHullList` collection kind; the revision explains all 56.) A
+`ConvexHull` lists face `f` as
 `_indices[_firstFaceVertexIndices[f] : + _faceNumIndices[f]]`, indexes into
-`_vertices`. Over all 41,333 faces of the 4,449 decoded hulls, the median face is
-exactly planar with every other hull vertex behind its plane, and 99% are within
-0.4% of the hull's size on both counts, so this reading is treated as
-established. `_faceLinks` is not interpreted.
+`_vertices`. Over all 72,035 faces of the 5,788 hulls, the median face is exactly
+planar with every other hull vertex behind its plane, and 99% are within 0.3% of
+the hull's size on both counts, so this reading is treated as established.
+`_faceLinks` is not interpreted.
 
 The Archive Browser shows these objects as a typed object graph, opens decoded
 PCG hulls as 3D models, and leads PAE/PAEM previews with the exact effect graph.
@@ -1971,6 +2022,18 @@ or cutscene authoring claim behind their metadata previews.
 PAT geometry has a supported bounded LOD0 inspection/OBJ route, not a general
 writer. Meshinfo remains read-only metadata where count/offset and physics
 semantics are unproven. Preserving it beside a mesh is different from rebuilding it.
+
+**Tree impostors.** Distant vegetation uses `tree/impostor/<name>.imp` with two
+atlases beside it, `<name>_impostor_color.dds` (DXT1) and
+`<name>_impostor_depth.dds` (BC4). All 1,612 descriptors in game `1.0.0.3446`
+(reviewed 31 October 2026) are 72 bytes: `IMP `, version bytes `00 01 00 00`,
+eight zero bytes, ten float32 values that vary per plant, then three u32 values
+that are 1024, 8 and 1 in every file, and four zero bytes. Every atlas sampled is
+1024 x 1024 and a rendered colour atlas is an 8 x 8 grid of views with top-down
+views at its centre, so the first two integers read as atlas size and views per
+side. Those labels rest on that correlation, not on game code; the floats and the
+third integer are not identified. The Archive Browser shows the colour atlas for a
+selected descriptor and lists both atlases in Asset Family.
 
 ### 11.2 Projectile research
 
@@ -3061,8 +3124,7 @@ This is a research register, not a promised delivery schedule.
 | Question | Established starting point | Evidence needed to close it |
 | --- | --- | --- |
 | Can every relevant prefab be structurally edited? | Header/type grammar and constrained heap/relocation rules | Resolve ambiguous groups/lengths without permissive fallback; independent edited-asset game checks |
-| Can the remaining PCG convex-hull collections be decoded? | The effect grammar walks every PARG/PASG and 264 of 320 PCG files; the other 56 stop at the container byte of the by-value `_convexHullList` collection | The by-value element layout, checked against hull counts and face planarity in those 56 files |
-| What do the high-volume string-only binaries contain? | `.pampg` (24,639) starts `PAM ` version 5 and names impostor `.pat` files; about half of 200 sampled also hold byte patterns shaped like 64-bit process addresses. `.binarygimmick` repeats a 4-byte marker; `.imp` is a 72-byte `IMP ` record of floats and small integers | A record grammar checked against every file of each format, with any address-like fields explained |
+| What do the high-volume string-only binaries contain? | `.pampg` (24,639) starts `PAM ` version 5 and names impostor `.pat` files; about half of 200 sampled also hold byte patterns shaped like 64-bit process addresses. `.binarygimmick` (15,713 interactive-object charts) repeats a 4-byte marker and keys its records by 32-bit hashes with no type table. `.pbd` (636 world-object rope and cloth files) starts `PBD ` and a version-like u32 (three values in 25 sampled files); the two files dumped continue with repeated 12-byte groups. `.imp` leaves ten floats unidentified | A record grammar checked against every file of each format, with any address-like or hashed fields explained |
 | Can exact mesh authoring be broadened? | Operation/LOD-specific writer gates | Source-preserving layouts, lower-LOD correspondence and physics/skin retention for each new operation |
 | Do imported authored-weight garments animate correctly in game? | New Item preserves compatible authored skin with explicit loss/transfer policies. The internal source/PAB-bound 93-to-95 extension passed complete Rosa primary output, materials and independently decoded four-LOD skin records. Current 1.0.0.2976 executable analysis confirms the counted reader, count-sized CPU remap, 1,024-entry/index bounds and remap-resource preparation. Sixty D3D12 captures compare four/six-weight LOD0 outputs with the original under seven controlled poses and three decoded PHW motion samples; six weights is closer, with localized reduction loss still present. | Final resource stride, matrix/upload/draw/shader and special-physics consumers; artist approval of the six-influence source; exact PABC/item/companion appearance, full playback, lower-LOD deformation and packaged/game animation comparisons |
 | Can skeletons be restructured? | Proven fixed-layout hierarchy and bind transforms | A semantic writer, all dependent bindings and game acceptance |
@@ -3261,7 +3323,7 @@ Source: [capability manifest](../schemas/archive_content_capabilities.v1.json).
 | `.pamlod` | PA | Full | Full |
 | `.pat` | PA | Partial | None |
 | `.patx` | PA | None | None |
-| `.pcg` | PA | Partial | None |
+| `.pcg` | PA | Full | None |
 
 ### Animation and scenes (14 formats)
 
@@ -3295,7 +3357,7 @@ Source: [capability manifest](../schemas/archive_content_capabilities.v1.json).
 | `.contentgroupkeymap` | PA | None | None |
 | `.dat` | PA | None | None |
 | `.ies` | Open | Full | None |
-| `.imp` | PA | None | None |
+| `.imp` | PA | Partial | None |
 | `.impostor` | PA | None | None |
 | `.json` | Open | Full | Full |
 | `.levelinfo` | PA | Surface | None |

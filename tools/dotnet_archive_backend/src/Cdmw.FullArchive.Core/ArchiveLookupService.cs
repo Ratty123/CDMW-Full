@@ -568,6 +568,13 @@ public sealed class ArchiveLookupService(
         {
             candidates.Add(path[..^7] + ".pam");
         }
+        else if (path.EndsWith(".imp", StringComparison.OrdinalIgnoreCase))
+        {
+            // A tree impostor's colour and depth atlases sit beside it under its name.
+            var stem = path[..^4];
+            candidates.Add(stem + "_impostor_color.dds");
+            candidates.Add(stem + "_impostor_depth.dds");
+        }
         else if (selected.Extension == ".pac" && path.StartsWith("character/model/2_mon/", StringComparison.OrdinalIgnoreCase))
         {
             // Some whole-body PACs omit the "nude" component present in their

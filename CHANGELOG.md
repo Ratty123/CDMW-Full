@@ -15,7 +15,7 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 - Archive Browser shows a Wwise sound's codec, length, speaker layout, loop points and markers in Details, and notes that Patch Audio To Game writes uncompressed PCM rather than re-encoding Vorbis.
 
-- Archive Browser previews more game formats instead of listing readable strings. Shader cache entries show their stage, entry point, inputs, outputs and resource bindings, and root signatures show their parameters and samplers. Effect render and simulation presets, save presets and UI animation states show their decoded values, and effects and emitters now list their exact decoded values first. Convex collision files open as 3D hulls, and fonts and animated cursors show a rendered sample. Format Explorer reflects the improved read support.
+- Archive Browser previews more game formats instead of listing readable strings. Shader cache entries show their stage, entry point, inputs, outputs and resource bindings, and root signatures show their parameters and samplers. Effect render and simulation presets, save presets and UI animation states show their decoded values, and effects and emitters now list their exact decoded values first. All convex collision files open as 3D hulls, tree impostors show their view atlas and link their colour and depth atlases, and fonts and animated cursors show a rendered sample. Format Explorer reflects the improved read support.
 
 - Create New Item and Mesh Editor add two experimental shader experiments that use the game's blended transparency pass, so layers behind each other stay visible. **Layered glass** gives equipment a real Opacity value with edge opacity, roughness, reflectance and tint. **Sheer net veil** makes see-through hexagonal net for veils, tulle and net lace. Both accept plain opaque or glowing equipment; in-game appearance after conversion is untested.
 
@@ -32,6 +32,8 @@ experimental-feature notes do not establish equivalent in-game behavior.
 - Archive Browser plays cached WEM sounds and exports them as WAV again. Long audio preview paths no longer prevent widening Asset Family. Reference searches recognise language-folder paths, check sound banks and metadata first, and continue past 2 GiB in cancellable batches.
 
 - Find references on an animation clip now finds the action charts, blend spaces and sequences that use it, which name clips relative to the game's motion folder. Blend spaces, action charts and sequences can be searched too. Clips named by charts and blend spaces are listed as confirmed references instead of name guesses, and language copies are no longer shown as cross-package hints. WEM details no longer report compressed sounds as 0-bit.
+
+- Find references no longer freezes the Archive Browser or reads the whole game for every search. It reads only the file types that store paths of the selected kind, lets the archive worker find the files that contain the name first, and redraws Asset Family only when results change. Named voice lines report that they are not searched, because the game picks them by name while it runs and no game file stores their path.
 
 - Archive Browser skips CrimsonMods cache archives by default. Archive parse errors identify the failing file and offer to exclude recognised mod or backup folders and refresh.
 

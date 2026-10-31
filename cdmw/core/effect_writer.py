@@ -78,6 +78,8 @@ class _Writer:
             value, child = values.get(key), children.get(key)
             if flag in CONTAINER_KINDS:
                 info = node.wire.get(key, {})
+                if info.get("flagless"):
+                    raise EffectBinaryError(f"{key}: schema revision 14 containers are read-only.")
                 null = child is None if flag in (6, 7) else value is None or info.get("null", False)
                 original = self.original_nodes.get(node.offset)
                 original_info = original.wire.get(key, {}) if original is not None else {}

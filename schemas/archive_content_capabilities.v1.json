@@ -45,11 +45,11 @@
       "note": "Engine formats are the ones CDMW had to reverse engineer. Open formats are counted separately because decoding them is not the project's work. The shipped bucket drops engine formats the build does not actually contain, which is the number that reflects what a modder can reach.",
       "shipped_engine_formats": {
         "extensions": 86,
-        "decode_percent": 48.5,
+        "decode_percent": 49.7,
         "write_percent": 32.0,
         "decode": {
-          "full": 30,
-          "none": 26,
+          "full": 31,
+          "none": 25,
           "partial": 9,
           "surface": 21
         },
@@ -61,11 +61,11 @@
       },
       "engine_formats": {
         "extensions": 100,
-        "decode_percent": 48.2,
+        "decode_percent": 49.2,
         "write_percent": 33.0,
         "decode": {
-          "full": 35,
-          "none": 32,
+          "full": 36,
+          "none": 31,
           "partial": 11,
           "surface": 22
         },
@@ -77,11 +77,11 @@
       },
       "proprietary_formats": {
         "extensions": 92,
-        "decode_percent": 48.4,
+        "decode_percent": 49.5,
         "write_percent": 34.2,
         "decode": {
-          "full": 34,
-          "none": 30,
+          "full": 35,
+          "none": 29,
           "partial": 7,
           "surface": 21
         },
@@ -93,11 +93,11 @@
       },
       "all_formats": {
         "extensions": 154,
-        "decode_percent": 57.4,
+        "decode_percent": 58.1,
         "write_percent": 35.7,
         "decode": {
-          "full": 71,
-          "none": 36,
+          "full": 72,
+          "none": 35,
           "partial": 11,
           "surface": 36
         },
@@ -110,18 +110,18 @@
     },
     "coverage_by_file_count": {
       "files": 1697380,
-      "decode_percent": 67.7,
+      "decode_percent": 67.8,
       "write_percent": 54.4
     },
     "unlisted_in_manifest": [],
     "by_origin": {
       "proprietary": {
         "extensions": 92,
-        "decode_percent": 48.4,
+        "decode_percent": 49.5,
         "write_percent": 34.2,
         "decode": {
-          "full": 34,
-          "none": 30,
+          "full": 35,
+          "none": 29,
           "partial": 7,
           "surface": 21
         },
@@ -205,12 +205,12 @@
       },
       "material_metadata": {
         "extensions": 73,
-        "decode_percent": 49.7,
+        "decode_percent": 50.5,
         "write_percent": 34.9,
         "decode": {
           "full": 30,
-          "none": 26,
-          "partial": 4,
+          "none": 25,
+          "partial": 5,
           "surface": 13
         },
         "write": {
@@ -221,12 +221,12 @@
       },
       "model_mesh_physics": {
         "extensions": 19,
-        "decode_percent": 54.2,
+        "decode_percent": 56.3,
         "write_percent": 36.8,
         "decode": {
-          "full": 7,
+          "full": 8,
           "none": 6,
-          "partial": 5,
+          "partial": 4,
           "surface": 1
         },
         "write": {
@@ -434,12 +434,12 @@
     { "extension": ".pagbg", "role": "metadata", "group": "material_metadata", "container": "binary", "analyzer": "descriptor_table", "maturity": "heuristic", "readable": true, "structured": true, "references": true, "visual": false, "playback": false, "exports": ["raw", "decode_json"], "origin": "proprietary", "decode": "surface", "write": "none", "priority": "none", "archive_files": 0, "evidence": "descriptor-table scrape: row counts and referenced paths", "remaining": "the shipped build contains no entry with this extension, so there is nothing here to decode; previously recorded as: field semantics unknown" },
     { "extension": ".pampg", "role": "metadata", "group": "material_metadata", "container": "binary", "analyzer": "descriptor_table", "maturity": "heuristic", "readable": true, "structured": true, "references": true, "visual": false, "playback": false, "exports": ["raw", "decode_json"], "origin": "proprietary", "decode": "surface", "write": "none", "priority": "low", "archive_files": 24639, "evidence": "descriptor-table scrape: row counts and referenced paths", "remaining": "field semantics unknown" },
     { "extension": ".padxil", "role": "metadata", "group": "material_metadata", "container": "binary", "analyzer": "generic_binary", "maturity": "proven", "readable": true, "structured": true, "references": true, "visual": false, "playback": false, "exports": ["raw"], "origin": "third_party", "decode": "partial", "write": "none", "priority": "medium", "archive_files": 84432, "evidence": "PASC version 8 wrapper around a DXBC container with DXIL (shader model 6.6). Archive Browser reads stage, entry point, signatures, resource bindings and feature flags from its PSV0, ISG1/OSG1, SFI0 and RDAT chunks (2026-10-31, game 1.0.0.3446).", "remaining": "the bytecode itself is not disassembled here; that needs dxc/dxil-dis, and there is no route to recompile an edited shader back into the cache" },
-    { "extension": ".imp", "role": "metadata", "group": "material_metadata", "container": "binary", "analyzer": "generic_binary", "maturity": "raw_only", "readable": true, "structured": false, "references": true, "visual": false, "playback": false, "exports": ["raw"], "origin": "proprietary", "decode": "none", "write": "none", "priority": "low", "archive_files": 1612, "evidence": "magic IMP; unknown; 1,489 files", "remaining": "container identified, record layout unknown" },
+    { "extension": ".imp", "role": "metadata", "group": "material_metadata", "container": "binary", "analyzer": "generic_binary", "maturity": "measured", "readable": true, "structured": true, "references": true, "visual": true, "playback": false, "exports": ["raw"], "origin": "proprietary", "decode": "partial", "write": "none", "priority": "low", "archive_files": 1612, "evidence": "72-byte IMP version 1 records beside 1024 x 1024 colour (DXT1) and depth (BC4) atlases; the two integers that are 1024 and 8 in every file match the atlas size and its 8 x 8 grid of views. Archive Browser shows the colour atlas and links both (2026-10-31, game 1.0.0.3446).", "remaining": "The ten floats and the third integer are not identified; there is no writer." },
     { "extension": ".parg", "role": "metadata", "group": "material_metadata", "container": "binary", "analyzer": "prefab", "maturity": "proven", "readable": true, "structured": true, "references": true, "visual": false, "playback": false, "exports": ["raw", "decode_json"], "origin": "proprietary", "decode": "full", "write": "constrained", "priority": "high", "archive_files": 783, "evidence": "Reflection container read with the grammar cdmw/core/effect_binary.py uses for effects: every non-empty shipped file walks to the last byte, and Archive Browser shows its object graph with values by declared member type (2026-10-31, game 1.0.0.3446).", "remaining": "Effect authoring clones presets and edits fixed-size values in place; strings and collections are read, not resized." },
     { "extension": ".pbd", "role": "metadata", "group": "material_metadata", "container": "binary", "analyzer": "generic_binary", "maturity": "raw_only", "readable": true, "structured": false, "references": true, "visual": false, "playback": false, "exports": ["raw"], "origin": "proprietary", "decode": "none", "write": "none", "priority": "low", "archive_files": 636, "evidence": "magic PBD; unknown; 584 files", "remaining": "container identified, record layout unknown" },
     { "extension": ".save", "role": "metadata", "group": "material_metadata", "container": "binary", "analyzer": "generic_binary", "maturity": "proven", "readable": true, "structured": true, "references": true, "visual": false, "playback": false, "exports": [], "origin": "proprietary", "decode": "full", "write": "none", "priority": "low", "archive_files": 397, "evidence": "Reflection container read with the grammar cdmw/core/effect_binary.py uses for effects: every non-empty shipped file walks to the last byte, and Archive Browser shows its object graph with values by declared member type (2026-10-31, game 1.0.0.3446).", "remaining": "Read-only; member meanings beyond their names are not established." },
     { "extension": ".paatt", "role": "metadata", "group": "material_metadata", "container": "binary", "analyzer": "generic_binary", "maturity": "raw_only", "readable": true, "structured": false, "references": true, "visual": false, "playback": false, "exports": ["raw"], "origin": "proprietary", "decode": "none", "write": "none", "priority": "low", "archive_files": 229, "evidence": "magic 01000000; unknown; 223 files, sits beside the action charts", "remaining": "container identified, record layout unknown" },
-    { "extension": ".pcg", "role": "physics", "group": "model_mesh_physics", "container": "binary", "analyzer": "prefab", "maturity": "proven", "readable": true, "structured": true, "references": true, "visual": true, "playback": false, "exports": ["raw", "decode_json"], "origin": "proprietary", "decode": "partial", "write": "none", "priority": "medium", "archive_files": 320, "evidence": "Read with the effect reflection grammar: 264 of 320 shipped files walk to the last byte and open as 3D convex hulls; 99% of their 41,333 faces are planar and bound the hull to within 0.4% of its size (2026-10-31, game 1.0.0.3446).", "remaining": "56 files stop at the by-value _convexHullList collection, whose element layout differs; there is no writer." },
+    { "extension": ".pcg", "role": "physics", "group": "model_mesh_physics", "container": "binary", "analyzer": "prefab", "maturity": "proven", "readable": true, "structured": true, "references": true, "visual": true, "playback": false, "exports": ["raw", "decode_json"], "origin": "proprietary", "decode": "full", "write": "none", "priority": "medium", "archive_files": 320, "evidence": "Read with the effect reflection grammar: all 320 shipped files walk to the last byte (the 56 at schema revision 14 write collection counts without a presence byte) and open as 3D convex hulls; 99% of their 72,035 faces are planar and bound the hull to within 0.3% of its size (2026-10-31, game 1.0.0.3446).", "remaining": "There is no writer, and _faceLinks is not interpreted." },
     { "extension": ".spline2d", "role": "metadata", "group": "material_metadata", "container": "text", "analyzer": "xml", "maturity": "proven", "readable": true, "structured": true, "references": true, "visual": false, "playback": false, "exports": ["raw", "text"], "origin": "proprietary", "decode": "full", "write": "full", "priority": "low", "archive_files": 87, "evidence": "plain XML (SplinePresetData) carrying ReflectObjectXMLData, readable and shippable as text", "remaining": "no schema model, so edits are unchecked text edits" },
     { "extension": ".spline", "role": "metadata", "group": "material_metadata", "container": "text", "analyzer": "xml", "maturity": "proven", "readable": true, "structured": true, "references": true, "visual": false, "playback": false, "exports": ["raw", "text"], "origin": "proprietary", "decode": "full", "write": "full", "priority": "low", "archive_files": 112, "evidence": "plain XML (SplineDataGroup) carrying ReflectObjectXMLData, readable and shippable as text", "remaining": "no schema model, so edits are unchecked text edits" },
     { "extension": ".impostor", "role": "metadata", "group": "material_metadata", "container": "binary", "analyzer": "generic_binary", "maturity": "raw_only", "readable": true, "structured": false, "references": true, "visual": false, "playback": false, "exports": ["raw"], "origin": "proprietary", "decode": "none", "write": "none", "priority": "low", "archive_files": 45, "evidence": "magic df892040; impostor billboards for distant objects", "remaining": "container identified, record layout unknown" },

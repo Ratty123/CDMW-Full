@@ -64,7 +64,8 @@ public sealed record ArchiveTextSearchRequest(
     int MaximumMatches = 2_000,
     int ContextCharacters = 160,
     int RegexTimeoutMilliseconds = 1_000,
-    int BatchSize = 128);
+    int BatchSize = 128,
+    bool MatchBytes = false);
 
 public sealed record ArchiveTextMatch(
     long EntryId,

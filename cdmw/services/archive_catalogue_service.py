@@ -485,6 +485,10 @@ class ArchiveCatalogueService(QObject):
     def character_catalog_available(self) -> bool:
         return "character_catalog_v1" in getattr(self._client, "capabilities", ())
 
+    @property
+    def byte_search_available(self) -> bool:
+        return "text_search_bytes_v1" in getattr(self._client, "capabilities", ())
+
     def _require_character_catalog(self) -> None:
         if not self.character_catalog_available:
             raise ValueError("Body & Face Finder requires an updated archive helper. Rebuild the archive worker or install a current CDMW build, then reopen the archives.")

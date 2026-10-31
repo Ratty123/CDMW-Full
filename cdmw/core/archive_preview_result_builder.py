@@ -39,6 +39,7 @@ from cdmw.core.archive_data_table_preview import (
     find_static_table_companion,
 )
 from cdmw.core.archive_action_chart import MAX_ACTION_CHART_RESOURCE_NAMES, action_chart_resource_names
+from cdmw.core.archive_impostor_preview import IMPOSTOR_EXTENSION, ImpostorError, build_impostor_preview
 from cdmw.core.archive_reflect_preview import (
     REFLECT_OBJECT_EXTENSIONS,
     build_effect_tree_section,
@@ -568,6 +569,48 @@ def build_archive_preview_result(
                     preview_text=ui_preview.bundle.preview_text,
                     preview_image_path=ui_preview.image_path,
                     preferred_view="image" if ui_preview.image_path else "text",
+                    loose_file_path=loose_file_path,
+                    loose_preview_image_path=loose_preview_image_path,
+                    loose_preview_media_path=loose_preview_media_path,
+                    loose_preview_media_kind=loose_preview_media_kind,
+                    loose_preview_title=loose_preview_title,
+                    loose_preview_metadata_summary=loose_preview_metadata_summary,
+                    loose_preview_detail_text=loose_preview_detail_text,
+                )
+
+        if extension == IMPOSTOR_EXTENSION:
+            try:
+                impostor = build_impostor_preview(data, entry.path)
+            except ImpostorError as exc:
+                inspector_note = f"The impostor descriptor could not be read: {exc}"
+            else:
+                related_references = build_archive_related_file_references(
+                    entry,
+                    explicit_reference_names=impostor.atlas_paths,
+                    archive_entries_by_normalized_path=texture_entries_by_normalized_path,
+                    archive_entries_by_basename=texture_entries_by_basename,
+                )
+                atlas_png = ""
+                detail_parts = list(impostor.bundle.detail_lines)
+                atlas_entries = (texture_entries_by_normalized_path or {}).get(impostor.atlas_paths[0].casefold(), ())
+                if atlas_entries:
+                    try:
+                        atlas_source, _atlas_note = ensure_archive_preview_source(atlas_entries[0], stop_event=stop_event)
+                        atlas_png = str(ensure_dds_display_preview_png(atlas_source.resolve(), stop_event=stop_event))
+                    except RunCancelled:
+                        raise
+                    except Exception as exc:
+                        detail_parts.append(f"The colour atlas could not be shown: {exc}")
+                return ArchivePreviewResult(
+                    status="ok",
+                    title=entry.basename,
+                    metadata_summary=f"{metadata_summary} | {impostor.bundle.metadata_label}",
+                    detail_text=build_archive_entry_detail_text(entry, "\n".join(detail_parts)),
+                    preview_text=impostor.bundle.preview_text,
+                    preview_image_path=atlas_png,
+                    model_texture_references=related_references,
+                    asset_family_graph=build_archive_asset_family_graph(entry, related_references),
+                    preferred_view="image" if atlas_png else "text",
                     loose_file_path=loose_file_path,
                     loose_preview_image_path=loose_preview_image_path,
                     loose_preview_media_path=loose_preview_media_path,
