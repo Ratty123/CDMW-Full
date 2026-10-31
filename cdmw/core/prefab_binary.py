@@ -122,6 +122,11 @@ _MAX_MEMBERS = 1024
 _MAX_TYPES = 4096
 _MAX_COUNT = 4096
 _FOOTER_SEARCH = 17
+#: Member ``extra`` bit of an indexed object list (``SocketComponent._socketList``):
+#: after a non-zero count comes a 13-byte reference (``01``, u32, eight zero bytes),
+#: and each element carries a u32 index after its owner field. Measured on the
+#: shipped revision-15 prefabs, 2026-10-31.
+_INDEXED_OBJECT_LIST = 0x100
 _MAX_DEPTH = 32
 _MAX_GROUPS = 100_000
 _MARKER_SEARCH = 512
@@ -541,6 +546,7 @@ class _BlobCursor:
         "stopped_at", "collections", "wide_on_multiples", "_starts",
         "plain_counts",
         "revision",
+        "element_index",
     )
 
     def __init__(
@@ -572,6 +578,9 @@ class _BlobCursor:
         # Types already claimed by a group, so an unstated one can take the
         # next declared type instead of guessing by size.
         self.used_types: set[str] = set()
+        # Set by an indexed object list for the element about to be read: its
+        # owner field is followed by this index before the name pointer.
+        self.element_index: int | None = None
 
     def take(self, count: int) -> bytes:
         if count < 0 or self.pos + count > len(self.blob):
@@ -597,6 +606,19 @@ class _BlobCursor:
             offset=self.base + offset,
             length=length,
         )
+
+    def at_length_field(self) -> bool:
+        """Is the u32 at the cursor a pointee length field (see prefab_blob_tail)?
+
+        A group's pointee closes with one, which the walk leaves unread; before
+        a collection header that is read in place, they have to be consumed.
+        """
+        if self.pos + 4 > len(self.blob):
+            return False
+        if self._starts is None:
+            self._starts = _pointee_starts(self.blob, self.base)
+        value = struct.unpack_from("<I", self.blob, self.pos)[0]
+        return 0 < value <= self.pos and (self.pos - value) in self._starts
 
     def closes_here(self, at: int) -> bool:
         """Is the rest of the blob an unread close rather than data?"""
@@ -808,6 +830,10 @@ def _read_member(
         _read_pointer(cursor, into, member.name)
         return
     if flags == KIND_COLLECTION:
+        # The closing length fields of the group just read (a socket list's last
+        # element and its SocketComponent, say). A header's kind byte is 0.
+        while not cursor.plain_counts and cursor.blob[cursor.pos:cursor.pos + 1] != b"\x00" and cursor.at_length_field():
+            cursor.take(4)
         header_at = cursor.pos
         count = _read_collection_count(cursor)
         header_width = cursor.pos - header_at
@@ -816,6 +842,11 @@ def _read_member(
             reference = cursor.take(13)
             if reference[0] != 0:
                 raise PrefabBinaryError(f"invalid motion object-list reference on {member.name}")
+        indexed = bool(member.extra & _INDEXED_OBJECT_LIST) and not cursor.plain_counts
+        if indexed and count:
+            reference = cursor.take(13)
+            if reference[0] != 1 or any(reference[5:]):
+                raise PrefabBinaryError(f"invalid indexed object-list reference on {member.name}")
         # Reserve the slot before reading the elements, so nested collections
         # land after their parent rather than before it. Ordering matters to a
         # caller resolving "which collection contains this offset".
@@ -830,8 +861,9 @@ def _read_member(
             )
         )
         spans: list[tuple[int, int]] = []
-        for _ in range(count):
+        for element in range(count):
             mark = cursor.pos
+            cursor.element_index = element if indexed else None
             try:
                 group_reader(cursor)
             except PrefabBinaryError:
@@ -855,7 +887,7 @@ def _read_member(
     raise PrefabBinaryError(f"unsupported member kind 0x{flags:04x} on {member.name}")
 
 
-def _find_element_header(cursor: _BlobCursor) -> tuple[int, int]:
+def _find_element_header(cursor: _BlobCursor, element_index: int | None = None) -> tuple[int, int]:
     """Locate the element header and return ``(mask, componentTypeIndex)``.
 
     The header is ``u16 width, mask (width bytes, little-endian), u8 typeIndex,
@@ -884,9 +916,14 @@ def _find_element_header(cursor: _BlobCursor) -> tuple[int, int]:
         if width not in (1, 2, 3, 4):
             continue
         owner_at = probe + 2 + width + 3
-        if owner_at + 12 > len(cursor.blob):
+        # An indexed list element carries its u32 index between the owner
+        # and the name pointer.
+        skip_index = 0 if element_index is None else 4
+        if owner_at + 12 + skip_index > len(cursor.blob):
             continue
-        if struct.unpack_from("<I", cursor.blob, owner_at + 8)[0] != cursor.base + owner_at + 12:
+        if skip_index and struct.unpack_from("<I", cursor.blob, owner_at + 8)[0] != element_index:
+            continue
+        if struct.unpack_from("<I", cursor.blob, owner_at + 8 + skip_index)[0] != cursor.base + owner_at + 12 + skip_index:
             continue
         cursor.pos = probe
         cursor.u16()
@@ -897,15 +934,19 @@ def _find_element_header(cursor: _BlobCursor) -> tuple[int, int]:
     raise PrefabBinaryError(f"no element header near 0x{base:x}")
 
 
-def _read_name_record(cursor: _BlobCursor) -> str:
+def _read_name_record(cursor: _BlobCursor, *, indexed: bool = False) -> str:
     """Consume the name record. ``count`` of 0 means the object is unnamed."""
-    for _ in range(_FOOTER_SEARCH):
-        if cursor.at_pointer():
-            break
-        cursor.take(1)
+    if indexed:
+        # _find_element_header placed the cursor on the owner field.
+        cursor.take(12)  # owner, element index
     else:
-        raise PrefabBinaryError(f"no name record near 0x{cursor.pos:x}")
-    cursor.take(8)  # owner
+        for _ in range(_FOOTER_SEARCH):
+            if cursor.at_pointer():
+                break
+            cursor.take(1)
+        else:
+            raise PrefabBinaryError(f"no name record near 0x{cursor.pos:x}")
+        cursor.take(8)  # owner
     target = cursor.u32()
     if target != cursor.base + cursor.pos:
         raise PrefabBinaryError("name pointer is not self-relative")
@@ -984,10 +1025,11 @@ def _walk_group(
     # Before the header search moves the cursor: this is where the enclosing
     # collection considers the element to begin.
     started_at = cursor.base + cursor.pos
-    mask, type_index = _find_element_header(cursor)
+    element_index, cursor.element_index = cursor.element_index, None
+    mask, type_index = _find_element_header(cursor, element_index)
     owner_before = cursor.pos
     parent = int.from_bytes(cursor.blob[max(0, owner_before) : owner_before + 8], "little")
-    name = _read_name_record(cursor)
+    name = _read_name_record(cursor, indexed=element_index is not None)
     if not components:
         raise PrefabBinaryError("no component type for group")
     highest = mask.bit_length()

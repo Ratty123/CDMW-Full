@@ -494,6 +494,29 @@ def test_a_wide_header_whose_extra_byte_is_zero_is_not_read_as_a_narrow_one() ->
     assert len(collection.elements) == 2
 
 
+def test_an_indexed_object_list_reads_its_reference_and_element_indexes() -> None:
+    """``SocketComponent._socketList`` (member ``extra`` 0x100) writes a 13-byte
+    reference after a non-zero count, and each element's u32 index between its
+    owner and its name pointer. Without this, 7,655 shipped prefabs declaring
+    TransformSocket stopped at their socket list, among them the drop prefabs
+    of over a thousand items."""
+
+    from tests.prefab_collection_builder import build_with_collection
+
+    document = decode_prefab_binary(build_with_collection(("A", "B", "C"), indexed=True))
+
+    assert document.walk_complete, document.walk_note
+    (collection,) = document.collections
+    assert collection.count == 3 and len(collection.elements) == 3
+    assert sorted(obj.name for obj in document.objects) == ["A", "B", "C"]
+    assert sorted(value.text for obj in document.objects for value in obj.texts) == [
+        "asset/a.pac", "asset/b.pac", "asset/c.pac"]
+    # An index out of step with the element's position is not this layout.
+    assert not decode_prefab_binary(build_with_collection(("A", "B"), indexed=True, indexes=(0, 0))).walk_complete
+    assert decode_prefab_binary(build_with_collection(("A", "B"))).walk_complete, "plain lists are unchanged"
+    assert decode_prefab_binary(build_with_collection((), indexed=True)).walk_complete, "no reference when empty"
+
+
 def test_a_narrow_header_is_left_alone() -> None:
     from tests.prefab_collection_builder import build_with_collection
 

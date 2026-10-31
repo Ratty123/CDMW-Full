@@ -21,11 +21,11 @@ def text(value: str) -> bytes:
     return struct.pack("<I", len(raw)) + raw
 
 
-def member(name: str, type_name: str, flags: int, size: int) -> bytes:
-    return text(name) + text(type_name) + struct.pack("<HHHH", flags, size, 0, 0)
+def member(name: str, type_name: str, flags: int, size: int, extra: int = 0) -> bytes:
+    return text(name) + text(type_name) + struct.pack("<HHHH", flags, size, 0, extra)
 
 
-def element(base: int, at: int, name: str, value: str) -> bytes:
+def element(base: int, at: int, name: str, value: str, index: int | None = None) -> bytes:
     """One collection element: header, name record, then a single string member.
 
     ``at`` is the element's blob-relative start and ``base`` the blob's file
@@ -37,6 +37,8 @@ def element(base: int, at: int, name: str, value: str) -> bytes:
     out += struct.pack("<H", 0b1)        # component mask: member 0
     out += bytes((1, 0, 0))              # tail; type index 1 sits at owner-3
     out += b"\xff" * 8                   # owner
+    if index is not None:
+        out += struct.pack("<I", index)  # an indexed object list's element index
     pointer_at = at + len(out)
     out += struct.pack("<I", base + pointer_at + 4)
     out += struct.pack("<HHH", 0, 1, 0)  # name record: header, count, unknown
@@ -50,17 +52,22 @@ def build_with_collection(
     *,
     wide: bool = False,
     declared: int | None = None,
+    indexed: bool = False,
+    indexes=None,
 ) -> bytes:
     """A prefab whose root holds a collection of ``len(names)`` elements.
 
     ``wide`` writes the header's extra byte, the form whose zero byte makes a
     narrow read of the count come out 256 times too large. ``declared`` writes a
     count other than the number of elements actually present, which is how a
-    file that over-declares is reproduced without a shipped one.
+    file that over-declares is reproduced without a shipped one. ``indexed``
+    declares the collection the way ``SocketComponent._socketList`` is declared
+    (member ``extra`` 0x100): a reference after the count and an index in each
+    element; ``indexes`` overrides the indexes written.
     """
     types = bytearray()
     types += text("SceneObject") + struct.pack("<H", 1)
-    types += member("_childSceneObjects", "ReflectObjectPtr", KIND_COLLECTION, 0)
+    types += member("_childSceneObjects", "ReflectObjectPtr", KIND_COLLECTION, 0, 0x100 if indexed else 0)
     types += text("SceneObjectComponent") + struct.pack("<H", 1)
     types += member("_label", "IndexedStringA", KIND_STRING, 1)
 
@@ -76,8 +83,12 @@ def build_with_collection(
     if wide:
         blob += b"\x00"                   # the wide header's extra byte
     blob += struct.pack("<I", len(names) if declared is None else declared)
-    for name in names:
-        blob += element(base, len(blob), name, f"asset/{name.lower()}.pac")
+    if indexed and names:
+        blob += b"\x01" + struct.pack("<I", 8) + bytes(8)  # the list's reference
+    written = list(indexes) if indexes is not None else list(range(len(names)))
+    for position, name in enumerate(names):
+        blob += element(base, len(blob), name, f"asset/{name.lower()}.pac",
+                        written[position] if indexed else None)
     blob += b"\x01"                        # the terminator; see prefab_blob_tail
 
     data_header = struct.pack("<III", 1, base + len(blob), 0)
