@@ -89,10 +89,10 @@ SKIN_FACING = 0.5
 # daggers, buckles, plates and rope knots. Tails are the hanging cloth strips.
 PRESETS = {
     "11002": {
-        "body": "character/model/1_pc/2_phw/nude/cd_phw_00_nude_00_0001_damian.pac",
+        "body": "character/model/1_pc/2_phw/nude/phw_00_nude_00_0001_damian.pac",
         "outfit": "character/model/2_mon/cd_m0001_00_twofeet/cd_m0001_01_phm/armor_desert/9_upperbody/"
                   "cd_m0001_00_de_phm_ub_11002.pac",
-        "reference": "character/model/1_pc/1_phm/nude/cd_phm_00_nude_00_0001.pac",
+        "reference": "character/model/1_pc/1_phm/nude/phm_00_nude_00_0001.pac",
         "source_skeleton": "phm_01.pab",
         "target_skeleton": "phw_01.pab",
         # Fit to body's defaults for a fresh setup; Tightness also enables the

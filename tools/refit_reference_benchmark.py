@@ -40,7 +40,7 @@ from cdmw.core.archive_format import parse_archive_pamt
 from cdmw.modding.mesh_parser import parse_pac
 from tools import refit_reference_harness as harness
 
-DRIVER = "character/model/1_pc/2_phw/nude/cd_phw_00_nude_00_0001.pac"
+DRIVER = "character/model/1_pc/2_phw/nude/phw_00_nude_00_0001.pac"
 # Height bands as shares of the driver's height, feet up; arms are apart.
 BANDS = ((0.0, .28, "legs"), (.28, .47, "hips"), (.47, .60, "waist"), (.60, .73, "chest"),
          (.73, .84, "shoulders"), (.84, 1.01, "head"))

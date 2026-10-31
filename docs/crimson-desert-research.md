@@ -109,7 +109,12 @@ and opened no archive index at all. No hash of the body matches the trailer; bot
 end in a byte at most `0x10`, consistent with an Ed25519 signature, which is unproven.
 Adding archive groups (overlays, CDMW's private view) therefore cannot work on this
 build. DMM's runtime instead serves individual files inside the game's package resource
-loader. Whether `meta/0.pathc` is checked as well is untested.
+loader. Served that way in a second headless launch, CDMW's composition of five new
+swords (ItemInfo, StoreInfo, ItemGroupInfo, StringInfo, MultiChangeInfo, the part-prefab
+table and the item names) passed all twelve data-loading stages with no error beyond those
+an unmodified launch logs. The items were not looked at in game. Whether the game asks the
+loader for files no index lists (new models, textures, icons) and whether `meta/0.pathc`
+is checked remain untested.
 
 The read-only audit decoded all **2,089,061 indexed entries**, including **307,263
 DLC entries**, to their declared sizes. No unsupported encryption type or
