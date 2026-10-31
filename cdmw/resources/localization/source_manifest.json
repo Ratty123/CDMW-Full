@@ -4096,7 +4096,7 @@
       "origins": [
         {
           "path": "cdmw/services/virtual_loader_runtime.py",
-          "line": 439,
+          "line": 454,
           "sink": "PermissionError"
         }
       ]
@@ -4651,7 +4651,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 701,
+          "line": 704,
           "sink": "OverlayConflict"
         }
       ]
@@ -4707,7 +4707,7 @@
       ]
     },
     {
-      "key": "A template's mesh physics file binds cloth and collision to that template's own vertices. On a model of your own those indices land wherever they land, which is how a handle ends up swinging like a cape. Off, the item is written without a physics file and the game gives it none. On for a template whose cloth you want and whose shape yours follows closely.",
+      "key": "A template's cloth and jiggle bindings are tied to that template's own vertices. On a model of your own those indices land wherever they land, which is how a handle ends up swinging like a cape. Off, those bindings are removed and the item keeps only the template's collision shape. On for a template whose cloth you want and whose shape yours follows closely.",
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
@@ -4831,37 +4831,37 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_skinning.py",
-          "line": 91,
+          "line": 111,
           "sink": "ValueError"
         },
         {
           "path": "cdmw/services/new_item_skinning.py",
-          "line": 101,
+          "line": 121,
           "sink": "ValueError"
         },
         {
           "path": "cdmw/services/new_item_skinning.py",
-          "line": 108,
+          "line": 128,
           "sink": "ValueError"
         },
         {
           "path": "cdmw/services/new_item_skinning.py",
-          "line": 136,
+          "line": 156,
           "sink": "ValueError"
         },
         {
           "path": "cdmw/services/new_item_skinning.py",
-          "line": 185,
+          "line": 205,
           "sink": "ValueError"
         },
         {
           "path": "cdmw/services/new_item_skinning.py",
-          "line": 189,
+          "line": 209,
           "sink": "ValueError"
         },
         {
           "path": "cdmw/services/new_item_skinning.py",
-          "line": 192,
+          "line": 212,
           "sink": "ValueError"
         }
       ]
@@ -9101,7 +9101,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_task_mixin.py",
-          "line": 449,
+          "line": 455,
           "sink": "on_error"
         }
       ]
@@ -9201,7 +9201,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 843,
+          "line": 846,
           "sink": "OverlayConflict"
         }
       ]
@@ -9561,7 +9561,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/asset_family_panel.py",
-          "line": 199,
+          "line": 223,
           "sink": "python-return:_archive_asset_map_group_label"
         },
         {
@@ -10016,7 +10016,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 529,
+          "line": 532,
           "sink": "OverlayConflict"
         }
       ]
@@ -12531,7 +12531,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_catalogue_service.py",
-          "line": 778,
+          "line": 782,
           "sink": "ArchiveBackendError"
         }
       ]
@@ -12541,7 +12541,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_catalogue_service.py",
-          "line": 1124,
+          "line": 1128,
           "sink": "ArchiveBackendError"
         }
       ]
@@ -12671,7 +12671,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_catalogue_service.py",
-          "line": 620,
+          "line": 624,
           "sink": "RuntimeError"
         }
       ]
@@ -13831,7 +13831,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_catalogue_service.py",
-          "line": 1000,
+          "line": 1004,
           "sink": "ArchiveBackendError"
         }
       ]
@@ -13856,7 +13856,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_catalogue_service.py",
-          "line": 993,
+          "line": 997,
           "sink": "RuntimeError"
         }
       ]
@@ -14036,7 +14036,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_catalogue_service.py",
-          "line": 869,
+          "line": 873,
           "sink": "ArchiveBackendError"
         }
       ]
@@ -14046,7 +14046,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_catalogue_service.py",
-          "line": 1136,
+          "line": 1140,
           "sink": "RuntimeError"
         }
       ]
@@ -14056,7 +14056,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_catalogue_service.py",
-          "line": 904,
+          "line": 908,
           "sink": "ArchiveBackendError"
         }
       ]
@@ -14101,7 +14101,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_catalogue_service.py",
-          "line": 920,
+          "line": 924,
           "sink": "ArchiveBackendError"
         }
       ]
@@ -14371,17 +14371,17 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_skinning.py",
-          "line": 175,
+          "line": 195,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/new_item_skinning.py",
-          "line": 209,
+          "line": 229,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/new_item_skinning.py",
-          "line": 218,
+          "line": 238,
           "sink": "raise_if_cancelled"
         }
       ]
@@ -14521,12 +14521,12 @@
         },
         {
           "path": "cdmw/ui/archive_browser/asset_family_panel.py",
-          "line": 685,
+          "line": 709,
           "sink": "setTitle"
         },
         {
           "path": "cdmw/ui/archive_browser/asset_family_panel.py",
-          "line": 728,
+          "line": 752,
           "sink": "setTitle"
         },
         {
@@ -15131,7 +15131,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/asset_family_panel.py",
-          "line": 316,
+          "line": 340,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -17386,12 +17386,12 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/asset_family_panel.py",
-          "line": 384,
+          "line": 408,
           "sink": "setToolTip"
         },
         {
           "path": "cdmw/ui/archive_browser/asset_family_panel.py",
-          "line": 385,
+          "line": 409,
           "sink": "setToolTip"
         }
       ]
@@ -18326,7 +18326,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_catalogue_service.py",
-          "line": 490,
+          "line": 494,
           "sink": "ValueError"
         },
         {
@@ -18821,7 +18821,7 @@
       "origins": [
         {
           "path": "cdmw/services/iteminfo_dependency_graph.py",
-          "line": 178,
+          "line": 180,
           "sink": "add"
         }
       ]
@@ -20651,7 +20651,7 @@
         },
         {
           "path": "cdmw/ui/new_item/controller_task_mixin.py",
-          "line": 396,
+          "line": 402,
           "sink": "emit"
         },
         {
@@ -21006,7 +21006,7 @@
       "origins": [
         {
           "path": "cdmw/services/virtual_loader_composition.py",
-          "line": 210,
+          "line": 224,
           "sink": "progress"
         }
       ]
@@ -21721,7 +21721,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 962,
+          "line": 965,
           "sink": "CompatibilityFinding"
         }
       ]
@@ -23596,7 +23596,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_task_mixin.py",
-          "line": 522,
+          "line": 528,
           "sink": "emit"
         },
         {
@@ -23681,7 +23681,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_variants.py",
-          "line": 360,
+          "line": 368,
           "sink": "ValueError"
         }
       ]
@@ -25231,12 +25231,12 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/asset_family_panel.py",
-          "line": 384,
+          "line": 408,
           "sink": "setToolTip"
         },
         {
           "path": "cdmw/ui/archive_browser/asset_family_panel.py",
-          "line": 385,
+          "line": 409,
           "sink": "setToolTip"
         }
       ]
@@ -25631,12 +25631,12 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/asset_family_panel.py",
-          "line": 384,
+          "line": 408,
           "sink": "setToolTip"
         },
         {
           "path": "cdmw/ui/archive_browser/asset_family_panel.py",
-          "line": 385,
+          "line": 409,
           "sink": "setToolTip"
         }
       ]
@@ -26111,7 +26111,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_install.py",
-          "line": 667,
+          "line": 702,
           "sink": "progress"
         }
       ]
@@ -26271,7 +26271,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_install.py",
-          "line": 469,
+          "line": 472,
           "sink": "progress"
         },
         {
@@ -26446,7 +26446,7 @@
       "origins": [
         {
           "path": "cdmw/services/virtual_loader_runtime.py",
-          "line": 403,
+          "line": 418,
           "sink": "progress"
         }
       ]
@@ -26471,7 +26471,7 @@
       "origins": [
         {
           "path": "cdmw/services/virtual_loader_composition.py",
-          "line": 200,
+          "line": 204,
           "sink": "progress"
         }
       ]
@@ -31561,7 +31561,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_install.py",
-          "line": 882,
+          "line": 917,
           "sink": "RuntimeError"
         }
       ]
@@ -32606,7 +32606,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 836,
+          "line": 839,
           "sink": "OverlayConflict"
         }
       ]
@@ -33086,7 +33086,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_install.py",
-          "line": 532,
+          "line": 556,
           "sink": "progress"
         }
       ]
@@ -33281,17 +33281,17 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 507,
+          "line": 510,
           "sink": "CompatibilityFinding"
         },
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 887,
+          "line": 890,
           "sink": "CompatibilityFinding"
         },
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 955,
+          "line": 958,
           "sink": "CompatibilityFinding"
         }
       ]
@@ -33341,7 +33341,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 677,
+          "line": 680,
           "sink": "python-return:text"
         }
       ]
@@ -33351,7 +33351,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 677,
+          "line": 680,
           "sink": "python-return:text"
         }
       ]
@@ -33456,7 +33456,7 @@
       "origins": [
         {
           "path": "cdmw/services/virtual_loader_composition.py",
-          "line": 110,
+          "line": 114,
           "sink": "progress"
         }
       ]
@@ -33846,7 +33846,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/asset_family_panel.py",
-          "line": 140,
+          "line": 164,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -33866,22 +33866,22 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 883,
+          "line": 886,
           "sink": "CompatibilityFinding"
         },
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 919,
+          "line": 922,
           "sink": "CompatibilityFinding"
         },
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 952,
+          "line": 955,
           "sink": "CompatibilityFinding"
         },
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 975,
+          "line": 978,
           "sink": "CompatibilityFinding"
         },
         {
@@ -33926,7 +33926,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 677,
+          "line": 680,
           "sink": "python-return:text"
         }
       ]
@@ -34706,17 +34706,17 @@
       "origins": [
         {
           "path": "cdmw/services/virtual_loader_runtime.py",
-          "line": 379,
+          "line": 394,
           "sink": "PermissionError"
         },
         {
           "path": "cdmw/services/virtual_loader_runtime.py",
-          "line": 395,
+          "line": 410,
           "sink": "PermissionError"
         },
         {
           "path": "cdmw/services/virtual_loader_runtime.py",
-          "line": 457,
+          "line": 472,
           "sink": "PermissionError"
         }
       ]
@@ -35071,15 +35071,20 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_physics.py",
-          "line": 60,
+          "line": 81,
           "sink": "ValueError"
         }
       ]
     },
     {
       "key": "Copied template physics requires unchanged mesh geometry and skin/cloth bindings. Disable template physics for a replacement model.",
-      "origins": [],
-      "manual": true
+      "origins": [
+        {
+          "path": "cdmw/services/independent_item_physics.py",
+          "line": 50,
+          "sink": "ValueError"
+        }
+      ]
     },
     {
       "key": "Copied the current selection from '{value_0}'.",
@@ -40691,7 +40696,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_install.py",
-          "line": 911,
+          "line": 946,
           "sink": "on_log"
         }
       ]
@@ -41616,7 +41621,7 @@
       "origins": [
         {
           "path": "cdmw/services/virtual_loader_runtime.py",
-          "line": 514,
+          "line": 529,
           "sink": "VirtualSessionStatus"
         }
       ]
@@ -41846,7 +41851,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_task_mixin.py",
-          "line": 386,
+          "line": 392,
           "sink": "emit"
         }
       ]
@@ -48591,7 +48596,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/asset_family_panel.py",
-          "line": 468,
+          "line": 492,
           "sink": "QTreeWidgetItem"
         },
         {
@@ -49081,7 +49086,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 507,
+          "line": 510,
           "sink": "CompatibilityFinding"
         }
       ]
@@ -53661,12 +53666,12 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/asset_family_panel.py",
-          "line": 384,
+          "line": 408,
           "sink": "setToolTip"
         },
         {
           "path": "cdmw/ui/archive_browser/asset_family_panel.py",
-          "line": 385,
+          "line": 409,
           "sink": "setToolTip"
         }
       ]
@@ -54766,12 +54771,12 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/asset_family_panel.py",
-          "line": 384,
+          "line": 408,
           "sink": "setToolTip"
         },
         {
           "path": "cdmw/ui/archive_browser/asset_family_panel.py",
-          "line": 385,
+          "line": 409,
           "sink": "setToolTip"
         }
       ]
@@ -65081,7 +65086,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 507,
+          "line": 510,
           "sink": "CompatibilityFinding"
         }
       ]
@@ -65091,7 +65096,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 507,
+          "line": 510,
           "sink": "CompatibilityFinding"
         }
       ]
@@ -65131,7 +65136,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_install.py",
-          "line": 908,
+          "line": 943,
           "sink": "RuntimeError"
         }
       ]
@@ -65141,7 +65146,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_install.py",
-          "line": 872,
+          "line": 907,
           "sink": "TypeError"
         }
       ]
@@ -65151,7 +65156,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_install.py",
-          "line": 874,
+          "line": 909,
           "sink": "PermissionError"
         }
       ]
@@ -65711,7 +65716,7 @@
       "origins": [
         {
           "path": "cdmw/services/iteminfo_dependency_graph.py",
-          "line": 158,
+          "line": 160,
           "sink": "add"
         }
       ]
@@ -67811,7 +67816,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/asset_family_panel.py",
-          "line": 453,
+          "line": 477,
           "sink": "setToolTip"
         }
       ]
@@ -68286,52 +68291,52 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_install.py",
-          "line": 301,
+          "line": 304,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/independent_item_install.py",
-          "line": 309,
+          "line": 312,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/independent_item_install.py",
-          "line": 320,
+          "line": 323,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/independent_item_install.py",
-          "line": 326,
+          "line": 329,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/independent_item_install.py",
-          "line": 375,
+          "line": 378,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/independent_item_install.py",
-          "line": 387,
+          "line": 390,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/independent_item_install.py",
-          "line": 391,
+          "line": 394,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/independent_item_install.py",
-          "line": 402,
+          "line": 405,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/independent_item_install.py",
-          "line": 466,
+          "line": 469,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/independent_item_install.py",
-          "line": 574,
+          "line": 598,
           "sink": "raise_if_cancelled"
         }
       ]
@@ -68461,7 +68466,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/asset_family_panel.py",
-          "line": 274,
+          "line": 298,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -69536,7 +69541,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 924,
+          "line": 927,
           "sink": "CompatibilityFinding"
         }
       ]
@@ -71031,7 +71036,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/asset_family_panel.py",
-          "line": 210,
+          "line": 234,
           "sink": "python-return:_archive_reference_role_label"
         }
       ]
@@ -71861,7 +71866,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/asset_family_panel.py",
-          "line": 186,
+          "line": 210,
           "sink": "python-return:_archive_asset_map_group_label"
         },
         {
@@ -72216,7 +72221,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_install.py",
-          "line": 701,
+          "line": 736,
           "sink": "progress"
         }
       ]
@@ -72351,22 +72356,22 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_package.py",
-          "line": 507,
+          "line": 633,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/independent_item_package.py",
-          "line": 509,
+          "line": 635,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/independent_item_package.py",
-          "line": 512,
+          "line": 638,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/independent_item_package.py",
-          "line": 514,
+          "line": 640,
           "sink": "raise_if_cancelled"
         }
       ]
@@ -72516,7 +72521,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_catalogue_service.py",
-          "line": 763,
+          "line": 767,
           "sink": "ArchiveBackendError"
         },
         {
@@ -73726,7 +73731,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/asset_family_panel.py",
-          "line": 513,
+          "line": 537,
           "sink": "setToolTip"
         }
       ]
@@ -73736,7 +73741,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/asset_family_panel.py",
-          "line": 285,
+          "line": 309,
           "sink": "setToolTip"
         }
       ]
@@ -75571,7 +75576,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/asset_family_panel.py",
-          "line": 661,
+          "line": 685,
           "sink": "setToolTip"
         },
         {
@@ -79351,12 +79356,12 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/asset_family_panel.py",
-          "line": 190,
+          "line": 214,
           "sink": "python-return:_archive_asset_map_group_label"
         },
         {
           "path": "cdmw/ui/archive_browser/asset_family_panel.py",
-          "line": 217,
+          "line": 241,
           "sink": "python-return:_archive_reference_role_label"
         },
         {
@@ -80246,12 +80251,12 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/asset_family_panel.py",
-          "line": 649,
+          "line": 673,
           "sink": "setToolTip"
         },
         {
           "path": "cdmw/ui/archive_browser/asset_family_panel.py",
-          "line": 667,
+          "line": 691,
           "sink": "setToolTip"
         }
       ]
@@ -80641,7 +80646,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 962,
+          "line": 965,
           "sink": "CompatibilityFinding"
         }
       ]
@@ -80651,7 +80656,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 677,
+          "line": 680,
           "sink": "python-return:text"
         }
       ]
@@ -84131,7 +84136,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/asset_family_panel.py",
-          "line": 193,
+          "line": 217,
           "sink": "python-return:_archive_asset_map_group_label"
         }
       ]
@@ -84201,12 +84206,12 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/asset_family_panel.py",
-          "line": 154,
+          "line": 178,
           "sink": "python-return:_archive_texture_reference_group_label"
         },
         {
           "path": "cdmw/ui/archive_browser/asset_family_panel.py",
-          "line": 158,
+          "line": 182,
           "sink": "python-return:_archive_texture_reference_group_label"
         }
       ]
@@ -84766,7 +84771,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/asset_family_panel.py",
-          "line": 234,
+          "line": 258,
           "sink": "python-return:_archive_texture_reference_status_text"
         },
         {
@@ -85346,7 +85351,7 @@
         },
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 865,
+          "line": 868,
           "sink": "raise_if_cancelled"
         },
         {
@@ -89061,7 +89066,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/asset_family_panel.py",
-          "line": 140,
+          "line": 164,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -90276,32 +90281,32 @@
         },
         {
           "path": "cdmw/services/new_item_snapshot.py",
-          "line": 543,
+          "line": 546,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/new_item_snapshot.py",
-          "line": 606,
+          "line": 609,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/new_item_snapshot.py",
-          "line": 623,
+          "line": 626,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/new_item_snapshot.py",
-          "line": 641,
+          "line": 644,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/new_item_snapshot.py",
-          "line": 711,
+          "line": 714,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/new_item_snapshot.py",
-          "line": 764,
+          "line": 767,
           "sink": "raise_if_cancelled"
         },
         {
@@ -92041,7 +92046,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 977,
+          "line": 980,
           "sink": "CompatibilityFinding"
         }
       ]
@@ -93191,7 +93196,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 977,
+          "line": 980,
           "sink": "CompatibilityFinding"
         }
       ]
@@ -93201,7 +93206,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 677,
+          "line": 680,
           "sink": "python-return:text"
         }
       ]
@@ -94806,7 +94811,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_skinning.py",
-          "line": 158,
+          "line": 178,
           "sink": "ValueError"
         }
       ]
@@ -99841,7 +99846,7 @@
         },
         {
           "path": "cdmw/ui/new_item/controller_task_mixin.py",
-          "line": 538,
+          "line": 544,
           "sink": "emit"
         },
         {
@@ -100711,7 +100716,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/asset_family_panel.py",
-          "line": 647,
+          "line": 671,
           "sink": "setToolTip"
         }
       ]
@@ -100831,7 +100836,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/asset_family_panel.py",
-          "line": 204,
+          "line": 228,
           "sink": "python-return:_archive_asset_map_group_label"
         },
         {
@@ -106141,7 +106146,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/asset_family_panel.py",
-          "line": 221,
+          "line": 245,
           "sink": "python-return:_archive_reference_role_label"
         },
         {
@@ -106196,7 +106201,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/asset_family_panel.py",
-          "line": 195,
+          "line": 219,
           "sink": "python-return:_archive_asset_map_group_label"
         },
         {
@@ -106401,7 +106406,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_physics.py",
-          "line": 26,
+          "line": 30,
           "sink": "ValueError"
         }
       ]
@@ -107851,7 +107856,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_planning.py",
-          "line": 925,
+          "line": 935,
           "sink": "log"
         }
       ]
@@ -108346,52 +108351,52 @@
         },
         {
           "path": "cdmw/ui/archive_browser/asset_family_panel.py",
-          "line": 384,
+          "line": 408,
           "sink": "setToolTip"
         },
         {
           "path": "cdmw/ui/archive_browser/asset_family_panel.py",
-          "line": 384,
+          "line": 408,
           "sink": "setToolTip"
         },
         {
           "path": "cdmw/ui/archive_browser/asset_family_panel.py",
-          "line": 384,
+          "line": 408,
           "sink": "setToolTip"
         },
         {
           "path": "cdmw/ui/archive_browser/asset_family_panel.py",
-          "line": 384,
+          "line": 408,
           "sink": "setToolTip"
         },
         {
           "path": "cdmw/ui/archive_browser/asset_family_panel.py",
-          "line": 384,
+          "line": 408,
           "sink": "setToolTip"
         },
         {
           "path": "cdmw/ui/archive_browser/asset_family_panel.py",
-          "line": 385,
+          "line": 409,
           "sink": "setToolTip"
         },
         {
           "path": "cdmw/ui/archive_browser/asset_family_panel.py",
-          "line": 385,
+          "line": 409,
           "sink": "setToolTip"
         },
         {
           "path": "cdmw/ui/archive_browser/asset_family_panel.py",
-          "line": 385,
+          "line": 409,
           "sink": "setToolTip"
         },
         {
           "path": "cdmw/ui/archive_browser/asset_family_panel.py",
-          "line": 385,
+          "line": 409,
           "sink": "setToolTip"
         },
         {
           "path": "cdmw/ui/archive_browser/asset_family_panel.py",
-          "line": 385,
+          "line": 409,
           "sink": "setToolTip"
         },
         {
@@ -108436,7 +108441,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/asset_family_panel.py",
-          "line": 201,
+          "line": 225,
           "sink": "python-return:_archive_asset_map_group_label"
         }
       ]
@@ -108531,12 +108536,12 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/asset_family_panel.py",
-          "line": 384,
+          "line": 408,
           "sink": "setToolTip"
         },
         {
           "path": "cdmw/ui/archive_browser/asset_family_panel.py",
-          "line": 385,
+          "line": 409,
           "sink": "setToolTip"
         }
       ]
@@ -110396,7 +110401,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_install.py",
-          "line": 572,
+          "line": 596,
           "sink": "progress"
         }
       ]
@@ -110461,7 +110466,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_planning.py",
-          "line": 944,
+          "line": 954,
           "sink": "add"
         }
       ]
@@ -113591,12 +113596,12 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/asset_family_panel.py",
-          "line": 384,
+          "line": 408,
           "sink": "setToolTip"
         },
         {
           "path": "cdmw/ui/archive_browser/asset_family_panel.py",
-          "line": 385,
+          "line": 409,
           "sink": "setToolTip"
         }
       ]
@@ -115656,7 +115661,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/asset_family_panel.py",
-          "line": 179,
+          "line": 203,
           "sink": "python-return:_archive_texture_reference_group_label"
         }
       ]
@@ -116376,12 +116381,12 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/asset_family_panel.py",
-          "line": 384,
+          "line": 408,
           "sink": "setToolTip"
         },
         {
           "path": "cdmw/ui/archive_browser/asset_family_panel.py",
-          "line": 385,
+          "line": 409,
           "sink": "setToolTip"
         }
       ]
@@ -116626,7 +116631,7 @@
         },
         {
           "path": "cdmw/ui/new_item/controller_task_mixin.py",
-          "line": 367,
+          "line": 373,
           "sink": "emit"
         },
         {
@@ -116671,12 +116676,12 @@
         },
         {
           "path": "cdmw/ui/archive_browser/asset_family_panel.py",
-          "line": 384,
+          "line": 408,
           "sink": "setToolTip"
         },
         {
           "path": "cdmw/ui/archive_browser/asset_family_panel.py",
-          "line": 385,
+          "line": 409,
           "sink": "setToolTip"
         },
         {
@@ -116956,7 +116961,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_snapshot.py",
-          "line": 607,
+          "line": 610,
           "sink": "_log_progress"
         }
       ]
@@ -116986,7 +116991,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_snapshot.py",
-          "line": 642,
+          "line": 645,
           "sink": "_log_progress"
         }
       ]
@@ -116996,7 +117001,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_snapshot.py",
-          "line": 624,
+          "line": 627,
           "sink": "_log_progress"
         }
       ]
@@ -117081,7 +117086,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_install.py",
-          "line": 515,
+          "line": 518,
           "sink": "progress"
         }
       ]
@@ -117371,7 +117376,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_snapshot.py",
-          "line": 712,
+          "line": 715,
           "sink": "_log_progress"
         }
       ]
@@ -117511,7 +117516,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_snapshot.py",
-          "line": 776,
+          "line": 779,
           "sink": "_log_progress"
         }
       ]
@@ -118426,7 +118431,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 740,
+          "line": 743,
           "sink": "OverlayConflict"
         }
       ]
@@ -118801,7 +118806,7 @@
       "origins": [
         {
           "path": "cdmw/services/virtual_loader_composition.py",
-          "line": 250,
+          "line": 264,
           "sink": "progress"
         }
       ]
@@ -119601,7 +119606,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_catalogue_service.py",
-          "line": 1010,
+          "line": 1014,
           "sink": "RuntimeError"
         }
       ]
@@ -119631,7 +119636,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_catalogue_service.py",
-          "line": 1067,
+          "line": 1071,
           "sink": "ArchiveBackendError"
         }
       ]
@@ -119641,7 +119646,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_catalogue_service.py",
-          "line": 1056,
+          "line": 1060,
           "sink": "ArchiveBackendError"
         }
       ]
@@ -119686,7 +119691,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/asset_family_panel.py",
-          "line": 501,
+          "line": 525,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -119746,7 +119751,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_catalogue_service.py",
-          "line": 735,
+          "line": 739,
           "sink": "TypeError"
         }
       ]
@@ -119756,7 +119761,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_catalogue_service.py",
-          "line": 740,
+          "line": 744,
           "sink": "TypeError"
         }
       ]
@@ -120186,12 +120191,12 @@
       "origins": [
         {
           "path": "cdmw/services/archive_reference_search.py",
-          "line": 214,
+          "line": 373,
           "sink": "ValueError"
         },
         {
           "path": "cdmw/services/archive_reference_search.py",
-          "line": 230,
+          "line": 389,
           "sink": "ValueError"
         },
         {
@@ -120216,7 +120221,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_reference_search.py",
-          "line": 180,
+          "line": 332,
           "sink": "ValueError"
         },
         {
@@ -120241,7 +120246,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_reference_search.py",
-          "line": 190,
+          "line": 359,
           "sink": "ValueError"
         }
       ]
@@ -120251,12 +120256,12 @@
       "origins": [
         {
           "path": "cdmw/services/archive_reference_search.py",
-          "line": 222,
+          "line": 381,
           "sink": "ValueError"
         },
         {
           "path": "cdmw/services/archive_reference_search.py",
-          "line": 244,
+          "line": 409,
           "sink": "ValueError"
         }
       ]
@@ -124341,7 +124346,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 524,
+          "line": 527,
           "sink": "OverlayConflict"
         }
       ]
@@ -124351,7 +124356,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 533,
+          "line": 536,
           "sink": "OverlayConflict"
         }
       ]
@@ -124396,7 +124401,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 500,
+          "line": 503,
           "sink": "OverlayConflict"
         }
       ]
@@ -126266,12 +126271,12 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/asset_family_panel.py",
-          "line": 132,
+          "line": 156,
           "sink": "QTreeWidgetItem"
         },
         {
           "path": "cdmw/ui/archive_browser/asset_family_panel.py",
-          "line": 231,
+          "line": 255,
           "sink": "python-return:_archive_texture_reference_status_text"
         },
         {
@@ -126291,7 +126296,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/asset_family_panel.py",
-          "line": 230,
+          "line": 254,
           "sink": "python-return:_archive_texture_reference_status_text"
         }
       ]
@@ -127816,7 +127821,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 753,
+          "line": 756,
           "sink": "OverlayConflict"
         }
       ]
@@ -127856,7 +127861,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 887,
+          "line": 890,
           "sink": "CompatibilityFinding"
         }
       ]
@@ -128291,7 +128296,7 @@
       "origins": [
         {
           "path": "cdmw/services/virtual_loader_composition.py",
-          "line": 207,
+          "line": 221,
           "sink": "progress"
         }
       ]
@@ -128331,7 +128336,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_package.py",
-          "line": 202,
+          "line": 253,
           "sink": "on_log"
         }
       ]
@@ -128966,7 +128971,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 677,
+          "line": 680,
           "sink": "python-return:text"
         }
       ]
@@ -130636,7 +130641,7 @@
       "origins": [
         {
           "path": "cdmw/services/virtual_loader_runtime.py",
-          "line": 548,
+          "line": 563,
           "sink": "PermissionError"
         }
       ]
@@ -130646,7 +130651,7 @@
       "origins": [
         {
           "path": "cdmw/services/virtual_loader_runtime.py",
-          "line": 615,
+          "line": 630,
           "sink": "PermissionError"
         }
       ]
@@ -132601,7 +132606,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/asset_family_panel.py",
-          "line": 59,
+          "line": 61,
           "sink": "set_status_message"
         }
       ]
@@ -137951,7 +137956,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/asset_family_panel.py",
-          "line": 468,
+          "line": 492,
           "sink": "QTreeWidgetItem"
         },
         {
@@ -138016,12 +138021,12 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/asset_family_panel.py",
-          "line": 203,
+          "line": 227,
           "sink": "python-return:_archive_asset_map_group_label"
         },
         {
           "path": "cdmw/ui/archive_browser/asset_family_panel.py",
-          "line": 464,
+          "line": 488,
           "sink": "QTreeWidgetItem"
         },
         {
@@ -138146,12 +138151,12 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/asset_family_panel.py",
-          "line": 140,
+          "line": 164,
           "sink": "QTreeWidgetItem"
         },
         {
           "path": "cdmw/ui/archive_browser/asset_family_panel.py",
-          "line": 140,
+          "line": 164,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -139331,7 +139336,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 715,
+          "line": 718,
           "sink": "OverlayConflict"
         }
       ]
@@ -139341,7 +139346,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 769,
+          "line": 772,
           "sink": "OverlayConflict"
         }
       ]
@@ -139351,7 +139356,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 732,
+          "line": 735,
           "sink": "OverlayConflict"
         }
       ]
@@ -139546,7 +139551,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 507,
+          "line": 510,
           "sink": "CompatibilityFinding"
         }
       ]
@@ -140491,7 +140496,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/asset_family_panel.py",
-          "line": 661,
+          "line": 685,
           "sink": "setToolTip"
         }
       ]
@@ -142681,12 +142686,12 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/asset_family_panel.py",
-          "line": 384,
+          "line": 408,
           "sink": "setToolTip"
         },
         {
           "path": "cdmw/ui/archive_browser/asset_family_panel.py",
-          "line": 385,
+          "line": 409,
           "sink": "setToolTip"
         }
       ]
@@ -143126,7 +143131,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/asset_family_panel.py",
-          "line": 661,
+          "line": 685,
           "sink": "setToolTip"
         },
         {
@@ -143596,12 +143601,12 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/asset_family_panel.py",
-          "line": 197,
+          "line": 221,
           "sink": "python-return:_archive_asset_map_group_label"
         },
         {
           "path": "cdmw/ui/archive_browser/asset_family_panel.py",
-          "line": 219,
+          "line": 243,
           "sink": "python-return:_archive_reference_role_label"
         },
         {
@@ -144421,7 +144426,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_snapshot.py",
-          "line": 834,
+          "line": 846,
           "sink": "_log_progress"
         }
       ]
@@ -144591,32 +144596,32 @@
         },
         {
           "path": "cdmw/ui/archive_browser/asset_family_panel.py",
-          "line": 384,
+          "line": 408,
           "sink": "setToolTip"
         },
         {
           "path": "cdmw/ui/archive_browser/asset_family_panel.py",
-          "line": 384,
+          "line": 408,
           "sink": "setToolTip"
         },
         {
           "path": "cdmw/ui/archive_browser/asset_family_panel.py",
-          "line": 384,
+          "line": 408,
           "sink": "setToolTip"
         },
         {
           "path": "cdmw/ui/archive_browser/asset_family_panel.py",
-          "line": 385,
+          "line": 409,
           "sink": "setToolTip"
         },
         {
           "path": "cdmw/ui/archive_browser/asset_family_panel.py",
-          "line": 385,
+          "line": 409,
           "sink": "setToolTip"
         },
         {
           "path": "cdmw/ui/archive_browser/asset_family_panel.py",
-          "line": 385,
+          "line": 409,
           "sink": "setToolTip"
         },
         {
@@ -144761,12 +144766,12 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/asset_family_panel.py",
-          "line": 384,
+          "line": 408,
           "sink": "setToolTip"
         },
         {
           "path": "cdmw/ui/archive_browser/asset_family_panel.py",
-          "line": 385,
+          "line": 409,
           "sink": "setToolTip"
         }
       ]
@@ -146221,7 +146226,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/asset_family_panel.py",
-          "line": 284,
+          "line": 308,
           "sink": "setToolTip"
         },
         {
@@ -147531,7 +147536,7 @@
       "origins": [
         {
           "path": "cdmw/services/virtual_loader_runtime.py",
-          "line": 421,
+          "line": 436,
           "sink": "progress"
         }
       ]
@@ -148341,7 +148346,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_task_mixin.py",
-          "line": 441,
+          "line": 447,
           "sink": "emit"
         }
       ]
@@ -149861,7 +149866,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 490,
+          "line": 493,
           "sink": "OverlayConflict"
         }
       ]
@@ -150886,7 +150891,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/asset_family_panel.py",
-          "line": 233,
+          "line": 257,
           "sink": "python-return:_archive_texture_reference_status_text"
         }
       ]
@@ -151471,7 +151476,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/asset_family_panel.py",
-          "line": 215,
+          "line": 239,
           "sink": "python-return:_archive_reference_role_label"
         },
         {
@@ -152016,7 +152021,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 619,
+          "line": 622,
           "sink": "OverlayConflict"
         }
       ]
@@ -152656,7 +152661,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/asset_family_panel.py",
-          "line": 188,
+          "line": 212,
           "sink": "python-return:_archive_asset_map_group_label"
         },
         {
@@ -153731,7 +153736,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_catalogue_service.py",
-          "line": 642,
+          "line": 646,
           "sink": "ArchiveBackendError"
         }
       ]
@@ -155091,7 +155096,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/asset_family_panel.py",
-          "line": 468,
+          "line": 492,
           "sink": "QTreeWidgetItem"
         },
         {
@@ -155261,12 +155266,12 @@
       "origins": [
         {
           "path": "cdmw/services/virtual_loader_runtime.py",
-          "line": 510,
+          "line": 525,
           "sink": "VirtualSessionStatus"
         },
         {
           "path": "cdmw/services/virtual_loader_runtime.py",
-          "line": 514,
+          "line": 529,
           "sink": "VirtualSessionStatus"
         }
       ]
@@ -156086,12 +156091,12 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_physics.py",
-          "line": 13,
+          "line": 17,
           "sink": "ValueError"
         },
         {
           "path": "cdmw/services/independent_item_physics.py",
-          "line": 23,
+          "line": 27,
           "sink": "ValueError"
         }
       ]
@@ -157291,7 +157296,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 578,
+          "line": 581,
           "sink": "OverlayConflict"
         }
       ]
@@ -157306,7 +157311,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 590,
+          "line": 593,
           "sink": "OverlayConflict"
         }
       ]
@@ -157316,7 +157321,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 584,
+          "line": 587,
           "sink": "OverlayConflict"
         }
       ]
@@ -157331,7 +157336,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 910,
+          "line": 913,
           "sink": "OverlayConflict"
         }
       ]
@@ -157381,7 +157386,7 @@
       "origins": [
         {
           "path": "cdmw/services/virtual_loader_runtime.py",
-          "line": 514,
+          "line": 529,
           "sink": "VirtualSessionStatus"
         }
       ]
@@ -157461,7 +157466,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 955,
+          "line": 958,
           "sink": "CompatibilityFinding"
         }
       ]
@@ -157781,7 +157786,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_variants.py",
-          "line": 362,
+          "line": 370,
           "sink": "ValueError"
         }
       ]
@@ -157871,12 +157876,12 @@
       "origins": [
         {
           "path": "cdmw/services/virtual_loader_runtime.py",
-          "line": 488,
+          "line": 503,
           "sink": "VirtualSessionStatus"
         },
         {
           "path": "cdmw/services/virtual_loader_runtime.py",
-          "line": 507,
+          "line": 522,
           "sink": "VirtualSessionStatus"
         }
       ]
@@ -158456,7 +158461,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_physics.py",
-          "line": 71,
+          "line": 92,
           "sink": "ValueError"
         }
       ]
@@ -158536,7 +158541,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_snapshot.py",
-          "line": 782,
+          "line": 785,
           "sink": "_log_progress"
         }
       ]
@@ -158566,7 +158571,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 483,
+          "line": 486,
           "sink": "OverlayConflict"
         }
       ]
@@ -158781,7 +158786,7 @@
       "origins": [
         {
           "path": "cdmw/services/virtual_loader_state.py",
-          "line": 153,
+          "line": 174,
           "sink": "ValueError"
         }
       ]
@@ -158801,7 +158806,7 @@
       "origins": [
         {
           "path": "cdmw/services/virtual_loader_state.py",
-          "line": 155,
+          "line": 176,
           "sink": "ValueError"
         }
       ]
@@ -158811,7 +158816,7 @@
       "origins": [
         {
           "path": "cdmw/services/virtual_loader_runtime.py",
-          "line": 514,
+          "line": 529,
           "sink": "VirtualSessionStatus"
         }
       ]
@@ -159786,7 +159791,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 677,
+          "line": 680,
           "sink": "python-return:text"
         }
       ]
@@ -159996,7 +160001,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 932,
+          "line": 935,
           "sink": "CompatibilityFinding"
         }
       ]
@@ -160796,7 +160801,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 677,
+          "line": 680,
           "sink": "python-return:text"
         }
       ]
@@ -162606,12 +162611,12 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/asset_family_panel.py",
-          "line": 384,
+          "line": 408,
           "sink": "setToolTip"
         },
         {
           "path": "cdmw/ui/archive_browser/asset_family_panel.py",
-          "line": 385,
+          "line": 409,
           "sink": "setToolTip"
         }
       ]
@@ -164666,22 +164671,22 @@
         },
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 919,
+          "line": 922,
           "sink": "CompatibilityFinding"
         },
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 924,
+          "line": 927,
           "sink": "CompatibilityFinding"
         },
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 932,
+          "line": 935,
           "sink": "CompatibilityFinding"
         },
         {
           "path": "cdmw/ui/archive_browser/asset_family_panel.py",
-          "line": 222,
+          "line": 246,
           "sink": "python-return:_archive_reference_role_label"
         },
         {
@@ -164881,7 +164886,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_install.py",
-          "line": 464,
+          "line": 467,
           "sink": "ValueError"
         }
       ]
@@ -165031,7 +165036,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 677,
+          "line": 680,
           "sink": "python-return:text"
         }
       ]
@@ -165166,12 +165171,12 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/asset_family_panel.py",
-          "line": 140,
+          "line": 164,
           "sink": "QTreeWidgetItem"
         },
         {
           "path": "cdmw/ui/archive_browser/asset_family_panel.py",
-          "line": 140,
+          "line": 164,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -165396,7 +165401,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_physics.py",
-          "line": 16,
+          "line": 20,
           "sink": "ValueError"
         }
       ]
@@ -165596,7 +165601,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 1000,
+          "line": 1003,
           "sink": "OverlayConflict"
         }
       ]
@@ -166951,7 +166956,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 872,
+          "line": 875,
           "sink": "OverlayConflict"
         }
       ]
@@ -168286,7 +168291,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/asset_family_panel.py",
-          "line": 132,
+          "line": 156,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -169281,7 +169286,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_variants.py",
-          "line": 351,
+          "line": 359,
           "sink": "add"
         }
       ]
@@ -169291,7 +169296,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_variants.py",
-          "line": 364,
+          "line": 372,
           "sink": "add"
         }
       ]
@@ -169461,7 +169466,7 @@
       "origins": [
         {
           "path": "cdmw/services/virtual_loader_composition.py",
-          "line": 173,
+          "line": 177,
           "sink": "progress"
         }
       ]
@@ -169486,7 +169491,7 @@
       "origins": [
         {
           "path": "cdmw/services/virtual_loader_runtime.py",
-          "line": 416,
+          "line": 431,
           "sink": "progress"
         }
       ]
@@ -170076,7 +170081,7 @@
       "origins": [
         {
           "path": "cdmw/services/virtual_loader_state.py",
-          "line": 370,
+          "line": 391,
           "sink": "on_log"
         }
       ]
@@ -170086,7 +170091,7 @@
       "origins": [
         {
           "path": "cdmw/services/virtual_loader_composition.py",
-          "line": 262,
+          "line": 276,
           "sink": "progress"
         }
       ]
@@ -170921,17 +170926,17 @@
       "origins": [
         {
           "path": "cdmw/services/virtual_loader_runtime.py",
-          "line": 489,
+          "line": 504,
           "sink": "VirtualSessionStatus"
         },
         {
           "path": "cdmw/services/virtual_loader_runtime.py",
-          "line": 508,
+          "line": 523,
           "sink": "VirtualSessionStatus"
         },
         {
           "path": "cdmw/services/virtual_loader_runtime.py",
-          "line": 514,
+          "line": 529,
           "sink": "VirtualSessionStatus"
         }
       ]
@@ -171161,7 +171166,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/asset_family_panel.py",
-          "line": 453,
+          "line": 477,
           "sink": "setToolTip"
         },
         {
@@ -171336,12 +171341,12 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/asset_family_panel.py",
-          "line": 384,
+          "line": 408,
           "sink": "setToolTip"
         },
         {
           "path": "cdmw/ui/archive_browser/asset_family_panel.py",
-          "line": 385,
+          "line": 409,
           "sink": "setToolTip"
         }
       ]
@@ -171716,12 +171721,12 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/asset_family_panel.py",
-          "line": 384,
+          "line": 408,
           "sink": "setToolTip"
         },
         {
           "path": "cdmw/ui/archive_browser/asset_family_panel.py",
-          "line": 385,
+          "line": 409,
           "sink": "setToolTip"
         }
       ]
@@ -172821,12 +172826,12 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/asset_family_panel.py",
-          "line": 649,
+          "line": 673,
           "sink": "setToolTip"
         },
         {
           "path": "cdmw/ui/archive_browser/asset_family_panel.py",
-          "line": 667,
+          "line": 691,
           "sink": "setToolTip"
         }
       ]
@@ -177071,7 +177076,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_catalogue_service.py",
-          "line": 711,
+          "line": 715,
           "sink": "_reject_invalid_payload"
         }
       ]
@@ -179156,7 +179161,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_catalogue_service.py",
-          "line": 596,
+          "line": 600,
           "sink": "TypeError"
         }
       ]
@@ -181586,12 +181591,12 @@
         },
         {
           "path": "cdmw/ui/new_item/controller_task_mixin.py",
-          "line": 358,
+          "line": 364,
           "sink": "_run"
         },
         {
           "path": "cdmw/ui/new_item/controller_task_mixin.py",
-          "line": 381,
+          "line": 387,
           "sink": "_run"
         }
       ]
@@ -182016,17 +182021,17 @@
         },
         {
           "path": "cdmw/ui/archive_browser/asset_family_panel.py",
-          "line": 134,
+          "line": 158,
           "sink": "setData"
         },
         {
           "path": "cdmw/ui/archive_browser/asset_family_panel.py",
-          "line": 445,
+          "line": 469,
           "sink": "setData"
         },
         {
           "path": "cdmw/ui/archive_browser/asset_family_panel.py",
-          "line": 477,
+          "line": 501,
           "sink": "setData"
         },
         {
@@ -183566,7 +183571,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_planning.py",
-          "line": 802,
+          "line": 811,
           "sink": "add"
         }
       ]
@@ -183921,7 +183926,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_task_mixin.py",
-          "line": 404,
+          "line": 410,
           "sink": "_run"
         }
       ]
@@ -186976,7 +186981,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_native_clone.py",
-          "line": 167,
+          "line": 190,
           "sink": "RuntimeError"
         }
       ]
@@ -187031,7 +187036,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_native_clone.py",
-          "line": 182,
+          "line": 205,
           "sink": "RuntimeError"
         }
       ]
@@ -188691,12 +188696,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_task_mixin.py",
-          "line": 413,
+          "line": 419,
           "sink": "_run"
         },
         {
           "path": "cdmw/ui/new_item/controller_task_mixin.py",
-          "line": 423,
+          "line": 429,
           "sink": "_run"
         },
         {
@@ -190136,7 +190141,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_catalogue_service.py",
-          "line": 682,
+          "line": 686,
           "sink": "_reject_invalid_payload"
         }
       ]
@@ -192711,12 +192716,12 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/asset_family_panel.py",
-          "line": 575,
+          "line": 599,
           "sink": "_populate_archive_relation_tree"
         },
         {
           "path": "cdmw/ui/archive_browser/asset_family_panel.py",
-          "line": 581,
+          "line": 605,
           "sink": "_populate_archive_relation_tree"
         }
       ]
@@ -192726,12 +192731,12 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/asset_family_panel.py",
-          "line": 384,
+          "line": 408,
           "sink": "setToolTip"
         },
         {
           "path": "cdmw/ui/archive_browser/asset_family_panel.py",
-          "line": 385,
+          "line": 409,
           "sink": "setToolTip"
         }
       ]
@@ -193151,7 +193156,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_planning.py",
-          "line": 763,
+          "line": 772,
           "sink": "add"
         }
       ]
@@ -194786,7 +194791,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_planning.py",
-          "line": 751,
+          "line": 760,
           "sink": "add"
         }
       ]
@@ -196116,22 +196121,22 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/asset_family_panel.py",
-          "line": 443,
+          "line": 467,
           "sink": "setData"
         },
         {
           "path": "cdmw/ui/archive_browser/asset_family_panel.py",
-          "line": 510,
+          "line": 534,
           "sink": "setData"
         },
         {
           "path": "cdmw/ui/archive_browser/asset_family_panel.py",
-          "line": 575,
+          "line": 599,
           "sink": "_populate_archive_relation_tree"
         },
         {
           "path": "cdmw/ui/archive_browser/asset_family_panel.py",
-          "line": 670,
+          "line": 694,
           "sink": "setData"
         }
       ]
@@ -198161,22 +198166,22 @@
         },
         {
           "path": "cdmw/ui/archive_browser/asset_family_panel.py",
-          "line": 290,
+          "line": 314,
           "sink": "setText"
         },
         {
           "path": "cdmw/ui/archive_browser/asset_family_panel.py",
-          "line": 457,
+          "line": 481,
           "sink": "setText"
         },
         {
           "path": "cdmw/ui/archive_browser/asset_family_panel.py",
-          "line": 518,
+          "line": 542,
           "sink": "setText"
         },
         {
           "path": "cdmw/ui/archive_browser/asset_family_panel.py",
-          "line": 673,
+          "line": 697,
           "sink": "setText"
         },
         {
@@ -198426,12 +198431,12 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/asset_family_panel.py",
-          "line": 384,
+          "line": 408,
           "sink": "setToolTip"
         },
         {
           "path": "cdmw/ui/archive_browser/asset_family_panel.py",
-          "line": 385,
+          "line": 409,
           "sink": "setToolTip"
         },
         {
@@ -198541,7 +198546,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/asset_family_panel.py",
-          "line": 634,
+          "line": 658,
           "sink": "QTreeWidgetItem"
         },
         {
@@ -198961,17 +198966,17 @@
         },
         {
           "path": "cdmw/services/mesh_service_native_clone.py",
-          "line": 107,
+          "line": 130,
           "sink": "RuntimeError"
         },
         {
           "path": "cdmw/services/mesh_service_native_clone.py",
-          "line": 141,
+          "line": 164,
           "sink": "RuntimeError"
         },
         {
           "path": "cdmw/ui/archive_browser/asset_family_panel.py",
-          "line": 634,
+          "line": 658,
           "sink": "QTreeWidgetItem"
         },
         {
@@ -200876,22 +200881,22 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/asset_family_panel.py",
-          "line": 384,
+          "line": 408,
           "sink": "setToolTip"
         },
         {
           "path": "cdmw/ui/archive_browser/asset_family_panel.py",
-          "line": 384,
+          "line": 408,
           "sink": "setToolTip"
         },
         {
           "path": "cdmw/ui/archive_browser/asset_family_panel.py",
-          "line": 385,
+          "line": 409,
           "sink": "setToolTip"
         },
         {
           "path": "cdmw/ui/archive_browser/asset_family_panel.py",
-          "line": 385,
+          "line": 409,
           "sink": "setToolTip"
         }
       ]
@@ -202121,22 +202126,22 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/asset_family_panel.py",
-          "line": 384,
+          "line": 408,
           "sink": "setToolTip"
         },
         {
           "path": "cdmw/ui/archive_browser/asset_family_panel.py",
-          "line": 384,
+          "line": 408,
           "sink": "setToolTip"
         },
         {
           "path": "cdmw/ui/archive_browser/asset_family_panel.py",
-          "line": 385,
+          "line": 409,
           "sink": "setToolTip"
         },
         {
           "path": "cdmw/ui/archive_browser/asset_family_panel.py",
-          "line": 385,
+          "line": 409,
           "sink": "setToolTip"
         }
       ]
@@ -202841,7 +202846,7 @@
         },
         {
           "path": "cdmw/services/independent_item_physics.py",
-          "line": 52,
+          "line": 72,
           "sink": "payload"
         },
         {
@@ -202851,7 +202856,12 @@
         },
         {
           "path": "cdmw/services/new_item_variants.py",
-          "line": 351,
+          "line": 353,
+          "sink": "template_collision_copy"
+        },
+        {
+          "path": "cdmw/services/new_item_variants.py",
+          "line": 357,
           "sink": "payload"
         }
       ]
@@ -203196,7 +203206,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 548,
+          "line": 551,
           "sink": "OverlayConflict"
         }
       ]
@@ -203326,7 +203336,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 470,
+          "line": 473,
           "sink": "OverlayConflict"
         }
       ]
@@ -203526,7 +203536,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 760,
+          "line": 763,
           "sink": "OverlayConflict"
         }
       ]
@@ -203536,7 +203546,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 777,
+          "line": 780,
           "sink": "OverlayConflict"
         }
       ]
@@ -203546,7 +203556,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 709,
+          "line": 712,
           "sink": "OverlayConflict"
         }
       ]
@@ -203556,7 +203566,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 705,
+          "line": 708,
           "sink": "OverlayConflict"
         }
       ]
@@ -203651,7 +203661,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 587,
+          "line": 590,
           "sink": "OverlayConflict"
         }
       ]
@@ -203716,7 +203726,7 @@
         },
         {
           "path": "cdmw/services/new_item_planning.py",
-          "line": 740,
+          "line": 744,
           "sink": "add"
         },
         {
@@ -204291,7 +204301,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 614,
+          "line": 617,
           "sink": "on_log"
         }
       ]
@@ -204426,7 +204436,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 511,
+          "line": 514,
           "sink": "OverlayConflict"
         }
       ]

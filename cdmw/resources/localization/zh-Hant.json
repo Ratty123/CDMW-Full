@@ -405,7 +405,7 @@
     "A socket you create yourself, at a spot you pick on the body.": "您自己建立的掛點，在您在身體上選擇的位置。",
     "A source file or directory no longer exists. Check the configured path and rescan.": "來源檔案或目錄已不存在。請檢查設定的路徑並重新掃描。",
     "A target submesh has more than one dye assignment.": "目標子網格具有多個染料分配。",
-    "A template's mesh physics file binds cloth and collision to that template's own vertices. On a model of your own those indices land wherever they land, which is how a handle ends up swinging like a cape. Off, the item is written without a physics file and the game gives it none. On for a template whose cloth you want and whose shape yours follows closely.": "範本的網格物理檔案把布料與碰撞綁在該範本自己的頂點上。換成你自己的模型，這些頂點編號落在哪裡都有可能，握把像披風一樣甩動就是這麼來的。關閉時物品不寫入物理檔案，遊戲也就不給它物理。只有當你想要該範本的布料、而你的模型形狀也貼近它時才打開。",
+    "A template's cloth and jiggle bindings are tied to that template's own vertices. On a model of your own those indices land wherever they land, which is how a handle ends up swinging like a cape. Off, those bindings are removed and the item keeps only the template's collision shape. On for a template whose cloth you want and whose shape yours follows closely.": "範本的布料與抖動綁定掛在該範本自己的頂點上。換成你自己的模型，這些頂點編號落在哪裡都有可能，握把像披風一樣甩動就是這麼來的。關閉時會移除這些綁定，物品只保留範本的碰撞形狀。只有當你想要該範本的布料、而你的模型形狀也貼近它時才打開。",
     "A text export is already running.": "文字匯出已經在運作。",
     "A texture export is already running.": "紋理匯出已在進行中。",
     "A texture replacement must be bounded DDS bytes.": "紋理替換資料必須是大小受限的 DDS 位元組資料。",
