@@ -78,7 +78,7 @@ from cdmw.services.texture_editor_service import (
 
 
 SCHEMA_VERSION = 1
-DEFAULT_VIRTUAL_PATH = "0009/character/texture/cd_phw_00_nude_00_0001_hand.dds"
+DEFAULT_VIRTUAL_PATH = "0009/character/texture/phw_00_nude_00_0001_hand.dds"
 SCENARIO_NAMES = (
     "reported-bc7-rebuild",
     "policy-matrix",

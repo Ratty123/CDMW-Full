@@ -66,7 +66,7 @@ def _helper_ui_thread_no_global_input_evidence(
 # This PHW model is the escaped packaged-runtime regression: its visible body
 # textures arrive as exact native ``embedded_mesh_reference`` bindings.
 _PACKAGED_TEXTURE_SAMPLE = (
-    "character/model/1_pc/2_phw/nude/cd_phw_00_nude_00_4001.pac"
+    "character/model/1_pc/2_phw/nude/phw_00_nude_00_4001.pac"
 )
 
 
