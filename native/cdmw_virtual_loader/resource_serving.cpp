@@ -16,26 +16,15 @@ using Word = uint64_t;
 constexpr int load_slot = 2, exists_slot = 10, size_slot = 11, async_slot = 13;
 constexpr std::array<int, 5> request_slots{3, 4, 5, 6, 12};
 constexpr int worker_slots = 14, map_slots = 11;
-constexpr size_t owner_offset = 0x20;
 
 struct Entry { uint64_t hash; std::string logical; void* record; uint64_t size; };
 std::vector<Entry> entries;  // sorted by hash; read-only while serving
 ServeTrace on_serve = nullptr;
 
-// The stand-in the loose-file worker runs as, and the resource map it reads at +0x18.
-alignas(16) unsigned char stand_in[0x100];
-alignas(16) unsigned char stand_in_map[0x40];
+// The resource map the stand-in reads at +0x18.
+alignas(16) unsigned char stand_in_map[0x100];
 void* stand_in_vtable[1 + worker_slots];  // [0] is the complete object locator
 void* stand_in_map_vtable[1 + map_slots];
-
-using Exists = Word (*)(void*, void*);
-using Size = Word (*)(void*, void*, uint64_t*);
-using Load = Word (*)(void*, void*, void*, Word);
-using Request = Word (*)(void*, void*, Word, Word, Word, Word, Word, Word, Word, Word, Word, Word);
-Exists next_exists{};
-Size next_size{};
-Load next_load{}, next_async{}, loose_load{}, loose_async{};
-std::array<Request, worker_slots> next_request{}, loose_request{};
 
 struct SlotPatch { void** slot; void* before; void* after; };
 std::vector<SlotPatch> changed;
@@ -82,30 +71,51 @@ const Entry* find(void* object) noexcept {
 }
 
 void report(const Entry& entry, bool async) noexcept { if (on_serve) on_serve(entry.logical.c_str(), async); }
+}  // namespace
+}  // namespace cdmw::vfs
 
-// The package worker's slots.
-Word served_exists(void* self, void* path) { return find(path) ? 1 : next_exists(self, path); }
-Word served_size(void* self, void* path, uint64_t* out) {
-    if (auto entry = find(path)) { if (out) *out = entry->size; return 1; }
-    return next_size(self, path, out);
+// Shared with resource_serving_thunks.asm, which installs as the package worker's slots
+// and tail-jumps to these targets so stack arguments pass through unchanged.
+extern "C" {
+alignas(16) unsigned char cdmw_stand_in[0x100];  // the stand-in the loose-file worker runs as
+void* cdmw_next_load;
+void* cdmw_loose_load;
+void* cdmw_next_async;
+void* cdmw_loose_async;
+void* cdmw_next_exists;
+void* cdmw_next_size;
+void* cdmw_next_request[14];
+void* cdmw_loose_request[14];
+void cdmw_thunk_load();
+void cdmw_thunk_async();
+void cdmw_thunk_exists();
+void cdmw_thunk_size();
+void cdmw_thunk_request3();
+void cdmw_thunk_request4();
+void cdmw_thunk_request5();
+void cdmw_thunk_request6();
+void cdmw_thunk_request12();
+int cdmw_serve_load(void* request) noexcept {
+    auto entry = cdmw::vfs::find(request);
+    if (entry) cdmw::vfs::report(*entry, false);
+    return entry != nullptr;
 }
-Word served_load(void* self, void* context, void* request, Word mode) {
-    if (auto entry = find(request)) { report(*entry, false); return loose_load(stand_in, context, request, mode); }
-    return next_load(self, context, request, mode);
+int cdmw_serve_async(void* request) noexcept {
+    auto entry = cdmw::vfs::find(request);
+    if (entry) cdmw::vfs::report(*entry, true);
+    return entry != nullptr;
 }
-Word served_async(void* self, void* context, void* request, Word callback) {
-    if (auto entry = find(request)) { report(*entry, true); return loose_async(stand_in, context, request, callback); }
-    return next_async(self, context, request, callback);
+int cdmw_serve_exists(void* path) noexcept { return cdmw::vfs::find(path) != nullptr; }
+int cdmw_serve_size(void* path, uint64_t* out) noexcept {
+    auto entry = cdmw::vfs::find(path);
+    if (!entry) return 0;
+    if (out) *out = entry->size;
+    return 1;
 }
-bool started_by_stand_in(void* request) noexcept {
-    return request && *reinterpret_cast<void**>(static_cast<unsigned char*>(request) + owner_offset) == stand_in;
-}
-template <int slot>
-Word follow_request(void* self, void* request, Word c, Word d, Word e, Word f, Word g, Word h, Word i, Word j, Word k, Word l) {
-    return started_by_stand_in(request) ? loose_request[slot](stand_in, request, c, d, e, f, g, h, i, j, k, l)
-                                        : next_request[slot](self, request, c, d, e, f, g, h, i, j, k, l);
 }
 
+namespace cdmw::vfs {
+namespace {
 // The stand-in's own slots and its resource map.
 void* returns_self(void* self) { return self; }
 Word returns_zero() { return 0; }
@@ -281,7 +291,8 @@ std::string serve_resources(std::vector<ServedResource> resources, ServeTrace se
     std::memcpy(&stand_in_vtable[1], loose.vtable, sizeof(void*) * worker_slots);
     stand_in_vtable[1] = reinterpret_cast<void*>(&returns_self);
     stand_in_vtable[2] = reinterpret_cast<void*>(&returns_zero);
-    std::memset(stand_in, 0, sizeof stand_in);
+    auto stand_in = cdmw_stand_in;
+    std::memset(stand_in, 0, sizeof cdmw_stand_in);
     *reinterpret_cast<void***>(stand_in) = &stand_in_vtable[1];
     *reinterpret_cast<uint32_t*>(stand_in + 0x10) = 0x10000000u;
     stand_in[0x14] = 1;
@@ -297,14 +308,14 @@ std::string serve_resources(std::vector<ServedResource> resources, ServeTrace se
     std::memset(stand_in_map, 0, sizeof stand_in_map);
     *reinterpret_cast<void***>(stand_in_map) = &stand_in_map_vtable[1];
 
-    loose_load = reinterpret_cast<Load>(loose.vtable[load_slot]);
-    loose_async = reinterpret_cast<Load>(loose.vtable[async_slot]);
-    for (int slot : request_slots) loose_request[slot] = reinterpret_cast<Request>(loose.vtable[slot]);
-    next_exists = reinterpret_cast<Exists>(package.vtable[exists_slot]);
-    next_size = reinterpret_cast<Size>(package.vtable[size_slot]);
-    next_load = reinterpret_cast<Load>(package.vtable[load_slot]);
-    next_async = reinterpret_cast<Load>(package.vtable[async_slot]);
-    for (int slot : request_slots) next_request[slot] = reinterpret_cast<Request>(package.vtable[slot]);
+    cdmw_loose_load = loose.vtable[load_slot];
+    cdmw_loose_async = loose.vtable[async_slot];
+    for (int slot : request_slots) cdmw_loose_request[slot] = loose.vtable[slot];
+    cdmw_next_exists = package.vtable[exists_slot];
+    cdmw_next_size = package.vtable[size_slot];
+    cdmw_next_load = package.vtable[load_slot];
+    cdmw_next_async = package.vtable[async_slot];
+    for (int slot : request_slots) cdmw_next_request[slot] = package.vtable[slot];
 
     std::ostringstream summary;
     summary << "Resource loader found: package worker vtable at " << owner(package.vtable)
@@ -317,10 +328,10 @@ std::string serve_resources(std::vector<ServedResource> resources, ServeTrace se
     entries = std::move(table);
     on_serve = served;
     const std::array<void*, worker_slots> replacements{
-        nullptr, nullptr, reinterpret_cast<void*>(&served_load), reinterpret_cast<void*>(&follow_request<3>),
-        reinterpret_cast<void*>(&follow_request<4>), reinterpret_cast<void*>(&follow_request<5>),
-        reinterpret_cast<void*>(&follow_request<6>), nullptr, nullptr, nullptr, reinterpret_cast<void*>(&served_exists),
-        reinterpret_cast<void*>(&served_size), reinterpret_cast<void*>(&follow_request<12>), reinterpret_cast<void*>(&served_async)};
+        nullptr, nullptr, reinterpret_cast<void*>(&cdmw_thunk_load), reinterpret_cast<void*>(&cdmw_thunk_request3),
+        reinterpret_cast<void*>(&cdmw_thunk_request4), reinterpret_cast<void*>(&cdmw_thunk_request5),
+        reinterpret_cast<void*>(&cdmw_thunk_request6), nullptr, nullptr, nullptr, reinterpret_cast<void*>(&cdmw_thunk_exists),
+        reinterpret_cast<void*>(&cdmw_thunk_size), reinterpret_cast<void*>(&cdmw_thunk_request12), reinterpret_cast<void*>(&cdmw_thunk_async)};
     try {
         for (int slot = 0; slot < worker_slots; ++slot)
             if (replacements[slot]) patch(&package.vtable[slot], replacements[slot]);

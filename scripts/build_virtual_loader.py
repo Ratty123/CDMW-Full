@@ -32,7 +32,7 @@ def main():
     subprocess.run(['ctest', '--test-dir', str(build), '-C', 'Release', '--output-on-failure'], check=True)
     files = ('CDMWVirtualLoader.asi', 'cdmw_virtual_session.exe')
     sources = tuple(sorted(p for p in SOURCE.iterdir()
-                           if p.suffix in ('.cpp', '.hpp') or p.name in ('CMakeLists.txt', 'version.rc.in')))
+                           if p.suffix in ('.cpp', '.hpp', '.asm') or p.name in ('CMakeLists.txt', 'version.rc.in')))
     source_hashes = {p.name: sha(p) for p in sources}
     for relative in ('../../scripts/build_virtual_loader.py', '../../cdmw/constants.py', '../../cdmw/build_metadata.py'):
         source_hashes[relative] = sha(SOURCE / relative)

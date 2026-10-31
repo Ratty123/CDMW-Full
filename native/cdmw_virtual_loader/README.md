@@ -337,13 +337,17 @@ CDAL later adds an import-slot kind that chains callers, the runtime could regis
 through it when `cdal.dll` is present and keep its direct path otherwise, so other mods
 that need the same imports could share them instead of being refused.
 
-## Game 2.04.02 (October 2026 DLC update)
+## Game 2.04.02 and 2.04.03 (October 2026 DLC update and patch)
 
-The supported build is now executable 1.0.0.3446 (game 2.04.02), SHA-256
-`fec07be1b725a46624d31fcd74bf3730ea809765226cea6bde01607ab2d79f66`. Its startup return,
-game RVA `0x112835a6`, was read from the runtime's own refusal stack on the first launch:
-the protected code reaches UAL's wrapper through a push/ret trampoline, so the only
-direct `GetCommandLineW` call site (`0xc3b8001`) was the wrong witness and was refused.
+The supported build is executable 1.0.0.3460 (game 2.04.03, Steam build 26345091,
+31 October 2026), SHA-256 `4e38ce1d8fe98eee7be0e26026a1d24ea6a17e80aa88e906b5f3ed553af11f63`,
+startup return at game RVA `0x9a576d2`. Both were read from the runtime's own refusal
+stack on the first launch after the patch; UAL's four frames did not change. The patch
+left the five Wolf Trial packages' pinned files unchanged but rewrote `meta/0.pathc`.
+
+Before it, executable 1.0.0.3446 (game 2.04.02, `fec07be1…`) returned at `0x112835a6`. Its
+protected code reaches UAL's wrapper through a push/ret trampoline, so the only direct
+`GetCommandLineW` call site (`0xc3b8001`) was the wrong witness and was refused.
 
 Recorded 2026-10-31 with UAL 9.7.4, CDAL, BSX, FastLoad and DmmRuntime installed: a
 headless Steam launch with a launcher profile of the five Wolf Trial packages, rebuilt
@@ -392,6 +396,15 @@ resource loader, following DmmRuntime 1.0.0's layouts read from its code:
   length, `0xFFFFFFFF`, `0x80000000`, UTF-8 path), and the loose-file worker opens it.
 - Slots 3, 4, 5, 6 and 12 act on a load in progress and follow the worker the request
   names at +0x20.
+- Every changed slot is a MASM thunk (`resource_serving_thunks.asm`) that tail-jumps to
+  the slot it serves or forwards to, so stack arguments and xmm registers arrive
+  unchanged. The game's load takes a status pointer as its fifth argument: on the
+  first game launch a C++ wrapper that forwarded four arguments made the load write its
+  "not in this package" status through a garbage pointer, and the game crashed at
+  start-up. The loose-file worker's load first asks the package map at the worker's
+  +0x20 (zero in the stand-in, as in DmmRuntime's), sets that status, then reads the
+  resource map at +0x18. The game is not built with Control Flow Guard, so it does not
+  check the thunks as call targets.
 - Paths arrive as `**argument`; lookups lower-case them, turn backslashes into slashes
   and drop leading slashes, then search a sorted FNV-1a table without allocating.
 - A slot another module already changed is chained, and the trace names its owner.
@@ -400,7 +413,18 @@ resource loader, following DmmRuntime 1.0.0's layouts read from its code:
 Trace operation 16 records where the classes were found and how many paths are served;
 operation 15 records each served load (error 1 for an async one). The harness defines
 the three classes with the same RTTI names and slot shapes and checks every slot
-(`--serve`). That proves the mechanism against the harness, not against the game.
+(`--serve`), including a fifth stack argument and a `double` in xmm2.
+
+Recorded 2026-10-31 on 1.0.0.3460, headless, with BSX, CDAL, FastLoad and DmmRuntime
+installed (DmmRuntime stopped itself: its mount predated the patch): the runtime found
+the package worker's vtable at `CrimsonDesert.exe+0x5aae410` and the loose-file
+worker's at `+0x5aae6b0`, was ready in 782 ms serving the five swords' 172 composed
+files, and the game asked it for the part-prefab table, the eight composed table pairs
+and the English item names. All twelve data stages completed with only the errors an
+unmodified launch logs; saves were unchanged. Evidence:
+`.work/research/2026-10-31-cditem-post-dlc/route-a-run-4/`. Loading the swords' models in
+game through this runtime, and running beside a DmmRuntime that serves files, are not yet
+observed.
 
 ## Independent item publication research
 

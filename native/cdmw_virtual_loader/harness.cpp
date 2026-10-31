@@ -23,20 +23,23 @@ public:
     virtual Word m4() { return 0; } virtual Word m5() { return 0; } virtual Word m6() { return 0; } virtual Word m7() { return 0; }
     virtual Word m8() { return 0; } virtual Word m9() { return 0; } virtual Word m10() { return 0; }
 };
+// Every argument a slot receives must arrive intact: the game's loads take a status
+// pointer on the stack, and a slot may take floating-point arguments in xmm registers.
+inline bool intact(double c, Word l) { return c == 3.5 && l == 0x12; }
 // Reads the file a served path resolves to, through the stand-in's resource map.
 class BaseResourceLoadWorker {
 public:
     virtual Word v0() { return 0; }
     virtual Word v1() { return 0; }
-    virtual Word load(void*, Request* request, Word) { return serve(request, 102); }
-    virtual Word r3(Request* request, Word, Word, Word, Word, Word, Word, Word, Word, Word, Word) { request->handled = 103; return 1; }
-    virtual Word r4(Request* request, Word, Word, Word, Word, Word, Word, Word, Word, Word, Word) { request->handled = 104; return 1; }
-    virtual Word r5(Request* request, Word, Word, Word, Word, Word, Word, Word, Word, Word, Word) { request->handled = 105; return 1; }
-    virtual Word r6(Request* request, Word, Word, Word, Word, Word, Word, Word, Word, Word, Word) { request->handled = 106; return 1; }
+    virtual Word load(void*, Request* request, Word, Word* status) { *status = 0x51; return serve(request, 102); }
+    virtual Word r3(Request* request, double c, Word, Word, Word, Word, Word, Word, Word, Word, Word l) { request->handled = intact(c, l) ? 103 : 0; return 1; }
+    virtual Word r4(Request* request, double c, Word, Word, Word, Word, Word, Word, Word, Word, Word l) { request->handled = intact(c, l) ? 104 : 0; return 1; }
+    virtual Word r5(Request* request, double c, Word, Word, Word, Word, Word, Word, Word, Word, Word l) { request->handled = intact(c, l) ? 105 : 0; return 1; }
+    virtual Word r6(Request* request, double c, Word, Word, Word, Word, Word, Word, Word, Word, Word l) { request->handled = intact(c, l) ? 106 : 0; return 1; }
     virtual Word v7() { return 0; } virtual Word v8() { return 0; } virtual Word v9() { return 0; }
     virtual Word v10() { return 0; } virtual Word v11() { return 0; }
-    virtual Word r12(Request* request, Word, Word, Word, Word, Word, Word, Word, Word, Word, Word) { request->handled = 112; return 1; }
-    virtual Word load_async(void*, Request* request, Word) { return serve(request, 113); }
+    virtual Word r12(Request* request, double c, Word, Word, Word, Word, Word, Word, Word, Word, Word l) { request->handled = intact(c, l) ? 112 : 0; return 1; }
+    virtual Word load_async(void*, Request* request, Word, Word* status) { *status = 0x53; return serve(request, 113); }
 private:
     Word serve(Request* request, Word handled) {
         auto self = reinterpret_cast<unsigned char*>(this);
@@ -67,16 +70,16 @@ class ResourceLoadWorker_Package {
 public:
     virtual Word v0() { return 0; }
     virtual Word v1() { return 0; }
-    virtual Word load(void*, Request* request, Word) { request->handled = 2; return 1; }
-    virtual Word r3(Request* request, Word, Word, Word, Word, Word, Word, Word, Word, Word, Word) { request->handled = 3; return 1; }
-    virtual Word r4(Request* request, Word, Word, Word, Word, Word, Word, Word, Word, Word, Word) { request->handled = 4; return 1; }
-    virtual Word r5(Request* request, Word, Word, Word, Word, Word, Word, Word, Word, Word, Word) { request->handled = 5; return 1; }
-    virtual Word r6(Request* request, Word, Word, Word, Word, Word, Word, Word, Word, Word, Word) { request->handled = 6; return 1; }
+    virtual Word load(void*, Request* request, Word, Word* status) { *status = 0x52; request->handled = 2; return 1; }
+    virtual Word r3(Request* request, double c, Word, Word, Word, Word, Word, Word, Word, Word, Word l) { request->handled = intact(c, l) ? 3 : 0; return 1; }
+    virtual Word r4(Request* request, double c, Word, Word, Word, Word, Word, Word, Word, Word, Word l) { request->handled = intact(c, l) ? 4 : 0; return 1; }
+    virtual Word r5(Request* request, double c, Word, Word, Word, Word, Word, Word, Word, Word, Word l) { request->handled = intact(c, l) ? 5 : 0; return 1; }
+    virtual Word r6(Request* request, double c, Word, Word, Word, Word, Word, Word, Word, Word, Word l) { request->handled = intact(c, l) ? 6 : 0; return 1; }
     virtual Word v7() { return 0; } virtual Word v8() { return 0; } virtual Word v9() { return 0; }
     virtual Word exists(void*) { return 0; }
     virtual Word size(void*, uint64_t*) { return 0; }
-    virtual Word r12(Request* request, Word, Word, Word, Word, Word, Word, Word, Word, Word, Word) { request->handled = 12; return 1; }
-    virtual Word load_async(void*, Request* request, Word) { request->handled = 13; return 1; }
+    virtual Word r12(Request* request, double c, Word, Word, Word, Word, Word, Word, Word, Word, Word l) { request->handled = intact(c, l) ? 12 : 0; return 1; }
+    virtual Word load_async(void*, Request* request, Word, Word* status) { *status = 0x54; request->handled = 13; return 1; }
 };
 BasePackageResourceMap map_instance;
 BaseResourceLoadWorker loose_instance;
@@ -89,27 +92,30 @@ void serve_through_package_worker(const fs::path& root, const std::string& serve
     auto slots = *reinterpret_cast<void***>(&pa::package_instance);
     auto exists = reinterpret_cast<Word (*)(void*, void*)>(slots[10]);
     auto size = reinterpret_cast<Word (*)(void*, void*, uint64_t*)>(slots[11]);
-    auto load = reinterpret_cast<Word (*)(void*, void*, void*, Word)>(slots[2]);
-    auto load_async = reinterpret_cast<Word (*)(void*, void*, void*, Word)>(slots[13]);
-    using Follow = Word (*)(void*, void*, Word, Word, Word, Word, Word, Word, Word, Word, Word, Word);
+    auto load = reinterpret_cast<Word (*)(void*, void*, void*, Word, Word*)>(slots[2]);
+    auto load_async = reinterpret_cast<Word (*)(void*, void*, void*, Word, Word*)>(slots[13]);
+    using Follow = Word (*)(void*, void*, double, Word, Word, Word, Word, Word, Word, Word, Word, Word);
     auto worker = &pa::package_instance;
     pa::Request request{}, other{}, later{};
     request.path = &served_text; other.path = &unknown_text; later.path = &served_text;
     uint64_t bytes{};
+    Word status{};
     require(exists(worker, &request) == 1 && exists(worker, &other) == 0, "Served path existence was not answered");
     require(size(worker, &request, &bytes) == 1 && size(worker, &other, &bytes) == 0, "Served path size was not answered");
-    require(load(worker, nullptr, &request, 0) == 1 && request.handled == 102 && request.owner && request.owner != worker,
+    require(load(worker, nullptr, &request, 0, &status) == 1 && request.handled == 102 && request.owner && request.owner != worker,
             "A served load did not run in the loose-file worker");
+    require(status == 0x51, "A served load lost its stack argument");
     require(request.loaded_size == bytes, "The served size and the loaded bytes disagree");
-    require(load(worker, nullptr, &other, 0) == 1 && other.handled == 2, "An unserved load left the package worker");
+    require(load(worker, nullptr, &other, 0, &status) == 1 && other.handled == 2 && status == 0x52, "An unserved load left the package worker");
     for (int slot : {3, 4, 5, 6, 12}) {
         auto follow = reinterpret_cast<Follow>(slots[slot]);
-        require(follow(worker, &request, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0) == 1 && request.handled == 100u + static_cast<unsigned>(slot),
-                "A served request's later step did not follow the loose-file worker");
-        require(follow(worker, &other, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0) == 1 && other.handled == static_cast<unsigned>(slot),
-                "An unserved request's later step left the package worker");
+        require(follow(worker, &request, 3.5, 0, 0, 0, 0, 0, 0, 0, 0, 0x12) == 1 && request.handled == 100u + static_cast<unsigned>(slot),
+                "A served request's later step did not follow the loose-file worker with its arguments intact");
+        require(follow(worker, &other, 3.5, 0, 0, 0, 0, 0, 0, 0, 0, 0x12) == 1 && other.handled == static_cast<unsigned>(slot),
+                "An unserved request's later step left the package worker or lost its arguments");
     }
-    require(load_async(worker, nullptr, &later, 0) == 1 && later.handled == 113, "A served async load did not run in the loose-file worker");
+    require(load_async(worker, nullptr, &later, 0, &status) == 1 && later.handled == 113 && status == 0x53,
+            "A served async load did not run in the loose-file worker with its arguments intact");
     const auto out = root / L".cdmw/virtual-loader/harness-out";
     fs::create_directories(out);
     std::ofstream copy(out / L"served.bin", std::ios::binary);

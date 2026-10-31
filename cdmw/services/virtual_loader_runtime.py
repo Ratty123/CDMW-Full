@@ -17,7 +17,7 @@ from cdmw.services.virtual_loader_composition import hash_file
 from cdmw.services.virtual_loader_state import target, load_profile, generation_path, decode, read_optional
 from cdmw.services.application_shutdown_service import archive_write_scope
 
-GAME_SHA256 = 'fec07be1b725a46624d31fcd74bf3730ea809765226cea6bde01607ab2d79f66'  # 1.0.0.3446, native game_hash
+GAME_SHA256 = '4e38ce1d8fe98eee7be0e26026a1d24ea6a17e80aa88e906b5f3ed553af11f63'  # 1.0.0.3460, native game_hash
 BOOTSTRAP_SHA256 = '810111a7f6a6cef892877c9f7c4582ccde2d621d119891f700c5309c370508bf'
 BOOTSTRAP_CURRENT_SHA256 = 'fa266e3513d02c08a1b808f28c10538a489eaffaa4b0707f7cc1066e71b5afd7'
 GAME_REDIRECTION_APPROVED = False  # General redirect mode stays closed; reviewed experiments use mode 3.
