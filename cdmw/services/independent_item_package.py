@@ -326,7 +326,7 @@ def from_plan(plan, identity, *, title=None, stop_event=None):
         folder = Path(row.entry.pamt_path).parent.name
         if not folder.isdigit() or int(folder) >= 36:
             raise IndependentItemError("Independent packages may borrow only shipped game resources. Rebuild against the clean game baseline.")
-        path = virtual_path(row.entry.path.lower())
+        path = _resource_path(row.entry.path.lower())
         if path in dependencies and dependencies[path] != row.sha256:
             raise IndependentItemError("The source contains conflicting resource versions.")
         dependencies[path] = row.sha256
@@ -394,7 +394,9 @@ def _package_resources(meta, blobs):
     if not isinstance(meta["dependencies"], dict) or not meta["dependencies"]:
         raise IndependentItemError("The package has no verified game dependencies.")
     for path, checksum in meta["dependencies"].items():
-        virtual_path(path)
+        # A pin is read and compared, never written, so any well-formed game path may be
+        # pinned; virtual_path's roots bound what a package contributes.
+        _resource_path(path)
         if not isinstance(checksum, str) or not _HASH.fullmatch(checksum):
             raise IndependentItemError("Invalid game dependency checksum.")
     if not isinstance(meta["blobs"], dict) or set(meta["blobs"]) != set(blobs):

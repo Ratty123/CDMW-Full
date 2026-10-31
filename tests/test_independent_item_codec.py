@@ -36,6 +36,29 @@ def test_v1_package_keeps_original_identity_and_content_digest():
     assert read_package(package_bytes(package)) == package
 
 
+@pytest.mark.parametrize(('pinned', 'accepted'), [
+    ('object/00_common/item/cd_in_dpfo_coin_remedello_01.pami', True),
+    ('object/../gamedata/x.pabgb', False),
+    ('Object/00_common/x.pami', False),
+])
+def test_dependency_pins_accept_any_well_formed_game_path(pinned, accepted):
+    # Coin and gimmick props reached from an item borrow object/ resources; a pin is
+    # only read and compared, so it is not limited to the roots a package may write.
+    from cdmw.services.independent_item_package import package_bytes, read_package
+    fixture = json.loads((Path(__file__).parent / 'fixtures/cditem_v1_codec.json').read_text(encoding='utf-8'))
+    manifest = dict(fixture['manifest'], dependencies={**fixture['manifest']['dependencies'], pinned: '0' * 64})
+    stream = io.BytesIO()
+    with zipfile.ZipFile(stream, 'w') as archive:
+        archive.writestr('item.json', json.dumps(manifest))
+    if not accepted:
+        with pytest.raises(IndependentItemError, match='Invalid package resource path'):
+            read_package(stream.getvalue())
+        return
+    package = read_package(stream.getvalue())
+    assert package.dependencies[pinned] == '0' * 64
+    assert read_package(package_bytes(package)) == package
+
+
 def test_internal_class_and_enum_names_do_not_define_wire_names():
     item = spec.StatEdit(1, 2, 3)
     expected = codec.encode(item)
