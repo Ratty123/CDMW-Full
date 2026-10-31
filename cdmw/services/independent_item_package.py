@@ -371,6 +371,48 @@ def from_plan(plan, identity, *, title=None, stop_event=None):
     return package
 
 
+#: The modules from_plan writes from an item recipe, so a rebuild can carry them over.
+REBUILT_MODULES = frozenset({"item.legacy", "item.properties", "item.stats", "item.inventory",
+                             "item.definition", "item.behavior"})
+
+
+def rebuild_for_game(package, snapshot, *, stop_event=None):
+    """`package`'s item planned again on `snapshot`'s tables, keeping its identity and title.
+
+    A package pins the exact game files its recipe read, so a game update makes it refuse.
+    This plans the retained recipe as Apply does and writes the new pins, like Update an
+    existing item package from the same draft. Field edits, stock overrides, texture
+    replacements and package links are not planned from the recipe and refuse.
+    """
+    from cdmw.services.independent_mod_package import has_legacy_item
+    from cdmw.services.new_item_service import NewItemService
+    from cdmw.services.new_item_planning import build_plan, planned_icon_string
+    from cdmw.core.item_icon_addition import NewItemIcon, icon_target_path
+    from cdmw.core.stringinfo_table import stringinfo_key
+    modules = {module["type"] for module in getattr(package, "manifest", {"modules": ()})["modules"]}
+    if not has_legacy_item(package) or modules - REBUILT_MODULES:
+        extra = ", ".join(sorted(modules - REBUILT_MODULES)) or "no item recipe"
+        raise IndependentItemError(f"{package.title}: only Create New Item packages can be rebuilt ({extra}).")
+    view = snapshot.discovery_view()
+    # The tables the snapshot itself was read from are inputs of every plan, as in Apply.
+    for dependency in (snapshot.provenance.capture().payloads if snapshot.provenance is not None else ()):
+        raise_if_cancelled(stop_event)
+        view.payload(dependency.entry.path)
+    spec, model, variants, icon_data = unpack_recipe(package)
+    service = NewItemService()
+    allocated = service.allocate(replace(spec, internal_name="CDI_" + package.identity), view)
+    errors = [issue.message for issue in service.validate(allocated, view) if issue.is_error]
+    if errors:
+        raise IndependentItemError(f"{package.title}: " + "; ".join(errors))
+    icon = None
+    if icon_data is not None:
+        name = planned_icon_string(allocated, view)
+        icon = NewItemIcon(name, stringinfo_key(name), icon_target_path(name), icon_data, None, None)
+    plan = build_plan(allocated, view, model=model, variant_models=variants, icon=icon,
+                      capture_independent=True, stop_event=stop_event)
+    return from_plan(plan, package.identity, title=package.title, stop_event=stop_event)
+
+
 def _package(meta, blobs, *, stop_event=None):
     if isinstance(meta, dict) and type(meta.get('version')) is int and meta['version'] == 2:
         from cdmw.services.independent_mod_package import read_v2

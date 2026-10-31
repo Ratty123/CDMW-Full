@@ -11,7 +11,17 @@ Since the October 2026 DLC update (game 2.04.02), Mod Management is disabled and
 neither installation route can load items: the game authenticates its archive mount
 list (see [`VIRTUAL_LOADER.md`](VIRTUAL_LOADER.md)). **Write item package** still works
 against the updated tables. A package written for an earlier game version pins that
-version's tables and refuses until it is written again.
+version's tables and refuses until it is written again. The developer command
+`scripts/rebuild_cditem.py` plans such packages again from their retained recipes and
+writes them to another folder with the same identities:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\rebuild_cditem.py --game-root "C:\path\to\Crimson Desert" --output rebuilt A.cditem B.cditem
+```
+
+It accepts Create New Item packages, including their item settings; packages with
+field edits, stock overrides, texture replacements or package links refuse. A rebuilt
+item uses the current template rows, so review it before sharing.
 
 ## Optional DMM V3 export
 

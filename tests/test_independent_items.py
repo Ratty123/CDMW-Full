@@ -338,6 +338,39 @@ def test_dependency_version_and_hash_collisions_fail_without_writing(tmp_path, m
     assert not (root / REGISTRY_PATH).exists()
 
 
+def test_a_package_pinned_to_an_earlier_game_rebuilds_with_its_identity(tmp_path):
+    from cdmw.services.independent_item_install import resolve_items
+    from cdmw.services.independent_item_package import digest, rebuild_for_game, stock_snapshot
+    _, package = authored(tmp_path / 'source')
+    setup_game(tmp_path / 'recipient')
+    root = tmp_path / 'recipient/game'
+    # A game update changes files the recipe read; the package still pins the old bytes.
+    dependencies = dict(package.dependencies)
+    dependencies[next(iter(dependencies))] = 'f' * 64
+    stale = read_package(package_bytes(replace(package, dependencies=dependencies)))
+    with pytest.raises(IndependentItemError, match='incompatible game dependency'):
+        resolve_items([package_bytes(stale)], root, target='virtual')
+    snapshot = stock_snapshot(root)
+    rebuilt = rebuild_for_game(stale, snapshot)
+    assert (rebuilt.identity, rebuilt.title) == (stale.identity, stale.title) and rebuilt.digest != stale.digest
+    assert all(digest(snapshot.payload(path)) == checksum for path, checksum in rebuilt.dependencies.items())
+    resolved = resolve_items([package_bytes(rebuilt)], root, target='virtual')
+    assert [package.identity for package, _changes in resolved.contributions] == [stale.identity]
+
+
+def test_rebuilding_refuses_modules_the_item_recipe_does_not_carry(tmp_path):
+    from cdmw.services.independent_item_package import rebuild_for_game, stock_snapshot
+    from cdmw.services.independent_mod_package import migrate_v1
+    from copy import deepcopy
+    from types import SimpleNamespace
+    _, package = authored(tmp_path / 'source')
+    manifest = deepcopy(migrate_v1(package).manifest)
+    manifest['modules'].append({'id': 'links', 'type': 'package.links', 'version': 1, 'required': True, 'data': {}})
+    linked = SimpleNamespace(manifest=manifest, title=package.title)
+    with pytest.raises(IndependentItemError, match=r'only Create New Item packages can be rebuilt \(package.links\)'):
+        rebuild_for_game(linked, stock_snapshot(tmp_path / 'source/game'))
+
+
 @pytest.mark.parametrize('first', [False, True])
 @pytest.mark.parametrize('directory_name', ['0042', 'dmmgen', 'dmmsa'])
 def test_identical_external_dependency_does_not_block_installation(tmp_path, first, directory_name):
