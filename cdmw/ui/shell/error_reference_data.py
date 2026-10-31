@@ -22078,7 +22078,7 @@ MESSAGE_REFERENCE = [
     "message": "bad member type {member_type} at 0x{member_offset}",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/prefab_binary.py": 393
+      "cdmw/core/prefab_binary.py": 395
     }
   },
   {
@@ -22086,7 +22086,7 @@ MESSAGE_REFERENCE = [
     "message": "bad string length {length} at 0x{start}",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/prefab_binary.py": 366
+      "cdmw/core/prefab_binary.py": 368
     }
   },
   {
@@ -22094,7 +22094,7 @@ MESSAGE_REFERENCE = [
     "message": "bad type name {type_name} at 0x{offset}",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/prefab_binary.py": 381
+      "cdmw/core/prefab_binary.py": 383
     }
   },
   {
@@ -22102,7 +22102,7 @@ MESSAGE_REFERENCE = [
     "message": "blob read of {count} past end at 0x{self.pos}",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/prefab_binary.py": 587
+      "cdmw/core/prefab_binary.py": 589
     }
   },
   {
@@ -22110,7 +22110,7 @@ MESSAGE_REFERENCE = [
     "message": "blob string length {length} at 0x{offset}",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/prefab_binary.py": 602
+      "cdmw/core/prefab_binary.py": 604
     }
   },
   {
@@ -22118,7 +22118,7 @@ MESSAGE_REFERENCE = [
     "message": "blob {header.blob_offset}+{header.blob_length} outside a {len(payload)}-byte payload",
     "recovery": "limits",
     "sources": {
-      "cdmw/core/prefab_binary.py": 1237
+      "cdmw/core/prefab_binary.py": 1251
     }
   },
   {
@@ -22398,7 +22398,7 @@ MESSAGE_REFERENCE = [
     "message": "expected a collection here but found {_describe_cursor(cursor)} (read count {count}, kind {kind})",
     "recovery": "input",
     "sources": {
-      "cdmw/core/prefab_binary.py": 763
+      "cdmw/core/prefab_binary.py": 765
     }
   },
   {
@@ -22471,7 +22471,7 @@ MESSAGE_REFERENCE = [
     "message": "group nesting deeper than {_MAX_DEPTH}",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/prefab_binary.py": 1022
+      "cdmw/core/prefab_binary.py": 1036
     }
   },
   {
@@ -22550,7 +22550,7 @@ MESSAGE_REFERENCE = [
     "message": "implausible member count {member_count} for {type_name}",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/prefab_binary.py": 384
+      "cdmw/core/prefab_binary.py": 386
     }
   },
   {
@@ -22566,7 +22566,7 @@ MESSAGE_REFERENCE = [
     "message": "implausible string pool count {pool_count}",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/prefab_binary.py": 497
+      "cdmw/core/prefab_binary.py": 499
     }
   },
   {
@@ -22574,7 +22574,7 @@ MESSAGE_REFERENCE = [
     "message": "implausible type count {type_count}",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/prefab_binary.py": 489
+      "cdmw/core/prefab_binary.py": 491
     }
   },
   {
@@ -22598,7 +22598,7 @@ MESSAGE_REFERENCE = [
     "message": "invalid indexed object-list reference on {member.name}",
     "recovery": "input",
     "sources": {
-      "cdmw/core/prefab_binary.py": 849
+      "cdmw/core/prefab_binary.py": 851
     }
   },
   {
@@ -22606,7 +22606,7 @@ MESSAGE_REFERENCE = [
     "message": "invalid member count",
     "recovery": "input",
     "sources": {
-      "cdmw/core/prefab_binary.py": 426
+      "cdmw/core/prefab_binary.py": 428
     }
   },
   {
@@ -22614,7 +22614,7 @@ MESSAGE_REFERENCE = [
     "message": "invalid member span",
     "recovery": "input",
     "sources": {
-      "cdmw/core/prefab_binary.py": 434
+      "cdmw/core/prefab_binary.py": 436
     }
   },
   {
@@ -22622,7 +22622,7 @@ MESSAGE_REFERENCE = [
     "message": "invalid motion object-list reference on {member.name}",
     "recovery": "input",
     "sources": {
-      "cdmw/core/prefab_binary.py": 844
+      "cdmw/core/prefab_binary.py": 846
     }
   },
   {
@@ -22630,7 +22630,7 @@ MESSAGE_REFERENCE = [
     "message": "invalid motion root mask width {width}",
     "recovery": "input",
     "sources": {
-      "cdmw/core/prefab_binary.py": 1089
+      "cdmw/core/prefab_binary.py": 1103
     }
   },
   {
@@ -22638,7 +22638,7 @@ MESSAGE_REFERENCE = [
     "message": "invalid numeric array {member.name}: {count} elements",
     "recovery": "input",
     "sources": {
-      "cdmw/core/prefab_binary.py": 806
+      "cdmw/core/prefab_binary.py": 808
     }
   },
   {
@@ -22646,7 +22646,7 @@ MESSAGE_REFERENCE = [
     "message": "invalid schema span",
     "recovery": "configuration",
     "sources": {
-      "cdmw/core/prefab_binary.py": 422
+      "cdmw/core/prefab_binary.py": 424
     }
   },
   {
@@ -22654,7 +22654,7 @@ MESSAGE_REFERENCE = [
     "message": "invalid stated motion component {type_index} for mask 0x{mask}",
     "recovery": "input",
     "sources": {
-      "cdmw/core/prefab_binary.py": 991
+      "cdmw/core/prefab_binary.py": 1005
     }
   },
   {
@@ -22734,7 +22734,7 @@ MESSAGE_REFERENCE = [
     "message": "mask 0x{mask} exceeds every candidate component",
     "recovery": "limits",
     "sources": {
-      "cdmw/core/prefab_binary.py": 994
+      "cdmw/core/prefab_binary.py": 1008
     }
   },
   {
@@ -22742,7 +22742,7 @@ MESSAGE_REFERENCE = [
     "message": "member {name} at 0x{member_offset} lacks leading underscore",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/prefab_binary.py": 390
+      "cdmw/core/prefab_binary.py": 392
     }
   },
   {
@@ -22758,7 +22758,7 @@ MESSAGE_REFERENCE = [
     "message": "more than {_MAX_GROUPS} groups",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/prefab_binary.py": 1024
+      "cdmw/core/prefab_binary.py": 1038
     }
   },
   {
@@ -22766,7 +22766,7 @@ MESSAGE_REFERENCE = [
     "message": "motion collection count {count} exceeds {_MAX_COUNT}",
     "recovery": "limits",
     "sources": {
-      "cdmw/core/prefab_binary.py": 740
+      "cdmw/core/prefab_binary.py": 742
     }
   },
   {
@@ -22774,7 +22774,7 @@ MESSAGE_REFERENCE = [
     "message": "motion object length {declared} != {consumed}",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/prefab_binary.py": 1053
+      "cdmw/core/prefab_binary.py": 1067
     }
   },
   {
@@ -22782,7 +22782,7 @@ MESSAGE_REFERENCE = [
     "message": "motion root type is not the first declared type",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/prefab_binary.py": 1092
+      "cdmw/core/prefab_binary.py": 1106
     }
   },
   {
@@ -22790,7 +22790,15 @@ MESSAGE_REFERENCE = [
     "message": "name pointer is not self-relative",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/prefab_binary.py": 952
+      "cdmw/core/prefab_binary.py": 957
+    }
+  },
+  {
+    "area": "formats",
+    "message": "name record entries are out of order",
+    "recovery": "stale",
+    "sources": {
+      "cdmw/core/prefab_binary.py": 973
     }
   },
   {
@@ -22838,7 +22846,7 @@ MESSAGE_REFERENCE = [
     "message": "no component type for group",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/prefab_binary.py": 1034
+      "cdmw/core/prefab_binary.py": 1048
     }
   },
   {
@@ -22854,7 +22862,7 @@ MESSAGE_REFERENCE = [
     "message": "no element header near 0x{base}",
     "recovery": "format",
     "sources": {
-      "cdmw/core/prefab_binary.py": 934
+      "cdmw/core/prefab_binary.py": 939
     }
   },
   {
@@ -22878,7 +22886,7 @@ MESSAGE_REFERENCE = [
     "message": "no name record near 0x{cursor.pos}",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/prefab_binary.py": 948
+      "cdmw/core/prefab_binary.py": 953
     }
   },
   {
@@ -22910,7 +22918,7 @@ MESSAGE_REFERENCE = [
     "message": "no pointer record near 0x{cursor.pos}",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/prefab_binary.py": 657
+      "cdmw/core/prefab_binary.py": 659
     }
   },
   {
@@ -22918,7 +22926,7 @@ MESSAGE_REFERENCE = [
     "message": "non-utf8 string at 0x{start}",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/prefab_binary.py": 372
+      "cdmw/core/prefab_binary.py": 374
     }
   },
   {
@@ -23078,7 +23086,7 @@ MESSAGE_REFERENCE = [
     "message": "pointee length {declared} != {actual}",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/prefab_binary.py": 680
+      "cdmw/core/prefab_binary.py": 682
     }
   },
   {
@@ -23086,7 +23094,7 @@ MESSAGE_REFERENCE = [
     "message": "pointer at 0x{cursor.pos} is not self-relative",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/prefab_binary.py": 662
+      "cdmw/core/prefab_binary.py": 664
     }
   },
   {
@@ -23345,7 +23353,7 @@ MESSAGE_REFERENCE = [
     "message": "string array {member.name} has {count} elements",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/prefab_binary.py": 797
+      "cdmw/core/prefab_binary.py": 799
     }
   },
   {
@@ -23625,7 +23633,7 @@ MESSAGE_REFERENCE = [
     "message": "truncated collection header",
     "recovery": "format",
     "sources": {
-      "cdmw/core/prefab_binary.py": 744
+      "cdmw/core/prefab_binary.py": 746
     }
   },
   {
@@ -23633,7 +23641,7 @@ MESSAGE_REFERENCE = [
     "message": "truncated data header",
     "recovery": "format",
     "sources": {
-      "cdmw/core/prefab_binary.py": 501
+      "cdmw/core/prefab_binary.py": 503
     }
   },
   {
@@ -23689,7 +23697,7 @@ MESSAGE_REFERENCE = [
     "message": "u16 past end at 0x{self.pos}",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/prefab_binary.py": 350
+      "cdmw/core/prefab_binary.py": 352
     }
   },
   {
@@ -23697,7 +23705,7 @@ MESSAGE_REFERENCE = [
     "message": "u32 past end at 0x{self.pos}",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/prefab_binary.py": 357
+      "cdmw/core/prefab_binary.py": 359
     }
   },
   {
@@ -23713,7 +23721,7 @@ MESSAGE_REFERENCE = [
     "message": "unexpected magic 0x{magic}",
     "recovery": "format",
     "sources": {
-      "cdmw/core/prefab_binary.py": 471
+      "cdmw/core/prefab_binary.py": 473
     }
   },
   {
@@ -23721,7 +23729,7 @@ MESSAGE_REFERENCE = [
     "message": "unexpected name record header",
     "recovery": "format",
     "sources": {
-      "cdmw/core/prefab_binary.py": 954
+      "cdmw/core/prefab_binary.py": 959
     }
   },
   {
@@ -23729,7 +23737,7 @@ MESSAGE_REFERENCE = [
     "message": "unexpected pointee header at 0x{start}",
     "recovery": "format",
     "sources": {
-      "cdmw/core/prefab_binary.py": 665
+      "cdmw/core/prefab_binary.py": 667
     }
   },
   {
@@ -23777,7 +23785,7 @@ MESSAGE_REFERENCE = [
     "message": "unsupported member kind 0x{flags} on {member.name}",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/core/prefab_binary.py": 887
+      "cdmw/core/prefab_binary.py": 889
     }
   },
   {
@@ -23785,7 +23793,7 @@ MESSAGE_REFERENCE = [
     "message": "unsupported motion array header {kind}",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/core/prefab_binary.py": 777
+      "cdmw/core/prefab_binary.py": 779
     }
   },
   {
@@ -23793,7 +23801,7 @@ MESSAGE_REFERENCE = [
     "message": "unsupported name count {count}",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/core/prefab_binary.py": 959
+      "cdmw/core/prefab_binary.py": 967
     }
   },
   {
@@ -23801,7 +23809,7 @@ MESSAGE_REFERENCE = [
     "message": "unsupported prefab version {version}",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/core/prefab_binary.py": 474
+      "cdmw/core/prefab_binary.py": 476
     }
   },
   {
@@ -101203,7 +101211,7 @@ SOURCE_COVERAGE = {
   },
   "cdmw/core/prefab_asset_catalog.py": {},
   "cdmw/core/prefab_binary.py": {
-    "raise": 47
+    "raise": 48
   },
   "cdmw/core/prefab_binary_edit.py": {
     "raise": 30
