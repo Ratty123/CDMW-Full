@@ -256,8 +256,8 @@ class _TabOutputMixin:
         output.build_button.click()
         initial_plan = tab.controller.plan
         self.assertIsNotNone(initial_plan, output.summary.toPlainText())
-        output.manager.setCurrentText("CDUMM")
-        self.assertIs(tab.controller.plan, initial_plan, "CDUMM is already selected")
+        output.manager.setCurrentText("DMM")
+        self.assertIs(tab.controller.plan, initial_plan, "DMM is already selected")
 
         folder = self.root / "loose_mod"
         folder.mkdir()
@@ -273,7 +273,8 @@ class _TabOutputMixin:
         folder = folder / "heahea"
         from cdmw.core.mod_export_history import mod_metadata_path
 
-        self.assertTrue((folder / "new-item.json").exists())
+        # DMM packages keep the authoring record in CDMW's history, not in the mod folder.
+        self.assertFalse((folder / "new-item.json").exists())
         self.assertTrue(mod_metadata_path(folder, "new-item.json").is_file(), output.log.toPlainText())
 
         tab.identity_panel.internal_name.setText("Second_Clone_OneHandSword")

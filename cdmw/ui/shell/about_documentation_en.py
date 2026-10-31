@@ -19,7 +19,7 @@ CREATE_NEW_ITEM_SECTION = {
     "keywords": "new item studio clone template iteminfo stringinfo store shop item group model family icon perks socket gem effect element preset material pbr shader loose mod install",
     "html": """
 <p><b>Create New Item</b> creates a new equipment or usable item from a supported game template.</p>
-<p>October 2026 DLC: scan the complete game folder to include dlc/dlc_01. Browsing, extraction and Create New Item support the compact base and DLC tables. Empty DLC tables are skipped; incomplete nonempty tables still stop loading. Create New Item exports CDUMM folders and .cditem authoring packages. Direct archive patching and overlay installation remain unavailable. Export checks do not establish in-game compatibility.</p>
+<p>October 2026 DLC: scan the complete game folder to include dlc/dlc_01. Browsing, extraction and Create New Item support the compact base and DLC tables. Empty DLC tables are skipped; incomplete nonempty tables still stop loading. Create New Item exports DMM mod folders and .cditem item packages; other mod managers are not supported after the update. Direct archive patching and overlay installation remain unavailable. Export checks do not establish in-game compatibility.</p>
     <ol>
       <li><b>Template</b>: search internal names, item keys, equipment types, or any available game-language name. The table displays English names when available.</li>
       <li><b>Identity</b>: keep allocated IDs or choose Manual. English names are required; missing item-language entries fall back to English.</li>
@@ -27,7 +27,7 @@ CREATE_NEW_ITEM_SECTION = {
       <li><b>Stats &amp; Prices</b>: compare raw game values with the template. Advanced stat edits remain experimental.</li>
       <li><b>Effects &amp; Perks</b>: choose gameplay perks separately from visual effects. Four perks is the default cap; five to eight requires experimental mode. Apply staged effect placement before planning.</li>
       <li><b>Distribution</b>: review shops, crafting recipes, supported reward sources, and item groups. Saved routes are included in the final plan.</li>
-      <li><b>Output</b>: Build plan is read-only. Export a mod folder or an independent item package.</li>
+      <li><b>Output</b>: Build plan is read-only. Export a DMM mod folder or a .cditem item package.</li>
     </ol>
     <p>Valid template sockets are preserved. Armour weight transfer needs a compatible template or verified body donor; disable template physics and review Build plan warnings. Each mesh section is limited to 65,535 vertices. Imported-model dyes are off by default.</p>
     <p>Archive overlays are disabled because they are incompatible with the DLC update.</p>
@@ -56,10 +56,9 @@ CREATE_NEW_ITEM_SECTION = {
     <p>Choose how the player obtains the item: a supported shop, recipe, reward or item group. Review quantities, prices, ingredients and dependencies. Recipes and reward edits remain experimental. A valid item record without a working distribution route may never become available during normal play.</p>
     <h4>Output</h4>
     <p>Build plan is read-only. Review the planned files, warnings and errors before exporting.</p>
-    <p>Mod folder supports CDUMM, with an optional ZIP.</p>
+    <p>Mod folder · DMM writes a mod folder for DMM (Definitive Mod Manager), with an optional ZIP. Add the folder in DMM and mount it there.</p>
     <p>Add to existing mod extends a selected package. Review the included items and files before exporting.</p>
-    <p>Independent item package writes a portable .cditem authoring package. Mod Management is temporarily unavailable, so keep the package for later use.</p>
-    <p>Only existing models and icons are supported; unsupported changes refuse. Shop additions append stock. Import or re-export the included cdmw-source/cdmw-semantic.cditem through CDMW to retain original identities, assigned IDs and dependency witnesses.</p>
+    <p>Item package · .cditem writes a portable package that keeps the item's identity. Add it on Mod Management's Mods page, apply, then launch. Loading items this way is experimental.</p>
     <h4>Troubleshooting</h4>
     <p>The first archive read after the game or a mod changes the archives checks the cached archive catalogue against the game's index files. This can take up to a minute on a slow drive; later reads reuse the result until the archives change again.</p>
     <p>If Build plan reports unapplied changes, return to the model or effect step and apply them. For missing textures, inspect the import dependencies. For unavailable outputs, read the selected manager's requirements. Keep the original model, working files, exported package and installation receipt distinct so recovery does not depend on the preview session.</p>
@@ -95,7 +94,7 @@ class AboutDocumentationEnglishMixin:
                   <tr><th>Area</th><th>Tools</th></tr>
                   <tr><td>Assets</td><td><a href="topic:new_item_studio">Create New Item</a>, <a href="topic:archive_browser">Archive Browser</a>, <a href="topic:model_library">Model Library</a>, and <a href="topic:icon_creator">Icon Creator</a></td></tr>
                   <tr><td>Authoring</td><td><a href="topic:mesh_editor">Mesh Editor</a>, <a href="topic:placement_studio">Placement &amp; Animations</a>, and <a href="topic:workflow_overview">Textures</a></td></tr>
-                  <tr><td>Utilities</td><td><a href="topic:mod_management">Mod Management</a> (including <a href="topic:mod_package_retrofit">Repackage</a>), <a href="topic:format_explorer">Format Explorer</a>, <a href="topic:translation_studio">Translations</a>, <a href="topic:research">Research</a>, and <a href="topic:text_search">Text Search</a></td></tr>
+                  <tr><td>Utilities</td><td><a href="topic:mod_management">Mod Management</a>, <a href="topic:format_explorer">Format Explorer</a>, <a href="topic:translation_studio">Translations</a>, <a href="topic:research">Research</a>, and <a href="topic:text_search">Text Search</a></td></tr>
                 </table>
                 <p>On a first run, follow the <a href="topic:first_run_checklist">First Run Checklist</a>. Compact Workspace is the first-run layout; a saved Compact or Classic choice remains authoritative.</p>
                 <p>Documentation follows the source build it describes. Published releases and development builds can differ; check the release notes when controls or output options differ from your installed version.</p>
@@ -398,7 +397,7 @@ class AboutDocumentationEnglishMixin:
                   <li>Inspect and extract DDS entries without editing them here, patch supported audio entries, and restore backups created by supported non-texture patch operations.</li>
                   <li>Use Textures for editing, recolor, upscaling, and replacement review.</li>
                 </ul>
-                <p>October 2026 DLC: scan the complete game folder to include dlc/dlc_01. Browsing, extraction and Create New Item support the compact base and DLC tables. Empty DLC tables are skipped; incomplete nonempty tables still stop loading. Create New Item exports CDUMM folders and .cditem authoring packages. Direct archive patching and overlay installation remain unavailable. Export checks do not establish in-game compatibility.</p>
+                <p>October 2026 DLC: scan the complete game folder to include dlc/dlc_01. Browsing, extraction and Create New Item support the compact base and DLC tables. Empty DLC tables are skipped; incomplete nonempty tables still stop loading. Create New Item exports DMM mod folders and .cditem item packages; other mod managers are not supported after the update. Direct archive patching and overlay installation remain unavailable. Export checks do not establish in-game compatibility.</p>
                 <p>A compact PAMT extension table may omit its final zero byte if its declared size matches exactly. Invalid tables are still rejected; archive writes remain unsupported.</p>
                 <p>Item Finder shows recovered ship icons and model links; unavailable icons keep a letter tile. Body &amp; Face Finder reads character names from both the base game and DLC.</p>
                 <p>If a DDS preview shows raw bytes, open Details and include the file path and the Decoded preview failed line in your report. Readable strings alone do not identify the decoding error.</p>
@@ -559,7 +558,7 @@ class AboutDocumentationEnglishMixin:
                 <h4>Export Mesh File</h4>
                 <p>For external editing, keep the exported GLB, FBX or OBJ with its CDMW companions. Exact return needs stable vertex and joint identity; topology-changing modifiers can invalidate it. In Blender, preserve _CDMW_VERTEX_ID attributes for GLB or the CDMW_VERTEX_ID UV layer for FBX, export the intended meshes and armature, and include all bone influences. Follow the editable exchange guide for format-specific settings.</p>
                 <h4>Build Mod</h4>
-                <p>Build Mod writes loose packages for DMM and CDUMM.</p>
+                <p>Build Mod writes loose packages for DMM (Definitive Mod Manager). Other mod managers are not supported after the October 2026 DLC update.</p>
                 <p>Build Mod includes required generated companions. A single mesh file may be unavailable when those companions cannot travel with it. Existing output folders and ZIPs are not overwritten. After an uncertain outcome, inspect the final output before retrying with a new destination.</p>
                 <p>After a Fit, Build Mod leaves out the body the outfit was fitted to, also in a later edit pass, so the mod changes only the outfit and other body mods keep working. To also ship changes you made to the body, turn on Include the body in the Build Mod window.</p>
                 <p>To verify an export, reopen the actual completed output with its dependencies and compare a known edit. Opening the original archive entry or resuming the live editor does not read back the exported bytes. Preview appearance and package validation remain separate from in-game testing.</p>
@@ -590,14 +589,14 @@ class AboutDocumentationEnglishMixin:
                 "id": "placement_studio",
                 "title": "Placement & Animations",
                 "summary": "Move equipment, change sockets, retarget draw/stow clips, and package the result.",
-                "keywords": "placement animations weapon armour socket viewport draw stow retarget hkx pac package cdumm dmm",
+                "keywords": "placement animations weapon armour socket viewport draw stow retarget hkx pac package dmm",
                 "html": """
                 <p><b>Placement &amp; Animations</b> is the focused workspace for changing where a weapon or piece of armour sits and how its draw/stow animation route behaves.</p>
                 <ul>
                   <li>Review the target in the viewport, adjust supported placement values, and route it to another compatible socket.</li>
                   <li>Retarget supported draw/stow animation references without presenting unsupported full animation authoring as safe.</li>
                   <li>Choose Prepare preview, compare Before and After, and inspect Details and exact files. Checks distinguish Passed, Warning, Unverified, and Blocked; unsupported runtime behavior remains unverified.</li>
-                  <li>Package reviewed changes for CDUMM or DMM; unsupported graph swaps or variable-length binary edits remain outside the bounded workflow.</li>
+                  <li>Package reviewed changes for DMM; unsupported graph swaps or variable-length binary edits remain outside the bounded workflow.</li>
                 </ul>
                 """,
             },
@@ -658,21 +657,26 @@ class AboutDocumentationEnglishMixin:
             {
                 "id": "mod_management",
                 "title": "Mod Management",
-                "summary": "Mod Management is temporarily disabled because it is incompatible with the Crimson Desert DLC update.",
-                "keywords": "utilities mods overlay installed preview removal merge update recovery",
+                "summary": "Add .cditem item packages, apply them and launch the game with the items.",
+                "keywords": "utilities mods cditem item package apply launch runtime identities dmm",
                 "html": """
-                <p>Mod Management is temporarily disabled because it is incompatible with the Crimson Desert DLC update.</p>
-                <p>Export loose mod files from Mesh Editor or Create New Item and install them with a compatible external mod manager.</p>
+                <p>Mod Management loads .cditem item packages into the game through CDMW's runtime. Other mods belong in DMM (Definitive Mod Manager).</p>
+                <ol>
+                  <li>On Mods, choose Add item packages and select the .cditem files.</li>
+                  <li>Choose Apply changes. CDMW checks each package against the installed game and prepares the item files.</li>
+                  <li>Choose Launch game, or start the game from Steam or DMM. CDMW's runtime in the game's bin64 folder serves the items while the game runs.</li>
+                </ol>
+                <p>Item identities keeps the IDs assigned to each item, so saves find their items again. Export the identity profile with your saves when moving to another computer.</p>
+                <p>Loading items this way is experimental. After a game update, choose Apply changes again. A DMM mod that replaces the item or shop tables may hide CDMW's items. A successful launch does not verify the items in shops, the inventory or saves.</p>
                 """,
             },
             {
                 "id": "mod_package_retrofit",
                 "title": "Retrofit/Repackage",
-                "summary": "Mod Management is temporarily disabled because it is incompatible with the Crimson Desert DLC update.",
+                "summary": "Converting mods between mod managers is no longer offered.",
                 "keywords": "retrofit repackage mod package normalize inspect loose manager cdumm dmm manifest",
                 "html": """
-                <p>Mod Management is temporarily disabled because it is incompatible with the Crimson Desert DLC update.</p>
-                <p>Export loose mod files from Mesh Editor or Create New Item and install them with a compatible external mod manager.</p>
+                <p>Converting mods between mod managers is no longer offered. Since the October 2026 DLC update CDMW writes mods for DMM (Definitive Mod Manager) only, and new items also as .cditem packages.</p>
                 """,
             },
             {
@@ -734,12 +738,12 @@ class AboutDocumentationEnglishMixin:
                 "summary": "How loose output, mod-ready folders, metadata, and backups fit together.",
                 "keywords": "mod packaging output loose mod ready info json no_encrypt package prefix backup restore export",
                 "html": """
-                <p>Build Mod writes loose packages for DMM and CDUMM.</p>
+                <p>Build Mod writes loose packages for DMM (Definitive Mod Manager). Other mod managers are not supported after the October 2026 DLC update.</p>
                 <p>The app keeps normal workflow output and mod-ready packaging separate so you can review results before placing them into a mod manager.</p>
                 <ul>
                   <li><b>Output root</b> is the normal DDS result folder for Texture Workflow.</li>
                   <li><b>Mod-ready export</b> writes a package-prefixed loose tree with <code>manifest.json</code> and optional manager metadata when that export mode is enabled.</li>
-                  <li><b>Target Mod Managers</b>: choose a profile supported by the producing tool. Mesh, texture and new-item packages have different layouts and compatibility limits. Keep the generated folder structure and descriptors intact; do not copy metadata rules from another workflow.</li>
+                  <li><b>Target Mod Managers</b>: packages are written for DMM. Mesh, texture and new-item packages have different layouts and compatibility limits. Keep the generated folder structure and descriptors intact; do not copy metadata rules from another workflow.</li>
                   <li><b>Texture Replacer</b> is usually the cleanest path for one-off mod-ready texture output because it starts from the edited file and its matched original.</li>
                   <li><b>Archive Browser</b> patch workflows are explicit, confirmed operations with backup/restore support where implemented. They are not part of ordinary browsing.</li>
                 </ul>

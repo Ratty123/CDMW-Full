@@ -721,13 +721,6 @@ def default_recolor_output_profiles() -> tuple[RecolorVariantOutputProfile, ...]
             enabled=True,
             export_options=recolor_export_options_for_manager("dmm"),
         ),
-        RecolorVariantOutputProfile(
-            profile_id="cdumm",
-            label="CDUMM",
-            enabled=False,
-            package_title_suffix="CDUMM",
-            export_options=recolor_export_options_for_manager("cdumm"),
-        ),
     )
 
 

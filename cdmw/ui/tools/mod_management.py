@@ -278,7 +278,8 @@ class ModManagementTab(QWidget):
         self._refresh_needed = False
         root = str(self._get_package_root() or '').strip()
         self.game_folder.setText(root)
-        self.overview.refresh(root)
+        if self.pages.folder_tools:
+            self.overview.refresh(root)
         if root != str(self.inventory.package_root):
             self.overview.set_entries(())
             self.inventory._loaded(())
@@ -323,7 +324,7 @@ class ModManagementTab(QWidget):
         self.cancel_button.setVisible(own)
         self.cancel_button.setEnabled(own and not self.inventory._applying and not self.independent_page._applying and not self.virtual_page._applying and not self.overview._applying)
         if not busy:
-            if self._overview_refresh_needed and not self._closed:
+            if self._overview_refresh_needed and not self._closed and self.pages.folder_tools:
                 self._overview_refresh_needed = False
                 self.overview.refresh(self._get_package_root())
             for page in (self.merge_page, self.update_page):

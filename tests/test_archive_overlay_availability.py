@@ -28,7 +28,7 @@ def test_mesh_package_choices_ignore_saved_archive_output(app, tmp_path):
     try:
         assert not constants.ARCHIVE_OVERLAYS_ENABLED
         choices = [dialog.manager.itemData(i) for i in range(dialog.manager.count())]
-        assert {choice[0] for choice in choices} == {"dmm_loose", "cdumm_loose"}
+        assert {choice[0] for choice in choices} == {"dmm_loose"}
         assert all(choice[1] == "loose_mod" for choice in choices)
         assert dialog.manager.currentData()[0] == "dmm_loose"
     finally:
@@ -62,7 +62,10 @@ def test_new_item_output_keeps_only_folder_and_portable_package(app, tmp_path, m
         assert panel.overlay_mode_button.isHidden()
         assert not panel.overlay_mode_button.isEnabled()
         assert panel.include_mounted.isHidden()
-        assert [panel.manager.itemText(i) for i in range(panel.manager.count())] == ["CDUMM"]
+        assert [panel.manager.itemText(i) for i in range(panel.manager.count())] == ["DMM"]
+        assert panel.manager.isHidden()
+        assert [panel.output_mode.itemText(i) for i in range(panel.output_mode.count())] == [
+            "Mod folder · DMM", "Item package · .cditem"]
         from cdmw.ui.new_item.rust_ui_bridge import NewItemPresentationBridge
         projected = json.dumps(NewItemPresentationBridge(panel).snapshot())
         assert "Game overlay" not in projected
@@ -81,10 +84,41 @@ def test_new_item_output_keeps_only_folder_and_portable_package(app, tmp_path, m
         assert controller.start_install_overlay(None) is False
         assert controller.start_overlay_migration(None, tmp_path) is False
         assert controller.start_overlay_removal(None, tmp_path) is False
-        assert controller.start_export(tmp_path, "DMM") is False
+        assert controller.start_export(tmp_path, "CDUMM") is False
     finally:
         controller.shutdown()
         panel.deleteLater()
+        app.processEvents()
+
+
+def test_mod_management_offers_only_cditem_pages_by_default(app, tmp_path):
+    assert not constants.MOD_FOLDER_TOOLS_ENABLED
+    tab = ModManagementTab(get_package_root=lambda: str(tmp_path))
+    try:
+        assert [tab.pages.tabText(i) for i in range(tab.pages.count())] == ["Mods", "Item identities"]
+        assert not tab.virtual_page.add_mod.isVisibleTo(tab)
+        assert tab.virtual_page.add_items.isVisibleTo(tab)
+        original = tab._current_page()
+        for key in ("overview", "recovery", "repackage", "merge", "updates"):
+            tab.open_page(key)
+            assert tab._current_page() is original
+        tab.open_page("independent")
+        assert tab._current_page() is tab.independent_page
+    finally:
+        tab.shutdown()
+        tab.deleteLater()
+        app.processEvents()
+
+
+def test_new_item_start_screen_has_no_mod_update_check(app):
+    from cdmw.ui.new_item.tab import NewItemStudioTab
+    tab = NewItemStudioTab()
+    try:
+        assert not tab._update_button.isVisibleTo(tab)
+    finally:
+        tab.shutdown()
+        tab.close()
+        tab.deleteLater()
         app.processEvents()
 
 

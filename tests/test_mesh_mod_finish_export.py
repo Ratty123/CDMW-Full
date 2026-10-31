@@ -76,7 +76,6 @@ def accepted_cloth_edit(cloth_session, tmp_path, monkeypatch):
     "choice,profile,suffix,descriptor,wrapper",
     [
         ("dmm_loose", "dmm", "dmm", "manifest.json", ""),
-        ("cdumm_loose", "cdumm", "cdumm", "modinfo.json", "files"),
     ],
 )
 @pytest.mark.parametrize("create_zip,open_folder", [(False, False), (True, False), (False, True), (True, True)])
@@ -109,7 +108,7 @@ def test_finish_then_build_exports_cloth_edit_for_every_manager(
 
     def choose(dialog):
         assert isinstance(dialog, MeshModExportDialog)
-        assert dialog.manager.count() == 2
+        assert dialog.manager.count() == 1
         assert not dialog.build_button.isEnabled()
         assert not dialog.create_zip.isChecked() and not dialog.open_folder.isChecked()
         assert dialog.include_body.isHidden()  # Only a Fit session has a body to offer.
@@ -172,8 +171,6 @@ def test_finish_then_build_exports_cloth_edit_for_every_manager(
         expected_files.update(("0036/0.pamt", "0036/0.paz"))
     else:
         expected_files.add((Path(wrapper) / entry.path).as_posix())
-        if profile == "cdumm":
-            expected_files.remove("manifest.json")
     assert {p.relative_to(output).as_posix() for p in output.rglob("*") if p.is_file()} == expected_files
     for name in ("mesh-editor-session.json", "cdmw-compatibility.json", "cdmw-baseline.zip"):
         history = mod_metadata_path(output, name)

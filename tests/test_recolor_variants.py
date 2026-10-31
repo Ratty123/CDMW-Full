@@ -481,6 +481,31 @@ class RecolorVariantTests(unittest.TestCase):
         self.assertIn('self.overwrite_checkbox.setObjectName("RecolorVariantNoInPlaceOverwrite")', tab_source)
         self.assertIn("def set_recolor_tool_settings", editor_source)
 
+    def test_manager_outputs_offer_dmm_and_saved_cdumm_choice_falls_back(self) -> None:
+        import os
+
+        os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+        from PySide6.QtCore import QSettings
+        from PySide6.QtWidgets import QApplication
+
+        from cdmw.ui.recolor_variants_tab import RecolorVariantsTab
+
+        app = QApplication.instance() or QApplication([])
+        with tempfile.TemporaryDirectory() as temp_dir:
+            settings = QSettings(str(Path(temp_dir) / "settings.ini"), QSettings.Format.IniFormat)
+            settings.setValue("recolor_variants/profile_dmm", False)
+            settings.setValue("recolor_variants/profile_cdumm", True)
+            settings.setValue("recolor_variants/profile_field_json", True)
+            tab = RecolorVariantsTab(settings=settings, base_dir=Path(temp_dir))
+            try:
+                self.assertEqual(["dmm"], list(tab.profile_checkboxes))
+                self.assertTrue(tab.profile_checkboxes["dmm"].isChecked())
+                self.assertEqual(("dmm",), tuple(profile.profile_id for profile in tab._selected_profiles()))
+            finally:
+                tab.request_shutdown()
+                tab.deleteLater()
+                app.processEvents()
+
 
 if __name__ == "__main__":
     unittest.main()

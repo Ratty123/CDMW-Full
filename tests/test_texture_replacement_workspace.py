@@ -90,7 +90,11 @@ def test_removed_manager_settings_use_supported_texture_exports(workspace, monke
 
     _window, textures, matcher = workspace
     for combo in (matcher.package_manager_combo,):
-        assert {combo.itemData(i) for i in range(combo.count())} == {"dmm", "cdumm", "field_json"}
+        assert {combo.itemData(i) for i in range(combo.count())} == {"dmm"}
+    assert set(matcher.package_profile_checkboxes) == {"dmm"}
+    assert matcher.package_structure_combo.findData("field_json_v31") == -1
+    assert matcher.package_conflict_mode_combo.isHidden()
+    assert matcher.package_target_language_edit.isHidden()
     config = replace(textures.collect_config(), mod_ready_manager_profile="jmm", mod_ready_manager_profiles=("jmm",))
     monkeypatch.setattr(matcher, "get_current_config", lambda: config)
     matcher.mirror_texture_workflow_settings()
@@ -529,7 +533,7 @@ def test_real_native_folder_match_package_and_external_rebuild(workspace, tmp_pa
     matcher.package_zip_checkbox.setChecked(True)
     matcher._set_combo_by_value(matcher.build_mode_combo, "rebuild_only")
     for profile, checkbox in matcher.package_profile_checkboxes.items():
-        checkbox.setChecked(profile in {"dmm", "cdumm"})
+        checkbox.setChecked(profile == "dmm")
     reviews = []
     monkeypatch.setattr(matcher, "_open_review_dialog", lambda items: reviews.append(tuple(items)))
     wrong_threads = []
@@ -572,7 +576,7 @@ def test_real_native_folder_match_package_and_external_rebuild(workspace, tmp_pa
                 elif output.stem == "boots":
                     assert pixel[1 if red_coat else 2] > 150 and pixel[0] < 60, pixel
         archives = list((tmp_path / "packages").glob("*.zip"))
-        assert len(archives) == 2
+        assert len(archives) == 1
         for path in archives:
             with zipfile.ZipFile(path) as archive:
                 names = [name for name in archive.namelist() if name.endswith(".dds")]

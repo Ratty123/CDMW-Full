@@ -315,12 +315,8 @@ class NewItemTaskControllerMixin:
 
     def start_export(self, package_root: Path, manager: str, *, create_zip: bool = False,
                      replace_existing: bool = True) -> bool:
-        from cdmw import constants
-        if manager == "DMM" and not constants.ARCHIVE_OVERLAYS_ENABLED:
-            return False
         if manager not in MANAGERS:
-            self.status_message.emit(
-                "Choose CDUMM or DMM for new item exports.", True)
+            self.status_message.emit("New item mod folders are written for DMM.", True)
             return False
         if not self.has_current_plan:
             self.status_message.emit("Build the plan first.", True)
@@ -337,7 +333,7 @@ class NewItemTaskControllerMixin:
 
     def start_independent_export(self, path, *, update=False) -> bool:
         if not self.independent_mode or not self.has_current_plan:
-            self.status_message.emit("Select Independent item package and build the plan first.", True)
+            self.status_message.emit("Choose Item package · .cditem and build the plan first.", True)
             return False
         plan, identity = self.plan, self.draft.independent_identity
         if not update:

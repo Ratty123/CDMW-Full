@@ -5,6 +5,9 @@ import re
 # Archive-group overlays are incompatible with the October 2026 DLC layout.
 # Keep their implementation for future repair, without a user-facing opt-in.
 ARCHIVE_OVERLAYS_ENABLED = False
+# Mod Management handles .cditem packages only; DMM handles ordinary mods. The
+# mod folder tools (convert, combine, update, health) stay implemented but hidden.
+MOD_FOLDER_TOOLS_ENABLED = False
 
 ORIGINAL_DDS_ROOT = ""
 PNG_ROOT = ""

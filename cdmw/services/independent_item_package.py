@@ -362,7 +362,7 @@ def _prepared_spec(spec):
 def from_plan(plan, identity, *, title=None, stop_event=None):
     package_id(identity)
     if plan.independent_inputs is None:
-        raise IndependentItemError("Select Independent item package and rebuild the plan first.")
+        raise IndependentItemError("Choose Item package · .cditem and rebuild the plan first.")
     if plan.source_revision is None:
         raise IndependentItemError("Independent packages require verified source dependencies.")
     plan.source_revision.validate(stop_event)

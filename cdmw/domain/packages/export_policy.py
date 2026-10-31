@@ -40,6 +40,9 @@ MOD_PACKAGE_STRUCTURES = frozenset(
 )
 MOD_PACKAGE_FILES_WRAPPER_STRUCTURES = frozenset({"files_wrapper", "custom_compact_paths"})
 MOD_PACKAGE_MANAGER_PROFILES = ("dmm", "cdumm", "field_json")
+# The profiles export UIs offer. The other profiles stay readable and writable
+# for existing packages, but their managers are not kept current with the game.
+MOD_PACKAGE_EXPORT_PROFILES = ("dmm",)
 MOD_PACKAGE_MANAGER_PROFILE_LABELS = {
     "dmm": "Definitive Mod Manager",
     "cdumm": "CDUMM",
@@ -278,6 +281,7 @@ def effective_mod_package_export_options_for_kind(
 
 
 __all__ = [
+    "MOD_PACKAGE_EXPORT_PROFILES",
     "MOD_PACKAGE_FILES_WRAPPER_STRUCTURES",
     "MOD_PACKAGE_MANAGER_PROFILE_LABELS",
     "MOD_PACKAGE_MANAGER_PROFILES",

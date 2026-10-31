@@ -23,9 +23,8 @@ def test_rust_mod_name_reaches_export_metadata_without_replanning(studio, entere
     _send(bridge, tab.identity_panel.display_name, "text", "Frost")
     tab.show_step(6)
     panel = tab.output_panel
-    assert [panel.manager.itemText(i) for i in range(panel.manager.count())] == ["CDUMM", "DMM"]
-    assert tab.controller.draft.manager == "CDUMM"
-    assert _send(bridge, panel.manager, "choose", panel.manager.findText("CDUMM"))["type"] == "ack"
+    assert [panel.manager.itemText(i) for i in range(panel.manager.count())] == ["DMM"]
+    assert tab.controller.draft.manager == "DMM"
     parent = fixture.root / "mods"
     parent.mkdir()
     (parent / "unrelated.txt").write_text("keep")
@@ -55,8 +54,8 @@ def test_rust_mod_name_reaches_export_metadata_without_replanning(studio, entere
     modinfo = json.loads((folder / "modinfo.json").read_text(encoding="utf-8"))
     assert manifest["name"] == manifest["title"] == modinfo["name"] == expected_name
     assert "Frost_Internal_Sword" in modinfo["description"]
-    assert manifest["manager_targets"] == ["cdumm"]
-    assert (folder / "files/gamedata").is_dir()
+    assert manifest["manager_targets"] == ["dmm"]
+    assert (folder / "0036/0.pamt").is_file()
     assert (parent / "unrelated.txt").read_text() == "keep"
     assert not (parent / "manifest.json").exists()
     expected_zip = folder.with_name(f"{folder.name}.zip")
@@ -73,7 +72,7 @@ def test_rust_mod_name_reaches_export_metadata_without_replanning(studio, entere
         fixture.opened_folders.assert_not_called()
 
 
-@pytest.mark.parametrize("manager", ["Unknown", ""])
+@pytest.mark.parametrize("manager", ["CDUMM", "Unknown", ""])
 def test_new_item_refuses_unavailable_managers_before_starting_export(studio, manager):
     fixture, tab, _bridge = studio
     tab.show_step(1)
@@ -90,11 +89,10 @@ def test_new_item_refuses_unavailable_managers_before_starting_export(studio, ma
         run.assert_not_called()
     assert not folder.exists()
     assert messages[-1][1]
-    assert "Choose CDUMM or DMM" in messages[-1][0]
+    assert "written for DMM" in messages[-1][0]
 
 
-@pytest.mark.parametrize("manager", ["CDUMM", "DMM"])
-def test_rust_manager_selection_exports_the_complete_package(studio, manager):
+def test_rust_dmm_export_writes_the_complete_package(studio):
     from cdmw.services.new_item_mod_base import mod_folder_payloads
 
     fixture, tab, bridge = studio
@@ -103,8 +101,7 @@ def test_rust_manager_selection_exports_the_complete_package(studio, manager):
     _send(bridge, tab.identity_panel.display_name, "text", "Manager test")
     tab.show_step(6)
     panel = tab.output_panel
-    assert _send(bridge, panel.manager, "choose", panel.manager.findText(manager))["type"] == "ack"
-    assert tab.controller.draft.manager == manager
+    assert tab.controller.draft.manager == "DMM"
     _send(bridge, panel.export_root, "text", str(fixture.root / "mods"))
     _send(bridge, panel.mod_name, "text", "Manager test")
     _send(bridge, panel.open_folder_after_creation, "toggle", False)
@@ -116,40 +113,29 @@ def test_rust_manager_selection_exports_the_complete_package(studio, manager):
     folder = fixture.root / "mods" / "Manager test"
     payloads = mod_folder_payloads(folder)
     assert {path: payload.read_bytes() for path, payload in payloads.items()} == dict(plan.loose_files)
-    if manager == "CDUMM":
-        manifest = json.loads((folder / "manifest.json").read_text(encoding="utf-8"))
-        assert manifest["manager_targets"] == ["cdumm"]
-        assert (folder / "files").is_dir()
-    elif manager == "DMM":
-        manifest = json.loads((folder / "manifest.json").read_text(encoding="utf-8"))
-        assert manifest["manager_targets"] == ["dmm"]
-        assert manifest["structure"] == "archive_group"
-        assert manifest["archive_group"] == "0036"
-        assert (folder / "0036/0.pamt").is_file()
-        assert (folder / "0036/0.paz").is_file()
-        assert not (folder / "meta/0.papgt").exists()
-    else:
-        assert (folder / "gamedata").is_dir()
-        assert not (folder / "files").exists()
+    manifest = json.loads((folder / "manifest.json").read_text(encoding="utf-8"))
+    assert manifest["manager_targets"] == ["dmm"]
+    assert manifest["structure"] == "archive_group"
+    assert manifest["archive_group"] == "0036"
+    assert (folder / "0036/0.pamt").is_file()
+    assert (folder / "0036/0.paz").is_file()
+    assert not (folder / "meta/0.papgt").exists()
 
 
-def test_dmm_is_selectable_in_rust_and_retained_across_output_modes(studio):
+def test_dmm_is_retained_across_output_modes_without_a_manager_choice(studio):
     _, tab, bridge = studio
     tab.show_step(6)
     panel = tab.output_panel
-    choice = bridge.document.widget(panel.manager, force=True)
-    dmm = next(option for option in choice["props"]["options"] if option["text"] == "DMM")
-    assert all(option["enabled"] for option in choice["props"]["options"])
-    assert _send(bridge, panel.manager, "choose", dmm["index"])["type"] == "ack"
+    assert panel.manager.isHidden()
     assert panel.manager.currentText() == tab.controller.draft.manager == "DMM"
-    _send(bridge, panel.overlay_mode_button, "activate")
+    _send(bridge, panel.independent_mode_button, "activate")
     assert not panel.folder_controls.isVisibleTo(tab)
     _send(bridge, panel.folder_mode_button, "activate")
     assert panel.folder_controls.isVisibleTo(tab)
     assert panel.manager.currentText() == tab.controller.draft.manager == "DMM"
 
 
-@pytest.mark.parametrize(("saved_manager", "expected_manager"), [("DMM", "DMM"), ("JMM", "CDUMM"), ("Unknown", "CDUMM")])
+@pytest.mark.parametrize(("saved_manager", "expected_manager"), [("DMM", "DMM"), ("CDUMM", "DMM"), ("JMM", "DMM"), ("Unknown", "DMM")])
 def test_output_reconciles_saved_manager_with_available_exports(studio, saved_manager, expected_manager):
     from cdmw.ui.new_item.panels_output import OutputPanel
 
@@ -159,7 +145,6 @@ def test_output_reconciles_saved_manager_with_available_exports(studio, saved_ma
     try:
         assert panel.manager.currentText() == tab.controller.draft.manager == expected_manager
         assert panel.manager.findText("DMM") >= 0
-        assert panel.manager.model().item(panel.manager.findText("DMM")).isEnabled()
     finally:
         panel.deleteLater()
 

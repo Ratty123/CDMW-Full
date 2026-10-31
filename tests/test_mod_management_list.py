@@ -151,6 +151,7 @@ def test_installed_mods_context_menu_applies_bulk_disable_and_remove(tmp_path, m
         app.sendPostedEvents(None, QEvent.DeferredDelete)
 
 
+@pytest.mark.usefixtures("retained_mod_folder_tools")
 def test_one_list_labels_routes_without_duplicate_owned_archive_and_keeps_draft_order(tmp_path):
     app = QApplication.instance() or QApplication([])
     root, files = packages(tmp_path, 3)

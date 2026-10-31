@@ -43,6 +43,8 @@ class ModManagementList(VirtualLoaderPage):
         toolbar = QHBoxLayout()
         for button in (self.add_items, self.add_mod, self.apply_button, self.launch_button):
             toolbar.addWidget(button)
+        # Mod folders belong to DMM; Mods takes .cditem packages unless the folder tools are on.
+        self.add_mod.setVisible(constants.MOD_FOLDER_TOOLS_ENABLED)
         self.apply_button.setText(self.tr('Apply changes'))
         self.apply_button.setProperty('newItemPrimary', True)
         self.launch_button.setProperty('newItemPrimary', True)
@@ -59,7 +61,9 @@ class ModManagementList(VirtualLoaderPage):
         self.selection.header().setStretchLastSection(True)
         for column, width in enumerate((340, 170, 180, 230)):
             self.selection.setColumnWidth(column, width)
-        self.selection.setAccessibleDescription(self.tr('Add item packages or a mod folder to begin.'))
+        self.selection.setAccessibleDescription(
+            self.tr('Add item packages or a mod folder to begin.') if constants.MOD_FOLDER_TOOLS_ENABLED
+            else self.tr('Add .cditem item packages to begin.'))
         self.selection.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.selection.customContextMenuRequested.connect(self._context_menu)
         self.selection.setToolTip(self.tr('Use Ctrl or Shift to select multiple rows. Right-click for available actions.'))

@@ -4,7 +4,8 @@ Archive overlays are disabled following the October 2026 DLC update. Their
 implementation is retained, but overlay export, installation, mounted-item
 inclusion and overlay management/recovery are unavailable in CDMW. Descriptions
 of those internal paths below document retained code, not available workflows.
-CDUMM loose mod folders and portable `.cditem` authoring packages remain available.
+DMM mod folders and portable `.cditem` item packages are the available outputs;
+other mod managers are not offered because they are not updated for the DLC.
 The compact base/DLC authoring tables are supported; exported items still require
 in-game verification. This does not re-enable archive installation.
 
@@ -1984,15 +1985,20 @@ in-game appearance.
 
 ## Mod manager exports
 
-**Create New Item → Output → Mod folder** offers **CDUMM**.
-CDUMM writes a `files/` package with manager metadata. New drafts and saved unavailable manager selections
-use CDUMM. DMM archive-group export and **Game overlay** are disabled following
-the DLC update. Unknown manager choices are refused before export.
+**Create New Item → Output → Mod folder · DMM** writes a DMM archive-group package:
+`0036/0.pamt`, `0036/0.paz`, `manifest.json`, `modinfo.json` and a README. The
+authoring record stays in CDMW's export history, not in the mod folder. There is no
+manager choice: new drafts and saved selections of other managers use DMM, and other
+manager names are refused before export. **Game overlay** stays disabled following
+the DLC update. The writer for CDUMM's `files/` layout is retained but not offered.
 
 ### DMM archive compatibility
 
-DMM archive-group export is disabled following the October 2026 DLC update.
-The earlier 2026-10-21 testing route and findings below are historical.
+DMM 1.0 (October 2026) unpacks an archive-group mod and serves its files to the game by
+path through its runtime plugin; it does not change the game's mount list. Re-enabled on
+2026-10-31 with the layout above, checked against a compact (post-DLC) fixture. Mounting a
+Create New Item package in DMM 1.0 and its in-game result are untested. The earlier
+2026-10-21 testing route and DMM 3.5.0 findings below are historical.
 
 The earlier DMM 3.5.0 mount generated a vanilla-only ItemInfo table ahead of the
 mod's complete table, hiding its added item record. The shop still referenced that
@@ -2027,7 +2033,7 @@ existing behavior. This check does not certify arbitrary third-party edits as va
 2. Create the new item normally. In **Output → Mod folder**, select
    **Include mounted items in a new mod**. This and **Add to existing mod** are
    alternative sources; choosing one clears the other.
-3. Choose CDUMM or DMM, a new mod name, and an output folder
+3. Choose a new mod name and an output folder
    outside the game installation. **Rebuild plan** reads the installed content in
    the background. Cancelling preserves the draft and source files.
 4. Review **Included mounted items** and **Archive folders** at the top of Destination,

@@ -61,9 +61,9 @@ from cdmw.constants import (
 )
 from cdmw.models import ArchiveEntry
 from cdmw.domain.packages.export_policy import (
+    MOD_PACKAGE_EXPORT_PROFILES,
     MOD_PACKAGE_METADATA_ARTIFACTS_BY_KEY,
     MOD_PACKAGE_MANAGER_PROFILE_LABELS,
-    MOD_PACKAGE_MANAGER_PROFILES,
     ModPackageExportOptions,
     mod_package_export_options_for_profiles,
     mod_package_export_options_for_manager,
@@ -436,15 +436,14 @@ class ReplaceAssistantTab(
         self.package_description_edit = QLineEdit("")
         self.package_nexus_edit = QLineEdit("")
         self.package_manager_combo = QComboBox()
-        self.package_manager_combo.addItem("Definitive Mod Manager", "dmm")
-        self.package_manager_combo.addItem("CDUMM", "cdumm")
-        self.package_manager_combo.addItem("Field-JSON v3.1", "field_json")
+        for profile in MOD_PACKAGE_EXPORT_PROFILES:
+            self.package_manager_combo.addItem(MOD_PACKAGE_MANAGER_PROFILE_LABELS.get(profile, profile), profile)
         self.package_profile_checkboxes: Dict[str, QCheckBox] = {}
         self.package_profiles_widget = QWidget()
         package_profiles_layout = QVBoxLayout(self.package_profiles_widget)
         package_profiles_layout.setContentsMargins(0, 0, 0, 0)
         package_profiles_layout.setSpacing(4)
-        for profile in MOD_PACKAGE_MANAGER_PROFILES:
+        for profile in MOD_PACKAGE_EXPORT_PROFILES:
             label = MOD_PACKAGE_MANAGER_PROFILE_LABELS.get(profile, profile)
             checkbox = QCheckBox(label)
             checkbox.setToolTip(label)
@@ -457,7 +456,6 @@ class ReplaceAssistantTab(
         self.package_structure_combo.addItem("files/ wrapper", "files_wrapper")
         self.package_structure_combo.addItem("Custom compact paths", "custom_compact_paths")
         self.package_structure_combo.addItem("DMM texture folder", "dmm_texture")
-        self.package_structure_combo.addItem("Field-JSON v3.1 assets", "field_json_v31")
         self.package_manifest_checkbox = QCheckBox(MOD_PACKAGE_METADATA_ARTIFACTS_BY_KEY["manifest_json"].label)
         self.package_manifest_checkbox.setChecked(default_package_options.create_manifest_json)
         self.package_mod_json_checkbox = QCheckBox(MOD_PACKAGE_METADATA_ARTIFACTS_BY_KEY["mod_json"].label)
@@ -497,6 +495,18 @@ class ReplaceAssistantTab(
         package_layout.addWidget(self.package_target_language_label, 7, 0)
         package_layout.addWidget(self.package_target_language_edit, 7, 1)
         package_layout.addWidget(self.package_target_language_help, 7, 2)
+        # Only CDUMM packages carry conflict mode and target language, and
+        # CDUMM is no longer offered. The controls stay hidden because the
+        # settings and build code still read them.
+        for widget in (
+            self.package_conflict_mode_label,
+            self.package_conflict_mode_combo,
+            self.package_conflict_mode_help,
+            self.package_target_language_label,
+            self.package_target_language_edit,
+            self.package_target_language_help,
+        ):
+            widget.setVisible(False)
         package_group.body_layout.addLayout(package_layout)
         settings_layout.addWidget(package_group)
 
@@ -721,6 +731,9 @@ class ReplaceAssistantTab(
 
         self._refresh_ncnn_models()
         self._load_settings()
+        if not any(checkbox.isChecked() for checkbox in self.package_profile_checkboxes.values()):
+            # Saved CDUMM or Field-JSON targets fall back to DMM.
+            self.package_profile_checkboxes["dmm"].setChecked(True)
         self._settings_ready = True
         self._sync_build_mode_visibility()
         self._sync_package_manager_field_visibility()
