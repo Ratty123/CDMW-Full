@@ -94,15 +94,16 @@ def drop(item_key, *, level=0):
     return b'\1' + struct.pack('<QBIIIIQQQQhI', item_key, 0, 0, 0, 0, 0, 1000000, 0, 1, 1, level, item_key)
 
 
-def stock(store_key, item_key, index=0):
-    return (struct.pack('<HQQIiIiI', store_key, 1000000, 1000000, 1, -1, index, -1, index)
+def stock(store_key, item_key, index=0, order=None):
+    return (struct.pack('<HQQIiIiI', store_key, 1000000, 1000000, 1, -1, index, -1, index if order is None else order)
             + b'\1\1\1\0' + drop(item_key) + bytes(8) + b'\0' + bytes(8) + bytes(4))
 
 
-def store(key, name, items):
+def store(key, name, items, *, order=None):
+    """`order` gives every line that order index; shipped stores use 0xFFFFFFFF."""
     return (text(name) + struct.pack('<H', key) + bytes(10) + bytes(24) + bytes(4)
             + struct.pack('<Q', 1000000) + bytes(4) + struct.pack('<I', len(items))
-            + b''.join(stock(key, value, i) for i, value in enumerate(items)) + bytes(8))
+            + b''.join(stock(key, value, i, order) for i, value in enumerate(items)) + bytes(8))
 
 
 def group(key, name, items):

@@ -166,6 +166,43 @@ def test_unavailable_dlc_recipe_and_reward_keys_are_still_reserved(tmp_path):
         assert added and 1990000 not in added
 
 
+def test_compact_recipe_conditions_decode_and_survive_edits():
+    from cdmw.core.acquisition_compact import encode_compact_recipe, parse_compact_recipe
+    from cdmw.core.item_layout import replace_layout_fields
+    from cdmw.core.new_item_record import RecordError
+    from tests.compact_item_fixtures import recipe
+    from tests.test_new_item_service import OTHER
+    # The installed WarMachine recipe's shape: one condition key and its localized refusal.
+    message = bytes.fromhex('0dd00004000500000000') [:9] + struct.pack('<I', 11) + b'21475098832'
+    conditions = struct.pack('<II', 1, 1001581) + message
+    states = struct.pack('<I', 1) + text('Burning')
+    raw = replace_layout_fields(read_compact_layout(recipe(1990000, 'Conditional', OTHER, 1990000), 'multichangeinfo'),
+                                {'_conditionList': conditions, '_elementalMaterialStateList': states}).raw
+    row = parse_compact_recipe(raw)
+    edited = replace(row, ingredients=(replace(row.ingredients[0], quantity=7),))
+    encoded = encode_compact_recipe(edited)
+    layout = read_compact_layout(encoded, 'multichangeinfo')
+    assert layout.data('_conditionList') == conditions and layout.data('_elementalMaterialStateList') == states
+    assert parse_compact_recipe(encoded).ingredients[0].quantity == 7
+    with pytest.raises(RecordError):
+        truncated = replace_layout_fields(read_compact_layout(raw, 'multichangeinfo'), {'_conditionList': conditions[:-3]}).raw
+        parse_compact_recipe(truncated)
+
+
+def test_a_new_shop_line_keeps_the_unordered_index_of_shipped_stores():
+    from cdmw.core.storeinfo_compact import parse_compact_store
+    from cdmw.core.storeinfo_table import UNLIMITED_STOCK, insert_stock_entry
+    # Every stocked line of the installed 1.0.0.3446 tables has order index 0xFFFFFFFF.
+    row = parse_compact_store(store(6600, 'Store_Camp_Equipment', [101, 102], order=0xFFFFFFFF))
+    updated = insert_stock_entry(row, 1990000, keep_requirement=False, count=UNLIMITED_STOCK)
+    reread = parse_compact_store(updated.raw)
+    assert [entry.order_index for entry in reread.entries] == [0xFFFFFFFF] * 3
+    assert [entry.item_key for entry in reread.entries] == [101, 102, 1990000]
+    assert [entry.stock_index for entry in reread.entries] == [0, 1, 2]
+    numbered = insert_stock_entry(parse_compact_store(store(6600, 'Store_Camp_Equipment', [101, 102])), 1990000)
+    assert [entry.order_index for entry in numbered.entries] == [0, 1, 2]
+
+
 @pytest.mark.parametrize('dlc',[False,True])
 def test_compact_stock_export_preserves_source_table_and_optional_fields(tmp_path,dlc):
     from cdmw.services.independent_item_operations import stock_item_operations,from_declared_iteminfo_operations,lower_field_operations

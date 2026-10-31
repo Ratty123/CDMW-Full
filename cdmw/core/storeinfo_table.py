@@ -56,6 +56,7 @@ _KNOWN_STORE_TYPES = (0, 1, 2, 4, 5)
 #: The `count` of a line that never runs out (the bank's gold bars carry it).
 UNLIMITED_STOCK = 0xFFFFFFFF
 _MAX_ORDER_RECORDS = 8
+_NO_ORDER = 0xFFFFFFFF
 
 
 class StoreInfoError(ValueError):
@@ -463,7 +464,13 @@ def insert_stock_entry(
         position = last_buyable + 1
     if not 0 <= int(position) <= len(row.entries):
         raise StoreInfoError(f"position {position} is outside 0..{len(row.entries)}")
-    next_order = max((entry.order_index for entry in row.entries), default=-1) + 1
+    # Since the October 2026 update every stocked line has order index 0xFFFFFFFF ("no
+    # order"); a new line keeps that rather than overflowing it.
+    orders = [entry.order_index for entry in row.entries]
+    if orders and all(order == _NO_ORDER for order in orders):
+        next_order = _NO_ORDER
+    else:
+        next_order = max((order for order in orders if order != _NO_ORDER), default=-1) + 1
     fresh = replace(source, store_key=row.key, item_key=_u32(item_key, "item key"), order_index=next_order, offset=-1, end=-1)
     if not keep_requirement:
         fresh = fresh.without_requirement()
