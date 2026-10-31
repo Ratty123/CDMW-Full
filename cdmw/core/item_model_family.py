@@ -217,7 +217,13 @@ def _stem_of(path: str) -> str:
 
 def _icon_stem(icon_string: str) -> str:
     text = str(icon_string or "")
-    return text[len(ICON_STRING_PREFIX):] if text.startswith(ICON_STRING_PREFIX) else text
+    return text[len(ICON_STRING_PREFIX):] if _is_icon_string(text) else text
+
+
+def _is_icon_string(text: str) -> bool:
+    # The DLC update writes many of its icon strings in lower case
+    # (`itemicon_prefab_cd_phm_00_ub_00_0493`); icon files are lower case anyway.
+    return text[:len(ICON_STRING_PREFIX)].casefold() == ICON_STRING_PREFIX.casefold()
 
 
 def _icon_file_stem(icon_stem: str) -> str:
@@ -306,7 +312,7 @@ def find_icon_string(row: ItemInfoRow, stringinfo: Mapping[int, str]) -> Tuple[O
     for offset in _resource_offsets(row, 'icon'):
         value = int.from_bytes(raw[offset:offset + 4], "little")
         text = stringinfo.get(value)
-        if text is not None and text.startswith(ICON_STRING_PREFIX):
+        if text is not None and _is_icon_string(text):
             return value, text
     return None, None
 

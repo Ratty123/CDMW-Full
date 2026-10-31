@@ -113,6 +113,18 @@ class DiscoveryTests(unittest.TestCase):
         self.assertEqual(family.renamed_icon_string("cd_phm_01_sword_9109"), "ItemIcon_Prefab_cd_phm_01_sword_9109")
         self.assertIn("icon string", family.notes[0])
 
+    def test_lower_case_icon_strings_of_the_dlc_update_name_the_icon(self) -> None:
+        row, stringinfo, pappt, archive = _ziane_like()
+        lower = "itemicon_prefab_cd_phm_01_sword_0109"
+        stringinfo = {key: text for key, text in stringinfo.items() if not text.startswith("ItemIcon_Prefab_")}
+        stringinfo[stringinfo_key(lower)] = lower
+        row = _row(row.key, row.string_key, "cd_phm_01_sword_0109_r", "cd_phm_01_sword_0109_l", lower)
+        self.assertEqual(find_icon_string(row, stringinfo)[1], lower)
+        family = discover_item_model_family(row, stringinfo=stringinfo, pappt=pappt, read_entry=archive.read, path_exists=archive.exists)
+        self.assertEqual([(f.path, f.exists) for f in family.files_for("icon")],
+                         [("ui/texture/icon/itemicon_prefab_cd_phm_01_sword_0109.dds", True)])
+        self.assertEqual(family.renamed_icon_string("cd_phm_01_sword_9109"), "ItemIcon_Prefab_cd_phm_01_sword_9109")
+
     def test_missing_files_are_listed_not_hidden(self) -> None:
         row, stringinfo, pappt, archive = _ziane_like()
         del archive.files[f"character/bin__/meshphysics/{MODEL_FOLDER}/cd_phm_01_sword_0109.hkx"]
