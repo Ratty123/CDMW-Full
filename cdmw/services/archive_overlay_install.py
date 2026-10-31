@@ -30,7 +30,7 @@ from typing import Callable, Dict, Iterable, Optional, Sequence, Tuple
 
 from cdmw.core.archive_format import parse_archive_pamt
 from cdmw.core.archive_overlay import OverlayFile, build_overlay_archive
-from cdmw.core.papgt_format import PAPGT_DEFAULT_FLAGS, papgt_with_directory, parse_papgt
+from cdmw.core.papgt_format import PAPGT_DEFAULT_FLAGS, papgt_with_directory, parse_papgt, read_papgt_directories
 from cdmw.domain.archives.mutation import ArchiveAddRequest, ArchivePatchRequest
 from cdmw.domain.cancellation import raise_if_cancelled
 from cdmw.services.application_shutdown_service import archive_write_scope
@@ -489,7 +489,7 @@ def overlay_directory_name(package_root: Path, *, existing: Optional[str] = None
     used = {child.name for child in root.iterdir() if child.is_dir()}
     mount_list = root / "meta" / "0.papgt"
     if mount_list.is_file():
-        used.update(item.name for item in parse_papgt(mount_list.read_bytes()))
+        used.update(item.name for item in read_papgt_directories(mount_list.read_bytes()))
     for number in range(OVERLAY_DIRECTORY_FIRST, 10000):
         name = f"{number:04d}"
         if name not in used:

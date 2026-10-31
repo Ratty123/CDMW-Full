@@ -27,6 +27,7 @@ from cdmw.core.archive_format import calculate_pa_checksum
 __all__ = [
     "PAPGT_DEFAULT_FLAGS",
     "PapgtDirectory",
+    "is_compact_papgt",
     "papgt_with_directory",
     "parse_papgt",
     "read_papgt_directories",
@@ -171,3 +172,22 @@ def papgt_with_directory(
         entry = PapgtDirectory(name=str(name), flags=int(flags), pamt_checksum=int(pamt_checksum))
         directories.insert(0 if first else len(directories), entry)
     return serialize_papgt(directories, header=data[:_HEADER_BYTES])
+
+
+def is_compact_papgt(data: bytes) -> bool:
+    """Whether `data` is the October 2026 layout rather than the checksummed legacy one.
+
+    The game authenticates this layout: on game 2.04.02 a copy with one more directory
+    and the shipped trailer fails to load ("PAPGT 파일 로드 실패") and the game mounts
+    nothing, so no private or installed list may add a directory to it.
+    """
+
+    try:
+        parse_papgt(data)
+    except ValueError:
+        try:
+            read_papgt_directories(data)
+        except ValueError:
+            return False
+        return True
+    return False

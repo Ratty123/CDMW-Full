@@ -148,3 +148,23 @@ def test_the_compose_folder_takes_precedence_over_a_standalone_profile(tmp_path,
     status, files = _launch(root, *LOGICAL)
     assert status['state'] == 'ready' and files == dict(expected)
     assert not (root / '.cdmw/virtual-loader/standalone-status.json').exists()
+
+def test_a_compact_mount_list_refuses_composition_and_leaves_the_game_unmodded(tmp_path, monkeypatch):
+    import struct
+    from cdmw.core.papgt_format import parse_papgt
+    root = _game(tmp_path)
+    read = _effective(root, monkeypatch)
+    _install_runtime(root)
+    _drop(root, [_package(read, 1990001, 'alpha')])
+    # The October 2026 layout: four-byte header, the same records, a 64-byte trailer.
+    directories = parse_papgt((root / 'meta/0.papgt').read_bytes())
+    table, records = b'', b''
+    for directory in directories:
+        records += struct.pack('<III', directory.flags, len(table), directory.pamt_checksum)
+        table += directory.name.encode() + b'\0'
+    (root / 'meta/0.papgt').write_bytes(bytes((0xAA, 0x16, len(directories), 2)) + records
+                                        + struct.pack('<I', len(table)) + table + bytes(range(64)))
+    original = _installation(root)
+    status, _ = _launch(root, blocked=True)
+    assert status['state'] == 'refused' and 'archive mount list' in status['detail'], status
+    assert _installation(root) == original

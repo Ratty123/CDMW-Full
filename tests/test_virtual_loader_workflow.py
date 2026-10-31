@@ -190,6 +190,28 @@ def test_prepare_reports_monotonic_progress_without_changing_output(tmp_path):
     assert game_bytes(root) == before and not (root / '.cdmw').exists()
 
 
+def test_prepare_refuses_an_authenticated_mount_list_before_reading_packages(tmp_path):
+    import struct
+    from cdmw.core.papgt_format import parse_papgt
+    from cdmw.domain.virtual_loader import VirtualLoaderError
+    root, files = packages(tmp_path, 1)
+    # Game 2.04.02 refuses a compact mount list with a private group added and then
+    # mounts nothing, so Apply must stop before it builds one.
+    directories = parse_papgt((root / 'meta/0.papgt').read_bytes())
+    table, records = b'', b''
+    for directory in directories:
+        records += struct.pack('<III', directory.flags, len(table), directory.pamt_checksum)
+        table += directory.name.encode() + b'\0'
+    (root / 'meta/0.papgt').write_bytes(bytes((0xAA, 0x16, len(directories), 2)) + records
+                                        + struct.pack('<I', len(table)) + table + bytes(64))
+    before = game_bytes(root)
+    events = []
+    with pytest.raises(VirtualLoaderError, match='checks its archive list'):
+        composition.prepare_profile(VirtualProfile(files), root,
+            on_progress=lambda n, total, detail: events.append(n))
+    assert events == [0] and game_bytes(root) == before and not (root / '.cdmw').exists()
+
+
 def test_virtual_list_sorting_is_display_only_and_projects_progress(tmp_path, monkeypatch):
     from cdmw.services import virtual_loader_process, virtual_loader_state
     from tests.test_mod_management import pump

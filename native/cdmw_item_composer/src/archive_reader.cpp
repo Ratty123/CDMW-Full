@@ -452,7 +452,7 @@ MountedArchives::MountedArchives(const std::filesystem::path& root, const Bytes&
     std::function<bool(const std::string&)> keep;
     if (wanted_) keep = [this](const std::string& path) { return wanted_->count(normalize_game_path(path)) != 0; };
     std::set<std::string> listed;
-    for (const auto& directory : parse_papgt(papgt)) {
+    for (const auto& directory : read_papgt_directories(papgt)) {
         if (!listed.insert(ascii_lower(directory.name)).second) throw Unsupported("the mount list names a directory twice");
         groups_.push_back(directory.name);
     }

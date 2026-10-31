@@ -19,7 +19,7 @@ from cdmw.core.archive_extraction import read_archive_entry_data
 from cdmw.core.archive_format import parse_archive_pamt
 from cdmw.core.archive_overlay import OverlayFile, build_overlay_archive
 from cdmw.core.atomic_file import atomic_write_bytes
-from cdmw.core.papgt_format import PAPGT_DEFAULT_FLAGS, parse_papgt, papgt_with_directory, serialize_papgt
+from cdmw.core.papgt_format import PAPGT_DEFAULT_FLAGS, parse_papgt, papgt_with_directory, read_papgt_directories, serialize_papgt
 from cdmw.domain.archives.overlay_merge import (
     OverlayConflict, legacy_texture_baseline, merge_overlay_files, owned_item_references,
 )
@@ -156,7 +156,7 @@ def _load_index(root):
 
 def _mounted_owned(root):
     mount = _target(root, 'meta/0.papgt')
-    records = parse_papgt(mount.read_bytes())
+    records = read_papgt_directories(mount.read_bytes())
     owned = []
     for record in records:
         name = str(record.name)
@@ -230,7 +230,7 @@ def list_installed_overlays(package_root, *, stop_event=None):
         current_game = game_identity(root, stop_event)
         sources_changed = any(not _target(root, relative).is_file() or _stamp(_target(root, relative)) != stamp
                               for relative, stamp in state.get('sources', {}).items())
-        records = parse_papgt(_target(root, 'meta/0.papgt').read_bytes())
+        records = read_papgt_directories(_target(root, 'meta/0.papgt').read_bytes())
         mounted = any(record.name == state['directory'] for record in records)
         expected_mount = any(layer['active'] for layer in state['layers'])
         health = 'mounted' if mounted else 'unmounted' if expected_mount else 'disabled'

@@ -209,6 +209,19 @@ def test_damaged_mount_lists_are_refused_alike(cli, damage):
     _same(_python_bytes(lambda: serialize_papgt(parse_papgt(data), header=data[:12])), _native_bytes(cli('papgt-roundtrip', data)))
 
 
+def test_compact_mount_lists_are_never_given_a_directory(cli):
+    from tests.test_compact_pamt import compact_mount
+    # The game refuses a compact list with an added directory and then mounts nothing.
+    # Python's writer meets it as a legacy list with a bad checksum; the composer names why.
+    data = compact_mount()
+    assert _python_bytes(lambda: papgt_with_directory(data, '0041', 1))[0] == 'error'
+    status, message = _native_bytes(cli('papgt-add', data, '0041', 1, 0x007FFF00, 1))
+    assert status == 'unsupported' and 'archive mount list' in message
+    damaged = data[:-1]
+    _same(_python_bytes(lambda: papgt_with_directory(damaged, '0041', 1)),
+          _native_bytes(cli('papgt-add', damaged, '0041', 1, 0x007FFF00, 1)))
+
+
 def test_more_than_255_directories_are_refused(cli):
     data = _papgt([f'{i:04}' for i in range(255)])
     _same(_python_bytes(lambda: papgt_with_directory(data, '9999', 1)), _native_bytes(cli('papgt-add', data, '9999', 1, 0x007FFF00, 1)))

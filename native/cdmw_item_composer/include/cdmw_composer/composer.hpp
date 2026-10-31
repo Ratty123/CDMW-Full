@@ -74,9 +74,14 @@ struct PapgtDirectory {
     bool operator==(const PapgtDirectory&) const = default;
 };
 std::vector<PapgtDirectory> parse_papgt(const Bytes& data);
+// The October 2026 compact list (four-byte header, opaque 64-byte trailer), read only.
+bool is_compact_papgt(const Bytes& data);
+// Either layout; parse_papgt alone accepts only the checksummed legacy list.
+std::vector<PapgtDirectory> read_papgt_directories(const Bytes& data);
 // `header` is the first twelve bytes of the source file (empty for zeros).
 Bytes serialize_papgt(const std::vector<PapgtDirectory>& directories, const Bytes& header);
-// `data` with `name` mounted, first when `first`; a listed directory keeps its place.
+// `data` with `name` mounted, first when `first`; a listed directory keeps its place. A
+// compact list is refused: the game authenticates it.
 Bytes papgt_with_directory(const Bytes& data, const std::string& name, std::uint32_t pamt_checksum,
                            std::uint32_t flags = papgt_default_flags, bool first = true);
 

@@ -8,7 +8,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 import re
 
-from cdmw.core.papgt_format import parse_papgt
+from cdmw.core.papgt_format import read_papgt_directories
 from cdmw.domain.archives.overlay_merge import OverlayConflict, _table, merge_overlay_files, owned_item_references
 from cdmw.domain.cancellation import RunCancelled, raise_if_cancelled
 from cdmw.services.independent_item_package import MAX_BLOB, MAX_TOTAL, _resource_path, digest, unpack_recipe
@@ -202,7 +202,7 @@ def external_mods(root, state, *, folders=(), read_entry=None, stop_event=None, 
     result.snapshot = snapshot
     mount = _target(root, 'meta/0.papgt')
     result.tracker.pin_file(mount)
-    records = parse_papgt(mount.read_bytes())
+    records = read_papgt_directories(mount.read_bytes())
     result.tracker.pin_file(mount)
     for record in records:
         raise_if_cancelled(stop_event)

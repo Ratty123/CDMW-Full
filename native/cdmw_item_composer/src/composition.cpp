@@ -116,7 +116,7 @@ std::string free_group_name(const std::filesystem::path& root, const Bytes& papg
     std::set<std::string> used;
     for (const auto& child : std::filesystem::directory_iterator(root))
         if (child.is_directory()) used.insert(utf8_of(child.path().filename()));
-    for (const auto& directory : parse_papgt(papgt)) used.insert(directory.name);
+    for (const auto& directory : read_papgt_directories(papgt)) used.insert(directory.name);
     for (int number = first_overlay_number; number < 10000; ++number) {
         auto name = std::to_string(number);
         name.insert(0, 4 - name.size(), '0');

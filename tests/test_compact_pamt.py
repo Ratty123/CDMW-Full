@@ -100,6 +100,16 @@ def test_compact_mount_rejects_a_missing_trailer():
         read_papgt_directories(compact_mount()[:-1])
 
 
+def test_compact_mounts_are_recognised_and_never_rewritten():
+    from cdmw.core.papgt_format import PapgtDirectory, is_compact_papgt, papgt_with_directory, serialize_papgt
+    # The game refuses a compact list with an added directory, so no writer may produce one.
+    assert is_compact_papgt(compact_mount())
+    with pytest.raises(ValueError):
+        papgt_with_directory(compact_mount(), "0041", 789)
+    assert not is_compact_papgt(serialize_papgt([PapgtDirectory("0009", 0x7FFF00, 1)]))
+    assert not is_compact_papgt(b"\x00\x00\x00\x02")
+
+
 def test_legacy_mount_header_can_share_the_compact_marker():
     from cdmw.core.papgt_format import PapgtDirectory, serialize_papgt
     raw = serialize_papgt([PapgtDirectory("0009", 0, 1)], header=b"\x00\x00\x00\x02" + bytes(8))

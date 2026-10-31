@@ -8,7 +8,7 @@ from uuid import uuid4
 
 from cdmw.core.archive_overlay import OverlayFile, build_overlay_archive
 from cdmw.services.archive_overlay_install import _processed_payload
-from cdmw.core.papgt_format import PAPGT_DEFAULT_FLAGS, papgt_with_directory
+from cdmw.core.papgt_format import PAPGT_DEFAULT_FLAGS, is_compact_papgt, papgt_with_directory
 from cdmw.domain.cancellation import raise_if_cancelled
 from cdmw.domain.new_item.compilation import compiler_stamp, compilation_record
 from cdmw.domain.virtual_loader import PreparedSnapshot, VirtualLoaderError, VirtualProfile
@@ -20,6 +20,10 @@ from cdmw.services.independent_item_package import canonical, digest, MAX_MANIFE
 from cdmw.services.independent_item_compatibility import compose_underlay, _external_table
 from cdmw.services.mod_merge_service import _group
 from cdmw.services.virtual_loader_state import FORMAT, PROFILE_PATH, target, read_optional
+
+
+MOUNT_LIST_AUTHENTICATED = ('Since the October 2026 game update, the game checks its archive list and will not start '
+    'with item archives added to it, so item packages cannot be applied to this game version yet.')
 
 
 def hash_file(path, stop_event=None, *, on_read=None):
@@ -92,6 +96,8 @@ def prepare_profile(profile: VirtualProfile, root, *, stop_event=None, on_log=No
             on_progress(value, 100, detail)
     progress(0, 'Checking item packages…')
     root = Path(root).resolve()
+    if is_compact_papgt(read_optional(target(root, 'meta/0.papgt')) or b''):
+        raise VirtualLoaderError(MOUNT_LIST_AUTHENTICATED)
     if len(profile.mods) > 128:
         raise VirtualLoaderError('Select at most 128 external mod folders.')
     packages = tuple(Path(path).resolve() for path in profile.packages)

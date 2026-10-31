@@ -12,7 +12,7 @@ import re
 
 from cdmw.core.archive_format import calculate_pa_checksum, parse_archive_pamt
 from cdmw.core.atomic_file import atomic_binary_writer, atomic_write_bytes
-from cdmw.core.papgt_format import parse_papgt
+from cdmw.core.papgt_format import read_papgt_directories
 from cdmw.core.stringinfo_table import stringinfo_key
 from cdmw.domain.archives.overlay_merge import _table
 from cdmw.domain.cancellation import raise_if_cancelled
@@ -196,7 +196,7 @@ def _capture(plan, snapshot, root, state, pathc_before):
 
 def _external_paths(root, state, stop_event=None):
     paths = set()
-    for record in parse_papgt(overlays._target(root, 'meta/0.papgt').read_bytes()):
+    for record in read_papgt_directories(overlays._target(root, 'meta/0.papgt').read_bytes()):
         raise_if_cancelled(stop_event)
         name = record.name
         if not re.fullmatch(r'[A-Za-z0-9_-]+', name):
