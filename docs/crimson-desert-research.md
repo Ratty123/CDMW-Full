@@ -112,9 +112,11 @@ build. DMM's runtime instead serves individual files inside the game's package r
 loader. Served that way in a second headless launch, CDMW's composition of five new
 swords (ItemInfo, StoreInfo, ItemGroupInfo, StringInfo, MultiChangeInfo, the part-prefab
 table and the item names) passed all twelve data-loading stages with no error beyond those
-an unmodified launch logs. The items were not looked at in game. Whether the game asks the
-loader for files no index lists (new models, textures, icons) and whether `meta/0.pathc`
-is checked remain untested.
+an unmodified launch logs. A third launch added CDMW's runtime serving a rewritten
+`meta/0.pathc` with the swords' texture registrations, mount list untouched, and loaded
+just as cleanly: the texture registry is not authenticated. The items were not looked at
+in game, so whether the game asks the loader for files no index lists (new models,
+textures, icons) remains untested.
 
 The read-only audit decoded all **2,089,061 indexed entries**, including **307,263
 DLC entries**, to their declared sizes. No unsupported encryption type or

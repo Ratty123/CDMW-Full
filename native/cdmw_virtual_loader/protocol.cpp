@@ -103,6 +103,7 @@ void validate(const Manifest& m) {
     }
     require(m.files.size() <= 256 && !m.files.empty(), "Invalid map size");
     std::set<std::wstring> seen;
+    bool archives = false;
     for (const auto& file : m.files) {
         fs::path logical(file.logical);
         require(!logical.is_absolute() && logical.parent_path().parent_path().empty(), "Invalid logical depth");
@@ -111,11 +112,15 @@ void validate(const Manifest& m) {
         const bool archive = !parent.empty() && parent.find_first_not_of(L"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-") == std::wstring::npos &&
                              (logical.filename() == L"0.pamt" || logical.filename() == L"0.paz");
         require(meta || archive, "Map targets must be archives or game metadata");
+        archives = archives || archive;
         auto expected = m.root / L".cdmw/virtual-loader/generations" / m.generation / L"files" / logical;
         require(normalize(file.path) == normalize(expected) && seen.insert(normalize(m.root / logical)).second, "Escaping or duplicate map path");
         no_links(file.path);
     }
-    require(seen.contains(normalize(m.root / L"meta/0.papgt")), "Missing virtual mount list");
+    // Private archives mean nothing without the mount list that names them. A map of
+    // game metadata alone (meta/0.pathc) needs none: the game authenticates its mount
+    // list since game 2.04.02, so such maps leave it as shipped.
+    require(!archives || seen.contains(normalize(m.root / L"meta/0.papgt")), "Missing virtual mount list");
     require(m.guards.size() <= 65536, "Too many source guards");
     std::set<std::wstring> guards;
     for (const auto& guard : m.guards) {

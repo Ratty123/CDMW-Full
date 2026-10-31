@@ -356,9 +356,16 @@ and saves were unchanged.
 
 The game authenticates the compact mount list, so a private archive group cannot load
 on this build. Apply refuses a compact list before reading packages, and the composer
-refuses to add a group to one. File redirects still work for files the game does not
-authenticate; whether `meta/0.pathc` is checked is untested. DMM's runtime serves files
-per path inside the game's package resource loader instead, which is the remaining route.
+refuses to add a group to one. DMM's runtime serves files per path inside the game's
+package resource loader instead, which is the remaining route for archive content.
+
+File redirects still work for metadata the game does not authenticate. A map now needs
+the mount list only when it holds private archives. Recorded the same night: a launcher
+profile serving only a `meta/0.pathc` that registers the five swords' textures, beside
+the swords' composed tables served by DmmRuntime, was ready in 219 ms, and the game
+completed all twelve data stages with only the errors an unmodified launch logs. The
+texture registry is not authenticated. Whether the game loads new model, texture and
+icon paths served per path has not been looked at in game.
 
 ## Independent item publication research
 

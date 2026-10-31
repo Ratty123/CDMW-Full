@@ -470,6 +470,33 @@ def test_standalone_profile_redirects_without_a_session_host(tmp_path):
     assert not list((root / '.cdmw/virtual-loader').glob('session-*.json'))
 
 
+@pytest.mark.parametrize('archives', [False, True])
+def test_a_standalone_map_needs_the_mount_list_only_for_private_archives(tmp_path, archives):
+    from cdmw.services import virtual_loader_standalone as standalone
+    from cdmw.services.virtual_loader_standalone import STANDALONE_PATH, standalone_manifest
+    root, _request, _token = fixture(tmp_path)
+    (root / 'bin64/winmm.dll').write_bytes(b'fixture bootstrap')
+    (root / 'meta/0.pathc').write_bytes(b'original registry')
+    generation = next((root / '.cdmw/virtual-loader/generations').iterdir()).name
+    (root / '.cdmw/virtual-loader/generations' / generation / 'files/meta/0.pathc').write_bytes(b'virtual')
+    # Game 2.04.02 refuses a rewritten mount list, so a map may carry game metadata alone.
+    logical = ('meta/0.pathc', '0042/0.pamt', '0042/0.paz') if archives else ('meta/0.pathc',)
+    profile = {'generation': generation, 'files': {p: digest(b'virtual') for p in logical}, 'sources': [], 'catalogue': []}
+    data, _hashed, _catalogue = standalone_manifest(root, profile, executable_sha256=hash_file(root / 'bin64/cdmw_virtual_loader_harness.exe'))
+    (root / STANDALONE_PATH).write_bytes(data)
+    command = [str(root / 'bin64/cdmw_virtual_loader_harness.exe'), *(['--blocked'] if archives else ['--copy-out', 'meta/0.pathc', 'meta/0.papgt'])]
+    result = subprocess.run(command, capture_output=True, timeout=40, cwd=root / 'bin64')
+    assert result.returncode == 0, result.stderr.decode(errors='replace')
+    status = standalone.read_standalone_status(root)
+    if archives:
+        assert status.state == 'refused' and 'Missing virtual mount list' in status.detail, status.detail
+        return
+    assert status.state == 'ready', status.detail
+    out = root / '.cdmw/virtual-loader/harness-out'
+    assert (out / 'meta_0.pathc').read_bytes() == b'virtual' and (out / 'meta_0.papgt').read_bytes() == b'original'
+    assert (root / 'meta/0.pathc').read_bytes() == b'original registry'
+
+
 @pytest.mark.parametrize(('change', 'expected'), [
     ('source', 'changed after the profile was published'),
     ('carrier', 'archive changed after the profile was published'),
