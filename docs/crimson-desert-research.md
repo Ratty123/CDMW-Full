@@ -366,6 +366,13 @@ reconstructs only within validated declared bounds. These are offline resource
 operations; they do not by themselves establish how the running game streams
 or replaces GPU textures.
 
+An installed DLC carries its own registry, `dlc/dlc_NN/meta/0.pathc`, which
+registers the DLC's textures (the DLC item icons, for example); they are absent
+from the base `meta/0.pathc`. Uncompressed RGB(A), luminance and alpha DDS files
+are registered too, including the engine's `texture/nonetexture*` placeholders:
+wherever a shipped row stores raw sizes for such a header, they equal width x
+bytes per pixel x height per mip (checked on game 1.0.0.3446, 2026-10-31).
+
 The writer derives mip block information for supported raw DDS layouts and
 checks complete payload lengths. New registry entries have format and capacity
 restrictions; collision-table authoring is not implemented. Arrays, cubes,
@@ -1382,6 +1389,17 @@ Component headers and masks determine which members are present. Some markers
 provide an explicit type index; ambiguous groups require a deterministic
 supported interpretation rather than whichever candidate happens to fit.
 
+Socket lists are a separate collection form. `SocketComponent._socketList` is
+declared with member `extra` 0x100; after a non-zero count it writes a 13-byte
+reference (`01`, a u32, eight zero bytes), and each `TransformSocket` element
+carries its u32 position between its owner field and its name pointer. A group's
+pointee closes with a length field that the walk does not otherwise read, so a
+collection header that follows a group directly is read only after those
+validated length fields. Measured over the shipped revision-15 prefabs on game
+1.0.0.3446 (2026-10-31): 5,122 more walks complete, and 224 that used to
+complete only by reading socket elements as other components now report a
+partial walk. This is a decode result over the archive corpus, not game proof.
+
 The decoder exposes objects, asset references, numeric values and transforms.
 The supported serialized `Transform` is 40 bytes: scale, quaternion `xyzw` and
 position. A larger runtime transform structure is a different contract and must
@@ -1415,6 +1433,7 @@ location after a resize.
 | Scan for any word equal to a known string offset | Coincidental integers can match; relocation needs the owning pointer/length contract and output validation. |
 | Narrow masks until more files appear to parse | Historical experiments reduced correct coverage; a more permissive verdict is not evidence of a correct walk. |
 | Retry every component choice recursively | Nested retries multiply; the attempted corpus approach became impractical without resolving the discriminator. |
+| A complete walk of a file with sockets is a correct walk | Before the indexed socket-list form was decoded (2026-10-31), 224 prefabs completed by reading `TransformSocket` elements as `SceneObject` and other components. Completion alone did not prove the reading. |
 
 **Status:** Implemented metadata and constrained structural editing. Partial
 or ambiguous assets remain restricted. No single historical walk-completion
@@ -1653,6 +1672,15 @@ Source-bound identities must survive plan review, export, updates and removal.
 The mounted modded source and the original game baseline are different inputs
 and must remain distinguishable. A package that validates against a modified
 donor cannot silently claim to depend only on stock game bytes.
+
+Game 1.0.0.3446 (the DLC update) changed several identity conventions, checked
+against the shipped tables on 2026-10-31. Many DLC rows, and some base ones,
+spell the icon string `itemicon_prefab_<stem>` in lower case. Every DLC ship part
+borrows one dummy model stem, `cd_t9999_empty`. A compact stock line's result
+type is byte 8 of its drop data: 0 is an item, 1 property (the `_Owner` shops),
+9 furniture and 3 a sell-only category line, so the 20 property, stable and
+furniture shops hold no item line to shape a new one after. In-game behaviour
+of those conventions has not been re-tested.
 
 **Conclusion:** Successful geometry conversion is not complete item creation.
 The dependency graph and every required registry consumer determine whether
