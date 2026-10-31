@@ -60,6 +60,7 @@ from dataclasses import dataclass
 from typing import Sequence
 
 from cdmw.core.prefab_binary import (
+    _INDEXED_OBJECT_LIST,
     PrefabCollection,
     PrefabDocument,
     decode_prefab_binary,
@@ -153,6 +154,14 @@ def _resizable_collection(
         raise PrefabEditError(
             f"{collection.member_name} declares {collection.count} element(s) but "
             f"only {len(collection.elements)} were read; refusing to resize it"
+        )
+    owner = next((item for item in document.types if item.type_name == collection.owner_type), None)
+    member = next((item for item in (owner.members if owner else ()) if item.name == collection.member_name), None)
+    if member is not None and member.extra & _INDEXED_OBJECT_LIST:
+        # Each element stores its own position, and the list's reference
+        # carries a value whose meaning is not known; a splice would keep both.
+        raise PrefabEditError(
+            f"{collection.member_name} is an indexed list (socket list); resizing it is not supported"
         )
     return collection
 

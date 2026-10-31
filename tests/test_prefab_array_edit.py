@@ -137,6 +137,14 @@ def test_removing_the_last_element_is_refused() -> None:
         remove_prefab_element(_build_with_collection(("Only",)), 0, 0)
 
 
+def test_an_indexed_socket_list_is_not_resized() -> None:
+    """Socket list elements store their own position; a splice would not renumber them."""
+    indexed = _build_with_collection(("A", "B", "C"), indexed=True)
+    for edit in (duplicate_prefab_element, remove_prefab_element):
+        with pytest.raises(PrefabEditError, match="indexed list"):
+            edit(indexed, 0, 2)
+
+
 def test_a_prefab_that_does_not_walk_is_refused() -> None:
     data = bytearray(_build_with_collection())
     document = decode_prefab_binary(bytes(data))
