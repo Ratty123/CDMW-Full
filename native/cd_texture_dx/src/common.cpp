@@ -412,6 +412,7 @@ std::vector<EncodeJob> parse_encode_jobs(const std::string& text) {
             std::clamp(json_double_field(object, "alpha_coverage_reference", 0.5), 0.0, 1.0)
         );
         job.dds_alpha_mode = json_string_field(object, "dds_alpha_mode", "unknown");
+        job.bc7_quick = json_bool_field(object, "bc7_quick", false);
         jobs.push_back(job);
     }
     return jobs;

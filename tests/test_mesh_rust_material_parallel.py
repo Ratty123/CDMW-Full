@@ -226,23 +226,84 @@ def test_serial_budget_refusal_skips_later_materials_before_synthesis(tmp_path, 
     assert state.budget_skipped == _budget_codes(state) == {(0, 1), (0, 2)}
 
 
-def test_parallel_budget_refusal_never_starts_the_refused_job(tmp_path, monkeypatch):
+def test_repeated_materials_compile_once_per_group_in_parallel(tmp_path, monkeypatch):
+    from cdmw.services import mesh_dotnet_material_package as package
+
     mesh = _mesh(tmp_path, 4)
-    monkeypatch.setattr(owner._RustMaterialSynthesisBudget, "admit_part",
-                        lambda self, submesh, **_: submesh.name != "Material-1")
-    started = []
+    # Parts 1 and 3 reuse the material slots of parts 0 and 2.
+    for repeat, source in ((1, 0), (3, 2)):
+        part = copy.copy(mesh.submeshes[source])
+        part.name = f"Repeat-{source}"
+        part.submesh_index = repeat
+        mesh.submeshes[repeat] = part
+    compiles = []
+    original_serial = owner._mesh_synthesized_texture_overrides_serial
+    monkeypatch.setattr(owner, "_mesh_synthesized_texture_overrides_serial",
+                        lambda snapshot, root, **kwargs: compiles.append(len(snapshot.submeshes))
+                        or original_serial(snapshot, root, **kwargs))
+    synthesized = []
+    original = package._synthesize_dotnet_material_channels
+    monkeypatch.setattr(package, "_synthesize_dotnet_material_channels",
+                        lambda *args, **kwargs: synthesized.append(1) or original(*args, **kwargs))
+    monkeypatch.setattr(owner.os, "cpu_count", lambda: 4)
+
+    outputs, state = _run(owner._mesh_synthesized_texture_overrides, mesh, tmp_path / "groups")
+
+    assert sorted(compiles) == [2, 2]
+    assert len(synthesized) == 2
+    assert {key[:2] for key in outputs} == {(0, 0), (0, 1), (0, 2), (0, 3)}
+    for repeat, source in ((1, 0), (3, 2)):
+        assert {role: digest for (_, index, role), digest in outputs.items() if index == repeat} == {
+            role: digest for (_, index, role), digest in outputs.items() if index == source
+        }
+    assert not state.diagnostics
+
+
+def test_refusal_behind_reserved_jobs_waits_for_the_batch_instead_of_skipping(tmp_path, monkeypatch):
+    mesh = _mesh(tmp_path, 3)
+
+    def admit_one_reservation(self, submeshes, *, compiled):
+        # Room for one material until the in-flight one is measured on disk.
+        if self.reserved_compile:
+            return False
+        self.reserved_compile = 1
+        return True
+
+    monkeypatch.setattr(owner._RustMaterialSynthesisBudget, "_admit", admit_one_reservation)
+    monkeypatch.setattr(owner.os, "cpu_count", lambda: 4)
+    outputs, state = _run(owner._mesh_synthesized_texture_overrides, mesh, tmp_path / "deferred")
+
+    assert {key[:2] for key in outputs} == {(0, 0), (0, 1), (0, 2)}
+    assert not state.budget_skipped
+
+
+def test_job_too_large_to_reserve_runs_alone_and_skips_only_what_cannot_fit(tmp_path, monkeypatch):
+    from cdmw.services import mesh_dotnet_material_package as package
+
+    mesh = _mesh(tmp_path, 4)
+    monkeypatch.setattr(owner._RustMaterialSynthesisBudget, "_admit",
+                        lambda self, submeshes, **_: all(part.name != "Material-1" for part in submeshes))
+    solo = []
     original = owner._mesh_synthesized_texture_overrides_serial
 
     def serial(snapshot, root, **kwargs):
-        started.append(snapshot.submeshes[0].name)
+        solo.append((snapshot.submeshes[0].name, kwargs.get("budget") is not None))
         return original(snapshot, root, **kwargs)
 
+    synthesized = []
+    original_synthesize = package._synthesize_dotnet_material_channels
+    monkeypatch.setattr(package, "_synthesize_dotnet_material_channels",
+                        lambda source, *args, **kwargs: synthesized.append(source.name)
+                        or original_synthesize(source, *args, **kwargs))
     monkeypatch.setattr(owner, "_mesh_synthesized_texture_overrides_serial", serial)
     monkeypatch.setattr(owner.os, "cpu_count", lambda: 4)
     outputs, state = _run(owner._mesh_synthesized_texture_overrides, mesh, tmp_path / "parallel")
 
-    assert sorted(started) == ["Material-0", "Material-2", "Material-3"]
-    assert {key[:2] for key in outputs} == {(0, 0), (0, 2), (0, 3)}
+    # Only the job refused as a whole runs alone with per-material admission.
+    assert sorted(solo) == [("Material-0", False), ("Material-1", True), ("Material-2", False), ("Material-3", False)]
+    assert sorted(synthesized) == ["Material-0", "Material-2", "Material-3"]
+    direct = {hashlib.sha256(path.read_bytes()).hexdigest() for path in tmp_path.glob("input-*/*.dds")}
+    assert {key[:2] for key, digest in outputs.items() if digest not in direct} == {(0, 0), (0, 2), (0, 3)}
     assert state.budget_skipped == _budget_codes(state) == {(0, 1)}
 
 
@@ -253,7 +314,7 @@ def test_tree_over_its_limit_after_admission_falls_back_to_direct_textures(tmp_p
         for part in mesh.submeshes:
             part.material = "Shared"
     # An admission estimate that falls short must not fail the preview.
-    monkeypatch.setattr(owner._RustMaterialSynthesisBudget, "admit_part", lambda self, submesh, **_: True)
+    monkeypatch.setattr(owner._RustMaterialSynthesisBudget, "_admit", lambda self, submeshes, **_: True)
     monkeypatch.setattr(owner._RustMaterialSynthesisBudget, "admit_encode", lambda self, source: True)
     monkeypatch.setattr(owner, "_SESSION_MAX_TOTAL_BYTES", 1)
 

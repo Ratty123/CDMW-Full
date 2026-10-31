@@ -30,6 +30,8 @@ struct EncodeJob {
     std::string mip_alpha_policy = "default";
     float alpha_coverage_reference = 0.5f;
     std::string dds_alpha_mode = "unknown";
+    // Preview-only: DirectXTex's quick BC7 search (mode 6) instead of the full one.
+    bool bc7_quick = false;
 };
 
 std::wstring utf8_to_wide(const std::string& text);
@@ -58,7 +60,8 @@ std::string metadata_json(
 );
 std::string encode_dds_job(const EncodeJob& job);
 HRESULT compress_bc7_repeated_blocks(
-    const DirectX::ScratchImage& source, DXGI_FORMAT format, DirectX::ScratchImage& output);
+    const DirectX::ScratchImage& source, DXGI_FORMAT format, DirectX::ScratchImage& output,
+    DirectX::TEX_COMPRESS_FLAGS extra_flags = DirectX::TEX_COMPRESS_DEFAULT);
 std::string decode_preview_job(const PreviewJob& job);
 bool texture_codec_self_test(std::string& failed_component);
 int write_batch_exception_report(

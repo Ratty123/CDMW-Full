@@ -1314,6 +1314,22 @@ def _record_material_synthesis_evidence(raw_contract, semantic_contract, synthes
         )
 
 
+def _discard_unresolved_synthesis_outputs(output_dir: Path, channels: Mapping[str, str]) -> None:
+    """Free a material's per-layer combiner maps once its resolved maps exist."""
+
+    if not output_dir.is_dir():
+        return
+    kept = set()
+    for value in channels.values():
+        try:
+            kept.add(Path(str(value or "")).resolve())
+        except (OSError, RuntimeError, ValueError):
+            continue
+    for path in [item for item in output_dir.rglob("*") if item.is_file() and not item.is_symlink()]:
+        if path.resolve() not in kept:
+            path.unlink(missing_ok=True)
+
+
 def _dotnet_submesh_material_payload(
     submesh: object,
     fallback_index: int,
@@ -1330,6 +1346,7 @@ def _dotnet_submesh_material_payload(
     support_map_max_dimension: int = 256,
     requested_output_channels: frozenset[str] | None = None,
     synthesis_admission: Callable[[int, object], bool] | None = None,
+    resolved_outputs_only: bool = False,
 ) -> dict[str, object]:
     submesh_map = submesh if isinstance(submesh, Mapping) else {}
     texture = str(submesh_map.get("texture", "") or "").strip()
@@ -1370,16 +1387,19 @@ def _dotnet_submesh_material_payload(
                     (),
                 )
             else:
+                output_dir = package_dir / "material_synthesis" / f"submesh_{fallback_index:03d}"
                 resolved_channels, synthesis, generated = _synthesize_dotnet_material_channels(
                     source_submesh,
                     raw_channels,
                     raw_contract,
-                    output_dir=package_dir / "material_synthesis" / f"submesh_{fallback_index:03d}",
+                    output_dir=output_dir,
                     batch_index=fallback_index,
                     cancelled=cancelled,
                     support_map_max_dimension=support_map_max_dimension,
                     requested_output_channels=requested_output_channels,
                 )
+                if resolved_outputs_only:
+                    _discard_unresolved_synthesis_outputs(output_dir, resolved_channels)
             synthesis_cache[synthesis_key] = (
                 copy.deepcopy(resolved_channels),
                 copy.deepcopy(synthesis),
@@ -1416,7 +1436,7 @@ def _dotnet_submesh_material_payload(
         resolved_features = ()
     _record_material_synthesis_evidence(raw_contract, semantic_contract, synthesis, resolved_features, generated, include_resources)
     submesh_index = _safe_int(submesh_map.get("submesh_index"), fallback_index)
-    if include_resources:
+    if include_resources and not resolved_outputs_only:
         packaged_channels = _copy_dotnet_texture_channel_resources(
             resolved_channels, package_dir, texture_copy_cache
         )
@@ -1579,12 +1599,17 @@ def compile_mesh_dotnet_material_manifest(
         int, frozenset[str]
     ] | None = None,
     synthesis_admission: Callable[[int, object], bool] | None = None,
+    resolved_outputs_only: bool = False,
 ) -> dict[str, object]:
     """Compile the canonical initial/resident .NET material manifest.
 
     ``synthesis_admission`` is asked before each new material is synthesized;
     a refusal keeps that material's raw bindings and marks its row as skipped
     with ``MATERIAL_SYNTHESIS_BUDGET_SKIPPED``.
+
+    ``resolved_outputs_only`` is for callers that read each row's
+    ``resolved_channels`` directly: per-layer combiner maps are freed as soon as
+    a material is resolved, and no packaged resource copies are written.
     """
 
     sidecar_payload = dict(sidecar_payload or {})
@@ -1637,6 +1662,7 @@ def compile_mesh_dotnet_material_manifest(
                 support_map_max_dimension=support_map_max_dimension,
                 requested_output_channels=requested_output_channels,
                 synthesis_admission=synthesis_admission,
+                resolved_outputs_only=resolved_outputs_only,
             )
         )
     if absolute_resource_paths:

@@ -135,6 +135,19 @@ static const char* repeated_bc7_failure() {
             std::memcmp(reference.GetPixels(), repeated.GetPixels(), reference.GetPixelsSize()) != 0) {
             return "compare_repeated_bc7_bytes";
         }
+        DirectX::ScratchImage quick_reference, quick_repeated;
+        hr = DirectX::Compress(mips.GetImages(), mips.GetImageCount(), mips.GetMetadata(), output_format,
+                               static_cast<DirectX::TEX_COMPRESS_FLAGS>(
+                                   static_cast<unsigned int>(DirectX::TEX_COMPRESS_PARALLEL) |
+                                   static_cast<unsigned int>(DirectX::TEX_COMPRESS_BC7_QUICK)),
+                               DirectX::TEX_THRESHOLD_DEFAULT, quick_reference);
+        if (FAILED(hr)) return "reference_quick_bc7";
+        hr = compress_bc7_repeated_blocks(mips, output_format, quick_repeated, DirectX::TEX_COMPRESS_BC7_QUICK);
+        if (FAILED(hr)) return "compress_quick_bc7";
+        if (quick_reference.GetPixelsSize() != quick_repeated.GetPixelsSize() ||
+            std::memcmp(quick_reference.GetPixels(), quick_repeated.GetPixels(), quick_reference.GetPixelsSize()) != 0) {
+            return "compare_quick_bc7_bytes";
+        }
         if (item.width == 12 && item.height == 4) {
             // Cross the chunk boundary without making the startup/package
             // self-test recompress tens of thousands of identical reference blocks.

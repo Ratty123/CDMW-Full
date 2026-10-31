@@ -18,6 +18,7 @@ from cdmw.rendering.material_combiner_decode import (
     _material_decode_output_flags,
     _resolve_external_material_factors,
     affine_decode_mode_terms,
+    decode_material_arrays,
     decode_material_sample,
 )
 from cdmw.rendering.material_combiner_rules import (
@@ -1675,16 +1676,18 @@ def _vectorised_material_maps(
 ) -> Optional[Tuple[float, float, float]]:
     """Decode and write every slot in bounded row tiles, matching the scalar loop.
 
-    Returns ``(metal_peak, spec_peak, contribution_peak)``, or ``None`` when this
-    input needs the scalar path.
+    Returns ``(metal_peak, spec_peak, contribution_peak)``, or ``None`` when
+    NumPy or a writable buffer is unavailable and the scalar path must run.
     """
 
     affine = affine_decode_mode_terms(mode)
-    if affine is None:
-        return None
     np = _numpy_module()
     if np is None:
         return None
+    # The affine modes keep their established float32 channel decode. The
+    # specular mode and every formula mode decode bytes straight to doubles,
+    # exactly as the scalar loop does, so their texels stay identical.
+    exact_decode = affine is None or mode == "specular"
 
     metal_cap, spec_cap, roughness_floor = _nonmetal_response_limits(surface_category)
     mask_channel_index = _LAYER_CHANNEL_INDEX.get(mask_channel, 0)
@@ -1696,39 +1699,41 @@ def _vectorised_material_maps(
         for row_start in range(0, height, _NUMPY_ROW_CHUNK):
             _raise_if_material_combiner_cancelled(cancelled)
             row_count = min(_NUMPY_ROW_CHUNK, height - row_start)
-            source = _numpy_rgba_row_chunk(
-                np, source_view, source_stride, width, row_start, row_count
-            )
-            if mode == "specular":
-                # This newly accelerated mode previously decoded bytes directly
-                # to doubles. Keep that precision for identical output texels.
+            if exact_decode:
                 source = _numpy_rgba_byte_rows(
                     np, source_view, source_stride, width, row_start, row_count,
                 ).astype(np.float64) / 255.0
+            else:
+                source = _numpy_rgba_row_chunk(
+                    np, source_view, source_stride, width, row_start, row_count
+                )
             r, g, b, a = source[..., 0], source[..., 1], source[..., 2], source[..., 3]
-            peak = np.maximum(np.maximum(r, g), np.maximum(b, a))
-            minimum = np.minimum(np.minimum(r, g), np.minimum(b, a))
-            terms = {
-                "r": r,
-                "g": g,
-                "b": b,
-                "a": a,
-                "b_minus_18": np.maximum(0.0, b - 0.18),
-                "rgb_peak": np.maximum(np.maximum(r, g), b),
-                "g_or_average": np.maximum(g, (r * 0.3333) + (g * 0.3333) + (b * 0.3334)),
-                "variance": np.maximum(peak - minimum, 0.0),
-                "average": (r * 0.3333) + (g * 0.3333) + (b * 0.3334),
-                "one": np.ones_like(r),
-            }
+            if affine is None:
+                ao, roughness, metalness, specular = decode_material_arrays(np, r, g, b, a, mode)
+            else:
+                peak = np.maximum(np.maximum(r, g), np.maximum(b, a))
+                minimum = np.minimum(np.minimum(r, g), np.minimum(b, a))
+                terms = {
+                    "r": r,
+                    "g": g,
+                    "b": b,
+                    "a": a,
+                    "b_minus_18": np.maximum(0.0, b - 0.18),
+                    "rgb_peak": np.maximum(np.maximum(r, g), b),
+                    "g_or_average": np.maximum(g, (r * 0.3333) + (g * 0.3333) + (b * 0.3334)),
+                    "variance": np.maximum(peak - minimum, 0.0),
+                    "average": (r * 0.3333) + (g * 0.3333) + (b * 0.3334),
+                    "one": np.ones_like(r),
+                }
 
-            def slot(name: str):
-                term, offset, gain, low, high = affine[name]
-                return np.clip(offset + gain * terms[term], low, high)
+                def slot(name: str):
+                    term, offset, gain, low, high = affine[name]
+                    return np.clip(offset + gain * terms[term], low, high)
 
-            ao = slot("ao")
-            roughness = slot("roughness")
-            metalness = slot("metalness")
-            specular = slot("specular")
+                ao = slot("ao")
+                roughness = slot("roughness")
+                metalness = slot("metalness")
+                specular = slot("specular")
 
             ao, roughness, metalness, specular = _apply_vectorized_external_factors(np, external_factors, ao, roughness, metalness, specular)
 
@@ -1770,13 +1775,14 @@ def _vectorised_material_maps(
                 )
 
             if mask_view is not None:
-                mask = _numpy_rgba_row_chunk(
-                    np, mask_view, mask_stride, width, row_start, row_count
-                )
-                if mode == "specular":
+                if exact_decode:
                     mask = _numpy_rgba_byte_rows(
                         np, mask_view, mask_stride, width, row_start, row_count,
                     ).astype(np.float64) / 255.0
+                else:
+                    mask = _numpy_rgba_row_chunk(
+                        np, mask_view, mask_stride, width, row_start, row_count
+                    )
                 coverage = np.clip(
                     mask[..., mask_channel_index] * effective_layer_weight,
                     0.0,
@@ -1989,9 +1995,11 @@ def _generate_material_maps(
     # Array fast path.  The per-texel work is elementwise arithmetic over scalar
     # parameters, so it vectorises exactly -- and it is what lets support maps
     # keep their resolution instead of being capped small enough for a Python
-    # loop to finish.  Restricted to modes whose response is the shared affine
-    # table. External material factors are scalar multipliers over those arrays,
-    # so they stay in this path instead of forcing one Python call per texel.
+    # loop to finish.  Affine modes use the shared table; every other mode uses
+    # ``decode_material_arrays``, the array twin of ``decode_material_sample``.
+    # External material factors are scalar multipliers over those arrays, so
+    # they stay in this path instead of forcing one Python call per texel.
+    # The loop below remains for interpreters without NumPy.
     fast = _vectorised_material_maps(
         mode=mode,
         source_view=source_view,

@@ -57,6 +57,12 @@ for linear/sRGB inputs, alpha, narrow and odd dimensions, full mip chains, and
 linear/sRGB textures spanning multiple chunks. Eviction only causes recompression with
 the original encoder; it does not change quality or formats.
 
+An encode job may set `"bc7_quick": true` to use DirectXTex's quick BC7 search
+(`TEX_COMPRESS_BC7_QUICK`, mostly mode 6). It is many times faster at a small quality
+cost, and CDMW requests it only for disposable Rust preview maps; exported textures keep
+the full search. Older helpers ignore the field and use the full search. The self-test
+compares quick output byte for byte with plain DirectXTex quick compression too.
+
 ## Parsing and Windows paths
 
 The batch parser is a bounded, allocation-light JSON scanner rather than

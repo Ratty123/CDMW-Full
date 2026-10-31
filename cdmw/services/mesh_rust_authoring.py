@@ -154,10 +154,13 @@ _RUST_MATERIAL_PRESENTATION_LIMIT = 2_048
 _RUST_MATERIAL_SYNTHESIS_DIAGNOSTIC_LIMIT = 64
 _RUST_MATERIAL_SYNTHESIS_DIAGNOSTIC_TEXT_LIMIT = 384
 _RUST_MATERIAL_SYNTHESIS_BUDGET_CODE = "material_synthesis_budget_exceeded"
-# Allowance per output pixel for one material's compiler intermediates: its
-# per-layer PNG maps plus their packaged hard links. Large multi-material DLC
-# models measured up to 25 bytes per pixel on 2026-10-31.
+# Allowance per output pixel for the material being composed: its per-layer
+# PNG maps exist until it resolves. Large multi-material DLC models measured up
+# to 25 bytes per pixel on 2026-10-31.
 _RUST_SYNTHESIS_COMPILE_BYTES_PER_PIXEL = 32
+# Resolved maps each composed material keeps until they are encoded (measured
+# at most 4.3 bytes per pixel once the per-layer maps are freed).
+_RUST_SYNTHESIS_RETAINED_BYTES_PER_PIXEL = 8
 _RUST_SYNTHESIS_OUTPUT_MAX_DIMENSION = 2_048
 _RUST_MATERIAL_LUMINANCE_GUARD_SAMPLE_DIMENSION = 128
 _RUST_MATERIAL_LUMINANCE_GUARD_MAX_IMAGE_DIMENSION = 8_192
@@ -435,6 +438,9 @@ def _encode_rust_preview_dds(
         stop_event,
         source_color_policy=source_color_policy,
         preview_uncompressed_max_bytes=remaining_budget,
+        # Preview maps are disposable; the full BC7 search took seconds per
+        # 1024-pixel map and dominated large-model preparation.
+        bc7_quick=True,
     )
     if bool(artifact.get("preview_uncompressed", False)):
         synthesis_state.fast_preview_texture_bytes += max(
@@ -461,6 +467,7 @@ def _encode_rust_preview_dds_batch(
         stop_event,
         preview_uncompressed_max_bytes=remaining_budget,
         max_dimension=_RUST_EXTERNAL_PREVIEW_TEXTURE_MAX_DIMENSION,
+        bc7_quick=True,
     )
     synthesis_state.fast_preview_texture_bytes += sum(
         max(0, int(artifact.get("byte_count", 0) or 0))
@@ -4475,10 +4482,34 @@ class _RustMaterialSynthesisBudget:
     def admit_part(self, submesh: object, *, compiled: bool = False) -> bool:
         """Reserve one material's outputs; ``compiled`` means earlier ones are on disk."""
 
-        pixels = _material_synthesis_output_pixels(submesh)
-        compile_bytes = pixels * _RUST_SYNTHESIS_COMPILE_BYTES_PER_PIXEL
+        return self._admit((submesh,), compiled=compiled)
+
+    def admit_parts(self, submeshes: Sequence[object]) -> bool:
+        """Reserve one compile of several parts; repeated materials compose once."""
+
+        distinct: dict[frozenset[str], object] = {}
+        for submesh in submeshes:
+            signature = frozenset(
+                str(path)
+                for value in tuple(getattr(submesh, "preview_material_texture_inputs", ()) or ())
+                if (path := _material_input_dds_path(value)) is not None
+            )
+            distinct.setdefault(signature, submesh)
+        return self._admit(tuple(distinct.values()), compiled=False)
+
+    def _admit(self, submeshes: Sequence[object], *, compiled: bool) -> bool:
+        pixels = [_material_synthesis_output_pixels(submesh) for submesh in submeshes]
+        # One compile composes its materials in turn: only the largest needs
+        # room for per-layer maps, the rest for the resolved maps they keep.
+        largest = max(pixels, default=0)
+        compile_bytes = (
+            largest * _RUST_SYNTHESIS_COMPILE_BYTES_PER_PIXEL
+            + (sum(pixels) - largest) * _RUST_SYNTHESIS_RETAINED_BYTES_PER_PIXEL
+        )
         # Block-compressed and R8 maps hold one byte per pixel plus mips.
-        encode_bytes = len(_RUST_SYNTHESIS_OUTPUT_CHANNELS) * (pixels * 4 // 3 + 4096)
+        encode_bytes = sum(
+            len(_RUST_SYNTHESIS_OUTPUT_CHANNELS) * (count * 4 // 3 + 4096) for count in pixels
+        )
         with self.lock:
             if compiled:
                 self.reserved_compile = 0
@@ -5031,15 +5062,23 @@ def _merge_material_synthesis_state(
     target: _RustMaterialSynthesisState,
     source: _RustMaterialSynthesisState,
     lod_index: int,
-    submesh_index: int,
+    submesh_indices: Sequence[int],
 ) -> None:
+    """Fold one job's state in, mapping its local submesh indices to the mesh's."""
+
+    def owner(local_index: object) -> int:
+        try:
+            return int(submesh_indices[int(local_index)])
+        except (IndexError, TypeError, ValueError):
+            return int(submesh_indices[0])
+
     target.attempted |= source.attempted
     target.generated_binding_count += source.generated_binding_count
     target.luminance_guard_count += source.luminance_guard_count
-    if source.budget_skipped:
-        target.budget_skipped.add((lod_index, submesh_index))
-    for overrides in source.presentation_overrides.values():
-        target.presentation_overrides.setdefault((lod_index, submesh_index), {}).update(overrides)
+    for _lod, local_index in source.budget_skipped:
+        target.budget_skipped.add((lod_index, owner(local_index)))
+    for (_lod, local_index), overrides in source.presentation_overrides.items():
+        target.presentation_overrides.setdefault((lod_index, owner(local_index)), {}).update(overrides)
     for name, dropped in (
         ("diagnostics", "dropped_diagnostic_count"),
         ("luminance_guard_adjustments", "dropped_luminance_guard_count"),
@@ -5052,7 +5091,7 @@ def _merge_material_synthesis_state(
                 continue
             remapped = dict(row, lod_index=lod_index)
             if "submesh_index" in row:
-                remapped["submesh_index"] = submesh_index
+                remapped["submesh_index"] = owner(row["submesh_index"])
             rows.append(remapped)
         setattr(target, dropped, getattr(target, dropped) + dropped_count)
 
@@ -5085,21 +5124,18 @@ def _mesh_synthesized_texture_overrides(
 ) -> dict[tuple[int, int, str], Path]:
     """Prepare independent materials in bounded batches, retaining owner order."""
     lods = _mesh_lods(mesh)
-    jobs = [
-        (lod_index, submesh_index, submesh)
-        for lod_index, submeshes in enumerate(lods)
-        for submesh_index, submesh in enumerate(submeshes)
-        if _submesh_has_material_synthesis_inputs(submesh)
-    ]
-    # The canonical compiler reuses synthesis within a LOD for repeated material
-    # names. Keep those requests together instead of duplicating their work.
-    repeated_materials = any(
-        len(names := [str(getattr(part, "material", "") or getattr(part, "name", "") or "")
-                      for part in submeshes]) != len(set(names))
-        for submeshes in lods
-    )
+    # The canonical compiler reuses synthesis within one compile for repeated
+    # material names, so parts sharing a name in a LOD form one job; distinct
+    # materials still run in parallel.
+    grouped: dict[tuple[int, str], list[tuple[int, int, object]]] = {}
+    for lod_index, submeshes in enumerate(lods):
+        for submesh_index, submesh in enumerate(submeshes):
+            if _submesh_has_material_synthesis_inputs(submesh):
+                name = str(getattr(submesh, "material", "") or getattr(submesh, "name", "") or "")
+                grouped.setdefault((lod_index, name), []).append((lod_index, submesh_index, submesh))
+    jobs = list(grouped.values())
     budget = _RustMaterialSynthesisBudget(synthesis_root, synthesis_state)
-    if len(jobs) < 2 or repeated_materials:
+    if len(jobs) < 2:
         return _mesh_synthesized_texture_overrides_serial(
             mesh, synthesis_root, expected_root_identity=expected_root_identity,
             stop_event=stop_event, synthesis_state=synthesis_state, protected_keys=protected_keys,
@@ -5110,27 +5146,34 @@ def _mesh_synthesized_texture_overrides(
     batch = _RustMaterialSynthesisBatch(synthesis_state, stop_event)
     overrides: dict[tuple[int, int, str], Path] = {}
 
-    def prepare(index: int):
-        lod_index, submesh_index, submesh = jobs[index]
+    def prepare(index: int, solo: bool):
+        members = jobs[index]
+        lod_index = members[0][0]
         local_state = _RustMaterialSynthesisState(encoding_order=(batch, index))
         try:
             _raise_if_texture_copy_cancelled(batch)
             # Geometry and immutable source bindings are read-only. Copy only the
             # metadata whose local index the canonical compiler needs to change.
-            part = copy.copy(submesh)
             from cdmw.services.mesh_dotnet_material_bindings import _dotnet_pac_material_owner_slot_index
-            part.preview_pac_material_owner_slot_index = _dotnet_pac_material_owner_slot_index(submesh, submesh_index)
-            part.submesh_index = 0
+            parts = []
+            for local_index, (_lod, submesh_index, submesh) in enumerate(members):
+                part = copy.copy(submesh)
+                part.preview_pac_material_owner_slot_index = _dotnet_pac_material_owner_slot_index(submesh, submesh_index)
+                part.submesh_index = local_index
+                parts.append(part)
             snapshot = copy.copy(mesh)
-            snapshot.submeshes = [part]
+            snapshot.submeshes = parts
             snapshot.lod_levels = []
+            owners = {submesh_index: local_index for local_index, (_lod, submesh_index, _part) in enumerate(members)}
             root = synthesis_root / f"material-{index:04d}"
             root.mkdir()
             local = _mesh_synthesized_texture_overrides_serial(
                 snapshot, root, expected_root_identity=_session_root_identity(root),
                 stop_event=batch, synthesis_state=local_state,
-                protected_keys=frozenset((0, 0, role) for lod, owner, role in protected_keys
-                                         if (lod, owner) == (lod_index, submesh_index)),
+                protected_keys=frozenset((0, owners[owner], role) for lod, owner, role in protected_keys
+                                         if lod == lod_index and owner in owners),
+                # A job running alone admits its materials one at a time.
+                budget=budget if solo else None,
             )
             return local, local_state
         finally:
@@ -5145,45 +5188,48 @@ def _mesh_synthesized_texture_overrides(
                 first = 0
                 while first < len(jobs):
                     indices: list[int] = []
+                    solo = False
                     working_bytes = 0
                     cursor = first
                     while cursor < len(jobs) and len(indices) < 4:
-                        lod_index, submesh_index, submesh = jobs[cursor]
-                        estimate = _material_synthesis_working_bytes(submesh)
+                        members = jobs[cursor]
+                        estimate = max(_material_synthesis_working_bytes(part) for _lod, _index, part in members)
                         if indices and working_bytes + estimate > _RUST_SYNTHESIS_WORKING_BYTES:
                             break
-                        cursor += 1
-                        if not budget.admit_part(submesh):
-                            # Encoding runs in job order; a job that never
-                            # starts must still release its turn.
-                            batch.finish(cursor - 1)
-                            _record_rust_material_synthesis_budget_skip(
-                                synthesis_state,
-                                lod_index=lod_index,
-                                submesh_index=submesh_index,
-                                detail="material synthesis would exceed the 768 MiB aggregate limit",
-                            )
-                            continue
+                        if not budget.admit_parts(tuple(part for _lod, _index, part in members)):
+                            if not indices:
+                                # Too large to reserve whole: compose it alone,
+                                # admitting each material against measured bytes.
+                                indices.append(cursor)
+                                cursor += 1
+                                solo = True
+                            # Otherwise retry once this batch's real output has
+                            # been measured and its allowances released.
+                            break
                         working_bytes += estimate
-                        indices.append(cursor - 1)
-                    futures = [executor.submit(prepare, index) for index in indices]
+                        indices.append(cursor)
+                        cursor += 1
+                    futures = [executor.submit(prepare, index, solo) for index in indices]
                     for index, future in zip(indices, futures):
                         local, local_state = future.result()
                         _raise_if_texture_copy_cancelled(stop_event)
-                        lod_index, submesh_index, _ = jobs[index]
-                        _merge_material_synthesis_state(synthesis_state, local_state, lod_index, submesh_index)
+                        members = jobs[index]
+                        lod_index = members[0][0]
+                        submesh_indices = [submesh_index for _lod, submesh_index, _part in members]
+                        _merge_material_synthesis_state(synthesis_state, local_state, lod_index, submesh_indices)
                         if any(row.get("code") in {"compiler_failed", "compiler_manifest_invalid"}
                                for row in local_state.diagnostics):
                             batch.cancel()
                             _clear_rust_material_synthesis_results(synthesis_state)
                             return {}
-                        overrides.update({(lod_index, submesh_index, role): path
-                                          for (_, _, role), path in local.items()})
+                        overrides.update({(lod_index, submesh_indices[local_index], role): path
+                                          for (_, local_index, role), path in local.items()})
                     try:
                         _validate_rust_material_synthesis_tree(synthesis_root, expected_root_identity)
                     except _RustMaterialSynthesisBudgetError:
                         return _discard_over_budget_material_synthesis(
-                            synthesis_state, ((lod, owner) for lod, owner, _ in jobs),
+                            synthesis_state,
+                            ((lod, owner) for members in jobs for lod, owner, _part in members),
                         )
                     budget.settle()
                     first = cursor
@@ -5268,6 +5314,9 @@ def _mesh_synthesized_texture_overrides_serial(
                     requested_channels_by_submesh or None
                 ),
                 synthesis_admission=admit if budget is not None else None,
+                # Only resolved channels are read below; per-layer maps and
+                # packaged copies would just occupy the aggregate limit.
+                resolved_outputs_only=True,
             )
         except RunCancelled as exc:
             raise RustMeshCancellationError(
