@@ -498,6 +498,7 @@ class AboutDocumentationEnglishMixin:
                   <li>Edits and Undo/Redo stay in an isolated session until Finish Edit Mesh validates and publishes the result. Run validation again before exporting the changed revision.</li>
                 </ul>
                 <p>Use Orbit to navigate without editing: right-drag orbits, middle-drag pans, and the wheel zooms. Fit frames the whole mesh; Frame Selected frames the selection. Solid (Textured) needs resolved materials. Solid + Wire, X-Ray, Normals, Bounds, and Bones provide inspection views.</p>
+                <p>Very large models with many materials compose their materials only while they fit the 768 MiB texture limit. The remaining parts show their plain game textures, and the status line says how many parts use simplified materials.</p>
                 <h4>Parts</h4>
                 <p>Open Parts to find Part colors and Island colors above either list. These options also appear under Viewport &gt; Display and work outside Morph &amp; Refit. Matching swatches identify parts and islands; turn the active color option off to return to the normal display.</p>
                 <p>Island colors applies in Edit view and keeps selection, pending fitting edits, textures and exports unchanged. New local geometry stays gray until its island data updates.</p>

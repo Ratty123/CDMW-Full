@@ -55,6 +55,8 @@ from cdmw.services.mesh_dotnet_material_semantics import (
 )
 
 
+# ``material_synthesis["skipped"]`` for a material its caller's budget refused.
+MATERIAL_SYNTHESIS_BUDGET_SKIPPED = "output_budget"
 _GENERATED_COLOR_CHANNELS = ("base", "albedo", "diffuse")
 _GENERATED_LINEAR_CHANNELS = {
     "height",
@@ -1327,6 +1329,7 @@ def _dotnet_submesh_material_payload(
     cancelled: Callable[[], bool] | None,
     support_map_max_dimension: int = 256,
     requested_output_channels: frozenset[str] | None = None,
+    synthesis_admission: Callable[[int, object], bool] | None = None,
 ) -> dict[str, object]:
     submesh_map = submesh if isinstance(submesh, Mapping) else {}
     texture = str(submesh_map.get("texture", "") or "").strip()
@@ -1352,16 +1355,31 @@ def _dotnet_submesh_material_payload(
             )
         cached_synthesis = synthesis_cache.get(synthesis_key)
         if cached_synthesis is None:
-            resolved_channels, synthesis, generated = _synthesize_dotnet_material_channels(
-                source_submesh,
-                raw_channels,
-                raw_contract,
-                output_dir=package_dir / "material_synthesis" / f"submesh_{fallback_index:03d}",
-                batch_index=fallback_index,
-                cancelled=cancelled,
-                support_map_max_dimension=support_map_max_dimension,
-                requested_output_channels=requested_output_channels,
-            )
+            if synthesis_admission is not None and not synthesis_admission(
+                fallback_index, source_submesh
+            ):
+                # The caller's output budget is spent: keep the raw bindings.
+                # Caching the refusal keeps repeated materials consistent.
+                resolved_channels, synthesis, generated = (
+                    dict(raw_channels),
+                    {
+                        "attempted": False,
+                        "succeeded": False,
+                        "skipped": MATERIAL_SYNTHESIS_BUDGET_SKIPPED,
+                    },
+                    (),
+                )
+            else:
+                resolved_channels, synthesis, generated = _synthesize_dotnet_material_channels(
+                    source_submesh,
+                    raw_channels,
+                    raw_contract,
+                    output_dir=package_dir / "material_synthesis" / f"submesh_{fallback_index:03d}",
+                    batch_index=fallback_index,
+                    cancelled=cancelled,
+                    support_map_max_dimension=support_map_max_dimension,
+                    requested_output_channels=requested_output_channels,
+                )
             synthesis_cache[synthesis_key] = (
                 copy.deepcopy(resolved_channels),
                 copy.deepcopy(synthesis),
@@ -1560,8 +1578,14 @@ def compile_mesh_dotnet_material_manifest(
     requested_synthesis_channels_by_submesh: Mapping[
         int, frozenset[str]
     ] | None = None,
+    synthesis_admission: Callable[[int, object], bool] | None = None,
 ) -> dict[str, object]:
-    """Compile the canonical initial/resident .NET material manifest."""
+    """Compile the canonical initial/resident .NET material manifest.
+
+    ``synthesis_admission`` is asked before each new material is synthesized;
+    a refusal keeps that material's raw bindings and marks its row as skipped
+    with ``MATERIAL_SYNTHESIS_BUDGET_SKIPPED``.
+    """
 
     sidecar_payload = dict(sidecar_payload or {})
     slots, submeshes, source_submeshes = _material_manifest_inputs(mesh, sidecar_payload)
@@ -1612,6 +1636,7 @@ def compile_mesh_dotnet_material_manifest(
                 cancelled=cancelled,
                 support_map_max_dimension=support_map_max_dimension,
                 requested_output_channels=requested_output_channels,
+                synthesis_admission=synthesis_admission,
             )
         )
     if absolute_resource_paths:
@@ -1646,6 +1671,7 @@ def compile_mesh_dotnet_material_manifest(
 
 
 __all__ = [
+    "MATERIAL_SYNTHESIS_BUDGET_SKIPPED",
     "_copy_dotnet_texture_channel_resources",
     "_dotnet_texture_channels",
     "_write_dotnet_material_manifest",

@@ -1142,6 +1142,21 @@ def test_rust_ready_status_keeps_the_explicit_untextured_reason(tmp_path: Path) 
     _dispose(tab)
 
 
+def test_rust_ready_status_reports_parts_left_on_simplified_materials(tmp_path: Path) -> None:
+    tab = _tab(tmp_path, backend=MESH_EDITOR_BACKEND_RUST)
+    tab.standalone_rust_hello_received = True
+    tab.standalone_rust_authoring_session = SimpleNamespace(
+        closed=True, session_id="budgeted", material_synthesis_budget_parts=(14, 40),
+    )
+
+    tab._handle_rust_ready({})
+
+    assert "14 of 40 parts use simplified materials" in tab.standalone_status_label.text()
+    assert "768 MiB" in tab.standalone_status_label.text()
+    tab.standalone_rust_authoring_session = None
+    _dispose(tab)
+
+
 def test_process_launch_revalidates_provenance_after_shadow_preparation(
     tmp_path: Path,
 ) -> None:

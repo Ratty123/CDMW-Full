@@ -195,3 +195,129 @@ def test_invalid_compiler_row_keeps_direct_fallback(tmp_path, monkeypatch):
     assert outputs == {}
     assert state.generated_binding_count == 0
     assert state.diagnostics[0]["code"] == "compiler_manifest_invalid"
+
+
+def _budget_codes(state):
+    return {(row["lod_index"], row["submesh_index"]) for row in state.diagnostics
+            if row["code"] == owner._RUST_MATERIAL_SYNTHESIS_BUDGET_CODE}
+
+
+def test_serial_budget_refusal_skips_later_materials_before_synthesis(tmp_path, monkeypatch):
+    from cdmw.services import mesh_dotnet_material_package as package
+
+    mesh = _mesh(tmp_path, 3)
+    for part in mesh.submeshes:
+        part.material = "Shared"  # Repeated names keep one serial compile.
+    asked = []
+    monkeypatch.setattr(owner._RustMaterialSynthesisBudget, "admit_part",
+                        lambda self, submesh, **_: asked.append(submesh.name) or len(asked) == 1)
+    synthesized = []
+    original = package._synthesize_dotnet_material_channels
+    monkeypatch.setattr(package, "_synthesize_dotnet_material_channels",
+                        lambda *args, **kwargs: synthesized.append(1) or original(*args, **kwargs))
+
+    outputs, state = _run(owner._mesh_synthesized_texture_overrides, mesh, tmp_path / "serial")
+
+    assert asked == ["Material-0", "Material-1", "Material-2"]
+    assert len(synthesized) == 1
+    # Refused parts keep only their exact direct DDS bindings.
+    direct = {hashlib.sha256(path.read_bytes()).hexdigest() for path in tmp_path.glob("input-*/*.dds")}
+    assert {key[:2] for key, digest in outputs.items() if digest not in direct} == {(0, 0)}
+    assert state.budget_skipped == _budget_codes(state) == {(0, 1), (0, 2)}
+
+
+def test_parallel_budget_refusal_never_starts_the_refused_job(tmp_path, monkeypatch):
+    mesh = _mesh(tmp_path, 4)
+    monkeypatch.setattr(owner._RustMaterialSynthesisBudget, "admit_part",
+                        lambda self, submesh, **_: submesh.name != "Material-1")
+    started = []
+    original = owner._mesh_synthesized_texture_overrides_serial
+
+    def serial(snapshot, root, **kwargs):
+        started.append(snapshot.submeshes[0].name)
+        return original(snapshot, root, **kwargs)
+
+    monkeypatch.setattr(owner, "_mesh_synthesized_texture_overrides_serial", serial)
+    monkeypatch.setattr(owner.os, "cpu_count", lambda: 4)
+    outputs, state = _run(owner._mesh_synthesized_texture_overrides, mesh, tmp_path / "parallel")
+
+    assert sorted(started) == ["Material-0", "Material-2", "Material-3"]
+    assert {key[:2] for key in outputs} == {(0, 0), (0, 2), (0, 3)}
+    assert state.budget_skipped == _budget_codes(state) == {(0, 1)}
+
+
+@pytest.mark.parametrize("serial", (True, False))
+def test_tree_over_its_limit_after_admission_falls_back_to_direct_textures(tmp_path, monkeypatch, serial):
+    mesh = _mesh(tmp_path, 2)
+    if serial:
+        for part in mesh.submeshes:
+            part.material = "Shared"
+    # An admission estimate that falls short must not fail the preview.
+    monkeypatch.setattr(owner._RustMaterialSynthesisBudget, "admit_part", lambda self, submesh, **_: True)
+    monkeypatch.setattr(owner._RustMaterialSynthesisBudget, "admit_encode", lambda self, source: True)
+    monkeypatch.setattr(owner, "_SESSION_MAX_TOTAL_BYTES", 1)
+
+    outputs, state = _run(owner._mesh_synthesized_texture_overrides, mesh, tmp_path / "over")
+
+    assert outputs == {}
+    assert state.generated_binding_count == 0
+    assert state.presentation_overrides == {}
+    assert state.budget_skipped == _budget_codes(state) == {(0, 0), (0, 1)}
+
+
+def test_budget_reserves_until_settled_and_counts_files_on_disk(tmp_path, monkeypatch):
+    root = tmp_path / "tree"
+    root.mkdir()
+    state = owner._RustMaterialSynthesisState(
+        fast_preview_texture_bytes=owner._RUST_FAST_PREVIEW_TEXTURE_BUDGET_BYTES,
+    )
+    monkeypatch.setattr(owner, "_material_synthesis_output_pixels", lambda _submesh: 64 * 64)
+    budget = owner._RustMaterialSynthesisBudget(root, state)
+    assert budget.admit_part(object())
+    one_material = budget.reserved_compile + budget.reserved_encode
+    budget.settle()
+    monkeypatch.setattr(owner, "_SESSION_MAX_TOTAL_BYTES", 3 * one_material)
+
+    # Parallel jobs hold their whole allowance until the batch is on disk.
+    assert [budget.admit_part(object()) for _ in range(4)] == [True, True, True, False]
+    budget.settle()
+    # Serial compiles release the previous material's compile allowance,
+    # keeping only its pending encodes reserved.
+    assert all(budget.admit_part(object(), compiled=True) for _ in range(4))
+    budget.settle()
+
+    (root / "compiled.png").write_bytes(b"x" * (3 * one_material - 1))
+    assert not budget.admit_part(object())
+    image = tmp_path / "generated.png"
+    Image.new("RGBA", (16, 8)).save(image)
+    assert not budget.admit_encode(image)
+    monkeypatch.setattr(owner, "_SESSION_MAX_TOTAL_BYTES", 1 << 30)
+    assert budget.admit_encode(image)
+
+
+def test_material_output_allowance_uses_the_largest_source_up_to_the_output_cap(tmp_path):
+    part = _mesh(tmp_path, 1).submeshes[0]
+    assert owner._material_synthesis_output_pixels(part) == 32 * 32
+    assert owner._material_synthesis_output_pixels(object()) == (
+        owner._RUST_SYNTHESIS_OUTPUT_MAX_DIMENSION ** 2
+    )
+
+
+def test_preview_package_reports_parts_left_on_direct_textures(tmp_path, monkeypatch):
+    import json
+
+    from cdmw.services.mesh_rust_preview_package import build_rust_preview_package
+
+    mesh = _mesh(tmp_path, 3)
+    for part in mesh.submeshes:
+        part.material = "Shared"
+        part.faces = [(0, 1, 2)]
+    asked = []
+    monkeypatch.setattr(owner._RustMaterialSynthesisBudget, "admit_part",
+                        lambda self, submesh, **_: asked.append(submesh.name) or len(asked) == 1)
+
+    package = build_rust_preview_package(mesh, output_package_dir=tmp_path / "package")
+
+    manifest = json.loads(package.manifest_path.read_text(encoding="utf-8"))
+    assert manifest["textures"]
+    assert manifest["texture_status"]["material_synthesis_budget_skipped"] == 2

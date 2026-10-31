@@ -68,6 +68,7 @@ from cdmw.rendering.material_category_contract import (
 from cdmw.services.material_authority_resource_service import (
     _encode_owned_dds,
     _encode_owned_image_dds_batch,
+    _projected_rgba_dds_bytes,
 )
 from cdmw.services.mesh_dotnet_material_bindings import (
     _DOTNET_PREVIEW_MATERIAL_ATTRS,
@@ -75,6 +76,7 @@ from cdmw.services.mesh_dotnet_material_bindings import (
     count_dotnet_own_material_bindings,
 )
 from cdmw.services.mesh_dotnet_material_package import (
+    MATERIAL_SYNTHESIS_BUDGET_SKIPPED,
     compile_mesh_dotnet_material_manifest,
 )
 from cdmw.services.mesh_dotnet_material_state import (
@@ -151,6 +153,12 @@ _RUST_EXTERNAL_PREVIEW_TEXTURE_MAX_DIMENSION = 2_048
 _RUST_MATERIAL_PRESENTATION_LIMIT = 2_048
 _RUST_MATERIAL_SYNTHESIS_DIAGNOSTIC_LIMIT = 64
 _RUST_MATERIAL_SYNTHESIS_DIAGNOSTIC_TEXT_LIMIT = 384
+_RUST_MATERIAL_SYNTHESIS_BUDGET_CODE = "material_synthesis_budget_exceeded"
+# Allowance per output pixel for one material's compiler intermediates: its
+# per-layer PNG maps plus their packaged hard links. Large multi-material DLC
+# models measured up to 25 bytes per pixel on 2026-10-31.
+_RUST_SYNTHESIS_COMPILE_BYTES_PER_PIXEL = 32
+_RUST_SYNTHESIS_OUTPUT_MAX_DIMENSION = 2_048
 _RUST_MATERIAL_LUMINANCE_GUARD_SAMPLE_DIMENSION = 128
 _RUST_MATERIAL_LUMINANCE_GUARD_MAX_IMAGE_DIMENSION = 8_192
 _RUST_MATERIAL_LUMINANCE_GUARD_MAX_IMAGE_PIXELS = 16_777_216
@@ -357,6 +365,8 @@ class _RustMaterialSynthesisState:
     )
     dropped_luminance_guard_count: int = 0
     encoding_order: tuple[_RustMaterialSynthesisBatch, int] | None = None
+    # (lod, submesh) owners left on direct DDS to keep the output in bounds.
+    budget_skipped: set[tuple[int, int]] = field(default_factory=set)
 
 
 class _RustMaterialSynthesisBatch:
@@ -484,6 +494,25 @@ def _record_rust_material_synthesis_diagnostic(
     if text:
         row["detail"] = text
     state.diagnostics.append(row)
+
+
+def _record_rust_material_synthesis_budget_skip(
+    state: _RustMaterialSynthesisState,
+    *,
+    lod_index: int,
+    submesh_index: int,
+    detail: object,
+) -> None:
+    owner = (max(0, int(lod_index)), max(0, int(submesh_index)))
+    if owner not in state.budget_skipped:
+        state.budget_skipped.add(owner)
+        _record_rust_material_synthesis_diagnostic(
+            state,
+            _RUST_MATERIAL_SYNTHESIS_BUDGET_CODE,
+            lod_index=owner[0],
+            submesh_index=owner[1],
+            detail=detail,
+        )
 
 
 def _record_rust_material_luminance_guard(
@@ -726,6 +755,10 @@ class RustMeshValidationError(RustMeshAuthoringError):
 
 class RustMeshCancellationError(RustMeshAuthoringError):
     """The owning CDMW window cancelled before a Finish commit linearized."""
+
+
+class _RustMaterialSynthesisBudgetError(RustMeshProtocolError):
+    """Material synthesis output outgrew the session's aggregate byte limit."""
 
 
 _RUST_PREVIEW_MATERIAL_CONTEXT_ATTR = "_cdmw_rust_mesh_preview_material_context"
@@ -4357,10 +4390,136 @@ def _validate_rust_material_synthesis_tree(
                 )
             total_bytes += length
             if total_bytes > _SESSION_MAX_TOTAL_BYTES:
-                raise RustMeshProtocolError(
+                raise _RustMaterialSynthesisBudgetError(
                     "Mesh material synthesis exceeds the 768 MiB aggregate limit"
                 )
     _session_root_identity(root, expected_root_identity)
+
+
+def _rust_material_synthesis_tree_bytes(root: Path) -> int:
+    """Bytes currently in the owned synthesis tree, as the validator counts them."""
+
+    total = 0
+    stack = [root]
+    while stack:
+        try:
+            entries = list(os.scandir(stack.pop()))
+        except OSError:
+            continue
+        for entry in entries:
+            try:
+                if entry.is_dir(follow_symlinks=False):
+                    stack.append(Path(entry.path))
+                elif entry.is_file(follow_symlinks=False):
+                    total += entry.stat(follow_symlinks=False).st_size
+            except OSError:
+                continue  # A transient encoder file was removed while listing.
+    return total
+
+
+def _rust_image_dimensions(path: Path) -> tuple[int, int] | None:
+    try:
+        with path.open("rb") as stream:
+            header = stream.read(24)
+    except OSError:
+        return None
+    if header[:8] == b"\x89PNG\r\n\x1a\n" and len(header) >= 24:
+        width, height = struct.unpack(">II", header[16:24])
+    elif header[:4] == b"DDS " and len(header) >= 20:
+        height, width = struct.unpack_from("<II", header, 12)
+    else:
+        return None
+    return (width, height) if width > 0 and height > 0 else None
+
+
+def _material_synthesis_output_pixels(submesh: object) -> int:
+    """Largest map the compiler can emit for this material (its biggest source)."""
+
+    width = height = 0
+    for value in tuple(getattr(submesh, "preview_material_texture_inputs", ()) or ()):
+        path = _material_input_dds_path(value)
+        dimensions = _rust_image_dimensions(path) if path is not None else None
+        if dimensions is None:
+            continue
+        width, height = max(width, dimensions[0]), max(height, dimensions[1])
+    limit = _RUST_SYNTHESIS_OUTPUT_MAX_DIMENSION
+    width = min(width, limit) if width else limit
+    height = min(height, limit) if height else limit
+    return width * height
+
+
+class _RustMaterialSynthesisBudget:
+    """Admit material synthesis only while its owned tree can stay in bounds.
+
+    Synthesis is a preview enhancement, so a material that cannot fit keeps
+    its direct DDS instead of failing the preview after every texture has
+    been built. Measured bytes replace each reservation once its outputs are
+    on disk; only the next material's allowance is an estimate, and the tree
+    validator still enforces the limit afterwards.
+    """
+
+    def __init__(self, root: Path, state: _RustMaterialSynthesisState) -> None:
+        self.root = root
+        self.state = state
+        self.reserved_compile = 0
+        self.reserved_encode = 0
+        self.lock = threading.Lock()
+
+    def _fast_preview_remaining(self) -> int:
+        return max(
+            0,
+            _RUST_FAST_PREVIEW_TEXTURE_BUDGET_BYTES
+            - max(0, int(self.state.fast_preview_texture_bytes)),
+        )
+
+    def admit_part(self, submesh: object, *, compiled: bool = False) -> bool:
+        """Reserve one material's outputs; ``compiled`` means earlier ones are on disk."""
+
+        pixels = _material_synthesis_output_pixels(submesh)
+        compile_bytes = pixels * _RUST_SYNTHESIS_COMPILE_BYTES_PER_PIXEL
+        # Block-compressed and R8 maps hold one byte per pixel plus mips.
+        encode_bytes = len(_RUST_SYNTHESIS_OUTPUT_CHANNELS) * (pixels * 4 // 3 + 4096)
+        with self.lock:
+            if compiled:
+                self.reserved_compile = 0
+            pending_encode = self.reserved_encode + encode_bytes
+            # Uncompressed fast-preview encodes are four times their BC size.
+            fast_slack = min(self._fast_preview_remaining(), 4 * pending_encode) * 3 // 4
+            projected = (
+                _rust_material_synthesis_tree_bytes(self.root)
+                + self.reserved_compile
+                + compile_bytes
+                + pending_encode
+                + fast_slack
+            )
+            if projected > _SESSION_MAX_TOTAL_BYTES:
+                return False
+            self.reserved_compile += compile_bytes
+            self.reserved_encode = pending_encode
+            return True
+
+    def admit_encode(self, source: Path) -> bool:
+        width, height = _rust_image_dimensions(source) or (
+            _RUST_SYNTHESIS_OUTPUT_MAX_DIMENSION,
+            _RUST_SYNTHESIS_OUTPUT_MAX_DIMENSION,
+        )
+        uncompressed = _projected_rgba_dds_bytes(
+            width, height, max(width, height).bit_length()
+        )
+        with self.lock:
+            if uncompressed > self._fast_preview_remaining():
+                uncompressed = uncompressed // 4 + 4096
+            return (
+                _rust_material_synthesis_tree_bytes(self.root) + uncompressed
+                <= _SESSION_MAX_TOTAL_BYTES
+            )
+
+    def settle(self) -> None:
+        """Every admitted output is on disk and counted by measurement."""
+
+        with self.lock:
+            self.reserved_compile = 0
+            self.reserved_encode = 0
 
 
 def _rust_exact_direct_fallback_overrides(
@@ -4538,7 +4697,7 @@ def _apply_synthesized_material_roles(
     lod_index, submesh_index, submeshes, protected_keys, skin_surface_contract, generated_channels,
     resolved_channels, layered_normal_is_authoritative, runtime_skin_detail, synthesis_root, synthesis_state,
     base_alpha_mode, expected_root_identity, stop_event, encoded_cache, cancellation_event, overrides,
-    applied_roles,
+    applied_roles, budget=None,
 ):
     for role, channel_candidates, encode_channel in _RUST_SYNTHESIZED_TEXTURE_ROLES:
         override_key = (lod_index, submesh_index, role)
@@ -4661,6 +4820,15 @@ def _apply_synthesized_material_roles(
                 )
         cache_key = (str(source), encode_channel)
         encoded = encoded_cache.get(cache_key)
+        if encoded is None and budget is not None and not budget.admit_encode(source):
+            # The direct DDS for this role stays authoritative.
+            _record_rust_material_synthesis_budget_skip(
+                synthesis_state,
+                lod_index=lod_index,
+                submesh_index=submesh_index,
+                detail=f"{encode_channel} encoding would exceed the 768 MiB aggregate limit",
+            )
+            continue
         if encoded is None:
             encoded = _encode_generated_material_channel(
                 source, role, encode_channel, synthesis_root, lod_index, submesh_index, cancellation_event,
@@ -4819,6 +4987,13 @@ def _validated_synthesized_material_row(row, lod_index, submesh_index, submeshes
             submesh_index=submesh_index,
             detail=detail,
         )
+    if skipped_detail == MATERIAL_SYNTHESIS_BUDGET_SKIPPED:
+        _record_rust_material_synthesis_budget_skip(
+            synthesis_state,
+            lod_index=lod_index,
+            submesh_index=submesh_index,
+            detail="material synthesis would exceed the 768 MiB aggregate limit",
+        )
     return resolved_channels, generated_channels, layered_normal_is_authoritative, source_submesh, runtime_skin_detail, skin_surface_contract
 
 
@@ -4861,6 +5036,8 @@ def _merge_material_synthesis_state(
     target.attempted |= source.attempted
     target.generated_binding_count += source.generated_binding_count
     target.luminance_guard_count += source.luminance_guard_count
+    if source.budget_skipped:
+        target.budget_skipped.add((lod_index, submesh_index))
     for overrides in source.presentation_overrides.values():
         target.presentation_overrides.setdefault((lod_index, submesh_index), {}).update(overrides)
     for name, dropped in (
@@ -4878,6 +5055,23 @@ def _merge_material_synthesis_state(
                 remapped["submesh_index"] = submesh_index
             rows.append(remapped)
         setattr(target, dropped, getattr(target, dropped) + dropped_count)
+
+
+def _discard_over_budget_material_synthesis(
+    state: _RustMaterialSynthesisState,
+    owners,
+) -> dict[tuple[int, int, str], Path]:
+    """Admission's estimate fell short: publish none of the oversized tree."""
+
+    for lod_index, submesh_index in owners:
+        _record_rust_material_synthesis_budget_skip(
+            state,
+            lod_index=lod_index,
+            submesh_index=submesh_index,
+            detail="material synthesis exceeded the 768 MiB aggregate limit",
+        )
+    _clear_rust_material_synthesis_results(state)
+    return {}
 
 
 def _mesh_synthesized_texture_overrides(
@@ -4904,10 +5098,12 @@ def _mesh_synthesized_texture_overrides(
                       for part in submeshes]) != len(set(names))
         for submeshes in lods
     )
+    budget = _RustMaterialSynthesisBudget(synthesis_root, synthesis_state)
     if len(jobs) < 2 or repeated_materials:
         return _mesh_synthesized_texture_overrides_serial(
             mesh, synthesis_root, expected_root_identity=expected_root_identity,
             stop_event=stop_event, synthesis_state=synthesis_state, protected_keys=protected_keys,
+            budget=budget,
         )
     _raise_if_texture_copy_cancelled(stop_event)
     _validate_rust_material_synthesis_tree(synthesis_root, expected_root_identity)
@@ -4950,12 +5146,26 @@ def _mesh_synthesized_texture_overrides(
                 while first < len(jobs):
                     indices: list[int] = []
                     working_bytes = 0
-                    for index in range(first, min(first + 4, len(jobs))):
-                        estimate = _material_synthesis_working_bytes(jobs[index][2])
+                    cursor = first
+                    while cursor < len(jobs) and len(indices) < 4:
+                        lod_index, submesh_index, submesh = jobs[cursor]
+                        estimate = _material_synthesis_working_bytes(submesh)
                         if indices and working_bytes + estimate > _RUST_SYNTHESIS_WORKING_BYTES:
                             break
+                        cursor += 1
+                        if not budget.admit_part(submesh):
+                            # Encoding runs in job order; a job that never
+                            # starts must still release its turn.
+                            batch.finish(cursor - 1)
+                            _record_rust_material_synthesis_budget_skip(
+                                synthesis_state,
+                                lod_index=lod_index,
+                                submesh_index=submesh_index,
+                                detail="material synthesis would exceed the 768 MiB aggregate limit",
+                            )
+                            continue
                         working_bytes += estimate
-                        indices.append(index)
+                        indices.append(cursor - 1)
                     futures = [executor.submit(prepare, index) for index in indices]
                     for index, future in zip(indices, futures):
                         local, local_state = future.result()
@@ -4969,8 +5179,14 @@ def _mesh_synthesized_texture_overrides(
                             return {}
                         overrides.update({(lod_index, submesh_index, role): path
                                           for (_, _, role), path in local.items()})
-                    _validate_rust_material_synthesis_tree(synthesis_root, expected_root_identity)
-                    first += len(indices)
+                    try:
+                        _validate_rust_material_synthesis_tree(synthesis_root, expected_root_identity)
+                    except _RustMaterialSynthesisBudgetError:
+                        return _discard_over_budget_material_synthesis(
+                            synthesis_state, ((lod, owner) for lod, owner, _ in jobs),
+                        )
+                    budget.settle()
+                    first = cursor
             finally:
                 # Wake jobs waiting for budget ownership before the executor joins.
                 batch.cancel()
@@ -4987,6 +5203,7 @@ def _mesh_synthesized_texture_overrides_serial(
     stop_event: threading.Event | None,
     synthesis_state: _RustMaterialSynthesisState,
     protected_keys: frozenset[tuple[int, int, str]] = frozenset(),
+    budget: _RustMaterialSynthesisBudget | None = None,
 ) -> dict[tuple[int, int, str], Path]:
     """Compile authoritative PAC graphs and encode only renderer-safe channels.
 
@@ -4996,6 +5213,9 @@ def _mesh_synthesized_texture_overrides_serial(
     normal hashed texture publisher.  Rust samples the canonical scalar maps
     through dedicated linear roughness, metalness, occlusion, and specular
     slots; skin keeps its exact packed ``_sp`` response instead.
+
+    With a ``budget``, materials and encodes that would outgrow the tree's
+    aggregate limit are skipped and keep their direct DDS.
     """
 
     if not _mesh_has_material_synthesis_inputs(mesh):
@@ -5023,6 +5243,14 @@ def _mesh_synthesized_texture_overrides_serial(
                 requested_channels_by_submesh[submesh_index] = frozenset(
                     requested_channels
                 )
+
+        def admit(index: int, _source: object, submeshes=submeshes) -> bool:
+            # The compiler asks before each new material, after the previous
+            # one's outputs are on disk.
+            return not _submesh_has_material_synthesis_inputs(
+                submeshes[index]
+            ) or budget.admit_part(submeshes[index], compiled=True)
+
         try:
             manifest = compile_mesh_dotnet_material_manifest(
                 _RustMaterialLodSnapshot(
@@ -5039,6 +5267,7 @@ def _mesh_synthesized_texture_overrides_serial(
                 requested_synthesis_channels_by_submesh=(
                     requested_channels_by_submesh or None
                 ),
+                synthesis_admission=admit if budget is not None else None,
             )
         except RunCancelled as exc:
             raise RustMeshCancellationError(
@@ -5086,7 +5315,7 @@ def _mesh_synthesized_texture_overrides_serial(
             base_alpha_mode = str(
                 base_presentation.get("alpha_mode", "") or ""
             )
-            _apply_synthesized_material_roles(lod_index, submesh_index, submeshes, protected_keys, skin_surface_contract, generated_channels, resolved_channels, layered_normal_is_authoritative, runtime_skin_detail, synthesis_root, synthesis_state, base_alpha_mode, expected_root_identity, stop_event, encoded_cache, cancellation_event, overrides, applied_roles)
+            _apply_synthesized_material_roles(lod_index, submesh_index, submeshes, protected_keys, skin_surface_contract, generated_channels, resolved_channels, layered_normal_is_authoritative, runtime_skin_detail, synthesis_root, synthesis_state, base_alpha_mode, expected_root_identity, stop_event, encoded_cache, cancellation_event, overrides, applied_roles, budget)
             direct_fallbacks = _rust_exact_direct_fallback_overrides(
                 row,
                 source_submesh,
@@ -5105,10 +5334,23 @@ def _mesh_synthesized_texture_overrides_serial(
                 synthesis_state.presentation_overrides.setdefault(
                     (lod_index, submesh_index), {}
                 ).update(presentation_overrides)
-    _validate_rust_material_synthesis_tree(
-        synthesis_root,
-        expected_root_identity,
-    )
+        if budget is not None:
+            budget.settle()
+    try:
+        _validate_rust_material_synthesis_tree(
+            synthesis_root,
+            expected_root_identity,
+        )
+    except _RustMaterialSynthesisBudgetError:
+        return _discard_over_budget_material_synthesis(
+            synthesis_state,
+            (
+                (lod_index, submesh_index)
+                for lod_index, submeshes in enumerate(_mesh_lods(mesh))
+                for submesh_index, submesh in enumerate(submeshes)
+                if _submesh_has_material_synthesis_inputs(submesh)
+            ),
+        )
     return overrides
 
 
@@ -7299,6 +7541,8 @@ class RustMeshAuthoringSession:
     archive_refit_material_cache: dict[str, dict[str, object]] = field(default_factory=dict)
     archive_refit_material_references: dict[str, dict[str, object]] = field(default_factory=dict)
     texture_unavailable_reason: str = ""
+    # (skipped, total) parts whose composed materials did not fit the limit.
+    material_synthesis_budget_parts: tuple[int, int] = (0, 0)
     material_package_path: str = ""
     authoritative_morph_root: Path | None = None
     neutral_appearance: object | None = None
@@ -8114,6 +8358,15 @@ class RustMeshAuthoringSession:
                 prepared_material_mesh,
                 generated_overrides=material_synthesis.presentation_overrides,
             )
+            self.material_synthesis_budget_parts = (
+                len(material_synthesis.budget_skipped),
+                sum(
+                    1
+                    for level in _mesh_lods(prepared_material_mesh)
+                    for part in level
+                    if _submesh_has_material_synthesis_inputs(part)
+                ),
+            )
         self.texture_resource_count = len(textures)
         material_key = getattr(self.shadow_service._session(self.shadow_session_id).archive_refit_context, "context_id", "base")
         self.archive_refit_material_cache[material_key] = {
@@ -8163,6 +8416,7 @@ class RustMeshAuthoringSession:
                     + material_synthesis.dropped_diagnostic_count,
                     "warnings": list(material_synthesis.diagnostics),
                     "dropped_warning_count": material_synthesis.dropped_diagnostic_count,
+                    "budget_skipped_part_count": len(material_synthesis.budget_skipped),
                     "base_luminance_guard": {
                         "applied": bool(material_synthesis.luminance_guard_count),
                         "adjusted_owner_count": material_synthesis.luminance_guard_count,

@@ -329,6 +329,41 @@ def test_identical_submesh_material_inputs_are_synthesized_once(
     assert calls == 1
 
 
+def test_refused_synthesis_admission_keeps_raw_bindings_without_synthesizing(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from unittest.mock import Mock
+
+    from tests.test_mesh_dotnet_material_compiler import _mesh_with_layer_graph
+
+    first = _mesh_with_layer_graph(tmp_path).submeshes[0]
+    repeated = copy.copy(first)
+    synthesize = Mock(side_effect=AssertionError("A refused material must not be synthesized"))
+    monkeypatch.setattr(mesh_dotnet_material_package, "_synthesize_dotnet_material_channels", synthesize)
+    asked: list[int] = []
+    package_dir = tmp_path / "package"
+    package_dir.mkdir()
+
+    manifest = mesh_dotnet_material_package.compile_mesh_dotnet_material_manifest(
+        ParsedMesh(path="budget.pac", format="pac", submeshes=[first, repeated]),
+        sidecar_payload={}, package_dir=package_dir, material_signature="budget",
+        synthesis_admission=lambda index, _source: asked.append(index) or False,
+    )
+
+    # The refusal is cached, so a repeated material is neither asked about again
+    # nor synthesized behind the budget's back.
+    assert asked == [0]
+    synthesize.assert_not_called()
+    for row in manifest["submeshes"]:
+        assert row["material_synthesis"]["attempted"] is False
+        assert row["material_synthesis"]["skipped"] == (
+            mesh_dotnet_material_package.MATERIAL_SYNTHESIS_BUDGET_SKIPPED
+        )
+        assert row["resolved_channels"] == row["raw_resolved_channels"]
+    assert not (package_dir / "material_synthesis").exists()
+
+
 def test_package_synthesis_uses_the_shared_combiner_relief_strength(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
