@@ -40814,7 +40814,7 @@ MESSAGE_REFERENCE = [
     "message": "Allowed range must be START-END or START-END:CODE: {value}",
     "recovery": "input",
     "sources": {
-      "cdmw/modding/mesh_roundtrip.py": 203
+      "cdmw/modding/mesh_roundtrip.py": 199
     }
   },
   {
@@ -42588,7 +42588,7 @@ MESSAGE_REFERENCE = [
     "message": "Cannot prove edited vertex identity; retain the CDMW vertex attribute in GLB, or use the OBJ package.",
     "recovery": "input",
     "sources": {
-      "cdmw/modding/mesh_glb_interchange.py": 191
+      "cdmw/modding/mesh_glb_interchange.py": 193
     }
   },
   {
@@ -44238,7 +44238,7 @@ MESSAGE_REFERENCE = [
     "message": "Edited mesh contains invalid CDMW vertex identifiers.",
     "recovery": "input",
     "sources": {
-      "cdmw/modding/mesh_glb_interchange.py": 181
+      "cdmw/modding/mesh_glb_interchange.py": 183
     }
   },
   {
@@ -44246,7 +44246,7 @@ MESSAGE_REFERENCE = [
     "message": "Edited mesh joint attributes have no skin binding.",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/mesh_glb_interchange.py": 132
+      "cdmw/modding/mesh_glb_interchange.py": 134
     }
   },
   {
@@ -44278,7 +44278,7 @@ MESSAGE_REFERENCE = [
     "message": "Edited skeleton has duplicate joint names.",
     "recovery": "conflict",
     "sources": {
-      "cdmw/modding/mesh_glb_interchange.py": 246
+      "cdmw/modding/mesh_glb_interchange.py": 248
     }
   },
   {
@@ -44286,7 +44286,7 @@ MESSAGE_REFERENCE = [
     "message": "Edited skin has no verified source joint mapping; re-export with the resolved skeleton.",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/mesh_glb_interchange.py": 242
+      "cdmw/modding/mesh_glb_interchange.py": 244
     }
   },
   {
@@ -44294,7 +44294,7 @@ MESSAGE_REFERENCE = [
     "message": "Edited skin references a joint absent from the source palette.",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/mesh_glb_interchange.py": 252
+      "cdmw/modding/mesh_glb_interchange.py": 254
     }
   },
   {
@@ -44400,7 +44400,7 @@ MESSAGE_REFERENCE = [
     "message": "Error: {report['error']}",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/mesh_roundtrip.py": 189
+      "cdmw/modding/mesh_roundtrip.py": 185
     }
   },
   {
@@ -45867,7 +45867,7 @@ MESSAGE_REFERENCE = [
     "message": "GLB UV count differs from vertex count.",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/mesh_glb_interchange.py": 309
+      "cdmw/modding/mesh_glb_interchange.py": 311
     }
   },
   {
@@ -45875,7 +45875,7 @@ MESSAGE_REFERENCE = [
     "message": "GLB editable export requires triangle geometry.",
     "recovery": "input",
     "sources": {
-      "cdmw/modding/mesh_glb_interchange.py": 294
+      "cdmw/modding/mesh_glb_interchange.py": 296
     }
   },
   {
@@ -45883,7 +45883,7 @@ MESSAGE_REFERENCE = [
     "message": "GLB face references a missing vertex.",
     "recovery": "missing",
     "sources": {
-      "cdmw/modding/mesh_glb_interchange.py": 296
+      "cdmw/modding/mesh_glb_interchange.py": 298
     }
   },
   {
@@ -45891,7 +45891,7 @@ MESSAGE_REFERENCE = [
     "message": "GLB influence slot is outside its source palette.",
     "recovery": "limits",
     "sources": {
-      "cdmw/modding/mesh_glb_interchange.py": 337
+      "cdmw/modding/mesh_glb_interchange.py": 339
     }
   },
   {
@@ -45899,7 +45899,7 @@ MESSAGE_REFERENCE = [
     "message": "GLB integer vertex attribute is invalid.",
     "recovery": "input",
     "sources": {
-      "cdmw/modding/mesh_glb_interchange.py": 504
+      "cdmw/modding/mesh_glb_interchange.py": 545
     }
   },
   {
@@ -45907,7 +45907,7 @@ MESSAGE_REFERENCE = [
     "message": "GLB joint is unresolved against its skeleton.",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/mesh_glb_interchange.py": 341
+      "cdmw/modding/mesh_glb_interchange.py": 343
     }
   },
   {
@@ -45915,7 +45915,7 @@ MESSAGE_REFERENCE = [
     "message": "GLB morph normal count mismatch.",
     "recovery": "input",
     "sources": {
-      "cdmw/modding/mesh_glb_interchange.py": 403
+      "cdmw/modding/mesh_glb_interchange.py": 405
     }
   },
   {
@@ -45923,7 +45923,7 @@ MESSAGE_REFERENCE = [
     "message": "GLB morph tangent count mismatch.",
     "recovery": "input",
     "sources": {
-      "cdmw/modding/mesh_glb_interchange.py": 408
+      "cdmw/modding/mesh_glb_interchange.py": 410
     }
   },
   {
@@ -45931,7 +45931,7 @@ MESSAGE_REFERENCE = [
     "message": "GLB morph target count mismatch: {name}.",
     "recovery": "input",
     "sources": {
-      "cdmw/modding/mesh_glb_interchange.py": 398
+      "cdmw/modding/mesh_glb_interchange.py": 400
     }
   },
   {
@@ -45939,7 +45939,7 @@ MESSAGE_REFERENCE = [
     "message": "GLB sidecar is not a JSON object: {candidate}",
     "recovery": "input",
     "sources": {
-      "cdmw/modding/mesh_glb_interchange.py": 98
+      "cdmw/modding/mesh_glb_interchange.py": 100
     }
   },
   {
@@ -45947,7 +45947,7 @@ MESSAGE_REFERENCE = [
     "message": "GLB sidecar is required for editable mesh package import.",
     "recovery": "input",
     "sources": {
-      "cdmw/modding/mesh_glb_interchange.py": 110
+      "cdmw/modding/mesh_glb_interchange.py": 112
     }
   },
   {
@@ -45955,7 +45955,7 @@ MESSAGE_REFERENCE = [
     "message": "GLB skin contains invalid weights.",
     "recovery": "input",
     "sources": {
-      "cdmw/modding/mesh_glb_interchange.py": 329
+      "cdmw/modding/mesh_glb_interchange.py": 331
     }
   },
   {
@@ -45963,7 +45963,7 @@ MESSAGE_REFERENCE = [
     "message": "GLB skin count differs from vertex count.",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/mesh_glb_interchange.py": 325
+      "cdmw/modding/mesh_glb_interchange.py": 327
     }
   },
   {
@@ -45971,7 +45971,7 @@ MESSAGE_REFERENCE = [
     "message": "GLB tangent count differs from vertex count.",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/mesh_glb_interchange.py": 316
+      "cdmw/modding/mesh_glb_interchange.py": 318
     }
   },
   {
@@ -45987,7 +45987,7 @@ MESSAGE_REFERENCE = [
     "message": "GLB {key} count differs from vertex count.",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/mesh_glb_interchange.py": 302
+      "cdmw/modding/mesh_glb_interchange.py": 304
     }
   },
   {
@@ -45995,7 +45995,7 @@ MESSAGE_REFERENCE = [
     "message": "GLB {type_name} contains incomplete or non-finite values.",
     "recovery": "format",
     "sources": {
-      "cdmw/modding/mesh_glb_interchange.py": 490
+      "cdmw/modding/mesh_glb_interchange.py": 500
     }
   },
   {
@@ -47072,7 +47072,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid allowed range: {value}",
     "recovery": "input",
     "sources": {
-      "cdmw/modding/mesh_roundtrip.py": 207
+      "cdmw/modding/mesh_roundtrip.py": 203
     }
   },
   {
@@ -57219,7 +57219,7 @@ MESSAGE_REFERENCE = [
     "message": "Result: {report.get('result', 'FAIL')}",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/mesh_roundtrip.py": 172
+      "cdmw/modding/mesh_roundtrip.py": 168
     }
   },
   {
@@ -58203,7 +58203,7 @@ MESSAGE_REFERENCE = [
     "message": "Source influence slot is unresolved against its skeleton.",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/mesh_glb_interchange.py": 209
+      "cdmw/modding/mesh_glb_interchange.py": 211
     }
   },
   {
@@ -58236,7 +58236,7 @@ MESSAGE_REFERENCE = [
     "message": "Source skeleton requires unique joint names for editable interchange.",
     "recovery": "input",
     "sources": {
-      "cdmw/modding/mesh_glb_interchange.py": 212
+      "cdmw/modding/mesh_glb_interchange.py": 214
     }
   },
   {
@@ -60509,7 +60509,7 @@ MESSAGE_REFERENCE = [
     "message": "Unsupported GLB sidecar format: {payload_format}.",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/modding/mesh_glb_interchange.py": 101
+      "cdmw/modding/mesh_glb_interchange.py": 103
     }
   },
   {
@@ -60517,7 +60517,7 @@ MESSAGE_REFERENCE = [
     "message": "Unsupported GLB sidecar schema version: {schema_version}.",
     "recovery": "configuration",
     "sources": {
-      "cdmw/modding/mesh_glb_interchange.py": 104
+      "cdmw/modding/mesh_glb_interchange.py": 106
     }
   },
   {
@@ -61670,7 +61670,7 @@ MESSAGE_REFERENCE = [
     "message": "cannot open OBJ round-trip manifest: {detail}",
     "recovery": "input",
     "sources": {
-      "native/cdmw_mesh_core/src/owners/interchange_03.cpp": 101
+      "native/cdmw_mesh_core/src/owners/interchange_03.cpp": 111
     }
   },
   {
@@ -61734,7 +61734,7 @@ MESSAGE_REFERENCE = [
     "message": "cannot write OBJ output file: {detail}",
     "recovery": "write",
     "sources": {
-      "native/cdmw_mesh_core/src/owners/interchange_01.cpp": 617
+      "native/cdmw_mesh_core/src/owners/interchange_01.cpp": 655
     }
   },
   {
@@ -61742,7 +61742,7 @@ MESSAGE_REFERENCE = [
     "message": "cannot write OBJ round-trip manifest: {detail}",
     "recovery": "write",
     "sources": {
-      "native/cdmw_mesh_core/src/owners/interchange_03.cpp": 160
+      "native/cdmw_mesh_core/src/owners/interchange_03.cpp": 170
     }
   },
   {
@@ -62600,7 +62600,7 @@ MESSAGE_REFERENCE = [
     "message": "expected '{detail}'",
     "recovery": "input",
     "sources": {
-      "native/cdmw_mesh_core/src/owners/protocol_types_01.cpp": 210
+      "native/cdmw_mesh_core/src/owners/protocol_types_01.cpp": 218
     }
   },
   {
@@ -64184,7 +64184,7 @@ MESSAGE_REFERENCE = [
     "message": "invalid JSON escape",
     "recovery": "input",
     "sources": {
-      "native/cdmw_mesh_core/src/owners/protocol_types_01.cpp": 184
+      "native/cdmw_mesh_core/src/owners/protocol_types_01.cpp": 192
     }
   },
   {
@@ -64200,7 +64200,7 @@ MESSAGE_REFERENCE = [
     "message": "invalid JSON number",
     "recovery": "input",
     "sources": {
-      "native/cdmw_mesh_core/src/owners/protocol_types_01.cpp": 130
+      "native/cdmw_mesh_core/src/owners/protocol_types_01.cpp": 138
     }
   },
   {
@@ -65606,7 +65606,7 @@ MESSAGE_REFERENCE = [
     "message": "missing FBX geometry output path",
     "recovery": "missing",
     "sources": {
-      "native/cdmw_mesh_core/src/owners/interchange_01.cpp": 734
+      "native/cdmw_mesh_core/src/owners/interchange_01.cpp": 772
     }
   },
   {
@@ -65686,7 +65686,7 @@ MESSAGE_REFERENCE = [
     "message": "missing manifest_output_path",
     "recovery": "missing",
     "sources": {
-      "native/cdmw_mesh_core/src/owners/interchange_01.cpp": 636
+      "native/cdmw_mesh_core/src/owners/interchange_01.cpp": 674
     }
   },
   {
@@ -67868,7 +67868,7 @@ MESSAGE_REFERENCE = [
     "message": "non-finite FBX geometry scale",
     "recovery": "input",
     "sources": {
-      "native/cdmw_mesh_core/src/owners/interchange_01.cpp": 719
+      "native/cdmw_mesh_core/src/owners/interchange_01.cpp": 757
     }
   },
   {
@@ -69786,7 +69786,7 @@ MESSAGE_REFERENCE = [
     "message": "short JSON unicode escape",
     "recovery": "internal",
     "sources": {
-      "native/cdmw_mesh_core/src/owners/protocol_types_01.cpp": 178
+      "native/cdmw_mesh_core/src/owners/protocol_types_01.cpp": 186
     }
   },
   {
@@ -70899,7 +70899,7 @@ MESSAGE_REFERENCE = [
     "message": "unterminated JSON escape",
     "recovery": "internal",
     "sources": {
-      "native/cdmw_mesh_core/src/owners/protocol_types_01.cpp": 152
+      "native/cdmw_mesh_core/src/owners/protocol_types_01.cpp": 160
     }
   },
   {
@@ -70907,7 +70907,7 @@ MESSAGE_REFERENCE = [
     "message": "unterminated JSON string",
     "recovery": "internal",
     "sources": {
-      "native/cdmw_mesh_core/src/owners/protocol_types_01.cpp": 187,
+      "native/cdmw_mesh_core/src/owners/protocol_types_01.cpp": 195,
       "native/cdmw_preview_core/src/owners/protocol_json.cpp": 116
     }
   },

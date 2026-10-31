@@ -7,6 +7,8 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Callable, Sequence
 
+import numpy as np
+
 from cdmw.core.atomic_file import atomic_write_bytes, atomic_write_text
 from cdmw.domain.mesh.asset import MeshAsset, validate_mesh_asset_rebuild
 
@@ -134,24 +136,18 @@ def roundtrip_mesh_bytes(
 
 
 def diff_byte_ranges(original: bytes, rebuilt: bytes) -> list[tuple[int, int]]:
-    ranges: list[tuple[int, int]] = []
+    """Half-open ranges where the two buffers differ; bytes past the shorter one differ."""
+    if original == rebuilt:
+        return []
+    common = min(len(original), len(rebuilt))
     limit = max(len(original), len(rebuilt))
-    index = 0
-    while index < limit:
-        left = original[index] if index < len(original) else None
-        right = rebuilt[index] if index < len(rebuilt) else None
-        if left == right:
-            index += 1
-            continue
-        start = index
-        while index < limit:
-            left = original[index] if index < len(original) else None
-            right = rebuilt[index] if index < len(rebuilt) else None
-            if left == right:
-                break
-            index += 1
-        ranges.append((start, index))
-    return ranges
+    differs = np.ones(limit + 2, dtype=bool)
+    differs[0] = differs[-1] = False
+    differs[1 : common + 1] = np.frombuffer(original, dtype=np.uint8, count=common) != np.frombuffer(
+        rebuilt, dtype=np.uint8, count=common
+    )
+    edges = np.flatnonzero(differs[1:] != differs[:-1]).tolist()
+    return list(zip(edges[0::2], edges[1::2]))
 
 
 def classify_diff_ranges(

@@ -206,6 +206,17 @@ def test_binary_diff_ranges_collapse_adjacent_differences() -> None:
     assert diff_byte_ranges(b"abcdef", b"abXYefZZ") == [(2, 4), (6, 8)]
 
 
+def test_binary_diff_ranges_treat_the_longer_tail_as_one_difference() -> None:
+    assert diff_byte_ranges(b"abcdef", b"abcdef") == []
+    assert diff_byte_ranges(b"", b"") == []
+    assert diff_byte_ranges(b"", b"xy") == [(0, 2)]
+    assert diff_byte_ranges(b"abcd", b"ab") == [(2, 4)]
+    # A difference that reaches the shorter end runs on through the tail.
+    assert diff_byte_ranges(b"abc", b"abXYZ") == [(2, 5)]
+    assert diff_byte_ranges(bytearray(b"Xbc"), memoryview(b"abcQ")) == [(0, 1), (3, 4)]
+    assert all(type(value) is int for pair in diff_byte_ranges(b"ab", b"aX") for value in pair)
+
+
 def test_roundtrip_harness_reports_strict_and_tolerant_results() -> None:
     parsed = _parsed_mesh()
 

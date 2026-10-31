@@ -26,11 +26,21 @@ void write_escaped(std::ostream& out, const std::string& text) {
 }
 
 void write_vec3(std::ostream& out, const Vec3& value) {
-    out << '[' << std::setprecision(17) << value[0] << ',' << value[1] << ',' << value[2] << ']';
+    out << '[';
+    write_g17(out, value[0]);
+    out << ',';
+    write_g17(out, value[1]);
+    out << ',';
+    write_g17(out, value[2]);
+    out << ']';
 }
 
 void write_vec2(std::ostream& out, const Vec2& value) {
-    out << '[' << std::setprecision(17) << value[0] << ',' << value[1] << ']';
+    out << '[';
+    write_g17(out, value[0]);
+    out << ',';
+    write_g17(out, value[1]);
+    out << ']';
 }
 
 void write_int_vector(std::ostream& out, const std::vector<int>& values) {
@@ -39,7 +49,7 @@ void write_int_vector(std::ostream& out, const std::vector<int>& values) {
         if (index > 0) {
             out << ',';
         }
-        out << values[index];
+        write_int(out, values[index]);
     }
     out << ']';
 }
@@ -54,7 +64,7 @@ void write_json_value(std::ostream& out, const JsonValue& value) {
         break;
     case JsonValue::Type::Number:
         if (std::isfinite(value.number_value)) {
-            out << std::setprecision(17) << value.number_value;
+            write_g17(out, value.number_value);
         } else {
             out << "null";
         }
@@ -454,7 +464,11 @@ void write_flat_vec3_for_indices(std::ostream& out, const std::vector<Vec3>& val
             out << ',';
         }
         const Vec3& value = values[static_cast<std::size_t>(index)];
-        out << std::setprecision(17) << value[0] << ',' << value[1] << ',' << value[2];
+        write_g17(out, value[0]);
+        out << ',';
+        write_g17(out, value[1]);
+        out << ',';
+        write_g17(out, value[2]);
         first = false;
     }
 }
@@ -469,7 +483,9 @@ void write_flat_vec2_for_indices(std::ostream& out, const std::vector<Vec2>& val
             out << ',';
         }
         const Vec2& value = values[static_cast<std::size_t>(index)];
-        out << std::setprecision(17) << value[0] << ',' << value[1];
+        write_g17(out, value[0]);
+        out << ',';
+        write_g17(out, value[1]);
         first = false;
     }
 }
@@ -689,7 +705,11 @@ void write_sparse_preview_vertex_update_group(
             out << ',';
         }
         const Vec3& value = changed_positions[index];
-        out << std::setprecision(17) << value[0] << ',' << value[1] << ',' << value[2];
+        write_g17(out, value[0]);
+        out << ',';
+        write_g17(out, value[1]);
+        out << ',';
+        write_g17(out, value[2]);
     }
     out << "],\"normals\":[";
     if (!normals.empty()) {
@@ -703,7 +723,11 @@ void write_sparse_preview_vertex_update_group(
                 out << ',';
             }
             const Vec3& value = normals[static_cast<std::size_t>(vertex_index)];
-            out << std::setprecision(17) << value[0] << ',' << value[1] << ',' << value[2];
+            write_g17(out, value[0]);
+        out << ',';
+        write_g17(out, value[1]);
+        out << ',';
+        write_g17(out, value[2]);
             first = false;
         }
     }
@@ -719,7 +743,9 @@ void write_sparse_preview_vertex_update_group(
                 out << ',';
             }
             const Vec2& value = uvs[static_cast<std::size_t>(vertex_index)];
-            out << std::setprecision(17) << value[0] << ',' << value[1];
+            write_g17(out, value[0]);
+        out << ',';
+        write_g17(out, value[1]);
             first = false;
         }
     }

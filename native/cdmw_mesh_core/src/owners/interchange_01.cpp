@@ -563,14 +563,30 @@ ObjExportResult run_obj_export(const JsonValue& root) {
         out << "usemtl " << material << "\n";
         out << std::defaultfloat << std::setprecision(17);
         for (const Vec3& vertex : vertices) {
-            out << "v " << vertex[0] * scale << ' ' << vertex[1] * scale << ' ' << vertex[2] * scale << "\n";
+            out << "v ";
+            write_g17(out, vertex[0] * scale);
+            out << ' ';
+            write_g17(out, vertex[1] * scale);
+            out << ' ';
+            write_g17(out, vertex[2] * scale);
+            out << '\n';
         }
         for (const Vec2& uv : uvs) {
-            out << "vt " << uv[0] << ' ' << (1.0 - uv[1]) << "\n";
+            out << "vt ";
+            write_g17(out, uv[0]);
+            out << ' ';
+            write_g17(out, 1.0 - uv[1]);
+            out << '\n';
         }
         out << std::defaultfloat << std::setprecision(17);
         for (const Vec3& normal : normals) {
-            out << "vn " << normal[0] << ' ' << normal[1] << ' ' << normal[2] << "\n";
+            out << "vn ";
+            write_g17(out, normal[0]);
+            out << ' ';
+            write_g17(out, normal[1]);
+            out << ' ';
+            write_g17(out, normal[2]);
+            out << '\n';
         }
         out << "s 1\n";
 
@@ -587,21 +603,43 @@ ObjExportResult run_obj_export(const JsonValue& root) {
                 const int na = face[0] + normal_offset;
                 const int nb = face[1] + normal_offset;
                 const int nc = face[2] + normal_offset;
-                out << "f " << va << '/' << ta << '/' << na << ' '
-                    << vb << '/' << tb << '/' << nb << ' '
-                    << vc << '/' << tc << '/' << nc << "\n";
+                out << "f ";
+                write_obj_face_corner(out, va, ta, na);
+                out << ' ';
+                write_obj_face_corner(out, vb, tb, nb);
+                out << ' ';
+                write_obj_face_corner(out, vc, tc, nc);
+                out << '\n';
             } else if (has_uv) {
                 const int ta = face[0] + uv_offset;
                 const int tb = face[1] + uv_offset;
                 const int tc = face[2] + uv_offset;
-                out << "f " << va << '/' << ta << ' ' << vb << '/' << tb << ' ' << vc << '/' << tc << "\n";
+                out << "f ";
+                write_obj_face_corner(out, va, ta, -1);
+                out << ' ';
+                write_obj_face_corner(out, vb, tb, -1);
+                out << ' ';
+                write_obj_face_corner(out, vc, tc, -1);
+                out << '\n';
             } else if (has_normals) {
                 const int na = face[0] + normal_offset;
                 const int nb = face[1] + normal_offset;
                 const int nc = face[2] + normal_offset;
-                out << "f " << va << "//" << na << ' ' << vb << "//" << nb << ' ' << vc << "//" << nc << "\n";
+                out << "f ";
+                write_obj_face_corner(out, va, -1, na);
+                out << ' ';
+                write_obj_face_corner(out, vb, -1, nb);
+                out << ' ';
+                write_obj_face_corner(out, vc, -1, nc);
+                out << '\n';
             } else {
-                out << "f " << va << ' ' << vb << ' ' << vc << "\n";
+                out << "f ";
+                write_int(out, va);
+                out << ' ';
+                write_int(out, vb);
+                out << ' ';
+                write_int(out, vc);
+                out << '\n';
             }
         }
         out << "\n";
