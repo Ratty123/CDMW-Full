@@ -73,6 +73,8 @@ class NativeTextureEncodeRequest:
     mip_alpha_policy: str = "default"
     alpha_coverage_reference: float = 0.5
     dds_alpha_mode: str = "unknown"
+    # Disposable previews only: the helper's quick BC7 search.
+    bc7_quick: bool = False
 
     def __post_init__(self) -> None:
         if not str(self.dds_format or "").strip():
@@ -936,6 +938,7 @@ def _encode_request_from_mapping(job: Mapping[str, object]) -> NativeTextureEnco
         mip_alpha_policy=str(job.get("mip_alpha_policy") or "default").strip().lower(),
         alpha_coverage_reference=float(job.get("alpha_coverage_reference", 0.5)),
         dds_alpha_mode=str(job.get("dds_alpha_mode") or "unknown").strip().lower(),
+        bc7_quick=bool(job.get("bc7_quick", False)),
     )
 
 
@@ -955,6 +958,7 @@ def _normalized_encode_request(
             mip_alpha_policy=request.mip_alpha_policy.strip().lower(),
             alpha_coverage_reference=request.alpha_coverage_reference,
             dds_alpha_mode=request.dds_alpha_mode.strip().lower(),
+            bc7_quick=bool(request.bc7_quick),
         )
     return _encode_request_from_mapping(request)
 
@@ -965,7 +969,7 @@ def _staged_dds_path(output_path: Path) -> Path:
 
 
 def _encode_request_payload(request: NativeTextureEncodeRequest, staged_path: Path) -> Dict[str, object]:
-    return {
+    payload: Dict[str, object] = {
         "input": str(request.input_path),
         "output": str(staged_path),
         "format": request.dds_format,
@@ -978,6 +982,9 @@ def _encode_request_payload(request: NativeTextureEncodeRequest, staged_path: Pa
         "alpha_coverage_reference": float(request.alpha_coverage_reference),
         "dds_alpha_mode": request.dds_alpha_mode,
     }
+    if request.bc7_quick:
+        payload["bc7_quick"] = True
+    return payload
 
 
 def _validate_staged_dds(
@@ -1028,6 +1035,7 @@ def encode_dds_with_directxtex(
     timeout_seconds: Optional[float] = None,
     on_log: Optional[Any] = None,
     stop_event: Optional[threading.Event] = None,
+    bc7_quick: bool = False,
 ) -> Optional[Dict[str, Any]]:
     request = NativeTextureEncodeRequest(
         input_path=Path(png_path),
@@ -1041,6 +1049,7 @@ def encode_dds_with_directxtex(
         mip_alpha_policy=mip_alpha_policy,
         alpha_coverage_reference=alpha_coverage_reference,
         dds_alpha_mode=dds_alpha_mode,
+        bc7_quick=bc7_quick,
     )
     results = encode_dds_batch_with_directxtex(
         (request,),

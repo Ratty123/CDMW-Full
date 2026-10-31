@@ -752,6 +752,156 @@ def decode_material_sample(
     return _clamp(ao, 0.45, 1.0), _clamp(roughness, 0.04, 1.0), _clamp(metalness), _clamp(specular)
 
 
+def decode_material_arrays(np, red, green, blue, alpha, decode_mode: str):
+    """Array twin of ``decode_material_sample`` for float64 channel arrays.
+
+    Each branch repeats the scalar expression in the same operation order, so
+    every texel matches the per-texel decoder bit for bit.
+    """
+
+    def clamp(value, lower=0.0, upper=1.0):
+        return np.maximum(lower, np.minimum(upper, value))
+
+    r = clamp(red)
+    g = clamp(green)
+    b = clamp(blue)
+    a = clamp(alpha)
+
+    def full(value):
+        return np.broadcast_to(value, r.shape).astype(np.float64)
+
+    mode = str(decode_mode or "generic").strip().lower()
+    affine = _AFFINE_DECODE_MODES.get(mode)
+    if affine is not None:
+        average = (r * 0.3333) + (g * 0.3333) + (b * 0.3334)
+        terms = {
+            "r": r,
+            "g": g,
+            "b": b,
+            "a": a,
+            "b_minus_18": np.maximum(0.0, b - 0.18),
+            "rgb_peak": np.maximum(np.maximum(r, g), b),
+            "g_or_average": np.maximum(g, average),
+            "variance": np.maximum(
+                np.maximum(np.maximum(r, g), np.maximum(b, a))
+                - np.minimum(np.minimum(r, g), np.minimum(b, a)),
+                0.0,
+            ),
+            "average": average,
+            "one": 1.0,
+        }
+        values = []
+        for slot in _AFFINE_SLOT_ORDER:
+            term, offset, gain, low, high = affine[slot]
+            values.append(full(np.minimum(np.maximum(offset + gain * terms[term], low), high)))
+        return values[0], values[1], values[2], values[3]
+    average = (r * 0.3333) + (g * 0.3333) + (b * 0.3334)
+    peak = np.maximum(np.maximum(r, g), np.maximum(b, a))
+    minimum = np.minimum(np.minimum(r, g), np.minimum(b, a))
+    variance = np.maximum(peak - minimum, 0.0)
+    rgb_peak = np.maximum(np.maximum(r, g), b)
+    ao = 1.0
+    roughness = 0.58
+    metalness = 0.0
+    specular = clamp(0.04 + (variance * 0.24), 0.04, 0.42)
+    if mode == "specular":
+        specular = clamp(rgb_peak, 0.06, 1.0)
+        roughness = clamp(1.0 - np.maximum(g, average), 0.08, 0.92)
+    elif mode == "specular_glossiness":
+        specular = clamp(rgb_peak, 0.0, 1.0)
+        roughness = clamp(1.0 - a, 0.04, 0.98)
+        metalness = 0.0
+    elif mode == "glossiness":
+        roughness = clamp(1.0 - rgb_peak, 0.04, 0.98)
+        specular = clamp(0.18 + ((1.0 - roughness) * 0.22), 0.05, 0.42)
+        metalness = 0.0
+    elif mode == "clearcoat":
+        roughness = clamp(0.08 + ((1.0 - np.maximum(np.maximum(g, a), average)) * 0.42), 0.04, 0.72)
+        specular = clamp(0.18 + (peak * 0.62), 0.08, 0.86)
+        metalness = 0.0
+    elif mode == "sheen":
+        specular = clamp(0.08 + (rgb_peak * 0.34), 0.04, 0.48)
+        roughness = clamp(0.42 + ((1.0 - average) * 0.32), 0.22, 0.94)
+        metalness = 0.0
+    elif mode == "ao":
+        ao = clamp(r, 0.45, 1.0)
+        roughness = 0.74
+        specular = 0.08
+    elif mode == "roughness":
+        roughness = clamp(np.maximum(g, average), 0.06, 0.98)
+        specular = clamp(0.42 - (roughness * 0.28), 0.04, 0.30)
+    elif mode == "metallic":
+        metalness = clamp(np.maximum(r, average), 0.0, 1.0)
+        roughness = clamp(0.18 + ((1.0 - np.maximum(g, average)) * 0.62), 0.08, 0.92)
+        specular = clamp(0.16 + (metalness * 0.48), 0.06, 0.72)
+    elif mode == "metallic_roughness":
+        roughness = clamp(g, 0.04, 0.98)
+        metalness = clamp(b, 0.0, 1.0)
+        ao = 1.0
+        specular = clamp((0.10 + (metalness * 0.62)) * (1.0 - (roughness * 0.32)), 0.05, 0.78)
+    elif mode == "material_mask":
+        ao = clamp(1.0 - (r * 0.30), 0.65, 1.0)
+        roughness = clamp(0.28 + (g * 0.56), 0.10, 0.96)
+        specular = clamp(0.04 + (b * 0.40), 0.04, 0.46)
+        metalness = clamp(b * 0.28, 0.0, 0.55)
+    elif mode == "material_response":
+        ao = clamp(1.0 - (r * 0.20), 0.70, 1.0)
+        roughness = clamp(0.16 + ((1.0 - g) * 0.72), 0.08, 0.96)
+        specular = clamp(0.04 + (np.maximum(b, a) * 0.50), 0.04, 0.62)
+        metalness = clamp((b * 0.24) + (a * 0.16), 0.0, 0.58)
+    elif mode == "skin_detail_mask":
+        ao = clamp(1.0 - (r * 0.08), 0.86, 1.0)
+        roughness = clamp(0.46 + (average * 0.28), 0.32, 0.88)
+        specular = clamp(0.05 + (variance * 0.16), 0.03, 0.24)
+        metalness = 0.0
+    elif mode == "standard_v2_mask":
+        ao = clamp(1.0 - (r * 0.16), 0.72, 1.0)
+        roughness = clamp(0.22 + (g * 0.62), 0.08, 0.96)
+        metalness = clamp(np.maximum(0.0, b - (r * 0.20)) * 0.46, 0.0, 0.64)
+        specular = clamp(0.10 + (a * 0.38) + (b * 0.16) + (variance * 0.12), 0.05, 0.62)
+    elif mode == "standard_v2_detail":
+        ao = clamp(1.0 - (r * 0.10), 0.80, 1.0)
+        roughness = clamp(0.28 + (average * 0.52), 0.10, 0.96)
+        metalness = clamp(np.maximum(0.0, b - r) * 0.32, 0.0, 0.44)
+        specular = clamp(0.04 + (variance * 0.36), 0.04, 0.50)
+    elif mode == "static_multitextured_material":
+        ao = clamp(1.0 - (r * 0.18), 0.70, 1.0)
+        roughness = clamp(0.18 + ((1.0 - g) * 0.62), 0.08, 0.96)
+        metalness = clamp(np.maximum(0.0, b - 0.28) * 0.42, 0.0, 0.46)
+        specular = clamp(0.10 + (np.maximum(b, a) * 0.34) + (variance * 0.10), 0.05, 0.58)
+    elif mode in {"packed_mask", "detail_mask"}:
+        ao = clamp(1.0 - (r * 0.18), 0.78, 1.0)
+        roughness = clamp(0.24 + (g * 0.56), 0.10, 0.96)
+        specular = clamp(0.04 + (b * 0.30), 0.04, 0.44)
+        metalness = clamp(b * 0.18, 0.0, 0.35)
+    elif mode in {"orm", "arm"}:
+        ao = clamp(r, 0.45, 1.0)
+        roughness = clamp(g, 0.05, 0.98)
+        metalness = clamp(b, 0.0, 1.0)
+        specular = clamp((0.10 + (metalness * 0.54)) * (1.0 - (roughness * 0.38)), 0.05, 0.72)
+    elif mode == "rma":
+        roughness = clamp(r, 0.05, 0.98)
+        metalness = clamp(g, 0.0, 1.0)
+        ao = clamp(b, 0.45, 1.0)
+        specular = clamp((0.10 + (metalness * 0.54)) * (1.0 - (roughness * 0.38)), 0.05, 0.72)
+    elif mode == "mra":
+        metalness = clamp(r, 0.0, 1.0)
+        roughness = clamp(g, 0.05, 0.98)
+        ao = clamp(b, 0.45, 1.0)
+        specular = clamp((0.10 + (metalness * 0.54)) * (1.0 - (roughness * 0.38)), 0.05, 0.72)
+    else:
+        ao = clamp(1.0 - (r * 0.16), 0.82, 1.0)
+        roughness = clamp(0.22 + (g * 0.54), 0.10, 0.96)
+        metalness = clamp(np.maximum(0.0, b - (r * 0.30)) * 0.42, 0.0, 0.55)
+        specular = clamp(0.10 + (b * 0.22) + (a * 0.18) + (variance * 0.12), 0.04, 0.55)
+    return (
+        full(clamp(ao, 0.45, 1.0)),
+        full(clamp(roughness, 0.04, 1.0)),
+        full(clamp(metalness)),
+        full(clamp(specular)),
+    )
+
+
 def _resolve_external_material_factors(
     input_item: Optional[PreviewMaterialTextureInput],
     decode_mode: str,

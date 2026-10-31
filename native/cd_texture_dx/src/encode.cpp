@@ -119,7 +119,10 @@ RgbaBlock rgba_block(const DirectX::Image& image, size_t index) {
 }  // namespace
 
 HRESULT compress_bc7_repeated_blocks(
-    const DirectX::ScratchImage& source, DXGI_FORMAT format, DirectX::ScratchImage& output) {
+    const DirectX::ScratchImage& source, DXGI_FORMAT format, DirectX::ScratchImage& output,
+    DirectX::TEX_COMPRESS_FLAGS extra_flags) {
+    const auto compress_flags = static_cast<DirectX::TEX_COMPRESS_FLAGS>(
+        static_cast<unsigned int>(DirectX::TEX_COMPRESS_PARALLEL) | static_cast<unsigned int>(extra_flags));
     auto metadata = source.GetMetadata();
     if ((format != DXGI_FORMAT_BC7_UNORM && format != DXGI_FORMAT_BC7_UNORM_SRGB) ||
         (metadata.format != DXGI_FORMAT_R8G8B8A8_UNORM && metadata.format != DXGI_FORMAT_R8G8B8A8_UNORM_SRGB)) {
@@ -177,7 +180,7 @@ HRESULT compress_bc7_repeated_blocks(
                 }
             }
             DirectX::ScratchImage compressed;
-            hr = DirectX::Compress(atlas, format, DirectX::TEX_COMPRESS_PARALLEL,
+            hr = DirectX::Compress(atlas, format, compress_flags,
                                    DirectX::TEX_THRESHOLD_DEFAULT, compressed);
             if (FAILED(hr)) return hr;
             const auto& encoded = compressed.GetImages()[0];
@@ -340,7 +343,9 @@ std::string encode_dds_job(const EncodeJob& job) {
     DirectX::ScratchImage* final_image = working;
     if (DirectX::IsCompressed(target_format)) {
         if (target_format == DXGI_FORMAT_BC7_UNORM || target_format == DXGI_FORMAT_BC7_UNORM_SRGB) {
-            hr = compress_bc7_repeated_blocks(*working, target_format, compressed_or_final);
+            hr = compress_bc7_repeated_blocks(
+                *working, target_format, compressed_or_final,
+                job.bc7_quick ? DirectX::TEX_COMPRESS_BC7_QUICK : DirectX::TEX_COMPRESS_DEFAULT);
         } else {
             hr = DirectX::Compress(
                 working->GetImages(),

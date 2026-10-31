@@ -303,6 +303,7 @@ def _encode_owned_image_dds_batch(
     source_color_policy: str = "auto",
     preview_uncompressed_max_bytes: int = 0,
     max_dimension: int = 0,
+    bc7_quick: bool = False,
 ) -> tuple[dict[str, object], ...]:
     """Encode external preview images with bounded native-helper batches."""
 
@@ -392,6 +393,7 @@ def _encode_owned_image_dds_batch(
                     mip_count=preset.mip_count,
                     overwrite=True,
                     source_color_policy=input_policy,
+                    bc7_quick=bc7_quick,
                 )
             )
             plans.append(
@@ -429,6 +431,7 @@ def _encode_owned_dds(
     *,
     source_color_policy: str = "auto",
     preview_uncompressed_max_bytes: int = 0,
+    bc7_quick: bool = False,
 ) -> dict[str, object]:
     from cdmw.core.dds_native import inspect_dds_native_path
     from cdmw.core.texture_native import (
@@ -444,6 +447,7 @@ def _encode_owned_dds(
             stop_event,
             source_color_policy=source_color_policy,
             preview_uncompressed_max_bytes=preview_uncompressed_max_bytes,
+            bc7_quick=bc7_quick,
         )[0]
 
     decoded_source: Path | None = None
@@ -501,6 +505,8 @@ def _encode_owned_dds(
                 source_color_policy=source_color_policy,
                 timeout_seconds=60.0,
                 stop_event=stop_event,
+                # Exported textures keep the unchanged full-search request.
+                **({"bc7_quick": True} if bc7_quick else {}),
             )
             if not report or not staged.is_file():
                 raise RuntimeError(f"Native DirectXTex DDS encode failed for {channel}.")

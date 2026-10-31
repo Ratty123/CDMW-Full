@@ -11,6 +11,7 @@ from __future__ import annotations
 import copy
 import hashlib
 import json
+import logging
 import math
 import mmap
 import os
@@ -51,6 +52,7 @@ from cdmw.services.mesh_rust_contract import (
     RUST_PREVIEW_PROTOCOL,
 )
 
+_LOGGER = logging.getLogger(__name__)
 _PREVIEW_CORE_VERTEX = struct.Struct("<23f")
 _PREVIEW_CORE_IDENTITY = struct.Struct("<2i")
 _PREVIEW_CORE_SCHEMA_MINIMUM = 8
@@ -1612,7 +1614,7 @@ def _write_preview_mesh_resources(package_dir, scene, root_identity, include_mat
         generated_overrides=synthesis.presentation_overrides,
     )
     _cancelled(cancelled)
-    return document, channels, textures, presentations
+    return document, channels, textures, presentations, synthesis
 
 
 @atomic_preview_publication
@@ -1708,11 +1710,20 @@ def build_rust_preview_package(
         )
     _cancelled(cancelled)
     (
-        document, channels, textures, presentations,
+        document, channels, textures, presentations, synthesis,
     ) = _write_preview_mesh_resources(
         package_dir, scene, root_identity, include_material_resources, material_package_path, quality,
         cancelled,
     )
+    texture_status = _texture_status(textures, quality)
+    if synthesis.budget_skipped:
+        # These parts keep their direct DDS instead of composed materials.
+        texture_status["material_synthesis_budget_skipped"] = len(synthesis.budget_skipped)
+        _LOGGER.warning(
+            "rust_preview_material_synthesis_budget source=%s parts=%d",
+            str(getattr(mesh, "path", "") or ""),
+            len(synthesis.budget_skipped),
+        )
     session_id = str(scene_session_id or uuid4().hex)
     scene_payload = frame.to_protocol_payload()
     effect_texture_references = _populate_preview_scene_overlays(
@@ -1734,7 +1745,7 @@ def build_rust_preview_package(
         "textures": textures,
         "effect_textures": effect_texture_references,
         "material_presentations": presentations,
-        "texture_status": _texture_status(textures, quality),
+        "texture_status": texture_status,
         "source": {
             "path": str(getattr(mesh, "path", "") or ""),
             "format": str(getattr(mesh, "format", "") or ""),

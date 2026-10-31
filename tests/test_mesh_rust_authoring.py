@@ -1424,12 +1424,14 @@ class RustMeshAuthoringTests(unittest.TestCase):
                 *,
                 source_color_policy="auto",
                 preview_uncompressed_max_bytes=0,
+                bc7_quick=False,
             ):
                 self.assertIn(channel, {"base", "normal"})
                 self.assertTrue(Path(source).is_file())
                 self.assertFalse(stop_event.is_set())
                 encoded_policies[channel] = source_color_policy
                 self.assertGreater(preview_uncompressed_max_bytes, 0)
+                self.assertTrue(bc7_quick)
                 Path(target).write_bytes(generated_dds[channel])
                 return {
                     "content_sha256": hashlib.sha256(
@@ -1613,7 +1615,9 @@ class RustMeshAuthoringTests(unittest.TestCase):
                 *,
                 source_color_policy="auto",
                 preview_uncompressed_max_bytes=0,
+                bc7_quick=False,
             ):
+                self.assertTrue(bc7_quick)
                 source_payload = Path(source).read_bytes()
                 expected_source_channel = (
                     "metallic" if channel == "metalness" else channel
