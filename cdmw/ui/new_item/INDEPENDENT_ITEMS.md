@@ -7,6 +7,12 @@ experimental virtual loading. Physical installation remains available through
 **Advanced > Item identities > Install into game archives**. Existing folder exports and
 game overlays remain available.
 
+Since the October 2026 DLC update (game 2.04.02), Mod Management is disabled and
+neither installation route can load items: the game authenticates its archive mount
+list (see [`VIRTUAL_LOADER.md`](VIRTUAL_LOADER.md)). **Write item package** still works
+against the updated tables. A package written for an earlier game version pins that
+version's tables and refuses until it is written again.
+
 ## Optional DMM V3 export
 
 In **Mod Management > Shared files**, scan archive-installed independent items,

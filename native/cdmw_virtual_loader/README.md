@@ -133,8 +133,9 @@ creation and show the game's first mount-table read after the host receives
 runtime readiness. The early archive queries come from CDMW's own manifest path
 validation; the cold-start call stacks identify that boundary through UAL's
 `GetCommandLineW` wrapper. Game redirection now requires that ordered return chain:
-UAL RVAs `0x21785`, `0x308e8`, `0x32e13`, `0x1f848`, followed by game RVA
-`0x10958a48`. The runtime verifies UAL's complete `GetCommandLineW` wrapper and
+UAL RVAs `0x21785`, `0x308e8`, `0x32e13`, `0x1f848` (9.7.4: `0x218a1`, `0x30df8`,
+`0x333b3`, `0x1f918`), followed by the supported build's game return address
+(`game_startup_return` beside `game_hash` in `protocol.hpp`). The runtime verifies UAL's complete `GetCommandLineW` wrapper and
 system forwarding destination, completed bootstrap phases, the earliest live
 process thread, and an outside-loader-callout result. It refuses before hooking
 if any witness is missing. This is an executable-specific startup boundary, not
@@ -281,6 +282,29 @@ enabled on the user's install, a launch the user started reused the cache (ready
 328 ms) and opened the composed files through the hooks, and the user found all five
 swords in the inventory of their loaded save. Saving under compose mode and a real DMM
 remount remain untested.
+
+## Game 2.04.02 (October 2026 DLC update)
+
+The supported build is now executable 1.0.0.3446 (game 2.04.02), SHA-256
+`fec07be1b725a46624d31fcd74bf3730ea809765226cea6bde01607ab2d79f66`. Its startup return,
+game RVA `0x112835a6`, was read from the runtime's own refusal stack on the first launch:
+the protected code reaches UAL's wrapper through a push/ret trampoline, so the only
+direct `GetCommandLineW` call site (`0xc3b8001`) was the wrong witness and was refused.
+
+Recorded 2026-10-31 with UAL 9.7.4, CDAL, BSX, FastLoad and DmmRuntime installed: a
+headless Steam launch with a launcher profile of the five Wolf Trial packages, rebuilt
+for this build, reported ready in 375 ms with every hook installed. The game opened the
+private `meta/0.papgt` three times through the hooks, opened no `.pamt` at all, and its
+own log reported the mount list as corrupted ("PAPGT load failed") and the resource
+loader as uninitialized. That list differed from the shipped one only by the private
+group's record; the four-byte header and the 64-byte trailer were kept. Protected files
+and saves were unchanged.
+
+The game authenticates the compact mount list, so a private archive group cannot load
+on this build. Apply refuses a compact list before reading packages, and the composer
+refuses to add a group to one. File redirects still work for files the game does not
+authenticate; whether `meta/0.pathc` is checked is untested. DMM's runtime serves files
+per path inside the game's package resource loader instead, which is the remaining route.
 
 ## Independent item publication research
 

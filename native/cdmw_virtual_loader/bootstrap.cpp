@@ -90,9 +90,9 @@ bool matches_startup_frames(std::span<void* const> frames, uintptr_t bootstrap, 
     if (!bootstrap || !game) return false;
     const auto expected = current_layout ?
         std::array<uintptr_t, 5>{bootstrap + 0x218a1, bootstrap + 0x30df8,
-            bootstrap + 0x333b3, bootstrap + 0x1f918, game + 0x10958a48} :
+            bootstrap + 0x333b3, bootstrap + 0x1f918, game + game_startup_return} :
         std::array<uintptr_t, 5>{bootstrap + 0x21785, bootstrap + 0x308e8,
-            bootstrap + 0x32e13, bootstrap + 0x1f848, game + 0x10958a48};
+            bootstrap + 0x32e13, bootstrap + 0x1f848, game + game_startup_return};
     for (size_t i = 0; i + expected.size() <= frames.size(); ++i) {
         bool same = true;
         for (size_t j = 0; j < expected.size(); ++j)

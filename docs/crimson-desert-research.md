@@ -101,7 +101,15 @@ a trailing extension dictionary selected by the flags' high byte, and sparse PAZ
 IDs. Legacy readers treated extension bits as encryption and assumed contiguous
 PAZ IDs; those assumptions are corrected in the Python and native readers.
 The new PAPGT has a four-byte header and 64 opaque trailing bytes. Its directory
-list is readable; the trailer's meaning and valid rewrite procedure remain unknown.
+list is readable, and the game authenticates the file: on 31 October a headless launch
+of game 2.04.02 (executable `fec07be1`) through CDMW's virtual runtime served a list
+that differed only by one added private group, with the shipped header and trailer kept.
+The game logged the mount list as corrupted and its resource loader as uninitialized,
+and opened no archive index at all. No hash of the body matches the trailer; both shipped trailers
+end in a byte at most `0x10`, consistent with an Ed25519 signature, which is unproven.
+Adding archive groups (overlays, CDMW's private view) therefore cannot work on this
+build. DMM's runtime instead serves individual files inside the game's package resource
+loader. Whether `meta/0.pathc` is checked as well is untested.
 
 The read-only audit decoded all **2,089,061 indexed entries**, including **307,263
 DLC entries**, to their declared sizes. No unsupported encryption type or

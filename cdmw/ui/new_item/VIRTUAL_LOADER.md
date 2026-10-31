@@ -7,6 +7,13 @@ and external archive folders. Existing authoring and manager exports remain avai
 physical install and identity tools are under **Advanced**. Existing installs never
 move between physical and virtual ownership automatically.
 
+**Since the October 2026 DLC update (game 2.04.02) this route cannot load items.**
+Mod Management is disabled, and Apply refuses on the updated game: the game now
+authenticates its archive mount list and refuses one with a private group added
+(recorded 2026-10-31 in the [runtime notes](../../../native/cdmw_virtual_loader/README.md#game-20402-october-2026-dlc-update)).
+Packages written for an earlier game version also pin that version's tables and must be
+written again from Create New Item. The evidence below predates the update.
+
 **Current availability: reviewed experimental launches on the verified Windows
 x64 executable and ASI bootstrap.** Each launch requires a fresh verified save
 backup and an explicit **Launch game** click in CDMW. Item and effect compatibility remains experimental;
@@ -620,7 +627,10 @@ directory, along with launch diagnostics. Ordinary launches without the correct
 PID-bound live host session are inert.
 
 Initial executable scope: Windows x64, version `1.0.0.2976`, exact SHA-256
-`57da440d72f4db974f25fef047cf84c4dadd999a88cb2a3c5af4c9bd67fde1e7`.
+`57da440d72f4db974f25fef047cf84c4dadd999a88cb2a3c5af4c9bd67fde1e7`. Current scope:
+version `1.0.0.3446` (game 2.04.02), SHA-256
+`fec07be1b725a46624d31fcd74bf3730ea809765226cea6bde01607ab2d79f66`; the runtime reaches
+readiness on it, but the game refuses the private mount list.
 The reviewed bootstrap SHA-256 is
 `810111a7f6a6cef892877c9f7c4582ccde2d621d119891f700c5309c370508bf`.
 Version text alone is never authorization to activate.
