@@ -226,11 +226,11 @@ def workflow_for(extension: str) -> FormatWorkflow:
         return FormatWorkflow(
             operations=(
                 FormatOperation("inspect", "Read package identity, dependencies and supported typed modules."),
-                FormatOperation("package", "Create or update an independent item package from Create New Item's Output step."),
-                FormatOperation("import", "Add item packages through Mod Management > Mods; Independent items provides advanced managed installation."),
+                FormatOperation("package", "Create or update a .cditem item package from Create New Item's Output step."),
+                FormatOperation("import", "Add item packages through Mod Management > Mods, then apply and launch."),
             ),
             prerequisites=(
-                "Choose Independent item package (Experimental) in Create New Item, or open Mod Management "
+                "Choose Item package · .cditem in Create New Item, or open Mod Management "
                 "and use Add item packages in Mods. Installation and launch require a configured game folder "
                 "and a successful compatibility review."
             ),

@@ -8,7 +8,6 @@ from typing import Dict, List, Optional, Tuple
 
 from PySide6.QtWidgets import (
     QCheckBox,
-    QComboBox,
     QDialog,
     QFileDialog,
     QGridLayout,
@@ -29,17 +28,15 @@ from cdmw.constants import (
     MOD_READY_PACKAGE_VERSION,
 )
 from cdmw.domain.packages.export_policy import (
+    MOD_PACKAGE_EXPORT_PROFILES,
     MOD_PACKAGE_MANAGER_PROFILE_LABELS,
-    MOD_PACKAGE_MANAGER_PROFILES,
     MOD_PACKAGE_METADATA_ARTIFACTS_BY_KEY,
     ModPackageExportOptions,
     mod_package_export_options_for_profiles,
-    mod_package_profile_uses_manager_metadata,
 )
 from cdmw.services.texture_workflow_service import resolve_default_mod_ready_export_root
 from cdmw.models import ModPackageInfo
 from cdmw.services.workspace_layout import workspace_paths
-from cdmw.ui.shell.help_widgets import make_help_button
 
 
 class ArchiveModReadyExportMixin:
@@ -112,7 +109,7 @@ class ArchiveModReadyExportMixin:
         profile_checks_layout.setContentsMargins(0, 0, 0, 0)
         profile_checks_layout.setSpacing(10)
         profile_checkboxes: Dict[str, QCheckBox] = {}
-        for profile in MOD_PACKAGE_MANAGER_PROFILES:
+        for profile in MOD_PACKAGE_EXPORT_PROFILES:
             checkbox = QCheckBox(MOD_PACKAGE_MANAGER_PROFILE_LABELS.get(profile, profile))
             checkbox.setChecked(profile == "dmm")
             profile_checks_layout.addWidget(checkbox)
@@ -120,11 +117,6 @@ class ArchiveModReadyExportMixin:
         profile_checks_layout.addStretch(1)
         create_zip_checkbox = QCheckBox(MOD_PACKAGE_METADATA_ARTIFACTS_BY_KEY["ready_zip"].label)
         create_zip_checkbox.setChecked(default_dialog_options.create_zip)
-        conflict_mode_combo = QComboBox()
-        conflict_mode_combo.addItem("Normal conflicts", "")
-        conflict_mode_combo.addItem("Override wins", "override")
-        target_language_edit = QLineEdit()
-        target_language_edit.setPlaceholderText("Optional, e.g. ko")
         include_related_files_checkbox = QCheckBox("Include resolved related files (textures, .xml, .pami)")
         include_related_files_checkbox.setChecked(bool(initial_include_related_files))
         include_related_files_checkbox.setVisible(bool(show_include_related_files_option))
@@ -170,20 +162,10 @@ class ArchiveModReadyExportMixin:
         form_layout.addWidget(profile_checks_widget, 5, 1, 1, 3)
         form_layout.addWidget(QLabel("Package output"), 6, 0)
         form_layout.addWidget(create_zip_checkbox, 6, 1, 1, 3)
-        conflict_mode_label = QLabel("Conflict mode")
-        target_language_label = QLabel("Target language")
-        conflict_mode_help = make_help_button("CDUMM compatibility metadata. Normal leaves manager conflict behavior unchanged; Override asks compatible managers to prefer this mod when conflicts are detected.")
-        target_language_help = make_help_button("Optional CDUMM compatibility metadata for language-specific packages. Leave empty for general packages.")
-        form_layout.addWidget(conflict_mode_label, 7, 0)
-        form_layout.addWidget(conflict_mode_combo, 7, 1, 1, 2)
-        form_layout.addWidget(conflict_mode_help, 7, 3)
-        form_layout.addWidget(target_language_label, 8, 0)
-        form_layout.addWidget(target_language_edit, 8, 1, 1, 2)
-        form_layout.addWidget(target_language_help, 8, 3)
-        form_layout.addWidget(include_related_files_checkbox, 9, 0, 1, 3)
-        form_layout.addWidget(texture_resolution_manifest_checkbox, 10, 0, 1, 3)
-        form_layout.addWidget(material_authority_report_checkbox, 11, 0, 1, 3)
-        form_layout.addWidget(active_file_authority_audit_checkbox, 12, 0, 1, 3)
+        form_layout.addWidget(include_related_files_checkbox, 7, 0, 1, 3)
+        form_layout.addWidget(texture_resolution_manifest_checkbox, 8, 0, 1, 3)
+        form_layout.addWidget(material_authority_report_checkbox, 9, 0, 1, 3)
+        form_layout.addWidget(active_file_authority_audit_checkbox, 10, 0, 1, 3)
         form_layout.setColumnStretch(1, 1)
         layout.addLayout(form_layout)
 
@@ -193,22 +175,6 @@ class ArchiveModReadyExportMixin:
                 for profile, checkbox in profile_checkboxes.items()
                 if checkbox.isChecked()
             ) or ("dmm",)
-
-        def _apply_manager_profile() -> None:
-            uses_manager_metadata = any(mod_package_profile_uses_manager_metadata(profile) for profile in _selected_profiles())
-            for widget in (
-                conflict_mode_label,
-                conflict_mode_combo,
-                conflict_mode_help,
-                target_language_label,
-                target_language_edit,
-                target_language_help,
-            ):
-                widget.setVisible(uses_manager_metadata)
-
-        for checkbox in profile_checkboxes.values():
-            checkbox.toggled.connect(lambda _checked=False: _apply_manager_profile())
-        _apply_manager_profile()
 
         hint_label = QLabel(
             "Warning: rebuilding a mesh payload does not automatically rewrite every referenced DDS or the companion material sidecars. "
@@ -254,10 +220,8 @@ class ArchiveModReadyExportMixin:
                 description=description_edit.text().strip(),
                 nexus_url="",
             )
-            selected_profiles = _selected_profiles()
-            uses_manager_metadata = any(mod_package_profile_uses_manager_metadata(profile) for profile in selected_profiles)
             export_options = mod_package_export_options_for_profiles(
-                selected_profiles,
+                _selected_profiles(),
                 create_zip=create_zip_checkbox.isChecked(),
                 create_texture_resolution_manifest=texture_resolution_manifest_checkbox.isChecked()
                 if show_texture_resolution_manifest_option
@@ -268,8 +232,6 @@ class ArchiveModReadyExportMixin:
                 create_active_file_authority_audit=active_file_authority_audit_checkbox.isChecked()
                 if show_active_file_authority_audit_option
                 else False,
-                conflict_mode=str(conflict_mode_combo.currentData() or "") if uses_manager_metadata else "",
-                target_language=target_language_edit.text().strip() if uses_manager_metadata else "",
             )
             result[:] = [
                 export_root,

@@ -95,7 +95,7 @@ _CONTROLS = (
     "Apply profile edit", "Restore profile assignment", "Finish Edit Mesh", "Build Mod", "Free Edit",
     "Exact Game Asset", "Finish", "Restore", "Undo/Redo", "Create", "Edit", "Draw", "Freehand",
     "Straight", "Arc", "Circle", "Stroke smoothing", "Bend", "Follow scalp", "Move reach",
-    "Build plan", "Apply placement", "Mod folder", "Independent item package", "Apply changes",
+    "Build plan", "Apply placement", "Mod folder · DMM", "Mod folder", "Item package · .cditem", "Apply changes",
     "Add to existing mod", "Include mounted items in a new mod", "Import Replacement...",
     "Open in Mesh Editor", "View", "Mod", "Include", "Output Preview", "Mesh islands",
     "Solid (Textured)", "Solid + Wire", "X-Ray", "Bounds", "Bones", "Orbit", "Fit", "Frame Selected",
@@ -108,7 +108,7 @@ _CONTROLS = (
     "Take weights from the body", "Pull to skin", "Back to Inspector", "Continue Earlier Work...",
     "Drafts & Mods", "Continue Editing", "Delete...", "Remove from List...",
     "Add Mod Folder...", "Choose a Draft...", "Name Draft...", "New Project...", "Move to Project...",
-    "Duplicate...", "Save Changes", "Include the body",
+    "Duplicate...", "Save Changes", "Include the body", "Add item packages", "Launch game", "Item identities",
 )
 # A sentence that opens with a control's name and describes it is not a step.
 _CONTROL_SUBJECT = re.compile(
@@ -163,9 +163,12 @@ def _control_pattern(locale: str):
             suffix = r"(?=\W|$|(?:에서는|으로|에서|은|는|이|가|을|를|와|과|로|에|도|만)(?=\W|$))"
             patterns.append(r"(?<!\w)" + re.escape(name) + suffix)
         else:
-            # "Move away" is the pointer, not the Move tool.
-            exception = r"(?! away\b)" if name == "Move" else ""
-            patterns.append(re.escape(name) if cjk else r"(?<!\w)" + re.escape(name) + r"(?!\w)" + exception)
+            # "Move away" is the pointer, not the Move tool; "Mod Management",
+            # "Definitive Mod Manager" and hyphenated compounds such as
+            # "Mod-Verwaltung" are names, not the Mod toggle.
+            exception = {"Move": r"(?! away\b)", "Mod": r"(?! Manage(?:ment|r)\b)(?!-)"}.get(name, "")
+            before = r"(?<![\w-])" if name == "Mod" else r"(?<!\w)"
+            patterns.append(re.escape(name) if cjk else before + re.escape(name) + r"(?!\w)" + exception)
     return re.compile("|".join(patterns))
 
 
@@ -542,7 +545,7 @@ def build_pages() -> dict[str, str]:
                         entries.append(f'- [{_inline(node, locale)}](#{node.attrs["id"]})')
                     if entries:
                         parts.append(f'<details>\n<summary>{html.escape(translate("Documentation Index"))}</summary>\n\n' + "\n".join(entries) + "\n\n</details>")
-                    alert_prefix = "Mod folder supports" if page == "Create-New-Item" else "Finish accepts"
+                    alert_prefix = "Mod folder · DMM" if page == "Create-New-Item" else "Finish accepts"
                     original_paragraphs = [text for text in re.findall(r"<p>(.*?)</p>", section["html"], re.S) if text.startswith(alert_prefix)]
                     if len(original_paragraphs) != 1:
                         raise ValueError("Core guide alert paragraph is missing")
@@ -569,7 +572,7 @@ def build_pages() -> dict[str, str]:
                 source = sections["new_item_studio"]["html"]
                 paragraphs = re.findall(r"<p>(.*?)</p>", source, re.S)
                 selected = [text for text in paragraphs if text.startswith((
-                    "Independent item package writes", "Use the player-facing name", "Add to existing mod",
+                    "Item package · .cditem writes", "Use the player-facing name", "Add to existing mod",
                 ))]
                 if len(selected) != 3:
                     raise ValueError("Independent package guide paragraphs are missing")

@@ -466,8 +466,6 @@ class RecolorVariantsTab(SharedRecolorModeMixin, QWidget):
         profiles_layout = profiles_group.body_layout
         for profile_id, label, checked in (
             ("dmm", "Definitive Mod Manager", True),
-            ("cdumm", "CDUMM files/ wrapper", False),
-            ("field_json", "Field-JSON v3.1", False),
         ):
             checkbox = QCheckBox(label)
             checkbox.setChecked(checked)
@@ -503,6 +501,9 @@ class RecolorVariantsTab(SharedRecolorModeMixin, QWidget):
         for profile_id, checkbox in self.profile_checkboxes.items():
             value = self.settings.value(f"recolor_variants/profile_{profile_id}", checkbox.isChecked())
             checkbox.setChecked(_settings_bool(value, checkbox.isChecked()))
+        if not any(checkbox.isChecked() for checkbox in self.profile_checkboxes.values()):
+            # Settings that chose only CDUMM or Field-JSON outputs fall back to DMM.
+            self.profile_checkboxes["dmm"].setChecked(True)
         self.overwrite_checkbox.setChecked(_settings_bool(self.settings.value("recolor_variants/overwrite_output", False), False))
 
     def _save_settings(self) -> None:
@@ -1098,14 +1099,10 @@ class RecolorVariantsTab(SharedRecolorModeMixin, QWidget):
     def _selected_profiles(self) -> tuple[RecolorVariantOutputProfile, ...]:
         profiles: list[RecolorVariantOutputProfile] = []
         labels = {
-            "cdumm": "CDUMM",
             "dmm": "Definitive Mod Manager",
-            "field_json": "Field-JSON v3.1",
         }
         suffixes = {
-            "cdumm": "CDUMM",
             "dmm": "DMM",
-            "field_json": "FieldJSON",
         }
         for profile_id, checkbox in self.profile_checkboxes.items():
             if not checkbox.isChecked():

@@ -46,6 +46,9 @@ from .skeleton import world_to_bone
 from .model import Vec3
 from .session import PlacementSession
 
+# Other mod managers are not updated for the October 2026 DLC, so packages are written for DMM only.
+PACKAGE_MANAGERS = ("DMM",)
+
 
 class EditPanelMixin:
     """The edit controls and the actions they drive. Mixed into `PlacementStudioWindow`."""
@@ -245,7 +248,7 @@ class EditPanelMixin:
         self._export_button.clicked.connect(self._export)
         self._package_button = QPushButton("Packages…")
         self._package_button.setToolTip(
-            "Write installable mod packages (CDUMM and DMM) from these changes."
+            "Write an installable DMM mod package from these changes."
         )
         self._package_button.clicked.connect(self._build_packages)
 
@@ -1210,7 +1213,7 @@ class EditPanelMixin:
             description="Placement and animation changes built with Placement Studio.",
         )
         try:
-            destinations = package_destinations(metadata, out_root=Path(target))
+            destinations = package_destinations(metadata, out_root=Path(target), managers=PACKAGE_MANAGERS)
         except PackagingError as exc:
             QMessageBox.warning(self, "Packaging failed", str(exc))
             return
@@ -1242,6 +1245,7 @@ class EditPanelMixin:
                 units=units,
                 shared_socket_users=shared,
                 replace_existing=replace_existing,
+                managers=PACKAGE_MANAGERS,
             )
         except PackagingError as exc:
             QMessageBox.warning(self, "Packaging failed", str(exc))
@@ -1288,6 +1292,7 @@ class EditPanelMixin:
                     shared_socket_users=shared,
                     accept_warnings=True,
                     replace_existing=replace_existing,
+                    managers=PACKAGE_MANAGERS,
                 )
             except PackagingError as exc:
                 QMessageBox.warning(self, "Packaging failed", str(exc))

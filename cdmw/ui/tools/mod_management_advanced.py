@@ -11,6 +11,9 @@ class ModManagementPages(QTabWidget):
         super().__init__(parent)
         self.setObjectName('mod_management_pages')
         self._overview, self._recovery = overview, recovery
+        # Without the mod folder tools only Mods and Item identities are tabs; the
+        # other owners stay parented here, hidden, for their existing callers.
+        self._folder_tools = constants.MOD_FOLDER_TOOLS_ENABLED
         self.addTab(mods, 'Mods')
         self.task = QTabWidget()
         self.task.setObjectName('mod_management_package_task')
@@ -23,7 +26,11 @@ class ModManagementPages(QTabWidget):
             self.task.setTabToolTip(index, help_text)
         self.task.setToolTip('These tools create separate output files. Add the result from Mods when ready.')
         self.task.currentChanged.connect(lambda _index: self.task_changed.emit())
-        self.addTab(self.task, 'Prepare packages')
+        if self._folder_tools:
+            self.addTab(self.task, 'Prepare packages')
+        else:
+            self.task.setParent(self)
+            self.task.hide()
         self.addTab(independent, 'Item identities')
         if constants.ARCHIVE_OVERLAYS_ENABLED:
             self.addTab(independent.shared_page, 'Shared files')
@@ -61,19 +68,29 @@ class ModManagementPages(QTabWidget):
         self.repair_toggle.toggled.connect(recovery.setVisible)
         self.repair_toggle.toggled.connect(lambda expanded: self.repair_toggle.setArrowType(
             Qt.ArrowType.DownArrow if expanded else Qt.ArrowType.RightArrow))
-        self.addTab(self.health, 'Health and recovery')
+        if self._folder_tools:
+            self.addTab(self.health, 'Health and recovery')
+        else:
+            self.health.setParent(self)
+            self.health.hide()
+
+    @property
+    def folder_tools(self):
+        return self._folder_tools
 
     def open_page(self, page):
         if page is self._recovery and not constants.ARCHIVE_OVERLAYS_ENABLED:
             return
         if page in (self._overview, self._recovery):
-            self.setCurrentWidget(self.health)
-            if page is self._recovery:
-                self.repair_toggle.setChecked(True)
+            if self._folder_tools:
+                self.setCurrentWidget(self.health)
+                if page is self._recovery:
+                    self.repair_toggle.setChecked(True)
         elif self.task.indexOf(page) >= 0:
-            self.task.setCurrentWidget(page)
-            self.setCurrentWidget(self.task)
-        else:
+            if self._folder_tools:
+                self.task.setCurrentWidget(page)
+                self.setCurrentWidget(self.task)
+        elif self.indexOf(page) >= 0:
             self.setCurrentWidget(page)
 
     def current_page(self):

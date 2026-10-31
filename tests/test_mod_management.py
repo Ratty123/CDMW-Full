@@ -391,6 +391,7 @@ def test_shared_controller_blocks_overlapping_operations_and_routes_completion_o
         controller.deleteLater()
 
 
+@pytest.mark.usefixtures("retained_mod_folder_tools")
 def test_rust_workspace_navigation_filter_and_scoped_activity(tmp_path, monkeypatch):
     from cdmw.services.archive_overlay_manager import InstalledOverlay
     from cdmw.ui.new_item.rust_ui_bridge import NewItemPresentationBridge
@@ -556,6 +557,7 @@ def test_installed_preview_worker_delivers_package_and_waits_for_host_ready(tmp_
         app.sendPostedEvents(None, QEvent.DeferredDelete)
 
 
+@pytest.mark.usefixtures("retained_mod_folder_tools")
 def test_inline_disable_last_overlay_can_be_enabled_again(tmp_path, monkeypatch):
     from PySide6.QtWidgets import QMessageBox
     from tests.test_new_item_provenance import setup_game

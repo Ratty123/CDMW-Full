@@ -15,6 +15,12 @@ def retained_archive_overlays(monkeypatch):
     monkeypatch.setattr("cdmw.constants.ARCHIVE_OVERLAYS_ENABLED", True)
 
 
+@pytest.fixture
+def retained_mod_folder_tools(monkeypatch):
+    """Exercise Mod Management's hidden mod folder tools (convert, combine, update, health)."""
+    monkeypatch.setattr("cdmw.constants.MOD_FOLDER_TOOLS_ENABLED", True)
+
+
 @pytest.fixture(autouse=True)
 def _isolate_mod_export_history(tmp_path, monkeypatch):
     """Exports must never write authoring records into the user's real history."""

@@ -43,7 +43,7 @@ from cdmw.constants import (
     UPSCALE_TEXTURE_PRESET_COLOR_UI_EMISSIVE,
 )
 from cdmw.domain.packages.export_policy import (
-    MOD_PACKAGE_MANAGER_PROFILES,
+    MOD_PACKAGE_EXPORT_PROFILES,
     MOD_PACKAGE_MANAGER_PROFILE_LABELS,
     MOD_PACKAGE_METADATA_ARTIFACTS_BY_KEY,
     mod_package_export_options_for_manager,
@@ -93,6 +93,9 @@ class TextureWorkflowUpscaleBackendPanelMixin:
 
         body_layout.addWidget(upscale_group)
         finish_texture_workflow_panel_body(self, "chainner")
+        if not any(checkbox.isChecked() for checkbox in self.mod_ready_profile_checkboxes.values()):
+            # Saved CDUMM or Field-JSON targets fall back to DMM.
+            self.mod_ready_profile_checkboxes["dmm"].setChecked(True)
 
 
     def _build_upscale_backend_selector(self, upscale_layout: QVBoxLayout) -> None:
@@ -274,15 +277,14 @@ class TextureWorkflowUpscaleBackendPanelMixin:
         self.mod_ready_package_description_edit = QLineEdit()
         self.mod_ready_package_nexus_url_edit = QLineEdit()
         self.mod_ready_manager_combo = QComboBox()
-        self.mod_ready_manager_combo.addItem("Definitive Mod Manager", "dmm")
-        self.mod_ready_manager_combo.addItem("CDUMM", "cdumm")
-        self.mod_ready_manager_combo.addItem("Field-JSON v3.1", "field_json")
+        for profile in MOD_PACKAGE_EXPORT_PROFILES:
+            self.mod_ready_manager_combo.addItem(MOD_PACKAGE_MANAGER_PROFILE_LABELS.get(profile, profile), profile)
         self.mod_ready_profile_checkboxes: Dict[str, QCheckBox] = {}
         self.mod_ready_profiles_widget = QWidget()
         mod_ready_profiles_layout = QHBoxLayout(self.mod_ready_profiles_widget)
         mod_ready_profiles_layout.setContentsMargins(0, 0, 0, 0)
         mod_ready_profiles_layout.setSpacing(10)
-        for profile in MOD_PACKAGE_MANAGER_PROFILES:
+        for profile in MOD_PACKAGE_EXPORT_PROFILES:
             checkbox = QCheckBox(MOD_PACKAGE_MANAGER_PROFILE_LABELS.get(profile, profile))
             checkbox.setChecked(profile == "dmm")
             mod_ready_profiles_layout.addWidget(checkbox)
@@ -293,7 +295,6 @@ class TextureWorkflowUpscaleBackendPanelMixin:
         self.mod_ready_structure_combo.addItem("files/ wrapper", "files_wrapper")
         self.mod_ready_structure_combo.addItem("Custom compact paths", "custom_compact_paths")
         self.mod_ready_structure_combo.addItem("DMM texture folder", "dmm_texture")
-        self.mod_ready_structure_combo.addItem("Field-JSON v3.1 assets", "field_json_v31")
         self.mod_ready_manifest_checkbox = QCheckBox(MOD_PACKAGE_METADATA_ARTIFACTS_BY_KEY["manifest_json"].label)
         self.mod_ready_manifest_checkbox.setChecked(default_mod_package_options.create_manifest_json)
         self.mod_ready_mod_json_checkbox = QCheckBox(MOD_PACKAGE_METADATA_ARTIFACTS_BY_KEY["mod_json"].label)
@@ -369,6 +370,10 @@ class TextureWorkflowUpscaleBackendPanelMixin:
             heading.addWidget(help_button)
             mod_package_layout.addRow(heading)
             mod_package_layout.addRow(control)
+            # Only CDUMM packages carry these fields, and CDUMM is no longer
+            # offered. They stay hidden because settings and config still read them.
+            for widget in (label, control, help_button):
+                widget.setVisible(False)
         self.mod_ready_package_group.setVisible(False)
         policy_layout.addRow(self.mod_ready_package_group)
 

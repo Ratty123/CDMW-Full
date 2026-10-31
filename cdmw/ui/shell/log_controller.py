@@ -141,7 +141,9 @@ class LogControllerMixin:
         self.copy_problem_summary_action.setEnabled(not busy)
         self.open_crash_reports_action.setEnabled(not busy)
         self.open_settings_action.setEnabled(not busy)
-        self.mod_package_tool_action.setEnabled(not busy and self.mod_management_tab.isEnabled())
+        from cdmw import constants
+        self.mod_package_tool_action.setEnabled(not busy and self.mod_management_tab.isEnabled()
+                                                and constants.MOD_FOLDER_TOOLS_ENABLED)
         self.open_documentation_action.setEnabled(not busy)
         self.open_about_action.setEnabled(not busy)
         self.textures.left_panel.setEnabled(not busy)

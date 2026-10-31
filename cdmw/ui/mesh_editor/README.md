@@ -1,7 +1,7 @@
 # Mesh Editor
 
 Archive overlay export, installation and restoration are disabled following the
-October 2026 DLC update. Build Mod offers DMM and CDUMM loose packages;
+October 2026 DLC update. Build Mod offers DMM loose packages only;
 saved DMM archive-group choices return to loose output. Additional-hairstyle
 packages depend on the disabled overlay route and cannot be exported. Overlay
 implementation details below describe retained code, not available UI actions.
@@ -3301,16 +3301,16 @@ prevents retained source bindings from hiding authored material changes.
 invalidates that report; **Run validation** checks the new revision. **Export Mesh
 File** publishes a separate rebuilt asset and report. **Build Mod** opens one form for
 the mod manager, mod name, output folder, version, author and description. It publishes
-**DMM** or **CDUMM** loose mesh packages using their
-respective layouts and metadata, or a **DMM Archive Group** in `0036/`.
+**DMM** loose mesh packages, or a **DMM Archive Group** in `0036/` while archive overlays
+are enabled. Other mod managers are not offered after the October 2026 DLC update.
 
 DMM owns the mount list, so that package omits `meta/0.papgt`. Packages contain the
 replacement payloads and manager descriptors/markers only. The generated README and CDMW
 baseline, compatibility and session records stay out of the mod; authoring records are
 saved in CDMW's local `mod_export_history` store and remain discoverable for the exact
 exported bytes. DMM uses only `manifest.json` for its metadata, without a duplicate
-`modinfo.json`. CDUMM uses `modinfo.json` with its default `files/` directory, without a
-duplicate manifest or unused encryption marker.
+`modinfo.json`. The retained, no longer offered CDUMM writer uses `modinfo.json` with its
+default `files/` directory, without a duplicate manifest or unused encryption marker.
 
 Its detector accepts this layout and its importer reads mod details from `modinfo.json`:
 [CDUMM

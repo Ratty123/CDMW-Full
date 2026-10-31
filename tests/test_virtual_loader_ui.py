@@ -145,6 +145,7 @@ def test_late_cancel_keeps_launch_result_or_actual_failure(tmp_path, monkeypatch
         page.close()
 
 
+@pytest.mark.usefixtures("retained_mod_folder_tools")
 def test_apply_click_projects_real_controls_saves_and_enables_launch(tmp_path, monkeypatch):
     from cdmw.services import virtual_loader_runtime as runtime
     from tests.test_virtual_loader_runtime import setup_fixture

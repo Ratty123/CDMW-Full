@@ -67,8 +67,7 @@ Compact is the default layout. Classic is available in
 | **Mesh Editor** | Authoring > Mesh Editor | Edit supported meshes and materials; OBJ/FBX/GLB export, OBJ/FBX/DAE/glTF/GLB import. FBX import uses your selected Blender. |
 | **Placement & Animations** | Authoring > Placement & Animations | Adjust equipment attachments and review animation changes before packaging. |
 | **Textures** | Authoring > Textures | Edit layered textures, replace files in bulk, recolour, upscale and export. |
-| **Mod Management** | Utilities > Mod Management | Manage one mod list, inspect selected mods, apply supported packages, and launch the game. Advanced groups health and recovery, package preparation and item identities. |
-| **Retrofit/Repackage** | Utilities > Mod Management > Advanced > Prepare packages | Choose **Convert for a mod manager** to review and convert existing mod folders or ZIPs to supported manager layouts. |
+| **Mod Management** | Utilities > Mod Management | Add `.cditem` item packages, apply them and launch the game with the items (experimental). Other mods belong in DMM. |
 | **Format Explorer** | Utilities > Inspect File Formats | Check which formats and operations are supported. |
 | **Translations** | Utilities > Edit Translations | Edit game language tables or existing `.paloc` mods, with optional AI assistance. |
 | **Research** | Utilities > Asset Research | Review texture families, classifications, references and quality reports. |
@@ -92,12 +91,13 @@ Model variants retain their own appearance settings. Material tools include glow
 translucency and painted transparency; experimental options are labelled.
 
 For an imported model, use **Apply placement** before **Build plan**. Review the
-planned files and warnings in **Output**, then create a mod folder or a portable
-`.cditem` authoring package. Use **Add to existing mod** to extend a package deliberately;
+planned files and warnings in **Output**, then write a DMM mod folder or a portable
+`.cditem` item package. Use **Add to existing mod** to extend a package deliberately;
 fresh exports check for unintended inherited custom items.
 
-**Available outputs: CDUMM mod folders and portable `.cditem` authoring packages.**
-DMM archive groups and CDMW game overlays are disabled following the DLC update.
+**Available outputs: DMM mod folders and portable `.cditem` item packages.**
+CDMW game overlays are disabled following the DLC update. Add `.cditem` packages in
+**Mod Management** to load them in the game through CDMW's runtime (experimental).
 New mod folders can have a custom name and an optional ZIP copy.
 
 **Include mounted items in a new mod** is unavailable while archive overlays are
@@ -109,10 +109,12 @@ See the [Create New Item guide](cdmw/ui/new_item/README.md) for detailed control
 ## Mesh Editor
 
 Open a supported archive or local mesh, edit with Undo/Redo, then use
-**Finish Edit Mesh** to validate and accept the result. **Build Mod** offers DMM
-and CDUMM packages, with an optional ZIP.
+**Finish Edit Mesh** to validate and accept the result. **Build Mod** writes a DMM
+package, with an optional ZIP.
 
-DMM and CDUMM are the supported mod managers. Check the producing tool's output limitations before installing.
+DMM (Definitive Mod Manager) is the supported mod manager; other managers are not
+being updated for the October 2026 DLC. Check the producing tool's output limitations
+before installing.
 
 Tools include selection, transforms, sculpting, UVs, material controls, cloth and
 jiggle settings, Hair Tools, and Morph & Refit for body and garment adjustments.
@@ -133,7 +135,7 @@ physics controls, draft recovery and output limits.
 Adjust where equipment sits and review supported socket or animation replacements.
 Use **Prepare preview** to inspect synchronized Before/After playback and check the
 proposed file changes. **Build packages** exports the selected operations for
-CDUMM or DMM; it does not install them into the game.
+DMM; it does not install them into the game.
 
 Preview checks do not certify in-game contact, physics or animation behavior.
 Unsupported operations and unresolved dependencies are identified before output.

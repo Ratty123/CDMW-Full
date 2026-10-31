@@ -206,6 +206,8 @@ class NewItemStudioTab(QWidget):
         boot.addWidget(self._progress)
         boot.addWidget(self._read_button, alignment=Qt.AlignHCenter)
         boot.addWidget(self._update_button, alignment=Qt.AlignHCenter)
+        from cdmw import constants
+        self._update_button.setVisible(constants.MOD_FOLDER_TOOLS_ENABLED)  # Updating mod folders belongs to DMM.
         boot.addStretch(1)
 
         self._layout = QVBoxLayout(self)

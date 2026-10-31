@@ -48,7 +48,6 @@ class MeshModExportDialog(QDialog):
         self.manager = QComboBox(self)
         for label, choice, kind, profile, suffix in (
             ("DMM Loose Mesh", "dmm_loose", "loose_mod", "dmm", "dmm"),
-            ("CDUMM Loose Mesh", "cdumm_loose", "loose_mod", "cdumm", "cdumm"),
             ("DMM Archive Group", "dmm_archive", "overlay_package", "dmm", "dmm-archive"),
         ):
             if kind == "overlay_package" and not constants.ARCHIVE_OVERLAYS_ENABLED:

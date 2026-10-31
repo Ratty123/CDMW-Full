@@ -89,6 +89,29 @@ class LazyTextureWorkflowPanelTests(unittest.TestCase):
         window._save_settings()
         self.assertEqual("C:/assets/source.exr", settings.value("asset_authoring/oiio_source_path"))
 
+    def test_mod_package_offers_dmm_and_saved_cdumm_choice_falls_back(self) -> None:
+        window, _settings = self._window(
+            {
+                "upscale/mod_ready_manager_profile": "cdumm",
+                "upscale/mod_ready_manager_profiles": '["cdumm","field_json"]',
+                "upscale/mod_ready_package_structure": "field_json_v31",
+                "upscale/mod_ready_conflict_mode": "override",
+            }
+        )
+        textures = window.textures
+        textures.chainner_section.set_expanded(True)
+        combo = textures.mod_ready_manager_combo
+        self.assertEqual(["dmm"], [combo.itemData(index) for index in range(combo.count())])
+        self.assertEqual(["dmm"], list(textures.mod_ready_profile_checkboxes))
+        self.assertTrue(textures.mod_ready_profile_checkboxes["dmm"].isChecked())
+        self.assertEqual(-1, textures.mod_ready_structure_combo.findData("field_json_v31"))
+        textures.enable_mod_ready_loose_export_checkbox.setChecked(True)
+        for widget in (textures.mod_ready_conflict_mode_combo, textures.mod_ready_target_language_edit):
+            self.assertFalse(widget.isVisibleTo(textures.mod_ready_package_group))
+        config = textures.collect_config()
+        self.assertEqual(("dmm",), tuple(config.mod_ready_manager_profiles))
+        self.assertEqual("", config.mod_ready_conflict_mode)
+
     def test_persisted_expanded_panel_is_ready_during_window_construction(self) -> None:
         window, _settings = self._window(
             {

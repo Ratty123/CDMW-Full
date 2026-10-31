@@ -89,6 +89,9 @@ class TabTests(_TabAuthoringMixin, _TabOutputMixin, _TabLifecycleMixin, unittest
         self._overlay_policy = patch("cdmw.constants.ARCHIVE_OVERLAYS_ENABLED", True)
         self._overlay_policy.start()
         self.addCleanup(self._overlay_policy.stop)
+        self._folder_tools_policy = patch("cdmw.constants.MOD_FOLDER_TOOLS_ENABLED", True)
+        self._folder_tools_policy.start()
+        self.addCleanup(self._folder_tools_policy.stop)
         self._tabs = []
         self._temp = tempfile.TemporaryDirectory()
         self.root = Path(self._temp.name)
