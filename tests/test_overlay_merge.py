@@ -125,3 +125,68 @@ def test_legacy_texture_baseline_refuses_unproven_registration_ownership(ambiguo
             if e.checksum == pathc_checksum(path) else e for e in live.entries))
     with pytest.raises(OverlayConflict, match='meta/0.pathc'):
         legacy_texture_baseline(encode_pathc(base), encode_pathc(live), {path: (None, ICON_HEADER)})
+
+
+COMPACT = 'gamedata/binarystaticinfo__/bin/'
+
+
+def _compact_game(stores, groups):
+    from tests.compact_item_fixtures import table, store, group
+    files = {}
+    for kind, rows in (('storeinfo', [(key, store(key, name, items, order=0xFFFFFFFF)) for key, name, items in stores]),
+                       ('itemgroupinfo', [(key, group(key, name, items)) for key, name, items in groups])):
+        files[COMPACT + kind + '.staticinfobody'], files[COMPACT + kind + '.staticinfoheader'] = table(rows, 2)
+    return files
+
+
+def _package_adds(base, item, *, count=None):
+    """What one independent install changes: a new shop line and group member for `item`."""
+    from dataclasses import replace
+    from cdmw.core.itemgroupinfo_table import add_group_members, parse_item_group_table, encode_item_group_row
+    from cdmw.core.storeinfo_table import insert_stock_entry, parse_store_table, set_stock_count
+    from tests.compact_item_fixtures import table
+    stores = parse_store_table(base[COMPACT + 'storeinfo.staticinfobody'], base[COMPACT + 'storeinfo.staticinfoheader'])
+    groups = parse_item_group_table(base[COMPACT + 'itemgroupinfo.staticinfobody'], base[COMPACT + 'itemgroupinfo.staticinfoheader'])
+    edited_stores = [(row.key, insert_stock_entry(row, item, count=count).raw if row.key == 6600 else row.raw) for row in stores]
+    edited_groups = [(row.key, add_group_members(row, [item]).raw) for row in groups]
+    after = dict(base)
+    after[COMPACT + 'storeinfo.staticinfobody'], after[COMPACT + 'storeinfo.staticinfoheader'] = table(edited_stores, 2)
+    after[COMPACT + 'itemgroupinfo.staticinfobody'], after[COMPACT + 'itemgroupinfo.staticinfoheader'] = table(edited_groups, 2)
+    return after
+
+
+def test_independent_compact_shop_lines_and_group_members_compose_together():
+    from cdmw.core.itemgroupinfo_table import parse_item_group_table
+    from cdmw.core.storeinfo_table import parse_store_table
+    # Every line of a shipped 1.0.0.3446 store has order index 0xFFFFFFFF, so two
+    # installs' new lines cannot be told apart by order; the stocked item tells them apart.
+    base = _compact_game([(6600, 'Store_Camp_Equipment', [101, 102]), (6700, 'Store_Camp_Costume', [103])],
+                         [(17011, 'ItemGroup_Equip', [101])])
+    current = dict(base)
+    for item in (1990000, 1990001, 1990002):
+        current = merge_overlay_files(base, _package_adds(base, item), current)
+    stores = {row.key: row for row in parse_store_table(current[COMPACT + 'storeinfo.staticinfobody'], current[COMPACT + 'storeinfo.staticinfoheader'])}
+    camp = stores[6600]
+    assert [e.item_key for e in camp.entries] == [101, 102, 1990000, 1990001, 1990002]
+    assert [e.stock_index for e in camp.entries] == [0, 1, 2, 3, 4]
+    assert {e.order_index for e in camp.entries} == {0xFFFFFFFF}
+    assert (camp.buyable_count, camp.sellable_count) == (5, 5)
+    assert [e.item_key for e in stores[6700].entries] == [103]
+    group, = parse_item_group_table(current[COMPACT + 'itemgroupinfo.staticinfobody'], current[COMPACT + 'itemgroupinfo.staticinfoheader'])
+    assert group.members == (101, 1990000, 1990001, 1990002)
+
+
+def test_compact_installs_changing_the_same_shop_line_still_conflict():
+    from dataclasses import replace
+    from cdmw.core.storeinfo_table import parse_store_table, set_stock_count
+    from tests.compact_item_fixtures import table
+    base = _compact_game([(6600, 'Store_Camp_Equipment', [101, 102])], [(17011, 'ItemGroup_Equip', [101])])
+    def restocked(count):
+        rows = parse_store_table(base[COMPACT + 'storeinfo.staticinfobody'], base[COMPACT + 'storeinfo.staticinfoheader'])
+        after = dict(base)
+        after[COMPACT + 'storeinfo.staticinfobody'], after[COMPACT + 'storeinfo.staticinfoheader'] = table(
+            [(row.key, set_stock_count(row, 101, count).raw) for row in rows], 2)
+        return after
+    current = merge_overlay_files(base, restocked(5), dict(base))
+    with pytest.raises(OverlayConflict, match='storeinfo'):
+        merge_overlay_files(base, restocked(7), current)

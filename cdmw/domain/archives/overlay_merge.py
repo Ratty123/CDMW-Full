@@ -44,9 +44,36 @@ def _records(before, after, current, key, where, merge=_value):
     return tuple(result.values())
 
 
+def _shaped(rows, shape, where):
+    """The row whose non-list fields the merge keeps; their changes must not collide."""
+    b, a, c = rows
+    shapes = tuple(map(shape, rows))
+    kept = _value(*shapes, where)
+    return a if kept == shapes[1] and kept != shapes[2] else c
+
+
+def _compact_store(b, a, c, where):
+    from cdmw.core.storeinfo_compact import encode_compact_stock
+    from cdmw.core.storeinfo_table import encode_store_row
+    # Every compact stock line has order index 0xFFFFFFFF ("no order"), so a line is
+    # identified by the item it stocks, then its occurrence. Stock positions and the
+    # counts are rederived below, so they take no part in the comparison.
+    def normalized(row):
+        return tuple(replace(e, stock_index=0, offset=-1, end=-1,
+                             compact_raw=encode_compact_stock(replace(e, stock_index=0))) for e in row.entries)
+    template = _shaped((b, a, c), lambda row: encode_store_row(replace(row, entries=(), buyable_count=0, sellable_count=0)), where)
+    entries = _records(*map(normalized, (b, a, c)), lambda e: e.item_key, where)
+    entries = tuple(e for e in entries if e.is_buyable) + tuple(e for e in entries if not e.is_buyable)
+    entries = tuple(replace(e, stock_index=i) for i, e in enumerate(entries))
+    return encode_store_row(replace(template, entries=entries, buyable_count=sum(e.is_buyable for e in entries),
+                                    sellable_count=sum(e.is_sellable for e in entries)))
+
+
 def _store(before, after, current, where, layout):
     from cdmw.core.storeinfo_table import parse_store_row, encode_store_row
     b, a, c = (parse_store_row(raw, layout=layout) for raw in (before, after, current))
+    if layout == 'compact':
+        return _compact_store(b, a, c, where)
     def normalized(row):
         return tuple(replace(e, stock_index=0, offset=-1, end=-1) for e in row.entries)
     original, incoming, current = map(normalized, (b, a, c))
@@ -82,12 +109,17 @@ def _group(before, after, current, where):
     from cdmw.core.itemgroupinfo_table import parse_item_group_row, encode_item_group_row
     b, a, c = map(parse_item_group_row, (before, after, current))
     members = _records(b.members, a.members, c.members, lambda key: key, where)
+    if c.layout == 'compact':
+        # Compact rows keep every other field in their raw layout, not in prefix/tail.
+        template = _shaped((b, a, c), lambda row: encode_item_group_row(replace(row, members=(), subgroups=())), where)
+        return encode_item_group_row(replace(template, members=members,
+            subgroups=_records(b.subgroups, a.subgroups, c.subgroups, lambda key: key, where)))
     return encode_item_group_row(replace(c, members=members,
         prefix=_value(b.prefix, a.prefix, c.prefix, where), tail=_value(b.tail, a.tail, c.tail, where),
         subgroups=_value(b.subgroups, a.subgroups, c.subgroups, where)))
 
 
-def _row(before, after, current, where, path):
+def _row(before, after, current, where, path, compact=False):
     try:
         return _value(before, after, current, where)
     except OverlayConflict:
@@ -95,7 +127,8 @@ def _row(before, after, current, where, path):
             raise
         name = path.rsplit('/', 1)[-1].split('.')[0]
         if name == 'storeinfo':
-            return _store(before, after, current, where, 'current' if path.endswith('.staticinfobody') else 'legacy')
+            layout = 'compact' if compact else 'current' if path.endswith('.staticinfobody') else 'legacy'
+            return _store(before, after, current, where, layout)
         if name == 'itemgroupinfo':
             return _group(before, after, current, where)
         raise
@@ -117,12 +150,13 @@ def _table(body, header):
 def _table_pair(before, after, current, path, head):
     tables = [_table(values[path], values[head]) for values in (before, after, current)]
     b, a, c = tables
-    if len({(t.key_width, t.header_size) for t, _ in tables}) != 1:
+    if len({(t.key_width, t.header_size, t.key_layout) for t, _ in tables}) != 1:
         raise OverlayConflict(f'Table layout changed in {path}.')
+    compact = c[0].key_layout == 'named'
     def merge(old, new, present, where):
         key = next(value[0] for value in (new, present, old) if value is not None)
         raw = _row(old[1] if old else None, new[1] if new else None, present[1] if present else None,
-                   f"{path} [record {int.from_bytes(key, 'little')}]", path)
+                   f"{path} [record {int.from_bytes(key, 'little')}]", path, compact)
         return (key, raw) if raw is not None else None
     rows = _records(b[1], a[1], c[1], lambda r: r[0], path, merge)
     offsets, payload = {}, bytearray()
