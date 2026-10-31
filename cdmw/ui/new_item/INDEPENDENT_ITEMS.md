@@ -21,7 +21,10 @@ writes them to another folder with the same identities:
 
 It accepts Create New Item packages, including their item settings; packages with
 field edits, stock overrides, texture replacements or package links refuse. A rebuilt
-item uses the current template rows, so review it before sharing.
+item uses the current template rows, so review it before sharing. Packages written
+before 2026-10-31 on a game with the DLC used the base copies of the 151 shops and
+349 item groups the DLC replaces, including the camp equipment shop, and must be
+written again too.
 
 ## Optional DMM V3 export
 
@@ -830,8 +833,15 @@ refuse. Duplicate names within one registry refuse case-insensitively. Separate
 mods claiming the same icon must agree on its entry bytes.
 
 The initial baseline uses only direct, four-digit shipped archive directories
-0000 through 0035. Named manager folders such as `dmmgen` and `dmmsa`, other mod
-groups and nested archive copies are excluded from authoring inputs. Custom item
+0000 through 0035, plus every four-digit group of an installed DLC
+(`dlc/dlc_01/0000` through `0040`). Named manager folders such as `dmmgen` and
+`dmmsa`, other mod groups and nested archive copies are excluded from authoring
+inputs. A DLC's table layers (`iteminfo.dlc_01`, `storeinfo.dlc_01` and so on)
+replace the base rows they share keys with, so a new shop or item-group line for a
+shop or group the DLC replaces is written to the DLC layer. Each DLC is a separate
+Steam install: a package made where it is installed pins its files and refuses
+on a game without it, and a package made without it refuses on a game that has it
+until it is written again there. The messages name the DLC in both cases. Custom item
 IDs already present in shipped tables are refused. Required source
 payload hashes must match the author's source. This is conservative version
 compatibility, not proof that a user's base archives are an untouched retail copy.

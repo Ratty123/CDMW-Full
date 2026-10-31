@@ -16990,6 +16990,7 @@
     "{value_0} visible submesh(es)": "{value_0} görünür alt mesh",
     "{value_0} v{value_1}": "{value_0} v{value_1}",
     "{value_0} warning(s)": "{value_0} uyarı(lar)",
+    "{value_0} was made on a game with DLC content this game does not have ({value_1}). Install that DLC to use this item.": "{value_0}, bu oyunda bulunmayan DLC içeriğine ({value_1}) sahip bir oyunda oluşturuldu. Bu eşyayı kullanmak için o DLC’yi yükleyin.",
     "{value_0} was not prepared by the archive worker.": "{value_0} arşiv işlemi tarafından hazırlanmadı.",
     "{value_0} was removed from {value_1}": "{value_0}, {value_1} komutundan kaldırıldı",
     "{value_0} weighted vertices · {value_1} bones": "{value_0} ağırlıklı köşeler · {value_1} kemikler",

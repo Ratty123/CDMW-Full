@@ -16990,6 +16990,7 @@
     "{value_0} visible submesh(es)": "{value_0} 可见子网格",
     "{value_0} v{value_1}": "{value_0} v{value_1}",
     "{value_0} warning(s)": "{value_0} 警告",
+    "{value_0} was made on a game with DLC content this game does not have ({value_1}). Install that DLC to use this item.": "{value_0} 是在包含本游戏没有的 DLC 内容（{value_1}）的游戏上制作的。请安装该 DLC 以使用此物品。",
     "{value_0} was not prepared by the archive worker.": "归档进程未准备 {value_0}。",
     "{value_0} was removed from {value_1}": "已从 {value_1} 移除 {value_0}",
     "{value_0} weighted vertices · {value_1} bones": "{value_0} 加权顶点 · {value_1} 骨骼",

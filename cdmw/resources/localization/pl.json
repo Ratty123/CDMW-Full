@@ -16996,6 +16996,7 @@
     "{value_0} visible submesh(es)": "{value_0} widoczne podsiatki",
     "{value_0} v{value_1}": "{value_0} v{value_1}",
     "{value_0} warning(s)": "Ostrzeżenia {value_0}",
+    "{value_0} was made on a game with DLC content this game does not have ({value_1}). Install that DLC to use this item.": "{value_0} utworzono w grze z zawartością DLC, której ta gra nie ma ({value_1}). Zainstaluj to DLC, aby używać tego przedmiotu.",
     "{value_0} was not prepared by the archive worker.": "Proces archiwów nie przygotował {value_0}.",
     "{value_0} was removed from {value_1}": "Usunięto {value_0} z {value_1}",
     "{value_0} weighted vertices · {value_1} bones": "Wierzchołki ważone {value_0} · Kości {value_1}",

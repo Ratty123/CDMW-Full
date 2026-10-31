@@ -144,29 +144,75 @@ def virtual_path(value):
     return value
 
 
+_DLC_RESOURCE = re.compile(r"[._](dlc_[0-9]+)\.[^/]*\Z")
+
+
+def dlc_content(paths):
+    """The DLC that shipped game files belong to, read from their names (`iteminfo.dlc_01...`).
+
+    Each DLC is a separate install, so a package made with one pins its table
+    layers and verifies only on a game that has the same DLC.
+    """
+    return tuple(sorted({match.group(1) for path in paths if (match := _DLC_RESOURCE.search(path))}))
+
+
 def _stock_paths(root, stop_event):
     from cdmw.core.archive_format import discover_pamt_files
     from cdmw.services.archive_overlay_install import OVERLAY_DIRECTORY_FIRST
-    paths = []
+    paths, dlc = [], set(_dlc_roots(root))
     for path in discover_pamt_files(root):
         raise_if_cancelled(stop_event)
         path = Path(path).resolve()
         folder = path.parent.name
         if not path.is_relative_to(root):
             raise IndependentItemError("The game archive layout is unsupported for independent items.")
+        if not (len(folder) == 4 and folder.isascii() and folder.isdigit()):
+            continue
         # Manager archives (including named groups) and nested copies are not
-        # shipped inputs. Only direct, four-digit game groups form the baseline.
-        if (path.parent.parent == root and len(folder) == 4
-                and folder.isascii() and folder.isdigit() and int(folder) < OVERLAY_DIRECTORY_FIRST):
+        # shipped inputs. Only direct, four-digit game groups form the baseline,
+        # plus the groups of each shipped DLC: its rows are the effective
+        # templates and overrides the game reads. Overlays are never written
+        # under dlc/, so its groups have no overlay range.
+        if path.parent.parent == root and int(folder) < OVERLAY_DIRECTORY_FIRST:
+            paths.append(path)
+        elif path.parent.parent in dlc:
             paths.append(path)
     return tuple(sorted(paths))
+
+
+def _is_dlc_folder(path):
+    name = path.name.lower()
+    return name.startswith('dlc_') and name[4:].isascii() and name[4:].isdigit() and path.parent.name.lower() == 'dlc'
+
+
+def _dlc_roots(root):
+    folder = root / 'dlc'
+    if not folder.is_dir():
+        return ()
+    return tuple(path for path in sorted(folder.iterdir()) if path.is_dir() and _is_dlc_folder(path))
+
+
+def shipped_group(pamt_path):
+    """Whether an archive index belongs to a shipped game group.
+
+    Base groups sit below the overlay range; a DLC's groups (`dlc/dlc_01/0036`)
+    use the same numbers without one.
+    """
+    from cdmw.services.archive_overlay_install import OVERLAY_DIRECTORY_FIRST
+    group = Path(pamt_path).parent
+    if not (len(group.name) == 4 and group.name.isascii() and group.name.isdigit()):
+        return False
+    return _is_dlc_folder(group.parent) or int(group.name) < OVERLAY_DIRECTORY_FIRST
 
 
 def _stock_metadata(root, stop_event):
     # Mount order selects providers and pathc is parsed beside the archives.
     # Hash these small metadata inputs, not filesystem timestamps alone.
     values = []
-    for relative in ('meta/0.papgt', 'meta/0.paver', 'meta/0.pathc'):
+    relatives = ['meta/0.papgt', 'meta/0.paver', 'meta/0.pathc']
+    relatives += [f'{path.relative_to(root).as_posix()}/meta/0.{kind}'
+                  for path in _dlc_roots(root) for kind in ('papgt', 'paver', 'pathc')]
+    for relative in relatives:
         raise_if_cancelled(stop_event)
         path = root / relative
         values.append((relative, digest(path.read_bytes()) if path.is_file() else None))
@@ -257,6 +303,12 @@ def audit_plan(plan, snapshot, *, stop_event=None):
         raise IndependentItemError("Independent packages support adding shop stock, not replacing existing stock.")
     files = plan.loose_files
     pairs = {str(row["payload_path"]).lower(): str(row["header_path"]).lower() for row in plan.manifest["tables"].values()}
+    # A DLC layer (`itemgroupinfo.dlc_01`) holds the rows the game reads for the
+    # base keys it overrides, so shop and group lines for those keys go there.
+    sources = snapshot.sources.tables if snapshot.sources is not None else {}
+    for stem, (body, header) in sources.items():
+        if stem.partition(".")[0] in plan.manifest["tables"] and stem.partition(".")[2]:
+            pairs.setdefault(body.path.lower(), header.path.lower())
     allowed_tables = {"iteminfo", "stringinfo", "storeinfo", "itemgroupinfo", "multichangeinfo", "dropsetinfo", "partprefabdyeslotinfo"}
     for request in plan.patches:
         path = virtual_path(request.entry.path.lower())
@@ -323,8 +375,7 @@ def from_plan(plan, identity, *, title=None, stop_event=None):
               "icon": blob(icon) if icon is not None else None}
     dependencies = {}
     for row in plan.source_revision.payloads:
-        folder = Path(row.entry.pamt_path).parent.name
-        if not folder.isdigit() or int(folder) >= 36:
+        if not shipped_group(row.entry.pamt_path):
             raise IndependentItemError("Independent packages may borrow only shipped game resources. Rebuild against the clean game baseline.")
         path = _resource_path(row.entry.path.lower())
         if path in dependencies and dependencies[path] != row.sha256:

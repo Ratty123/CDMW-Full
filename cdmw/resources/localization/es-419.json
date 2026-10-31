@@ -16994,6 +16994,7 @@
     "{value_0} visible submesh(es)": "{value_0} submallas visibles",
     "{value_0} v{value_1}": "{value_0} v{value_1}",
     "{value_0} warning(s)": "Advertencia(s) de {value_0}",
+    "{value_0} was made on a game with DLC content this game does not have ({value_1}). Install that DLC to use this item.": "{value_0} se creó en un juego con contenido DLC que este juego no tiene ({value_1}). Instala ese DLC para usar este objeto.",
     "{value_0} was not prepared by the archive worker.": "El proceso de archivos no preparó {value_0}.",
     "{value_0} was removed from {value_1}": "{value_0} se quitó de {value_1}",
     "{value_0} weighted vertices · {value_1} bones": "Vértices ponderados {value_0} · Huesos {value_1}",

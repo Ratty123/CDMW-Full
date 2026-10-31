@@ -16994,6 +16994,7 @@
     "{value_0} visible submesh(es)": "Sous-maillage(s) visible(s) {value_0}",
     "{value_0} v{value_1}": "{value_0} v{value_1}",
     "{value_0} warning(s)": "Avertissement(s) {value_0}",
+    "{value_0} was made on a game with DLC content this game does not have ({value_1}). Install that DLC to use this item.": "{value_0} a été créé sur un jeu doté d’un contenu DLC absent de ce jeu ({value_1}). Installez ce DLC pour utiliser cet objet.",
     "{value_0} was not prepared by the archive worker.": "{value_0} n'a pas été préparé par le processus d'archives.",
     "{value_0} was removed from {value_1}": "{value_0} a été retiré de {value_1}",
     "{value_0} weighted vertices · {value_1} bones": "Sommets pondérés {value_0} · Os {value_1}",

@@ -24697,7 +24697,7 @@ MESSAGE_REFERENCE = [
     "message": "A batch contains two different versions of the same item. Select one version.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/independent_item_install.py": 486
+      "cdmw/services/independent_item_install.py": 489
     }
   },
   {
@@ -24777,7 +24777,7 @@ MESSAGE_REFERENCE = [
     "message": "A required item resource is missing.",
     "recovery": "missing",
     "sources": {
-      "cdmw/services/independent_item_package.py": 439
+      "cdmw/services/independent_item_package.py": 534
     }
   },
   {
@@ -24801,7 +24801,7 @@ MESSAGE_REFERENCE = [
     "message": "A semantic export contributor changed during compilation.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/independent_item_compatibility.py": 701
+      "cdmw/services/independent_item_compatibility.py": 704
     }
   },
   {
@@ -24849,7 +24849,7 @@ MESSAGE_REFERENCE = [
     "message": "A v2 package requires a v2-aware editor. Refusing to discard its modules or provenance.",
     "recovery": "integrity",
     "sources": {
-      "cdmw/services/independent_item_package.py": 679
+      "cdmw/services/independent_item_package.py": 774
     }
   },
   {
@@ -24905,7 +24905,7 @@ MESSAGE_REFERENCE = [
     "message": "An existing item package cannot discard its owned objects by becoming a record-edit package.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/independent_item_install.py": 653
+      "cdmw/services/independent_item_install.py": 661
     }
   },
   {
@@ -24929,7 +24929,7 @@ MESSAGE_REFERENCE = [
     "message": "An installed overlay occupies an identity in the incoming profile.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/independent_item_install.py": 940
+      "cdmw/services/independent_item_install.py": 948
     }
   },
   {
@@ -24961,7 +24961,7 @@ MESSAGE_REFERENCE = [
     "message": "An item resource exceeds the package size limit.",
     "recovery": "limits",
     "sources": {
-      "cdmw/services/independent_item_package.py": 493
+      "cdmw/services/independent_item_package.py": 588
     }
   },
   {
@@ -24969,7 +24969,7 @@ MESSAGE_REFERENCE = [
     "message": "An untyped installed overlay cannot be included in a semantic export.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/independent_item_compatibility.py": 843
+      "cdmw/services/independent_item_compatibility.py": 846
     }
   },
   {
@@ -24977,7 +24977,7 @@ MESSAGE_REFERENCE = [
     "message": "Another installed item retains this identity in its compilation. Rebuild or remove that item before deleting this identity.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/independent_item_install.py": 850
+      "cdmw/services/independent_item_install.py": 858
     }
   },
   {
@@ -24985,7 +24985,7 @@ MESSAGE_REFERENCE = [
     "message": "Another installed overlay depends on this item. Remove that dependent overlay before updating it.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/independent_item_install.py": 592
+      "cdmw/services/independent_item_install.py": 595
     }
   },
   {
@@ -24993,7 +24993,7 @@ MESSAGE_REFERENCE = [
     "message": "Another mod changes this file, and the item was built against the game's own copy. CDMW cannot combine changes to this kind of file; disable the other mod to load this item.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/independent_item_compatibility.py": 529
+      "cdmw/services/independent_item_compatibility.py": 532
     }
   },
   {
@@ -25153,8 +25153,8 @@ MESSAGE_REFERENCE = [
     "message": "Cannot identify lock directory",
     "recovery": "input",
     "sources": {
-      "native/cdmw_virtual_loader/compose_launch.cpp": 403,
-      "native/cdmw_virtual_loader/protocol.cpp": 138
+      "native/cdmw_virtual_loader/compose_launch.cpp": 454,
+      "native/cdmw_virtual_loader/protocol.cpp": 143
     }
   },
   {
@@ -25186,7 +25186,7 @@ MESSAGE_REFERENCE = [
     "message": "Cannot identify the runtime",
     "recovery": "input",
     "sources": {
-      "native/cdmw_virtual_loader/compose_launch.cpp": 354
+      "native/cdmw_virtual_loader/compose_launch.cpp": 403
     }
   },
   {
@@ -25322,7 +25322,7 @@ MESSAGE_REFERENCE = [
     "message": "Cannot publish session manifest",
     "recovery": "write",
     "sources": {
-      "native/cdmw_virtual_loader/protocol.cpp": 181
+      "native/cdmw_virtual_loader/protocol.cpp": 186
     }
   },
   {
@@ -25370,7 +25370,7 @@ MESSAGE_REFERENCE = [
     "message": "Cannot resolve the game folder",
     "recovery": "input",
     "sources": {
-      "native/cdmw_virtual_loader/compose_launch.cpp": 392
+      "native/cdmw_virtual_loader/compose_launch.cpp": 443
     }
   },
   {
@@ -25442,7 +25442,7 @@ MESSAGE_REFERENCE = [
     "message": "Cannot write session manifest",
     "recovery": "write",
     "sources": {
-      "native/cdmw_virtual_loader/protocol.cpp": 180
+      "native/cdmw_virtual_loader/protocol.cpp": 185
     }
   },
   {
@@ -25538,7 +25538,7 @@ MESSAGE_REFERENCE = [
     "message": "Close Crimson Desert before deleting saved identities.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/independent_item_install.py": 882
+      "cdmw/services/independent_item_install.py": 890
     }
   },
   {
@@ -25610,7 +25610,7 @@ MESSAGE_REFERENCE = [
     "message": "Combining semantic exports with unannotated mod folders is unsupported; retain the original .cditem contributors.",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/services/independent_item_compatibility.py": 836
+      "cdmw/services/independent_item_compatibility.py": 839
     }
   },
   {
@@ -25730,7 +25730,7 @@ MESSAGE_REFERENCE = [
     "message": "Duplicate or missing package entries.",
     "recovery": "conflict",
     "sources": {
-      "cdmw/services/independent_item_package.py": 629
+      "cdmw/services/independent_item_package.py": 724
     }
   },
   {
@@ -25738,7 +25738,7 @@ MESSAGE_REFERENCE = [
     "message": "Duplicate package metadata key.",
     "recovery": "conflict",
     "sources": {
-      "cdmw/services/independent_item_package.py": 644
+      "cdmw/services/independent_item_package.py": 739
     }
   },
   {
@@ -25746,7 +25746,7 @@ MESSAGE_REFERENCE = [
     "message": "Duplicate prepared variant binding.",
     "recovery": "conflict",
     "sources": {
-      "cdmw/services/independent_item_package.py": 460
+      "cdmw/services/independent_item_package.py": 555
     }
   },
   {
@@ -25786,7 +25786,7 @@ MESSAGE_REFERENCE = [
     "message": "Field packages must be authored against shipped game tables.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/independent_item_operations.py": 133
+      "cdmw/services/independent_item_operations.py": 131
     }
   },
   {
@@ -25810,7 +25810,7 @@ MESSAGE_REFERENCE = [
     "message": "Identity deletion failed; recovery requires backup {backup_dir}: {rollback_error}",
     "recovery": "recovery",
     "sources": {
-      "cdmw/services/independent_item_install.py": 908
+      "cdmw/services/independent_item_install.py": 916
     }
   },
   {
@@ -25818,7 +25818,7 @@ MESSAGE_REFERENCE = [
     "message": "Identity deletion requires a prepared change.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/independent_item_install.py": 872
+      "cdmw/services/independent_item_install.py": 880
     }
   },
   {
@@ -25826,7 +25826,7 @@ MESSAGE_REFERENCE = [
     "message": "Identity deletion requires explicit confirmation.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/independent_item_install.py": 874
+      "cdmw/services/independent_item_install.py": 882
     }
   },
   {
@@ -25834,7 +25834,7 @@ MESSAGE_REFERENCE = [
     "message": "Identity profiles use the .cdprofile extension.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/independent_item_install.py": 785
+      "cdmw/services/independent_item_install.py": 793
     }
   },
   {
@@ -25874,7 +25874,7 @@ MESSAGE_REFERENCE = [
     "message": "Independent item changes an existing {name} record.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/independent_item_package.py": 272
+      "cdmw/services/independent_item_package.py": 324
     }
   },
   {
@@ -25890,7 +25890,7 @@ MESSAGE_REFERENCE = [
     "message": "Independent item packages use the .cditem extension.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/independent_item_package.py": 672
+      "cdmw/services/independent_item_package.py": 767
     }
   },
   {
@@ -25906,7 +25906,7 @@ MESSAGE_REFERENCE = [
     "message": "Independent packages cannot carry the shared change: {path}",
     "recovery": "input",
     "sources": {
-      "cdmw/services/independent_item_package.py": 276
+      "cdmw/services/independent_item_package.py": 328
     }
   },
   {
@@ -25914,7 +25914,7 @@ MESSAGE_REFERENCE = [
     "message": "Independent packages cannot modify existing reward consumers or include another mod base.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/independent_item_package.py": 255
+      "cdmw/services/independent_item_package.py": 301
     }
   },
   {
@@ -25922,7 +25922,7 @@ MESSAGE_REFERENCE = [
     "message": "Independent packages may borrow only shipped game resources. Rebuild against the clean game baseline.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/independent_item_package.py": 328
+      "cdmw/services/independent_item_package.py": 379
     }
   },
   {
@@ -25930,7 +25930,7 @@ MESSAGE_REFERENCE = [
     "message": "Independent packages require verified source dependencies.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/independent_item_package.py": 302
+      "cdmw/services/independent_item_package.py": 354
     }
   },
   {
@@ -25938,7 +25938,7 @@ MESSAGE_REFERENCE = [
     "message": "Independent packages support adding shop stock, not replacing existing stock.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/independent_item_package.py": 257
+      "cdmw/services/independent_item_package.py": 303
     }
   },
   {
@@ -25994,7 +25994,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid catalogue guard",
     "recovery": "input",
     "sources": {
-      "native/cdmw_virtual_loader/protocol.cpp": 134
+      "native/cdmw_virtual_loader/protocol.cpp": 139
     }
   },
   {
@@ -26058,7 +26058,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid game dependency checksum.",
     "recovery": "integrity",
     "sources": {
-      "cdmw/services/independent_item_package.py": 399
+      "cdmw/services/independent_item_package.py": 494
     }
   },
   {
@@ -26106,7 +26106,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid independent item package: {exc}",
     "recovery": "input",
     "sources": {
-      "cdmw/services/independent_item_package.py": 666
+      "cdmw/services/independent_item_package.py": 761
     }
   },
   {
@@ -26114,7 +26114,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid independent item recipe.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/independent_item_package.py": 415
+      "cdmw/services/independent_item_package.py": 510
     }
   },
   {
@@ -26130,7 +26130,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid installation lock",
     "recovery": "input",
     "sources": {
-      "native/cdmw_virtual_loader/protocol.cpp": 141
+      "native/cdmw_virtual_loader/protocol.cpp": 146
     }
   },
   {
@@ -26138,7 +26138,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid item package title.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/independent_item_package.py": 393
+      "cdmw/services/independent_item_package.py": 486
     }
   },
   {
@@ -26154,7 +26154,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid launcher descriptor",
     "recovery": "input",
     "sources": {
-      "native/cdmw_virtual_loader/protocol.cpp": 162
+      "native/cdmw_virtual_loader/protocol.cpp": 167
     }
   },
   {
@@ -26170,7 +26170,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid logical depth",
     "recovery": "input",
     "sources": {
-      "native/cdmw_virtual_loader/protocol.cpp": 108
+      "native/cdmw_virtual_loader/protocol.cpp": 109
     }
   },
   {
@@ -26250,7 +26250,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid prepared model.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/independent_item_package.py": 446
+      "cdmw/services/independent_item_package.py": 541
     }
   },
   {
@@ -26258,7 +26258,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid prepared variant binding.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/independent_item_package.py": 457
+      "cdmw/services/independent_item_package.py": 552
     }
   },
   {
@@ -26266,7 +26266,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid prepared variants.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/independent_item_package.py": 454
+      "cdmw/services/independent_item_package.py": 549
     }
   },
   {
@@ -26338,7 +26338,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid source guard",
     "recovery": "input",
     "sources": {
-      "native/cdmw_virtual_loader/protocol.cpp": 122
+      "native/cdmw_virtual_loader/protocol.cpp": 127
     }
   },
   {
@@ -26506,7 +26506,7 @@ MESSAGE_REFERENCE = [
     "message": "Item package exceeds the supported size.",
     "recovery": "limits",
     "sources": {
-      "cdmw/services/independent_item_package.py": 403
+      "cdmw/services/independent_item_package.py": 498
     }
   },
   {
@@ -26514,7 +26514,7 @@ MESSAGE_REFERENCE = [
     "message": "Item package metadata exceeds the supported size.",
     "recovery": "limits",
     "sources": {
-      "cdmw/services/independent_item_package.py": 491
+      "cdmw/services/independent_item_package.py": 586
     }
   },
   {
@@ -26538,7 +26538,7 @@ MESSAGE_REFERENCE = [
     "message": "Item resource failed its checksum or size check.",
     "recovery": "integrity",
     "sources": {
-      "cdmw/services/independent_item_package.py": 553
+      "cdmw/services/independent_item_package.py": 648
     }
   },
   {
@@ -26570,7 +26570,7 @@ MESSAGE_REFERENCE = [
     "message": "Local dye mask files are not supported in independent packages. Clear the custom dye mask before exporting.",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/services/independent_item_package.py": 435
+      "cdmw/services/independent_item_package.py": 530
     }
   },
   {
@@ -26578,7 +26578,7 @@ MESSAGE_REFERENCE = [
     "message": "Map targets must be archives or game metadata",
     "recovery": "input",
     "sources": {
-      "native/cdmw_virtual_loader/protocol.cpp": 113
+      "native/cdmw_virtual_loader/protocol.cpp": 114
     }
   },
   {
@@ -26586,7 +26586,7 @@ MESSAGE_REFERENCE = [
     "message": "Missing virtual mount list",
     "recovery": "missing",
     "sources": {
-      "native/cdmw_virtual_loader/protocol.cpp": 118
+      "native/cdmw_virtual_loader/protocol.cpp": 123
     }
   },
   {
@@ -26682,7 +26682,7 @@ MESSAGE_REFERENCE = [
     "message": "Portable items must use symbolic identities.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/independent_item_package.py": 418
+      "cdmw/services/independent_item_package.py": 513
     }
   },
   {
@@ -26802,7 +26802,7 @@ MESSAGE_REFERENCE = [
     "message": "Rebuild the installed package with the current compiler before semantic export.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/independent_item_compatibility.py": 740
+      "cdmw/services/independent_item_compatibility.py": 743
     }
   },
   {
@@ -26818,7 +26818,7 @@ MESSAGE_REFERENCE = [
     "message": "Remove the item from the virtual profile before installing it into archives.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/independent_item_install.py": 503
+      "cdmw/services/independent_item_install.py": 506
     }
   },
   {
@@ -26826,7 +26826,7 @@ MESSAGE_REFERENCE = [
     "message": "Remove this item from Mods and apply the changes before deleting its saved identity.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/independent_item_install.py": 830
+      "cdmw/services/independent_item_install.py": 838
     }
   },
   {
@@ -26834,7 +26834,7 @@ MESSAGE_REFERENCE = [
     "message": "Required prefab metadata changed.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/independent_item_compatibility.py": 524
+      "cdmw/services/independent_item_compatibility.py": 527
     }
   },
   {
@@ -26842,7 +26842,7 @@ MESSAGE_REFERENCE = [
     "message": "Required record {key} was changed or removed.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/independent_item_compatibility.py": 533
+      "cdmw/services/independent_item_compatibility.py": 536
     }
   },
   {
@@ -26850,7 +26850,7 @@ MESSAGE_REFERENCE = [
     "message": "Required {name} record {number} was changed or removed.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/independent_item_compatibility.py": 500
+      "cdmw/services/independent_item_compatibility.py": 503
     }
   },
   {
@@ -26858,7 +26858,7 @@ MESSAGE_REFERENCE = [
     "message": "Retained semantic export package disagrees with its ownership.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/independent_item_compatibility.py": 753
+      "cdmw/services/independent_item_compatibility.py": 756
     }
   },
   {
@@ -26874,7 +26874,7 @@ MESSAGE_REFERENCE = [
     "message": "Review the conflicts or unsupported data before merging.",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/services/independent_item_compatibility.py": 659
+      "cdmw/services/independent_item_compatibility.py": 662
     }
   },
   {
@@ -27019,7 +27019,7 @@ MESSAGE_REFERENCE = [
     "message": "Select Independent item package and rebuild the plan first.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/independent_item_package.py": 300
+      "cdmw/services/independent_item_package.py": 352
     }
   },
   {
@@ -27035,7 +27035,7 @@ MESSAGE_REFERENCE = [
     "message": "Select an installed physical item to rebuild.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/independent_item_install.py": 744
+      "cdmw/services/independent_item_install.py": 752
     }
   },
   {
@@ -27043,7 +27043,7 @@ MESSAGE_REFERENCE = [
     "message": "Select at least one saved identity.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/independent_item_install.py": 819
+      "cdmw/services/independent_item_install.py": 827
     }
   },
   {
@@ -27067,7 +27067,7 @@ MESSAGE_REFERENCE = [
     "message": "Select between one and 128 item packages.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/independent_item_install.py": 478
+      "cdmw/services/independent_item_install.py": 481
     }
   },
   {
@@ -27115,7 +27115,7 @@ MESSAGE_REFERENCE = [
     "message": "Select the existing package explicitly before updating it.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/independent_item_package.py": 677
+      "cdmw/services/independent_item_package.py": 772
     }
   },
   {
@@ -27139,7 +27139,7 @@ MESSAGE_REFERENCE = [
     "message": "Semantic export payloads, flags or original baselines disagree with retained package recompilation.",
     "recovery": "format",
     "sources": {
-      "cdmw/services/independent_item_compatibility.py": 715
+      "cdmw/services/independent_item_compatibility.py": 718
     }
   },
   {
@@ -27147,7 +27147,7 @@ MESSAGE_REFERENCE = [
     "message": "Semantic export requires recompilation against the current witnessed baseline.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/independent_item_compatibility.py": 769
+      "cdmw/services/independent_item_compatibility.py": 772
     }
   },
   {
@@ -27155,7 +27155,7 @@ MESSAGE_REFERENCE = [
     "message": "Semantic export requires retained .cditem contributors for every payload. Mixed foreign or untyped overlay exports remain unsupported.",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/services/independent_item_compatibility.py": 732
+      "cdmw/services/independent_item_compatibility.py": 735
     }
   },
   {
@@ -27260,7 +27260,7 @@ MESSAGE_REFERENCE = [
     "message": "Stock overrides require shipped source resources.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/independent_item_operations.py": 162
+      "cdmw/services/independent_item_operations.py": 158
     }
   },
   {
@@ -27284,7 +27284,7 @@ MESSAGE_REFERENCE = [
     "message": "Table layout changed.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/independent_item_compatibility.py": 490
+      "cdmw/services/independent_item_compatibility.py": 493
     }
   },
   {
@@ -27308,7 +27308,7 @@ MESSAGE_REFERENCE = [
     "message": "Texture conflict at {path}: {owner}; {consumer} requires the complete resource unchanged.",
     "recovery": "stale",
     "sources": {
-      "cdmw/services/independent_item_compatibility.py": 619
+      "cdmw/services/independent_item_compatibility.py": 622
     }
   },
   {
@@ -27396,7 +27396,7 @@ MESSAGE_REFERENCE = [
     "message": "The clean game catalogue changed during snapshot validation.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/independent_item_package.py": 199
+      "cdmw/services/independent_item_package.py": 245
     }
   },
   {
@@ -27404,7 +27404,7 @@ MESSAGE_REFERENCE = [
     "message": "The clean game catalogue changed while building its snapshot.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/independent_item_package.py": 217
+      "cdmw/services/independent_item_package.py": 263
     }
   },
   {
@@ -27444,7 +27444,7 @@ MESSAGE_REFERENCE = [
     "message": "The composition record cannot be read back",
     "recovery": "input",
     "sources": {
-      "native/cdmw_virtual_loader/compose_launch.cpp": 381
+      "native/cdmw_virtual_loader/compose_launch.cpp": 431
     }
   },
   {
@@ -27492,7 +27492,7 @@ MESSAGE_REFERENCE = [
     "message": "The destination changed during package export.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/independent_item_package.py": 703
+      "cdmw/services/independent_item_package.py": 798
     }
   },
   {
@@ -27540,7 +27540,7 @@ MESSAGE_REFERENCE = [
     "message": "The game archive layout is unsupported for independent items.",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/services/independent_item_package.py": 156
+      "cdmw/services/independent_item_package.py": 168
     }
   },
   {
@@ -27564,7 +27564,7 @@ MESSAGE_REFERENCE = [
     "message": "The identity profile changed during preparation. Refresh and prepare again.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/independent_item_install.py": 773
+      "cdmw/services/independent_item_install.py": 781
     }
   },
   {
@@ -27660,7 +27660,7 @@ MESSAGE_REFERENCE = [
     "message": "The package changed while it was being read.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/independent_item_package.py": 655
+      "cdmw/services/independent_item_package.py": 750
     }
   },
   {
@@ -27668,7 +27668,7 @@ MESSAGE_REFERENCE = [
     "message": "The package contains unreferenced resources.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/independent_item_package.py": 474
+      "cdmw/services/independent_item_package.py": 569
     }
   },
   {
@@ -27684,7 +27684,7 @@ MESSAGE_REFERENCE = [
     "message": "The package has an incomplete game dependency graph.",
     "recovery": "format",
     "sources": {
-      "cdmw/services/independent_item_install.py": 647
+      "cdmw/services/independent_item_install.py": 655
     }
   },
   {
@@ -27692,7 +27692,7 @@ MESSAGE_REFERENCE = [
     "message": "The package has no verified game dependencies.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/independent_item_package.py": 395
+      "cdmw/services/independent_item_package.py": 488
     }
   },
   {
@@ -27708,7 +27708,7 @@ MESSAGE_REFERENCE = [
     "message": "The package resource inventory does not match its contents.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/independent_item_package.py": 401
+      "cdmw/services/independent_item_package.py": 496
     }
   },
   {
@@ -27716,7 +27716,7 @@ MESSAGE_REFERENCE = [
     "message": "The package selected for update is missing.",
     "recovery": "missing",
     "sources": {
-      "cdmw/services/independent_item_package.py": 683
+      "cdmw/services/independent_item_package.py": 778
     }
   },
   {
@@ -27892,7 +27892,7 @@ MESSAGE_REFERENCE = [
     "message": "The reserved model identity is occupied.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/independent_item_install.py": 631
+      "cdmw/services/independent_item_install.py": 634
     }
   },
   {
@@ -27988,7 +27988,7 @@ MESSAGE_REFERENCE = [
     "message": "The retained independent package does not match its ownership history.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/independent_item_compatibility.py": 578
+      "cdmw/services/independent_item_compatibility.py": 581
     }
   },
   {
@@ -28004,7 +28004,7 @@ MESSAGE_REFERENCE = [
     "message": "The retained package field operations disagree with its ownership layer.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/independent_item_compatibility.py": 590
+      "cdmw/services/independent_item_compatibility.py": 593
     }
   },
   {
@@ -28012,7 +28012,7 @@ MESSAGE_REFERENCE = [
     "message": "The retained package texture requirements disagree with its ownership layer.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/independent_item_compatibility.py": 584
+      "cdmw/services/independent_item_compatibility.py": 587
     }
   },
   {
@@ -28028,7 +28028,7 @@ MESSAGE_REFERENCE = [
     "message": "The retained rebuild package has changed outside CDMW.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/independent_item_install.py": 753
+      "cdmw/services/independent_item_install.py": 761
     }
   },
   {
@@ -28036,7 +28036,7 @@ MESSAGE_REFERENCE = [
     "message": "The retained rebuild package is missing or too large.",
     "recovery": "limits",
     "sources": {
-      "cdmw/services/independent_item_install.py": 749
+      "cdmw/services/independent_item_install.py": 757
     }
   },
   {
@@ -28044,7 +28044,7 @@ MESSAGE_REFERENCE = [
     "message": "The retained recovery package exceeds the supported size.",
     "recovery": "limits",
     "sources": {
-      "cdmw/services/independent_item_install.py": 235
+      "cdmw/services/independent_item_install.py": 238
     }
   },
   {
@@ -28052,7 +28052,7 @@ MESSAGE_REFERENCE = [
     "message": "The retained recovery package has changed outside CDMW.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/independent_item_install.py": 239
+      "cdmw/services/independent_item_install.py": 242
     }
   },
   {
@@ -28068,7 +28068,7 @@ MESSAGE_REFERENCE = [
     "message": "The retained virtual package does not match the saved profile and item identities.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/independent_item_compatibility.py": 910
+      "cdmw/services/independent_item_compatibility.py": 913
     }
   },
   {
@@ -28140,7 +28140,7 @@ MESSAGE_REFERENCE = [
     "message": "The saved identities or installation changed. Refresh and review the deletion again.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/independent_item_install.py": 886
+      "cdmw/services/independent_item_install.py": 894
     }
   },
   {
@@ -28164,7 +28164,7 @@ MESSAGE_REFERENCE = [
     "message": "The selected packages exceed the batch size limit. Import a smaller batch.",
     "recovery": "limits",
     "sources": {
-      "cdmw/services/independent_item_install.py": 490
+      "cdmw/services/independent_item_install.py": 493
     }
   },
   {
@@ -28196,7 +28196,7 @@ MESSAGE_REFERENCE = [
     "message": "The selected semantic exports exceed the package or comparison size limit.",
     "recovery": "limits",
     "sources": {
-      "cdmw/services/independent_item_install.py": 420
+      "cdmw/services/independent_item_install.py": 423
     }
   },
   {
@@ -28276,7 +28276,7 @@ MESSAGE_REFERENCE = [
     "message": "The shipped item tables contain custom items. Restore a clean game baseline before using independent packages.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/independent_item_package.py": 214
+      "cdmw/services/independent_item_package.py": 260
     }
   },
   {
@@ -28292,7 +28292,7 @@ MESSAGE_REFERENCE = [
     "message": "The source contains conflicting resource versions.",
     "recovery": "conflict",
     "sources": {
-      "cdmw/services/independent_item_package.py": 331
+      "cdmw/services/independent_item_package.py": 382
     }
   },
   {
@@ -28300,7 +28300,7 @@ MESSAGE_REFERENCE = [
     "message": "The staged package failed final identity and content readback.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/independent_item_package.py": 694
+      "cdmw/services/independent_item_package.py": 789
     }
   },
   {
@@ -28348,7 +28348,7 @@ MESSAGE_REFERENCE = [
     "message": "The texture replacement requires different final bytes.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/independent_item_compatibility.py": 483
+      "cdmw/services/independent_item_compatibility.py": 486
     }
   },
   {
@@ -28460,7 +28460,7 @@ MESSAGE_REFERENCE = [
     "message": "This game has no verified texture registry for the new icon or textures.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/independent_item_install.py": 671
+      "cdmw/services/independent_item_install.py": 679
     }
   },
   {
@@ -28468,7 +28468,7 @@ MESSAGE_REFERENCE = [
     "message": "This item is not installed.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/independent_item_install.py": 767
+      "cdmw/services/independent_item_install.py": 775
     }
   },
   {
@@ -28492,7 +28492,7 @@ MESSAGE_REFERENCE = [
     "message": "This profile would change a retained item identity. Existing save identities cannot be renumbered.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/independent_item_install.py": 928
+      "cdmw/services/independent_item_install.py": 936
     }
   },
   {
@@ -28500,7 +28500,7 @@ MESSAGE_REFERENCE = [
     "message": "This saved identity no longer exists. Refresh the list.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/independent_item_install.py": 824
+      "cdmw/services/independent_item_install.py": 832
     }
   },
   {
@@ -28516,7 +28516,7 @@ MESSAGE_REFERENCE = [
     "message": "Truncated item package resource.",
     "recovery": "format",
     "sources": {
-      "cdmw/services/independent_item_package.py": 572
+      "cdmw/services/independent_item_package.py": 667
     }
   },
   {
@@ -28564,7 +28564,7 @@ MESSAGE_REFERENCE = [
     "message": "Unknown item deployment target.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/independent_item_install.py": 464
+      "cdmw/services/independent_item_install.py": 467
     }
   },
   {
@@ -28636,7 +28636,7 @@ MESSAGE_REFERENCE = [
     "message": "Unsafe or unsupported package entry.",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/services/independent_item_package.py": 636
+      "cdmw/services/independent_item_package.py": 731
     }
   },
   {
@@ -28700,7 +28700,7 @@ MESSAGE_REFERENCE = [
     "message": "Unsupported independent item package version or fields.",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/services/independent_item_package.py": 383
+      "cdmw/services/independent_item_package.py": 476
     }
   },
   {
@@ -28740,7 +28740,7 @@ MESSAGE_REFERENCE = [
     "message": "Unsupported manifest",
     "recovery": "unsupported",
     "sources": {
-      "native/cdmw_virtual_loader/protocol.cpp": 148
+      "native/cdmw_virtual_loader/protocol.cpp": 153
     }
   },
   {
@@ -28748,7 +28748,7 @@ MESSAGE_REFERENCE = [
     "message": "Unsupported metadata in merged output: {path}.",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/services/independent_item_compatibility.py": 1000
+      "cdmw/services/independent_item_compatibility.py": 1003
     }
   },
   {
@@ -28765,7 +28765,7 @@ MESSAGE_REFERENCE = [
     "message": "Unsupported owned resource: {path}",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/services/independent_item_package.py": 280
+      "cdmw/services/independent_item_package.py": 332
     }
   },
   {
@@ -28797,7 +28797,7 @@ MESSAGE_REFERENCE = [
     "message": "Unsupported prepared model side file.",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/services/independent_item_package.py": 449
+      "cdmw/services/independent_item_package.py": 544
     }
   },
   {
@@ -28821,7 +28821,7 @@ MESSAGE_REFERENCE = [
     "message": "Unsupported shared metadata change.",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/services/independent_item_package.py": 282
+      "cdmw/services/independent_item_package.py": 334
     }
   },
   {
@@ -28829,7 +28829,7 @@ MESSAGE_REFERENCE = [
     "message": "Unsupported shared table: {name}",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/services/independent_item_package.py": 266
+      "cdmw/services/independent_item_package.py": 318
     }
   },
   {
@@ -28869,7 +28869,7 @@ MESSAGE_REFERENCE = [
     "message": "Use Apply changes in Mods to update the virtual profile. Archive export cannot include its shared files.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/independent_item_compatibility.py": 872
+      "cdmw/services/independent_item_compatibility.py": 875
     }
   },
   {
@@ -29157,7 +29157,7 @@ MESSAGE_REFERENCE = [
     "message": "{', '.join(external.labels((path,)))}: an owned asset is already supplied by another mod: {path}.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/independent_item_compatibility.py": 548
+      "cdmw/services/independent_item_compatibility.py": 551
     }
   },
   {
@@ -29189,7 +29189,7 @@ MESSAGE_REFERENCE = [
     "message": "{identity}: semantic export bindings differ from retained identities; relocation is unsupported.",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/services/independent_item_install.py": 451
+      "cdmw/services/independent_item_install.py": 454
     }
   },
   {
@@ -29229,7 +29229,7 @@ MESSAGE_REFERENCE = [
     "message": "{package.identity}: semantic export relocation is unsupported.",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/services/independent_item_compatibility.py": 705
+      "cdmw/services/independent_item_compatibility.py": 708
     }
   },
   {
@@ -29237,7 +29237,7 @@ MESSAGE_REFERENCE = [
     "message": "{package.title} ({identity}): an owned asset name is already reserved by {asset_owner(path)}: {path}. The package cannot be installed without changing its identity.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/independent_item_install.py": 664
+      "cdmw/services/independent_item_install.py": 672
     }
   },
   {
@@ -29245,7 +29245,24 @@ MESSAGE_REFERENCE = [
     "message": "{package.title} ({package.identity}): ItemInfo name hash collides under ASCII lowercasing (0x{checksum}): CDI_{package.identity}; already reserved by {owner}: {name}. Resolve the conflicting item names before installing.",
     "recovery": "integrity",
     "sources": {
-      "cdmw/services/independent_item_install.py": 368
+      "cdmw/services/independent_item_install.py": 371
+    }
+  },
+  {
+    "area": "independent",
+    "message": "{package.title} was made on a game with DLC content this game does not have ({names}). Install that DLC to use this item.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/services/independent_item_compatibility.py": 472,
+      "cdmw/services/independent_item_install.py": 219
+    }
+  },
+  {
+    "area": "independent",
+    "message": "{package.title} was made on a game without the DLC content this game has ({names}). Update the package with Create New Item on this game to use it here.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/services/independent_item_install.py": 654
     }
   },
   {
@@ -29253,8 +29270,16 @@ MESSAGE_REFERENCE = [
     "message": "{package.title}: incompatible game dependency {path}. Use the matching game version or an updated package.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/independent_item_compatibility.py": 470,
-      "cdmw/services/independent_item_install.py": 217
+      "cdmw/services/independent_item_compatibility.py": 473,
+      "cdmw/services/independent_item_install.py": 220
+    }
+  },
+  {
+    "area": "independent",
+    "message": "{package.title}: only Create New Item packages can be rebuilt ({extra}).",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/services/independent_item_package.py": 446
     }
   },
   {
@@ -29262,7 +29287,7 @@ MESSAGE_REFERENCE = [
     "message": "{package.title}: remove the installed contribution before using this item in a virtual profile. Its identity will be retained.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/independent_item_install.py": 581
+      "cdmw/services/independent_item_install.py": 584
     }
   },
   {
@@ -29270,7 +29295,7 @@ MESSAGE_REFERENCE = [
     "message": "{package.title}: the installed compiler is different or unrecorded. Use Rebuild selected item to regenerate it while retaining its IDs.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/independent_item_install.py": 585
+      "cdmw/services/independent_item_install.py": 588
     }
   },
   {
@@ -29286,7 +29311,7 @@ MESSAGE_REFERENCE = [
     "message": "{package.title}: the texture journal differs from its witnessed original and replacement.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/independent_item_compatibility.py": 587
+      "cdmw/services/independent_item_compatibility.py": 590
     }
   },
   {
@@ -29318,7 +29343,7 @@ MESSAGE_REFERENCE = [
     "message": "{path}: semantic export contributors require different source baselines.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/independent_item_compatibility.py": 760
+      "cdmw/services/independent_item_compatibility.py": 763
     }
   },
   {
@@ -29326,7 +29351,7 @@ MESSAGE_REFERENCE = [
     "message": "{path}: semantic export has no matching original source witness.",
     "recovery": "empty",
     "sources": {
-      "cdmw/services/independent_item_compatibility.py": 777
+      "cdmw/services/independent_item_compatibility.py": 780
     }
   },
   {
@@ -29334,7 +29359,7 @@ MESSAGE_REFERENCE = [
     "message": "{path}: semantic export recipes disagree on their original baseline.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/independent_item_compatibility.py": 709
+      "cdmw/services/independent_item_compatibility.py": 712
     }
   },
   {
@@ -29342,7 +29367,7 @@ MESSAGE_REFERENCE = [
     "message": "{prefix}An asset hash collides with another resource: {path}; already reserved by {details}.",
     "recovery": "integrity",
     "sources": {
-      "cdmw/services/independent_item_install.py": 335
+      "cdmw/services/independent_item_install.py": 338
     }
   },
   {
@@ -29503,7 +29528,7 @@ MESSAGE_REFERENCE = [
     "message": "A numeric localization reference disagrees with its text key.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_definition.py": 123
+      "cdmw/services/new_item_definition.py": 127
     }
   },
   {
@@ -29591,7 +29616,7 @@ MESSAGE_REFERENCE = [
     "message": "A secondary description language is unavailable in this source.",
     "recovery": "missing",
     "sources": {
-      "cdmw/services/new_item_definition.py": 257
+      "cdmw/services/new_item_definition.py": 262
     }
   },
   {
@@ -29937,7 +29962,7 @@ MESSAGE_REFERENCE = [
     "message": "Behavior prefab has no qualified PAPPT binding.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_behavior.py": 162
+      "cdmw/services/new_item_behavior.py": 164
     }
   },
   {
@@ -30122,7 +30147,7 @@ MESSAGE_REFERENCE = [
     "message": "Choose a source item with an independent numeric secondary description.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_definition.py": 255
+      "cdmw/services/new_item_definition.py": 260
     }
   },
   {
@@ -30378,7 +30403,7 @@ MESSAGE_REFERENCE = [
     "message": "Drop socket count exceeds the declared item list.",
     "recovery": "limits",
     "sources": {
-      "cdmw/services/new_item_behavior.py": 141
+      "cdmw/services/new_item_behavior.py": 143
     }
   },
   {
@@ -30642,7 +30667,7 @@ MESSAGE_REFERENCE = [
     "message": "Empty behavior animation dependency.",
     "recovery": "empty",
     "sources": {
-      "cdmw/services/new_item_behavior.py": 169
+      "cdmw/services/new_item_behavior.py": 171
     }
   },
   {
@@ -30692,7 +30717,7 @@ MESSAGE_REFERENCE = [
     "message": "Equipment compatibility hash has no source definition.",
     "recovery": "integrity",
     "sources": {
-      "cdmw/services/new_item_definition.py": 214
+      "cdmw/services/new_item_definition.py": 219
     }
   },
   {
@@ -30700,7 +30725,7 @@ MESSAGE_REFERENCE = [
     "message": "Equipment slot or index has no source definition.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_definition.py": 217
+      "cdmw/services/new_item_definition.py": 222
     }
   },
   {
@@ -31701,7 +31726,7 @@ MESSAGE_REFERENCE = [
     "message": "Map icon has no qualified StringInfo binding.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_definition.py": 148
+      "cdmw/services/new_item_definition.py": 153
     }
   },
   {
@@ -31709,7 +31734,7 @@ MESSAGE_REFERENCE = [
     "message": "Map icon registry has conflicting filename attributes.",
     "recovery": "conflict",
     "sources": {
-      "cdmw/services/new_item_definition.py": 178
+      "cdmw/services/new_item_definition.py": 183
     }
   },
   {
@@ -31717,7 +31742,7 @@ MESSAGE_REFERENCE = [
     "message": "Map icon texture binding is missing or ambiguous.",
     "recovery": "missing",
     "sources": {
-      "cdmw/services/new_item_definition.py": 188
+      "cdmw/services/new_item_definition.py": 193
     }
   },
   {
@@ -31725,7 +31750,7 @@ MESSAGE_REFERENCE = [
     "message": "Map icon texture is missing or unsupported.",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/services/new_item_definition.py": 183
+      "cdmw/services/new_item_definition.py": 188
     }
   },
   {
@@ -31797,7 +31822,7 @@ MESSAGE_REFERENCE = [
     "message": "Missing behavior animation dependency.",
     "recovery": "missing",
     "sources": {
-      "cdmw/services/new_item_behavior.py": 168
+      "cdmw/services/new_item_behavior.py": 170
     }
   },
   {
@@ -31805,7 +31830,7 @@ MESSAGE_REFERENCE = [
     "message": "Missing behavior prefab dependency.",
     "recovery": "missing",
     "sources": {
-      "cdmw/services/new_item_behavior.py": 163
+      "cdmw/services/new_item_behavior.py": 165
     }
   },
   {
@@ -31813,7 +31838,7 @@ MESSAGE_REFERENCE = [
     "message": "Missing behavior texture dependency {path}.",
     "recovery": "missing",
     "sources": {
-      "cdmw/services/new_item_behavior.py": 105
+      "cdmw/services/new_item_behavior.py": 107
     }
   },
   {
@@ -31845,7 +31870,7 @@ MESSAGE_REFERENCE = [
     "message": "Missing or ambiguous {language} localization dependency {key}.",
     "recovery": "missing",
     "sources": {
-      "cdmw/services/new_item_definition.py": 136
+      "cdmw/services/new_item_definition.py": 141
     }
   },
   {
@@ -34401,7 +34426,7 @@ MESSAGE_REFERENCE = [
     "message": "UI texture registry data exceeds its bound.",
     "recovery": "limits",
     "sources": {
-      "cdmw/services/new_item_definition.py": 161
+      "cdmw/services/new_item_definition.py": 166
     }
   },
   {
@@ -34409,7 +34434,7 @@ MESSAGE_REFERENCE = [
     "message": "UI texture registry scan exceeds its bound.",
     "recovery": "limits",
     "sources": {
-      "cdmw/services/new_item_definition.py": 157
+      "cdmw/services/new_item_definition.py": 162
     }
   },
   {
@@ -34529,7 +34554,7 @@ MESSAGE_REFERENCE = [
     "message": "Unqualified behavior StringInfo reference.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_behavior.py": 92
+      "cdmw/services/new_item_behavior.py": 94
     }
   },
   {
@@ -34593,7 +34618,7 @@ MESSAGE_REFERENCE = [
     "message": "Unsupported UI texture registry XML.",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/services/new_item_definition.py": 171
+      "cdmw/services/new_item_definition.py": 176
     }
   },
   {
@@ -34601,7 +34626,7 @@ MESSAGE_REFERENCE = [
     "message": "Unsupported UI texture registry declaration.",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/services/new_item_definition.py": 164
+      "cdmw/services/new_item_definition.py": 169
     }
   },
   {
@@ -35202,7 +35227,7 @@ MESSAGE_REFERENCE = [
     "message": "both the template stem and the new stem are needed",
     "recovery": "internal",
     "sources": {
-      "cdmw/domain/new_item/allocation.py": 120
+      "cdmw/domain/new_item/allocation.py": 123
     }
   },
   {
@@ -35458,7 +35483,7 @@ MESSAGE_REFERENCE = [
     "message": "item keys are positive",
     "recovery": "internal",
     "sources": {
-      "cdmw/domain/new_item/allocation.py": 136
+      "cdmw/domain/new_item/allocation.py": 139
     }
   },
   {
@@ -35466,7 +35491,7 @@ MESSAGE_REFERENCE = [
     "message": "item keys fit a u32",
     "recovery": "internal",
     "sources": {
-      "cdmw/domain/new_item/allocation.py": 138
+      "cdmw/domain/new_item/allocation.py": 141
     }
   },
   {
@@ -35538,7 +35563,7 @@ MESSAGE_REFERENCE = [
     "message": "no free stem of the shape {head}{replacement_digit}...{tail}",
     "recovery": "internal",
     "sources": {
-      "cdmw/domain/new_item/allocation.py": 106
+      "cdmw/domain/new_item/allocation.py": 109
     }
   },
   {
@@ -35644,7 +35669,7 @@ MESSAGE_REFERENCE = [
     "message": "replacement digit must be one digit",
     "recovery": "input",
     "sources": {
-      "cdmw/domain/new_item/allocation.py": 96
+      "cdmw/domain/new_item/allocation.py": 98
     }
   },
   {
@@ -35700,7 +35725,7 @@ MESSAGE_REFERENCE = [
     "message": "template stem {stem} has no digit run to vary",
     "recovery": "internal",
     "sources": {
-      "cdmw/domain/new_item/allocation.py": 94
+      "cdmw/domain/new_item/allocation.py": 96
     }
   },
   {
@@ -35909,7 +35934,7 @@ MESSAGE_REFERENCE = [
     "message": "the new stem equals the template stem",
     "recovery": "internal",
     "sources": {
-      "cdmw/domain/new_item/allocation.py": 122
+      "cdmw/domain/new_item/allocation.py": 125
     }
   },
   {
@@ -36647,7 +36672,7 @@ MESSAGE_REFERENCE = [
     "message": "{stem} is not part of the {template} family",
     "recovery": "internal",
     "sources": {
-      "cdmw/domain/new_item/allocation.py": 126
+      "cdmw/domain/new_item/allocation.py": 129
     }
   },
   {
@@ -52440,16 +52465,16 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "mesh",
-    "message": "OBJ sidecar topology changed for submesh {submesh_index}: expected {expected_indices} indices, got {actual_indices}.",
-    "recovery": "input",
+    "message": "OBJ sidecar topology changed for part '{name}' (submesh {submesh_index}): expected {expected_vertices} source vertices, got {actual_vertices}. Blender drops vertices that no face uses; adding or deleting geometry needs a replacement import.",
+    "recovery": "stale",
     "sources": {
       "cdmw/modding/mesh_obj_importer.py": 623
     }
   },
   {
     "area": "mesh",
-    "message": "OBJ sidecar topology changed for submesh {submesh_index}: expected {expected_vertices} source vertices, got {actual_vertices}.",
-    "recovery": "stale",
+    "message": "OBJ sidecar topology changed for submesh {submesh_index}: expected {expected_indices} indices, got {actual_indices}.",
+    "recovery": "input",
     "sources": {
       "cdmw/modding/mesh_obj_importer.py": 615
     }
@@ -55517,7 +55542,7 @@ MESSAGE_REFERENCE = [
     "message": "Python edit-session open clone fallback blocked while native mesh core is available",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_service_native_clone.py": 101
+      "cdmw/services/mesh_service_native_clone.py": 124
     }
   },
   {
@@ -55525,7 +55550,7 @@ MESSAGE_REFERENCE = [
     "message": "Python edit-session open clone fallback used for unsupported topology",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/services/mesh_service_native_clone.py": 71
+      "cdmw/services/mesh_service_native_clone.py": 94
     }
   },
   {
@@ -66686,7 +66711,7 @@ MESSAGE_REFERENCE = [
     "message": "native edit-session clone failed and Python fallback was blocked",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_service_native_clone.py": 167
+      "cdmw/services/mesh_service_native_clone.py": 190
     }
   },
   {
@@ -66806,7 +66831,7 @@ MESSAGE_REFERENCE = [
     "message": "native mesh clone failed and Python fallback was blocked",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_service_native_clone.py": 182
+      "cdmw/services/mesh_service_native_clone.py": 205
     }
   },
   {
@@ -72273,7 +72298,7 @@ MESSAGE_REFERENCE = [
     "message": "Archive mount table is unexpectedly large: {papgt}",
     "recovery": "input",
     "sources": {
-      "cdmw/core/item_sources.py": 68
+      "cdmw/core/item_sources.py": 70
     }
   },
   {
@@ -72538,7 +72563,7 @@ MESSAGE_REFERENCE = [
     "message": "Blocked reward definition",
     "recovery": "input",
     "sources": {
-      "cdmw/core/acquisition_compact.py": 82,
+      "cdmw/core/acquisition_compact.py": 91,
       "cdmw/core/item_reward_table.py": 58
     }
   },
@@ -73099,7 +73124,7 @@ MESSAGE_REFERENCE = [
     "message": "Choose Kliff, Damiane or Oongka for Hair authoring.",
     "recovery": "internal",
     "sources": {
-      "cdmw/domain/hair_characters.py": 50
+      "cdmw/domain/hair_characters.py": 53
     }
   },
   {
@@ -73716,7 +73741,7 @@ MESSAGE_REFERENCE = [
     "message": "Compact recipes carry one elemental status reference without a label.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/acquisition_compact.py": 45
+      "cdmw/core/acquisition_compact.py": 54
     }
   },
   {
@@ -74212,7 +74237,7 @@ MESSAGE_REFERENCE = [
     "message": "DDS payload requires exactly {expected} bytes including its header; got {len(data)}",
     "recovery": "format",
     "sources": {
-      "cdmw/core/pathc_format.py": 123
+      "cdmw/core/pathc_format.py": 133
     }
   },
   {
@@ -74832,7 +74857,7 @@ MESSAGE_REFERENCE = [
     "message": "Edited compact recipe did not round-trip.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/acquisition_compact.py": 70
+      "cdmw/core/acquisition_compact.py": 79
     }
   },
   {
@@ -74840,7 +74865,7 @@ MESSAGE_REFERENCE = [
     "message": "Edited compact reward did not round-trip.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/acquisition_compact.py": 122
+      "cdmw/core/acquisition_compact.py": 131
     }
   },
   {
@@ -76050,7 +76075,7 @@ MESSAGE_REFERENCE = [
     "message": "Incomplete {stem} table pair in {package}: {' and '.join(paths)}",
     "recovery": "format",
     "sources": {
-      "cdmw/core/item_sources.py": 131
+      "cdmw/core/item_sources.py": 133
     }
   },
   {
@@ -76530,7 +76555,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid item reward quantity or identity",
     "recovery": "input",
     "sources": {
-      "cdmw/core/acquisition_compact.py": 113,
+      "cdmw/core/acquisition_compact.py": 122,
       "cdmw/core/item_reward_table.py": 93
     }
   },
@@ -77043,7 +77068,7 @@ MESSAGE_REFERENCE = [
     "message": "Item reward reference or range is not decoded",
     "recovery": "format",
     "sources": {
-      "cdmw/core/acquisition_compact.py": 94,
+      "cdmw/core/acquisition_compact.py": 103,
       "cdmw/core/item_reward_table.py": 70
     }
   },
@@ -77676,7 +77701,7 @@ MESSAGE_REFERENCE = [
     "message": "Missing nested resource dependency {path}.",
     "recovery": "missing",
     "sources": {
-      "cdmw/services/iteminfo_dependency_graph.py": 144
+      "cdmw/services/iteminfo_dependency_graph.py": 146
     }
   },
   {
@@ -78189,7 +78214,7 @@ MESSAGE_REFERENCE = [
     "message": "Non-item reward result type {kind} is not decoded",
     "recovery": "format",
     "sources": {
-      "cdmw/core/acquisition_compact.py": 90
+      "cdmw/core/acquisition_compact.py": 99
     }
   },
   {
@@ -78933,7 +78958,7 @@ MESSAGE_REFERENCE = [
     "message": "PATHC counts describe {expected} bytes but the buffer holds {len(data)}",
     "recovery": "input",
     "sources": {
-      "cdmw/core/pathc_format.py": 180
+      "cdmw/core/pathc_format.py": 190
     }
   },
   {
@@ -79213,7 +79238,6 @@ MESSAGE_REFERENCE = [
     "message": "Recipe elemental-state or condition arrays are not decoded",
     "recovery": "format",
     "sources": {
-      "cdmw/core/acquisition_compact.py": 27,
       "cdmw/core/item_recipe_table.py": 97
     }
   },
@@ -79454,7 +79478,7 @@ MESSAGE_REFERENCE = [
     "message": "Reward result type is not a supported item result",
     "recovery": "input",
     "sources": {
-      "cdmw/core/acquisition_compact.py": 87,
+      "cdmw/core/acquisition_compact.py": 96,
       "cdmw/core/item_reward_table.py": 63
     }
   },
@@ -80400,7 +80424,7 @@ MESSAGE_REFERENCE = [
     "message": "The borrowed effect reference layout is incomplete.",
     "recovery": "format",
     "sources": {
-      "cdmw/services/iteminfo_dependency_graph.py": 174
+      "cdmw/services/iteminfo_dependency_graph.py": 176
     }
   },
   {
@@ -80408,7 +80432,7 @@ MESSAGE_REFERENCE = [
     "message": "The borrowed prefab reference layout is incomplete.",
     "recovery": "format",
     "sources": {
-      "cdmw/services/iteminfo_dependency_graph.py": 152
+      "cdmw/services/iteminfo_dependency_graph.py": 154
     }
   },
   {
@@ -80600,7 +80624,7 @@ MESSAGE_REFERENCE = [
     "message": "The declared resource graph exceeds its byte limit.",
     "recovery": "limits",
     "sources": {
-      "cdmw/services/iteminfo_dependency_graph.py": 146
+      "cdmw/services/iteminfo_dependency_graph.py": 148
     }
   },
   {
@@ -80608,7 +80632,7 @@ MESSAGE_REFERENCE = [
     "message": "The declared resource graph exceeds its resource limit.",
     "recovery": "limits",
     "sources": {
-      "cdmw/services/iteminfo_dependency_graph.py": 143
+      "cdmw/services/iteminfo_dependency_graph.py": 145
     }
   },
   {
@@ -82433,7 +82457,7 @@ MESSAGE_REFERENCE = [
     "message": "Unknown borrowed model resource boundary.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/iteminfo_dependency_graph.py": 165
+      "cdmw/services/iteminfo_dependency_graph.py": 167
     }
   },
   {
@@ -82737,7 +82761,7 @@ MESSAGE_REFERENCE = [
     "message": "Unsupported borrowed model XML.",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/services/iteminfo_dependency_graph.py": 162
+      "cdmw/services/iteminfo_dependency_graph.py": 164
     }
   },
   {
@@ -83011,7 +83035,7 @@ MESSAGE_REFERENCE = [
     "message": "Unsupported model XML declaration.",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/services/iteminfo_dependency_graph.py": 160
+      "cdmw/services/iteminfo_dependency_graph.py": 162
     }
   },
   {
@@ -83075,7 +83099,7 @@ MESSAGE_REFERENCE = [
     "message": "Unsupported recipe flags",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/core/acquisition_compact.py": 52,
+      "cdmw/core/acquisition_compact.py": 61,
       "cdmw/core/item_recipe_table.py": 93
     }
   },
@@ -83660,7 +83684,7 @@ MESSAGE_REFERENCE = [
     "message": "block infos are 16 bytes",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/pathc_format.py": 207
+      "cdmw/core/pathc_format.py": 217
     }
   },
   {
@@ -83676,7 +83700,7 @@ MESSAGE_REFERENCE = [
     "message": "buffer is too short for a PATHC head",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/pathc_format.py": 176
+      "cdmw/core/pathc_format.py": 186
     }
   },
   {
@@ -83732,7 +83756,7 @@ MESSAGE_REFERENCE = [
     "message": "checksum {checksum} of {path} is already registered (a collision would need the collision table)",
     "recovery": "integrity",
     "sources": {
-      "cdmw/core/pathc_format.py": 247
+      "cdmw/core/pathc_format.py": 257
     }
   },
   {
@@ -83740,7 +83764,7 @@ MESSAGE_REFERENCE = [
     "message": "collision rows are 24 bytes",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/pathc_format.py": 211
+      "cdmw/core/pathc_format.py": 221
     }
   },
   {
@@ -83812,7 +83836,7 @@ MESSAGE_REFERENCE = [
     "message": "every texture header must be header_size bytes",
     "recovery": "format",
     "sources": {
-      "cdmw/core/pathc_format.py": 200
+      "cdmw/core/pathc_format.py": 210
     }
   },
   {
@@ -85230,7 +85254,7 @@ MESSAGE_REFERENCE = [
     "message": "only single-surface 2D DDS textures are supported by the registry writer",
     "recovery": "write",
     "sources": {
-      "cdmw/core/pathc_format.py": 100
+      "cdmw/core/pathc_format.py": 102
     }
   },
   {
@@ -85905,7 +85929,7 @@ MESSAGE_REFERENCE = [
     "message": "the DDS format is not one whose mip sizes are known here",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/pathc_format.py": 110
+      "cdmw/core/pathc_format.py": 120
     }
   },
   {
@@ -85945,7 +85969,7 @@ MESSAGE_REFERENCE = [
     "message": "the entry does not name a texture header",
     "recovery": "format",
     "sources": {
-      "cdmw/core/pathc_format.py": 164
+      "cdmw/core/pathc_format.py": 174
     }
   },
   {
@@ -85977,7 +86001,7 @@ MESSAGE_REFERENCE = [
     "message": "the new texture's DDS header (size, format or mips) differs from {like}'s registered header",
     "recovery": "format",
     "sources": {
-      "cdmw/core/pathc_format.py": 241
+      "cdmw/core/pathc_format.py": 251
     }
   },
   {
@@ -86017,7 +86041,7 @@ MESSAGE_REFERENCE = [
     "message": "the reference texture {like} is not registered",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/pathc_format.py": 234
+      "cdmw/core/pathc_format.py": 244
     }
   },
   {
@@ -86025,7 +86049,7 @@ MESSAGE_REFERENCE = [
     "message": "the reference texture {like} is registered through the collision table; pick a direct one",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/pathc_format.py": 236
+      "cdmw/core/pathc_format.py": 246
     }
   },
   {
@@ -86041,7 +86065,7 @@ MESSAGE_REFERENCE = [
     "message": "the registry has no room for another header",
     "recovery": "format",
     "sources": {
-      "cdmw/core/pathc_format.py": 347
+      "cdmw/core/pathc_format.py": 359
     }
   },
   {
@@ -86049,7 +86073,7 @@ MESSAGE_REFERENCE = [
     "message": "the registry's header size is {table.header_size}, not the 148 a new header is written as",
     "recovery": "format",
     "sources": {
-      "cdmw/core/pathc_format.py": 349
+      "cdmw/core/pathc_format.py": 361
     }
   },
   {
@@ -86121,7 +86145,7 @@ MESSAGE_REFERENCE = [
     "message": "unsupported DDS DX10 dimensions, array, cube or alpha flags",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/core/pathc_format.py": 105
+      "cdmw/core/pathc_format.py": 109
     }
   },
   {
@@ -100373,7 +100397,7 @@ SOURCE_COVERAGE = {
   "cdmw/core/_compact_static_schema.py": {},
   "cdmw/core/_item_layout_schema.py": {},
   "cdmw/core/acquisition_compact.py": {
-    "raise": 11
+    "raise": 10
   },
   "cdmw/core/appearance_composite.py": {
     "diagnostic_field": 12,
@@ -102324,12 +102348,12 @@ SOURCE_COVERAGE = {
     "raise": 19
   },
   "cdmw/services/independent_item_compatibility.py": {
-    "raise": 61,
+    "raise": 62,
     "report": 1
   },
   "cdmw/services/independent_item_compilation.py": {},
   "cdmw/services/independent_item_install.py": {
-    "raise": 61
+    "raise": 63
   },
   "cdmw/services/independent_item_isolation.py": {
     "code": 8,
@@ -102343,7 +102367,8 @@ SOURCE_COVERAGE = {
     "raise": 11
   },
   "cdmw/services/independent_item_package.py": {
-    "raise": 58
+    "diagnostic_field": 1,
+    "raise": 60
   },
   "cdmw/services/independent_item_physics.py": {
     "raise": 12

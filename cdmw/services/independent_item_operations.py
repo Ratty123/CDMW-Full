@@ -122,14 +122,12 @@ def _validate_declared_dependencies(snapshot,rows,operations,*,stop_event=None):
 
 def from_iteminfo_operations(snapshot, identity, title, operations, *, release='1', stop_event=None):
     """Author a data-only field package against a verified shipped snapshot."""
-    from pathlib import Path
-    from cdmw.services.independent_item_package import FORMAT
+    from cdmw.services.independent_item_package import FORMAT, shipped_group
     from cdmw.services.independent_mod_package import read_v2
     pair = snapshot.iteminfo
     dependencies = {}
     for entry in (pair.payload_entry, pair.header_entry):
-        directory = Path(entry.pamt_path).parent.name
-        if len(directory) != 4 or not directory.isascii() or not directory.isdigit() or int(directory) >= 36:
+        if not shipped_group(entry.pamt_path):
             raise IndependentItemError('Field packages must be authored against shipped game tables.')
         dependencies[entry.path.lower()] = digest(snapshot.payload(entry.path))
     package = read_v2({'format': FORMAT, 'version': 2, 'identity': identity, 'title': title, 'release': release,
@@ -143,8 +141,7 @@ def from_iteminfo_operations(snapshot, identity, title, operations, *, release='
 
 def from_declared_iteminfo_operations(snapshot,identity,title,operations,*,release='1',stop_event=None):
     """Author item.overrides@1; preserve v1 field-package bytes and contracts."""
-    from pathlib import Path
-    from cdmw.services.independent_item_package import FORMAT
+    from cdmw.services.independent_item_package import FORMAT, shipped_group
     from cdmw.services.independent_mod_package import read_v2
     from cdmw.services.new_item_tables import row_pair
     from cdmw.domain.new_item.iteminfo_operations import decode_assignment
@@ -157,8 +154,7 @@ def from_declared_iteminfo_operations(snapshot,identity,title,operations,*,relea
     lower_field_operations(package,snapshot,{},stop_event=stop_event,_authoring=True)
     revision=snapshot.provenance.capture()
     for witness in revision.payloads:
-        folder=Path(witness.entry.pamt_path).parent.name
-        if len(folder)!=4 or not folder.isascii() or not folder.isdigit() or int(folder)>=36:
+        if not shipped_group(witness.entry.pamt_path):
             raise IndependentItemError('Stock overrides require shipped source resources.')
         dependencies[witness.entry.path.lower()]=witness.sha256
     revision.validate(stop_event)

@@ -25,7 +25,7 @@ from cdmw.domain.new_item.independent import IdentityBindings, IndependentItemEr
 from cdmw.domain.new_item.rules import has_errors
 from cdmw.services import archive_overlay_manager as overlays
 from cdmw.services.independent_item_package import (
-    MAX_MANIFEST, MAX_TOTAL, PackageReadCache, canonical, digest, package_bytes, package_metadata, read_package, stock_snapshot, unpack_recipe, virtual_path,
+    MAX_MANIFEST, MAX_TOTAL, PackageReadCache, canonical, digest, dlc_content, package_bytes, package_metadata, read_package, stock_snapshot, unpack_recipe, virtual_path,
 )
 from cdmw.services.new_item_planning import build_plan
 from cdmw.services.new_item_service import NewItemService
@@ -214,6 +214,9 @@ def _check_dependencies(package, snapshot, stop_event):
     for path, checksum in package.dependencies.items():
         raise_if_cancelled(stop_event)
         if not snapshot.has_entry(path) or digest(snapshot.payload(path)) != checksum:
+            names = ', '.join(dlc_content(pin for pin in package.dependencies if not snapshot.has_entry(pin)))
+            if names:
+                raise IndependentItemError(f'{package.title} was made on a game with DLC content this game does not have ({names}). Install that DLC to use this item.')
             raise IndependentItemError(f'{package.title}: incompatible game dependency {path}. Use the matching game version or an updated package.')
 
 
@@ -643,7 +646,12 @@ def resolve_items(sources, root, *, target='archive', folders=(), rebuild=False,
                               reserved_item_keys=reserved['iteminfo'], identity_bindings=bindings,
                               capture_independent=True, stop_event=stop_event, on_log=on_log)
             # A prepared recipe must not acquire an undeclared dependency at install.
-            if any(row.entry.path.lower() not in package.dependencies for row in plan.source_revision.payloads):
+            undeclared = [row.entry.path.lower() for row in plan.source_revision.payloads
+                          if row.entry.path.lower() not in package.dependencies]
+            if undeclared:
+                names = ', '.join(dlc_content(undeclared))
+                if names:
+                    raise IndependentItemError(f'{package.title} was made on a game without the DLC content this game has ({names}). Update the package with Create New Item on this game to use it here.')
                 raise IndependentItemError('The package has an incomplete game dependency graph.')
             plan.source_revision.validate(stop_event)
             revisions.append(plan.source_revision)

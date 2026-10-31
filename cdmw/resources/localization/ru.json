@@ -16996,6 +16996,7 @@
     "{value_0} visible submesh(es)": "{value_0} видимые подсетки",
     "{value_0} v{value_1}": "{value_0} v{value_1}",
     "{value_0} warning(s)": "Предупреждения {value_0}",
+    "{value_0} was made on a game with DLC content this game does not have ({value_1}). Install that DLC to use this item.": "{value_0} создан в игре с контентом DLC, которого нет в этой игре ({value_1}). Установите это DLC, чтобы использовать предмет.",
     "{value_0} was not prepared by the archive worker.": "Процесс архивов не подготовил {value_0}.",
     "{value_0} was removed from {value_1}": "{value_0} удалено из {value_1}",
     "{value_0} weighted vertices · {value_1} bones": "Взвешенные вершины {value_0} · кости {value_1}",

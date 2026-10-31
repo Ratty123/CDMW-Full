@@ -16990,6 +16990,7 @@
     "{value_0} visible submesh(es)": "{value_0} 表示サブメッシュ",
     "{value_0} v{value_1}": "{value_0} v{value_1}",
     "{value_0} warning(s)": "{value_0}警告",
+    "{value_0} was made on a game with DLC content this game does not have ({value_1}). Install that DLC to use this item.": "{value_0} は、このゲームにない DLC コンテンツ（{value_1}）を含むゲームで作成されました。このアイテムを使用するには、その DLC をインストールしてください。",
     "{value_0} was not prepared by the archive worker.": "{value_0} はアーカイブ処理で準備されませんでした。",
     "{value_0} was removed from {value_1}": "{value_0} は {value_1} から外されました",
     "{value_0} weighted vertices · {value_1} bones": "{value_0} 加重頂点 · {value_1} ボーン",

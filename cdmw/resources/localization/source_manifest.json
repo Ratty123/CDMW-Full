@@ -201787,6 +201787,16 @@
       ]
     },
     {
+      "key": "{value_0} was made on a game with DLC content this game does not have ({value_1}). Install that DLC to use this item.",
+      "origins": [
+        {
+          "path": "cdmw/services/independent_item_compatibility.py",
+          "line": 472,
+          "sink": "OverlayConflict"
+        }
+      ]
+    },
+    {
       "key": "{value_0} was not prepared by the archive worker.",
       "origins": [],
       "manual": true

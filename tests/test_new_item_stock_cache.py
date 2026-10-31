@@ -22,6 +22,7 @@ def separate_stock_cache(monkeypatch):
 
 def mounts(root, names):
     data, strings = bytearray(12), bytearray()
+    data[8] = len(names)
     for name in names:
         checksum, = struct.unpack_from('<I', (root / name / '0.pamt').read_bytes())
         data += struct.pack('<III', 0x007FFF00, len(strings), checksum)

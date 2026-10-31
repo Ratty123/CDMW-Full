@@ -406,6 +406,68 @@ def test_compact_definition_and_behavior_trees_cover_every_field(tmp_path,monkey
         panel.deleteLater();controller.deleteLater();app.processEvents()
 
 
+def dlc_game(root, *, template_in_dlc=True):
+    """A compact game with a DLC layer that overrides Store_Pai_BlackMarket.
+
+    `template_in_dlc` moves the template item out of the base table into the DLC.
+    """
+    source, dlc = files(), {}
+    body, head = source[ROOT+'iteminfo.staticinfobody'], source[ROOT+'iteminfo.staticinfoheader']
+    rows = [(row.row_id, body[s:e]) for row, s, e in parse_pabgh_table(head, payload=body).row_spans(len(body))]
+    if template_in_dlc:
+        source[ROOT+'iteminfo.staticinfobody'], source[ROOT+'iteminfo.staticinfoheader'] = table([r for r in rows if r[0] != TEMPLATE])
+        dlc[ROOT+'iteminfo.dlc_01.staticinfobody'], dlc[ROOT+'iteminfo.dlc_01.staticinfoheader'] = table([r for r in rows if r[0] == TEMPLATE])
+    dlc[ROOT+'storeinfo.dlc_01.staticinfobody'], dlc[ROOT+'storeinfo.dlc_01.staticinfoheader'] = table(
+        [(2003, store(2003, 'Store_Pai_BlackMarket', [TEMPLATE]))], 2)
+    build_package(root, source)
+    build_package(root/'dlc/dlc_01', dlc)
+    return root
+
+
+def test_independent_items_use_dlc_templates_and_the_dlc_copy_of_a_shop(tmp_path):
+    from cdmw.core.storeinfo_table import parse_store_table
+    from cdmw.domain.new_item.spec import Placement, PlacementKind
+    from cdmw.services.independent_item_package import from_plan, stock_snapshot
+    snapshot = stock_snapshot(dlc_game(tmp_path/'game'), overlay_changes=())
+    assert snapshot.row_sources['iteminfo'][TEMPLATE].payload_entry.path.endswith('.dlc_01.staticinfobody')
+    choice = replace(spec('DlcOwned'), placement=Placement(kind=PlacementKind.INSERT, store_name='Store_Pai_BlackMarket'))
+    plan = NewItemService().plan(choice, snapshot, capture_independent=True)
+    # The game reads the DLC's copy of the shop, so the new line belongs there.
+    stores = parse_store_table(plan.loose_files[ROOT+'storeinfo.dlc_01.staticinfobody'],
+                               plan.loose_files[ROOT+'storeinfo.dlc_01.staticinfoheader'])
+    assert any(line.item_key == plan.spec.item_key for shop in stores for line in shop.entries)
+    package = from_plan(plan, 'b'*32)
+    assert {ROOT+'iteminfo.dlc_01.staticinfobody', ROOT+'storeinfo.dlc_01.staticinfobody'} <= set(package.dependencies)
+
+
+@pytest.mark.parametrize('path, shipped', [
+    ('game/0035/0.pamt', True), ('game/0036/0.pamt', False), ('game/dmmgen/0.pamt', False),
+    ('game/dlc/dlc_01/0040/0.pamt', True), ('game/mods/dlc_01/0040/0.pamt', False)])
+def test_every_dlc_group_is_shipped_but_overlay_numbers_are_not(path, shipped):
+    from cdmw.services.independent_item_package import shipped_group
+    assert shipped_group(path) is shipped
+
+
+def test_dlc_packages_refuse_clearly_across_games_with_and_without_the_dlc(tmp_path):
+    import shutil
+    from cdmw.domain.new_item.independent import IndependentItemError
+    from cdmw.services.independent_item_install import resolve_items
+    from cdmw.services.independent_item_package import from_plan, package_bytes, stock_snapshot
+    owner = dlc_game(tmp_path/'owner/game')
+    made_with = from_plan(NewItemService().plan(spec('WithDlc'), stock_snapshot(owner, overlay_changes=()),
+                                                capture_independent=True), 'c'*32)
+    shutil.rmtree(owner/'dlc')
+    with pytest.raises(IndependentItemError, match=r'DLC content this game does not have \(dlc_01\)'):
+        resolve_items([package_bytes(made_with)], owner, target='virtual')
+    plain = tmp_path/'plain/game'
+    build_package(plain, files())
+    made_without = from_plan(NewItemService().plan(spec('WithoutDlc'), stock_snapshot(plain, overlay_changes=()),
+                                                   capture_independent=True), 'd'*32)
+    dlc_game(tmp_path/'player/game', template_in_dlc=False)
+    with pytest.raises(IndependentItemError, match=r'without the DLC content this game has \(dlc_01\)'):
+        resolve_items([package_bytes(made_without)], tmp_path/'player/game', target='virtual')
+
+
 @pytest.mark.parametrize('corruption', ['truncated','trailer','presence','count'])
 def test_compact_corruption_is_rejected(corruption):
     raw = item()

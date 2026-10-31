@@ -16990,6 +16990,7 @@
     "{value_0} visible submesh(es)": "{value_0} 보이는 하위 메시",
     "{value_0} v{value_1}": "{value_0} v{value_1}",
     "{value_0} warning(s)": "{value_0} 경고",
+    "{value_0} was made on a game with DLC content this game does not have ({value_1}). Install that DLC to use this item.": "{value_0}은(는) 이 게임에 없는 DLC 콘텐츠({value_1})가 있는 게임에서 만들어졌습니다. 이 아이템을 사용하려면 해당 DLC를 설치하세요.",
     "{value_0} was not prepared by the archive worker.": "아카이브 작업에서 {value_0}을(를) 준비하지 않았습니다.",
     "{value_0} was removed from {value_1}": "{value_0}이(가) {value_1}에서 제거되었습니다",
     "{value_0} weighted vertices · {value_1} bones": "{value_0} 가중치가 있는 정점 · {value_1} 본",
