@@ -9698,6 +9698,7 @@
     "Preview ready - {value_0} - loaded before watchdog": "預覽就緒 - {value_0} - 在看門狗之前加載",
     "Preview ready for {value_0}.": "為 {value_0} 準備好預覽。",
     "Preview ready.": "預覽準備就緒。",
+    "Preview refused: LOD {value_0} part '{value_1}' has a vertex {value_2} that is not a finite number, so its geometry was not read correctly.": "預覽被拒絕：LOD {value_0} 的部件「{value_1}」有一個不是有限數值的頂點值（{value_2}），因此其幾何體未被正確讀取。",
     "Preview rejected the prepared package.": "預覽拒絕了準備好的套件。",
     "Preview reload could not produce a fresh frame.": "預覽重新載入無法產生新畫面。",
     "Preview reload failed - {value_0}": "預覽重新載入失敗 - {value_0}",

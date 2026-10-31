@@ -9698,6 +9698,7 @@
     "Preview ready - {value_0} - loaded before watchdog": "プレビュー準備完了 - {value_0} - ウォッチドッグの前にロードされました",
     "Preview ready for {value_0}.": "{value_0} のプレビューの準備ができました。",
     "Preview ready.": "プレビューの準備ができました。",
+    "Preview refused: LOD {value_0} part '{value_1}' has a vertex {value_2} that is not a finite number, so its geometry was not read correctly.": "プレビューを拒否しました: LOD {value_0} のパーツ '{value_1}' に有限の数値ではない頂点の値 ({value_2}) があるため、ジオメトリを正しく読み取れませんでした。",
     "Preview rejected the prepared package.": "プレビューは準備されたパッケージを拒否しました。",
     "Preview reload could not produce a fresh frame.": "プレビューのリロードで新しいフレームを生成できませんでした。",
     "Preview reload failed - {value_0}": "プレビューのリロードに失敗しました - {value_0}",

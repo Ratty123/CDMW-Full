@@ -9698,6 +9698,7 @@
     "Preview ready - {value_0} - loaded before watchdog": "Vista previa lista - {value_0} - cargado antes del proceso de vigilancia",
     "Preview ready for {value_0}.": "Vista previa lista para {value_0}.",
     "Preview ready.": "Vista previa lista.",
+    "Preview refused: LOD {value_0} part '{value_1}' has a vertex {value_2} that is not a finite number, so its geometry was not read correctly.": "Vista previa rechazada: en LOD {value_0}, la parte '{value_1}' tiene un valor de vértice ({value_2}) que no es un número finito, así que su geometría no se ha leído correctamente.",
     "Preview rejected the prepared package.": "La vista previa rechazó el paquete preparado.",
     "Preview reload could not produce a fresh frame.": "La recarga de la vista previa no pudo producir un fotograma nuevo.",
     "Preview reload failed - {value_0}": "Falló la recarga de la vista previa - {value_0}",

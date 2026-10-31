@@ -9698,6 +9698,7 @@
     "Preview ready - {value_0} - loaded before watchdog": "미리보기 준비됨 - {value_0} - 워치독 전에 로드됨",
     "Preview ready for {value_0}.": "{value_0}에 대한 미리보기가 준비되어 있습니다.",
     "Preview ready.": "미리보기가 준비되었습니다.",
+    "Preview refused: LOD {value_0} part '{value_1}' has a vertex {value_2} that is not a finite number, so its geometry was not read correctly.": "미리보기 거부됨: LOD {value_0}의 파트 '{value_1}'에 유한한 숫자가 아닌 정점 값({value_2})이 있어 지오메트리를 올바르게 읽지 못했습니다.",
     "Preview rejected the prepared package.": "미리보기가 준비된 패키지를 거부했습니다.",
     "Preview reload could not produce a fresh frame.": "미리보기 다시 로드가 새 프레임을 생성할 수 없습니다.",
     "Preview reload failed - {value_0}": "미리보기 다시 로드 실패 - {value_0}",

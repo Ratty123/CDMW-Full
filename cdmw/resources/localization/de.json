@@ -9698,6 +9698,7 @@
     "Preview ready - {value_0} - loaded before watchdog": "Vorschau bereit – {value_0} – vor Watchdog geladen",
     "Preview ready for {value_0}.": "Vorschau bereit für {value_0}.",
     "Preview ready.": "Vorschau bereit.",
+    "Preview refused: LOD {value_0} part '{value_1}' has a vertex {value_2} that is not a finite number, so its geometry was not read correctly.": "Vorschau abgelehnt: In LOD {value_0}, Teil '{value_1}', ist ein Scheitelpunktwert ({value_2}) keine endliche Zahl, daher wurde die Geometrie nicht korrekt gelesen.",
     "Preview rejected the prepared package.": "Die Vorschau hat das vorbereitete Paket abgelehnt.",
     "Preview reload could not produce a fresh frame.": "Vorschau-Neuladen konnte keinen neuen Frame erzeugen.",
     "Preview reload failed - {value_0}": "Neuladen der Vorschau fehlgeschlagen – {value_0}",

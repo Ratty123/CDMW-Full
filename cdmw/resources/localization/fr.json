@@ -9698,6 +9698,7 @@
     "Preview ready - {value_0} - loaded before watchdog": "Aperçu prêt - {value_0} - chargé avant le chien de garde",
     "Preview ready for {value_0}.": "Aperçu prêt pour {value_0}.",
     "Preview ready.": "Aperçu prêt.",
+    "Preview refused: LOD {value_0} part '{value_1}' has a vertex {value_2} that is not a finite number, so its geometry was not read correctly.": "Aperçu refusé : dans le LOD {value_0}, la pièce '{value_1}' a une valeur de sommet ({value_2}) qui n'est pas un nombre fini ; sa géométrie n'a donc pas été lue correctement.",
     "Preview rejected the prepared package.": "l'aperçu a rejeté le paquet préparé.",
     "Preview reload could not produce a fresh frame.": "Le rechargement de l'aperçu n'a pas pu produire une nouvelle image.",
     "Preview reload failed - {value_0}": "échec du rechargement de l'aperçu - {value_0}",
