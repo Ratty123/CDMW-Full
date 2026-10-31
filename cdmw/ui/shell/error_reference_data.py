@@ -42586,7 +42586,7 @@ MESSAGE_REFERENCE = [
     "message": "Cannot transfer displacement from an empty source mesh.",
     "recovery": "empty",
     "sources": {
-      "cdmw/modding/mesh_builder_common.py": 778,
+      "cdmw/modding/mesh_builder_common.py": 783,
       "native/cdmw_mesh_core/src/owners/edit_topology_07.cpp": 731
     }
   },
@@ -46974,7 +46974,7 @@ MESSAGE_REFERENCE = [
     "message": "Input is missing the PAR mesh header.",
     "recovery": "missing",
     "sources": {
-      "cdmw/modding/mesh_parser.py": 2632
+      "cdmw/modding/mesh_parser.py": 2832
     }
   },
   {
@@ -48123,6 +48123,14 @@ MESSAGE_REFERENCE = [
     "recovery": "cancelled",
     "sources": {
       "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 5162
+    }
+  },
+  {
+    "area": "mesh",
+    "message": "LOD {lod['level']} part '{part['name']}': {count} source UVs are not finite numbers and are drawn at 0.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/services/mesh_rust_preview_package.py": 1574
     }
   },
   {
@@ -52278,7 +52286,7 @@ MESSAGE_REFERENCE = [
     "message": "Not a valid PAC file: bad magic {data[:4]}",
     "recovery": "format",
     "sources": {
-      "cdmw/modding/mesh_parser.py": 1252
+      "cdmw/modding/mesh_parser.py": 1452
     }
   },
   {
@@ -52286,7 +52294,7 @@ MESSAGE_REFERENCE = [
     "message": "Not a valid PAM file: bad magic {data[:4]}",
     "recovery": "format",
     "sources": {
-      "cdmw/modding/mesh_parser.py": 638
+      "cdmw/modding/mesh_parser.py": 673
     }
   },
   {
@@ -52334,7 +52342,7 @@ MESSAGE_REFERENCE = [
     "message": "OBJ import did not contain any submesh data.",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/mesh_builder_common.py": 596
+      "cdmw/modding/mesh_builder_common.py": 601
     }
   },
   {
@@ -52943,7 +52951,7 @@ MESSAGE_REFERENCE = [
     "message": "PAC LOD index is invalid.",
     "recovery": "input",
     "sources": {
-      "cdmw/modding/mesh_parser.py": 2298
+      "cdmw/modding/mesh_parser.py": 2498
     }
   },
   {
@@ -53375,7 +53383,7 @@ MESSAGE_REFERENCE = [
     "message": "PAC parse failed while inspecting layout: {exc}",
     "recovery": "format",
     "sources": {
-      "cdmw/modding/mesh_parser.py": 2751
+      "cdmw/modding/mesh_parser.py": 2951
     }
   },
   {
@@ -53720,7 +53728,7 @@ MESSAGE_REFERENCE = [
     "message": "PAM parse failed while inspecting layout: {exc}",
     "recovery": "format",
     "sources": {
-      "cdmw/modding/mesh_parser.py": 2677
+      "cdmw/modding/mesh_parser.py": 2877
     }
   },
   {
@@ -53769,6 +53777,14 @@ MESSAGE_REFERENCE = [
     "recovery": "input",
     "sources": {
       "cdmw/modding/mesh_builder_common.py": 39
+    }
+  },
+  {
+    "area": "mesh",
+    "message": "PAMLOD %s has no consistent level block table; scanning for its layout",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/modding/mesh_parser.py": 1126
     }
   },
   {
@@ -53893,6 +53909,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "mesh",
+    "message": "PAMLOD geometry blocks are still LZ4-compressed; read the archive entry decoded.",
+    "recovery": "format",
+    "sources": {
+      "cdmw/modding/mesh_parser.py": 1189
+    }
+  },
+  {
+    "area": "mesh",
     "message": "PAMLOD geometry header is invalid",
     "recovery": "format",
     "sources": {
@@ -53928,7 +53952,7 @@ MESSAGE_REFERENCE = [
     "message": "PAMLOD parse failed while inspecting layout: {exc}",
     "recovery": "format",
     "sources": {
-      "cdmw/modding/mesh_parser.py": 2712
+      "cdmw/modding/mesh_parser.py": 2912
     }
   },
   {
@@ -53937,6 +53961,22 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/modding/mesh_pamlod_builder.py": 563
+    }
+  },
+  {
+    "area": "mesh",
+    "message": "PAMLOD {filename or '(unnamed)'}: level {lod_i} part {entry_index} indexes vertex {highest} of {e['nv']}.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/modding/mesh_parser.py": 1213
+    }
+  },
+  {
+    "area": "mesh",
+    "message": "PAMLOD {filename or '(unnamed)'}: the part descriptors do not account for the stated level blocks with {PAMLOD_VERTEX_STRIDE}-byte vertices.",
+    "recovery": "locked",
+    "sources": {
+      "cdmw/modding/mesh_parser.py": 1203
     }
   },
   {
@@ -55368,6 +55408,14 @@ MESSAGE_REFERENCE = [
     "recovery": "input",
     "sources": {
       "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_preview.rs": 192
+    }
+  },
+  {
+    "area": "mesh",
+    "message": "Preview refused: LOD {lod['level']} part '{part['name']}' has a vertex {channel[:-1]} that is not a finite number, so its geometry was not read correctly.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/services/mesh_rust_preview_package.py": 1566
     }
   },
   {
@@ -58442,7 +58490,7 @@ MESSAGE_REFERENCE = [
     "message": "Static mesh import changed the OBJ object count without preserving recognizable original object names. Keep the exported object names when editing multi-submesh PAM meshes.",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/mesh_builder_common.py": 701
+      "cdmw/modding/mesh_builder_common.py": 706
     }
   },
   {
@@ -58450,7 +58498,7 @@ MESSAGE_REFERENCE = [
     "message": "Static mesh import contains extra unnamed OBJ objects that could not be matched to the original mesh.",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/mesh_builder_common.py": 696
+      "cdmw/modding/mesh_builder_common.py": 701
     }
   },
   {
@@ -58458,7 +58506,7 @@ MESSAGE_REFERENCE = [
     "message": "Static mesh import contains more renamed OBJ objects than the original mesh can match.",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/mesh_builder_common.py": 652
+      "cdmw/modding/mesh_builder_common.py": 657
     }
   },
   {
@@ -58490,7 +58538,7 @@ MESSAGE_REFERENCE = [
     "message": "Static vertex alignment band did not reach the final state",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/mesh_builder_common.py": 435,
+      "cdmw/modding/mesh_builder_common.py": 440,
       "native/cdmw_mesh_core/src/owners/edit_topology_07.cpp": 644
     }
   },
@@ -58507,7 +58555,7 @@ MESSAGE_REFERENCE = [
     "message": "Static vertex alignment too large ({orig_count}x{new_count}, band={band})",
     "recovery": "limits",
     "sources": {
-      "cdmw/modding/mesh_builder_common.py": 378
+      "cdmw/modding/mesh_builder_common.py": 383
     }
   },
   {
@@ -60779,7 +60827,7 @@ MESSAGE_REFERENCE = [
     "message": "Unsupported preview interaction mode: {mode}",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/services/mesh_rust_preview_package.py": 1662
+      "cdmw/services/mesh_rust_preview_package.py": 1695
     }
   },
   {
@@ -60788,7 +60836,7 @@ MESSAGE_REFERENCE = [
     "recovery": "unsupported",
     "sources": {
       "cdmw/services/mesh_rust_preview_cache.py": 1019,
-      "cdmw/services/mesh_rust_preview_package.py": 1656
+      "cdmw/services/mesh_rust_preview_package.py": 1689
     }
   },
   {
@@ -68370,7 +68418,7 @@ MESSAGE_REFERENCE = [
     "message": "preview manifest exceeds its size limit",
     "recovery": "limits",
     "sources": {
-      "cdmw/services/mesh_rust_preview_package.py": 1777
+      "cdmw/services/mesh_rust_preview_package.py": 1810
     }
   },
   {
@@ -68378,7 +68426,7 @@ MESSAGE_REFERENCE = [
     "message": "preview manifest is not an object",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_rust_preview_package.py": 1802
+      "cdmw/services/mesh_rust_preview_package.py": 1835
     }
   },
   {
@@ -68386,7 +68434,7 @@ MESSAGE_REFERENCE = [
     "message": "preview manifest {key} does not match",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_rust_preview_package.py": 1811
+      "cdmw/services/mesh_rust_preview_package.py": 1844
     }
   },
   {
@@ -102022,7 +102070,8 @@ SOURCE_COVERAGE = {
   "cdmw/modding/mesh_parser.py": {
     "diagnostic_field": 1,
     "finding": 4,
-    "raise": 5
+    "log": 1,
+    "raise": 8
   },
   "cdmw/modding/mesh_refit_motion.py": {},
   "cdmw/modding/mesh_refit_reference.py": {
@@ -102667,7 +102716,8 @@ SOURCE_COVERAGE = {
     "raise": 13
   },
   "cdmw/services/mesh_rust_preview_package.py": {
-    "raise": 45
+    "finding": 1,
+    "raise": 46
   },
   "cdmw/services/mesh_rust_preview_promotion.py": {
     "raise": 1
