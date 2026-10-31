@@ -526,11 +526,9 @@ def _build_prepared_mesh_bytes(
     # nothing else. Falling through to the native builder or the generic PAC
     # rebuild would replace an exact result with a plausible one, so a contract
     # that cannot be served here raises instead of being quietly ignored.
+    if _has_topology_contract(mesh) and fmt != "pac":
+        mesh = _same_count_mesh_from_identity_contracts(fmt, mesh, original_mesh)
     if _has_topology_contract(mesh):
-        if fmt != "pac":
-            raise ValueError(
-                f"Topology provenance is only rebuildable into PAC; this mesh is {fmt or 'unknown'}."
-            )
         if original_mesh is None:
             raise ValueError(
                 "Exact PAC LOD0 topology rebuild needs the original parsed mesh, and it is unavailable. "
@@ -622,6 +620,44 @@ def _validate_neutral_obj_rebuild(fmt: str, mesh: ParsedMesh, rebuilt_data: byte
 def _has_topology_contract(mesh: ParsedMesh) -> bool:
     """True when any submesh carries a contract that describes its own geometry."""
     return bool(topology_contract_submesh_indices(mesh))
+
+
+def _same_count_mesh_from_identity_contracts(
+    fmt: str, mesh: ParsedMesh, original_mesh: ParsedMesh | None
+) -> ParsedMesh:
+    """A contract-free copy when every contract only restates its original part.
+
+    Native edit sessions give every part a contract, including the identity one
+    a transform leaves behind. Only PAC has a topology writer; an identity
+    contract over unchanged faces is a same-count edit, which the format's own
+    builder serves exactly. Anything else is still refused.
+    """
+    original_parts = tuple(getattr(original_mesh, "submeshes", ()) or ())
+    parts = tuple(mesh.submeshes or ())
+    if original_mesh is not None and len(parts) == len(original_parts) and all(
+        _is_identity_contract(part, source) for part, source in zip(parts, original_parts)
+    ):
+        same_count = copy.deepcopy(mesh)
+        for part in same_count.submeshes:
+            part.topology_provenance = None
+        return same_count
+    raise ValueError(
+        f"Topology provenance is only rebuildable into PAC; this mesh is {fmt or 'unknown'}."
+    )
+
+
+def _is_identity_contract(part, source) -> bool:
+    provenance = getattr(part, "topology_provenance", None)
+    if provenance is None:
+        return True
+    vertex_count, face_count = len(source.vertices or ()), len(source.faces or ())
+    return (
+        provenance.original_vertex_count == vertex_count == len(part.vertices or ())
+        and provenance.original_face_count == face_count == len(part.faces or ())
+        and all(origin.parents == (index,) for index, origin in enumerate(provenance.vertex_origins))
+        and tuple(provenance.face_origins) == tuple(range(face_count))
+        and [tuple(face) for face in part.faces] == [tuple(face) for face in source.faces]
+    )
 
 
 def _validate_pac_obj_protected_vertex_bytes(
