@@ -78,7 +78,9 @@ def _dds_header(data: bytes) -> bytes:
 
 @dataclass(frozen=True, slots=True)
 class DdsTextureDescriptor:
-    """A supported raw, single-surface 2D block-compressed texture layout."""
+    """A supported raw, single-surface 2D texture layout: block-compressed, or an
+    uncompressed RGB(A), luminance or alpha surface (the engine's `nonetexture*`
+    placeholders are 32-bit RGBA)."""
 
     header: bytes
     mip_bytes: Tuple[int, ...]
@@ -98,18 +100,26 @@ def _dds_descriptor(data: bytes) -> DdsTextureDescriptor:
     caps2 = struct.unpack_from("<I", header, 112)[0]
     if depth not in (0, 1) or caps2 != 0 or flags & 0x800000:
         raise PathcError("only single-surface 2D DDS textures are supported by the registry writer")
-    fourcc = header[84:88]
-    if fourcc == b"DX10":
-        dxgi, dimension, misc, array_size, alpha = struct.unpack_from("<5I", header, 128)
-        if dimension != 3 or misc != 0 or array_size != 1 or alpha > 4:
-            raise PathcError("unsupported DDS DX10 dimensions, array, cube or alpha flags")
-        block = _DXGI_BLOCK_BYTES.get(dxgi)
+    pixel_flags, fourcc, bits = struct.unpack_from("<I4sI", header, 80)
+    block_side = 4
+    if pixel_flags & _DDPF_FOURCC:
+        if fourcc == b"DX10":
+            dxgi, dimension, misc, array_size, alpha = struct.unpack_from("<5I", header, 128)
+            if dimension != 3 or misc != 0 or array_size != 1 or alpha > 4:
+                raise PathcError("unsupported DDS DX10 dimensions, array, cube or alpha flags")
+            block = _DXGI_BLOCK_BYTES.get(dxgi)
+        else:
+            block = _BLOCK_BYTES.get(fourcc)
+    elif pixel_flags & _DDPF_UNCOMPRESSED and bits in (8, 16, 24, 32):
+        # Shipped registry rows of these headers hold width x bytes per pixel x
+        # height per mip, wherever the texture is stored raw.
+        block, block_side = bits // 8, 1
     else:
-        block = _BLOCK_BYTES.get(fourcc)
-    if block is None or not struct.unpack_from("<I", header, 80)[0] & 4:
+        block = None
+    if block is None:
         raise PathcError("the DDS format is not one whose mip sizes are known here")
     try:
-        counts = checked_dds_mip_byte_counts(width, height, mips, block, block_width=4, block_height=4)
+        counts = checked_dds_mip_byte_counts(width, height, mips, block, block_width=block_side, block_height=block_side)
     except ValueError as exc:
         raise PathcError(str(exc)) from exc
     return DdsTextureDescriptor(header, counts)
@@ -288,6 +298,8 @@ def header_tag(header: bytes) -> int:
     """The `dwReserved2` tag of a registry (or file) DDS header."""
 
     return struct.unpack_from("<I", bytes(header[:_DDS_HEADER_LENGTH]), 124)[0]
+_DDPF_FOURCC = 0x4
+_DDPF_UNCOMPRESSED = 0x2 | 0x40 | 0x20000  # alpha, RGB, luminance
 _BLOCK_BYTES = {b"DXT1": 8, b"BC4U": 8, b"ATI1": 8, b"BC4S": 8, b"DXT3": 16, b"DXT5": 16, b"BC5U": 16, b"ATI2": 16, b"BC5S": 16}
 _DXGI_BLOCK_BYTES = {70: 8, 71: 8, 72: 8, 79: 8, 80: 8, 81: 8, 73: 16, 74: 16, 75: 16, 76: 16, 77: 16, 78: 16, 82: 16, 83: 16, 84: 16, 94: 16, 95: 16, 96: 16, 97: 16, 98: 16, 99: 16}
 

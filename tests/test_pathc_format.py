@@ -222,6 +222,29 @@ def test_all_mips_and_only_the_declared_payload_are_required(delta):
         validate_dds_payload(valid[:delta] if delta < 0 else valid + bytes(delta))
 
 
+def uncompressed_header(*, width: int, height: int, mips: int, flags: int, bits: int) -> bytes:
+    head = bytearray(dds_header(width=width, height=height, fourcc=bytes(4), mips=mips))
+    struct.pack_into('<I', head, 80, flags)
+    struct.pack_into('<I', head, 88, bits)
+    return bytes(head)
+
+
+def test_uncompressed_placeholders_and_luminance_have_known_mip_sizes():
+    # texture/nonetexture0xffffffff.dds: 4x4 RGBA8 with three mips, 212 bytes.
+    placeholder = uncompressed_header(width=4, height=4, mips=3, flags=0x41, bits=32)
+    assert validate_dds_payload(placeholder + bytes(84)).mip_bytes == (64, 16, 4)
+    with pytest.raises(PathcError, match='payload'):
+        validate_dds_payload(placeholder + bytes(83))
+    # Shipped rows: a 44x40 RGBA8 icon (7040, 7040, 0, 0); 512x32 L8 with ten mips (16384, 4096, 1024, 256).
+    icon = uncompressed_header(width=44, height=40, mips=1, flags=0x41, bits=32)
+    assert struct.unpack('<4I', block_infos_for(icon + bytes(7040))) == (7040, 7040, 0, 0)
+    luminance = uncompressed_header(width=512, height=32, mips=10, flags=0x20000, bits=8)
+    assert struct.unpack('<4I', block_infos_for(luminance + bytes(sum(max(1, 512 >> i) * max(1, 32 >> i) for i in range(10))))) == (16384, 4096, 1024, 256)
+    for flags, bits in ((0x41, 12), (0x41, 64), (0x200, 32)):
+        with pytest.raises(PathcError, match='not one whose mip sizes'):
+            validate_dds_payload(uncompressed_header(width=4, height=4, mips=1, flags=flags, bits=bits) + bytes(64))
+
+
 def test_supported_dx10_alpha_semantics_remain_distinct():
     base = dds_header(width=4, height=4, fourcc=b'DX10')
     table = build_table(headers=[], entries=[])
