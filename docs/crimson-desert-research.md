@@ -548,6 +548,53 @@ alongside the 20 PAC/PAM samples that passed initially. These are nonvisual mesh
 parse checks. PAMLOD rebuild support, visible appearance and game acceptance are
 not established by this audit.
 
+A PAMLOD states its level layout, and the Python mesh reader now decodes it
+instead of searching for it. Read-only inspection on 31 October 2026 covered every
+shipped PAMLOD in game `1.0.0.3446`: 34,168 base and 1,435 DLC files, 203,025
+levels. From `0x50` the descriptor table repeats the level count, then gives each
+level a 1-based ordinal, a part count and that many 0x218-byte part records:
+vertex and index counts, running vertex and index element offsets, a 256-byte
+texture name, a 256-byte material name and two floats. A variable-length trailer
+follows each level's records; it appears to hold per-part index ranges and bounds
+and is not decoded. A table of level blocks ends at most 12 bytes before the
+geometry offset. In layout version 4 (byte `0x0C`, every file but one) it stores
+offset, decoded size and compressed size, each block starting 16-byte aligned
+after the previous one and the last ending the file. The one version 3 file
+stores offsets only. Each block holds the level's vertex records followed by u16
+indices that are local to each part.
+
+No field names the vertex stride or attribute offsets. The block sizes fix the
+stride exactly, and it is 20 bytes on every level of every file. Position (three
+u16 values against the header bounds) at byte 0 and a half-float UV at byte 8 are
+decoded; bytes 6-7 and 12-19 remain unidentified. In 456 levels of 195 files the
+UV field holds NaN bit patterns (`0x7FFF`, `0xFFFF`) in the shipped records; these
+are authored, not misreads, and the preview draws them at UV 0.
+
+The previous reader found parts by searching for `.dds` strings and then guessed
+each level's base and stride. Name fields keep stale bytes after their terminator
+(a material reads `boxleather`, then `fabric_09.dds`), so the search invented
+parts, split levels in the wrong place and fitted wrong strides to them. Across
+the same files it decoded every level correctly in only 4,252 of 35,603 files,
+left an empty level in 18,919 and produced 59.5 million non-finite UV values in
+31,102. With the stated layout, all 35,603 files decode every level inside its
+stated block, no level is empty, no file fails to parse, and the only non-finite
+UVs left are the 14,344 authored ones. The Mesh Editor's no-op round trip, which
+gates exact export, is now byte-identical for all 1,435 DLC files and for a
+random sample of 1,000 base files, against 347 and 146 before; no file lost a
+passing round trip. A stated layout that does not add up
+(descriptors that do not fill their blocks, indices outside their part, blocks
+still compressed) is refused. A payload without a consistent block table, such as
+an owned fixture, keeps the searching reader. The Rust preview no longer writes
+NaN into its document: it draws non-finite UVs at 0 and refuses non-finite
+positions or normals with the part named.
+
+This is full-corpus asset inspection plus source and owned-fixture evidence. The
+executable's reader was not analysed, so that the game uses the block table is
+inferred from its consistency rather than observed, and nothing was checked
+visually or in game. The Python model preview, the native preview core and both
+LOD0 topology writers still locate levels by searching, and neither LOD0 topology
+writer rewrites the block table when LOD0 changes size.
+
 PAC uses a sectioned `PAR ` container with metadata, submeshes, LODs, vertex
 layouts, indices and accompanying material data. Supported PAM and PAMLOD
 layouts provide static geometry; PAT has a bounded read-only geometry path.

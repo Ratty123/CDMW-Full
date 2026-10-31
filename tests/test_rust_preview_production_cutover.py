@@ -332,6 +332,31 @@ def test_preview_publication_preserves_an_existing_package(tmp_path: Path) -> No
     assert marker.read_text(encoding="utf-8") == "resident"
 
 
+def _strict_json(path: Path):
+    def refuse(name: str):
+        raise ValueError(f"{path.name} holds {name}, which the Rust host cannot read")
+    return json.loads(path.read_text(encoding="utf-8"), parse_constant=refuse)
+
+
+def test_preview_document_draws_unauthored_uvs_at_zero_and_refuses_broken_geometry(tmp_path: Path) -> None:
+    # Shipped static meshes without texture coordinates store NaN in their UV field.
+    mesh = _triangle()
+    mesh.submeshes[0].uvs[1] = (float("nan"), float("nan"))
+    package = build_rust_preview_package(mesh, output_package_dir=tmp_path / "package", include_material_resources=False)
+    document = _strict_json(package.package_dir / "document.json")
+    assert document["lods"][0]["submeshes"][0]["uvs"] == [[0.0, 1.0], [0.0, 0.0], [0.5, 0.0]]
+    assert document["warnings"] == ["LOD 0 part 'triangle': 1 source UVs are not finite numbers and are drawn at 0."]
+    assert all(value != value for value in mesh.submeshes[0].uvs[1])
+
+    for channel in ("vertices", "normals"):
+        broken = _triangle()
+        getattr(broken.submeshes[0], channel)[2] = (0.0, float("inf"), 0.0)
+        name = "position" if channel == "vertices" else "normal"
+        with pytest.raises(ValueError, match=f"LOD 0 part 'triangle' has a vertex {name} that is not a finite number"):
+            build_rust_preview_package(broken, output_package_dir=tmp_path / channel, include_material_resources=False)
+        assert not (tmp_path / channel).exists()
+
+
 def test_gizmo_preferences_reach_the_resident_preview_payload() -> None:
     from cdmw.models import ModelPreviewRenderSettings
     from cdmw.ui.preview.dotnet_host_render_tuning import render_tuning_payloads
