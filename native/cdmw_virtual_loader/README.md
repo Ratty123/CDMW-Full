@@ -364,8 +364,10 @@ the mount list only when it holds private archives. Recorded the same night: a l
 profile serving only a `meta/0.pathc` that registers the five swords' textures, beside
 the swords' composed tables served by DmmRuntime, was ready in 219 ms, and the game
 completed all twelve data stages with only the errors an unmodified launch logs. The
-texture registry is not authenticated. Whether the game loads new model, texture and
-icon paths served per path has not been looked at in game.
+texture registry is not authenticated. A research probe (outside this runtime) found the
+`ResourceLoadWorker_Package` vtable by RTTI before the first load and logged the game
+asking its exists and load slots about paths in no index, so per-path serving can add
+new files; the five swords have not been looked at in game.
 
 ## Independent item publication research
 

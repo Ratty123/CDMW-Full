@@ -114,9 +114,12 @@ swords (ItemInfo, StoreInfo, ItemGroupInfo, StringInfo, MultiChangeInfo, the par
 table and the item names) passed all twelve data-loading stages with no error beyond those
 an unmodified launch logs. A third launch added CDMW's runtime serving a rewritten
 `meta/0.pathc` with the swords' texture registrations, mount list untouched, and loaded
-just as cleanly: the texture registry is not authenticated. The items were not looked at
-in game, so whether the game asks the loader for files no index lists (new models,
-textures, icons) remains untested.
+just as cleanly: the texture registry is not authenticated. A research probe that wrapped
+the package worker's exists and load slots (found by RTTI, calls forwarded unchanged)
+recorded the game asking it about 1,010 paths in no base or DLC index (optional normal
+maps, absent XML) among 37,440 exists queries, so the worker is consulted for paths the
+index does not hold and per-path serving can add new files. The swords were not looked
+at in game.
 
 The read-only audit decoded all **2,089,061 indexed entries**, including **307,263
 DLC entries**, to their declared sizes. No unsupported encryption type or
