@@ -132,23 +132,26 @@ def test_source_hashes_are_fresh_and_concurrency_is_bounded(tmp_path, monkeypatc
     original = composition.hash_file
     barrier, lock = threading.Barrier(2), threading.Lock()
     active = peak = 0
-    def hashed(path, stop):
+    def hashed(path, stop, *, on_read=None):
         nonlocal active, peak
         with lock:
             active += 1
             peak = max(peak, active)
         try:
             barrier.wait(5)
-            return original(path, stop)
+            return original(path, stop, on_read=on_read)
         finally:
             with lock:
                 active -= 1
     monkeypatch.setattr(composition, 'hash_file', hashed)
     progress = []
-    result = composition._hash_sources(paths, on_progress=lambda n, total: progress.append((n, total)))
+    result = composition._hash_sources(paths, on_progress=lambda n, total, detail: progress.append((n, total, detail)))
     assert peak == 2 and active == 0
     assert result == {str(p): hashlib.sha256(p.read_bytes()).hexdigest() for p in paths}
-    assert progress == [(n, 6) for n in range(1, 7)]
+    # Progress counts bytes read, never runs backwards, and ends complete.
+    counts = [n for n, _total, _detail in progress]
+    assert counts == sorted(counts) and progress[-1][:2] == (6 * 4096, 6 * 4096)
+    assert all(total == 6 * 4096 and detail.startswith('Verifying sources:') for _n, total, detail in progress)
     stamp = paths[0].stat()
     paths[0].write_bytes(b'x' * stamp.st_size)
     os.utime(paths[0], ns=(stamp.st_atime_ns, stamp.st_mtime_ns))
@@ -156,11 +159,15 @@ def test_source_hashes_are_fresh_and_concurrency_is_bounded(tmp_path, monkeypatc
     assert composition._hash_sources(paths)[str(paths[0])] != result[str(paths[0])]
 
 
-def test_source_hash_cancellation_drains_workers(monkeypatch):
+def test_source_hash_cancellation_drains_workers(tmp_path, monkeypatch):
     stop = threading.Event()
     active = 0
     lock = threading.Lock()
-    def hashed(path, event):
+    paths = []
+    for i in range(10):
+        paths.append(tmp_path / str(i))
+        paths[-1].write_bytes(b'source')
+    def hashed(path, event, *, on_read=None):
         nonlocal active
         with lock:
             active += 1
@@ -172,7 +179,7 @@ def test_source_hash_cancellation_drains_workers(monkeypatch):
                 active -= 1
     monkeypatch.setattr(composition, 'hash_file', hashed)
     with pytest.raises(RunCancelled):
-        composition._hash_sources(range(10), stop)
+        composition._hash_sources(paths, stop)
     assert active == 0
 
 
@@ -279,7 +286,7 @@ def test_virtual_list_sorting_is_display_only_and_projects_progress(tmp_path, mo
         page.close()
 
 
-def test_virtual_workspace_avoids_duplicate_operation_controls(tmp_path, monkeypatch):
+def test_virtual_workspace_avoids_duplicate_operation_controls(tmp_path, monkeypatch, retained_archive_overlays):
     from tests.test_mod_management import pump
     app = QApplication.instance() or QApplication([])
     controller = NewItemStudioController()

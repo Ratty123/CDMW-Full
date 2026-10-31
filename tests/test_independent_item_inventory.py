@@ -161,10 +161,11 @@ def test_duplicate_reserve_slot_table_identity_refuses(tmp_path, inventory_game)
 
 
 def test_duplicate_material_group_identity_refuses(tmp_path, inventory_game):
+    from cdmw.services.new_item_snapshot import NewItemSnapshotError
     inventory_game['duplicate_group'] = True
-    service, snapshot, _ = setup_game(tmp_path)
-    with pytest.raises(ValueError, match='ambiguous itemgroupinfo dependency'):
-        service.plan(replace(shop_spec('Duplicate'), inventory_settings=inventory_choices()), snapshot)
+    # Reading the tables refuses a repeated row before any plan can depend on it.
+    with pytest.raises(NewItemSnapshotError, match='itemgroupinfo has duplicate row'):
+        setup_game(tmp_path)
 
 
 @pytest.mark.parametrize('table,field', (('gimmickinfo', 'material_gimmicks'),

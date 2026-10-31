@@ -146,5 +146,5 @@ def test_donor_texture_edit_still_refuses_even_when_compiler_output_uses_private
     with pytest.raises(OverlayConflict) as caught:
         resolve_items([package_bytes(package)], root, target=target)
     assert 'foreign' in str(caught.value) and TEXTURE in str(caught.value)
-    assert 'required resource changed' in str(caught.value).lower()
+    assert 'another mod changes this file' in str(caught.value).lower()
     assert files_in(root) == before
