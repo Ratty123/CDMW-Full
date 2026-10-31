@@ -124,9 +124,11 @@ _MAX_COUNT = 4096
 _FOOTER_SEARCH = 17
 #: Member ``extra`` bit of an indexed object list (``SocketComponent._socketList``):
 #: after a non-zero count comes a 13-byte reference (``01``, u32, eight zero bytes),
-#: and each element carries a u32 index after its owner field. Measured on the
+#: and each element carries an authored u32 index after its owner field (a prop
+#: may number its socket lists 0, 1, 2 or restart each at 0). Measured on the
 #: shipped revision-15 prefabs, 2026-10-31.
 _INDEXED_OBJECT_LIST = 0x100
+_MAX_NAMES = 8
 _MAX_DEPTH = 32
 _MAX_GROUPS = 100_000
 _MARKER_SEARCH = 512
@@ -546,7 +548,7 @@ class _BlobCursor:
         "stopped_at", "collections", "wide_on_multiples", "_starts",
         "plain_counts",
         "revision",
-        "element_index",
+        "indexed_element",
     )
 
     def __init__(
@@ -579,8 +581,8 @@ class _BlobCursor:
         # next declared type instead of guessing by size.
         self.used_types: set[str] = set()
         # Set by an indexed object list for the element about to be read: its
-        # owner field is followed by this index before the name pointer.
-        self.element_index: int | None = None
+        # owner field is followed by a u32 index before the name pointer.
+        self.indexed_element = False
 
     def take(self, count: int) -> bytes:
         if count < 0 or self.pos + count > len(self.blob):
@@ -861,9 +863,9 @@ def _read_member(
             )
         )
         spans: list[tuple[int, int]] = []
-        for element in range(count):
+        for _ in range(count):
             mark = cursor.pos
-            cursor.element_index = element if indexed else None
+            cursor.indexed_element = indexed
             try:
                 group_reader(cursor)
             except PrefabBinaryError:
@@ -887,7 +889,7 @@ def _read_member(
     raise PrefabBinaryError(f"unsupported member kind 0x{flags:04x} on {member.name}")
 
 
-def _find_element_header(cursor: _BlobCursor, element_index: int | None = None) -> tuple[int, int]:
+def _find_element_header(cursor: _BlobCursor, indexed: bool = False) -> tuple[int, int]:
     """Locate the element header and return ``(mask, componentTypeIndex)``.
 
     The header is ``u16 width, mask (width bytes, little-endian), u8 typeIndex,
@@ -918,10 +920,13 @@ def _find_element_header(cursor: _BlobCursor, element_index: int | None = None) 
         owner_at = probe + 2 + width + 3
         # An indexed list element carries its u32 index between the owner
         # and the name pointer.
-        skip_index = 0 if element_index is None else 4
+        skip_index = 4 if indexed else 0
         if owner_at + 12 + skip_index > len(cursor.blob):
             continue
-        if skip_index and struct.unpack_from("<I", cursor.blob, owner_at + 8)[0] != element_index:
+        # The index is authored, not positional: one prop numbers its socket
+        # lists 0, 1, 2, another restarts each list at 0. The self-relative
+        # name pointer after it is what anchors the header.
+        if skip_index and struct.unpack_from("<I", cursor.blob, owner_at + 8)[0] > _MAX_COUNT:
             continue
         if struct.unpack_from("<I", cursor.blob, owner_at + 8 + skip_index)[0] != cursor.base + owner_at + 12 + skip_index:
             continue
@@ -955,10 +960,19 @@ def _read_name_record(cursor: _BlobCursor, *, indexed: bool = False) -> str:
     count = cursor.u16()
     if count == 0:
         return ""
-    if count != 1:
+    if count == 1:
+        cursor.u16()
+        return cursor.text().text
+    if count > _MAX_NAMES:
         raise PrefabBinaryError(f"unsupported name count {count}")
-    cursor.u16()
-    return cursor.text().text
+    # Several names (`Tool_FishingRod`, then `fishingrod`), each after its own
+    # index. The first is the object's name.
+    names = []
+    for index in range(count):
+        if cursor.u16() != index:
+            raise PrefabBinaryError("name record entries are out of order")
+        names.append(cursor.text().text)
+    return names[0]
 
 
 def _component_for(
@@ -1025,11 +1039,11 @@ def _walk_group(
     # Before the header search moves the cursor: this is where the enclosing
     # collection considers the element to begin.
     started_at = cursor.base + cursor.pos
-    element_index, cursor.element_index = cursor.element_index, None
-    mask, type_index = _find_element_header(cursor, element_index)
+    indexed, cursor.indexed_element = cursor.indexed_element, False
+    mask, type_index = _find_element_header(cursor, indexed)
     owner_before = cursor.pos
     parent = int.from_bytes(cursor.blob[max(0, owner_before) : owner_before + 8], "little")
-    name = _read_name_record(cursor, indexed=element_index is not None)
+    name = _read_name_record(cursor, indexed=indexed)
     if not components:
         raise PrefabBinaryError("no component type for group")
     highest = mask.bit_length()

@@ -1421,7 +1421,11 @@ supported interpretation rather than whichever candidate happens to fit.
 Socket lists are a separate collection form. `SocketComponent._socketList` is
 declared with member `extra` 0x100; after a non-zero count it writes a 13-byte
 reference (`01`, a u32, eight zero bytes), and each `TransformSocket` element
-carries its u32 position between its owner field and its name pointer. A group's
+carries a u32 index between its owner field and its name pointer. The index is
+authored rather than positional: a food prop with one `SocketComponent` per
+socket numbers them 0, 1, 2, while a throwing-dagger gimmick restarts each list
+at 0. An object's name record may
+hold several names, each after its own index (`Tool_FishingRod`, `fishingrod`). A group's
 pointee closes with a length field that the walk does not otherwise read, so a
 collection header that follows a group directly is read only after those
 validated length fields. Measured over the shipped revision-15 prefabs on game

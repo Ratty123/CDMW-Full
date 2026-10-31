@@ -511,10 +511,25 @@ def test_an_indexed_object_list_reads_its_reference_and_element_indexes() -> Non
     assert sorted(obj.name for obj in document.objects) == ["A", "B", "C"]
     assert sorted(value.text for obj in document.objects for value in obj.texts) == [
         "asset/a.pac", "asset/b.pac", "asset/c.pac"]
-    # An index out of step with the element's position is not this layout.
-    assert not decode_prefab_binary(build_with_collection(("A", "B"), indexed=True, indexes=(0, 0))).walk_complete
+    # The index is authored: shipped props restart it per list or run it on.
+    assert decode_prefab_binary(build_with_collection(("A", "B"), indexed=True, indexes=(0, 0))).walk_complete
+    assert decode_prefab_binary(build_with_collection(("A", "B"), indexed=True, indexes=(3, 7))).walk_complete
+    # An implausible index is not this layout.
+    assert not decode_prefab_binary(build_with_collection(("A", "B"), indexed=True, indexes=(0, 1 << 20))).walk_complete
     assert decode_prefab_binary(build_with_collection(("A", "B"))).walk_complete, "plain lists are unchanged"
     assert decode_prefab_binary(build_with_collection((), indexed=True)).walk_complete, "no reference when empty"
+
+
+def test_a_name_record_may_hold_several_indexed_names() -> None:
+    """The fishing rod's SkinnedMeshComponent is named ``Tool_FishingRod`` and
+    ``fishingrod``: a count of 2, each name after its own index."""
+
+    from tests.prefab_collection_builder import build_with_collection
+
+    document = decode_prefab_binary(build_with_collection(("A", "B"), aliases=("a_alias",)))
+
+    assert document.walk_complete, document.walk_note
+    assert sorted(obj.name for obj in document.objects) == ["A", "B"]
 
 
 def test_a_narrow_header_is_left_alone() -> None:

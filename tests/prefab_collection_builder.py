@@ -25,7 +25,7 @@ def member(name: str, type_name: str, flags: int, size: int, extra: int = 0) -> 
     return text(name) + text(type_name) + struct.pack("<HHHH", flags, size, 0, extra)
 
 
-def element(base: int, at: int, name: str, value: str, index: int | None = None) -> bytes:
+def element(base: int, at: int, name: str, value: str, index: int | None = None, aliases=()) -> bytes:
     """One collection element: header, name record, then a single string member.
 
     ``at`` is the element's blob-relative start and ``base`` the blob's file
@@ -41,8 +41,9 @@ def element(base: int, at: int, name: str, value: str, index: int | None = None)
         out += struct.pack("<I", index)  # an indexed object list's element index
     pointer_at = at + len(out)
     out += struct.pack("<I", base + pointer_at + 4)
-    out += struct.pack("<HHH", 0, 1, 0)  # name record: header, count, unknown
-    out += text(name)
+    out += struct.pack("<HH", 0, 1 + len(aliases))  # name record: header, count
+    for position, label in enumerate((name, *aliases)):
+        out += struct.pack("<H", position) + text(label)  # each name after its index
     out += text(value)                   # the component's one string member
     return bytes(out)
 
@@ -54,6 +55,7 @@ def build_with_collection(
     declared: int | None = None,
     indexed: bool = False,
     indexes=None,
+    aliases=(),
 ) -> bytes:
     """A prefab whose root holds a collection of ``len(names)`` elements.
 
@@ -88,7 +90,7 @@ def build_with_collection(
     written = list(indexes) if indexes is not None else list(range(len(names)))
     for position, name in enumerate(names):
         blob += element(base, len(blob), name, f"asset/{name.lower()}.pac",
-                        written[position] if indexed else None)
+                        written[position] if indexed else None, aliases)
     blob += b"\x01"                        # the terminator; see prefab_blob_tail
 
     data_header = struct.pack("<III", 1, base + len(blob), 0)
