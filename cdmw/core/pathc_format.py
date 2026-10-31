@@ -35,7 +35,7 @@ from __future__ import annotations
 import struct
 from bisect import bisect_left
 from dataclasses import dataclass, replace
-from typing import Optional, Tuple
+from typing import Optional, Sequence, Tuple
 
 from cdmw.core.archive_format import calculate_pa_checksum
 from cdmw.core.dds_resource_limits import checked_dds_mip_byte_counts
@@ -230,6 +230,7 @@ def register_texture(
     *,
     like: str,
     dds_header: Optional[bytes] = None,
+    reference_tables: Sequence[PathcTable] = (),
 ) -> PathcTable:
     """Register `path` with the header and block infos of the shipped texture `like`.
 
@@ -237,10 +238,26 @@ def register_texture(
     is retained for callers). Its payload is validated and its shape
     (:func:`dds_shape`) must equal the header the reference is registered under,
     otherwise the game would decode the new pixels with the wrong size or format.
+
+    `reference_tables` are read-only registries that may hold `like` instead, such
+    as a DLC's own `dlc/dlc_NN/meta/0.pathc`. The new row still goes into `table`,
+    under a header of the reference's shape and tag.
     """
 
     reference = table.find(like)
     if reference is None:
+        for other in reference_tables:
+            found = other.find(like)
+            if found is None:
+                continue
+            if not found.is_direct:
+                raise PathcError(f"the reference texture {like!r} is registered through the collision table; pick a direct one")
+            if dds_header is None:
+                raise PathcError(f"the reference texture {like!r} is registered in another registry; the new DDS is required")
+            registered = other.dds_header_for(found)
+            if dds_shape(validate_dds_payload(dds_header).header) != dds_shape(registered):
+                raise PathcError(f"the new texture's DDS header (size, format or mips) differs from {like!r}'s registered header")
+            return register_dds(table, path, dds_header, tag=header_tag(registered))
         raise PathcError(f"the reference texture {like!r} is not registered")
     if not reference.is_direct:
         raise PathcError(f"the reference texture {like!r} is registered through the collision table; pick a direct one")

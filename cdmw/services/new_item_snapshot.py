@@ -114,6 +114,9 @@ class NewItemSnapshot:
     #: The texture registry beside the archives (`meta/0.pathc`), or None when the
     #: package root has none; a new icon needs a row in it to draw.
     pathc: Optional[PathcTable] = None
+    #: Each installed DLC's own registry (`dlc/dlc_NN/meta/0.pathc`), read only: it
+    #: registers the DLC's textures, which a new icon may be shaped after.
+    dlc_pathcs: Tuple[PathcTable, ...] = ()
     #: Stems of the shipped effect binaries (`effect/binary__/releasebin/<stem>.pae`),
     #: what a visual effect may name.
     effect_stems: FrozenSet[str] = frozenset()
@@ -780,6 +783,14 @@ def build_snapshot(
             pathc_source_digest = hashlib.sha256(pathc_bytes).hexdigest()
         except PathcError as exc:
             _log_progress(on_log, f"The texture registry did not decode; new icons will not be registered: {exc}")
+    dlc_pathcs = []
+    dlc_folder = pathc_path.parent.parent / "dlc"
+    for dlc_pathc_path in sorted(dlc_folder.glob("dlc_*/meta/0.pathc")) if dlc_folder.is_dir() else ():
+        provenance.pin_file(dlc_pathc_path)
+        try:
+            dlc_pathcs.append(parse_pathc(dlc_pathc_path.read_bytes()))
+        except PathcError:
+            pass  # An icon shaped after one of its textures is then refused as unregistered.
     snapshot = NewItemSnapshot(
         entries=by_path,
         read_entry=read,
@@ -808,6 +819,7 @@ def build_snapshot(
         dlc_paloc_entries=dlc_palocs,
         provenance=provenance,
         pathc=pathc,
+        dlc_pathcs=tuple(dlc_pathcs),
         pathc_source_digest=pathc_source_digest,
         effect_stems=effect_stems,
         _effect_binary_paths=tuple(sorted(effect_paths)),

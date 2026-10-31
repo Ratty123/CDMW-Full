@@ -142,6 +142,23 @@ class PathcTests(unittest.TestCase):
         with self.assertRaisesRegex(PathcError, "already registered"):
             register_texture(new, NEW_ICON, like=ICON)
 
+    def test_register_like_an_icon_from_a_dlc_registry(self) -> None:
+        # DLC icons are registered in dlc/dlc_NN/meta/0.pathc, not in the base table.
+        dlc_icon = "ui/texture/icon/itemicon_prefab_cd_phm_00_ring_0012_l.dds"
+        icon_15 = dds_header(width=256, height=256, tag=15)
+        dlc = build_table(headers=[icon_15], entries=[(dlc_icon, 0, ICON_BLOCKS)])
+        base = build_table(headers=[BIG_HEADER, ICON_HEADER, icon_15], entries=[("a/b.dds", 0, BIG_BLOCKS)])
+        new = register_texture(base, NEW_ICON, like=dlc_icon, dds_header=ICON_HEADER + bytes(65536), reference_tables=(dlc,))
+        entry = new.find(NEW_ICON)
+        self.assertEqual((entry.header_index, entry.block_infos), (2, ICON_BLOCKS), "the base header of the DLC icon's shape and tag")
+        self.assertIsNone(dlc.find(NEW_ICON), "the DLC registry is only read")
+        with self.assertRaisesRegex(PathcError, "differs"):
+            register_texture(base, NEW_ICON, like=dlc_icon, dds_header=dds_payload(BIG_HEADER), reference_tables=(dlc,))
+        with self.assertRaisesRegex(PathcError, "new DDS is required"):
+            register_texture(base, NEW_ICON, like=dlc_icon, reference_tables=(dlc,))
+        with self.assertRaisesRegex(PathcError, "not registered"):
+            register_texture(base, NEW_ICON, like=dlc_icon, dds_header=ICON_HEADER + bytes(65536))
+
     def test_register_a_dds_by_its_own_header(self) -> None:
         odd = struct.pack("<4I", 1153, 65536, 16384, 4096)
         table = build_table(headers=[BIG_HEADER, ICON_HEADER], entries=[(ICON, 1, ICON_BLOCKS), ("a/b.dds", 0, BIG_BLOCKS), ("a/c.dds", 0, BIG_BLOCKS), ("a/d.dds", 0, odd)])

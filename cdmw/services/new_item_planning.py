@@ -841,7 +841,8 @@ class _Planner(EffectPlanningMixin):
         for request in new_dds:
             try:
                 if self.icon is not None and request.path == self.icon.target_path and template_icon:
-                    table = register_texture(table, request.path, like=template_icon, dds_header=request.payload_data)
+                    table = register_texture(table, request.path, like=template_icon, dds_header=request.payload_data,
+                                             reference_tables=self.snapshot.dlc_pathcs)
                 else:
                     table = register_dds(table, request.path, request.payload_data)
             except PathcError as exc:
