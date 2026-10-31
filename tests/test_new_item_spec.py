@@ -299,8 +299,10 @@ class AllocationTests(unittest.TestCase):
         self.assertEqual(suggest_stem("cd_phm_01_sword_0109", taken | {"ItemIcon_Prefab_CD_PHM_01_Sword_9110"}), "cd_phm_01_sword_9111")
         with self.assertRaisesRegex(AllocationError, "no digit run"):
             suggest_stem("cd_phm_sword", ())
+        # The DLC ship parts share cd_t9999_empty: the range continues from its bottom.
+        self.assertEqual(suggest_stem("cd_t9999_empty", {"cd_t9999_empty", "cd_t9000_empty"}), "cd_t9001_empty")
         with self.assertRaisesRegex(AllocationError, "no free stem"):
-            suggest_stem("cd_x_9999", ())
+            suggest_stem("cd_x_9999", {f"cd_x_{number}" for number in range(9000, 10000)})
         with self.assertRaisesRegex(AllocationError, "one digit"):
             suggest_stem("cd_x_0001", (), replacement_digit="99")
 

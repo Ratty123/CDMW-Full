@@ -81,7 +81,9 @@ def suggest_stem(
     replacement_digit: str = "9",
 ) -> str:
     """A free stem of the template's length: its last four-digit-or-longer run with
-    the leading digit swapped for `replacement_digit`, counting up while taken.
+    the leading digit swapped for `replacement_digit`, counting up while taken and
+    then from the bottom of that digit's range (the DLC ship parts all share the
+    dummy stem `cd_t9999_empty`, which has nothing above it).
 
     `taken` should hold every stem the archives know (part-prefab stems, StringInfo
     texts, model family stems); a stem is taken when it, any `<stem>_...` variant
@@ -99,7 +101,8 @@ def suggest_stem(
     head, tail = stem[: run.start()], stem[run.end() :]
     taken_list = list(taken)
     start = int(replacement_digit + run.group()[1:])
-    for number in range(start, 10**width):
+    bottom = int(replacement_digit + "0" * (width - 1))
+    for number in (*range(start, 10**width), *range(bottom, start)):
         candidate = f"{head}{number:0{width}d}{tail}"
         if candidate != stem and not _stem_taken(candidate, taken_list):
             return candidate
