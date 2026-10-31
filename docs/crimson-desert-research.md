@@ -118,8 +118,17 @@ just as cleanly: the texture registry is not authenticated. A research probe tha
 the package worker's exists and load slots (found by RTTI, calls forwarded unchanged)
 recorded the game asking it about 1,010 paths in no base or DLC index (optional normal
 maps, absent XML) among 37,440 exists queries, so the worker is consulted for paths the
-index does not hold and per-path serving can add new files. The swords were not looked
-at in game.
+index does not hold and per-path serving can add new files. That was confirmed in game
+on 31 October with the user playing: DmmRuntime served the composition, including the
+DLC's StoreInfo and ItemGroupInfo layers that replace the camp shop and the swords'
+groups, and CDMW's runtime served the texture registry. The five swords appeared in
+Tranan's camp equipment shop with names and prices, and a bought one showed its model
+when equipped. The game requested each sword's new `.pac`, `.pac_xml` and 40 textures,
+paths in no archive index, and DMM served them all. The game also looked for a mesh-physics
+file per new model (`character/bin__/meshphysics/.../<stem>.hkx`) and logged it as missing;
+CDMW writes none, and what that affects (dropped-item physics, for example) is untested.
+The other data errors matched unmodified launches. The DMM app was not running; only its
+runtime and a temporarily extended manifest were used.
 
 The read-only audit decoded all **2,089,061 indexed entries**, including **307,263
 DLC entries**, to their declared sizes. No unsupported encryption type or
