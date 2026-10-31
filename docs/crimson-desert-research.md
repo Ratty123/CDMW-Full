@@ -578,7 +578,10 @@ the same files it decoded every level correctly in only 4,252 of 35,603 files,
 left an empty level in 18,919 and produced 59.5 million non-finite UV values in
 31,102. With the stated layout, all 35,603 files decode every level inside its
 stated block, no level is empty, no file fails to parse, and the only non-finite
-UVs left are the 14,344 authored ones. A stated layout that does not add up
+UVs left are the 14,344 authored ones. The Mesh Editor's no-op round trip, which
+gates exact export, is now byte-identical for all 1,435 DLC files and for a
+random sample of 1,000 base files, against 347 and 146 before; no file lost a
+passing round trip. A stated layout that does not add up
 (descriptors that do not fill their blocks, indices outside their part, blocks
 still compressed) is refused. A payload without a consistent block table, such as
 an owned fixture, keeps the searching reader. The Rust preview no longer writes
