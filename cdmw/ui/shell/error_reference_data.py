@@ -25097,7 +25097,7 @@ MESSAGE_REFERENCE = [
     "message": "Cannot allocate a served path",
     "recovery": "input",
     "sources": {
-      "native/cdmw_virtual_loader/resource_serving.cpp": 133
+      "native/cdmw_virtual_loader/resource_serving.cpp": 143
     }
   },
   {
@@ -25282,7 +25282,7 @@ MESSAGE_REFERENCE = [
     "message": "Cannot open a resource loader slot",
     "recovery": "input",
     "sources": {
-      "native/cdmw_virtual_loader/resource_serving.cpp": 230
+      "native/cdmw_virtual_loader/resource_serving.cpp": 240
     }
   },
   {
@@ -26018,7 +26018,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid DOS header",
     "recovery": "format",
     "sources": {
-      "native/cdmw_virtual_loader/resource_serving.cpp": 156,
+      "native/cdmw_virtual_loader/resource_serving.cpp": 166,
       "native/cdmw_virtual_loader/runtime.cpp": 178
     }
   },
@@ -26387,7 +26387,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid served resource count",
     "recovery": "input",
     "sources": {
-      "native/cdmw_virtual_loader/resource_serving.cpp": 253
+      "native/cdmw_virtual_loader/resource_serving.cpp": 263
     }
   },
   {
@@ -26395,7 +26395,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid served resource path",
     "recovery": "input",
     "sources": {
-      "native/cdmw_virtual_loader/resource_serving.cpp": 257
+      "native/cdmw_virtual_loader/resource_serving.cpp": 267
     }
   },
   {
@@ -27236,7 +27236,7 @@ MESSAGE_REFERENCE = [
     "message": "Served path is not valid Unicode",
     "recovery": "internal",
     "sources": {
-      "native/cdmw_virtual_loader/resource_serving.cpp": 146
+      "native/cdmw_virtual_loader/resource_serving.cpp": 156
     }
   },
   {
@@ -27645,7 +27645,7 @@ MESSAGE_REFERENCE = [
     "message": "The game's resource loader classes were not found",
     "recovery": "missing",
     "sources": {
-      "native/cdmw_virtual_loader/resource_serving.cpp": 198
+      "native/cdmw_virtual_loader/resource_serving.cpp": 208
     }
   },
   {
@@ -28741,7 +28741,7 @@ MESSAGE_REFERENCE = [
     "message": "Unsupported PE",
     "recovery": "unsupported",
     "sources": {
-      "native/cdmw_virtual_loader/resource_serving.cpp": 158,
+      "native/cdmw_virtual_loader/resource_serving.cpp": 168,
       "native/cdmw_virtual_loader/runtime.cpp": 180
     }
   },
