@@ -168,6 +168,13 @@ extractable; their semantic editing contracts are not established. DLC metadata
 uses `.dlc_01` table/localization names. Updated Item Finder joins yield 8,373
 distinct items. The 30 October catalogue follow-up compared the base and DLC row
 directories: 1,309 IDs are newly introduced and 242 base IDs are overridden by DLC.
+On 31 October the same comparison for shops and item groups found the DLC layers
+sharing keys with 151 of 440 stores (among them `Store_Camp_Equipment`, 6600) and
+349 of 1,680 item groups, while MultiChangeInfo and StringInfo only add rows. CDMW
+treats a shared key as the DLC row replacing the base row and writes new shop and
+group lines there; that the game reads the DLC row is inferred from this layering,
+not yet observed in game. The DLC installs from its own Steam depot, so its files
+are absent on games without it.
 The worker's DLC-only filter returned exactly those 1,309 new IDs, with no missing
 or unclassified rows. Definition/equipment-based categorization recovers 102 ship
 equipment items, four ship blueprints, six blueprint parts, 40 equipment blueprints
