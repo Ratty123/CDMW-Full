@@ -57,7 +57,7 @@ REAL_RUST_PREVIEW_SAMPLES = (
     ),
     (
         "skin",
-        "character/model/1_pc/1_phm/nude/cd_phm_00_nude_00_0001.pac",
+        "character/model/1_pc/1_phm/nude/phm_00_nude_00_0001.pac",
     ),
 )
 

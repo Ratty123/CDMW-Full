@@ -148,6 +148,12 @@ def run_real_archive_mesh_editor_load_smoke(
         )
     )
     window.settings_file_path = settings_path
+    # The live browser hands Builder worker-prepared bytes; stage the real entry
+    # the same way so the synthetic context does not invent a prepared path.
+    prepared_path = output_dir / "prepared" / entry.basename
+    prepared_path.parent.mkdir(parents=True, exist_ok=True)
+    prepared_path.write_bytes(read_modify_original_source_asset(entry)[0])
+    entry.prepared_path = prepared_path
     configure_synthetic_archive_context(window, entry)
     window.archive_entries = list(entries)
     window.archive_entries_by_normalized_path = entries_by_path
@@ -276,8 +282,16 @@ def run_real_archive_mesh_editor_load_smoke(
                 and any(timer.isActive() for timer in startup_progress.findChildren(QTimer))
             )
             builder_complete = bool(getattr(dialog, "_cdmw_builder_construction_complete", False))
-            builder_mounted = dialog.parentWidget() is window.mesh_editor_tab.builder_host()
-            mesh_editor_revealed = bool(window._is_tool_visible_or_current(window.mesh_editor_tab))
+            builder_host = window.mesh_editor_tab.builder_host()
+            builder_parent = type(dialog.parentWidget()).__name__
+            builder_visible = bool(dialog.isVisible())
+            if builder_host is None:
+                # Replacement builders are standalone now; the tab no longer hosts them.
+                builder_mounted = dialog.window() is not None and dialog.isVisible()
+                mesh_editor_revealed = builder_mounted
+            else:
+                builder_mounted = dialog.parentWidget() is builder_host
+                mesh_editor_revealed = bool(window._is_tool_visible_or_current(window.mesh_editor_tab))
             action_total_ms = max(0.0, (time.perf_counter() - action_started) * 1000.0)
             active_timers: tuple[str, ...] = ()
             try:
@@ -324,6 +338,8 @@ def run_real_archive_mesh_editor_load_smoke(
                     "partial_builder_shows": transition_probe.partial_builder_shows,
                     "builder_complete": builder_complete,
                     "builder_mounted": builder_mounted,
+                    "builder_parent": builder_parent,
+                    "builder_visible": builder_visible,
                     "mesh_editor_revealed": mesh_editor_revealed,
                     "viewport_display_control_present": viewport_combo is not None,
                     "material_request_wired": callable(material_request),
