@@ -31,6 +31,12 @@ from cdmw.core.archive_wwise_bank_preview import (
     sound_bank_metadata_summary,
 )
 from cdmw.core.common import RunCancelled
+from cdmw.core.archive_data_table_preview import (
+    STATIC_TABLE_EXTENSIONS,
+    build_paloc_preview,
+    build_static_table_preview,
+    find_static_table_companion,
+)
 from cdmw.core.archive_model_references import _ArchiveModelSidecarTextureBinding
 from cdmw.core.archive_model_textures import _FAST_ARCHIVE_PREVIEW_TEXTURE_NOTE
 from cdmw.core.archive_content_analysis import load_archive_content_analysis
@@ -457,6 +463,81 @@ def build_archive_preview_result(
                 loose_preview_detail_text=loose_preview_detail_text,
             )
 
+        table_decode_note = ""
+        if extension == ".paloc":
+            try:
+                paloc_preview = build_paloc_preview(data, entry.path)
+            except ValueError as exc:
+                # The raw text view stays available below, with the reason attached.
+                table_decode_note = f"The localization table could not be decoded: {exc}"
+            else:
+                detail_extra = "\n\n".join(
+                    part
+                    for part in [
+                        ("Decrypted via deterministic ChaCha20 filename derivation." if "ChaCha20" in note_flags else ""),
+                        "\n".join(paloc_preview.detail_lines),
+                    ]
+                    if part
+                )
+                return ArchivePreviewResult(
+                    status="ok",
+                    title=entry.basename,
+                    metadata_summary=f"{metadata_summary} | {paloc_preview.metadata_label}",
+                    detail_text=build_archive_entry_detail_text(entry, detail_extra),
+                    preview_text=paloc_preview.preview_text,
+                    preferred_view="text",
+                    loose_file_path=loose_file_path,
+                    loose_preview_image_path=loose_preview_image_path,
+                    loose_preview_media_path=loose_preview_media_path,
+                    loose_preview_media_kind=loose_preview_media_kind,
+                    loose_preview_title=loose_preview_title,
+                    loose_preview_metadata_summary=loose_preview_metadata_summary,
+                    loose_preview_detail_text=loose_preview_detail_text,
+                )
+
+        if extension in STATIC_TABLE_EXTENSIONS:
+            companion_data: Optional[bytes] = None
+            companion = find_static_table_companion(entry, texture_entries_by_normalized_path)
+            if companion is not None:
+                try:
+                    companion_data, _companion_decompressed, _companion_note = read_archive_entry_data(
+                        companion,
+                        stop_event=stop_event,
+                    )
+                except RunCancelled:
+                    raise
+                except Exception:
+                    companion_data = None
+            table_preview = build_static_table_preview(
+                data,
+                entry.path,
+                extension=extension,
+                companion_data=companion_data,
+            )
+            detail_extra = "\n\n".join(
+                part
+                for part in [
+                    ("Decrypted via deterministic ChaCha20 filename derivation." if "ChaCha20" in note_flags else ""),
+                    "\n".join(table_preview.detail_lines),
+                ]
+                if part
+            )
+            return ArchivePreviewResult(
+                status="ok",
+                title=entry.basename,
+                metadata_summary=f"{metadata_summary} | {table_preview.metadata_label}",
+                detail_text=build_archive_entry_detail_text(entry, detail_extra),
+                preview_text=table_preview.preview_text,
+                preferred_view="text",
+                loose_file_path=loose_file_path,
+                loose_preview_image_path=loose_preview_image_path,
+                loose_preview_media_path=loose_preview_media_path,
+                loose_preview_media_kind=loose_preview_media_kind,
+                loose_preview_title=loose_preview_title,
+                loose_preview_metadata_summary=loose_preview_metadata_summary,
+                loose_preview_detail_text=loose_preview_detail_text,
+            )
+
         if extension == ".pab":
             skeleton_preview = build_pab_preview(data, entry.path)
             related_references = build_archive_related_file_references(
@@ -832,9 +913,13 @@ def build_archive_preview_result(
                 related_references = graph_references
             else:
                 related_references = merge_archive_reference_rows(related_references, graph_references)
-            extra_note = ""
+            extra_note = table_decode_note
             if len(data) > ARCHIVE_TEXT_PREVIEW_LIMIT:
-                extra_note = f"\n\nPreview truncated to {format_byte_size(ARCHIVE_TEXT_PREVIEW_LIMIT)}."
+                extra_note = "\n\n".join(
+                    part
+                    for part in [extra_note, f"Preview truncated to {format_byte_size(ARCHIVE_TEXT_PREVIEW_LIMIT)}."]
+                    if part
+                )
             if "PartialRaw" in note_flags:
                 extra_note = "\n\n".join(
                     part
@@ -982,6 +1067,10 @@ def build_archive_preview_result(
             except Exception as exc:
                 model_preview_error = str(exc)
                 info_extra_parts.append(f"Visual model preview failed to recover geometry: {exc}")
+                from cdmw.core.model_preview import pam_declares_no_submeshes
+
+                if pam_declares_no_submeshes(data):
+                    info_extra_parts.append("This PAM declares no submeshes, so it has no geometry to preview.")
             add_timing("model_geometry_s", geometry_started_at)
         elif extension == ".pamlod":
             geometry_started_at = time.perf_counter()

@@ -5,12 +5,14 @@ archive research status per file format. Each entry carries a `decode` and
 `write` status, its evidence, and remaining limits. Application import/export and
 package workflows are presented separately by Format Explorer.
 
-This tool owns two derived artefacts and nothing else:
+This tool owns three derived artefacts and nothing else:
 
-* the manifest's own `progress` block, recomputed from the entries, and
-* `docs/features/format-decode-progress.md`, regenerated from the same data.
+* the manifest's own `progress` block, recomputed from the entries,
+* `docs/features/format-decode-progress.md`, regenerated from the same data, and
+* `schemas/archive_extension_inventory.json`, recounted from an installation.
 
-Run `--check` (the default) to fail on drift, `--write` to regenerate both.
+Run `--check` (the default) to fail on drift, `--write` to regenerate the first
+two, and `--inventory <game root>` after a game update to recount the third.
 """
 
 from __future__ import annotations
@@ -18,6 +20,7 @@ from __future__ import annotations
 import argparse
 import json
 import re
+import sys
 import textwrap
 from collections import Counter
 from pathlib import Path
@@ -500,12 +503,62 @@ def _render_rubric() -> list[str]:
     return out
 
 
+def scan_inventory(game_root: Path) -> dict:
+    """Extension counts from a game installation's archive indexes, read-only.
+
+    Every mounted index is counted, base game and DLC alike, plus the loose
+    `meta/0.pathc` texture index. Only names are read; no payload is decoded.
+    """
+
+    if str(REPO_ROOT) not in sys.path:
+        sys.path.insert(0, str(REPO_ROOT))
+    from cdmw.core.archive_format import discover_pamt_files, parse_archive_pamt
+
+    counts: Counter[str] = Counter()
+    for table in discover_pamt_files(game_root):
+        counts.update(entry.extension for entry in parse_archive_pamt(table) if entry.extension)
+    if (game_root / "meta" / "0.pathc").is_file():
+        counts[".pathc"] += 1
+    return {
+        "note": (
+            "Extension counts read from the shipped Crimson Desert archives, base game and DLC. "
+            "Counts only, no game content. Regenerate with "
+            "tools/report_format_decode_progress.py --inventory <game root>."
+        ),
+        "entries_total": sum(counts.values()),
+        "extensions": dict(sorted(counts.items(), key=lambda row: (-row[1], row[0]))),
+    }
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     mode = parser.add_mutually_exclusive_group()
     mode.add_argument("--write", action="store_true", help="regenerate the progress block and the report")
     mode.add_argument("--check", action="store_true", help="check the progress block and report without writing (default)")
+    mode.add_argument(
+        "--inventory",
+        type=Path,
+        metavar="GAME_ROOT",
+        help="recount extensions from a game installation into the stored inventory",
+    )
     args = parser.parse_args(argv)
+
+    if args.inventory is not None:
+        inventory = scan_inventory(args.inventory)
+        if not inventory["extensions"]:
+            print(f"no archive entries were found under {args.inventory}; the inventory was not changed")
+            return 1
+        INVENTORY_PATH.write_text(json.dumps(inventory, indent=2) + "\n", encoding="utf-8")
+        entries = list(load_manifest()["extensions"])
+        counts = inventory["extensions"]
+        known = {str(entry["extension"]) for entry in entries}
+        drifted = sum(1 for entry in entries if entry["archive_files"] != counts.get(entry["extension"], 0))
+        print(
+            f"wrote {INVENTORY_PATH.name}: {inventory['entries_total']:,} entries, "
+            f"{len(counts)} extensions, {len(set(counts) - known)} not in the manifest, "
+            f"{drifted} manifest counts to update"
+        )
+        return 0
 
     manifest = load_manifest()
     entries = list(manifest["extensions"])

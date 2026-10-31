@@ -543,6 +543,7 @@ from cdmw.core.archive_hkx_xml_export_helpers_0 import (
     _hkx_xml_add_advanced_editable_values,
 )
 
+@dataclasses.dataclass(slots=True)
 class SkeletonPreviewResult:
     preview_text: str
     detail_lines: List[str]

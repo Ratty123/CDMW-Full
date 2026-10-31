@@ -136,6 +136,16 @@ class _RawPamEntry:
     material_name: str
 
 
+def pam_declares_no_submeshes(data: bytes) -> bool:
+    """A well-formed PAM header whose submesh count is zero: an empty mesh, not a damaged one."""
+
+    return (
+        len(data) >= 64
+        and data[:4] == b"PAR "
+        and struct.unpack_from("<i", data, _PAM_HEADER_MESH_COUNT_OFFSET)[0] == 0
+    )
+
+
 def build_pam_model_preview(
     entry: ArchiveEntry,
     data: bytes,

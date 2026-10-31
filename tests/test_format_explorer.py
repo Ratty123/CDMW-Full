@@ -46,7 +46,7 @@ def test_archive_inventory_is_preserved_and_package_count_does_not_apply(rows):
     archived = {entry["extension"]: entry for entry in manifest["extensions"]}
     displayed = {row.extension: row for row in rows}
     assert len(rows) == len(displayed) == len(archived) + 1
-    assert len(catalogue.filter_rows(rows)) == 87
+    assert len(catalogue.filter_rows(rows)) == 99
     for extension, entry in archived.items():
         row = displayed[extension]
         assert (row.files, row.decode, row.write) == (
@@ -60,11 +60,11 @@ def test_archive_inventory_is_preserved_and_package_count_does_not_apply(rows):
     assert {cap.extension for cap in load_capabilities()} == archived.keys()
     from tools.report_format_decode_progress import summarize
     progress = summarize(manifest["extensions"])
-    assert progress["headline"]["all_formats"]["extensions"] == len(archived) == 141
+    assert progress["headline"]["all_formats"]["extensions"] == len(archived) == 154
 
 
 @pytest.mark.parametrize("include_other,editable,expected", [
-    (False, False, 87), (False, True, 38), (True, False, 142), (True, True, 60),
+    (False, False, 99), (False, True, 40), (True, False, 155), (True, True, 64),
 ])
 def test_presence_and_editing_filters_are_independent(rows, include_other, editable, expected):
     found = catalogue.filter_rows(rows, shipped_only=not include_other, editable_only=editable)
@@ -265,6 +265,6 @@ def test_new_workflow_guidance_translates_at_runtime(rows, code, tmp_path):
         headline = catalogue.headline(rows)
         translated = localizer.translate_rendered(headline)
         assert translated != headline
-        assert "87" in translated
+        assert "99" in translated
     finally:
         localizer.shutdown()

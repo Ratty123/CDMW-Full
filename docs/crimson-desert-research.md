@@ -110,6 +110,25 @@ warning was a valid UTF-8 Korean test string, not undecrypted data. This is payl
 decoding evidence, not complete semantic validation of every format. The decoder
 SHA-256 was `127a24b5020776f246e7f2363b1a73fbdd94b51f070cbcaf739db77894896389`.
 
+**31 October 2026 Archive Browser format review:** game `1.0.0.3446`, Steam build
+`26329202`, 73 indexes and 2,095,396 entries (307k in `dlc_01`) across 99
+extensions. Thirteen extensions were absent from the capability manifest and are now
+registered, and the stored inventory is recounted from this installation. Gameplay
+tables no longer ship as `.pabgb`/`.pabgh`: 279 `binarystaticinfo__` header/body
+pairs replace them, 212 resolving as name-before-key row directories and 67 as
+empty-table markers. Text ships as 1,155 per-domain PALOC containers. A sampled
+header survey found no PAR-family, DDS, HKX or BNK version present only in DLC.
+The Python reader had rejected 1,031 encrypted entries in 18 formats (`.save`,
+`.uibinary`, `.pars`, `.tga`, DLC metadata and others) because its content check did
+not recognise them. Each LZ4 entry among them expands to exactly its declared size
+after filename-key decryption, so the earlier manifest claim of an unknown key was
+wrong; all 119,467 encrypted entries now read in Python as they do natively. Preview
+builder sweeps over every extension, plus every PALOC, PAB and staticinfo file, found
+no remaining failure beyond a 16-byte `XAR ` PAT stub and 31 DLC proxy-LOD PAMs that
+declare no submeshes. Small `leveldata/hda` PAMs fail only the Python fallback
+geometry check; the native preview renders them. This is read-only source and
+headless evidence; visible app and game behaviour were not checked.
+
 The new `.admeta`, `.overridedlevellistbinary` and `.staticinfodummy` files are
 extractable; their semantic editing contracts are not established. DLC metadata
 uses `.dlc_01` table/localization names. Updated Item Finder joins yield 8,373

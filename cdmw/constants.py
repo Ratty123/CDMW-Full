@@ -143,6 +143,7 @@ ARCHIVE_TEXT_EXTENSIONS = {
     ".mtl",
     ".obj",
     ".paloc",
+    ".paccd_xml",
     ".app_xml",
     ".pami",
     ".pac_xml",

@@ -318,6 +318,41 @@ def _looks_like_decrypted_payload(entry: ArchiveEntry, data: bytes) -> bool:
     return entry.extension == ".dds" and candidate.startswith(DDS_MAGIC)
 
 
+def _looks_like_unencrypted_text(data: bytes) -> bool:
+    """Strict UTF-8 text with almost no control bytes; ciphertext essentially never qualifies.
+
+    The preview text sniffer is deliberately lenient (a leading `<` or `[` is enough
+    for short samples), which is fine for display but not for deciding that an
+    encryption flag is wrong.
+    """
+
+    sample = data[:4096]
+    if len(sample) < 16:
+        return False
+    for trim in range(4):
+        try:
+            text = sample[: len(sample) - trim].decode("utf-8")
+        except UnicodeDecodeError:
+            continue
+        return sum(1 for char in text if ord(char) < 32 and char not in "\r\n\t") <= len(text) // 100
+    return False
+
+
+def _lz4_block_matches_entry(entry: ArchiveEntry, data: bytes) -> Optional[bool]:
+    """Whether `data` is the entry's LZ4 block; `None` when the entry is not LZ4.
+
+    A wrong key cannot produce a block that expands to exactly the declared size,
+    so this proves the key for formats the content checks do not recognize.
+    """
+
+    if entry.compression_type != 2 or not entry.compressed or lz4_block is None:
+        return None
+    try:
+        return len(lz4_block.decompress(data, uncompressed_size=entry.orig_size)) == entry.orig_size
+    except Exception:
+        return False
+
+
 def try_decrypt_archive_entry_data(entry: ArchiveEntry, data: bytes) -> Tuple[bytes, Optional[str]]:
     if not entry.encrypted:
         return data, None
@@ -344,11 +379,19 @@ def try_decrypt_archive_entry_data(entry: ArchiveEntry, data: bytes) -> Tuple[by
         except PalocFormatError as exc:
             raise ValueError(f"{context}: {exc}") from exc
         return candidate, "ChaCha20"
-    if not _looks_like_decrypted_payload(entry, candidate):
-        if entry.extension in _ARCHIVE_XML_LIKE_EXTENSIONS and _looks_like_decrypted_payload(entry, data):
-            return data, "ChaCha20FlagMismatch"
-        raise ValueError(f"ChaCha20 decryption validation failed for {entry.path}")
-    return candidate, "ChaCha20"
+    if _looks_like_decrypted_payload(entry, candidate):
+        return candidate, "ChaCha20"
+    if (entry.extension in _ARCHIVE_XML_LIKE_EXTENSIONS and _looks_like_decrypted_payload(entry, data)) or (
+        _looks_like_unencrypted_text(data) or _lz4_block_matches_entry(entry, data)
+    ):
+        return data, "ChaCha20FlagMismatch"
+    # The key comes from the filename, so it is only wrong when the flag is. Formats
+    # without a content check (UI binaries, save presets, shader caches, DLC metadata)
+    # are accepted on an exact LZ4 block or, for uncompressed payloads that nothing
+    # can confirm, on the index flag alone, as the native decoder does.
+    if _lz4_block_matches_entry(entry, candidate) is not False:
+        return candidate, "ChaCha20"
+    raise ValueError(f"ChaCha20 decryption validation failed for {entry.path}")
 
 
 
