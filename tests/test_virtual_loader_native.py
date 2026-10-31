@@ -497,6 +497,61 @@ def test_a_standalone_map_needs_the_mount_list_only_for_private_archives(tmp_pat
     assert (root / 'meta/0.pathc').read_bytes() == b'original registry'
 
 
+def resource_fixture(tmp_path, logical, data=b'served sword model'):
+    """A published launcher profile that serves one file by game resource path and maps nothing else."""
+    from cdmw.services.virtual_loader_standalone import STANDALONE_PATH, standalone_manifest
+    root, _request, _token = fixture(tmp_path)
+    (root / 'bin64/winmm.dll').write_bytes(b'fixture bootstrap')
+    generation = next((root / '.cdmw/virtual-loader/generations').iterdir()).name
+    served = root / '.cdmw/virtual-loader/generations' / generation / 'files/resources' / logical
+    served.parent.mkdir(parents=True, exist_ok=True)
+    served.write_bytes(data)
+    profile = {'generation': generation, 'files': {'resources/' + logical: digest(data)}, 'sources': [], 'catalogue': []}
+    payload, _hashed, _catalogue = standalone_manifest(root, profile, executable_sha256=hash_file(root / 'bin64/cdmw_virtual_loader_harness.exe'))
+    (root / STANDALONE_PATH).write_bytes(payload)
+    return root
+
+
+def test_a_standalone_profile_serves_resources_inside_the_package_loader(tmp_path):
+    from cdmw.services import virtual_loader_standalone as standalone
+    logical = 'character/model/1_pc/1_phm/weapon/cd_phm_01_sword_9109.pac'
+    root = resource_fixture(tmp_path, logical)
+    # The loader may name a path in any case and with backslashes or a leading slash.
+    asked = '\\' + logical.replace('/', '\\').upper()
+    result = subprocess.run([str(root / 'bin64/cdmw_virtual_loader_harness.exe'), '--serve', asked, 'character/model/unserved.pac'],
+                            capture_output=True, timeout=40, cwd=root / 'bin64')
+    assert result.returncode == 0, result.stderr.decode(errors='replace')
+    assert (root / '.cdmw/virtual-loader/harness-out/served.bin').read_bytes() == b'served sword model'
+    status = standalone.read_standalone_status(root)
+    assert status.state == 'ready', status.detail
+    rows = standalone.read_standalone_trace(root)
+    ready = [row for row in rows if row.operation == 'resource loader ready']
+    assert len(ready) == 1 and ready[0].last_error == 1 and '1 paths served' in ready[0].path
+    served = [row for row in rows if row.operation == 'resource served']
+    assert [(row.path, row.last_error) for row in served] == [(logical, 0), (logical, 1)]
+
+
+def test_a_profile_with_an_invalid_resource_path_leaves_the_game_unmodded(tmp_path):
+    from cdmw.domain.virtual_loader import VirtualLoaderError
+    from cdmw.services import virtual_loader_standalone as standalone
+    from cdmw.services.virtual_loader_standalone import STANDALONE_PATH, standalone_manifest
+    root = resource_fixture(tmp_path, 'character/model/x.pac')
+    generation = next((root / '.cdmw/virtual-loader/generations').iterdir()).name
+    def profile(logical):
+        return {'generation': generation, 'files': {'resources/' + logical: digest(b'served sword model')}, 'sources': [], 'catalogue': []}
+    executable = hash_file(root / 'bin64/cdmw_virtual_loader_harness.exe')
+    for escaping in ('character/../x.pac', 'character//x.pac', '/character/x.pac'):
+        with pytest.raises(VirtualLoaderError):
+            standalone_manifest(root, profile(escaping), executable_sha256=executable)
+    # The runtime refuses what the writer lets through but the package loader never names.
+    payload, _hashed, _catalogue = standalone_manifest(root, profile('Character/model/x.pac'), executable_sha256=executable)
+    (root / STANDALONE_PATH).write_bytes(payload)
+    result = subprocess.run([str(root / 'bin64/cdmw_virtual_loader_harness.exe'), '--blocked'], capture_output=True, timeout=40, cwd=root / 'bin64')
+    assert result.returncode == 0, result.stderr.decode(errors='replace')
+    status = standalone.read_standalone_status(root)
+    assert status.state == 'refused' and 'resource path' in status.detail, status.detail
+
+
 @pytest.mark.parametrize(('change', 'expected'), [
     ('source', 'changed after the profile was published'),
     ('carrier', 'archive changed after the profile was published'),

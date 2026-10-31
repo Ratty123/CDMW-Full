@@ -1,6 +1,7 @@
 // Synthetic game-shaped child. It is never used as real-game compatibility proof.
 #include "protocol.hpp"
 #include "bootstrap.hpp"
+#include <cstddef>
 #include <fstream>
 #include <atomic>
 #include <cstring>
@@ -8,6 +9,113 @@
 #include <thread>
 
 using namespace cdmw::vfs;
+// Stand-ins for the game's resource loader classes, with the RTTI names and vtable
+// slots the runtime serves through. Requests carry their path at **request and the
+// worker that started them at +0x20, as the game's do.
+namespace pa {
+using Word = uint64_t;
+struct Text { const char* text; };
+struct Request { Text* path; unsigned char spare[0x18]; void* owner; Word handled; char loaded[256]; Word loaded_size; };
+static_assert(offsetof(Request, owner) == 0x20);
+class BasePackageResourceMap {
+public:
+    virtual Word m0() { return 0; } virtual Word m1() { return 0; } virtual Word m2() { return 0; } virtual Word m3() { return 0; }
+    virtual Word m4() { return 0; } virtual Word m5() { return 0; } virtual Word m6() { return 0; } virtual Word m7() { return 0; }
+    virtual Word m8() { return 0; } virtual Word m9() { return 0; } virtual Word m10() { return 0; }
+};
+// Reads the file a served path resolves to, through the stand-in's resource map.
+class BaseResourceLoadWorker {
+public:
+    virtual Word v0() { return 0; }
+    virtual Word v1() { return 0; }
+    virtual Word load(void*, Request* request, Word) { return serve(request, 102); }
+    virtual Word r3(Request* request, Word, Word, Word, Word, Word, Word, Word, Word, Word, Word) { request->handled = 103; return 1; }
+    virtual Word r4(Request* request, Word, Word, Word, Word, Word, Word, Word, Word, Word, Word) { request->handled = 104; return 1; }
+    virtual Word r5(Request* request, Word, Word, Word, Word, Word, Word, Word, Word, Word, Word) { request->handled = 105; return 1; }
+    virtual Word r6(Request* request, Word, Word, Word, Word, Word, Word, Word, Word, Word, Word) { request->handled = 106; return 1; }
+    virtual Word v7() { return 0; } virtual Word v8() { return 0; } virtual Word v9() { return 0; }
+    virtual Word v10() { return 0; } virtual Word v11() { return 0; }
+    virtual Word r12(Request* request, Word, Word, Word, Word, Word, Word, Word, Word, Word, Word) { request->handled = 112; return 1; }
+    virtual Word load_async(void*, Request* request, Word) { return serve(request, 113); }
+private:
+    Word serve(Request* request, Word handled) {
+        auto self = reinterpret_cast<unsigned char*>(this);
+        if (*reinterpret_cast<uint32_t*>(self + 0x10) != 0x10000000u || self[0x14] != 1 || self[0x16] != 1) return 0;
+        auto map = *reinterpret_cast<void**>(self + 0x18);
+        auto slots = *reinterpret_cast<void***>(map);
+        uint64_t size{};
+        void* record{};
+        if (!reinterpret_cast<Word (*)(void*, void*)>(slots[4])(map, request) ||
+            !reinterpret_cast<Word (*)(void*, void*, uint64_t*)>(slots[5])(map, request, &size) ||
+            !reinterpret_cast<Word (*)(void*, void*, void**)>(slots[7])(map, request, &record)) return 0;
+        auto bytes = static_cast<unsigned char*>(record);
+        auto text = *reinterpret_cast<const char**>(record);
+        if (*reinterpret_cast<uint32_t*>(bytes + 8) != strlen(text) || *reinterpret_cast<uint32_t*>(bytes + 12) != 0xffffffffu ||
+            *reinterpret_cast<uint32_t*>(bytes + 16) != 0x80000000u) return 0;
+        std::array<wchar_t, 1024> wide{};
+        if (!MultiByteToWideChar(CP_UTF8, 0, text, -1, wide.data(), static_cast<int>(wide.size()))) return 0;
+        Handle file(CreateFileW(wide.data(), GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING, 0, nullptr));
+        DWORD count{};
+        if (!file || !ReadFile(file.value, request->loaded, sizeof request->loaded, &count, nullptr) || count != size) return 0;
+        request->loaded_size = count;
+        request->owner = this;
+        request->handled = handled;
+        return 1;
+    }
+};
+class ResourceLoadWorker_Package {
+public:
+    virtual Word v0() { return 0; }
+    virtual Word v1() { return 0; }
+    virtual Word load(void*, Request* request, Word) { request->handled = 2; return 1; }
+    virtual Word r3(Request* request, Word, Word, Word, Word, Word, Word, Word, Word, Word, Word) { request->handled = 3; return 1; }
+    virtual Word r4(Request* request, Word, Word, Word, Word, Word, Word, Word, Word, Word, Word) { request->handled = 4; return 1; }
+    virtual Word r5(Request* request, Word, Word, Word, Word, Word, Word, Word, Word, Word, Word) { request->handled = 5; return 1; }
+    virtual Word r6(Request* request, Word, Word, Word, Word, Word, Word, Word, Word, Word, Word) { request->handled = 6; return 1; }
+    virtual Word v7() { return 0; } virtual Word v8() { return 0; } virtual Word v9() { return 0; }
+    virtual Word exists(void*) { return 0; }
+    virtual Word size(void*, uint64_t*) { return 0; }
+    virtual Word r12(Request* request, Word, Word, Word, Word, Word, Word, Word, Word, Word, Word) { request->handled = 12; return 1; }
+    virtual Word load_async(void*, Request* request, Word) { request->handled = 13; return 1; }
+};
+BasePackageResourceMap map_instance;
+BaseResourceLoadWorker loose_instance;
+ResourceLoadWorker_Package package_instance;
+}  // namespace pa
+// Calls each patched package-worker slot as the game would and checks who answered.
+void serve_through_package_worker(const fs::path& root, const std::string& served, const std::string& unknown) {
+    using pa::Word;
+    pa::Text served_text{served.c_str()}, unknown_text{unknown.c_str()};
+    auto slots = *reinterpret_cast<void***>(&pa::package_instance);
+    auto exists = reinterpret_cast<Word (*)(void*, void*)>(slots[10]);
+    auto size = reinterpret_cast<Word (*)(void*, void*, uint64_t*)>(slots[11]);
+    auto load = reinterpret_cast<Word (*)(void*, void*, void*, Word)>(slots[2]);
+    auto load_async = reinterpret_cast<Word (*)(void*, void*, void*, Word)>(slots[13]);
+    using Follow = Word (*)(void*, void*, Word, Word, Word, Word, Word, Word, Word, Word, Word, Word);
+    auto worker = &pa::package_instance;
+    pa::Request request{}, other{}, later{};
+    request.path = &served_text; other.path = &unknown_text; later.path = &served_text;
+    uint64_t bytes{};
+    require(exists(worker, &request) == 1 && exists(worker, &other) == 0, "Served path existence was not answered");
+    require(size(worker, &request, &bytes) == 1 && size(worker, &other, &bytes) == 0, "Served path size was not answered");
+    require(load(worker, nullptr, &request, 0) == 1 && request.handled == 102 && request.owner && request.owner != worker,
+            "A served load did not run in the loose-file worker");
+    require(request.loaded_size == bytes, "The served size and the loaded bytes disagree");
+    require(load(worker, nullptr, &other, 0) == 1 && other.handled == 2, "An unserved load left the package worker");
+    for (int slot : {3, 4, 5, 6, 12}) {
+        auto follow = reinterpret_cast<Follow>(slots[slot]);
+        require(follow(worker, &request, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0) == 1 && request.handled == 100u + static_cast<unsigned>(slot),
+                "A served request's later step did not follow the loose-file worker");
+        require(follow(worker, &other, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0) == 1 && other.handled == static_cast<unsigned>(slot),
+                "An unserved request's later step left the package worker");
+    }
+    require(load_async(worker, nullptr, &later, 0) == 1 && later.handled == 113, "A served async load did not run in the loose-file worker");
+    const auto out = root / L".cdmw/virtual-loader/harness-out";
+    fs::create_directories(out);
+    std::ofstream copy(out / L"served.bin", std::ios::binary);
+    copy.write(request.loaded, static_cast<std::streamsize>(request.loaded_size));
+    require(static_cast<bool>(copy), "Cannot keep the served copy");
+}
 extern "C" decltype(&CreateFile2) __imp_CreateFile2;
 extern "C" decltype(&GetModuleHandleW) __imp_GetModuleHandleW;
 extern "C" decltype(&GetProcAddress) __imp_GetProcAddress;
@@ -84,6 +192,12 @@ int wmain(int argc, wchar_t** argv) {
         if (argc == 2 && !wcscmp(argv[1], L"--inert")) { require(state() == 0, "Ordinary launch activated runtime"); return 0; }
         if (argc == 2 && !wcscmp(argv[1], L"--blocked")) { require(state() == 2, "Test activation was not refused"); return 0; }
         require(state() == 1, "Runtime did not become ready");
+        if (argc == 4 && !wcscmp(argv[1], L"--serve")) {
+            auto narrow = [](const wchar_t* text) { std::string result; for (; *text; ++text) result += static_cast<char>(*text); return result; };
+            serve_through_package_worker(root, narrow(argv[2]), narrow(argv[3]));
+            Sleep(250);  // the trace writer flushes every 20 ms
+            return 0;
+        }
         if (argc >= 3 && !wcscmp(argv[1], L"--copy-out")) {
             // Read each logical game file as the game would, through the hooks, and keep
             // a copy (slashes become underscores) for the test to compare.

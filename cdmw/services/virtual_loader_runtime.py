@@ -181,18 +181,27 @@ def prepare_launch(root, *, stop_event=None):
 
 
 def session_manifest(root, profile, *, mode, executable_sha256, token=None, launcher=None, extra_guards=()):
-    """Bounded UTF-16 wire format shared with the native session/runtime harness."""
+    """Bounded UTF-16 wire format shared with the native session/runtime harness.
+
+    Profile files under `resources/` are served by game resource path inside the
+    package loader; a profile with any is written as CDVFS4. One without stays
+    CDVFS3, which earlier runtimes also read.
+    """
     root = Path(root).resolve()
     token = token or uuid4().hex
-    data = bytearray(b'CDVFS3\0\0' + struct.pack('<III', mode, 0, 0) + bytes.fromhex(executable_sha256))
+    from cdmw.services.virtual_loader_state import RESOURCE_PREFIX
+    resources = {p[len(RESOURCE_PREFIX):]: sha for p, sha in profile['files'].items() if p.startswith(RESOURCE_PREFIX)}
+    mapped = {p: sha for p, sha in profile['files'].items() if not p.startswith(RESOURCE_PREFIX)}
+    magic = b'CDVFS4\0\0' if resources else b'CDVFS3\0\0'
+    data = bytearray(magic + struct.pack('<III', mode, 0, 0) + bytes.fromhex(executable_sha256))
     def string(value):
         encoded = str(value).encode('utf-16le')
         if not encoded or len(encoded) >= 65536 or '\0' in str(value):
             raise VirtualLoaderError('Unsupported session path length.')
         data.extend(struct.pack('<I', len(encoded) // 2)); data.extend(encoded)
     string(root); string(profile['generation']); string(token); string(lock_path(root))
-    data.extend(struct.pack('<I', len(profile['files'])))
-    for logical, sha in sorted(profile['files'].items()):
+    data.extend(struct.pack('<I', len(mapped)))
+    for logical, sha in sorted(mapped.items()):
         string(logical.replace('/', '\\'))
         string(target(generation_path(root, profile['generation']), 'files/' + logical))
         data.extend(bytes.fromhex(sha))
@@ -222,6 +231,12 @@ def session_manifest(root, profile, *, mode, executable_sha256, token=None, laun
         string(path)
         size, modified = (stamp[0], stamp[1] // 100 + 116444736000000000) if stamp is not None else (0, 0)
         data.extend(struct.pack('<IQQ', int(stamp is not None), size, modified))
+    if resources:
+        data.extend(struct.pack('<I', len(resources)))
+        for logical, sha in sorted(resources.items()):
+            string(logical)
+            string(target(generation_path(root, profile['generation']), 'files/' + RESOURCE_PREFIX + logical))
+            data.extend(bytes.fromhex(sha))
     data.extend(struct.pack('<I', int(launcher is not None)))
     if launcher is not None:
         string(Path(launcher).resolve())

@@ -19,11 +19,7 @@ from cdmw.services.independent_texture_package import package_texture_requiremen
 from cdmw.services.independent_item_package import canonical, digest, MAX_MANIFEST, MAX_TOTAL
 from cdmw.services.independent_item_compatibility import compose_underlay, _external_table
 from cdmw.services.mod_merge_service import _group
-from cdmw.services.virtual_loader_state import FORMAT, PROFILE_PATH, target, read_optional
-
-
-MOUNT_LIST_AUTHENTICATED = ('Since the October 2026 game update, the game checks its archive list and will not start '
-    'with item archives added to it, so item packages cannot be applied to this game version yet.')
+from cdmw.services.virtual_loader_state import FORMAT, PROFILE_PATH, RESOURCE_PREFIX, target, read_optional, resource_path
 
 
 def hash_file(path, stop_event=None, *, on_read=None):
@@ -96,8 +92,10 @@ def prepare_profile(profile: VirtualProfile, root, *, stop_event=None, on_log=No
             on_progress(value, 100, detail)
     progress(0, 'Checking item packages…')
     root = Path(root).resolve()
-    if is_compact_papgt(read_optional(target(root, 'meta/0.papgt')) or b''):
-        raise VirtualLoaderError(MOUNT_LIST_AUTHENTICATED)
+    # Since game 2.04.02 the game authenticates its mount list and refuses one with a
+    # private group added. The composed files are then served by resource path inside
+    # the package loader instead, and every archive and the mount list stay as shipped.
+    served = is_compact_papgt(read_optional(target(root, 'meta/0.papgt')) or b'')
     if len(profile.mods) > 128:
         raise VirtualLoaderError('Select at most 128 external mod folders.')
     packages = tuple(Path(path).resolve() for path in profile.packages)
@@ -198,8 +196,8 @@ def prepare_profile(profile: VirtualProfile, root, *, stop_event=None, on_log=No
         allocations={identity: row['binding_hash'] for identity, row in resolved.registry['items'].items()},
         order=[layer.get('independent_identity', layer['id']) for layer in resolved.state['layers'] if layer['active']]
               + [package.identity for package, _ in resolved.contributions] + [str(f) for f in folders],
-        runtime_abi='CDVFS3', providers=dict(observed_hashes), links=resolved.links)
-    cache_record = make_cache_record(compilation_record(**compilation_args, outputs={}),
+        runtime_abi='CDVFS4' if served else 'CDVFS3', providers=dict(observed_hashes), links=resolved.links)
+    cache_record = None if served else make_cache_record(compilation_record(**compilation_args, outputs={}),
         directory=name, files=files, flags=flags, mount=mount, pathc=pathc,
         catalogue=catalogue, inventories=inventories,
         resource_digests=getattr(resolved, 'resource_digests', None), stop_event=stop_event)
@@ -208,7 +206,17 @@ def prepare_profile(profile: VirtualProfile, root, *, stop_event=None, on_log=No
              if cache_record is not None else None)
     output = cache.whole_output(cache_record, mount=mount, pathc=pathc, stop_event=stop_event) if cache else None
     reused, cache_summary = 0, ()
-    if output is not None:
+    if served:
+        unservable = sorted(path for path in files if not resource_path(path))
+        if unservable:
+            raise VirtualLoaderError(f'The game cannot be asked for {unservable[0]} by path, so it cannot be served. '
+                                     'Rename the file in its mod or package.')
+        output = {RESOURCE_PREFIX + path: raw for path, raw in sorted(files.items())}
+        if pathc is not None:
+            output['meta/0.pathc'] = pathc
+        cache_summary = (f'{len(files)} game file(s) will be served by path; the archive list and every archive stay as shipped.',)
+        progress(97, 'Prepared the served files.')
+    elif output is not None:
         cache_summary = (f'Reused verified private archives for {len(files)} unchanged game file(s).',)
         progress(97, 'Reused the verified private view.')
     else:

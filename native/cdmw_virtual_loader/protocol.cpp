@@ -74,6 +74,20 @@ void write_string(std::ostream& out, const std::wstring& value) {
     write(out, static_cast<uint32_t>(value.size())); out.write(reinterpret_cast<const char*>(value.data()), static_cast<std::streamsize>(value.size() * 2));
 }
 bool identity(const std::wstring& s) { return s.size() == 32 && s.find_first_not_of(L"0123456789abcdef") == std::wstring::npos; }
+// A game resource path as the package loader names it: lower-case printable ASCII,
+// forward slashes, no empty, `.` or `..` segment, no drive, no leading slash.
+bool resource_path(const std::wstring& path) {
+    if (path.empty() || path.size() > 400 || path.front() == L'/' || path.back() == L'/') return false;
+    for (auto c : path)
+        if (c < 0x21 || c > 0x7e || (c >= L'A' && c <= L'Z') || wcschr(L"\\:*?\"<>|", c)) return false;
+    for (size_t start = 0; start <= path.size();) {
+        const auto end = std::min(path.find(L'/', start), path.size());
+        const auto segment = path.substr(start, end - start);
+        if (segment.empty() || segment == L"." || segment == L"..") return false;
+        start = end + 1;
+    }
+    return true;
+}
 void no_links(fs::path path) {
     for (; path != path.root_path(); path = path.parent_path()) {
         auto attributes = GetFileAttributesW(path.c_str());
@@ -101,7 +115,8 @@ void validate(const Manifest& m) {
 #endif
         require(_wcsicmp(name.c_str(), launcher) == 0, "Unsupported launcher");
     }
-    require(m.files.size() <= 256 && !m.files.empty(), "Invalid map size");
+    require(m.files.size() <= 256 && m.resources.size() <= max_resources && (!m.files.empty() || !m.resources.empty()),
+            "Invalid map size");
     std::set<std::wstring> seen;
     bool archives = false;
     for (const auto& file : m.files) {
@@ -121,6 +136,17 @@ void validate(const Manifest& m) {
     // game metadata alone (meta/0.pathc) needs none: the game authenticates its mount
     // list since game 2.04.02, so such maps leave it as shipped.
     require(!archives || seen.contains(normalize(m.root / L"meta/0.papgt")), "Missing virtual mount list");
+    // Served resources never touch the archives or the mount list: the game asks its
+    // package resource loader for each path, and the runtime answers for these.
+    std::set<std::wstring> served;
+    for (const auto& resource : m.resources) {
+        require(resource_path(resource.logical) && served.insert(resource.logical).second, "Invalid or duplicate resource path");
+        auto relative = resource.logical;
+        std::replace(relative.begin(), relative.end(), L'/', L'\\');
+        auto expected = m.root / L".cdmw/virtual-loader/generations" / m.generation / L"files/resources" / relative;
+        require(normalize(resource.path) == normalize(expected), "Escaping resource path");
+        no_links(resource.path);
+    }
     require(m.guards.size() <= 65536, "Too many source guards");
     std::set<std::wstring> guards;
     for (const auto& guard : m.guards) {
@@ -149,11 +175,12 @@ Manifest read_manifest(const fs::path& path) {
     require(fs::file_size(path) < 16 * 1024 * 1024, "Oversized manifest");
     std::ifstream in(path, std::ios::binary);
     std::array<char, 8> magic{}; read(in, magic);
-    const bool version3 = std::memcmp(magic.data(), "CDVFS3\0\0", 8) == 0;
+    const bool version4 = std::memcmp(magic.data(), "CDVFS4\0\0", 8) == 0;
+    const bool version3 = version4 || std::memcmp(magic.data(), "CDVFS3\0\0", 8) == 0;
     require(version3 || std::memcmp(magic.data(), "CDVFS2\0\0", 8) == 0, "Unsupported manifest");
     Manifest m; read(in, m.mode); read(in, m.pid); read(in, m.host_pid); read(in, m.executable);
     m.root = read_string(in); m.generation = read_string(in); m.token = read_string(in); m.lane = read_string(in);
-    uint32_t count{}; read(in, count); require(count && count <= 256, "Invalid map size");
+    uint32_t count{}; read(in, count); require(count <= 256 && (count || version4), "Invalid map size");
     for (uint32_t i = 0; i < count; ++i) { File file; file.logical = read_string(in); file.path = read_string(in); read(in, file.sha); m.files.push_back(std::move(file)); }
     read(in, count); require(count <= 65536, "Too many source guards");
     for (uint32_t i = 0; i < count; ++i) { Guard guard; guard.path = read_string(in); read(in, guard.present); read(in, guard.sha); m.guards.push_back(std::move(guard)); }
@@ -164,6 +191,13 @@ Manifest read_manifest(const fs::path& path) {
             read(in, guard.size); read(in, guard.last_write); m.catalogue.push_back(std::move(guard));
         }
     }
+    if (version4) {
+        read(in, count); require(count <= max_resources, "Too many served resources");
+        for (uint32_t i = 0; i < count; ++i) {
+            Resource resource; resource.logical = read_string(in); resource.path = read_string(in); read(in, resource.sha);
+            m.resources.push_back(std::move(resource));
+        }
+    }
     read(in, count); require(count <= 1, "Invalid launcher descriptor");
     if (count) { m.launcher = read_string(in); read(in, m.launcher_sha); }
     require(in.peek() == std::char_traits<char>::eof(), "Trailing manifest bytes"); validate(m); return m;
@@ -172,7 +206,7 @@ void write_manifest(const fs::path& path, const Manifest& m) {
     validate(m);
     auto temporary = path; temporary += L".tmp";
     { std::ofstream out(temporary, std::ios::binary | std::ios::trunc);
-      out.write("CDVFS3\0\0", 8); write(out, m.mode); write(out, m.pid); write(out, m.host_pid); write(out, m.executable);
+      out.write("CDVFS4\0\0", 8); write(out, m.mode); write(out, m.pid); write(out, m.host_pid); write(out, m.executable);
       write_string(out, m.root.wstring()); write_string(out, m.generation); write_string(out, m.token); write_string(out, m.lane.wstring());
       write(out, static_cast<uint32_t>(m.files.size()));
       for (const auto& file : m.files) { write_string(out, file.logical); write_string(out, file.path.wstring()); write(out, file.sha); }
@@ -180,6 +214,8 @@ void write_manifest(const fs::path& path, const Manifest& m) {
       for (const auto& guard : m.guards) { write_string(out, guard.path.wstring()); write(out, guard.present); write(out, guard.sha); }
       write(out, static_cast<uint32_t>(m.catalogue.size()));
       for (const auto& guard : m.catalogue) { write_string(out, guard.path.wstring()); write(out, guard.present); write(out, guard.size); write(out, guard.last_write); }
+      write(out, static_cast<uint32_t>(m.resources.size()));
+      for (const auto& resource : m.resources) { write_string(out, resource.logical); write_string(out, resource.path.wstring()); write(out, resource.sha); }
       write(out, uint32_t(!m.launcher.empty()));
       if (!m.launcher.empty()) { write_string(out, m.launcher.wstring()); write(out, m.launcher_sha); }
       out.flush(); require(bool(out), "Cannot write session manifest"); }

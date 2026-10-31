@@ -355,9 +355,7 @@ group's record; the four-byte header and the 64-byte trailer were kept. Protecte
 and saves were unchanged.
 
 The game authenticates the compact mount list, so a private archive group cannot load
-on this build. Apply refuses a compact list before reading packages, and the composer
-refuses to add a group to one. DMM's runtime serves files per path inside the game's
-package resource loader instead, which is the remaining route for archive content.
+on this build, and the composer refuses to add a group to one.
 
 File redirects still work for metadata the game does not authenticate. A map now needs
 the mount list only when it holds private archives. Recorded the same night: a launcher
@@ -366,8 +364,43 @@ the swords' composed tables served by DmmRuntime, was ready in 219 ms, and the g
 completed all twelve data stages with only the errors an unmodified launch logs. The
 texture registry is not authenticated. A research probe (outside this runtime) found the
 `ResourceLoadWorker_Package` vtable by RTTI before the first load and logged the game
-asking its exists and load slots about paths in no index, so per-path serving can add
-new files; the five swords have not been looked at in game.
+asking its exists and load slots about paths in no index. With DmmRuntime serving the
+composition, the user saw the five swords in Tranan's shop and a bought one equipped
+with its model; the game asked for each new `.pac`, `.pac_xml` and texture by path.
+
+### Serving files by resource path
+
+On a game whose mount list is authenticated, Apply composes as before and the profile
+lists the changed files under `resources/<game path>` (stored in the generation's
+`files/resources/`) plus `meta/0.pathc`; it has no mount list and no archive group.
+CDVFS4 adds a resources section (at most 16,384 paths, lower-case printable ASCII with
+forward slashes, no empty, `.` or `..` segment). The runtime pins and hashes every served
+file like a mapped one, then `resource_serving.cpp` serves them inside the game's package
+resource loader, following DmmRuntime 1.0.0's layouts read from its code:
+
+- `pa::BaseResourceLoadWorker`, `pa::ResourceLoadWorker_Package` and
+  `pa::BasePackageResourceMap` are found by their RTTI names in the game image (type
+  descriptor, complete object locator with offset 0, the qword before the vtable). Each
+  worker must have exactly one primary vtable whose first 14 slots are executable; the
+  loose-file worker's must lie in the game image.
+- The package worker's slots 10 (exists), 11 (size), 2 (load) and 13 (async load)
+  answer for served paths and forward everything else. A served load runs in the
+  loose-file worker's own slot with a stand-in worker: a copy of that worker's vtable
+  whose first two slots return the object and 0, `0x10000000` at +0x10, bytes 1 at +0x14
+  and +0x16, and at +0x18 a resource map with 11 slots (4 exists, 5 size, 6 time unknown,
+  7 resolve). Resolve hands back the loader's string record for the served file (text,
+  length, `0xFFFFFFFF`, `0x80000000`, UTF-8 path), and the loose-file worker opens it.
+- Slots 3, 4, 5, 6 and 12 act on a load in progress and follow the worker the request
+  names at +0x20.
+- Paths arrive as `**argument`; lookups lower-case them, turn backslashes into slashes
+  and drop leading slashes, then search a sorted FNV-1a table without allocating.
+- A slot another module already changed is chained, and the trace names its owner.
+  Any refusal restores every slot and leaves the game unmodded.
+
+Trace operation 16 records where the classes were found and how many paths are served;
+operation 15 records each served load (error 1 for an async one). The harness defines
+the three classes with the same RTTI names and slot shapes and checks every slot
+(`--serve`). That proves the mechanism against the harness, not against the game.
 
 ## Independent item publication research
 

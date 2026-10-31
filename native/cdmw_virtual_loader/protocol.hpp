@@ -24,6 +24,10 @@ inline constexpr bool game_redirection_approved = false;
 // that any launcher (Steam, DMM) can start. It requires the verified startup path.
 enum class Mode : uint32_t { trace = 0, redirect = 1, harness = 2, controlled_probe = 3, standalone = 4 };
 struct File { std::wstring logical; fs::path path; Hash sha{}; };
+// A file served by game resource path inside the game's package resource loader
+// (`character/model/.../x.pac`), from the generation's `files/resources` folder.
+struct Resource { std::wstring logical; fs::path path; Hash sha{}; };
+inline constexpr size_t max_resources = 16384;
 struct Guard { fs::path path; uint32_t present{}; Hash sha{}; };
 struct CatalogueGuard { fs::path path; uint32_t present{}; uint64_t size{}, last_write{}; };
 struct Manifest {
@@ -37,6 +41,7 @@ struct Manifest {
     fs::path launcher;
     Hash launcher_sha{};
     std::vector<File> files;
+    std::vector<Resource> resources;
     std::vector<Guard> guards;
     std::vector<CatalogueGuard> catalogue;
 };
@@ -56,6 +61,7 @@ void validate(const Manifest&);
 Hash hash_file(const fs::path&, const std::function<void(uint64_t)>& on_read = {});
 std::string hex(const Hash&);
 std::wstring normalize(const fs::path&);
+bool resource_path(const std::wstring&);
 fs::path own_executable();
 fs::path executable(const Manifest&);
 std::wstring pipe_name(const Manifest&);

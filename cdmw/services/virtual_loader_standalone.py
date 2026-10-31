@@ -31,7 +31,8 @@ _TRACE_ROW = struct.Struct('<IIIIq1024s')
 TRACE_OPERATIONS = {0: 'initialize', 1: 'CreateFileW', 2: 'CreateFile2', 3: 'CreateFileA', 4: 'GetFileAttributesW',
                     5: 'GetFileAttributesExW', 6: 'GetFileAttributesA', 7: 'FindFirstFileW', 8: 'FindFirstFileExW',
                     9: 'hook ownership changed', 10: 'verified bootstrap forwarding', 11: 'loader callout context',
-                    12: 'verified startup path', 13: 'file hooks ready'}
+                    12: 'verified startup path', 13: 'file hooks ready', 14: 'composition',
+                    15: 'resource served', 16: 'resource loader ready'}
 
 
 @dataclass(frozen=True)

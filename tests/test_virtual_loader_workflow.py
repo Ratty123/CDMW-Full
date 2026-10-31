@@ -197,13 +197,15 @@ def test_prepare_reports_monotonic_progress_without_changing_output(tmp_path):
     assert game_bytes(root) == before and not (root / '.cdmw').exists()
 
 
-def test_prepare_refuses_an_authenticated_mount_list_before_reading_packages(tmp_path):
+def test_an_authenticated_mount_list_gets_a_profile_served_by_path(tmp_path, monkeypatch):
     import struct
     from cdmw.core.papgt_format import parse_papgt
-    from cdmw.domain.virtual_loader import VirtualLoaderError
+    from cdmw.domain.new_item.compilation import validate_compilation
+    from cdmw.services.virtual_loader_runtime import session_manifest, verify_snapshot
+    from cdmw.services.virtual_loader_state import RESOURCE_PREFIX, decode, generation_path, publish_profile
     root, files = packages(tmp_path, 1)
     # Game 2.04.02 refuses a compact mount list with a private group added and then
-    # mounts nothing, so Apply must stop before it builds one.
+    # mounts nothing, so the composed files are served by path instead.
     directories = parse_papgt((root / 'meta/0.papgt').read_bytes())
     table, records = b'', b''
     for directory in directories:
@@ -212,11 +214,21 @@ def test_prepare_refuses_an_authenticated_mount_list_before_reading_packages(tmp
     (root / 'meta/0.papgt').write_bytes(bytes((0xAA, 0x16, len(directories), 2)) + records
                                         + struct.pack('<I', len(table)) + table + bytes(64))
     before = game_bytes(root)
-    events = []
-    with pytest.raises(VirtualLoaderError, match='checks its archive list'):
-        composition.prepare_profile(VirtualProfile(files), root,
-            on_progress=lambda n, total, detail: events.append(n))
-    assert events == [0] and game_bytes(root) == before and not (root / '.cdmw').exists()
+    prepared = composition.prepare_profile(VirtualProfile(files), root)
+    profile = decode(prepared.profile)
+    served = {path for path in profile['files'] if path.startswith(RESOURCE_PREFIX)}
+    assert served and set(profile['files']) - served <= {'meta/0.pathc'}
+    assert any(path.endswith(('/iteminfo.pabgb', '/iteminfo.staticinfobody')) for path in served)
+    assert validate_compilation(profile['compilation'])['runtime_abi'] == 'CDVFS4'
+    assert game_bytes(root) == before and not (root / '.cdmw').exists()
+    monkeypatch.setattr('cdmw.services.new_item_service.game_is_running', lambda: False)
+    publish_profile(prepared)
+    directory = generation_path(root, profile['generation'])
+    assert all((directory / 'files' / path).is_file() for path in served)
+    assert verify_snapshot(root)['generation'] == profile['generation']
+    _token, data = session_manifest(root, profile, mode=2, executable_sha256='0' * 64)
+    assert data[:8] == b'CDVFS4\0\0'
+    assert game_bytes(root) == before
 
 
 def test_virtual_list_sorting_is_display_only_and_projects_progress(tmp_path, monkeypatch):

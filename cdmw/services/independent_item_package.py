@@ -139,7 +139,10 @@ def _resource_path(value):
 
 def virtual_path(value):
     value = _resource_path(value)
-    if value.split("/")[0] not in {"character", "gamedata", "effect", "ui", "texture", "textures", "common", "sound"}:
+    # `object/` holds the props a docking item attaches (wagon seats and wheels) and
+    # `tree/` the foliage textures some materials reuse.
+    if value.split("/")[0] not in {"character", "gamedata", "effect", "ui", "texture", "textures", "common", "sound",
+                                   "object", "tree"}:
         raise IndependentItemError(f"Unsupported package resource path: {value}")
     return value
 

@@ -20,6 +20,17 @@ PROFILE_PATH = '.cdmw/virtual-loader/profile.json'
 JOURNAL_PATH = '.cdmw/virtual-loader/transaction.json'
 FORMAT = 'cdmw_virtual_profile_v1'
 REGISTRY = '.cdmw/independent-items.json'
+#: Profile files under this prefix are served by game resource path inside the game's
+#: package loader (`resources/character/model/.../x.pac`), not mapped over a file.
+RESOURCE_PREFIX = 'resources/'
+MAX_RESOURCES = 16384
+
+
+def resource_path(value):
+    """Whether the package loader can be asked for this path, as the runtime accepts it."""
+    return (isinstance(value, str) and 0 < len(value) <= 400 and value.isascii() and value == value.lower()
+            and not any(c in value for c in '\\:*?"<>|') and all(0x21 <= ord(c) <= 0x7e for c in value)
+            and all(part not in ('', '.', '..') for part in value.split('/')))
 
 
 def target(root, relative):
@@ -126,10 +137,20 @@ def validate_profile(value):
                 raise VirtualLoaderError('Invalid virtual inventory entry.')
             target(Path(row[0]), entry[0])
             seen.add(entry[0])
-    if not isinstance(value['files'], dict) or not value['files'] or len(value['files']) > 256:
+    # Either a private archive group named by a rewritten mount list, or, on games
+    # that authenticate the mount list, files served by resource path and the
+    # texture registry. Never both.
+    if not isinstance(value['files'], dict):
+        raise VirtualLoaderError('Invalid virtual file map.')
+    served = [p for p in value['files'] if isinstance(p, str) and p.startswith(RESOURCE_PREFIX)]
+    if not value['files'] or len(value['files']) - len(served) > 256 or len(served) > MAX_RESOURCES:
         raise VirtualLoaderError('Invalid virtual file map.')
     for logical, checksum in value['files'].items():
-        if not re.fullmatch(r'(?:meta/0\.(?:papgt|pathc)|[A-Za-z0-9_-]+/0\.(?:pamt|paz))', logical):
+        if served:
+            allowed = logical == 'meta/0.pathc' or (logical.startswith(RESOURCE_PREFIX) and resource_path(logical[len(RESOURCE_PREFIX):]))
+        else:
+            allowed = re.fullmatch(r'(?:meta/0\.(?:papgt|pathc)|[A-Za-z0-9_-]+/0\.(?:pamt|paz))', logical)
+        if not allowed:
             raise VirtualLoaderError('Virtual redirection is limited to prepared archive and metadata files.')
         if not isinstance(checksum, str) or not re.fullmatch('[a-f0-9]{64}', checksum):
             raise VirtualLoaderError('Invalid virtual file checksum.')
@@ -139,13 +160,13 @@ def validate_profile(value):
     for name in names:
         if name.endswith(('.pamt', '.paz')) and not {name.rsplit('.', 1)[0] + suffix for suffix in ('.pamt', '.paz')} <= names:
             raise VirtualLoaderError('The virtual archive is missing its metadata or payload pair.')
-    if 'meta/0.papgt' not in value['files']:
+    if not served and 'meta/0.papgt' not in value['files']:
         raise VirtualLoaderError('The virtual mount list is missing.')
     if 'compilation' in value:
         try:
             inputs = validate_compilation(value['compilation'])
             locked = {package['identity']: package['content'] for package in inputs['packages']}
-            if (inputs['scope'] != 'virtual-profile' or inputs['runtime_abi'] not in ('CDVFS2', 'CDVFS3')
+            if (inputs['scope'] != 'virtual-profile' or inputs['runtime_abi'] not in ('CDVFS2', 'CDVFS3', 'CDVFS4')
                     or inputs['compiler'] != value['compiler'] or inputs['sources'] != dict(value['sources'])
                     or inputs['outputs'] != value['files'] or inputs['providers'] != dict(value['observed'])
                     or locked != {identity: row['digest'] for identity, row in value['items'].items()}

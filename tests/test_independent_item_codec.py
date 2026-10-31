@@ -127,3 +127,10 @@ def test_explicit_field_rename_retains_v1_and_new_behavior_cannot_be_silently_dr
 def test_unknown_fields_values_and_malformed_types_refuse(data):
     with pytest.raises(IndependentItemError):
         codec.decode(data)
+
+
+@pytest.mark.parametrize('path', ['object/00_common/gimmick/attach/cd_gimmick_dockingitem_00_wagon_seat_1.pami',
+                                  'tree/texture/branch_broad_cotton_01_color.dds'])
+def test_docking_props_and_foliage_textures_are_package_resources(path):
+    from cdmw.services.independent_item_package import virtual_path
+    assert virtual_path(path) == path

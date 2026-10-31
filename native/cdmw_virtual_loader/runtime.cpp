@@ -2,6 +2,7 @@
 #include "protocol.hpp"
 #include "bootstrap.hpp"
 #include "compose_launch.hpp"
+#include "resource_serving.hpp"
 #include <atomic>
 #include <cstring>
 #include <mutex>
@@ -274,6 +275,12 @@ DWORD require_verified_startup([[maybe_unused]] const fs::path& root) {
 void undo_hooks() {
     for (auto it = patches.rbegin(); it != patches.rend(); ++it) { try { if (*it->slot == it->after) exchange(*it, false); } catch (...) {} }
 }
+// Each load served from the resource map, as trace operation 15 (1 = async load).
+void served(const char* logical, bool async) noexcept {
+    std::array<wchar_t, 512> path{};
+    for (size_t i = 0; i + 1 < path.size() && logical[i]; ++i) path[i] = static_cast<unsigned char>(logical[i]);
+    record(15, path.data(), true, async ? 1 : 0);
+}
 // Launcher-independent activation of a profile CDMW published for any launcher.
 // No host checks the sources first, so every guard is checked and pinned here,
 // before a single import is hooked. Any refusal leaves the game unmodded.
@@ -319,6 +326,18 @@ void initialize_standalone(const fs::path& root, const fs::path& path) {
             const fs::path logical(file.logical);
             if (logical.extension() == L".pamt") directories.push_back({normalize(root / logical.parent_path()), file.path.parent_path().wstring()});
         }
+        std::vector<ServedResource> resources;
+        for (const auto& resource : manifest.resources) {
+            Handle pin(CreateFileW(resource.path.c_str(), GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr));
+            require_source(bool(pin), "Cannot pin a prepared item file", resource.path);
+            require_source(hash_file(resource.path) == resource.sha, "A prepared item file changed", resource.path);
+            LARGE_INTEGER size{};
+            require_source(GetFileSizeEx(pin.value, &size) != FALSE, "Cannot size a prepared item file", resource.path);
+            std::string logical;  // validated printable ASCII
+            for (auto c : resource.logical) logical += static_cast<char>(c);
+            resources.push_back({logical, resource.path.wstring(), static_cast<uint64_t>(size.QuadPart)});
+            pins.push_back(std::move(pin));
+        }
         auto log = root / L".cdmw/virtual-loader/trace-standalone.bin";
         trace_file = CreateFileW(log.c_str(), GENERIC_WRITE, FILE_SHARE_READ, nullptr, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
         require(trace_file != INVALID_HANDLE_VALUE, "Cannot create bounded trace");
@@ -331,6 +350,11 @@ void initialize_standalone(const fs::path& root, const fs::path& path) {
         record(12, L"Verified early GetCommandLineW startup path", false, startup_verified ? 1 : 0);
         hook_imports(root);
         record(13, L"All approved file import hooks installed", false, 0);
+        if (!resources.empty()) {
+            const auto summary = serve_resources(std::move(resources), &served);
+            const std::wstring text(summary.begin(), summary.end());
+            record(16, text.c_str(), false, static_cast<DWORD>(manifest.resources.size()));
+        }
         Handle writer(CreateThread(nullptr, 0, flush_trace, nullptr, 0, nullptr));
         require(bool(writer), "Cannot start trace writer");
         runtime_state.store(1, std::memory_order_release);
@@ -338,6 +362,7 @@ void initialize_standalone(const fs::path& root, const fs::path& path) {
     } catch (const std::exception& error) {
         runtime_state.store(2, std::memory_order_release);
         mode = Mode::trace;
+        stop_serving();
         for (auto it = patches.rbegin(); it != patches.rend(); ++it) { try { if (*it->slot == it->after) exchange(*it, false); } catch (...) {} }
         mappings.clear(); directories.clear(); pins.clear();
         try { standalone_status(root, "refused", generation, ERROR_NOT_SUPPORTED, error.what(), GetTickCount64() - started); } catch (...) {}

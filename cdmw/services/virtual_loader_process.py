@@ -16,7 +16,7 @@ from cdmw.domain.cancellation import RunCancelled, raise_if_cancelled
 from cdmw.domain.virtual_loader import PreparedSnapshot, VirtualLoaderError, VirtualProfile
 from cdmw.services.independent_item_package import MAX_MANIFEST, MAX_TOTAL, canonical, digest, virtual_path
 from cdmw.services.new_item_provenance import PayloadRevision, SourceRevision
-from cdmw.services.virtual_loader_state import PROFILE_PATH, REGISTRY, decode, target, validate_profile
+from cdmw.services.virtual_loader_state import MAX_RESOURCES, PROFILE_PATH, REGISTRY, decode, target, validate_profile
 
 _SCHEMA = 3
 _MAX_METADATA = 8 * MAX_MANIFEST
@@ -219,7 +219,7 @@ def _read_result(request, folder, output_path, stop_event, *, semantic_sources=(
             _require(len({p.casefold() for p, _ in values}) == len(values))
         return tuple(values)
 
-    files = pairs(result['files'], 256)
+    files = pairs(result['files'], 256 + MAX_RESOURCES)
     _require({p: digest(data) for p, data in files} == profile['files'])
     observed = pairs(result['observed'], 6, nullable=True)
     _require({p for p, _ in observed} == {REGISTRY, PROFILE_PATH, '.cdmw/overlays.json', 'meta/0.papgt', 'meta/0.pathc'})

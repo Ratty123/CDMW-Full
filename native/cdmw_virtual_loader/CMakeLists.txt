@@ -32,7 +32,7 @@ foreach(target cdmw_virtual_protocol cdmw_virtual_protocol_test)
 endforeach()
 # The launch-time composition links the portable item composer.
 add_subdirectory(../cdmw_item_composer "${CMAKE_CURRENT_BINARY_DIR}/item_composer")
-add_library(cdmw_virtual_loader SHARED runtime.cpp bootstrap.cpp compose_launch.cpp)
+add_library(cdmw_virtual_loader SHARED runtime.cpp bootstrap.cpp compose_launch.cpp resource_serving.cpp)
 target_link_libraries(cdmw_virtual_loader PRIVATE cdmw_virtual_protocol cdmw_item_composer)
 set_target_properties(cdmw_virtual_loader PROPERTIES PREFIX "" OUTPUT_NAME "CDMWVirtualLoader" SUFFIX ".asi")
 add_version_resource(cdmw_virtual_loader "CDMW Virtual Loader" "CDMWVirtualLoader.asi" VFT_DLL)
@@ -41,7 +41,7 @@ target_link_libraries(cdmw_virtual_session PRIVATE cdmw_virtual_protocol)
 add_version_resource(cdmw_virtual_session "CDMW Virtual Session" "cdmw_virtual_session.exe" VFT_APP)
 
 # Test-mode launch and activation code is compiled only into these local fixtures.
-add_library(cdmw_virtual_loader_test SHARED runtime.cpp bootstrap.cpp compose_launch.cpp)
+add_library(cdmw_virtual_loader_test SHARED runtime.cpp bootstrap.cpp compose_launch.cpp resource_serving.cpp)
 target_link_libraries(cdmw_virtual_loader_test PRIVATE cdmw_virtual_protocol_test cdmw_item_composer)
 set_target_properties(cdmw_virtual_loader_test PROPERTIES PREFIX "" OUTPUT_NAME "CDMWVirtualLoaderTest" SUFFIX ".asi")
 add_version_resource(cdmw_virtual_loader_test "CDMW Virtual Loader Test Fixture" "CDMWVirtualLoaderTest.asi" VFT_DLL)

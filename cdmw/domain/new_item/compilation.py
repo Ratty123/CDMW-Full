@@ -84,7 +84,7 @@ def validate_compilation(value):
     validate_compiler_stamp(inputs['compiler'])
     if inputs['scope'] not in ('archive-contribution', 'virtual-profile'):
         fail()
-    if inputs['runtime_abi'] is not None and inputs['runtime_abi'] not in ('CDVFS2', 'CDVFS3'):
+    if inputs['runtime_abi'] is not None and inputs['runtime_abi'] not in ('CDVFS2', 'CDVFS3', 'CDVFS4'):
         fail()
     for name in ('sources', 'allocations'):
         hashes(inputs[name])
