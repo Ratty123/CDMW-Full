@@ -289,9 +289,14 @@ def _submesh_uvs_match(orig_sm: SubMesh, new_sm: SubMesh, eps: float = 1e-6) -> 
     if not orig_has_uv:
         return True
     return all(
-        abs(ou - nu) <= eps and abs(ov - nv) <= eps
+        _uv_component_matches(ou, nu, eps) and _uv_component_matches(ov, nv, eps)
         for (ou, ov), (nu, nv) in zip(orig_sm.uvs, new_sm.uvs)
     )
+
+
+def _uv_component_matches(original: float, new: float, eps: float) -> bool:
+    # Some shipped static meshes store NaN in the UV field; an unedited NaN still matches itself.
+    return original == new or abs(original - new) <= eps or (original != original and new != new)
 
 def _make_vertex_template_record(
     original_data: bytes,
