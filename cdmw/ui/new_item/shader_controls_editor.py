@@ -4,8 +4,9 @@ from PySide6.QtCore import Signal
 from PySide6.QtWidgets import (QCheckBox, QComboBox, QDoubleSpinBox, QFormLayout,
                               QGroupBox, QHBoxLayout, QLabel, QPushButton, QVBoxLayout, QWidget)
 
-from cdmw.domain.mesh.shader_controls import (NEW_ITEM_FAMILIES, EYE_COVER, GLASS_FAMILIES, GLASS_FIELD_HELP,
-                                             ShaderControls, family_for, eye_cover_colour_range)
+from cdmw.domain.mesh.shader_controls import (NEW_ITEM_FAMILIES, EYE_COVER, BLENDED_FAMILIES, BLENDED_FIELD_HELP,
+                                             GLASS_FAMILIES, GLASS_FIELD_HELP, ShaderControls, family_for,
+                                             eye_cover_colour_range)
 from cdmw.ui.wheel_guard import enable_focused_wheel
 
 
@@ -130,6 +131,8 @@ class ShaderControlsEditor(QGroupBox):
             requirement = ("Requires a Plain PBR material with a base colour texture, or an existing Wing material." if family.shader == "SkinnedMeshWing"
                            else "Requires plain or layered Standard/Emissive equipment, or an existing translucent equipment material. Layered colours and surface maps are baked." if family.shader == "SkinnedMeshTranslucent"
                            else "Requires a plain opaque, glowing or translucent material with a base colour texture, or an existing transparent surface blending material." if family == EYE_COVER
+                           else "Requires a plain opaque, glowing or translucent equipment material with a base colour texture, or existing layered glass. Layered Standard/Emissive materials are not converted." if family.shader == "SkinnedMeshGlass"
+                           else "Requires a plain opaque or glowing equipment material with a base colour texture, or an existing net veil. Layered Standard/Emissive materials are not converted." if family.shader == "SkinnedMeshTransparency"
                            else f"Requires a {family.shader} source material.")
             item.setToolTip(family.note if available else
                             f"Unavailable for this part. {requirement} "
@@ -186,6 +189,8 @@ class ShaderControlsEditor(QGroupBox):
                 enabled.setToolTip("Override this field. Uncheck to retain the authored value.")
                 if family in GLASS_FAMILIES:
                     enabled.setToolTip(GLASS_FIELD_HELP[field.name])
+                elif family in BLENDED_FAMILIES:
+                    enabled.setToolTip(BLENDED_FIELD_HELP[field.name])
                 painted = self._channel_owned(choice, field.name)
                 enabled.setEnabled(not painted)
                 if field.kind == "ExportToggle":

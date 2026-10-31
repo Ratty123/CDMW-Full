@@ -11,7 +11,11 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 - Archive Browser can reverse-search textures, sounds and other supported assets with Asset Family's Find references action. Asset Family and Used By separate confirmed paths and sound IDs from name-based guesses, with cancellation and visible search coverage limits.
 
+- Create New Item and Mesh Editor add two experimental shader experiments that use the game's blended transparency pass, so layers behind each other stay visible. **Layered glass** gives equipment a real Opacity value with edge opacity, roughness, reflectance and tint. **Sheer net veil** makes see-through hexagonal net for veils, tulle and net lace. Both accept plain opaque or glowing equipment; in-game appearance after conversion is untested.
+
 ### Changed
+
+- Mesh Editor and Create New Item preview existing glass visors and net veils, such as the bridal veil helmet `cd_phw_00_hel_00_0219`, as see-through instead of solid.
 
 - Removed the retired mod-manager export option from all tools, package writers and documentation. DMM and CDUMM remain available where supported.
 

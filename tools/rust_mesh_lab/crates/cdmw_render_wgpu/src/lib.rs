@@ -401,6 +401,48 @@ fn neutral_surface(normal: vec3<f32>, front_facing: bool) -> vec3<f32> {
     return vec3<f32>(0.56, 0.58, 0.62) * shade * select(1.0, 0.025, camera.lighting_preset == 2u);
 }
 
+// veilNetCoverage from the shipped SkinnedMeshTransparency pixel shader: a
+// hexagonal thread net in UV space, box-filtered over the pixel footprint and
+// faded to its mean coverage once a cell approaches pixel size.
+fn veil_net_coverage(uv: vec2<f32>, uv_dx: vec2<f32>, uv_dy: vec2<f32>, pitch: f32, thread: f32) -> f32 {
+    let cell = pitch * 0.57735027;
+    let q = (uv.x * 0.57735027 - uv.y * 0.33333334) / cell;
+    let r = uv.y * 0.66666669 / cell;
+    let s = -q - r;
+    var rq = round(q);
+    var rr = round(r);
+    let rs = round(s);
+    let dq = abs(rq - q);
+    let dr = abs(rr - r);
+    let ds = abs(rs - s);
+    if dq > dr && dq > ds {
+        rq = -rr - rs;
+    } else if dr > ds {
+        rr = -rq - rs;
+    }
+    let local = uv - vec2<f32>(pitch * (rq + rr * 0.5), pitch * 0.8660254 * rr);
+    let half_thread = thread * 0.5;
+    let normals = array<vec2<f32>, 3>(vec2<f32>(1.0, 0.0), vec2<f32>(0.5, 0.8660254), vec2<f32>(-0.5, 0.8660254));
+    var strongest = 0.0;
+    var open = 1.0;
+    var footprint = 0.0;
+    for (var i = 0u; i < 3u; i = i + 1u) {
+        let normal = normals[i];
+        let edge = pitch * 0.5 - abs(dot(local, normal));
+        let width = abs(dot(uv_dx, normal)) + 1e-9 + abs(dot(uv_dy, normal));
+        let high = clamp(edge + width * 0.5, -half_thread, half_thread);
+        let low = clamp(edge - width * 0.5, -half_thread, half_thread);
+        let covered = (high - low) / width;
+        strongest = max(strongest, covered);
+        open = open * (1.0 - covered);
+        footprint = max(footprint, width);
+    }
+    let filtered = (strongest + 1.0 - open) * 0.5;
+    let gap = 1.0 - thread / pitch;
+    let far = clamp((footprint - pitch * 0.3) / (pitch * 0.4), 0.0, 1.0);
+    return mix(filtered, 1.0 - gap * gap, far * far * (3.0 - 2.0 * far));
+}
+
 fn shade_surface(input: VertexOut, front_facing: bool, transmission_only: bool, emission_only: bool) -> vec4<f32> {
     if transmission_only && camera.view_mode != 0u && camera.view_mode != 2u && camera.view_mode != 9u {
         // Material diagnostics show their values without transmitted background.
@@ -565,6 +607,45 @@ fn shade_surface(input: VertexOut, front_facing: bool, transmission_only: bool, 
         material_alpha = textureSampleBias(opacity_texture, material_sampler, sample_uv, MATERIAL_MIP_LOD_BIAS).r;
     }
     material_alpha = clamp(material_alpha * material.opacity, 0.0, 1.0);
+    // SkinnedMeshGlass (10) and the veil (11) use the game's forward pass with
+    // premultiplied blending. Their alpha replaces opacity maps: the shipped
+    // shaders read base-colour alpha only, against the vertex normal.
+    let layered = shader_kind == 10.0 || shader_kind == 11.0;
+    var layered_colour_coverage = 1.0;
+    if layered {
+        let base_alpha = select(1.0, texel.a, shader_value(1u) > 0.5);
+        let layer_view = safe_normalize(camera.view_direction.xyz, vec3<f32>(0.0, 0.0, -1.0));
+        let layer_ndotv = dot(safe_normalize(input.normal, layer_view), layer_view);
+        if shader_kind == 10.0 {
+            texel = vec4<f32>(texel.rgb * srgb_to_linear(vec3<f32>(shader_value(8u), shader_value(9u), shader_value(10u))), texel.a);
+            let straight = clamp(shader_value(11u) * base_alpha * shader_value(4u), 0.0, 1.0);
+            let path = 1.0 + shader_value(5u) * (1.0 / max(abs(layer_ndotv), 0.01) - 1.0);
+            material_alpha = clamp(1.0 - exp(path * log(max(1.0 - straight, 1e-6))), 0.0, 1.0);
+        } else {
+            // The veil samples its colour map without sRGB decoding.
+            let dye = srgb_to_linear(vec3<f32>(shader_value(9u), shader_value(10u), shader_value(11u)));
+            texel = vec4<f32>(linear_to_srgb(texel.rgb) * dye, texel.a);
+            let uv_dx = dpdx(sample_uv);
+            let uv_dy = dpdy(sample_uv);
+            var thread_scale = 1.0;
+            if (material.flags & MATERIAL_HEIGHT) != 0u {
+                thread_scale = textureSample(height_texture, material_sampler, sample_uv / max(shader_value(8u), 0.0001)).r;
+            }
+            let back = layer_ndotv < 0.0;
+            // Game spacing is pitch x 0.0015 x 2 sqrt(3840 x 2160 / pixels); the
+            // preview fixes 2560x1440 (factor 3). Thread width does not scale.
+            let pitch = max(shader_value(4u) * 0.0015, 0.0001) * 3.0;
+            let thread = shader_value(5u) * 0.0003 * thread_scale * select(1.0, 4.0, back);
+            let coverage = min(veil_net_coverage(sample_uv, uv_dx, uv_dy, pitch, thread), 0.999);
+            let facing = max(abs(layer_ndotv), 0.08);
+            let slant = clamp(1.0 - facing * facing, 0.0, 1.0);
+            let path = (1.0 - (0.16302 * slant + 0.2) * slant) / facing;
+            layered_colour_coverage = clamp(shader_value(12u) * base_alpha * (1.0 - exp(path * log(1.0 - coverage))), 0.0, 1.0);
+            // Colour is premultiplied by coverage, blend alpha by 30% (front) or
+            // 70% (back) of it, so a veil lightens more than it hides.
+            material_alpha = layered_colour_coverage * select(0.2998046875, 0.7001953125, back);
+        }
+    }
     var eye_surface_alpha = 1.0;
     if eye_cover {
         // Diagnostic approximation of EyeCover's independent G-buffer weights.
@@ -600,7 +681,7 @@ fn shade_surface(input: VertexOut, front_facing: bool, transmission_only: bool, 
         material_alpha = 1.0 - dot(transmission, vec3<f32>(1.0 / 3.0));
     }
     if transmission_only { return vec4<f32>(transmission, 1.0); }
-    if (material.flags & MATERIAL_ALPHA_CUTOUT) != 0u && material.translucency_factors.z < 0.5 && !eye_cover {
+    if (material.flags & MATERIAL_ALPHA_CUTOUT) != 0u && material.translucency_factors.z < 0.5 && !eye_cover && !layered {
         if material_alpha < material.surface_factors.w {
             discard;
         }
@@ -610,7 +691,7 @@ fn shade_surface(input: VertexOut, front_facing: bool, transmission_only: bool, 
         return present_srgb(fract(part_id * vec3<f32>(0.6180339, 0.3819660, 0.7548777)), 1.0);
     }
     if camera.view_mode == 2u {
-        if eye_cover { return present(texel.rgb, 1.0) * material_alpha; }
+        if eye_cover || layered { return present(texel.rgb, 1.0) * material_alpha; }
         if material.translucency_factors.z > 0.5 {
             return vec4<f32>(0.0, 0.0, 0.0, material_alpha);
         }
@@ -849,6 +930,11 @@ fn shade_surface(input: VertexOut, front_facing: bool, transmission_only: bool, 
         if shader_value(7u) >= 0.0 { roughness = clamp(shader_value(7u), 0.04, 1.0); }
         if shader_value(8u) >= 0.0 { metalness = clamp(shader_value(8u), 0.0, 1.0); }
     }
+    if shader_kind == 10.0 {
+        // SkinnedMeshGlass never reads the material map: roughness is a scalar.
+        roughness = clamp(shader_value(6u), 0.04, 1.0);
+        metalness = 0.0;
+    }
     var raw_occlusion = 1.0;
     if (material.flags & MATERIAL_OCCLUSION) != 0u {
         raw_occlusion = clamp(textureSampleBias(occlusion_texture, material_sampler, sample_uv, MATERIAL_MIP_LOD_BIAS).r, 0.0, 1.0);
@@ -986,6 +1072,11 @@ fn shade_surface(input: VertexOut, front_facing: bool, transmission_only: bool, 
     if is_tooth { dielectric_f0 = 0.05; }
     dielectric_f0 = mix(0.04, dielectric_f0, category_confidence);
     dielectric_f0 = select(dielectric_f0, 0.04, gltf_pbr);
+    if shader_kind == 10.0 {
+        // The glass shader's refractive index only sets reflectance at normal incidence.
+        let reflectance = (shader_value(7u) - 1.0) / (shader_value(7u) + 1.0);
+        dielectric_f0 = reflectance * reflectance;
+    }
     var f0 = mix(
         vec3<f32>(dielectric_f0),
         material_reference_albedo,
@@ -1277,7 +1368,7 @@ fn shade_surface(input: VertexOut, front_facing: bool, transmission_only: bool, 
     let emissive = emission_colour * emission_strength * select(0.5, 1.0, gltf_pbr) + shader_glow;
     if emission_only {
         // The game's translucent shaders never read their declared glow inputs.
-        if eye_cover || material.translucency_factors.z > 0.5 { return vec4<f32>(0.0); }
+        if eye_cover || layered || material.translucency_factors.z > 0.5 { return vec4<f32>(0.0); }
         // Preserve HDR emission before surface tone mapping; diffuse white and
         // specular highlights must never become glow sources.
         return vec4<f32>(min(max(emissive, vec3<f32>(0.0)), vec3<f32>(64.0)),
@@ -1297,6 +1388,19 @@ fn shade_surface(input: VertexOut, front_facing: bool, transmission_only: bool, 
         let shine = workbench_tone(reflection, exposure);
         let colour = max(lit - shine, vec3<f32>(0.0)) * material_alpha + shine * eye_surface_alpha;
         return present(colour, material_alpha);
+    }
+    if layered {
+        let reflection = (specular + environment_specular) * showcase_warmth * light_scale;
+        if shader_kind == 10.0 {
+            // Glass premultiplies its lit body by alpha but not its reflection.
+            let lit = workbench_tone((diffuse + environment_diffuse) * light_scale + reflection, exposure);
+            let shine = workbench_tone(reflection, exposure);
+            return present(max(lit - shine, vec3<f32>(0.0)) * material_alpha + shine, material_alpha);
+        }
+        // Approximate veil lighting: sheen and backlight glow both rise at grazing angles.
+        let veil_light = material_reference_albedo * rim_light * (shader_value(7u) * 0.5 + shader_value(6u) * 0.35);
+        let lit = workbench_tone((diffuse + environment_diffuse + veil_light) * light_scale + reflection, exposure);
+        return present(lit * layered_colour_coverage, material_alpha);
     }
     if material.translucency_factors.z > 0.5 {
         // Glass absorbs background light; reflection is never faded by absorption.
@@ -1344,7 +1448,8 @@ fn fs_blended(input: VertexOut, @builtin(front_facing) front_facing: bool) -> @l
     let surface = shade_surface(input, front_facing, false, false);
     // The optional dual-source pipeline supplies RGB transmission. Adapters
     // without it still retain surface light with a scalar transmission estimate.
-    let coverage = select(surface.a, 1.0, material.translucency_factors.z > 0.5 || shader_value(0u) == 7.0);
+    let coverage = select(surface.a, 1.0, material.translucency_factors.z > 0.5 || shader_value(0u) == 7.0
+        || shader_value(0u) == 10.0 || shader_value(0u) == 11.0);
     return vec4<f32>(surface.rgb * coverage, surface.a);
 }
 
@@ -4374,7 +4479,12 @@ fn validate_material_factor_ownership(
         ));
     }
     if factors.shader_controls.is_some_and(|v| v.iter().any(|n| !n.is_finite() || n.abs() > 1e6)
-        || !(0.0..=9.0).contains(&v[0]) || v[0].fract() != 0.0
+        || !(0.0..=11.0).contains(&v[0]) || v[0].fract() != 0.0
+        // Layered glass: opacity, edge, roughness, IOR 1-2.5, RGB and colour alpha.
+        || (v[0] == 10.0 && (v[4..7].iter().chain(&v[8..12]).any(|n| !(0.0..=1.0).contains(n))
+            || !(1.0..=2.5).contains(&v[7])))
+        // Veil: pitch, thread, glow, sheen, map scale, RGB and colour alpha.
+        || (v[0] == 11.0 && v[4..13].iter().any(|n| !(0.0..=1.0).contains(n)))
         || (v[0] == 7.0 && (!(0.0..=1.0).contains(&v[4])
             || v[5..9].iter().any(|n| *n != -1.0 && !(0.0..=1.0).contains(n))))
         || (matches!(v[0] as u32, 8 | 9) && (!(0.0..=1.0).contains(&v[4])
@@ -9334,6 +9444,8 @@ fn create_material_bind_group(
     let layer_mask_view = material_texture_view(textures, indices.layer_mask, &defaults.layer_mask);
     let effect = factors.shader_controls.is_some_and(|v| v[0] > 0.0 && v[0] <= 7.0);
     let eye_cover = factors.shader_controls.is_some_and(|v| v[0] == 7.0);
+    // SkinnedMeshGlass (10) and the veil (11) blend in the game's forward pass.
+    let layered = factors.shader_controls.is_some_and(|v| matches!(v[0] as u32, 10 | 11));
     let translucency = material_translucency_uniform(factors);
     let translucent = translucency[2] > 0.5 && !eye_cover;
     let skin_detail_mask_view =
@@ -9412,7 +9524,7 @@ fn create_material_bind_group(
     if factors.alpha_cutoff.is_some_and(|cutoff| cutoff > 0.0) {
         flags |= MATERIAL_ALPHA_CUTOUT;
     }
-    if factors.alpha_blend == Some(true) || translucent || eye_cover {
+    if factors.alpha_blend == Some(true) || translucent || eye_cover || layered {
         flags |= MATERIAL_ALPHA_BLEND;
     }
     if factors.gltf_metallic_roughness == Some(true) {
@@ -9438,6 +9550,11 @@ fn create_material_bind_group(
             let mut values = factors.shader_controls.unwrap_or([0.0; 32]);
             values[3] = if effect && indices.shader_mask.is_some() { 1.0 } else { 0.0 };
             values[31] = if effect && indices.shader_normal.is_some() { 1.0 } else { 0.0 };
+            if layered && factors.gltf_metallic_roughness == Some(true)
+                && factors.alpha_blend != Some(true) && factors.alpha_cutoff.is_none() {
+                // Plain PBR export writes glTF OPAQUE base colour with solid alpha.
+                values[1] = 0.0;
+            }
             std::array::from_fn(|i| std::array::from_fn(|j| values[i * 4 + j]))
         },
         flags,
@@ -9565,9 +9682,9 @@ fn create_material_bind_group(
     GpuMaterialBinding {
         bind_group,
         _uniform_buffer: uniform_buffer,
-        alpha_blend: factors.alpha_blend == Some(true) || translucent || eye_cover,
+        alpha_blend: factors.alpha_blend == Some(true) || translucent || eye_cover || layered,
         translucent,
-        emits_light: !eye_cover && !translucent && (((uniform.emissive_color_and_intensity[3] > 0.0 || uniform.emission_reveal[3] > 0.0)
+        emits_light: !eye_cover && !translucent && !layered && (((uniform.emissive_color_and_intensity[3] > 0.0 || uniform.emission_reveal[3] > 0.0)
             && uniform.emissive_color_and_intensity[..3].iter().any(|value| *value > 0.0))
             || matches!(uniform.shader_controls[0][0] as u32, 5 | 6)),
     }
@@ -10842,6 +10959,28 @@ mod tests {
         factors = MaterialPreviewFactors { translucency: Some([0.2, 0.3]), ..Default::default() };
         assert_eq!(material_translucency_uniform(factors), [0.2, 0.3, 1.0, 1.0]);
         assert_eq!(material_translucency_uniform(MaterialPreviewFactors::default()), [0.0; 4]);
+    }
+
+    #[test]
+    fn layered_transparency_controls_validate_their_decoded_ranges() {
+        // Shipped visor glass and the cd_phw_00_hel_00_0219 veil, as Python lays them out.
+        let mut glass = [0.0; 32];
+        glass[..12].copy_from_slice(&[10.0, 1.0, 0.0, 0.0, 0.267, 0.191, 0.087, 1.68, 0.933, 0.949, 0.937, 0.843]);
+        let mut veil = [0.0; 32];
+        veil[..13].copy_from_slice(&[11.0, 1.0, 0.0, 0.0, 0.3, 0.727, 0.516, 0.901, 0.27, 0.851, 0.851, 0.851, 1.0]);
+        for controls in [glass, veil] {
+            let factors = MaterialPreviewFactors { shader_controls: Some(controls), ..Default::default() };
+            assert!(validate_material_factor_ownership(factors, &[vec![0]]).is_ok());
+            // Layered families blend in their own pass, never the one-layer glass composite.
+            assert_eq!(material_translucency_uniform(factors), [0.0; 4]);
+        }
+        for (mut controls, index, value) in [(glass, 7, 0.99), (glass, 7, 2.6), (glass, 4, 1.01), (glass, 11, -0.1),
+                                             (veil, 4, 1.01), (veil, 12, 1.5), (veil, 0, 12.0)] {
+            controls[index] = value;
+            let factors = MaterialPreviewFactors { shader_controls: Some(controls), ..Default::default() };
+            assert!(validate_material_factor_ownership(factors, &[vec![0]]).is_err());
+        }
+        assert!(SHADER.contains("fn veil_net_coverage("));
     }
 
     #[test]

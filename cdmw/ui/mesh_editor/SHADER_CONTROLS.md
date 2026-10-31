@@ -21,6 +21,20 @@ triangles or other visual glitches in game, even within the same model. Avoid
 overlapping transparent surfaces where possible. Mesh Editor shows this warning
 beside its Translucency controls; the preview may not show the issue.
 
+This applies to the one-layer glass shaders and Transparent surface blending.
+**Layered glass** and **Sheer net veil** use the game's blended forward pass
+instead, so layers behind each other stay visible; see below.
+
+## Choosing a transparency route
+
+| Goal | Experiment | How it behaves in game |
+| --- | --- | --- |
+| See-through glass with an opacity value, several layers visible | Layered glass | Blended, no depth write; back faces, then front faces |
+| Coloured glass that absorbs light | Equipment glass / World-object glass | Only the nearest glass surface per pixel is seen |
+| Veil, tulle or net lace | Sheer net veil | Blended procedural net; mainly lightens |
+| Hard holes or cut-out patterns | Patterned reveal (painted cutout) | Binary cutout; no blending |
+| Painted partial transparency on New Item parts | Transparent surface blending | G-buffer blend over the character |
+
 ## Translucent glass
 
 **World-object glass (experimental)** in Mesh Editor uses the static `Translucent`
@@ -65,6 +79,61 @@ in-game activation remain unverified. No refractive-index control is exposed bec
 inspected static main shader variants do not use it. Neither glass shader reads glow
 inputs, so retained glow maps do not glow in game.
 
+## Layered glass and Sheer net veil
+
+Both editors offer two experiments built on the game's `SkinnedMeshTransparency`
+technique: a forward pass with premultiplied alpha blending and no depth write
+that draws back faces, then front faces. Unlike the glass above, glass behind
+glass and the far side of the same part stay visible. Within one part the game
+draws triangles in mesh order; the viewport sorts them by depth, so heavily
+overlapping layers can blend in a different order in game. The shipped game
+uses this pass on eight helmet visors (`SkinnedMeshGlass`) and on the veil of
+`cd_phw_00_hel_00_0219` (`SkinnedMeshTransparency`). Archive parts already
+using either shader now preview blended instead of solid.
+
+**Layered glass (experimental)** converts a part to `SkinnedMeshGlass`:
+
+| Control | Range; unset default | Effect |
+| --- | --- | --- |
+| Opacity | 0–1; 0.1 | Share of the background hidden when seen straight on |
+| Edge opacity | 0–1; 0.5 | Raises opacity at grazing angles |
+| Roughness | 0–1; 0.05 | Reflection blur; replaces the material map |
+| Reflectance (refractive index) | 1–2.5; 1.52 | Reflection strength only; no refraction |
+| Glass colour RGB | 0–1; white | Tints the body; highlights stay white |
+
+Final opacity is `1 − (1 − Opacity × base alpha × colour alpha)^(1 + Edge ×
+(1/|N·V| − 1))`. The colour's alpha byte is kept from the source; the shipped
+visors use 0.84. Reflections are added without being faded by opacity, so clear
+glass keeps its highlights. The shader reads only the base colour, normal map
+and these values; material, mask and glow maps are ignored.
+
+**Sheer net veil (experimental)** converts a part to `SkinnedMeshTransparency`,
+a procedural hexagonal net for veils, tulle and net lace:
+
+| Control | Range; unset default | Effect |
+| --- | --- | --- |
+| Net spacing | 0–1; 0.5 | Distance between threads |
+| Thread thickness | 0–1; 0.5 | Thread width, scaled by the height map's red channel |
+| Backlight glow | 0–1; 0.65 | Light from behind scattered toward the viewer |
+| Sheen | 0–1; 0.22 | Soft highlight at grazing angles |
+| Thread map scale | 0–1; 1 | Tiling of the height map that varies the thread |
+| Veil colour RGB | 0–1; white | Multiplies the colour texture |
+
+Coverage is the share of each cell the threads cover, thickened at grazing
+angles and multiplied by base and colour alpha. A front face blends with alpha
+of 30% of that coverage and a back face 70%, while its colour uses the full
+coverage, so a veil lightens more than it hides. Back faces use four times the
+thread width. The game samples this colour texture without sRGB decoding, so
+converted colours look lighter in game and in the viewport. Net spacing scales
+with the game's screen resolution while thread width does not; the viewport
+assumes 2560×1440. Backlight glow and sheen are approximated in the viewport.
+
+Both accept plain `SkinnedMeshStandard`/`SkinnedMeshEmissive` equipment with a
+base-colour map, or a part already using the same shader. Layered glass also
+accepts `SkinnedMeshTranslucent`; its authored thickness then becomes Edge
+opacity unless overridden. Layered `_Ver2` materials are not converted. Shadows
+from these shaders and their in-game appearance after conversion are unverified.
+
 ## Transparent surface blending
 
 Create New Item additionally offers **Transparent surface blending (experimental)**
@@ -87,6 +156,8 @@ It is not included in Mesh Editor's experiment catalogue.
 | Object dissolve | Existing `Dissolve` PAMI on a static object in Mesh Editor | Sphere ratio/radius, positive hardness, centre/position, noise scale/speed/strength, edge glow and inversion. Other flag bits are preserved. |
 | World-object glass | Static `Translucent`, or plain `Standard` with a base map | Thickness, absorption up to 10, and shadow colour strength. Uses PAMI; not available on equipment. |
 | Equipment glass | `SkinnedMeshTranslucent`, plain `SkinnedMeshStandard` / `SkinnedMeshEmissive` with a base map, or layered `SkinnedMeshStandard_Ver2` / `SkinnedMeshEmissive_Ver2` with colour inputs | Thickness, absorption up to 1, and shadow colour strength. Layered sources are baked to private maps. Uses PAC_XML. |
+| Layered glass | `SkinnedMeshGlass`, `SkinnedMeshTranslucent`, or plain `SkinnedMeshStandard` / `SkinnedMeshEmissive` with a base map | Opacity, edge opacity, roughness, reflectance and colour. Blended layers stay visible. Uses PAC_XML. |
+| Sheer net veil | `SkinnedMeshTransparency`, or plain `SkinnedMeshStandard` / `SkinnedMeshEmissive` with a base map | Net spacing, thread, backlight glow, sheen, map scale and colour. Uses PAC_XML. |
 
 Layered Standard/Emissive conversion is limited to Equipment glass. Ordinary Hair
 and other cloth shaders cannot silently become the shared equipment experiments
@@ -162,10 +233,13 @@ The two shader preview services prepare resources off the UI thread.
 saved drafts, Qt controls and preview handoffs;
 `tests/test_layered_glass_controls.py` covers layered baking, independent variants,
 disabled choices and publication of the exported preview textures;
+`tests/test_layered_transparency_controls.py` covers Layered glass and Sheer net
+veil compatibility, output IDs, colour alpha retention and authored preview readback;
 `tests/test_material_authority_exact_artifacts.py` covers authored artifacts.
 Rust tests cover optional
 mask transport, material ownership and headless interactions. The synthetic D3D12
-gate exercises cutouts, UV motion, detail normals, glow sweeps and object clipping.
+gate exercises cutouts, UV motion, detail normals, glow sweeps, object clipping and
+layered glass/veil blending.
 The maintained Python suite prioritizes export fidelity and workflow behavior
 over exhaustive control and parameter permutations.
 These checks do not prove packaged-helper, visible-session or in-game parity.

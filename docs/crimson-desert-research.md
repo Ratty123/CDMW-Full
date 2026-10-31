@@ -359,6 +359,40 @@ confirms it.
   and one helm. Their thickness ranges from 0.01 to 0.13 and their extinction
   from 0.106 to 0.75.
 
+A second, blended route was read on 2026-10-31 from the same render-pass file,
+the material definitions and the shipped `PSMainTransparency` shaders (4 glass
+and 4 veil variants). The evidence is static, plus one in-game screenshot of the
+shipped veil helmet shared by the user; no converted material has been tested.
+
+- **Pass.** The `SkinnedMeshTransparency` technique renders into scene colour
+  with premultiplied alpha blending, depth test without depth write, and two
+  pipelines: front-face culling first, then back-face culling. Back faces are
+  therefore drawn before front faces and layers stay visible behind each other.
+  A separate depth pass writes depth and velocity for this technique.
+- **Two families.** `SkinnedMeshGlass` and `SkinnedMeshTransparency` both use
+  this technique. Glass ships on eight helmet visor wrappers (four helmets with
+  slim variants); the veil ships only on `cd_phw_00_hel_00_0219`.
+- **Glass alpha.** `1 − (1 − saturate(colour alpha × base alpha ×
+  _tintOpacity))^(1 + _thickness × (1/max(|N·V|, 0.01) − 1))`. Colour is the lit
+  `_glassColor × base colour` premultiplied by that alpha, plus reflection that
+  is not faded. `_refractiveIndex` only sets F0 = ((n − 1)/(n + 1))²; the pass
+  cannot refract the scene it draws into. `_roughness` is a scalar; material,
+  mask and height maps are not read.
+- **Veil alpha.** A procedural hexagonal net in UV space (`veilNetCoverage`):
+  cell spacing `max(_netPitch × 0.0015, 1e-4) × 2√(3840·2160/pixels)`, thread
+  width `_netThread × 0.0003 × height.R(uv/_uvScale)`, four times wider on back
+  faces, box-filtered by the pixel footprint and faded to the mean coverage
+  `1 − (1 − width/spacing)²`. Coverage thickens at grazing angles, is multiplied
+  by base and `_dyeingColor` alpha, and the output alpha is 30% (front) or 70%
+  (back) of it while colour uses the full coverage. Spacing depends on screen
+  resolution but thread width does not, so the veil is sheerer at lower
+  resolutions. The colour map is declared without sRGB decoding.
+- **Unread inputs.** Neither variant reads `_maskTexture`. `_glow` and `_sheen`
+  feed the veil's lighting, which CDMW only approximates.
+
+CDMW offers both as experimental shader controls and previews shipped parts of
+either family as blended; see the [shader controls guide][shader-controls].
+
 Disabling conservative rasterization did not resolve the reported overlap.
 It is not a general transparency-ordering control. Practical workarounds include
 avoiding overlap, excluding selected islands or using a different compatible

@@ -9,8 +9,8 @@ from types import SimpleNamespace
 from cdmw.core.temp_cache import session_generated_cache_path
 
 from cdmw.core.common import raise_if_cancelled
-from cdmw.domain.mesh.shader_controls import (EYE_COVER, GLASS_FAMILIES, ShaderControls,
-                                             family_for, preview_factors, eye_cover_colour_range)
+from cdmw.domain.mesh.shader_controls import (EYE_COVER, BLENDED_FAMILIES, BLENDED_SHADERS, GLASS_FAMILIES,
+                                             ShaderControls, family_for, preview_factors, eye_cover_colour_range)
 
 
 EFFECT_MASK_PARAMETERS = frozenset({"_wingFlowTex1", "_tornPatternTexture", "_posterGlowNoiseTex",
@@ -57,8 +57,7 @@ def preview_material_variant(text, part):
     raise ValueError(f"{part.name}: the active material variant is unavailable. Reopen the model from Browse Archives.")
 
 
-def authored_static_glass_factors(part):
-    """Recognize the exact object shader, never a glass-like name or DDS alpha."""
+def _exact_source_shader(part):
     shader = str(getattr(part, "preview_sidecar_shader_family", "") or "").casefold()
     if not shader:
         inputs = getattr(part, "preview_material_texture_inputs", ()) or ()
@@ -66,15 +65,30 @@ def authored_static_glass_factors(part):
                        else getattr(item, "shader_family", "")).casefold() for item in inputs}
         shaders.discard("")
         shader = next(iter(shaders)) if len(shaders) == 1 else ""
-    if shader != "translucent":
+    return shader
+
+
+def authored_static_glass_factors(part):
+    """Recognize the exact object shader, never a glass-like name or DDS alpha."""
+    if _exact_source_shader(part) != "translucent":
         return None
     values, _ = source_inputs(part)
     return preview_factors(ShaderControls("Translucent"), values)
 
 
+def authored_blended_factors(part):
+    """Archive SkinnedMeshGlass/SkinnedMeshTransparency parts blend in the game's
+    forward pass; without these factors the preview draws them solid."""
+    shader = next((name for name in BLENDED_SHADERS if name.casefold() == _exact_source_shader(part)), None)
+    if shader is None:
+        return None
+    values, _ = source_inputs(part)
+    return preview_factors(ShaderControls(shader), values)
+
+
 def shader_control_diagnostic(part, controls, authored):
     """Read actual mask gates during worker preparation, never during UI repaint."""
-    if family_for(controls.shader) in GLASS_FAMILIES:
+    if family_for(controls.shader) in (*GLASS_FAMILIES, *BLENDED_FAMILIES):
         return family_for(controls.shader).note
     if controls.shader == EYE_COVER.shader:
         low, high = eye_cover_colour_range(controls, authored)
@@ -114,7 +128,7 @@ def shader_preview_groups(mesh, choices, *, plain_pbr=False):
             # Plain PBR conversion starts fully revealed in the output writer.
             # Explicit control values still win in preview_factors.
             values = {"_wingFlowProgress": "2"}
-        if selected and plain_pbr and selected[0].shader in {EYE_COVER.shader, "SkinnedMeshTranslucent"}:
+        if selected and plain_pbr and selected[0].shader in {EYE_COVER.shader, "SkinnedMeshTranslucent", *BLENDED_SHADERS}:
             values = {}
         result.append({"source_submesh_indices": [index], "editor_role": "replacement_preview",
                        "shader_controls": list(preview_factors(selected[0], values))
@@ -194,7 +208,7 @@ def shader_preview_mesh(mesh, choices, *, snapshot=None, stop_event=None, plain_
         if plain_pbr and controls.shader == "SkinnedMeshWing":
             values = {"_wingFlowProgress": "2"}
             textures.pop("_wingFlowTex1", None)
-        if plain_pbr and controls.shader in {EYE_COVER.shader, "SkinnedMeshTranslucent"}:
+        if plain_pbr and controls.shader in {EYE_COVER.shader, "SkinnedMeshTranslucent", *BLENDED_SHADERS}:
             values = {}
             textures.pop("_alphaTexture", None)
         path = str(getattr(part, "preview_source_asset_path", "") or mesh.path).replace("\\", "/")

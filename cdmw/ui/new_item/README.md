@@ -35,6 +35,14 @@ The experiment selector marks incompatible choices **Unavailable**, lists the
 experiments supported by the selected part, and explains each unavailable option's
 required source material in its tooltip.
 
+**Layered glass (experimental)** and **Sheer net veil (experimental)** use the
+game's blended transparency pass, so glass behind glass and the far side of a part
+stay visible; they suit see-through visors, bottles and veils better than the
+one-layer Equipment glass. Their controls, formulas and limits are described in
+[Layered glass and Sheer net veil](../mesh_editor/SHADER_CONTROLS.md#layered-glass-and-sheer-net-veil).
+Template parts that already use `SkinnedMeshGlass` or `SkinnedMeshTransparency`
+preview blended rather than solid.
+
 ### Transparent surface blending
 
 **Transparent surface blending (experimental)** is available here for plain Standard,

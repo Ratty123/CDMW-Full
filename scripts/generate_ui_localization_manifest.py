@@ -1801,7 +1801,7 @@ def build_manifest() -> dict[str, object]:
     from cdmw.domain.mesh.body_region_sliders import DEFAULT_BODY_REGION_SLIDER_TEMPLATES
     from cdmw.domain.mesh.body_regions import DEFAULT_BODY_REGION_RULES, sided_region_label
     from cdmw.domain.mesh.morph_layers import _MACROS
-    from cdmw.domain.mesh.shader_controls import EYE_COVER, MESH_FAMILIES, GLASS_FIELD_HELP
+    from cdmw.domain.mesh.shader_controls import BLENDED_FIELD_HELP, EYE_COVER, MESH_FAMILIES, GLASS_FIELD_HELP
     from cdmw.domain.textures.editor_presets import texture_editor_dds_presets
 
     # These built-in labels arrive in Rust through the typed morph state.
@@ -1839,7 +1839,7 @@ def build_manifest() -> dict[str, object]:
                 "path": "cdmw/domain/mesh/shader_controls.py", "line": 1,
                 "sink": "rust-presentation",
             })
-    for text in GLASS_FIELD_HELP.values():
+    for text in (*GLASS_FIELD_HELP.values(), *BLENDED_FIELD_HELP.values()):
         origins.setdefault(text, []).append({
             "path": "cdmw/domain/mesh/shader_controls.py", "line": 1,
             "sink": "rust-presentation",

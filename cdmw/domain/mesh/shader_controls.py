@@ -1,7 +1,8 @@
 """Experimental controls recovered from material definitions and compiled shaders.
 
 These are material-family contracts, not a list of interchangeable shader names.
-Wing, translucent glass and New Item's EyeCover accept compatible plain materials.
+Wing, translucent glass, the layered transparency families and New Item's EyeCover
+accept compatible plain materials.
 """
 from __future__ import annotations
 
@@ -120,7 +121,58 @@ GLASS_FIELD_HELP = {
     "_extinctionCoefficient": "Higher values make glass less see-through. World objects support 0–10; equipment supports 0–1. This is absorption, not an opacity percentage.",
     "_extinctionTint": "0 gives neutral absorption in supported shadow passes; 1 uses the material colour. This does not tint the visible surface. Exported for in-game testing; the preview does not show coloured shadows.",
 }
-MESH_FAMILIES = (*FAMILIES, *GLASS_FAMILIES)
+# Both families use the game's SkinnedMeshTransparency technique: a forward pass
+# with premultiplied blending and no depth write, drawing back faces before front
+# faces. Layers behind each other therefore stay visible, unlike the one-layer
+# SkinnedMeshTranslucent G-buffer. Shipped use: eight helmet visors (glass) and
+# cd_phw_00_hel_00_0219 (veil).
+BLENDED_FAMILIES = (
+    ShaderFamily("SkinnedMeshGlass", "Layered glass (experimental)",
+        "Real see-through blending: glass behind glass and the far side of the same part stay visible. "
+        "Opacity is Opacity × base-colour alpha × glass colour alpha, rising toward the edges with Edge opacity. "
+        "Highlights stay visible on clear glass. Accepts plain opaque or glowing equipment, existing translucent "
+        "equipment glass, or existing layered glass. Inside one part the game draws back faces, then front faces, "
+        "in mesh order; the preview sorts triangles by depth, so heavily overlapping layers may blend in a different "
+        "order. Test the result in game.", (
+        ShaderField("_tintOpacity", "Opacity", (.1,), 0, 1, item_id="1809591378640894"),
+        ShaderField("_thickness", "Edge opacity", (.5,), 0, 1, item_id="3214133184954366"),
+        ShaderField("_roughness", "Roughness", (.05,), 0, 1, item_id="1406263355244542"),
+        ShaderField("_refractiveIndex", "Reflectance (refractive index)", (1.52,), 1, 2.5, item_id="98498246606846"),
+        ShaderField("_glassColor", "Glass colour RGB", (1., 1., 1.), 0, 1, "Color", "3337232596336638"),
+    )),
+    ShaderFamily("SkinnedMeshTransparency", "Sheer net veil (experimental)",
+        "A procedural hexagonal net for veils, tulle and net lace, blended like Layered glass. Net spacing and Thread "
+        "thickness set how much of the surface the threads cover; the height map's red channel varies the thread. "
+        "Even fully covered, a front face hides only about 30% of what is behind it and a back face about 70%, so "
+        "the veil mainly lightens. The game reads this colour texture without sRGB conversion, so converted colours "
+        "look lighter. Net spacing also widens at lower game resolutions; the preview assumes 2560×1440. "
+        "Backlight glow and sheen are approximated in the preview. Accepts plain opaque or glowing equipment, or an "
+        "existing net veil. Test the result in game.", (
+        ShaderField("_netPitch", "Net spacing", (.5,), 0, 1, item_id="2027176113209342"),
+        ShaderField("_netThread", "Thread thickness", (.5,), 0, 1, item_id="3127355417559038"),
+        ShaderField("_glow", "Backlight glow", (.65,), 0, 1, item_id="2839560803319806"),
+        ShaderField("_sheen", "Sheen", (.22,), 0, 1, item_id="403124275642366"),
+        ShaderField("_uvScale", "Thread map scale", (1.,), 0, 1, item_id="2292528656154622"),
+        ShaderField("_dyeingColor", "Veil colour RGB", (1., 1., 1.), 0, 1, "Color", "2595737222250494"),
+    )),
+)
+BLENDED_FIELD_HELP = {
+    "_tintOpacity": "How much of the background the glass hides when seen straight on: 0 clear, 1 solid. Multiplied by base-colour alpha and the glass colour's alpha. Unchecked: retain the authored value, or 0.1.",
+    "_thickness": "Raises opacity at grazing angles, like the edges of real glass. 0 keeps the same opacity at every angle. Unchecked: retain the authored value, or 0.5.",
+    "_roughness": "Blur of reflections: 0 mirror-like, 1 matte. Replaces the material texture's roughness. Unchecked: retain the authored value, or 0.05.",
+    "_refractiveIndex": "Sets reflection strength only (1.52 is ordinary glass, higher reflects more). The game does not bend the background through this glass. Unchecked: retain the authored value, or 1.52.",
+    "_glassColor": "Tints the glass body; highlights stay white. The colour's alpha, kept from the source, also scales opacity. Unchecked: retain the authored colour, or white.",
+    "_netPitch": "Distance between threads. Higher values make larger, more open cells. Unchecked: retain the authored value, or 0.5.",
+    "_netThread": "Thread width, scaled by the height map's red channel. Back faces use four times this width. Unchecked: retain the authored value, or 0.5.",
+    "_glow": "Light from behind the veil scattered toward the viewer. 0 none, 1 strongest. Approximated in the preview. Unchecked: retain the authored value, or 0.65.",
+    "_sheen": "Soft highlight at grazing angles. Approximated in the preview. Unchecked: retain the authored value, or 0.22.",
+    "_uvScale": "Tiling of the height map that varies the thread width; smaller values repeat it more often. Unchecked: retain the authored value, or 1.",
+    "_dyeingColor": "Multiplies the colour texture. Its alpha, kept from the source, scales coverage. Unchecked: retain the authored colour, or white.",
+}
+BLENDED_SHADERS = frozenset(family.shader for family in BLENDED_FAMILIES)
+# Renderer family IDs: 1–6 effects, 7 EyeCover, 8–9 one-layer glass, 10–11 layered.
+BLENDED_FAMILY_IDS = {"SkinnedMeshGlass": 10, "SkinnedMeshTransparency": 11}
+MESH_FAMILIES = (*FAMILIES, *GLASS_FAMILIES, *BLENDED_FAMILIES)
 NEW_ITEM_FAMILIES = tuple(family for family in MESH_FAMILIES if family.shader not in {"Dissolve", "Translucent"}) + (EYE_COVER,)
 
 
@@ -246,8 +298,20 @@ def catalogue_payload():
              "fields": [{"name": p.name, "label": p.label, "default": list(p.default),
                          "minimum": p.minimum, "maximum": p.maximum,
                          "integer": p.integer,
-                         **({"note": GLASS_FIELD_HELP[p.name]} if f in GLASS_FAMILIES else {})}
+                         **({"note": GLASS_FIELD_HELP[p.name]} if f in GLASS_FAMILIES else
+                            {"note": BLENDED_FIELD_HELP[p.name]} if f in BLENDED_FAMILIES else {})}
                         for p in f.fields]} for f in MESH_FAMILIES]
+
+
+def _colour_alpha(raw):
+    """The packed colour's alpha byte; writers retain it, so readback must too."""
+    raw = str(raw or "")
+    if len(raw) == 9 and raw.startswith("#"):
+        try:
+            return int(raw[-2:], 16) / 255
+        except ValueError:
+            pass
+    return 1.
 
 
 def preview_factors(controls, authored=None):
@@ -288,8 +352,12 @@ def preview_factors(controls, authored=None):
         flags = 0
     if "_materialFlags" in values:
         flags = int(values["_materialFlags"][0])
-    family_id = GLASS_FAMILIES.index(family) + 8 if family in GLASS_FAMILIES else FAMILIES.index(family) + 1
-    result = [float(family_id), float(dye_active), float(flags & 1), 0.]
+    family_id = (GLASS_FAMILIES.index(family) + 8 if family in GLASS_FAMILIES
+                 else BLENDED_FAMILY_IDS[family.shader] if family in BLENDED_FAMILIES
+                 else FAMILIES.index(family) + 1)
+    # Layered families reuse header lane 1 as "base-colour alpha applies"; the
+    # renderer clears it for glTF OPAQUE imports, whose export writes solid alpha.
+    result = [float(family_id), 1. if family in BLENDED_FAMILIES else float(dye_active), float(flags & 1), 0.]
     for field in family.fields:
         numbers = values.get(field.name)
         if numbers is None:
@@ -309,7 +377,16 @@ def preview_factors(controls, authored=None):
                 numbers = field.default
         if family in GLASS_FAMILIES and any(not field.minimum <= n <= field.maximum for n in numbers):
             raise ValueError(f"{field.label}: authored value is outside the supported {family.shader} range.")
+        if family in BLENDED_FAMILIES:
+            # Out-of-range authored numbers are the game's to interpret; the
+            # preview clamps them rather than refusing an archive material.
+            numbers = tuple(min(max(n, field.minimum), field.maximum) for n in numbers)
         result.extend(numbers)
+    if family in BLENDED_FAMILIES:
+        # The colour's alpha follows its RGB lanes. Edits only replace RGB and the
+        # writer keeps the source alpha, so readback always uses the authored byte.
+        colour = family.fields[-1].name
+        result.append(_colour_alpha(authored.get(colour)))
     result.extend([0.] * (32 - len(result)))
     result[30] = float(controls.cutout_mask is not None)
     return tuple(result)

@@ -8,7 +8,7 @@ from xml.sax.saxutils import escape
 from cdmw.core.pac_xml_emission import append_emission_parameter
 from cdmw.core.pac_xml_standard_material import find_material_wrappers
 from cdmw.domain.mesh.shader_controls import (NEW_ITEM_FAMILIES, EYE_COVER, EYE_COVER_TEXTURE_FIELDS,
-                                             ShaderControls, family_for, validate_choices)
+                                             BLENDED_SHADERS, ShaderControls, family_for, validate_choices)
 
 
 def _parameter_rows(block):
@@ -97,11 +97,12 @@ def validate_source(shader, controls, parameters, *, static=False, allow_bake=Fa
     if shader != family.shader:
         plain_sources = {"Standard"} if static else {"SkinnedMeshStandard", "SkinnedMeshEmissive"}
         unsupported = ("_wrinkle", "_overlay", "_colorblending")
-        if family.shader in {"Translucent", "SkinnedMeshTranslucent"}:
+        if family.shader in {"Translucent", "SkinnedMeshTranslucent", *BLENDED_SHADERS}:
             unsupported += ("_layer",)
-        if family == EYE_COVER:
+        if family == EYE_COVER or family.shader == "SkinnedMeshGlass":
             plain_sources.add("SkinnedMeshTranslucent")
-        if (family.shader not in {"SkinnedMeshWing", EYE_COVER.shader, "Translucent", "SkinnedMeshTranslucent"} or shader not in plain_sources
+        if (family.shader not in {"SkinnedMeshWing", EYE_COVER.shader, "Translucent", "SkinnedMeshTranslucent", *BLENDED_SHADERS}
+                or shader not in plain_sources
                 or "_baseColorTexture" not in parameters
                 or any(name.lower().startswith(unsupported) for name in parameters)):
             raise ValueError(f"{family.label} requires {family.shader} or a compatible plain material with a base colour texture.")

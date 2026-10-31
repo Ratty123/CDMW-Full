@@ -82,6 +82,18 @@ pub(super) fn verify(
     cases.push(("glass equipment dense glow", glass, [1.0; 3], 0.0));
     glass[5] = 0.0;
     cases.push(("glass equipment clear", glass, [1.0; 3], 0.0));
+    // Layered glass: opacity, edge, roughness, IOR 1 (no reflection), white, alpha 1.
+    let mut layered = [0.0; 32];
+    layered[..12].copy_from_slice(&[10.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.5, 1.0, 1.0, 1.0, 1.0, 1.0]);
+    cases.push(("layered glass clear", layered, [1.0; 3], 0.0));
+    layered[4] = 0.5; cases.push(("layered glass half", layered, [1.0; 3], 0.0));
+    layered[4] = 1.0; cases.push(("layered glass solid", layered, [1.0; 3], 0.0));
+    cases.push(("layered glass zero alpha", layered, [1.0; 3], 0.0));
+    // Veil: zero pitch with full thread covers every cell; zero thread leaves it open.
+    let mut veil = [0.0; 32];
+    veil[..13].copy_from_slice(&[11.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.5, 0.5, 1.0, 1.0, 1.0, 1.0, 1.0]);
+    cases.push(("veil covered", veil, [1.0; 3], 0.0));
+    veil[5] = 0.0; cases.push(("veil empty", veil, [1.0; 3], 0.0));
     let mut samples = BTreeMap::new();
     for (name, controls, vertex_mask, time) in cases {
         let mut active_mask = mask.clone();
@@ -120,6 +132,9 @@ pub(super) fn verify(
         if name.starts_with("glass") && (!binding.alpha_blend || !binding.translucent) {
             return Err(RenderError::Device("Glass did not select the absorption render pass".to_owned()));
         }
+        if (name.starts_with("layered") || name.starts_with("veil")) && (!binding.alpha_blend || binding.translucent) {
+            return Err(RenderError::Device("Layered transparency did not select sorted blending".to_owned()));
+        }
         let bindings = BTreeMap::from([(0, binding)]);
         camera.material_time = time;
         camera.scene_model = Mat4::IDENTITY.to_cols_array_2d();
@@ -154,11 +169,16 @@ pub(super) fn verify(
         || !close("painted cutout right", "wing cut") || !close("painted cutout above", "wing cut")
         || close("painted cutout below", "wing cut")
         || close("painted colour left", "painted colour right") || !close("painted colour right", "eye clear")
-        || !close("painted surface left", "eye clear") || close("painted surface right", "eye clear") {
+        || !close("painted surface left", "eye clear") || close("painted surface right", "eye clear")
+        // Base-colour alpha scales layered opacity; the red base shows as opacity rises.
+        || !close("layered glass clear", "layered glass zero alpha")
+        || close("layered glass clear", "layered glass half") || close("layered glass half", "layered glass solid")
+        || samples["layered glass solid"][2] <= samples["layered glass half"][2].saturating_add(8)
+        || !close("veil empty", "wing cut") || close("veil covered", "wing cut") {
         return Err(RenderError::Device(format!("Shader-control pixel mismatch: {samples:?}")));
     }
     *camera = saved;
     queue.write_buffer(camera_buffer, 0, bytemuck::bytes_of(camera));
-    eprintln!("Verified shader-control cutouts, vertex gates, animated UVs, detail normals, glow sweep, object clipping and independent EyeCover colour/surface weights using synthetic pixels.");
+    eprintln!("Verified shader-control cutouts, vertex gates, animated UVs, detail normals, glow sweep, object clipping, independent EyeCover colour/surface weights and layered glass/veil blending using synthetic pixels.");
     Ok(())
 }
