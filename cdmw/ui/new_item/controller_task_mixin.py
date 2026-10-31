@@ -344,12 +344,18 @@ class NewItemTaskControllerMixin:
             from uuid import uuid4
             identity = uuid4().hex
         revision = self._draft_revision
+        service, read_entry = self.service, self._read_entry
         def task(log, stop):
-            from cdmw.services.independent_item_package import from_plan, read_package, write_package
+            from cdmw.services.independent_item_dlc import game_root, portable_package
+            from cdmw.services.independent_item_package import dlc_content, from_plan, read_package, write_package
             previous = read_package(path, stop_event=stop) if update else None
             export_identity, previous_digest = (previous.identity, previous.digest) if previous else (identity, None)
             del previous  # Old resources are not inputs to the newly authored plan.
             package = from_plan(plan, export_identity, stop_event=stop)
+            if dlc_content(package.dependencies):
+                # Pin the base game alone when the DLC changes nothing the item makes.
+                package, _differences = portable_package(package, game_root(plan), service=service,
+                                                         read_entry=read_entry, stop_event=stop, on_log=log)
             return write_package(package, path, expected_digest=previous_digest, stop_event=stop)
         def done(result):
             if revision == self._draft_revision:

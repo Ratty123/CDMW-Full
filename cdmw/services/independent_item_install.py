@@ -15,7 +15,7 @@ from cdmw.core.atomic_file import atomic_binary_writer, atomic_write_bytes
 from cdmw.core.papgt_format import read_papgt_directories
 from cdmw.core.stringinfo_table import stringinfo_key
 from cdmw.domain.archives.overlay_merge import _table
-from cdmw.domain.cancellation import raise_if_cancelled
+from cdmw.domain.cancellation import RunCancelled, raise_if_cancelled
 from cdmw.domain.new_item.allocation import DEFAULT_ITEM_KEY_RANGE
 from cdmw.domain.new_item.compilation import compiler_stamp, validate_compiler_stamp
 from cdmw.domain.new_item.compilation_storage import read_compilation
@@ -528,6 +528,27 @@ def resolve_items(sources, root, *, target='archive', folders=(), rebuild=False,
             break
     baseline = snapshot
     baseline_dependencies = snapshot.provenance.capture().payloads
+    without_dlc_baseline = []
+
+    def without_dlc(plan, view, allocated, model, variants, icon, bindings, reserved):
+        """What the DLC changes in `plan`: the same item planned on the base game alone."""
+        from cdmw.services.independent_item_dlc import dlc_differences
+        if not without_dlc_baseline:
+            without_dlc_baseline.append(stock_snapshot(root, service=service, read_entry=read_entry, stop_event=stop_event,
+                                                       on_log=on_log, overlay_changes=decoded.values(), include_dlc=False))
+        base = without_dlc_baseline[0].discovery_view()
+        for dependency in without_dlc_baseline[0].provenance.capture().payloads:
+            base.payload(dependency.entry.path)
+        try:
+            base_plan = build_plan(allocated, base, model=model, variant_models=variants, icon=icon,
+                                   reserved_item_keys=reserved['iteminfo'], identity_bindings=deepcopy(bindings),
+                                   capture_independent=True, stop_event=stop_event)
+        except RunCancelled:
+            raise
+        except Exception as error:  # A DLC template, shop or group has no base copy.
+            return (f'the item cannot be made without the DLC ({error})',)
+        return dlc_differences(plan, base_plan, view, base)
+
     # Inspect all mounted external files, irrespective of priority. Adding our
     # composed table must never silently hide a manager's replacement.
     # Keep the existing name/layout validation and public error type.
@@ -650,9 +671,15 @@ def resolve_items(sources, root, *, target='archive', folders=(), rebuild=False,
                           if row.entry.path.lower() not in package.dependencies]
             if undeclared:
                 names = ', '.join(dlc_content(undeclared))
-                if names:
-                    raise IndependentItemError(f'{package.title} was made on a game without the DLC content this game has ({names}). Update the package with Create New Item on this game to use it here.')
-                raise IndependentItemError('The package has an incomplete game dependency graph.')
+                if not names:
+                    raise IndependentItemError('The package has an incomplete game dependency graph.')
+                # Made without the DLC: its layers may only be read, never change what it adds.
+                differences = (without_dlc(plan, snapshot, allocated, model, variants, icon, bindings, reserved)
+                               if all(dlc_content((path,)) for path in undeclared) and not dlc_content(package.dependencies)
+                               else ('files only the DLC has',))
+                if differences:
+                    shown = ', '.join(differences[:4]) + (f' and {len(differences) - 4} more' if len(differences) > 4 else '')
+                    raise IndependentItemError(f'{package.title} was made on a game without the DLC content this game has ({names}), which changes what it adds: {shown}. Update the package with Create New Item on this game to use it here.')
             plan.source_revision.validate(stop_event)
             revisions.append(plan.source_revision)
             added_paths = {virtual_path(request.path.lower()) for request in plan.additions}

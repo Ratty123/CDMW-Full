@@ -448,24 +448,95 @@ def test_every_dlc_group_is_shipped_but_overlay_numbers_are_not(path, shipped):
     assert shipped_group(path) is shipped
 
 
-def test_dlc_packages_refuse_clearly_across_games_with_and_without_the_dlc(tmp_path):
+def test_a_package_made_from_a_dlc_template_refuses_on_a_game_without_the_dlc(tmp_path):
     import shutil
     from cdmw.domain.new_item.independent import IndependentItemError
+    from cdmw.services.independent_item_dlc import portable_package
     from cdmw.services.independent_item_install import resolve_items
     from cdmw.services.independent_item_package import from_plan, package_bytes, stock_snapshot
     owner = dlc_game(tmp_path/'owner/game')
     made_with = from_plan(NewItemService().plan(spec('WithDlc'), stock_snapshot(owner, overlay_changes=()),
                                                 capture_independent=True), 'c'*32)
+    package, differences = portable_package(made_with, owner)
+    assert package is made_with and differences[0].startswith('the item cannot be made without it')
     shutil.rmtree(owner/'dlc')
     with pytest.raises(IndependentItemError, match=r'DLC content this game does not have \(dlc_01\)'):
         resolve_items([package_bytes(made_with)], owner, target='virtual')
-    plain = tmp_path/'plain/game'
-    build_package(plain, files())
-    made_without = from_plan(NewItemService().plan(spec('WithoutDlc'), stock_snapshot(plain, overlay_changes=()),
-                                                   capture_independent=True), 'd'*32)
-    dlc_game(tmp_path/'player/game', template_in_dlc=False)
-    with pytest.raises(IndependentItemError, match=r'without the DLC content this game has \(dlc_01\)'):
-        resolve_items([package_bytes(made_without)], tmp_path/'player/game', target='virtual')
+
+
+def shipped_game(root, *, shop=False, group=False, template=False):
+    """One compact base game, plus a DLC replacing the black market, ItemGroup_Equip or the template.
+
+    Shipped compact shops leave every line unordered, and both games share the base files.
+    """
+    from cdmw.core.item_layout import replace_layout_fields
+    from cdmw.core.itemgroupinfo_table import parse_item_group_table
+    from cdmw.core.storeinfo_table import parse_store_table
+    from tests.compact_item_fixtures import group as group_row
+    from tests.test_new_item_service import OTHER
+    source, dlc = files(), {}
+    def put(values, kind, rows, width=4):
+        values[ROOT+kind+'.staticinfobody'], values[ROOT+kind+'.staticinfoheader'] = table(rows, width)
+    stores = parse_store_table(source[ROOT+'storeinfo.staticinfobody'], source[ROOT+'storeinfo.staticinfoheader'], layout='current')
+    put(source, 'storeinfo', [(s.key, store(s.key, s.name, [e.item_key for e in s.entries], order=0xFFFFFFFF)) for s in stores], 2)
+    if shop:
+        black = next(s for s in stores if s.name == 'Store_Pai_BlackMarket')
+        put(dlc, 'storeinfo.dlc_01', [(black.key, store(black.key, black.name, [OTHER, *(e.item_key for e in black.entries)], order=0xFFFFFFFF))], 2)
+    if group:
+        equip = next(g for g in parse_item_group_table(source[ROOT+'itemgroupinfo.staticinfobody'], source[ROOT+'itemgroupinfo.staticinfoheader'])
+                     if TEMPLATE in g.members)
+        put(dlc, 'itemgroupinfo.dlc_01', [(equip.key, group_row(equip.key, equip.name, [*equip.members, OTHER]))], 2)
+    if template:
+        body, head = source[ROOT+'iteminfo.staticinfobody'], source[ROOT+'iteminfo.staticinfoheader']
+        raw = next(body[s:e] for row, s, e in parse_pabgh_table(head, payload=body).row_spans(len(body)) if row.row_id == TEMPLATE)
+        put(dlc, 'iteminfo.dlc_01', [(TEMPLATE, replace_layout_fields(read_item_layout(raw), {'_itemMemo': text('DLC override')}).raw)])
+    build_package(root, source)
+    if dlc:
+        build_package(root/'dlc/dlc_01', dlc)
+    return root
+
+
+def black_market_spec(name):
+    from cdmw.domain.new_item.spec import Placement, PlacementKind
+    return replace(spec(name), placement=Placement(kind=PlacementKind.INSERT, store_name='Store_Pai_BlackMarket'))
+
+
+def test_a_package_the_dlc_only_extends_pins_the_base_game_and_installs_with_and_without_it(tmp_path):
+    from cdmw.core.storeinfo_table import parse_store_table
+    from cdmw.services.independent_item_dlc import game_root, portable_package
+    from cdmw.services.independent_item_install import resolve_items
+    from cdmw.services.independent_item_package import dlc_content, from_plan, package_bytes, stock_snapshot
+    owner = shipped_game(tmp_path/'owner/game', shop=True, group=True)
+    plan = NewItemService().plan(black_market_spec('Portable'), stock_snapshot(owner, overlay_changes=()), capture_independent=True)
+    written = from_plan(plan, 'e'*32)
+    assert dlc_content(written.dependencies) == ('dlc_01',) and game_root(plan) == owner.resolve()
+    # The DLC replaces the shop and group the item joins, but the item adds the same line and member to either copy.
+    package, differences = portable_package(written, owner)
+    assert differences == () and not dlc_content(package.dependencies)
+    for root, layer in ((owner, '.dlc_01'), (shipped_game(tmp_path/'plain/game'), '')):
+        (_package, changes), = resolve_items([package_bytes(package)], root, target='virtual').contributions
+        path = ROOT + 'storeinfo' + layer + '.staticinfobody'
+        stores = {s.name: s for s in parse_store_table(changes[path]['after'], changes[path.replace('body', 'header')]['after'])}
+        assert len(stores['Store_Pai_BlackMarket'].entries) == len(
+            {s.name: s for s in parse_store_table(changes[path]['before'], changes[path.replace('body', 'header')]['before'])}
+            ['Store_Pai_BlackMarket'].entries) + 1
+        assert (ROOT + 'itemgroupinfo.dlc_01.staticinfobody' in changes) == bool(layer)
+
+
+def test_a_dlc_that_replaces_the_template_keeps_its_pins_and_refuses_base_packages(tmp_path):
+    from cdmw.domain.new_item.independent import IndependentItemError
+    from cdmw.services.independent_item_dlc import portable_package
+    from cdmw.services.independent_item_install import resolve_items
+    from cdmw.services.independent_item_package import dlc_content, from_plan, package_bytes, stock_snapshot
+    owner = shipped_game(tmp_path/'owner/game', template=True)
+    written = from_plan(NewItemService().plan(spec('Changed'), stock_snapshot(owner, overlay_changes=()), capture_independent=True), 'f'*32)
+    package, differences = portable_package(written, owner)
+    assert package is written and dlc_content(package.dependencies) == ('dlc_01',)
+    assert any(difference.startswith('iteminfo record') for difference in differences)
+    plain = shipped_game(tmp_path/'plain/game')
+    made_without = from_plan(NewItemService().plan(spec('Plain'), stock_snapshot(plain, overlay_changes=()), capture_independent=True), '1'*32)
+    with pytest.raises(IndependentItemError, match=r'\(dlc_01\), which changes what it adds: iteminfo record'):
+        resolve_items([package_bytes(made_without)], owner, target='virtual')
 
 
 @pytest.mark.parametrize('corruption', ['truncated','trailer','presence','count'])

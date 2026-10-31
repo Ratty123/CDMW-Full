@@ -838,10 +838,21 @@ The initial baseline uses only direct, four-digit shipped archive directories
 `dmmsa`, other mod groups and nested archive copies are excluded from authoring
 inputs. A DLC's table layers (`iteminfo.dlc_01`, `storeinfo.dlc_01` and so on)
 replace the base rows they share keys with, so a new shop or item-group line for a
-shop or group the DLC replaces is written to the DLC layer. Each DLC is a separate
-Steam install: a package made where it is installed pins its files and refuses
-on a game without it, and a package made without it refuses on a game that has it
-until it is written again there. The messages name the DLC in both cases. Custom item
+shop or group the DLC replaces is written to the DLC layer.
+
+Each DLC is a separate Steam install, and a package works on games with and without
+it unless the DLC changes the item itself (`independent_item_dlc.py`). Before writing
+a package on a game with the DLC, **Write item package** plans the recipe a second
+time on the base game alone, with the same identities. When both plans add the same
+rows, add the same shop lines and group members to the same shops and groups (on
+whichever copy holds them), write the same other files and read the same version of
+every file outside the DLC layers, the package keeps only base-game pins. Installing
+it on a game with the DLC repeats that comparison and writes the additions into the
+DLC's copies. When the DLC replaces the template item, its prefab records or a file
+the item reads, the package keeps the DLC's pins and refuses on games without it.
+A package made without the DLC that the DLC does change refuses on a DLC game, naming
+what differs. `scripts/rebuild_cditem.py` applies the same rule. On game 2.04.02 the
+five Wolf Trial swords, sold in the camp shop the DLC replaces, are portable this way. Custom item
 IDs already present in shipped tables are refused. Required source
 payload hashes must match the author's source. This is conservative version
 compatibility, not proof that a user's base archives are an untouched retail copy.

@@ -26532,6 +26532,16 @@
       ]
     },
     {
+      "key": "Checking whether the item depends on {value_0}...",
+      "origins": [
+        {
+          "path": "cdmw/services/independent_item_dlc.py",
+          "line": 161,
+          "sink": "log"
+        }
+      ]
+    },
+    {
       "key": "Checks",
       "origins": [
         {
@@ -156607,6 +156617,16 @@
       "manual": true
     },
     {
+      "key": "The package needs {value_0}, which changes what it makes: {value_1}.",
+      "origins": [
+        {
+          "path": "cdmw/services/independent_item_dlc.py",
+          "line": 180,
+          "sink": "log"
+        }
+      ]
+    },
+    {
       "key": "The package selected for update changed. Load it again before reviewing.",
       "origins": [],
       "manual": true
@@ -199393,6 +199413,16 @@
           "path": "cdmw/ui/archive_browser/pac_xml_editor_source_view.py",
           "line": 382,
           "sink": "setText"
+        }
+      ]
+    },
+    {
+      "key": "{value_0} changes nothing the item makes, so the package works on games with and without it.",
+      "origins": [
+        {
+          "path": "cdmw/services/independent_item_dlc.py",
+          "line": 182,
+          "sink": "log"
         }
       ]
     },

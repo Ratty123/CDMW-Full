@@ -156,10 +156,10 @@ def dlc_content(paths):
     return tuple(sorted({match.group(1) for path in paths if (match := _DLC_RESOURCE.search(path))}))
 
 
-def _stock_paths(root, stop_event):
+def _stock_paths(root, stop_event, include_dlc=True):
     from cdmw.core.archive_format import discover_pamt_files
     from cdmw.services.archive_overlay_install import OVERLAY_DIRECTORY_FIRST
-    paths, dlc = [], set(_dlc_roots(root))
+    paths, dlc = [], set(_dlc_roots(root)) if include_dlc else set()
     for path in discover_pamt_files(root):
         raise_if_cancelled(stop_event)
         path = Path(path).resolve()
@@ -205,13 +205,13 @@ def shipped_group(pamt_path):
     return _is_dlc_folder(group.parent) or int(group.name) < OVERLAY_DIRECTORY_FIRST
 
 
-def _stock_metadata(root, stop_event):
+def _stock_metadata(root, stop_event, include_dlc=True):
     # Mount order selects providers and pathc is parsed beside the archives.
     # Hash these small metadata inputs, not filesystem timestamps alone.
     values = []
     relatives = ['meta/0.papgt', 'meta/0.paver', 'meta/0.pathc']
     relatives += [f'{path.relative_to(root).as_posix()}/meta/0.{kind}'
-                  for path in _dlc_roots(root) for kind in ('papgt', 'paver', 'pathc')]
+                  for path in (_dlc_roots(root) if include_dlc else ()) for kind in ('papgt', 'paver', 'pathc')]
     for relative in relatives:
         raise_if_cancelled(stop_event)
         path = root / relative
@@ -220,28 +220,30 @@ def _stock_metadata(root, stop_event):
     return tuple(values)
 
 
-def _clean_stock_snapshot(root, service, read_entry, stop_event, on_log):
+def _clean_stock_snapshot(root, service, read_entry, stop_event, on_log, include_dlc=True):
     from cdmw.core.archive_format import parse_archive_pamt_bytes
     from cdmw.domain.new_item.allocation import DEFAULT_ITEM_KEY_RANGE
     from cdmw.services.new_item_provenance import ArchiveCatalogue, StaleNewItemSource
     from cdmw.services.new_item_service import NewItemService, _snapshot_view
     global _stock_snapshot_cache
 
-    paths = _stock_paths(root, stop_event)
-    metadata = _stock_metadata(root, stop_event)
+    paths = _stock_paths(root, stop_event, include_dlc)
+    metadata = _stock_metadata(root, stop_event, include_dlc)
     # Normal services parse identical clean inputs. A custom reader or service
-    # is a separate authority. Only one verified stock generation is retained.
+    # is a separate authority. One verified stock generation is retained with
+    # the DLC and one without it.
     authority = None if type(service) is NewItemService else service
     key = (root, id(read_entry), paths, metadata, id(authority))
     with _STOCK_CACHE_LOCK:
-        cached = _stock_snapshot_cache
+        cached = (_stock_snapshot_cache or {}).get(include_dlc)
     if cached is not None and cached[0] == key and not cached[1].source_files_changed():
         try:
             cached[1].provenance.capture().validate(stop_event)
         except StaleNewItemSource:
             pass  # Reparse current sources; never use stale table values.
         else:
-            if _stock_metadata(root, stop_event) != metadata or _stock_paths(root, stop_event) != paths:
+            if (_stock_metadata(root, stop_event, include_dlc) != metadata
+                    or _stock_paths(root, stop_event, include_dlc) != paths):
                 raise StaleNewItemSource('The clean game catalogue changed during snapshot validation.')
             raise_if_cancelled(stop_event)
             if on_log is not None:
@@ -256,23 +258,31 @@ def _clean_stock_snapshot(root, service, read_entry, stop_event, on_log):
         indexes.append((path, digest(data)))
     catalogue = ArchiveCatalogue(tuple(entries), tuple(indexes))
     result = service.build_snapshot(catalogue, read_entry=read_entry, stop_event=stop_event, on_log=on_log)
+    if not include_dlc:
+        result.dlc_pathcs = ()  # The snapshot reads them beside the archives, not from its entries.
     if any(key in DEFAULT_ITEM_KEY_RANGE for key in result.rows):
         raise IndependentItemError('The shipped item tables contain custom items. Restore a clean game baseline before using independent packages.')
     result.provenance.capture().validate(stop_event)
-    if _stock_metadata(root, stop_event) != metadata or _stock_paths(root, stop_event) != paths:
+    if (_stock_metadata(root, stop_event, include_dlc) != metadata
+            or _stock_paths(root, stop_event, include_dlc) != paths):
         raise StaleNewItemSource('The clean game catalogue changed while building its snapshot.')
     retained = _snapshot_view(result, freeze=True)
     raise_if_cancelled(stop_event)
     with _STOCK_CACHE_LOCK:
-        _stock_snapshot_cache = (key, retained, authority)
+        _stock_snapshot_cache = {**(_stock_snapshot_cache or {}), include_dlc: (key, retained, authority)}
     return _snapshot_view(retained)
 
 
-def stock_snapshot(root, *, service=None, read_entry=None, stop_event=None, on_log=None, overlay_changes=None):
-    """Reuse only verified clean tables; overlay baseline rebasing is per request."""
+def stock_snapshot(root, *, service=None, read_entry=None, stop_event=None, on_log=None, overlay_changes=None,
+                   include_dlc=True):
+    """Reuse only verified clean tables; overlay baseline rebasing is per request.
+
+    `include_dlc=False` reads the base game alone, as a game without the DLC has it.
+    """
     from cdmw.services.new_item_service import NewItemService
     root = Path(root).resolve()
-    result = _clean_stock_snapshot(root, service or NewItemService(), read_entry, stop_event, on_log)
+    include_dlc = include_dlc or not _dlc_roots(root)
+    result = _clean_stock_snapshot(root, service or NewItemService(), read_entry, stop_event, on_log, include_dlc)
     # Authoring uses temporary identities, so its texture registry must have the
     # same baseline as its tables. Installed additions are resolved at install.
     if overlay_changes is None:
@@ -435,6 +445,24 @@ def rebuild_for_game(package, snapshot, *, stop_event=None):
     existing item package from the same draft. Field edits, stock overrides, texture
     replacements and package links are not planned from the recipe and refuse.
     """
+    plan = recipe_plan(package, snapshot, stop_event=stop_event).plan
+    return from_plan(plan, package.identity, title=package.title, stop_event=stop_event)
+
+
+@dataclass(frozen=True)
+class RecipePlan:
+    plan: object
+    view: object
+    allocated: object
+    icon: object
+
+
+def recipe_plan(package, snapshot, *, bindings=None, allocated=None, icon=None, stop_event=None):
+    """Plan `package`'s item recipe on `snapshot` as Apply does.
+
+    Passing an earlier result's `allocated` spec, `icon` and a copy of its `bindings`
+    plans the same item with the same identities on another baseline.
+    """
     from cdmw.services.independent_mod_package import has_legacy_item
     from cdmw.services.new_item_service import NewItemService
     from cdmw.services.new_item_planning import build_plan, planned_icon_string
@@ -450,18 +478,18 @@ def rebuild_for_game(package, snapshot, *, stop_event=None):
         raise_if_cancelled(stop_event)
         view.payload(dependency.entry.path)
     spec, model, variants, icon_data = unpack_recipe(package)
-    service = NewItemService()
-    allocated = service.allocate(replace(spec, internal_name="CDI_" + package.identity), view)
-    errors = [issue.message for issue in service.validate(allocated, view) if issue.is_error]
-    if errors:
-        raise IndependentItemError(f"{package.title}: " + "; ".join(errors))
-    icon = None
-    if icon_data is not None:
-        name = planned_icon_string(allocated, view)
-        icon = NewItemIcon(name, stringinfo_key(name), icon_target_path(name), icon_data, None, None)
+    if allocated is None:
+        service = NewItemService()
+        allocated = service.allocate(replace(spec, internal_name="CDI_" + package.identity), view)
+        errors = [issue.message for issue in service.validate(allocated, view) if issue.is_error]
+        if errors:
+            raise IndependentItemError(f"{package.title}: " + "; ".join(errors))
+        if icon_data is not None:
+            name = planned_icon_string(allocated, view)
+            icon = NewItemIcon(name, stringinfo_key(name), icon_target_path(name), icon_data, None, None)
     plan = build_plan(allocated, view, model=model, variant_models=variants, icon=icon,
-                      capture_independent=True, stop_event=stop_event)
-    return from_plan(plan, package.identity, title=package.title, stop_event=stop_event)
+                      identity_bindings=bindings, capture_independent=True, stop_event=stop_event)
+    return RecipePlan(plan, view, allocated, icon)
 
 
 def _package(meta, blobs, *, stop_event=None):

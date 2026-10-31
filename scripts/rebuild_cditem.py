@@ -4,7 +4,8 @@ A package pins the exact game files its recipe read, so a game update makes it r
 Each package is planned again from its retained recipe and written beside the original
 under --output with the same identity and title. Nothing in the game folder changes.
 Only Create New Item packages can be rebuilt; field edits, stock overrides, texture
-replacements and package links refuse.
+replacements and package links refuse. On a game with a DLC, a package the DLC changes
+nothing in pins the base game alone, as Write item package does.
 """
 import argparse
 import json
@@ -15,7 +16,10 @@ if __package__ in (None, ''):
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from cdmw.domain.new_item.independent import IndependentItemError
-from cdmw.services.independent_item_package import read_package, rebuild_for_game, stock_snapshot, write_package
+from cdmw.services.independent_item_dlc import portable_package
+from cdmw.services.independent_item_package import (
+    dlc_content, read_package, rebuild_for_game, stock_snapshot, write_package,
+)
 
 
 def main(argv=None):
@@ -32,11 +36,12 @@ def main(argv=None):
     for path in args.packages:
         try:
             package = read_package(path.read_bytes())
-            rebuilt = rebuild_for_game(package, snapshot)
+            rebuilt, needs = portable_package(rebuild_for_game(package, snapshot), args.game_root.resolve())
             write_package(rebuilt, args.output / path.name)
             changed = sorted(p for p, checksum in rebuilt.dependencies.items() if package.dependencies.get(p) != checksum)
             results.append({'package': str(path), 'identity': rebuilt.identity, 'rebuilt': str(args.output / path.name),
-                            'changed_dependencies': len(changed)})
+                            'changed_dependencies': len(changed), 'requires_dlc': list(dlc_content(rebuilt.dependencies)),
+                            'changed_by_dlc': list(needs)})
         except (IndependentItemError, OSError, ValueError) as exc:
             failed = True
             results.append({'package': str(path), 'error': str(exc)})
