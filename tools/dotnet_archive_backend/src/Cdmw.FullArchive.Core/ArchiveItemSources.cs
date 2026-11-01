@@ -101,7 +101,7 @@ internal sealed class ArchiveItemSources
     public bool Accepts(ArchiveEntryDto entry) => !ObsoletePackages.Contains(Package(entry))
         && (!_hasMountTable || _mounts.ContainsKey(Package(entry)));
 
-    public (int Mount, (int, int, int, int, string) Fallback) Order(ArchiveEntryDto entry) =>
+    public (int Mount, (int, int, int, int, int, string) Fallback) Order(ArchiveEntryDto entry) =>
         (_mounts.GetValueOrDefault(Package(entry)), Priority(entry));
     public ArchiveEntryDto? ItemInfo { get; private set; }
     public ArchiveEntryDto? ItemInfoHeader { get; private set; }
@@ -117,13 +117,26 @@ internal sealed class ArchiveItemSources
     internal static string Package(ArchiveEntryDto entry) =>
         Path.GetDirectoryName(entry.SourcePamt)?.Replace('\\', '/').ToLowerInvariant() ?? "";
 
-    internal static (int Tier, int Package, int Table, int Paz, string Path) Priority(ArchiveEntryDto entry)
+    internal static (int Tier, int Package, int DlcLayer, int Table, int Paz, string Path) Priority(ArchiveEntryDto entry)
     {
-        var package = Path.GetFileName(Path.GetDirectoryName(entry.SourcePamt)) ?? "";
+        var packageDirectory = Path.GetDirectoryName(entry.SourcePamt) ?? "";
+        var package = Path.GetFileName(packageDirectory) ?? "";
         var numeric = int.TryParse(package, out var number);
         var tier = package.StartsWith("dmm", StringComparison.OrdinalIgnoreCase) ? 3 : numeric ? 1 : 2;
         var table = int.TryParse(Path.GetFileNameWithoutExtension(entry.SourcePamt), out var value) ? value : -1;
-        return (tier, numeric ? number : -1, table, entry.PazIndex, entry.SourcePamt.ToLowerInvariant());
+        return (tier, numeric ? number : -1, DlcLayer(packageDirectory), table, entry.PazIndex, entry.SourcePamt.ToLowerInvariant());
+    }
+
+    // A DLC's copy of a base group folder (`dlc/dlc_01/0015` beside `0015`) replaces
+    // the base files at the same path, as cdmw.domain.archives.filters ranks it.
+    internal static int DlcLayer(string packageDirectory)
+    {
+        var layer = Path.GetDirectoryName(packageDirectory) ?? "";
+        var layerName = Path.GetFileName(layer) ?? "";
+        if (!string.Equals(Path.GetFileName(Path.GetDirectoryName(layer)), "dlc", StringComparison.OrdinalIgnoreCase)
+            || !layerName.StartsWith("dlc_", StringComparison.OrdinalIgnoreCase))
+            return 0;
+        return int.TryParse(layerName[4..], out var number) ? number : 0;
     }
 
     public void Offer(ArchiveEntryDto entry)

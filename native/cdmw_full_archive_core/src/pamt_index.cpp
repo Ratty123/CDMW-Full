@@ -79,6 +79,7 @@ struct FolderRange {
 struct LoadPriority {
     int tier = 0;
     std::uint64_t package_number = 0;
+    std::uint64_t dlc_layer = 0;
     bool pamt_is_numeric = false;
     std::uint64_t pamt_number = 0;
     std::uint32_t paz_index = 0;
@@ -107,7 +108,16 @@ LoadPriority load_priority(const Entry& entry) {
     const auto numeric_package = parse_decimal(package, package_number);
     const auto numeric_pamt = parse_decimal(pamt_stem, pamt_number);
     const auto tier = package.rfind("dmm", 0) == 0 ? 3 : numeric_package ? 1 : 2;
-    return {tier, package_number, numeric_pamt, pamt_number, entry.paz_index, lower_copy(pamt_path.string())};
+    // A DLC's copy of a base group folder (dlc/dlc_01/0015 beside 0015) replaces
+    // the base files at the same path, so the DLC layer ranks above the base copy.
+    std::uint64_t dlc_layer = 0;
+    const auto layer_dir = pamt_path.parent_path().parent_path();
+    const auto layer_name = lower_copy(layer_dir.filename().string());
+    if (lower_copy(layer_dir.parent_path().filename().string()) == "dlc" && layer_name.rfind("dlc_", 0) == 0
+        && !parse_decimal(layer_name.substr(4), dlc_layer)) {
+        dlc_layer = 0;
+    }
+    return {tier, package_number, dlc_layer, numeric_pamt, pamt_number, entry.paz_index, lower_copy(pamt_path.string())};
 }
 
 // Override priority depends only on the entry source and its PAZ index, so it is
@@ -135,6 +145,7 @@ private:
 bool lower_priority(const LoadPriority& left, const LoadPriority& right) {
     if (left.tier != right.tier) return left.tier < right.tier;
     if (left.package_number != right.package_number) return left.package_number < right.package_number;
+    if (left.dlc_layer != right.dlc_layer) return left.dlc_layer < right.dlc_layer;
     if (left.pamt_is_numeric != right.pamt_is_numeric) return !left.pamt_is_numeric;
     if (left.pamt_number != right.pamt_number) return left.pamt_number < right.pamt_number;
     if (left.paz_index != right.paz_index) return left.paz_index < right.paz_index;

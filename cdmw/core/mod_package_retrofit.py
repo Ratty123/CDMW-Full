@@ -33,6 +33,7 @@ from cdmw.domain.packages.retrofit import (
     RetrofittableModPackage,
 )
 from cdmw.models import ModPackageInfo
+from cdmw.domain.archives.filters import archive_entry_package_group
 
 
 _IGNORED_ROOT_FILENAMES = {
@@ -1030,8 +1031,7 @@ def _archive_payload_path_candidate_rows(
         grouped_candidates = [
             candidate
             for candidate in candidates
-            if str(getattr(getattr(candidate, "pamt_path", Path()), "parent", Path()).name or "").strip().casefold()
-            == normalized_group
+            if archive_entry_package_group(candidate).strip().casefold() == normalized_group
         ]
         if grouped_candidates:
             candidates = grouped_candidates
