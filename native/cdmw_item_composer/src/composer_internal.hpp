@@ -363,4 +363,19 @@ struct IconRegistry {
 };
 IconRegistry parse_icon_registry(const Bytes& data);
 
+// ---- bone_offset_table -------------------------------------------------------------------
+
+struct BoneOffsetEntry {
+    std::string key;  // PrefabName in ASCII lower case
+    std::size_t start = 0, end = 0;  // the owned span: whole lines when the entry has its own
+};
+struct BoneOffsetTable {
+    std::vector<BoneOffsetEntry> entries;
+    std::size_t insert = 0;  // where new entries go: the line of the section's closing tag
+};
+// Throws OverlayConflict for anything outside the supported grammar.
+BoneOffsetTable parse_bone_offset_table(const Bytes& data);
+// BoneOffsetTable.frame(): the file without its prefab entries.
+Bytes bone_offset_frame(const Bytes& data, const BoneOffsetTable& table);
+
 }  // namespace cdmw::compose::detail

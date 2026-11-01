@@ -157,6 +157,8 @@ class _Planner(EffectPlanningMixin):
     independent: bool = False
     owned_resource_bytes: int = 0
     private_texture_copies: Dict[str, str] = field(default_factory=dict)
+    #: new prefab path -> the template prefab it was copied from
+    prefab_copies: Dict[str, str] = field(default_factory=dict)
     definition_text: object = None
 
     def allocate_owned_keys(self, namespace, symbols, used):
@@ -218,6 +220,8 @@ class _Planner(EffectPlanningMixin):
             from cdmw.services.new_item_resource_copies import check_owned_resource_budget
             check_owned_resource_budget(self, len(payload))
         self.additions.append(ArchiveAddRequest.from_template(template_entry, path, payload))
+        if path.lower().endswith(".prefab") and template_entry.path.lower().endswith(".prefab"):
+            self.prefab_copies[path] = template_entry.path
         if self.independent:
             self.owned_resource_bytes += len(payload)
         self.summary.append(what)
@@ -652,6 +656,34 @@ class _Planner(EffectPlanningMixin):
             written[language] = texts
         self.manifest["localisation"] = written
 
+    def plan_bone_offsets(self) -> None:
+        """Carry the template prefabs' bone-offset fit corrections to the copied prefabs.
+
+        The game applies an entry while the prefab it names is worn; a copy under a new
+        name would otherwise lose the template's fit.
+        """
+
+        from cdmw.core.bone_offset_table import BONE_OFFSET_PATH, BoneOffsetTableError, clone_prefab_entries, prefab_entry_names
+
+        if not self.prefab_copies or not self.snapshot.has_entry(BONE_OFFSET_PATH):
+            return
+
+        def stem(path: str) -> str:
+            return path.replace("\\", "/").rsplit("/", 1)[-1][:-len(".prefab")]
+
+        source = self.snapshot.payload(BONE_OFFSET_PATH)
+        try:
+            keyed = prefab_entry_names(source)
+            copies = [(stem(old), stem(new)) for new, old in self.prefab_copies.items() if stem(old).lower() in keyed]
+            changed = clone_prefab_entries(source, copies) if copies else source
+        except BoneOffsetTableError as exc:
+            raise NewItemPlanError(f"Cannot carry the template's bone offsets: {exc}") from exc
+        if copies:
+            self.manifest["bone_offsets"] = [{"source_prefab": old, "output_prefab": new} for old, new in copies]
+        if changed != source:
+            self.patch(self.snapshot.entry(BONE_OFFSET_PATH), changed,
+                       f"Bone offsets: the template's fit correction copied for {len(copies)} prefab(s)")
+
     def plan_model_files(self) -> None:
         if self.variant_plan is not None:
             from cdmw.services.new_item_variants import plan_variant_files
@@ -929,7 +961,8 @@ def build_plan(
             (planner.plan_strings, "strings"), (planner.plan_part_prefabs, "part prefabs"), (planner.plan_enhancements, "enhancement rows"),
             (planner.plan_acquisition, "reward acquisition"), (planner.plan_item_row, "item row"),
             (planner.plan_item_groups, "item groups"), (planner.plan_store, "store"), (planner.plan_names, "names"),
-            (planner.plan_model_files, "model files"), (planner.plan_icon, "icon"), (planner.plan_texture_registry, "texture registry"),
+            (planner.plan_model_files, "model files"), (planner.plan_bone_offsets, "bone offsets"),
+            (planner.plan_icon, "icon"), (planner.plan_texture_registry, "texture registry"),
         ):
             planner.check()
             planner.log(f"Planning {label}...")

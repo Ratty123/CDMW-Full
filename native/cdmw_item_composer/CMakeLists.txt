@@ -18,6 +18,7 @@ add_library(cdmw_item_composer STATIC
     src/pappt.cpp
     src/pathc.cpp
     src/icon_registry.cpp
+    src/bone_offset_table.cpp
     src/overlay_merge.cpp
     src/checksum.cpp
     src/papgt.cpp

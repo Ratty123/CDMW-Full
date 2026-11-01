@@ -13,6 +13,7 @@ import threading
 from types import MappingProxyType
 import zipfile
 
+from cdmw.core.bone_offset_table import BONE_OFFSET_PATH
 from cdmw.domain.cancellation import raise_if_cancelled
 from cdmw.domain.new_item.independent import IndependentItemError, IndependentItemPackage, IndependentItemExport, package_id
 from cdmw.services.independent_item_codec import encode, decode
@@ -335,7 +336,8 @@ def audit_plan(plan, snapshot, *, stop_event=None):
                 new = dict(_table(files[path], files[header])[1])
                 if any(new.get(key) != raw for key, raw in old.items()):
                     raise IndependentItemError(f"Independent item changes an existing {name} record.")
-        elif path in pairs.values() or path.endswith((".paloc", ".pappt")) or path == "ui/xml/texture/cd_item_icon.xml":
+        elif path in pairs.values() or path.endswith((".paloc", ".pappt")) or path in (
+                "ui/xml/texture/cd_item_icon.xml", BONE_OFFSET_PATH):
             continue
         else:
             raise IndependentItemError(f"Independent packages cannot carry the shared change: {path}")

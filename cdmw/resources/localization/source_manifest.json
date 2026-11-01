@@ -13721,7 +13721,7 @@
       "origins": [
         {
           "path": "cdmw/services/mod_merge_service.py",
-          "line": 187,
+          "line": 191,
           "sink": "ValueError"
         }
       ]
@@ -27936,7 +27936,7 @@
       "origins": [
         {
           "path": "cdmw/services/mod_merge_service.py",
-          "line": 342,
+          "line": 347,
           "sink": "ValueError"
         }
       ]
@@ -28586,7 +28586,7 @@
       "origins": [
         {
           "path": "cdmw/services/mod_merge_service.py",
-          "line": 340,
+          "line": 345,
           "sink": "ValueError"
         }
       ]
@@ -38791,7 +38791,7 @@
       "origins": [
         {
           "path": "cdmw/services/mod_merge_service.py",
-          "line": 248,
+          "line": 253,
           "sink": "ValueError"
         }
       ]
@@ -39346,7 +39346,7 @@
       "origins": [
         {
           "path": "cdmw/services/mod_merge_service.py",
-          "line": 349,
+          "line": 354,
           "sink": "ValueError"
         }
       ]
@@ -41841,7 +41841,7 @@
       "origins": [
         {
           "path": "cdmw/services/mod_merge_service.py",
-          "line": 256,
+          "line": 261,
           "sink": "ValueError"
         }
       ]
@@ -70191,7 +70191,7 @@
       "origins": [
         {
           "path": "cdmw/services/mod_merge_service.py",
-          "line": 173,
+          "line": 177,
           "sink": "ValueError"
         }
       ]
@@ -70546,7 +70546,7 @@
       "origins": [
         {
           "path": "cdmw/services/mod_merge_service.py",
-          "line": 66,
+          "line": 67,
           "sink": "ValueError"
         }
       ]
@@ -70781,7 +70781,7 @@
       "origins": [
         {
           "path": "cdmw/services/mod_merge_service.py",
-          "line": 110,
+          "line": 114,
           "sink": "ValueError"
         }
       ]
@@ -70991,7 +70991,7 @@
       "origins": [
         {
           "path": "cdmw/services/mod_merge_service.py",
-          "line": 197,
+          "line": 201,
           "sink": "ValueError"
         }
       ]
@@ -71066,7 +71066,7 @@
       "origins": [
         {
           "path": "cdmw/services/mod_merge_service.py",
-          "line": 216,
+          "line": 220,
           "sink": "ValueError"
         }
       ]
@@ -72496,22 +72496,22 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_package.py",
-          "line": 633,
-          "sink": "raise_if_cancelled"
-        },
-        {
-          "path": "cdmw/services/independent_item_package.py",
           "line": 635,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/independent_item_package.py",
-          "line": 638,
+          "line": 637,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/independent_item_package.py",
           "line": 640,
+          "sink": "raise_if_cancelled"
+        },
+        {
+          "path": "cdmw/services/independent_item_package.py",
+          "line": 642,
           "sink": "raise_if_cancelled"
         }
       ]
@@ -75706,7 +75706,7 @@
       "origins": [
         {
           "path": "cdmw/services/mod_merge_service.py",
-          "line": 77,
+          "line": 78,
           "sink": "ValueError"
         }
       ]
@@ -85621,7 +85621,7 @@
       "origins": [
         {
           "path": "cdmw/services/mod_merge_service.py",
-          "line": 51,
+          "line": 52,
           "sink": "ValueError"
         }
       ]
@@ -85641,7 +85641,7 @@
       "origins": [
         {
           "path": "cdmw/services/mod_merge_service.py",
-          "line": 72,
+          "line": 73,
           "sink": "ValueError"
         }
       ]
@@ -85721,22 +85721,22 @@
       "origins": [
         {
           "path": "cdmw/services/mod_merge_service.py",
-          "line": 53,
+          "line": 54,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/mod_merge_service.py",
-          "line": 75,
+          "line": 76,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/mod_merge_service.py",
-          "line": 177,
+          "line": 181,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/mod_merge_service.py",
-          "line": 221,
+          "line": 225,
           "sink": "raise_if_cancelled"
         }
       ]
@@ -90201,7 +90201,7 @@
       "origins": [
         {
           "path": "cdmw/services/mod_merge_service.py",
-          "line": 170,
+          "line": 174,
           "sink": "ValueError"
         },
         {
@@ -90411,7 +90411,7 @@
         },
         {
           "path": "cdmw/services/new_item_planning.py",
-          "line": 180,
+          "line": 182,
           "sink": "raise_if_cancelled"
         },
         {
@@ -107986,7 +107986,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_planning.py",
-          "line": 935,
+          "line": 968,
           "sink": "log"
         }
       ]
@@ -110621,7 +110621,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_planning.py",
-          "line": 954,
+          "line": 987,
           "sink": "add"
         }
       ]
@@ -117316,7 +117316,7 @@
       "origins": [
         {
           "path": "cdmw/services/mod_merge_service.py",
-          "line": 164,
+          "line": 168,
           "sink": "on_log"
         }
       ]
@@ -126441,7 +126441,7 @@
       "origins": [
         {
           "path": "cdmw/services/mod_merge_service.py",
-          "line": 335,
+          "line": 340,
           "sink": "ValueError"
         }
       ]
@@ -128516,7 +128516,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_package.py",
-          "line": 253,
+          "line": 254,
           "sink": "on_log"
         }
       ]
@@ -137176,7 +137176,7 @@
       "origins": [
         {
           "path": "cdmw/services/mod_merge_service.py",
-          "line": 123,
+          "line": 127,
           "sink": "ValueError"
         }
       ]
@@ -137391,7 +137391,7 @@
       "origins": [
         {
           "path": "cdmw/services/mod_merge_service.py",
-          "line": 126,
+          "line": 130,
           "sink": "ValueError"
         }
       ]
@@ -138656,7 +138656,7 @@
       "origins": [
         {
           "path": "cdmw/services/mod_merge_service.py",
-          "line": 128,
+          "line": 132,
           "sink": "ValueError"
         }
       ]
@@ -139516,7 +139516,7 @@
       "origins": [
         {
           "path": "cdmw/services/mod_merge_service.py",
-          "line": 48,
+          "line": 49,
           "sink": "ValueError"
         }
       ]
@@ -139556,7 +139556,7 @@
       "origins": [
         {
           "path": "cdmw/services/mod_merge_service.py",
-          "line": 376,
+          "line": 381,
           "sink": "on_log"
         }
       ]
@@ -145961,7 +145961,7 @@
       "origins": [
         {
           "path": "cdmw/services/mod_merge_service.py",
-          "line": 55,
+          "line": 56,
           "sink": "ValueError"
         },
         {
@@ -155616,7 +155616,7 @@
       "origins": [
         {
           "path": "cdmw/services/mod_merge_service.py",
-          "line": 280,
+          "line": 285,
           "sink": "ValueError"
         }
       ]
@@ -183926,7 +183926,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_planning.py",
-          "line": 811,
+          "line": 843,
           "sink": "add"
         }
       ]
@@ -193516,7 +193516,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_planning.py",
-          "line": 772,
+          "line": 804,
           "sink": "add"
         }
       ]
@@ -195151,7 +195151,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_planning.py",
-          "line": 760,
+          "line": 792,
           "sink": "add"
         }
       ]
@@ -203736,7 +203736,7 @@
       "origins": [
         {
           "path": "cdmw/services/mod_merge_service.py",
-          "line": 227,
+          "line": 232,
           "sink": "ValueError"
         }
       ]
@@ -203836,7 +203836,7 @@
       "origins": [
         {
           "path": "cdmw/services/mod_merge_service.py",
-          "line": 239,
+          "line": 244,
           "sink": "ValueError"
         }
       ]
@@ -203961,7 +203961,7 @@
       "origins": [
         {
           "path": "cdmw/services/mod_merge_service.py",
-          "line": 289,
+          "line": 294,
           "sink": "ValueError"
         }
       ]
@@ -204011,7 +204011,7 @@
       "origins": [
         {
           "path": "cdmw/services/mod_merge_service.py",
-          "line": 241,
+          "line": 246,
           "sink": "ValueError"
         }
       ]
@@ -204096,7 +204096,7 @@
         },
         {
           "path": "cdmw/services/mod_merge_service.py",
-          "line": 267,
+          "line": 272,
           "sink": "ValueError"
         },
         {
@@ -204106,7 +204106,7 @@
         },
         {
           "path": "cdmw/services/new_item_planning.py",
-          "line": 744,
+          "line": 776,
           "sink": "add"
         },
         {
