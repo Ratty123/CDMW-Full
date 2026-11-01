@@ -624,6 +624,33 @@ class ShellToolTabsMixin:
         timer.timeout.connect(prepare_when_idle)
         timer.start()
 
+    def _schedule_mod_management_prewarm(self) -> None:
+        """Start Mod Management's window hidden once the shell is idle.
+
+        Its Rust presentation checks the helper and starts a process, a few seconds
+        that the first click otherwise spends on a loading screen.
+        """
+        timer = QTimer(self)
+        timer.setInterval(2000)
+
+        def prewarm_when_idle():
+            container = self.mod_management_tab
+            if getattr(self, "_shutting_down", False) or getattr(container, "_shutdown_requested", False):
+                timer.stop()
+                return
+            if (not self.isVisible() or getattr(self, "_startup_splash_window", None) is not None
+                    or QApplication.activeModalWidget() is not None
+                    or self.archive._archive_ui_interactive_active()
+                    or not getattr(self.archive, "archive_entries", None)):
+                return
+            timer.stop()
+            prewarm = getattr(container.ensure_widget(), "prewarm", None)
+            if callable(prewarm):
+                prewarm()
+
+        timer.timeout.connect(prewarm_when_idle)
+        timer.start()
+
     def _preload_new_item_archive_data(self, controller) -> bool:
         """Capture the catalogue on the UI thread; read data on the owned worker."""
         from pathlib import Path
@@ -753,6 +780,7 @@ class ShellToolTabsMixin:
         self.mod_management_tab = self._add_lazy_shell_tool(
             "Mod Management", "mod_management", self._create_mod_management_tab
         )
+        self._schedule_mod_management_prewarm()
         # Mod Management handles CDMW packages only; converting mods between
         # managers is retired with the mod folder tools.
         self.mod_package_tool_action.setEnabled(False)
