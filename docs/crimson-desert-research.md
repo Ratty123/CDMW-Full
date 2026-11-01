@@ -159,6 +159,29 @@ declare no submeshes. Small `leveldata/hda` PAMs fail only the Python fallback
 geometry check; the native preview renders them. This is read-only source and
 headless evidence; visible app and game behaviour were not checked.
 
+**1 November 2026 DLC layering audit** (game `1.0.0.3446` index, read-only): the DLC
+ships its own copy of **13,500 base paths** (6,192 DDS, 1,418 `.palevel`, 1,403 PAM,
+1,371 `.pami`, 1,191 `.levelinfo`, 578 `.pampg`, 395 XML, 327 PAA, 282 HKX, 163
+`.paa_metabin`, 148 `.binarygimmick`, 16 prefabs, 7 PAMLOD, 4 MP4, 3 `.meshinfo`, 2
+`.pac_xml`; no PAC). Every pair sits in the same numbered folder (`0015` and
+`dlc/dlc_01/0015`) and the copies differ (25 of 25 sampled PAMs, 19 of 25 DDS). Both
+PAPGT files list the same folder order, so their ranks tie; the base list also names
+0036-0040 with a low flag byte of 1, which exist only under `dlc/`. CDMW's lookups had
+used three disagreeing tie-breaks (PAPGT rank kept base for all 13,500, load priority
+picked DLC for 1,532 by PAZ index, first-candidate lookups always base). They now agree
+that the DLC copy wins, in Python, the native index and the .NET worker. That the game
+loads the DLC copy is inferred from the DLC's table layers replacing base rows; it is not
+observed in game. The DLC also added `dlc_01.admeta` (u32 length, `dlc_01`, u32 1),
+`base`/`dlc_01.contentgroupkeymap` (a u32 count and that many u32 keys: base 999000,
+998003, 0, 8, 10, 11; DLC 1001, 1002, 1003, 1005, 1006, 998002) and a DLC
+`gimmickchartcacheddata` whose first u32 is a record count (base 14,210, DLC 1,503), not
+a magic. `meta/0.paver` grew from 10 to 28 bytes: the u16 version (2.4.5), a u32-counted
+list of (u32 length, name, u32) records naming `dlc_01`, then the four build bytes. The
+DLC's `meta/0.paeid` holds u32 7, the DLC's Steam app id `5001840` and 64 opaque bytes,
+probably a signature. What the content group keys and the gimmick cache records mean is
+not established; `entitlementinfo` (base and DLC layer) maps reward packages to store
+SKUs and has no field schema in CDMW.
+
 **31 October 2026 inspector pass** (same installation): formats that still fell
 back to a readable-strings dump were matched against documented or decoded
 layouts, and the Archive Browser now decodes them. All 84,432 `.padxil` shaders
@@ -380,7 +403,10 @@ or replaces GPU textures.
 
 An installed DLC carries its own registry, `dlc/dlc_NN/meta/0.pathc`, which
 registers the DLC's textures (the DLC item icons, for example); they are absent
-from the base `meta/0.pathc`. Uncompressed RGB(A), luminance and alpha DDS files
+from the base `meta/0.pathc`. On game `1.0.0.3446` it has 76,792 rows; 70,594 DDS ship only in DLC
+archives and are registered only there, and 2,996 of the 6,192 DDS the DLC replaces
+are registered with a different header or block layout than in the base registry
+(2026-11-01). Texture packages check a DLC texture against this registry. Uncompressed RGB(A), luminance and alpha DDS files
 are registered too, including the engine's `texture/nonetexture*` placeholders:
 wherever a shipped row stores raw sizes for such a header, they equal width x
 bytes per pixel x height per mip (checked on game 1.0.0.3446, 2026-10-31).
@@ -3543,13 +3569,13 @@ Source: [capability manifest](../schemas/archive_content_capabilities.v1.json).
 
 | Extension | Origin | Read | Write |
 | --- | --- | --- | --- |
-| `.admeta` | PA | None | None |
+| `.admeta` | PA | Full | None |
 | `.app_xml` | PA | Full | Full |
 | `.binarygimmick` | PA | Surface | None |
-| `.binarygimmickcacheddata` | PA | None | None |
+| `.binarygimmickcacheddata` | PA | Partial | None |
 | `.binarygimmickframeevent` | PA | None | None |
 | `.binarystring` | PA | None | None |
-| `.contentgroupkeymap` | PA | None | None |
+| `.contentgroupkeymap` | PA | Full | None |
 | `.dat` | PA | None | None |
 | `.ies` | Open | Full | None |
 | `.imp` | PA | Partial | None |
