@@ -629,3 +629,211 @@ def test_pointee_starts_uses_the_same_identity_as_the_rest_of_the_decoder() -> N
 
     assert 12 in pointee_starts(bytes(blob), base)
     assert pointee_starts(bytes(blob), base + 1) == frozenset()
+
+
+# Stated layouts, measured on the installed game's 53,429 prefabs (2026-11-01):
+# pointees read by the type their header states, numeric arrays by their kind
+# byte, unselected lists inside a pointee as the empty byte 01, memberless
+# element headers, and a narrower header preferred when only it fits.
+
+
+def _typedef(name: str, *members: tuple[str, str, int, int, int]) -> bytes:
+    body = _text(name) + struct.pack("<H", len(members))
+    for member_name, type_name, flags, size, attr in members:
+        body += _text(member_name) + _text(type_name) + struct.pack("<HHHH", flags, size, attr, 0)
+    return body
+
+
+def _assemble(typedefs: tuple[bytes, ...], blob_for) -> bytes:
+    """A version-4, revision-15 prefab; ``blob_for(blob_offset)`` returns the blob."""
+    header = bytearray(struct.pack("<HHH", 0xFFFF, 4, 0) + b"\x00" * 8)
+    header += struct.pack("<I", 15) + struct.pack("<H", len(typedefs))
+    for item in typedefs:
+        header += item
+    pool = struct.pack("<I", 0)
+    blob_offset = len(header) + len(pool) + 28
+    blob = bytes(blob_for(blob_offset))
+    data_header = struct.pack("<III", 1, blob_offset + len(blob), 0)
+    data_header += struct.pack("<Q", 0xFFFFFFFFFFFFFFFF)
+    data_header += struct.pack("<II", blob_offset, len(blob))
+    return bytes(header + pool + data_header + blob)
+
+
+def _owner_and_pointer(blob: bytearray, base: int) -> int:
+    """Append an owner field and a self-relative pointer; return the pointee start."""
+    blob += struct.pack("<Q", 0xFFFFFFFFFFFFFFFF)
+    blob += struct.pack("<I", base + len(blob) + 4)
+    return len(blob)
+
+
+def _typed_pointee_prefab() -> bytes:
+    """A root whose ReflectObjectPtr points at a whole object, not a path."""
+    root = _typedef("SceneObject", ("_spline", "ReflectObjectPtr", KIND_POINTER, 8, 0x1008))
+    spline = _typedef(
+        "SplineThing",
+        ("_thickness", "float", 0, 4, 0),
+        ("_points", "float3", 3, 12, 0x1020),  # a list kind: written as 01 when unselected
+        ("_name", "staticstringA", KIND_STRING, 1, 0),
+    )
+
+    def blob_for(base: int) -> bytearray:
+        blob = bytearray(struct.pack("<H", 2) + (0b1).to_bytes(6, "little"))
+        blob += b"\x01"  # presence byte: kind 5 only
+        blob += struct.pack("<H", 1) + bytes((0b101, 1)) + b"\x00\x00"  # width, mask, type 1
+        start = _owner_and_pointer(blob, base)
+        blob += struct.pack("<I", 0)
+        blob += struct.pack("<f", 0.25)  # _thickness
+        blob += b"\x01"  # _points, unselected and empty
+        blob += _text("pointtracing")  # _name
+        blob += struct.pack("<I", len(blob) - start)  # the pointee's closing length
+        return blob
+
+    return _assemble((root, spline), blob_for)
+
+
+def test_a_pointee_is_read_by_the_type_its_header_states() -> None:
+    from cdmw.core.prefab_binary import _decode_with_width_retry
+
+    data = _typed_pointee_prefab()
+    document = decode_prefab_binary(data)
+
+    assert document.walk_complete, document.walk_note
+    assert [item.text for item in document.root_texts] == ["pointtracing"]
+    assert [item.name for item in document.root_numbers] == ["_thickness"]
+    assert len(document.pointee_length_fields) == 1
+    # The earlier path-only reading cannot read it, which is what made it partial.
+    assert not _decode_with_width_retry(data, stated_layouts=False)[0].walk_complete
+
+
+def test_an_unselected_list_inside_a_pointee_must_be_the_empty_byte() -> None:
+    data = bytearray(_typed_pointee_prefab())
+    marker = data.rindex(b"\x01" + _text("pointtracing"))
+    data[marker] = 0x05
+
+    document = decode_prefab_binary(bytes(data))
+
+    assert not document.walk_complete
+    assert "_points is not empty" in document.walk_note
+
+
+def test_a_path_in_a_two_member_reference_stays_a_resource() -> None:
+    """ResourceReferencePath_SkinnedMesh carries a bool after its _path.
+
+    It reads by its stated type now, and its path has to stay a resource: the
+    rewriter and the asset checks look only at resources.
+    """
+    root = _typedef("SceneObject", ("_mesh", "ReflectObject", 4, 8, 8))
+    reference = _typedef(
+        "ResourceReferencePath_SkinnedMesh",
+        ("_path", "NormalizedPathA", KIND_STRING, 1, 0),
+        ("_isFacialBlendShape", "bool", 0, 1, 0),
+    )
+
+    def blob_for(base: int) -> bytearray:
+        blob = bytearray(struct.pack("<H", 2) + (0b1).to_bytes(6, "little"))
+        blob += struct.pack("<H", 1) + bytes((0b11, 1)) + b"\x00\x00"  # kind 4: no presence byte
+        start = _owner_and_pointer(blob, base)
+        blob += struct.pack("<I", 0) + _text("character/model/a/b.pac") + b"\x01"
+        blob += struct.pack("<I", len(blob) - start)
+        return blob
+
+    document = decode_prefab_binary(_assemble((root, reference), blob_for))
+
+    assert document.walk_complete, document.walk_note
+    assert [item.text for item in document.resource_strings()] == ["character/model/a/b.pac"]
+
+
+def test_a_numeric_array_opens_with_a_kind_byte() -> None:
+    root = _typedef(
+        "SceneObject",
+        ("_transforms", "float3", 3, 12, 0x1000),
+        ("_enableList", "uint32", 3, 4, 0x1020),
+    )
+
+    def blob_for(base: int) -> bytearray:
+        blob = bytearray(struct.pack("<H", 2) + (0b11).to_bytes(6, "little"))
+        blob += b"\x00" + struct.pack("<I", 2) + struct.pack("<6f", *range(6))
+        blob += b"\x01"  # selected but empty
+        return blob
+
+    document = decode_prefab_binary(_assemble((root,), blob_for))
+
+    assert document.walk_complete, document.walk_note
+    (transforms,) = document.root_numbers
+    assert transforms.type_name == "float3[]"
+    assert len(transforms.raw) == 24
+
+
+def _one_element_prefab(element_header: bytes, element_body: bytes, *types: bytes) -> tuple[bytes, int]:
+    """A root ``_components`` list holding one element.
+
+    Returns the payload and the element's absolute start offset.
+    """
+    root = _typedef("SceneObject", ("_components", "ReflectObjectPtr", KIND_COLLECTION, 0, 0x1008))
+    where: list[int] = []
+
+    def blob_for(base: int) -> bytearray:
+        blob = bytearray(struct.pack("<H", 2) + (0b1).to_bytes(6, "little"))
+        blob += b"\x00" + struct.pack("<I", 1) + b"\x00" * 13  # header and reference
+        where.append(base + len(blob))
+        blob += element_header
+        start = _owner_and_pointer(blob, base)
+        blob += struct.pack("<HH", 0, 0)  # unnamed
+        blob += element_body
+        blob += struct.pack("<I", len(blob) - start) + b"\x01"
+        return blob
+
+    data = _assemble((root, *types), blob_for)
+    return data, where[0]
+
+
+def test_a_memberless_type_has_a_zero_width_header() -> None:
+    memberless = _typedef("SceneObjectActorInfoContainer")
+    header = struct.pack("<H", 0) + bytes((1,)) + b"\x00\x00"  # width 0, type 1
+
+    data, element_at = _one_element_prefab(header, b"", memberless)
+    document = decode_prefab_binary(data)
+
+    assert document.walk_complete, document.walk_note
+    (item,) = document.objects
+    assert item.component_type == "SceneObjectActorInfoContainer"
+    (collection,) = document.collections
+    assert collection.count == len(collection.elements) == 1
+    # The object is the element, so an edit aimed at it lands on its own span
+    # rather than on whatever element follows.
+    start, end = collection.elements[0]
+    assert item.offset == start and start <= element_at < end
+
+
+def test_a_wide_header_read_inside_a_length_field_yields_to_the_one_that_fits() -> None:
+    """``04 00 00 01 00 07 01 00 00``: width 4 first, the real width-1 header after.
+
+    Both end at the same owner, so the pointer check cannot choose. The width-4
+    mask (0x07000100) fits no type; the width-1 mask (0x07) fits the stated one.
+    """
+    switch = _typedef(
+        "SwitchComponent",
+        ("_a", "bool", 0, 1, 0),
+        ("_b", "bool", 0, 1, 0),
+        ("_c", "bool", 0, 1, 0),
+    )
+    header = b"\x04\x00\x00" + struct.pack("<H", 1) + bytes((0b111, 1)) + b"\x00\x00"
+
+    data, _ = _one_element_prefab(header, b"\x01\x00\x01", switch)
+    document = decode_prefab_binary(data)
+
+    assert document.walk_complete, document.walk_note
+    (item,) = document.objects
+    assert item.component_type == "SwitchComponent"
+    assert item.member_names == ("_a", "_b", "_c")
+
+
+def test_a_file_the_stated_layouts_do_not_touch_is_read_once() -> None:
+    from cdmw.core.prefab_binary import _decode_with_width_retry
+
+    data = _build_with_pointer()
+    document, departed = _decode_with_width_retry(data, stated_layouts=True)
+
+    assert not departed
+    assert document == _decode_with_width_retry(data, stated_layouts=False)[0]
+    assert decode_prefab_binary(data) == document
