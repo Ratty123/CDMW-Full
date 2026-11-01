@@ -79,6 +79,12 @@ class ModManagementList(VirtualLoaderPage):
         self.details_button.setObjectName('mod_management_mod_details')
         self.details_button.clicked.connect(self._details)
         row.addWidget(self.details_button)
+        self.send_dmm_button = QPushButton(self.tr('Send to DMM…'))
+        self.send_dmm_button.setObjectName('mod_management_send_dmm')
+        self.send_dmm_button.setToolTip(self.tr('Write the selected item packages, or every enabled one when none is selected, '
+                                                'as one DMM mod named CDMW items. Sending again replaces it.'))
+        self.send_dmm_button.clicked.connect(self._send_to_dmm)
+        row.addWidget(self.send_dmm_button)
         row.addWidget(self.count, 1)
         row.addWidget(self.refresh_button)
         layout.addLayout(row)
@@ -222,6 +228,7 @@ class ModManagementList(VirtualLoaderPage):
             self.tr('Remove selected entries from this draft. Files and retained item identities are kept.'))
         self.toggle_installed.setEnabled(ready and (draft or mutable))
         self.details_button.setEnabled(ready and len(selected) == 1)
+        self.send_dmm_button.setEnabled(ready and bool(self.package_root) and bool(self._dmm_packages()))
         disabled = all(item.data(0, Qt.UserRole + 2) for item in selected) if draft else bool(entries) and all(not entry.enabled for entry in entries)
         self.toggle_installed.setText(self.tr('Enable…') if disabled else self.tr('Disable…'))
         self.toggle_installed.setToolTip(self.tr('Keep selected mods in the list and choose Apply changes to save their enabled state.') if draft else '')
@@ -286,39 +293,42 @@ class ModManagementList(VirtualLoaderPage):
             self.selection.setCurrentItem(item)
         self._buttons()
         menu = QMenu(self.selection)
-        for button in (self.details_button, self.toggle_installed, self.remove_selected):
+        for button in (self.details_button, self.toggle_installed, self.remove_selected, self.send_dmm_button):
             action = menu.addAction(button.text())
             action.setEnabled(button.isEnabled())
             action.setToolTip(button.toolTip())
             action.triggered.connect(button.click)
-        selected = self.selection.selectedItems()
-        if len(selected) == 1 and selected[0].data(0, Qt.UserRole)[0] == 'item':
-            send = menu.addAction(self.tr('Send to DMM…'))
-            send.setToolTip(self.tr('Rebuild this item as a DMM mod for the installed game and put it in DMM\'s mods folder.'))
-            send.setEnabled(not (self._closed or self._working or self._busy() or self._queued or self._session))
-            path = selected[0].data(0, Qt.UserRole)[1]
-            send.triggered.connect(lambda _checked=False, path=path: self._send_to_dmm(path))
         menu.setToolTipsVisible(True)
         menu.aboutToHide.connect(menu.deleteLater)
         menu.popup(self.selection.viewport().mapToGlobal(position))
 
-    def _send_to_dmm(self, package_path):
-        from cdmw.services.dmm_send import send_item_package
+    def _dmm_packages(self):
+        """The selected item packages, or every enabled one when no item is selected."""
+        rows = [self.selection.topLevelItem(i) for i in range(self.selection.topLevelItemCount())]
+        items = [row for row in rows if row.data(0, Qt.UserRole)[0] == 'item']
+        chosen = [row for row in items if row.isSelected()] or [row for row in items if not row.data(0, Qt.UserRole + 2)]
+        return tuple(row.data(0, Qt.UserRole)[1] for row in chosen)
+
+    def _send_to_dmm(self):
+        from cdmw.services.dmm_send import send_item_packages
         from cdmw.ui.new_item.dmm_send_ui import choose_dmm_mods_folder
+        packages = self._dmm_packages()
+        if not packages or not self.send_dmm_button.isEnabled():
+            return
         mods = choose_dmm_mods_folder(self)
         if mods is None:
             return
         root = self.package_root
-        self.status.setText(self.tr('Sending to DMM…'))
+        self.status.setText(self.tr('Sending {value_0} item package(s) to DMM…').format(value_0=len(packages)))
 
         def sent(result):
-            self.status.setText(self.tr('Sent to DMM. In DMM, enable the mod and click Mount.'))
+            message = self.tr('Sent {value_0} item package(s) to DMM as one mod. In DMM, enable it and click Mount.').format(value_0=len(packages))
+            self.status.setText(message)
             self.activity.emit(f'Sent to DMM: {result.folder}')
-            message = self.tr('Sent to DMM. In DMM, enable the mod and click Mount.')
             if result.replaced:
                 message += '\n' + self.tr('It replaced the copy CDMW sent earlier.')
             QMessageBox.information(self, self.tr('Send to DMM'), message + '\n\n' + str(result.folder))
-        self._run(lambda log, stop: send_item_package(package_path, root, mods, stop_event=stop, on_log=log), sent)
+        self._run(lambda log, stop: send_item_packages(packages, root, mods, 'CDMW items', stop_event=stop, on_log=log), sent)
 
     def _remove(self):
         if not self.remove_selected.isEnabled():

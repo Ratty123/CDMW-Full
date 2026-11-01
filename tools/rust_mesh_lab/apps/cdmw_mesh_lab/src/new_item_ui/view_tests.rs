@@ -1512,6 +1512,28 @@ fn context_menu_is_compact_and_outside_click_closes_only_the_menu() {
     assert!(!view.inputs.iter().any(|input| input.control == "background"));
 }
 
+#[test]
+fn context_menu_items_show_their_whole_label() {
+    let context = egui::Context::default();
+    let mut state = state(control("background", "button", "Continue", json!({})));
+    let mut menu = control("menu", "menu", "", json!({}));
+    menu.children = vec![control("details", "action", "Details…", json!({})),
+        control("remove", "action", "Remove selected", json!({})),
+        control("send", "action", "Send to DMM…", json!({}))];
+    state.dialogs.push(menu);
+    apply_theme(&context, &state.theme);
+    let mut view = PresentationView::default();
+    for _ in 0..4 { frame(&context, &mut view, &state, egui::vec2(960.0, 720.0),
+        vec![egui::Event::PointerMoved(egui::pos2(450.0, 300.0))]); }
+    for (id, label) in [("remove", "Remove selected"), ("send", "Send to DMM…")] {
+        let rect = view.rects.iter().find(|rect| rect.id == id).unwrap().rect;
+        let font = context.global_style().text_styles[&egui::TextStyle::Button].clone();
+        let text = context.fonts_mut(|fonts| fonts.layout_no_wrap(label.to_owned(), font, egui::Color32::WHITE)).size().x;
+        let padding = context.global_style().spacing.button_padding.x * 2.0;
+        assert!(rect[2] >= text + padding, "{id}: {} wide for {text} of text", rect[2]);
+    }
+}
+
 /// Optional rendered audit over documents from new_item_rust_ui_harness.py.
 /// No game data or live workflow actions are involved: only renderer input.
 #[test]

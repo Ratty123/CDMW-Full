@@ -480,3 +480,40 @@ def test_physical_install_changes_require_reapply_before_virtual_launch(tmp_path
     finally:
         tab.shutdown()
         tab.close()
+
+
+def test_send_to_dmm_sends_the_selection_or_every_enabled_item_as_one_mod(tmp_path, monkeypatch):
+    from PySide6.QtWidgets import QMenu
+    from cdmw.services import dmm_send
+    from cdmw.ui.new_item import dmm_send_ui
+    app = QApplication.instance() or QApplication([])
+    root, files = packages(tmp_path, count=3)
+    tab = ModManagementTab(get_package_root=lambda: str(root))
+    bridge = NewItemPresentationBridge(tab, dialogs=lambda: tuple(menu for menu in tab.findChildren(QMenu) if not menu.isHidden()))
+    sent = []
+    monkeypatch.setattr(dmm_send_ui, 'choose_dmm_mods_folder', lambda parent: tmp_path / 'mods')
+    monkeypatch.setattr(dmm_send, 'send_item_packages', lambda paths, game, mods, title, **_: sent.append((tuple(paths), title))
+                        or dmm_send.DmmSendResult(mods / title, False, title))
+    monkeypatch.setattr(QMessageBox, 'information', lambda *args: QMessageBox.Ok)
+    try:
+        page = load_installed(tab, root)
+        page._append_selection('item', files)
+        rows(page)[('item', str(files[2]))].setData(0, Qt.UserRole + 2, True)
+        page.selection.clearSelection()
+        page._buttons()
+        assert page.send_dmm_button.isEnabled()
+        _send(bridge, page.send_dmm_button, 'activate')
+        pump(app, lambda: bool(sent) and not tab.controller.busy)
+        assert sent[-1] == ((str(files[0]), str(files[1])), 'CDMW items')
+        _send(bridge, page.selection, 'menu', {'path': [2]})
+        menu = next(menu for menu in tab.findChildren(QMenu) if not menu.isHidden())
+        assert menu.actions()[-1].text() == page.send_dmm_button.text()
+        _send(bridge, menu.actions()[-1], 'activate')
+        pump(app, lambda: len(sent) == 2 and not tab.controller.busy)
+        assert sent[-1][0] == (page.selection.selectedItems()[0].data(0, Qt.UserRole)[1],)
+    finally:
+        tab.request_shutdown()
+        pump(app, lambda: not tab.iter_shutdown_workers())
+        bridge.close()
+        tab.deleteLater()
+        app.sendPostedEvents(None, QEvent.DeferredDelete)
