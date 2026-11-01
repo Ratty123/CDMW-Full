@@ -265,6 +265,7 @@ def _clean_stock_snapshot(root, service, read_entry, stop_event, on_log, include
     result = service.build_snapshot(catalogue, read_entry=read_entry, stop_event=stop_event, on_log=on_log)
     if not include_dlc:
         result.dlc_pathcs = ()  # The snapshot reads them beside the archives, not from its entries.
+        result.dlc_pathc_names = ()
     if any(key in DEFAULT_ITEM_KEY_RANGE for key in result.rows):
         raise IndependentItemError('The shipped item tables contain custom items. Restore a clean game baseline before using independent packages.')
     result.provenance.capture().validate(stop_event)
