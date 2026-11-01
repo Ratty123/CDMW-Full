@@ -48,3 +48,22 @@ def test_send_writes_the_dmm_mod_and_a_resend_replaces_only_cdmws_copy(tmp_path)
     assert second.replaced and not (second.folder / "stale.txt").exists()
     assert sorted(path.name for path in mods.iterdir()) == ["Frost blade"]
     assert not any(path.name.startswith(".cdmw-send-") for path in mods.parent.iterdir())
+
+
+def test_several_packages_go_to_dmm_as_one_composed_mod(tmp_path):
+    from cdmw.services.dmm_send import send_item_packages
+    from tests.test_virtual_loader import game_bytes, packages
+    root, files = packages(tmp_path)
+    before = game_bytes(root)
+    _install, mods = _dmm(tmp_path)
+    result = send_item_packages(files, root, mods, "Two items")
+    assert result.folder == mods / "Two items" and not result.replaced
+    manifest = json.loads((result.folder / "manifest.json").read_text(encoding="utf-8"))
+    overrides = manifest["overrides"]
+    # One copy of each shared table, carrying both items, rather than two mods that hide each other.
+    assert len(overrides) == len(set(overrides))
+    assert "gamedata/binarystaticinfo__/bin/iteminfo.staticinfobody" in overrides
+    assert (result.folder / "0036" / "0.pamt").is_file()
+    assert game_bytes(root) == before and not (root / ".cdmw").exists()
+    again = send_item_packages(files, root, mods, "Two items")
+    assert again.replaced

@@ -85,29 +85,15 @@ def _hash_sources(paths, stop_event=None, on_progress=None):
     return result
 
 
-def prepare_profile(profile: VirtualProfile, root, *, stop_event=None, on_log=None, read_entry=None, on_progress=None):
-    def progress(value, detail):
-        raise_if_cancelled(stop_event)
-        if on_progress:
-            on_progress(value, 100, detail)
-    progress(0, 'Checking item packages…')
-    root = Path(root).resolve()
-    # Since game 2.04.02 the game authenticates its mount list and refuses one with a
-    # private group added. The composed files are then served by resource path inside
-    # the package loader instead, and every archive and the mount list stay as shipped.
-    served = is_compact_papgt(read_optional(target(root, 'meta/0.papgt')) or b'')
-    if len(profile.mods) > 128:
-        raise VirtualLoaderError('Select at most 128 external mod folders.')
-    packages = tuple(Path(path).resolve() for path in profile.packages)
-    folders = tuple(Path(path).resolve() for path in profile.mods)
-    disabled_packages = tuple(Path(path).resolve() for path in profile.disabled_packages)
-    disabled_mods = tuple(Path(path).resolve() for path in profile.disabled_mods)
-    if any(len(paths) > 128 for paths in (packages + disabled_packages, folders + disabled_mods)):
-        raise VirtualLoaderError('Select at most 128 item packages and 128 mod folders, including disabled entries.')
-    if any(len(set(paths)) != len(paths) for paths in (packages + disabled_packages, folders + disabled_mods)):
-        raise VirtualLoaderError('The virtual selection contains duplicate paths.')
-    original_packages = tuple((str(path), hash_file(path, stop_event)) for path in packages)
-    profile_before = read_optional(target(root, PROFILE_PATH))
+def compose_packages(packages, folders, root, *, stop_event=None, on_log=None, read_entry=None, progress=None):
+    """Compose resolved item packages and mod folders into final game files, without writing anything.
+
+    Returns the resolution, the changed files by path, their archive storage flags and the
+    texture registry. Apply serves these files; Send to DMM writes them as one mod.
+    """
+    if progress is None:
+        def progress(_value, _detail):
+            raise_if_cancelled(stop_event)
     resolved = resolve_items(packages, root, target='virtual', folders=folders,
                              stop_event=stop_event, on_log=on_log, read_entry=read_entry,
                              on_progress=lambda value, total, detail: progress(3 + 62 * value // max(1, total), detail))
@@ -165,6 +151,34 @@ def prepare_profile(profile: VirtualProfile, root, *, stop_event=None, on_log=No
         for path in sorted(textures):
             table = register_dds(table, path, files[path])
         pathc = encode_pathc(table)
+    return resolved, files, flags, pathc
+
+
+def prepare_profile(profile: VirtualProfile, root, *, stop_event=None, on_log=None, read_entry=None, on_progress=None):
+    def progress(value, detail):
+        raise_if_cancelled(stop_event)
+        if on_progress:
+            on_progress(value, 100, detail)
+    progress(0, 'Checking item packages…')
+    root = Path(root).resolve()
+    # Since game 2.04.02 the game authenticates its mount list and refuses one with a
+    # private group added. The composed files are then served by resource path inside
+    # the package loader instead, and every archive and the mount list stay as shipped.
+    served = is_compact_papgt(read_optional(target(root, 'meta/0.papgt')) or b'')
+    if len(profile.mods) > 128:
+        raise VirtualLoaderError('Select at most 128 external mod folders.')
+    packages = tuple(Path(path).resolve() for path in profile.packages)
+    folders = tuple(Path(path).resolve() for path in profile.mods)
+    disabled_packages = tuple(Path(path).resolve() for path in profile.disabled_packages)
+    disabled_mods = tuple(Path(path).resolve() for path in profile.disabled_mods)
+    if any(len(paths) > 128 for paths in (packages + disabled_packages, folders + disabled_mods)):
+        raise VirtualLoaderError('Select at most 128 item packages and 128 mod folders, including disabled entries.')
+    if any(len(set(paths)) != len(paths) for paths in (packages + disabled_packages, folders + disabled_mods)):
+        raise VirtualLoaderError('The virtual selection contains duplicate paths.')
+    original_packages = tuple((str(path), hash_file(path, stop_event)) for path in packages)
+    profile_before = read_optional(target(root, PROFILE_PATH))
+    resolved, files, flags, pathc = compose_packages(packages, folders, root, stop_event=stop_event,
+                                                     on_log=on_log, read_entry=read_entry, progress=progress)
     mount = target(root, 'meta/0.papgt').read_bytes()
     name = resolved.state['directory']
     from cdmw.services.virtual_loader_sources import profile_revision, catalogue_records

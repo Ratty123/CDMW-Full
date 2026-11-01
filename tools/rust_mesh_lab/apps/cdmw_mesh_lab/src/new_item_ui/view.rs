@@ -1100,7 +1100,8 @@ impl PresentationView {
         } else {
             let response = ui.add_enabled(
                 node.enabled,
-                egui::Button::new(&node.label).selected(node.flag("checked")).truncate(),
+                // A menu grows to fit its labels; an elided command is unreadable.
+                egui::Button::new(&node.label).selected(node.flag("checked")).wrap_mode(egui::TextWrapMode::Extend),
             );
             self.record(ui, node, &response);
             if response.clicked() {

@@ -113,5 +113,65 @@ def send_item_package(package_path: Path | str, game_root: Path | str, mods: Pat
     return send_plan(plan, mods, package.title, package_info=info, stop_event=stop_event)
 
 
+def send_item_packages(package_paths, game_root: Path | str, mods: Path, title: str, *,
+                       stop_event: Optional[threading.Event] = None,
+                       on_log: Optional[Callable[[str], None]] = None) -> DmmSendResult:
+    """Compose several .cditem packages as Apply does and write them as one DMM mod.
+
+    Separate mods would each carry their own copy of the shared tables (ItemInfo, the
+    shops, the names), and DMM would keep only one of them, so the items are composed
+    together first, with the identities Apply gives them.
+    """
+    from cdmw.core.atomic_file import atomic_publish_directory
+    from cdmw.domain.archives.mutation import ArchiveAddRequest
+    from cdmw.services.new_item_overlay_export import export_overlay_mod
+    from cdmw.services.virtual_loader_composition import compose_packages
+
+    paths = tuple(Path(path).resolve() for path in package_paths)
+    if not paths:
+        raise ValueError("Select at least one item package to send to DMM.")
+    root = Path(game_root).resolve()
+    folder, replaced = destination(mods, title)
+    _resolved, files, flags, pathc = compose_packages(paths, (), root, stop_event=stop_event, on_log=on_log)
+    additions = tuple(ArchiveAddRequest(Path(), path, data, int(flags.get(path) or 0)) for path, data in sorted(files.items()))
+    # The texture registry goes along only when the items register textures: a copy of
+    # the shipped one would hide the next game update's registry.
+    installed = root / "meta" / "0.pathc"
+    changed_pathc = pathc is not None and (not installed.is_file() or installed.read_bytes() != pathc)
+    composed = _ComposedMod(additions, (_Meta("meta/0.pathc", pathc),) if changed_pathc else (), _Spec(title))
+    description = f"{len(paths)} item package(s) sent to DMM by CDMW."
+    with tempfile.TemporaryDirectory(prefix=".cdmw-send-", dir=folder.parent.parent) as staging:
+        staged = Path(staging) / folder.name
+        export_overlay_mod(composed, staged, title=title, description=description, game_root=root,
+                           on_log=on_log, stop_event=stop_event)
+        raise_if_cancelled(stop_event, "Send to DMM cancelled.")
+        destination(mods, title)  # Refuse a folder that appeared meanwhile.
+        atomic_publish_directory(staged, folder, replace_existing=True)
+    return DmmSendResult(folder, replaced, title)
+
+
+@dataclass(frozen=True)
+class _Meta:
+    path: str
+    payload_data: bytes
+
+
+@dataclass(frozen=True)
+class _Spec:
+    internal_name: str
+    item_key: str = ""
+    template_key: str = ""
+
+
+@dataclass(frozen=True)
+class _ComposedMod:
+    """The parts of a plan the archive group writer reads, from composed files."""
+
+    additions: tuple
+    meta_files: tuple
+    spec: _Spec
+    patches: tuple = ()
+
+
 __all__ = ["DMM_FOLDER_SETTING", "DmmSendResult", "destination", "dmm_mods_folder", "find_dmm",
-           "send_item_package", "send_plan"]
+           "send_item_package", "send_item_packages", "send_plan"]

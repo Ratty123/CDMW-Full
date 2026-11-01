@@ -409,9 +409,13 @@ class OverlayManagerDialog(QDialog):
             self.status.setText(f'{len(entries)} recorded overlay(s); {unmounted} not mounted by the game.')
         else:
             enabled = sum(entry.enabled for entry in entries)
-            self.status.setText(f'{enabled} enabled · {len(entries) - enabled} disabled' if entries else 'No CDMW overlays are installed. Create an item and install it as an overlay to get started.')
+            # Without overlays an empty inventory is normal, not something to act on.
+            self.status.setText(f'{enabled} enabled · {len(entries) - enabled} disabled' if entries else
+                                'No CDMW overlays are installed. Create an item and install it as an overlay to get started.'
+                                if constants.ARCHIVE_OVERLAYS_ENABLED else '')
         self._filter()
-        self.activity.emit(self.status.text())
+        if self.status.text():
+            self.activity.emit(self.status.text())
         self.inventory_changed.emit(self._entries)
 
     def _check_updates(self):
