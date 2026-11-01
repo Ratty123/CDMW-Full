@@ -30278,7 +30278,7 @@ MESSAGE_REFERENCE = [
     "message": "Archive catalogue omits an original index witness. Read the archives again.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_provenance.py": 166
+      "cdmw/services/new_item_provenance.py": 168
     }
   },
   {
@@ -33135,7 +33135,7 @@ MESSAGE_REFERENCE = [
     "message": "Source changed while reading: {entry.path}.",
     "recovery": "stale",
     "sources": {
-      "cdmw/services/new_item_provenance.py": 221
+      "cdmw/services/new_item_provenance.py": 223
     }
   },
   {
@@ -33199,7 +33199,7 @@ MESSAGE_REFERENCE = [
     "message": "Source index no longer matches its catalogue: {path}. Read the archives again.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_provenance.py": 180
+      "cdmw/services/new_item_provenance.py": 182
     }
   },
   {
@@ -33255,7 +33255,7 @@ MESSAGE_REFERENCE = [
     "message": "Static table round trip failed",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_acquisition_index.py": 58
+      "cdmw/services/new_item_acquisition_index.py": 84
     }
   },
   {
