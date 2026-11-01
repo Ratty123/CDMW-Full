@@ -132,7 +132,7 @@
       ]
     },
     {
-      "key": "\nImport cdmw-semantic.cditem through CDMW. Its contributors keep their own identities and removal controls. Keep the identity profile with your saves.",
+      "key": "\nImport cdmw-semantic.cdmw through CDMW. Its contributors keep their own identities and removal controls. Keep the identity profile with your saves.",
       "origins": [
         {
           "path": "cdmw/ui/new_item/mod_merge_dialog.py",
@@ -1781,7 +1781,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 719,
+          "line": 720,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -1836,7 +1836,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 817,
+          "line": 818,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -3077,7 +3077,7 @@
       ]
     },
     {
-      "key": ": Build plan is read-only. Export a DMM mod folder or a .cditem item package.",
+      "key": ": Build plan is read-only. Export a DMM mod folder or a .cdmw item package.",
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
@@ -3091,7 +3091,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 817,
+          "line": 818,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -3196,7 +3196,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 817,
+          "line": 818,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -3226,7 +3226,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 817,
+          "line": 818,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -3356,7 +3356,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 817,
+          "line": 818,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -3366,7 +3366,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 817,
+          "line": 818,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -3536,7 +3536,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 719,
+          "line": 720,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -3596,7 +3596,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 817,
+          "line": 818,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -3696,7 +3696,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 817,
+          "line": 818,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -5136,7 +5136,7 @@
       "origins": [
         {
           "path": "cdmw/constants.py",
-          "line": 221,
+          "line": 226,
           "sink": "python-data:UI_TEXT_COLOR_SCHEME_OPTIONS"
         }
       ]
@@ -5962,7 +5962,7 @@
       ]
     },
     {
-      "key": "Add .cditem item packages to begin.",
+      "key": "Add .cdmw item packages to begin.",
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_management_list.py",
@@ -5972,7 +5972,7 @@
       ]
     },
     {
-      "key": "Add .cditem item packages, apply them and launch the game with the items.",
+      "key": "Add .cdmw item packages, apply them and launch the game with the items.",
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
@@ -5982,7 +5982,7 @@
       ]
     },
     {
-      "key": "Add .cditem packages or supported mod folders to begin.",
+      "key": "Add .cdmw packages or supported mod folders to begin.",
       "origins": [
         {
           "path": "cdmw/ui/new_item/virtual_loader_page.py",
@@ -6581,7 +6581,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/item_settings_editor.py",
-          "line": 87,
+          "line": 88,
           "sink": "QPushButton"
         }
       ]
@@ -6677,7 +6677,7 @@
       ]
     },
     {
-      "key": "Add this .cditem from Mods. Load the written package before making another update.",
+      "key": "Add this .cdmw from Mods. Load the written package before making another update.",
       "origins": [
         {
           "path": "cdmw/ui/texture_workflow/independent_package_dialog.py",
@@ -6706,7 +6706,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_actions.py",
-          "line": 176,
+          "line": 177,
           "sink": "getOpenFileName"
         }
       ]
@@ -6716,7 +6716,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_actions.py",
-          "line": 152,
+          "line": 153,
           "sink": "addButton"
         }
       ]
@@ -6746,7 +6746,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/item_settings_editor.py",
-          "line": 115,
+          "line": 116,
           "sink": "QPushButton"
         }
       ]
@@ -6826,7 +6826,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/item_settings_editor.py",
-          "line": 100,
+          "line": 101,
           "sink": "addRow"
         }
       ]
@@ -6836,7 +6836,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/item_settings_editor.py",
-          "line": 148,
+          "line": 149,
           "sink": "addTab"
         }
       ]
@@ -7187,7 +7187,7 @@
       "manual": true
     },
     {
-      "key": "Advanced installation of .cditem packages into CDMW's managed archives. For the normal Apply and Launch workflow, add packages from Mods.",
+      "key": "Advanced installation of .cdmw packages into CDMW's managed archives. For the normal Apply and Launch workflow, add packages from Mods.",
       "origins": [
         {
           "path": "cdmw/ui/new_item/independent_items_page.py",
@@ -9006,7 +9006,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 719,
+          "line": 720,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -9157,11 +9157,11 @@
       ]
     },
     {
-      "key": "An item package (.cditem) is added on the Mods page. It replaces only the game's own copy of this prefab and refuses to load after a game update changes that copy. Adding the edit to an existing item package lets the prefab use a mesh that package's item adds.\n\nA loose folder holds game-relative files for another mod manager.\n\nPrefab editing is new and has not yet been confirmed to load in game. Your game files are untouched either way, so if anything misbehaves, disable the mod in your manager and delete that package - that is the whole of the fix.",
+      "key": "An item package (.cdmw) is added on the Mods page. It replaces only the game's own copy of this prefab and refuses to load after a game update changes that copy. Adding the edit to an existing item package lets the prefab use a mesh that package's item adds.\n\nA loose folder holds game-relative files for another mod manager.\n\nPrefab editing is new and has not yet been confirmed to load in game. Your game files are untouched either way, so if anything misbehaves, disable the mod in your manager and delete that package - that is the whole of the fix.",
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_actions.py",
-          "line": 142,
+          "line": 143,
           "sink": "setInformativeText"
         }
       ]
@@ -10141,7 +10141,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 719,
+          "line": 720,
           "sink": "python-return:_build_reference_sections"
         },
         {
@@ -11606,7 +11606,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 719,
+          "line": 720,
           "sink": "python-return:_build_reference_sections"
         },
         {
@@ -12726,7 +12726,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 817,
+          "line": 818,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -13671,7 +13671,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 719,
+          "line": 720,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -13861,7 +13861,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 817,
+          "line": 818,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -18021,7 +18021,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/item_settings_editor.py",
-          "line": 135,
+          "line": 136,
           "sink": "setToolTip"
         }
       ]
@@ -19386,7 +19386,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 817,
+          "line": 818,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -20146,7 +20146,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 719,
+          "line": 720,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -20236,7 +20236,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_actions.py",
-          "line": 227,
+          "line": 228,
           "sink": "_collect_archive_mod_ready_export_target"
         }
       ]
@@ -20506,7 +20506,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 719,
+          "line": 720,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -21016,7 +21016,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_actions.py",
-          "line": 218,
+          "line": 219,
           "sink": "_run_utility_task_when_idle"
         }
       ]
@@ -21026,7 +21026,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_actions.py",
-          "line": 268,
+          "line": 269,
           "sink": "_run_utility_task_when_idle"
         }
       ]
@@ -22841,7 +22841,7 @@
       "origins": [
         {
           "path": "cdmw/constants.py",
-          "line": 212,
+          "line": 217,
           "sink": "python-data:UI_LOG_TEXT_STYLE_OPTIONS"
         }
       ]
@@ -23021,7 +23021,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 817,
+          "line": 818,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -25701,7 +25701,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/item_settings_editor.py",
-          "line": 127,
+          "line": 128,
           "sink": "addRow"
         }
       ]
@@ -26576,7 +26576,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_actions.py",
-          "line": 192,
+          "line": 193,
           "sink": "log"
         }
       ]
@@ -26786,7 +26786,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 719,
+          "line": 720,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -27047,7 +27047,7 @@
       ]
     },
     {
-      "key": "Choose Item package · .cditem and build the plan first.",
+      "key": "Choose Item package · .cdmw and build the plan first.",
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_task_mixin.py",
@@ -27057,7 +27057,7 @@
       ]
     },
     {
-      "key": "Choose Item package · .cditem in Create New Item, or open Mod Management and use Add item packages in Mods. Installation and launch require a configured game folder and a successful compatibility review.",
+      "key": "Choose Item package · .cdmw in Create New Item, or open Mod Management and use Add item packages in Mods. Installation and launch require a configured game folder and a successful compatibility review.",
       "origins": [
         {
           "path": "tools/format_explorer/workflows.py",
@@ -27346,7 +27346,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_actions.py",
-          "line": 227,
+          "line": 228,
           "sink": "_collect_archive_mod_ready_export_target"
         }
       ]
@@ -27492,7 +27492,7 @@
       ]
     },
     {
-      "key": "Choose a .cditem file outside the game archive folder",
+      "key": "Choose a .cdmw file outside the game archive folder",
       "origins": [
         {
           "path": "cdmw/ui/texture_workflow/independent_package_dialog.py",
@@ -32672,7 +32672,7 @@
       ]
     },
     {
-      "key": "Combining semantic exports with unannotated mod folders is unsupported; retain the original .cditem contributors.",
+      "key": "Combining semantic exports with unannotated mod folders is unsupported; retain the original .cdmw contributors.",
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
@@ -32716,7 +32716,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 817,
+          "line": 818,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -32811,7 +32811,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 719,
+          "line": 720,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -32821,7 +32821,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 719,
+          "line": 720,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -33816,7 +33816,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 817,
+          "line": 818,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -34721,12 +34721,12 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 719,
+          "line": 720,
           "sink": "python-return:_build_reference_sections"
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 719,
+          "line": 720,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -35022,7 +35022,7 @@
       ]
     },
     {
-      "key": "Converting mods between mod managers is no longer offered. Since the October 2026 DLC update CDMW writes mods for DMM (Definitive Mod Manager) only, and new items also as .cditem packages.",
+      "key": "Converting mods between mod managers is no longer offered. Since the October 2026 DLC update CDMW writes mods for DMM (Definitive Mod Manager) only, and new items also as .cdmw packages.",
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
@@ -35066,7 +35066,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/item_settings_editor.py",
-          "line": 123,
+          "line": 124,
           "sink": "_triple"
         }
       ]
@@ -36526,12 +36526,12 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_actions.py",
-          "line": 54,
+          "line": 55,
           "sink": "RuntimeError"
         },
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_actions.py",
-          "line": 76,
+          "line": 77,
           "sink": "set_status_message"
         }
       ]
@@ -37112,7 +37112,7 @@
       ]
     },
     {
-      "key": "Create a shareable .cditem package with its own identity. CDMW combines supported shared files when it is installed or prepared.",
+      "key": "Create a shareable .cdmw package with its own identity. CDMW combines supported shared files when it is installed or prepared.",
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
@@ -37272,7 +37272,7 @@
       ]
     },
     {
-      "key": "Create or update a .cditem item package from Create New Item's Output step.",
+      "key": "Create or update a .cdmw item package from Create New Item's Output step.",
       "origins": [
         {
           "path": "tools/format_explorer/workflows.py",
@@ -37606,7 +37606,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 817,
+          "line": 818,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -39347,7 +39347,7 @@
       ]
     },
     {
-      "key": "DMM V3 requires retained .cditem contributors. Use Export installed items or merge semantic exports.",
+      "key": "DMM V3 requires retained .cdmw contributors. Use Export installed items or merge semantic exports.",
       "origins": [
         {
           "path": "cdmw/services/mod_merge_service.py",
@@ -39377,7 +39377,7 @@
       ]
     },
     {
-      "key": "DMM field JSON cannot be read as ordinary mod files. For a CDMW export, import cdmw-source/cdmw-semantic.cditem instead.",
+      "key": "DMM field JSON cannot be read as ordinary mod files. For a CDMW export, import cdmw-source/cdmw-semantic.cdmw instead.",
       "origins": [
         {
           "path": "cdmw/services/new_item_mod_base.py",
@@ -42321,7 +42321,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 817,
+          "line": 818,
           "sink": "python-return:_build_environment_sections"
         },
         {
@@ -42861,7 +42861,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 817,
+          "line": 818,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -44206,7 +44206,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 719,
+          "line": 720,
           "sink": "python-return:_build_reference_sections"
         },
         {
@@ -47926,7 +47926,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/item_settings_editor.py",
-          "line": 327,
+          "line": 328,
           "sink": "translate_active_ui_text"
         }
       ]
@@ -48061,7 +48061,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/item_settings_editor.py",
-          "line": 245,
+          "line": 246,
           "sink": "setText"
         },
         {
@@ -48411,7 +48411,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 817,
+          "line": 818,
           "sink": "python-return:_build_environment_sections"
         },
         {
@@ -49481,7 +49481,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/item_settings_editor.py",
-          "line": 25,
+          "line": 26,
           "sink": "ValueError"
         }
       ]
@@ -50226,7 +50226,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 719,
+          "line": 720,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -50291,7 +50291,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_actions.py",
-          "line": 140,
+          "line": 141,
           "sink": "setWindowTitle"
         }
       ]
@@ -51302,7 +51302,7 @@
       ]
     },
     {
-      "key": "Export retained independent items using existing models and icons. Unsupported changes refuse. Keep the included .cditem source; DMM mounting and game behaviour remain unverified.",
+      "key": "Export retained independent items using existing models and icons. Unsupported changes refuse. Keep the included .cdmw source; DMM mounting and game behaviour remain unverified.",
       "origins": [
         {
           "path": "cdmw/ui/new_item/independent_items_page.py",
@@ -52316,7 +52316,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/item_settings_editor.py",
-          "line": 145,
+          "line": 146,
           "sink": "addTab"
         }
       ]
@@ -52456,7 +52456,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 817,
+          "line": 818,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -52906,7 +52906,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/item_settings_editor.py",
-          "line": 103,
+          "line": 104,
           "sink": "addTab"
         }
       ]
@@ -53081,7 +53081,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 817,
+          "line": 818,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -57036,7 +57036,7 @@
       "origins": [
         {
           "path": "cdmw/constants.py",
-          "line": 218,
+          "line": 223,
           "sink": "python-data:UI_TEXT_COLOR_SCHEME_OPTIONS"
         }
       ]
@@ -59546,7 +59546,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 719,
+          "line": 720,
           "sink": "python-return:_build_reference_sections"
         },
         {
@@ -64681,7 +64681,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 719,
+          "line": 720,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -65471,7 +65471,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 719,
+          "line": 720,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -66156,7 +66156,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 719,
+          "line": 720,
           "sink": "python-return:_build_reference_sections"
         },
         {
@@ -66377,7 +66377,7 @@
       ]
     },
     {
-      "key": "Import cdmw-semantic.cditem through CDMW. Its contributors keep their own identities and removal controls. Keep the identity profile with your saves.",
+      "key": "Import cdmw-semantic.cdmw through CDMW. Its contributors keep their own identities and removal controls. Keep the identity profile with your saves.",
       "origins": [
         {
           "path": "cdmw/ui/new_item/independent_items_page.py",
@@ -66576,7 +66576,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 719,
+          "line": 720,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -67401,7 +67401,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 719,
+          "line": 720,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -68332,16 +68332,21 @@
       ]
     },
     {
-      "key": "Independent item (*.cditem)",
+      "key": "Independent item (*.cdmw *.cditem)",
       "origins": [
-        {
-          "path": "cdmw/ui/new_item/item_settings_editor.py",
-          "line": 158,
-          "sink": "tr"
-        },
         {
           "path": "cdmw/ui/new_item/panels_output.py",
           "line": 486,
+          "sink": "tr"
+        }
+      ]
+    },
+    {
+      "key": "Independent item (*.cdmw)",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/item_settings_editor.py",
+          "line": 159,
           "sink": "tr"
         },
         {
@@ -68441,28 +68446,23 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_actions.py",
-          "line": 176,
+          "line": 177,
           "sink": "getOpenFileName:filter-label"
         },
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_actions.py",
-          "line": 180,
+          "line": 181,
           "sink": "getSaveFileName:filter-label"
         }
       ]
     },
     {
-      "key": "Independent items (*.cditem)",
+      "key": "Independent items (*.cdmw *.cditem)",
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_actions.py",
-          "line": 176,
+          "line": 177,
           "sink": "getOpenFileName"
-        },
-        {
-          "path": "cdmw/ui/archive_browser/prefab_inspector_actions.py",
-          "line": 180,
-          "sink": "getSaveFileName"
         },
         {
           "path": "cdmw/ui/new_item/independent_items_page.py",
@@ -68473,6 +68473,16 @@
           "path": "cdmw/ui/new_item/virtual_loader_page.py",
           "line": 263,
           "sink": "tr"
+        }
+      ]
+    },
+    {
+      "key": "Independent items (*.cdmw)",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/prefab_inspector_actions.py",
+          "line": 181,
+          "sink": "getSaveFileName"
         }
       ]
     },
@@ -68502,17 +68512,22 @@
       ]
     },
     {
-      "key": "Independent packages (*.cditem)",
+      "key": "Independent packages (*.cdmw *.cditem)",
+      "origins": [
+        {
+          "path": "cdmw/ui/texture_workflow/independent_package_dialog.py",
+          "line": 238,
+          "sink": "getOpenFileName"
+        }
+      ]
+    },
+    {
+      "key": "Independent packages (*.cdmw)",
       "origins": [
         {
           "path": "cdmw/ui/texture_workflow/independent_package_dialog.py",
           "line": 132,
           "sink": "getSaveFileName"
-        },
-        {
-          "path": "cdmw/ui/texture_workflow/independent_package_dialog.py",
-          "line": 238,
-          "sink": "getOpenFileName"
         }
       ]
     },
@@ -68676,7 +68691,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_actions.py",
-          "line": 71,
+          "line": 72,
           "sink": "log"
         }
       ]
@@ -70051,7 +70066,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/item_settings_editor.py",
-          "line": 29,
+          "line": 30,
           "sink": "ValueError"
         }
       ]
@@ -70061,7 +70076,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/item_settings_editor.py",
-          "line": 21,
+          "line": 22,
           "sink": "ValueError"
         }
       ]
@@ -71161,7 +71176,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/item_settings_editor.py",
-          "line": 142,
+          "line": 143,
           "sink": "addTab"
         }
       ]
@@ -71761,7 +71776,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/item_settings_editor.py",
-          "line": 133,
+          "line": 134,
           "sink": "_table"
         }
       ]
@@ -72047,11 +72062,11 @@
       ]
     },
     {
-      "key": "Item Package (.cditem)...",
+      "key": "Item Package (.cdmw)...",
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_actions.py",
-          "line": 151,
+          "line": 152,
           "sink": "addButton"
         }
       ]
@@ -72511,22 +72526,22 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_package.py",
-          "line": 635,
+          "line": 636,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/independent_item_package.py",
-          "line": 637,
+          "line": 638,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/independent_item_package.py",
-          "line": 640,
+          "line": 641,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/independent_item_package.py",
-          "line": 642,
+          "line": 643,
           "sink": "raise_if_cancelled"
         }
       ]
@@ -72542,7 +72557,7 @@
       ]
     },
     {
-      "key": "Item package · .cditem writes a portable package that keeps the item's identity. Add it on Mod Management's Mods page, apply, then launch. Loading items this way is experimental.",
+      "key": "Item package · .cdmw writes a portable package that keeps the item's identity. Add it on Mod Management's Mods page, apply, then launch. Loading items this way is experimental.",
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
@@ -72586,7 +72601,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/item_settings_editor.py",
-          "line": 74,
+          "line": 75,
           "sink": "addTab"
         }
       ]
@@ -73106,7 +73121,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 719,
+          "line": 720,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -73181,7 +73196,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 719,
+          "line": 720,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -73691,7 +73706,7 @@
         },
         {
           "path": "cdmw/ui/new_item/item_settings_editor.py",
-          "line": 133,
+          "line": 134,
           "sink": "_table"
         },
         {
@@ -74161,7 +74176,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 719,
+          "line": 720,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -75061,7 +75076,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/item_settings_editor.py",
-          "line": 133,
+          "line": 134,
           "sink": "_table"
         },
         {
@@ -75186,7 +75201,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 817,
+          "line": 818,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -76496,7 +76511,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/item_settings_editor.py",
-          "line": 44,
+          "line": 45,
           "sink": "QPushButton"
         }
       ]
@@ -77636,7 +77651,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 817,
+          "line": 818,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -77976,7 +77991,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 817,
+          "line": 818,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -78136,7 +78151,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_actions.py",
-          "line": 153,
+          "line": 154,
           "sink": "addButton"
         }
       ]
@@ -80616,7 +80631,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/item_settings_editor.py",
-          "line": 124,
+          "line": 125,
           "sink": "_triple"
         }
       ]
@@ -84511,7 +84526,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 817,
+          "line": 818,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -84661,7 +84676,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/item_settings_editor.py",
-          "line": 102,
+          "line": 103,
           "sink": "addRow"
         }
       ]
@@ -85006,7 +85021,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 817,
+          "line": 818,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -85171,7 +85186,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 817,
+          "line": 818,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -85432,7 +85447,7 @@
       ]
     },
     {
-      "key": "Mod Management loads .cditem item packages into the game through CDMW's runtime. Other mods belong in DMM (Definitive Mod Manager).",
+      "key": "Mod Management loads .cdmw item packages into the game through CDMW's runtime. Other mods belong in DMM (Definitive Mod Manager).",
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
@@ -85471,7 +85486,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 719,
+          "line": 720,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -85886,7 +85901,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 719,
+          "line": 720,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -90701,7 +90716,7 @@
         },
         {
           "path": "cdmw/ui/new_item/item_settings_editor.py",
-          "line": 70,
+          "line": 71,
           "sink": "addItem"
         },
         {
@@ -91161,7 +91176,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/item_settings_editor.py",
-          "line": 290,
+          "line": 291,
           "sink": "addItem"
         }
       ]
@@ -92846,7 +92861,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 817,
+          "line": 818,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -95081,7 +95096,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 817,
+          "line": 818,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -95091,7 +95106,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 817,
+          "line": 818,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -96622,7 +96637,7 @@
       ]
     },
     {
-      "key": "October 2026 DLC: scan the complete game folder to include dlc/dlc_01. Browsing, extraction and Create New Item support the compact base and DLC tables. Empty DLC tables are skipped; incomplete nonempty tables still stop loading. Create New Item exports DMM mod folders and .cditem item packages; other mod managers are not supported after the update. Direct archive patching and overlay installation remain unavailable. Export checks do not establish in-game compatibility.",
+      "key": "October 2026 DLC: scan the complete game folder to include dlc/dlc_01. Browsing, extraction and Create New Item support the compact base and DLC tables. Empty DLC tables are skipped; incomplete nonempty tables still stop loading. Create New Item exports DMM mod folders and .cdmw item packages; other mod managers are not supported after the update. Direct archive patching and overlay installation remain unavailable. Export checks do not establish in-game compatibility.",
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
@@ -96882,7 +96897,7 @@
       ]
     },
     {
-      "key": "On Mods, choose Add item packages and select the .cditem files.",
+      "key": "On Mods, choose Add item packages and select the .cdmw files.",
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
@@ -97126,7 +97141,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 817,
+          "line": 818,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -101351,7 +101366,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 719,
+          "line": 720,
           "sink": "python-return:_build_reference_sections"
         },
         {
@@ -102356,7 +102371,7 @@
         },
         {
           "path": "cdmw/ui/new_item/item_settings_editor.py",
-          "line": 133,
+          "line": 134,
           "sink": "_table"
         },
         {
@@ -102431,7 +102446,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/item_settings_editor.py",
-          "line": 78,
+          "line": 79,
           "sink": "QCheckBox"
         }
       ]
@@ -102511,7 +102526,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/item_settings_editor.py",
-          "line": 107,
+          "line": 108,
           "sink": "QCheckBox"
         }
       ]
@@ -103633,6 +103648,16 @@
           "path": "tools/placement_studio/window_editing.py",
           "line": 1302,
           "sink": "setWindowTitle"
+        }
+      ]
+    },
+    {
+      "key": "Packages saved before the .cdmw extension was introduced end in .cditem. They still load and need no conversion.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 630,
+          "sink": "python-return:_build_utility_sections"
         }
       ]
     },
@@ -105756,7 +105781,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 719,
+          "line": 720,
           "sink": "python-return:_build_reference_sections"
         },
         {
@@ -106156,7 +106181,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 719,
+          "line": 720,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -107691,7 +107716,7 @@
       "origins": [
         {
           "path": "cdmw/constants.py",
-          "line": 213,
+          "line": 218,
           "sink": "python-data:UI_LOG_TEXT_STYLE_OPTIONS"
         }
       ]
@@ -107991,7 +108016,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 719,
+          "line": 720,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -108641,7 +108666,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_actions.py",
-          "line": 118,
+          "line": 119,
           "sink": "PrefabInspectorDialog"
         }
       ]
@@ -108651,12 +108676,12 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_actions.py",
-          "line": 211,
+          "line": 212,
           "sink": "information"
         },
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_actions.py",
-          "line": 261,
+          "line": 262,
           "sink": "information"
         }
       ]
@@ -108721,12 +108746,12 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_actions.py",
-          "line": 208,
+          "line": 209,
           "sink": "set_status_message"
         },
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_actions.py",
-          "line": 259,
+          "line": 260,
           "sink": "set_status_message"
         }
       ]
@@ -109511,12 +109536,12 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_actions.py",
-          "line": 39,
+          "line": 40,
           "sink": "set_status_message"
         },
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_actions.py",
-          "line": 81,
+          "line": 82,
           "sink": "_run_utility_task_when_idle"
         }
       ]
@@ -110741,7 +110766,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 719,
+          "line": 720,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -111556,7 +111581,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 719,
+          "line": 720,
           "sink": "python-return:_build_reference_sections"
         },
         {
@@ -111641,7 +111666,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 719,
+          "line": 720,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -114431,7 +114456,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/item_settings_editor.py",
-          "line": 136,
+          "line": 137,
           "sink": "addTab"
         }
       ]
@@ -114756,7 +114781,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 719,
+          "line": 720,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -114766,7 +114791,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 719,
+          "line": 720,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -115121,7 +115146,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 719,
+          "line": 720,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -116116,7 +116141,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/item_settings_editor.py",
-          "line": 81,
+          "line": 82,
           "sink": "_table"
         },
         {
@@ -116361,7 +116386,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 817,
+          "line": 818,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -116606,7 +116631,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/item_settings_editor.py",
-          "line": 126,
+          "line": 127,
           "sink": "setToolTip"
         }
       ]
@@ -116626,7 +116651,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/item_settings_editor.py",
-          "line": 149,
+          "line": 150,
           "sink": "setToolTip"
         }
       ]
@@ -117426,7 +117451,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_actions.py",
-          "line": 50,
+          "line": 51,
           "sink": "log"
         },
         {
@@ -118186,12 +118211,12 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 817,
+          "line": 818,
           "sink": "python-return:_build_environment_sections"
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 817,
+          "line": 818,
           "sink": "python-return:_build_environment_sections"
         },
         {
@@ -118221,7 +118246,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 817,
+          "line": 818,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -119451,7 +119476,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 719,
+          "line": 720,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -120241,7 +120266,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 719,
+          "line": 720,
           "sink": "python-return:_build_reference_sections"
         },
         {
@@ -120566,7 +120591,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 817,
+          "line": 818,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -122201,12 +122226,12 @@
         },
         {
           "path": "cdmw/ui/new_item/item_settings_editor.py",
-          "line": 90,
+          "line": 91,
           "sink": "QPushButton"
         },
         {
           "path": "cdmw/ui/new_item/item_settings_editor.py",
-          "line": 118,
+          "line": 119,
           "sink": "QPushButton"
         },
         {
@@ -122916,7 +122941,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/item_settings_editor.py",
-          "line": 81,
+          "line": 82,
           "sink": "_table"
         }
       ]
@@ -122936,7 +122961,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/item_settings_editor.py",
-          "line": 81,
+          "line": 82,
           "sink": "_table"
         }
       ]
@@ -122946,7 +122971,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/item_settings_editor.py",
-          "line": 81,
+          "line": 82,
           "sink": "_table"
         }
       ]
@@ -122956,7 +122981,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/item_settings_editor.py",
-          "line": 94,
+          "line": 95,
           "sink": "addTab"
         }
       ]
@@ -123072,7 +123097,7 @@
       ]
     },
     {
-      "key": "Replace a selected .cditem package while keeping its identity. Writing a new package creates a separate item.",
+      "key": "Replace a selected .cdmw package while keeping its identity. Writing a new package creates a separate item.",
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
@@ -124216,7 +124241,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 817,
+          "line": 818,
           "sink": "python-return:_build_environment_sections"
         },
         {
@@ -124231,7 +124256,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 817,
+          "line": 818,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -124271,7 +124296,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 719,
+          "line": 720,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -125421,7 +125446,7 @@
         },
         {
           "path": "cdmw/ui/new_item/item_settings_editor.py",
-          "line": 47,
+          "line": 48,
           "sink": "QPushButton"
         },
         {
@@ -128501,7 +128526,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_package.py",
-          "line": 254,
+          "line": 255,
           "sink": "on_log"
         }
       ]
@@ -129286,7 +129311,7 @@
       "origins": [
         {
           "path": "cdmw/constants.py",
-          "line": 211,
+          "line": 216,
           "sink": "python-data:UI_LOG_TEXT_STYLE_OPTIONS"
         }
       ]
@@ -131031,7 +131056,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 719,
+          "line": 720,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -131351,7 +131376,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_actions.py",
-          "line": 180,
+          "line": 181,
           "sink": "getSaveFileName"
         }
       ]
@@ -134201,7 +134226,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 719,
+          "line": 720,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -134991,7 +135016,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_actions.py",
-          "line": 34,
+          "line": 35,
           "sink": "set_status_message"
         }
       ]
@@ -137612,7 +137637,7 @@
       ]
     },
     {
-      "key": "Select one or more .cditem files to add to this profile.",
+      "key": "Select one or more .cdmw files to add to this profile.",
       "origins": [
         {
           "path": "cdmw/ui/new_item/virtual_loader_page.py",
@@ -139537,7 +139562,7 @@
       ]
     },
     {
-      "key": "Semantic export requires retained .cditem contributors for every payload. Mixed foreign or untyped overlay exports remain unsupported.",
+      "key": "Semantic export requires retained .cdmw contributors for every payload. Mixed foreign or untyped overlay exports remain unsupported.",
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
@@ -140231,7 +140256,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_actions.py",
-          "line": 169,
+          "line": 170,
           "sink": "set_status_message"
         }
       ]
@@ -140421,7 +140446,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 719,
+          "line": 720,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -140431,7 +140456,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 719,
+          "line": 720,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -140441,7 +140466,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 719,
+          "line": 720,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -140451,7 +140476,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 719,
+          "line": 720,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -140461,7 +140486,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 719,
+          "line": 720,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -140566,7 +140591,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 719,
+          "line": 720,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -140576,12 +140601,12 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 817,
+          "line": 818,
           "sink": "python-return:_build_environment_sections"
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 817,
+          "line": 818,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -140606,7 +140631,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 719,
+          "line": 720,
           "sink": "python-return:_build_reference_sections"
         },
         {
@@ -140921,7 +140946,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/item_settings_editor.py",
-          "line": 129,
+          "line": 130,
           "sink": "addRow"
         }
       ]
@@ -141196,7 +141221,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/item_settings_editor.py",
-          "line": 326,
+          "line": 327,
           "sink": "translate_active_ui_text"
         }
       ]
@@ -141261,7 +141286,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 817,
+          "line": 818,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -141296,7 +141321,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 817,
+          "line": 818,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -145336,7 +145361,7 @@
       "origins": [
         {
           "path": "cdmw/constants.py",
-          "line": 222,
+          "line": 227,
           "sink": "python-data:UI_TEXT_COLOR_SCHEME_OPTIONS"
         }
       ]
@@ -145536,7 +145561,7 @@
         },
         {
           "path": "cdmw/ui/new_item/item_settings_editor.py",
-          "line": 205,
+          "line": 206,
           "sink": "setText"
         }
       ]
@@ -145931,7 +145956,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/item_settings_editor.py",
-          "line": 110,
+          "line": 111,
           "sink": "_table"
         }
       ]
@@ -146281,7 +146306,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_actions.py",
-          "line": 246,
+          "line": 247,
           "sink": "log"
         }
       ]
@@ -148021,7 +148046,7 @@
         },
         {
           "path": "cdmw/ui/new_item/item_settings_editor.py",
-          "line": 327,
+          "line": 328,
           "sink": "translate_active_ui_text"
         },
         {
@@ -148306,7 +148331,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/item_settings_editor.py",
-          "line": 139,
+          "line": 140,
           "sink": "addTab"
         }
       ]
@@ -150536,7 +150561,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 719,
+          "line": 720,
           "sink": "python-return:_build_reference_sections"
         },
         {
@@ -151206,7 +151231,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 817,
+          "line": 818,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -151246,17 +151271,17 @@
         },
         {
           "path": "cdmw/ui/new_item/item_settings_editor.py",
-          "line": 68,
+          "line": 69,
           "sink": "addItem"
         },
         {
           "path": "cdmw/ui/new_item/item_settings_editor.py",
-          "line": 176,
+          "line": 177,
           "sink": "setPlaceholderText"
         },
         {
           "path": "cdmw/ui/new_item/item_settings_editor.py",
-          "line": 289,
+          "line": 290,
           "sink": "addItem"
         },
         {
@@ -151451,7 +151476,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/item_settings_editor.py",
-          "line": 133,
+          "line": 134,
           "sink": "_table"
         },
         {
@@ -151566,7 +151591,7 @@
       "origins": [
         {
           "path": "cdmw/constants.py",
-          "line": 220,
+          "line": 225,
           "sink": "python-data:UI_TEXT_COLOR_SCHEME_OPTIONS"
         }
       ]
@@ -151641,7 +151666,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 719,
+          "line": 720,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -151832,7 +151857,7 @@
       ]
     },
     {
-      "key": "Texture .cditem package",
+      "key": "Texture .cdmw package",
       "origins": [
         {
           "path": "cdmw/ui/texture_workflow/independent_package_dialog.py",
@@ -151842,7 +151867,7 @@
       ]
     },
     {
-      "key": "Texture .cditem...",
+      "key": "Texture .cdmw...",
       "origins": [
         {
           "path": "cdmw/ui/texture_workflow/workspace_ui.py",
@@ -152161,7 +152186,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 719,
+          "line": 720,
           "sink": "python-return:_build_reference_sections"
         },
         {
@@ -152191,7 +152216,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 719,
+          "line": 720,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -153576,7 +153601,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 817,
+          "line": 818,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -153676,7 +153701,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 719,
+          "line": 720,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -153686,7 +153711,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 719,
+          "line": 720,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -153696,7 +153721,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 817,
+          "line": 818,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -154726,7 +154751,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 817,
+          "line": 818,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -159856,7 +159881,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 817,
+          "line": 818,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -161266,7 +161291,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/item_settings_editor.py",
-          "line": 270,
+          "line": 271,
           "sink": "setText"
         }
       ]
@@ -161466,7 +161491,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/item_settings_editor.py",
-          "line": 188,
+          "line": 189,
           "sink": "setToolTip"
         }
       ]
@@ -163441,7 +163466,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 817,
+          "line": 818,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -163551,7 +163576,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 817,
+          "line": 818,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -163881,7 +163906,7 @@
         },
         {
           "path": "cdmw/ui/new_item/item_settings_editor.py",
-          "line": 110,
+          "line": 111,
           "sink": "_table"
         },
         {
@@ -167046,7 +167071,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 817,
+          "line": 818,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -167231,7 +167256,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 817,
+          "line": 818,
           "sink": "python-return:_build_environment_sections"
         },
         {
@@ -167731,7 +167756,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/item_settings_editor.py",
-          "line": 131,
+          "line": 132,
           "sink": "addTab"
         }
       ]
@@ -168056,7 +168081,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 817,
+          "line": 818,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -168441,7 +168466,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 719,
+          "line": 720,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -169016,7 +169041,7 @@
       "origins": [
         {
           "path": "cdmw/constants.py",
-          "line": 219,
+          "line": 224,
           "sink": "python-data:UI_TEXT_COLOR_SCHEME_OPTIONS"
         }
       ]
@@ -172386,7 +172411,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 719,
+          "line": 720,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -172446,7 +172471,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 817,
+          "line": 818,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -172821,7 +172846,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 817,
+          "line": 818,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -172831,7 +172856,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 817,
+          "line": 818,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -173121,7 +173146,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 817,
+          "line": 818,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -173131,7 +173156,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 817,
+          "line": 818,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -173276,7 +173301,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 719,
+          "line": 720,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -173957,7 +173982,7 @@
       ]
     },
     {
-      "key": "Write .cditem",
+      "key": "Write .cdmw",
       "origins": [
         {
           "path": "cdmw/ui/texture_workflow/independent_package_dialog.py",
@@ -174147,7 +174172,7 @@
       ]
     },
     {
-      "key": "Write a portable .cditem file for installation through CDMW.",
+      "key": "Write a portable .cdmw file for installation through CDMW.",
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
@@ -174321,12 +174346,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/item_settings_editor.py",
-          "line": 50,
+          "line": 51,
           "sink": "QPushButton"
         },
         {
           "path": "cdmw/ui/new_item/item_settings_editor.py",
-          "line": 158,
+          "line": 159,
           "sink": "tr"
         }
       ]
@@ -174346,7 +174371,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/item_settings_editor.py",
-          "line": 51,
+          "line": 52,
           "sink": "setToolTip"
         }
       ]
@@ -174402,7 +174427,7 @@
       ]
     },
     {
-      "key": "Writes a portable .cditem package. Add it on Mod Management's Mods page, then apply and launch. Loading items this way is experimental.",
+      "key": "Writes a portable .cdmw package. Add it on Mod Management's Mods page, then apply and launch. Loading items this way is experimental.",
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
@@ -174716,7 +174741,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 817,
+          "line": 818,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -174881,7 +174906,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_actions.py",
-          "line": 211,
+          "line": 212,
           "sink": "information"
         }
       ]
@@ -174891,7 +174916,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_actions.py",
-          "line": 216,
+          "line": 217,
           "sink": "set_status_message"
         }
       ]
@@ -174901,7 +174926,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_actions.py",
-          "line": 261,
+          "line": 262,
           "sink": "information"
         }
       ]
@@ -174911,7 +174936,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_actions.py",
-          "line": 266,
+          "line": 267,
           "sink": "set_status_message"
         }
       ]
@@ -175366,7 +175391,7 @@
         },
         {
           "path": "cdmw/ui/new_item/item_settings_editor.py",
-          "line": 69,
+          "line": 70,
           "sink": "addItem"
         },
         {
@@ -176491,12 +176516,12 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 719,
+          "line": 720,
           "sink": "python-return:_build_reference_sections"
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 817,
+          "line": 818,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -176506,7 +176531,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 719,
+          "line": 720,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -176546,7 +176571,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 719,
+          "line": 720,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -176556,7 +176581,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 719,
+          "line": 720,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -176566,7 +176591,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 817,
+          "line": 818,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -176871,7 +176896,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 817,
+          "line": 818,
           "sink": "python-return:_build_environment_sections"
         },
         {
@@ -176926,7 +176951,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 719,
+          "line": 720,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -176946,7 +176971,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 817,
+          "line": 818,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -177846,7 +177871,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 817,
+          "line": 818,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -178311,17 +178336,17 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 817,
+          "line": 818,
           "sink": "python-return:_build_environment_sections"
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 817,
+          "line": 818,
           "sink": "python-return:_build_environment_sections"
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 817,
+          "line": 818,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -178791,12 +178816,12 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 817,
+          "line": 818,
           "sink": "python-return:_build_environment_sections"
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 817,
+          "line": 818,
           "sink": "python-return:_build_environment_sections"
         },
         {
@@ -178846,7 +178871,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 817,
+          "line": 818,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -178921,7 +178946,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 817,
+          "line": 818,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -179376,7 +179401,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 719,
+          "line": 720,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -179801,7 +179826,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 719,
+          "line": 720,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -179811,7 +179836,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 719,
+          "line": 720,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -179931,7 +179956,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 719,
+          "line": 720,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -179941,7 +179966,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 719,
+          "line": 720,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -182456,7 +182481,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 817,
+          "line": 818,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -182466,7 +182491,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 817,
+          "line": 818,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -182701,7 +182726,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 817,
+          "line": 818,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -183826,7 +183851,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 719,
+          "line": 720,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -183836,7 +183861,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 719,
+          "line": 720,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -184141,7 +184166,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 719,
+          "line": 720,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -184366,7 +184391,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 817,
+          "line": 818,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -184436,7 +184461,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 719,
+          "line": 720,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -184456,7 +184481,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 719,
+          "line": 720,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -184486,7 +184511,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 719,
+          "line": 720,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -185186,7 +185211,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 719,
+          "line": 720,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -186776,7 +186801,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 719,
+          "line": 720,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -186786,7 +186811,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 817,
+          "line": 818,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -187041,7 +187066,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 817,
+          "line": 818,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -187226,7 +187251,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 817,
+          "line": 818,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -188226,7 +188251,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 817,
+          "line": 818,
           "sink": "python-return:_build_environment_sections"
         },
         {
@@ -188921,7 +188946,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 719,
+          "line": 720,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -188971,7 +188996,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 817,
+          "line": 818,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -189356,7 +189381,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 719,
+          "line": 720,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -189771,7 +189796,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 719,
+          "line": 720,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -190461,7 +190486,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 817,
+          "line": 818,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -190471,7 +190496,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 719,
+          "line": 720,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -192146,7 +192171,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 719,
+          "line": 720,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -192601,7 +192626,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 719,
+          "line": 720,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -192611,7 +192636,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 719,
+          "line": 720,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -193271,7 +193296,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 817,
+          "line": 818,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -195906,7 +195931,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 817,
+          "line": 818,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -195916,7 +195941,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 817,
+          "line": 818,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -196512,7 +196537,7 @@
       ]
     },
     {
-      "key": "utilities mods cditem item package apply launch runtime identities dmm",
+      "key": "utilities mods cdmw cditem item package apply launch runtime identities dmm",
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
@@ -197156,7 +197181,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 817,
+          "line": 818,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -197271,7 +197296,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 719,
+          "line": 720,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -197346,7 +197371,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 719,
+          "line": 720,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -197356,7 +197381,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 719,
+          "line": 720,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -197711,7 +197736,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_actions.py",
-          "line": 141,
+          "line": 142,
           "sink": "setText"
         }
       ]
@@ -198292,7 +198317,7 @@
       ]
     },
     {
-      "key": "{value_0} (.cditem)",
+      "key": "{value_0} (.cdmw)",
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
@@ -198576,22 +198601,22 @@
         },
         {
           "path": "cdmw/ui/new_item/item_settings_editor.py",
-          "line": 292,
+          "line": 293,
           "sink": "addItem"
         },
         {
           "path": "cdmw/ui/new_item/item_settings_editor.py",
-          "line": 301,
+          "line": 302,
           "sink": "QTableWidgetItem"
         },
         {
           "path": "cdmw/ui/new_item/item_settings_editor.py",
-          "line": 320,
+          "line": 321,
           "sink": "QTableWidgetItem"
         },
         {
           "path": "cdmw/ui/new_item/item_settings_editor.py",
-          "line": 334,
+          "line": 335,
           "sink": "QTableWidgetItem"
         },
         {
@@ -202682,7 +202707,7 @@
       ]
     },
     {
-      "key": "{value_0} · .cditem",
+      "key": "{value_0} · .cdmw",
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
