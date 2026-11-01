@@ -138,7 +138,7 @@ def build_preview_panel(tab: object) -> QWidget:
     metadata_grid.addWidget(tab.notes_edit, 2, 1)
     metadata_grid.addWidget(tab.save_metadata_button, 3, 0)
     metadata_grid.addWidget(tab.open_editor_button, 3, 1)
-    metadata_grid.addWidget(tab.delete_source_button, 4, 0, 1, 2)
+    metadata_grid.addWidget(tab.delete_source_button, 3, 2)
     metadata_grid.setColumnStretch(1, 1)
     source_layout.addLayout(metadata_grid)
     layout.addWidget(source_group, stretch=1)
@@ -229,10 +229,6 @@ def build_preview_panel(tab: object) -> QWidget:
         group_layout.setSpacing(4)
 
     tab.notes_edit.setMaximumHeight(48)
-    tab._item_icons_metadata_grid.addWidget(tab.save_metadata_button, 3, 0)
-    tab._item_icons_metadata_grid.addWidget(tab.open_editor_button, 3, 1)
-    tab._item_icons_metadata_grid.addWidget(tab.delete_source_button, 3, 2)
-    tab._item_icons_metadata_grid.setColumnStretch(1, 1)
 
     for preview, scroll in (
         (tab.source_preview_label, tab.source_preview_scroll),

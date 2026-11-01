@@ -163,6 +163,40 @@ def test_index_worker_cleanup_is_ordered_on_ui_thread() -> None:
     assert worker_owned_by_ui_thread == cleanup_on_ui_thread
 
 
+def test_panels_place_each_widget_in_a_layout_once(tmp_path: Path, monkeypatch) -> None:
+    # Re-adding a laid-out widget makes Qt delete its old QWidgetItem while PySide keeps
+    # that item's wrapper registered at the freed address. A later QThread allocated
+    # there resolved to the stale QWidgetItem wrapper and crashed in QThread(self).
+    from cdmw.ui.item_icons import panels
+
+    placed: dict[int, str] = {}
+
+    def recording(layout_type):
+        class RecordingLayout(layout_type):
+            def addWidget(self, widget, *args, **kwargs):
+                key = id(widget)
+                assert key not in placed, f"{type(widget).__name__} {placed[key]!r} added to a layout twice"
+                placed[key] = widget.text() if hasattr(widget, "text") else widget.objectName()
+                return super().addWidget(widget, *args, **kwargs)
+
+        return RecordingLayout
+
+    for name in ("QGridLayout", "QHBoxLayout", "QVBoxLayout"):
+        monkeypatch.setattr(panels, name, recording(getattr(panels, name)))
+    _app()
+    tab = _make_tab(tmp_path)
+    try:
+        grid = tab._item_icons_metadata_grid
+        for column, button in enumerate(
+            (tab.save_metadata_button, tab.open_editor_button, tab.delete_source_button)
+        ):
+            assert grid.getItemPosition(grid.indexOf(button)) == (3, column, 1, 1)
+    finally:
+        _finish_tab(tab)
+        tab.deleteLater()
+        _app().processEvents()
+
+
 def test_metadata_save_is_nonblocking_and_updates_one_loaded_record() -> None:
     _app()
     with tempfile.TemporaryDirectory() as temp_dir:
