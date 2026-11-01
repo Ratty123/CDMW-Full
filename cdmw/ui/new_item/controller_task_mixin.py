@@ -331,6 +331,23 @@ class NewItemTaskControllerMixin:
         return self._run("export", task, self.export_finished.emit,
                          lambda message: self.status_message.emit(message, True), publishes_result=True)
 
+    def start_send_to_dmm(self, mods_folder) -> bool:
+        """Write the planned item as a DMM mod straight into DMM's mods folder."""
+        if not self.has_current_plan:
+            self.status_message.emit("Build the plan first.", True)
+            return False
+        plan, title, service = self.plan, self.export_title, self.service
+        spec = plan.spec
+        package_info = ModPackageInfo(
+            title=title,
+            description=f"Adds {spec.internal_name} (item {spec.item_key}) cloned from item {spec.template_key}.",
+        )
+        def task(_log, stop):
+            from cdmw.services.dmm_send import send_plan
+            return send_plan(plan, Path(mods_folder), title, service=service, package_info=package_info, stop_event=stop)
+        return self._run("export", task, self.export_finished.emit,
+                         lambda message: self.status_message.emit(message, True), publishes_result=True)
+
     def start_independent_export(self, path, *, update=False) -> bool:
         if not self.independent_mode or not self.has_current_plan:
             self.status_message.emit("Choose Item package · .cditem and build the plan first.", True)

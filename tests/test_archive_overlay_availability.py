@@ -79,8 +79,10 @@ def test_new_item_output_keeps_only_folder_and_portable_package(app, tmp_path, m
         panel.independent_mode_button.click()
         assert panel.output_mode.currentData() == "independent"
         assert not panel.install_overlay_button.isVisibleTo(panel)
+        assert not panel.send_dmm_button.isVisibleTo(panel)
         panel.folder_mode_button.click()
         assert panel.output_mode.currentData() == "folder"
+        assert panel.send_dmm_button.isVisibleTo(panel)
         assert controller.start_install_overlay(None) is False
         assert controller.start_overlay_migration(None, tmp_path) is False
         assert controller.start_overlay_removal(None, tmp_path) is False

@@ -291,9 +291,34 @@ class ModManagementList(VirtualLoaderPage):
             action.setEnabled(button.isEnabled())
             action.setToolTip(button.toolTip())
             action.triggered.connect(button.click)
+        selected = self.selection.selectedItems()
+        if len(selected) == 1 and selected[0].data(0, Qt.UserRole)[0] == 'item':
+            send = menu.addAction(self.tr('Send to DMM…'))
+            send.setToolTip(self.tr('Rebuild this item as a DMM mod for the installed game and put it in DMM\'s mods folder.'))
+            send.setEnabled(not (self._closed or self._working or self._busy() or self._queued or self._session))
+            path = selected[0].data(0, Qt.UserRole)[1]
+            send.triggered.connect(lambda _checked=False, path=path: self._send_to_dmm(path))
         menu.setToolTipsVisible(True)
         menu.aboutToHide.connect(menu.deleteLater)
         menu.popup(self.selection.viewport().mapToGlobal(position))
+
+    def _send_to_dmm(self, package_path):
+        from cdmw.services.dmm_send import send_item_package
+        from cdmw.ui.new_item.dmm_send_ui import choose_dmm_mods_folder
+        mods = choose_dmm_mods_folder(self)
+        if mods is None:
+            return
+        root = self.package_root
+        self.status.setText(self.tr('Sending to DMM…'))
+
+        def sent(result):
+            self.status.setText(self.tr('Sent to DMM. In DMM, enable the mod and click Mount.'))
+            self.activity.emit(f'Sent to DMM: {result.folder}')
+            message = self.tr('Sent to DMM. In DMM, enable the mod and click Mount.')
+            if result.replaced:
+                message += '\n' + self.tr('It replaced the copy CDMW sent earlier.')
+            QMessageBox.information(self, self.tr('Send to DMM'), message + '\n\n' + str(result.folder))
+        self._run(lambda log, stop: send_item_package(package_path, root, mods, stop_event=stop, on_log=log), sent)
 
     def _remove(self):
         if not self.remove_selected.isEnabled():

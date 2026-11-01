@@ -420,6 +420,12 @@ class OutputPanel(QGroupBox):
         actions.setContentsMargins(0, 0, 0, 0)
         actions.addWidget(self.build_button)
         actions.addWidget(self.export_button)
+        self.send_dmm_button = QPushButton(self.tr("Send to DMM"))
+        self.send_dmm_button.setObjectName("new_item_send_to_dmm")
+        self.send_dmm_button.setToolTip(self.tr(
+            "Write the mod straight into DMM's mods folder. Then enable it in DMM and click Mount."))
+        self.send_dmm_button.clicked.connect(self._send_to_dmm)
+        actions.addWidget(self.send_dmm_button)
         actions.addWidget(self.install_overlay_button)
         sidebar_layout.addWidget(self.actions)
         self._stale_reason = self._pending_stale_reason = self._plan_blocked = ""
@@ -467,6 +473,7 @@ class OutputPanel(QGroupBox):
         self.independent_controls.setVisible(independent)
         self.overlay_controls.setVisible(overlay)
         self.export_button.setVisible(folder or independent)
+        self.send_dmm_button.setVisible(folder)
         self.export_button.setText(self.tr("Write item package") + " (.cditem)" if independent else self.tr("Write mod folder"))
         self.export_button.setToolTip(self.tr("Write a portable .cditem file for installation through CDMW.") if independent else self.tr("Create the mod folder shown above, with an optional ZIP copy."))
         self.install_overlay_button.setVisible(overlay)
@@ -603,6 +610,7 @@ class OutputPanel(QGroupBox):
         self.choose_mod_base_button.setVisible(bool(source_problem))
         self.choose_mod_base_button.setEnabled(not self._controller.busy)
         self.export_button.setEnabled(self._controller.has_current_plan and not self._controller.busy and not source_problem)
+        self.send_dmm_button.setEnabled(self.export_button.isEnabled())
         self.update_package_button.setEnabled(self._controller.has_current_plan and not self._controller.busy)
         if problem:
             self.plan_state.set_note("Export blocked", BLOCK)
@@ -689,6 +697,7 @@ class OutputPanel(QGroupBox):
         self.build_button.style().unpolish(self.build_button)
         self.build_button.style().polish(self.build_button)
         self.export_button.setEnabled(enabled and not self._controller.busy)
+        self.send_dmm_button.setEnabled(enabled and not self._controller.busy)
         self.install_overlay_button.setEnabled(constants.ARCHIVE_OVERLAYS_ENABLED and enabled and not self._controller.busy)
         self._refresh_export_state()
         mode = self.output_mode.currentData()
@@ -729,12 +738,40 @@ class OutputPanel(QGroupBox):
         self._plan_blocked = str(message)
         self._plan_note()
 
+    def _send_to_dmm(self) -> None:
+        if self._source_export_problem():
+            self._refresh_export_state()
+            return
+        mods = self._dmm_mods_folder()
+        if mods is None:
+            return
+        self._export_error = ""
+        self._export_requested = True
+        try:
+            self._controller.start_send_to_dmm(mods)
+        finally:
+            self._export_requested = False
+
+    def _dmm_mods_folder(self):
+        from cdmw.ui.new_item.dmm_send_ui import choose_dmm_mods_folder
+        return choose_dmm_mods_folder(self, self._settings)
+
     def _export_finished(self, result: object) -> None:
         from cdmw.domain.new_item.independent import IndependentItemExport
+        from cdmw.services.dmm_send import DmmSendResult
         if isinstance(result, IndependentItemExport):
             self._export_error = ""
             self.append_log(f"Item package written: {result.path}")
-            QMessageBox.information(self, self.tr("Write item package"), self.tr("Package written. In Mod Management, add it to Virtual loader or install it through Independent items.") + "\n\n" + str(result.path))
+            QMessageBox.information(self, self.tr("Write item package"), self.tr("Package written. Add it on Mod Management's Mods page and choose Apply changes.") + "\n\n" + str(result.path))
+            return
+        if isinstance(result, DmmSendResult):
+            self._export_error = ""
+            self._refresh_export_state()
+            self.append_log(f"Sent to DMM: {result.folder}")
+            message = self.tr("Sent to DMM. In DMM, enable the mod and click Mount.")
+            if result.replaced:
+                message += "\n" + self.tr("It replaced the copy CDMW sent earlier.")
+            QMessageBox.information(self, self.tr("Send to DMM"), message + "\n\n" + str(result.folder))
             return
         self._export_error = ""
         self._refresh_export_state()
@@ -795,6 +832,7 @@ class OutputPanel(QGroupBox):
         self.build_button.setEnabled(not busy)
         has_plan = self._controller.has_current_plan
         self.export_button.setEnabled(has_plan and not busy)
+        self.send_dmm_button.setEnabled(has_plan and not busy)
         self.install_overlay_button.setEnabled(constants.ARCHIVE_OVERLAYS_ENABLED and has_plan and not busy)
         self.overlay_directory.setEnabled(not busy)
         for control in (self.output_mode, self.mode_buttons, self.folder_controls, self.independent_controls, self.add_to_mod, self.include_mounted):

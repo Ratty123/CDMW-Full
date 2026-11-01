@@ -9,6 +9,8 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 ### Added
 
+- Create New Item and Mod Management can send an item straight to DMM. **Send to DMM** writes the DMM mod folder into DMM's mods folder, and on Mod Management's Mods page a .cditem package is rebuilt as a DMM mod for the installed game first. CDMW finds DMM in its usual folder or asks once; enable the mod in DMM and click Mount. A mod folder another tool wrote is never replaced.
+
 - Archive Browser can reverse-search textures, sounds and other supported assets with Asset Family's Find references action. Asset Family and Used By separate confirmed paths and sound IDs from name-based guesses, with cancellation and visible search coverage limits.
 
 - Asset Family connects animation and voice files. An action chart lists the clips, blend spaces, sub-charts and prefabs it names. An animation clip lists its event metadata, distance LOD and copies in other voice languages. Lip-sync clips and voice lines with the same name and language are paired. Each row says whether it comes from the path layout or a matching line name, because neither file names the other.
