@@ -21,9 +21,12 @@ records.
     blob    := u16 tag(=2), u48 rootPresenceMask, group*, trailer(5..6)
     group   := elementHeader nameRecord componentMembers
     header  := u16 maskWidth, mask (maskWidth bytes, little-endian),
-               u8 componentTypeIndex, u16 0
-    pointer := u64 owner, u32 selfOffset, pointee(N), u32 N
-    pointee := u32 0, [u32 len, string]
+               u8 componentTypeIndex, u16 0      -- width 0: a memberless type
+    pointer := [u8 1 for kind 5] header, u64 owner, u32 selfOffset,
+               pointee(N), u32 N
+    pointee := u32 0, the stated type's members by the header's mask
+               (a path type: [u32 len, string])
+    array   := u8 0, u32 count, values | u8 1    -- numeric, attr 0x1000
     name    := pointer -> (u16 0, u16 count, [u16 0, u32 len, name])
 
 The type table is flat -- nested types are appended after the referencing
@@ -549,6 +552,8 @@ class _BlobCursor:
         "plain_counts",
         "revision",
         "indexed_element",
+        "stated_layouts",
+        "departed",
     )
 
     def __init__(
@@ -558,8 +563,18 @@ class _BlobCursor:
         type_table: Sequence[PrefabType] = (),
         wide_on_multiples: bool = False,
         revision: int = 14,
+        stated_layouts: bool = True,
     ) -> None:
         self.blob = blob
+        # Read pointees by their stated type, numeric arrays by their kind
+        # byte, and memberless or narrower element headers. Cleared only by the
+        # fallback in decode_prefab_binary, which keeps the reading this
+        # decoder gave before those rules for a file they do not complete.
+        self.stated_layouts = stated_layouts
+        # Set when one of those rules read something the earlier reading would
+        # have read differently, so the fallback knows a second reading could
+        # differ at all.
+        self.departed = False
         # See _read_collection_count: read a count that is a multiple of 256 as
         # the wide form. Set by the retry in decode_prefab_binary, never here.
         self.wide_on_multiples = wide_on_multiples
@@ -644,19 +659,106 @@ class _Collected:
     numbers: list[PrefabNumber] = field(default_factory=list)
 
 
-def _read_pointer(cursor: _BlobCursor, into: _Collected, member_name: str = "") -> None:
+def _pointee_header(cursor: _BlobCursor, flags: int) -> tuple[int, int] | None:
+    """Read a pointer member's stated header, when the cursor is on one.
+
+    The pointee opens with the element header a group carries -- ``u16 width,
+    mask, u8 typeIndex, u16 0`` -- then the owner field. A ``ReflectObjectPtr``
+    (kind 5) puts a presence byte of 1 before it; a by-value ``ReflectObject``
+    (kind 4) does not. Over the completed walks every resource pointee is
+    ``01 00 01 03 00 00`` or its empty form ``01 00 00 02 00 00``, a one-member
+    path type with its one bit set or clear; the ``01`` that often precedes it
+    is the component's ``_isEnable``. Returns ``(mask, type_index)`` and leaves
+    the cursor on the owner field, or ``None`` and leaves it where it was.
+    """
+    at = cursor.pos
+    blob = cursor.blob
+    if flags == KIND_POINTER:
+        if at >= len(blob) or blob[at] != 1:
+            return None
+        at += 1
+    if at + 2 > len(blob):
+        return None
+    width = struct.unpack_from("<H", blob, at)[0]
+    if width not in (1, 2, 3, 4) and not (width == 0 and _memberless(cursor, at)):
+        return None
+    owner_at = at + 2 + width + 3
+    if owner_at + 12 > len(blob) or blob[owner_at - 2 : owner_at] != b"\x00\x00":
+        return None
+    if struct.unpack_from("<I", blob, owner_at + 8)[0] != cursor.base + owner_at + 12:
+        return None
+    mask = int.from_bytes(blob[at + 2 : at + 2 + width], "little")
+    type_index = blob[at + 2 + width]
+    cursor.pos = owner_at
+    return mask, type_index
+
+
+#: Declared type of the text member that holds an asset path.
+_PATH_TEXT = "NormalizedPathA"
+
+
+def _is_path_type(item: PrefabType) -> bool:
+    """A pointee type the walk reads as a recovered path: one text member."""
+    return len(item.members) == 1 and item.members[0].flags == KIND_STRING
+
+
+def _read_pointer(
+    cursor: _BlobCursor,
+    into: _Collected,
+    member_name: str = "",
+    group_reader=None,
+    flags: int = KIND_OBJECT,
+) -> None:
     """Consume a pointer record and its inline pointee.
 
     Records are closed by a short footer whose width follows the component
     family (7 bytes for SkinnedMeshComponent, 6 for MeshComponent), so the
     cursor resynchronises onto the next pointer rather than assuming a width.
+
+    When the header states a pointee type that is not a path (a spline
+    component's ``_splineObject`` is a whole ``SplineObject3D``), its members
+    are read by that type's mask, exactly as a group's are. The pointee's
+    closing length field then checks the reading: a wrong layout cannot land
+    on a u32 equal to its own distance from the pointee start except by
+    coincidence.
     """
-    for _ in range(_FOOTER_SEARCH):
-        if cursor.at_pointer():
+    stated = _pointee_header(cursor, flags) if cursor.stated_layouts else None
+    # The closing length fields of the objects just read come first, as they
+    # do before a collection header; three deep they outrun the footer search.
+    # So do the owner's unselected lists, each the single byte 01 (see
+    # _skip_unselected): an AudioComponent reaches _audioEvent past three.
+    mark = cursor.pos
+    for _ in range(_FOOTER_SEARCH * 4 if cursor.stated_layouts else 0):
+        if stated is not None:
             break
-        cursor.take(1)
+        if cursor.at_length_field():
+            cursor.take(4)
+        elif cursor.blob[cursor.pos:cursor.pos + 1] == b"\x01":
+            cursor.take(1)
+        else:
+            break
+        stated = _pointee_header(cursor, flags)
+    if stated is None:
+        cursor.pos = mark
+    elif cursor.pos - mark >= _FOOTER_SEARCH:
+        # An owner field further than the earlier reading's search reaches.
+        cursor.departed = True
+    pointee_type: PrefabType | None = None
+    if stated is not None:
+        mask, type_index = stated
+        declared_types = cursor.type_table
+        if 0 <= type_index < len(declared_types):
+            candidate = declared_types[type_index]
+            if not _is_path_type(candidate) and mask.bit_length() <= len(candidate.members):
+                pointee_type = candidate
+                cursor.departed = True
     else:
-        raise PrefabBinaryError(f"no pointer record near 0x{cursor.pos:x}")
+        for _ in range(_FOOTER_SEARCH):
+            if cursor.at_pointer():
+                break
+            cursor.take(1)
+        else:
+            raise PrefabBinaryError(f"no pointer record near 0x{cursor.pos:x}")
     cursor.take(8)  # owner
     site = cursor.base + cursor.pos
     target = cursor.u32()
@@ -665,6 +767,43 @@ def _read_pointer(cursor: _BlobCursor, into: _Collected, member_name: str = "") 
     start = cursor.pos
     if cursor.u32() != 0:
         raise PrefabBinaryError(f"unexpected pointee header at 0x{start:x}")
+    if pointee_type is not None:
+        mask = stated[0]
+        # A pointee holding nothing but one string is what the path reading
+        # took for a path, and recorded as a resource (a DecalComponent's
+        # _decalInfo with only _textureFilename set, a .dds). Keep it one.
+        lone_string = mask.bit_count() == 1 and pointee_type.members[mask.bit_length() - 1].flags == KIND_STRING
+        for index, member in enumerate(pointee_type.members):
+            if not (mask >> index) & 1:
+                _skip_unselected(cursor, member)
+            elif member.flags == KIND_STRING and (member.type_name == _PATH_TEXT or lone_string):
+                # A path, recorded as the path reading records one: a
+                # ResourceReferencePath_SkinnedMesh carries _isFacialBlendShape
+                # after its _path, so it reads here, and its path must stay a
+                # resource the rewriter and the asset checks can see.
+                recovered = cursor.text()
+                into.resources.append(recovered)
+                into.ordered.append((member_name, recovered))
+            else:
+                _read_member(cursor, member, into, group_reader, pointee_type.type_name)
+        # Groups nested inside close with their own length fields, which the
+        # walk leaves unread. Each names its own pointee, so none can be
+        # mistaken for this one's.
+        while (
+            cursor.pos + 4 <= len(cursor.blob)
+            and struct.unpack_from("<I", cursor.blob, cursor.pos)[0] != cursor.pos - start
+            and cursor.at_length_field()
+        ):
+            cursor.take(4)
+        field_at = cursor.base + cursor.pos
+        declared = cursor.u32()
+        actual = cursor.pos - start - 4
+        if declared != actual:
+            raise PrefabBinaryError(
+                f"{pointee_type.type_name} pointee length {declared} != {actual}"
+            )
+        cursor.pointee_fields[site] = field_at
+        return
     # A populated pointee carries a length-prefixed path. The trailing length
     # equals the bytes consumed since ``start``, which disambiguates an empty
     # pointee from a path whose length happens to match.
@@ -803,7 +942,28 @@ def _read_member(
             into.ordered.append((member.name, recovered))
         return
     if flags == KIND_INLINE_12 and member.attr_flags & 0x1000:
-        count = _motion_array_count(cursor) if cursor.plain_counts else cursor.u32()
+        if cursor.plain_counts:
+            count = _motion_array_count(cursor)
+        elif not cursor.stated_layouts:
+            count = cursor.u32()
+        else:
+            cursor.departed = True
+            # Laid out like an object collection's header: the closing length
+            # fields of whatever group came before, then a kind byte -- 0 and
+            # a u32 count, or 1 alone for an empty array, as in a motion file.
+            # ``MeshGroupInfo._transforms`` reads 199 transforms where a bare
+            # u32 read 50,944, and an empty ``SplineObject3D._linkPosition``
+            # is the single byte 01 before its object's length field.
+            while cursor.blob[cursor.pos:cursor.pos + 1] not in (b"\x00", b"\x01") and cursor.at_length_field():
+                cursor.take(4)
+            kind = cursor.take(1)[0]
+            if kind == 1:
+                return
+            if kind != 0:
+                raise PrefabBinaryError(
+                    f"numeric array {member.name} opens with kind {kind}, not 0 or 1"
+                )
+            count = cursor.u32()
         if count > _MAX_COUNT or member.value_size <= 0:
             raise PrefabBinaryError(f"invalid numeric array {member.name}: {count} elements")
         start = cursor.pos
@@ -829,7 +989,7 @@ def _read_member(
         into.ordered.append((member.name, recovered))
         return
     if flags in POINTER_KINDS:
-        _read_pointer(cursor, into, member.name)
+        _read_pointer(cursor, into, member.name, group_reader, flags)
         return
     if flags == KIND_COLLECTION:
         # The closing length fields of the group just read (a socket list's last
@@ -889,6 +1049,84 @@ def _read_member(
     raise PrefabBinaryError(f"unsupported member kind 0x{flags:04x} on {member.name}")
 
 
+#: Members serialised even when their mask bit is clear: a list kind with the
+#: list attribute and without attribute bit 0x2. Unselected, each is the single
+#: byte 01, the empty form a motion file's arrays use.
+_LIST_KINDS = frozenset({KIND_COLLECTION, KIND_INLINE_12, KIND_STRING_COLLECTION, KIND_OBJECT_COLLECTION})
+
+
+def _skip_unselected(cursor: _BlobCursor, member: PrefabMember) -> None:
+    """Consume the empty marker an unselected list member leaves in a pointee.
+
+    A pointee's member loop has to account for every byte up to its closing
+    length field, so an unselected ``_linkPosition`` or ``_audioSwitchList``
+    cannot be left for a header search to skip, as a group's are. Measured on
+    the shipped prefabs: every unselected member with attribute 0x1000, a list
+    kind and no attribute 0x2 is the byte 01 once the closing length fields of
+    the previous member's objects are consumed -- in groups as well as
+    pointees, wherever a walk completes reading it strictly. Groups are left
+    alone here because their element offsets are what existing edits key on,
+    and the header search already steps over the byte there.
+    """
+    if cursor.plain_counts or not member.attr_flags & 0x1000:
+        return
+    if member.flags not in _LIST_KINDS or member.attr_flags & 0x2:
+        return
+    while cursor.blob[cursor.pos:cursor.pos + 1] != b"\x01" and cursor.at_length_field():
+        cursor.take(4)
+    if cursor.blob[cursor.pos:cursor.pos + 1] != b"\x01":
+        raise PrefabBinaryError(f"unselected {member.name} is not empty at 0x{cursor.pos:x}")
+    cursor.take(1)
+
+
+def _memberless(cursor: _BlobCursor, probe: int) -> bool:
+    """Is ``probe`` a width-0 header (``00 00 type 00 00``) naming a memberless type?
+
+    ``SceneObjectActorInfoContainer`` declares no members, so its mask has no
+    bytes: a ``GameDataComponent._customGameData`` element opens
+    ``00 00 08 00 00`` and then its owner field.
+    """
+    if probe + 5 > len(cursor.blob):
+        return False
+    type_index = cursor.blob[probe + 2]
+    table = cursor.type_table
+    return 0 <= type_index < len(table) and not table[type_index].members
+
+
+def _header_fits(cursor: _BlobCursor, probe: int, width: int) -> bool:
+    """Does the header at ``probe`` state a declared type wide enough for its mask?"""
+    mask = int.from_bytes(cursor.blob[probe + 2 : probe + 2 + width], "little")
+    type_index = cursor.blob[probe + 2 + width]
+    table = cursor.type_table
+    return 0 <= type_index < len(table) and mask.bit_length() <= len(table[type_index].members)
+
+
+def _narrower_header(cursor: _BlobCursor, probe: int, width: int, owner_at: int) -> tuple[int, int]:
+    """Prefer a narrower header that ends at the same owner field, if only it fits.
+
+    Scanning forward, a wide reading can start inside the length field that
+    closes the previous element: ``65 04 00 00 01 00 07 03 00 00`` reads as
+    width 4 (``04 00``) with mask 0x07000100 before the real width-1 header
+    (``01 00``, mask 0x07, type 3) three bytes on. Both reach the same owner,
+    so the pointer check cannot choose; the stated type can. Only when the
+    first reading does not fit its own stated type and a narrower one does is
+    the narrower one taken, so a header that already fits is never moved.
+    """
+    if _header_fits(cursor, probe, width):
+        return probe, width
+    for narrower in range(width - 1, 0, -1):
+        candidate = owner_at - 5 - narrower
+        if candidate < cursor.pos:
+            break
+        if struct.unpack_from("<H", cursor.blob, candidate)[0] != narrower:
+            continue
+        if cursor.blob[owner_at - 2 : owner_at] != b"\x00\x00":
+            continue
+        if _header_fits(cursor, candidate, narrower):
+            return candidate, narrower
+    return probe, width
+
+
 def _find_element_header(cursor: _BlobCursor, indexed: bool = False) -> tuple[int, int]:
     """Locate the element header and return ``(mask, componentTypeIndex)``.
 
@@ -914,8 +1152,11 @@ def _find_element_header(cursor: _BlobCursor, indexed: bool = False) -> tuple[in
         width = struct.unpack_from("<H", cursor.blob, probe)[0]
         # Widths 1, 2 and 3 occur; 4 would be a component with more than 24
         # members. Wider values add no coverage and only widen the chance of a
-        # false match.
-        if width not in (1, 2, 3, 4):
+        # false match. Width 0 is a type with no members at all, and is only
+        # believed when the type it states has none.
+        if width not in (1, 2, 3, 4) and not (
+            width == 0 and cursor.stated_layouts and _memberless(cursor, probe)
+        ):
             continue
         owner_at = probe + 2 + width + 3
         # An indexed list element carries its u32 index between the owner
@@ -930,6 +1171,11 @@ def _find_element_header(cursor: _BlobCursor, indexed: bool = False) -> tuple[in
             continue
         if struct.unpack_from("<I", cursor.blob, owner_at + 8 + skip_index)[0] != cursor.base + owner_at + 12 + skip_index:
             continue
+        if cursor.stated_layouts:
+            moved = _narrower_header(cursor, probe, width, owner_at)
+            if moved != (probe, width) or width == 0:
+                cursor.departed = True
+            probe, width = moved
         cursor.pos = probe
         cursor.u16()
         mask = int.from_bytes(cursor.take(width), "little")
@@ -1091,11 +1337,12 @@ def _walk_blob(
     all_types: Sequence[PrefabType] = (),
     wide_on_multiples: bool = False,
     revision: int = 14,
+    stated_layouts: bool = True,
 ) -> tuple[tuple[str, ...], list[PrefabObject], bool, str, _Collected, "_BlobCursor"]:
     """Walk the heap. The cursor comes back too: it carries the pointee length
     fields, the stop offset and the collection spans, and returning it beats
     growing the tuple a field at a time."""
-    cursor = _BlobCursor(blob, base, all_types, wide_on_multiples, revision)
+    cursor = _BlobCursor(blob, base, all_types, wide_on_multiples, revision, stated_layouts)
     objects: list[PrefabObject] = []
     if cursor.plain_counts:
         width = cursor.u16()
@@ -1218,25 +1465,65 @@ def decode_prefab_binary(data: bytes) -> PrefabDocument:
     header where the wide form costs 5,234 bytes of walk. It keeps its narrow
     reading because the retry is worse, not because the rule was weakened.
     """
-    document = _decode_prefab(data, wide_on_multiples=False)
-    if not over_declared(document):
+    document, departed = _decode_with_width_retry(data, stated_layouts=True)
+    if not departed:
         return document
+    # The stated-layout rules (pointees read by their stated type, numeric
+    # arrays by their kind byte, memberless and narrower element headers)
+    # complete about 10,800 more of the 53,429 shipped prefabs. Where they
+    # changed anything, the earlier reading is taken as well and kept when it
+    # is the better of the two: when only it completes (21 files, nested
+    # prefab instances whose memberless SceneObjectActorInfoContainer elements
+    # leave a child outside the collection count once read), or when both
+    # complete and the new one leaves more collections over-declared or drops
+    # a pointee length field the earlier one recorded (15 files). A file this
+    # decoder could edit before keeps the reading it was edited by unless the
+    # new one is at least as consistent.
+    earlier, _ = _decode_with_width_retry(data, stated_layouts=False)
+    if not earlier.walk_complete:
+        return document
+    if not document.walk_complete:
+        return earlier
+    if over_declared(document) > over_declared(earlier):
+        return earlier
+    if not set(earlier.pointee_length_fields) <= set(document.pointee_length_fields):
+        return earlier
+    return document
+
+
+def _decode_with_width_retry(data: bytes, *, stated_layouts: bool) -> tuple[PrefabDocument, bool]:
+    """One layout policy, with the wide collection-header retry described above.
+
+    Also says whether a stated-layout rule changed what was read.
+    """
+    document, departed = _read_prefab(data, wide_on_multiples=False, stated_layouts=stated_layouts)
+    if not over_declared(document):
+        return document, departed
     if not any(
         item.count and item.count % 256 == 0
         for item in document.collections
         if len(item.elements) != item.count
     ):
-        return document
+        return document, departed
     try:
-        alternate = _decode_prefab(data, wide_on_multiples=True)
+        alternate, wide_departed = _read_prefab(data, wide_on_multiples=True, stated_layouts=stated_layouts)
     except PrefabBinaryError:
-        return document
+        return document, departed
     if alternate.walk_complete and over_declared(alternate) < over_declared(document):
-        return alternate
-    return document
+        return alternate, departed or wide_departed
+    return document, departed or wide_departed
 
 
-def _decode_prefab(data: bytes, *, wide_on_multiples: bool = False) -> PrefabDocument:
+def _decode_prefab(
+    data: bytes, *, wide_on_multiples: bool = False, stated_layouts: bool = True
+) -> PrefabDocument:
+    """One reading of a payload; see :func:`_read_prefab`."""
+    return _read_prefab(data, wide_on_multiples=wide_on_multiples, stated_layouts=stated_layouts)[0]
+
+
+def _read_prefab(
+    data: bytes, *, wide_on_multiples: bool = False, stated_layouts: bool = True
+) -> tuple[PrefabDocument, bool]:
     """One reading of a payload, at a fixed collection-header width policy.
 
     The type table, string pool and data header are always parsed; a failure
@@ -1261,7 +1548,14 @@ def _decode_prefab(data: bytes, *, wide_on_multiples: bool = False) -> PrefabDoc
         and not item.is_nested_prefab
     ]
     selected, objects, complete, note, root_values, cursor = _walk_blob(
-        blob, header.blob_offset, root, tuple(components), header.types, wide_on_multiples, header.revision
+        blob,
+        header.blob_offset,
+        root,
+        tuple(components),
+        header.types,
+        wide_on_multiples,
+        header.revision,
+        stated_layouts,
     )
     pointers = tuple(
         PrefabPointer(
@@ -1292,4 +1586,4 @@ def _decode_prefab(data: bytes, *, wide_on_multiples: bool = False) -> PrefabDoc
         pointee_length_fields=tuple(sorted(cursor.pointee_fields.items())),
         walk_stop_offset=cursor.stopped_at,
         collections=tuple(cursor.collections),
-    )
+    ), cursor.departed
