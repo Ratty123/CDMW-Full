@@ -164,7 +164,7 @@ def wem_stream_detail_lines(info: WemStreamInfo) -> list[str]:
         lines.append(f"Marker at {_seconds(marker.position, info.sample_rate)}" + (f": {marker.label}" if marker.label else ""))
     if info.codec != "PCM":
         lines.append(
-            "Patch Audio To Game writes uncompressed PCM with this stream's channel count and sample rate; "
+            "Import WAV as Loose Mod writes uncompressed PCM with this stream's channel count and sample rate; "
             f"it does not re-encode Wwise {info.codec}."
         )
     return lines

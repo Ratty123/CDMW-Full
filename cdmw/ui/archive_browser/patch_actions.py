@@ -9,9 +9,12 @@ from PySide6.QtCore import QTimer
 from PySide6.QtWidgets import QFileDialog, QMessageBox
 
 from cdmw.domain.archives.format import is_material_sidecar_extension as _is_material_sidecar_extension
+from cdmw.domain.archives.mesh_contracts import ArchiveLooseExportResult
+from cdmw.domain.cancellation import raise_if_cancelled
 from cdmw.services.archive_workflow_service import (
     build_archive_audio_patch_payload,
     export_archive_audio_as_wav,
+    export_archive_payloads_to_mod_ready_loose,
 )
 from cdmw.models import ArchiveEntry
 from cdmw.services.archive_mutation_service import ArchivePatchRequest, ArchivePatchResult
@@ -91,6 +94,9 @@ class ArchivePatchActionsMixin:
         )
 
     def _start_archive_audio_patch(self, entry: ArchiveEntry) -> None:
+        # The game refuses rewritten archive indexes and mount lists since the DLC
+        # update, so replacement audio is written as a loose mod for DMM instead of
+        # being patched into the installed archives.
         source_path, _selected = QFileDialog.getOpenFileName(
             self,
             "Select Replacement Audio",
@@ -99,59 +105,57 @@ class ArchivePatchActionsMixin:
         )
         if not source_path:
             return
-
-        warning_text = "A backup of the touched archive files will be created before anything is written."
         if entry.extension == ".wem":
-            warning_text += (
-                "\n\nWEM patching is best-effort: this rebuilds a simple replacement stream from the selected "
+            QMessageBox.information(
+                self,
+                "Audio Loose Mod",
+                "WEM replacement is best-effort: this rebuilds a simple replacement stream from the selected "
                 "audio, not a full Wwise-authoring rebuild. Some original Wwise codec/container variants may "
-                "not behave the same in-game."
+                "not behave the same in-game.",
             )
-        confirmation = QMessageBox.question(
-            self,
-            "Patch Audio To Game",
-            (
-                f"Patch {entry.path} using {Path(source_path).name}?\n\n"
-                f"{warning_text}"
-            ),
-            QMessageBox.Yes | QMessageBox.No,
-            QMessageBox.No,
+        loose_export_settings = self._collect_archive_mod_ready_export_target(
+            browse_title="Select Audio Mod-Ready Export Parent Root",
+            prompt_for_metadata=True,
+            initial_include_related_files=False,
+            show_include_related_files_option=False,
+            dialog_title="Audio Loose Mod Metadata",
+            allow_dmm_texture_structure=False,
         )
-        if confirmation != QMessageBox.Yes:
+        if loose_export_settings is None:
             return
-
-        mutation_service = self.shell.app_context.services.require_archive_mutations()
+        parent_root, package_info, create_no_encrypt_file, _include_related_files, export_options = loose_export_settings
 
         def _task(
             log: Callable[[str], None],
             stop_event: threading.Event,
-        ) -> ArchivePatchResult:
+        ) -> ArchiveLooseExportResult:
             log(f"Preparing replacement audio for {entry.path}...")
             replacement_payload = build_archive_audio_patch_payload(entry, Path(source_path))
-            plan = mutation_service.prepare_patch(
-                ArchivePatchRequest(entry=entry, payload_data=replacement_payload),
-                confirmed=True,
-                description=f"Patch audio entry {entry.path}",
+            raise_if_cancelled(stop_event, "Audio loose mod export cancelled.")
+            return export_archive_payloads_to_mod_ready_loose(
+                [ArchivePatchRequest(entry=entry, payload_data=replacement_payload)],
+                parent_root=parent_root,
+                package_info=package_info,
+                export_options=export_options,
+                create_no_encrypt_file=create_no_encrypt_file,
+                on_log=log,
             )
-            return mutation_service.apply_patch(plan, on_log=log, stop_event=stop_event)
 
         def _handle_complete(result: object) -> None:
-            if not isinstance(result, ArchivePatchResult):
-                self.shell.set_status_message("Audio patch finished with an unexpected result payload.", error=True)
+            if not isinstance(result, ArchiveLooseExportResult):
+                self.shell.set_status_message("Audio loose mod export finished with an unexpected result payload.", error=True)
                 return
-            self._apply_archive_patch_result(result)
-            current_entry = self._current_archive_entry()
-            if current_entry is not None and current_entry.path == entry.path:
-                self._render_archive_preview(current_entry)
             QMessageBox.information(
                 self,
-                "Audio Patch Complete",
-                f"Patched {entry.path}\n\nBackup: {result.backup_dir}",
+                "Audio Loose Mod Written",
+                f"Wrote replacement audio loose mod package:\n{result.package_root}\n\n"
+                f"Target entry:\n{entry.path}\n\n"
+                "The installed game archives were not modified. Load the package with DMM.",
             )
-            self.shell.set_status_message(f"Patched audio entry {entry.basename}.")
+            self.shell.set_status_message(f"Wrote replacement audio for {entry.basename} as a mod-ready loose package.")
 
         self.shell._run_utility_task(
-            status_message=f"Patching audio for {entry.basename}...",
+            status_message=f"Writing replacement audio for {entry.basename}...",
             task=_task,
             on_complete=_handle_complete,
             show_archive_progress=True,
