@@ -24760,14 +24760,6 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "independent",
-    "message": "A file with the runtime name is not owned by this setup. It will not be overwritten.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/virtual_loader_runtime.py": 622
-    }
-  },
-  {
-    "area": "independent",
     "message": "A game or mod source changed: {path}. Apply changes again.",
     "recovery": "stale",
     "sources": {
@@ -25596,7 +25588,7 @@ MESSAGE_REFERENCE = [
     "message": "Close Crimson Desert before changing its runtime setup.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/virtual_loader_runtime.py": 633
+      "cdmw/services/virtual_loader_runtime.py": 635
     }
   },
   {
@@ -26653,7 +26645,7 @@ MESSAGE_REFERENCE = [
     "message": "Loader setup cancelled. Apply or launch to try again.",
     "recovery": "cancelled",
     "sources": {
-      "cdmw/ui/new_item/virtual_loader_page.py": 432
+      "cdmw/ui/new_item/virtual_loader_page.py": 444
     }
   },
   {
@@ -27013,7 +27005,7 @@ MESSAGE_REFERENCE = [
     "message": "Runtime setup requires review of its exact target and checksum.",
     "recovery": "integrity",
     "sources": {
-      "cdmw/services/virtual_loader_runtime.py": 630
+      "cdmw/services/virtual_loader_runtime.py": 632
     }
   },
   {
@@ -28191,7 +28183,7 @@ MESSAGE_REFERENCE = [
     "message": "The runtime setup changed after review.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/virtual_loader_runtime.py": 635
+      "cdmw/services/virtual_loader_runtime.py": 637
     }
   },
   {
@@ -29495,6 +29487,14 @@ MESSAGE_REFERENCE = [
     }
   },
   {
+    "area": "independent",
+    "message": "{target(root, RUNTIME_PATH)} was not installed by CDMW, so it is left alone. Remove or rename it, then choose Apply changes again.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/services/virtual_loader_runtime.py": 622
+    }
+  },
+  {
     "area": "items",
     "message": "'I' format requires 0 <= number <= 4294967295",
     "recovery": "input",
@@ -30231,7 +30231,7 @@ MESSAGE_REFERENCE = [
     "message": "Change cancelled. The installed overlays are unchanged.",
     "recovery": "cancelled",
     "sources": {
-      "cdmw/ui/new_item/overlay_manager_dialog.py": 486
+      "cdmw/ui/new_item/overlay_manager_dialog.py": 488
     }
   },
   {
@@ -32429,7 +32429,7 @@ MESSAGE_REFERENCE = [
     "message": "Operation finished or cancelled. Refresh to read the installed state.",
     "recovery": "cancelled",
     "sources": {
-      "cdmw/ui/new_item/overlay_manager_dialog.py": 525
+      "cdmw/ui/new_item/overlay_manager_dialog.py": 527
     }
   },
   {
@@ -32959,7 +32959,7 @@ MESSAGE_REFERENCE = [
     "message": "Starting fresh cancelled. The saved overlay set is unchanged.",
     "recovery": "cancelled",
     "sources": {
-      "cdmw/ui/new_item/overlay_manager_dialog.py": 458
+      "cdmw/ui/new_item/overlay_manager_dialog.py": 460
     }
   },
   {
@@ -87662,7 +87662,7 @@ MESSAGE_REFERENCE = [
     "message": "Choose the installed Crimson Desert game folder.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mod_management_inventory.py": 44
+      "cdmw/services/mod_management_inventory.py": 47
     }
   },
   {
@@ -87767,7 +87767,7 @@ MESSAGE_REFERENCE = [
     "message": "Crimson Desert is already running.",
     "recovery": "locked",
     "sources": {
-      "cdmw/services/mod_management_inventory.py": 41
+      "cdmw/services/mod_management_inventory.py": 44
     }
   },
   {
@@ -88568,7 +88568,7 @@ MESSAGE_REFERENCE = [
     "message": "The saved profile changed. Refresh the mod list before launching.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mod_management_inventory.py": 39
+      "cdmw/services/mod_management_inventory.py": 42
     }
   },
   {

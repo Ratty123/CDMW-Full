@@ -91,12 +91,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/virtual_loader_page.py",
-          "line": 548,
+          "line": 560,
           "sink": "question"
         },
         {
           "path": "cdmw/ui/new_item/virtual_loader_page.py",
-          "line": 562,
+          "line": 574,
           "sink": "question"
         }
       ]
@@ -6496,7 +6496,7 @@
         },
         {
           "path": "cdmw/ui/new_item/virtual_loader_page.py",
-          "line": 258,
+          "line": 263,
           "sink": "tr"
         }
       ]
@@ -6521,7 +6521,7 @@
         },
         {
           "path": "cdmw/ui/new_item/virtual_loader_page.py",
-          "line": 263,
+          "line": 268,
           "sink": "tr"
         }
       ]
@@ -10396,7 +10396,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_management_list.py",
-          "line": 245,
+          "line": 248,
           "sink": "tr"
         }
       ]
@@ -11136,22 +11136,22 @@
         },
         {
           "path": "cdmw/ui/new_item/virtual_loader_page.py",
-          "line": 238,
+          "line": 243,
           "sink": "tr"
         },
         {
           "path": "cdmw/ui/new_item/virtual_loader_page.py",
-          "line": 399,
+          "line": 411,
           "sink": "tr"
         },
         {
           "path": "cdmw/ui/tools/mod_management_list.py",
-          "line": 125,
+          "line": 126,
           "sink": "tr"
         },
         {
           "path": "cdmw/ui/tools/mod_management_list.py",
-          "line": 240,
+          "line": 243,
           "sink": "tr"
         }
       ]
@@ -13301,12 +13301,12 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_management_list.py",
-          "line": 153,
+          "line": 154,
           "sink": "tr"
         },
         {
           "path": "cdmw/ui/tools/mod_management_list.py",
-          "line": 159,
+          "line": 160,
           "sink": "tr"
         }
       ]
@@ -14826,7 +14826,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_management_list.py",
-          "line": 349,
+          "line": 352,
           "sink": "tr"
         }
       ]
@@ -16986,7 +16986,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/overlay_manager_dialog.py",
-          "line": 469,
+          "line": 471,
           "sink": "_run"
         }
       ]
@@ -17061,7 +17061,7 @@
         },
         {
           "path": "cdmw/ui/new_item/virtual_loader_page.py",
-          "line": 466,
+          "line": 478,
           "sink": "tr"
         }
       ]
@@ -21861,7 +21861,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_management_list.py",
-          "line": 244,
+          "line": 247,
           "sink": "tr"
         }
       ]
@@ -22026,7 +22026,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/virtual_loader_page.py",
-          "line": 564,
+          "line": 576,
           "sink": "tr"
         }
       ]
@@ -23596,7 +23596,7 @@
         },
         {
           "path": "cdmw/ui/new_item/virtual_loader_page.py",
-          "line": 484,
+          "line": 496,
           "sink": "tr"
         }
       ]
@@ -24591,7 +24591,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/overlay_manager_dialog.py",
-          "line": 486,
+          "line": 488,
           "sink": "setText"
         }
       ]
@@ -26176,12 +26176,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/overlay_manager_dialog.py",
-          "line": 428,
+          "line": 430,
           "sink": "_run"
         },
         {
           "path": "cdmw/ui/tools/mod_management_list.py",
-          "line": 328,
+          "line": 331,
           "sink": "tr"
         }
       ]
@@ -26471,7 +26471,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/overlay_manager_dialog.py",
-          "line": 446,
+          "line": 448,
           "sink": "_run"
         }
       ]
@@ -26506,17 +26506,17 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/virtual_loader_page.py",
-          "line": 420,
+          "line": 432,
           "sink": "tr"
         },
         {
           "path": "cdmw/ui/new_item/virtual_loader_page.py",
-          "line": 438,
+          "line": 450,
           "sink": "tr"
         },
         {
           "path": "cdmw/ui/tools/mod_management_list.py",
-          "line": 377,
+          "line": 380,
           "sink": "tr"
         }
       ]
@@ -29356,7 +29356,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/overlay_manager_dialog.py",
-          "line": 342,
+          "line": 344,
           "sink": "setText"
         }
       ]
@@ -29386,7 +29386,7 @@
       "origins": [
         {
           "path": "cdmw/services/mod_management_inventory.py",
-          "line": 44,
+          "line": 47,
           "sink": "ValueError"
         },
         {
@@ -33151,7 +33151,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/overlay_manager_dialog.py",
-          "line": 434,
+          "line": 436,
           "sink": "_run"
         }
       ]
@@ -34306,7 +34306,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_management_list.py",
-          "line": 350,
+          "line": 353,
           "sink": "tr"
         }
       ]
@@ -37591,7 +37591,7 @@
       "origins": [
         {
           "path": "cdmw/services/mod_management_inventory.py",
-          "line": 41,
+          "line": 44,
           "sink": "ValueError"
         }
       ]
@@ -42181,7 +42181,7 @@
         },
         {
           "path": "cdmw/ui/new_item/overlay_manager_dialog.py",
-          "line": 391,
+          "line": 393,
           "sink": "tr"
         },
         {
@@ -42216,12 +42216,12 @@
         },
         {
           "path": "cdmw/ui/tools/mod_management_list.py",
-          "line": 146,
+          "line": 147,
           "sink": "tr"
         },
         {
           "path": "cdmw/ui/tools/mod_management_list.py",
-          "line": 247,
+          "line": 250,
           "sink": "tr"
         },
         {
@@ -42391,7 +42391,7 @@
         },
         {
           "path": "cdmw/ui/tools/mod_management_list.py",
-          "line": 222,
+          "line": 225,
           "sink": "tr"
         }
       ]
@@ -47446,7 +47446,7 @@
         },
         {
           "path": "cdmw/ui/new_item/overlay_manager_dialog.py",
-          "line": 391,
+          "line": 393,
           "sink": "tr"
         },
         {
@@ -47476,12 +47476,12 @@
         },
         {
           "path": "cdmw/ui/tools/mod_management_list.py",
-          "line": 146,
+          "line": 147,
           "sink": "tr"
         },
         {
           "path": "cdmw/ui/tools/mod_management_list.py",
-          "line": 159,
+          "line": 160,
           "sink": "tr"
         },
         {
@@ -47546,7 +47546,7 @@
         },
         {
           "path": "cdmw/ui/tools/mod_management_list.py",
-          "line": 222,
+          "line": 225,
           "sink": "tr"
         }
       ]
@@ -49556,7 +49556,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_management_list.py",
-          "line": 250,
+          "line": 253,
           "sink": "tr"
         }
       ]
@@ -52291,7 +52291,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_management_list.py",
-          "line": 159,
+          "line": 160,
           "sink": "tr"
         }
       ]
@@ -57821,7 +57821,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_management_list.py",
-          "line": 349,
+          "line": 352,
           "sink": "tr"
         }
       ]
@@ -58766,7 +58766,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_management_list.py",
-          "line": 153,
+          "line": 154,
           "sink": "tr"
         },
         {
@@ -59081,7 +59081,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_management_list.py",
-          "line": 455,
+          "line": 458,
           "sink": "tr"
         }
       ]
@@ -68336,7 +68336,7 @@
         },
         {
           "path": "cdmw/ui/new_item/virtual_loader_page.py",
-          "line": 258,
+          "line": 263,
           "sink": "tr"
         }
       ]
@@ -69511,7 +69511,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/virtual_loader_page.py",
-          "line": 426,
+          "line": 438,
           "sink": "tr"
         }
       ]
@@ -72336,12 +72336,12 @@
         },
         {
           "path": "cdmw/ui/new_item/virtual_loader_page.py",
-          "line": 247,
+          "line": 252,
           "sink": "tr"
         },
         {
           "path": "cdmw/ui/tools/mod_management_list.py",
-          "line": 153,
+          "line": 154,
           "sink": "tr"
         }
       ]
@@ -73196,7 +73196,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_management_list.py",
-          "line": 223,
+          "line": 226,
           "sink": "tr"
         }
       ]
@@ -76697,21 +76697,11 @@
       ]
     },
     {
-      "key": "Loader details",
-      "origins": [
-        {
-          "path": "cdmw/ui/tools/mod_management_list.py",
-          "line": 86,
-          "sink": "tr"
-        }
-      ]
-    },
-    {
       "key": "Loader setup cancelled. Apply or launch to try again.",
       "origins": [
         {
           "path": "cdmw/ui/new_item/virtual_loader_page.py",
-          "line": 432,
+          "line": 444,
           "sink": "tr"
         }
       ]
@@ -78556,12 +78546,12 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_management_list.py",
-          "line": 160,
+          "line": 161,
           "sink": "tr"
         },
         {
           "path": "cdmw/ui/tools/mod_management_list.py",
-          "line": 225,
+          "line": 228,
           "sink": "tr"
         }
       ]
@@ -84896,12 +84886,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/overlay_manager_dialog.py",
-          "line": 392,
+          "line": 394,
           "sink": "tr"
         },
         {
           "path": "cdmw/ui/tools/mod_management_list.py",
-          "line": 147,
+          "line": 148,
           "sink": "tr"
         },
         {
@@ -85411,7 +85401,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_management_list.py",
-          "line": 341,
+          "line": 344,
           "sink": "tr"
         }
       ]
@@ -85431,7 +85421,7 @@
         },
         {
           "path": "cdmw/ui/new_item/virtual_loader_page.py",
-          "line": 247,
+          "line": 252,
           "sink": "tr"
         },
         {
@@ -89841,7 +89831,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/overlay_manager_dialog.py",
-          "line": 389,
+          "line": 391,
           "sink": "tr"
         }
       ]
@@ -89851,27 +89841,27 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/overlay_manager_dialog.py",
-          "line": 392,
+          "line": 394,
           "sink": "tr"
         },
         {
           "path": "cdmw/ui/tools/mod_management_list.py",
-          "line": 148,
+          "line": 149,
           "sink": "tr"
         },
         {
           "path": "cdmw/ui/tools/mod_management_list.py",
-          "line": 148,
+          "line": 149,
           "sink": "tr"
         },
         {
           "path": "cdmw/ui/tools/mod_management_list.py",
-          "line": 150,
+          "line": 151,
           "sink": "tr"
         },
         {
           "path": "cdmw/ui/tools/mod_management_list.py",
-          "line": 245,
+          "line": 248,
           "sink": "tr"
         },
         {
@@ -90591,7 +90581,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/overlay_manager_dialog.py",
-          "line": 410,
+          "line": 412,
           "sink": "setText"
         }
       ]
@@ -95591,17 +95581,17 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/overlay_manager_dialog.py",
-          "line": 390,
+          "line": 392,
           "sink": "tr"
         },
         {
           "path": "cdmw/ui/new_item/overlay_manager_dialog.py",
-          "line": 391,
+          "line": 393,
           "sink": "tr"
         },
         {
           "path": "cdmw/ui/tools/mod_management_list.py",
-          "line": 147,
+          "line": 148,
           "sink": "tr"
         }
       ]
@@ -99891,7 +99881,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/overlay_manager_dialog.py",
-          "line": 525,
+          "line": 527,
           "sink": "setText"
         }
       ]
@@ -101816,7 +101806,7 @@
         },
         {
           "path": "cdmw/services/archive_overlay_package_service.py",
-          "line": 134,
+          "line": 137,
           "sink": "raise_if_cancelled"
         }
       ]
@@ -103186,7 +103176,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_management_list.py",
-          "line": 348,
+          "line": 351,
           "sink": "tr"
         }
       ]
@@ -105841,12 +105831,12 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_management_list.py",
-          "line": 245,
+          "line": 248,
           "sink": "tr"
         },
         {
           "path": "cdmw/ui/tools/mod_management_list.py",
-          "line": 247,
+          "line": 250,
           "sink": "tr"
         },
         {
@@ -108831,7 +108821,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/virtual_loader_page.py",
-          "line": 494,
+          "line": 506,
           "sink": "tr"
         }
       ]
@@ -109711,7 +109701,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/virtual_loader_page.py",
-          "line": 463,
+          "line": 475,
           "sink": "tr"
         }
       ]
@@ -110056,12 +110046,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/overlay_manager_dialog.py",
-          "line": 442,
+          "line": 444,
           "sink": "_run"
         },
         {
           "path": "cdmw/ui/tools/mod_management_list.py",
-          "line": 312,
+          "line": 315,
           "sink": "tr"
         }
       ]
@@ -110326,7 +110316,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/virtual_loader_page.py",
-          "line": 353,
+          "line": 365,
           "sink": "tr"
         }
       ]
@@ -114486,12 +114476,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/virtual_loader_page.py",
-          "line": 314,
+          "line": 319,
           "sink": "tr"
         },
         {
           "path": "cdmw/ui/tools/mod_management_list.py",
-          "line": 427,
+          "line": 430,
           "sink": "tr"
         }
       ]
@@ -114611,7 +114601,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/virtual_loader_page.py",
-          "line": 372,
+          "line": 384,
           "sink": "tr"
         }
       ]
@@ -117126,7 +117116,7 @@
         },
         {
           "path": "cdmw/ui/new_item/overlay_manager_dialog.py",
-          "line": 348,
+          "line": 350,
           "sink": "setText"
         }
       ]
@@ -117811,7 +117801,7 @@
         },
         {
           "path": "cdmw/ui/tools/mod_management_list.py",
-          "line": 126,
+          "line": 127,
           "sink": "tr"
         }
       ]
@@ -121846,7 +121836,7 @@
         },
         {
           "path": "cdmw/ui/new_item/virtual_loader_page.py",
-          "line": 562,
+          "line": 574,
           "sink": "tr"
         }
       ]
@@ -121991,7 +121981,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/virtual_loader_page.py",
-          "line": 560,
+          "line": 572,
           "sink": "tr"
         }
       ]
@@ -122056,7 +122046,7 @@
         },
         {
           "path": "cdmw/ui/tools/mod_management_list.py",
-          "line": 218,
+          "line": 221,
           "sink": "tr"
         }
       ]
@@ -127891,7 +127881,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/overlay_manager_dialog.py",
-          "line": 451,
+          "line": 453,
           "sink": "question"
         }
       ]
@@ -127911,7 +127901,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/overlay_manager_dialog.py",
-          "line": 472,
+          "line": 474,
           "sink": "setText"
         }
       ]
@@ -128901,7 +128891,7 @@
         },
         {
           "path": "cdmw/ui/tools/mod_management_list.py",
-          "line": 217,
+          "line": 220,
           "sink": "tr"
         }
       ]
@@ -128936,7 +128926,7 @@
         },
         {
           "path": "cdmw/ui/new_item/virtual_loader_page.py",
-          "line": 548,
+          "line": 560,
           "sink": "tr"
         }
       ]
@@ -130636,7 +130626,7 @@
       "origins": [
         {
           "path": "cdmw/services/virtual_loader_runtime.py",
-          "line": 630,
+          "line": 632,
           "sink": "PermissionError"
         }
       ]
@@ -130901,7 +130891,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/overlay_manager_dialog.py",
-          "line": 389,
+          "line": 391,
           "sink": "tr"
         }
       ]
@@ -132036,7 +132026,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/virtual_loader_page.py",
-          "line": 366,
+          "line": 378,
           "sink": "tr"
         }
       ]
@@ -137366,7 +137356,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_management_list.py",
-          "line": 226,
+          "line": 229,
           "sink": "tr"
         }
       ]
@@ -139986,7 +139976,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/virtual_loader_page.py",
-          "line": 428,
+          "line": 440,
           "sink": "tr"
         }
       ]
@@ -147116,7 +147106,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/virtual_loader_page.py",
-          "line": 546,
+          "line": 558,
           "sink": "tr"
         }
       ]
@@ -147171,7 +147161,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/overlay_manager_dialog.py",
-          "line": 451,
+          "line": 453,
           "sink": "question"
         },
         {
@@ -147451,7 +147441,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/overlay_manager_dialog.py",
-          "line": 458,
+          "line": 460,
           "sink": "setText"
         }
       ]
@@ -147521,7 +147511,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_management_list.py",
-          "line": 453,
+          "line": 456,
           "sink": "tr"
         }
       ]
@@ -147541,12 +147531,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/virtual_loader_page.py",
-          "line": 469,
+          "line": 481,
           "sink": "tr"
         },
         {
           "path": "cdmw/ui/new_item/virtual_loader_page.py",
-          "line": 503,
+          "line": 515,
           "sink": "tr"
         }
       ]
@@ -157436,7 +157426,7 @@
       "origins": [
         {
           "path": "cdmw/services/mod_management_inventory.py",
-          "line": 39,
+          "line": 42,
           "sink": "ValueError"
         }
       ]
@@ -164706,7 +164696,7 @@
         },
         {
           "path": "cdmw/ui/new_item/overlay_manager_dialog.py",
-          "line": 390,
+          "line": 392,
           "sink": "tr"
         },
         {
@@ -166176,7 +166166,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/overlay_manager_dialog.py",
-          "line": 497,
+          "line": 499,
           "sink": "_run"
         }
       ]
@@ -166346,7 +166336,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/virtual_loader_page.py",
-          "line": 439,
+          "line": 451,
           "sink": "tr"
         }
       ]
@@ -170091,7 +170081,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/virtual_loader_page.py",
-          "line": 451,
+          "line": 463,
           "sink": "tr"
         }
       ]
@@ -170988,6 +170978,16 @@
           "path": "cdmw/ui/shell/utility_controller.py",
           "line": 87,
           "sink": "append_log"
+        }
+      ]
+    },
+    {
+      "key": "Waiting for the game archives to finish loading…",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/virtual_loader_page.py",
+          "line": 356,
+          "sink": "tr"
         }
       ]
     },
@@ -174706,7 +174706,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_package_service.py",
-          "line": 141,
+          "line": 144,
           "sink": "on_log"
         }
       ]
@@ -199776,7 +199776,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/overlay_manager_dialog.py",
-          "line": 410,
+          "line": 412,
           "sink": "setText"
         }
       ]
@@ -200651,7 +200651,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_management_list.py",
-          "line": 252,
+          "line": 255,
           "sink": "tr"
         }
       ]
@@ -200896,7 +200896,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/overlay_manager_dialog.py",
-          "line": 480,
+          "line": 482,
           "sink": "question"
         }
       ]
@@ -200916,7 +200916,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/virtual_loader_page.py",
-          "line": 237,
+          "line": 242,
           "sink": "tr"
         }
       ]
@@ -201101,7 +201101,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/overlay_manager_dialog.py",
-          "line": 407,
+          "line": 409,
           "sink": "setText"
         }
       ]
@@ -201356,7 +201356,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_management_list.py",
-          "line": 251,
+          "line": 254,
           "sink": "tr"
         }
       ]
@@ -201911,7 +201911,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/overlay_manager_dialog.py",
-          "line": 501,
+          "line": 503,
           "sink": "setText"
         }
       ]
@@ -201931,7 +201931,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/overlay_manager_dialog.py",
-          "line": 480,
+          "line": 482,
           "sink": "question"
         }
       ]
@@ -203806,7 +203806,7 @@
         },
         {
           "path": "cdmw/ui/new_item/overlay_manager_dialog.py",
-          "line": 399,
+          "line": 401,
           "sink": "setToolTip"
         },
         {
