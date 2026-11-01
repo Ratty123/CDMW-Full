@@ -670,7 +670,7 @@ class AboutDocumentationEnglishMixin:
                   <li>Choose Launch game, or start the game from Steam or DMM. CDMW's runtime in the game's bin64 folder serves the items while the game runs.</li>
                 </ol>
                 <p>Item identities keeps the IDs assigned to each item, so saves find their items again. Export the identity profile with your saves when moving to another computer.</p>
-                <p>To use an item in DMM instead, right-click it on Mods and choose Send to DMM. CDMW rebuilds it as a DMM mod for the installed game and puts it in DMM's mods folder; enable it in DMM and click Mount. A DMM mod carries complete item and shop tables, so two such mods replace each other's items, and a game update can need a new send.</p>
+                <p>To use your items in DMM instead, select them on Mods, or select none to take every enabled item, and choose Send to DMM. CDMW combines them as Apply does and writes one DMM mod named CDMW items to DMM's mods folder; enable it in DMM and click Mount. Sending again replaces that mod. Keep the items in that one mod: a DMM mod carries complete item and shop tables, so two such mods replace each other's items, and a game update can need a new send.</p>
                 <p>Loading items this way is experimental. After a game update, opening Mod Management applies the items again. A DMM mod that replaces the item or shop tables may hide CDMW's items. A successful launch does not verify the items in shops, the inventory or saves.</p>
                 """,
             },

@@ -25075,7 +25075,7 @@ MESSAGE_REFERENCE = [
     "message": "A selected package changed during preparation: {path}. Apply changes again.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/virtual_loader_composition.py": 271
+      "cdmw/services/virtual_loader_composition.py": 285
     }
   },
   {
@@ -26965,7 +26965,7 @@ MESSAGE_REFERENCE = [
     "message": "New textures require a verified game texture registry.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/virtual_loader_composition.py": 163
+      "cdmw/services/virtual_loader_composition.py": 149
     }
   },
   {
@@ -27398,7 +27398,7 @@ MESSAGE_REFERENCE = [
     "message": "Select at most 128 external mod folders.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/virtual_loader_composition.py": 100
+      "cdmw/services/virtual_loader_composition.py": 169
     }
   },
   {
@@ -27406,7 +27406,7 @@ MESSAGE_REFERENCE = [
     "message": "Select at most 128 item packages and 128 mod folders, including disabled entries.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/virtual_loader_composition.py": 106
+      "cdmw/services/virtual_loader_composition.py": 175
     }
   },
   {
@@ -27551,7 +27551,7 @@ MESSAGE_REFERENCE = [
     "message": "Source index changed since parsing: {path}.",
     "recovery": "stale",
     "sources": {
-      "cdmw/services/virtual_loader_composition.py": 182
+      "cdmw/services/virtual_loader_composition.py": 196
     }
   },
   {
@@ -27783,7 +27783,7 @@ MESSAGE_REFERENCE = [
     "message": "The composed virtual profile exceeds its supported size.",
     "recovery": "limits",
     "sources": {
-      "cdmw/services/virtual_loader_composition.py": 153
+      "cdmw/services/virtual_loader_composition.py": 139
     }
   },
   {
@@ -27895,7 +27895,7 @@ MESSAGE_REFERENCE = [
     "message": "The game cannot be asked for {unservable[0]} by path, so it cannot be served. Rename the file in its mod or package.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/virtual_loader_composition.py": 212
+      "cdmw/services/virtual_loader_composition.py": 226
     }
   },
   {
@@ -28791,7 +28791,7 @@ MESSAGE_REFERENCE = [
     "message": "The virtual selection contains duplicate paths.",
     "recovery": "conflict",
     "sources": {
-      "cdmw/services/virtual_loader_composition.py": 108
+      "cdmw/services/virtual_loader_composition.py": 177
     }
   },
   {
@@ -30391,7 +30391,7 @@ MESSAGE_REFERENCE = [
     "message": "Cannot carry the template's bone offsets: {exc}",
     "recovery": "input",
     "sources": {
-      "cdmw/services/new_item_planning.py": 680
+      "cdmw/services/new_item_planning.py": 687
     }
   },
   {
@@ -30399,7 +30399,7 @@ MESSAGE_REFERENCE = [
     "message": "Cannot copy prefab {item.path}: {exc}",
     "recovery": "input",
     "sources": {
-      "cdmw/services/new_item_planning.py": 756
+      "cdmw/services/new_item_planning.py": 762
     }
   },
   {
@@ -30431,7 +30431,7 @@ MESSAGE_REFERENCE = [
     "message": "Cannot prepare equipment visibility rules: {exc}",
     "recovery": "input",
     "sources": {
-      "cdmw/services/new_item_planning.py": 959
+      "cdmw/services/new_item_planning.py": 965
     }
   },
   {
@@ -30495,7 +30495,7 @@ MESSAGE_REFERENCE = [
     "message": "Change cancelled. The installed overlays are unchanged.",
     "recovery": "cancelled",
     "sources": {
-      "cdmw/ui/new_item/overlay_manager_dialog.py": 488
+      "cdmw/ui/new_item/overlay_manager_dialog.py": 492
     }
   },
   {
@@ -32548,7 +32548,7 @@ MESSAGE_REFERENCE = [
     "message": "No icon registry ({ICON_REGISTRY_PATH}) in the archives; the generated icon will not draw until it is registered there.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 847
+      "cdmw/services/new_item_planning.py": 853
     }
   },
   {
@@ -32620,7 +32620,7 @@ MESSAGE_REFERENCE = [
     "message": "No texture registry (meta/0.pathc) was found beside the archives; the new textures will not draw when installed directly until it is rebuilt.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 877
+      "cdmw/services/new_item_planning.py": 883
     }
   },
   {
@@ -32693,7 +32693,7 @@ MESSAGE_REFERENCE = [
     "message": "Operation finished or cancelled. Refresh to read the installed state.",
     "recovery": "cancelled",
     "sources": {
-      "cdmw/ui/new_item/overlay_manager_dialog.py": 527
+      "cdmw/ui/new_item/overlay_manager_dialog.py": 531
     }
   },
   {
@@ -33223,7 +33223,7 @@ MESSAGE_REFERENCE = [
     "message": "Starting fresh cancelled. The saved overlay set is unchanged.",
     "recovery": "cancelled",
     "sources": {
-      "cdmw/ui/new_item/overlay_manager_dialog.py": 460
+      "cdmw/ui/new_item/overlay_manager_dialog.py": 464
     }
   },
   {
@@ -34229,7 +34229,7 @@ MESSAGE_REFERENCE = [
     "message": "The source item table already contains custom items: {detail}. Their records would be included in the exported tables. To create a separate mod, unmount existing item mods and read the archives again before building the plan. To combine mounted items, select Include mounted items in a new mod and rebuild. To extend a mod folder, select it with Add to existing mod. Source: {snapshot.iteminfo.payload_entry.pamt_path}",
     "recovery": "format",
     "sources": {
-      "cdmw/services/new_item_planning.py": 1010
+      "cdmw/services/new_item_planning.py": 1016
     }
   },
   {
@@ -34309,7 +34309,7 @@ MESSAGE_REFERENCE = [
     "message": "The template has no {role} at {item.path}; the clone goes without one.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 731
+      "cdmw/services/new_item_planning.py": 737
     }
   },
   {
@@ -35551,7 +35551,7 @@ MESSAGE_REFERENCE = [
     "message": "a generated icon needs the spec's stem to be allocated",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 901
+      "cdmw/services/new_item_planning.py": 907
     }
   },
   {
@@ -35791,7 +35791,7 @@ MESSAGE_REFERENCE = [
     "message": "enchant level {level} for {what} is negative",
     "recovery": "input",
     "sources": {
-      "cdmw/services/new_item_planning.py": 908
+      "cdmw/services/new_item_planning.py": 914
     }
   },
   {
@@ -35799,7 +35799,7 @@ MESSAGE_REFERENCE = [
     "message": "enchant level {level} for {what} skips level {len(levels)}; levels are added one at a time",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 910
+      "cdmw/services/new_item_planning.py": 916
     }
   },
   {
@@ -35871,7 +35871,7 @@ MESSAGE_REFERENCE = [
     "message": "icon registry: {exc}",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 853
+      "cdmw/services/new_item_planning.py": 859
     }
   },
   {
@@ -36257,7 +36257,7 @@ MESSAGE_REFERENCE = [
     "message": "texture registry: {exc}",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 890
+      "cdmw/services/new_item_planning.py": 896
     }
   },
   {
@@ -36265,7 +36265,7 @@ MESSAGE_REFERENCE = [
     "message": "texture {request.path}: {exc}",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 876
+      "cdmw/services/new_item_planning.py": 882
     }
   },
   {
@@ -36442,7 +36442,7 @@ MESSAGE_REFERENCE = [
     "message": "the imported build carries no rebuilt mesh data",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 1053
+      "cdmw/services/new_item_planning.py": 1059
     }
   },
   {
@@ -36498,7 +36498,7 @@ MESSAGE_REFERENCE = [
     "message": "the spec asks for a generated icon but no icon was built",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 838
+      "cdmw/services/new_item_planning.py": 844
     }
   },
   {
@@ -36514,7 +36514,7 @@ MESSAGE_REFERENCE = [
     "message": "the spec imports a model but no build was given",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 710
+      "cdmw/services/new_item_planning.py": 716
     }
   },
   {
@@ -36522,7 +36522,7 @@ MESSAGE_REFERENCE = [
     "message": "the spec needs a stem and none is allocated",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 938
+      "cdmw/services/new_item_planning.py": 944
     }
   },
   {
@@ -36530,7 +36530,7 @@ MESSAGE_REFERENCE = [
     "message": "the spec's {name} is not allocated",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 936
+      "cdmw/services/new_item_planning.py": 942
     }
   },
   {
@@ -36538,7 +36538,7 @@ MESSAGE_REFERENCE = [
     "message": "the template has no enchant level to copy for {what}",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 913
+      "cdmw/services/new_item_planning.py": 919
     }
   },
   {
@@ -36731,7 +36731,7 @@ MESSAGE_REFERENCE = [
     "message": "{item.path} names none of the family's meshes, so it cannot be re-pathed",
     "recovery": "input",
     "sources": {
-      "cdmw/services/new_item_planning.py": 758
+      "cdmw/services/new_item_planning.py": 764
     }
   },
   {
@@ -36924,7 +36924,7 @@ MESSAGE_REFERENCE = [
     "message": "{part.prefab_path} names no mesh to re-path to the imported model",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 800
+      "cdmw/services/new_item_planning.py": 806
     }
   },
   {
@@ -37116,7 +37116,7 @@ MESSAGE_REFERENCE = [
     "message": "{self.template.string_key} has no icon file to shape the new one after",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 842
+      "cdmw/services/new_item_planning.py": 848
     }
   },
   {
@@ -37132,7 +37132,7 @@ MESSAGE_REFERENCE = [
     "message": "{self.template.string_key}'s family has no .pac to replace",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 704
+      "cdmw/services/new_item_planning.py": 710
     }
   },
   {
@@ -80232,6 +80232,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
+    "message": "Select at least one item package to send to DMM.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/services/dmm_send.py": 132
+    }
+  },
+  {
+    "area": "other",
     "message": "Select at least one recolor target in the asset list.",
     "recovery": "input",
     "sources": {
@@ -103121,7 +103129,7 @@ SOURCE_COVERAGE = {
     "raise": 30
   },
   "cdmw/services/dmm_send.py": {
-    "raise": 3
+    "raise": 4
   },
   "cdmw/services/effect_catalogue.py": {
     "raise": 2
