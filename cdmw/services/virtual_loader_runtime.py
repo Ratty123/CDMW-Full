@@ -619,7 +619,9 @@ def prepare_runtime_setup(root, *, stop_event=None):
     checksum = evidence['files']['CDMWVirtualLoader.asi']
     plan = RuntimeSetup(root, (folder / 'CDMWVirtualLoader.asi').read_bytes(), previous, owner, checksum)
     if previous is not None and digest(previous) != checksum and not plan.owned:
-        raise VirtualLoaderError('A file with the runtime name is not owned by this setup. It will not be overwritten.')
+        raise VirtualLoaderError(
+            f'{target(root, RUNTIME_PATH)} was not installed by CDMW, so it is left alone. '
+            'Remove or rename it, then choose Apply changes again.')
     return plan
 
 

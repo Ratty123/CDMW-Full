@@ -22,7 +22,10 @@ def mod_sources(root, *, stop_event=None):
     registry = load_registry(root)
     identities = {row['layer']: (identity, row['title'])
                   for identity, row in registry['items'].items() if row['layer']}
-    mounts = mounted_archive_status(root, stop_event=stop_event)
+    from cdmw import constants
+    # Archive-group mods from other managers exist only while overlays do; the signed
+    # October 2026 mount list is not read as an overlay inventory.
+    mounts = mounted_archive_status(root, stop_event=stop_event) if constants.ARCHIVE_OVERLAYS_ENABLED else ()
     return identities, mounts, target(root, 'bin64/CrimsonDesert.exe').is_file()
 
 

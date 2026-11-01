@@ -96,8 +96,25 @@ def test_mod_management_offers_only_cditem_pages_by_default(app, tmp_path):
     tab = ModManagementTab(get_package_root=lambda: str(tmp_path))
     try:
         assert [tab.pages.tabText(i) for i in range(tab.pages.count())] == ["Mods", "Item identities"]
-        assert not tab.virtual_page.add_mod.isVisibleTo(tab)
-        assert tab.virtual_page.add_items.isVisibleTo(tab)
+        page = tab.virtual_page
+        assert not page.add_mod.isVisibleTo(tab)
+        assert page.add_items.isVisibleTo(tab)
+        # Apply installs the runtime itself; diagnostics and recovery stay out of the way.
+        assert not page.tools_toggle.isVisibleTo(tab) and not page.tools.isVisibleTo(tab)
+        assert not page.review.isVisibleTo(tab) and not page.recover_button.isVisibleTo(tab)
+        page._error = "Recover the interrupted virtual profile transaction first."
+        page._buttons()
+        assert page.recover_button.isVisibleTo(tab)
+        page._error = ""
+        # Apply during the shared controller's read-only archive snapshot waits, not nothing.
+        tab.controller._lane = "snapshot"
+        with pytest.MonkeyPatch.context() as patch:
+            patch.setattr(type(tab.controller), "busy", property(lambda self: True))
+            assert not page._busy()
+            page._apply()
+            assert page._queued is not None
+            assert page.status.text() == "Waiting for the game archives to finish loading…"
+        page._queued = None
         original = tab._current_page()
         for key in ("overview", "recovery", "repackage", "merge", "updates"):
             tab.open_page(key)

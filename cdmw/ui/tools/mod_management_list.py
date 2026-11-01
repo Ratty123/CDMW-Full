@@ -83,11 +83,12 @@ class ModManagementList(VirtualLoaderPage):
         layout.addLayout(row)
         layout.addWidget(self.status)
         layout.addWidget(self.progress)
-        self.tools_toggle.setText(self.tr('Loader details'))
-        layout.addWidget(self.tools_toggle)
-        self.tools.layout().addWidget(self.review)
-        self.review.setMaximumHeight(180)
-        layout.addWidget(self.tools)
+        # Apply installs or updates the runtime itself, so setup, tracing and removal
+        # stay out of the way. Recovery shows only when a profile save was interrupted.
+        self.tools_toggle.hide()
+        self.tools.hide()
+        self.review.hide()
+        toolbar.insertWidget(toolbar.indexOf(self.cancel_button), self.recover_button)
         self.sort_choice.hide()  # Every visible column has a sortable heading.
         self.workspace.hide()
         self._buttons()
@@ -107,7 +108,7 @@ class ModManagementList(VirtualLoaderPage):
         if self._closed or not self.package_root:
             return
         self._source_pending = True
-        if self.controller.busy:
+        if self._busy():
             return
         from cdmw.services.mod_management_inventory import mod_sources
         self._source_pending = False
@@ -207,7 +208,9 @@ class ModManagementList(VirtualLoaderPage):
         if not hasattr(self, 'toggle_installed'):
             return
         self._render_sources()
-        ready = not (self._closed or self._working or self.controller.busy or self._queued or self._session)
+        ready = not (self._closed or self._working or self._busy() or self._queued or self._session)
+        interrupted = 'Recover' in str(getattr(self._runtime, 'detail', '') or '') or 'Recover' in str(self._error or '')
+        self.recover_button.setVisible(interrupted)
         selected = self.selection.selectedItems()
         draft = bool(selected) and all(item.data(0, Qt.UserRole)[0] in ('item', 'mod') for item in selected)
         entries = self._selected_installs()
@@ -362,7 +365,7 @@ class ModManagementList(VirtualLoaderPage):
         self._status_pending = True
         self._status_preserve_message = (self._status_preserve_message and preserve_message
                                          if self._status_reading else preserve_message)
-        if self.controller.busy or self._working or self._session:
+        if self._busy() or self._working or self._session:
             return
         self._status_pending = False
         if self._status_reading:
@@ -458,16 +461,17 @@ class ModManagementList(VirtualLoaderPage):
         super()._busy_changed(busy)
         if not hasattr(self, '_source_lane') or self._closed:
             return
-        if busy:
+        blocking = self._busy()
+        if blocking:
             self._source_lane.cancel()
             self._source_generation += 1
             self._source_pending = True
         elif self._source_pending:
             QTimer.singleShot(0, self, self.refresh_sources)
-        if busy and self.controller._lane != 'snapshot':
+        if blocking:
             self._cancel_status()
             self._status_pending = self._status_preserve_message = True
-        elif not busy and self._status_pending:
+        elif self._status_pending:
             QTimer.singleShot(0, self, self._resume_status)
 
     def set_game_root(self, root):

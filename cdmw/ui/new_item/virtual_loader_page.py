@@ -209,8 +209,13 @@ class VirtualLoaderPage(QWidget):
         self.receipt_details.setPlainText('\n'.join(lines))
         self.receipt_details.setVisible(bool(lines))
 
+    def _busy(self):
+        # The shared controller's archive snapshot only reads; work queued behind it
+        # starts when it finishes instead of disabling the page meanwhile.
+        return self.controller.busy and getattr(self.controller, '_lane', '') != 'snapshot'
+
     def _buttons(self):
-        ready = not (self._closed or self._working or self.controller.busy or self._queued)
+        ready = not (self._closed or self._working or self._busy() or self._queued)
         for button in (self.add_items, self.add_mod, self.apply_button, self.refresh_button, self.setup_button, self.recover_button,
                        self.trace_button, self.remove_runtime_button, self.backups_button):
             button.setEnabled(ready and bool(self.package_root))
@@ -344,7 +349,14 @@ class VirtualLoaderPage(QWidget):
         self._error = ''
         self._prepared = self._runtime = None
         self._clear_receipt_details()
-        self._ensure_runtime(self._prepare)
+        self._when_idle(lambda: self._ensure_runtime(self._prepare))
+
+    def _when_idle(self, task):
+        if self.controller.busy:
+            self.status.setText(self.tr('Waiting for the game archives to finish loading…'))
+            self._queue(task)
+        else:
+            task()
 
     def _prepare(self):
         from cdmw.services.virtual_loader_process import prepare_profile_in_subprocess
@@ -452,7 +464,7 @@ class VirtualLoaderPage(QWidget):
 
     def _launch(self):
         if self._profile() == self._saved_selection:
-            self._ensure_runtime(self._prepare_launch)
+            self._when_idle(lambda: self._ensure_runtime(self._prepare_launch))
 
     def _prepare_launch(self):
         from cdmw.services.virtual_loader_runtime import prepare_experimental_launch, launch_experimental
