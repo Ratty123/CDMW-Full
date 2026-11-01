@@ -25187,7 +25187,7 @@ MESSAGE_REFERENCE = [
     "message": "An existing item package cannot discard its owned objects by becoming a record-edit package.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/independent_item_install.py": 688
+      "cdmw/services/independent_item_install.py": 691
     }
   },
   {
@@ -25211,7 +25211,7 @@ MESSAGE_REFERENCE = [
     "message": "An installed overlay occupies an identity in the incoming profile.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/independent_item_install.py": 975
+      "cdmw/services/independent_item_install.py": 978
     }
   },
   {
@@ -25259,7 +25259,7 @@ MESSAGE_REFERENCE = [
     "message": "Another installed item retains this identity in its compilation. Rebuild or remove that item before deleting this identity.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/independent_item_install.py": 885
+      "cdmw/services/independent_item_install.py": 888
     }
   },
   {
@@ -25267,7 +25267,7 @@ MESSAGE_REFERENCE = [
     "message": "Another installed overlay depends on this item. Remove that dependent overlay before updating it.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/independent_item_install.py": 616
+      "cdmw/services/independent_item_install.py": 619
     }
   },
   {
@@ -25868,7 +25868,7 @@ MESSAGE_REFERENCE = [
     "message": "Close Crimson Desert before deleting saved identities.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/independent_item_install.py": 917
+      "cdmw/services/independent_item_install.py": 920
     }
   },
   {
@@ -26140,7 +26140,7 @@ MESSAGE_REFERENCE = [
     "message": "Identity deletion failed; recovery requires backup {backup_dir}: {rollback_error}",
     "recovery": "recovery",
     "sources": {
-      "cdmw/services/independent_item_install.py": 943
+      "cdmw/services/independent_item_install.py": 946
     }
   },
   {
@@ -26148,7 +26148,7 @@ MESSAGE_REFERENCE = [
     "message": "Identity deletion requires a prepared change.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/independent_item_install.py": 907
+      "cdmw/services/independent_item_install.py": 910
     }
   },
   {
@@ -26156,7 +26156,7 @@ MESSAGE_REFERENCE = [
     "message": "Identity deletion requires explicit confirmation.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/independent_item_install.py": 909
+      "cdmw/services/independent_item_install.py": 912
     }
   },
   {
@@ -26164,7 +26164,7 @@ MESSAGE_REFERENCE = [
     "message": "Identity profiles use the .cdprofile extension.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/independent_item_install.py": 820
+      "cdmw/services/independent_item_install.py": 823
     }
   },
   {
@@ -27181,7 +27181,7 @@ MESSAGE_REFERENCE = [
     "message": "Remove this item from Mods and apply the changes before deleting its saved identity.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/independent_item_install.py": 865
+      "cdmw/services/independent_item_install.py": 868
     }
   },
   {
@@ -27382,7 +27382,7 @@ MESSAGE_REFERENCE = [
     "message": "Select an installed physical item to rebuild.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/independent_item_install.py": 779
+      "cdmw/services/independent_item_install.py": 782
     }
   },
   {
@@ -27390,7 +27390,7 @@ MESSAGE_REFERENCE = [
     "message": "Select at least one saved identity.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/independent_item_install.py": 854
+      "cdmw/services/independent_item_install.py": 857
     }
   },
   {
@@ -27927,7 +27927,7 @@ MESSAGE_REFERENCE = [
     "message": "The identity profile changed during preparation. Refresh and prepare again.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/independent_item_install.py": 808
+      "cdmw/services/independent_item_install.py": 811
     }
   },
   {
@@ -28047,7 +28047,7 @@ MESSAGE_REFERENCE = [
     "message": "The package has an incomplete game dependency graph.",
     "recovery": "format",
     "sources": {
-      "cdmw/services/independent_item_install.py": 675
+      "cdmw/services/independent_item_install.py": 678
     }
   },
   {
@@ -28263,7 +28263,7 @@ MESSAGE_REFERENCE = [
     "message": "The reserved model identity is occupied.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/independent_item_install.py": 655
+      "cdmw/services/independent_item_install.py": 658
     }
   },
   {
@@ -28399,7 +28399,7 @@ MESSAGE_REFERENCE = [
     "message": "The retained rebuild package has changed outside CDMW.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/independent_item_install.py": 788
+      "cdmw/services/independent_item_install.py": 791
     }
   },
   {
@@ -28407,7 +28407,7 @@ MESSAGE_REFERENCE = [
     "message": "The retained rebuild package is missing or too large.",
     "recovery": "limits",
     "sources": {
-      "cdmw/services/independent_item_install.py": 784
+      "cdmw/services/independent_item_install.py": 787
     }
   },
   {
@@ -28511,7 +28511,7 @@ MESSAGE_REFERENCE = [
     "message": "The saved identities or installation changed. Refresh and review the deletion again.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/independent_item_install.py": 921
+      "cdmw/services/independent_item_install.py": 924
     }
   },
   {
@@ -28823,7 +28823,7 @@ MESSAGE_REFERENCE = [
     "message": "This game has no verified texture registry for the new icon or textures.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/independent_item_install.py": 706
+      "cdmw/services/independent_item_install.py": 709
     }
   },
   {
@@ -28831,7 +28831,7 @@ MESSAGE_REFERENCE = [
     "message": "This item is not installed.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/independent_item_install.py": 802
+      "cdmw/services/independent_item_install.py": 805
     }
   },
   {
@@ -28855,7 +28855,7 @@ MESSAGE_REFERENCE = [
     "message": "This profile would change a retained item identity. Existing save identities cannot be renumbered.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/independent_item_install.py": 963
+      "cdmw/services/independent_item_install.py": 966
     }
   },
   {
@@ -28863,7 +28863,7 @@ MESSAGE_REFERENCE = [
     "message": "This saved identity no longer exists. Refresh the list.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/independent_item_install.py": 859
+      "cdmw/services/independent_item_install.py": 862
     }
   },
   {
@@ -29505,7 +29505,7 @@ MESSAGE_REFERENCE = [
     "message": "the item cannot be made without the DLC ({error})",
     "recovery": "input",
     "sources": {
-      "cdmw/services/independent_item_install.py": 549
+      "cdmw/services/independent_item_install.py": 552
     }
   },
   {
@@ -29601,7 +29601,7 @@ MESSAGE_REFERENCE = [
     "message": "{package.title} ({identity}): an owned asset name is already reserved by {asset_owner(path)}: {path}. The package cannot be installed without changing its identity.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/independent_item_install.py": 699
+      "cdmw/services/independent_item_install.py": 702
     }
   },
   {
@@ -29626,7 +29626,7 @@ MESSAGE_REFERENCE = [
     "message": "{package.title} was made on a game without the DLC content this game has ({names}), which changes what it adds: {shown}. Update the package with Create New Item on this game to use it here.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/independent_item_install.py": 682
+      "cdmw/services/independent_item_install.py": 685
     }
   },
   {
@@ -29651,7 +29651,7 @@ MESSAGE_REFERENCE = [
     "message": "{package.title}: remove the installed contribution before using this item in a virtual profile. Its identity will be retained.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/independent_item_install.py": 605
+      "cdmw/services/independent_item_install.py": 608
     }
   },
   {
@@ -29659,7 +29659,7 @@ MESSAGE_REFERENCE = [
     "message": "{package.title}: the installed compiler is different or unrecorded. Use Rebuild selected item to regenerate it while retaining its IDs.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/independent_item_install.py": 609
+      "cdmw/services/independent_item_install.py": 612
     }
   },
   {
@@ -80235,7 +80235,7 @@ MESSAGE_REFERENCE = [
     "message": "Select at least one item package to send to DMM.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/dmm_send.py": 132
+      "cdmw/services/dmm_send.py": 133
     }
   },
   {

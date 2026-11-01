@@ -115,7 +115,8 @@ def send_item_package(package_path: Path | str, game_root: Path | str, mods: Pat
 
 def send_item_packages(package_paths, game_root: Path | str, mods: Path, title: str, *,
                        stop_event: Optional[threading.Event] = None,
-                       on_log: Optional[Callable[[str], None]] = None) -> DmmSendResult:
+                       on_log: Optional[Callable[[str], None]] = None,
+                       on_progress: Optional[Callable[[int, int, str], None]] = None) -> DmmSendResult:
     """Compose several CDMW packages as Apply does and write them as one DMM mod.
 
     Separate mods would each carry their own copy of the shared tables (ItemInfo, the
@@ -132,7 +133,19 @@ def send_item_packages(package_paths, game_root: Path | str, mods: Path, title: 
         raise ValueError("Select at least one item package to send to DMM.")
     root = Path(game_root).resolve()
     folder, replaced = destination(mods, title)
-    resolved, files, flags, pathc = compose_packages(paths, (), root, stop_event=stop_event, on_log=on_log)
+
+    def progress(value, detail):
+        raise_if_cancelled(stop_event, "Send to DMM cancelled.")
+        if on_progress:
+            on_progress(min(int(value), 90), 100, detail)
+
+    if on_log:
+        on_log(f"Building {len(paths)} item package(s) for the installed game. CDMW checks each package against "
+               "this game version, gives every item its number and combines them into one DMM mod; "
+               "this takes about half a minute per item.")
+    resolved, files, flags, pathc = compose_packages(paths, (), root, stop_event=stop_event, on_log=on_log,
+                                                     progress=progress)
+    progress(90, "Writing the DMM mod…")
     additions = tuple(ArchiveAddRequest(Path(), path, data, int(flags.get(path) or 0)) for path, data in sorted(files.items()))
     # The texture registry goes along only when the items register textures: a copy of
     # the shipped one would hide the next game update's registry.
@@ -144,12 +157,19 @@ def send_item_packages(package_paths, game_root: Path | str, mods: Path, title: 
         staged = Path(staging) / folder.name
         export_overlay_mod(composed, staged, title=title, description=description, game_root=root,
                            on_log=on_log, stop_event=stop_event)
+        # DMM reads every .json in a mod folder as a mod: keep CDMW's own records in
+        # CDMW's history and ship only the archive, the texture registry and the mod info.
+        from cdmw.core.mod_export_history import retain_dmm_history
+        retain_dmm_history(staged, stop_event=stop_event)
+        (staged / "README.txt").unlink(missing_ok=True)
         raise_if_cancelled(stop_event, "Send to DMM cancelled.")
         destination(mods, title)  # Refuse a folder that appeared meanwhile.
         # Record the item identities before the mod that uses them appears, so the
         # next send gives every item the same key and saves keep their items.
         _keep_identities(root, resolved.registry)
         atomic_publish_directory(staged, folder, replace_existing=True)
+    if on_progress:
+        on_progress(100, 100, "Sent to DMM.")
     return DmmSendResult(folder, replaced, title)
 
 

@@ -534,6 +534,9 @@ def resolve_items(sources, root, *, target='archive', folders=(), rebuild=False,
         """What the DLC changes in `plan`: the same item planned on the base game alone."""
         from cdmw.services.independent_item_dlc import dlc_differences
         if not without_dlc_baseline:
+            if on_log:
+                on_log('Some packages were made before the DLC. Reading the game once without it to check '
+                       'that the DLC does not change those items…')
             without_dlc_baseline.append(stock_snapshot(root, service=service, read_entry=read_entry, stop_event=stop_event,
                                                        on_log=on_log, overlay_changes=decoded.values(), include_dlc=False))
         base = without_dlc_baseline[0].discovery_view()

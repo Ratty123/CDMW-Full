@@ -1561,7 +1561,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/dmm_packages_page.py",
-          "line": 129,
+          "line": 130,
           "sink": "tr"
         }
       ]
@@ -6521,7 +6521,7 @@
         },
         {
           "path": "cdmw/ui/tools/dmm_packages_page.py",
-          "line": 137,
+          "line": 138,
           "sink": "tr"
         }
       ]
@@ -14911,7 +14911,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/dmm_packages_page.py",
-          "line": 249,
+          "line": 265,
           "sink": "tr"
         },
         {
@@ -21262,6 +21262,16 @@
       ]
     },
     {
+      "key": "Building {value_0} item package(s) for the installed game. CDMW checks each package against this game version, gives every item its number and combines them into one DMM mod; this takes about half a minute per item.",
+      "origins": [
+        {
+          "path": "cdmw/services/dmm_send.py",
+          "line": 143,
+          "sink": "on_log"
+        }
+      ]
+    },
+    {
       "key": "Building...",
       "origins": [
         {
@@ -26181,7 +26191,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_install.py",
-          "line": 702,
+          "line": 705,
           "sink": "progress"
         }
       ]
@@ -31651,7 +31661,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_install.py",
-          "line": 917,
+          "line": 920,
           "sink": "RuntimeError"
         }
       ]
@@ -33176,7 +33186,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_install.py",
-          "line": 556,
+          "line": 559,
           "sink": "progress"
         }
       ]
@@ -34386,7 +34396,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/dmm_packages_page.py",
-          "line": 249,
+          "line": 265,
           "sink": "tr"
         },
         {
@@ -35041,7 +35051,7 @@
         },
         {
           "path": "cdmw/ui/shell/tool_tabs.py",
-          "line": 759,
+          "line": 787,
           "sink": "setToolTip"
         }
       ]
@@ -40876,7 +40886,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_install.py",
-          "line": 946,
+          "line": 949,
           "sink": "on_log"
         }
       ]
@@ -57991,7 +58001,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/dmm_packages_page.py",
-          "line": 248,
+          "line": 264,
           "sink": "tr"
         },
         {
@@ -65306,7 +65316,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_install.py",
-          "line": 943,
+          "line": 946,
           "sink": "RuntimeError"
         }
       ]
@@ -65316,7 +65326,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_install.py",
-          "line": 907,
+          "line": 910,
           "sink": "TypeError"
         }
       ]
@@ -65326,7 +65336,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_install.py",
-          "line": 909,
+          "line": 912,
           "sink": "PermissionError"
         }
       ]
@@ -68506,7 +68516,7 @@
         },
         {
           "path": "cdmw/services/independent_item_install.py",
-          "line": 598,
+          "line": 601,
           "sink": "raise_if_cancelled"
         }
       ]
@@ -71741,7 +71751,7 @@
         },
         {
           "path": "cdmw/ui/tools/dmm_packages_page.py",
-          "line": 272,
+          "line": 289,
           "sink": "tr"
         },
         {
@@ -72451,7 +72461,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_install.py",
-          "line": 736,
+          "line": 739,
           "sink": "progress"
         }
       ]
@@ -72636,7 +72646,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/dmm_packages_page.py",
-          "line": 138,
+          "line": 139,
           "sink": "tr"
         }
       ]
@@ -85651,7 +85661,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/dmm_packages_page.py",
-          "line": 250,
+          "line": 266,
           "sink": "tr"
         },
         {
@@ -103436,7 +103446,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/dmm_packages_page.py",
-          "line": 247,
+          "line": 263,
           "sink": "tr"
         },
         {
@@ -110381,7 +110391,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/tool_tabs.py",
-          "line": 684,
+          "line": 711,
           "sink": "pump_startup_splash"
         }
       ]
@@ -110656,7 +110666,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_install.py",
-          "line": 596,
+          "line": 599,
           "sink": "progress"
         }
       ]
@@ -114761,7 +114771,7 @@
         },
         {
           "path": "cdmw/ui/tools/dmm_packages_page.py",
-          "line": 232,
+          "line": 247,
           "sink": "tr"
         },
         {
@@ -121521,7 +121531,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/tool_tabs.py",
-          "line": 719,
+          "line": 746,
           "sink": "pump_startup_splash"
         }
       ]
@@ -137151,7 +137161,7 @@
       "origins": [
         {
           "path": "cdmw/services/dmm_send.py",
-          "line": 132,
+          "line": 133,
           "sink": "ValueError"
         }
       ]
@@ -139816,7 +139826,7 @@
         },
         {
           "path": "cdmw/ui/tools/dmm_packages_page.py",
-          "line": 273,
+          "line": 290,
           "sink": "tr"
         },
         {
@@ -139836,7 +139846,12 @@
         },
         {
           "path": "cdmw/services/dmm_send.py",
-          "line": 147,
+          "line": 138,
+          "sink": "raise_if_cancelled"
+        },
+        {
+          "path": "cdmw/services/dmm_send.py",
+          "line": 165,
           "sink": "raise_if_cancelled"
         }
       ]
@@ -139907,13 +139922,18 @@
       ]
     },
     {
-      "key": "Sending {value_0} item package(s) to DMM…",
+      "key": "Sending {value_0} item package(s) to DMM. CDMW builds each item for the installed game first, about half a minute per item.",
       "origins": [
         {
           "path": "cdmw/ui/tools/dmm_packages_page.py",
-          "line": 265,
+          "line": 281,
           "sink": "tr"
-        },
+        }
+      ]
+    },
+    {
+      "key": "Sending {value_0} item package(s) to DMM…",
+      "origins": [
         {
           "path": "cdmw/ui/tools/mod_management_list.py",
           "line": 322,
@@ -139941,7 +139961,7 @@
         },
         {
           "path": "cdmw/ui/tools/dmm_packages_page.py",
-          "line": 270,
+          "line": 287,
           "sink": "emit"
         },
         {
@@ -139956,7 +139976,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/dmm_packages_page.py",
-          "line": 268,
+          "line": 285,
           "sink": "tr"
         },
         {
@@ -145703,6 +145723,16 @@
           "path": "cdmw/ui/new_item/item_settings_editor.py",
           "line": 206,
           "sink": "setText"
+        }
+      ]
+    },
+    {
+      "key": "Some packages were made before the DLC. Reading the game once without it to check that the DLC does not change those items…",
+      "origins": [
+        {
+          "path": "cdmw/services/independent_item_install.py",
+          "line": 538,
+          "sink": "on_log"
         }
       ]
     },
@@ -171491,7 +171521,7 @@
         },
         {
           "path": "cdmw/ui/tools/dmm_packages_page.py",
-          "line": 199,
+          "line": 200,
           "sink": "tr"
         }
       ]
@@ -174753,6 +174783,16 @@
           "path": "cdmw/ui/archive_browser/binary_sidecar_actions.py",
           "line": 383,
           "sink": "_run_utility_task_when_idle"
+        }
+      ]
+    },
+    {
+      "key": "Writing the DMM mod…",
+      "origins": [
+        {
+          "path": "cdmw/services/dmm_send.py",
+          "line": 148,
+          "sink": "progress"
         }
       ]
     },
@@ -191856,7 +191896,7 @@
         },
         {
           "path": "cdmw/ui/shell/tool_tabs.py",
-          "line": 794,
+          "line": 822,
           "sink": "_register_detachable_tool"
         }
       ]
@@ -193436,7 +193476,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/tool_tabs.py",
-          "line": 800,
+          "line": 828,
           "sink": "_register_detachable_tool"
         },
         {
@@ -195331,7 +195371,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/tool_tabs.py",
-          "line": 789,
+          "line": 817,
           "sink": "_register_detachable_tool"
         }
       ]
@@ -198796,7 +198836,7 @@
         },
         {
           "path": "cdmw/ui/tools/dmm_packages_page.py",
-          "line": 137,
+          "line": 138,
           "sink": "getOpenFileNames"
         },
         {
@@ -201491,7 +201531,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/dmm_packages_page.py",
-          "line": 166,
+          "line": 167,
           "sink": "tr"
         }
       ]
@@ -201951,7 +201991,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/dmm_packages_page.py",
-          "line": 165,
+          "line": 166,
           "sink": "tr"
         }
       ]

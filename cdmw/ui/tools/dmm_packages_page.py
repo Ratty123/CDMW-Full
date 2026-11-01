@@ -92,6 +92,7 @@ class DmmPackagesPage(QWidget):
         layout.addWidget(self.progress)
         self._load()
         controller.busy_changed.connect(self._busy_changed)
+        controller.operation_progress.connect(self._operation_progress)
         self._buttons()
 
     # ------------------------------------------------------------------ list
@@ -202,10 +203,24 @@ class DmmPackagesPage(QWidget):
         else:
             task()
 
-    def _run(self, task, done):
+    def _operation_progress(self, lane, current, total, detail):
+        if lane != "mod_management_dmm" or self._closed or not self._working:
+            return
+        if total > 0:
+            self.progress.setRange(0, 100)
+            self.progress.setValue(max(self.progress.value(), min(100, current * 100 // total)))
+        if detail:
+            self.status.setText(self.tr(detail))
+
+    def _run(self, task, done, *, with_progress=False):
         if self._closed or self.controller.busy:
             return False
         self._working = True
+        if with_progress:
+            self.progress.setRange(0, 100)
+            self.progress.setValue(0)
+        else:
+            self.progress.setRange(0, 0)
         self.progress.show()
         self._buttons()
 
@@ -231,7 +246,8 @@ class DmmPackagesPage(QWidget):
             if not self._closed:
                 self.status.setText(self.tr("Processing stopped by user."))
 
-        started = self.controller._run("mod_management_dmm", task, completed, failed, on_cancel=cancelled)
+        started = self.controller._run("mod_management_dmm", task, completed, failed, on_cancel=cancelled,
+                                       task_accepts_progress=with_progress)
         if not started:
             finish()
         return started
@@ -262,7 +278,8 @@ class DmmPackagesPage(QWidget):
         if mods is None:
             return
         root = self.package_root
-        self.status.setText(self.tr("Sending {value_0} item package(s) to DMM…").format(value_0=len(packages)))
+        self.status.setText(self.tr("Sending {value_0} item package(s) to DMM. CDMW builds each item for the installed "
+                                    "game first, about half a minute per item.").format(value_0=len(packages)))
 
         def sent(result):
             message = self.tr("Sent {value_0} item package(s) to DMM as one mod. In DMM, enable it and click Mount.").format(value_0=len(packages))
@@ -272,7 +289,9 @@ class DmmPackagesPage(QWidget):
                 message += "\n" + self.tr("It replaced the copy CDMW sent earlier.")
             QMessageBox.information(self, self.tr("Send to DMM"), message + "\n\n" + str(result.folder))
         self._when_idle(lambda: self._run(
-            lambda log, stop: dmm_send.send_item_packages(packages, root, mods, DMM_MOD_TITLE, stop_event=stop, on_log=log), sent))
+            lambda log, progress, stop: dmm_send.send_item_packages(
+                packages, root, mods, DMM_MOD_TITLE, stop_event=stop, on_log=log, on_progress=progress),
+            sent, with_progress=True))
 
     # ------------------------------------------------------------------ tab interface
 

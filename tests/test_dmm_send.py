@@ -56,17 +56,21 @@ def test_several_packages_go_to_dmm_as_one_composed_mod(tmp_path):
     root, files = packages(tmp_path)
     before = game_bytes(root)
     _install, mods = _dmm(tmp_path)
-    result = send_item_packages(files, root, mods, "Two items")
+    steps = []
+    result = send_item_packages(files, root, mods, "Two items", on_progress=lambda value, total, detail: steps.append(value))
     assert result.folder == mods / "Two items" and not result.replaced
     manifest = json.loads((result.folder / "manifest.json").read_text(encoding="utf-8"))
     overrides = manifest["overrides"]
     # One copy of each shared table, carrying both items, rather than two mods that hide each other.
     assert len(overrides) == len(set(overrides))
     assert "gamedata/binarystaticinfo__/bin/iteminfo.staticinfobody" in overrides
-    assert (result.folder / "0036" / "0.pamt").is_file()
+    # DMM reads every .json in a mod folder as a mod; only what DMM needs is shipped.
+    shipped = {p.relative_to(result.folder).as_posix() for p in result.folder.rglob("*") if p.is_file()}
+    assert shipped - {"meta/0.pathc"} == {"0036/0.pamt", "0036/0.paz", "manifest.json", "modinfo.json"}
     # Archives stay as shipped; only the item identities are kept beside them.
     assert game_bytes(root) == before
     assert [p.relative_to(root).as_posix() for p in (root / ".cdmw").rglob("*") if p.is_file()] == [".cdmw/independent-items.json"]
+    assert steps == sorted(steps) and steps[-1] == 100
     again = send_item_packages(files, root, mods, "Two items")
     assert again.replaced
 
