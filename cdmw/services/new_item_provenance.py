@@ -162,7 +162,9 @@ class SourceTracker:
         """Retain original witnesses, or verify unwitnessed entry coordinates afresh."""
         if isinstance(entries, ArchiveCatalogue):
             witnessed = {Path(path) for path, _ in entries.indexes}
-            if any(Path(entry.pamt_path) not in witnessed for entry in entries):
+            # Two million entries share about a hundred index paths; compare each distinct one.
+            distinct = {id(path): path for path in (entry.pamt_path for entry in entries)}
+            if any(Path(path) not in witnessed for path in distinct.values()):
                 raise StaleNewItemSource("Archive catalogue omits an original index witness. Read the archives again.")
             for path, checksum in entries.indexes:
                 self.pin_index(path, checksum, stop_event)
