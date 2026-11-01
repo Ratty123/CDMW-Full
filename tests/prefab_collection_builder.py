@@ -25,12 +25,23 @@ def member(name: str, type_name: str, flags: int, size: int, extra: int = 0) -> 
     return text(name) + text(type_name) + struct.pack("<HHHH", flags, size, 0, extra)
 
 
-def element(base: int, at: int, name: str, value: str, index: int | None = None, aliases=()) -> bytes:
+def element(
+    base: int,
+    at: int,
+    name: str,
+    value: str,
+    index: int | None = None,
+    aliases=(),
+    name_length: bool = False,
+) -> bytes:
     """One collection element: header, name record, then a single string member.
 
     ``at`` is the element's blob-relative start and ``base`` the blob's file
     offset, because the name record's pointer has to hold its own absolute
-    position plus four.
+    position plus four. ``name_length`` closes the name record with the u32 every
+    shipped element ends with: its distance from the record's start. The walk
+    leaves that field with the next element, which is what a resize has to get
+    right.
     """
     out = bytearray()
     out += struct.pack("<H", 2)          # marker; tail is marker + 1 bytes
@@ -45,6 +56,8 @@ def element(base: int, at: int, name: str, value: str, index: int | None = None,
     for position, label in enumerate((name, *aliases)):
         out += struct.pack("<H", position) + text(label)  # each name after its index
     out += text(value)                   # the component's one string member
+    if name_length:
+        out += struct.pack("<I", len(out) - (pointer_at - at) - 4)
     return bytes(out)
 
 
@@ -56,6 +69,7 @@ def build_with_collection(
     indexed: bool = False,
     indexes=None,
     aliases=(),
+    name_lengths: bool = False,
 ) -> bytes:
     """A prefab whose root holds a collection of ``len(names)`` elements.
 
@@ -65,7 +79,8 @@ def build_with_collection(
     file that over-declares is reproduced without a shipped one. ``indexed``
     declares the collection the way ``SocketComponent._socketList`` is declared
     (member ``extra`` 0x100): a reference after the count and an index in each
-    element; ``indexes`` overrides the indexes written.
+    element; ``indexes`` overrides the indexes written. ``name_lengths`` writes
+    the trailing name-length field shipped elements carry.
     """
     types = bytearray()
     types += text("SceneObject") + struct.pack("<H", 1)
@@ -90,7 +105,7 @@ def build_with_collection(
     written = list(indexes) if indexes is not None else list(range(len(names)))
     for position, name in enumerate(names):
         blob += element(base, len(blob), name, f"asset/{name.lower()}.pac",
-                        written[position] if indexed else None, aliases)
+                        written[position] if indexed else None, aliases, name_lengths)
     blob += b"\x01"                        # the terminator; see prefab_blob_tail
 
     data_header = struct.pack("<III", 1, base + len(blob), 0)

@@ -19711,15 +19711,7 @@ MESSAGE_REFERENCE = [
     "message": "A placement replacement must be bytes, or an (expected_old, new) pair",
     "recovery": "input",
     "sources": {
-      "cdmw/core/prefab_binary_edit.py": 535
-    }
-  },
-  {
-    "area": "formats",
-    "message": "A pointee spans 0x{at}, so its stored length would no longer describe it; refusing to splice there",
-    "recovery": "input",
-    "sources": {
-      "cdmw/core/prefab_array_edit.py": 237
+      "cdmw/core/prefab_binary_edit.py": 559
     }
   },
   {
@@ -19807,7 +19799,7 @@ MESSAGE_REFERENCE = [
     "message": "Bytes at 0x{text_at} are not what was read there",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/prefab_binary_edit.py": 235
+      "cdmw/core/prefab_binary_edit.py": 299
     }
   },
   {
@@ -20151,7 +20143,7 @@ MESSAGE_REFERENCE = [
     "message": "Element {element_index} is empty; refusing to resize",
     "recovery": "empty",
     "sources": {
-      "cdmw/core/prefab_array_edit.py": 220
+      "cdmw/core/prefab_array_edit.py": 265
     }
   },
   {
@@ -20159,7 +20151,7 @@ MESSAGE_REFERENCE = [
     "message": "Element {index} is missing from the resized collection",
     "recovery": "missing",
     "sources": {
-      "cdmw/core/prefab_array_edit.py": 334
+      "cdmw/core/prefab_array_edit.py": 380
     }
   },
   {
@@ -20167,7 +20159,7 @@ MESSAGE_REFERENCE = [
     "message": "Element {index} reads back as {end - start} bytes, but the duplicated element is {expected_span}; the copy did not re-read as its own source",
     "recovery": "conflict",
     "sources": {
-      "cdmw/core/prefab_array_edit.py": 337
+      "cdmw/core/prefab_array_edit.py": 383
     }
   },
   {
@@ -20511,7 +20503,7 @@ MESSAGE_REFERENCE = [
     "message": "No collection {collection_index}; this prefab has {len(document.collections)}",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/prefab_array_edit.py": 147
+      "cdmw/core/prefab_array_edit.py": 154
     }
   },
   {
@@ -20527,7 +20519,7 @@ MESSAGE_REFERENCE = [
     "message": "No decoded string sits at 0x{edit.offset}",
     "recovery": "format",
     "sources": {
-      "cdmw/core/prefab_binary_edit.py": 174
+      "cdmw/core/prefab_binary_edit.py": 238
     }
   },
   {
@@ -20535,7 +20527,7 @@ MESSAGE_REFERENCE = [
     "message": "No decoded value sits at 0x{int(offset)}",
     "recovery": "format",
     "sources": {
-      "cdmw/core/prefab_binary_edit.py": 592
+      "cdmw/core/prefab_binary_edit.py": 616
     }
   },
   {
@@ -20575,7 +20567,7 @@ MESSAGE_REFERENCE = [
     "message": "No element {element_index} in {collection.member_name}; it has {len(collection.elements)}",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/prefab_array_edit.py": 213
+      "cdmw/core/prefab_array_edit.py": 258
     }
   },
   {
@@ -20647,7 +20639,7 @@ MESSAGE_REFERENCE = [
     "message": "No string sits at 0x{edit.offset}",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/prefab_binary_edit.py": 217
+      "cdmw/core/prefab_binary_edit.py": 281
     }
   },
   {
@@ -20856,7 +20848,7 @@ MESSAGE_REFERENCE = [
     "message": "Prefab did not decode completely, so edits would be unsafe: unknown",
     "recovery": "format",
     "sources": {
-      "cdmw/core/prefab_binary_edit.py": 265
+      "cdmw/core/prefab_binary_edit.py": 329
     }
   },
   {
@@ -20864,7 +20856,7 @@ MESSAGE_REFERENCE = [
     "message": "Prefab did not decode completely, so edits would be unsafe: {document.walk_note}",
     "recovery": "format",
     "sources": {
-      "cdmw/core/prefab_binary_edit.py": 265
+      "cdmw/core/prefab_binary_edit.py": 329
     }
   },
   {
@@ -20872,7 +20864,7 @@ MESSAGE_REFERENCE = [
     "message": "Prefab did not decode completely, so resizing would be unsafe: unknown",
     "recovery": "format",
     "sources": {
-      "cdmw/core/prefab_array_edit.py": 142
+      "cdmw/core/prefab_array_edit.py": 149
     }
   },
   {
@@ -20880,7 +20872,7 @@ MESSAGE_REFERENCE = [
     "message": "Prefab did not decode completely, so resizing would be unsafe: {document.walk_note}",
     "recovery": "format",
     "sources": {
-      "cdmw/core/prefab_array_edit.py": 142
+      "cdmw/core/prefab_array_edit.py": 149
     }
   },
   {
@@ -21658,7 +21650,7 @@ MESSAGE_REFERENCE = [
     "message": "Rewriting changed how many pointers the file contains",
     "recovery": "write",
     "sources": {
-      "cdmw/core/prefab_binary_edit.py": 511
+      "cdmw/core/prefab_binary_edit.py": 535
     }
   },
   {
@@ -21722,7 +21714,7 @@ MESSAGE_REFERENCE = [
     "message": "String at 0x{edit.offset} is {found}, not {edit.old_text}; refusing to write over something the caller has not seen",
     "recovery": "write",
     "sources": {
-      "cdmw/core/prefab_binary_edit.py": 176
+      "cdmw/core/prefab_binary_edit.py": 240
     }
   },
   {
@@ -21816,10 +21808,18 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "formats",
+    "message": "The pointee at 0x{target} (length field at 0x{field_at}) crosses the element at 0x{start}..0x{end}, so the element is not a whole object; refusing to splice it",
+    "recovery": "input",
+    "sources": {
+      "cdmw/core/prefab_array_edit.py": 216
+    }
+  },
+  {
+    "area": "formats",
     "message": "The pointee at 0x{target} has {len(candidates)} possible length fields and the file does not say which; refusing to guess on an edit inside it.",
     "recovery": "input",
     "sources": {
-      "cdmw/core/prefab_binary_edit.py": 322
+      "cdmw/core/prefab_binary_edit.py": 175
     }
   },
   {
@@ -21875,7 +21875,7 @@ MESSAGE_REFERENCE = [
     "message": "The resized collection declares {expected_count} element(s) but {len(got.elements)} were read back",
     "recovery": "input",
     "sources": {
-      "cdmw/core/prefab_array_edit.py": 317
+      "cdmw/core/prefab_array_edit.py": 363
     }
   },
   {
@@ -21883,7 +21883,7 @@ MESSAGE_REFERENCE = [
     "message": "The resized collection reads back with {got.count} element(s), expected {expected_count}",
     "recovery": "input",
     "sources": {
-      "cdmw/core/prefab_array_edit.py": 312
+      "cdmw/core/prefab_array_edit.py": 358
     }
   },
   {
@@ -21891,7 +21891,7 @@ MESSAGE_REFERENCE = [
     "message": "The resized prefab declares {stated} bytes but is {len(rebuilt)}",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/prefab_array_edit.py": 349
+      "cdmw/core/prefab_array_edit.py": 395
     }
   },
   {
@@ -21899,7 +21899,7 @@ MESSAGE_REFERENCE = [
     "message": "The resized prefab does not read back: {exc}",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/prefab_array_edit.py": 303
+      "cdmw/core/prefab_array_edit.py": 349
     }
   },
   {
@@ -21907,7 +21907,7 @@ MESSAGE_REFERENCE = [
     "message": "The resized prefab holds {len(found)} pointer(s), expected {expected_pointers}",
     "recovery": "input",
     "sources": {
-      "cdmw/core/prefab_array_edit.py": 344
+      "cdmw/core/prefab_array_edit.py": 390
     }
   },
   {
@@ -21915,7 +21915,7 @@ MESSAGE_REFERENCE = [
     "message": "The resized prefab is {len(rebuilt)} bytes, expected {len(original) + delta}",
     "recovery": "input",
     "sources": {
-      "cdmw/core/prefab_array_edit.py": 322
+      "cdmw/core/prefab_array_edit.py": 368
     }
   },
   {
@@ -21923,7 +21923,7 @@ MESSAGE_REFERENCE = [
     "message": "The resized prefab no longer reads all the way through: {after.walk_note}",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/prefab_array_edit.py": 305
+      "cdmw/core/prefab_array_edit.py": 351
     }
   },
   {
@@ -21931,7 +21931,7 @@ MESSAGE_REFERENCE = [
     "message": "The resized prefab reads back with fewer collections",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/prefab_array_edit.py": 309
+      "cdmw/core/prefab_array_edit.py": 355
     }
   },
   {
@@ -21939,7 +21939,7 @@ MESSAGE_REFERENCE = [
     "message": "The rewritten prefab declares {stated} bytes but is {len(rebuilt)}",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/prefab_binary_edit.py": 514
+      "cdmw/core/prefab_binary_edit.py": 538
     }
   },
   {
@@ -21947,7 +21947,7 @@ MESSAGE_REFERENCE = [
     "message": "The rewritten prefab does not read back: {exc}",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/prefab_binary_edit.py": 493
+      "cdmw/core/prefab_binary_edit.py": 517
     }
   },
   {
@@ -21955,7 +21955,7 @@ MESSAGE_REFERENCE = [
     "message": "The rewritten prefab is not the size the edits imply",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/prefab_binary_edit.py": 521
+      "cdmw/core/prefab_binary_edit.py": 545
     }
   },
   {
@@ -21963,7 +21963,7 @@ MESSAGE_REFERENCE = [
     "message": "The rewritten prefab no longer reads all the way through: {after.walk_note}",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/prefab_binary_edit.py": 495
+      "cdmw/core/prefab_binary_edit.py": 519
     }
   },
   {
@@ -21971,7 +21971,7 @@ MESSAGE_REFERENCE = [
     "message": "The rewritten prefab reads back {differing[1]} where {differing[0]} was expected",
     "recovery": "input",
     "sources": {
-      "cdmw/core/prefab_binary_edit.py": 506
+      "cdmw/core/prefab_binary_edit.py": 530
     }
   },
   {
@@ -22003,7 +22003,7 @@ MESSAGE_REFERENCE = [
     "message": "This prefab has changed since it was read; reopen it before saving.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/prefab_binary_edit.py": 573
+      "cdmw/core/prefab_binary_edit.py": 597
     }
   },
   {
@@ -22011,7 +22011,7 @@ MESSAGE_REFERENCE = [
     "message": "This prefab is only partly readable, so a replacement has to be the same length: {edit.old_text} is {len(old_bytes)} bytes and {edit.new_text} is {len(new_bytes)}.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/prefab_binary_edit.py": 226
+      "cdmw/core/prefab_binary_edit.py": 290
     }
   },
   {
@@ -22019,7 +22019,7 @@ MESSAGE_REFERENCE = [
     "message": "This prefab's collection headers read two different ways and the file does not choose between them, so every offset in it is a guess; refusing to resize.",
     "recovery": "format",
     "sources": {
-      "cdmw/core/prefab_array_edit.py": 207
+      "cdmw/core/prefab_array_edit.py": 252
     }
   },
   {
@@ -22181,7 +22181,7 @@ MESSAGE_REFERENCE = [
     "message": "Value at 0x{number.offset} is not what was read there; refusing to write",
     "recovery": "write",
     "sources": {
-      "cdmw/core/prefab_binary_edit.py": 599
+      "cdmw/core/prefab_binary_edit.py": 623
     }
   },
   {
@@ -22189,7 +22189,7 @@ MESSAGE_REFERENCE = [
     "message": "Value at 0x{number.offset} is {len(number.raw)} byte(s); replacement is {len(new_raw)}",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/prefab_binary_edit.py": 594
+      "cdmw/core/prefab_binary_edit.py": 618
     }
   },
   {
@@ -22246,7 +22246,7 @@ MESSAGE_REFERENCE = [
     "message": "a pointee spans the splice point 0x{insert_at}; refusing",
     "recovery": "input",
     "sources": {
-      "cdmw/core/prefab_component_graft.py": 255
+      "cdmw/core/prefab_component_graft.py": 260
     }
   },
   {
@@ -22262,7 +22262,7 @@ MESSAGE_REFERENCE = [
     "message": "a transform is scale(3), rotation(4), position(3)",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/prefab_component_graft.py": 201
+      "cdmw/core/prefab_component_graft.py": 206
     }
   },
   {
@@ -22270,7 +22270,7 @@ MESSAGE_REFERENCE = [
     "message": "an offset transform is 40 bytes",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/prefab_component_graft.py": 290
+      "cdmw/core/prefab_component_graft.py": 295
     }
   },
   {
@@ -22494,7 +22494,7 @@ MESSAGE_REFERENCE = [
     "message": "data header lies outside the payload",
     "recovery": "limits",
     "sources": {
-      "cdmw/core/prefab_binary_edit.py": 626
+      "cdmw/core/prefab_binary_edit.py": 650
     }
   },
   {
@@ -22526,7 +22526,7 @@ MESSAGE_REFERENCE = [
     "message": "edit at 0x{edit.offset} lies outside the payload",
     "recovery": "limits",
     "sources": {
-      "cdmw/core/prefab_binary_edit.py": 341
+      "cdmw/core/prefab_binary_edit.py": 365
     }
   },
   {
@@ -22534,7 +22534,7 @@ MESSAGE_REFERENCE = [
     "message": "element at 0x{header} has no name record",
     "recovery": "format",
     "sources": {
-      "cdmw/core/prefab_component_graft.py": 145
+      "cdmw/core/prefab_component_graft.py": 150
     }
   },
   {
@@ -22918,7 +22918,7 @@ MESSAGE_REFERENCE = [
     "message": "length prefix at 0x{prefix_at} is {stored}, expected {len(encoded_old)}",
     "recovery": "input",
     "sources": {
-      "cdmw/core/prefab_binary_edit.py": 344
+      "cdmw/core/prefab_binary_edit.py": 368
     }
   },
   {
@@ -23641,7 +23641,7 @@ MESSAGE_REFERENCE = [
     "message": "the donor declares no type {component_type}",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/prefab_component_graft.py": 168
+      "cdmw/core/prefab_component_graft.py": 173
     }
   },
   {
@@ -23649,7 +23649,7 @@ MESSAGE_REFERENCE = [
     "message": "the donor element carries no 40-byte _offsetTransform to overwrite",
     "recovery": "conflict",
     "sources": {
-      "cdmw/core/prefab_component_graft.py": 288
+      "cdmw/core/prefab_component_graft.py": 293
     }
   },
   {
@@ -23657,7 +23657,7 @@ MESSAGE_REFERENCE = [
     "message": "the donor element does not hold {old_raw} at 0x{d_start + at}",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/prefab_component_graft.py": 309
+      "cdmw/core/prefab_component_graft.py": 314
     }
   },
   {
@@ -23665,7 +23665,7 @@ MESSAGE_REFERENCE = [
     "message": "the donor element names type index {old_index}, which the target does not declare",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/prefab_component_graft.py": 283
+      "cdmw/core/prefab_component_graft.py": 288
     }
   },
   {
@@ -23673,7 +23673,7 @@ MESSAGE_REFERENCE = [
     "message": "the donor has {len(candidates)} {component_type} element(s) in {collection_member}, none at index {donor_index}",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/prefab_component_graft.py": 240
+      "cdmw/core/prefab_component_graft.py": 245
     }
   },
   {
@@ -23681,7 +23681,7 @@ MESSAGE_REFERENCE = [
     "message": "the donor pointer at 0x{site} has no readable header; refusing to remap its type",
     "recovery": "format",
     "sources": {
-      "cdmw/core/prefab_component_graft.py": 263
+      "cdmw/core/prefab_component_graft.py": 268
     }
   },
   {
@@ -23689,7 +23689,7 @@ MESSAGE_REFERENCE = [
     "message": "the donor prefab did not decode completely: unknown",
     "recovery": "format",
     "sources": {
-      "cdmw/core/prefab_component_graft.py": 236
+      "cdmw/core/prefab_component_graft.py": 241
     }
   },
   {
@@ -23697,7 +23697,7 @@ MESSAGE_REFERENCE = [
     "message": "the donor prefab did not decode completely: {ddoc.walk_note}",
     "recovery": "format",
     "sources": {
-      "cdmw/core/prefab_component_graft.py": 236
+      "cdmw/core/prefab_component_graft.py": 241
     }
   },
   {
@@ -23721,7 +23721,7 @@ MESSAGE_REFERENCE = [
     "message": "the grafted element's string {text} did not read back",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/prefab_component_graft.py": 373
+      "cdmw/core/prefab_component_graft.py": 378
     }
   },
   {
@@ -23729,7 +23729,7 @@ MESSAGE_REFERENCE = [
     "message": "the grafted object does not read back with the donor element's members and resources",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/prefab_component_graft.py": 368
+      "cdmw/core/prefab_component_graft.py": 373
     }
   },
   {
@@ -23737,7 +23737,7 @@ MESSAGE_REFERENCE = [
     "message": "the grafted prefab declares the wrong file size",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/prefab_component_graft.py": 382
+      "cdmw/core/prefab_component_graft.py": 387
     }
   },
   {
@@ -23745,7 +23745,7 @@ MESSAGE_REFERENCE = [
     "message": "the grafted prefab declares the wrong number of types",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/prefab_component_graft.py": 363
+      "cdmw/core/prefab_component_graft.py": 368
     }
   },
   {
@@ -23753,7 +23753,7 @@ MESSAGE_REFERENCE = [
     "message": "the grafted prefab does not read back: {exc}",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/prefab_component_graft.py": 359
+      "cdmw/core/prefab_component_graft.py": 364
     }
   },
   {
@@ -23761,7 +23761,7 @@ MESSAGE_REFERENCE = [
     "message": "the grafted prefab has the wrong number of pointers",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/prefab_component_graft.py": 378
+      "cdmw/core/prefab_component_graft.py": 383
     }
   },
   {
@@ -23769,7 +23769,7 @@ MESSAGE_REFERENCE = [
     "message": "the grafted prefab no longer reads all the way through: {after.walk_note}",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/prefab_component_graft.py": 361
+      "cdmw/core/prefab_component_graft.py": 366
     }
   },
   {
@@ -23777,7 +23777,7 @@ MESSAGE_REFERENCE = [
     "message": "the grafted prefab reads back {len(after.objects)} object(s), expected {len(before.objects) + 1}",
     "recovery": "input",
     "sources": {
-      "cdmw/core/prefab_component_graft.py": 365
+      "cdmw/core/prefab_component_graft.py": 370
     }
   },
   {
@@ -23785,7 +23785,7 @@ MESSAGE_REFERENCE = [
     "message": "the grafted prefab's blob is not the size the graft implies",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/prefab_component_graft.py": 380
+      "cdmw/core/prefab_component_graft.py": 385
     }
   },
   {
@@ -23793,7 +23793,7 @@ MESSAGE_REFERENCE = [
     "message": "the target has {len(targets)} {collection_member} collection(s), none at index {target_collection}",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/prefab_component_graft.py": 247
+      "cdmw/core/prefab_component_graft.py": 252
     }
   },
   {
@@ -23801,7 +23801,7 @@ MESSAGE_REFERENCE = [
     "message": "the target prefab did not decode completely: unknown",
     "recovery": "format",
     "sources": {
-      "cdmw/core/prefab_component_graft.py": 231
+      "cdmw/core/prefab_component_graft.py": 236
     }
   },
   {
@@ -23809,7 +23809,7 @@ MESSAGE_REFERENCE = [
     "message": "the target prefab did not decode completely: {tdoc.walk_note}",
     "recovery": "format",
     "sources": {
-      "cdmw/core/prefab_component_graft.py": 231
+      "cdmw/core/prefab_component_graft.py": 236
     }
   },
   {
@@ -23817,7 +23817,7 @@ MESSAGE_REFERENCE = [
     "message": "the target prefab's walk is not determined; refusing to splice into it",
     "recovery": "input",
     "sources": {
-      "cdmw/core/prefab_component_graft.py": 233
+      "cdmw/core/prefab_component_graft.py": 238
     }
   },
   {
@@ -23825,7 +23825,7 @@ MESSAGE_REFERENCE = [
     "message": "the target's own strings did not survive the graft in order",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/prefab_component_graft.py": 376
+      "cdmw/core/prefab_component_graft.py": 381
     }
   },
   {
@@ -23833,7 +23833,7 @@ MESSAGE_REFERENCE = [
     "message": "the target's {collection_member} collection declares {t_coll.count} element(s) and walked {len(t_coll.elements)}; refusing",
     "recovery": "input",
     "sources": {
-      "cdmw/core/prefab_component_graft.py": 251
+      "cdmw/core/prefab_component_graft.py": 256
     }
   },
   {
@@ -23889,7 +23889,7 @@ MESSAGE_REFERENCE = [
     "message": "type table too large",
     "recovery": "limits",
     "sources": {
-      "cdmw/core/prefab_component_graft.py": 275
+      "cdmw/core/prefab_component_graft.py": 280
     }
   },
   {
@@ -24105,7 +24105,7 @@ MESSAGE_REFERENCE = [
     "message": "{collection.member_name} declares {collection.count} element(s) but only {len(collection.elements)} were read; refusing to resize it",
     "recovery": "input",
     "sources": {
-      "cdmw/core/prefab_array_edit.py": 154
+      "cdmw/core/prefab_array_edit.py": 161
     }
   },
   {
@@ -24113,7 +24113,7 @@ MESSAGE_REFERENCE = [
     "message": "{collection.member_name} has one element left; removing it would leave an empty collection, which no shipped prefab does",
     "recovery": "empty",
     "sources": {
-      "cdmw/core/prefab_array_edit.py": 229
+      "cdmw/core/prefab_array_edit.py": 274
     }
   },
   {
@@ -24121,7 +24121,7 @@ MESSAGE_REFERENCE = [
     "message": "{collection.member_name} is an indexed list (socket list); resizing it is not supported",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/core/prefab_array_edit.py": 163
+      "cdmw/core/prefab_array_edit.py": 170
     }
   },
   {
@@ -24953,7 +24953,7 @@ MESSAGE_REFERENCE = [
     "message": "{text} -> {replacement} changes the byte length, and this prefab only takes same-length replacements because {reason}",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/prefab_binary_edit.py": 451
+      "cdmw/core/prefab_binary_edit.py": 475
     }
   },
   {
@@ -24961,7 +24961,7 @@ MESSAGE_REFERENCE = [
     "message": "{text} -> {replacement} changes the byte length, and this prefab only takes same-length replacements because {reason} ({document.walk_note})",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/prefab_binary_edit.py": 451
+      "cdmw/core/prefab_binary_edit.py": 475
     }
   },
   {
@@ -25065,7 +25065,7 @@ MESSAGE_REFERENCE = [
     "message": "A selected package changed during preparation: {path}. Apply changes again.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/virtual_loader_composition.py": 271
+      "cdmw/services/virtual_loader_composition.py": 285
     }
   },
   {
@@ -26955,7 +26955,7 @@ MESSAGE_REFERENCE = [
     "message": "New textures require a verified game texture registry.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/virtual_loader_composition.py": 163
+      "cdmw/services/virtual_loader_composition.py": 149
     }
   },
   {
@@ -27388,7 +27388,7 @@ MESSAGE_REFERENCE = [
     "message": "Select at most 128 external mod folders.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/virtual_loader_composition.py": 100
+      "cdmw/services/virtual_loader_composition.py": 169
     }
   },
   {
@@ -27396,7 +27396,7 @@ MESSAGE_REFERENCE = [
     "message": "Select at most 128 item packages and 128 mod folders, including disabled entries.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/virtual_loader_composition.py": 106
+      "cdmw/services/virtual_loader_composition.py": 175
     }
   },
   {
@@ -27541,7 +27541,7 @@ MESSAGE_REFERENCE = [
     "message": "Source index changed since parsing: {path}.",
     "recovery": "stale",
     "sources": {
-      "cdmw/services/virtual_loader_composition.py": 182
+      "cdmw/services/virtual_loader_composition.py": 196
     }
   },
   {
@@ -27773,7 +27773,7 @@ MESSAGE_REFERENCE = [
     "message": "The composed virtual profile exceeds its supported size.",
     "recovery": "limits",
     "sources": {
-      "cdmw/services/virtual_loader_composition.py": 153
+      "cdmw/services/virtual_loader_composition.py": 139
     }
   },
   {
@@ -27885,7 +27885,7 @@ MESSAGE_REFERENCE = [
     "message": "The game cannot be asked for {unservable[0]} by path, so it cannot be served. Rename the file in its mod or package.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/virtual_loader_composition.py": 212
+      "cdmw/services/virtual_loader_composition.py": 226
     }
   },
   {
@@ -28781,7 +28781,7 @@ MESSAGE_REFERENCE = [
     "message": "The virtual selection contains duplicate paths.",
     "recovery": "conflict",
     "sources": {
-      "cdmw/services/virtual_loader_composition.py": 108
+      "cdmw/services/virtual_loader_composition.py": 177
     }
   },
   {
@@ -30268,7 +30268,7 @@ MESSAGE_REFERENCE = [
     "message": "Archive catalogue omits an original index witness. Read the archives again.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_provenance.py": 166
+      "cdmw/services/new_item_provenance.py": 168
     }
   },
   {
@@ -30381,7 +30381,7 @@ MESSAGE_REFERENCE = [
     "message": "Cannot carry the template's bone offsets: {exc}",
     "recovery": "input",
     "sources": {
-      "cdmw/services/new_item_planning.py": 680
+      "cdmw/services/new_item_planning.py": 687
     }
   },
   {
@@ -30389,7 +30389,7 @@ MESSAGE_REFERENCE = [
     "message": "Cannot copy prefab {item.path}: {exc}",
     "recovery": "input",
     "sources": {
-      "cdmw/services/new_item_planning.py": 756
+      "cdmw/services/new_item_planning.py": 762
     }
   },
   {
@@ -30421,7 +30421,7 @@ MESSAGE_REFERENCE = [
     "message": "Cannot prepare equipment visibility rules: {exc}",
     "recovery": "input",
     "sources": {
-      "cdmw/services/new_item_planning.py": 959
+      "cdmw/services/new_item_planning.py": 965
     }
   },
   {
@@ -30485,7 +30485,7 @@ MESSAGE_REFERENCE = [
     "message": "Change cancelled. The installed overlays are unchanged.",
     "recovery": "cancelled",
     "sources": {
-      "cdmw/ui/new_item/overlay_manager_dialog.py": 488
+      "cdmw/ui/new_item/overlay_manager_dialog.py": 492
     }
   },
   {
@@ -32538,7 +32538,7 @@ MESSAGE_REFERENCE = [
     "message": "No icon registry ({ICON_REGISTRY_PATH}) in the archives; the generated icon will not draw until it is registered there.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 847
+      "cdmw/services/new_item_planning.py": 853
     }
   },
   {
@@ -32610,7 +32610,7 @@ MESSAGE_REFERENCE = [
     "message": "No texture registry (meta/0.pathc) was found beside the archives; the new textures will not draw when installed directly until it is rebuilt.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 877
+      "cdmw/services/new_item_planning.py": 883
     }
   },
   {
@@ -32683,7 +32683,7 @@ MESSAGE_REFERENCE = [
     "message": "Operation finished or cancelled. Refresh to read the installed state.",
     "recovery": "cancelled",
     "sources": {
-      "cdmw/ui/new_item/overlay_manager_dialog.py": 527
+      "cdmw/ui/new_item/overlay_manager_dialog.py": 531
     }
   },
   {
@@ -33125,7 +33125,7 @@ MESSAGE_REFERENCE = [
     "message": "Source changed while reading: {entry.path}.",
     "recovery": "stale",
     "sources": {
-      "cdmw/services/new_item_provenance.py": 221
+      "cdmw/services/new_item_provenance.py": 223
     }
   },
   {
@@ -33189,7 +33189,7 @@ MESSAGE_REFERENCE = [
     "message": "Source index no longer matches its catalogue: {path}. Read the archives again.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_provenance.py": 180
+      "cdmw/services/new_item_provenance.py": 182
     }
   },
   {
@@ -33213,7 +33213,7 @@ MESSAGE_REFERENCE = [
     "message": "Starting fresh cancelled. The saved overlay set is unchanged.",
     "recovery": "cancelled",
     "sources": {
-      "cdmw/ui/new_item/overlay_manager_dialog.py": 460
+      "cdmw/ui/new_item/overlay_manager_dialog.py": 464
     }
   },
   {
@@ -33245,7 +33245,7 @@ MESSAGE_REFERENCE = [
     "message": "Static table round trip failed",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_acquisition_index.py": 58
+      "cdmw/services/new_item_acquisition_index.py": 84
     }
   },
   {
@@ -34219,7 +34219,7 @@ MESSAGE_REFERENCE = [
     "message": "The source item table already contains custom items: {detail}. Their records would be included in the exported tables. To create a separate mod, unmount existing item mods and read the archives again before building the plan. To combine mounted items, select Include mounted items in a new mod and rebuild. To extend a mod folder, select it with Add to existing mod. Source: {snapshot.iteminfo.payload_entry.pamt_path}",
     "recovery": "format",
     "sources": {
-      "cdmw/services/new_item_planning.py": 1010
+      "cdmw/services/new_item_planning.py": 1016
     }
   },
   {
@@ -34299,7 +34299,7 @@ MESSAGE_REFERENCE = [
     "message": "The template has no {role} at {item.path}; the clone goes without one.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 731
+      "cdmw/services/new_item_planning.py": 737
     }
   },
   {
@@ -35541,7 +35541,7 @@ MESSAGE_REFERENCE = [
     "message": "a generated icon needs the spec's stem to be allocated",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 901
+      "cdmw/services/new_item_planning.py": 907
     }
   },
   {
@@ -35781,7 +35781,7 @@ MESSAGE_REFERENCE = [
     "message": "enchant level {level} for {what} is negative",
     "recovery": "input",
     "sources": {
-      "cdmw/services/new_item_planning.py": 908
+      "cdmw/services/new_item_planning.py": 914
     }
   },
   {
@@ -35789,7 +35789,7 @@ MESSAGE_REFERENCE = [
     "message": "enchant level {level} for {what} skips level {len(levels)}; levels are added one at a time",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 910
+      "cdmw/services/new_item_planning.py": 916
     }
   },
   {
@@ -35861,7 +35861,7 @@ MESSAGE_REFERENCE = [
     "message": "icon registry: {exc}",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 853
+      "cdmw/services/new_item_planning.py": 859
     }
   },
   {
@@ -36247,7 +36247,7 @@ MESSAGE_REFERENCE = [
     "message": "texture registry: {exc}",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 890
+      "cdmw/services/new_item_planning.py": 896
     }
   },
   {
@@ -36255,7 +36255,7 @@ MESSAGE_REFERENCE = [
     "message": "texture {request.path}: {exc}",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 876
+      "cdmw/services/new_item_planning.py": 882
     }
   },
   {
@@ -36432,7 +36432,7 @@ MESSAGE_REFERENCE = [
     "message": "the imported build carries no rebuilt mesh data",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 1053
+      "cdmw/services/new_item_planning.py": 1059
     }
   },
   {
@@ -36488,7 +36488,7 @@ MESSAGE_REFERENCE = [
     "message": "the spec asks for a generated icon but no icon was built",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 838
+      "cdmw/services/new_item_planning.py": 844
     }
   },
   {
@@ -36504,7 +36504,7 @@ MESSAGE_REFERENCE = [
     "message": "the spec imports a model but no build was given",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 710
+      "cdmw/services/new_item_planning.py": 716
     }
   },
   {
@@ -36512,7 +36512,7 @@ MESSAGE_REFERENCE = [
     "message": "the spec needs a stem and none is allocated",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 938
+      "cdmw/services/new_item_planning.py": 944
     }
   },
   {
@@ -36520,7 +36520,7 @@ MESSAGE_REFERENCE = [
     "message": "the spec's {name} is not allocated",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 936
+      "cdmw/services/new_item_planning.py": 942
     }
   },
   {
@@ -36528,7 +36528,7 @@ MESSAGE_REFERENCE = [
     "message": "the template has no enchant level to copy for {what}",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 913
+      "cdmw/services/new_item_planning.py": 919
     }
   },
   {
@@ -36721,7 +36721,7 @@ MESSAGE_REFERENCE = [
     "message": "{item.path} names none of the family's meshes, so it cannot be re-pathed",
     "recovery": "input",
     "sources": {
-      "cdmw/services/new_item_planning.py": 758
+      "cdmw/services/new_item_planning.py": 764
     }
   },
   {
@@ -36914,7 +36914,7 @@ MESSAGE_REFERENCE = [
     "message": "{part.prefab_path} names no mesh to re-path to the imported model",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 800
+      "cdmw/services/new_item_planning.py": 806
     }
   },
   {
@@ -37106,7 +37106,7 @@ MESSAGE_REFERENCE = [
     "message": "{self.template.string_key} has no icon file to shape the new one after",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 842
+      "cdmw/services/new_item_planning.py": 848
     }
   },
   {
@@ -37122,7 +37122,7 @@ MESSAGE_REFERENCE = [
     "message": "{self.template.string_key}'s family has no .pac to replace",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 704
+      "cdmw/services/new_item_planning.py": 710
     }
   },
   {
@@ -80142,6 +80142,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
+    "message": "Select at least one item package to send to DMM.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/services/dmm_send.py": 132
+    }
+  },
+  {
+    "area": "other",
     "message": "Select at least one recolor target in the asset list.",
     "recovery": "input",
     "sources": {
@@ -103029,7 +103037,7 @@ SOURCE_COVERAGE = {
     "raise": 30
   },
   "cdmw/services/dmm_send.py": {
-    "raise": 3
+    "raise": 4
   },
   "cdmw/services/effect_catalogue.py": {
     "raise": 2

@@ -46,6 +46,7 @@ experimental-feature notes do not establish equivalent in-game behavior.
 - Find references no longer freezes the Archive Browser or reads the whole game for every search. It reads only the file types that store paths of the selected kind, lets the archive worker find the files that contain the name first, and redraws Asset Family only when results change. Named voice lines report that they are not searched, because the game picks them by name while it runs and no game file stores their path.
 
 - Opening the Prefab Inspector shows its progress in the Archive Browser's progress bar and log while the prefab is read and the archives are indexed, instead of appearing to do nothing for several seconds.
+- The Prefab Inspector's **Duplicate this object** and **Remove this object** no longer write a damaged prefab. Each object ends with a field that records the size of its data, and the edit cut that field off the object or left it with the neighbouring object, so most results stored a wrong size. The Inspector read those files back without complaint. Objects are now copied and removed whole, and when an object sits inside another one, the outer object's recorded size is updated too. Redo prefabs saved with either action in an earlier version from the game's copy. Loading edited prefabs in game is still untested.
 
 - Archive Browser skips CrimsonMods cache archives by default. Archive parse errors identify the failing file and offer to exclude recognised mod or backup folders and refresh.
 

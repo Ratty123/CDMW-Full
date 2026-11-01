@@ -41,10 +41,12 @@ that was searched for, and the six near-pairs it turned up are unrelated assets
 whose names coincide. So there is no shipped file to diff a resize against, and
 the validation is internal instead:
 
-* **Duplicate then remove the duplicate returns the original bytes.** Every
-  intermediate field -- count, pointers, header -- has to be exactly right in
-  both directions for the round trip to close, and a byte comparison against the
-  input is not something the writer's own arithmetic can talk its way out of.
+* **Duplicate then remove the duplicate returns the original bytes.** That
+  catches a field written wrongly, but not one left unwritten: a length field
+  both directions forget is restored by the round trip. That is how the first
+  version shipped splicing at the walk's element spans, which leave an element's
+  trailing name-length field with the next element, and passed (2026-11-01: an
+  oracle over every byte of the result found it on 9 in 10 duplicates).
 * **The result is read back** before it is returned, and refused unless the walk
   completes, the collection carries the new count, and every pointer still
   satisfies the identity.
@@ -67,7 +69,12 @@ from cdmw.core.prefab_binary import (
     pointer_sites,
     walk_is_determined,
 )
-from cdmw.core.prefab_binary_edit import PrefabEditError, _patch_data_header
+from cdmw.core.prefab_binary_edit import (
+    PrefabEditError,
+    _patch_data_header,
+    affected_length_fields,
+)
+from cdmw.core.prefab_component_graft import element_bounds
 
 
 @dataclass(frozen=True, slots=True)
@@ -166,14 +173,52 @@ def _resizable_collection(
     return collection
 
 
-def _pointee_spans_splice(document: PrefabDocument, at: int) -> bool:
-    """Would the splice land inside a pointee, invalidating its length field?
+def _element_span(data: bytes, document: PrefabDocument, collection_index: int, element_index: int) -> tuple[int, int]:
+    """The bytes that make the element a whole object.
 
-    It should not -- elements are group boundaries and a pointee never straddles
-    one -- but "should not" is the kind of claim that costs a corrupted file, and
-    the check is two comparisons.
+    The walk's span is off by one length field: it starts with the previous
+    element's trailing name-length field and stops before this element's own.
+    Copying or dropping that span leaves a name record without its length, or
+    with its neighbour's. An element with no name record (no pointer at all)
+    keeps the walk's span; the straddle check in :func:`_enclosing_fields`
+    refuses it if that span cuts a pointee.
     """
-    return any(site + 4 < at < field_at + 4 for site, field_at in document.pointee_length_fields)
+    try:
+        start, end, _site = element_bounds(data, document, collection_index, element_index)
+    except PrefabEditError:
+        return document.collections[collection_index].elements[element_index]
+    return start, end
+
+
+def _enclosing_fields(
+    data: bytes, document: PrefabDocument, start: int, end: int
+) -> dict[int, int]:
+    """Length fields of the pointees that enclose ``[start, end)`` and must change.
+
+    A pointee that wholly contains the block grows or shrinks by the block's
+    length: an object nested in a child object sits inside its parent's name
+    record. One that straddles either boundary would be cut in half, so it is
+    refused rather than reasoned about.
+    """
+    sites = pointer_sites(data, document.blob_offset, document.blob_length)
+    touching = affected_length_fields(
+        data,
+        document,
+        sites,
+        lambda target, field_at: target < start < field_at + 4 or target < end < field_at + 4,
+    )
+    enclosing: dict[int, int] = {}
+    for site, field_at in touching.items():
+        target = site + 4
+        if target < start and field_at >= end:
+            enclosing[site] = field_at
+            continue
+        raise PrefabEditError(
+            f"The pointee at 0x{target:x} (length field at 0x{field_at:x}) crosses the "
+            f"element at 0x{start:x}..0x{end:x}, so the element is not a whole object; "
+            "refusing to splice it"
+        )
+    return enclosing
 
 
 def _spliced_pointer_sites(
@@ -214,7 +259,7 @@ def _resize(data: bytes, collection_index: int, element_index: int, *, insert: b
             f"No element {element_index} in {collection.member_name}; "
             f"it has {len(collection.elements)}"
         )
-    start, end = collection.elements[element_index]
+    start, end = _element_span(payload, document, collection_index, element_index)
     block = payload[start:end]
     if not block:
         raise PrefabEditError(f"Element {element_index} is empty; refusing to resize")
@@ -233,12 +278,7 @@ def _resize(data: bytes, collection_index: int, element_index: int, *, insert: b
         at, delta = start, -(end - start)
         rebuilt = bytearray(payload[:start] + payload[end:])
 
-    if _pointee_spans_splice(document, at):
-        raise PrefabEditError(
-            f"A pointee spans 0x{at:x}, so its stored length would no longer "
-            "describe it; refusing to splice there"
-        )
-
+    enclosing = _enclosing_fields(payload, document, start, end)
     count_after = collection.count + (1 if insert else -1)
     # The header always precedes its elements, so the count never moves.
     struct.pack_into("<I", rebuilt, collection.count_offset, count_after)
@@ -247,6 +287,11 @@ def _resize(data: bytes, collection_index: int, element_index: int, *, insert: b
     relocated = _spliced_pointer_sites(sites, start, end, at, delta)
     for site in relocated:
         struct.pack_into("<I", rebuilt, site, site + 4)
+    # An enclosing pointee starts before the block and ends after it, so only its
+    # length field moves, and its length changes by exactly the block's size.
+    for site, field_at in enclosing.items():
+        moved_field = field_at + delta
+        struct.pack_into("<I", rebuilt, moved_field, moved_field - (site + 4))
 
     _patch_data_header(rebuilt, document, delta)
     _verify_resize(
@@ -267,6 +312,7 @@ def _resize(data: bytes, collection_index: int, element_index: int, *, insert: b
         f"0x{collection.count_offset:x}.",
         f"Recomputed {len(relocated)} pointer(s) from their own new positions; "
         "pointee lengths are distances and did not move relative to their pointees.",
+        f"Changed {len(enclosing)} enclosing pointee length(s) by {delta} byte(s).",
         "Read the result back: the walk completes and the collection carries the new count.",
     )
     return PrefabArrayResult(
@@ -332,7 +378,7 @@ def _verify_resize(
         for index in (source, copy):
             if index >= len(got.elements):
                 raise PrefabEditError(f"Element {index} is missing from the resized collection")
-            start, end = got.elements[index]
+            start, end = _element_span(rebuilt, after, collection_index, index)
             if end - start != expected_span:
                 raise PrefabEditError(
                     f"Element {index} reads back as {end - start} bytes, but the "
