@@ -667,7 +667,7 @@ class AboutDocumentationEnglishMixin:
                   <li>Choose Launch game, or start the game from Steam or DMM. CDMW's runtime in the game's bin64 folder serves the items while the game runs.</li>
                 </ol>
                 <p>Item identities keeps the IDs assigned to each item, so saves find their items again. Export the identity profile with your saves when moving to another computer.</p>
-                <p>Loading items this way is experimental. After a game update, choose Apply changes again. A DMM mod that replaces the item or shop tables may hide CDMW's items. A successful launch does not verify the items in shops, the inventory or saves.</p>
+                <p>Loading items this way is experimental. After a game update, opening Mod Management applies the items again. A DMM mod that replaces the item or shop tables may hide CDMW's items. A successful launch does not verify the items in shops, the inventory or saves.</p>
                 """,
             },
             {
