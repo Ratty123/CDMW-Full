@@ -26,7 +26,7 @@ import hashlib
 import struct
 from bisect import bisect_right
 from dataclasses import dataclass
-from typing import Mapping, Sequence
+from typing import Callable, Mapping, Sequence
 
 from cdmw.core.prefab_recovery import recover_pointee_strings
 from cdmw.core.prefab_binary import (
@@ -115,6 +115,70 @@ def _string_byte_mask(data: bytes, document: PrefabDocument) -> bytes:
         if 0 <= start < stop:
             mask[start:stop] = b"\x01" * (stop - start)
     return bytes(mask)
+
+
+def affected_length_fields(
+    payload: bytes,
+    document: PrefabDocument,
+    sites: Sequence[int],
+    affects: Callable[[int, int], bool],
+) -> dict[int, int]:
+    """``{pointer site: length field offset}`` for every pointee an edit affects.
+
+    ``affects(target, field_at)`` says whether a pointee starting at ``target``
+    whose length field sits at ``field_at`` is touched by the edit. It must only
+    ever answer yes for a *larger* ``field_at``, never a smaller one, because a
+    pointee whose field is not known is judged by its widest possible extent.
+
+    A pointee's stored length is a distance, so it only needs rewriting when an
+    edit lands *inside* that pointee. Every other field keeps its value: both of
+    its endpoints shift by the same amount. Touching only what must change keeps
+    the ambiguous ones (6.5% of pointees have more than one position satisfying
+    the length test, and nothing in the file resolves which) out of the blast
+    radius entirely.
+    """
+    # The walk read and validated each pointee's trailing length field, so its
+    # position is known rather than searched for. Searching is what landed on a
+    # nested string's own length prefix and corrupted files.
+    known_fields = dict(document.pointee_length_fields)
+    in_string = _string_byte_mask(payload, document)
+    string_at = {item.offset: item for item in document.all_strings()}
+    length_fields: dict[int, int] = {}
+    for site in sites:
+        target = site + 4
+        derived_by_walk = known_fields.get(site)
+        if derived_by_walk is not None:
+            if affects(target, derived_by_walk):
+                length_fields[site] = derived_by_walk
+            continue
+        # A pointee that opens with a decoded string has a *computable* field:
+        # 4 bytes of head, then the string, then the length. No scan, so no
+        # ambiguity -- and this is the shape every resource-path pointee takes,
+        # which is exactly where edits land.
+        held = string_at.get(target + 4)
+        if held is not None:
+            derived = target + 8 + len(held.text.encode("utf-8"))
+            if (
+                derived + 4 <= len(payload)
+                and struct.unpack_from("<I", payload, derived)[0] == derived - target
+            ):
+                if affects(target, derived):
+                    length_fields[site] = derived
+                continue
+        candidates = _length_field_candidates(payload, target, _POINTEE_SCAN, in_string)
+        if not candidates:
+            raise PrefabEditError(f"no pointee length field after 0x{target:x}")
+        # Widest possible extent, so "unaffected" is never claimed too eagerly.
+        if not affects(target, candidates[-1]):
+            continue
+        if len(candidates) > 1:
+            raise PrefabEditError(
+                f"The pointee at 0x{target:x} has {len(candidates)} possible length "
+                "fields and the file does not say which; refusing to guess on an "
+                "edit inside it."
+            )
+        length_fields[site] = candidates[0]
+    return length_fields
 
 
 def _shift_for(boundaries: Sequence[int], deltas: Sequence[int], offset: int) -> int:
@@ -276,55 +340,15 @@ def rewrite_prefab_paths(
         )
 
     sites = pointer_sites(payload, document.blob_offset, document.blob_length)
-    # A pointee's stored length is a distance, so it only needs rewriting when
-    # an edit lands *inside* that pointee. Every other field keeps its value:
-    # both of its endpoints shift by the same amount. Touching only what must
-    # change keeps the ambiguous ones (6.5% of pointees have more than one
-    # position satisfying the length test, and nothing in the file resolves
-    # which) out of the blast radius entirely.
-    # The walk read and validated each pointee's trailing length field, so its
-    # position is known rather than searched for. Searching is what landed on a
-    # nested string's own length prefix and corrupted files.
-    known_fields = dict(document.pointee_length_fields)
-    in_string = _string_byte_mask(payload, document)
-    string_at = {item.offset: item for item in document.all_strings()}
     edit_positions = [edit.offset for edit in edits]
-    length_fields: dict[int, int] = {}
-    for site in sites:
-        target = site + 4
-        derived_by_walk = known_fields.get(site)
-        if derived_by_walk is not None:
-            if any(target <= position < derived_by_walk + 4 for position in edit_positions):
-                length_fields[site] = derived_by_walk
-            continue
-        # A pointee that opens with a decoded string has a *computable* field:
-        # 4 bytes of head, then the string, then the length. No scan, so no
-        # ambiguity -- and this is the shape every resource-path pointee takes,
-        # which is exactly where edits land.
-        held = string_at.get(target + 4)
-        if held is not None:
-            derived = target + 8 + len(held.text.encode("utf-8"))
-            if (
-                derived + 4 <= len(payload)
-                and struct.unpack_from("<I", payload, derived)[0] == derived - target
-            ):
-                if any(target <= position < derived + 4 for position in edit_positions):
-                    length_fields[site] = derived
-                continue
-        candidates = _length_field_candidates(payload, target, _POINTEE_SCAN, in_string)
-        if not candidates:
-            raise PrefabEditError(f"no pointee length field after 0x{target:x}")
-        # Widest possible extent, so "unaffected" is never claimed too eagerly.
-        extent = candidates[-1] + 4
-        if not any(target <= position < extent for position in edit_positions):
-            continue
-        if len(candidates) > 1:
-            raise PrefabEditError(
-                f"The pointee at 0x{target:x} has {len(candidates)} possible length "
-                "fields and the file does not say which; refusing to guess on an "
-                "edit inside it."
-            )
-        length_fields[site] = candidates[0]
+    length_fields = affected_length_fields(
+        payload,
+        document,
+        sites,
+        lambda target, field_at: any(
+            target <= position < field_at + 4 for position in edit_positions
+        ),
+    )
 
     # Build the edited bytes and record where each edit shifts what follows.
     out = bytearray()

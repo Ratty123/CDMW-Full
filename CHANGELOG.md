@@ -31,7 +31,7 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 - Mesh Editor opens large models and finishes edits faster, and OBJ and GLB exports of large models take about half the time or less, with byte-identical output.
 
-- The Prefab Inspector reads about 96% of the game's prefabs all the way through, up from about 76%, including spline, Houdini, audio and mesh-group gimmicks and prefabs with nested prefab instances. On those, paths can be retargeted at any length, placements moved and objects duplicated or removed, and they can be saved as item packages, where before only same-length path swaps were allowed. Prefabs that already read completely show the same objects, apart from some nested prefabs that now also list empty child entries that were skipped before. Loading edited prefabs in game is still untested.
+- The Prefab Inspector reads about 99% of the game's prefabs all the way through, up from about 76%, including spline, Houdini, audio and mesh-group gimmicks and prefabs with nested prefab instances. On those, paths can be retargeted at any length, placements moved and objects duplicated or removed, and they can be saved as item packages, where before only same-length path swaps were allowed. Prefabs that already read completely show the same objects, apart from some nested prefabs that now also list empty child entries that were skipped before, and a few large scene prefabs that now list hundreds of asset paths the earlier reading stepped over. Fewer path changes are refused as undecidable, and prefabs whose layout could be read two ways no longer refuse object edits. Loading edited prefabs in game is still untested.
 
 - Mesh Editor and Create New Item preview existing glass visors and net veils, such as the bridal veil helmet `cd_phw_00_hel_00_0219`, as see-through instead of solid.
 
@@ -52,6 +52,7 @@ experimental-feature notes do not establish equivalent in-game behavior.
 - Find references no longer freezes the Archive Browser or reads the whole game for every search. It reads only the file types that store paths of the selected kind, lets the archive worker find the files that contain the name first, and redraws Asset Family only when results change. Named voice lines report that they are not searched, because the game picks them by name while it runs and no game file stores their path.
 
 - Opening the Prefab Inspector shows its progress in the Archive Browser's progress bar and log while the prefab is read and the archives are indexed, instead of appearing to do nothing for several seconds.
+- The Prefab Inspector's **Duplicate this object** and **Remove this object** no longer write a damaged prefab. Each object ends with a field that records the size of its data, and the edit cut that field off the object or left it with the neighbouring object, so most results stored a wrong size. The Inspector read those files back without complaint. Objects are now copied and removed whole, and when an object sits inside another one, the outer object's recorded size is updated too. Redo prefabs saved with either action in an earlier version from the game's copy. Loading edited prefabs in game is still untested.
 
 - Archive Browser skips CrimsonMods cache archives by default. Archive parse errors identify the failing file and offer to exclude recognised mod or backup folders and refresh.
 
