@@ -175,6 +175,17 @@ def test_apply_click_projects_real_controls_saves_and_enables_launch(tmp_path, m
         assert page._prepared is None
         assert page.launch_button.isEnabled() and page.progress.isHidden()
         assert page.status.text() == 'Profile applied. Ready to launch.'
+        # Apply also lets Steam, DMM and other launchers load the items.
+        from cdmw.services.virtual_loader_standalone import standalone_published
+        from cdmw.services.virtual_loader_composition import hash_file
+        assert standalone_published(root)
+        # A game update makes the profile stale; the page applies it again by itself.
+        (root / 'bin64/CrimsonDesert.exe').write_bytes(b'fixture executable, patched')
+        page.refresh()
+        pump(app, lambda: page._reapplied_for == str(root) and page._queued is None and not page._working
+             and not controller.busy and page._status_current and not page._status_reading)
+        assert load_profile(root)['executable_sha256'] == hash_file(root / 'bin64/CrimsonDesert.exe')
+        assert standalone_published(root) and page.launch_button.isEnabled()
         page._append_selection('item', (tmp_path / 'different.cditem',))
         assert not page.launch_button.isEnabled()
     finally:

@@ -245,7 +245,7 @@ def test_pid_and_foreign_declared_process_fields_cannot_become_verified_identity
     result, _calls = start(root, review, monkeypatch)
     monkeypatch.setattr(runtime, '_process_alive', lambda pid: False)
     report(root, result.detail, 'running', birth_sha256='1' * 64,
-           image_sha256=runtime.GAME_SHA256, observed_session_token=result.detail)
+           image_sha256=runtime.installed_game_sha256(root), observed_session_token=result.detail)
     status = runtime.session_status(root, result.detail, host_pid=123)
     assert status.state == 'stopped'
     value = last(root, result.detail).to_dict()

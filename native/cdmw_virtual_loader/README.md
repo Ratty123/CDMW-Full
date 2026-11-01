@@ -134,12 +134,13 @@ runtime readiness. The early archive queries come from CDMW's own manifest path
 validation; the cold-start call stacks identify that boundary through UAL's
 `GetCommandLineW` wrapper. Game redirection now requires that ordered return chain:
 UAL RVAs `0x21785`, `0x308e8`, `0x32e13`, `0x1f848` (9.7.4: `0x218a1`, `0x30df8`,
-`0x333b3`, `0x1f918`), followed by the supported build's game return address
-(`game_startup_return` beside `game_hash` in `protocol.hpp`). The runtime verifies UAL's complete `GetCommandLineW` wrapper and
+`0x333b3`, `0x1f918`), followed by a return into the game executable's own code: any
+address inside its mapped image whose page is executable, since every game update moves
+that call site. The runtime verifies UAL's complete `GetCommandLineW` wrapper and
 system forwarding destination, completed bootstrap phases, the earliest live
 process thread, and an outside-loader-callout result. It refuses before hooking
-if any witness is missing. This is an executable-specific startup boundary, not
-an item-registration ABI. The guard runs after Steam process binding, allowing
+if any witness is missing. UAL is fingerprinted by hash, so its frames stay exact; no
+game build is compiled in. This is a startup boundary, not an item-registration ABI. The guard runs after Steam process binding, allowing
 the host to terminate its verified new game on refusal. Trace records distinguish
 the startup guard result from completion of all import hooks.
 
@@ -337,17 +338,22 @@ CDAL later adds an import-slot kind that chains callers, the runtime could regis
 through it when `cdal.dll` is present and keep its direct path otherwise, so other mods
 that need the same imports could share them instead of being refused.
 
-## Game 2.04.02 and 2.04.03 (October 2026 DLC update and patch)
+## Game updates (no build pin since 2026-11-01)
 
-The supported build is executable 1.0.0.3460 (game 2.04.03, Steam build 26345091,
-31 October 2026), SHA-256 `4e38ce1d8fe98eee7be0e26026a1d24ea6a17e80aa88e906b5f3ed553af11f63`,
-startup return at game RVA `0x9a576d2`. Both were read from the runtime's own refusal
-stack on the first launch after the patch; UAL's four frames did not change. The patch
-left the five Wolf Trial packages' pinned files unchanged but rewrote `meta/0.pathc`.
+Until 2026-11-01 the runtime compiled in one game executable hash and its startup return
+address, so every game patch refused all items until CDMW shipped a matching runtime:
+1.0.0.3446 (2.04.02, `fec07be1…`) returned at game RVA `0x112835a6`, 1.0.0.3460 (2.04.03,
+`4e38ce1d…`) at `0x9a576d2`, and 1.0.0.3462 (1 November 2026, Steam build 26356046)
+moved it again. Each was read from the runtime's own refusal stack; UAL's four frames
+never changed. The 2.04.02 build reaches UAL's wrapper through a push/ret trampoline, so
+its only direct `GetCommandLineW` call site (`0xc3b8001`) was the wrong witness.
 
-Before it, executable 1.0.0.3446 (game 2.04.02, `fec07be1…`) returned at `0x112835a6`. Its
-protected code reaches UAL's wrapper through a push/ret trampoline, so the only direct
-`GetCommandLineW` call site (`0xc3b8001`) was the wrong witness and was refused.
+Now no build is pinned. A profile records the executable hash it was applied against
+(`executable_sha256`; the runtime refuses a launch whose executable differs), startup is
+accepted from any executable address in the game image, and the served classes are
+found by RTTI name. After an update, CDMW's status reports the profile as stale
+(`reapply`), and the Mods page applies the same selection again by itself. Apply also
+publishes the launcher-independent profile, so Steam and DMM launches load the items.
 
 Recorded 2026-10-31 with UAL 9.7.4, CDAL, BSX, FastLoad and DmmRuntime installed: a
 headless Steam launch with a launcher profile of the five Wolf Trial packages, rebuilt

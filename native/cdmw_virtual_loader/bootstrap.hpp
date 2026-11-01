@@ -3,10 +3,12 @@
 #include <span>
 
 namespace cdmw::vfs {
-// The ordered deferred-startup return sites observed before the first archive
-// read in complete warm/cold traces of the fingerprinted game and bootstrap.
-bool matches_startup_frames(std::span<void* const> frames, uintptr_t bootstrap, uintptr_t game);
-bool matches_startup_frames(std::span<void* const> frames, uintptr_t bootstrap, uintptr_t game, bool current_layout);
+// The bootstrap's ordered deferred-startup return sites, observed before the first
+// archive read, followed by a return into the game image [game_begin, game_end).
+// The game's own call site moves with every game build, so only its module is
+// checked; the bootstrap is fingerprinted and its four frames stay exact.
+bool matches_startup_frames(std::span<void* const> frames, uintptr_t bootstrap, uintptr_t game_begin, uintptr_t game_end);
+bool matches_startup_frames(std::span<void* const> frames, uintptr_t bootstrap, uintptr_t game_begin, uintptr_t game_end, bool current_layout);
 bool first_live_thread();
 // Exact-build compatibility with UAL 9.7.1 and 9.7.4 forwarding wrappers.
 // No bootstrap instructions, configuration, data or import slots are changed.

@@ -24,7 +24,6 @@ def setup_fixture(tmp_path, monkeypatch):
     (bundle / 'cdmw_virtual_session.exe').write_bytes(b'fixture host')
     evidence = {'files': {'CDMWVirtualLoader.asi': digest(payload), 'cdmw_virtual_session.exe': digest(b'fixture host')}}
     monkeypatch.setattr(runtime, 'native_bundle', lambda **kw: (bundle, evidence))
-    monkeypatch.setattr(runtime, 'GAME_SHA256', digest(b'fixture executable'))
     monkeypatch.setattr(runtime, 'BOOTSTRAP_SHA256', digest(b'fixture bootstrap'))
     monkeypatch.setattr('cdmw.services.new_item_service.game_is_running', lambda: False)
     launcher = tmp_path / 'steam.exe'
@@ -45,7 +44,7 @@ def test_runtime_setup_and_removal_are_reviewed_owned_and_recoverable(tmp_path, 
     backup = runtime.remove_runtime(root, expected_sha256=digest(payload), confirmed=True)
     assert not target.exists() and (backup / 'CDMWVirtualLoader.asi').read_bytes() == payload
     target.write_bytes(b'foreign file')
-    with pytest.raises(ValueError, match='not owned'):
+    with pytest.raises(ValueError, match='not installed by CDMW'):
         runtime.prepare_runtime_setup(root)
     assert target.read_bytes() == b'foreign file'
     assert (root / 'bin64/winmm.dll').read_bytes() == b'fixture bootstrap'
@@ -338,3 +337,20 @@ def test_non_security_io_error_does_not_poison_runtime_status(tmp_path, monkeypa
         with runtime._runtime_file_access(tmp_path / 'host.exe', 'a' * 64):
             raise error
     assert caught.value is error and not runtime._security_blocks
+
+
+def test_a_game_update_asks_for_apply_again_instead_of_refusing_the_build(tmp_path, monkeypatch):
+    # No game build is pinned: the profile records the executable it was applied against.
+    root, files = packages(tmp_path, 1)
+    root, payload = setup_fixture(tmp_path, monkeypatch)
+    (root / runtime.RUNTIME_PATH).write_bytes(payload)
+    runtime.apply_runtime_setup(runtime.prepare_runtime_setup(root), confirmed=True)
+    profile = publish_profile(prepare_profile(VirtualProfile(files), root))
+    assert profile['executable_sha256'] == digest(b'fixture executable')
+    assert runtime.runtime_status(root, experimental=True).state == 'ready'
+    (root / 'bin64/CrimsonDesert.exe').write_bytes(b'fixture executable, patched')
+    status = runtime.runtime_status(root, experimental=True)
+    assert status.state == 'reapply' and 'Apply changes again' in status.detail
+    profile = publish_profile(prepare_profile(VirtualProfile(files), root))
+    assert profile['executable_sha256'] == digest(b'fixture executable, patched')
+    assert runtime.runtime_status(root, experimental=True).state == 'ready'

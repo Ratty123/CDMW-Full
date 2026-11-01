@@ -22,6 +22,7 @@ class ModManagementList(VirtualLoaderPage):
         self._status_generation = 0
         self._status_reading = self._status_pending = False
         self._status_current = self._status_preserve_message = False
+        self._reapplied_for = None
         super().__init__(controller, root, parent)
         self._source_lane = controller.create_lookup_lane()
         self._source_lane.completed.connect(self._sources_ready)
@@ -403,6 +404,17 @@ class ModManagementList(VirtualLoaderPage):
             self._error = ''
         self._runtime_refreshed(result, update_status=update_status)
         self._buttons()
+        self._reapply_after_game_update()
+
+    def _reapply_after_game_update(self):
+        # A game update makes the applied items stale; apply the same selection again
+        # instead of asking. Once per game folder, so a failing apply cannot loop.
+        state = getattr(self._runtime, 'state', '')
+        if (state == 'reapply' and self._saved_selection is not None and self._profile() == self._saved_selection
+                and self._reapplied_for != self.package_root and not self._working):
+            self._reapplied_for = self.package_root
+            self.activity.emit(self.tr('Crimson Desert was updated. Applying the items again…'))
+            self._apply()
 
     def _runtime_status_failed(self, key, message):
         if self._closed or key != (self._status_generation, self.package_root):

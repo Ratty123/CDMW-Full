@@ -87,7 +87,7 @@ def standalone_manifest(root, profile, *, executable_sha256):
 def publish_standalone(root, *, stop_event=None, on_progress=None):
     """Let any launcher use the applied profile. Hashes every source once first."""
     from cdmw.services.new_item_service import game_is_running
-    from cdmw.services.virtual_loader_runtime import GAME_SHA256, runtime_status, _verify_snapshot
+    from cdmw.services.virtual_loader_runtime import installed_game_sha256, runtime_status, _verify_snapshot
     root = Path(root).resolve()
     with installation_lane(root):
         if game_is_running():
@@ -96,7 +96,7 @@ def publish_standalone(root, *, stop_event=None, on_progress=None):
         if status.state != 'ready':
             raise VirtualLoaderError(status.detail)
         profile = _verify_snapshot(root, stop_event=stop_event, all_sources=True, on_progress=on_progress)
-        data, hashed, catalogue = standalone_manifest(root, profile, executable_sha256=GAME_SHA256)
+        data, hashed, catalogue = standalone_manifest(root, profile, executable_sha256=installed_game_sha256(root, stop_event))
         path = target(root, STANDALONE_PATH)
         atomic_write_bytes(path, data)
         stale = target(root, STATUS_PATH)

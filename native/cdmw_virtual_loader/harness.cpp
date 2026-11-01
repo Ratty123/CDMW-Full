@@ -137,28 +137,36 @@ int wmain(int argc, wchar_t** argv) {
             bool worker_accepted = true;
             std::thread worker([&] { worker_accepted = first_live_thread(); }); worker.join();
             require(!worker_accepted, "A late worker passed the startup thread guard");
-            constexpr uintptr_t bootstrap = 0x180000000, game = 0x140000000;
+            // The game's caller is any address in its image: 2.04.02 returned at 0x112835a6,
+            // 2.04.03 at 0x9a576d2. The bootstrap frames stay exact.
+            constexpr uintptr_t bootstrap = 0x180000000, game = 0x140000000, game_end = game + 0x20000000;
             std::array<void*, 7> frames{nullptr, reinterpret_cast<void*>(bootstrap + 0x21785),
                 reinterpret_cast<void*>(bootstrap + 0x308e8), reinterpret_cast<void*>(bootstrap + 0x32e13),
-                reinterpret_cast<void*>(bootstrap + 0x1f848), reinterpret_cast<void*>(game + game_startup_return), nullptr};
-            require(matches_startup_frames(frames, bootstrap, game), "Observed startup path refused");
-            require(!matches_startup_frames(std::span<void* const>(frames.data(), 5), bootstrap, game), "Truncated startup path accepted");
-            require(!matches_startup_frames(frames, bootstrap + 1, game), "Wrong startup module accepted");
+                reinterpret_cast<void*>(bootstrap + 0x1f848), reinterpret_cast<void*>(game + 0x9a576d2), nullptr};
+            require(matches_startup_frames(frames, bootstrap, game, game_end), "Observed startup path refused");
+            frames[5] = reinterpret_cast<void*>(game + 0x112835a6);
+            require(matches_startup_frames(frames, bootstrap, game, game_end), "A game update's moved startup caller refused");
+            require(!matches_startup_frames(std::span<void* const>(frames.data(), 5), bootstrap, game, game_end), "Truncated startup path accepted");
+            require(!matches_startup_frames(frames, bootstrap + 1, game, game_end), "Wrong startup module accepted");
             std::swap(frames[2], frames[3]);
-            require(!matches_startup_frames(frames, bootstrap, game), "Reordered startup path accepted");
-            std::swap(frames[2], frames[3]); frames[5] = reinterpret_cast<void*>(game + game_startup_return + 1);
-            require(!matches_startup_frames(frames, bootstrap, game), "Unknown game startup caller accepted");
+            require(!matches_startup_frames(frames, bootstrap, game, game_end), "Reordered startup path accepted");
+            std::swap(frames[2], frames[3]);
+            for (const auto outside : {game - 1, game_end, bootstrap + 0x1000}) {
+                frames[5] = reinterpret_cast<void*>(outside);
+                require(!matches_startup_frames(frames, bootstrap, game, game_end), "A startup caller outside the game image accepted");
+            }
             std::array<void*, 5> current_frames{
                 reinterpret_cast<void*>(bootstrap + 0x218a1), reinterpret_cast<void*>(bootstrap + 0x30df8),
                 reinterpret_cast<void*>(bootstrap + 0x333b3), reinterpret_cast<void*>(bootstrap + 0x1f918),
-                reinterpret_cast<void*>(game + game_startup_return)};
-            require(matches_startup_frames(current_frames, bootstrap, game, true), "Current bootstrap startup path refused");
-            require(!matches_startup_frames(current_frames, bootstrap, game), "Current frames accepted for legacy bootstrap");
-            require(!matches_startup_frames(std::span<void* const>(current_frames.data(), 4), bootstrap, game, true), "Truncated current startup path accepted");
+                reinterpret_cast<void*>(game + 0x9a576d2)};
+            require(matches_startup_frames(current_frames, bootstrap, game, game_end, true), "Current bootstrap startup path refused");
+            require(!matches_startup_frames(current_frames, bootstrap, game, game_end), "Current frames accepted for legacy bootstrap");
+            require(!matches_startup_frames(std::span<void* const>(current_frames.data(), 4), bootstrap, game, game_end, true), "Truncated current startup path accepted");
             for (size_t i = 0; i < current_frames.size(); ++i) {
                 auto changed = current_frames;
                 changed[i] = reinterpret_cast<void*>(reinterpret_cast<uintptr_t>(changed[i]) + 1);
-                require(!matches_startup_frames(changed, bootstrap, game, true), "Changed current startup return address accepted");
+                // A moved bootstrap frame is refused; the game's own caller may move.
+                require(matches_startup_frames(changed, bootstrap, game, game_end, true) == (i == 4), "Changed current startup return address handled wrongly");
             }
             std::cout << "protocol self-test passed\n"; return 0;
         }
@@ -251,13 +259,21 @@ int wmain(int argc, wchar_t** argv) {
             require(VerifiedBootstrap(root).accepts("CreateFileA", base + open, expected), "Known bootstrap refused");
             require(!VerifiedBootstrap(root).accepts("CreateFileA", base + open + 1, expected), "Wrong bootstrap entry accepted");
             auto game = GetModuleHandleW(nullptr);
+            // The fixture's own code stands in for the game's caller: any executable
+            // address in the game image is accepted, data and other modules are not.
+            const auto game_caller = reinterpret_cast<void*>(&wmain);
             const auto startup_frames = current_layout ?
-                std::array<void*, 5>{base + 0x218a1, base + 0x30df8, base + 0x333b3, base + 0x1f918,
-                    reinterpret_cast<void*>(reinterpret_cast<uintptr_t>(game) + game_startup_return)} :
-                std::array<void*, 5>{base + 0x21785, base + 0x308e8, base + 0x32e13, base + 0x1f848,
-                    reinterpret_cast<void*>(reinterpret_cast<uintptr_t>(game) + game_startup_return)};
+                std::array<void*, 5>{base + 0x218a1, base + 0x30df8, base + 0x333b3, base + 0x1f918, game_caller} :
+                std::array<void*, 5>{base + 0x21785, base + 0x308e8, base + 0x32e13, base + 0x1f848, game_caller};
             // Synthetic addresses exercise witnesses, not real game timing.
             require(VerifiedBootstrap(root).accepts_startup(startup_frames, game), "Known startup witnesses refused");
+            static const unsigned char game_data[16]{};
+            for (void* wrong : {const_cast<void*>(static_cast<const void*>(game_data)),
+                                reinterpret_cast<void*>(GetProcAddress(GetModuleHandleW(L"kernel32.dll"), "GetTickCount64"))}) {
+                auto moved = startup_frames;
+                moved[4] = wrong;
+                require(!VerifiedBootstrap(root).accepts_startup(moved, game), "A startup caller outside the game's code accepted");
+            }
             std::array<void*, 32> actual{};
             auto count = CaptureStackBackTrace(0, static_cast<DWORD>(actual.size()), actual.data(), nullptr);
             require(!VerifiedBootstrap(root).accepts_startup(std::span<void* const>(actual.data(), count), game), "Late fixture call accepted as early startup");

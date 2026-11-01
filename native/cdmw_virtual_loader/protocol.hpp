@@ -10,12 +10,9 @@
 namespace cdmw::vfs {
 namespace fs = std::filesystem;
 using Hash = std::array<unsigned char, 32>;
-// Game 1.0.0.3460 (2.04.03, Steam build 26345091, 31 October 2026 patch). The startup
-// return is where UAL's GetCommandLineW wrapper returns into the game on this build,
-// read from the runtime's refusal stack on its first launch (the protected code reaches
-// it through a push/ret trampoline, not a call). A game update changes both values.
-inline constexpr char game_hash[] = "4e38ce1d8fe98eee7be0e26026a1d24ea6a17e80aa88e906b5f3ed553af11f63";
-inline constexpr uintptr_t game_startup_return = 0x9a576d2;
+// No game build is compiled in. A profile pins the executable it was applied against,
+// startup is verified by the fingerprinted bootstrap's frames and a return into the
+// game's own code, and served classes are found by RTTI name, so updates need no rebuild.
 // This is a compiled evidence gate, never a user-editable profile setting.
 inline constexpr bool game_redirection_approved = false;
 // Controlled probes require a separate host opt-in and the verified startup
