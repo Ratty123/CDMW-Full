@@ -119,9 +119,10 @@ def capability_result(name, version):
              EvidenceClaim('synthetic', 'Texture package admission and lifecycle', 'tests/test_independent_texture_packages.py')))
     if name == 'prefab.replace' and type(version) is int and version == 1:
         return CapabilityResult(name, version, True,
-            ('Existing shipped .prefab files with exact source hashes; standalone, never combined with an owned item.',
+            ('Existing shipped base-game or DLC .prefab files with exact source hashes.',
              'The replacement must decode at least as completely as its source.',
-             'Newly referenced resources must exist in the game; no files, item IDs or registry entries are added.',
+             'Newly referenced resources must exist in the game or be added by the same package\'s owned item; '
+             'the module itself adds no files, item IDs or registry entries.',
              'Explicit final bytes and separate owners; visible game behavior requires separate evidence.'),
             (EvidenceClaim('adapter', 'Existing prefab replacement', 'independent_prefab_package.py'),
              EvidenceClaim('synthetic', 'Prefab package admission and composition', 'tests/test_independent_prefab_packages.py')))

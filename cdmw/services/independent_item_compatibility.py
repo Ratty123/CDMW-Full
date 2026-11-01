@@ -397,11 +397,15 @@ def _required_keys(package, snapshot, changes, *, stop_event=None):
     return required
 
 
+# Kinds a typed replacement module may own: textures and prefabs.
+REPLACEABLE = ('.dds', '.prefab')
+
+
 def _texture_dependency_requirements(package, snapshot, *, stop_event=None):
     """Keep declared resource reads exact; scope a hybrid's adapter exception."""
     from cdmw.services.independent_texture_package import package_texture_requirements
     from cdmw.services.independent_mod_package import has_legacy_item
-    required = {path: checksum for path, checksum in package.dependencies.items() if path.endswith('.dds')}
+    required = {path: checksum for path, checksum in package.dependencies.items() if path.endswith(REPLACEABLE)}
     targets = {row['path'] for row in package_texture_requirements(package)}
     if not targets:
         return required
@@ -427,7 +431,7 @@ def _texture_dependency_requirements(package, snapshot, *, stop_event=None):
                           capture_independent=True, stop_event=stop_event)
         plan.source_revision.validate(stop_event)
         legacy_reads = {row.entry.path.lower() for row in plan.source_revision.payloads
-                        if row.entry.path.lower().endswith('.dds')}
+                        if row.entry.path.lower().endswith(REPLACEABLE)}
         if any(path not in package.dependencies for path in legacy_reads):
             raise OverlayConflict(f'{package.title}: the retained legacy resource graph is incomplete.')
     return {path: checksum for path, checksum in required.items()
@@ -585,7 +589,9 @@ def _validate_composition_packages(root, pending, layers, snapshot, external, *,
         textures = package_texture_requirements(package)
         if layer.get('independent_textures', []) != textures:
             raise OverlayConflict('The retained package texture requirements disagree with its ownership layer.')
-        texture_changes = lower_texture_operations(package, snapshot, {}, stop_event=stop_event)
+        # A prefab edit may point at a file this layer's own item adds.
+        added = {path: change for path, change in changes.items() if change['before'] is None}
+        texture_changes = lower_texture_operations(package, snapshot, added, stop_event=stop_event)
         if any(changes.get(path) != change for path, change in texture_changes.items()):
             raise OverlayConflict(f'{package.title}: the texture journal differs from its witnessed original and replacement.')
         texture_dependencies = _texture_dependency_requirements(package, snapshot, stop_event=stop_event)

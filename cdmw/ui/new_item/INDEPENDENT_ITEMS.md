@@ -246,14 +246,19 @@ operations and **`package.links` version 1** for the installation dependency gra
 below. **`texture.replace` version 1** owns existing DDS replacements without a
 legacy recipe and contributes exact final-byte requirements to both deployment
 routes and semantic export. **`prefab.replace` version 1** does the same for
-shipped `.prefab` files, written by the Archive Browser's Prefab Inspector. Each
-row pins the game copy's SHA-256 and size; the replacement must decode at least as
-completely as that copy, and every resource path it newly references must exist in
-the game. It cannot share a package with `item.legacy`, because a legacy recipe's
-dependency contract cannot say which copy of a prefab it read. Its final-byte
-requirements travel in the same ownership rows as texture replacements, so equal
-owners compose and different bytes for one prefab refuse. Loading in game is
-unverified. Existing v1 readers explicitly reject the version 2 boundary.
+shipped base-game or DLC `.prefab` files. The Archive Browser's Prefab Inspector
+and Prefab Edit JSON import write it as a standalone package, or add it to an
+existing item package as that package's next release. Each row pins the game
+copy's SHA-256 and size; the replacement must decode at least as completely as
+that copy, and every resource path it newly references must exist in the game or
+be added by the same package's `item.legacy` item. A prefab can therefore use the
+package's own imported mesh. Adding the module to a migrated v1 package drops its
+v1-lowering provenance, because the package is no longer exactly its v1 source.
+When the item's recipe also reads the replaced prefab, that read keeps its exact
+dependency, as for textures. Its final-byte requirements travel in the same
+ownership rows as texture replacements, so equal owners compose and different
+bytes for one prefab refuse. Loading in game is unverified. Existing v1 readers
+explicitly reject the version 2 boundary.
 
 ### Tier, required level and durability
 

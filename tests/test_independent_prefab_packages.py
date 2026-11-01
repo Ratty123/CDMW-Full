@@ -1,6 +1,7 @@
 """Owned archive fixtures and strict admission for existing-prefab packages."""
 import struct
 from copy import deepcopy
+from pathlib import Path
 from uuid import uuid4
 
 import pytest
@@ -27,6 +28,7 @@ from cdmw.services.independent_prefab_package import from_prefab_replacements
 from cdmw.services.virtual_loader_composition import prepare_profile
 from tests.test_independent_item_regressions import files_in
 from tests.test_independent_texture_composition import (
+    backups,
     package_paths,
     submit,
     visible_texture,
@@ -76,8 +78,21 @@ def prefab_game(tmp_path, *, source=None):
     from cdmw.core.pathc_format import PathcTable, encode_pathc, register_dds
     from tests.test_new_item_provenance import current_files
     from tests.test_new_item_service import build_package
+    from dataclasses import replace
+    from cdmw.core.pappt_format import encode_pappt, parse_pappt
     files = current_files()
     files[PREFAB_PATH] = prefab_payload() if source is None else source
+    # As in the texture fixture: a socket path New Item accepts, so an owned item can be planned here too.
+    pappt_path = 'character/bin__/partprefabtable.pappt'
+    pappt = parse_pappt(files[pappt_path])
+    sockets = 'character/sockets/independent_prefab_test.sockets.xml'
+    files[pappt_path] = encode_pappt(replace(pappt, records=tuple(
+        replace(record, sockets_path=sockets) for record in pappt.records)))
+    files[sockets] = b'<Sockets/>'
+    from tests.test_new_item_service import PAC_XML, STEM
+    from tests.test_pac_xml_standard_material import HEAD, STANDARD_SHADER, TAIL, texture, wrapper
+    files[PAC_XML] = (HEAD + wrapper(STEM, STANDARD_SHADER, texture(
+        '_baseColorTexture', '0', 'character/texture/1_pc/cd_phm_01_sword_0109_d.dds', 0)) + TAIL).encode()
     root = tmp_path / 'game'
     build_package(root, files)
     table = PathcTable(0, 148, (), (), (), b'')
@@ -179,7 +194,7 @@ def test_changed_game_copy_refuses_install(tmp_path):
 
 def test_pointing_at_a_file_the_game_lacks_refuses_authoring(tmp_path):
     _, snapshot = prefab_game(tmp_path)
-    with pytest.raises(IndependentItemError, match='does not contain: character/model/1_pc/missing_mesh_0001.pac'):
+    with pytest.raises(IndependentItemError, match='nor the package contains: character/model/1_pc/missing_mesh_0001.pac'):
         prefab_package(snapshot, retargeted('character/model/1_pc/missing_mesh_0001.pac'))
 
 
@@ -206,7 +221,7 @@ def _manifest(package):
 @pytest.mark.parametrize('mutation', [
     'unknown-data-field', 'empty-replacements', 'unknown-row-field', 'missing-row-field', 'uppercase',
     'parent', 'non-prefab', 'unsupported-root', 'boolean-size', 'bad-source-hash', 'missing-blob',
-    'missing-dependency', 'mismatched-dependency', 'duplicate-path', 'undecodable-blob', 'with-legacy-item',
+    'missing-dependency', 'mismatched-dependency', 'duplicate-path', 'undecodable-blob',
 ])
 def test_malformed_prefab_contract_refuses_before_game_access(tmp_path, mutation):
     _, snapshot = prefab_game(tmp_path)
@@ -241,9 +256,6 @@ def test_malformed_prefab_contract_refuses_before_game_access(tmp_path, mutation
         blobs = {digest(broken): broken}
         manifest['blobs'] = {digest(broken): len(broken)}
         row['replacement'] = digest(broken)
-    elif mutation == 'with-legacy-item':
-        manifest['requires']['item.legacy'] = 1
-        manifest['modules'].append({'id': 'item', 'type': 'item.legacy', 'version': 1, 'required': True, 'data': {}})
     with pytest.raises(IndependentItemError):
         read_v2(manifest, blobs)
 
@@ -300,3 +312,147 @@ def test_packages_are_not_written_into_the_game_folder(tmp_path):
     review = prepare_prefab_package(root, PREFAB_PATH, retargeted(), edited_from=prefab_payload())
     with pytest.raises(IndependentItemError, match='outside the game archive folder'):
         write_prefab_package(review, root / 'edited.cditem')
+
+
+DLC_PREFAB_PATH = 'character/bin__/prefab/1_pc/cdmw_dlc_prefab_test.prefab'
+
+
+def dlc_prefab_game(tmp_path):
+    """The prefab fixture plus a `dlc/dlc_01` layer that ships its own prefab."""
+    from tests.test_new_item_service import build_package
+    root, _ = prefab_game(tmp_path)
+    build_package(root / 'dlc/dlc_01', {DLC_PREFAB_PATH: prefab_payload()})
+    return root, stock_snapshot(root)
+
+
+@pytest.mark.parametrize('target', ['archive', 'virtual'])
+def test_a_dlc_prefab_can_be_replaced(tmp_path, target):
+    root, snapshot = dlc_prefab_game(tmp_path)
+    assert 'dlc_01' in Path(snapshot.entries[DLC_PREFAB_PATH].pamt_path).parts
+    package = from_prefab_replacements(snapshot, uuid4().hex, {DLC_PREFAB_PATH: retargeted()})
+    assert package.dependencies == {DLC_PREFAB_PATH: digest(prefab_payload())}
+    resolved = install.resolve_items([package_bytes(package)], root, target=target)
+    _, changes = resolved.contributions[0]
+    assert changes[DLC_PREFAB_PATH]['after'] == retargeted()
+
+
+def test_a_prefab_in_another_mods_numbered_group_is_refused(tmp_path):
+    from tests.test_new_item_service import build_package
+    root, _ = prefab_game(tmp_path)
+    build_package(root / 'mods/dlc_01', {DLC_PREFAB_PATH: prefab_payload()})
+    snapshot = stock_snapshot(root)
+    with pytest.raises(IndependentItemError):
+        from_prefab_replacements(snapshot, uuid4().hex, {DLC_PREFAB_PATH: retargeted()})
+
+
+def owned_item(snapshot, name='PrefabOwner'):
+    """A legacy item with its own imported mesh, and the .pac path it adds."""
+    from dataclasses import replace
+    from cdmw.domain.new_item.spec import ModelSource
+    from cdmw.services.independent_item_package import from_plan
+    from cdmw.services.new_item_planning import ModelFiles
+    from cdmw.services.new_item_service import NewItemService
+    from tests.test_archive_overlay_manager import shop_spec
+    from tests.test_new_item_service import PAC_XML, imported_pac
+    model = ModelFiles(imported_pac(1), {PAC_XML: snapshot.payload(PAC_XML)})
+    plan = NewItemService().plan(replace(shop_spec(name), model_source=ModelSource.IMPORTED), snapshot,
+                                 model=model, capture_independent=True)
+    mesh = next(request.path.lower() for request in plan.additions if request.path.lower().endswith('.pac'))
+    return from_plan(plan, uuid4().hex), mesh
+
+
+@pytest.mark.parametrize('target', ['archive', 'virtual'])
+def test_a_prefab_edit_can_point_at_the_packages_own_new_mesh(tmp_path, target):
+    from cdmw.services.independent_prefab_package import with_prefab_replacements
+    root, snapshot = prefab_game(tmp_path)
+    item, mesh = owned_item(snapshot)
+    assert not snapshot.has_entry(mesh)
+    combined = with_prefab_replacements(item, snapshot, {PREFAB_PATH: retargeted(mesh)}, release='2')
+    assert has_legacy_item(combined) and combined.identity == item.identity
+    assert combined.manifest['requires'] == {'item.legacy': 1, 'prefab.replace': 1}
+    assert read_package(package_bytes(combined)) == combined
+    resolved = install.resolve_items([package_bytes(combined)], root, target=target)
+    _, changes = resolved.contributions[0]
+    assert changes[PREFAB_PATH]['after'] == retargeted(mesh)
+    assert changes[mesh]['before'] is None and changes[mesh]['after'] is not None
+
+
+def test_an_installed_combined_package_rebuilds_and_the_game_reads_the_edit(tmp_path):
+    from cdmw.services.independent_prefab_package import with_prefab_replacements
+    root, snapshot = prefab_game(tmp_path)
+    item, mesh = owned_item(snapshot)
+    combined = with_prefab_replacements(item, snapshot, {PREFAB_PATH: retargeted(mesh)}, release='2')
+    submit(tmp_path, root, [combined], False)
+    assert visible_texture(root, PREFAB_PATH) == retargeted(mesh)
+    # Rebuilding re-checks the retained package against its layer, including the new mesh.
+    backups(tmp_path / 'rebuild').apply(install.prepare_rebuild(combined.identity, root).preparation)
+    assert visible_texture(root, PREFAB_PATH) == retargeted(mesh)
+
+
+def test_a_mesh_the_package_does_not_add_is_still_refused(tmp_path):
+    from cdmw.services.independent_prefab_package import with_prefab_replacements
+    root, snapshot = prefab_game(tmp_path)
+    item, _mesh = owned_item(snapshot)
+    combined = with_prefab_replacements(item, snapshot, {PREFAB_PATH: retargeted('character/model/1_pc/elsewhere_0001.pac')},
+                                        release='2')
+    with pytest.raises(IndependentItemError, match='neither this game nor the package'):
+        install.resolve_items([package_bytes(combined)], root, target='virtual')
+
+
+def test_the_inspector_route_adds_the_edit_to_an_existing_item_package(tmp_path):
+    from cdmw.services.independent_item_package import write_package
+    from cdmw.services.independent_prefab_authoring import prepare_prefab_package, write_prefab_package
+    root, snapshot = prefab_game(tmp_path)
+    item, mesh = owned_item(snapshot)
+    path = tmp_path / 'packages' / 'owner.cditem'
+    write_package(item, path)
+    review = prepare_prefab_package(root, PREFAB_PATH, retargeted(mesh), edited_from=prefab_payload(), add_to=path)
+    assert review.update is not None and review.package.identity == item.identity
+    write_prefab_package(review)
+    updated = read_package(path)
+    assert updated.identity == item.identity and updated.manifest['release'] == '2'
+    assert has_legacy_item(updated)
+    assert {row['path'] for module in updated.manifest['modules'] if module['type'] == 'prefab.replace'
+            for row in module['data']['replacements']} == {PREFAB_PATH}
+    # A second edit of the same prefab replaces the row and drops the bytes nobody uses.
+    again = prepare_prefab_package(root, PREFAB_PATH, retargeted(), edited_from=prefab_payload(), add_to=path)
+    write_prefab_package(again)
+    final = read_package(path)
+    assert final.manifest['release'] == '3' and digest(retargeted(mesh)) not in final.blobs
+
+
+@pytest.mark.parametrize('release, expected', [('1', '2'), ('1.9', '1.10'), ('beta', 'beta.1'), ('2a', '2a.1')])
+def test_release_bump(release, expected):
+    from cdmw.services.independent_prefab_package import next_release
+    assert next_release(release) == expected
+
+
+@pytest.mark.parametrize('changes', [True, False])
+def test_prefab_edit_json_import_offers_the_same_outputs_as_the_inspector(tmp_path, monkeypatch, changes):
+    from types import SimpleNamespace
+    from cdmw.ui.archive_browser import prefab_json_actions as actions
+
+    document = tmp_path / 'sword.prefab-edit.json'
+    document.write_text('{}', encoding='utf-8')
+    monkeypatch.setattr(actions.QFileDialog, 'getOpenFileName', lambda *args, **kwargs: (str(document), ''))
+    monkeypatch.setattr(actions, 'read_archive_entry_data', lambda entry: (prefab_payload(), False, ''))
+    patched = retargeted() if changes else prefab_payload()
+    monkeypatch.setattr(actions, 'apply_prefab_edit_json', lambda data, text, virtual_path: patched)
+    calls, offered, loose = [], [], []
+    entry = SimpleNamespace(path=PREFAB_PATH, basename=PREFAB_PATH.rsplit('/', 1)[-1])
+    browser = SimpleNamespace(
+        shell=SimpleNamespace(set_status_message=lambda *args, **kwargs: None,
+                              settings_file_path=tmp_path / 'settings.json',
+                              _run_utility_task_when_idle=lambda **kwargs: calls.append(kwargs)),
+        _current_archive_prefab_entry=lambda: entry,
+        _default_archive_prefab_edit_json_path=lambda entry: document,
+        _offer_prefab_export=lambda *args: offered.append(args),
+        _export_inspected_prefab=lambda *args: loose.append(args),
+    )
+    actions.ArchivePrefabJsonActionsMixin._import_current_archive_prefab_edit_json(browser)
+    assert len(calls) == 1 and calls[0]['show_archive_progress']
+    calls[0]['on_complete'](calls[0]['task'](lambda _message: None))
+    if changes:
+        assert offered and offered[0][:3] == (entry, prefab_payload(), retargeted()) and not loose
+    else:
+        assert loose and loose[0][:2] == (entry, prefab_payload()) and not offered
