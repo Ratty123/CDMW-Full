@@ -336,10 +336,12 @@ class OverlayManagerDialog(QDialog):
             return
         root = str(self.package_root or '').strip()
         self._inventory_lane.cancel()
-        if not root:
+        if not root or not constants.ARCHIVE_OVERLAYS_ENABLED:
+            # Without overlays there is nothing installed to list, and the signed
+            # October 2026 mount list cannot be read as an overlay inventory.
             self._reading = False
             self._loaded(())
-            self.status.setText('Choose the game archive folder, then refresh.')
+            self.status.setText('Choose the game archive folder, then refresh.' if not root else '')
             return
         from cdmw.services.overlay_inventory_details import external_overlay_summary
         def read(stop):

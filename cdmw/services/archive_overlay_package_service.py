@@ -9,7 +9,7 @@ from typing import Callable, Iterable, Optional, Sequence, Tuple
 
 from cdmw.core.archive_overlay import OverlayFile, build_overlay_archive
 from cdmw.core.atomic_file import atomic_write_bytes
-from cdmw.core.papgt_format import papgt_with_directory
+from cdmw.core.papgt_format import is_compact_papgt, papgt_with_directory
 from cdmw.domain.archives.mutation import ArchiveAddRequest, ArchivePatchRequest
 from cdmw.domain.archives.safety import safe_archive_output_path
 from cdmw.domain.cancellation import raise_if_cancelled
@@ -123,8 +123,11 @@ def export_archive_overlay_package(
     mount_written = False
     if game_root is not None:
         source = Path(game_root) / "meta" / "0.papgt"
-        if source.is_file():
-            mounted = papgt_with_directory(source.read_bytes(), name, built.pamt_checksum, first=True)
+        # The October 2026 mount list is signed and cannot take another directory;
+        # DMM 1.0 serves the group's files by path and needs no list in the package.
+        current = source.read_bytes() if source.is_file() else b""
+        if current and not is_compact_papgt(current):
+            mounted = papgt_with_directory(current, name, built.pamt_checksum, first=True)
             (root / "meta").mkdir(parents=True, exist_ok=True)
             atomic_write_bytes(root / "meta" / "0.papgt", mounted)
             mount_written = True
