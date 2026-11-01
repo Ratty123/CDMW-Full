@@ -77637,6 +77637,22 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
+    "message": "Item group {changed.name} changes more than added members in the DLC's copy; DMM cannot take that.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/services/dmm_dlc_tables.py": 57
+    }
+  },
+  {
+    "area": "other",
+    "message": "Item group {changed.name} exists only in the DLC's table, which DMM does not take from mods.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/services/dmm_dlc_tables.py": 54
+    }
+  },
+  {
+    "area": "other",
     "message": "Item icon export failed: {exc}",
     "recovery": "write",
     "sources": {
@@ -80488,6 +80504,22 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
+    "message": "Shop {changed.name} changes more than added stock lines in the DLC's copy; DMM cannot take that.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/services/dmm_dlc_tables.py": 48
+    }
+  },
+  {
+    "area": "other",
+    "message": "Shop {changed.name} exists only in the DLC's table, which DMM does not take from mods.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/services/dmm_dlc_tables.py": 44
+    }
+  },
+  {
+    "area": "other",
     "message": "Sidecar texture refs used: {len(binding_rows)}; found {ready_binding_count}; missing {missing_binding_count}",
     "recovery": "missing",
     "sources": {
@@ -80677,6 +80709,14 @@ MESSAGE_REFERENCE = [
     "recovery": "input",
     "sources": {
       "cdmw/modding/pac_cloth_constraints.py": 58
+    }
+  },
+  {
+    "area": "other",
+    "message": "StoreInfo could not be read: {error}",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/services/dmm_dlc_tables.py": 35
     }
   },
   {
@@ -81557,6 +81597,14 @@ MESSAGE_REFERENCE = [
     "recovery": "input",
     "sources": {
       "cdmw/services/cditem_device_windows.py": 185
+    }
+  },
+  {
+    "area": "other",
+    "message": "The game has no complete base and DLC copy of {name}.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/services/dmm_dlc_tables.py": 77
     }
   },
   {
@@ -87022,6 +87070,14 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/ui/shell/problem_report_dialog.py": 704
+    }
+  },
+  {
+    "area": "other",
+    "message": "{'Shop' if name == 'storeinfo' else 'Item group'} {row.name} exists only in the DLC, and DMM does not take a mod's copy of a DLC table.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/services/dmm_dlc_tables.py": 86
     }
   },
   {
@@ -100983,6 +101039,7 @@ DYNAMIC_REFERENCE = {
     "cdmw/services/cditem_device_runner.py",
     "cdmw/services/cditem_device_windows.py",
     "cdmw/services/character_context_service.py",
+    "cdmw/services/dmm_dlc_tables.py",
     "cdmw/services/effect_catalogue_process.py",
     "cdmw/services/effect_character_reference.py",
     "cdmw/services/effect_library_store.py",
@@ -103124,6 +103181,10 @@ SOURCE_COVERAGE = {
   "cdmw/services/diagnostics_service.py": {
     "diagnostic_field": 8,
     "validation": 1
+  },
+  "cdmw/services/dmm_dlc_tables.py": {
+    "diagnostic_field": 1,
+    "raise": 7
   },
   "cdmw/services/dmm_item_export.py": {
     "raise": 30

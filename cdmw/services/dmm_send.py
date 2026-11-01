@@ -145,6 +145,11 @@ def send_item_packages(package_paths, game_root: Path | str, mods: Path, title: 
                "this takes about half a minute per item.")
     resolved, files, flags, pathc = compose_packages(paths, (), root, stop_event=stop_event, on_log=on_log,
                                                      progress=progress)
+    from cdmw.services.dmm_dlc_tables import fold_dlc_additions
+    from cdmw.services.independent_item_package import stock_snapshot
+    snapshot = stock_snapshot(root, stop_event=stop_event)
+    files = fold_dlc_additions(files, lambda path: snapshot.payload(path) if snapshot.has_entry(path) else None,
+                               on_log=on_log)
     progress(90, "Writing the DMM mod…")
     additions = tuple(ArchiveAddRequest(Path(), path, data, int(flags.get(path) or 0)) for path, data in sorted(files.items()))
     # The texture registry goes along only when the items register textures: a copy of

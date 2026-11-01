@@ -88282,6 +88282,16 @@
       ]
     },
     {
+      "key": "Moved {value_0} shop line(s) and {value_1} item group member(s) from the DLC's copies into the base tables, where DMM takes them and carries them into the DLC's shops and groups.",
+      "origins": [
+        {
+          "path": "cdmw/services/dmm_dlc_tables.py",
+          "line": 102,
+          "sink": "on_log"
+        }
+      ]
+    },
+    {
       "key": "Moved {value_0} to match: the two are identical in every shipped object that carries both.",
       "origins": [
         {
@@ -139851,7 +139861,7 @@
         },
         {
           "path": "cdmw/services/dmm_send.py",
-          "line": 165,
+          "line": 170,
           "sink": "raise_if_cancelled"
         }
       ]
@@ -174791,7 +174801,7 @@
       "origins": [
         {
           "path": "cdmw/services/dmm_send.py",
-          "line": 148,
+          "line": 153,
           "sink": "progress"
         }
       ]

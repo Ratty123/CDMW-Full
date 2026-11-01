@@ -7651,6 +7651,7 @@
     "Moved": "옮겼습니다",
     "Moved {value_0} entrie(s) into {value_1}: {value_2} bytes, mounted first.": "항목 {value_0}개를 {value_1}(으)로 옮겼습니다: {value_2}바이트, 맨 앞에 마운트.",
     "Moved {value_0} file(s) ({value_1} bytes) into the overlay {value_2} and put {value_3} archive file(s) back to their oldest backup.\n\nThe game reads the same thing it did; the files it shipped are its own again.\n\nBackup: {value_4}": "{value_0}개 파일({value_1}바이트)을 오버레이 {value_2}(으)로 옮기고 아카이브 파일 {value_3}개를 가장 오래된 백업으로 되돌렸습니다.\n\n게임이 읽는 내용은 그대로이고, 게임이 제공한 파일은 다시 원본입니다.\n\n백업: {value_4}",
+    "Moved {value_0} shop line(s) and {value_1} item group member(s) from the DLC's copies into the base tables, where DMM takes them and carries them into the DLC's shops and groups.": "상점 줄 {value_0}개와 아이템 그룹 구성원 {value_1}개를 DLC 사본에서 기본 테이블로 옮겼습니다. DMM은 여기서 가져와 DLC의 상점과 그룹에 반영합니다.",
     "Moved {value_0} to match: the two are identical in every shipped object that carries both.": "일치하도록 {value_0}를 이동했습니다. 두 개는 두 가지를 모두 포함하는 배송된 모든 개체에서 동일합니다.",
     "Movement compatibility": "동작 호환성",
     "Movement speed kept each step. For example, 0.9 keeps 90%, so it settles more slowly than 0.5. Higher values mean less braking.": "매 단계 유지되는 이동 속도입니다. 예를 들어 0.9는 90%를 유지하므로 0.5보다 천천히 가라앉습니다. 값이 클수록 제동이 약합니다.",

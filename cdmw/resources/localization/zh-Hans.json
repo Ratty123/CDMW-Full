@@ -7651,6 +7651,7 @@
     "Moved": "已移动",
     "Moved {value_0} entrie(s) into {value_1}: {value_2} bytes, mounted first.": "已把 {value_0} 个条目移入 {value_1}：{value_2} 字节，挂载在最前。",
     "Moved {value_0} file(s) ({value_1} bytes) into the overlay {value_2} and put {value_3} archive file(s) back to their oldest backup.\n\nThe game reads the same thing it did; the files it shipped are its own again.\n\nBackup: {value_4}": "已把 {value_0} 个文件（{value_1} 字节）移入叠加层 {value_2}，并把 {value_3} 个归档文件还原到最早的备份。\n\n游戏读到的内容不变，而它自带的文件又回到了原样。\n\n备份：{value_4}",
+    "Moved {value_0} shop line(s) and {value_1} item group member(s) from the DLC's copies into the base tables, where DMM takes them and carries them into the DLC's shops and groups.": "已将 {value_0} 个商店条目和 {value_1} 个物品组成员从 DLC 的副本移至基础表，DMM 会从中读取并将其带入 DLC 的商店和组。",
     "Moved {value_0} to match: the two are identical in every shipped object that carries both.": "移动 {value_0} 以匹配：这两者在每个包含两者的已交付对象中都是相同的。",
     "Movement compatibility": "动作兼容性",
     "Movement speed kept each step. For example, 0.9 keeps 90%, so it settles more slowly than 0.5. Higher values mean less braking.": "每步保留的移动速度。例如，0.9 保留 90%，因此比 0.5 更慢稳定下来。数值越大，制动越弱。",
