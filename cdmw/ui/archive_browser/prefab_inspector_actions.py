@@ -128,45 +128,62 @@ class ArchivePrefabInspectorActionsMixin:
         payload = dialog.result_payload
         if payload is None or payload.data == data:
             return
+        self._offer_prefab_export(entry, data, payload.data, payload.summary)
+
+    def _offer_prefab_export(self, entry: ArchiveEntry, original: bytes, patched: bytes, summary: str) -> None:
+        """Ask how an edited prefab leaves CDMW; shared by the Inspector and Prefab Edit JSON import."""
         # Say the unproven part before they install it, not after it fails.
         # Prefab editing has never been confirmed to load in game, and a modder
         # deserves to know which of their mods is the experimental one.
         box = QMessageBox(self)
         box.setIcon(QMessageBox.Icon.Question)
         box.setWindowTitle("Export Edited Prefab")
-        box.setText(f"{payload.summary}\n\nHow do you want to save the edited prefab?")
+        box.setText(f"{summary}\n\nHow do you want to save the edited prefab?")
         box.setInformativeText(
             "An item package (.cditem) is added on the Mods page. It replaces only the game's own copy "
-            "of this prefab and refuses to load after a game update changes that copy.\n\n"
+            "of this prefab and refuses to load after a game update changes that copy. Adding the edit to "
+            "an existing item package lets the prefab use a mesh that package's item adds.\n\n"
             "A loose folder holds game-relative files for another mod manager.\n\n"
             "Prefab editing is new and has not yet been confirmed to load in game. "
             "Your game files are untouched either way, so if anything misbehaves, "
             "disable the mod in your manager and delete that package - that is the whole of the fix."
         )
         package_button = box.addButton("Item Package (.cditem)...", QMessageBox.ButtonRole.AcceptRole)
+        add_button = box.addButton("Add to Item Package...", QMessageBox.ButtonRole.ActionRole)
         loose_button = box.addButton("Loose Folder...", QMessageBox.ButtonRole.ActionRole)
         box.addButton(QMessageBox.StandardButton.Cancel)
         box.setDefaultButton(package_button)
         box.exec()
         if box.clickedButton() is package_button:
-            self._export_inspected_prefab_package(entry, data, payload.data)
+            self._export_inspected_prefab_package(entry, original, patched)
+        elif box.clickedButton() is add_button:
+            self._export_inspected_prefab_package(entry, original, patched, add=True)
         elif box.clickedButton() is loose_button:
-            self._export_inspected_prefab(entry, payload.data, payload.summary)
+            self._export_inspected_prefab(entry, patched, summary)
 
-    def _export_inspected_prefab_package(self, entry: ArchiveEntry, original: bytes, patched: bytes) -> None:
+    def _export_inspected_prefab_package(
+        self, entry: ArchiveEntry, original: bytes, patched: bytes, *, add: bool = False
+    ) -> None:
         package_root = str(self.archive_package_root_edit.text() or "").strip()
         if not package_root:
             self.shell.set_status_message("Set the game package root before saving an item package.", error=True)
             return
         stem = Path(PurePosixPath(entry.path.replace("\\", "/")).name).stem or "prefab"
         default = self.shell.settings_file_path.parent / "prefab_packages" / f"{stem}.cditem"
-        selected, _selected_filter = QFileDialog.getSaveFileName(
-            self, "Save Prefab Package", str(default), "Independent items (*.cditem)"
-        )
+        if add:
+            # The package keeps its identity and gets a new release, so the
+            # Mods page treats it as an update of the item already there.
+            selected, _selected_filter = QFileDialog.getOpenFileName(
+                self, "Add to Item Package", str(default.parent), "Independent items (*.cditem)"
+            )
+        else:
+            selected, _selected_filter = QFileDialog.getSaveFileName(
+                self, "Save Prefab Package", str(default), "Independent items (*.cditem)"
+            )
         if not selected:
             return
         destination = Path(selected)
-        if destination.suffix.lower() != ".cditem":
+        if not add and destination.suffix.lower() != ".cditem":
             destination = destination.with_name(f"{destination.name}.cditem")
 
         def _task(log: Callable[[str], None], stop_event: threading.Event) -> tuple[Path, tuple[str, ...]]:
@@ -179,6 +196,7 @@ class ArchivePrefabInspectorActionsMixin:
                 patched,
                 edited_from=original,
                 title=destination.stem,
+                add_to=destination if add else None,
                 stop_event=stop_event,
                 on_log=log,
             )

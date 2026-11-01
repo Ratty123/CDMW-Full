@@ -4641,7 +4641,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 704,
+          "line": 710,
           "sink": "OverlayConflict"
         }
       ]
@@ -6698,6 +6698,26 @@
           "path": "cdmw/ui/mesh_editor/rust_host.py",
           "line": 206,
           "sink": "QPushButton"
+        }
+      ]
+    },
+    {
+      "key": "Add to Item Package",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/prefab_inspector_actions.py",
+          "line": 176,
+          "sink": "getOpenFileName"
+        }
+      ]
+    },
+    {
+      "key": "Add to Item Package...",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/prefab_inspector_actions.py",
+          "line": 152,
+          "sink": "addButton"
         }
       ]
     },
@@ -9137,11 +9157,11 @@
       ]
     },
     {
-      "key": "An item package (.cditem) is added on the Mods page. It replaces only the game's own copy of this prefab and refuses to load after a game update changes that copy.\n\nA loose folder holds game-relative files for another mod manager.\n\nPrefab editing is new and has not yet been confirmed to load in game. Your game files are untouched either way, so if anything misbehaves, disable the mod in your manager and delete that package - that is the whole of the fix.",
+      "key": "An item package (.cditem) is added on the Mods page. It replaces only the game's own copy of this prefab and refuses to load after a game update changes that copy. Adding the edit to an existing item package lets the prefab use a mesh that package's item adds.\n\nA loose folder holds game-relative files for another mod manager.\n\nPrefab editing is new and has not yet been confirmed to load in game. Your game files are untouched either way, so if anything misbehaves, disable the mod in your manager and delete that package - that is the whole of the fix.",
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_actions.py",
-          "line": 138,
+          "line": 142,
           "sink": "setInformativeText"
         }
       ]
@@ -9221,7 +9241,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 846,
+          "line": 852,
           "sink": "OverlayConflict"
         }
       ]
@@ -10036,7 +10056,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 532,
+          "line": 536,
           "sink": "OverlayConflict"
         }
       ]
@@ -10408,6 +10428,16 @@
           "path": "cdmw/ui/tools/mod_management_list.py",
           "line": 249,
           "sink": "tr"
+        }
+      ]
+    },
+    {
+      "key": "Applied Prefab Edit JSON {value_0} to {value_1}.",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/prefab_json_actions.py",
+          "line": 107,
+          "sink": "_offer_prefab_export"
         }
       ]
     },
@@ -11331,7 +11361,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_json_actions.py",
-          "line": 113,
+          "line": 88,
           "sink": "log"
         }
       ]
@@ -13711,7 +13741,7 @@
       "origins": [
         {
           "path": "cdmw/services/mod_merge_service.py",
-          "line": 187,
+          "line": 191,
           "sink": "ValueError"
         }
       ]
@@ -20192,26 +20222,11 @@
       ]
     },
     {
-      "key": "Build Prefab Edit Package",
-      "origins": [
-        {
-          "path": "cdmw/ui/archive_browser/prefab_json_actions.py",
-          "line": 87,
-          "sink": "question"
-        },
-        {
-          "path": "cdmw/ui/archive_browser/prefab_json_actions.py",
-          "line": 98,
-          "sink": "_collect_archive_mod_ready_export_target"
-        }
-      ]
-    },
-    {
       "key": "Build Prefab Package",
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_actions.py",
-          "line": 209,
+          "line": 227,
           "sink": "_collect_archive_mod_ready_export_target"
         }
       ]
@@ -20378,16 +20393,6 @@
           "path": "cdmw/ui/mesh_editor/workspace_panel_builder.py",
           "line": 397,
           "sink": "setToolTip"
-        }
-      ]
-    },
-    {
-      "key": "Build a loose mod package for edited prefab?\n\n{value_0}\n\nOriginal game archives will not be modified.",
-      "origins": [
-        {
-          "path": "cdmw/ui/archive_browser/prefab_json_actions.py",
-          "line": 87,
-          "sink": "question"
         }
       ]
     },
@@ -20721,7 +20726,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_json_actions.py",
-          "line": 142,
+          "line": 109,
           "sink": "_run_utility_task_when_idle"
         }
       ]
@@ -21001,7 +21006,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_actions.py",
-          "line": 200,
+          "line": 218,
           "sink": "_run_utility_task_when_idle"
         }
       ]
@@ -21011,7 +21016,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_actions.py",
-          "line": 250,
+          "line": 268,
           "sink": "_run_utility_task_when_idle"
         }
       ]
@@ -21766,7 +21771,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 965,
+          "line": 971,
           "sink": "CompatibilityFinding"
         }
       ]
@@ -26561,8 +26566,18 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_actions.py",
-          "line": 175,
+          "line": 192,
           "sink": "log"
+        }
+      ]
+    },
+    {
+      "key": "Checking {value_0} with the prefab edit against the installed game...",
+      "origins": [
+        {
+          "path": "cdmw/services/independent_prefab_authoring.py",
+          "line": 89,
+          "sink": "on_log"
         }
       ]
     },
@@ -27317,21 +27332,11 @@
       ]
     },
     {
-      "key": "Choose Prefab Edit Package Export Root",
-      "origins": [
-        {
-          "path": "cdmw/ui/archive_browser/prefab_json_actions.py",
-          "line": 98,
-          "sink": "_collect_archive_mod_ready_export_target"
-        }
-      ]
-    },
-    {
       "key": "Choose Prefab Export Root",
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_actions.py",
-          "line": 209,
+          "line": 227,
           "sink": "_collect_archive_mod_ready_export_target"
         }
       ]
@@ -27926,7 +27931,7 @@
       "origins": [
         {
           "path": "cdmw/services/mod_merge_service.py",
-          "line": 342,
+          "line": 347,
           "sink": "ValueError"
         }
       ]
@@ -28576,7 +28581,7 @@
       "origins": [
         {
           "path": "cdmw/services/mod_merge_service.py",
-          "line": 340,
+          "line": 345,
           "sink": "ValueError"
         }
       ]
@@ -32661,7 +32666,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 839,
+          "line": 845,
           "sink": "OverlayConflict"
         }
       ]
@@ -33336,17 +33341,17 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 510,
+          "line": 514,
           "sink": "CompatibilityFinding"
         },
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 890,
+          "line": 896,
           "sink": "CompatibilityFinding"
         },
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 958,
+          "line": 964,
           "sink": "CompatibilityFinding"
         }
       ]
@@ -33396,7 +33401,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 680,
+          "line": 686,
           "sink": "python-return:text"
         }
       ]
@@ -33406,7 +33411,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 680,
+          "line": 686,
           "sink": "python-return:text"
         }
       ]
@@ -33921,22 +33926,22 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 886,
+          "line": 892,
           "sink": "CompatibilityFinding"
         },
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 922,
+          "line": 928,
           "sink": "CompatibilityFinding"
         },
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 955,
+          "line": 961,
           "sink": "CompatibilityFinding"
         },
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 978,
+          "line": 984,
           "sink": "CompatibilityFinding"
         },
         {
@@ -33976,7 +33981,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 680,
+          "line": 686,
           "sink": "python-return:text"
         }
       ]
@@ -38781,7 +38786,7 @@
       "origins": [
         {
           "path": "cdmw/services/mod_merge_service.py",
-          "line": 248,
+          "line": 253,
           "sink": "ValueError"
         }
       ]
@@ -39336,7 +39341,7 @@
       "origins": [
         {
           "path": "cdmw/services/mod_merge_service.py",
-          "line": 349,
+          "line": 354,
           "sink": "ValueError"
         }
       ]
@@ -41831,7 +41836,7 @@
       "origins": [
         {
           "path": "cdmw/services/mod_merge_service.py",
-          "line": 256,
+          "line": 261,
           "sink": "ValueError"
         }
       ]
@@ -49206,7 +49211,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 510,
+          "line": 514,
           "sink": "CompatibilityFinding"
         }
       ]
@@ -50276,7 +50281,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_actions.py",
-          "line": 136,
+          "line": 140,
           "sink": "setWindowTitle"
         }
       ]
@@ -50701,7 +50706,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_json_actions.py",
-          "line": 38,
+          "line": 35,
           "sink": "getSaveFileName"
         }
       ]
@@ -51586,7 +51591,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_json_actions.py",
-          "line": 64,
+          "line": 61,
           "sink": "set_status_message"
         }
       ]
@@ -51996,7 +52001,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_json_actions.py",
-          "line": 66,
+          "line": 63,
           "sink": "_run_utility_task"
         }
       ]
@@ -65161,7 +65166,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 510,
+          "line": 514,
           "sink": "CompatibilityFinding"
         }
       ]
@@ -65171,7 +65176,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 510,
+          "line": 514,
           "sink": "CompatibilityFinding"
         }
       ]
@@ -66091,7 +66096,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_json_actions.py",
-          "line": 78,
+          "line": 75,
           "sink": "getOpenFileName"
         }
       ]
@@ -68396,7 +68401,12 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_actions.py",
-          "line": 163,
+          "line": 176,
+          "sink": "getOpenFileName:filter-label"
+        },
+        {
+          "path": "cdmw/ui/archive_browser/prefab_inspector_actions.py",
+          "line": 180,
           "sink": "getSaveFileName:filter-label"
         }
       ]
@@ -68406,7 +68416,12 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_actions.py",
-          "line": 163,
+          "line": 176,
+          "sink": "getOpenFileName"
+        },
+        {
+          "path": "cdmw/ui/archive_browser/prefab_inspector_actions.py",
+          "line": 180,
           "sink": "getSaveFileName"
         },
         {
@@ -69601,7 +69616,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 927,
+          "line": 933,
           "sink": "CompatibilityFinding"
         }
       ]
@@ -70151,7 +70166,7 @@
       "origins": [
         {
           "path": "cdmw/services/mod_merge_service.py",
-          "line": 173,
+          "line": 177,
           "sink": "ValueError"
         }
       ]
@@ -70506,7 +70521,7 @@
       "origins": [
         {
           "path": "cdmw/services/mod_merge_service.py",
-          "line": 66,
+          "line": 67,
           "sink": "ValueError"
         }
       ]
@@ -70741,7 +70756,7 @@
       "origins": [
         {
           "path": "cdmw/services/mod_merge_service.py",
-          "line": 110,
+          "line": 114,
           "sink": "ValueError"
         }
       ]
@@ -70951,7 +70966,7 @@
       "origins": [
         {
           "path": "cdmw/services/mod_merge_service.py",
-          "line": 197,
+          "line": 201,
           "sink": "ValueError"
         }
       ]
@@ -71026,7 +71041,7 @@
       "origins": [
         {
           "path": "cdmw/services/mod_merge_service.py",
-          "line": 216,
+          "line": 220,
           "sink": "ValueError"
         }
       ]
@@ -71996,7 +72011,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_actions.py",
-          "line": 146,
+          "line": 151,
           "sink": "addButton"
         }
       ]
@@ -72456,22 +72471,22 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_package.py",
-          "line": 633,
-          "sink": "raise_if_cancelled"
-        },
-        {
-          "path": "cdmw/services/independent_item_package.py",
           "line": 635,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/independent_item_package.py",
-          "line": 638,
+          "line": 637,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/independent_item_package.py",
           "line": 640,
+          "sink": "raise_if_cancelled"
+        },
+        {
+          "path": "cdmw/services/independent_item_package.py",
+          "line": 642,
           "sink": "raise_if_cancelled"
         }
       ]
@@ -72816,12 +72831,12 @@
         },
         {
           "path": "cdmw/ui/archive_browser/prefab_json_actions.py",
-          "line": 38,
+          "line": 35,
           "sink": "getSaveFileName:filter-label"
         },
         {
           "path": "cdmw/ui/archive_browser/prefab_json_actions.py",
-          "line": 78,
+          "line": 75,
           "sink": "getOpenFileName:filter-label"
         }
       ]
@@ -75666,7 +75681,7 @@
       "origins": [
         {
           "path": "cdmw/services/mod_merge_service.py",
-          "line": 77,
+          "line": 78,
           "sink": "ValueError"
         }
       ]
@@ -78081,7 +78096,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_actions.py",
-          "line": 147,
+          "line": 153,
           "sink": "addButton"
         }
       ]
@@ -80766,7 +80781,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 965,
+          "line": 971,
           "sink": "CompatibilityFinding"
         }
       ]
@@ -80776,7 +80791,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 680,
+          "line": 686,
           "sink": "python-return:text"
         }
       ]
@@ -85451,7 +85466,7 @@
         },
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 868,
+          "line": 874,
           "sink": "raise_if_cancelled"
         },
         {
@@ -85571,7 +85586,7 @@
       "origins": [
         {
           "path": "cdmw/services/mod_merge_service.py",
-          "line": 51,
+          "line": 52,
           "sink": "ValueError"
         }
       ]
@@ -85591,7 +85606,7 @@
       "origins": [
         {
           "path": "cdmw/services/mod_merge_service.py",
-          "line": 72,
+          "line": 73,
           "sink": "ValueError"
         }
       ]
@@ -85671,22 +85686,22 @@
       "origins": [
         {
           "path": "cdmw/services/mod_merge_service.py",
-          "line": 53,
+          "line": 54,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/mod_merge_service.py",
-          "line": 75,
+          "line": 76,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/mod_merge_service.py",
-          "line": 177,
+          "line": 181,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/mod_merge_service.py",
-          "line": 221,
+          "line": 225,
           "sink": "raise_if_cancelled"
         }
       ]
@@ -90151,7 +90166,7 @@
       "origins": [
         {
           "path": "cdmw/services/mod_merge_service.py",
-          "line": 170,
+          "line": 174,
           "sink": "ValueError"
         },
         {
@@ -90361,7 +90376,7 @@
         },
         {
           "path": "cdmw/services/new_item_planning.py",
-          "line": 180,
+          "line": 182,
           "sink": "raise_if_cancelled"
         },
         {
@@ -92151,7 +92166,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 980,
+          "line": 986,
           "sink": "CompatibilityFinding"
         }
       ]
@@ -93301,7 +93316,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 980,
+          "line": 986,
           "sink": "CompatibilityFinding"
         }
       ]
@@ -93311,7 +93326,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 680,
+          "line": 686,
           "sink": "python-return:text"
         }
       ]
@@ -107936,7 +107951,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_planning.py",
-          "line": 935,
+          "line": 968,
           "sink": "log"
         }
       ]
@@ -108531,12 +108546,12 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_json_actions.py",
-          "line": 38,
+          "line": 35,
           "sink": "getSaveFileName:filter-label"
         },
         {
           "path": "cdmw/ui/archive_browser/prefab_json_actions.py",
-          "line": 78,
+          "line": 75,
           "sink": "getOpenFileName:filter-label"
         }
       ]
@@ -108546,7 +108561,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_json_actions.py",
-          "line": 59,
+          "line": 56,
           "sink": "information"
         }
       ]
@@ -108556,7 +108571,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_json_actions.py",
-          "line": 133,
+          "line": 97,
           "sink": "set_status_message"
         }
       ]
@@ -108566,18 +108581,8 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_json_actions.py",
-          "line": 119,
-          "sink": "log"
-        }
-      ]
-    },
-    {
-      "key": "Prefab Edit Package Complete",
-      "origins": [
-        {
-          "path": "cdmw/ui/archive_browser/prefab_json_actions.py",
-          "line": 135,
-          "sink": "information"
+          "line": 103,
+          "sink": "set_status_message"
         }
       ]
     },
@@ -108596,12 +108601,12 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_actions.py",
-          "line": 193,
+          "line": 211,
           "sink": "information"
         },
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_actions.py",
-          "line": 243,
+          "line": 261,
           "sink": "information"
         }
       ]
@@ -108666,12 +108671,12 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_actions.py",
-          "line": 190,
+          "line": 208,
           "sink": "set_status_message"
         },
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_actions.py",
-          "line": 241,
+          "line": 259,
           "sink": "set_status_message"
         }
       ]
@@ -108713,16 +108718,6 @@
           "path": "cdmw/ui/archive_browser/mesh_swap_scope_dialog.py",
           "line": 331,
           "sink": "python-return:_behavior_text"
-        }
-      ]
-    },
-    {
-      "key": "Prefab payload changed: {value_0} byte(s), size preserved.",
-      "origins": [
-        {
-          "path": "cdmw/ui/archive_browser/prefab_json_actions.py",
-          "line": 121,
-          "sink": "log"
         }
       ]
     },
@@ -110571,7 +110566,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_planning.py",
-          "line": 954,
+          "line": 987,
           "sink": "add"
         }
       ]
@@ -117256,7 +117251,7 @@
       "origins": [
         {
           "path": "cdmw/services/mod_merge_service.py",
-          "line": 164,
+          "line": 168,
           "sink": "on_log"
         }
       ]
@@ -117376,7 +117371,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/prefab_json_actions.py",
-          "line": 51,
+          "line": 48,
           "sink": "log"
         }
       ]
@@ -117456,7 +117451,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_json_actions.py",
-          "line": 111,
+          "line": 86,
           "sink": "log"
         }
       ]
@@ -118551,7 +118546,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 743,
+          "line": 749,
           "sink": "OverlayConflict"
         }
       ]
@@ -124466,7 +124461,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 527,
+          "line": 531,
           "sink": "OverlayConflict"
         }
       ]
@@ -124476,7 +124471,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 536,
+          "line": 540,
           "sink": "OverlayConflict"
         }
       ]
@@ -124521,7 +124516,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 503,
+          "line": 507,
           "sink": "OverlayConflict"
         }
       ]
@@ -126381,7 +126376,7 @@
       "origins": [
         {
           "path": "cdmw/services/mod_merge_service.py",
-          "line": 335,
+          "line": 340,
           "sink": "ValueError"
         }
       ]
@@ -127941,7 +127936,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 756,
+          "line": 762,
           "sink": "OverlayConflict"
         }
       ]
@@ -127981,7 +127976,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 890,
+          "line": 896,
           "sink": "CompatibilityFinding"
         }
       ]
@@ -128456,7 +128451,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_package.py",
-          "line": 253,
+          "line": 254,
           "sink": "on_log"
         }
       ]
@@ -129091,7 +129086,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 680,
+          "line": 686,
           "sink": "python-return:text"
         }
       ]
@@ -131306,7 +131301,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_actions.py",
-          "line": 163,
+          "line": 180,
           "sink": "getSaveFileName"
         }
       ]
@@ -134916,7 +134911,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_json_actions.py",
-          "line": 36,
+          "line": 33,
           "sink": "set_status_message"
         }
       ]
@@ -134926,7 +134921,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_json_actions.py",
-          "line": 76,
+          "line": 73,
           "sink": "set_status_message"
         }
       ]
@@ -137106,7 +137101,7 @@
       "origins": [
         {
           "path": "cdmw/services/mod_merge_service.py",
-          "line": 123,
+          "line": 127,
           "sink": "ValueError"
         }
       ]
@@ -137321,7 +137316,7 @@
       "origins": [
         {
           "path": "cdmw/services/mod_merge_service.py",
-          "line": 126,
+          "line": 130,
           "sink": "ValueError"
         }
       ]
@@ -138586,7 +138581,7 @@
       "origins": [
         {
           "path": "cdmw/services/mod_merge_service.py",
-          "line": 128,
+          "line": 132,
           "sink": "ValueError"
         }
       ]
@@ -139446,7 +139441,7 @@
       "origins": [
         {
           "path": "cdmw/services/mod_merge_service.py",
-          "line": 48,
+          "line": 49,
           "sink": "ValueError"
         }
       ]
@@ -139456,7 +139451,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 718,
+          "line": 724,
           "sink": "OverlayConflict"
         }
       ]
@@ -139466,7 +139461,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 772,
+          "line": 778,
           "sink": "OverlayConflict"
         }
       ]
@@ -139476,7 +139471,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 735,
+          "line": 741,
           "sink": "OverlayConflict"
         }
       ]
@@ -139486,7 +139481,7 @@
       "origins": [
         {
           "path": "cdmw/services/mod_merge_service.py",
-          "line": 376,
+          "line": 381,
           "sink": "on_log"
         }
       ]
@@ -139771,7 +139766,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 510,
+          "line": 514,
           "sink": "CompatibilityFinding"
         }
       ]
@@ -140161,7 +140156,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_actions.py",
-          "line": 159,
+          "line": 169,
           "sink": "set_status_message"
         }
       ]
@@ -145881,7 +145876,7 @@
       "origins": [
         {
           "path": "cdmw/services/mod_merge_service.py",
-          "line": 55,
+          "line": 56,
           "sink": "ValueError"
         },
         {
@@ -146201,7 +146196,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_actions.py",
-          "line": 228,
+          "line": 246,
           "sink": "log"
         }
       ]
@@ -150096,7 +150091,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 493,
+          "line": 497,
           "sink": "OverlayConflict"
         }
       ]
@@ -152246,7 +152241,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 622,
+          "line": 628,
           "sink": "OverlayConflict"
         }
       ]
@@ -155536,7 +155531,7 @@
       "origins": [
         {
           "path": "cdmw/services/mod_merge_service.py",
-          "line": 280,
+          "line": 285,
           "sink": "ValueError"
         }
       ]
@@ -157521,7 +157516,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 581,
+          "line": 585,
           "sink": "OverlayConflict"
         }
       ]
@@ -157536,7 +157531,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 593,
+          "line": 599,
           "sink": "OverlayConflict"
         }
       ]
@@ -157546,7 +157541,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 587,
+          "line": 591,
           "sink": "OverlayConflict"
         }
       ]
@@ -157561,7 +157556,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 913,
+          "line": 919,
           "sink": "OverlayConflict"
         }
       ]
@@ -157691,7 +157686,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 958,
+          "line": 964,
           "sink": "CompatibilityFinding"
         }
       ]
@@ -158796,7 +158791,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 486,
+          "line": 490,
           "sink": "OverlayConflict"
         }
       ]
@@ -160016,7 +160011,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 680,
+          "line": 686,
           "sink": "python-return:text"
         }
       ]
@@ -160216,7 +160211,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 935,
+          "line": 941,
           "sink": "CompatibilityFinding"
         }
       ]
@@ -161016,7 +161011,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 680,
+          "line": 686,
           "sink": "python-return:text"
         }
       ]
@@ -164896,17 +164891,17 @@
         },
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 922,
+          "line": 928,
           "sink": "CompatibilityFinding"
         },
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 927,
+          "line": 933,
           "sink": "CompatibilityFinding"
         },
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 935,
+          "line": 941,
           "sink": "CompatibilityFinding"
         },
         {
@@ -165261,7 +165256,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 680,
+          "line": 686,
           "sink": "python-return:text"
         }
       ]
@@ -165826,7 +165821,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 1003,
+          "line": 1009,
           "sink": "OverlayConflict"
         }
       ]
@@ -167181,7 +167176,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 875,
+          "line": 881,
           "sink": "OverlayConflict"
         }
       ]
@@ -174501,7 +174496,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_prefab_authoring.py",
-          "line": 69,
+          "line": 125,
           "sink": "on_log"
         }
       ]
@@ -174676,7 +174671,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_json_actions.py",
-          "line": 59,
+          "line": 56,
           "sink": "information"
         }
       ]
@@ -174777,31 +174772,11 @@
       ]
     },
     {
-      "key": "Wrote prefab edit loose package into:\n{value_0}",
-      "origins": [
-        {
-          "path": "cdmw/ui/archive_browser/prefab_json_actions.py",
-          "line": 135,
-          "sink": "information"
-        }
-      ]
-    },
-    {
-      "key": "Wrote prefab edit loose package: {value_0}",
-      "origins": [
-        {
-          "path": "cdmw/ui/archive_browser/prefab_json_actions.py",
-          "line": 140,
-          "sink": "set_status_message"
-        }
-      ]
-    },
-    {
       "key": "Wrote prefab item package:\n{value_0}\n\n{value_1}",
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_actions.py",
-          "line": 193,
+          "line": 211,
           "sink": "information"
         }
       ]
@@ -174811,7 +174786,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_actions.py",
-          "line": 198,
+          "line": 216,
           "sink": "set_status_message"
         }
       ]
@@ -174821,7 +174796,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_actions.py",
-          "line": 243,
+          "line": 261,
           "sink": "information"
         }
       ]
@@ -174831,7 +174806,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_actions.py",
-          "line": 248,
+          "line": 266,
           "sink": "set_status_message"
         }
       ]
@@ -183826,7 +183801,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_planning.py",
-          "line": 811,
+          "line": 843,
           "sink": "add"
         }
       ]
@@ -191511,12 +191486,12 @@
       "origins": [
         {
           "path": "cdmw/services/independent_prefab_package.py",
-          "line": 100,
+          "line": 98,
           "sink": "add"
         },
         {
           "path": "cdmw/services/independent_prefab_package.py",
-          "line": 106,
+          "line": 104,
           "sink": "add"
         },
         {
@@ -193416,7 +193391,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_planning.py",
-          "line": 772,
+          "line": 804,
           "sink": "add"
         }
       ]
@@ -195051,7 +195026,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_planning.py",
-          "line": 760,
+          "line": 792,
           "sink": "add"
         }
       ]
@@ -197621,7 +197596,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_actions.py",
-          "line": 137,
+          "line": 141,
           "sink": "setText"
         }
       ]
@@ -202106,7 +202081,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 472,
+          "line": 476,
           "sink": "OverlayConflict"
         }
       ]
@@ -203486,7 +203461,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 551,
+          "line": 555,
           "sink": "OverlayConflict"
         }
       ]
@@ -203616,7 +203591,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 473,
+          "line": 477,
           "sink": "OverlayConflict"
         }
       ]
@@ -203636,7 +203611,7 @@
       "origins": [
         {
           "path": "cdmw/services/mod_merge_service.py",
-          "line": 227,
+          "line": 232,
           "sink": "ValueError"
         }
       ]
@@ -203736,7 +203711,7 @@
       "origins": [
         {
           "path": "cdmw/services/mod_merge_service.py",
-          "line": 239,
+          "line": 244,
           "sink": "ValueError"
         }
       ]
@@ -203816,7 +203791,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 763,
+          "line": 769,
           "sink": "OverlayConflict"
         }
       ]
@@ -203826,7 +203801,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 780,
+          "line": 786,
           "sink": "OverlayConflict"
         }
       ]
@@ -203836,7 +203811,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 712,
+          "line": 718,
           "sink": "OverlayConflict"
         }
       ]
@@ -203846,7 +203821,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 708,
+          "line": 714,
           "sink": "OverlayConflict"
         }
       ]
@@ -203861,7 +203836,7 @@
       "origins": [
         {
           "path": "cdmw/services/mod_merge_service.py",
-          "line": 289,
+          "line": 294,
           "sink": "ValueError"
         }
       ]
@@ -203911,7 +203886,7 @@
       "origins": [
         {
           "path": "cdmw/services/mod_merge_service.py",
-          "line": 241,
+          "line": 246,
           "sink": "ValueError"
         }
       ]
@@ -203921,7 +203896,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 432,
+          "line": 436,
           "sink": "OverlayConflict"
         }
       ]
@@ -203941,7 +203916,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 590,
+          "line": 596,
           "sink": "OverlayConflict"
         }
       ]
@@ -203996,7 +203971,7 @@
         },
         {
           "path": "cdmw/services/mod_merge_service.py",
-          "line": 267,
+          "line": 272,
           "sink": "ValueError"
         },
         {
@@ -204006,7 +203981,7 @@
         },
         {
           "path": "cdmw/services/new_item_planning.py",
-          "line": 744,
+          "line": 776,
           "sink": "add"
         },
         {
@@ -204581,7 +204556,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 617,
+          "line": 623,
           "sink": "on_log"
         }
       ]
@@ -204701,12 +204676,12 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 455,
+          "line": 459,
           "sink": "OverlayConflict"
         },
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 462,
+          "line": 466,
           "sink": "OverlayConflict"
         }
       ]
@@ -204716,7 +204691,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 514,
+          "line": 518,
           "sink": "OverlayConflict"
         }
       ]

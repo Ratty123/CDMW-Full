@@ -19703,7 +19703,7 @@ MESSAGE_REFERENCE = [
     "message": "A duplicate or non-prefab replacement target is unsupported: {path}.",
     "recovery": "conflict",
     "sources": {
-      "cdmw/services/independent_prefab_package.py": 84
+      "cdmw/services/independent_prefab_package.py": 82
     }
   },
   {
@@ -19727,7 +19727,7 @@ MESSAGE_REFERENCE = [
     "message": "A prefab replacement exceeds the package size limit.",
     "recovery": "limits",
     "sources": {
-      "cdmw/services/independent_prefab_package.py": 35
+      "cdmw/services/independent_prefab_package.py": 37
     }
   },
   {
@@ -19735,7 +19735,7 @@ MESSAGE_REFERENCE = [
     "message": "A prefab replacement must be bounded prefab bytes.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/independent_prefab_package.py": 176
+      "cdmw/services/independent_prefab_package.py": 200
     }
   },
   {
@@ -19743,7 +19743,7 @@ MESSAGE_REFERENCE = [
     "message": "A prefab replacement requires its exact source dependency.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/independent_prefab_package.py": 94
+      "cdmw/services/independent_prefab_package.py": 92
     }
   },
   {
@@ -19751,7 +19751,7 @@ MESSAGE_REFERENCE = [
     "message": "A required prefab replacement resource is missing.",
     "recovery": "missing",
     "sources": {
-      "cdmw/services/independent_prefab_package.py": 99
+      "cdmw/services/independent_prefab_package.py": 97
     }
   },
   {
@@ -19808,6 +19808,14 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/core/prefab_binary_edit.py": 235
+    }
+  },
+  {
+    "area": "formats",
+    "message": "Choose where to write the prefab package.",
+    "recovery": "write",
+    "sources": {
+      "cdmw/services/independent_prefab_authoring.py": 119
     }
   },
   {
@@ -20367,7 +20375,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid existing-prefab replacement fields.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/independent_prefab_package.py": 81
+      "cdmw/services/independent_prefab_package.py": 79
     }
   },
   {
@@ -20375,7 +20383,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid existing-prefab replacement module.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/independent_prefab_package.py": 77
+      "cdmw/services/independent_prefab_package.py": 75
     }
   },
   {
@@ -20383,7 +20391,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid prefab source or replacement digest.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/independent_prefab_package.py": 90
+      "cdmw/services/independent_prefab_package.py": 88
     }
   },
   {
@@ -20391,7 +20399,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid witnessed prefab source size.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/independent_prefab_package.py": 92
+      "cdmw/services/independent_prefab_package.py": 90
     }
   },
   {
@@ -21264,7 +21272,7 @@ MESSAGE_REFERENCE = [
     "message": "Prefab replacement requires a witnessed shipped target: {path}.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/independent_prefab_package.py": 126
+      "cdmw/services/independent_prefab_package.py": 124
     }
   },
   {
@@ -21272,15 +21280,7 @@ MESSAGE_REFERENCE = [
     "message": "Prefab replacement targets must be existing .prefab paths.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/independent_prefab_package.py": 174
-    }
-  },
-  {
-    "area": "formats",
-    "message": "Prefab replacements cannot be combined with an owned item in one package.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/services/independent_prefab_package.py": 66
+      "cdmw/services/independent_prefab_package.py": 198
     }
   },
   {
@@ -21687,10 +21687,18 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "formats",
+    "message": "Select at least one prefab replacement.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/services/independent_prefab_package.py": 176
+    }
+  },
+  {
+    "area": "formats",
     "message": "Select between one and 128 existing prefab replacements.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/independent_prefab_package.py": 168
+      "cdmw/services/independent_prefab_package.py": 234
     }
   },
   {
@@ -21760,7 +21768,7 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "formats",
-    "message": "The edited prefab {path} points at files this game does not contain: {shown}.",
+    "message": "The edited prefab {path} points at files that neither this game nor the package contains: {shown}.",
     "recovery": "internal",
     "sources": {
       "cdmw/services/independent_prefab_package.py": 154
@@ -21771,7 +21779,15 @@ MESSAGE_REFERENCE = [
     "message": "The game copy of this prefab has changed since the package was made: {path}. Edit it again in the Prefab Inspector on this game.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/independent_prefab_package.py": 147
+      "cdmw/services/independent_prefab_package.py": 145
+    }
+  },
+  {
+    "area": "formats",
+    "message": "The item package changed while the prefab edit was prepared. Add the edit again.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/services/independent_prefab_authoring.py": 41
     }
   },
   {
@@ -21779,7 +21795,7 @@ MESSAGE_REFERENCE = [
     "message": "The logical prefab replacement size limit is exhausted.",
     "recovery": "limits",
     "sources": {
-      "cdmw/services/independent_prefab_package.py": 103
+      "cdmw/services/independent_prefab_package.py": 101
     }
   },
   {
@@ -21788,6 +21804,14 @@ MESSAGE_REFERENCE = [
     "recovery": "write",
     "sources": {
       "cdmw/services/independent_prefab_package.py": 157
+    }
+  },
+  {
+    "area": "formats",
+    "message": "The package was made against a different copy of {path} than this game has. Update the package on this game first.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/services/independent_prefab_package.py": 203
     }
   },
   {
@@ -21803,7 +21827,7 @@ MESSAGE_REFERENCE = [
     "message": "The prefab replacement could not be decoded: {exc}",
     "recovery": "format",
     "sources": {
-      "cdmw/services/independent_prefab_package.py": 40
+      "cdmw/services/independent_prefab_package.py": 42
     }
   },
   {
@@ -21811,7 +21835,7 @@ MESSAGE_REFERENCE = [
     "message": "The prefab replacement is identical to the game copy: {path}.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/independent_prefab_package.py": 97
+      "cdmw/services/independent_prefab_package.py": 95
     }
   },
   {
@@ -21819,7 +21843,7 @@ MESSAGE_REFERENCE = [
     "message": "The prefab replacement no longer decodes completely: {document.walk_note}",
     "recovery": "format",
     "sources": {
-      "cdmw/services/independent_prefab_package.py": 42
+      "cdmw/services/independent_prefab_package.py": 44
     }
   },
   {
@@ -21827,7 +21851,7 @@ MESSAGE_REFERENCE = [
     "message": "The prefab target is not an existing shipped resource: {path}.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/independent_prefab_package.py": 118
+      "cdmw/services/independent_prefab_package.py": 116
     }
   },
   {
@@ -21835,7 +21859,7 @@ MESSAGE_REFERENCE = [
     "message": "The prefab you edited differs from the game's own copy of {target_path}, probably because another mod changes it. Disable that mod and edit the prefab again.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/independent_prefab_authoring.py": 44
+      "cdmw/services/independent_prefab_authoring.py": 76
     }
   },
   {
@@ -21843,7 +21867,7 @@ MESSAGE_REFERENCE = [
     "message": "The replacement count limit is exhausted.",
     "recovery": "limits",
     "sources": {
-      "cdmw/services/independent_prefab_package.py": 87
+      "cdmw/services/independent_prefab_package.py": 85
     }
   },
   {
@@ -22194,10 +22218,18 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "formats",
+    "message": "Write an update to the item package it was prepared from.",
+    "recovery": "write",
+    "sources": {
+      "cdmw/services/independent_prefab_authoring.py": 116
+    }
+  },
+  {
+    "area": "formats",
     "message": "Write portable prefab packages outside the game archive folder.",
     "recovery": "write",
     "sources": {
-      "cdmw/services/independent_prefab_authoring.py": 66
+      "cdmw/services/independent_prefab_authoring.py": 122
     }
   },
   {
@@ -25017,7 +25049,7 @@ MESSAGE_REFERENCE = [
     "message": "A semantic export contributor changed during compilation.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/independent_item_compatibility.py": 704
+      "cdmw/services/independent_item_compatibility.py": 710
     }
   },
   {
@@ -25185,7 +25217,7 @@ MESSAGE_REFERENCE = [
     "message": "An untyped installed overlay cannot be included in a semantic export.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/independent_item_compatibility.py": 846
+      "cdmw/services/independent_item_compatibility.py": 852
     }
   },
   {
@@ -25209,7 +25241,7 @@ MESSAGE_REFERENCE = [
     "message": "Another mod changes this file, and the item was built against the game's own copy. CDMW cannot combine changes to this kind of file; disable the other mod to load this item.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/independent_item_compatibility.py": 532
+      "cdmw/services/independent_item_compatibility.py": 536
     }
   },
   {
@@ -25866,7 +25898,7 @@ MESSAGE_REFERENCE = [
     "message": "Combining semantic exports with unannotated mod folders is unsupported; retain the original .cditem contributors.",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/services/independent_item_compatibility.py": 839
+      "cdmw/services/independent_item_compatibility.py": 845
     }
   },
   {
@@ -27091,7 +27123,7 @@ MESSAGE_REFERENCE = [
     "message": "Rebuild the installed package with the current compiler before semantic export.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/independent_item_compatibility.py": 743
+      "cdmw/services/independent_item_compatibility.py": 749
     }
   },
   {
@@ -27123,7 +27155,7 @@ MESSAGE_REFERENCE = [
     "message": "Required prefab metadata changed.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/independent_item_compatibility.py": 527
+      "cdmw/services/independent_item_compatibility.py": 531
     }
   },
   {
@@ -27131,7 +27163,7 @@ MESSAGE_REFERENCE = [
     "message": "Required record {key} was changed or removed.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/independent_item_compatibility.py": 536
+      "cdmw/services/independent_item_compatibility.py": 540
     }
   },
   {
@@ -27139,7 +27171,7 @@ MESSAGE_REFERENCE = [
     "message": "Required {name} record {number} was changed or removed.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/independent_item_compatibility.py": 503
+      "cdmw/services/independent_item_compatibility.py": 507
     }
   },
   {
@@ -27147,7 +27179,7 @@ MESSAGE_REFERENCE = [
     "message": "Retained semantic export package disagrees with its ownership.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/independent_item_compatibility.py": 756
+      "cdmw/services/independent_item_compatibility.py": 762
     }
   },
   {
@@ -27163,7 +27195,7 @@ MESSAGE_REFERENCE = [
     "message": "Review the conflicts or unsupported data before merging.",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/services/independent_item_compatibility.py": 662
+      "cdmw/services/independent_item_compatibility.py": 668
     }
   },
   {
@@ -27420,7 +27452,7 @@ MESSAGE_REFERENCE = [
     "message": "Semantic export payloads, flags or original baselines disagree with retained package recompilation.",
     "recovery": "format",
     "sources": {
-      "cdmw/services/independent_item_compatibility.py": 718
+      "cdmw/services/independent_item_compatibility.py": 724
     }
   },
   {
@@ -27428,7 +27460,7 @@ MESSAGE_REFERENCE = [
     "message": "Semantic export requires recompilation against the current witnessed baseline.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/independent_item_compatibility.py": 772
+      "cdmw/services/independent_item_compatibility.py": 778
     }
   },
   {
@@ -27436,7 +27468,7 @@ MESSAGE_REFERENCE = [
     "message": "Semantic export requires retained .cditem contributors for every payload. Mixed foreign or untyped overlay exports remain unsupported.",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/services/independent_item_compatibility.py": 735
+      "cdmw/services/independent_item_compatibility.py": 741
     }
   },
   {
@@ -27565,7 +27597,7 @@ MESSAGE_REFERENCE = [
     "message": "Table layout changed.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/independent_item_compatibility.py": 493
+      "cdmw/services/independent_item_compatibility.py": 497
     }
   },
   {
@@ -27589,7 +27621,7 @@ MESSAGE_REFERENCE = [
     "message": "Texture conflict at {path}: {owner}; {consumer} requires the complete resource unchanged.",
     "recovery": "stale",
     "sources": {
-      "cdmw/services/independent_item_compatibility.py": 622
+      "cdmw/services/independent_item_compatibility.py": 628
     }
   },
   {
@@ -28293,7 +28325,7 @@ MESSAGE_REFERENCE = [
     "message": "The retained independent package does not match its ownership history.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/independent_item_compatibility.py": 581
+      "cdmw/services/independent_item_compatibility.py": 585
     }
   },
   {
@@ -28309,7 +28341,7 @@ MESSAGE_REFERENCE = [
     "message": "The retained package field operations disagree with its ownership layer.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/independent_item_compatibility.py": 593
+      "cdmw/services/independent_item_compatibility.py": 599
     }
   },
   {
@@ -28317,7 +28349,7 @@ MESSAGE_REFERENCE = [
     "message": "The retained package texture requirements disagree with its ownership layer.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/independent_item_compatibility.py": 587
+      "cdmw/services/independent_item_compatibility.py": 591
     }
   },
   {
@@ -28373,7 +28405,7 @@ MESSAGE_REFERENCE = [
     "message": "The retained virtual package does not match the saved profile and item identities.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/independent_item_compatibility.py": 913
+      "cdmw/services/independent_item_compatibility.py": 919
     }
   },
   {
@@ -28653,7 +28685,7 @@ MESSAGE_REFERENCE = [
     "message": "The texture replacement requires different final bytes.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/independent_item_compatibility.py": 486
+      "cdmw/services/independent_item_compatibility.py": 490
     }
   },
   {
@@ -29038,7 +29070,7 @@ MESSAGE_REFERENCE = [
     "message": "Unsupported metadata in merged output: {path}.",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/services/independent_item_compatibility.py": 1003
+      "cdmw/services/independent_item_compatibility.py": 1009
     }
   },
   {
@@ -29159,7 +29191,7 @@ MESSAGE_REFERENCE = [
     "message": "Use Apply changes in Mods to update the virtual profile. Archive export cannot include its shared files.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/independent_item_compatibility.py": 875
+      "cdmw/services/independent_item_compatibility.py": 881
     }
   },
   {
@@ -29455,7 +29487,7 @@ MESSAGE_REFERENCE = [
     "message": "{', '.join(external.labels((path,)))}: an owned asset is already supplied by another mod: {path}.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/independent_item_compatibility.py": 551
+      "cdmw/services/independent_item_compatibility.py": 555
     }
   },
   {
@@ -29527,7 +29559,7 @@ MESSAGE_REFERENCE = [
     "message": "{package.identity}: semantic export relocation is unsupported.",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/services/independent_item_compatibility.py": 708
+      "cdmw/services/independent_item_compatibility.py": 714
     }
   },
   {
@@ -29551,7 +29583,7 @@ MESSAGE_REFERENCE = [
     "message": "{package.title} was made on a game with DLC content this game does not have ({names}). Install that DLC to use this item.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/independent_item_compatibility.py": 472,
+      "cdmw/services/independent_item_compatibility.py": 476,
       "cdmw/services/independent_item_install.py": 219
     }
   },
@@ -29568,7 +29600,7 @@ MESSAGE_REFERENCE = [
     "message": "{package.title}: incompatible game dependency {path}. Use the matching game version or an updated package.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/independent_item_compatibility.py": 473,
+      "cdmw/services/independent_item_compatibility.py": 477,
       "cdmw/services/independent_item_install.py": 220
     }
   },
@@ -29601,7 +29633,7 @@ MESSAGE_REFERENCE = [
     "message": "{package.title}: the retained legacy resource graph is incomplete.",
     "recovery": "format",
     "sources": {
-      "cdmw/services/independent_item_compatibility.py": 432
+      "cdmw/services/independent_item_compatibility.py": 436
     }
   },
   {
@@ -29609,7 +29641,7 @@ MESSAGE_REFERENCE = [
     "message": "{package.title}: the texture journal differs from its witnessed original and replacement.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/independent_item_compatibility.py": 590
+      "cdmw/services/independent_item_compatibility.py": 596
     }
   },
   {
@@ -29617,7 +29649,7 @@ MESSAGE_REFERENCE = [
     "message": "{package.title}; {', '.join(external.labels(paths))}; {body}: owned record {int.from_bytes(key, 'little')} is also supplied by another mod.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/independent_item_compatibility.py": 462
+      "cdmw/services/independent_item_compatibility.py": 466
     }
   },
   {
@@ -29625,7 +29657,7 @@ MESSAGE_REFERENCE = [
     "message": "{package.title}; {', '.join(external.labels(paths))}; {body}: owned record {int.from_bytes(sorted(overlap)[0], 'little')} is also supplied by another mod.",
     "recovery": "conflict",
     "sources": {
-      "cdmw/services/independent_item_compatibility.py": 455
+      "cdmw/services/independent_item_compatibility.py": 459
     }
   },
   {
@@ -29641,7 +29673,7 @@ MESSAGE_REFERENCE = [
     "message": "{path}: semantic export contributors require different source baselines.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/independent_item_compatibility.py": 763
+      "cdmw/services/independent_item_compatibility.py": 769
     }
   },
   {
@@ -29649,7 +29681,7 @@ MESSAGE_REFERENCE = [
     "message": "{path}: semantic export has no matching original source witness.",
     "recovery": "empty",
     "sources": {
-      "cdmw/services/independent_item_compatibility.py": 780
+      "cdmw/services/independent_item_compatibility.py": 786
     }
   },
   {
@@ -29657,7 +29689,7 @@ MESSAGE_REFERENCE = [
     "message": "{path}: semantic export recipes disagree on their original baseline.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/independent_item_compatibility.py": 712
+      "cdmw/services/independent_item_compatibility.py": 718
     }
   },
   {
@@ -34435,7 +34467,7 @@ MESSAGE_REFERENCE = [
     "message": "This mod has no single legacy item recipe.",
     "recovery": "internal",
     "sources": {
-      "cdmw/domain/new_item/mod_package.py": 155
+      "cdmw/domain/new_item/mod_package.py": 156
     }
   },
   {
@@ -103069,10 +103101,10 @@ SOURCE_COVERAGE = {
     "raise": 43
   },
   "cdmw/services/independent_prefab_authoring.py": {
-    "raise": 2
+    "raise": 5
   },
   "cdmw/services/independent_prefab_package.py": {
-    "raise": 22
+    "raise": 25
   },
   "cdmw/services/independent_texture_authoring.py": {
     "raise": 15

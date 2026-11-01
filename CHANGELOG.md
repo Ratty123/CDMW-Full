@@ -9,7 +9,7 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 ### Added
 
-- The Prefab Inspector can save an edited prefab as an item package (.cditem) to add on the Mods page, alongside the loose folder for other mod managers. The package replaces only the game's own copy of that prefab. It refuses to load after a game update changes that copy, when the edit was made on another mod's version, or when the prefab points at a file the game does not contain. Two packages that want different versions of one prefab refuse instead of one silently winning. Loading edited prefabs in game is still untested.
+- The Prefab Inspector and Prefab Edit JSON import can save an edited prefab as an item package (.cditem) to add on the Mods page, alongside the loose folder for other mod managers. Prefabs from the DLC work too. **Add to Item Package...** puts the edit into an existing item package as its next release, so a game prefab can use the mesh that package's new item adds. The package replaces only the game's own copy of that prefab. It refuses to load after a game update changes that copy, when the edit was made on another mod's version, or when the prefab points at a file that neither the game nor the package provides. Two packages that want different versions of one prefab refuse instead of one silently winning. Loading edited prefabs in game is still untested.
 
 - Create New Item and Mod Management can send an item straight to DMM. **Send to DMM** writes the DMM mod folder into DMM's mods folder, and on Mod Management's Mods page a .cditem package is rebuilt as a DMM mod for the installed game first. CDMW finds DMM in its usual folder or asks once; enable the mod in DMM and click Mount. A mod folder another tool wrote is never replaced.
 

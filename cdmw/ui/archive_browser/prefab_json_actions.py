@@ -7,12 +7,9 @@ from typing import Callable
 
 from PySide6.QtWidgets import QFileDialog, QMessageBox
 
-from cdmw.services.archive_workflow_service import export_archive_payloads_to_mod_ready_loose
-from cdmw.domain.archives.mesh_contracts import ArchiveLooseExportResult
 from cdmw.domain.archives.prefab import PrefabEditJsonError
 from cdmw.services.archive_workflow_service import apply_prefab_edit_json, dumps_prefab_edit_json
 from cdmw.models import ArchiveEntry
-from cdmw.services.archive_mutation_service import ArchivePatchRequest
 from cdmw.services.archive_read_service import read_archive_entry_data
 
 
@@ -84,30 +81,8 @@ class ArchivePrefabJsonActionsMixin:
         if not selected:
             return
         document_path = Path(selected)
-        if QMessageBox.question(
-            self,
-            "Build Prefab Edit Package",
-            (
-                f"Build a loose mod package for edited prefab?\n\n{entry.path}\n\n"
-                "Original game archives will not be modified."
-            ),
-            QMessageBox.Yes | QMessageBox.No,
-            QMessageBox.No,
-        ) != QMessageBox.Yes:
-            return
-        export_target = self._collect_archive_mod_ready_export_target(
-            browse_title="Choose Prefab Edit Package Export Root",
-            prompt_for_metadata=True,
-            dialog_title="Build Prefab Edit Package",
-            allow_dmm_texture_structure=False,
-            initial_package_title="Prefab Edit",
-            initial_package_description=f"CDMW same-length prefab edit package for {entry.path}",
-        )
-        if export_target is None:
-            return
-        export_root, package_info, create_no_encrypt_file, _include_related, export_options = export_target
 
-        def _task(log: Callable[[str], None]) -> ArchiveLooseExportResult:
+        def _task(log: Callable[[str], None]) -> tuple[bytes, bytes]:
             log(f"Reading source prefab: {entry.path}")
             data, _decompressed, _note = read_archive_entry_data(entry)
             log(f"Applying Prefab Edit JSON: {document_path}")
@@ -115,29 +90,21 @@ class ArchivePrefabJsonActionsMixin:
                 patched = apply_prefab_edit_json(data, document_path.read_text(encoding="utf-8"), virtual_path=entry.path)
             except PrefabEditJsonError as exc:
                 raise ValueError(str(exc)) from exc
-            if patched == data:
-                log("Prefab Edit JSON made no byte changes; writing unchanged payload for review.")
-            else:
-                log(f"Prefab payload changed: {len(data):,} byte(s), size preserved.")
-            return export_archive_payloads_to_mod_ready_loose(
-                [ArchivePatchRequest(entry, patched)],
-                parent_root=export_root,
-                package_info=package_info,
-                export_options=export_options,
-                create_no_encrypt_file=create_no_encrypt_file,
-                on_log=log,
-            )
+            return data, patched
 
         def _handle_complete(result: object) -> None:
-            if not isinstance(result, ArchiveLooseExportResult):
+            if not isinstance(result, tuple) or len(result) != 2:
                 self.shell.set_status_message("Prefab Edit JSON import finished with an unexpected result payload.", error=True)
                 return
-            QMessageBox.information(
-                self,
-                "Prefab Edit Package Complete",
-                f"Wrote prefab edit loose package into:\n{result.package_root}",
-            )
-            self.shell.set_status_message(f"Wrote prefab edit loose package: {result.package_root}")
+            data, patched = result
+            if patched == data:
+                # An item package refuses a prefab identical to the game's, so
+                # the unchanged payload can only go out as a loose folder.
+                self.shell.set_status_message("Prefab Edit JSON made no byte changes; writing unchanged payload for review.")
+                self._export_inspected_prefab(entry, patched, f"Prefab Edit JSON: {document_path.name}")
+                return
+            # Choose the output only now that the edit is known to apply.
+            self._offer_prefab_export(entry, data, patched, f"Applied Prefab Edit JSON {document_path.name} to {entry.path}.")
 
         self.shell._run_utility_task_when_idle(
             status_message=f"Building Prefab Edit package for {entry.basename}...",
