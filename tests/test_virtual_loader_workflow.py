@@ -9,6 +9,8 @@ from types import SimpleNamespace
 os.environ.setdefault('QT_QPA_PLATFORM', 'offscreen')
 
 import pytest
+
+pytestmark = pytest.mark.usefixtures("retained_virtual_loading")
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QApplication, QPushButton
 

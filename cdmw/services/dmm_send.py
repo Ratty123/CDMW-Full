@@ -132,7 +132,7 @@ def send_item_packages(package_paths, game_root: Path | str, mods: Path, title: 
         raise ValueError("Select at least one item package to send to DMM.")
     root = Path(game_root).resolve()
     folder, replaced = destination(mods, title)
-    _resolved, files, flags, pathc = compose_packages(paths, (), root, stop_event=stop_event, on_log=on_log)
+    resolved, files, flags, pathc = compose_packages(paths, (), root, stop_event=stop_event, on_log=on_log)
     additions = tuple(ArchiveAddRequest(Path(), path, data, int(flags.get(path) or 0)) for path, data in sorted(files.items()))
     # The texture registry goes along only when the items register textures: a copy of
     # the shipped one would hide the next game update's registry.
@@ -146,8 +146,24 @@ def send_item_packages(package_paths, game_root: Path | str, mods: Path, title: 
                            on_log=on_log, stop_event=stop_event)
         raise_if_cancelled(stop_event, "Send to DMM cancelled.")
         destination(mods, title)  # Refuse a folder that appeared meanwhile.
+        # Record the item identities before the mod that uses them appears, so the
+        # next send gives every item the same key and saves keep their items.
+        _keep_identities(root, resolved.registry)
         atomic_publish_directory(staged, folder, replace_existing=True)
     return DmmSendResult(folder, replaced, title)
+
+
+def _keep_identities(root: Path, registry) -> None:
+    from cdmw.core.atomic_file import atomic_write_bytes
+    from cdmw.services.independent_item_install import REGISTRY_PATH, _validate_registry
+    from cdmw.services.independent_item_package import canonical
+
+    data = canonical(_validate_registry(registry))
+    target = root / REGISTRY_PATH
+    if target.is_file() and target.read_bytes() == data:
+        return
+    target.parent.mkdir(parents=True, exist_ok=True)
+    atomic_write_bytes(target, data)
 
 
 @dataclass(frozen=True)

@@ -93,7 +93,7 @@ def test_new_item_output_keeps_only_folder_and_portable_package(app, tmp_path, m
         app.processEvents()
 
 
-def test_mod_management_offers_only_cditem_pages_by_default(app, tmp_path):
+def test_mod_management_offers_only_cditem_pages_by_default(app, tmp_path, retained_virtual_loading):
     assert not constants.MOD_FOLDER_TOOLS_ENABLED
     tab = ModManagementTab(get_package_root=lambda: str(tmp_path))
     try:
@@ -141,7 +141,7 @@ def test_new_item_start_screen_has_no_mod_update_check(app):
         app.processEvents()
 
 
-def test_mod_management_hides_overlay_navigation_rows_and_actions(app, tmp_path):
+def test_mod_management_hides_overlay_navigation_rows_and_actions(app, tmp_path, retained_virtual_loading):
     tab = ModManagementTab(get_package_root=lambda: str(tmp_path))
     try:
         tab._busy_changed(False)

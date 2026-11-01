@@ -64,6 +64,25 @@ def test_several_packages_go_to_dmm_as_one_composed_mod(tmp_path):
     assert len(overrides) == len(set(overrides))
     assert "gamedata/binarystaticinfo__/bin/iteminfo.staticinfobody" in overrides
     assert (result.folder / "0036" / "0.pamt").is_file()
-    assert game_bytes(root) == before and not (root / ".cdmw").exists()
+    # Archives stay as shipped; only the item identities are kept beside them.
+    assert game_bytes(root) == before
+    assert [p.relative_to(root).as_posix() for p in (root / ".cdmw").rglob("*") if p.is_file()] == [".cdmw/independent-items.json"]
     again = send_item_packages(files, root, mods, "Two items")
     assert again.replaced
+
+
+def test_a_later_send_keeps_every_item_key(tmp_path):
+    from cdmw.services.dmm_send import send_item_packages
+    from cdmw.services.independent_item_install import load_registry
+    from cdmw.services.independent_item_package import read_package
+    from tests.test_virtual_loader import packages
+    root, files = packages(tmp_path, count=3)
+    _install, mods = _dmm(tmp_path)
+    send_item_packages(files, root, mods, "CDMW items")
+    first = {identity: row["values"] for identity, row in load_registry(root)["items"].items()}
+    # Dropping the first item and reordering the rest must not renumber them.
+    send_item_packages(tuple(reversed(files[1:])), root, mods, "CDMW items")
+    second = {identity: row["values"] for identity, row in load_registry(root)["items"].items()}
+    for path in files[1:]:
+        identity = read_package(path).identity
+        assert second[identity] == first[identity]

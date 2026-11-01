@@ -327,7 +327,7 @@ class OutputPanel(QGroupBox):
         self.independent_controls = QWidget()
         independent_layout = QVBoxLayout(self.independent_controls)
         independent_layout.setContentsMargins(0, 0, 0, 0)
-        self.independent_note = QLabel(self.tr("Writes a portable .cdmw package. Add it on Mod Management's Mods page, then apply and launch. Loading items this way is experimental."))
+        self.independent_note = QLabel(self.tr("Writes a portable .cdmw package. Add it on Mod Management's Mods page and choose Send to DMM; DMM loads it into the game."))
         self.independent_note.setWordWrap(True)
         independent_layout.addWidget(self.independent_note)
         self.update_package_button = QPushButton("Update an existing item package...")
@@ -762,7 +762,7 @@ class OutputPanel(QGroupBox):
         if isinstance(result, IndependentItemExport):
             self._export_error = ""
             self.append_log(f"Item package written: {result.path}")
-            QMessageBox.information(self, self.tr("Write item package"), self.tr("Package written. Add it on Mod Management's Mods page and choose Apply changes.") + "\n\n" + str(result.path))
+            QMessageBox.information(self, self.tr("Write item package"), self.tr("Package written. Add it on Mod Management's Mods page and choose Send to DMM.") + "\n\n" + str(result.path))
             return
         if isinstance(result, DmmSendResult):
             self._export_error = ""

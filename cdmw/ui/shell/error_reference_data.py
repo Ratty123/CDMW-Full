@@ -88656,7 +88656,7 @@ MESSAGE_REFERENCE = [
     "message": "Nothing in the shipped archives differs from the oldest backup of it, so there is nothing to move.",
     "recovery": "recovery",
     "sources": {
-      "cdmw/ui/tools/mod_management.py": 397
+      "cdmw/ui/tools/mod_management.py": 402
     }
   },
   {
@@ -88664,7 +88664,7 @@ MESSAGE_REFERENCE = [
     "message": "Operation finished or cancelled. Review the results before continuing.",
     "recovery": "cancelled",
     "sources": {
-      "cdmw/ui/tools/mod_management.py": 333
+      "cdmw/ui/tools/mod_management.py": 338
     }
   },
   {
@@ -88832,7 +88832,7 @@ MESSAGE_REFERENCE = [
     "message": "Point the workbench at the game folder first.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/tools/mod_management.py": 369
+      "cdmw/ui/tools/mod_management.py": 374
     }
   },
   {
@@ -89120,7 +89120,7 @@ MESSAGE_REFERENCE = [
     "message": "The archive mutation service is not available in this window.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/tools/mod_management.py": 365
+      "cdmw/ui/tools/mod_management.py": 370
     }
   },
   {
@@ -89128,7 +89128,7 @@ MESSAGE_REFERENCE = [
     "message": "The archives could not be read: {message}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/tools/mod_management.py": 387
+      "cdmw/ui/tools/mod_management.py": 392
     }
   },
   {
@@ -105651,6 +105651,7 @@ SOURCE_COVERAGE = {
     "validation": 2
   },
   "cdmw/ui/tools/__init__.py": {},
+  "cdmw/ui/tools/dmm_packages_page.py": {},
   "cdmw/ui/tools/mod_management.py": {
     "diagnostic_field": 1,
     "dialog": 4,

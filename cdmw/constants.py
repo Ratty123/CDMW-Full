@@ -8,6 +8,9 @@ ARCHIVE_OVERLAYS_ENABLED = False
 # Mod Management handles CDMW packages only; DMM handles ordinary mods. The
 # mod folder tools (convert, combine, update, health) stay implemented but hidden.
 MOD_FOLDER_TOOLS_ENABLED = False
+# DMM loads CDMW's items: Mods sends packages to DMM as one mod. CDMW's own loading
+# (Apply changes, Launch game and the runtime in bin64) stays implemented but hidden.
+VIRTUAL_LOADING_ENABLED = False
 # New packages are written as .cdmw. Packages from before the rename keep .cditem
 # and stay readable. CDMW's own copies under the game's .cdmw folder keep .cditem.
 PACKAGE_EXTENSION = ".cdmw"

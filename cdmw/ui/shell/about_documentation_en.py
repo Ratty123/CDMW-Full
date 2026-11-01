@@ -59,7 +59,7 @@ CREATE_NEW_ITEM_SECTION = {
     <p>Mod folder · DMM writes a mod folder for DMM (Definitive Mod Manager), with an optional ZIP. Add the folder in DMM and mount it there.</p>
     <p>Send to DMM writes the same mod straight into DMM's mods folder. The first time, choose DMM's folder, the one that contains DMM.exe, if CDMW does not find it. Then enable the mod in DMM and click Mount.</p>
     <p>Add to existing mod extends a selected package. Review the included items and files before exporting.</p>
-    <p>Item package · .cdmw writes a portable package that keeps the item's identity. Add it on Mod Management's Mods page, apply, then launch. Loading items this way is experimental.</p>
+    <p>Item package · .cdmw writes a portable package that keeps the item's identity. Add it on Mod Management's Mods page and choose Send to DMM; DMM loads it into the game.</p>
     <h4>Troubleshooting</h4>
     <p>The first archive read after the game or a mod changes the archives checks the cached archive catalogue against the game's index files. This can take up to a minute on a slow drive; later reads reuse the result until the archives change again.</p>
     <p>If Build plan reports unapplied changes, return to the model or effect step and apply them. For missing textures, inspect the import dependencies. For unavailable outputs, read the selected manager's requirements. Keep the original model, working files, exported package and installation receipt distinct so recovery does not depend on the preview session.</p>
@@ -660,19 +660,18 @@ class AboutDocumentationEnglishMixin:
             {
                 "id": "mod_management",
                 "title": "Mod Management",
-                "summary": "Add .cdmw item packages, apply them and launch the game with the items.",
-                "keywords": "utilities mods cdmw cditem item package apply launch runtime identities dmm",
+                "summary": "Keep a list of .cdmw item packages and send them to DMM as one mod.",
+                "keywords": "utilities mods cdmw cditem item package send dmm identities",
                 "html": """
-                <p>Mod Management loads .cdmw item packages into the game through CDMW's runtime. Other mods belong in DMM (Definitive Mod Manager).</p>
+                <p>DMM (Definitive Mod Manager) loads CDMW's items into the game. Mod Management keeps a list of .cdmw item packages and sends them to DMM as one mod.</p>
                 <ol>
                   <li>On Mods, choose Add item packages and select the .cdmw files.</li>
-                  <li>Choose Apply changes. CDMW checks each package against the installed game and prepares the item files.</li>
-                  <li>Choose Launch game, or start the game from Steam or DMM. CDMW's runtime in the game's bin64 folder serves the items while the game runs.</li>
+                  <li>Select the packages to send, or select none to send them all, and choose Send to DMM. The first time, choose DMM's folder, the one that contains DMM.exe, if CDMW does not find it.</li>
+                  <li>In DMM, enable the mod named CDMW items, click Mount and start the game from DMM.</li>
                 </ol>
                 <p>Packages saved before the .cdmw extension was introduced end in .cditem. They still load and need no conversion.</p>
-                <p>Item identities keeps the IDs assigned to each item, so saves find their items again. Export the identity profile with your saves when moving to another computer.</p>
-                <p>To use your items in DMM instead, select them on Mods, or select none to take every enabled item, and choose Send to DMM. CDMW combines them as Apply does and writes one DMM mod named CDMW items to DMM's mods folder; enable it in DMM and click Mount. Sending again replaces that mod. Keep the items in that one mod: a DMM mod carries complete item and shop tables, so two such mods replace each other's items, and a game update can need a new send.</p>
-                <p>Loading items this way is experimental. After a game update, opening Mod Management applies the items again. A DMM mod that replaces the item or shop tables may hide CDMW's items. A successful launch does not verify the items in shops, the inventory or saves.</p>
+                <p>Sending again replaces CDMW items. Keep all your CDMW items in that one mod: a DMM mod carries complete item and shop tables, so two such mods replace each other's items. Each item keeps its ID from one send to the next, so saves find their items again; CDMW records the IDs in the .cdmw folder inside the game folder.</p>
+                <p>After a game update, send the items again. A package that refuses with an incompatible game dependency needs updating in Create New Item first. A DMM mod that replaces the item or shop tables may hide CDMW's items.</p>
                 """,
             },
             {
