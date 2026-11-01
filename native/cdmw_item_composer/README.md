@@ -17,7 +17,9 @@ files, as the Python function of the same name does, with the same results:
 - `.paloc` merged per key, numeric keys placed by the leading ascending run, and the
   512-byte LZ4 container kept or rewritten;
 - `partprefabtable.pappt` (both record layouts), `meta/0.pathc` and
-  `ui/xml/texture/cd_item_icon.xml` merged per record.
+  `ui/xml/texture/cd_item_icon.xml` merged per record;
+- `character/descriptors/boneoffset/boneoffsetsample.xml` merged per
+  `BoneOffsetByPrefab` entry (`bone_offset_table.cpp`), the rest of the file per file.
 
 It also writes what a composition is installed as:
 

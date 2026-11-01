@@ -16,6 +16,7 @@ from pathlib import Path, PurePosixPath
 from typing import Callable, Iterable
 from xml.etree.ElementTree import ParseError
 
+from cdmw.core.bone_offset_table import BONE_OFFSET_PATH
 from cdmw.core.mod_export_history import mod_metadata_path
 from cdmw.domain.archives.overlay_merge import _table, merge_overlay_files
 from cdmw.domain.cancellation import raise_if_cancelled
@@ -102,6 +103,9 @@ def _validate_group(paths, files):
     elif paths[0] == "ui/xml/texture/cd_item_icon.xml":
         from cdmw.core.item_icon_registry import parse_icon_registry
         parse_icon_registry(files[paths[0]])
+    elif paths[0] == BONE_OFFSET_PATH:
+        from cdmw.core.bone_offset_table import parse_bone_offset_table
+        parse_bone_offset_table(files[paths[0]])
 
 
 def _items(manifest):
@@ -220,7 +224,8 @@ def prepare_mod_merge(
     for paths in groups:
         raise_if_cancelled(stop_event, "Mod merge cancelled.")
         participants = [mod for mod in mods if any(path in mod[1] for path in paths)]
-        structured = len(paths) == 2 or paths[0].endswith((".paloc", ".pappt")) or paths[0] == "ui/xml/texture/cd_item_icon.xml"
+        structured = len(paths) == 2 or paths[0].endswith((".paloc", ".pappt")) or paths[0] in (
+            "ui/xml/texture/cd_item_icon.xml", BONE_OFFSET_PATH)
         try:
             for name, data, _flags, _hashes, _manifest in participants:
                 if any(path not in data for path in paths):

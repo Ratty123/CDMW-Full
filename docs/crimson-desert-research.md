@@ -899,6 +899,53 @@ translate axis 125, every scale axis 99, rotations 255. Khione95's Character
 Creator plugin edits only the mesh choices and 250 decoration values, and
 re-swaps the head so the game applies its skeleton variation.
 
+Reviewed 2026-11-01 (archive inspection of the installed 2.04.03 build; no
+game observation): equipment can reshape the wearer's skeleton through
+`character/descriptors/boneoffset/boneoffsetsample.xml`, one base-game file
+with no DLC copy. Its developer comment says that when a skinned mesh is
+equipped, the listed bones move by the given `Rotation` (degrees),
+`Translation` (metres) and `Scale`; most rows set `IsCharacterSpace="false"`.
+The file has four sections:
+
+- `BoneOffsetByPrefab`: 34 `BoneDesc PrefabName=` entries, optionally naming a
+  `Skeleton Path` `.pabc`. Thirty name a prefab that ships; the others are dead.
+  Several entries are commented as compatibility fits of an outfit to Damiane or
+  Kliff, such as Spine1 at 0.8 x 0.85 for the Skullknight upper body on PHW. One
+  keys a nude-like name (`p8_phw_00_nude_00_0001`) with no matching prefab.
+- `BoneOffset`: 11 named `Tag` profiles, selected by a prefab's
+  `_boneOffsetTag`. A byte search finds `Chest01` (chest bones turned about 10
+  degrees) in 65 prefabs, mostly PHW upper bodies, and `WideShoulder01` in 97,
+  mostly PHM cloaks; 16 of each are the combined `Chest01_WideShoulder01`. The
+  rest move mount reins and rider binds.
+- `FootOffset` heel sets, plus an `EditableBoneList` of 37 body bones.
+- `IgnoreReceiveScaleBones`: the main limb, spine, head and finger bones,
+  presumably those that do not inherit a parent's scale.
+
+Elements close with `</>`. New Item copies a template prefab's `PrefabName`
+entry to the item's renamed prefab, and item-package composition merges the
+file per entry (`cdmw/core/bone_offset_table.py` and the native composer). Fit
+and preview still use bind or PABC poses without these offsets.
+
+Observed in game 2026-11-01 (one attended session, game 2.04.03, the table
+served as a loose file by DMM's runtime; the game log showed no new data
+error): a served table is honoured. Kliff's head grew when the empty
+`phm_00_nude_01_0002_macduff` entry was given `Bip01 Head` at 1.5, so an
+entry keyed on a character's nude prefab reshapes that character. His left
+forearm thickened from a new entry keyed on his always-worn inner top
+(`cd_phm_00_ub_inner_0054`), so new keys for shipped prefabs work too.
+
+A second attended session the same day keyed `Bip01 R UpperArm` (1.6 on bone
+y/z) on his always-worn gloves (`cd_phm_00_hand_inner_0054`). The shirt's
+right sleeve grew over the upper arm, which the gloves do not cover: while
+the keyed prefab is worn, its offsets move the shared skeleton, so every worn
+mesh follows. The forearm and hand below did not visibly grow, consistent with
+those bones being listed in `IgnoreReceiveScaleBones`. Equipping a chest armour
+hid the inner top and gloves and both offsets disappeared; taking it off
+restored them, so an entry applies only while its keyed prefab is loaded and
+is re-evaluated on equipment changes. Still unproven: keys for a prefab that
+only a mod provides, the rotation order, and which entry wins when two worn
+prefabs set the same bone.
+
 Saves (`%LOCALAPPDATA%\Pearl Abyss\CD\save\<id>\slotN\save.save`) are a
 128-byte `SAVE` header (version 2, uncompressed size at `0x12`, payload size
 at `0x16`, a 16-byte ChaCha20 nonce at `0x1A`, an HMAC-SHA256 at `0x2A`)

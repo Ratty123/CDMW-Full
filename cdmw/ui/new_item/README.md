@@ -904,6 +904,18 @@ Shared descriptor files travel through ordinary loose export, overlay installati
 recovery. Use the previous exported mod as the base when combining items; separately
 exported descriptors can overwrite one another's rules.
 
+### Bone-offset fits
+
+`character/descriptors/boneoffset/boneoffsetsample.xml` names prefabs whose wearer's
+bones the game moves, turns or scales while that prefab is worn (shipped compatibility
+fits such as Damiane's upper-body armours). When the plan copies such a template prefab
+under a new name, it copies the entry under the new prefab name too
+(`cdmw/core/bone_offset_table.py`) and records the pair in `new-item.json` as
+`bone_offsets`. Everything else in the file stays byte-identical. Item packages
+compose these entries per prefab name in Python and in the native composer, so two items
+from fitted templates combine. Whether the game applies an entry to a prefab that only a
+mod provides is untested in game; entries for shipped prefabs are observed working.
+
 ### Translucency controls
 
 For the rose-window investigation's additional controls, use **Appearance → Shader

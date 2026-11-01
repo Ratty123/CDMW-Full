@@ -530,6 +530,81 @@ def test_supported_icon_grammar_is_never_refused(native, text):
         assert native(*files)[0] == 'ok'
 
 
+# ---- bone offset table -------------------------------------------------------------------
+
+BONES = 'character/descriptors/boneoffset/boneoffsetsample.xml'
+
+
+def _bones_with(*names, data=None):
+    from tests.test_bone_offset_table import TABLE, add
+    return add(TABLE if data is None else data, *names)
+
+
+@pytest.mark.parametrize('newline', [b'\r\n', b'\n'])
+def test_bone_offset_compositions(parity, newline):
+    from tests.test_bone_offset_table import TABLE
+    base = TABLE.replace(b'\r\n', newline)
+    alpha, beta = (_bones_with(name, data=base).replace(b'\r\n', newline) for name in ('cd_alpha', 'cd_beta'))
+    _install(parity, {BONES: base}, {BONES: alpha}, {BONES: beta})
+    _install(parity, {BONES: base}, {BONES: alpha}, {BONES: alpha})
+    changed = base.replace(b'Scale="1.000 0.930 0.970"', b'Scale="1.000 0.900 0.900"')
+    _install(parity, {BONES: base}, {BONES: changed}, {BONES: beta})
+    parity({BONES: base}, {BONES: changed}, {BONES: base.replace(b'Scale="1.000 0.930 0.970"', b'Scale="1"')})
+    parity({BONES: base}, {BONES: base.replace(b'2.1903', b'2.0')}, {BONES: beta})
+    parity({BONES: base}, {BONES: base.replace(b'2.1903', b'2.0')}, {BONES: base.replace(b'2.1903', b'1.0')})
+    removed = _bones_with('cd_alpha', 'cd_alpha', data=base)
+    parity({BONES: removed}, {BONES: base}, {BONES: _bones_with('cd_alpha', 'cd_alpha', 'cd_beta', data=base)})
+
+
+@pytest.mark.parametrize('text', [
+    b'<BoneOffsetByPrefab><BoneDesc PrefabName="A"/></>',
+    b'<BoneOffsetByPrefab>\n\t<BoneDesc PrefabName="A"></BoneDesc>\n</BoneOffsetByPrefab>',
+    b"<BoneOffsetByPrefab>  <BoneDesc PrefabName='A' >x</>  </>",
+    b'<BoneOffsetByPrefab><BoneDesc PrefabName="A"/><BoneDesc PrefabName="a"/></>',
+    b'<BoneOffsetByPrefab><Other><BoneDesc/></></>',
+    b'<BoneOffsetByPrefab><BoneDesc Tag="x"/></>',
+    b'<BoneOffsetByPrefab><BoneDesc PrefabName=" "/></>',
+    b'<BoneOffsetByPrefab/>',
+    b'<BoneOffset></>',
+    b'<BoneOffsetByPrefab></><BoneOffsetByPrefab></>',
+    b'<BoneOffsetByPrefab>',
+    b'<BoneOffsetByPrefab></></>',
+    b'<BoneOffsetByPrefab></Other>',
+    b'<BoneOffsetByPrefab><!-- a -- b --></>',
+    b'<BoneOffsetByPrefab><!-- open</>',
+    b'<?xml version="1.0"?><BoneOffsetByPrefab></>',
+    b'<!DOCTYPE x><BoneOffsetByPrefab></>',
+    b'<BoneOffsetByPrefab><BoneDesc PrefabName="A"Tag="b"/></>',
+    b'<BoneOffsetByPrefab><BoneDesc PrefabName="A" PrefabName="B"/></>',
+    b'<BoneOffsetByPrefab><BoneDesc PrefabName=A/></>',
+    b'<BoneOffsetByPrefab><BoneDesc PrefabName="A</>',
+    b'<BoneOffsetByPrefab><BoneDesc PrefabName="A<"/></>',
+    b'<BoneOffsetByPrefab><BoneDesc PrefabName="\xc3\xa9"/></>',
+    b'<BoneOffsetByPrefab><BoneDesc PrefabName="A"/></>\xff',
+    b'<BoneOffsetByPrefab>< BoneDesc/></>',
+    b'<BoneOffsetByPrefab><BoneDesc PrefabName="A" /></  >',
+    b'<BoneOffsetByPrefab><BoneDesc PrefabName="A"',
+    b'\xef\xbb\xbf<BoneOffsetByPrefab>\r\n\t<BoneDesc PrefabName="A"/> \t\r\n\t</>',
+])
+def test_bone_offset_grammar(parity, text):
+    entry = b'<BoneDesc PrefabName="Z"/>\n'
+    for files in (({BONES: text}, {BONES: text.replace(b'</>', entry + b'</>', 1)}, {BONES: text + b' '}),
+                  ({BONES: text}, {BONES: text + b'\n'}, {BONES: text + b' '}),
+                  ({BONES: _bones_with()}, {BONES: _bones_with('cd_alpha')}, {BONES: text})):
+        parity(*files)
+
+
+@pytest.mark.parametrize('seed', range(40))
+def test_random_bone_offset_damage(parity, seed):
+    rng = random.Random(seed)
+    base = _bones_with()
+    alpha, beta = _bones_with('cd_alpha'), bytearray(_bones_with('cd_beta'))
+    for _ in range(rng.randint(1, 3)):
+        at = rng.randrange(len(beta))
+        beta[at:at + rng.randint(0, 3)] = bytes(rng.choice(b'<>/"= \t\r\nAZaz-!?') for _ in range(rng.randint(0, 3)))
+    parity({BONES: base}, {BONES: alpha}, {BONES: bytes(beta)})
+
+
 # ---- shipped tables ----------------------------------------------------------------------
 
 def _append_row(payload, header, source_key, new_key):

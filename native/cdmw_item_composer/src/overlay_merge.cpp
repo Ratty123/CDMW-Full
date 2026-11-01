@@ -285,6 +285,64 @@ Bytes merge_icons(const Bytes& raw_before, const Bytes& raw_after, const Bytes& 
     return out;
 }
 
+// _bone_offsets: prefab entries merge by PrefabName; the rest of the file must not collide.
+Bytes merge_bone_offsets(const Bytes& raw_before, const Bytes& raw_after, const Bytes& raw_current, const std::string& where) {
+    using Identity = std::pair<std::string, std::size_t>;  // key, occurrence
+    const Bytes* raws[] = {&raw_before, &raw_after, &raw_current};
+    BoneOffsetTable tables[3];
+    for (int i = 0; i < 3; ++i) tables[i] = parse_bone_offset_table(*raws[i]);
+    const Bytes frames[] = {bone_offset_frame(raw_before, tables[0]), bone_offset_frame(raw_after, tables[1]),
+                            bone_offset_frame(raw_current, tables[2])};
+    const auto kept = merge_value(frames[0], frames[1], frames[2], where);
+    const int base = kept == frames[1] && kept != frames[2] ? 1 : 2;
+    std::map<Identity, Bytes> sides[3];
+    std::vector<Identity> order;
+    std::set<Identity> listed;
+    for (int i : {2, 1, 0}) {
+        std::map<std::string, std::size_t> counts;
+        for (const auto& entry : tables[i].entries) {
+            Identity identity{entry.key, counts[entry.key]++};
+            sides[i].emplace(identity, slice(*raws[i], entry.start, entry.end));
+            if (listed.insert(identity).second) order.push_back(identity);
+        }
+    }
+    std::map<Identity, Bytes> merged;
+    std::vector<Identity> merged_order;
+    for (const auto& identity : order) {
+        const auto get = [&](int i) -> const Bytes* {
+            const auto found = sides[i].find(identity);
+            return found == sides[i].end() ? nullptr : &found->second;
+        };
+        auto value = merge_optional(get(0), get(1), get(2), where + " [" + identity.first + "]");
+        if (value) {
+            merged.emplace(identity, std::move(*value));
+            merged_order.push_back(identity);
+        }
+    }
+    const Bytes& data = *raws[base];
+    Bytes out;
+    std::size_t cursor = 0;
+    std::map<std::string, std::size_t> counts;
+    for (const auto& entry : tables[base].entries) {
+        const Identity identity{entry.key, counts[entry.key]++};
+        append(out, slice(data, cursor, entry.start));
+        const auto found = merged.find(identity);
+        if (found != merged.end()) {
+            append(out, found->second);
+            merged.erase(found);
+        }
+        cursor = entry.end;
+    }
+    append(out, slice(data, cursor, tables[base].insert));
+    for (const auto& identity : merged_order) {
+        const auto found = merged.find(identity);
+        if (found != merged.end()) append(out, found->second);
+    }
+    append(out, slice(data, tables[base].insert, data.size()));
+    parse_bone_offset_table(out);
+    return out;
+}
+
 }  // namespace
 
 FileMap merge_overlay_files(const FileMap& before, const FileMap& after, const FileMap& current) {
@@ -340,6 +398,8 @@ FileMap merge_overlay_files_tracked(const FileMap& before, const FileMap& after,
             result.set(path, blob(merge_pathc(*b, *a, *c, path)));
         } else if (path == "ui/xml/texture/cd_item_icon.xml") {
             result.set(path, blob(merge_icons(*b, *a, *c, path)));
+        } else if (path == "character/descriptors/boneoffset/boneoffsetsample.xml") {
+            result.set(path, blob(merge_bone_offsets(*b, *a, *c, path)));
         } else {
             throw OverlayConflict("Overlay conflict in " + path + "; overlapping file edits cannot be separated safely.");
         }

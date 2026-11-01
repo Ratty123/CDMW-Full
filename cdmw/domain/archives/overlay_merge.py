@@ -303,6 +303,41 @@ def _icons(before, after, current, where):
     return prefix + newline.join(raw for _key, raw in records) + newline
 
 
+def _bone_offsets(before, after, current, where):
+    """Prefab entries merge by PrefabName; the rest of the file must not collide."""
+    from cdmw.core.bone_offset_table import BoneOffsetTableError, parse_bone_offset_table
+    try:
+        b, a, c = map(parse_bone_offset_table, (before, after, current))
+    except BoneOffsetTableError as exc:
+        raise OverlayConflict(f'{exc} ({where})') from exc
+    frames = (b.frame(), a.frame(), c.frame())
+    kept = _value(*frames, where)
+    base = a if kept == frames[1] and kept != frames[2] else c
+    sides = [_indexed([(e.key, t.raw(e)) for e in t.entries], lambda r: r[0]) for t in (b, a, c)]
+    merged = {}
+    for identity in dict.fromkeys((*sides[2], *sides[1], *sides[0])):
+        old, new, present = (side.get(identity) for side in sides)
+        value = _value(old and old[1], new and new[1], present and present[1], f"{where} [{identity[0].decode()}]")
+        if value is not None:
+            merged[identity] = value
+    out, cursor, counts = [], 0, defaultdict(int)
+    for entry in base.entries:
+        identity = (entry.key, counts[entry.key])
+        counts[entry.key] += 1
+        out.append(base.data[cursor:entry.start])
+        out.append(merged.pop(identity, b''))
+        cursor = entry.end
+    out.append(base.data[cursor:base.insert])
+    out.extend(merged.values())
+    out.append(base.data[base.insert:])
+    result = b''.join(out)
+    try:
+        parse_bone_offset_table(result)
+    except BoneOffsetTableError as exc:
+        raise OverlayConflict(f'{exc} ({where})') from exc
+    return result
+
+
 def merge_overlay_files(before, after, current):
     """Apply one owned change onto current files. Missing values mean no file."""
     result = dict(current)
@@ -337,6 +372,8 @@ def merge_overlay_files(before, after, current):
             result[path] = _pathc(b, a, c, path)
         elif path == 'ui/xml/texture/cd_item_icon.xml':
             result[path] = _icons(b, a, c, path)
+        elif path == 'character/descriptors/boneoffset/boneoffsetsample.xml':
+            result[path] = _bone_offsets(b, a, c, path)
         else:
             raise OverlayConflict(f'Overlay conflict in {path}; overlapping file edits cannot be separated safely.')
     return result
