@@ -286,7 +286,7 @@ def test_inspector_export_writes_a_package_the_mods_page_can_read(tmp_path, monk
     assert len(calls) == 1 and calls[0]['task_accepts_cancel'] and calls[0]['show_archive_progress']
     result = calls[0]['task'](lambda _message: None, None)
     calls[0]['on_complete'](result)
-    written = destination.with_name('retargeted sword.cditem')
+    written = destination.with_name('retargeted sword.cdmw')
     assert result[0] == written and written.is_file()
     package = read_package(written)
     assert package.title == 'retargeted sword'

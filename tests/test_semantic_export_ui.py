@@ -43,7 +43,7 @@ def test_queued_semantic_export_and_reviewed_ui_import_use_real_reader(tmp_path)
         exported = tmp_path / 'semantic-ui' / SEMANTIC_EXPORT_FILE
         bundle = read_semantic_export(exported)
         assert bundle is not None and len(bundle.packages) == 1
-        assert 'Import cdmw-semantic.cditem through CDMW' in page.comparison.toPlainText()
+        assert 'Import cdmw-semantic.cdmw through CDMW' in page.comparison.toPlainText()
         assert 'written' in page.status.text().lower()
         page.set_game_root(recipient)
         pump(app, lambda: not controller.busy)

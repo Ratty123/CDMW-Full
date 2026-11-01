@@ -67,7 +67,7 @@ Compact is the default layout. Classic is available in
 | **Mesh Editor** | Authoring > Mesh Editor | Edit supported meshes and materials; OBJ/FBX/GLB export, OBJ/FBX/DAE/glTF/GLB import. FBX import uses your selected Blender. |
 | **Placement & Animations** | Authoring > Placement & Animations | Adjust equipment attachments and review animation changes before packaging. |
 | **Textures** | Authoring > Textures | Edit layered textures, replace files in bulk, recolour, upscale and export. |
-| **Mod Management** | Utilities > Mod Management | Add `.cditem` item packages, apply them and launch the game with the items (experimental). Other mods belong in DMM. |
+| **Mod Management** | Utilities > Mod Management | Add `.cdmw` item packages, apply them and launch the game with the items (experimental). Other mods belong in DMM. |
 | **Format Explorer** | Utilities > Inspect File Formats | Check which formats and operations are supported. |
 | **Translations** | Utilities > Edit Translations | Edit game language tables or existing `.paloc` mods, with optional AI assistance. |
 | **Research** | Utilities > Asset Research | Review texture families, classifications, references and quality reports. |
@@ -92,11 +92,11 @@ translucency and painted transparency; experimental options are labelled.
 
 For an imported model, use **Apply placement** before **Build plan**. Review the
 planned files and warnings in **Output**, then write a DMM mod folder or a portable
-`.cditem` item package. Use **Add to existing mod** to extend a package deliberately;
+`.cdmw` item package. Use **Add to existing mod** to extend a package deliberately;
 fresh exports check for unintended inherited custom items.
 
-**Available outputs: DMM mod folders and portable `.cditem` item packages.**
-CDMW game overlays are disabled following the DLC update. Add `.cditem` packages in
+**Available outputs: DMM mod folders and portable `.cdmw` item packages.**
+CDMW game overlays are disabled following the DLC update. Add `.cdmw` packages in
 **Mod Management** to load them in the game through CDMW's runtime (experimental).
 New mod folders can have a custom name and an optional ZIP copy.
 

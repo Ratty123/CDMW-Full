@@ -81,13 +81,13 @@ class VirtualLoaderPage(QWidget):
         self.selection.header().setSectionResizeMode(0, QHeaderView.Stretch)
         self.selection.header().setSectionResizeMode(1, QHeaderView.ResizeToContents)
         self.selection.setToolTip(self.tr('Click a column heading to sort. Hover over a package to see its full path.'))
-        self.selection.setAccessibleDescription(self.tr('Add .cditem packages or supported mod folders to begin.'))
+        self.selection.setAccessibleDescription(self.tr('Add .cdmw packages or supported mod folders to begin.'))
         self.selection.setSelectionMode(QTreeWidget.ExtendedSelection)
         self.selection.itemSelectionChanged.connect(self._buttons)
         left.addWidget(self.selection, 1)
         choose = QHBoxLayout()
         self.add_items = self._button(choose, self.tr('Add item packages…'), 'virtual_add_items', self._add_items,
-            self.tr('Select one or more .cditem files to add to this profile.'))
+            self.tr('Select one or more .cdmw files to add to this profile.'))
         self.add_mod = self._button(choose, self.tr('Add mod folder…'), 'virtual_add_mod', self._add_mod,
             self.tr('Add an external mod folder for compatibility checking and composition.'))
         left.addLayout(choose)
@@ -260,7 +260,7 @@ class VirtualLoaderPage(QWidget):
         self._changed()
 
     def _add_items(self):
-        files, _ = QFileDialog.getOpenFileNames(self, self.tr('Add item packages…'), '', self.tr('Independent items (*.cditem)'))
+        files, _ = QFileDialog.getOpenFileNames(self, self.tr('Add item packages…'), '', self.tr('Independent items (*.cdmw *.cditem)'))
         if files:
             self._append_selection('item', files)
 

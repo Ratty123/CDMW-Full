@@ -39,7 +39,7 @@ def test_opt_in_reaches_real_export_worker_and_is_captured_before_start(tmp_path
         widget.dmm_v3.setChecked(False)
         pump(app, lambda: not controller.busy)
         assert (tmp_path / 'queued-v3/mod.field.json').is_file(), widget.status.text()
-        assert (tmp_path / 'queued-v3/cdmw-source/cdmw-semantic.cditem').is_file()
+        assert (tmp_path / 'queued-v3/cdmw-source/cdmw-semantic.cdmw').is_file()
     finally:
         if route == 'installed':
             widget.request_shutdown()

@@ -42,7 +42,7 @@ def test_v3_help_and_wiki_keep_localized_workflow_and_proof_limits(tmp_path, lan
             assert ' '.join(translated.split()) in manual
             assert language.code == 'en' or translated != key
         for key in ('DMM V3 field JSON (experimental)',
-            'Export retained independent items using existing models and icons. Unsupported changes refuse. Keep the included .cditem source; DMM mounting and game behaviour remain unverified.'):
+            'Export retained independent items using existing models and icons. Unsupported changes refuse. Keep the included .cdmw source; DMM mounting and game behaviour remain unverified.'):
             assert key in catalog and (language.code == 'en' or catalog[key] != key)
     finally:
         localizer.shutdown()

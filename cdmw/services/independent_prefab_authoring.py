@@ -65,7 +65,7 @@ def prepare_prefab_package(root, target_path, replacement, *, edited_from=None, 
     own copy, so an edit made on another mod's version of the file is refused
     rather than silently carrying that mod's changes along.
 
-    `add_to` names an existing `.cditem`. The edit then becomes that package's
+    `add_to` names an existing `.cdmw` package. The edit then becomes that package's
     next release, checked the way an install would check it, so a new mesh path
     may name a file the package's own item adds.
     """

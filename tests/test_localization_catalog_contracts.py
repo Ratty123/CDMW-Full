@@ -1661,7 +1661,7 @@ def test_generated_manifest_contains_reviewed_source_keys() -> None:
         "Use selection, transforms, brushes, topology, cleanup, normals, UVs, layers, and Morph & Refit where enabled. Each disabled control explains its limit.",
         " Placement workspace has {value_0} prefab/socket chain(s).",
         (
-            "An item package (.cditem) is added on the Mods page. It replaces only the game's own copy "
+            "An item package (.cdmw) is added on the Mods page. It replaces only the game's own copy "
             "of this prefab and refuses to load after a game update changes that copy. Adding the edit to "
             "an existing item package lets the prefab use a mesh that package's item adds.\n\n"
             "A loose folder holds game-relative files for another mod manager.\n\n"

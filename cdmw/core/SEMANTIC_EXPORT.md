@@ -2,7 +2,8 @@
 
 Owner: `mod_compatibility.py`; negotiated capability `export.semantic@1`.
 
-A semantic export folder contains exactly one opaque file, `cdmw-semantic.cditem`.
+A semantic export folder contains exactly one opaque file, `cdmw-semantic.cdmw`
+(`cdmw-semantic.cditem` in exports written before the rename; both are read).
 It is a ZIP with mandatory `semantic.json`, `packages/<sha256>.cditem` and
 `payloads/<sha256>` members. It exposes no loose game paths or installable archive
 groups. Existing byte-only readers find no game payload; existing single-package

@@ -60,13 +60,13 @@ Review & Export actions are hidden in this mode. File-only builds read the curre
 source files through the existing package builder; DDS encoding policy is unchanged.
 Edited sessions export their current flattened image.
 
-## Standalone texture .cditem packages
+## Standalone texture .cdmw packages
 
-**Authoring > Textures > Texture .cditem...** opens the package editor in every
+**Authoring > Textures > Texture .cdmw...** opens the package editor in every
 texture mode. Choose the game archive folder, filter and **Find existing textures**,
 then select an existing registered target. Choose a prepared replacement DDS,
 review the affected path, package UUID and source/replacement hashes, and write
-the portable `.cditem` outside the game archive folder. Search returns at most
+the portable `.cdmw` outside the game archive folder. Search returns at most
 200 paths and reports the total so a broad filter can be refined.
 
 The `texture.replace@1` adapter accepts existing direct texture entries whose

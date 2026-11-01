@@ -350,7 +350,7 @@ class NewItemTaskControllerMixin:
 
     def start_independent_export(self, path, *, update=False) -> bool:
         if not self.independent_mode or not self.has_current_plan:
-            self.status_message.emit("Choose Item package · .cditem and build the plan first.", True)
+            self.status_message.emit("Choose Item package · .cdmw and build the plan first.", True)
             return False
         plan, identity = self.plan, self.draft.independent_identity
         if not update:

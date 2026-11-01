@@ -1,4 +1,4 @@
-"""Frozen .cditem v1 wire vocabulary, captured from d08bd77343e1.
+"""Frozen package v1 wire vocabulary (.cdmw, formerly .cditem), captured from d08bd77343e1.
 
 These names, field sets, value types and enum values are a compatibility contract.
 Do not regenerate them when authoring classes change. Translate internal changes

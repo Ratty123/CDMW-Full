@@ -4,7 +4,7 @@ Archive overlays are disabled following the October 2026 DLC update. Their
 implementation is retained, but overlay export, installation, mounted-item
 inclusion and overlay management/recovery are unavailable in CDMW. Descriptions
 of those internal paths below document retained code, not available workflows.
-DMM mod folders and portable `.cditem` item packages are the available outputs;
+DMM mod folders and portable `.cdmw` item packages are the available outputs;
 other mod managers are not offered because they are not updated for the DLC.
 The compact base/DLC authoring tables are supported; exported items still require
 in-game verification. This does not re-enable archive installation.
@@ -1131,7 +1131,7 @@ cannot be recovered from settings alone.
 ### Stats and prices
 
 Tier, required level and maximum durability inherit the selected template until
-changed. Only verified field layouts are editable. Explicit `.cditem` overrides
+changed. Only verified field layouts are editable. Explicit `.cdmw` overrides
 use the required v2 [`item.properties` capability](INDEPENDENT_ITEMS.md#tier-required-level-and-durability);
 equipment defaults retain frozen v1 compatibility. These raw values and their
 effects on gameplay remain experimental.
@@ -1244,13 +1244,13 @@ settings in a right sidebar.
 ## Output review and Mod Management
 
 The sidebar groups **Mod folder** and **Independent item package
-(Experimental) · .cditem**, destination, plan status, **Build plan** and the selected
+(Experimental) · .cdmw**, destination, plan status, **Build plan** and the selected
 output action. Its
 settings scroll independently while the plan status and output actions stay visible.
 
-The experimental output writes a separate `.cditem` file for the virtual profile
+The experimental output writes a separate `.cdmw` file for the virtual profile
 under **Mod Management > Mods**. Physical overlay installation is disabled.
-Choose **Build plan**, then **Write item package (.cditem)**. **Update an existing
+Choose **Build plan**, then **Write item package (.cdmw)**. **Update an existing
 item package** keeps the selected package's identity; writing a new package creates
 a separate item. CDMW assigns destination identities and
 composes shared files automatically. Selecting it preserves the draft and manager
@@ -1983,7 +1983,7 @@ The Mesh Editor handoff and the New Item export have separate acceptance points:
 **Add to existing mod** uses an exported folder as the base for another plan; it
 does not reconstruct the prior editor session. Select the mod folder itself and
 rebuild the plan. Installed-overlay previews read mounted content, so they do not
-verify an uninstalled export. A portable `.cditem` is a separate
+verify an uninstalled export. A portable `.cdmw` is a separate
 [authoring package contract](INDEPENDENT_ITEMS.md), not a loose-manager folder or
 a complete Mesh Editor history. Keep these routes distinct when recording what
 was reopened. For mesh-session, draft and edited-result recovery, see
@@ -2458,7 +2458,7 @@ The template's HKX companion is copied byte for byte under each new stem either 
 It is a rigid Havok collision shape that names no vertices or files, and the game
 looks one up for every model stem: game 2.04.02 logs each one it cannot find.
 Collision therefore follows the template's outline, not the imported mesh's.
-`.cditem` plans carry it only when the package audit recognises its collision layout
+`.cdmw` plans carry it only when the package audit recognises its collision layout
 and the mesh and material hold no template cloth; otherwise the plan summary says the
 item goes without one. Loose exports always copy it.
 

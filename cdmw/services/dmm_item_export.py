@@ -1,4 +1,4 @@
-"""Opt-in V3 lowering of already verified, identity-bound .cditem exports.
+"""Opt-in V3 lowering of already verified, identity-bound .cdmw exports.
 
 The normal compiler and dependency checks remain authoritative. This adapter
 admits only additive existing-model items, never arbitrary binary row edits.

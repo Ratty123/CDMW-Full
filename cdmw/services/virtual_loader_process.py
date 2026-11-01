@@ -189,11 +189,12 @@ def _read_result(request, folder, output_path, stop_event, *, semantic_sources=(
     # Archive coordinates and inventories require a genuine selected directory.
     # Selected package and game identity files grant only exact file witnesses.
     roots = (root, *(Path(path) for path in request['mods'] if Path(path).is_dir()))
-    from cdmw.core.mod_compatibility import SEMANTIC_EXPORT_FILE
+    from cdmw.constants import PACKAGE_EXTENSIONS
+    from cdmw.core.mod_compatibility import semantic_export_wrapper
     selections = tuple(Path(path) for path in (*request['packages'], *request['mods']))
     artifact_paths = {path.resolve() for path in selections
-                      if path.suffix.lower() == '.cditem' and not path.is_dir()}
-    artifact_paths.update((path / SEMANTIC_EXPORT_FILE).resolve()
+                      if path.suffix.lower() in PACKAGE_EXTENSIONS and not path.is_dir()}
+    artifact_paths.update(semantic_export_wrapper(path).resolve()
                           for path in selections if path.is_dir())
     from cdmw.core.archive_scan_cache import (
         crimson_desert_executable_candidates, resolve_crimson_desert_executable)

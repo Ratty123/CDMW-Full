@@ -19961,7 +19961,7 @@ MESSAGE_REFERENCE = [
     "message": "Could not read {entry.path}: {exc}",
     "recovery": "format",
     "sources": {
-      "cdmw/ui/archive_browser/prefab_inspector_actions.py": 54
+      "cdmw/ui/archive_browser/prefab_inspector_actions.py": 55
     }
   },
   {
@@ -19969,7 +19969,7 @@ MESSAGE_REFERENCE = [
     "message": "Could not read {entry.path}: {result}",
     "recovery": "format",
     "sources": {
-      "cdmw/ui/archive_browser/prefab_inspector_actions.py": 76
+      "cdmw/ui/archive_browser/prefab_inspector_actions.py": 77
     }
   },
   {
@@ -25059,7 +25059,7 @@ MESSAGE_REFERENCE = [
     "message": "A required item resource is missing.",
     "recovery": "missing",
     "sources": {
-      "cdmw/services/independent_item_package.py": 567
+      "cdmw/services/independent_item_package.py": 568
     }
   },
   {
@@ -25131,7 +25131,7 @@ MESSAGE_REFERENCE = [
     "message": "A v2 package requires a v2-aware editor. Refusing to discard its modules or provenance.",
     "recovery": "integrity",
     "sources": {
-      "cdmw/services/independent_item_package.py": 807
+      "cdmw/services/independent_item_package.py": 808
     }
   },
   {
@@ -25243,7 +25243,7 @@ MESSAGE_REFERENCE = [
     "message": "An item resource exceeds the package size limit.",
     "recovery": "limits",
     "sources": {
-      "cdmw/services/independent_item_package.py": 621
+      "cdmw/services/independent_item_package.py": 622
     }
   },
   {
@@ -25348,6 +25348,14 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/services/virtual_loader_runtime.py": 66
+    }
+  },
+  {
+    "area": "independent",
+    "message": "CDMW packages use the .cdmw extension.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/services/independent_item_package.py": 801
     }
   },
   {
@@ -25793,10 +25801,10 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "independent",
-    "message": "Choose Item package · .cditem and rebuild the plan first.",
+    "message": "Choose Item package · .cdmw and rebuild the plan first.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/independent_item_package.py": 367
+      "cdmw/services/independent_item_package.py": 368
     }
   },
   {
@@ -25929,7 +25937,7 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "independent",
-    "message": "Combining semantic exports with unannotated mod folders is unsupported; retain the original .cditem contributors.",
+    "message": "Combining semantic exports with unannotated mod folders is unsupported; retain the original .cdmw contributors.",
     "recovery": "unsupported",
     "sources": {
       "cdmw/services/independent_item_compatibility.py": 845
@@ -26052,7 +26060,7 @@ MESSAGE_REFERENCE = [
     "message": "Duplicate or missing package entries.",
     "recovery": "conflict",
     "sources": {
-      "cdmw/services/independent_item_package.py": 757
+      "cdmw/services/independent_item_package.py": 758
     }
   },
   {
@@ -26060,7 +26068,7 @@ MESSAGE_REFERENCE = [
     "message": "Duplicate package metadata key.",
     "recovery": "conflict",
     "sources": {
-      "cdmw/services/independent_item_package.py": 772
+      "cdmw/services/independent_item_package.py": 773
     }
   },
   {
@@ -26068,7 +26076,7 @@ MESSAGE_REFERENCE = [
     "message": "Duplicate prepared variant binding.",
     "recovery": "conflict",
     "sources": {
-      "cdmw/services/independent_item_package.py": 588
+      "cdmw/services/independent_item_package.py": 589
     }
   },
   {
@@ -26196,7 +26204,7 @@ MESSAGE_REFERENCE = [
     "message": "Independent item changes an existing {name} record.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/independent_item_package.py": 338
+      "cdmw/services/independent_item_package.py": 339
     }
   },
   {
@@ -26205,14 +26213,6 @@ MESSAGE_REFERENCE = [
     "recovery": "recovery",
     "sources": {
       "cdmw/services/independent_item_install.py": 140
-    }
-  },
-  {
-    "area": "independent",
-    "message": "Independent item packages use the .cditem extension.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/independent_item_package.py": 800
     }
   },
   {
@@ -26228,7 +26228,7 @@ MESSAGE_REFERENCE = [
     "message": "Independent packages cannot carry the shared change: {path}",
     "recovery": "input",
     "sources": {
-      "cdmw/services/independent_item_package.py": 343
+      "cdmw/services/independent_item_package.py": 344
     }
   },
   {
@@ -26236,7 +26236,7 @@ MESSAGE_REFERENCE = [
     "message": "Independent packages cannot modify existing reward consumers or include another mod base.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/independent_item_package.py": 315
+      "cdmw/services/independent_item_package.py": 316
     }
   },
   {
@@ -26244,7 +26244,7 @@ MESSAGE_REFERENCE = [
     "message": "Independent packages may borrow only shipped game resources. Rebuild against the clean game baseline.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/independent_item_package.py": 394
+      "cdmw/services/independent_item_package.py": 395
     }
   },
   {
@@ -26252,7 +26252,7 @@ MESSAGE_REFERENCE = [
     "message": "Independent packages require verified source dependencies.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/independent_item_package.py": 369
+      "cdmw/services/independent_item_package.py": 370
     }
   },
   {
@@ -26260,7 +26260,7 @@ MESSAGE_REFERENCE = [
     "message": "Independent packages support adding shop stock, not replacing existing stock.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/independent_item_package.py": 317
+      "cdmw/services/independent_item_package.py": 318
     }
   },
   {
@@ -26381,7 +26381,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid game dependency checksum.",
     "recovery": "integrity",
     "sources": {
-      "cdmw/services/independent_item_package.py": 527
+      "cdmw/services/independent_item_package.py": 528
     }
   },
   {
@@ -26429,7 +26429,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid independent item package: {exc}",
     "recovery": "input",
     "sources": {
-      "cdmw/services/independent_item_package.py": 794
+      "cdmw/services/independent_item_package.py": 795
     }
   },
   {
@@ -26437,7 +26437,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid independent item recipe.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/independent_item_package.py": 543
+      "cdmw/services/independent_item_package.py": 544
     }
   },
   {
@@ -26461,7 +26461,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid item package title.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/independent_item_package.py": 519
+      "cdmw/services/independent_item_package.py": 520
     }
   },
   {
@@ -26565,7 +26565,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid package resource path.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/independent_item_package.py": 137
+      "cdmw/services/independent_item_package.py": 138
     }
   },
   {
@@ -26581,7 +26581,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid prepared model.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/independent_item_package.py": 574
+      "cdmw/services/independent_item_package.py": 575
     }
   },
   {
@@ -26589,7 +26589,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid prepared variant binding.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/independent_item_package.py": 585
+      "cdmw/services/independent_item_package.py": 586
     }
   },
   {
@@ -26597,7 +26597,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid prepared variants.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/independent_item_package.py": 582
+      "cdmw/services/independent_item_package.py": 583
     }
   },
   {
@@ -26861,7 +26861,7 @@ MESSAGE_REFERENCE = [
     "message": "Item package exceeds the supported size.",
     "recovery": "limits",
     "sources": {
-      "cdmw/services/independent_item_package.py": 531
+      "cdmw/services/independent_item_package.py": 532
     }
   },
   {
@@ -26869,7 +26869,7 @@ MESSAGE_REFERENCE = [
     "message": "Item package metadata exceeds the supported size.",
     "recovery": "limits",
     "sources": {
-      "cdmw/services/independent_item_package.py": 619
+      "cdmw/services/independent_item_package.py": 620
     }
   },
   {
@@ -26893,7 +26893,7 @@ MESSAGE_REFERENCE = [
     "message": "Item resource failed its checksum or size check.",
     "recovery": "integrity",
     "sources": {
-      "cdmw/services/independent_item_package.py": 681
+      "cdmw/services/independent_item_package.py": 682
     }
   },
   {
@@ -26925,7 +26925,7 @@ MESSAGE_REFERENCE = [
     "message": "Local dye mask files are not supported in independent packages. Clear the custom dye mask before exporting.",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/services/independent_item_package.py": 563
+      "cdmw/services/independent_item_package.py": 564
     }
   },
   {
@@ -27037,7 +27037,7 @@ MESSAGE_REFERENCE = [
     "message": "Portable items must use symbolic identities.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/independent_item_package.py": 546
+      "cdmw/services/independent_item_package.py": 547
     }
   },
   {
@@ -27462,7 +27462,7 @@ MESSAGE_REFERENCE = [
     "message": "Select the existing package explicitly before updating it.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/independent_item_package.py": 805
+      "cdmw/services/independent_item_package.py": 806
     }
   },
   {
@@ -27499,7 +27499,7 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "independent",
-    "message": "Semantic export requires retained .cditem contributors for every payload. Mixed foreign or untyped overlay exports remain unsupported.",
+    "message": "Semantic export requires retained .cdmw contributors for every payload. Mixed foreign or untyped overlay exports remain unsupported.",
     "recovery": "unsupported",
     "sources": {
       "cdmw/services/independent_item_compatibility.py": 741
@@ -27743,7 +27743,7 @@ MESSAGE_REFERENCE = [
     "message": "The clean game catalogue changed during snapshot validation.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/independent_item_package.py": 251
+      "cdmw/services/independent_item_package.py": 252
     }
   },
   {
@@ -27751,7 +27751,7 @@ MESSAGE_REFERENCE = [
     "message": "The clean game catalogue changed while building its snapshot.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/independent_item_package.py": 272
+      "cdmw/services/independent_item_package.py": 273
     }
   },
   {
@@ -27839,7 +27839,7 @@ MESSAGE_REFERENCE = [
     "message": "The destination changed during package export.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/independent_item_package.py": 831
+      "cdmw/services/independent_item_package.py": 832
     }
   },
   {
@@ -27887,7 +27887,7 @@ MESSAGE_REFERENCE = [
     "message": "The game archive layout is unsupported for independent items.",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/services/independent_item_package.py": 172
+      "cdmw/services/independent_item_package.py": 173
     }
   },
   {
@@ -28023,7 +28023,7 @@ MESSAGE_REFERENCE = [
     "message": "The package changed while it was being read.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/independent_item_package.py": 783
+      "cdmw/services/independent_item_package.py": 784
     }
   },
   {
@@ -28031,7 +28031,7 @@ MESSAGE_REFERENCE = [
     "message": "The package contains unreferenced resources.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/independent_item_package.py": 602
+      "cdmw/services/independent_item_package.py": 603
     }
   },
   {
@@ -28055,7 +28055,7 @@ MESSAGE_REFERENCE = [
     "message": "The package has no verified game dependencies.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/independent_item_package.py": 521
+      "cdmw/services/independent_item_package.py": 522
     }
   },
   {
@@ -28071,7 +28071,7 @@ MESSAGE_REFERENCE = [
     "message": "The package resource inventory does not match its contents.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/independent_item_package.py": 529
+      "cdmw/services/independent_item_package.py": 530
     }
   },
   {
@@ -28079,7 +28079,7 @@ MESSAGE_REFERENCE = [
     "message": "The package selected for update is missing.",
     "recovery": "missing",
     "sources": {
-      "cdmw/services/independent_item_package.py": 811
+      "cdmw/services/independent_item_package.py": 812
     }
   },
   {
@@ -28575,7 +28575,7 @@ MESSAGE_REFERENCE = [
     "message": "The semantic export game executable selection changed.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/virtual_loader_process.py": 304
+      "cdmw/services/virtual_loader_process.py": 305
     }
   },
   {
@@ -28583,7 +28583,7 @@ MESSAGE_REFERENCE = [
     "message": "The semantic export requires its exact known game executable.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/virtual_loader_process.py": 296
+      "cdmw/services/virtual_loader_process.py": 297
     }
   },
   {
@@ -28647,7 +28647,7 @@ MESSAGE_REFERENCE = [
     "message": "The shipped item tables contain custom items. Restore a clean game baseline before using independent packages.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/independent_item_package.py": 268
+      "cdmw/services/independent_item_package.py": 269
     }
   },
   {
@@ -28663,7 +28663,7 @@ MESSAGE_REFERENCE = [
     "message": "The source contains conflicting resource versions.",
     "recovery": "conflict",
     "sources": {
-      "cdmw/services/independent_item_package.py": 397
+      "cdmw/services/independent_item_package.py": 398
     }
   },
   {
@@ -28671,7 +28671,7 @@ MESSAGE_REFERENCE = [
     "message": "The staged package failed final identity and content readback.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/independent_item_package.py": 822
+      "cdmw/services/independent_item_package.py": 823
     }
   },
   {
@@ -28879,7 +28879,7 @@ MESSAGE_REFERENCE = [
     "message": "Truncated item package resource.",
     "recovery": "format",
     "sources": {
-      "cdmw/services/independent_item_package.py": 700
+      "cdmw/services/independent_item_package.py": 701
     }
   },
   {
@@ -28999,7 +28999,7 @@ MESSAGE_REFERENCE = [
     "message": "Unsafe or unsupported package entry.",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/services/independent_item_package.py": 764
+      "cdmw/services/independent_item_package.py": 765
     }
   },
   {
@@ -29056,7 +29056,7 @@ MESSAGE_REFERENCE = [
     "message": "Unsupported independent item package version or fields.",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/services/independent_item_package.py": 509
+      "cdmw/services/independent_item_package.py": 510
     }
   },
   {
@@ -29121,7 +29121,7 @@ MESSAGE_REFERENCE = [
     "message": "Unsupported owned resource: {path}",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/services/independent_item_package.py": 347
+      "cdmw/services/independent_item_package.py": 348
     }
   },
   {
@@ -29129,7 +29129,7 @@ MESSAGE_REFERENCE = [
     "message": "Unsupported package resource path: {value}",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/services/independent_item_package.py": 147
+      "cdmw/services/independent_item_package.py": 148
     }
   },
   {
@@ -29153,7 +29153,7 @@ MESSAGE_REFERENCE = [
     "message": "Unsupported prepared model side file.",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/services/independent_item_package.py": 577
+      "cdmw/services/independent_item_package.py": 578
     }
   },
   {
@@ -29177,7 +29177,7 @@ MESSAGE_REFERENCE = [
     "message": "Unsupported shared metadata change.",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/services/independent_item_package.py": 349
+      "cdmw/services/independent_item_package.py": 350
     }
   },
   {
@@ -29185,7 +29185,7 @@ MESSAGE_REFERENCE = [
     "message": "Unsupported shared table: {name}",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/services/independent_item_package.py": 332
+      "cdmw/services/independent_item_package.py": 333
     }
   },
   {
@@ -29289,7 +29289,7 @@ MESSAGE_REFERENCE = [
     "message": "Virtual preparation failed ({code}).",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/virtual_loader_process.py": 359
+      "cdmw/services/virtual_loader_process.py": 360
     }
   },
   {
@@ -29297,7 +29297,7 @@ MESSAGE_REFERENCE = [
     "message": "Virtual preparation returned an incomplete result. Prepare again.",
     "recovery": "format",
     "sources": {
-      "cdmw/services/virtual_loader_process.py": 367
+      "cdmw/services/virtual_loader_process.py": 368
     }
   },
   {
@@ -29643,7 +29643,7 @@ MESSAGE_REFERENCE = [
     "message": "{package.title}: only Create New Item packages can be rebuilt ({extra}).",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/independent_item_package.py": 479
+      "cdmw/services/independent_item_package.py": 480
     }
   },
   {
@@ -30748,7 +30748,7 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "items",
-    "message": "DMM field JSON cannot be read as ordinary mod files. For a CDMW export, import cdmw-source/cdmw-semantic.cditem instead.",
+    "message": "DMM field JSON cannot be read as ordinary mod files. For a CDMW export, import cdmw-source/cdmw-semantic.cdmw instead.",
     "recovery": "input",
     "sources": {
       "cdmw/services/new_item_mod_base.py": 121
@@ -31153,7 +31153,7 @@ MESSAGE_REFERENCE = [
     "message": "Expected a whole number.",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/new_item/item_settings_editor.py": 25
+      "cdmw/ui/new_item/item_settings_editor.py": 26
     }
   },
   {
@@ -31330,7 +31330,7 @@ MESSAGE_REFERENCE = [
     "message": "Integer is outside the supported range.",
     "recovery": "limits",
     "sources": {
-      "cdmw/ui/new_item/item_settings_editor.py": 29
+      "cdmw/ui/new_item/item_settings_editor.py": 30
     }
   },
   {
@@ -31338,7 +31338,7 @@ MESSAGE_REFERENCE = [
     "message": "Integer text is too long.",
     "recovery": "limits",
     "sources": {
-      "cdmw/ui/new_item/item_settings_editor.py": 21
+      "cdmw/ui/new_item/item_settings_editor.py": 22
     }
   },
   {
@@ -72467,10 +72467,10 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
-    "message": "A semantic export requires its single opaque .cditem wrapper; extra or linked files refuse.",
+    "message": "A semantic export requires its single opaque .cdmw wrapper; extra or linked files refuse.",
     "recovery": "input",
     "sources": {
-      "cdmw/core/mod_compatibility.py": 321
+      "cdmw/core/mod_compatibility.py": 324
     }
   },
   {
@@ -74657,7 +74657,7 @@ MESSAGE_REFERENCE = [
     "message": "Contradictory or duplicate semantic export contributor identity.",
     "recovery": "conflict",
     "sources": {
-      "cdmw/core/mod_compatibility.py": 508
+      "cdmw/core/mod_compatibility.py": 519
     }
   },
   {
@@ -74934,7 +74934,7 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
-    "message": "DMM V3 requires retained .cditem contributors. Use Export installed items or merge semantic exports.",
+    "message": "DMM V3 requires retained .cdmw contributors. Use Export installed items or merge semantic exports.",
     "recovery": "input",
     "sources": {
       "cdmw/services/mod_merge_service.py": 354
@@ -75377,7 +75377,7 @@ MESSAGE_REFERENCE = [
     "message": "Duplicate or oversized semantic export entries.",
     "recovery": "conflict",
     "sources": {
-      "cdmw/core/mod_compatibility.py": 463
+      "cdmw/core/mod_compatibility.py": 474
     }
   },
   {
@@ -75401,7 +75401,7 @@ MESSAGE_REFERENCE = [
     "message": "Duplicate semantic export metadata key.",
     "recovery": "conflict",
     "sources": {
-      "cdmw/core/mod_compatibility.py": 342
+      "cdmw/core/mod_compatibility.py": 353
     }
   },
   {
@@ -75409,7 +75409,7 @@ MESSAGE_REFERENCE = [
     "message": "Duplicate semantic export payload path or invalid flags.",
     "recovery": "conflict",
     "sources": {
-      "cdmw/core/mod_compatibility.py": 567
+      "cdmw/core/mod_compatibility.py": 578
     }
   },
   {
@@ -75417,7 +75417,7 @@ MESSAGE_REFERENCE = [
     "message": "Duplicate semantic export source path.",
     "recovery": "conflict",
     "sources": {
-      "cdmw/core/mod_compatibility.py": 540
+      "cdmw/core/mod_compatibility.py": 551
     }
   },
   {
@@ -77360,7 +77360,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid or non-normalized semantic export path.",
     "recovery": "input",
     "sources": {
-      "cdmw/core/mod_compatibility.py": 328
+      "cdmw/core/mod_compatibility.py": 339
     }
   },
   {
@@ -77496,7 +77496,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid semantic export archive-index path.",
     "recovery": "input",
     "sources": {
-      "cdmw/core/mod_compatibility.py": 331
+      "cdmw/core/mod_compatibility.py": 342
     }
   },
   {
@@ -77504,7 +77504,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid semantic export contributor inventory.",
     "recovery": "input",
     "sources": {
-      "cdmw/core/mod_compatibility.py": 492
+      "cdmw/core/mod_compatibility.py": 503
     }
   },
   {
@@ -77512,7 +77512,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid semantic export contributor record.",
     "recovery": "input",
     "sources": {
-      "cdmw/core/mod_compatibility.py": 500
+      "cdmw/core/mod_compatibility.py": 511
     }
   },
   {
@@ -77520,7 +77520,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid semantic export game digest.",
     "recovery": "input",
     "sources": {
-      "cdmw/core/mod_compatibility.py": 489
+      "cdmw/core/mod_compatibility.py": 500
     }
   },
   {
@@ -77528,7 +77528,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid semantic export game identity.",
     "recovery": "input",
     "sources": {
-      "cdmw/core/mod_compatibility.py": 486
+      "cdmw/core/mod_compatibility.py": 497
     }
   },
   {
@@ -77536,7 +77536,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid semantic export output inventory.",
     "recovery": "input",
     "sources": {
-      "cdmw/core/mod_compatibility.py": 548
+      "cdmw/core/mod_compatibility.py": 559
     }
   },
   {
@@ -77544,7 +77544,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid semantic export output record.",
     "recovery": "input",
     "sources": {
-      "cdmw/core/mod_compatibility.py": 564
+      "cdmw/core/mod_compatibility.py": 575
     }
   },
   {
@@ -77552,7 +77552,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid semantic export payload size or digest.",
     "recovery": "format",
     "sources": {
-      "cdmw/core/mod_compatibility.py": 352
+      "cdmw/core/mod_compatibility.py": 363
     }
   },
   {
@@ -77560,7 +77560,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid semantic export source witness inventory.",
     "recovery": "input",
     "sources": {
-      "cdmw/core/mod_compatibility.py": 532
+      "cdmw/core/mod_compatibility.py": 543
     }
   },
   {
@@ -77568,7 +77568,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid semantic export source witness.",
     "recovery": "input",
     "sources": {
-      "cdmw/core/mod_compatibility.py": 536
+      "cdmw/core/mod_compatibility.py": 547
     }
   },
   {
@@ -77576,7 +77576,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid semantic export: {error}",
     "recovery": "input",
     "sources": {
-      "cdmw/core/mod_compatibility.py": 584
+      "cdmw/core/mod_compatibility.py": 595
     }
   },
   {
@@ -78081,7 +78081,7 @@ MESSAGE_REFERENCE = [
     "message": "Linked semantic export files are unsupported.",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/core/mod_compatibility.py": 596
+      "cdmw/core/mod_compatibility.py": 607
     }
   },
   {
@@ -78393,7 +78393,7 @@ MESSAGE_REFERENCE = [
     "message": "Missing required semantic export metadata.",
     "recovery": "missing",
     "sources": {
-      "cdmw/core/mod_compatibility.py": 459
+      "cdmw/core/mod_compatibility.py": 470
     }
   },
   {
@@ -78401,7 +78401,7 @@ MESSAGE_REFERENCE = [
     "message": "Missing semantic export source witnesses.",
     "recovery": "missing",
     "sources": {
-      "cdmw/core/mod_compatibility.py": 528
+      "cdmw/core/mod_compatibility.py": 539
     }
   },
   {
@@ -80307,7 +80307,7 @@ MESSAGE_REFERENCE = [
     "message": "Semantic export baseline disagrees with its original source witness.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/mod_compatibility.py": 576
+      "cdmw/core/mod_compatibility.py": 587
     }
   },
   {
@@ -80315,7 +80315,7 @@ MESSAGE_REFERENCE = [
     "message": "Semantic export bindings do not match its contributors.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/mod_compatibility.py": 521
+      "cdmw/core/mod_compatibility.py": 532
     }
   },
   {
@@ -80323,7 +80323,7 @@ MESSAGE_REFERENCE = [
     "message": "Semantic export contains undeclared or unreferenced entries.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/mod_compatibility.py": 580
+      "cdmw/core/mod_compatibility.py": 591
     }
   },
   {
@@ -80331,7 +80331,7 @@ MESSAGE_REFERENCE = [
     "message": "Semantic export contributor bindings disagree with retained intent.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/mod_compatibility.py": 525
+      "cdmw/core/mod_compatibility.py": 536
     }
   },
   {
@@ -80339,7 +80339,7 @@ MESSAGE_REFERENCE = [
     "message": "Semantic export contributor checksum or size mismatch.",
     "recovery": "integrity",
     "sources": {
-      "cdmw/core/mod_compatibility.py": 504
+      "cdmw/core/mod_compatibility.py": 515
     }
   },
   {
@@ -80347,7 +80347,7 @@ MESSAGE_REFERENCE = [
     "message": "Semantic export contributors exceed the selected-package size limit.",
     "recovery": "limits",
     "sources": {
-      "cdmw/core/mod_compatibility.py": 511
+      "cdmw/core/mod_compatibility.py": 522
     }
   },
   {
@@ -80355,7 +80355,7 @@ MESSAGE_REFERENCE = [
     "message": "Semantic export dependencies disagree with original source witnesses.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/mod_compatibility.py": 545
+      "cdmw/core/mod_compatibility.py": 556
     }
   },
   {
@@ -80363,7 +80363,7 @@ MESSAGE_REFERENCE = [
     "message": "Semantic export failed final on-disk readback.",
     "recovery": "write",
     "sources": {
-      "cdmw/core/mod_compatibility.py": 683
+      "cdmw/core/mod_compatibility.py": 694
     }
   },
   {
@@ -80371,7 +80371,7 @@ MESSAGE_REFERENCE = [
     "message": "Semantic export game build changed.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/mod_compatibility.py": 410
+      "cdmw/core/mod_compatibility.py": 421
     }
   },
   {
@@ -80379,7 +80379,7 @@ MESSAGE_REFERENCE = [
     "message": "Semantic export game identity changed: {key}.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/mod_compatibility.py": 392
+      "cdmw/core/mod_compatibility.py": 403
     }
   },
   {
@@ -80387,7 +80387,7 @@ MESSAGE_REFERENCE = [
     "message": "Semantic export game identity is missing: {key}.",
     "recovery": "integrity",
     "sources": {
-      "cdmw/core/mod_compatibility.py": 398
+      "cdmw/core/mod_compatibility.py": 409
     }
   },
   {
@@ -80395,7 +80395,7 @@ MESSAGE_REFERENCE = [
     "message": "Semantic export logical output or baseline size limit exceeded.",
     "recovery": "limits",
     "sources": {
-      "cdmw/core/mod_compatibility.py": 633
+      "cdmw/core/mod_compatibility.py": 644
     }
   },
   {
@@ -80403,7 +80403,7 @@ MESSAGE_REFERENCE = [
     "message": "Semantic export original source changed: {row['path']}.",
     "recovery": "stale",
     "sources": {
-      "cdmw/core/mod_compatibility.py": 433
+      "cdmw/core/mod_compatibility.py": 444
     }
   },
   {
@@ -80411,7 +80411,7 @@ MESSAGE_REFERENCE = [
     "message": "Semantic export original texture registry changed.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/mod_compatibility.py": 439
+      "cdmw/core/mod_compatibility.py": 450
     }
   },
   {
@@ -80419,7 +80419,7 @@ MESSAGE_REFERENCE = [
     "message": "Semantic export originals do not match every emitted payload.",
     "recovery": "format",
     "sources": {
-      "cdmw/core/mod_compatibility.py": 648
+      "cdmw/core/mod_compatibility.py": 659
     }
   },
   {
@@ -80427,7 +80427,7 @@ MESSAGE_REFERENCE = [
     "message": "Semantic export payload checksum or size mismatch.",
     "recovery": "integrity",
     "sources": {
-      "cdmw/core/mod_compatibility.py": 558
+      "cdmw/core/mod_compatibility.py": 569
     }
   },
   {
@@ -80435,7 +80435,7 @@ MESSAGE_REFERENCE = [
     "message": "Semantic export payload exceeds its supported size.",
     "recovery": "limits",
     "sources": {
-      "cdmw/core/mod_compatibility.py": 637
+      "cdmw/core/mod_compatibility.py": 648
     }
   },
   {
@@ -80451,7 +80451,7 @@ MESSAGE_REFERENCE = [
     "message": "Semantic export source index changed: {row['path']}.",
     "recovery": "stale",
     "sources": {
-      "cdmw/core/mod_compatibility.py": 423
+      "cdmw/core/mod_compatibility.py": 434
     }
   },
   {
@@ -80459,7 +80459,7 @@ MESSAGE_REFERENCE = [
     "message": "Semantic export staging must be empty.",
     "recovery": "empty",
     "sources": {
-      "cdmw/core/mod_compatibility.py": 674
+      "cdmw/core/mod_compatibility.py": 685
     }
   },
   {
@@ -82500,7 +82500,7 @@ MESSAGE_REFERENCE = [
     "message": "The semantic export archive indexes differ from the witnessed game baseline.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/mod_compatibility.py": 417
+      "cdmw/core/mod_compatibility.py": 428
     }
   },
   {
@@ -82508,7 +82508,7 @@ MESSAGE_REFERENCE = [
     "message": "The semantic export changed after review.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/mod_compatibility.py": 375
+      "cdmw/core/mod_compatibility.py": 386
     }
   },
   {
@@ -82516,7 +82516,7 @@ MESSAGE_REFERENCE = [
     "message": "The semantic export changed while reading.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/mod_compatibility.py": 614
+      "cdmw/core/mod_compatibility.py": 625
     }
   },
   {
@@ -82524,7 +82524,7 @@ MESSAGE_REFERENCE = [
     "message": "The semantic export compiler is unsupported. Export again with the current compiler.",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/core/mod_compatibility.py": 382
+      "cdmw/core/mod_compatibility.py": 393
     }
   },
   {
@@ -82532,7 +82532,7 @@ MESSAGE_REFERENCE = [
     "message": "The semantic export exceeds the supported size.",
     "recovery": "limits",
     "sources": {
-      "cdmw/core/mod_compatibility.py": 452
+      "cdmw/core/mod_compatibility.py": 463
     }
   },
   {
@@ -82540,7 +82540,7 @@ MESSAGE_REFERENCE = [
     "message": "The semantic export folder changed after review.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/mod_compatibility.py": 373
+      "cdmw/core/mod_compatibility.py": 384
     }
   },
   {
@@ -83341,7 +83341,7 @@ MESSAGE_REFERENCE = [
     "message": "Unsafe or unsupported semantic export entry.",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/core/mod_compatibility.py": 471
+      "cdmw/core/mod_compatibility.py": 482
     }
   },
   {
@@ -83792,7 +83792,7 @@ MESSAGE_REFERENCE = [
     "message": "Unsupported required semantic export format or capability version.",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/core/mod_compatibility.py": 481
+      "cdmw/core/mod_compatibility.py": 492
     }
   },
   {
